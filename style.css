@@ -10,6 +10,10 @@
   direction: rtl;
 }
 
+#stories div {
+  direction: ltr;
+}
+
 #sep_slider {
   background-color: rgb(114, 100, 100);
   position: absolute;
@@ -24,7 +28,6 @@
 }
 
 .story {
-  direction: ltr;
   border-bottom: thin solid #b3b3b3;
   padding: 5px 15px;
 }
@@ -43,7 +46,7 @@
 }
 
 .selected {
-  background: #ccc;
+  background: #e8b9b9;
 }
 
 .story a {
