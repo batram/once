@@ -16,7 +16,7 @@
         <input type="text" id="searchfield" placeholder="search" />
       </div>
     </div>
-    <div id="sep"></div>
+    <div id="sep_slider"></div>
     <div id="content">
       <iframe id="frams" name="frams"></iframe>
     </div>
@@ -28,6 +28,8 @@
   const { Menu, MenuItem } = remote
   const filters = require("./filters")
   const story_parser = require("./parser")
+  const seperation_slider = require("./sep_slider")
+  seperation_slider.init_slider()
 
   searchfield.addEventListener("input", (x) => {
     console.log(x)
@@ -221,39 +223,4 @@
       }
     })
   })
-
-  //resize on border
-  let resize_active = false
-  let resize_position = false
-  function resize(e) {
-    if (resize_active) {
-      resize_position = e.x
-      percent = ((window.innerWidth - e.x) / window.innerWidth) * 100
-      stories.style.width = 100 - percent + "%"
-      sep.style.left = 100 - percent + "%"
-      content.style.width = percent + "%"
-    }
-  }
-
-  sep.addEventListener(
-    "mousedown",
-    (e) => {
-      document.getElementById("frams").style.visibility = "hidden"
-      resize_active = true
-      m_pos = e.x
-      console.log("mousedown")
-      document.addEventListener("mousemove", resize, false)
-    },
-    false
-  )
-
-  document.addEventListener(
-    "mouseup",
-    () => {
-      document.getElementById("frams").style.visibility = ""
-      resize_active = false
-      document.removeEventListener("mousemove", resize, false)
-    },
-    false
-  )
 </script>

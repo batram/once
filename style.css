@@ -10,7 +10,7 @@
   direction: rtl;
 }
 
-#sep {
+#sep_slider {
   background-color: rgb(114, 100, 100);
   position: absolute;
   float: right;
@@ -20,8 +20,6 @@
   width: 4px;
   height: 100%;
   cursor: w-resize;
-  -moz-user-select: none;
-  -ms-user-select: none;
   user-select: none;
 }
 
