@@ -119,6 +119,10 @@
     type.style.color = story.colors[1]
     type.style.display = "inline-block"
     info.appendChild(type)
+
+    new_story.dataset.timestamp = story.timestamp
+    info.appendChild(document.createTextNode("  " + story.time_str + "  "))
+
     info.appendChild(document.createTextNode(" (" + link.hostname + ")"))
 
     let og_link = document.createElement("a")
@@ -213,7 +217,29 @@
         x.text().then((val) => {
           let dom_parser = new DOMParser(val)
           let doc = dom_parser.parseFromString(val, "text/html")
-          story_parser.parse(url, doc)
+
+          let stories = story_parser.parse(url, doc)
+
+          stories.forEach((x) => {
+            add_story(x)
+          })
+
+          //sort by timestamp
+          let storted = Array.from(document.querySelectorAll(".story")).sort(
+            (a, b) => {
+              var a_time = a.dataset.timestamp
+              var b_time = b.dataset.timestamp
+              if (a_time > b_time) return -1
+              if (a_time < b_time) return 1
+              return 0
+            }
+          )
+ 
+          storted.forEach((x) => {
+            document.querySelector("#stories").appendChild(x)
+          })
+
+          
           document.querySelectorAll(".story").forEach((x) => {
             if (x.classList.contains("read")) {
               document.querySelector("#stories").appendChild(x)
