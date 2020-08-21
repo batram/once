@@ -117,8 +117,7 @@
 
     }))
 
-  let dump_list = `
-    bbc.co.uk
+  let dump_list = `bbc.co.uk
     bbc.com
     bloomberg.com
     brave.com
@@ -131,7 +130,6 @@
     foxnews.com
     hbr.org
     latimes.com
-    medium.com
     mercurynews.com
     mozilla.org
     newyorker.com
@@ -154,8 +152,9 @@
     washingtonpost.com
     wired.com
     wsj.com
-    yahoo.com
-  `.split("\n").map(x => x.trim())
+    yahoo.com`.split("\n").map(x => x.trim())
+
+  console.log(dump_list)
 
   let filters = {
     'twitter.com' : twitnit,
@@ -174,7 +173,8 @@
 
   function filter_story(story){
     for(pattern in dump_list){
-      if(story.href.includes(pattern)){
+      if(story.href.includes(dump_list[pattern])){
+        console.log('filter bye bye', story.href, dump_list[pattern])
         return false;
       }
     }
@@ -290,10 +290,15 @@
     let curl = 'https://news.ycombinator.com/item?id='
     let stories = doc.querySelectorAll('.storylink')
     stories.forEach( x => {
+      let id = x.parentElement.parentElement.id
+      if(x.protocol == 'file:'){
+        x.href = curl + id
+      }
+
       add_story({'type' : 'HN',
                  'href' : x.href, 
                  'title' : x.innerText, 
-                 'comment_url': curl + x.parentElement.parentElement.id})
+                 'comment_url': curl + id})
     });
   }
 
@@ -302,7 +307,7 @@
     let stories = doc.querySelectorAll('.u-url')
     console.log(stories)
     stories.forEach( x => {
-      add_story({'type' : 'LOB',
+      add_story({'type' : 'LO',
                  'href' : x.href, 
                  'title' : x.innerText, 
                  'comment_url': curl + x.parentElement.parentElement.parentElement.parentElement.dataset.shortid})
@@ -318,6 +323,11 @@
           let parser = new DOMParser(val)
           let doc = parser.parseFromString(val, "text/html")
           parse(url, doc)
+          document.querySelectorAll('.story').forEach( x => {
+            if(x.classList.contains('read')){
+              document.querySelector('#stories').appendChild(x)
+            }
+          })
         })
       }     
     })
