@@ -1,9 +1,11 @@
-const { app, BrowserWindow } = require('electron')
-const https = require('https');
+const { app, BrowserWindow, session } = require("electron")
+const https = require("https")
 
-require('electron-reload')(__dirname);
+require("electron-reload")(__dirname)
+const ElectronBlocker = require("@cliqz/adblocker-electron")
+const fetch = require("cross-fetch")
 
-function createWindow () {
+function createWindow() {
   // Create the browser window.
   const win = new BrowserWindow({
     width: 800,
@@ -13,32 +15,35 @@ function createWindow () {
     }
   })
 
-  win.webContents.session.webRequest.onHeadersReceived({ urls: [ "*://*/*" ] },
-    (d, c)=>{
-      if(d.responseHeaders['X-Frame-Options']){
-        delete d.responseHeaders['X-Frame-Options']
-      } else if(d.responseHeaders['x-frame-options']) {
-        delete d.responseHeaders['x-frame-options']
-      } else if(d.responseHeaders['content-security-policy']) {
-        delete d.responseHeaders['content-security-policy']
-      }
-      delete d.responseHeaders['content-security-policy']
-      delete d.responseHeaders['Set-Cookie']
-      delete d.responseHeaders['Content-Security-Policy']
-      delete d.responseHeaders['X-Content-Type-Options']
-      delete d.responseHeaders['X-XSS-Protection']
-      console.log(d);
+  win.webContents.session.webRequest.onHeadersReceived(
+    { urls: ["*://*/*"] },
+    (d, c) => {
+      delete d.responseHeaders["X-Frame-Options"]
+      delete d.responseHeaders["x-frame-options"]
+      delete d.responseHeaders["content-security-policy"]
+      delete d.responseHeaders["content-security-policy"]
+      delete d.responseHeaders["Set-Cookie"]
+      delete d.responseHeaders["Content-Security-Policy"]
+      delete d.responseHeaders["X-Content-Type-Options"]
+      delete d.responseHeaders["X-XSS-Protection"]
 
-      c({cancel: false, responseHeaders: d.responseHeaders})
+      c({
+        cancel: false,
+        responseHeaders: d.responseHeaders
+      })
     }
   )
 
-
-
   // and load the index.html of the app.
-  win.loadFile('index.html')
+  win.loadFile("index.html")
+
+  ElectronBlocker.ElectronBlocker.fromPrebuiltAdsAndTracking(fetch).then(
+    (blocker) => {
+      blocker.enableBlockingInSession(session.defaultSession)
+    }
+  )
 }
 
 app.whenReady().then(() => {
   createWindow()
-});
+})
