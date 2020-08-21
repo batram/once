@@ -1,5 +1,5 @@
 module.exports = {
-  filter_story
+  filter_story,
 }
 
 let default_filterlist = `bbc.co.uk
@@ -43,7 +43,7 @@ yahoo.com`
 
 let dynamic_filters = {
   "twitter.com": twitnit,
-  "www.reddit.com": old_reddit
+  "www.reddit.com": old_reddit,
 }
 
 function get_filterlist() {

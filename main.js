@@ -11,8 +11,8 @@ function createWindow() {
     width: 800,
     height: 600,
     webPreferences: {
-      nodeIntegration: true
-    }
+      nodeIntegration: true,
+    },
   })
 
   // and load the index.html of the app.
@@ -37,7 +37,7 @@ function createWindow() {
 
           c({
             cancel: false,
-            responseHeaders: d.responseHeaders
+            responseHeaders: d.responseHeaders,
           })
         }
       )

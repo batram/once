@@ -1,10 +1,10 @@
 module.exports = {
-  parse
+  parse,
 }
 
 let parsers = {
   "https://news.ycombinator.com/": parse_hn,
-  "https://lobste.rs/": parse_lob
+  "https://lobste.rs/": parse_lob,
 }
 
 function parse(url, doc) {
@@ -29,7 +29,8 @@ function parse_hn(doc) {
       type: "HN",
       href: x.href,
       title: x.innerText,
-      comment_url: curl + id
+      comment_url: curl + id,
+      colors: ["rgba(255, 102, 0, 0.56)", "white"],
     })
   })
 }
@@ -49,7 +50,8 @@ function parse_lob(doc) {
       type: "LO",
       href: x.href,
       title: x.innerText,
-      comment_url: curl + id
+      comment_url: curl + id,
+      colors: ["rgba(143, 0, 0, 0.56)", "white"],
     })
   })
 }

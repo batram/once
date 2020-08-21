@@ -48,7 +48,7 @@
 
   const stupidMenu = {
     rightClickPosition: null,
-    target: null
+    target: null,
   }
 
   const menu = new Menu()
@@ -57,7 +57,7 @@
       label: "Copy URL",
       click() {
         clipboard.writeText(stupidMenu.target.href, "selection")
-      }
+      },
     })
   )
   menu.append(
@@ -65,7 +65,7 @@
       label: "Open in Browser",
       click: async () => {
         await shell.openExternal(stupidMenu.target.href)
-      }
+      },
     })
   )
   menu.append(
@@ -78,7 +78,7 @@
             stupidMenu.rightClickPosition.x,
             stupidMenu.rightClickPosition.y
           )
-      }
+      },
     })
   )
 
@@ -111,8 +111,13 @@
     title.innerText = story.title
 
     let info = document.createElement("div")
-    info.innerText = " [" + story.type + "] "
-    info.innerText += " (" + link.hostname + ")"
+    let type = document.createElement("p")
+    type.innerText = "[" + story.type + "]"
+    type.style.backgroundColor = story.colors[0]
+    type.style.color = story.colors[1]
+    type.style.display = "inline-block"
+    info.appendChild(type)
+    info.appendChild(document.createTextNode(" (" + link.hostname + ")"))
 
     let og_link = document.createElement("a")
     og_link.innerText = " [OG] "
@@ -152,10 +157,10 @@
         stupidMenu.target = story
         stupidMenu.rightClickPosition = {
           x: e.x,
-          y: e.y
+          y: e.y,
         }
         menu.popup({
-          window: remote.getCurrentWindow()
+          window: remote.getCurrentWindow(),
         })
       },
       false
@@ -197,7 +202,7 @@
     "https://news.ycombinator.com/",
     "https://news.ycombinator.com/news?p=2",
     "https://news.ycombinator.com/news?p=3",
-    "https://lobste.rs/"
+    "https://lobste.rs/",
   ]
 
   urls.forEach((url) => {
