@@ -1,123 +1,62 @@
 <!DOCTYPE html>
 <html>
-  <head>
+
+<head>
     <meta charset="UTF-8">
     <title>Once!</title>
     <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />
-    <style>
-      #stories {
-        width: 48%;
-        height: 100%;
-        float: left;
-        text-decoration-line: none;
-        padding: 0;
-        overflow-y: scroll; 
-        overflow-x: none; 
-      }
+    <link rel="stylesheet" href="style.css">
+</head>
 
-      .story {
-        border-bottom: thin solid #b3b3b3;
-        padding: 5px 15px;
-      }
-
-      .read {
-        background: #ccc;
-      }
-
-      .selected {
-        background: #ccc;
-      }
-
-      .story a {
-        text-decoration-line: none;
-        color: rgb(0, 0, 0);
-        font-family: Verdana, Geneva, sans-serif;
-        font-size: 7pt;
-      }
-
-      .story h2 {
-        margin: 0;
-      }
-
-      #stories a div {
-        color: #828282;
-        font-size: 6.9pt;
-      }
-
-      body, html {
-        background-color: rgb(246, 246, 239);
-        min-height: 100%;
-        height: 100%;
-        margin: 0;
-      }
-
-      #content {
-        width: 50%;
-        float: left;
-        height: 100%;
-      }
-      
-      #frams {
-        width: 100%;
-        height: 100%;
-        min-height: 800px;
-      }
-
-      .read_btn {
-        position: relative;
-        float: right;
-        top: -24px;
-        border: thin solid black;
-        cursor: pointer;
-        padding: 2px;
-        font-size: 13px;
-      }
-
-      .read .read_btn {
-        background: rgb(75, 74, 74);
-        color: rgb(214, 213, 213);
-      }
-
-      
-    </style>
-  </head>
-  <body>
+<body>
     <div id="stories"></div>
     <div id="content">
-      <iframe id="frams" name="frams" style="border: thin solid beige;"></iframe>
+        <iframe id="frams" name="frams"></iframe>
     </div>
-  </body>
+</body>
+
 </html>
 
 <script>
-  const { remote, clipboard } = require('electron')
-  const { Menu, MenuItem } = remote
+    const {
+        remote,
+        clipboard
+    } = require('electron')
+    const {
+        Menu,
+        MenuItem
+    } = remote
 
-  const stupidMenu = {
-    target: null
-  }
-  let rightClickPosition = null
+    const stupidMenu = {
+        target: null
+    }
+    let rightClickPosition = null
 
-  const menu = new Menu()
-  menu.append(new MenuItem({ label: 'Copy URL', click() {  
-    clipboard.writeText(stupidMenu.target.href, 'selection')  
-  }}))
-  menu.append(new MenuItem({ 
+    const menu = new Menu()
+    menu.append(new MenuItem({
+        label: 'Copy URL',
+        click() {
+            clipboard.writeText(stupidMenu.target.href, 'selection')
+        }
+    }))
+    menu.append(new MenuItem({
         label: 'Open in Browser',
         click: async () => {
-          const { shell } = require('electron')
-          await shell.openExternal(stupidMenu.target.href)
-        }    
+            const {
+                shell
+            } = require('electron')
+            await shell.openExternal(stupidMenu.target.href)
+        }
     }))
-    menu.append(new MenuItem({ 
+    menu.append(new MenuItem({
         label: 'test',
         click: () => {
-          remote.getCurrentWindow().inspectElement(rightClickPosition.x, rightClickPosition.y)
+            remote.getCurrentWindow().inspectElement(rightClickPosition.x, rightClickPosition.y)
         }
 
     }))
 
-  let dump_list = `bbc.co.uk
+    let dump_list = `bbc.co.uk
     bbc.com
     bloomberg.com
     brave.com
@@ -154,184 +93,197 @@
     wsj.com
     yahoo.com`.split("\n").map(x => x.trim())
 
-  console.log(dump_list)
-
-  let filters = {
-    'twitter.com' : twitnit,
-    'www.reddit.com' : old_reddit,
-  }
-
-  function twitnit(story){
-    story.href = story.href.replace('twitter.com', 'nitter.net')
-    return story;
-  }
-
-  function old_reddit(story){
-    story.href = story.href.replace('www.reddit.com', 'old.reddit.com')
-    return story;
-  }
-
-  function filter_story(story){
-    for(pattern in dump_list){
-      if(story.href.includes(dump_list[pattern])){
-        console.log('filter bye bye', story.href, dump_list[pattern])
-        return false;
-      }
-    }
-    for(pattern in filters){
-      if(story.href.includes(pattern)){
-        return filters[pattern](story);
-      }
+    let filters = {
+        'twitter.com': twitnit,
+        'www.reddit.com': old_reddit,
     }
 
-    return story;
-  }
-
-  function read_story(href){
-    let readlist = localStorage.getItem('readlist')
-    try {
-      readlist = JSON.parse(readlist)
-    } catch(e) {
-      readlist = []
+    function twitnit(story) {
+        story.href = story.href.replace('twitter.com', 'nitter.net')
+        return story
     }
-    return readlist.includes(href)
-  }
 
-  function add_story(story){
-    story = filter_story(story);
-    if(story === false){
-      return;
+    function old_reddit(story) {
+        story.href = story.href.replace('www.reddit.com', 'old.reddit.com')
+        return story
     }
-    let stories_container = document.querySelector('#stories')
-    let new_story = document.createElement('div')
-    new_story.classList.add('story')
-    if(read_story(story.href)){
-      new_story.classList.add('read')
-    }
-    let link = document.createElement('a')
-    link.href = story.href
-    link.target = 'frams'
-    let title = document.createElement('h2')
-    title.innerText = story.title
-    let info = document.createElement('div')
-    info.innerText = ' [' + story.type + '] '
-    info.innerText += ' (' + link.hostname + ')'
-    let og_link = document.createElement('a')
-    og_link.innerText = ' [OG] '
-    og_link.href = story.href
-    og_link.target = 'frams'
-    info.appendChild(og_link)
-    title.appendChild(info)
-    link.appendChild(title)
-    new_story.appendChild(link)
 
-    let read_btn = document.createElement('div')
-    read_btn.classList.add('read_btn')
-    read_btn.innerText = 'read'
-    read_btn.onclick = x => {
-      if(!new_story.classList.contains('read')){
-        new_story.classList.add('read')
-        mark_as_read(story.href)
-      }
-    }
-    
-    new_story.appendChild(read_btn)
-  
-    new_story.addEventListener('contextmenu', (e) => {
-      e.preventDefault()
-      stupidMenu.target = story
-      rightClickPosition = {x: e.x, y: e.y}
-      menu.popup({ window: remote.getCurrentWindow(), callback: x => {console.log('moep', x)}})
-    }, false)
-
-    new_story.addEventListener('click', (e) => {
-      document.querySelectorAll('.story').forEach( x => {
-        if(x.classList.contains('read')){
-          document.querySelector('#stories').appendChild(x)
-        }
-        x.classList.remove('selected')
-      })
-      new_story.classList.add('selected')
-      if(!new_story.classList.contains('read')){
-        new_story.classList.add('read')
-        mark_as_read(story.href)
-      }
-    }, false)
-
-    stories_container.appendChild(new_story)
-  }
-
-  function mark_as_read(href){
-    let readlist = localStorage.getItem('readlist')
-    try {
-      readlist = JSON.parse(readlist)
-    } catch(e) {
-      readlist = []
-    }
-    readlist.push(href)
-    localStorage.setItem('readlist', JSON.stringify(readlist))
-  }
-
-  let parsers = {
-    'https://news.ycombinator.com/' : parse_hn,
-    'https://lobste.rs/' : parse_lob,
-  }
-
-  function parse(url, doc){
-    for(pattern in parsers){
-      if(url.startsWith(pattern)){
-        parsers[pattern](doc)
-        break;
-      }
-    }
-  }
-
-  function parse_hn(doc){
-    let curl = 'https://news.ycombinator.com/item?id='
-    let stories = doc.querySelectorAll('.storylink')
-    stories.forEach( x => {
-      let id = x.parentElement.parentElement.id
-      if(x.protocol == 'file:'){
-        x.href = curl + id
-      }
-
-      add_story({'type' : 'HN',
-                 'href' : x.href, 
-                 'title' : x.innerText, 
-                 'comment_url': curl + id})
-    });
-  }
-
-  function parse_lob(doc){
-    let curl = 'https://lobste.rs/s/'
-    let stories = doc.querySelectorAll('.u-url')
-    console.log(stories)
-    stories.forEach( x => {
-      add_story({'type' : 'LO',
-                 'href' : x.href, 
-                 'title' : x.innerText, 
-                 'comment_url': curl + x.parentElement.parentElement.parentElement.parentElement.dataset.shortid})
-    });
-  }
-
-  let urls = ['https://news.ycombinator.com/' ,'https://news.ycombinator.com/news?p=2', 'https://news.ycombinator.com/news?p=3', 'https://lobste.rs/']
-
-  urls.forEach( url => {
-    fetch(url).then( x => { 
-      if(x.ok){
-        x.text().then(val => {    
-          let parser = new DOMParser(val)
-          let doc = parser.parseFromString(val, "text/html")
-          parse(url, doc)
-          document.querySelectorAll('.story').forEach( x => {
-            if(x.classList.contains('read')){
-              document.querySelector('#stories').appendChild(x)
+    function filter_story(story) {
+        for (pattern in dump_list) {
+            if (story.href.includes(dump_list[pattern])) {
+                return false
             }
-          })
+        }
+
+        for (pattern in filters) {
+            if (story.href.includes(pattern)) {
+                return filters[pattern](story)
+            }
+        }
+
+        return story
+    }
+
+    function read_story(href) {
+        let readlist = localStorage.getItem('readlist')
+        try {
+            readlist = JSON.parse(readlist)
+        } catch (e) {
+            readlist = []
+        }
+        return readlist.includes(href)
+    }
+
+    function add_story(story) {
+        story = filter_story(story)
+        if (story === false) {
+            return
+        }
+
+        let stories_container = document.querySelector('#stories')
+        let new_story = document.createElement('div')
+        new_story.classList.add('story')
+        if (read_story(story.href)) {
+            new_story.classList.add('read')
+        }
+        let link = document.createElement('a')
+        link.href = story.href
+        link.target = 'frams'
+        let title = document.createElement('h2')
+        title.innerText = story.title
+        let info = document.createElement('div')
+        info.innerText = ' [' + story.type + '] '
+        info.innerText += ' (' + link.hostname + ')'
+        let og_link = document.createElement('a')
+        og_link.innerText = ' [OG] '
+        og_link.href = story.href
+        og_link.target = 'frams'
+        info.appendChild(og_link)
+        title.appendChild(info)
+        link.appendChild(title)
+        new_story.appendChild(link)
+
+        let read_btn = document.createElement('div')
+        read_btn.classList.add('read_btn')
+        read_btn.innerText = 'read'
+        read_btn.onclick = x => {
+            if (!new_story.classList.contains('read')) {
+                new_story.classList.add('read')
+                mark_as_read(story.href)
+            }
+        }
+
+        new_story.appendChild(read_btn)
+
+        new_story.addEventListener('contextmenu', (e) => {
+            e.preventDefault()
+            stupidMenu.target = story
+            rightClickPosition = {
+                x: e.x,
+                y: e.y
+            }
+            menu.popup({
+                window: remote.getCurrentWindow()
+            })
+        }, false)
+
+        new_story.addEventListener('click', (e) => {
+            document.querySelectorAll('.story').forEach(x => {
+                if (x.classList.contains('read')) {
+                    document.querySelector('#stories').appendChild(x)
+                }
+                x.classList.remove('selected')
+            })
+            new_story.classList.add('selected')
+            if (!new_story.classList.contains('read')) {
+                new_story.classList.add('read')
+                mark_as_read(story.href)
+            }
+        }, false)
+
+        stories_container.appendChild(new_story)
+    }
+
+    function mark_as_read(href) {
+        let readlist = localStorage.getItem('readlist')
+        try {
+            readlist = JSON.parse(readlist)
+        } catch (e) {
+            readlist = []
+        }
+        readlist.push(href)
+        localStorage.setItem('readlist', JSON.stringify(readlist))
+    }
+
+    let parsers = {
+        'https://news.ycombinator.com/': parse_hn,
+        'https://lobste.rs/': parse_lob,
+    }
+
+    function parse(url, doc) {
+        for (pattern in parsers) {
+            if (url.startsWith(pattern)) {
+                parsers[pattern](doc)
+                break
+            }
+        }
+    }
+
+    function parse_hn(doc) {
+        let curl = 'https://news.ycombinator.com/item?id='
+        let stories = doc.querySelectorAll('.storylink')
+        stories.forEach(x => {
+            let id = x.parentElement.parentElement.id
+            if (x.protocol == 'file:') {
+                x.href = curl + id
+            }
+
+            add_story({
+                'type': 'HN',
+                'href': x.href,
+                'title': x.innerText,
+                'comment_url': curl + id
+            })
         })
-      }     
+    }
+
+    function parse_lob(doc) {
+        let curl = 'https://lobste.rs/s/'
+        let stories = doc.querySelectorAll('.u-url')
+
+        stories.forEach(x => {
+            add_story({
+                'type': 'LO',
+                'href': x.href,
+                'title': x.innerText,
+                'comment_url': curl + x.parentElement.parentElement.parentElement.parentElement.dataset.shortid
+            })
+        })
+    }
+
+    let urls = [
+        'https://news.ycombinator.com/',
+        'https://news.ycombinator.com/news?p=2',
+        'https://news.ycombinator.com/news?p=3',
+        'https://lobste.rs/'
+    ]
+
+    urls.forEach(url => {
+        fetch(url).then(x => {
+            if (x.ok) {
+                x.text().then(val => {
+                    let parser = new DOMParser(val)
+                    let doc = parser.parseFromString(val, "text/html")
+                    parse(url, doc)
+                    document.querySelectorAll('.story').forEach(x => {
+                        if (x.classList.contains('read')) {
+                            document.querySelector('#stories').appendChild(x)
+                        }
+                    })
+                })
+            }
+        })
+
+
     })
-
-
-  })
 </script>
