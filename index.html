@@ -31,22 +31,37 @@
   const seperation_slider = require("./sep_slider")
   seperation_slider.init_slider()
 
-  searchfield.addEventListener("input", (x) => {
-    console.log(x)
-    if (x.target.value.length > 0) {
-      event.target.focus()
-      ipcRenderer.send("search-text", event.target.value)
+  window.addEventListener("keyup", (e) => {
+    console.log("eveky", e)
+    //CTRL + F
+    if (e.key == "f" && e.ctrlKey) {
+      searchfield.focus()
     }
   })
 
-  searchfield.addEventListener("keyup", (x) => {
-    if (event.keyCode === 13) {
-      if (x.target.value.length > 0) {
-        ipcRenderer.send("search-text", event.target.value)
-        event.target.focus()
-      }
+  searchfield.addEventListener("input", (e) => {
+    search_stories(e.target.value)
+  })
+
+  searchfield.addEventListener("keyup", (e) => {
+    if (event.keyCode === 27) {
+      //ESC
+      e.target.value = ""
+    } else if (e.keyCode === 13) {
+      //ENTER
+      //ipcRenderer.send("search-text", e.target.value)
+      search_stories(e.target.value)
     }
   })
+
+  function search_stories(needle) {
+    document.querySelectorAll(".story").forEach((x) => {
+      x.style.display = ""
+      if (!x.innerHTML.toLowerCase().includes(needle.toLowerCase())) {
+        x.style.display = "none"
+      }
+    })
+  }
 
   const stupidMenu = {
     rightClickPosition: null,
