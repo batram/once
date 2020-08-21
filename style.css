@@ -1,16 +1,43 @@
 #stories {
-  width: 48%;
+  width: 50%;
   height: 100%;
   float: left;
   text-decoration-line: none;
   padding: 0;
   overflow-y: scroll;
   overflow-x: none;
+  /* scroll on the left */
+  direction: rtl;
+}
+
+#sep {
+  background-color: rgb(114, 100, 100);
+  position: absolute;
+  float: right;
+  top: 0;
+  left: 50%;
+  border: thin solid rgb(196, 163, 163);
+  width: 4px;
+  height: 100%;
+  cursor: w-resize;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 }
 
 .story {
+  direction: ltr;
   border-bottom: thin solid #b3b3b3;
   padding: 5px 15px;
+}
+
+#search {
+  border-bottom: thin solid #b3b3b3;
+  padding: 5px 15px;
+}
+
+#searchfield {
+  width: 100%;
 }
 
 .read {
@@ -43,6 +70,7 @@ html {
   min-height: 100%;
   height: 100%;
   margin: 0;
+  overflow: hidden;
 }
 
 #content {
@@ -54,7 +82,8 @@ html {
 #frams {
   width: 100%;
   height: 100%;
-  min-height: 800px;
+  border: thin solid beige;
+  border-left: thick solid black;
 }
 
 .btn {
@@ -71,8 +100,4 @@ html {
 .read .read_btn {
   background: rgb(75, 74, 74);
   color: rgb(214, 213, 213);
-}
-
-#frams {
-  border: thin solid beige;
 }

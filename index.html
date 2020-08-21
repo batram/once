@@ -11,7 +11,12 @@
   </head>
 
   <body>
-    <div id="stories"></div>
+    <div id="stories">
+      <div id="search">
+        <input type="text" id="searchfield" placeholder="search" />
+      </div>
+    </div>
+    <div id="sep"></div>
     <div id="content">
       <iframe id="frams" name="frams"></iframe>
     </div>
@@ -19,9 +24,27 @@
 </html>
 
 <script>
-  const { remote, shell, clipboard } = require("electron")
+  const { remote, shell, clipboard, ipcRenderer } = require("electron")
   const { Menu, MenuItem } = remote
   const filters = require("./filters")
+  const story_parser = require("./parser")
+
+  searchfield.addEventListener("input", (x) => {
+    console.log(x)
+    if (x.target.value.length > 0) {
+      event.target.focus()
+      ipcRenderer.send("search-text", event.target.value)
+    }
+  })
+
+  searchfield.addEventListener("keyup", (x) => {
+    if (event.keyCode === 13) {
+      if (x.target.value.length > 0) {
+        ipcRenderer.send("search-text", event.target.value)
+        event.target.focus()
+      }
+    }
+  })
 
   const stupidMenu = {
     rightClickPosition: null,
@@ -170,59 +193,6 @@
     localStorage.setItem("readlist", JSON.stringify(readlist))
   }
 
-  let parsers = {
-    "https://news.ycombinator.com/": parse_hn,
-    "https://lobste.rs/": parse_lob
-  }
-
-  function parse(url, doc) {
-    for (pattern in parsers) {
-      if (url.startsWith(pattern)) {
-        parsers[pattern](doc)
-        break
-      }
-    }
-  }
-
-  function parse_hn(doc) {
-    let curl = "https://news.ycombinator.com/item?id="
-    let stories = doc.querySelectorAll(".storylink")
-    stories.forEach((x) => {
-      let id = x.parentElement.parentElement.id
-      if (x.protocol == "file:") {
-        x.href = curl + id
-      }
-
-      add_story({
-        type: "HN",
-        href: x.href,
-        title: x.innerText,
-        comment_url: curl + id
-      })
-    })
-  }
-
-  function parse_lob(doc) {
-    let curl = "https://lobste.rs/s/"
-    let stories = doc.querySelectorAll(".u-url")
-
-    stories.forEach((x) => {
-      let id =
-        x.parentElement.parentElement.parentElement.parentElement.dataset
-          .shortid
-      if (x.protocol == "file:") {
-        x.href = curl + id
-      }
-
-      add_story({
-        type: "LO",
-        href: x.href,
-        title: x.innerText,
-        comment_url: curl + id
-      })
-    })
-  }
-
   let urls = [
     "https://news.ycombinator.com/",
     "https://news.ycombinator.com/news?p=2",
@@ -234,9 +204,9 @@
     fetch(url).then((x) => {
       if (x.ok) {
         x.text().then((val) => {
-          let parser = new DOMParser(val)
-          let doc = parser.parseFromString(val, "text/html")
-          parse(url, doc)
+          let dom_parser = new DOMParser(val)
+          let doc = dom_parser.parseFromString(val, "text/html")
+          story_parser.parse(url, doc)
           document.querySelectorAll(".story").forEach((x) => {
             if (x.classList.contains("read")) {
               document.querySelector("#stories").appendChild(x)
@@ -246,4 +216,39 @@
       }
     })
   })
+
+  //resize on border
+  let resize_active = false
+  let resize_position = false
+  function resize(e) {
+    if (resize_active) {
+      resize_position = e.x
+      percent = ((window.innerWidth - e.x) / window.innerWidth) * 100
+      stories.style.width = 100 - percent + "%"
+      sep.style.left = 100 - percent + "%"
+      content.style.width = percent + "%"
+    }
+  }
+
+  sep.addEventListener(
+    "mousedown",
+    (e) => {
+      document.getElementById("frams").style.visibility = "hidden"
+      resize_active = true
+      m_pos = e.x
+      console.log("mousedown")
+      document.addEventListener("mousemove", resize, false)
+    },
+    false
+  )
+
+  document.addEventListener(
+    "mouseup",
+    () => {
+      document.getElementById("frams").style.visibility = ""
+      resize_active = false
+      document.removeEventListener("mousemove", resize, false)
+    },
+    false
+  )
 </script>
