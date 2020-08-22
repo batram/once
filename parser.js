@@ -89,24 +89,24 @@ function human_time(time) {
   return res
 }
 
-function add_menu_tag(type, colors){
-  if(!document.querySelector('#menu div[data-type="' + type + '"]')){
-    tag = document.createElement('div')
+function add_menu_tag(type, colors) {
+  if (!document.querySelector('#menu div[data-type="' + type + '"]')) {
+    tag = document.createElement("div")
     tag.dataset.type = type
-    tag.classList.add('btn')
-    tag.classList.add('menu_btn')
-    tag.classList.add('tag')
-    tag.classList.add('tag')
-    tag.innerText = '[' + type + ']'
+    tag.classList.add("btn")
+    tag.classList.add("menu_btn")
+    tag.classList.add("tag")
+    tag.classList.add("tag")
+    tag.innerText = "[" + type + "]"
     tag.style.backgroundColor = colors[0]
     tag.style.color = colors[1]
 
-    tag.onclick = x => {
-      document.querySelector('#searchfield').value = '[' + type + ']'
-      search_stories('[' + type + ']')
+    tag.onclick = (x) => {
+      document.querySelector("#searchfield").value = "[" + type + "]"
+      search.search_stories("[" + type + "]")
     }
 
-    document.querySelector('#menu').appendChild(tag)  
+    document.querySelector("#menu").appendChild(tag)
   }
 }
 

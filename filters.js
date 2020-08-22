@@ -1,6 +1,7 @@
 module.exports = {
   filter_story,
   add_filter,
+  show_filter_dialog,
 }
 
 let default_filterlist = `bbc.co.uk
@@ -101,4 +102,41 @@ function filter_story(story) {
   }
 
   return story
+}
+
+function show_filter_dialog(event, story) {
+  event.stopPropagation()
+  event.preventDefault()
+
+  if (event.target.childElementCount != 0) {
+    return
+  }
+
+  document.addEventListener("click", (e) => {
+    if (e.target != event.target) {
+      document.querySelectorAll(".filter_btn").forEach((x) => {
+        if (!x.innerText.includes("filtered:")) {
+          x.innerText = "filter"
+        }
+      })
+    }
+  })
+
+  let inp = document.createElement("input")
+  inp.type = "text"
+  inp.value = story.hostname
+  event.target.appendChild(inp)
+  inp.focus()
+  inp.addEventListener("keyup", (e) => {
+    if (e.keyCode === 27) {
+      //ESC
+      event.target.innerText = "filter"
+    } else if (e.keyCode === 13) {
+      //ENTER
+      if (confirm('add filter: "' + inp.value + '"')) {
+        filters.add_filter(inp.value)
+        event.target.innerText = "filter"
+      }
+    }
+  })
 }

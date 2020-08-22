@@ -1,5 +1,6 @@
 module.exports = {
   init_search,
+  search_stories,
 }
 
 function init_search() {
@@ -28,7 +29,7 @@ function init_search() {
 }
 
 function search_stories(needle) {
-  document.querySelector("#stories").classList.remove('show_filtered')
+  document.querySelector("#stories").classList.remove("show_filtered")
 
   let specialk = {
     "[ALL]": () => {
@@ -36,7 +37,7 @@ function search_stories(needle) {
       search_stories("")
     },
     "[filtered]": () => {
-      document.querySelector("#stories").classList.add('show_filtered')
+      document.querySelector("#stories").classList.add("show_filtered")
       document.querySelectorAll(".story").forEach((x) => {
         x.style.display = "none"
         if (x.classList.contains("filtered")) {
