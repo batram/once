@@ -28,14 +28,11 @@
   z-index: 15;
 }
 
-.story {
-  border-bottom: thin solid #b3b3b3;
-  padding: 5px 15px;
-}
-
 #search {
   border-bottom: thin solid #b3b3b3;
   padding: 5px 15px;
+  display: flex;
+  flex-direction: row;
 }
 
 #searchfield {
@@ -48,6 +45,16 @@
 
 .selected {
   background: #e8b9b9;
+}
+
+.story {
+  border-bottom: thin solid #b3b3b3;
+  padding: 5px 15px;
+  display: flex;
+}
+
+.story .data {
+  width: 100%;
 }
 
 .story a {
@@ -89,9 +96,7 @@ html {
 }
 
 .btn {
-  position: relative;
   float: right;
-  top: -34px;
   border: thin solid black;
   cursor: pointer;
   padding: 2px;
@@ -99,9 +104,15 @@ html {
   margin: 2px;
 }
 
-.read .read_btn {
+.read_btn {
   background: rgb(75, 74, 74);
   color: rgb(214, 213, 213);
+}
+
+#reload_btn {
+  font-size: 14px;
+  padding: 3px;
+  margin: 0;
 }
 
 #foverlay {

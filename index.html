@@ -14,6 +14,7 @@
     <div id="stories">
       <div id="search">
         <input type="text" id="searchfield" placeholder="search" />
+        <div id="reload_btn" class="btn">reload</div>
       </div>
     </div>
     <div id="sep_slider"></div>
@@ -165,7 +166,21 @@
 
     title.appendChild(info)
     link.appendChild(title)
-    new_story.appendChild(link)
+
+    let data = document.createElement("div")
+    data.classList.add("data")
+
+    data.appendChild(link)
+    new_story.appendChild(data)
+
+    let filter_btn = document.createElement("div")
+    filter_btn.classList.add("btn")
+    filter_btn.classList.add("filter_btn")
+    filter_btn.innerText = "filter"
+    filter_btn.onclick = (x) => {
+      show_filter_dialog(x, story)
+    }
+    new_story.appendChild(filter_btn)
 
     let read_btn = document.createElement("div")
     read_btn.classList.add("btn")
@@ -195,15 +210,6 @@
       false
     )
     new_story.appendChild(read_btn)
-
-    let filter_btn = document.createElement("div")
-    filter_btn.classList.add("btn")
-    filter_btn.classList.add("filter_btn")
-    filter_btn.innerText = "filter"
-    filter_btn.onclick = (x) => {
-      show_filter_dialog(x, story)
-    }
-    new_story.appendChild(filter_btn)
 
     new_story.addEventListener(
       "contextmenu",
@@ -325,22 +331,32 @@
     "https://old.reddit.com/r/netsec/.rss",
   ]
 
-  urls.forEach((url) => {
-    fetch(url).then((x) => {
-      if (x.ok) {
-        x.text().then((val) => {
-          let dom_parser = new DOMParser()
-          let doc = dom_parser.parseFromString(val, "text/html")
+  function load() {
+    urls.forEach((url) => {
+      fetch(url).then((x) => {
+        if (x.ok) {
+          x.text().then((val) => {
+            let dom_parser = new DOMParser()
+            let doc = dom_parser.parseFromString(val, "text/html")
 
-          let stories = story_parser.parse(url, doc)
+            let stories = story_parser.parse(url, doc)
 
-          stories.forEach((x) => {
-            add_story(x)
+            stories.forEach((x) => {
+              add_story(x)
+            })
+
+            sort_stories()
           })
-
-          sort_stories()
-        })
-      }
+        }
+      })
     })
-  })
+  }
+  load()
+
+  reload_btn.onclick = (x) => {
+    document.querySelectorAll(".story").forEach((x) => {
+      x.outerHTML = ""
+    })
+    load()
+  }
 </script>
