@@ -1,5 +1,6 @@
 module.exports = {
   filter_story,
+  add_filter,
 }
 
 let default_filterlist = `bbc.co.uk
@@ -72,10 +73,21 @@ function old_reddit(story) {
   return story
 }
 
+function add_filter(filter) {
+  let filter_list = get_filterlist()
+  filter_list.push(filter.toString())
+  localStorage.setItem("filterlist", JSON.stringify(filter_list))
+}
+
 function filter_story(story) {
   let filter_list = get_filterlist()
   for (pattern in filter_list) {
-    if (story.href.includes(filter_list[pattern])) {
+    if (
+      story.href.includes(filter_list[pattern]) ||
+      story.title
+        .toLocaleLowerCase()
+        .includes(filter_list[pattern].toLocaleLowerCase())
+    ) {
       return false
     }
   }

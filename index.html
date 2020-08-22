@@ -19,6 +19,7 @@
     <div id="sep_slider"></div>
     <div id="content">
       <iframe id="frams" name="frams"></iframe>
+      <div id="foverlay"></div>
     </div>
   </body>
 </html>
@@ -32,7 +33,6 @@
   seperation_slider.init_slider()
 
   window.addEventListener("keyup", (e) => {
-    console.log("eveky", e)
     //CTRL + F
     if (e.key == "f" && e.ctrlKey) {
       searchfield.focus()
@@ -44,9 +44,10 @@
   })
 
   searchfield.addEventListener("keyup", (e) => {
-    if (event.keyCode === 27) {
+    if (e.keyCode === 27) {
       //ESC
       e.target.value = ""
+      search_stories(e.target.value)
     } else if (e.keyCode === 13) {
       //ENTER
       //ipcRenderer.send("search-text", e.target.value)
@@ -57,7 +58,13 @@
   function search_stories(needle) {
     document.querySelectorAll(".story").forEach((x) => {
       x.style.display = ""
-      if (!x.innerHTML.toLowerCase().includes(needle.toLowerCase())) {
+      if (
+        !(
+          x.dataset.title.toLowerCase().includes(needle.toLowerCase()) ||
+          x.dataset.hostname.toLowerCase().includes(needle.toLowerCase()) ||
+          x.dataset.type.toLowerCase().includes(needle.toLowerCase())
+        )
+      ) {
         x.style.display = "none"
       }
     })
@@ -126,9 +133,11 @@
     link.target = "frams"
     let title = document.createElement("h2")
     title.innerText = story.title
+    new_story.dataset.title = story.title
 
     let info = document.createElement("div")
     let type = document.createElement("p")
+    new_story.dataset.type = "[" + story.type + "]"
     type.innerText = "[" + story.type + "]"
     type.style.backgroundColor = story.colors[0]
     type.style.color = story.colors[1]
@@ -138,6 +147,7 @@
     new_story.dataset.timestamp = story.timestamp
     info.appendChild(document.createTextNode("  " + story.time_str + "  "))
 
+    new_story.dataset.hostname = link.hostname
     info.appendChild(document.createTextNode(" (" + link.hostname + ")"))
 
     let og_link = document.createElement("a")
@@ -170,11 +180,9 @@
       "click",
       (x) => {
         if (!new_story.classList.contains("read")) {
-          console.log("read")
           new_story.classList.add("read")
           mark_as_read(story.href)
         } else {
-          console.log("unread")
           new_story.classList.remove("read")
           mark_as_unread(story.href)
         }
@@ -193,7 +201,7 @@
     filter_btn.classList.add("filter_btn")
     filter_btn.innerText = "filter"
     filter_btn.onclick = (x) => {
-      console.log(filter)
+      show_filter_dialog(x, story)
     }
     new_story.appendChild(filter_btn)
 
@@ -220,16 +228,38 @@
           x.classList.remove("selected")
         })
         new_story.classList.add("selected")
+        sort_stories()
         if (!new_story.classList.contains("read")) {
           new_story.classList.add("read")
           mark_as_read(story.href)
         }
-        sort_stories()
       },
       false
     )
 
     stories_container.appendChild(new_story)
+  }
+
+  function show_filter_dialog(event, story) {
+    event.stopPropagation()
+    event.preventDefault()
+    let inp = document.createElement("input")
+    inp.type = "text"
+    inp.value = story.hostname
+    event.target.appendChild(inp)
+    inp.focus()
+    inp.addEventListener("keyup", (e) => {
+      if (e.keyCode === 27) {
+        //ESC
+        event.target.innerText = "filter"
+      } else if (e.keyCode === 13) {
+        //ENTER
+        if (confirm('add filter: "' + inp.value + '"')) {
+          filters.add_filter(inp.value)
+          event.target.innerText = "filter"
+        }
+      }
+    })
   }
 
   function mark_as_read(href) {
@@ -292,13 +322,14 @@
     "https://news.ycombinator.com/news?p=2",
     "https://news.ycombinator.com/news?p=3",
     "https://lobste.rs/",
+    "https://old.reddit.com/r/netsec/.rss",
   ]
 
   urls.forEach((url) => {
     fetch(url).then((x) => {
       if (x.ok) {
         x.text().then((val) => {
-          let dom_parser = new DOMParser(val)
+          let dom_parser = new DOMParser()
           let doc = dom_parser.parseFromString(val, "text/html")
 
           let stories = story_parser.parse(url, doc)

@@ -9,7 +9,10 @@ function init_slider() {
     resize_position = e.x
     let min_max = 20
     percent = Math.max(
-      Math.min(((window.innerWidth - e.x) / window.innerWidth) * 100, 100 - min_max),
+      Math.min(
+        ((window.innerWidth - e.x) / window.innerWidth) * 100,
+        100 - min_max
+      ),
       min_max
     )
     stories.style.width = 100 - percent + "%"
@@ -19,13 +22,13 @@ function init_slider() {
 
   sep_slider.addEventListener("mousedown", (e) => {
     e.preventDefault()
-    document.getElementById("frams").style.visibility = "hidden"
+    document.getElementById("foverlay").style.display = "block"
     document.body.style.cursor = "w-resize"
     document.addEventListener("mousemove", resize)
   })
 
   document.addEventListener("mouseup", () => {
-    document.getElementById("frams").style.visibility = ""
+    document.getElementById("foverlay").style.display = "none"
     document.body.style.cursor = ""
     document.removeEventListener("mousemove", resize)
   })
