@@ -15,7 +15,7 @@ function init_slider() {
       ),
       min_max
     )
-    stories.style.width = 100 - percent + "%"
+    left_panel.style.width = 100 - percent + "%"
     sep_slider.style.left = 100 - percent + "%"
     content.style.width = percent + "%"
   }

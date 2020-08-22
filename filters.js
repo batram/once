@@ -88,7 +88,9 @@ function filter_story(story) {
         .toLocaleLowerCase()
         .includes(filter_list[pattern].toLocaleLowerCase())
     ) {
-      return false
+      story.filtered = true
+      story.filter = filter_list[pattern]
+      return story
     }
   }
 

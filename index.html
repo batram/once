@@ -11,10 +11,15 @@
   </head>
 
   <body>
-    <div id="stories">
-      <div id="search">
-        <input type="text" id="searchfield" placeholder="search" />
-        <div id="reload_btn" class="btn">reload</div>
+    <div id="left_panel">
+      <div id="menu"></div>
+      <div id="left_main">
+        <div id="search">
+          <div id="menu_btn" class="btn">|||</div>
+          <input type="text" id="searchfield" placeholder="search" />
+          <div id="reload_btn" class="btn">reload</div>
+        </div>
+        <div id="stories"></div>
       </div>
     </div>
     <div id="sep_slider"></div>
@@ -57,6 +62,37 @@
   })
 
   function search_stories(needle) {
+    document.querySelector("#stories").classList.remove('show_filtered')
+
+    let specialk = {
+      "[ALL]": () => {
+        document.querySelector("#searchfield").value = ""
+        search_stories("")
+      },
+      "[filtered]": () => {
+        document.querySelector("#stories").classList.add('show_filtered')
+        document.querySelectorAll(".story").forEach((x) => {
+          x.style.display = "none"
+          if (x.classList.contains("filtered")) {
+            x.style.display = ""
+          }
+        })
+      },
+      "[new]": () => {
+        document.querySelectorAll(".story").forEach((x) => {
+          x.style.display = ""
+          if (x.classList.contains("read")) {
+            x.style.display = "none"
+          }
+        })
+      },
+    }
+
+    if (specialk.hasOwnProperty(needle)) {
+      specialk[needle]()
+      return
+    }
+
     document.querySelectorAll(".story").forEach((x) => {
       x.style.display = ""
       if (
@@ -119,9 +155,6 @@
 
   function add_story(story) {
     story = filters.filter_story(story)
-    if (story === false) {
-      return
-    }
 
     let stories_container = document.querySelector("#stories")
     let new_story = document.createElement("div")
@@ -129,6 +162,7 @@
     if (read_story(story.href)) {
       new_story.classList.add("read")
     }
+
     let link = document.createElement("a")
     link.href = story.href
     link.target = "frams"
@@ -177,6 +211,12 @@
     filter_btn.classList.add("btn")
     filter_btn.classList.add("filter_btn")
     filter_btn.innerText = "filter"
+    if (story.filtered) {
+      new_story.classList.add("filtered")
+      filter_btn.innerText = "filtered:\n" + story.filter
+      filter_btn.style.borderColor = "red"
+    }
+
     filter_btn.onclick = (x) => {
       show_filter_dialog(x, story)
     }
@@ -249,6 +289,21 @@
   function show_filter_dialog(event, story) {
     event.stopPropagation()
     event.preventDefault()
+
+    if (event.target.childElementCount != 0) {
+      return
+    }
+
+    document.addEventListener("click", (e) => {
+      if (e.target != event.target) {
+        document.querySelectorAll(".filter_btn").forEach((x) => {
+          if (!x.innerText.includes("filtered:")) {
+            x.innerText = "filter"
+          }
+        })
+      }
+    })
+
     let inp = document.createElement("input")
     inp.type = "text"
     inp.value = story.hostname
