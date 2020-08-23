@@ -1,9 +1,11 @@
-function read_story(href) {
+function is_story_read(href) {
   let readlist = localStorage.getItem("readlist")
   try {
     readlist = JSON.parse(readlist)
-  } catch (e) {
-    readlist = []
+  } finally {
+    if(!Array.isArray(readlist)){
+      readlist = []
+    }
   }
   return readlist.includes(href)
 }
@@ -14,7 +16,7 @@ function add_story(story) {
   let stories_container = document.querySelector("#stories")
   let new_story = document.createElement("div")
   new_story.classList.add("story")
-  if (read_story(story.href)) {
+  if (is_story_read(story.href)) {
     new_story.classList.add("read")
   }
 
@@ -109,15 +111,7 @@ function add_story(story) {
   new_story.addEventListener(
     "contextmenu",
     (e) => {
-      e.preventDefault()
-      stupidMenu.target = story
-      stupidMenu.rightClickPosition = {
-        x: e.x,
-        y: e.y,
-      }
-      menu.popup({
-        window: remote.getCurrentWindow(),
-      })
+      contextmenu.story_menu(e, story)
     },
     false
   )
@@ -145,8 +139,10 @@ function mark_as_read(href) {
   let readlist = localStorage.getItem("readlist")
   try {
     readlist = JSON.parse(readlist)
-  } catch (e) {
-    readlist = []
+  } finally {
+    if(!Array.isArray(readlist)){
+      readlist = []
+    }
   }
   readlist.push(href)
   readlist = readlist.filter((v, i, a) => a.indexOf(v) === i)
@@ -157,8 +153,10 @@ function mark_as_unread(href) {
   let readlist = localStorage.getItem("readlist")
   try {
     readlist = JSON.parse(readlist)
-  } catch (e) {
-    readlist = []
+  } finally {
+    if(!Array.isArray(readlist)){
+      readlist = []
+    }
   }
   const index = readlist.indexOf(href)
   if (index > -1) {
@@ -217,6 +215,7 @@ function load() {
           })
 
           sort_stories()
+          search.search_stories(searchfield.value)
         })
       }
     })

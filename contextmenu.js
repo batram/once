@@ -1,3 +1,5 @@
+exports.story_menu = story_menu
+
 const stupidMenu = {
   rightClickPosition: null,
   target: null,
@@ -33,3 +35,15 @@ menu.append(
     },
   })
 )
+
+function story_menu(e, story) {
+  e.preventDefault()
+  stupidMenu.target = story
+  stupidMenu.rightClickPosition = {
+    x: e.x,
+    y: e.y,
+  }
+  menu.popup({
+    window: remote.getCurrentWindow(),
+  })
+}

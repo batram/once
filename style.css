@@ -1,7 +1,19 @@
+
+html, body {
+  background-color: rgb(246, 246, 239);
+  height: 100%;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: row;
+}
+
 #left_panel {
   width: 50%;
+  min-width: 400px;
   height: 100%;
-  float: left;
   display: flex;
   flex-direction: row;
 }
@@ -9,7 +21,6 @@
 #menu {
   width: 100px;
   height: 100%;
-  float: left;
   display: flex;
   flex-direction: column;
   flex: 0 0 40px;
@@ -17,6 +28,8 @@
 }
 
 #left_main {
+  display: flex;
+  flex-direction: column;
   width: 100%;
 }
 
@@ -26,7 +39,7 @@
   text-decoration-line: none;
   padding: 0;
   overflow-y: scroll;
-  overflow-x: none;
+  overflow-x: hidden;
   /* scroll on the left */
   direction: rtl;
 }
@@ -37,8 +50,6 @@
 
 #sep_slider {
   background-color: rgb(114, 100, 100);
-  position: absolute;
-  float: right;
   top: 0;
   left: 50%;
   border: thin solid rgb(196, 163, 163);
@@ -94,31 +105,19 @@
   font-size: 6.9pt;
 }
 
-body,
-html {
-  background-color: rgb(246, 246, 239);
-  min-height: 100%;
-  height: 100%;
-  margin: 0;
-  overflow: hidden;
-  width: 100%;
-}
-
 #content {
   width: 50%;
-  float: left;
   height: 100%;
+  min-width: 20%;
 }
 
 #frams {
   width: 100%;
   height: 100%;
-  border: thin solid beige;
-  border-left: thick solid black;
+  border: none;
 }
 
 .btn {
-  float: right;
   border: thin solid black;
   cursor: pointer;
   padding: 2px;

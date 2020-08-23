@@ -57,8 +57,10 @@ function get_filterlist() {
   let filterlist = localStorage.getItem("filterlist")
   try {
     filterlist = JSON.parse(filterlist)
-  } catch (e) {
-    filterlist = []
+  } finally {
+    if (!Array.isArray(filterlist)) {
+      filterlist = []
+    }
   }
 
   return filterlist

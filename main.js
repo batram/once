@@ -12,8 +12,11 @@ function createWindow() {
     height: 600,
     webPreferences: {
       nodeIntegration: true,
+      enableRemoteModule: true,
+      webSecurity : false,
     },
   })
+  win.removeMenu()
 
   // and load the index.html of the app.
   win.loadFile("index.html")
