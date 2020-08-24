@@ -16,14 +16,16 @@
       <div id="left_main">
         <div id="search">
           <input type="text" id="searchfield" placeholder="search" />
-          <div id="reload_btn" class="btn">reload</div>
+          <div id="reload_btn" class="btn">
+            <img src="imgs/reload.svg" title="reload stories" />
+          </div>
         </div>
         <div id="stories"></div>
       </div>
     </div>
     <div id="sep_slider"></div>
     <div id="content">
-      <iframe id="frams" name="frams"></iframe>
+      <webview id="frams" src="https://www.github.com/" name="frams"></webview>
       <div id="foverlay"></div>
     </div>
   </body>
@@ -37,7 +39,9 @@
   const contextmenu = require("./contextmenu")
   const stories = require("./stories")
   const seperation_slider = require("./sep_slider")
-  seperation_slider.init_slider()
   const search = require("./search")
+
+  seperation_slider.init_slider()
   search.init_search()
+  stories.load()
 </script>

@@ -1,4 +1,7 @@
-let story_map = new Map()
+module.exports = {
+  load,
+  reload,
+}
 
 function is_story_read(href) {
   let readlist = localStorage.getItem("readlist")
@@ -44,7 +47,6 @@ function add_story(story) {
 
   let link = document.createElement("a")
   link.href = story.href
-  link.target = "frams"
   link.classList.add("title")
   link.innerText = story.title
   title_line.appendChild(link)
@@ -68,35 +70,54 @@ function add_story(story) {
   let filter_btn = document.createElement("div")
   filter_btn.classList.add("btn")
   filter_btn.classList.add("filter_btn")
-  filter_btn.innerText = "filter"
+  let filter_icon = document.createElement("img")
+  filter_icon.src = "imgs/filter.svg"
+  filter_btn.appendChild(filter_icon)
+  filter_btn.title = "filter"
+
   if (story.filtered) {
+    filter_btn.title = "filtered"
     new_story_el.classList.add("filtered")
-    filter_btn.innerText = "filtered:\n" + story.filter
+    let dinp = document.createElement("input")
+    dinp.type = "text"
+    dinp.value = story.filter
+    dinp.disabled = true
+    dinp.style.cursor = "pointer"
+    filter_btn.prepend(dinp)
     filter_btn.style.borderColor = "red"
   }
 
   filter_btn.onclick = (x) => {
-    filters.show_filter_dialog(x, story)
+    filters.show_filter_dialog(x, filter_btn, story)
   }
+
   new_story_el.appendChild(filter_btn)
 
   let read_btn = document.createElement("div")
   read_btn.classList.add("btn")
   read_btn.classList.add("read_btn")
+  let read_icon = document.createElement("img")
   if (!new_story_el.classList.contains("read")) {
     read_btn.title = "mark as read"
+    read_icon.src = "imgs/read.svg"
   } else {
     read_btn.title = "mark as unread"
+    read_icon.src = "imgs/unread.svg"
   }
-  read_btn.innerText = "read"
+
+  read_btn.appendChild(read_icon)
   read_btn.addEventListener(
     "click",
     (x) => {
       if (!new_story_el.classList.contains("read")) {
         new_story_el.classList.add("read")
+        read_btn.title = "mark as unread"
+        read_icon.src = "imgs/unread.svg"
         mark_as_read(story.href)
       } else {
         new_story_el.classList.remove("read")
+        read_btn.title = "mark as read"
+        read_icon.src = "imgs/read.svg"
         mark_as_unread(story.href)
       }
       x.preventDefault()
@@ -120,6 +141,8 @@ function add_story(story) {
   link.addEventListener(
     "click",
     (e) => {
+      open_in_webview(e)
+
       document.querySelectorAll(".story").forEach((x) => {
         x.classList.remove("selected")
       })
@@ -136,6 +159,13 @@ function add_story(story) {
   stories_container.appendChild(new_story_el)
 }
 
+function open_in_webview(e) {
+  e.preventDefault()
+  e.stopPropagation()
+
+  document.querySelector("#frams").loadURL(e.target.href)
+}
+
 function info_block(story) {
   let info = document.createElement("div")
   info.classList.add("info")
@@ -150,14 +180,14 @@ function info_block(story) {
   let og_link = document.createElement("a")
   og_link.innerText = " [OG] "
   og_link.href = story.href
-  og_link.target = "frams"
+  og_link.addEventListener("click", open_in_webview)
   info.appendChild(og_link)
 
   //comments
   let comments_link = document.createElement("a")
   comments_link.innerText = " [comments] "
   comments_link.href = story.comment_url
-  comments_link.target = "frams"
+  comments_link.addEventListener("click", open_in_webview)
   info.appendChild(comments_link)
 
   info.appendChild(document.createTextNode("  " + story.time_str + "  "))
@@ -251,11 +281,14 @@ function load() {
     })
   })
 }
-load()
 
-reload_btn.onclick = (x) => {
+function reload() {
   document.querySelectorAll(".story").forEach((x) => {
     x.outerHTML = ""
   })
   load()
+}
+
+reload_btn.onclick = (x) => {
+  reload()
 }

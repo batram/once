@@ -106,28 +106,38 @@ function filter_story(story) {
   return story
 }
 
-function show_filter_dialog(event, story) {
+function show_filter_dialog(event, filter_btn, story) {
   event.stopPropagation()
   event.preventDefault()
 
-  if (event.target.childElementCount != 0) {
+  let inp = filter_btn.querySelector("input")
+
+  //cancel other open inputs
+  document.querySelectorAll(".story:not(.filtered) .filter_btn input").forEach((x) => {
+    if (inp != x) {
+      x.outerHTML = ""
+    }
+  })
+
+  if (inp) {
+    if(event.target != inp){
+      confirm_add_story(inp, filter_btn)
+    }
     return
   }
 
   document.addEventListener("click", (e) => {
-    if (e.target != event.target) {
-      document.querySelectorAll(".filter_btn").forEach((x) => {
-        if (!x.innerText.includes("filtered:")) {
-          x.innerText = "filter"
-        }
+    if (e.target != filter_btn) {
+      document.querySelectorAll(".story:not(.filtered) .filter_btn input").forEach((x) => {
+        x.outerHTML = ""
       })
     }
   })
 
-  let inp = document.createElement("input")
+  inp = document.createElement("input")
   inp.type = "text"
   inp.value = story.hostname
-  event.target.appendChild(inp)
+  filter_btn.prepend(inp)
   inp.focus()
   inp.addEventListener("keyup", (e) => {
     if (e.keyCode === 27) {
@@ -135,10 +145,17 @@ function show_filter_dialog(event, story) {
       event.target.innerText = "filter"
     } else if (e.keyCode === 13) {
       //ENTER
-      if (confirm('add filter: "' + inp.value + '"')) {
-        filters.add_filter(inp.value)
-        event.target.innerText = "filter"
-      }
+      confirm_add_story(inp, filter_btn)
     }
   })
 }
+
+function confirm_add_story(inp, filter_btn) {
+  if (confirm('add filter: "' + inp.value + '"')) {
+    filters.add_filter(inp.value)
+    filter_btn.querySelectorAll(".filter_btn input").outerHTML = ""
+    //TODO: no full reload, just filter local stories
+    stories.reload()
+  }
+}
+

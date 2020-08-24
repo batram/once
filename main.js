@@ -14,6 +14,7 @@ function createWindow() {
       nodeIntegration: true,
       enableRemoteModule: true,
       webSecurity : false,
+      webviewTag: true,
     },
   })
   win.removeMenu()
@@ -25,25 +26,6 @@ function createWindow() {
   ElectronBlocker.ElectronBlocker.fromPrebuiltAdsAndTracking(fetch).then(
     (blocker) => {
       blocker.enableBlockingInSession(session.defaultSession)
-
-      win.webContents.session.webRequest.onHeadersReceived(
-        { urls: ["*://*/*"] },
-        (d, c) => {
-          delete d.responseHeaders["X-Frame-Options"]
-          delete d.responseHeaders["x-frame-options"]
-          delete d.responseHeaders["content-security-policy"]
-          delete d.responseHeaders["content-security-policy"]
-          delete d.responseHeaders["Set-Cookie"]
-          delete d.responseHeaders["Content-Security-Policy"]
-          delete d.responseHeaders["X-Content-Type-Options"]
-          delete d.responseHeaders["X-XSS-Protection"]
-
-          c({
-            cancel: false,
-            responseHeaders: d.responseHeaders,
-          })
-        }
-      )
     }
   )
 

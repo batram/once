@@ -143,15 +143,24 @@ body {
   border-radius: 2px;
 }
 
-.read_btn {
-  background: rgb(75, 74, 74);
-  color: rgb(214, 213, 213);
+.story .btn {
+  height: 16px;
+  white-space: nowrap;
+}
+
+.story .btn img {
+  opacity: 0.6;
 }
 
 #reload_btn {
   padding: 3px;
   margin: 0;
   margin-left: 3px;
+}
+
+#reload_btn img {
+  margin: 2px;
+  margin-bottom: -1px;
 }
 
 #menu_btn {
@@ -178,4 +187,11 @@ body {
 
 .show_filtered .filtered {
   display: flex;
+}
+
+.filter_btn input {
+  position: relative;
+  top: -4px;
+  height: 16px;
+  margin: 0 1px;
 }
