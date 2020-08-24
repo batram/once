@@ -150,6 +150,8 @@ function add_story(story) {
       sort_stories()
       if (!new_story_el.classList.contains("read")) {
         new_story_el.classList.add("read")
+        read_btn.title = "mark as unread"
+        read_icon.src = "imgs/unread.svg"
         mark_as_read(story.href)
       }
     },
