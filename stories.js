@@ -1,9 +1,11 @@
+let story_map = new Map()
+
 function is_story_read(href) {
   let readlist = localStorage.getItem("readlist")
   try {
     readlist = JSON.parse(readlist)
   } finally {
-    if(!Array.isArray(readlist)){
+    if (!Array.isArray(readlist)) {
       readlist = []
     }
   }
@@ -13,34 +15,137 @@ function is_story_read(href) {
 function add_story(story) {
   story = filters.filter_story(story)
 
-  let stories_container = document.querySelector("#stories")
-  let new_story = document.createElement("div")
-  new_story.classList.add("story")
-  if (is_story_read(story.href)) {
-    new_story.classList.add("read")
+  //check if we already have story with same URL
+  let og_story_el = document.querySelector(
+    '.story[data-href="' + story.href + '"] .data'
+  )
+
+  if (og_story_el) {
+    //merge story by adding info block, ignore title
+    og_story_el.appendChild(info_block(story))
+    return
   }
+
+  let stories_container = document.querySelector("#stories")
+  let new_story_el = document.createElement("div")
+  new_story_el.classList.add("story")
+  if (is_story_read(story.href)) {
+    new_story_el.classList.add("read")
+  }
+
+  new_story_el.dataset.title = story.title
+  new_story_el.dataset.href = story.href
+  new_story_el.dataset.hostname = story.hostname
+  new_story_el.dataset.timestamp = story.timestamp
+  new_story_el.dataset.type = "[" + story.type + "]"
+
+  let title_line = document.createElement("div")
+  title_line.classList.add("title_line")
 
   let link = document.createElement("a")
   link.href = story.href
   link.target = "frams"
-  let title = document.createElement("h2")
-  title.innerText = story.title
-  new_story.dataset.title = story.title
+  link.classList.add("title")
+  link.innerText = story.title
+  title_line.appendChild(link)
 
+  let hostname = document.createElement("p")
+  hostname.classList.add("hostname")
+  hostname.innerText = " (" + link.hostname + ") "
+  title_line.appendChild(hostname)
+
+  let info = info_block(story)
+
+  let data = document.createElement("div")
+  document.createElement("data")
+  data.classList.add("data")
+
+  data.appendChild(title_line)
+  data.appendChild(info)
+
+  new_story_el.appendChild(data)
+
+  let filter_btn = document.createElement("div")
+  filter_btn.classList.add("btn")
+  filter_btn.classList.add("filter_btn")
+  filter_btn.innerText = "filter"
+  if (story.filtered) {
+    new_story_el.classList.add("filtered")
+    filter_btn.innerText = "filtered:\n" + story.filter
+    filter_btn.style.borderColor = "red"
+  }
+
+  filter_btn.onclick = (x) => {
+    filters.show_filter_dialog(x, story)
+  }
+  new_story_el.appendChild(filter_btn)
+
+  let read_btn = document.createElement("div")
+  read_btn.classList.add("btn")
+  read_btn.classList.add("read_btn")
+  if (!new_story_el.classList.contains("read")) {
+    read_btn.title = "mark as read"
+  } else {
+    read_btn.title = "mark as unread"
+  }
+  read_btn.innerText = "read"
+  read_btn.addEventListener(
+    "click",
+    (x) => {
+      if (!new_story_el.classList.contains("read")) {
+        new_story_el.classList.add("read")
+        mark_as_read(story.href)
+      } else {
+        new_story_el.classList.remove("read")
+        mark_as_unread(story.href)
+      }
+      x.preventDefault()
+      x.stopPropagation()
+      sort_stories()
+
+      return false
+    },
+    false
+  )
+  new_story_el.appendChild(read_btn)
+
+  new_story_el.addEventListener(
+    "contextmenu",
+    (e) => {
+      contextmenu.story_menu(e, story)
+    },
+    false
+  )
+
+  link.addEventListener(
+    "click",
+    (e) => {
+      document.querySelectorAll(".story").forEach((x) => {
+        x.classList.remove("selected")
+      })
+      new_story_el.classList.add("selected")
+      sort_stories()
+      if (!new_story_el.classList.contains("read")) {
+        new_story_el.classList.add("read")
+        mark_as_read(story.href)
+      }
+    },
+    false
+  )
+
+  stories_container.appendChild(new_story_el)
+}
+
+function info_block(story) {
   let info = document.createElement("div")
+  info.classList.add("info")
   let type = document.createElement("p")
-  new_story.dataset.type = "[" + story.type + "]"
-  type.innerText = "[" + story.type + "]"
+  type.classList.add("tag")
+  type.innerText = story.type
   type.style.backgroundColor = story.colors[0]
+  type.style.borderColor = story.colors[1]
   type.style.color = story.colors[1]
-  type.style.display = "inline-block"
   info.appendChild(type)
-
-  new_story.dataset.timestamp = story.timestamp
-  info.appendChild(document.createTextNode("  " + story.time_str + "  "))
-
-  new_story.dataset.hostname = link.hostname
-  info.appendChild(document.createTextNode(" (" + link.hostname + ")"))
 
   let og_link = document.createElement("a")
   og_link.innerText = " [OG] "
@@ -55,84 +160,9 @@ function add_story(story) {
   comments_link.target = "frams"
   info.appendChild(comments_link)
 
-  title.appendChild(info)
-  link.appendChild(title)
+  info.appendChild(document.createTextNode("  " + story.time_str + "  "))
 
-  let data = document.createElement("div")
-  data.classList.add("data")
-
-  data.appendChild(link)
-  new_story.appendChild(data)
-
-  let filter_btn = document.createElement("div")
-  filter_btn.classList.add("btn")
-  filter_btn.classList.add("filter_btn")
-  filter_btn.innerText = "filter"
-  if (story.filtered) {
-    new_story.classList.add("filtered")
-    filter_btn.innerText = "filtered:\n" + story.filter
-    filter_btn.style.borderColor = "red"
-  }
-
-  filter_btn.onclick = (x) => {
-    filters.show_filter_dialog(x, story)
-  }
-  new_story.appendChild(filter_btn)
-
-  let read_btn = document.createElement("div")
-  read_btn.classList.add("btn")
-  read_btn.classList.add("read_btn")
-  if (!new_story.classList.contains("read")) {
-    read_btn.title = "mark as read"
-  } else {
-    read_btn.title = "mark as unread"
-  }
-  read_btn.innerText = "read"
-  read_btn.addEventListener(
-    "click",
-    (x) => {
-      if (!new_story.classList.contains("read")) {
-        new_story.classList.add("read")
-        mark_as_read(story.href)
-      } else {
-        new_story.classList.remove("read")
-        mark_as_unread(story.href)
-      }
-      x.preventDefault()
-      x.stopPropagation()
-      sort_stories()
-
-      return false
-    },
-    false
-  )
-  new_story.appendChild(read_btn)
-
-  new_story.addEventListener(
-    "contextmenu",
-    (e) => {
-      contextmenu.story_menu(e, story)
-    },
-    false
-  )
-
-  new_story.addEventListener(
-    "click",
-    (e) => {
-      document.querySelectorAll(".story").forEach((x) => {
-        x.classList.remove("selected")
-      })
-      new_story.classList.add("selected")
-      sort_stories()
-      if (!new_story.classList.contains("read")) {
-        new_story.classList.add("read")
-        mark_as_read(story.href)
-      }
-    },
-    false
-  )
-
-  stories_container.appendChild(new_story)
+  return info
 }
 
 function mark_as_read(href) {
@@ -140,7 +170,7 @@ function mark_as_read(href) {
   try {
     readlist = JSON.parse(readlist)
   } finally {
-    if(!Array.isArray(readlist)){
+    if (!Array.isArray(readlist)) {
       readlist = []
     }
   }
@@ -154,7 +184,7 @@ function mark_as_unread(href) {
   try {
     readlist = JSON.parse(readlist)
   } finally {
-    if(!Array.isArray(readlist)){
+    if (!Array.isArray(readlist)) {
       readlist = []
     }
   }

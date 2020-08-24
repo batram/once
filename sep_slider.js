@@ -31,12 +31,12 @@ function init_slider() {
 }
 
 function save_slider_percent(p) {
-  localStorage.setItem('slider_percent', p)
+  localStorage.setItem("slider_percent", p)
 }
 
 function get_slider_percent() {
-  let slider_percent = localStorage.getItem('slider_percent')
-  if(slider_percent == null){
+  let slider_percent = localStorage.getItem("slider_percent")
+  if (slider_percent == null) {
     slider_percent = 50
   }
   return slider_percent

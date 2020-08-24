@@ -1,8 +1,8 @@
 exports.story_menu = story_menu
 
-const stupidMenu = {
+const cmenu_data = {
   rightClickPosition: null,
-  target: null,
+  href: null,
 }
 
 const menu = new Menu()
@@ -10,7 +10,7 @@ menu.append(
   new MenuItem({
     label: "Copy URL",
     click() {
-      clipboard.writeText(stupidMenu.target.href, "selection")
+      clipboard.writeText(cmenu_data.href, "selection")
     },
   })
 )
@@ -18,7 +18,7 @@ menu.append(
   new MenuItem({
     label: "Open in Browser",
     click: async () => {
-      await shell.openExternal(stupidMenu.target.href)
+      await shell.openExternal(cmenu_data.href)
     },
   })
 )
@@ -29,17 +29,17 @@ menu.append(
       remote
         .getCurrentWindow()
         .inspectElement(
-          stupidMenu.rightClickPosition.x,
-          stupidMenu.rightClickPosition.y
+          cmenu_data.rightClickPosition.x,
+          cmenu_data.rightClickPosition.y
         )
     },
   })
 )
 
-function story_menu(e, story) {
+function story_menu(e, x) {
   e.preventDefault()
-  stupidMenu.target = story
-  stupidMenu.rightClickPosition = {
+  cmenu_data.href = x.href
+  cmenu_data.rightClickPosition = {
     x: e.x,
     y: e.y,
   }

@@ -1,5 +1,5 @@
-
-html, body {
+html,
+body {
   background-color: rgb(246, 246, 239);
   height: 100%;
   width: 100%;
@@ -8,6 +8,7 @@ html, body {
   overflow: hidden;
   display: flex;
   flex-direction: row;
+  font-family: Verdana, Geneva, sans-serif;
 }
 
 #left_panel {
@@ -85,24 +86,40 @@ html, body {
   display: flex;
 }
 
+.story .title {
+  display: inline;
+  font-size: medium;
+  font-size: 10.5pt;
+  color: rgb(0, 0, 0);
+}
+
+.story .hostname {
+  display: inline;
+  color: #828282;
+  font-size: 6.9pt;
+}
+
 .story .data {
   width: 100%;
+  color: #828282;
+  font-size: 6.9pt;
+}
+
+.story .info {
+  margin: 5px 0;
+}
+.story .tag {
+  margin: 0;
+  display: inline-block;
+  width: 20px;
+  text-align: center;
+  padding: 1px;
+  border: thin solid white;
 }
 
 .story a {
   text-decoration-line: none;
-  color: rgb(0, 0, 0);
-  font-family: Verdana, Geneva, sans-serif;
-  font-size: 7pt;
-}
-
-.story h2 {
-  margin: 0;
-}
-
-#stories a div {
   color: #828282;
-  font-size: 6.9pt;
 }
 
 #content {
@@ -132,7 +149,6 @@ html, body {
 }
 
 #reload_btn {
-  font-size: 14px;
   padding: 3px;
   margin: 0;
   margin-left: 3px;
