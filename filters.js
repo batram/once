@@ -113,14 +113,16 @@ function show_filter_dialog(event, filter_btn, story) {
   let inp = filter_btn.querySelector("input")
 
   //cancel other open inputs
-  document.querySelectorAll(".story:not(.filtered) .filter_btn input").forEach((x) => {
-    if (inp != x) {
-      x.outerHTML = ""
-    }
-  })
+  document
+    .querySelectorAll(".story:not(.filtered) .filter_btn input")
+    .forEach((x) => {
+      if (inp != x) {
+        x.outerHTML = ""
+      }
+    })
 
   if (inp) {
-    if(event.target != inp){
+    if (event.target != inp) {
       confirm_add_story(inp, filter_btn)
     }
     return
@@ -128,9 +130,11 @@ function show_filter_dialog(event, filter_btn, story) {
 
   document.addEventListener("click", (e) => {
     if (e.target != filter_btn) {
-      document.querySelectorAll(".story:not(.filtered) .filter_btn input").forEach((x) => {
-        x.outerHTML = ""
-      })
+      document
+        .querySelectorAll(".story:not(.filtered) .filter_btn input")
+        .forEach((x) => {
+          x.outerHTML = ""
+        })
     }
   })
 
@@ -154,8 +158,6 @@ function confirm_add_story(inp, filter_btn) {
   if (confirm('add filter: "' + inp.value + '"')) {
     filters.add_filter(inp.value)
     filter_btn.querySelectorAll(".filter_btn input").outerHTML = ""
-    //TODO: no full reload, just filter local stories
-    stories.reload()
+    stories.refilter()
   }
 }
-

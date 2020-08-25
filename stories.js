@@ -1,7 +1,10 @@
 module.exports = {
   load,
   reload,
+  refilter,
 }
+
+let story_map = new Map()
 
 function is_story_read(href) {
   let readlist = localStorage.getItem("readlist")
@@ -16,6 +19,8 @@ function is_story_read(href) {
 }
 
 function add_story(story) {
+  story_map[story.comment_url] = story
+
   story = filters.filter_story(story)
 
   //check if we already have story with same URL
@@ -24,12 +29,21 @@ function add_story(story) {
   )
 
   if (og_story_el) {
-    //merge story by adding info block, ignore title
-    og_story_el.appendChild(info_block(story))
+    // merge story by adding info block, ignore title
+    // don't merge on same comment_url, sometimes the same story is on multiple pages
+    if (story.comment_url != og_story_el.dataset.comment_url) {
+      og_story_el.appendChild(info_block(story))
+    }
     return
   }
 
+  let new_story_el = story_html(story)
+
   let stories_container = document.querySelector("#stories")
+  stories_container.appendChild(new_story_el)
+}
+
+function story_html(story) {
   let new_story_el = document.createElement("div")
   new_story_el.classList.add("story")
   if (is_story_read(story.href)) {
@@ -41,6 +55,7 @@ function add_story(story) {
   new_story_el.dataset.hostname = story.hostname
   new_story_el.dataset.timestamp = story.timestamp
   new_story_el.dataset.type = "[" + story.type + "]"
+  new_story_el.dataset.comment_url = story.comment_url
 
   let title_line = document.createElement("div")
   title_line.classList.add("title_line")
@@ -100,7 +115,8 @@ function add_story(story) {
   if (!new_story_el.classList.contains("read")) {
     read_btn.title = "mark as read"
     read_icon.src = "imgs/read.svg"
-  } else {
+  }
+  else {
     read_btn.title = "mark as unread"
     read_icon.src = "imgs/unread.svg"
   }
@@ -114,7 +130,8 @@ function add_story(story) {
         read_btn.title = "mark as unread"
         read_icon.src = "imgs/unread.svg"
         mark_as_read(story.href)
-      } else {
+      }
+      else {
         new_story_el.classList.remove("read")
         read_btn.title = "mark as read"
         read_icon.src = "imgs/read.svg"
@@ -157,8 +174,7 @@ function add_story(story) {
     },
     false
   )
-
-  stories_container.appendChild(new_story_el)
+  return new_story_el
 }
 
 function open_in_webview(e) {
@@ -284,7 +300,18 @@ function load() {
   })
 }
 
+function refilter() {
+  document.querySelectorAll(".story").forEach((x) => {
+    let curl = x.dataset.comment_url
+    story_map[curl] = filters.filter_story(story_map[curl])
+    let nstory = story_html(story_map[curl])
+    x.replaceWith(nstory)
+  })
+}
+
 function reload() {
+  story_map = new Map()
+
   document.querySelectorAll(".story").forEach((x) => {
     x.outerHTML = ""
   })
