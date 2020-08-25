@@ -1,3 +1,5 @@
+const { open_in_webview } = require("./web_control")
+
 module.exports = {
   load,
   reload,
@@ -115,8 +117,7 @@ function story_html(story) {
   if (!new_story_el.classList.contains("read")) {
     read_btn.title = "mark as read"
     read_icon.src = "imgs/read.svg"
-  }
-  else {
+  } else {
     read_btn.title = "mark as unread"
     read_icon.src = "imgs/unread.svg"
   }
@@ -130,8 +131,7 @@ function story_html(story) {
         read_btn.title = "mark as unread"
         read_icon.src = "imgs/unread.svg"
         mark_as_read(story.href)
-      }
-      else {
+      } else {
         new_story_el.classList.remove("read")
         read_btn.title = "mark as read"
         read_icon.src = "imgs/read.svg"
@@ -175,13 +175,6 @@ function story_html(story) {
     false
   )
   return new_story_el
-}
-
-function open_in_webview(e) {
-  e.preventDefault()
-  e.stopPropagation()
-
-  document.querySelector("#frams").loadURL(e.target.href)
 }
 
 function info_block(story) {
@@ -318,6 +311,6 @@ function reload() {
   load()
 }
 
-reload_btn.onclick = (x) => {
+reload_stories_btn.onclick = (x) => {
   reload()
 }

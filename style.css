@@ -61,14 +61,14 @@ body {
   z-index: 15;
 }
 
-#search {
+.bar {
   border-bottom: thin solid #b3b3b3;
   padding: 5px 15px;
   display: flex;
   flex-direction: row;
 }
 
-#searchfield {
+.bar input {
   width: 100%;
 }
 
@@ -152,13 +152,13 @@ body {
   opacity: 0.6;
 }
 
-#reload_btn {
+.bar_btn {
   padding: 3px;
   margin: 0;
   margin-left: 3px;
 }
 
-#reload_btn img {
+.bar_btn img {
   margin: 2px;
   margin-bottom: -1px;
 }

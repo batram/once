@@ -14,9 +14,9 @@
     <div id="left_panel">
       <div id="menu"></div>
       <div id="left_main">
-        <div id="search">
+        <div id="search" class="bar">
           <input type="text" id="searchfield" placeholder="search" />
-          <div id="reload_btn" class="btn">
+          <div id="reload_stories_btn" class="btn bar_btn">
             <img src="imgs/reload.svg" title="reload stories" />
           </div>
         </div>
@@ -25,6 +25,15 @@
     </div>
     <div id="sep_slider"></div>
     <div id="content">
+      <div id="controlbar" class="bar">
+        <input type="text" id="urlfield" placeholder="about:blank" />
+        <div id="reload_webview_btn" class="btn bar_btn">
+          <img src="imgs/reload.svg" title="reload webview" />
+        </div>
+        <div id="close_webview_btn" class="btn bar_btn">
+          <img src="imgs/x.svg" title="reload webview" />
+        </div>
+      </div>
       <webview id="frams" src="about:blank"></webview>
       <div id="foverlay"></div>
     </div>
