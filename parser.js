@@ -120,9 +120,9 @@ function parse_hn(doc) {
   add_menu_tag(type, colors)
 
   let curl = "https://news.ycombinator.com/item?id="
-  let stories = doc.querySelectorAll(".storylink")
+  let stories = Array.from(doc.querySelectorAll(".storylink"))
 
-  return Array.from(stories).map((story) => {
+  return stories.map((story) => {
     let pawpaw = story.parentElement.parentElement
     let id = pawpaw.id
     if (story.protocol == "file:") {
@@ -131,6 +131,12 @@ function parse_hn(doc) {
 
     let time = pawpaw.nextElementSibling.querySelector(".age a").innerText
     let timestamp = parse_hn_time(time)
+
+    //filter ads
+    let filter = null
+    if (story.parentElement.parentElement.querySelector(".votelinks") == null) {
+      filter = ":: HN ads ::"
+    }
 
     return {
       type: type,
@@ -141,6 +147,7 @@ function parse_hn(doc) {
       comment_url: curl + id,
       time_str: human_time(timestamp),
       timestamp: timestamp,
+      filter: filter,
     }
   })
 }
@@ -151,9 +158,9 @@ function parse_lob(doc) {
   add_menu_tag(type, colors)
 
   let curl = "https://lobste.rs/s/"
-  let stories = doc.querySelectorAll(".story")
+  let stories = Array.from(doc.querySelectorAll(".story"))
 
-  return Array.from(stories).map((story) => {
+  return stories.map((story) => {
     let id = story.dataset.shortid
     let link = story.querySelector(".u-url")
     if (link.protocol == "file:") {

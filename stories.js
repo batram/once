@@ -91,8 +91,7 @@ function story_html(story) {
   filter_icon.src = "imgs/filter.svg"
   filter_btn.appendChild(filter_icon)
   filter_btn.title = "filter"
-
-  if (story.filtered) {
+  if (story.filter) {
     filter_btn.title = "filtered"
     new_story_el.classList.add("filtered")
     let dinp = document.createElement("input")
@@ -103,11 +102,9 @@ function story_html(story) {
     filter_btn.prepend(dinp)
     filter_btn.style.borderColor = "red"
   }
-
   filter_btn.onclick = (x) => {
     filters.show_filter_dialog(x, filter_btn, story)
   }
-
   new_story_el.appendChild(filter_btn)
 
   let outline_btn = document.createElement("div")
@@ -117,39 +114,26 @@ function story_html(story) {
   outline_icon.src = "imgs/article.svg"
   outline_btn.appendChild(outline_icon)
   outline_btn.title = "outline"
-
   outline_btn.onclick = (x) => {
+    mark_as_read(story.href)
     outline(story.href)
   }
-
   new_story_el.appendChild(outline_btn)
-
 
   let read_btn = document.createElement("div")
   read_btn.classList.add("btn")
   read_btn.classList.add("read_btn")
   let read_icon = document.createElement("img")
-  if (!new_story_el.classList.contains("read")) {
-    read_btn.title = "mark as read"
-    read_icon.src = "imgs/read.svg"
-  } else {
-    read_btn.title = "mark as unread"
-    read_icon.src = "imgs/unread.svg"
-  }
-
   read_btn.appendChild(read_icon)
+
+  toogle_read(new_story_el, read_btn, read_icon)
+
   read_btn.addEventListener(
     "click",
     (x) => {
       if (!new_story_el.classList.contains("read")) {
-        new_story_el.classList.add("read")
-        read_btn.title = "mark as unread"
-        read_icon.src = "imgs/unread.svg"
         mark_as_read(story.href)
       } else {
-        new_story_el.classList.remove("read")
-        read_btn.title = "mark as read"
-        read_icon.src = "imgs/read.svg"
         mark_as_unread(story.href)
       }
       x.preventDefault()
@@ -169,27 +153,42 @@ function story_html(story) {
     },
     false
   )
-
   link.addEventListener(
     "click",
     (e) => {
-      open_in_webview(e)
-
-      document.querySelectorAll(".story").forEach((x) => {
-        x.classList.remove("selected")
-      })
-      new_story_el.classList.add("selected")
-      sort_stories()
-      if (!new_story_el.classList.contains("read")) {
-        new_story_el.classList.add("read")
-        read_btn.title = "mark as unread"
-        read_icon.src = "imgs/unread.svg"
-        mark_as_read(story.href)
-      }
+      open_story(e, new_story_el, story)
     },
     false
   )
+  //open story with middle click on "mark as read"
+  read_btn.addEventListener("mousedown", (e) => {
+    if (e.button == 1) {
+      open_story(e, new_story_el, story)
+    }
+  })
+
   return new_story_el
+}
+
+function toogle_read(story_el, read_btn, read_icon) {
+  if (!story_el.classList.contains("read")) {
+    read_btn.title = "mark as read"
+    read_icon.src = "imgs/read.svg"
+  } else {
+    read_btn.title = "mark as unread"
+    read_icon.src = "imgs/unread.svg"
+  }
+}
+
+function open_story(e, story_el, story) {
+  open_in_webview(e, story)
+
+  document.querySelectorAll(".story").forEach((x) => {
+    x.classList.remove("selected")
+  })
+  story_el.classList.add("selected")
+  sort_stories()
+  mark_as_read(story.href)
 }
 
 function info_block(story) {
@@ -230,7 +229,17 @@ function mark_as_read(href) {
       readlist = []
     }
   }
+
   readlist.push(href)
+
+  let story_el = document.querySelector('.story[data-href="' + href + '"]')
+  let read_btn = story_el.querySelector(".read_btn")
+  let read_icon = story_el.querySelector(".read_btn img")
+
+  story_el.classList.add("read")
+  read_btn.title = "mark as unread"
+  read_icon.src = "imgs/unread.svg"
+
   readlist = readlist.filter((v, i, a) => a.indexOf(v) === i)
   localStorage.setItem("readlist", JSON.stringify(readlist))
 }
@@ -244,6 +253,15 @@ function mark_as_unread(href) {
       readlist = []
     }
   }
+
+  let story_el = document.querySelector('.story[data-href="' + href + '"]')
+  let read_btn = story_el.querySelector(".read_btn")
+  let read_icon = story_el.querySelector(".read_btn img")
+
+  story_el.classList.remove("read")
+  read_btn.title = "mark as read"
+  read_icon.src = "imgs/read.svg"
+
   const index = readlist.indexOf(href)
   if (index > -1) {
     readlist.splice(index, 1)

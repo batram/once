@@ -17,11 +17,16 @@ function loadstop(e) {
   }
 }
 
-function open_in_webview(e) {
+function open_in_webview(e, story) {
   e.preventDefault()
   e.stopPropagation()
-  webview.loadURL(e.target.href)
-  urlfield.value = e.target.href
+  if(e.target.href){
+    webview.loadURL(e.target.href)
+    urlfield.value = e.target.href  
+  } else if(story && story.href){
+    webview.loadURL(story.href)
+    urlfield.value = story.href  
+  }
 }
 
 reload_webview_btn.onclick = (x) => {
