@@ -1,4 +1,4 @@
-const { open_in_webview } = require("./web_control")
+const { open_in_webview, outline } = require("./web_control")
 
 module.exports = {
   load,
@@ -109,6 +109,21 @@ function story_html(story) {
   }
 
   new_story_el.appendChild(filter_btn)
+
+  let outline_btn = document.createElement("div")
+  outline_btn.classList.add("btn")
+  outline_btn.classList.add("outline_btn")
+  let outline_icon = document.createElement("img")
+  outline_icon.src = "imgs/article.svg"
+  outline_btn.appendChild(outline_icon)
+  outline_btn.title = "outline"
+
+  outline_btn.onclick = (x) => {
+    outline(story.href)
+  }
+
+  new_story_el.appendChild(outline_btn)
+
 
   let read_btn = document.createElement("div")
   read_btn.classList.add("btn")
