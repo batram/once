@@ -24,15 +24,22 @@ function story_sources() {
   return story_sources
 }
 
-sources_area.value = story_sources().join("\n")
+function set_sources_area() {
+  sources_area.value = story_sources().join("\n")
+}
+set_sources_area()
+
 sources_area.parentElement
   .querySelector('input[value="save"]')
   .addEventListener("click", save_sources_settings)
+sources_area.parentElement
+  .querySelector('input[value="cancel"]')
+  .addEventListener("click", set_sources_area)
 
 sources_area.addEventListener("keydown", (e) => {
   if (e.keyCode === 27) {
     //ESC
-    sources_area.value = story_sources().join("\n")
+    set_sources_area()
   } else if ((e.key = "s" && e.ctrlKey)) {
     //CTRL + s
     save_sources_settings()
@@ -47,15 +54,22 @@ function save_sources_settings() {
   stories.reload()
 }
 
-filter_area.value = filters.get_filterlist().join("\n")
+function set_filter_area() {
+  filter_area.value = filters.get_filterlist().join("\n")
+}
+set_filter_area()
+
 filter_area.parentElement
   .querySelector('input[value="save"]')
   .addEventListener("click", save_filter_settings)
+filter_area.parentElement
+  .querySelector('input[value="cancel"]')
+  .addEventListener("click", set_filter_area)
 
 filter_area.addEventListener("keydown", (e) => {
   if (e.keyCode === 27) {
     //ESC
-    filter_area.value = filters.get_filterlist().join("\n")
+    set_filter_area()
   } else if ((e.key = "s" && e.ctrlKey)) {
     //CTRL + s
     save_filter_settings()

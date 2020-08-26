@@ -224,6 +224,7 @@ body {
   direction: rtl;
   display: flex;
   flex-direction: column;
+  display: hidden;
 }
 
 #settings_panel div {
@@ -239,7 +240,5 @@ body {
 }
 
 #settings_panel input {
-  display: block;
   margin-bottom: 8px;
 }
-
