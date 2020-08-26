@@ -296,15 +296,7 @@ function sort_stories() {
   })
 }
 
-let urls = [
-  "https://news.ycombinator.com/",
-  "https://news.ycombinator.com/news?p=2",
-  "https://news.ycombinator.com/news?p=3",
-  "https://lobste.rs/",
-  "https://old.reddit.com/r/netsec/.rss",
-]
-
-function load() {
+function load(urls) {
   urls.forEach((url) => {
     fetch(url).then((x) => {
       if (x.ok) {
@@ -341,7 +333,7 @@ function reload() {
   document.querySelectorAll(".story").forEach((x) => {
     x.outerHTML = ""
   })
-  load()
+  load(settings.story_sources())
 }
 
 reload_stories_btn.onclick = (x) => {

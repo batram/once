@@ -2,6 +2,7 @@ module.exports = {
   filter_story,
   add_filter,
   show_filter_dialog,
+  get_filterlist,
 }
 
 let default_filterlist = `bbc.co.uk

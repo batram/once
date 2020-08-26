@@ -89,35 +89,10 @@ function human_time(time) {
   return res
 }
 
-function add_menu_tag(type, colors) {
-  if (!document.querySelector('#menu div[data-type="' + type + '"]')) {
-    tag = document.createElement("div")
-    tag.dataset.type = type
-    tag.classList.add("btn")
-    tag.classList.add("menu_btn")
-    tag.classList.add("tag")
-    tag.classList.add("tag")
-    tag.innerText = "[" + type + "]"
-    tag.style.backgroundColor = colors[0]
-    tag.style.color = colors[1]
-
-    tag.onclick = (x) => {
-      document.querySelector("#searchfield").value = "[" + type + "]"
-      search.search_stories("[" + type + "]")
-    }
-
-    document.querySelector("#menu").appendChild(tag)
-  }
-}
-
-add_menu_tag("ALL", ["", ""])
-add_menu_tag("filtered", ["", ""])
-add_menu_tag("new", ["", ""])
-
 function parse_hn(doc) {
   let type = "HN"
   let colors = ["rgba(255, 102, 0, 0.56)", "white"]
-  add_menu_tag(type, colors)
+  menu.add_tag(type, colors)
 
   let curl = "https://news.ycombinator.com/item?id="
   let stories = Array.from(doc.querySelectorAll(".storylink"))
@@ -155,7 +130,7 @@ function parse_hn(doc) {
 function parse_lob(doc) {
   let type = "LO"
   let colors = ["rgba(143, 0, 0, 0.56)", "white"]
-  add_menu_tag(type, colors)
+  menu.add_tag(type, colors)
 
   let curl = "https://lobste.rs/s/"
   let stories = Array.from(doc.querySelectorAll(".story"))
@@ -185,7 +160,7 @@ function parse_lob(doc) {
 function parse_reddit_rss(doc) {
   let type = "re"
   let colors = ["#cee3f8", "black"]
-  add_menu_tag(type, colors)
+  menu.add_tag(type, colors)
 
   //Parse as RSS and not HTML ...
   let stories = doc.querySelectorAll("entry")
