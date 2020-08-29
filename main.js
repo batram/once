@@ -18,14 +18,14 @@ function createWindow() {
     },
   })
   win.removeMenu()
-
+  
   // and load the index.html of the app.
   win.loadFile("index.html")
   //win.webContents.openDevTools()
 
   ElectronBlocker.ElectronBlocker.fromPrebuiltAdsAndTracking(fetch).then(
     (blocker) => {
-      blocker.enableBlockingInSession(session.defaultSession)
+      blocker.enableBlockingInSession(session.fromPartition('moep'))
     }
   )
 

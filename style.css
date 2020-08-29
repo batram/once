@@ -224,7 +224,7 @@ body {
   direction: rtl;
   display: flex;
   flex-direction: column;
-  display: hidden;
+  display: none;
 }
 
 #settings_panel div {

@@ -13,7 +13,7 @@ function open_panel(panel) {
     if (x.dataset.panel != panel) {
       x.style.display = "none"
     } else {
-      x.style.display = ""
+      x.style.display = "block"
     }
   })
 }
