@@ -27,14 +27,14 @@ function add_story(story) {
 
   //check if we already have story with same URL
   let og_story_el = document.querySelector(
-    '.story[data-href="' + story.href + '"] .data'
+    '.story[data-href="' + story.href + '"]'
   )
 
   if (og_story_el) {
     // merge story by adding info block, ignore title
     // don't merge on same comment_url, sometimes the same story is on multiple pages
     if (story.comment_url != og_story_el.dataset.comment_url) {
-      og_story_el.appendChild(info_block(story))
+      og_story_el.querySelector('.data').appendChild(info_block(story))
     }
     return
   }
