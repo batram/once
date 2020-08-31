@@ -86,9 +86,29 @@ function couchdb_sync(couchdb_url) {
   console.log(syncHandler)
 
   syncHandler
-    .on("change", function (change) {
+    .on("change", function (event) {
       // yo, something changed!
-      console.log("pouch change", change)
+      console.log("pouch change", event)
+      if (event.direction == "pull") {
+        console.log("pouch change", event.change.docs)
+        event.change.docs.forEach((doc) => {
+          console.log("update", doc._id)
+          switch (doc._id) {
+            case "read_list":
+              console.log("read_list update")
+              stories.refilter()
+              break
+            case "story_sources":
+              set_sources_area()
+              stories.reload()
+              break
+            case "filter_list":
+              set_filter_area()
+              stories.refilter()
+              break
+          }
+        })
+      }
     })
     .on("error", function (err) {
       // yo, we got an error! (maybe the user went offline?)
@@ -213,7 +233,6 @@ async function save_filterlist(filter_list) {
 async function save_readlist(readlist, callback) {
   pouch_set("read_list", readlist, callback)
 }
-
 
 let default_filterlist = `bbc.co.uk
 bbc.com
