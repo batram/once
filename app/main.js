@@ -1,9 +1,10 @@
 const { app, BrowserWindow, session, ipcMain } = require("electron")
-const path = require('path')
+const path = require("path")
 
-require('electron-reload')(__dirname, {
-  electron: path.join(__dirname, 'node_modules', '.bin', 'electron')
-});
+
+require("electron-reload")(path.join(__dirname), {
+  electron: path.join(__dirname, "..", "node_modules", ".bin", "electron"),
+})
 
 const ElectronBlocker = require("@cliqz/adblocker-electron")
 const fetch = require("cross-fetch")

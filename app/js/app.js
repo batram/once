@@ -9,6 +9,16 @@ const stories = require("./js/stories")
 const seperation_slider = require("./js/sep_slider")
 const search = require("./js/search")
 
-seperation_slider.init_slider()
-search.init_search()
-stories.load(settings.story_sources())
+window.onload = (x) => {
+  console.log("load?")
+  
+  settings.init()
+
+  seperation_slider.init_slider()
+  search.init_search()
+
+  settings.story_sources().then((x) => {
+    console.log(x)
+    stories.load(x)
+  })
+}

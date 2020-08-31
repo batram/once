@@ -239,6 +239,12 @@ body {
   margin-bottom: 2px;
 }
 
-#settings_panel input {
+#settings_panel input[type=button] {
   margin-bottom: 8px;
+}
+
+#couch_input {
+  display: block;
+  width: 95%;
+  margin-bottom: 2px;
 }

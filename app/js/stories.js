@@ -9,49 +9,48 @@ module.exports = {
 let story_map = new Map()
 
 function is_story_read(href) {
-  let readlist = localStorage.getItem("readlist")
-  try {
-    readlist = JSON.parse(readlist)
-  } finally {
-    if (!Array.isArray(readlist)) {
-      readlist = []
-    }
-  }
-  return readlist.includes(href)
+  return settings.get_readlist().then((readlist) => {
+    return readlist.includes(href)
+  })
 }
 
 function add_story(story) {
   story_map[story.comment_url] = story
 
-  story = filters.filter_story(story)
+  filters.filter_story(story).then((story) => {
+    //check if we already have story with same URL
+    let og_story_el = document.querySelector(
+      '.story[data-href="' + story.href + '"]'
+    )
 
-  //check if we already have story with same URL
-  let og_story_el = document.querySelector(
-    '.story[data-href="' + story.href + '"]'
-  )
-
-  if (og_story_el) {
-    // merge story by adding info block, ignore title
-    // don't merge on same comment_url, sometimes the same story is on multiple pages
-    if (story.comment_url != og_story_el.dataset.comment_url) {
-      og_story_el.querySelector('.data').appendChild(info_block(story))
+    if (og_story_el) {
+      // merge story by adding info block, ignore title
+      // don't merge on same comment_url, sometimes the same story is on multiple pages
+      if (story.comment_url != og_story_el.dataset.comment_url) {
+        og_story_el.querySelector(".data").appendChild(info_block(story))
+      }
+      return
     }
-    return
-  }
 
-  let new_story_el = story_html(story)
+    let new_story_el = story_html(story)
 
-  let stories_container = document.querySelector("#stories")
-  stories_container.appendChild(new_story_el)
+    let stories_container = document.querySelector("#stories")
+    stories_container.appendChild(new_story_el)
+  })
 }
 
 function story_html(story) {
   let new_story_el = document.createElement("div")
   new_story_el.classList.add("story")
-  if (is_story_read(story.href)) {
-    new_story_el.classList.add("read")
-  }
 
+  is_story_read(story.href).then( read => {
+    if(read){
+      new_story_el.classList.add("read")
+      sort_stories()
+    }
+    add_read_button(new_story_el, story)
+  })
+    
   new_story_el.dataset.title = story.title
   new_story_el.dataset.href = story.href
   new_story_el.dataset.hostname = story.hostname
@@ -120,32 +119,6 @@ function story_html(story) {
   }
   new_story_el.appendChild(outline_btn)
 
-  let read_btn = document.createElement("div")
-  read_btn.classList.add("btn")
-  read_btn.classList.add("read_btn")
-  let read_icon = document.createElement("img")
-  read_btn.appendChild(read_icon)
-
-  toogle_read(new_story_el, read_btn, read_icon)
-
-  read_btn.addEventListener(
-    "click",
-    (x) => {
-      if (!new_story_el.classList.contains("read")) {
-        mark_as_read(story.href)
-      } else {
-        mark_as_unread(story.href)
-      }
-      x.preventDefault()
-      x.stopPropagation()
-      sort_stories()
-
-      return false
-    },
-    false
-  )
-  new_story_el.appendChild(read_btn)
-
   new_story_el.addEventListener(
     "contextmenu",
     (e) => {
@@ -160,14 +133,44 @@ function story_html(story) {
     },
     false
   )
+
+  return new_story_el
+}
+
+function add_read_button(new_story_el, story) {
+  let read_btn = document.createElement("div")
+  read_btn.classList.add("btn")
+  read_btn.classList.add("read_btn")
+  let read_icon = document.createElement("img")
+  read_btn.appendChild(read_icon)
+
+  toogle_read(new_story_el, read_btn, read_icon)
+
+  read_btn.addEventListener(
+    "click",
+    (x) => {
+      if (!new_story_el.classList.contains("read")) {
+        mark_as_read(story.href)
+      }
+      else {
+        mark_as_unread(story.href)
+      }
+      x.preventDefault()
+      x.stopPropagation()
+      sort_stories()
+
+      return false
+    },
+    false
+  )
+  new_story_el.appendChild(read_btn)
+
   //open story with middle click on "mark as read"
   read_btn.addEventListener("mousedown", (e) => {
     if (e.button == 1) {
       open_story(e, new_story_el, story)
     }
   })
-
-  return new_story_el
 }
 
 function toogle_read(story_el, read_btn, read_icon) {
@@ -221,17 +224,6 @@ function info_block(story) {
 }
 
 function mark_as_read(href) {
-  let readlist = localStorage.getItem("readlist")
-  try {
-    readlist = JSON.parse(readlist)
-  } finally {
-    if (!Array.isArray(readlist)) {
-      readlist = []
-    }
-  }
-
-  readlist.push(href)
-
   let story_el = document.querySelector('.story[data-href="' + href + '"]')
   let read_btn = story_el.querySelector(".read_btn")
   let read_icon = story_el.querySelector(".read_btn img")
@@ -240,20 +232,14 @@ function mark_as_read(href) {
   read_btn.title = "mark as unread"
   read_icon.src = "imgs/unread.svg"
 
-  readlist = readlist.filter((v, i, a) => a.indexOf(v) === i)
-  localStorage.setItem("readlist", JSON.stringify(readlist))
+  settings.get_readlist().then((readlist) => {
+    readlist.push(href)
+    readlist = readlist.filter((v, i, a) => a.indexOf(v) === i)
+    settings.save_readlist(readlist, console.log)
+  })
 }
 
 function mark_as_unread(href) {
-  let readlist = localStorage.getItem("readlist")
-  try {
-    readlist = JSON.parse(readlist)
-  } finally {
-    if (!Array.isArray(readlist)) {
-      readlist = []
-    }
-  }
-
   let story_el = document.querySelector('.story[data-href="' + href + '"]')
   let read_btn = story_el.querySelector(".read_btn")
   let read_icon = story_el.querySelector(".read_btn img")
@@ -262,12 +248,13 @@ function mark_as_unread(href) {
   read_btn.title = "mark as read"
   read_icon.src = "imgs/read.svg"
 
-  const index = readlist.indexOf(href)
-  if (index > -1) {
-    readlist.splice(index, 1)
-  }
-
-  localStorage.setItem("readlist", JSON.stringify(readlist))
+  settings.get_readlist().then((readlist) => {
+    const index = readlist.indexOf(href)
+    if (index > -1) {
+      readlist.splice(index, 1)
+    }
+    settings.save_readlist(readlist, console.log)
+  })
 }
 
 function sort_stories() {
@@ -321,9 +308,11 @@ function load(urls) {
 function refilter() {
   document.querySelectorAll(".story").forEach((x) => {
     let curl = x.dataset.comment_url
-    story_map[curl] = filters.filter_story(story_map[curl])
-    let nstory = story_html(story_map[curl])
-    x.replaceWith(nstory)
+    filters.filter_story(story_map[curl]).then((story) => {
+      story_map[curl] = story
+      let nstory = story_html(story_map[curl])
+      x.replaceWith(nstory)
+    })
   })
 }
 
@@ -333,7 +322,9 @@ function reload() {
   document.querySelectorAll(".story").forEach((x) => {
     x.outerHTML = ""
   })
-  load(settings.story_sources())
+  settings.story_sources().then((x) => {
+    load(x)
+  })
 }
 
 reload_stories_btn.onclick = (x) => {

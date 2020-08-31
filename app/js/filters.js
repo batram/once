@@ -1,3 +1,5 @@
+const settings = require("./settings")
+
 module.exports = {
   filter_story,
   add_filter,
@@ -5,66 +7,13 @@ module.exports = {
   get_filterlist,
 }
 
-let default_filterlist = `bbc.co.uk
-bbc.com
-bloomberg.com
-brave.com
-buzzfeed.com
-cnbc.com
-cnn.com
-dw.com
-forbes.com
-fortune.com
-foxnews.com
-hbr.org
-latimes.com
-mercurynews.com
-mozilla.org
-newyorker.com
-npr.org
-nytimes.com
-rarehistoricalphotos.com
-reuters.com
-sfchronicle.com
-sfgate.com
-slate.com
-techcrunch.com
-theatlantic.com
-thedailybeast.com
-thedrive.com
-theguardian.com
-thetimes.co.uk
-theverge.com
-vice.com
-vox.com
-washingtonpost.com
-wired.com
-wsj.com
-yahoo.com`
-  .split("\n")
-  .map((x) => x.trim())
-
 let dynamic_filters = {
   "twitter.com": twitnit,
   "www.reddit.com": old_reddit,
 }
 
-function get_filterlist() {
-  if (!localStorage.hasOwnProperty("filterlist")) {
-    localStorage.setItem("filterlist", JSON.stringify(default_filterlist))
-    return default_filterlist
-  }
-
-  let filterlist = localStorage.getItem("filterlist")
-  try {
-    filterlist = JSON.parse(filterlist)
-  } finally {
-    if (!Array.isArray(filterlist)) {
-      filterlist = []
-    }
-  }
-
-  return filterlist
+async function get_filterlist() {
+  return await settings.get_filterlist()
 }
 
 function twitnit(story) {
@@ -78,32 +27,34 @@ function old_reddit(story) {
 }
 
 function add_filter(filter) {
-  let filter_list = get_filterlist()
-  filter_list.push(filter.toString())
-  localStorage.setItem("filterlist", JSON.stringify(filter_list))
+  get_filterlist().then((filter_list) => {
+    filter_list.push(filter.toString())
+    settings.save_filterlist(filter_list)
+  })
 }
 
-function filter_story(story) {
-  let filter_list = get_filterlist()
-  for (pattern in filter_list) {
-    if (
-      story.href.includes(filter_list[pattern]) ||
-      story.title
-        .toLocaleLowerCase()
-        .includes(filter_list[pattern].toLocaleLowerCase())
-    ) {
-      story.filter = filter_list[pattern]
-      return story
+async function filter_story(story) {
+  return get_filterlist().then((filter_list) => {
+    for (pattern in filter_list) {
+      if (
+        story.href.includes(filter_list[pattern]) ||
+        story.title
+          .toLocaleLowerCase()
+          .includes(filter_list[pattern].toLocaleLowerCase())
+      ) {
+        story.filter = filter_list[pattern]
+        return story
+      }
     }
-  }
 
-  for (pattern in dynamic_filters) {
-    if (story.href.includes(pattern)) {
-      return dynamic_filters[pattern](story)
+    for (pattern in dynamic_filters) {
+      if (story.href.includes(pattern)) {
+        return dynamic_filters[pattern](story)
+      }
     }
-  }
 
-  return story
+    return story
+  })
 }
 
 function show_filter_dialog(event, filter_btn, story) {
@@ -158,6 +109,5 @@ function confirm_add_story(inp, filter_btn) {
   if (confirm('add filter: "' + inp.value + '"')) {
     filters.add_filter(inp.value)
     filter_btn.querySelectorAll(".filter_btn input").outerHTML = ""
-    stories.refilter()
   }
 }
