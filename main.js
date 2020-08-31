@@ -14,18 +14,22 @@ function createWindow() {
       nodeIntegration: true,
       enableRemoteModule: true,
       webSecurity: false,
-      webviewTag: true,
+      webviewTag
+      : true,
     },
+    icon: __dirname + '/imgs/icons/mipmap-mdpi/ic_launcher.png'
   })
+
   win.removeMenu()
-  
+  //win.webContents.session.setProxy({ proxyRules: "socks5://127.0.0.1:9150" })
+
   // and load the index.html of the app.
   win.loadFile("index.html")
   //win.webContents.openDevTools()
 
   ElectronBlocker.ElectronBlocker.fromPrebuiltAdsAndTracking(fetch).then(
     (blocker) => {
-      blocker.enableBlockingInSession(session.fromPartition('moep'))
+      blocker.enableBlockingInSession(session.fromPartition("moep"))
     }
   )
 
