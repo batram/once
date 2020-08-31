@@ -7,14 +7,18 @@
       http-equiv="Content-Security-Policy"
       content="script-src 'self' 'unsafe-inline';"
     />
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="css/style.css" />
   </head>
 
   <body>
     <div id="left_panel">
       <div id="menu">
-        <div class="sub" id="settings_menu_btn" data-panel="settings">Settings</div>
-        <div class="sub" id="stories_menu_btn" data-panel="stories">Stories</div>
+        <div class="sub" id="settings_menu_btn" data-panel="settings">
+          Settings
+        </div>
+        <div class="sub" id="stories_menu_btn" data-panel="stories">
+          Stories
+        </div>
       </div>
       <div id="left_main">
         <div id="stories_panel" class="panel" data-panel="stories">
@@ -30,14 +34,14 @@
           <div>
             Story sources:
             <textarea id="sources_area"></textarea>
-            <input type="button" value="save">
-            <input type="button" value="cancel">
+            <input type="button" value="save" />
+            <input type="button" value="cancel" />
           </div>
           <div>
             Filters:
             <textarea id="filter_area"></textarea>
-            <input type="button" value="save">
-            <input type="button" value="cancel">
+            <input type="button" value="save" />
+            <input type="button" value="cancel" />
           </div>
         </div>
       </div>
@@ -62,19 +66,4 @@
   </body>
 </html>
 
-<script>
-  const { remote, shell, clipboard, ipcRenderer } = require("electron")
-  const { Menu, MenuItem } = remote
-  const filters = require("./filters")
-  const settings = require("./settings")
-  const story_parser = require("./parser")
-  const contextmenu = require("./contextmenu")
-  const menu = require("./menu")
-  const stories = require("./stories")
-  const seperation_slider = require("./sep_slider")
-  const search = require("./search")
-
-  seperation_slider.init_slider()
-  search.init_search()
-  stories.load(settings.story_sources())
-</script>
+<script src="js/app.js"></script>
