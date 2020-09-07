@@ -1,6 +1,6 @@
 html,
 body {
-  background-color: rgb(246, 246, 239);
+  background-color: var(--main-bg-color);
   height: 100%;
   width: 100%;
   padding: 0;
@@ -9,6 +9,39 @@ body {
   display: flex;
   flex-direction: row;
   font-family: Verdana, Geneva, sans-serif;
+}
+
+.dark {
+  --main-bg-color: #282a36;
+  --second-bg-color: #383a59;
+  --highlight-bg-color: #4050ac;
+  --border-color: #282a36;
+  --border-high-color: #282a36;
+  --btn-bg-color: #383a59;
+  --input-bg-color: var(--second-bg-color);
+  --text-high-color: #bcc2cd;
+  --text-color: #828282;
+  color: #bcc2cd;
+}
+
+.light {
+  --main-bg-color: rgb(246, 246, 239);
+  --second-bg-color: #ccc;
+  --highlight-bg-color: rgb(202, 202, 172);
+  --border-color: #b3b3b3;
+  --border-high-color: #b3b3b3;
+  --btn-bg-color: none;
+  --input-bg-color: white;
+  --text-high-color: black;
+  --text-color: #828282;
+  color: black;
+}
+
+input {
+  background: var(--input-bg-color);
+  color: var(--text-high-color);
+  border: thin solid black;
+  border-radius: 2px;
 }
 
 #left_panel {
@@ -36,7 +69,7 @@ body {
 
 #menu .sub {
   padding: 3px;
-  border-top: thin solid;
+  border-top: thin solid var(--border-high-color);
   cursor: pointer;
   font-size: 13px;
 }
@@ -44,6 +77,9 @@ body {
 #left_main {
   display: flex;
   flex-direction: column;
+  scrollbar-color: rebeccapurple green;
+  scrollbar-width: thin;
+
   width: 100%;
 }
 
@@ -75,7 +111,7 @@ body {
 }
 
 .bar {
-  border-bottom: thin solid #b3b3b3;
+  border-bottom: thin solid var(--border-high-color);
   padding: 5px 15px;
   display: flex;
   flex-direction: row;
@@ -86,7 +122,7 @@ body {
 }
 
 .read {
-  background: #ccc;
+  background: var(--second-bg-color);
 }
 
 .selected {
@@ -94,7 +130,7 @@ body {
 }
 
 .story {
-  border-bottom: thin solid #b3b3b3;
+  border-bottom: thin solid var(--border-color);
   padding: 5px 15px;
   display: flex;
 }
@@ -103,7 +139,7 @@ body {
   display: inline;
   font-size: medium;
   font-size: 10.5pt;
-  color: rgb(0, 0, 0);
+  color: var(--text-high-color);
 }
 
 .story .hostname {
@@ -132,7 +168,7 @@ body {
 
 .story a {
   text-decoration-line: none;
-  color: #828282;
+  color: var(--text-color);
 }
 
 #content {
@@ -155,6 +191,7 @@ body {
   font-size: 13px;
   margin: 2px;
   border-radius: 2px;
+  background: var(--btn-bg-color);
 }
 
 .story .btn {
@@ -239,7 +276,7 @@ body {
   margin-bottom: 2px;
 }
 
-#settings_panel input[type=button] {
+#settings_panel input[type="button"] {
   margin-bottom: 8px;
 }
 
