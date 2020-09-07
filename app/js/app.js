@@ -9,20 +9,21 @@ const stories = require("./js/stories")
 const seperation_slider = require("./js/sep_slider")
 const search = require("./js/search")
 
-console.log("load?")
+document.addEventListener("DOMContentLoaded", (_e) => {
+  console.log("load?")
 
-settings.init()
+  settings.init()
 
-seperation_slider.init_slider()
-search.init_search()
+  seperation_slider.init_slider()
+  search.init_search()
 
-if (process.env.LDEV == "1") {
-  settings.story_sources().then((x) => {
-    stories.cache_load(x)
-  })
-} else {
-  settings.story_sources().then((x) => {
-    stories.load(x)
-  })
-}
-
+  if (process.env.LDEV == "1") {
+    settings.story_sources().then((x) => {
+      stories.cache_load(x)
+    })
+  } else {
+    settings.story_sources().then((x) => {
+      stories.load(x)
+    })
+  }
+})

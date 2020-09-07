@@ -18,6 +18,7 @@ const default_sources = [
 ]
 
 const PouchDB = require("pouchdb")
+const { futimes } = require("fs")
 let once_db = new PouchDB(".once_db")
 let syncHandler
 
@@ -26,6 +27,20 @@ function init() {
   if (couchdb_url != "") {
     couchdb_sync(couchdb_url)
   }
+  restore_theme_settings()
+  window
+    .matchMedia("(prefers-color-scheme: dark)")
+    .addEventListener("change", (e) => {
+      console.log("system theme change", e)
+      if (theme_select.value == "system") {
+        let theme = e.matches ? "dark" : "light"
+        set_theme(theme)
+      }
+    })
+
+  theme_select.addEventListener("change", (x) => {
+    save_theme(theme_select.value)
+  })
 
   reset_couch_settings()
   couch_input.parentElement
@@ -74,6 +89,34 @@ function init() {
   })
 }
 
+function restore_theme_settings() {
+  pouch_get("theme", "light").then((x) => {
+    theme_select.value = x
+    set_theme(x)
+  })
+}
+
+function save_theme(name) {
+  pouch_set("theme", name, console.log)
+  set_theme(name)
+}
+
+function set_theme(name) {
+  switch (name) {
+    case "dark":
+      document.body.classList = "dark"
+      break
+    case "light":
+      document.body.classList = "light"
+      break
+    case "custom":
+      break
+    case "system":
+      document.body.classList = ""
+      break
+  }
+}
+
 function couchdb_sync(couchdb_url) {
   var remoteDB = new PouchDB(couchdb_url)
   if (syncHandler) {
@@ -105,6 +148,9 @@ function couchdb_sync(couchdb_url) {
             case "filter_list":
               set_filter_area()
               stories.refilter()
+              break
+            case "theme":
+              restore_theme_settings()
               break
           }
         })
@@ -140,12 +186,14 @@ function reset_couch_settings() {
 }
 
 async function pouch_get(id, fallback) {
+  console.log("pouch_get", id)
   return once_db
     .get(id)
     .then((doc) => {
       return doc.list
     })
     .catch((err) => {
+      console.log(err)
       if (err.status == 404) {
         once_db.put({
           _id: id,
@@ -227,7 +275,10 @@ async function pouch_set(id, value, callback) {
 }
 
 async function save_filterlist(filter_list) {
-  pouch_set("filter_list", filter_list, stories.refilter)
+  pouch_set("filter_list", filter_list, (x) => {
+    stories.refilter()
+    set_filter_area()
+  })
 }
 
 async function save_readlist(readlist, callback) {
