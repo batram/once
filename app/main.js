@@ -1,7 +1,6 @@
 const { app, BrowserWindow, session, ipcMain } = require("electron")
 const path = require("path")
 
-
 require("electron-reload")(path.join(__dirname), {
   electron: path.join(__dirname, "..", "node_modules", ".bin", "electron"),
 })
@@ -28,7 +27,10 @@ function createWindow() {
 
   // and load the index.html of the app.
   win.loadFile("app/index.html")
-  win.webContents.openDevTools()
+
+  if (process.env.LDEV == "1") {
+    win.webContents.openDevTools()
+  }
 
   ElectronBlocker.ElectronBlocker.fromPrebuiltAdsAndTracking(fetch).then(
     (blocker) => {
