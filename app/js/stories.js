@@ -4,6 +4,7 @@ module.exports = {
   load,
   reload,
   refilter,
+  cache_load,
 }
 
 let story_map = new Map()
@@ -43,14 +44,14 @@ function story_html(story) {
   let new_story_el = document.createElement("div")
   new_story_el.classList.add("story")
 
-  is_story_read(story.href).then( read => {
-    if(read){
+  is_story_read(story.href).then((read) => {
+    if (read) {
       new_story_el.classList.add("read")
       sort_stories()
     }
     add_read_button(new_story_el, story)
   })
-    
+
   new_story_el.dataset.title = story.title
   new_story_el.dataset.href = story.href
   new_story_el.dataset.hostname = story.hostname
@@ -151,8 +152,7 @@ function add_read_button(new_story_el, story) {
     (x) => {
       if (!new_story_el.classList.contains("read")) {
         mark_as_read(story.href)
-      }
-      else {
+      } else {
         mark_as_unread(story.href)
       }
       x.preventDefault()
@@ -283,22 +283,56 @@ function sort_stories() {
   })
 }
 
+function cache_load(urls) {
+  urls.forEach((url) => {
+    let cache = localStorage.getItem(url)
+    try {
+      cache = JSON.parse(cache)
+    } catch (e) {
+      cache = null
+    }
+    if (
+      cache != null &&
+      Array.isArray(cache) &&
+      cache.length == 2 &&
+      Date.now() - cache[0] < 5 * 60 * 1000 //5min?
+    ) {
+      console.log("cache", (Date.now() - cache[0]) / (60 * 1000))
+      parse_story_response(cache[1], url)
+    } else {
+      console.log("nocache", (Date.now() - cache[0]) / (60 * 1000))
+      fetch(url).then((x) => {
+        if (x.ok) {
+          x.text().then((val) => {
+            localStorage.setItem(url, JSON.stringify([Date.now(), val]))
+            parse_story_response(val, url)
+          })
+        }
+      })
+    }
+  })
+}
+
+function parse_story_response(val, url) {
+  let dom_parser = new DOMParser()
+  let doc = dom_parser.parseFromString(val, "text/html")
+
+  let stories = story_parser.parse(url, doc)
+
+  stories.forEach((x) => {
+    add_story(x)
+  })
+
+  sort_stories()
+  search.search_stories(searchfield.value)
+}
+
 function load(urls) {
   urls.forEach((url) => {
     fetch(url).then((x) => {
       if (x.ok) {
         x.text().then((val) => {
-          let dom_parser = new DOMParser()
-          let doc = dom_parser.parseFromString(val, "text/html")
-
-          let stories = story_parser.parse(url, doc)
-
-          stories.forEach((x) => {
-            add_story(x)
-          })
-
-          sort_stories()
-          search.search_stories(searchfield.value)
+          parse_story_response(val, url)
         })
       }
     })
