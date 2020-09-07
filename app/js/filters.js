@@ -4,6 +4,7 @@ module.exports = {
   filter_story,
   add_filter,
   show_filter_dialog,
+  filter_stories,
   get_filterlist,
 }
 
@@ -12,8 +13,8 @@ let dynamic_filters = {
   "www.reddit.com": old_reddit,
 }
 
-async function get_filterlist() {
-  return await settings.get_filterlist()
+function get_filterlist() {
+  return settings.get_filterlist()
 }
 
 function twitnit(story) {
@@ -33,28 +34,40 @@ function add_filter(filter) {
   })
 }
 
+async function filter_stories(stories) {
+  let flist = get_filterlist()
+  const filter_list = await get_filterlist()
+  return stories.map((story) => {
+    return filter_run(filter_list, story)
+  })
+}
+
 async function filter_story(story) {
   return get_filterlist().then((filter_list) => {
-    for (pattern in filter_list) {
-      if (
-        story.href.includes(filter_list[pattern]) ||
-        story.title
-          .toLocaleLowerCase()
-          .includes(filter_list[pattern].toLocaleLowerCase())
-      ) {
-        story.filter = filter_list[pattern]
-        return story
-      }
-    }
-
-    for (pattern in dynamic_filters) {
-      if (story.href.includes(pattern)) {
-        return dynamic_filters[pattern](story)
-      }
-    }
-
-    return story
+    return filter_run(filter_list, story)
   })
+}
+
+function filter_run(filter_list, story) {
+  for (pattern in filter_list) {
+    if (
+      story.href.includes(filter_list[pattern]) ||
+      story.title
+        .toLocaleLowerCase()
+        .includes(filter_list[pattern].toLocaleLowerCase())
+    ) {
+      story.filter = filter_list[pattern]
+      return story
+    }
+  }
+
+  for (pattern in dynamic_filters) {
+    if (story.href.includes(pattern)) {
+      return dynamic_filters[pattern](story)
+    }
+  }
+
+  return story
 }
 
 function show_filter_dialog(event, filter_btn, story) {

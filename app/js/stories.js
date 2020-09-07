@@ -6,6 +6,8 @@ module.exports = {
   refilter,
   restar,
   cache_load,
+  collect_all_stories,
+  sort_stories,
 }
 
 let story_map = new Map()
@@ -25,46 +27,52 @@ function is_story_stared(href) {
 function add_story(story) {
   story_map[story.href] = story
 
-  filters.filter_story(story).then((story) => {
-    //check if we already have story with same URL
-    let og_story_el = document.querySelector(
-      '.story[data-href="' + story.href + '"]'
-    )
+  //check if we already have story with same URL
+  let og_story_el = document.querySelector(
+    '.story[data-href="' + story.href + '"]'
+  )
 
-    if (og_story_el) {
-      // merge story by adding info block, ignore title
-      // don't merge on same comment_url, sometimes the same story is on multiple pages
-      if (story.comment_url != og_story_el.dataset.comment_url) {
-        //avoid adding the same source twice
-        if (
-          og_story_el.querySelector(
-            '.comment_url[href="' + story.comment_url + '"]'
-          ) == null
-        ) {
-          og_story_el.querySelector(".data").appendChild(info_block(story))
-        }
+  if (og_story_el) {
+    // merge story by adding info block, ignore title
+    // don't merge on same comment_url, sometimes the same story is on multiple pages
+    if (story.comment_url != og_story_el.dataset.comment_url) {
+      //avoid adding the same source twice
+      if (
+        og_story_el.querySelector(
+          '.comment_url[href="' + story.comment_url + '"]'
+        ) == null
+      ) {
+        og_story_el.querySelector(".data").appendChild(info_block(story))
       }
-      return
     }
+    return
+  }
 
-    let new_story_el = story_html(story)
+  let new_story_el = story_html(story)
 
-    let stories_container = document.querySelector("#stories")
-    stories_container.appendChild(new_story_el)
-  })
+  let stories_container = document.querySelector("#stories")
+  stories_container.appendChild(new_story_el)
 }
 
 function story_html(story) {
   let new_story_el = document.createElement("div")
   new_story_el.classList.add("story")
 
-  is_story_read(story.href).then((read) => {
-    if (read) {
+  if (story.hasOwnProperty("read")) {
+    if (story.read) {
       new_story_el.classList.add("read")
-      sort_stories()
+      //sort_stories()
     }
     add_read_button(new_story_el, story)
-  })
+  } else {
+    is_story_read(story.href).then((read) => {
+      if (read) {
+        new_story_el.classList.add("read")
+        //sort_stories()
+      }
+      add_read_button(new_story_el, story)
+    })
+  }
 
   is_story_stared(story.href).then((stared) => {
     if (stared) {
@@ -135,7 +143,8 @@ function story_html(story) {
   outline_icon.src = "imgs/article.svg"
   outline_btn.appendChild(outline_icon)
   outline_btn.title = "outline"
-  outline_btn.onclick = (x) => {
+  outline_btn.onclick = async (x) => {
+    sort_stories()
     mark_as_read(story.href)
     outline(story.href)
   }
@@ -356,86 +365,136 @@ function mark_as_unread(href) {
   })
 }
 
-function sort_stories() {
-  //sort by timestamp
-  let storted = Array.from(document.querySelectorAll(".story")).sort((a, b) => {
-    var a_time = a.dataset.timestamp
-    var b_time = b.dataset.timestamp
-    var a_read = a.classList.contains("read")
-    var b_read = b.classList.contains("read")
-    if (a_read && !b_read) {
-      return 1
-    } else if (!a_read && b_read) {
-      return -1
-    } else if ((a_read && b_read) || (!a_read && !b_read)) {
-      if (a_time > b_time) return -1
-      if (a_time < b_time) return 1
-      return 0
-    }
-    if (a_time > b_time) return -1
-    if (a_time < b_time) return 1
+function sort_raw_stories(stories) {
+  return stories.sort(story_compare)
+}
+
+function story_compare(a, b) {
+  //sort by read first and then timestamp
+  if (a.read && !b.read) {
+    return 1
+  } else if (!a.read && b.read) {
+    return -1
+  } else if ((a.read && b.read) || (!a.read && !b.read)) {
+    if (a.timestamp > b.timestamp) return -1
+    if (a.timestamp < b.timestamp) return 1
     return 0
-  })
+  }
+  if (a.timestamp > b.timestamp) return -1
+  if (a.timestamp < b.timestamp) return 1
+  return 0
+}
+
+function sort_stories() {
+  //sort by timestamp and read
+  let storted = Array.from(document.querySelectorAll(".story"))
+    .map((x) => {
+      return {
+        read: x.classList.contains("read"),
+        timestamp: x.dataset.timestamp,
+        el: x,
+      }
+    })
+    .sort(story_compare)
 
   storted.forEach((x) => {
-    document.querySelector("#stories").appendChild(x)
+    document.querySelector("#stories").appendChild(x.el)
   })
 }
 
-function cache_load(urls) {
-  urls.forEach((url) => {
-    let cache = localStorage.getItem(url)
-    try {
-      cache = JSON.parse(cache)
-    } catch (e) {
-      cache = null
+function get_cached(url) {
+  let cached = localStorage.getItem(url)
+  let max_mins = 5
+
+  try {
+    cached = JSON.parse(cached)
+    if (!Array.isArray(cached)) {
+      throw "cached entry is not Array"
     }
-    if (
-      cache != null &&
-      Array.isArray(cache) &&
-      cache.length == 2 &&
-      Date.now() - cache[0] < 5 * 60 * 1000 //5min?
-    ) {
-      console.log("cache", (Date.now() - cache[0]) / (60 * 1000))
-      parse_story_response(cache[1], url)
+    if (cached.length != 2) {
+      throw "cached entry not length 2"
+    }
+    let mins_old = (Date.now() - cached[0]) / (60 * 1000)
+    if (Date.now() - cached[0] > max_mins) {
+      throw "cached entry out of date " + mins_old
     } else {
-      console.log("nocache", (Date.now() - cache[0]) / (60 * 1000))
-      fetch(url).then((x) => {
-        if (x.ok) {
-          x.text().then((val) => {
-            localStorage.setItem(url, JSON.stringify([Date.now(), val]))
-            parse_story_response(val, url)
-          })
-        }
-      })
+      console.log("cached", mins_old, url)
     }
-  })
+  } catch (e) {
+    console.log("cache error: ", e)
+    return null
+  }
+
+  return cached[1]
 }
 
-function parse_story_response(val, url) {
+async function collect_all_stories(urls, try_cache = true) {
+  let donso = await Promise.all(
+    urls.map(async (url) => {
+      return cache_load(url, try_cache)
+    })
+  )
+
+  let all_stories = sort_raw_stories(donso.flat())
+  all_stories.forEach((story) => {
+    add_story(story)
+  })
+
+  if (searchfield.value != "") {
+    search.search_stories(searchfield.value)
+  }
+}
+
+async function cache_load(url, try_cache = true) {
+  let cached = null
+  if (try_cache) {
+    cached = get_cached(url)
+  }
+  if (cached != null) {
+    return parse_story_response(cached, url)
+  } else {
+    return fetch(url).then((x) => {
+      if (x.ok) {
+        return x.text().then((val) => {
+          localStorage.setItem(url, JSON.stringify([Date.now(), val]))
+          return parse_story_response(val, url)
+        })
+      }
+    })
+  }
+}
+
+async function story_enhancers() {
+  let enhance = await Promise.all([
+    settings.get_readlist(),
+    settings.get_starlist(),
+  ])
+  return enhance
+}
+
+async function parse_story_response(val, url) {
   let dom_parser = new DOMParser()
   let doc = dom_parser.parseFromString(val, "text/html")
 
   let stories = story_parser.parse(url, doc)
+  let enhance = await story_enhancers()
+  let filtered_stories = await filters.filter_stories(stories)
+  let readlist = enhance[0]
+  let starlist = enhance[0]
 
-  stories.forEach((x) => {
-    add_story(x)
+  filtered_stories.forEach((story) => {
+    story.read = readlist.includes(story.href)
+    story.stared = starlist.hasOwnProperty(story.href)
+    //add_story(story)
   })
 
-  sort_stories()
-  search.search_stories(searchfield.value)
+  return filtered_stories
 }
 
-function load(urls) {
-  urls.forEach((url) => {
-    fetch(url).then((x) => {
-      if (x.ok) {
-        x.text().then((val) => {
-          parse_story_response(val, url)
-        })
-      }
-    })
-  })
+async function load(urls) {
+  let cache = false
+  //TODO: not sure about waiting for all, check out rambazamba mode
+  collect_all_stories(urls, cache)
 }
 
 function restar() {

@@ -15,13 +15,8 @@ document.addEventListener("DOMContentLoaded", (_e) => {
   seperation_slider.init_slider()
   search.init_search()
 
-  if (process.env.LDEV == "1") {
-    settings.story_sources().then((x) => {
-      stories.cache_load(x)
-    })
-  } else {
-    settings.story_sources().then((x) => {
-      stories.load(x)
-    })
-  }
+  let cache = process.env.LDEV == "1"
+  settings.story_sources().then((x) => {
+    stories.collect_all_stories(x, cache)
+  })
 })

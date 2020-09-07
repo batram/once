@@ -14,7 +14,6 @@
   "dependencies": {
     "@cliqz/adblocker-electron": "^1.17.0",
     "cross-fetch": "^3.0.5",
-    "electron-reload": "^1.5.0",
-    "pouchdb": "^7.2.2"
+    "electron-reload": "^1.5.0"
   }
 }

@@ -19,12 +19,12 @@ const default_sources = [
   "https://old.reddit.com/r/netsec/.rss",
 ]
 
-const PouchDB = require("pouchdb")
-const { futimes } = require("fs")
-let once_db = new PouchDB(".once_db")
 let syncHandler
+let once_db
 
 function init() {
+  once_db = new PouchDB(".once_db")
+
   let couchdb_url = get_couch_settings()
   if (couchdb_url != "") {
     couchdb_sync(couchdb_url)
@@ -195,7 +195,7 @@ async function pouch_get(id, fallback) {
       return doc.list
     })
     .catch((err) => {
-      console.log(err)
+      console.log("pouch_get err", err)
       if (err.status == 404) {
         once_db.put({
           _id: id,
@@ -207,6 +207,9 @@ async function pouch_get(id, fallback) {
 }
 
 async function story_sources() {
+  return new Promise((x) => {
+    x(default_sources)
+  })
   return pouch_get("story_sources", default_sources)
 }
 
@@ -227,7 +230,7 @@ async function set_filter_area() {
   filter_area.value = (await get_filterlist()).join("\n")
 }
 
-async function save_filter_settings() {
+function save_filter_settings() {
   let filter_list = filter_area.value.split("\n").filter((x) => {
     return x.trim() != ""
   })
@@ -235,11 +238,11 @@ async function save_filter_settings() {
   stories.refilter()
 }
 
-async function get_readlist() {
+function get_readlist() {
   return pouch_get("read_list", [])
 }
 
-async function get_filterlist() {
+function get_filterlist() {
   return pouch_get("filter_list", default_filterlist)
 }
 
