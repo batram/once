@@ -7,7 +7,7 @@ const stories = require("./js/stories")
 const seperation_slider = require("./js/sep_slider")
 const search = require("./js/search")
 
-document.addEventListener("DOMContentLoaded", (_e) => {
+document.addEventListener("DOMContentLoaded", async (_e) => {
   console.log("load?")
 
   settings.init()
@@ -15,8 +15,8 @@ document.addEventListener("DOMContentLoaded", (_e) => {
   seperation_slider.init_slider()
   search.init_search()
 
-  let cache = process.env.LDEV == "1"
-  settings.story_sources().then((x) => {
-    stories.collect_all_stories(x, cache)
-  })
+  let dev_cache = process.env.LDEV == "1"
+  let sources = await settings.story_sources()
+
+  stories.collect_all_stories(sources, dev_cache)
 })

@@ -435,7 +435,7 @@ async function collect_all_stories(urls, try_cache = true) {
     })
   )
 
-  let all_stories = sort_raw_stories(donso.flat())
+  let all_stories = sort_raw_stories(donso.filter(x => {return x != undefined}).flat())
   all_stories.forEach((story) => {
     add_story(story)
   })
@@ -533,11 +533,8 @@ function reload() {
   document.querySelectorAll(".story").forEach((x) => {
     x.outerHTML = ""
   })
-  settings.story_sources().then((x) => {
-    load(x)
-  })
+
+  settings.story_sources().then(load)
 }
 
-reload_stories_btn.onclick = (x) => {
-  reload()
-}
+reload_stories_btn.onclick = reload

@@ -119,6 +119,34 @@ function set_theme(name) {
   }
 }
 
+function update_on_change(event) {
+  console.log("pouch change", event)
+  if (event.direction == "pull") {
+    event.change.docs.forEach((doc) => {
+      console.log("update", doc._id)
+      switch (doc._id) {
+        case "read_list":
+          stories.refilter()
+          break
+        case "story_sources":
+          set_sources_area()
+          stories.reload()
+          break
+        case "filter_list":
+          set_filter_area()
+          stories.refilter()
+          break
+        case "star_list":
+          stories.restar()
+          break
+        case "theme":
+          restore_theme_settings()
+          break
+      }
+    })
+  }
+}
+
 function couchdb_sync(couchdb_url) {
   var remoteDB = new PouchDB(couchdb_url)
   if (syncHandler) {
@@ -128,42 +156,13 @@ function couchdb_sync(couchdb_url) {
     live: true,
     retry: true,
   })
-  console.log(syncHandler)
 
   syncHandler
-    .on("change", function (event) {
-      // yo, something changed!
-      console.log("pouch change", event)
-      if (event.direction == "pull") {
-        event.change.docs.forEach((doc) => {
-          console.log("update", doc._id)
-          switch (doc._id) {
-            case "read_list":
-              stories.refilter()
-              break
-            case "story_sources":
-              set_sources_area()
-              stories.reload()
-              break
-            case "filter_list":
-              set_filter_area()
-              stories.refilter()
-              break
-            case "star_list":
-              stories.restar()
-              break
-            case "theme":
-              restore_theme_settings()
-              break
-          }
-        })
-      }
-    })
-    .on("error", function (err) {
-      // yo, we got an error! (maybe the user went offline?)
+    .on("change", update_on_change)
+    .on("error", (err) => {
       console.log("pouch err", err)
     })
-    .on("complete", function (info) {
+    .on("complete", (info) => {
       console.log("pouch sync stopped", info)
     })
 }
@@ -207,9 +206,6 @@ async function pouch_get(id, fallback) {
 }
 
 async function story_sources() {
-  return new Promise((x) => {
-    x(default_sources)
-  })
   return pouch_get("story_sources", default_sources)
 }
 
@@ -222,7 +218,6 @@ async function save_sources_settings() {
     return x.trim() != ""
   })
 
-  console.log("sabe", story_sources, stories.reload)
   pouch_set("story_sources", story_sources, stories.reload)
 }
 
@@ -251,31 +246,25 @@ async function pouch_set(id, value, callback) {
     .get(id)
     .then((doc) => {
       doc.list = value
-      once_db
-        .put(doc)
-        .then((x) => {
-          console.log(x)
-          callback()
-        })
-        .catch((err) => {
-          console.log(err)
-        })
-      return doc.list
+      return once_db.put(doc)
+    })
+    .then((x) => {
+      callback()
     })
     .catch((err) => {
       if (err.status == 404) {
-        //create story_sources if they don't exist
+        //create if id don't exist
         once_db
           .put({
             _id: id,
             list: value,
           })
           .then((x) => {
-            console.log(x)
             callback()
           })
+      } else {
+        console.log("pouch_set error:", err)
       }
-      console.log(err)
     })
 }
 
