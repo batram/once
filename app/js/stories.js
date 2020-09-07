@@ -4,6 +4,7 @@ module.exports = {
   load,
   reload,
   refilter,
+  restar,
   cache_load,
 }
 
@@ -15,8 +16,14 @@ function is_story_read(href) {
   })
 }
 
+function is_story_stared(href) {
+  return settings.get_starlist().then((starlist) => {
+    return starlist.hasOwnProperty(href)
+  })
+}
+
 function add_story(story) {
-  story_map[story.comment_url] = story
+  story_map[story.href] = story
 
   filters.filter_story(story).then((story) => {
     //check if we already have story with same URL
@@ -28,7 +35,14 @@ function add_story(story) {
       // merge story by adding info block, ignore title
       // don't merge on same comment_url, sometimes the same story is on multiple pages
       if (story.comment_url != og_story_el.dataset.comment_url) {
-        og_story_el.querySelector(".data").appendChild(info_block(story))
+        //avoid adding the same source twice
+        if (
+          og_story_el.querySelector(
+            '.comment_url[href="' + story.comment_url + '"]'
+          ) == null
+        ) {
+          og_story_el.querySelector(".data").appendChild(info_block(story))
+        }
       }
       return
     }
@@ -50,6 +64,13 @@ function story_html(story) {
       sort_stories()
     }
     add_read_button(new_story_el, story)
+  })
+
+  is_story_stared(story.href).then((stared) => {
+    if (stared) {
+      new_story_el.classList.add("stared")
+    }
+    add_star_button(new_story_el, story)
   })
 
   new_story_el.dataset.title = story.title
@@ -138,6 +159,83 @@ function story_html(story) {
   return new_story_el
 }
 
+function add_star_button(new_story_el, story) {
+  let star_btn = document.createElement("div")
+  star_btn.classList.add("btn")
+  star_btn.classList.add("star_btn")
+  let star_icon = document.createElement("img")
+  star_btn.appendChild(star_icon)
+
+  label_star(new_story_el, star_btn, star_icon)
+
+  star_btn.addEventListener(
+    "click",
+    (x) => {
+      if (!new_story_el.classList.contains("stared")) {
+        star_story(story)
+      } else {
+        unstar_story(story)
+      }
+      x.preventDefault()
+      x.stopPropagation()
+      return false
+    },
+    false
+  )
+  new_story_el.appendChild(star_btn)
+}
+
+function label_star(story_el, btn, icon) {
+  if (story_el.classList.contains("stared")) {
+    btn.title = "remove bookmark"
+    icon.src = "imgs/star_fill.svg"
+  } else {
+    btn.title = "bookmark"
+    icon.src = "imgs/star.svg"
+  }
+}
+
+function toggle_star(story_el, btn, icon) {
+  if (!story_el.classList.contains("stared")) {
+    story_el.classList.add("stared")
+  } else {
+    story_el.classList.remove("stared")
+  }
+  label_star(story_el, btn, icon)
+}
+
+function star_story(story) {
+  let story_el = document.querySelector(
+    '.story[data-href="' + story.href + '"]'
+  )
+  let star_btn = story_el.querySelector(".star_btn")
+  let star_icon = story_el.querySelector(".star_btn img")
+
+  toggle_star(story_el, star_btn, star_icon)
+
+  settings.get_starlist().then((starlist) => {
+    starlist[story.href] = story
+    settings.save_starlist(starlist, console.log)
+  })
+}
+
+function unstar_story(story) {
+  let story_el = document.querySelector(
+    '.story[data-href="' + story.href + '"]'
+  )
+  let star_btn = story_el.querySelector(".star_btn")
+  let star_icon = story_el.querySelector(".star_btn img")
+
+  toggle_star(story_el, star_btn, star_icon)
+
+  settings.get_starlist().then((starlist) => {
+    if (starlist.hasOwnProperty(story.href)) {
+      delete starlist[story.href]
+      settings.save_starlist(starlist, console.log)
+    }
+  })
+}
+
 function add_read_button(new_story_el, story) {
   let read_btn = document.createElement("div")
   read_btn.classList.add("btn")
@@ -145,7 +243,7 @@ function add_read_button(new_story_el, story) {
   let read_icon = document.createElement("img")
   read_btn.appendChild(read_icon)
 
-  toogle_read(new_story_el, read_btn, read_icon)
+  toggle_read(new_story_el, read_btn, read_icon)
 
   read_btn.addEventListener(
     "click",
@@ -173,7 +271,7 @@ function add_read_button(new_story_el, story) {
   })
 }
 
-function toogle_read(story_el, read_btn, read_icon) {
+function toggle_read(story_el, read_btn, read_icon) {
   if (!story_el.classList.contains("read")) {
     read_btn.title = "mark as read"
     read_icon.src = "imgs/read.svg"
@@ -213,6 +311,7 @@ function info_block(story) {
 
   //comments
   let comments_link = document.createElement("a")
+  comments_link.classList.add("comment_url")
   comments_link.innerText = " [comments] "
   comments_link.href = story.comment_url
   comments_link.addEventListener("click", open_in_webview)
@@ -339,12 +438,31 @@ function load(urls) {
   })
 }
 
+function restar() {
+  settings.get_starlist().then((starlist) => {
+    document.querySelectorAll(".story").forEach((story_el) => {
+      let sthref = story_el.dataset.href
+      if (starlist.hasOwnProperty(sthref)) {
+        let nstory = story_html(story_map[sthref])
+        story_el.replaceWith(nstory)
+      } else {
+        if (story_el.classList.contains("stared")) {
+          story_el.classList.remove("stared")
+          let star_btn = story_el.querySelector(".star_btn")
+          let star_icon = story_el.querySelector(".star_btn img")
+          label_star(story_el, star_btn, star_icon)
+        }
+      }
+    })
+  })
+}
+
 function refilter() {
   document.querySelectorAll(".story").forEach((x) => {
-    let curl = x.dataset.comment_url
-    filters.filter_story(story_map[curl]).then((story) => {
-      story_map[curl] = story
-      let nstory = story_html(story_map[curl])
+    let sthref = x.dataset.href
+    filters.filter_story(story_map[sthref]).then((story) => {
+      story_map[sthref] = story
+      let nstory = story_html(story_map[sthref])
       x.replaceWith(nstory)
     })
   })

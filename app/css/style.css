@@ -156,6 +156,30 @@ textarea {
   background: var(--second-bg-color);
 }
 
+.filter_btn {
+  order: 1;
+}
+
+.filter_btn input {
+  position: relative;
+  top: -4px;
+  height: 16px;
+  margin: 0 1px;
+  order: 1;
+}
+
+.outline_btn {
+  order: 2;
+}
+
+.star_btn {
+  order: 3;
+}
+
+.read_btn {
+  order: 4;
+}
+
 .selected {
   background: #e8b9b9;
 }
@@ -183,6 +207,7 @@ textarea {
   width: 100%;
   color: #828282;
   font-size: 6.9pt;
+  order: 0;
 }
 
 .story .info {
@@ -273,13 +298,6 @@ textarea {
 
 .show_filtered .filtered {
   display: flex;
-}
-
-.filter_btn input {
-  position: relative;
-  top: -4px;
-  height: 16px;
-  margin: 0 1px;
 }
 
 #settings_panel {

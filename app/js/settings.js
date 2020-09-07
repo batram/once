@@ -6,6 +6,8 @@ module.exports = {
   save_filterlist,
   get_readlist,
   save_readlist,
+  get_starlist,
+  save_starlist,
   init,
 }
 
@@ -133,12 +135,10 @@ function couchdb_sync(couchdb_url) {
       // yo, something changed!
       console.log("pouch change", event)
       if (event.direction == "pull") {
-        console.log("pouch change", event.change.docs)
         event.change.docs.forEach((doc) => {
           console.log("update", doc._id)
           switch (doc._id) {
             case "read_list":
-              console.log("read_list update")
               stories.refilter()
               break
             case "story_sources":
@@ -148,6 +148,9 @@ function couchdb_sync(couchdb_url) {
             case "filter_list":
               set_filter_area()
               stories.refilter()
+              break
+            case "star_list":
+              stories.restar()
               break
             case "theme":
               restore_theme_settings()
@@ -186,7 +189,6 @@ function reset_couch_settings() {
 }
 
 async function pouch_get(id, fallback) {
-  console.log("pouch_get", id)
   return once_db
     .get(id)
     .then((doc) => {
@@ -283,6 +285,14 @@ async function save_filterlist(filter_list) {
 
 async function save_readlist(readlist, callback) {
   pouch_set("read_list", readlist, callback)
+}
+
+async function get_starlist() {
+  return pouch_get("star_list", {})
+}
+
+async function save_starlist(readlist, callback) {
+  pouch_set("star_list", readlist, callback)
 }
 
 let default_filterlist = `bbc.co.uk

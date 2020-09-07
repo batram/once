@@ -43,4 +43,5 @@ function add_tag(type, colors) {
 //Add special tags for search
 add_tag("ALL", ["", ""])
 add_tag("filtered", ["", ""])
+add_tag("stared", ["", ""])
 add_tag("new", ["", ""])

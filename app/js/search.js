@@ -45,6 +45,14 @@ function search_stories(needle) {
         }
       })
     },
+    "[stared]": () => {
+      document.querySelectorAll(".story").forEach((x) => {
+        x.style.display = "none"
+        if (x.classList.contains("stared")) {
+          x.style.display = ""
+        }
+      })
+    },
     "[new]": () => {
       document.querySelectorAll(".story").forEach((x) => {
         x.style.display = ""
