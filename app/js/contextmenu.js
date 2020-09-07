@@ -1,5 +1,8 @@
 exports.story_menu = story_menu
 
+const { remote, shell, clipboard } = require("electron")
+const { Menu, MenuItem } = remote
+
 const cmenu_data = {
   rightClickPosition: null,
   href: null,

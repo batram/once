@@ -1,5 +1,3 @@
-const { remote, shell, clipboard, ipcRenderer } = require("electron")
-const { Menu, MenuItem } = remote
 const filters = require("./js/filters")
 const settings = require("./js/settings")
 const story_parser = require("./js/parser")

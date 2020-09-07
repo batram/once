@@ -3,13 +3,46 @@ module.exports = {
   outline,
 }
 
+const { remote } = require("electron")
+const { webContents } = remote
+
 let webview = document.querySelector("#frams")
 webview.addEventListener("did-stop-loading", loadstop)
 
 const outline_api = "https://api.outline.com/v3/parse_article?source_url="
 
+webview.addEventListener("console-message", (e) => {
+  if (e.message == "mousedown 3") {
+    if (webview.canGoBack()) {
+      webview.goBack()
+    }
+  } else if (e.message == "mousedown 4") {
+    if (webview.canGoForward()) {
+      webview.goForward()
+    }
+  }
+})
+
+webview.addEventListener("update-target-url", (event, input) => {
+  //console.log(event, input)
+})
+
+webview.addEventListener("new-window", async (e) => {
+  //console.log("webview new-window", e.url)
+})
+
 function loadstop(e) {
   let url = webview.getURL()
+  webviewContents = webContents.fromId(webview.getWebContentsId())
+
+  webviewContents.on("before-input-event", (event, input) => {
+    //console.log(event, input)
+  })
+
+  webview.executeJavaScript(`document.addEventListener('mousedown', (e) => {
+    console.log('mousedown', e.button)
+  })`)
+
   if (url.startsWith(outline_api)) {
     webview.executeJavaScript("(" + outline_jshook.toString() + ")()")
   } else {
@@ -20,12 +53,12 @@ function loadstop(e) {
 function open_in_webview(e, story) {
   e.preventDefault()
   e.stopPropagation()
-  if(e.target.href){
+  if (e.target.href) {
     webview.loadURL(e.target.href)
-    urlfield.value = e.target.href  
-  } else if(story && story.href){
+    urlfield.value = e.target.href
+  } else if (story && story.href) {
     webview.loadURL(story.href)
-    urlfield.value = story.href  
+    urlfield.value = story.href
   }
 }
 
