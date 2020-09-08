@@ -435,7 +435,13 @@ async function collect_all_stories(urls, try_cache = true) {
     })
   )
 
-  let all_stories = sort_raw_stories(donso.filter(x => {return x != undefined}).flat())
+  let all_stories = sort_raw_stories(
+    donso
+      .filter((x) => {
+        return x != undefined
+      })
+      .flat()
+  )
   all_stories.forEach((story) => {
     add_story(story)
   })
@@ -486,6 +492,7 @@ async function parse_story_response(val, url) {
     story.read = readlist.includes(story.href)
     story.stared = starlist.hasOwnProperty(story.href)
     //add_story(story)
+    story_map[story.href] = story
   })
 
   return filtered_stories
@@ -497,22 +504,22 @@ async function load(urls) {
   collect_all_stories(urls, cache)
 }
 
-function restar() {
-  settings.get_starlist().then((starlist) => {
-    document.querySelectorAll(".story").forEach((story_el) => {
-      let sthref = story_el.dataset.href
-      if (starlist.hasOwnProperty(sthref)) {
-        let nstory = story_html(story_map[sthref])
-        story_el.replaceWith(nstory)
-      } else {
-        if (story_el.classList.contains("stared")) {
-          story_el.classList.remove("stared")
-          let star_btn = story_el.querySelector(".star_btn")
-          let star_icon = story_el.querySelector(".star_btn img")
-          label_star(story_el, star_btn, star_icon)
-        }
+async function restar() {
+  let starlist = await settings.get_starlist()
+
+  document.querySelectorAll(".story").forEach((story_el) => {
+    let sthref = story_el.dataset.href
+    if (starlist.hasOwnProperty(sthref)) {
+      let nstory = story_html(story_map[sthref])
+      story_el.replaceWith(nstory)
+    } else {
+      if (story_el.classList.contains("stared")) {
+        story_el.classList.remove("stared")
+        let star_btn = story_el.querySelector(".star_btn")
+        let star_icon = story_el.querySelector(".star_btn img")
+        label_star(story_el, star_btn, star_icon)
       }
-    })
+    }
   })
 }
 
