@@ -11,6 +11,7 @@ module.exports = {
 let dynamic_filters = {
   "twitter.com": twitnit,
   "www.reddit.com": old_reddit,
+  "youtube.com": youtube_nocookie,
 }
 
 function get_filterlist() {
@@ -24,6 +25,18 @@ function twitnit(story) {
 
 function old_reddit(story) {
   story.href = story.href.replace("www.reddit.com", "old.reddit.com")
+  return story
+}
+
+function youtube_nocookie(story) {
+  story.href = story.href.replace(
+    "www.youtube.com/watch?v=",
+    "www.youtube-nocookie.com/embed/"
+  )
+  story.href = story.href.replace(
+    "://youtube.com/watch?v=",
+    "://www.youtube-nocookie.com/embed/"
+  )
   return story
 }
 
