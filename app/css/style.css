@@ -365,7 +365,6 @@ textarea {
   background: var(--highlight-bg-color);
   border-bottom: thin solid var(--border-color);
   bottom: 0;
-  right: 0;
   font-size: 12px;
   padding: 3px;
   opacity: 0;

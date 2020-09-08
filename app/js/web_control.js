@@ -3,15 +3,14 @@ module.exports = {
   outline,
 }
 
-const { remote } = require("electron")
+const { remote, contentTracing } = require("electron")
 const contextmenu = require("./contextmenu")
 const { webContents } = remote
 
-let webview = document.querySelector("#frams")
-webview.addEventListener("load-commit", loadcommit)
-
 const outline_api = "https://api.outline.com/v3/parse_article?source_url="
 const data_outline_url = "data:text/html;charset=utf-8,"
+
+let webview = document.querySelector("#frams")
 
 webview.addEventListener("console-message", (e) => {
   if (e.message == "mousedown 3") {
@@ -24,6 +23,55 @@ webview.addEventListener("console-message", (e) => {
     }
   }
 })
+webview.addEventListener("enter-html-full-screen", go_fullscreen)
+webview.addEventListener("leave-html-full-screen", leave_fullscreen)
+webview.addEventListener("load-commit", loadcommit)
+
+window.addEventListener("keyup", key_fullscreen)
+
+let win = remote.getCurrentWindow()
+
+function key_fullscreen(e) {
+  //console.log(e)
+  if (e.key == "F11") {
+    if (win.fullScreen) {
+      leave_fullscreen()
+      return true
+    } else {
+      go_fullscreen()
+      return true
+    }
+  }
+  if (e.key == "Escape") {
+    if (win.fullScreen) {
+      leave_fullscreen()
+      return true
+    }
+  }
+}
+
+function go_fullscreen() {
+  let bwin = remote.getCurrentWindow()
+  controlbar.style.display = "none"
+  sep_slider.style.display = "none"
+  left_panel.style.display = "none"
+  content.style.minWidth = "100%"
+  bwin.setFullScreen(true)
+  win.setFullScreen(true)
+}
+
+function leave_fullscreen() {
+  let bwin = remote.getCurrentWindow()
+  controlbar.style.display = ""
+  sep_slider.style.display = ""
+  left_panel.style.display = ""
+  content.style.minWidth = ""
+  webview.executeJavaScript(
+    "if(document.fullscreenElement) document.exitFullscreen()"
+  )
+  bwin.setFullScreen(false)
+  win.setFullScreen(false)
+}
 
 function show_target_url(event, url) {
   if (url != "") {
@@ -43,30 +91,40 @@ let wc = remote.getCurrentWebContents()
 wc.on("update-target-url", show_target_url)
 wc.on("context-menu", contextmenu.inspect_menu)
 
-window.addEventListener("beforeunload", x => {
+window.addEventListener("beforeunload", (x) => {
   //Clean up listiners
   wc.removeListener("context-menu", contextmenu.inspect_menu)
   wc.removeListener("update-target-url", show_target_url)
 })
 
-
 webview.addEventListener("new-window", async (e) => {
   //console.log("webview new-window", e.url)
 })
 
-function loadcommit(e) {
-  webviewContents = webContents.fromId(webview.getWebContentsId())
-  webviewContents.on("context-menu", contextmenu.inspect_menu)
+let once = true
 
-  webviewContents.on("update-target-url", show_target_url)
+function loadcommit(e) {
+  if (once) {
+    once = false
+
+    webviewContents = webContents.fromId(webview.getWebContentsId())
+
+    webviewContents.on("context-menu", contextmenu.inspect_menu)
+    webviewContents.on("update-target-url", show_target_url)
+    webviewContents.on("before-input-event", (event, input) => {
+      if (input.type == "keyUp") {
+        let e = { key: input.key }
+        if (key_fullscreen(e)) {
+          event.preventDefault()
+        }
+      }
+      //console.log(event, input)
+    })
+  }
 
   outline_button_inactive()
   let url = e.url
   webviewContents = webContents.fromId(webview.getWebContentsId())
-
-  webviewContents.on("before-input-event", (event, input) => {
-    //console.log(event, input)
-  })
 
   webview.executeJavaScript(`document.addEventListener('mousedown', (e) => {
     console.log('mousedown', e.button)
@@ -177,7 +235,6 @@ async function outline(url) {
   ) {
     let arch_url = new URL(resp.archived_snapshots.closest.url)
     arch_url.protocol = "https:"
-    console.log("got webarchive", arch_url)
     url = arch_url
   }
 
@@ -190,7 +247,6 @@ async function outline(url) {
   let title = document.createElement("h1")
   title.innerText = article.title
   title.classList.add("outlined")
-  console.log(article)
   webview.loadURL(
     data_outline_url +
       encodeURIComponent(title.outerHTML) +

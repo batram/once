@@ -413,7 +413,7 @@ function get_cached(url) {
       throw "cached entry not length 2"
     }
     let mins_old = (Date.now() - cached[0]) / (60 * 1000)
-    if (Date.now() - cached[0] > max_mins) {
+    if (mins_old > max_mins) {
       throw "cached entry out of date " + mins_old
     } else {
       console.log("cached", mins_old, url)
