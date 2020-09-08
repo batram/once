@@ -352,3 +352,19 @@ textarea {
   width: 95%;
   margin-bottom: 2px;
 }
+
+#url_target {
+  position: absolute;
+  max-width: 400px;
+  /* above slider */
+  z-index: 16;
+  background: var(--highlight-bg-color);
+  border-bottom: thin solid var(--border-color);
+  bottom: 0;
+  right: 0;
+  font-size: 12px;
+  padding: 3px;
+  opacity: 0;
+  white-space: nowrap;
+  transition: all 0.5s ease-out;
+}

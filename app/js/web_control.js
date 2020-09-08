@@ -24,8 +24,29 @@ webview.addEventListener("console-message", (e) => {
   }
 })
 
-webview.addEventListener("update-target-url", (event, input) => {
-  console.log(event, input)
+function show_target_url(url) {
+  if (url != "") {
+    url_target.style.opacity = "1"
+    if (url.length <= 63) {
+      url_target.innerText = url
+    } else {
+      url_target.innerText = url.substring(0, 60) + "..."
+    }
+  } else {
+    url_target.style.opacity = "0"
+  }
+}
+
+console.log(webContents.getAllWebContents())
+webContents.getAllWebContents().forEach((wc) => {
+  wc.addListener("update-target-url", (event, url) => {
+    console.log(url)
+    show_target_url(url)
+  })
+})
+
+webview.addEventListener("update-target-url", (event) => {
+  show_target_url(event.url)
 })
 
 webview.addEventListener("new-window", async (e) => {
