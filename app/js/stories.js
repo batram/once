@@ -1,5 +1,3 @@
-const { open_in_webview, outline } = require("./web_control")
-
 module.exports = {
   load,
   reload,
@@ -146,7 +144,7 @@ function story_html(story) {
   outline_btn.onclick = async (x) => {
     sort_stories()
     mark_as_read(story.href)
-    outline(story.href)
+    web_control.outline(story.href)
   }
   new_story_el.appendChild(outline_btn)
 
@@ -291,7 +289,7 @@ function toggle_read(story_el, read_btn, read_icon) {
 }
 
 function open_story(e, story_el, story) {
-  open_in_webview(e, story)
+  web_control.open_in_webview(e, story)
 
   document.querySelectorAll(".story").forEach((x) => {
     x.classList.remove("selected")
@@ -315,7 +313,7 @@ function info_block(story) {
   let og_link = document.createElement("a")
   og_link.innerText = " [OG] "
   og_link.href = story.href
-  og_link.addEventListener("click", open_in_webview)
+  og_link.addEventListener("click", web_control.open_in_webview)
   info.appendChild(og_link)
 
   //comments
@@ -323,7 +321,7 @@ function info_block(story) {
   comments_link.classList.add("comment_url")
   comments_link.innerText = " [comments] "
   comments_link.href = story.comment_url
-  comments_link.addEventListener("click", open_in_webview)
+  comments_link.addEventListener("click", web_control.open_in_webview)
   info.appendChild(comments_link)
 
   info.appendChild(document.createTextNode("  " + story.time_str + "  "))

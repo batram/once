@@ -4,10 +4,11 @@ module.exports = {
 }
 
 const { remote } = require("electron")
+const contextmenu = require("./contextmenu")
 const { webContents } = remote
 
 let webview = document.querySelector("#frams")
-webview.addEventListener("did-stop-loading", loadstop)
+webview.addEventListener("load-commit", loadcommit)
 
 const outline_api = "https://api.outline.com/v3/parse_article?source_url="
 const data_outline_url = "data:text/html;charset=utf-8,"
@@ -24,7 +25,7 @@ webview.addEventListener("console-message", (e) => {
   }
 })
 
-function show_target_url(url) {
+function show_target_url(event, url) {
   if (url != "") {
     url_target.style.opacity = "1"
     if (url.length <= 63) {
@@ -37,25 +38,30 @@ function show_target_url(url) {
   }
 }
 
-console.log(webContents.getAllWebContents())
-webContents.getAllWebContents().forEach((wc) => {
-  wc.addListener("update-target-url", (event, url) => {
-    console.log(url)
-    show_target_url(url)
-  })
+let wc = remote.getCurrentWebContents()
+
+wc.on("update-target-url", show_target_url)
+wc.on("context-menu", contextmenu.inspect_menu)
+
+window.addEventListener("beforeunload", x => {
+  //Clean up listiners
+  wc.removeListener("context-menu", contextmenu.inspect_menu)
+  wc.removeListener("update-target-url", show_target_url)
 })
 
-webview.addEventListener("update-target-url", (event) => {
-  show_target_url(event.url)
-})
 
 webview.addEventListener("new-window", async (e) => {
   //console.log("webview new-window", e.url)
 })
 
-function loadstop(e) {
-  let url = webview.getURL()
-  webview.openDevTools()
+function loadcommit(e) {
+  webviewContents = webContents.fromId(webview.getWebContentsId())
+  webviewContents.on("context-menu", contextmenu.inspect_menu)
+
+  webviewContents.on("update-target-url", show_target_url)
+
+  outline_button_inactive()
+  let url = e.url
   webviewContents = webContents.fromId(webview.getWebContentsId())
 
   webviewContents.on("before-input-event", (event, input) => {
@@ -114,11 +120,20 @@ function loadstop(e) {
 
   if (url.startsWith(outline_api)) {
     webview.executeJavaScript("(" + outline_jshook.toString() + ")()")
+    outline_button_active()
   } else if (url.startsWith(data_outline_url)) {
-    console.log("url outline", url)
+    outline_button_active()
   } else {
-    urlfield.value = webview.getURL()
+    urlfield.value = url
   }
+}
+
+function outline_button_active() {
+  outline_webview_btn.classList.add("active")
+}
+
+function outline_button_inactive() {
+  outline_webview_btn.classList.remove("active")
 }
 
 function open_in_webview(e, story) {
@@ -142,12 +157,11 @@ close_webview_btn.onclick = (x) => {
 }
 
 outline_webview_btn.onclick = (x) => {
-  let url = webview.getURL()
-  if (!url.startsWith(outline_api)) {
-    outline(url)
+  //TODO: track state in a different way
+  if (outline_webview_btn.classList.contains("active")) {
+    webview.loadURL(urlfield.value)
   } else {
-    url = unescape(url.replace(outline_api, ""))
-    webview.loadURL(url)
+    outline(urlfield.value)
   }
 }
 
