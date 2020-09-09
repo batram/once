@@ -248,10 +248,10 @@ async function outline(url) {
   let base = document.createElement("base")
   base.setAttribute("href", url)
 
-  if (!doc.querySelector("base")) {
-    doc.head.append(base)
-  } else {
+  if (doc.querySelector("base") && doc.querySelector("base").hasAttribute("href")) {
     console.log("base already there", doc.querySelector("base"))
+  } else {
+    doc.head.append(base)
   }
 
   doc.querySelectorAll("a, img").forEach((e) => {
@@ -259,11 +259,6 @@ async function outline(url) {
       e.setAttribute("href", e.href)
     }
     if (e.hasAttribute("src") && e.getAttribute("src") != e.src) {
-      let re = /web\.archive\.org\/web\/(\d+)i[fm]_\/http/i
-      let check = e.src.matches(re)
-      if(check){
-        console.log("check", check)
-      }
       e.setAttribute("src", e.src)
     }
   })
