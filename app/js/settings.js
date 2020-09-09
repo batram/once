@@ -1,5 +1,3 @@
-const stories = require("./stories")
-
 module.exports = {
   story_sources,
   get_filterlist,

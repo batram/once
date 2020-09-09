@@ -248,7 +248,10 @@ async function outline(url) {
   let base = document.createElement("base")
   base.setAttribute("href", url)
 
-  if (doc.querySelector("base") && doc.querySelector("base").hasAttribute("href")) {
+  if (
+    doc.querySelector("base") &&
+    doc.querySelector("base").hasAttribute("href")
+  ) {
     console.log("base already there", doc.querySelector("base"))
   } else {
     doc.head.append(base)

@@ -13,7 +13,7 @@ function open_panel(panel) {
     if (x.dataset.panel != panel) {
       x.style.display = "none"
     } else {
-      x.style.display = "block"
+      x.style.display = "flex"
     }
   })
 }
@@ -31,7 +31,7 @@ function add_tag(type, colors) {
     tag.style.color = colors[1]
 
     tag.onclick = (x) => {
-      open_panel('stories')
+      open_panel("stories")
       document.querySelector("#searchfield").value = "[" + type + "]"
       search.search_stories("[" + type + "]")
     }

@@ -18,6 +18,7 @@ body {
     --highlight-bg-color: rgb(202, 202, 172);
     --border-color: #b3b3b3;
     --border-high-color: #b3b3b3;
+    --sep-color: rgb(114, 100, 100);
     --btn-bg-color: none;
     --input-bg-color: white;
     --unread-bg-color: none;
@@ -36,6 +37,7 @@ body {
     --highlight-bg-color: #4050ac;
     --border-color: #282a36;
     --border-high-color: #282a36;
+    --sep-color: rgb(114, 100, 100);
     --btn-bg-color: #383a59;
     --input-bg-color: var(--second-bg-color);
     --unread-bg-color: var(--second-bg-color);
@@ -53,6 +55,7 @@ body {
   --highlight-bg-color: #4050ac;
   --border-color: #282a36;
   --border-high-color: #282a36;
+  --sep-color: rgb(114, 100, 100);
   --btn-bg-color: #383a59;
   --input-bg-color: var(--second-bg-color);
   --unread-bg-color: var(--second-bg-color);
@@ -69,6 +72,7 @@ body {
   --highlight-bg-color: rgb(202, 202, 172);
   --border-color: #b3b3b3;
   --border-high-color: #b3b3b3;
+  --sep-color: rgb(114, 100, 100);
   --btn-bg-color: none;
   --input-bg-color: white;
   --unread-bg-color: none;
@@ -107,7 +111,8 @@ textarea {
   display: flex;
   flex-direction: column;
   flex: 0 0 40px;
-  margin-top: 5px;
+  padding-top: 5px;
+  border-right: 2px solid var(--sep-color);
 }
 
 #menu .sub {
@@ -127,22 +132,15 @@ textarea {
 }
 
 #stories {
-  width: 100%;
   height: 100%;
-  overflow-y: scroll;
+  overflow-y: auto;
   overflow-x: hidden;
   text-decoration-line: none;
   padding: 0;
-  /* scroll on the left */
-  direction: rtl;
-}
-
-#stories div {
-  direction: ltr;
 }
 
 #sep_slider {
-  background-color: rgb(114, 100, 100);
+  background-color: var(--sep-color);
   top: 0;
   left: 50%;
   border: thin solid rgb(196, 163, 163);
@@ -270,6 +268,11 @@ textarea {
   background: var(--btn-bg-color);
 }
 
+#menu .btn {
+  margin: 2px 8px;
+  padding: 2px;
+}
+
 .story .btn {
   height: 16px;
   white-space: nowrap;
@@ -324,14 +327,19 @@ textarea {
   display: flex;
 }
 
+.stored_star {
+  display: none;
+}
+
+.show_stored_star .stored_star {
+  display: flex;
+}
+
 #settings_panel {
   padding: 7px;
-  width: 100%;
   height: 100%;
-  overflow-y: scroll;
+  overflow-y: auto;
   overflow-x: hidden;
-  /* scroll on the left */
-  direction: rtl;
   display: flex;
   flex-direction: column;
   display: none;
@@ -339,7 +347,6 @@ textarea {
 
 #settings_panel div {
   font-size: 13px;
-  direction: ltr;
   padding: 15px 5px;
   border-bottom: thin solid var(--border-color);
 }
@@ -374,4 +381,21 @@ textarea {
 #cancel_search_btn {
   margin-left: -28px;
   visibility: hidden;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #0000008c;
+  border: 2px solid grey;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  opacity: 0.7;
 }

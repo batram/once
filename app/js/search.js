@@ -35,10 +35,13 @@ function init_search() {
 
 function search_stories(needle) {
   document.querySelector("#stories").classList.remove("show_filtered")
+
   if (needle && needle != "") {
     cancel_search_btn.style.visibility = "visible"
+    document.querySelector("#stories").classList.add("show_stored_star")
   } else {
     cancel_search_btn.style.visibility = "hidden"
+    document.querySelector("#stories").classList.remove("show_stored_star")
   }
 
   let specialk = {
