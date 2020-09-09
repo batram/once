@@ -26,10 +26,20 @@ function init_search() {
       search_stories(e.target.value)
     }
   })
+
+  cancel_search_btn.onclick = (x) => {
+    searchfield.value = ""
+    search_stories("")
+  }
 }
 
 function search_stories(needle) {
   document.querySelector("#stories").classList.remove("show_filtered")
+  if (needle && needle != "") {
+    cancel_search_btn.style.visibility = "visible"
+  } else {
+    cancel_search_btn.style.visibility = "hidden"
+  }
 
   let specialk = {
     "[ALL]": () => {
