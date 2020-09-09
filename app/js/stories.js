@@ -456,7 +456,6 @@ async function collect_all_stories(urls, try_cache = true) {
       let star_story = starlist[href]
       star_story.stared = true
       star_story.stored_star = true
-      console.log(story_map, star_story)
       add_story(star_story)
     }
   }

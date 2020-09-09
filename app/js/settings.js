@@ -20,6 +20,8 @@ const default_sources = [
 let syncHandler
 let once_db
 
+const { remote } = require("electron")
+
 function init() {
   once_db = new PouchDB(".once_db")
 
@@ -32,10 +34,6 @@ function init() {
     .matchMedia("(prefers-color-scheme: dark)")
     .addEventListener("change", (e) => {
       console.log("system theme change", e)
-      if (theme_select.value == "system") {
-        let theme = e.matches ? "dark" : "light"
-        set_theme(theme)
-      }
     })
 
   theme_select.addEventListener("change", (x) => {
@@ -104,15 +102,15 @@ function save_theme(name) {
 function set_theme(name) {
   switch (name) {
     case "dark":
-      document.body.classList = "dark"
+      remote.nativeTheme.themeSource = "dark"
       break
     case "light":
-      document.body.classList = "light"
+      remote.nativeTheme.themeSource = "light"
       break
     case "custom":
       break
     case "system":
-      document.body.classList = ""
+      remote.nativeTheme.themeSource = "system"
       break
   }
 }
