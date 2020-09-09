@@ -76,6 +76,7 @@ function leave_fullscreen() {
 function show_target_url(event, url) {
   if (url != "") {
     url_target.style.opacity = "1"
+    url_target.style.zIndex = "16"
     if (url.length <= 63) {
       url_target.innerText = url
     } else {
@@ -83,6 +84,7 @@ function show_target_url(event, url) {
     }
   } else {
     url_target.style.opacity = "0"
+    url_target.style.zIndex = "-1"
   }
 }
 

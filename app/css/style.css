@@ -359,7 +359,6 @@ textarea {
 
 #url_target {
   position: absolute;
-  max-width: 400px;
   /* above slider */
   z-index: 16;
   background: var(--highlight-bg-color);
@@ -369,5 +368,5 @@ textarea {
   padding: 3px;
   opacity: 0;
   white-space: nowrap;
-  transition: all 0.5s ease-out;
+  transition: opacity 0.5s ease-out, z-index 0.5s 0s;
 }
