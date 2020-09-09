@@ -245,15 +245,64 @@ async function outline(url) {
   let dom_parser = new DOMParser()
   let doc = dom_parser.parseFromString(resp2, "text/html")
 
+  let base = document.createElement("base")
+  base.setAttribute("href", url)
+
+  if (!doc.querySelector("base")) {
+    doc.head.append(base)
+  } else {
+    console.log("base already there", doc.querySelector("base"))
+  }
+
+  doc.querySelectorAll("a, img").forEach((e) => {
+    if (e.hasAttribute("href") && e.getAttribute("href") != e.href) {
+      e.setAttribute("href", e.href)
+    }
+    if (e.hasAttribute("src") && e.getAttribute("src") != e.src) {
+      let re = /web\.archive\.org\/web\/(\d+)i[fm]_\/http/i
+      let check = e.src.matches(re)
+      if(check){
+        console.log("check", check)
+      }
+      e.setAttribute("src", e.src)
+    }
+  })
+
   var article = new Readability(doc).parse()
+
   let title = document.createElement("h1")
   title.innerText = article.title
   title.classList.add("outlined")
+
   webview.loadURL(
     data_outline_url +
+      encodeURIComponent(base.outerHTML) +
       encodeURIComponent(title.outerHTML) +
       encodeURIComponent(article.content)
   )
+}
+
+function fix_rel(el, base_url) {
+  if (el.hasAttribute("src") && el.getAttribute("src") != el.src) {
+    if (el.getAttribute("src").startsWith("/")) {
+      console.log(el.getAttribute("src"), "!=", el.src, el)
+      /*
+      console.log("fix_rel", el, el.src, el.protocol)
+      el.protocol = base_url.protocol
+      el.host = base_url.host
+      console.log("fix_rel", el, el.href, el.protocol)  
+      */
+    }
+  }
+  if (el.hasAttribute("href") && el.getAttribute("href") != el.href) {
+    if (el.getAttribute("href").startsWith("/")) {
+      console.log(el.getAttribute("href"), "!=", el.href)
+      console.log("fix_rel", el, el.href, el.protocol)
+      el.protocol = base_url.protocol
+      el.host = base_url.host
+      console.log("fix_rel", el, el.href, el.protocol)
+    }
+  }
 }
 
 function outline_fallback(url) {

@@ -480,6 +480,14 @@ async function parse_story_response(val, url) {
   let dom_parser = new DOMParser()
   let doc = dom_parser.parseFromString(val, "text/html")
 
+  if (!doc.querySelector("base")) {
+    let base = document.createElement("base")
+    base.href = url
+    doc.head.append(base)
+  } else {
+    console.log("base already there", doc.querySelector("base"))
+  }
+
   let stories = story_parser.parse(url, doc)
   let enhance = await story_enhancers()
   let filtered_stories = await filters.filter_stories(stories)
