@@ -7,6 +7,7 @@ module.exports = {
   restar,
   cache_load,
   collect_all_stories,
+  parallel_load_stories,
   sort_stories,
 }
 
@@ -437,13 +438,23 @@ async function collect_all_stories(urls, try_cache = true) {
     })
   )
 
-  let all_stories = sort_raw_stories(
+  process_story_input(
     donso
       .filter((x) => {
         return x != undefined
       })
       .flat()
   )
+}
+
+async function parallel_load_stories(urls, try_cache = true) {
+  urls.map(async (url) => {
+    cache_load(url, try_cache).then(process_story_input)
+  })
+}
+
+async function process_story_input(stories) {
+  let all_stories = sort_raw_stories(stories)
   all_stories.forEach((story) => {
     add_story(story)
   })
@@ -459,6 +470,8 @@ async function collect_all_stories(urls, try_cache = true) {
       add_story(star_story)
     }
   }
+
+  sort_stories()
 
   if (searchfield.value != "") {
     search.search_stories(searchfield.value)
@@ -523,7 +536,7 @@ async function parse_story_response(val, url) {
 async function load(urls) {
   let cache = false
   //TODO: not sure about waiting for all, check out rambazamba mode
-  collect_all_stories(urls, cache)
+  parallel_load_stories(urls, cache)
 }
 
 async function restar() {

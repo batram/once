@@ -19,5 +19,5 @@ document.addEventListener("DOMContentLoaded", async (_e) => {
   let dev_cache = process.env.LDEV == "1"
   let sources = await settings.story_sources()
 
-  stories.collect_all_stories(sources, dev_cache)
+  stories.parallel_load_stories(sources, dev_cache)
 })
