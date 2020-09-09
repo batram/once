@@ -12,39 +12,22 @@ const cmenu_data = {
   sender: null,
 }
 
-const strory_m = new Menu()
-strory_m.append(
-  new MenuItem({
-    label: "Copy URL",
-    click() {
-      clipboard.writeText(cmenu_data.href, "selection")
-    },
-  })
-)
-strory_m.append(
-  new MenuItem({
-    label: "Open in Browser",
-    click: async () => {
-      await shell.openExternal(cmenu_data.href)
-    },
-  })
-)
-strory_m.append(
-  new MenuItem({
-    label: "inspect",
-    click: () => {
-      remote
-        .getCurrentWindow()
-        .inspectElement(
-          cmenu_data.rightClickPosition.x,
-          cmenu_data.rightClickPosition.y
-        )
-    },
-  })
-)
+function inspect(e, cwin) {
+  if (cmenu_data.sender) {
+    cwin = cmenu_data.sender
+  }
 
-const inspect_m = new Menu()
-inspect_m.append(
+  cwin.inspectElement(
+    cmenu_data.rightClickPosition.x,
+    cmenu_data.rightClickPosition.y
+  )
+  if (cwin.isDevToolsOpened()) {
+    cwin.devToolsWebContents.focus()
+  }
+}
+
+const con_menu = new Menu()
+con_menu.append(
   new MenuItem({
     id: "cp_url",
     label: "Copy URL",
@@ -54,7 +37,7 @@ inspect_m.append(
     },
   })
 )
-inspect_m.append(
+con_menu.append(
   new MenuItem({
     id: "open",
     label: "Open in Browser",
@@ -64,24 +47,10 @@ inspect_m.append(
     },
   })
 )
-inspect_m.append(
+con_menu.append(
   new MenuItem({
     label: "inspect",
-    click: () => {
-      if (cmenu_data.sender) {
-        cmenu_data.sender.inspectElement(
-          cmenu_data.rightClickPosition.x,
-          cmenu_data.rightClickPosition.y
-        )
-      } else {
-        remote
-          .getCurrentWindow()
-          .inspectElement(
-            cmenu_data.rightClickPosition.x,
-            cmenu_data.rightClickPosition.y
-          )
-      }
-    },
+    click: inspect,
   })
 )
 
@@ -94,12 +63,12 @@ function inspect_menu(event, params) {
   }
 
   if (params.hasOwnProperty("linkURL") && params.linkURL != "") {
-    inspect_m.getMenuItemById("cp_url").visible = true
-    inspect_m.getMenuItemById("open").visible = true
+    con_menu.getMenuItemById("cp_url").visible = true
+    con_menu.getMenuItemById("open").visible = true
     cmenu_data.href = params.linkURL
   } else {
-    inspect_m.getMenuItemById("cp_url").visible = false
-    inspect_m.getMenuItemById("open").visible = false
+    con_menu.getMenuItemById("cp_url").visible = false
+    con_menu.getMenuItemById("open").visible = false
     cmenu_data.href = null
   }
 
@@ -107,19 +76,27 @@ function inspect_menu(event, params) {
     x: params.x,
     y: params.y,
   }
-  inspect_m.popup({
+  con_menu.popup({
     window: remote.getCurrentWindow(),
   })
 }
 
-function story_menu(e, x) {
-  e.preventDefault()
-  cmenu_data.href = x.href
-  cmenu_data.rightClickPosition = {
-    x: e.x,
-    y: e.y,
+function story_menu(event, params) {
+  if (event.hasOwnProperty("sender")) {
+    cmenu_data.sender = event.sender
+  } else {
+    cmenu_data.sender = null
   }
-  strory_m.popup({
+
+  event.preventDefault()
+  cmenu_data.href = params.href
+  con_menu.getMenuItemById("cp_url").visible = true
+  con_menu.getMenuItemById("open").visible = true
+  cmenu_data.rightClickPosition = {
+    x: event.x,
+    y: event.y,
+  }
+  con_menu.popup({
     window: remote.getCurrentWindow(),
   })
 }
