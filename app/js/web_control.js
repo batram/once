@@ -25,7 +25,9 @@ webview.addEventListener("console-message", (e) => {
 })
 webview.addEventListener("enter-html-full-screen", go_fullscreen)
 webview.addEventListener("leave-html-full-screen", leave_fullscreen)
-webview.addEventListener("load-commit", loadcommit)
+//webview.addEventListener("load-commit", loadcommit)
+webview.addEventListener("did-stop-loading", inject_css)
+webview.addEventListener("did-start-loading", load_started)
 
 window.addEventListener("keyup", key_fullscreen)
 
@@ -105,7 +107,7 @@ webview.addEventListener("new-window", async (e) => {
 
 let once = true
 
-function loadcommit(e) {
+function load_started(e) {
   if (once) {
     once = false
 
@@ -132,6 +134,19 @@ function loadcommit(e) {
     console.log('mousedown', e.button)
   })`)
 
+  if (url.startsWith(outline_api)) {
+    webview.executeJavaScript("(" + outline_jshook.toString() + ")()")
+    outline_button_active()
+  } else if (url.startsWith(data_outline_url)) {
+    outline_button_active()
+  } else {
+    urlfield.value = url
+  }
+
+  inject_css()
+}
+
+function inject_css() {
   let css = `
   html {
     margin: 0;
@@ -177,15 +192,6 @@ function loadcommit(e) {
 `
 
   webview.insertCSS(css)
-
-  if (url.startsWith(outline_api)) {
-    webview.executeJavaScript("(" + outline_jshook.toString() + ")()")
-    outline_button_active()
-  } else if (url.startsWith(data_outline_url)) {
-    outline_button_active()
-  } else {
-    urlfield.value = url
-  }
 }
 
 function outline_button_active() {
