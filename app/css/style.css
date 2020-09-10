@@ -51,7 +51,8 @@ body {
 
 input,
 textarea,
-select {
+select,
+option {
   background: var(--input-bg-color);
   color: var(--text-high-color);
   border: thin solid black;
@@ -368,17 +369,23 @@ select {
 }
 
 #searchfield {
-  margin-left: -2px;
-  padding-left: 5px;
+  margin-left: -65px;
+  padding-left: 70px;
 }
 
 #cancel_search_btn {
   margin-left: -28px;
   visibility: hidden;
+  border: none;
+  border-left: thin solid black;;
+  background: none;
 }
 
 #search_scope {
   z-index: 2;
+  border: none;
+  border-right: thin solid black;;
+  background: none;
 }
 
 ::-webkit-scrollbar {
