@@ -351,23 +351,16 @@ function toggle_read(href, callback) {
 
   label_read(story_el, read_btn, read_icon)
 
-  if (document.body.classList.contains("animated")) {
-    if (typeof callback == "function") {
-      story_el.classList.add(anmim_class)
-      story_el.addEventListener(
-        "transitionend",
-        (x) => {
-          callback(story_el)
-          setTimeout((t) => {
-            story_el.classList.remove(anmim_class)
-          }, 1)
-        },
-        false
-      )
+  if (typeof callback == "function") {
+    let resort = callback(story_el)
+    if (typeof resort == "function") {
+      if (document.body.classList.contains("animated")) {
+        story_el.classList.add(anmim_class)
+        story_el.addEventListener("transitionend", resort, false)
+      } else {
+        resort()
+      }
     }
-  } else {
-    callback()
-    story_el.classList.remove(anmim_class)
   }
 }
 
@@ -420,30 +413,44 @@ function sortable_story(elem) {
 function resort_single(elem) {
   let story_con = elem.parentElement
   let stories = Array.from(story_con.querySelectorAll(".story"))
+    .filter((el) => {
+      return getComputedStyle(el).display != "none"
+    })
     .map(sortable_story)
     .sort(story_compare)
 
-  let ret = stories.some((x) => {
+  let insert_before_el = false
+
+  stories.some((x, i) => {
     let comp = x.el != elem && story_compare(sortable_story(elem), x) < 1
-    if(comp){
-      story_con.insertBefore(elem, x.el)
+    if (comp) {
+      insert_before_el = x.el
     }
     return comp
   })
 
-  if(!ret){
-    story_con.appendChild(elem)
+  if (insert_before_el && insert_before_el.previousSibling == elem) {
+    //don't need to resort, would keep our position
+    return false
   }
 
-  if (elem.classList.contains("read_anim")) {
-    setTimeout((t) => {
-      elem.classList.remove("read_anim")
-    }, 1)
-  }
-  if (elem.classList.contains("unread_anim")) {
-    setTimeout((t) => {
-      elem.classList.remove("unread_anim")
-    }, 1)
+  return (x) => {
+    if (!insert_before_el) {
+      story_con.appendChild(elem)
+    } else {
+      story_con.insertBefore(elem, insert_before_el)
+    }
+
+    if (elem.classList.contains("read_anim")) {
+      setTimeout((t) => {
+        elem.classList.remove("read_anim")
+      }, 1)
+    }
+    if (elem.classList.contains("unread_anim")) {
+      setTimeout((t) => {
+        elem.classList.remove("unread_anim")
+      }, 1)
+    }
   }
 }
 

@@ -106,7 +106,6 @@ function save_theme(name) {
 
 function restore_animation_settings() {
   pouch_get("animation", true).then((checked) => {
-    console.log("animations", checked)
     anim_checkbox.checked = checked
     set_animation(checked)
   })
