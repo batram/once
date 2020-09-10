@@ -1,17 +1,32 @@
 module.exports = {
   parse,
+  human_time,
 }
 
 let parsers = {
-  "https://news.ycombinator.com/": parse_hn,
-  "https://lobste.rs/": parse_lob,
-  "https://old.reddit.com/": parse_reddit_rss,
+  "https://news.ycombinator.com/": {
+    fun: parse_hn,
+    tag: "HN",
+    colors: ["rgba(255, 102, 0, 0.56)", "white"],
+  },
+  "https://lobste.rs/": {
+    fun: parse_lob,
+    tag: "LO",
+    colors: ["rgba(143, 0, 0, 0.56)", "white"],
+  },
+  "https://old.reddit.com/": {
+    fun: parse_reddit_rss,
+    tag: "re",
+    colors: ["#cee3f8", "black"],
+  },
 }
 
 function parse(url, doc) {
   for (pattern in parsers) {
     if (url.startsWith(pattern)) {
-      return parsers[pattern](doc)
+      let parser = parsers[pattern]
+      menu.add_tag(parser.tag, parser.colors)
+      return parser.fun(doc, parser.tag)
     }
   }
 }
@@ -89,11 +104,7 @@ function human_time(time) {
   return res
 }
 
-function parse_hn(doc) {
-  let type = "HN"
-  let colors = ["rgba(255, 102, 0, 0.56)", "white"]
-  menu.add_tag(type, colors)
-
+function parse_hn(doc, type) {
   let curl = "https://news.ycombinator.com/item?id="
   let stories = Array.from(doc.querySelectorAll(".storylink"))
 
@@ -115,23 +126,16 @@ function parse_hn(doc) {
 
     return {
       type: type,
-      colors: colors,
       href: story.href,
-      hostname: story.hostname,
       title: story.innerText,
       comment_url: curl + id,
-      time_str: human_time(timestamp),
       timestamp: timestamp,
       filter: filter,
     }
   })
 }
 
-function parse_lob(doc) {
-  let type = "LO"
-  let colors = ["rgba(143, 0, 0, 0.56)", "white"]
-  menu.add_tag(type, colors)
-
+function parse_lob(doc, type) {
   let curl = "https://lobste.rs/s/"
   let stories = Array.from(doc.querySelectorAll(".story"))
 
@@ -146,22 +150,15 @@ function parse_lob(doc) {
 
     return {
       type: type,
-      colors: colors,
       href: link.href,
-      hostname: link.hostname,
       title: link.innerText,
       comment_url: curl + id,
-      time_str: human_time(timestamp),
       timestamp: timestamp,
     }
   })
 }
 
-function parse_reddit_rss(doc) {
-  let type = "re"
-  let colors = ["#cee3f8", "black"]
-  menu.add_tag(type, colors)
-
+function parse_reddit_rss(doc, type) {
   //Parse as RSS and not HTML ...
   let stories = doc.querySelectorAll("entry")
 
@@ -177,12 +174,9 @@ function parse_reddit_rss(doc) {
     return {
       type: type,
       href: content.querySelector("span a").href,
-      hostname: content.querySelector("span a").hostname,
       title: story.querySelector("title").innerText,
       comment_url: story.querySelector("link").href,
-      time_str: human_time(timestamp),
       timestamp: timestamp,
-      colors: colors,
     }
   })
 }

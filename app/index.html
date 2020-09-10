@@ -23,6 +23,10 @@
       <div id="left_main">
         <div id="stories_panel" class="panel" data-panel="stories">
           <div id="search" class="bar">
+            <select id="search_scope">
+              <option>local</option>
+              <option>global</option>
+            </select>
             <input type="text" id="searchfield" placeholder="search" />
             <div
               id="cancel_search_btn"
@@ -39,7 +43,9 @@
               <img src="imgs/reload.svg" />
             </div>
           </div>
-          <div id="stories"></div>
+          <div class="stories_container" id="stories"></div>
+          <div class="stories_container" id="global_search_results"></div>
+          <div class="stories_container" id="filtered_stories"></div>
         </div>
         <div id="settings_panel" class="panel" data-panel="settings">
           <div>

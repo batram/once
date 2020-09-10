@@ -30,8 +30,23 @@ function add_tag(type, colors) {
     tag.style.backgroundColor = colors[0]
     tag.style.color = colors[1]
 
+    if (colors) {
+      //inject css for story tags
+      var style = document.createElement("style")
+      style.type = "text/css"
+      style.innerHTML = `
+      .info[data-tag='${tag.innerText}'] .tag {
+        background-color: ${colors[0]};
+        border-color: ${colors[1]};
+        color: ${colors[1]};
+      }
+      `
+      document.head.append(style)
+    }
+
     tag.onclick = (x) => {
       open_panel("stories")
+      search_scope.value = "local"
       document.querySelector("#searchfield").value = "[" + type + "]"
       search.search_stories("[" + type + "]")
     }

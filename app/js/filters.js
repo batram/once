@@ -122,7 +122,7 @@ function show_filter_dialog(event, filter_btn, story) {
 
   inp = document.createElement("input")
   inp.type = "text"
-  inp.value = story.hostname
+  inp.value = new URL(story.href).hostname
   filter_btn.prepend(inp)
   inp.focus()
   inp.addEventListener("keyup", (e) => {

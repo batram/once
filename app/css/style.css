@@ -50,7 +50,8 @@ body {
 }
 
 input,
-textarea {
+textarea,
+select {
   background: var(--input-bg-color);
   color: var(--text-high-color);
   border: thin solid black;
@@ -97,12 +98,21 @@ textarea {
   width: 100%;
 }
 
-#stories {
+.stories_container {
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
   text-decoration-line: none;
   padding: 0;
+  flex-direction: column;
+}
+
+#global_search_results {
+  display: none;
+}
+
+#filtered_stories {
+  display: none;
 }
 
 #sep_slider {
@@ -344,9 +354,22 @@ textarea {
   transition: opacity 0.5s ease-out, z-index 0.5s 0s;
 }
 
+#urlfield {
+  padding-left: 8px;
+}
+
+#searchfield {
+  margin-left: -2px;
+  padding-left: 5px;
+}
+
 #cancel_search_btn {
   margin-left: -28px;
   visibility: hidden;
+}
+
+#search_scope {
+  z-index: 2;
 }
 
 ::-webkit-scrollbar {

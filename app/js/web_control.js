@@ -28,7 +28,7 @@ webview.addEventListener("leave-html-full-screen", leave_fullscreen)
 //webview.addEventListener("load-commit", loadcommit)
 webview.addEventListener("did-stop-loading", inject_css)
 webview.addEventListener("did-start-loading", load_started)
-
+webview.addEventListener("did-navigate", update_url)
 window.addEventListener("keyup", key_fullscreen)
 
 let win = remote.getCurrentWindow()
@@ -107,7 +107,21 @@ webview.addEventListener("new-window", async (e) => {
 
 let once = true
 
-function load_started(e) {
+function update_url(e) {
+  let url = e.url
+  outline_button_inactive()
+
+  if (url.startsWith(outline_api)) {
+    webview.executeJavaScript("(" + outline_jshook.toString() + ")()")
+    outline_button_active()
+  } else if (url.startsWith(data_outline_url)) {
+    outline_button_active()
+  } else {
+    urlfield.value = url
+  }
+}
+
+function load_started(e, x) {
   if (once) {
     once = false
 
@@ -126,22 +140,11 @@ function load_started(e) {
     })
   }
 
-  outline_button_inactive()
-  let url = e.url
   webviewContents = webContents.fromId(webview.getWebContentsId())
 
   webview.executeJavaScript(`document.addEventListener('mousedown', (e) => {
     console.log('mousedown', e.button)
   })`)
-
-  if (url.startsWith(outline_api)) {
-    webview.executeJavaScript("(" + outline_jshook.toString() + ")()")
-    outline_button_active()
-  } else if (url.startsWith(data_outline_url)) {
-    outline_button_active()
-  } else {
-    urlfield.value = url
-  }
 
   inject_css()
 }

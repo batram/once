@@ -8,7 +8,9 @@ module.exports = {
   cache_load,
   collect_all_stories,
   parallel_load_stories,
+  enhance_stories,
   sort_stories,
+  add_story,
 }
 
 let story_map = new Map()
@@ -25,12 +27,12 @@ function is_story_stared(href) {
   })
 }
 
-function add_story(story) {
+function add_story(story, bucket = "stories") {
   story_map.set(story.href.toString(), story)
 
   //check if we already have story with same URL
   let og_story_el = document.querySelector(
-    '.story[data-href="' + story.href + '"]'
+    `#${bucket} .story[data-href="${story.href}"]`
   )
 
   if (og_story_el) {
@@ -43,7 +45,8 @@ function add_story(story) {
           '.comment_url[href="' + story.comment_url + '"]'
         ) == null
       ) {
-        og_story_el.querySelector(".data").appendChild(info_block(story))
+        let add_info = info_block(story)
+        og_story_el.querySelector(".data").append(add_info)
       }
     }
     return
@@ -51,7 +54,7 @@ function add_story(story) {
 
   let new_story_el = story_html(story)
 
-  let stories_container = document.querySelector("#stories")
+  let stories_container = document.querySelector("#" + bucket)
   stories_container.appendChild(new_story_el)
 }
 
@@ -86,7 +89,6 @@ function story_html(story) {
 
   new_story_el.dataset.title = story.title
   new_story_el.dataset.href = story.href
-  new_story_el.dataset.hostname = story.hostname
   new_story_el.dataset.timestamp = story.timestamp
   new_story_el.dataset.type = "[" + story.type + "]"
   new_story_el.dataset.comment_url = story.comment_url
@@ -307,12 +309,10 @@ function open_story(e, story_el, story) {
 function info_block(story) {
   let info = document.createElement("div")
   info.classList.add("info")
+  info.dataset.tag = "[" + story.type + "]"
   let type = document.createElement("p")
   type.classList.add("tag")
   type.innerText = story.type
-  type.style.backgroundColor = story.colors[0]
-  type.style.borderColor = story.colors[1]
-  type.style.color = story.colors[1]
   info.appendChild(type)
 
   let og_link = document.createElement("a")
@@ -329,7 +329,11 @@ function info_block(story) {
   comments_link.addEventListener("click", web_control.open_in_webview)
   info.appendChild(comments_link)
 
-  info.appendChild(document.createTextNode("  " + story.time_str + "  "))
+  info.appendChild(
+    document.createTextNode(
+      "  " + story_parser.human_time(story.timestamp) + "  "
+    )
+  )
 
   return info
 }
@@ -505,19 +509,7 @@ async function story_enhancers() {
   return enhance
 }
 
-async function parse_story_response(val, url) {
-  let dom_parser = new DOMParser()
-  let doc = dom_parser.parseFromString(val, "text/html")
-
-  if (!doc.querySelector("base")) {
-    let base = document.createElement("base")
-    base.href = url
-    doc.head.append(base)
-  } else {
-    console.log("base already there", doc.querySelector("base"))
-  }
-
-  let stories = story_parser.parse(url, doc)
+async function enhance_stories(stories) {
   let enhance = await story_enhancers()
   let filtered_stories = await filters.filter_stories(stories)
   let readlist = enhance[0]
@@ -531,6 +523,22 @@ async function parse_story_response(val, url) {
   })
 
   return filtered_stories
+}
+
+async function parse_story_response(val, url) {
+  let dom_parser = new DOMParser()
+  let doc = dom_parser.parseFromString(val, "text/html")
+
+  if (!doc.querySelector("base")) {
+    let base = document.createElement("base")
+    base.href = url
+    doc.head.append(base)
+  } else {
+    console.log("base already there", doc.querySelector("base"))
+  }
+
+  let stories = story_parser.parse(url, doc)
+  return enhance_stories(stories)
 }
 
 async function load(urls) {
