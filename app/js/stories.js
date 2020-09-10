@@ -11,6 +11,7 @@ module.exports = {
   enhance_stories,
   sort_stories,
   add_story,
+  mark_selected,
 }
 
 let story_map = new Map()
@@ -76,6 +77,7 @@ function story_html(story) {
       if (read) {
         new_story_el.classList.add("read")
       }
+      resort_single(new_story_el)
       add_read_button(new_story_el, story)
     })
   }
@@ -150,6 +152,7 @@ function story_html(story) {
   outline_btn.title = "outline"
   outline_btn.onclick = async (x) => {
     sort_stories()
+    mark_selected(new_story_el)
     mark_as_read(story.href)
     web_control.outline(story.href)
   }
@@ -171,6 +174,46 @@ function story_html(story) {
   )
 
   return new_story_el
+}
+
+function mark_selected(story_el, url) {
+  if (!story_el && url) {
+    let info_can = document.querySelector(`.info a[href="${url}"]`)
+    if (info_can) {
+      let parent = info_can.parentElement
+      let max = 5
+      while (!parent.classList.contains("story") && max > 0) {
+        max -= 1
+        parent = parent.parentElement
+
+        if (parent.classList.contains("story")) {
+          story_el = parent
+          break
+        }
+      }
+
+      console.log(parent)
+    }
+  }
+
+  document.querySelectorAll(".story").forEach((x) => {
+    x.classList.remove("selected")
+  })
+
+  let selection = document.querySelectorAll("#selected_container .story")
+
+  if (selection.length != 0) {
+    selection.forEach((elem) => {
+      document.querySelector("#" + elem.dataset.source).append(elem)
+      resort_single(elem)
+    })
+  }
+
+  if (story_el) {
+    story_el.classList.add("selected")
+    story_el.dataset.source = story_el.parentElement.id
+    selected_container.append(story_el)
+  }
 }
 
 function add_star_button(new_story_el, story) {
@@ -284,11 +327,7 @@ function label_read(story_el, read_btn, read_icon) {
 
 function open_story(e, story_el, story) {
   web_control.open_in_webview(e, story)
-
-  document.querySelectorAll(".story").forEach((x) => {
-    x.classList.remove("selected")
-  })
-  story_el.classList.add("selected")
+  mark_selected(story_el)
   sort_stories()
   mark_as_read(story.href)
 }
@@ -412,26 +451,28 @@ function sortable_story(elem) {
 
 function resort_single(elem) {
   let story_con = elem.parentElement
-  let stories = Array.from(story_con.querySelectorAll(".story"))
-    .filter((el) => {
-      return getComputedStyle(el).display != "none"
-    })
+  let stories = Array.from(story_con.querySelectorAll(".story")).filter(
+    (el) => {
+      return (
+        getComputedStyle(el).display != "none" &&
+        !el.classList.contains("selected")
+      )
+    }
+  )
+
+  let stories_sorted = stories
     .map(sortable_story)
     .sort(story_compare)
+    .map((x) => x.el)
 
   let insert_before_el = false
+  let sorted_pos = stories_sorted.indexOf(elem)
 
-  stories.some((x, i) => {
-    let comp = x.el != elem && story_compare(sortable_story(elem), x) < 1
-    if (comp) {
-      insert_before_el = x.el
-    }
-    return comp
-  })
-
-  if (insert_before_el && insert_before_el.previousSibling == elem) {
+  if (stories.indexOf(elem) == sorted_pos) {
     //don't need to resort, would keep our position
     return false
+  } else if (sorted_pos != stories_sorted.length - 1) {
+    insert_before_el = stories_sorted[sorted_pos + 1]
   }
 
   return (x) => {

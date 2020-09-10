@@ -54,9 +54,7 @@ function key_fullscreen(e) {
 
 function go_fullscreen() {
   let bwin = remote.getCurrentWindow()
-  controlbar.style.display = "none"
-  sep_slider.style.display = "none"
-  left_panel.style.display = "none"
+  document.body.classList.add("fullscreen")
   content.style.minWidth = "100%"
   bwin.setFullScreen(true)
   win.setFullScreen(true)
@@ -64,9 +62,8 @@ function go_fullscreen() {
 
 function leave_fullscreen() {
   let bwin = remote.getCurrentWindow()
-  controlbar.style.display = ""
-  sep_slider.style.display = ""
-  left_panel.style.display = ""
+  document.body.classList.remove("fullscreen")
+
   content.style.minWidth = ""
   webview.executeJavaScript(
     "if(document.fullscreenElement) document.exitFullscreen()"
@@ -119,6 +116,10 @@ function update_url(e) {
   } else {
     urlfield.value = url
   }
+
+  let story_el = document.querySelector(`.story[data-href="${urlfield.value}"]`)
+
+  stories.mark_selected(story_el, urlfield.value)
 }
 
 function load_started(e, x) {
@@ -209,6 +210,10 @@ function inject_css() {
 
     .athing .c00, .athing .c00 a:link, .athing a:link { 
       color: #bcc2cd !important; 
+    }
+
+    a {
+      color: #6b6bef !important;
     }
   }
 `

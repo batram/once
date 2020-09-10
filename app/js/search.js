@@ -154,7 +154,7 @@ function search_hn(needle) {
           stories.add_story(story, "global_search_results")
         })
 
-        sort_stories("global_search_results")
+        stories.sort_stories("global_search_results")
       })
     }
   })
