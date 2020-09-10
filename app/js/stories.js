@@ -260,7 +260,7 @@ function add_read_button(new_story_el, story) {
   label_read(new_story_el, read_btn, read_icon)
 
   read_btn.addEventListener("click", (x) => {
-    toggle_read(story.href, sort_stories)
+    toggle_read(story.href, resort_single)
   })
   new_story_el.appendChild(read_btn)
 
@@ -357,7 +357,7 @@ function toggle_read(href, callback) {
       story_el.addEventListener(
         "transitionend",
         (x) => {
-          callback()
+          callback(story_el)
           setTimeout((t) => {
             story_el.classList.remove(anmim_class)
           }, 1)
@@ -409,20 +409,54 @@ function story_compare(a, b) {
   return 0
 }
 
-function sort_stories() {
-  //sort by timestamp and read
-  let storted = Array.from(document.querySelectorAll(".story"))
-    .map((x) => {
-      return {
-        read: x.classList.contains("read"),
-        timestamp: x.dataset.timestamp,
-        el: x,
-      }
-    })
+function sortable_story(elem) {
+  return {
+    read: elem.classList.contains("read"),
+    timestamp: elem.dataset.timestamp,
+    el: elem,
+  }
+}
+
+function resort_single(elem) {
+  let story_con = elem.parentElement
+  let stories = Array.from(story_con.querySelectorAll(".story"))
+    .map(sortable_story)
+    .sort(story_compare)
+
+  let ret = stories.some((x) => {
+    let comp = x.el != elem && story_compare(sortable_story(elem), x) < 1
+    if(comp){
+      story_con.insertBefore(elem, x.el)
+    }
+    return comp
+  })
+
+  if(!ret){
+    story_con.appendChild(elem)
+  }
+
+  if (elem.classList.contains("read_anim")) {
+    setTimeout((t) => {
+      elem.classList.remove("read_anim")
+    }, 1)
+  }
+  if (elem.classList.contains("unread_anim")) {
+    setTimeout((t) => {
+      elem.classList.remove("unread_anim")
+    }, 1)
+  }
+}
+
+function sort_stories(bucket = "stories") {
+  let story_con = document.querySelector("#" + bucket)
+
+  let storted = Array.from(story_con.querySelectorAll(".story"))
+    .map(sortable_story)
     .sort(story_compare)
 
   storted.forEach((x) => {
-    document.querySelector("#stories").appendChild(x.el)
+    let paw = x.el.parentElement
+    paw.appendChild(x.el)
     if (x.el.classList.contains("read_anim")) {
       setTimeout((t) => {
         x.el.classList.remove("read_anim")

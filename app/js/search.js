@@ -1,3 +1,5 @@
+const stories = require("./stories")
+
 module.exports = {
   init_search,
   search_stories,
@@ -111,6 +113,8 @@ function search_stories(needle) {
       x.style.display = "none"
     }
   })
+
+  stories.sort_stories()
 }
 
 function search_hn(needle) {
@@ -149,6 +153,8 @@ function search_hn(needle) {
         estories.forEach((story) => {
           stories.add_story(story, "global_search_results")
         })
+
+        sort_stories("global_search_results")
       })
     }
   })
