@@ -94,7 +94,6 @@ select {
   flex-direction: column;
   scrollbar-color: rebeccapurple green;
   scrollbar-width: thin;
-
   width: 100%;
 }
 
@@ -168,15 +167,25 @@ select {
 
 .story {
   border-bottom: thin solid var(--border-color);
-  padding: 5px 15px;
-  display: flex;
-}
-
-.story {
-  border-bottom: thin solid var(--border-color);
+  border-top: thin solid var(--border-color);
+  margin-top: -1px;
   background: var(--unread-bg-color);
   padding: 5px 15px;
   display: flex;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.animated .story {
+  transition: margin-left 0.5s cubic-bezier(0.25, 0.1, 0, 1.65);
+}
+
+.animated .read_anim {
+  margin-left: 100%;
+}
+
+.animated .unread_anim {
+  margin-left: -100%;
 }
 
 .read {

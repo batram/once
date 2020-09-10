@@ -9,8 +9,7 @@
     />
     <link rel="stylesheet" href="css/style.css" />
   </head>
-
-  <body>
+  <body class="animated">
     <div id="left_panel">
       <div id="menu">
         <div class="sub" id="settings_menu_btn" data-panel="settings">
@@ -78,6 +77,10 @@
               <option value="system">System</option>
               <option value="custom">TODO: Custom</option>
             </select>
+            <p>
+              <input type="checkbox" id="anim_checkbox" />
+              <label for="anim_checkbox">Animations</label>
+            </p>
           </div>
         </div>
       </div>
@@ -96,7 +99,13 @@
           <img src="imgs/x.svg" />
         </div>
       </div>
-      <webview id="frams" src="about:blank" partition="moep"></webview>
+      <webview
+        id="frams"
+        src="about:blank"
+        webpreferences="contextIsolation=yes, nativeWindowOpen=yes"
+        allowpopups
+        partition="moep"
+      ></webview>
       <div id="foverlay"></div>
     </div>
     <div id="url_target"></div>

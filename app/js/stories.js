@@ -257,24 +257,11 @@ function add_read_button(new_story_el, story) {
   let read_icon = document.createElement("img")
   read_btn.appendChild(read_icon)
 
-  toggle_read(new_story_el, read_btn, read_icon)
+  label_read(new_story_el, read_btn, read_icon)
 
-  read_btn.addEventListener(
-    "click",
-    (x) => {
-      if (!new_story_el.classList.contains("read")) {
-        mark_as_read(story.href)
-      } else {
-        mark_as_unread(story.href)
-      }
-      x.preventDefault()
-      x.stopPropagation()
-      sort_stories()
-
-      return false
-    },
-    false
-  )
+  read_btn.addEventListener("click", (x) => {
+    toggle_read(story.href, sort_stories)
+  })
   new_story_el.appendChild(read_btn)
 
   //open story with middle click on "skip reading"
@@ -285,7 +272,7 @@ function add_read_button(new_story_el, story) {
   })
 }
 
-function toggle_read(story_el, read_btn, read_icon) {
+function label_read(story_el, read_btn, read_icon) {
   if (!story_el.classList.contains("read")) {
     read_btn.title = "skip reading"
     read_icon.src = "imgs/read.svg"
@@ -338,36 +325,66 @@ function info_block(story) {
   return info
 }
 
-function mark_as_read(href) {
+function mark_as_read(href, callback) {
   let story_el = document.querySelector('.story[data-href="' + href + '"]')
-  let read_btn = story_el.querySelector(".read_btn")
-  let read_icon = story_el.querySelector(".read_btn img")
-
-  story_el.classList.add("read")
-  read_btn.title = "mark as unread"
-  read_icon.src = "imgs/unread.svg"
-
-  settings.get_readlist().then((readlist) => {
-    readlist.push(href)
-    readlist = readlist.filter((v, i, a) => a.indexOf(v) === i)
-    settings.save_readlist(readlist, console.log)
-  })
+  if (!story_el.classList.contains("read")) {
+    toggle_read(href, callback)
+  }
 }
 
-function mark_as_unread(href) {
+function toggle_read(href, callback) {
   let story_el = document.querySelector('.story[data-href="' + href + '"]')
   let read_btn = story_el.querySelector(".read_btn")
   let read_icon = story_el.querySelector(".read_btn img")
 
-  story_el.classList.remove("read")
-  read_btn.title = "skip reading"
-  read_icon.src = "imgs/read.svg"
+  let anmim_class = ""
 
+  if (story_el.classList.contains("read")) {
+    story_el.classList.remove("read")
+    remove_from_readlist(href)
+    anmim_class = "unread_anim"
+  } else {
+    story_el.classList.add("read")
+    add_to_readlist(href)
+    anmim_class = "read_anim"
+  }
+
+  label_read(story_el, read_btn, read_icon)
+
+  if (document.body.classList.contains("animated")) {
+    if (typeof callback == "function") {
+      story_el.classList.add(anmim_class)
+      story_el.addEventListener(
+        "transitionend",
+        (x) => {
+          callback()
+          setTimeout((t) => {
+            story_el.classList.remove(anmim_class)
+          }, 1)
+        },
+        false
+      )
+    }
+  } else {
+    callback()
+    story_el.classList.remove(anmim_class)
+  }
+}
+
+function remove_from_readlist(href) {
   settings.get_readlist().then((readlist) => {
     const index = readlist.indexOf(href)
     if (index > -1) {
       readlist.splice(index, 1)
     }
+    settings.save_readlist(readlist, console.log)
+  })
+}
+
+function add_to_readlist(href) {
+  settings.get_readlist().then((readlist) => {
+    readlist.push(href)
+    readlist = readlist.filter((v, i, a) => a.indexOf(v) === i)
     settings.save_readlist(readlist, console.log)
   })
 }
@@ -406,6 +423,16 @@ function sort_stories() {
 
   storted.forEach((x) => {
     document.querySelector("#stories").appendChild(x.el)
+    if (x.el.classList.contains("read_anim")) {
+      setTimeout((t) => {
+        x.el.classList.remove("read_anim")
+      }, 1)
+    }
+    if (x.el.classList.contains("unread_anim")) {
+      setTimeout((t) => {
+        x.el.classList.remove("unread_anim")
+      }, 1)
+    }
   })
 }
 

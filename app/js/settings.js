@@ -40,6 +40,11 @@ function init() {
     save_theme(theme_select.value)
   })
 
+  restore_animation_settings()
+  anim_checkbox.addEventListener("change", (x) => {
+    save_animation(anim_checkbox.checked)
+  })
+
   reset_couch_settings()
   couch_input.parentElement
     .querySelector('input[value="save"]')
@@ -99,6 +104,28 @@ function save_theme(name) {
   set_theme(name)
 }
 
+function restore_animation_settings() {
+  pouch_get("animation", true).then((checked) => {
+    console.log("animations", checked)
+    anim_checkbox.checked = checked
+    set_animation(checked)
+  })
+}
+
+function save_animation(checked) {
+  pouch_set("animation", checked, console.log)
+  anim_checkbox.checked = checked
+  set_animation(checked)
+}
+
+function set_animation(checked) {
+  if (checked) {
+    document.body.classList.add("animated")
+  } else {
+    document.body.classList.remove("animated")
+  }
+}
+
 function set_theme(name) {
   switch (name) {
     case "dark":
@@ -138,6 +165,8 @@ function update_on_change(event) {
         case "theme":
           restore_theme_settings()
           break
+        case "animation":
+          restore_animation_settings()
       }
     })
   }
