@@ -39,6 +39,9 @@ function init_search() {
 
 function search_stories(needle) {
   let story_container = document.querySelector("#stories")
+  document.querySelectorAll(".story").forEach((x) => {
+    x.classList.remove("nomatch")
+  })
 
   story_container.classList.remove("show_filtered")
   story_container.style.display = "flex"
@@ -72,25 +75,25 @@ function search_stories(needle) {
     "[filtered]": () => {
       story_container.classList.add("show_filtered")
       document.querySelectorAll(".story").forEach((x) => {
-        x.style.display = "none"
-        if (x.classList.contains("filtered")) {
-          x.style.display = ""
+        x.classList.remove("nomatch")
+        if (!x.classList.contains("filtered")) {
+          x.classList.add("nomatch")
         }
       })
     },
     "[stared]": () => {
       document.querySelectorAll(".story").forEach((x) => {
-        x.style.display = "none"
+        x.classList.add("nomatch")
         if (x.classList.contains("stared")) {
-          x.style.display = ""
+          x.classList.remove("nomatch")
         }
       })
     },
     "[new]": () => {
       document.querySelectorAll(".story").forEach((x) => {
-        x.style.display = ""
-        if (x.classList.contains("read")) {
-          x.style.display = "none"
+        x.classList.add("nomatch")
+        if (!x.classList.contains("read")) {
+          x.classList.remove("nomatch")
         }
       })
     },
@@ -102,7 +105,7 @@ function search_stories(needle) {
   }
 
   document.querySelectorAll(".story").forEach((x) => {
-    x.style.display = ""
+    x.classList.remove("nomatch")
     if (
       !(
         x.dataset.title.toLowerCase().includes(needle.toLowerCase()) ||
@@ -110,7 +113,7 @@ function search_stories(needle) {
         x.dataset.type.toLowerCase().includes(needle.toLowerCase())
       )
     ) {
-      x.style.display = "none"
+      x.classList.add("nomatch")
     }
   })
 

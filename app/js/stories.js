@@ -29,6 +29,7 @@ function is_story_stared(href) {
 }
 
 function add_story(story, bucket = "stories") {
+  story.bucket = bucket
   story_map.set(story.href.toString(), story)
 
   //check if we already have story with same URL
@@ -191,8 +192,6 @@ function mark_selected(story_el, url) {
           break
         }
       }
-
-      console.log(parent)
     }
   }
 
@@ -204,8 +203,18 @@ function mark_selected(story_el, url) {
 
   if (selection.length != 0) {
     selection.forEach((elem) => {
-      document.querySelector("#" + elem.dataset.source).append(elem)
-      resort_single(elem)
+      if (!elem.dataset.source) {
+        //fallback to original bucket
+        let og_bucket = story_map.get(elem.dataset.href).bucket
+        document.querySelector("#" + og_bucket).append(elem)
+      } else {
+        document.querySelector("#" + elem.dataset.source).append(elem)
+      }
+
+      let f = resort_single(elem)
+      if(typeof f == "function"){
+        f()
+      }
     })
   }
 
@@ -678,10 +687,15 @@ async function restar() {
 function refilter() {
   document.querySelectorAll(".story").forEach((x) => {
     let sthref = x.dataset.href.toString()
-    filters.filter_story(story_map.get(sthref.toString())).then((story) => {
-      story_map.set(sthref.toString(), story)
-      let nstory = story_html(story_map.get(sthref.toString()))
-      x.replaceWith(nstory)
+    let story = story_map.get(sthref.toString())
+    let og_filter = story.filter
+    filters.filter_story(story).then((story) => {
+      console.log(og_filter, story.filter)
+      if (story.filter != og_filter) {
+        story_map.set(sthref.toString(), story)
+        let nstory = story_html(story_map.get(sthref.toString()))
+        x.replaceWith(nstory)
+      }
     })
   })
 }

@@ -118,7 +118,6 @@ function update_url(e) {
   }
 
   let story_el = document.querySelector(`.story[data-href="${urlfield.value}"]`)
-
   stories.mark_selected(story_el, urlfield.value)
 }
 
@@ -160,7 +159,8 @@ function darken_hn() {
     webview.insertCSS(css)
 
     webview.executeJavaScript(`
-      hnmain.setAttribute("bgcolor", "#44475a")
+      if(matchMedia("(prefers-color-scheme: dark)").matches)
+        hnmain.setAttribute("bgcolor", "#44475a")
     `)
   }
 }
@@ -201,6 +201,23 @@ function inject_css() {
     margin: 5px;
     padding: 0 25px;
   }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: #0000008c;
+    border: 2px solid grey;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    opacity: 0.7;
+  }  
 
   @media (prefers-color-scheme: dark) {
     body {

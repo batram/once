@@ -82,10 +82,11 @@ function init() {
     .addEventListener("click", set_filter_area)
 
   filter_area.addEventListener("keydown", (e) => {
+    console.log("filter_area", e)
     if (e.keyCode === 27) {
       //ESC
       set_filter_area()
-    } else if ((e.key = "s" && e.ctrlKey)) {
+    } else if ((e.key == "s" && e.ctrlKey)) {
       //CTRL + s
       save_filter_settings()
     }

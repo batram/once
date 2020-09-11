@@ -318,15 +318,23 @@ option {
   display: none;
 }
 
+.nomatch {
+  display: none;
+}
+
 .show_filtered .filtered {
   display: flex;
+}
+
+#selected_container .story {
+  display: flex !important;
 }
 
 .stored_star {
   display: none;
 }
 
-.show_stored_star .stored_star {
+.show_stored_star:not(.show_filtered) .stored_star {
   display: flex;
 }
 
