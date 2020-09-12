@@ -1,4 +1,5 @@
 const settings = require("./settings")
+const onChange = require("on-change")
 
 module.exports = {
   load,
@@ -14,23 +15,60 @@ module.exports = {
   mark_selected,
 }
 
-let story_map = new Map()
+let s_map = {}
 
-function is_story_read(href) {
-  return settings.get_readlist().then((readlist) => {
-    return readlist.includes(href)
-  })
+const story_map = onChange(s_map, function (path, value, previousValue, name) {
+  if (path.length != 0) {
+    if (typeof this[path[0]] == "object") {
+      setTimeout((x) => {
+        const event = new CustomEvent("change", {
+          detail: {
+            story: story_map.get(path[0]),
+            path: path,
+            value: value,
+            previousValue: previousValue,
+            name: name,
+          },
+        })
+        let story_els = document.querySelectorAll(
+          `.story[data-href="${path[0]}"]`
+        )
+        story_els.forEach((story_el) => {
+          story_el.dispatchEvent(event)
+        })
+        document.body.dispatchEvent(event)
+      }, 2)
+    }
+  }
+})
+
+story_map.set = (x, y) => {
+  story_map[x] = y
+  return story_map[x]
 }
 
-function is_story_stared(href) {
-  return settings.get_starlist().then((starlist) => {
-    return starlist.hasOwnProperty(href)
-  })
+story_map.get = (x) => {
+  return story_map[x]
+}
+
+story_map.has = (x) => {
+  return story_map.hasOwnProperty(x)
+}
+
+async function is_story_read(href) {
+  const readlist = await settings.get_readlist()
+  return readlist.includes(href)
+}
+
+async function is_story_stared(href) {
+  const starlist = await settings.get_starlist()
+  return starlist.hasOwnProperty(href)
 }
 
 function add_story(story, bucket = "stories") {
   story.bucket = bucket
   story_map.set(story.href.toString(), story)
+  story = story_map.get(story.href.toString())
 
   //check if we already have story with same URL
   let og_story_el = document.querySelector(
@@ -55,7 +93,6 @@ function add_story(story, bucket = "stories") {
   }
 
   let new_story_el = story_html(story)
-
   let stories_container = document.querySelector("#" + bucket)
   stories_container.appendChild(new_story_el)
 }
@@ -63,6 +100,20 @@ function add_story(story, bucket = "stories") {
 function story_html(story) {
   let new_story_el = document.createElement("div")
   new_story_el.classList.add("story")
+  new_story_el.addEventListener("change", (e) => {
+    if (e.detail.path.length == 2) {
+      switch (e.detail.path[1]) {
+        case "read":
+          update_read(e.detail.value, new_story_el)
+          break
+        case "stared":
+          update_star(e.detail.value, new_story_el)
+          break
+        case "filter":
+          break
+      }
+    }
+  })
 
   if (story.hasOwnProperty("stored_star")) {
     new_story_el.classList.add("stored_star")
@@ -84,9 +135,11 @@ function story_html(story) {
   }
 
   is_story_stared(story.href).then((stared) => {
+    story.stared = stared
     if (stared) {
       new_story_el.classList.add("stared")
     }
+
     add_star_button(new_story_el, story)
   })
 
@@ -152,8 +205,6 @@ function story_html(story) {
   outline_btn.appendChild(outline_icon)
   outline_btn.title = "outline"
   outline_btn.onclick = async (x) => {
-    sort_stories()
-    mark_selected(new_story_el)
     mark_as_read(story.href)
     web_control.outline(story.href)
   }
@@ -177,6 +228,17 @@ function story_html(story) {
   return new_story_el
 }
 
+function update_read(read, story_el) {
+  if (read) {
+    story_el.classList.add("read")
+  } else {
+    story_el.classList.remove("read")
+  }
+  let read_btn = story_el.querySelector(".read_btn")
+  let read_icon = story_el.querySelector(".read_icon")
+  label_read(story_el, read_btn, read_icon)
+}
+
 function mark_selected(story_el, url) {
   if (!story_el && url) {
     let info_can = document.querySelector(`.info a[href="${url}"]`)
@@ -195,33 +257,25 @@ function mark_selected(story_el, url) {
     }
   }
 
+  selected_container.innerHTML = ""
+
   document.querySelectorAll(".story").forEach((x) => {
-    x.classList.remove("selected")
+    if (x.classList.contains("selected")) {
+      x.classList.remove("selected")
+      let fun = resort_single(x)
+      if (typeof fun == "function") {
+        fun()
+      }
+    }
   })
 
-  let selection = document.querySelectorAll("#selected_container .story")
-
-  if (selection.length != 0) {
-    selection.forEach((elem) => {
-      if (!elem.dataset.source) {
-        //fallback to original bucket
-        let og_bucket = story_map.get(elem.dataset.href).bucket
-        document.querySelector("#" + og_bucket).append(elem)
-      } else {
-        document.querySelector("#" + elem.dataset.source).append(elem)
-      }
-
-      let f = resort_single(elem)
-      if(typeof f == "function"){
-        f()
-      }
-    })
-  }
-
   if (story_el) {
+    //create a cloned story element
+    let og_story = story_map.get(story_el.dataset.href)
+    let clone = story_html(og_story)
+    clone.classList.add("selected")
     story_el.classList.add("selected")
-    story_el.dataset.source = story_el.parentElement.id
-    selected_container.append(story_el)
+    selected_container.append(clone)
   }
 }
 
@@ -234,20 +288,13 @@ function add_star_button(new_story_el, story) {
 
   label_star(new_story_el, star_btn, star_icon)
 
-  star_btn.addEventListener(
-    "click",
-    (x) => {
-      if (!new_story_el.classList.contains("stared")) {
-        star_story(story)
-      } else {
-        unstar_story(story)
-      }
-      x.preventDefault()
-      x.stopPropagation()
-      return false
-    },
-    false
-  )
+  star_btn.addEventListener("click", (x) => {
+    if (story.stared) {
+      unstar_story(story)
+    } else {
+      star_story(story)
+    }
+  })
   new_story_el.appendChild(star_btn)
 }
 
@@ -261,23 +308,21 @@ function label_star(story_el, btn, icon) {
   }
 }
 
-function toggle_star(story_el, btn, icon) {
-  if (!story_el.classList.contains("stared")) {
+function update_star(stared, story_el) {
+  let star_btn = story_el.querySelector(".star_btn")
+  let star_icon = story_el.querySelector(".star_btn img")
+  if (stared) {
     story_el.classList.add("stared")
   } else {
     story_el.classList.remove("stared")
   }
-  label_star(story_el, btn, icon)
+  if (story_el && star_btn && star_icon) {
+    label_star(story_el, star_btn, star_icon)
+  }
 }
 
 function star_story(story) {
-  let story_el = document.querySelector(
-    '.story[data-href="' + story.href + '"]'
-  )
-  let star_btn = story_el.querySelector(".star_btn")
-  let star_icon = story_el.querySelector(".star_btn img")
-
-  toggle_star(story_el, star_btn, star_icon)
+  story.stared = true
 
   settings.get_starlist().then((starlist) => {
     starlist[story.href] = story
@@ -286,13 +331,7 @@ function star_story(story) {
 }
 
 function unstar_story(story) {
-  let story_el = document.querySelector(
-    '.story[data-href="' + story.href + '"]'
-  )
-  let star_btn = story_el.querySelector(".star_btn")
-  let star_icon = story_el.querySelector(".star_btn img")
-
-  toggle_star(story_el, star_btn, star_icon)
+  story.stared = false
 
   settings.get_starlist().then((starlist) => {
     if (starlist.hasOwnProperty(story.href)) {
@@ -307,6 +346,7 @@ function add_read_button(new_story_el, story) {
   read_btn.classList.add("btn")
   read_btn.classList.add("read_btn")
   let read_icon = document.createElement("img")
+  read_icon.classList.add("read_icon")
   read_btn.appendChild(read_icon)
 
   label_read(new_story_el, read_btn, read_icon)
@@ -336,8 +376,6 @@ function label_read(story_el, read_btn, read_icon) {
 
 function open_story(e, story_el, story) {
   web_control.open_in_webview(e, story)
-  mark_selected(story_el)
-  sort_stories()
   mark_as_read(story.href)
 }
 
@@ -373,15 +411,14 @@ function info_block(story) {
   return info
 }
 
-function mark_as_read(href, callback) {
-  let story_el = document.querySelector('.story[data-href="' + href + '"]')
-  if (!story_el.classList.contains("read")) {
-    toggle_read(href, callback)
-  }
+function mark_as_read(href) {
+  let story = story_map.get(href)
+  story.read = true
 }
 
 function toggle_read(href, callback) {
   let story_el = document.querySelector('.story[data-href="' + href + '"]')
+  let story = story_map.get(href)
   let read_btn = story_el.querySelector(".read_btn")
   let read_icon = story_el.querySelector(".read_btn img")
 
@@ -390,10 +427,12 @@ function toggle_read(href, callback) {
   if (story_el.classList.contains("read")) {
     story_el.classList.remove("read")
     remove_from_readlist(href)
+    story.read = false
     anmim_class = "unread_anim"
   } else {
     story_el.classList.add("read")
     add_to_readlist(href)
+    story.read = true
     anmim_class = "read_anim"
   }
 
@@ -633,14 +672,14 @@ async function enhance_stories(stories) {
   let readlist = enhance[0]
   let starlist = enhance[0]
 
-  filtered_stories.forEach((story) => {
+  return filtered_stories.map((story) => {
+    story = story_map.set(story.href.toString(), story)
     story.read = readlist.includes(story.href)
-    story.stared = starlist.hasOwnProperty(story.href)
-    //add_story(story)
-    story_map.set(story.href.toString(), story)
+    if (starlist.hasOwnProperty(story.href)) {
+      story.stared = starlist.hasOwnProperty(story.href)
+    }
+    return story
   })
-
-  return filtered_stories
 }
 
 async function parse_story_response(val, url) {
@@ -667,21 +706,13 @@ async function load(urls) {
 
 async function restar() {
   let starlist = await settings.get_starlist()
-
   document.querySelectorAll(".story").forEach((story_el) => {
     let sthref = story_el.dataset.href
-    if (starlist.hasOwnProperty(sthref)) {
-      let nstory = story_html(story_map.get(sthref.toString()))
-      story_el.replaceWith(nstory)
-    } else {
-      if (story_el.classList.contains("stared")) {
-        story_el.classList.remove("stared")
-        let star_btn = story_el.querySelector(".star_btn")
-        let star_icon = story_el.querySelector(".star_btn img")
-        label_star(story_el, star_btn, star_icon)
-      }
-    }
+    let story = story_map.get(sthref.toString())
+    story.stared = starlist.hasOwnProperty(sthref)
   })
+
+  //TODO: add stories not in list already?
 }
 
 function refilter() {
@@ -690,7 +721,6 @@ function refilter() {
     let story = story_map.get(sthref.toString())
     let og_filter = story.filter
     filters.filter_story(story).then((story) => {
-      console.log(og_filter, story.filter)
       if (story.filter != og_filter) {
         story_map.set(sthref.toString(), story)
         let nstory = story_html(story_map.get(sthref.toString()))
@@ -701,7 +731,7 @@ function refilter() {
 }
 
 function reload() {
-  story_map = new Map()
+  s_map = new Map()
 
   document.querySelectorAll(".story").forEach((x) => {
     x.outerHTML = ""

@@ -18,6 +18,7 @@ body {
     --highlight-bg-color: rgb(202, 202, 172);
     --border-color: #b3b3b3;
     --border-high-color: #b3b3b3;
+    --selected_bg_color: #b3b3b3;
     --sep-color: rgb(114, 100, 100);
     --btn-bg-color: none;
     --input-bg-color: white;
@@ -34,9 +35,10 @@ body {
   body {
     --main-bg-color: #282a36;
     --second-bg-color: #383a59;
-    --highlight-bg-color: #4050ac;
+    --highlight-bg-oclor: #4050ac;
     --border-color: #282a36;
-    --border-high-color: #282a36;
+    --border-high-color: #373f6e;
+    --selected_bg_color: #4a517be0;
     --sep-color: rgb(114, 100, 100);
     --btn-bg-color: #383a59;
     --input-bg-color: var(--second-bg-color);
@@ -183,11 +185,11 @@ option {
 }
 
 .animated .story {
-  transition: margin-left 0.5s cubic-bezier(0.25, 0.1, 0, 1.65);
+  transition: margin-left 0.6s cubic-bezier(0.25, 0.1, 0, 1.65);
 }
 
 .animated .read_anim {
-  margin-left: 100%;
+  margin-left: -100%;
 }
 
 .animated .unread_anim {
@@ -199,7 +201,7 @@ option {
 }
 
 .selected {
-  background: var(--border-high-color);
+  background: var(--selected_bg_color);
 }
 
 .story .title {
@@ -334,7 +336,7 @@ option {
   display: none;
 }
 
-.show_stored_star:not(.show_filtered) .stored_star {
+.show_stored_star:not(.show_filtered) .stored_star:not(.nomatch) {
   display: flex;
 }
 

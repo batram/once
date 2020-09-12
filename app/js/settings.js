@@ -86,7 +86,7 @@ function init() {
     if (e.keyCode === 27) {
       //ESC
       set_filter_area()
-    } else if ((e.key == "s" && e.ctrlKey)) {
+    } else if (e.key == "s" && e.ctrlKey) {
       //CTRL + s
       save_filter_settings()
     }

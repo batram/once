@@ -85,7 +85,7 @@ function filter_run(filter_list, story) {
     }
   }
 
-  if(story.filter && !story.filter.startsWith("::")){
+  if (story.filter && !story.filter.startsWith("::")) {
     delete story.filter
   }
 
