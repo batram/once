@@ -3,6 +3,8 @@ module.exports = {
   human_time,
 }
 
+const { Story } = require("./data/Story")
+
 let parsers = {
   "https://news.ycombinator.com/": {
     fun: parse_hn,
@@ -108,11 +110,11 @@ function parse_hn(doc, type) {
   let curl = "https://news.ycombinator.com/item?id="
   let stories = Array.from(doc.querySelectorAll(".storylink"))
 
-  return stories.map((story) => {
-    let pawpaw = story.parentElement.parentElement
+  return stories.map((story_el) => {
+    let pawpaw = story_el.parentElement.parentElement
     let id = pawpaw.id
-    if (story.protocol == "file:") {
-      story.href = curl + id
+    if (story_el.protocol == "file:") {
+      story_el.href = curl + id
     }
 
     let time = pawpaw.nextElementSibling.querySelector(".age a").innerText
@@ -120,18 +122,18 @@ function parse_hn(doc, type) {
 
     //filter ads
     let filter = null
-    if (story.parentElement.parentElement.querySelector(".votelinks") == null) {
+    if (story_el.parentElement.parentElement.querySelector(".votelinks") == null) {
       filter = ":: HN ads ::"
     }
 
-    return {
-      type: type,
-      href: story.href,
-      title: story.innerText,
-      comment_url: curl + id,
-      timestamp: timestamp,
-      filter: filter,
-    }
+    return new Story(
+      type,
+      story_el.href,
+      story_el.innerText,
+      curl + id,
+      timestamp,
+      filter,
+    )
   })
 }
 
@@ -148,13 +150,7 @@ function parse_lob(doc, type) {
 
     let timestamp = Date.parse(story.querySelector(".byline span").title)
 
-    return {
-      type: type,
-      href: link.href,
-      title: link.innerText,
-      comment_url: curl + id,
-      timestamp: timestamp,
-    }
+    return new Story(type, link.href, link.innerText, curl + id, timestamp)
   })
 }
 
@@ -171,12 +167,12 @@ function parse_reddit_rss(doc, type) {
 
     let timestamp = Date.parse(story.querySelector("updated").innerText)
 
-    return {
-      type: type,
-      href: content.querySelector("span a").href,
-      title: story.querySelector("title").innerText,
-      comment_url: story.querySelector("link").href,
-      timestamp: timestamp,
-    }
+    return new Story(
+      type,
+      content.querySelector("span a").href,
+      story.querySelector("title").innerText,
+      story.querySelector("link").href,
+      timestamp
+    )
   })
 }

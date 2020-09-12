@@ -1,5 +1,6 @@
 const settings = require("./settings")
-const onChange = require("on-change")
+const story_map = require("./data/StoryMap")
+const { Story } = require("./data/Story")
 
 module.exports = {
   load,
@@ -15,54 +16,6 @@ module.exports = {
   mark_selected,
 }
 
-let s_map = {}
-
-const story_map = onChange(s_map, function (path, value, previousValue, name) {
-  if (path.length != 0) {
-    if (typeof this[path[0]] == "object") {
-      setTimeout((x) => {
-        const event = new CustomEvent("change", {
-          detail: {
-            story: story_map.get(path[0]),
-            path: path,
-            value: value,
-            previousValue: previousValue,
-            name: name,
-          },
-        })
-        let story_els = document.querySelectorAll(
-          `.story[data-href="${path[0]}"]`
-        )
-        story_els.forEach((story_el) => {
-          story_el.dispatchEvent(event)
-        })
-        document.body.dispatchEvent(event)
-      }, 2)
-    }
-  }
-})
-
-story_map.set = (x, y) => {
-  story_map[x] = y
-  return story_map[x]
-}
-
-story_map.get = (x) => {
-  return story_map[x]
-}
-
-story_map.has = (x) => {
-  return story_map.hasOwnProperty(x)
-}
-
-story_map.clear = () => {
-  for (let i in story_map) {
-    if (typeof story_map[i] != "function") {
-      delete story_map[i]
-    }
-  }
-}
-
 async function is_story_read(href) {
   const readlist = await settings.get_readlist()
   return readlist.includes(href)
@@ -74,6 +27,14 @@ async function is_story_stared(href) {
 }
 
 function add_story(story, bucket = "stories") {
+  if (!(story instanceof Story)) {
+    let xstory = new Story()
+    for (let i in story) {
+      xstory[i] = story[i]
+    }
+
+    story = xstory
+  }
   story.bucket = bucket
   story = story_map.set(story.href.toString(), story)
 
@@ -114,7 +75,18 @@ function story_html(story) {
   let story_el = document.createElement("div")
   story_el.classList.add("story")
   story_el.addEventListener("change", (e) => {
-    if (e.detail.path.length == 2) {
+    console.log(e.detail)
+    if (e.detail.value instanceof Story && e.detail.name) {
+      switch (e.detail.name) {
+        case "star":
+        case "unstar":
+          update_star(e.detail.value.stared, story_el)
+          break
+        case "mark_as_read":
+          update_read(e.detail.value, story_el)
+          break
+      }
+    } else if (e.detail.path.length == 2) {
       switch (e.detail.path[1]) {
         case "read":
           update_read(e.detail.value, story_el)
@@ -146,8 +118,7 @@ function story_html(story) {
   link.addEventListener(
     "click",
     (e) => {
-      open_story(e, story)
-      return false
+      return story.open_in_webview(e)
     },
     false
   )
@@ -169,8 +140,9 @@ function story_html(story) {
   story_el.appendChild(data)
 
   //buttons
-  has_or_get(story, story_el, "read", add_read_button, is_story_read)
-  has_or_get(story, story_el, "stared", add_star_button, is_story_stared)
+  story.has_or_get(story_el, "read", add_read_button, is_story_read)
+  story.has_or_get(story_el, "stared", add_star_button, is_story_stared)
+  //         stories.resort_single(story_el)
 
   let filter_btn = icon_button("filter", "filter_btn", "imgs/filter.svg")
   if (story.filter) {
@@ -191,29 +163,12 @@ function story_html(story) {
 
   let outline_btn = icon_button("outline", "outline_btn", "imgs/article.svg")
   outline_btn.onclick = (x) => {
-    mark_as_read(story.href)
+    story.mark_as_read()
     web_control.outline(story.href)
   }
   story_el.appendChild(outline_btn)
 
   return story_el
-}
-
-function has_or_get(story, story_el, prop, func, check) {
-  if (story.hasOwnProperty(prop)) {
-    if (story[prop]) {
-      story_el.classList.add(prop)
-    }
-    func(story_el, story)
-  } else {
-    check(story.href).then((x) => {
-      if (x) {
-        story_el.classList.add(prop)
-      }
-      func(story_el, story)
-      resort_single(story_el)
-    })
-  }
 }
 
 function icon_button(title, classname, icon_src) {
@@ -287,9 +242,9 @@ function add_star_button(story_el, story) {
 
   star_btn.addEventListener("click", (_) => {
     if (story.stared) {
-      unstar_story(story)
+      story.unstar()
     } else {
-      star_story(story)
+      story.star()
     }
   })
 }
@@ -321,26 +276,6 @@ function update_star(stared, story_el) {
   label_star(story_el)
 }
 
-function star_story(story) {
-  story.stared = true
-
-  settings.get_starlist().then((starlist) => {
-    starlist[story.href] = story
-    settings.save_starlist(starlist, console.log)
-  })
-}
-
-function unstar_story(story) {
-  story.stared = false
-
-  settings.get_starlist().then((starlist) => {
-    if (starlist.hasOwnProperty(story.href)) {
-      delete starlist[story.href]
-      settings.save_starlist(starlist, console.log)
-    }
-  })
-}
-
 function add_read_button(story_el, story) {
   let read_btn = icon_button("", "read_btn", "")
   story_el.appendChild(read_btn)
@@ -354,7 +289,7 @@ function add_read_button(story_el, story) {
   //open story with middle click on "skip reading"
   read_btn.addEventListener("mousedown", (e) => {
     if (e.button == 1) {
-      open_story(e, story.href)
+      return story.open_in_webview(e)
     }
   })
 }
@@ -376,18 +311,6 @@ function label_read(story_el) {
   }
 }
 
-function open_story(e, href) {
-  e.preventDefault()
-  e.stopPropagation()
-
-  if (e.target.href) {
-    href = e.target.href
-  }
-
-  web_control.open_in_webview(href)
-  mark_as_read(href)
-}
-
 function info_block(story) {
   let info = document.createElement("div")
   info.classList.add("info")
@@ -400,7 +323,9 @@ function info_block(story) {
   let og_link = document.createElement("a")
   og_link.innerText = " [OG] "
   og_link.href = story.href
-  og_link.addEventListener("click", open_story)
+  og_link.addEventListener("click", (e) => {
+    return story.open_in_webview(e)
+  })
   info.appendChild(og_link)
 
   //comments
@@ -408,7 +333,9 @@ function info_block(story) {
   comments_link.classList.add("comment_url")
   comments_link.innerText = " [comments] "
   comments_link.href = story.comment_url
-  comments_link.addEventListener("click", open_story)
+  comments_link.addEventListener("click", (e) => {
+    story.open_in_webview(e)
+  })
   info.appendChild(comments_link)
 
   info.appendChild(
@@ -420,11 +347,6 @@ function info_block(story) {
   return info
 }
 
-function mark_as_read(href) {
-  let story = story_map.get(href)
-  story.read = true
-}
-
 function toggle_read(href, callback) {
   let story_el = document.querySelector('.story[data-href="' + href + '"]')
   let story = story_map.get(href)
@@ -433,12 +355,12 @@ function toggle_read(href, callback) {
 
   if (story_el.classList.contains("read")) {
     story_el.classList.remove("read")
-    remove_from_readlist(href)
+    story.remove_from_readlist()
     story.read = false
     anmim_class = "unread_anim"
   } else {
     story_el.classList.add("read")
-    add_to_readlist(href)
+    story.add_to_readlist()
     story.read = true
     anmim_class = "read_anim"
   }
@@ -456,24 +378,6 @@ function toggle_read(href, callback) {
       }
     }
   }
-}
-
-function remove_from_readlist(href) {
-  settings.get_readlist().then((readlist) => {
-    const index = readlist.indexOf(href)
-    if (index > -1) {
-      readlist.splice(index, 1)
-    }
-    settings.save_readlist(readlist, console.log)
-  })
-}
-
-function add_to_readlist(href) {
-  settings.get_readlist().then((readlist) => {
-    readlist.push(href)
-    readlist = readlist.filter((v, i, a) => a.indexOf(v) === i)
-    settings.save_readlist(readlist, console.log)
-  })
 }
 
 function sort_raw_stories(stories) {
