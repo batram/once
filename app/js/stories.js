@@ -55,6 +55,14 @@ story_map.has = (x) => {
   return story_map.hasOwnProperty(x)
 }
 
+story_map.clear = () => {
+  for (let i in story_map) {
+    if (typeof story_map[i] != "function") {
+      delete story_map[i]
+    }
+  }
+}
+
 async function is_story_read(href) {
   const readlist = await settings.get_readlist()
   return readlist.includes(href)
@@ -67,8 +75,7 @@ async function is_story_stared(href) {
 
 function add_story(story, bucket = "stories") {
   story.bucket = bucket
-  story_map.set(story.href.toString(), story)
-  story = story_map.get(story.href.toString())
+  story = story_map.set(story.href.toString(), story)
 
   //check if we already have story with same URL
   let og_story_el = document.querySelector(
@@ -94,20 +101,26 @@ function add_story(story, bucket = "stories") {
 
   let new_story_el = story_html(story)
   let stories_container = document.querySelector("#" + bucket)
+
+  //hide new stories if search is active, will be matched and shown later
+  if (searchfield.value != "" && bucket != "global_search_results") {
+    new_story_el.classList.add("nomatch")
+  }
+
   stories_container.appendChild(new_story_el)
 }
 
 function story_html(story) {
-  let new_story_el = document.createElement("div")
-  new_story_el.classList.add("story")
-  new_story_el.addEventListener("change", (e) => {
+  let story_el = document.createElement("div")
+  story_el.classList.add("story")
+  story_el.addEventListener("change", (e) => {
     if (e.detail.path.length == 2) {
       switch (e.detail.path[1]) {
         case "read":
-          update_read(e.detail.value, new_story_el)
+          update_read(e.detail.value, story_el)
           break
         case "stared":
-          update_star(e.detail.value, new_story_el)
+          update_star(e.detail.value, story_el)
           break
         case "filter":
           break
@@ -115,39 +128,11 @@ function story_html(story) {
     }
   })
 
-  if (story.hasOwnProperty("stored_star")) {
-    new_story_el.classList.add("stored_star")
-  }
-
-  if (story.hasOwnProperty("read")) {
-    if (story.read) {
-      new_story_el.classList.add("read")
-    }
-    add_read_button(new_story_el, story)
-  } else {
-    is_story_read(story.href).then((read) => {
-      if (read) {
-        new_story_el.classList.add("read")
-      }
-      resort_single(new_story_el)
-      add_read_button(new_story_el, story)
-    })
-  }
-
-  is_story_stared(story.href).then((stared) => {
-    story.stared = stared
-    if (stared) {
-      new_story_el.classList.add("stared")
-    }
-
-    add_star_button(new_story_el, story)
-  })
-
-  new_story_el.dataset.title = story.title
-  new_story_el.dataset.href = story.href
-  new_story_el.dataset.timestamp = story.timestamp
-  new_story_el.dataset.type = "[" + story.type + "]"
-  new_story_el.dataset.comment_url = story.comment_url
+  story_el.dataset.title = story.title
+  story_el.dataset.href = story.href
+  story_el.dataset.timestamp = story.timestamp
+  story_el.dataset.type = "[" + story.type + "]"
+  story_el.dataset.comment_url = story.comment_url
 
   let title_line = document.createElement("div")
   title_line.classList.add("title_line")
@@ -157,6 +142,15 @@ function story_html(story) {
   link.classList.add("title")
   link.innerText = story.title
   title_line.appendChild(link)
+
+  link.addEventListener(
+    "click",
+    (e) => {
+      open_story(e, story)
+      return false
+    },
+    false
+  )
 
   let hostname = document.createElement("p")
   hostname.classList.add("hostname")
@@ -172,18 +166,16 @@ function story_html(story) {
   data.appendChild(title_line)
   data.appendChild(info)
 
-  new_story_el.appendChild(data)
+  story_el.appendChild(data)
 
-  let filter_btn = document.createElement("div")
-  filter_btn.classList.add("btn")
-  filter_btn.classList.add("filter_btn")
-  let filter_icon = document.createElement("img")
-  filter_icon.src = "imgs/filter.svg"
-  filter_btn.appendChild(filter_icon)
-  filter_btn.title = "filter"
+  //buttons
+  has_or_get(story, story_el, "read", add_read_button, is_story_read)
+  has_or_get(story, story_el, "stared", add_star_button, is_story_stared)
+
+  let filter_btn = icon_button("filter", "filter_btn", "imgs/filter.svg")
   if (story.filter) {
     filter_btn.title = "filtered"
-    new_story_el.classList.add("filtered")
+    story_el.classList.add("filtered")
     let dinp = document.createElement("input")
     dinp.type = "text"
     dinp.value = story.filter
@@ -195,37 +187,44 @@ function story_html(story) {
   filter_btn.onclick = (x) => {
     filters.show_filter_dialog(x, filter_btn, story)
   }
-  new_story_el.appendChild(filter_btn)
+  story_el.appendChild(filter_btn)
 
-  let outline_btn = document.createElement("div")
-  outline_btn.classList.add("btn")
-  outline_btn.classList.add("outline_btn")
-  let outline_icon = document.createElement("img")
-  outline_icon.src = "imgs/article.svg"
-  outline_btn.appendChild(outline_icon)
-  outline_btn.title = "outline"
-  outline_btn.onclick = async (x) => {
+  let outline_btn = icon_button("outline", "outline_btn", "imgs/article.svg")
+  outline_btn.onclick = (x) => {
     mark_as_read(story.href)
     web_control.outline(story.href)
   }
-  new_story_el.appendChild(outline_btn)
+  story_el.appendChild(outline_btn)
 
-  new_story_el.addEventListener(
-    "contextmenu",
-    (e) => {
-      contextmenu.story_menu(e, story)
-    },
-    false
-  )
-  link.addEventListener(
-    "click",
-    (e) => {
-      open_story(e, new_story_el, story)
-    },
-    false
-  )
+  return story_el
+}
 
-  return new_story_el
+function has_or_get(story, story_el, prop, func, check) {
+  if (story.hasOwnProperty(prop)) {
+    if (story[prop]) {
+      story_el.classList.add(prop)
+    }
+    func(story_el, story)
+  } else {
+    check(story.href).then((x) => {
+      if (x) {
+        story_el.classList.add(prop)
+      }
+      func(story_el, story)
+      resort_single(story_el)
+    })
+  }
+}
+
+function icon_button(title, classname, icon_src) {
+  let btn = document.createElement("div")
+  btn.classList.add("btn")
+  btn.classList.add(classname)
+  let icon = document.createElement("img")
+  icon.src = icon_src
+  btn.appendChild(icon)
+  btn.title = title
+  return btn
 }
 
 function update_read(read, story_el) {
@@ -234,9 +233,7 @@ function update_read(read, story_el) {
   } else {
     story_el.classList.remove("read")
   }
-  let read_btn = story_el.querySelector(".read_btn")
-  let read_icon = story_el.querySelector(".read_icon")
-  label_read(story_el, read_btn, read_icon)
+  label_read(story_el)
 }
 
 function mark_selected(story_el, url) {
@@ -279,26 +276,32 @@ function mark_selected(story_el, url) {
   }
 }
 
-function add_star_button(new_story_el, story) {
-  let star_btn = document.createElement("div")
-  star_btn.classList.add("btn")
-  star_btn.classList.add("star_btn")
-  let star_icon = document.createElement("img")
-  star_btn.appendChild(star_icon)
+function add_star_button(story_el, story) {
+  if (story.hasOwnProperty("stored_star")) {
+    story_el.classList.add("stored_star")
+  }
 
-  label_star(new_story_el, star_btn, star_icon)
+  let star_btn = icon_button("", "star_btn", "")
+  story_el.appendChild(star_btn)
+  label_star(story_el)
 
-  star_btn.addEventListener("click", (x) => {
+  star_btn.addEventListener("click", (_) => {
     if (story.stared) {
       unstar_story(story)
     } else {
       star_story(story)
     }
   })
-  new_story_el.appendChild(star_btn)
 }
 
-function label_star(story_el, btn, icon) {
+function label_star(story_el) {
+  let btn = story_el.querySelector(".star_btn")
+  let icon = btn.querySelector("img")
+
+  if (!btn) {
+    return
+  }
+
   if (story_el.classList.contains("stared")) {
     btn.title = "remove bookmark"
     icon.src = "imgs/star_fill.svg"
@@ -309,16 +312,13 @@ function label_star(story_el, btn, icon) {
 }
 
 function update_star(stared, story_el) {
-  let star_btn = story_el.querySelector(".star_btn")
-  let star_icon = story_el.querySelector(".star_btn img")
   if (stared) {
     story_el.classList.add("stared")
   } else {
     story_el.classList.remove("stared")
   }
-  if (story_el && star_btn && star_icon) {
-    label_star(story_el, star_btn, star_icon)
-  }
+
+  label_star(story_el)
 }
 
 function star_story(story) {
@@ -341,42 +341,51 @@ function unstar_story(story) {
   })
 }
 
-function add_read_button(new_story_el, story) {
-  let read_btn = document.createElement("div")
-  read_btn.classList.add("btn")
-  read_btn.classList.add("read_btn")
-  let read_icon = document.createElement("img")
-  read_icon.classList.add("read_icon")
-  read_btn.appendChild(read_icon)
+function add_read_button(story_el, story) {
+  let read_btn = icon_button("", "read_btn", "")
+  story_el.appendChild(read_btn)
 
-  label_read(new_story_el, read_btn, read_icon)
+  label_read(story_el)
 
   read_btn.addEventListener("click", (x) => {
     toggle_read(story.href, resort_single)
   })
-  new_story_el.appendChild(read_btn)
 
   //open story with middle click on "skip reading"
   read_btn.addEventListener("mousedown", (e) => {
     if (e.button == 1) {
-      open_story(e, new_story_el, story)
+      open_story(e, story.href)
     }
   })
 }
 
-function label_read(story_el, read_btn, read_icon) {
+function label_read(story_el) {
+  let btn = story_el.querySelector(".read_btn")
+  let icon = btn.querySelector("img")
+
+  if (!btn) {
+    return
+  }
+
   if (!story_el.classList.contains("read")) {
-    read_btn.title = "skip reading"
-    read_icon.src = "imgs/read.svg"
+    btn.title = "skip reading"
+    icon.src = "imgs/read.svg"
   } else {
-    read_btn.title = "mark as unread"
-    read_icon.src = "imgs/unread.svg"
+    btn.title = "mark as unread"
+    icon.src = "imgs/unread.svg"
   }
 }
 
-function open_story(e, story_el, story) {
-  web_control.open_in_webview(e, story)
-  mark_as_read(story.href)
+function open_story(e, href) {
+  e.preventDefault()
+  e.stopPropagation()
+
+  if (e.target.href) {
+    href = e.target.href
+  }
+
+  web_control.open_in_webview(href)
+  mark_as_read(href)
 }
 
 function info_block(story) {
@@ -391,7 +400,7 @@ function info_block(story) {
   let og_link = document.createElement("a")
   og_link.innerText = " [OG] "
   og_link.href = story.href
-  og_link.addEventListener("click", web_control.open_in_webview)
+  og_link.addEventListener("click", open_story)
   info.appendChild(og_link)
 
   //comments
@@ -399,7 +408,7 @@ function info_block(story) {
   comments_link.classList.add("comment_url")
   comments_link.innerText = " [comments] "
   comments_link.href = story.comment_url
-  comments_link.addEventListener("click", web_control.open_in_webview)
+  comments_link.addEventListener("click", open_story)
   info.appendChild(comments_link)
 
   info.appendChild(
@@ -419,8 +428,6 @@ function mark_as_read(href) {
 function toggle_read(href, callback) {
   let story_el = document.querySelector('.story[data-href="' + href + '"]')
   let story = story_map.get(href)
-  let read_btn = story_el.querySelector(".read_btn")
-  let read_icon = story_el.querySelector(".read_btn img")
 
   let anmim_class = ""
 
@@ -436,7 +443,7 @@ function toggle_read(href, callback) {
     anmim_class = "read_anim"
   }
 
-  label_read(story_el, read_btn, read_icon)
+  label_read(story_el)
 
   if (typeof callback == "function") {
     let resort = callback(story_el)
@@ -622,15 +629,7 @@ async function process_story_input(stories) {
 
   //add all stored stared stories
   let starlist = await settings.get_starlist()
-
-  for (let href in starlist) {
-    if (!story_map.has(href.toString())) {
-      let star_story = starlist[href]
-      star_story.stared = true
-      star_story.stored_star = true
-      add_story(star_story)
-    }
-  }
+  add_stored_stars(starlist)
 
   sort_stories()
 
@@ -712,7 +711,18 @@ async function restar() {
     story.stared = starlist.hasOwnProperty(sthref)
   })
 
-  //TODO: add stories not in list already?
+  add_stored_stars(starrlist)
+}
+
+function add_stored_stars(starlist) {
+  for (let href in starlist) {
+    if (!story_map.has(href.toString())) {
+      let star_story = starlist[href]
+      star_story.stared = true
+      star_story.stored_star = true
+      add_story(star_story)
+    }
+  }
 }
 
 function refilter() {
@@ -731,7 +741,7 @@ function refilter() {
 }
 
 function reload() {
-  s_map = new Map()
+  story_map.clear()
 
   document.querySelectorAll(".story").forEach((x) => {
     x.outerHTML = ""

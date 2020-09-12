@@ -246,16 +246,11 @@ function outline_button_inactive() {
   outline_webview_btn.classList.remove("active")
 }
 
-function open_in_webview(e, story) {
-  e.preventDefault()
-  e.stopPropagation()
-  if (e.target.href) {
-    webview.loadURL(e.target.href)
-    urlfield.value = e.target.href
-  } else if (story && story.href) {
-    webview.loadURL(story.href)
-    urlfield.value = story.href
-  }
+function open_in_webview(href) {
+  webview.loadURL(href).catch((e) => {
+    console.log("webview.loadURL error", e)
+  })
+  urlfield.value = href
 }
 
 reload_webview_btn.onclick = (x) => {
@@ -269,7 +264,9 @@ close_webview_btn.onclick = (x) => {
 outline_webview_btn.onclick = (x) => {
   //TODO: track state in a different way
   if (outline_webview_btn.classList.contains("active")) {
-    webview.loadURL(urlfield.value)
+    webview.loadURL(urlfield.value).catch((e) => {
+      console.log("webview.loadURL error", e)
+    })
   } else {
     outline(urlfield.value)
   }
@@ -322,12 +319,16 @@ async function outline(url) {
   title.innerText = article.title
   title.classList.add("outlined")
 
-  webview.loadURL(
-    data_outline_url +
-      encodeURIComponent(base.outerHTML) +
-      encodeURIComponent(title.outerHTML) +
-      encodeURIComponent(article.content)
-  )
+  webview
+    .loadURL(
+      data_outline_url +
+        encodeURIComponent(base.outerHTML) +
+        encodeURIComponent(title.outerHTML) +
+        encodeURIComponent(article.content)
+    )
+    .catch((e) => {
+      console.log("webview.loadURL error", e)
+    })
 }
 
 function fix_rel(el, base_url) {
@@ -360,7 +361,9 @@ function outline_fallback(url) {
     userAgent:
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.125 Safari/537.36",
   }
-  webview.loadURL(outline_api + escape(url), options)
+  webview.loadURL(outline_api + escape(url), options).catch((e) => {
+    console.log("webview.loadURL error", e)
+  })
 }
 
 function outline_jshook() {

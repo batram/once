@@ -39,9 +39,6 @@ function init_search() {
 
 function search_stories(needle) {
   let story_container = document.querySelector("#stories")
-  document.querySelectorAll(".story").forEach((x) => {
-    x.classList.remove("nomatch")
-  })
 
   story_container.classList.remove("show_filtered")
   story_container.style.display = "flex"
@@ -105,7 +102,6 @@ function search_stories(needle) {
   }
 
   document.querySelectorAll(".story").forEach((x) => {
-    x.classList.remove("nomatch")
     if (
       !(
         x.dataset.title.toLowerCase().includes(needle.toLowerCase()) ||
@@ -114,6 +110,8 @@ function search_stories(needle) {
       )
     ) {
       x.classList.add("nomatch")
+    } else {
+      x.classList.remove("nomatch")
     }
   })
 
