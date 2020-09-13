@@ -142,7 +142,7 @@ function show_filter_dialog(event, filter_btn, story) {
 
 function confirm_add_story(inp, filter_btn) {
   if (confirm('add filter: "' + inp.value + '"')) {
-    filters.add_filter(inp.value)
+    add_filter(inp.value)
     filter_btn.querySelectorAll(".filter_btn input").outerHTML = ""
   }
 }

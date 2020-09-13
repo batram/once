@@ -98,10 +98,6 @@ class Story {
       href = e.target.href
     }
 
-    //if (href == this.href) {
-    //  this.mark_as_read()
-    //}
-
     web_control.open_in_webview(href)
 
     return false
@@ -109,13 +105,22 @@ class Story {
 
   async is_read() {
     const readlist = await settings.get_readlist()
-    this.read = readlist.includes(this.href)
+    
+    console.log("prop read", this.read, readlist.includes(this.href), this.hasOwnProperty("read"))
+    if (!this.hasOwnProperty("read")) {
+      const readlist = await settings.get_readlist()
+      this.read = readlist.includes(this.href)
+    }
+
     return this.read
   }
 
   async is_stared() {
-    const starlist = await settings.get_starlist()
-    this.stared = starlist.hasOwnProperty(this.href)
+    if (!this.hasOwnProperty("stared")) {
+      const starlist = await settings.get_starlist()
+      this.stared = starlist.hasOwnProperty(this.href)
+    } 
+
     return this.stared
   }
 

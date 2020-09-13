@@ -52,9 +52,35 @@ story_map.clear = () => {
   }
 }
 
+function update_story(href, path, value){
+  let story = story_map.get(href)
+  if(path == "story" && value instanceof Story){
+    story = value
+  } else {
+    if(story.hasOwnProperty(path)){
+      if(path == "read"){
+        if(value){
+          story.add_to_readlist()
+        } else {
+          story.remove_from_readlist()
+        }
+      }
+      if(path == "stared"){
+        if(value){
+          story.star()
+        } else {
+          story.unstar()
+        }
+      }
+      story[path] = value
+    }
+  }
+}
+
 module.exports = {
   set: story_map.set,
   get: story_map.get,
   has: story_map.has,
   clear: story_map.clear,
+  update_story: update_story,
 }

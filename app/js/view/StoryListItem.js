@@ -1,49 +1,21 @@
 const { Story } = require("../data/Story")
 const { resort_single } = require("./StoryList")
 const story_parser = require("../parser")
+const filters = require("../filters")
+const { ipcRenderer } = require("electron")
 
 module.exports = {
   story_html,
   info_block,
 }
 
-function story_html(story) {
-  console.log(story)
+function story_html(story, ipc = false) {
   if (!(story instanceof Story)) {
     story = Story.from_obj(story)
-    console.log(story)
   }
 
   let story_el = document.createElement("div")
   story_el.classList.add("story")
-  story_el.addEventListener("change", (e) => {
-    console.log(e.detail)
-    if (e.detail.value instanceof Story && e.detail.name) {
-      switch (e.detail.name) {
-        //TODO diff class before after, or completley redraw or fix on-change
-        case "star":
-        case "unstar":
-          update_star(e.detail.value.stared, story_el)
-          break
-        case "mark_as_read":
-        case "open_in_webview":
-          update_read(e.detail.value, story_el)
-          break
-      }
-    } else if (e.detail.path.length == 2) {
-      switch (e.detail.path[1]) {
-        case "read":
-          update_read(e.detail.value, story_el)
-          break
-        case "stared":
-          update_star(e.detail.value, story_el)
-          break
-        case "filter":
-          break
-      }
-    }
-  })
-
   story_el.dataset.title = story.title
   story_el.dataset.href = story.href
   story_el.dataset.timestamp = story.timestamp
@@ -58,14 +30,6 @@ function story_html(story) {
   link.classList.add("title")
   link.innerText = story.title
   title_line.appendChild(link)
-
-  link.addEventListener(
-    "click",
-    (e) => {
-      return story.open_in_webview(e)
-    },
-    false
-  )
 
   let hostname = document.createElement("p")
   hostname.classList.add("hostname")
@@ -83,10 +47,13 @@ function story_html(story) {
 
   story_el.appendChild(data)
 
-  //buttons
-  story.has_or_get(story_el, "read", add_read_button)
-  story.has_or_get(story_el, "stared", add_star_button)
-  //         stories.resort_single(story_el)
+  add_read_button(story_el, story)
+  add_star_button(story_el, story)
+
+  update_read(story.read, story_el)
+  story.is_stared().then((stared) => {
+    update_star(stared, story_el)
+  })
 
   let filter_btn = icon_button("filter", "filter_btn", "imgs/filter.svg")
   if (story.filter) {
@@ -100,19 +67,143 @@ function story_html(story) {
     filter_btn.prepend(dinp)
     filter_btn.style.borderColor = "red"
   }
-  filter_btn.onclick = (x) => {
-    filters.show_filter_dialog(x, filter_btn, story)
-  }
   story_el.appendChild(filter_btn)
 
   let outline_btn = icon_button("outline", "outline_btn", "imgs/article.svg")
-  outline_btn.onclick = (x) => {
-    story.mark_as_read()
-    web_control.outline(story.href)
-  }
   story_el.appendChild(outline_btn)
 
+  if (!ipc) {
+    direct_events(story, story_el)
+  } else {
+    ipc_events(story, story_el)
+  }
+
   return story_el
+}
+
+function update_storyel(e, story_el) {
+  console.log(e.detail)
+  if (e.detail.value instanceof Story && e.detail.name) {
+    switch (e.detail.name) {
+      //TODO diff class before after, or completley redraw or fix on-change
+      case "star":
+      case "unstar":
+        update_star(e.detail.value.stared, story_el)
+        break
+      case "mark_as_read":
+      case "open_in_webview":
+        update_read(e.detail.value, story_el)
+        break
+    }
+  } else if (e.detail.path.length == 2) {
+    switch (e.detail.path[1]) {
+      case "read":
+        update_read(e.detail.value, story_el)
+        break
+      case "stared":
+        update_star(e.detail.value, story_el)
+        break
+      case "filter":
+        break
+    }
+  }
+}
+
+function direct_events(story, story_el) {
+  story_el.addEventListener("change", (e) => {
+    update_storyel(e, story_el)
+  })
+
+  let link = story_el.querySelector(".title")
+  link.addEventListener(
+    "click",
+    (e) => {
+      return story.open_in_webview(e)
+    },
+    false
+  )
+
+  let filter_btn = story_el.querySelector(".filter_btn")
+  filter_btn.onclick = (x) => {
+    filters.show_filter_dialog(x, filter_btn, story)
+  }
+
+  let outline_btn = story_el.querySelector(".outline_btn")
+  outline_btn.onclick = (x) => {
+    web_control.outline(story.href)
+  }
+
+  let read_btn = story_el.querySelector(".read_btn")
+  read_btn.addEventListener("click", (x) => {
+    const { resort_single } = require("./StoryList")
+    toggle_read(story.href, resort_single)
+  })
+
+  //open story with middle click on "skip reading"
+  read_btn.addEventListener("mousedown", (e) => {
+    if (e.button == 1) {
+      return story.open_in_webview(e)
+    }
+  })
+
+  let star_btn = story_el.querySelector(".star_btn")
+  star_btn.addEventListener("click", (_) => {
+    if (story.stared) {
+      story.unstar()
+    } else {
+      story.star()
+    }
+  })
+}
+
+function ipc_events(story, story_el) {
+  story_el.addEventListener("change", (e) => {
+    update_storyel(e, story_el)
+  })
+
+  let link = story_el.querySelector(".title")
+  link.addEventListener(
+    "click",
+    (e) => {
+      return story.open_in_webview(e)
+    },
+    false
+  )
+
+  let filter_btn = story_el.querySelector(".filter_btn")
+  filter_btn.onclick = (x) => {
+    filters.show_filter_dialog(x, filter_btn, story)
+  }
+
+  let outline_btn = story_el.querySelector(".outline_btn")
+  outline_btn.onclick = (x) => {
+    web_control.outline(story.href)
+  }
+
+  let read_btn = story_el.querySelector(".read_btn")
+  read_btn.addEventListener("click", (x) => {
+    ipcRenderer.send("update_story", {
+      href: story.href,
+      path: "read",
+      value: !story.read,
+    })
+  })
+
+  //open story with middle click on "skip reading"
+  read_btn.addEventListener("mousedown", (e) => {
+    if (e.button == 1) {
+      return story.open_in_webview(e)
+    }
+  })
+
+  let star_btn = story_el.querySelector(".star_btn")
+  star_btn.addEventListener("click", (_) => {
+    ipcRenderer.send("update_story", {
+      href: story.href,
+      path: "stared",
+      value: !story.stared,
+    })
+  })
 }
 
 function info_block(story) {
@@ -167,18 +258,6 @@ function add_read_button(story_el, story) {
   story_el.appendChild(read_btn)
 
   label_read(story_el)
-
-  read_btn.addEventListener("click", (x) => {
-    const { resort_single } = require("./StoryList")
-    toggle_read(story.href, resort_single)
-  })
-
-  //open story with middle click on "skip reading"
-  read_btn.addEventListener("mousedown", (e) => {
-    if (e.button == 1) {
-      return story.open_in_webview(e)
-    }
-  })
 }
 
 function update_read(read, story_el) {
@@ -248,14 +327,6 @@ function add_star_button(story_el, story) {
   let star_btn = icon_button("", "star_btn", "")
   story_el.appendChild(star_btn)
   label_star(story_el)
-
-  star_btn.addEventListener("click", (_) => {
-    if (story.stared) {
-      story.unstar()
-    } else {
-      story.star()
-    }
-  })
 }
 
 function label_star(story_el) {

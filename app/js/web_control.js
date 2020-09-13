@@ -33,10 +33,26 @@ function attach_webframe() {
   const { ipcMain } = remote
 
   ipcMain.on("mark_selected", mark_selected)
+  ipcMain.on("update_story", update_story)
+
+  function update_story(event, data){
+    console.log("ipcMain update_story", event, data)
+    story_loader.story_map.update_story(data.href, data.path, data.value)
+  }
 
   function mark_selected(event, href) {
     let story = stories.mark_selected(null, href)
     event.sender.send("update_selected", story)
+    let select_el = document.querySelector(".selected")
+    if(select_el){
+      select_el.addEventListener("change", function select_change(e) {
+        if(select_el.classList.contains("selected")){
+          event.sender.send("update_selected", e.detail.story)
+        } else {
+          select_el.removeEventListener("change", select_change)
+        }
+      })  
+    }
   }
 
   window.addEventListener("beforeunload", (x) => {
@@ -233,7 +249,8 @@ function update_selected(story) {
   console.log(story instanceof Story)
   const { story_html } = require("./view/StoryListItem")
 
-  let story_el = story_html(story)
+  let story_el = story_html(story, true)
+  story_el.classList.add("selected")
   selected_container.append(story_el)
 }
 
