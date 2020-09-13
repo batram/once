@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="css/style.css" />
   </head>
   <body>
-    <div id="webframe">
+    <div id="webtab">
       <div id="controlbar" class="bar">
         <div id="outline_webview_btn" class="btn bar_btn" title="outline">
           <img src="imgs/article.svg" />
@@ -22,7 +22,7 @@
         <div id="pop_out_btn" class="btn bar_btn" title="pop out webview">
           <img src="imgs/popout.svg" />
         </div>
-        <div id="close_webview_btn" class="btn bar_btn" title="reload webview">
+        <div id="close_webview_btn" class="btn bar_btn" title="close webview">
           <img src="imgs/x.svg" />
         </div>
       </div>
@@ -40,6 +40,6 @@
   <script>
     const web_control = require("./js/web_control")
     web_control.init_menu()
-    web_control.init_webframe()
+    web_control.init_webtab()
   </script>
 </html>

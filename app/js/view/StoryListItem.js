@@ -3,6 +3,7 @@ const { resort_single } = require("./StoryList")
 const story_parser = require("../parser")
 const filters = require("../filters")
 const { ipcRenderer } = require("electron")
+const web_control = require("../web_control")
 
 module.exports = {
   story_html,

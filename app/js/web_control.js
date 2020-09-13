@@ -1,9 +1,9 @@
 module.exports = {
-  init_webframe,
+  init_webtab,
   init_menu,
   open_in_webview,
   outline,
-  attach_webframe,
+  attach_webtab,
 }
 
 const { remote, ipcRenderer } = require("electron")
@@ -29,7 +29,7 @@ function init_menu() {
   })
 }
 
-function attach_webframe() {
+function attach_webtab() {
   const { ipcMain } = remote
 
   ipcMain.on("mark_selected", mark_selected)
@@ -41,13 +41,18 @@ function attach_webframe() {
   }
 
   function mark_selected(event, href) {
+    let colors = [...document.querySelectorAll(".tag_style")]
+      .map((x) => {
+        return x.innerText
+      })
+      .join("\n")
     let story = stories.mark_selected(null, href)
-    event.sender.send("update_selected", story)
+    event.sender.send("update_selected", story, colors)
     let select_el = document.querySelector(".selected")
     if (select_el) {
       select_el.addEventListener("change", function select_change(e) {
         if (select_el.classList.contains("selected")) {
-          event.sender.send("update_selected", e.detail.story)
+          event.sender.send("update_selected", e.detail.story, story, colors)
         } else {
           select_el.removeEventListener("change", select_change)
         }
@@ -58,8 +63,13 @@ function attach_webframe() {
   window.addEventListener("beforeunload", (x) => {
     //Clean up listiners
     ipcMain.removeListener("mark_selected", mark_selected)
+    ipcMain.removeListener("update_story", mark_selected)
   })
 
+  create_webtab(content)
+}
+
+function create_webtab(size_to_el) {
   const view = new BrowserView({
     webPreferences: {
       nodeIntegration: true,
@@ -68,14 +78,11 @@ function attach_webframe() {
       webviewTag: true,
     },
   })
+
   let cwin = remote.getCurrentWindow()
-
-  cwin.webContents.on("ipc-event", console.log)
-
   cwin.setBrowserView(view)
-  view.setBounds({ x: 0, y: 0, width: 300, height: 300 })
-  view.webContents.loadFile("app/webframe.html")
-  window.activeWebframe = view
+  view.webContents.loadFile("app/webtab.html")
+  window.activeWebtab = view
 
   const resizeObserver = new ResizeObserver((entries) => {
     for (let entry of entries) {
@@ -94,12 +101,10 @@ function attach_webframe() {
     }
   })
 
-  resizeObserver.observe(content)
-
-  return
+  resizeObserver.observe(size_to_el)
 }
 
-function init_webframe() {
+function init_webtab() {
   let win = remote.getCurrentWindow()
   ipcRenderer.on("open_in_webview", (event, href) => {
     console.log("open_in_webview", href)
@@ -109,9 +114,9 @@ function init_webframe() {
     console.log("outline", href)
     outline(href)
   })
-  ipcRenderer.on("update_selected", (event, story) => {
-    console.log("update_selected", story)
-    update_selected(story)
+  ipcRenderer.on("update_selected", (event, story, colors) => {
+    console.log("update_selected", story, colors)
+    update_selected(story, colors)
   })
   window.webview = document.querySelector("#webview")
 
@@ -178,32 +183,44 @@ function init_webframe() {
   pop_out_btn.onclick = (x) => {
     let cwin = remote.getCurrentWindow()
     let size = cwin.getSize()
+    let csize = cwin.getContentSize()
+
     let win_popup = new BrowserWindow({
       width: window.innerWidth,
       height: size[1],
     })
     win_popup.removeMenu()
+    win_popup.loadURL(
+      "data:text/html,<html style='width: 100%; height: 100%'></html>"
+    )
+    win_popup.webContents.once("did-finish-load", (x) => {
+      win_popup.webContents.on("console-message", (e, x, m) => {
+        if (!m.startsWith("[")) {
+          return
+        }
+        let size = JSON.parse(m)
+        bw.setBounds({
+          x: 0,
+          y: 0,
+          width: size[0],
+          height: size[1],
+        })
+      })
+      win_popup.webContents.executeJavaScript(
+        `  
+        console.log(JSON.stringify([window.innerWidth, window.innerHeight]));
+        window.addEventListener("resize", (x) => {
+          console.log(JSON.stringify([window.innerWidth, window.innerHeight]));
+        });
+        `
+      )
+    })
     let bw = cwin.getBrowserView()
-    cwin.removeBrowserView(bw)
-
     win_popup.setBrowserView(bw)
+    cwin.removeBrowserView(bw)
 
     win_popup.on("close", (x) => {
       bw.destroy()
-    })
-
-    bw.setBounds({
-      x: 0,
-      y: 0,
-      width: window.innerWidth - 10,
-      height: size[1],
-    })
-
-    bw.setAutoResize({
-      horizontal: true,
-      vertical: true,
-      width: true,
-      height: true,
     })
   }
 }
@@ -247,7 +264,15 @@ function show_target_url(event, url) {
   }
 }
 
-function update_selected(story) {
+function update_selected(story, colors) {
+  console.log("update_selected", story, colors)
+  var style =
+    document.querySelector(".tag_style") || document.createElement("style")
+  style.classList.add("tag_style")
+  style.type = "text/css"
+  style.innerHTML = colors
+  document.head.append(style)
+
   selected_container.innerHTML = ""
   if (!story) {
     return
@@ -412,17 +437,29 @@ function open_in_webview(href) {
       console.log("webview.loadURL error", e)
     })
     urlfield.value = href
-  } else if (window.activeWebframe) {
-    activeWebframe.webContents.send("open_in_webview", href)
+  } else {
+    send_or_create("open_in_webview", href)
+  }
+}
+
+function send_or_create(name, value) {
+  if (window.activeWebtab && !window.activeWebtab.isDestroyed()) {
+    //active found
+    activeWebtab.webContents.send(name, value)
+  } else {
+    //creating new webtab
+    create_webtab(content)
+    activeWebtab.webContents.once("did-finish-load", (x) => {
+      console.log("moepmoep sned now !!!!!")
+      activeWebtab.webContents.send(name, value)
+    })
   }
 }
 
 async function outline(url) {
   let urlfield = document.querySelector("#urlfield")
   if (urlfield == undefined) {
-    if (window.activeWebframe) {
-      activeWebframe.webContents.send("outline", url)
-    }
+    send_or_create("outline", url)
     return
   }
   urlfield.value = url

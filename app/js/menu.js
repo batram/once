@@ -30,9 +30,11 @@ function add_tag(type, colors) {
     tag.style.backgroundColor = colors[0]
     tag.style.color = colors[1]
 
-    if (colors) {
+    if (colors && colors[0] != "") {
+      console.log("dagf", colors)
       //inject css for story tags
       var style = document.createElement("style")
+      style.classList.add("tag_style")
       style.type = "text/css"
       style.innerHTML = `
       .info[data-tag='${tag.innerText}'] .tag {

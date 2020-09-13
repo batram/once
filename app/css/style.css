@@ -249,7 +249,7 @@ option {
   flex-direction: column;
 }
 
-#webframe {
+#webtab {
   width: 100%;
   display: flex;
   flex-direction: column;
