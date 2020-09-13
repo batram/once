@@ -249,7 +249,13 @@ option {
   flex-direction: column;
 }
 
-#frams {
+#webframe {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+#webview {
   width: 100%;
   height: 100%;
   border: none;

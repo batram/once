@@ -1,54 +1,187 @@
 module.exports = {
+  init_webframe,
+  init_menu,
   open_in_webview,
   outline,
+  attach_webframe,
 }
 
-const { remote } = require("electron")
+const { remote, ipcRenderer } = require("electron")
 const contextmenu = require("./contextmenu")
-const { webContents, BrowserWindow } = remote
+const { Story } = require("./data/Story")
+const { webContents, BrowserWindow, BrowserView } = remote
 
 const outline_api = "https://api.outline.com/v3/parse_article?source_url="
 const data_outline_url = "data:text/html;charset=utf-8,"
 
-let webview = document.querySelector("#frams")
+let once = true
 
-webview.addEventListener("console-message", (e) => {
-  if (e.message == "mousedown 3") {
-    if (webview.canGoBack()) {
-      webview.goBack()
+function init_menu() {
+  let wc = remote.getCurrentWebContents()
+
+  wc.on("update-target-url", show_target_url)
+  wc.on("context-menu", contextmenu.inspect_menu)
+
+  window.addEventListener("beforeunload", (x) => {
+    //Clean up listiners
+    wc.removeListener("context-menu", contextmenu.inspect_menu)
+    wc.removeListener("update-target-url", show_target_url)
+  })
+}
+
+function attach_webframe() {
+  const { ipcMain } = remote
+
+  ipcMain.on("mark_selected", mark_selected)
+
+  function mark_selected(event, href) {
+    let story = stories.mark_selected(null, href)
+    event.sender.send("update_selected", story)
+  }
+
+  window.addEventListener("beforeunload", (x) => {
+    //Clean up listiners
+    ipcMain.removeListener("mark_selected", mark_selected)
+  })
+
+  const view = new BrowserView({
+    webPreferences: {
+      nodeIntegration: true,
+      enableRemoteModule: true,
+      webSecurity: false,
+      webviewTag: true,
+    },
+  })
+  let cwin = remote.getCurrentWindow()
+
+  cwin.webContents.on("ipc-event", console.log)
+
+  cwin.setBrowserView(view)
+  view.setBounds({ x: 0, y: 0, width: 300, height: 300 })
+  view.webContents.loadFile("app/webframe.html")
+  window.activeWebframe = view
+
+  const resizeObserver = new ResizeObserver((entries) => {
+    for (let entry of entries) {
+      if (
+        content == entry.target &&
+        BrowserWindow.fromBrowserView(view) == cwin
+      ) {
+        let box = entry.contentRect
+        view.setBounds({
+          x: entry.target.offsetLeft,
+          y: box.y,
+          width: Math.floor(box.width),
+          height: Math.floor(box.height),
+        })
+      }
     }
-  } else if (e.message == "mousedown 4") {
-    if (webview.canGoForward()) {
-      webview.goForward()
+  })
+
+  resizeObserver.observe(content)
+
+  return
+}
+
+function init_webframe() {
+  let win = remote.getCurrentWindow()
+  ipcRenderer.on("open_in_webview", (event, href) => {
+    console.log("open_in_webview", href)
+    open_in_webview(href)
+  })
+  ipcRenderer.on("outline", (event, href) => {
+    console.log("outline", href)
+    outline(href)
+  })
+  ipcRenderer.on("update_selected", (event, story) => {
+    console.log("update_selected", story)
+    update_selected(story)
+  })
+  window.webview = document.querySelector("#webview")
+
+  webview.addEventListener("console-message", (e) => {
+    if (e.message == "mousedown 3") {
+      if (webview.canGoBack()) {
+        webview.goBack()
+      }
+    } else if (e.message == "mousedown 4") {
+      if (webview.canGoForward()) {
+        webview.goForward()
+      }
+    }
+  })
+  webview.addEventListener("enter-html-full-screen", go_fullscreen)
+  webview.addEventListener("leave-html-full-screen", leave_fullscreen)
+  //webview.addEventListener("load-commit", loadcommit)
+  webview.addEventListener("did-stop-loading", inject_css)
+  webview.addEventListener("did-start-loading", load_started)
+  webview.addEventListener("did-navigate", update_url)
+  window.addEventListener("keyup", key_fullscreen)
+
+  function key_fullscreen(e) {
+    //console.log(e)
+    if (e.key == "F11") {
+      if (win.fullScreen) {
+        leave_fullscreen()
+        return true
+      } else {
+        go_fullscreen()
+        return true
+      }
+    }
+    if (e.key == "Escape") {
+      if (win.fullScreen) {
+        leave_fullscreen()
+        return true
+      }
     }
   }
-})
-webview.addEventListener("enter-html-full-screen", go_fullscreen)
-webview.addEventListener("leave-html-full-screen", leave_fullscreen)
-//webview.addEventListener("load-commit", loadcommit)
-webview.addEventListener("did-stop-loading", inject_css)
-webview.addEventListener("did-start-loading", load_started)
-webview.addEventListener("did-navigate", update_url)
-window.addEventListener("keyup", key_fullscreen)
 
-let win = remote.getCurrentWindow()
+  webview.addEventListener("new-window", async (e) => {
+    //console.log("webview new-window", e.url)
+  })
+  reload_webview_btn.onclick = (x) => {
+    webview.reload()
+  }
 
-function key_fullscreen(e) {
-  //console.log(e)
-  if (e.key == "F11") {
-    if (win.fullScreen) {
-      leave_fullscreen()
-      return true
+  close_webview_btn.onclick = (x) => {
+    webview.loadURL("about:blank")
+  }
+
+  outline_webview_btn.onclick = (x) => {
+    //TODO: track state in a different way
+    if (outline_webview_btn.classList.contains("active")) {
+      webview.loadURL(urlfield.value).catch((e) => {
+        console.log("webview.loadURL error", e)
+      })
     } else {
-      go_fullscreen()
-      return true
+      outline(urlfield.value)
     }
   }
-  if (e.key == "Escape") {
-    if (win.fullScreen) {
-      leave_fullscreen()
-      return true
-    }
+
+  pop_out_btn.onclick = (x) => {
+    let win_popup = new BrowserWindow({
+      width: document.body.clientWidth,
+      height: document.body.clientHeight,
+    })
+
+    let cwin = remote.getCurrentWindow()
+    let bw = cwin.getBrowserView()
+    win_popup.setBrowserView(bw)
+    bw.setBounds({
+      x: 0,
+      y: 0,
+      width: document.body.clientWidth,
+      height: document.body.clientHeight,
+    })
+    view.setAutoResize({
+      horizontal: true,
+      vertical: true,
+      width: true,
+      height: true,
+    })
+
+    cwin.removeBrowserView(view)
   }
 }
 
@@ -73,6 +206,10 @@ function leave_fullscreen() {
 }
 
 function show_target_url(event, url) {
+  if (!document.querySelector("#url_target")) {
+    return
+  }
+
   if (url != "") {
     url_target.style.opacity = "1"
     url_target.style.zIndex = "16"
@@ -87,22 +224,18 @@ function show_target_url(event, url) {
   }
 }
 
-let wc = remote.getCurrentWebContents()
+function update_selected(story) {
+  selected_container.innerHTML = ""
+  if (!story) {
+    return
+  }
 
-wc.on("update-target-url", show_target_url)
-wc.on("context-menu", contextmenu.inspect_menu)
+  console.log(story instanceof Story)
+  const { story_html } = require("./view/StoryListItem")
 
-window.addEventListener("beforeunload", (x) => {
-  //Clean up listiners
-  wc.removeListener("context-menu", contextmenu.inspect_menu)
-  wc.removeListener("update-target-url", show_target_url)
-})
-
-webview.addEventListener("new-window", async (e) => {
-  //console.log("webview new-window", e.url)
-})
-
-let once = true
+  let story_el = story_html(story)
+  selected_container.append(story_el)
+}
 
 function update_url(e) {
   let url = e.url
@@ -117,8 +250,10 @@ function update_url(e) {
     urlfield.value = url
   }
 
-  let story_el = document.querySelector(`.story[data-href="${urlfield.value}"]`)
-  stories.mark_selected(story_el, urlfield.value)
+  ipcRenderer.send("mark_selected", urlfield.value)
+
+  //let story_el = document.querySelector(`.story[data-href="${urlfield.value}"]`)
+  //stories.mark_selected(story_el, urlfield.value)
 }
 
 function load_started(e, x) {
@@ -247,44 +382,25 @@ function outline_button_inactive() {
 }
 
 function open_in_webview(href) {
-  webview.loadURL(href).catch((e) => {
-    console.log("webview.loadURL error", e)
-  })
-  urlfield.value = href
-}
-
-reload_webview_btn.onclick = (x) => {
-  webview.reload()
-}
-
-close_webview_btn.onclick = (x) => {
-  webview.loadURL("about:blank")
-}
-
-outline_webview_btn.onclick = (x) => {
-  //TODO: track state in a different way
-  if (outline_webview_btn.classList.contains("active")) {
-    webview.loadURL(urlfield.value).catch((e) => {
+  let webview = document.querySelector("#webview")
+  if (webview) {
+    webview.loadURL(href).catch((e) => {
       console.log("webview.loadURL error", e)
     })
-  } else {
-    outline(urlfield.value)
+    urlfield.value = href
+  } else if (window.activeWebframe) {
+    activeWebframe.webContents.send("open_in_webview", href)
   }
 }
 
-pop_out_btn.onclick = (x) => {
-  console.log(x)
-  let webviewContents = webContents.fromId(webview.getWebContentsId())
-  let win_popup = new BrowserWindow({})
-
-  win_popup.loadURL(webview.getURL())
-
-  console.log(win_popup)
-}
-
-
-
 async function outline(url) {
+  let urlfield = document.querySelector("#urlfield")
+  if (urlfield == undefined) {
+    if (window.activeWebframe) {
+      activeWebframe.webContents.send("outline", url)
+    }
+    return
+  }
   urlfield.value = url
 
   let f = await fetch("https://archive.org/wayback/available?url=" + url)

@@ -1,5 +1,6 @@
 const { Story } = require("../data/Story")
 const { resort_single } = require("./StoryList")
+const story_parser = require("../parser")
 
 module.exports = {
   story_html,
@@ -7,6 +8,12 @@ module.exports = {
 }
 
 function story_html(story) {
+  console.log(story)
+  if (!(story instanceof Story)) {
+    story = Story.from_obj(story)
+    console.log(story)
+  }
+
   let story_el = document.createElement("div")
   story_el.classList.add("story")
   story_el.addEventListener("change", (e) => {
@@ -185,11 +192,11 @@ function update_read(read, story_el) {
 
 function label_read(story_el) {
   let btn = story_el.querySelector(".read_btn")
-  let icon = btn.querySelector("img")
 
   if (!btn) {
     return
   }
+  let icon = btn.querySelector("img")
 
   if (!story_el.classList.contains("read")) {
     btn.title = "skip reading"
@@ -253,11 +260,11 @@ function add_star_button(story_el, story) {
 
 function label_star(story_el) {
   let btn = story_el.querySelector(".star_btn")
-  let icon = btn.querySelector("img")
 
   if (!btn) {
     return
   }
+  let icon = btn.querySelector("img")
 
   if (story_el.classList.contains("stared")) {
     btn.title = "remove bookmark"

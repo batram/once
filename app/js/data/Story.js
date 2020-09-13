@@ -9,6 +9,15 @@ class Story {
     this.timestamp = timestamp
   }
 
+  static from_obj(story) {
+    let xstory = new Story()
+    for (let i in story) {
+      xstory[i] = story[i]
+    }
+
+    return xstory
+  }
+
   remove_from_readlist() {
     settings.get_readlist().then((readlist) => {
       const index = readlist.indexOf(this.href)
@@ -89,9 +98,9 @@ class Story {
       href = e.target.href
     }
 
-    if (href == this.href) {
-      this.mark_as_read()
-    }
+    //if (href == this.href) {
+    //  this.mark_as_read()
+    //}
 
     web_control.open_in_webview(href)
 
@@ -100,12 +109,14 @@ class Story {
 
   async is_read() {
     const readlist = await settings.get_readlist()
-    return readlist.includes(this.href)
+    this.read = readlist.includes(this.href)
+    return this.read
   }
 
   async is_stared() {
     const starlist = await settings.get_starlist()
-    return starlist.hasOwnProperty(this.href)
+    this.stared = starlist.hasOwnProperty(this.href)
+    return this.stared
   }
 
   static compare(a, b) {

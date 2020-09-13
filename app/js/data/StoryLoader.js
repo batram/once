@@ -9,7 +9,6 @@ module.exports = {
   add_stored_stars,
 }
 
-
 function add_story(story, bucket = "stories") {
   if (!(story instanceof Story)) {
     let xstory = new Story()

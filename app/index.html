@@ -87,34 +87,11 @@
     </div>
     <div id="sep_slider"></div>
     <div id="content">
-      <div id="controlbar" class="bar">
-        <div id="outline_webview_btn" class="btn bar_btn" title="outline">
-          <img src="imgs/article.svg" />
-        </div>
-        <input type="text" id="urlfield" placeholder="about:blank" />
-        <div id="reload_webview_btn" class="btn bar_btn" title="reload webview">
-          <img src="imgs/reload.svg" />
-        </div>
-        <div id="pop_out_btn" class="btn bar_btn" title="pop out webview">
-          <img src="imgs/popout.svg" />
-        </div>
-        <div id="close_webview_btn" class="btn bar_btn" title="reload webview">
-          <img src="imgs/x.svg" />
-        </div>
-      </div>
-      <div class="stories_container" id="selected_container"></div>
-      <webview
-        id="frams"
-        src="about:blank"
-        webpreferences="contextIsolation=yes, nativeWindowOpen=yes"
-        allowpopups
-        partition="moep"
-      ></webview>
+      <!-- space to display contents controlled by web_control -->
       <div id="foverlay"></div>
     </div>
     <div id="url_target"></div>
   </body>
   <script src="js/third_party/pouchdb.min.js"></script>
-  <script src="js/third_party/Readability.js"></script>
   <script src="js/app.js"></script>
 </html>

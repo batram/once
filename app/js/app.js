@@ -9,6 +9,9 @@ const seperation_slider = require("./js/sep_slider")
 const search = require("./js/search")
 const story_loader = require("./js/data/StoryLoader")
 
+web_control.init_menu()
+web_control.attach_webframe()
+
 document.addEventListener("DOMContentLoaded", async (_e) => {
   console.log("load?")
 

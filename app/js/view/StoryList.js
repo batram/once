@@ -1,6 +1,7 @@
 const { Story } = require("../data/Story")
 const settings = require("../settings")
 const story_item = require("./StoryListItem")
+const { remote } = require("electron")
 
 module.exports = {
   mark_selected,
@@ -10,18 +11,14 @@ module.exports = {
   sort_stories,
   resort_single,
   add_story,
-  story_html: story_item.story_html
+  story_html: story_item.story_html,
 }
 
 function add_story(story, bucket = "stories") {
   if (!(story instanceof Story)) {
-    let xstory = new Story()
-    for (let i in story) {
-      xstory[i] = story[i]
-    }
-
-    story = xstory
+    story = Story.from_obj(story)
   }
+
   story.bucket = bucket
   story = story_loader.story_map.set(story.href.toString(), story)
 
@@ -76,8 +73,6 @@ function mark_selected(story_el, url) {
     }
   }
 
-  selected_container.innerHTML = ""
-
   document.querySelectorAll(".story").forEach((x) => {
     if (x.classList.contains("selected")) {
       x.classList.remove("selected")
@@ -89,15 +84,14 @@ function mark_selected(story_el, url) {
   })
 
   if (story_el) {
-    //create a cloned story element
-    let og_story = story_loader.story_map.get(story_el.dataset.href)
-    let clone = story_item.story_html(og_story)
-    clone.classList.add("selected")
     story_el.classList.add("selected")
-    selected_container.append(clone)
+    let og_story = story_loader.story_map.get(story_el.dataset.href)
+    if (og_story.href == url) {
+      og_story.mark_as_read()
+    }
+    return og_story
   }
 }
-
 
 function story_compare(a, b) {
   //sort by read first and then timestamp
@@ -211,7 +205,9 @@ function refilter() {
     filters.filter_story(story).then((story) => {
       if (story.filter != og_filter) {
         story_loader.story_map.set(sthref.toString(), story)
-        let nstory = story_item.story_html(story_loader.story_map.get(sthref.toString()))
+        let nstory = story_item.story_html(
+          story_loader.story_map.get(sthref.toString())
+        )
         x.replaceWith(nstory)
       }
     })
@@ -228,4 +224,6 @@ function reload() {
   settings.story_sources().then(story_loader.load)
 }
 
-reload_stories_btn.onclick = reload
+if (document.querySelector("#reload_stories_btn")) {
+  reload_stories_btn.onclick = reload
+}
