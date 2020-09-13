@@ -29,6 +29,7 @@ class Story {
 
   mark_as_read() {
     this.read = true
+    this.add_to_readlist()
   }
 
   clone() {
@@ -60,19 +61,22 @@ class Story {
     })
   }
 
-  has_or_get(story_el, prop, func, check) {
+  has_or_get(story_el, prop, func) {
     if (this.hasOwnProperty(prop)) {
       if (this[prop]) {
         story_el.classList.add(prop)
       }
       func(story_el, this)
     } else {
-      check(this.href).then((x) => {
-        if (x) {
-          story_el.classList.add(prop)
-        }
-        func(story_el, this)
-      })
+      if(typeof this["is_" + prop] == "function"){
+        this["is_" + prop]().then((x) => {
+          if (x) {
+            story_el.classList.add(prop)
+          }
+          func(story_el, this)
+        })
+  
+      }
     }
   }
 
@@ -86,11 +90,41 @@ class Story {
       href = e.target.href
     }
 
+    if(href == this.href){
+      this.mark_as_read()
+    }
+
     web_control.open_in_webview(href)
-    this.mark_as_read()
 
     return false
   }
+
+  async is_read() {
+    const readlist = await settings.get_readlist()
+    return readlist.includes(this.href)
+  }
+
+  async is_stared() {
+    const starlist = await settings.get_starlist()
+    return starlist.hasOwnProperty(this.href)
+  }
+
+  static compare(a, b) {
+    //sort by read first and then timestamp
+    if (a.read && !b.read) {
+      return 1
+    } else if (!a.read && b.read) {
+      return -1
+    } else if ((a.read && b.read) || (!a.read && !b.read)) {
+      if (a.timestamp > b.timestamp) return -1
+      if (a.timestamp < b.timestamp) return 1
+      return 0
+    }
+    if (a.timestamp > b.timestamp) return -1
+    if (a.timestamp < b.timestamp) return 1
+    return 0
+  }
+  
 }
 
 module.exports = { Story }

@@ -7,6 +7,7 @@ const menu = require("./js/menu")
 const stories = require("./js/stories")
 const seperation_slider = require("./js/sep_slider")
 const search = require("./js/search")
+const story_loader = require("./js/data/StoryLoader")
 
 document.addEventListener("DOMContentLoaded", async (_e) => {
   console.log("load?")
@@ -19,5 +20,5 @@ document.addEventListener("DOMContentLoaded", async (_e) => {
   let dev_cache = process.env.LDEV == "1"
   let sources = await settings.story_sources()
 
-  stories.parallel_load_stories(sources, dev_cache)
+  story_loader.parallel_load_stories(sources, dev_cache)
 })

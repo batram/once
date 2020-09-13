@@ -1,29 +1,15 @@
 const settings = require("./settings")
-const story_map = require("./data/StoryMap")
+//const story_map = require("./data/StoryMap")
 const { Story } = require("./data/Story")
 
 module.exports = {
-  load,
   reload,
   refilter,
   restar,
-  cache_load,
-  collect_all_stories,
-  parallel_load_stories,
-  enhance_stories,
   sort_stories,
   add_story,
   mark_selected,
-}
-
-async function is_story_read(href) {
-  const readlist = await settings.get_readlist()
-  return readlist.includes(href)
-}
-
-async function is_story_stared(href) {
-  const starlist = await settings.get_starlist()
-  return starlist.hasOwnProperty(href)
+  story_html,
 }
 
 function add_story(story, bucket = "stories") {
@@ -36,7 +22,7 @@ function add_story(story, bucket = "stories") {
     story = xstory
   }
   story.bucket = bucket
-  story = story_map.set(story.href.toString(), story)
+  story = story_loader.story_map.set(story.href.toString(), story)
 
   //check if we already have story with same URL
   let og_story_el = document.querySelector(
@@ -78,11 +64,13 @@ function story_html(story) {
     console.log(e.detail)
     if (e.detail.value instanceof Story && e.detail.name) {
       switch (e.detail.name) {
+        //TODO diff class before after, or completley redraw or fix on-change
         case "star":
         case "unstar":
           update_star(e.detail.value.stared, story_el)
           break
         case "mark_as_read":
+        case "open_in_webview":
           update_read(e.detail.value, story_el)
           break
       }
@@ -140,8 +128,8 @@ function story_html(story) {
   story_el.appendChild(data)
 
   //buttons
-  story.has_or_get(story_el, "read", add_read_button, is_story_read)
-  story.has_or_get(story_el, "stared", add_star_button, is_story_stared)
+  story.has_or_get(story_el, "read", add_read_button)
+  story.has_or_get(story_el, "stared", add_star_button)
   //         stories.resort_single(story_el)
 
   let filter_btn = icon_button("filter", "filter_btn", "imgs/filter.svg")
@@ -223,7 +211,7 @@ function mark_selected(story_el, url) {
 
   if (story_el) {
     //create a cloned story element
-    let og_story = story_map.get(story_el.dataset.href)
+    let og_story = story_loader.story_map.get(story_el.dataset.href)
     let clone = story_html(og_story)
     clone.classList.add("selected")
     story_el.classList.add("selected")
@@ -347,9 +335,10 @@ function info_block(story) {
   return info
 }
 
+//view
 function toggle_read(href, callback) {
   let story_el = document.querySelector('.story[data-href="' + href + '"]')
-  let story = story_map.get(href)
+  let story = story_loader.story_map.get(href)
 
   let anmim_class = ""
 
@@ -380,10 +369,6 @@ function toggle_read(href, callback) {
   }
 }
 
-function sort_raw_stories(stories) {
-  return stories.sort(story_compare)
-}
-
 function story_compare(a, b) {
   //sort by read first and then timestamp
   if (a.read && !b.read) {
@@ -408,6 +393,7 @@ function sortable_story(elem) {
   }
 }
 
+//view
 function resort_single(elem) {
   let story_con = elem.parentElement
   let stories = Array.from(story_con.querySelectorAll(".story")).filter(
@@ -454,6 +440,7 @@ function resort_single(elem) {
   }
 }
 
+//view
 function sort_stories(bucket = "stories") {
   let story_con = document.querySelector("#" + bucket)
 
@@ -477,181 +464,41 @@ function sort_stories(bucket = "stories") {
   })
 }
 
-function get_cached(url) {
-  let cached = localStorage.getItem(url)
-  let max_mins = 5
-
-  try {
-    cached = JSON.parse(cached)
-    if (!Array.isArray(cached)) {
-      throw "cached entry is not Array"
-    }
-    if (cached.length != 2) {
-      throw "cached entry not length 2"
-    }
-    let mins_old = (Date.now() - cached[0]) / (60 * 1000)
-    if (mins_old > max_mins) {
-      throw "cached entry out of date " + mins_old
-    } else {
-      console.log("cached", mins_old, url)
-    }
-  } catch (e) {
-    console.log("cache error: ", e)
-    return null
-  }
-
-  return cached[1]
-}
-
-async function collect_all_stories(urls, try_cache = true) {
-  let donso = await Promise.all(
-    urls.map(async (url) => {
-      return cache_load(url, try_cache)
-    })
-  )
-
-  process_story_input(
-    donso
-      .filter((x) => {
-        return x != undefined
-      })
-      .flat()
-  )
-}
-
-async function parallel_load_stories(urls, try_cache = true) {
-  urls.map(async (url) => {
-    cache_load(url, try_cache).then(process_story_input)
-  })
-}
-
-async function process_story_input(stories) {
-  let all_stories = sort_raw_stories(stories)
-  all_stories.forEach((story) => {
-    add_story(story)
-  })
-
-  //add all stored stared stories
-  let starlist = await settings.get_starlist()
-  add_stored_stars(starlist)
-
-  sort_stories()
-
-  if (searchfield.value != "") {
-    search.search_stories(searchfield.value)
-  }
-}
-
-async function cache_load(url, try_cache = true) {
-  let cached = null
-  if (try_cache) {
-    cached = get_cached(url)
-  }
-  if (cached != null) {
-    return parse_story_response(cached, url)
-  } else {
-    return fetch(url).then((x) => {
-      if (x.ok) {
-        return x.text().then((val) => {
-          localStorage.setItem(url, JSON.stringify([Date.now(), val]))
-          return parse_story_response(val, url)
-        })
-      }
-    })
-  }
-}
-
-async function story_enhancers() {
-  let enhance = await Promise.all([
-    settings.get_readlist(),
-    settings.get_starlist(),
-  ])
-  return enhance
-}
-
-async function enhance_stories(stories) {
-  let enhance = await story_enhancers()
-  let filtered_stories = await filters.filter_stories(stories)
-  let readlist = enhance[0]
-  let starlist = enhance[0]
-
-  return filtered_stories.map((story) => {
-    story = story_map.set(story.href.toString(), story)
-    story.read = readlist.includes(story.href)
-    if (starlist.hasOwnProperty(story.href)) {
-      story.stared = starlist.hasOwnProperty(story.href)
-    }
-    return story
-  })
-}
-
-async function parse_story_response(val, url) {
-  let dom_parser = new DOMParser()
-  let doc = dom_parser.parseFromString(val, "text/html")
-
-  if (!doc.querySelector("base")) {
-    let base = document.createElement("base")
-    base.href = url
-    doc.head.append(base)
-  } else {
-    console.log("base already there", doc.querySelector("base"))
-  }
-
-  let stories = story_parser.parse(url, doc)
-  return enhance_stories(stories)
-}
-
-async function load(urls) {
-  let cache = false
-  //TODO: not sure about waiting for all, check out rambazamba mode
-  parallel_load_stories(urls, cache)
-}
-
 async function restar() {
   let starlist = await settings.get_starlist()
   document.querySelectorAll(".story").forEach((story_el) => {
     let sthref = story_el.dataset.href
-    let story = story_map.get(sthref.toString())
+    let story = story_loader.story_map.get(sthref.toString())
     story.stared = starlist.hasOwnProperty(sthref)
   })
 
-  add_stored_stars(starrlist)
-}
-
-function add_stored_stars(starlist) {
-  for (let href in starlist) {
-    if (!story_map.has(href.toString())) {
-      let star_story = starlist[href]
-      star_story.stared = true
-      star_story.stored_star = true
-      add_story(star_story)
-    }
-  }
+  story_loader.add_stored_stars(starrlist)
 }
 
 function refilter() {
   document.querySelectorAll(".story").forEach((x) => {
     let sthref = x.dataset.href.toString()
-    let story = story_map.get(sthref.toString())
+    let story = story_loader.story_map.get(sthref.toString())
     let og_filter = story.filter
     filters.filter_story(story).then((story) => {
       if (story.filter != og_filter) {
-        story_map.set(sthref.toString(), story)
-        let nstory = story_html(story_map.get(sthref.toString()))
+        story_loader.story_map.set(sthref.toString(), story)
+        let nstory = story_html(story_loader.story_map.get(sthref.toString()))
         x.replaceWith(nstory)
       }
     })
   })
 }
 
+//view function / data
 function reload() {
-  story_map.clear()
+  story_loader.story_map.clear()
 
   document.querySelectorAll(".story").forEach((x) => {
     x.outerHTML = ""
   })
 
-  settings.story_sources().then(load)
+  settings.story_sources().then(story_loader.load)
 }
 
 reload_stories_btn.onclick = reload
