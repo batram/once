@@ -1,7 +1,7 @@
 const onChange = require("on-change")
 
 class Story {
-  constructor(type, href, title, comment_url, timestamp) {
+  constructor(type, href, title, comment_url, timestamp, filter = "") {
     this.type = type
     this.href = href
     this.title = title
@@ -16,6 +16,7 @@ class Story {
     ]
     this.comment_url = comment_url
     this.timestamp = timestamp
+    this.filter = filter
   }
 
   static from_obj(story) {
