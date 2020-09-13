@@ -3,9 +3,9 @@ module.exports = {
   outline,
 }
 
-const { remote, contentTracing } = require("electron")
+const { remote } = require("electron")
 const contextmenu = require("./contextmenu")
-const { webContents } = remote
+const { webContents, BrowserWindow } = remote
 
 const outline_api = "https://api.outline.com/v3/parse_article?source_url="
 const data_outline_url = "data:text/html;charset=utf-8,"
@@ -272,6 +272,18 @@ outline_webview_btn.onclick = (x) => {
   }
 }
 
+pop_out_btn.onclick = (x) => {
+  console.log(x)
+  let webviewContents = webContents.fromId(webview.getWebContentsId())
+  let win_popup = new BrowserWindow({})
+
+  win_popup.loadURL(webview.getURL())
+
+  console.log(win_popup)
+}
+
+
+
 async function outline(url) {
   urlfield.value = url
 
@@ -314,6 +326,15 @@ async function outline(url) {
   })
 
   var article = new Readability(doc).parse()
+  if (!article) {
+    article = {}
+  }
+  if (!article.content) {
+    article.title = ""
+  }
+  if (!article.content) {
+    article.content = "Readability fail"
+  }
 
   let title = document.createElement("h1")
   title.innerText = article.title

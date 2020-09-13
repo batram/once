@@ -68,14 +68,13 @@ class Story {
       }
       func(story_el, this)
     } else {
-      if(typeof this["is_" + prop] == "function"){
+      if (typeof this["is_" + prop] == "function") {
         this["is_" + prop]().then((x) => {
           if (x) {
             story_el.classList.add(prop)
           }
           func(story_el, this)
         })
-  
       }
     }
   }
@@ -90,7 +89,7 @@ class Story {
       href = e.target.href
     }
 
-    if(href == this.href){
+    if (href == this.href) {
       this.mark_as_read()
     }
 
@@ -124,7 +123,6 @@ class Story {
     if (a.timestamp < b.timestamp) return 1
     return 0
   }
-  
 }
 
 module.exports = { Story }

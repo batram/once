@@ -122,7 +122,9 @@ function parse_hn(doc, type) {
 
     //filter ads
     let filter = null
-    if (story_el.parentElement.parentElement.querySelector(".votelinks") == null) {
+    if (
+      story_el.parentElement.parentElement.querySelector(".votelinks") == null
+    ) {
       filter = ":: HN ads ::"
     }
 
@@ -132,7 +134,7 @@ function parse_hn(doc, type) {
       story_el.innerText,
       curl + id,
       timestamp,
-      filter,
+      filter
     )
   })
 }

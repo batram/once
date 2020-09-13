@@ -1,4 +1,6 @@
+const { Story } = require("./Story")
 const story_map = require("./StoryMap")
+const story_list = require("../view/StoryList")
 
 module.exports = {
   load,
@@ -7,8 +9,6 @@ module.exports = {
   add_stored_stars,
 }
 
-const { Story } = require("./Story")
-const xstories = require("../stories")
 
 function add_story(story, bucket = "stories") {
   if (!(story instanceof Story)) {
@@ -44,7 +44,7 @@ function add_story(story, bucket = "stories") {
     return
   }
 
-  let new_story_el = stories.story_html(story)
+  let new_story_el = story_list.story_html(story)
   let stories_container = document.querySelector("#" + bucket)
 
   //hide new stories if search is active, will be matched and shown later
@@ -110,14 +110,14 @@ async function parallel_load_stories(urls, try_cache = true) {
 async function process_story_input(stories) {
   let all_stories = sort_raw_stories(stories)
   all_stories.forEach((story) => {
-    xstories.add_story(story)
+    story_list.add_story(story)
   })
 
   //add all stored stared stories
   let starlist = await settings.get_starlist()
   add_stored_stars(starlist)
 
-  xstories.sort_stories()
+  story_list.sort_stories()
 
   if (searchfield.value != "") {
     search.search_stories(searchfield.value)

@@ -1,4 +1,4 @@
-const stories = require("./stories")
+const stroy_list = require("./view/StoryList")
 
 module.exports = {
   init_search,
@@ -115,7 +115,7 @@ function search_stories(needle) {
     }
   })
 
-  stories.sort_stories()
+  stroy_list.sort_stories()
 }
 
 function search_hn(needle) {
@@ -149,13 +149,13 @@ function search_hn(needle) {
           }
         })
 
-        let estories = await stories.enhance_stories(search_stories)
+        let estories = await stroy_list.enhance_stories(search_stories)
 
         estories.forEach((story) => {
-          stories.add_story(story, "global_search_results")
+          stroy_list.add_story(story, "global_search_results")
         })
 
-        stories.sort_stories("global_search_results")
+        stroy_list.sort_stories("global_search_results")
       })
     }
   })
