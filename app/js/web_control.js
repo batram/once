@@ -144,7 +144,7 @@ function init_webtab() {
       }
     }
   })
-  webview.addEventListener("enter-html-full-screen", e => {
+  webview.addEventListener("enter-html-full-screen", (e) => {
     console.log("webtab fullscreen")
     gone_fullscreen()
   })
@@ -246,9 +246,11 @@ function key_fullscreen(e) {
 function go_fullscreen() {
   document.body.classList.add("fullscreen")
   let win = remote.getCurrentWindow()
-  if(win.getBrowserViews().length != 0){
-    win.getBrowserViews().forEach( v => {
-      v.webContents.executeJavaScript("document.body.classList.add('fullscreen')")
+  if (win.getBrowserViews().length != 0) {
+    win.getBrowserViews().forEach((v) => {
+      v.webContents.executeJavaScript(
+        "document.body.classList.add('fullscreen')"
+      )
     })
   }
   win.setFullScreen(true)
@@ -264,9 +266,11 @@ function gone_fullscreen() {
 function leave_fullscreen() {
   document.body.classList.remove("fullscreen")
   let win = remote.getCurrentWindow()
-  if(win.getBrowserViews().length != 0){
-    win.getBrowserViews().forEach( v => {
-      v.webContents.executeJavaScript("document.body.classList.remove('fullscreen')")
+  if (win.getBrowserViews().length != 0) {
+    win.getBrowserViews().forEach((v) => {
+      v.webContents.executeJavaScript(
+        "document.body.classList.remove('fullscreen')"
+      )
     })
   }
   win.setFullScreen(false)
@@ -332,6 +336,9 @@ function update_url(e) {
     webview.executeJavaScript("(" + outline_jshook.toString() + ")()")
     outline_button_active()
   } else if (url.startsWith(data_outline_url)) {
+    if (url.split("#").length > 1) {
+      urlfield.value = decodeURIComponent(url.split("#")[1])
+    }
     outline_button_active()
   } else {
     urlfield.value = url
@@ -500,6 +507,7 @@ async function outline(url) {
     return
   }
   urlfield.value = url
+  let og_url = url
 
   let f = await fetch("https://archive.org/wayback/available?url=" + url)
   let resp = await f.json()
@@ -559,7 +567,9 @@ async function outline(url) {
       data_outline_url +
         encodeURIComponent(base.outerHTML) +
         encodeURIComponent(title.outerHTML) +
-        encodeURIComponent(article.content)
+        encodeURIComponent(article.content) +
+        "#" +
+        encodeURIComponent(og_url)
     )
     .catch((e) => {
       console.log("webview.loadURL error", e)
