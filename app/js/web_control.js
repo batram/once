@@ -9,6 +9,7 @@ module.exports = {
 const { remote, ipcRenderer } = require("electron")
 const contextmenu = require("./contextmenu")
 const { Story } = require("./data/Story")
+const filters = require("./filters")
 const { webContents, BrowserWindow, BrowserView } = remote
 
 const outline_api = "https://api.outline.com/v3/parse_article?source_url="
@@ -38,6 +39,16 @@ function attach_webtab() {
 
   ipcMain.on("mark_selected", mark_selected)
   ipcMain.on("update_story", update_story)
+  ipcMain.on("show_filter", show_filter)
+  ipcMain.on("add_filter", add_filter)
+
+  function show_filter(event, data) {
+    filters.show_filter(data)
+  }
+
+  function add_filter(event, data) {
+    filters.add_filter(data)
+  }
 
   function update_story(event, data) {
     console.log("ipcMain update_story", event, data)

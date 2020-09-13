@@ -1,5 +1,6 @@
 module.exports = {
   add_tag,
+  open_panel,
 }
 
 document.querySelectorAll("#menu .sub").forEach((x) => {
@@ -56,8 +57,10 @@ function add_tag(type, colors) {
   }
 }
 
-//Add special tags for search
-add_tag("ALL", ["", ""])
-add_tag("filtered", ["", ""])
-add_tag("stared", ["", ""])
-add_tag("new", ["", ""])
+if (document.querySelector("#menu")) {
+  //Add special tags for search
+  add_tag("ALL", ["", ""])
+  add_tag("filtered", ["", ""])
+  add_tag("stared", ["", ""])
+  add_tag("new", ["", ""])
+}

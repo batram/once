@@ -1,4 +1,5 @@
 const settings = require("./settings")
+const menu = require("./menu")
 
 module.exports = {
   filter_story,
@@ -6,6 +7,7 @@ module.exports = {
   show_filter_dialog,
   filter_stories,
   get_filterlist,
+  show_filter,
 }
 
 let dynamic_filters = {
@@ -92,7 +94,7 @@ function filter_run(filter_list, story) {
   return story
 }
 
-function show_filter_dialog(event, filter_btn, story) {
+function show_filter_dialog(event, filter_btn, story, callback) {
   event.stopPropagation()
   event.preventDefault()
 
@@ -109,7 +111,7 @@ function show_filter_dialog(event, filter_btn, story) {
 
   if (inp) {
     if (event.target != inp) {
-      confirm_add_story(inp, filter_btn)
+      confirm_add_story(inp, filter_btn, callback)
     }
     return
   }
@@ -135,14 +137,39 @@ function show_filter_dialog(event, filter_btn, story) {
       event.target.innerText = "filter"
     } else if (e.keyCode === 13) {
       //ENTER
-      confirm_add_story(inp, filter_btn)
+      confirm_add_story(inp, filter_btn, callback)
     }
   })
 }
 
-function confirm_add_story(inp, filter_btn) {
+function confirm_add_story(inp, filter_btn, callback) {
   if (confirm('add filter: "' + inp.value + '"')) {
-    add_filter(inp.value)
+    callback(inp.value)
     filter_btn.querySelectorAll(".filter_btn input").outerHTML = ""
   }
+}
+
+function show_filter(value) {
+  if (value.startsWith(":: ")) {
+    confirm("internal filter not changeable yet ...")
+    return
+  }
+
+  let start = filter_area.value.indexOf(value)
+  if (start == -1) {
+    confirm("Sorry I seem to have lost that fitler.")
+    return
+  }
+
+  menu.open_panel("settings")
+  let end = start + value.length
+  filter_area.focus()
+
+  filter_area.scrollTop = 0
+  const fullText = filter_area.value
+  filter_area.value = fullText.substring(0, end)
+  filter_area.scrollTop = filter_area.scrollHeight
+  filter_area.value = fullText
+
+  filter_area.setSelectionRange(start, end)
 }

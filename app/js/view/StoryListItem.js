@@ -71,6 +71,7 @@ function story_html(story, ipc = false) {
     filter_btn.title = "filtered"
     story_el.classList.add("filtered")
     let dinp = document.createElement("input")
+    dinp.classList.add("filter_input")
     dinp.type = "text"
     dinp.value = story.filter
     dinp.disabled = true
@@ -132,7 +133,10 @@ function direct_events(story, story_el) {
 
   let filter_btn = story_el.querySelector(".filter_btn")
   filter_btn.onclick = (x) => {
-    filters.show_filter_dialog(x, filter_btn, story)
+    if (story_el.classList.contains("filtered")) {
+      filters.show_filter(story.filter)
+    }
+    filters.show_filter_dialog(x, filter_btn, story, add_story)
   }
 
   let outline_btn = story_el.querySelector(".outline_btn")
@@ -173,7 +177,12 @@ function ipc_events(story, story_el) {
 
   let filter_btn = story_el.querySelector(".filter_btn")
   filter_btn.onclick = (x) => {
-    filters.show_filter_dialog(x, filter_btn, story)
+    if (story_el.classList.contains("filtered")) {
+      ipcRenderer.send("show_filter", story.filter)
+    }
+    filters.show_filter_dialog(x, filter_btn, story, (x) => {
+      ipcRenderer.send("add_filter", x)
+    })
   }
 
   let outline_btn = story_el.querySelector(".outline_btn")
