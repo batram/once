@@ -72,7 +72,7 @@ async function process_story_input(stories) {
   let starlist = await settings.get_starlist()
   add_stored_stars(starlist)
 
-  story_list.sort_stories()
+  require("../view/StoryList").sort_stories()
 
   if (searchfield.value != "") {
     search.search_stories(searchfield.value)

@@ -63,10 +63,15 @@ class Story {
   clone() {
     let cloned = new Story()
     for (let i in this) {
-      cloned[i] = this[i]
+      try {
+        cloned[i] = onChange.target(this[i])
+      } catch(e) {
+        console.log(e, i, cloned[i] )
+        cloned[i] = null
+      }
     }
 
-    return i
+    return cloned
   }
 
   star() {

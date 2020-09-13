@@ -2,6 +2,7 @@ const { Story } = require("../data/Story")
 const settings = require("../settings")
 const story_item = require("./StoryListItem")
 const { remote } = require("electron")
+const { story_map } = require("../data/StoryLoader")
 
 module.exports = {
   mark_selected,
@@ -192,10 +193,22 @@ function refilter() {
 }
 
 function reload() {
-  story_loader.story_map.clear()
+  //dont remove the selected story on reload
+  let selected = null
+  if (document.querySelector(".selected")) {
+    let href = document.querySelector(".selected").dataset.href
+    let story = story_loader.story_map.get(href).clone()
+    story_loader.story_map.clear()
+    story_map.set(href, story)
+  } else {
+    story_loader.story_map.clear()
+  }
+
 
   document.querySelectorAll(".story").forEach((x) => {
-    x.outerHTML = ""
+    if(!x.classList.contains("selected")){
+      x.outerHTML = ""
+    }
   })
 
   settings.story_sources().then(story_loader.load)

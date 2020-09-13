@@ -1,6 +1,5 @@
 const onChange = require("on-change")
 const { Story } = require("./Story")
-const story_list = require("../view/StoryList")
 
 let s_map = {}
 
@@ -93,7 +92,7 @@ function add(story, bucket = "stories") {
   if (!og_story) {
     //new story
     story = story_map.set(story.href.toString(), story)
-    story_list.add(story, bucket)
+    require("../view/StoryList").add(story, bucket)
   } else {
     //check if we already have as alternate source
     let curls = og_story.sources.map((x) => {
