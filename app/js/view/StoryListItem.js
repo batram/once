@@ -31,19 +31,29 @@ function story_html(story, ipc = false) {
   link.innerText = story.title
   title_line.appendChild(link)
 
+  let og_link = document.createElement("a")
+  og_link.innerText = " [OG] "
+  og_link.href = story.href
+  og_link.addEventListener("click", click_webview)
+  title_line.appendChild(og_link)
+
   let hostname = document.createElement("p")
   hostname.classList.add("hostname")
   hostname.innerText = " (" + link.hostname + ") "
   title_line.appendChild(hostname)
 
-  let info = info_block(story)
+  let sources = document.createElement("div")
+  sources.classList.add("sources")
+  story.sources.forEach((x) => {
+    sources.append(info_block(x))
+  })
 
   let data = document.createElement("div")
   document.createElement("data")
   data.classList.add("data")
 
   data.appendChild(title_line)
-  data.appendChild(info)
+  data.appendChild(sources)
 
   story_el.appendChild(data)
 
@@ -82,7 +92,6 @@ function story_html(story, ipc = false) {
 }
 
 function update_storyel(e, story_el) {
-  console.log(e.detail)
   if (e.detail.value instanceof Story && e.detail.name) {
     switch (e.detail.name) {
       //TODO diff class before after, or completley redraw or fix on-change
@@ -100,6 +109,9 @@ function update_storyel(e, story_el) {
       case "read":
         update_read(e.detail.value, story_el)
         break
+      case "sources":
+        update_sources(e.detail.value, story_el)
+        break
       case "stared":
         update_star(e.detail.value, story_el)
         break
@@ -115,13 +127,7 @@ function direct_events(story, story_el) {
   })
 
   let link = story_el.querySelector(".title")
-  link.addEventListener(
-    "click",
-    (e) => {
-      return story.open_in_webview(e)
-    },
-    false
-  )
+  link.addEventListener("click", click_webview, false)
 
   let filter_btn = story_el.querySelector(".filter_btn")
   filter_btn.onclick = (x) => {
@@ -142,7 +148,7 @@ function direct_events(story, story_el) {
   //open story with middle click on "skip reading"
   read_btn.addEventListener("mousedown", (e) => {
     if (e.button == 1) {
-      return story.open_in_webview(e)
+      return click_webview(e)
     }
   })
 
@@ -162,13 +168,7 @@ function ipc_events(story, story_el) {
   })
 
   let link = story_el.querySelector(".title")
-  link.addEventListener(
-    "click",
-    (e) => {
-      return story.open_in_webview(e)
-    },
-    false
-  )
+  link.addEventListener("click", click_webview, false)
 
   let filter_btn = story_el.querySelector(".filter_btn")
   filter_btn.onclick = (x) => {
@@ -192,7 +192,7 @@ function ipc_events(story, story_el) {
   //open story with middle click on "skip reading"
   read_btn.addEventListener("mousedown", (e) => {
     if (e.button == 1) {
-      return story.open_in_webview(e)
+      return click_webview(e)
     }
   })
 
@@ -206,40 +206,45 @@ function ipc_events(story, story_el) {
   })
 }
 
-function info_block(story) {
+function info_block(source_ob) {
   let info = document.createElement("div")
   info.classList.add("info")
-  info.dataset.tag = "[" + story.type + "]"
+  info.dataset.tag = "[" + source_ob.type + "]"
   let type = document.createElement("p")
   type.classList.add("tag")
-  type.innerText = story.type
+  type.innerText = source_ob.type
   info.appendChild(type)
-
-  let og_link = document.createElement("a")
-  og_link.innerText = " [OG] "
-  og_link.href = story.href
-  og_link.addEventListener("click", (e) => {
-    return story.open_in_webview(e)
-  })
-  info.appendChild(og_link)
 
   //comments
   let comments_link = document.createElement("a")
   comments_link.classList.add("comment_url")
   comments_link.innerText = " [comments] "
-  comments_link.href = story.comment_url
-  comments_link.addEventListener("click", (e) => {
-    story.open_in_webview(e)
-  })
+  comments_link.href = source_ob.comment_url
+  comments_link.addEventListener("click", click_webview)
   info.appendChild(comments_link)
 
   info.appendChild(
     document.createTextNode(
-      "  " + story_parser.human_time(story.timestamp) + "  "
+      "  " + story_parser.human_time(source_ob.timestamp) + "  "
     )
   )
 
   return info
+}
+
+function click_webview(e) {
+  e.preventDefault()
+  e.stopPropagation()
+
+  let href = this.href
+
+  if (e.target.href) {
+    href = e.target.href
+  }
+
+  web_control.open_in_webview(href)
+
+  return false
 }
 
 function icon_button(title, classname, icon_src) {
@@ -354,4 +359,13 @@ function update_star(stared, story_el) {
   }
 
   label_star(story_el)
+}
+
+function update_sources(sources, story_el) {
+  let sources_el = story_el.querySelector(".sources")
+  sources_el.innerHTML = ""
+
+  sources.forEach((x) => {
+    sources_el.append(info_block(x))
+  })
 }

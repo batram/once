@@ -7,51 +7,7 @@ module.exports = {
   parallel_load_stories,
   story_map,
   add_stored_stars,
-}
-
-function add_story(story, bucket = "stories") {
-  if (!(story instanceof Story)) {
-    let xstory = new Story()
-    for (let i in story) {
-      xstory[i] = story[i]
-    }
-
-    story = xstory
-  }
-  story.bucket = bucket
-  story = story_map.set(story.href.toString(), story)
-
-  //check if we already have story with same URL
-  let og_story_el = document.querySelector(
-    `#${bucket} .story[data-href="${story.href}"]`
-  )
-
-  if (og_story_el) {
-    // merge story by adding info block, ignore title
-    // don't merge on same comment_url, sometimes the same story is on multiple pages
-    if (story.comment_url != og_story_el.dataset.comment_url) {
-      //avoid adding the same source twice
-      if (
-        og_story_el.querySelector(
-          '.comment_url[href="' + story.comment_url + '"]'
-        ) == null
-      ) {
-        let add_info = info_block(story)
-        og_story_el.querySelector(".data").append(add_info)
-      }
-    }
-    return
-  }
-
-  let new_story_el = story_list.story_html(story)
-  let stories_container = document.querySelector("#" + bucket)
-
-  //hide new stories if search is active, will be matched and shown later
-  if (searchfield.value != "" && bucket != "global_search_results") {
-    new_story_el.classList.add("nomatch")
-  }
-
-  stories_container.appendChild(new_story_el)
+  enhance_stories,
 }
 
 function get_cached(url) {
@@ -109,7 +65,7 @@ async function parallel_load_stories(urls, try_cache = true) {
 async function process_story_input(stories) {
   let all_stories = sort_raw_stories(stories)
   all_stories.forEach((story) => {
-    story_list.add_story(story)
+    story_map.add(story)
   })
 
   //add all stored stared stories
@@ -158,7 +114,7 @@ async function enhance_stories(stories) {
   let starlist = enhance[0]
 
   return filtered_stories.map((story) => {
-    story = story_map.set(story.href.toString(), story)
+    story = story_map.add(story)
     story.read = readlist.includes(story.href)
     if (starlist.hasOwnProperty(story.href)) {
       story.stared = starlist.hasOwnProperty(story.href)
@@ -194,7 +150,7 @@ function add_stored_stars(starlist) {
       let star_story = starlist[href]
       star_story.stared = true
       star_story.stored_star = true
-      add_story(star_story)
+      story_map.add(star_story)
     }
   }
 }

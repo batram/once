@@ -10,39 +10,17 @@ module.exports = {
   restar,
   sort_stories,
   resort_single,
-  add_story,
+  add,
   story_html: story_item.story_html,
 }
 
-function add_story(story, bucket = "stories") {
+function add(story, bucket = "stories") {
   if (!(story instanceof Story)) {
     story = Story.from_obj(story)
+    story = story_loader.story_map.set(story.href.toString(), story)
   }
 
   story.bucket = bucket
-  story = story_loader.story_map.set(story.href.toString(), story)
-
-  //check if we already have story with same URL
-  let og_story_el = document.querySelector(
-    `#${bucket} .story[data-href="${story.href}"]`
-  )
-
-  if (og_story_el) {
-    // merge story by adding info block, ignore title
-    // don't merge on same comment_url, sometimes the same story is on multiple pages
-    if (story.comment_url != og_story_el.dataset.comment_url) {
-      //avoid adding the same source twice
-      if (
-        og_story_el.querySelector(
-          '.comment_url[href="' + story.comment_url + '"]'
-        ) == null
-      ) {
-        let add_info = story_item.info_block(story)
-        og_story_el.querySelector(".data").append(add_info)
-      }
-    }
-    return
-  }
 
   let new_story_el = story_item.story_html(story)
   let stories_container = document.querySelector("#" + bucket)
@@ -57,7 +35,7 @@ function add_story(story, bucket = "stories") {
 
 function mark_selected(story_el, url) {
   if (!story_el && url) {
-    let info_can = document.querySelector(`.info a[href="${url}"]`)
+    let info_can = document.querySelector(`.story a[href="${url}"]`)
     if (info_can) {
       let parent = info_can.parentElement
       let max = 5
@@ -204,7 +182,6 @@ function refilter() {
     let og_filter = story.filter
     filters.filter_story(story).then((story) => {
       if (story.filter != og_filter) {
-        story_loader.story_map.set(sthref.toString(), story)
         let nstory = story_item.story_html(
           story_loader.story_map.get(sthref.toString())
         )

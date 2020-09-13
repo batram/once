@@ -5,6 +5,15 @@ class Story {
     this.type = type
     this.href = href
     this.title = title
+
+    //TODO: class source or add complete stories as sources?
+    this.sources = [
+      {
+        type: type,
+        comment_url: comment_url,
+        timestamp: timestamp,
+      },
+    ]
     this.comment_url = comment_url
     this.timestamp = timestamp
   }
@@ -14,7 +23,16 @@ class Story {
     for (let i in story) {
       xstory[i] = story[i]
     }
-
+    if (!xstory.sources || xstory.sources.length == 0) {
+      xstory.sources = [
+        {
+          type: xstory.type,
+          comment_url: xstory.comment_url,
+          timestamp: xstory.timestamp,
+        },
+      ]
+    }
+    console.log("from_obj", xstory)
     return xstory
   }
 
@@ -88,25 +106,15 @@ class Story {
     }
   }
 
-  open_in_webview(e) {
-    e.preventDefault()
-    e.stopPropagation()
-
-    let href = this.href
-
-    if (e.target.href) {
-      href = e.target.href
-    }
-
-    web_control.open_in_webview(href)
-
-    return false
-  }
-
   async is_read() {
     const readlist = await settings.get_readlist()
-    
-    console.log("prop read", this.read, readlist.includes(this.href), this.hasOwnProperty("read"))
+
+    console.log(
+      "prop read",
+      this.read,
+      readlist.includes(this.href),
+      this.hasOwnProperty("read")
+    )
     if (!this.hasOwnProperty("read")) {
       const readlist = await settings.get_readlist()
       this.read = readlist.includes(this.href)
@@ -119,7 +127,7 @@ class Story {
     if (!this.hasOwnProperty("stared")) {
       const starlist = await settings.get_starlist()
       this.stared = starlist.hasOwnProperty(this.href)
-    } 
+    }
 
     return this.stared
   }

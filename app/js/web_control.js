@@ -35,7 +35,7 @@ function attach_webframe() {
   ipcMain.on("mark_selected", mark_selected)
   ipcMain.on("update_story", update_story)
 
-  function update_story(event, data){
+  function update_story(event, data) {
     console.log("ipcMain update_story", event, data)
     story_loader.story_map.update_story(data.href, data.path, data.value)
   }
@@ -44,14 +44,14 @@ function attach_webframe() {
     let story = stories.mark_selected(null, href)
     event.sender.send("update_selected", story)
     let select_el = document.querySelector(".selected")
-    if(select_el){
+    if (select_el) {
       select_el.addEventListener("change", function select_change(e) {
-        if(select_el.classList.contains("selected")){
+        if (select_el.classList.contains("selected")) {
           event.sender.send("update_selected", e.detail.story)
         } else {
           select_el.removeEventListener("change", select_change)
         }
-      })  
+      })
     }
   }
 
@@ -176,28 +176,35 @@ function init_webframe() {
   }
 
   pop_out_btn.onclick = (x) => {
+    let cwin = remote.getCurrentWindow()
+    let size = cwin.getSize()
     let win_popup = new BrowserWindow({
-      width: document.body.clientWidth,
-      height: document.body.clientHeight,
+      width: window.innerWidth,
+      height: size[1],
+    })
+    win_popup.removeMenu()
+    let bw = cwin.getBrowserView()
+    cwin.removeBrowserView(bw)
+
+    win_popup.setBrowserView(bw)
+
+    win_popup.on("close", (x) => {
+      bw.destroy()
     })
 
-    let cwin = remote.getCurrentWindow()
-    let bw = cwin.getBrowserView()
-    win_popup.setBrowserView(bw)
     bw.setBounds({
       x: 0,
       y: 0,
-      width: document.body.clientWidth,
-      height: document.body.clientHeight,
+      width: window.innerWidth - 10,
+      height: size[1],
     })
-    view.setAutoResize({
+
+    bw.setAutoResize({
       horizontal: true,
       vertical: true,
       width: true,
       height: true,
     })
-
-    cwin.removeBrowserView(view)
   }
 }
 
