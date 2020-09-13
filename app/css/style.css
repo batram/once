@@ -227,6 +227,11 @@ option {
 .story .info {
   margin: 5px 0;
 }
+
+.info .time {
+  display: inline;
+}
+
 .story .tag {
   margin: 0;
   display: inline-block;

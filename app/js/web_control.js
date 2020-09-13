@@ -27,6 +27,10 @@ function init_menu() {
     wc.removeListener("context-menu", contextmenu.inspect_menu)
     wc.removeListener("update-target-url", show_target_url)
   })
+
+  wc.on("enter-html-full-screen", gone_fullscreen)
+  wc.on("leave-html-full-screen", leave_fullscreen)
+  window.addEventListener("keyup", key_fullscreen)
 }
 
 function attach_webtab() {
@@ -66,7 +70,16 @@ function attach_webtab() {
     ipcMain.removeListener("update_story", mark_selected)
   })
 
-  create_webtab(content)
+  let view = create_webtab(content)
+  let cwin = remote.getCurrentWindow()
+
+  //TODO: which one do we really need?
+  view.webContents.on("enter-html-full-screen", go_fullscreen)
+  view.webContents.on("leave-html-full-screen", left_fullscreen)
+  cwin.webContents.on("enter-html-full-screen", gone_fullscreen)
+  cwin.webContents.on("leave-html-full-screen", left_fullscreen)
+  cwin.on("enter-full-screen", gone_fullscreen)
+  cwin.on("leave-full-screen", left_fullscreen)
 }
 
 function create_webtab(size_to_el) {
@@ -102,12 +115,13 @@ function create_webtab(size_to_el) {
   })
 
   resizeObserver.observe(size_to_el)
+
+  return view
 }
 
 function init_webtab() {
   let win = remote.getCurrentWindow()
   ipcRenderer.on("open_in_webview", (event, href) => {
-    console.log("open_in_webview", href)
     open_in_webview(href)
   })
   ipcRenderer.on("outline", (event, href) => {
@@ -115,7 +129,6 @@ function init_webtab() {
     outline(href)
   })
   ipcRenderer.on("update_selected", (event, story, colors) => {
-    console.log("update_selected", story, colors)
     update_selected(story, colors)
   })
   window.webview = document.querySelector("#webview")
@@ -131,32 +144,16 @@ function init_webtab() {
       }
     }
   })
-  webview.addEventListener("enter-html-full-screen", go_fullscreen)
-  webview.addEventListener("leave-html-full-screen", leave_fullscreen)
+  webview.addEventListener("enter-html-full-screen", e => {
+    console.log("webtab fullscreen")
+    gone_fullscreen()
+  })
+  webview.addEventListener("leave-html-full-screen", left_fullscreen)
   //webview.addEventListener("load-commit", loadcommit)
   webview.addEventListener("did-stop-loading", inject_css)
   webview.addEventListener("did-start-loading", load_started)
   webview.addEventListener("did-navigate", update_url)
   window.addEventListener("keyup", key_fullscreen)
-
-  function key_fullscreen(e) {
-    //console.log(e)
-    if (e.key == "F11") {
-      if (win.fullScreen) {
-        leave_fullscreen()
-        return true
-      } else {
-        go_fullscreen()
-        return true
-      }
-    }
-    if (e.key == "Escape") {
-      if (win.fullScreen) {
-        leave_fullscreen()
-        return true
-      }
-    }
-  }
 
   webview.addEventListener("new-window", async (e) => {
     //console.log("webview new-window", e.url)
@@ -191,7 +188,7 @@ function init_webtab() {
     })
     win_popup.removeMenu()
     win_popup.loadURL(
-      "data:text/html,<html style='width: 100%; height: 100%'></html>"
+      "data:text/html,<html style='width: 100%; height: 100%; background: black;'></html>"
     )
     win_popup.webContents.once("did-finish-load", (x) => {
       win_popup.webContents.on("console-message", (e, x, m) => {
@@ -225,24 +222,66 @@ function init_webtab() {
   }
 }
 
+function key_fullscreen(e) {
+  console.log("key_fullscreen", e)
+  let win = remote.getCurrentWindow()
+  //console.log(e)
+  if (e.key == "F11") {
+    if (win && win.fullScreen) {
+      leave_fullscreen()
+      return true
+    } else {
+      go_fullscreen()
+      return true
+    }
+  }
+  if (e.key == "Escape") {
+    if (win && win.fullScreen) {
+      leave_fullscreen()
+      return true
+    }
+  }
+}
+
 function go_fullscreen() {
-  let bwin = remote.getCurrentWindow()
   document.body.classList.add("fullscreen")
-  content.style.minWidth = "100%"
-  bwin.setFullScreen(true)
+  let win = remote.getCurrentWindow()
+  if(win.getBrowserViews().length != 0){
+    win.getBrowserViews().forEach( v => {
+      v.webContents.executeJavaScript("document.body.classList.add('fullscreen')")
+    })
+  }
   win.setFullScreen(true)
 }
 
-function leave_fullscreen() {
-  let bwin = remote.getCurrentWindow()
-  document.body.classList.remove("fullscreen")
+function gone_fullscreen() {
+  document.body.classList.add("fullscreen")
+  if (document.querySelector("#content")) {
+    content.style.minWidth = "100%"
+  }
+}
 
-  content.style.minWidth = ""
-  webview.executeJavaScript(
-    "if(document.fullscreenElement) document.exitFullscreen()"
-  )
-  bwin.setFullScreen(false)
+function leave_fullscreen() {
+  document.body.classList.remove("fullscreen")
+  let win = remote.getCurrentWindow()
+  if(win.getBrowserViews().length != 0){
+    win.getBrowserViews().forEach( v => {
+      v.webContents.executeJavaScript("document.body.classList.remove('fullscreen')")
+    })
+  }
   win.setFullScreen(false)
+}
+
+function left_fullscreen() {
+  document.body.classList.remove("fullscreen")
+  if (document.querySelector("#content")) {
+    content.style.minWidth = ""
+  }
+  if (document.querySelector("webview")) {
+    webview.executeJavaScript(
+      "if(document.fullscreenElement) document.exitFullscreen()"
+    )
+  }
 }
 
 function show_target_url(event, url) {
@@ -265,7 +304,6 @@ function show_target_url(event, url) {
 }
 
 function update_selected(story, colors) {
-  console.log("update_selected", story, colors)
   var style =
     document.querySelector(".tag_style") || document.createElement("style")
   style.classList.add("tag_style")
@@ -450,7 +488,6 @@ function send_or_create(name, value) {
     //creating new webtab
     create_webtab(content)
     activeWebtab.webContents.once("did-finish-load", (x) => {
-      console.log("moepmoep sned now !!!!!")
       activeWebtab.webContents.send(name, value)
     })
   }

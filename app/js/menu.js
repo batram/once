@@ -31,7 +31,6 @@ function add_tag(type, colors) {
     tag.style.color = colors[1]
 
     if (colors && colors[0] != "") {
-      console.log("dagf", colors)
       //inject css for story tags
       var style = document.createElement("style")
       style.classList.add("tag_style")

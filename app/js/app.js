@@ -13,8 +13,6 @@ web_control.init_menu()
 web_control.attach_webtab()
 
 document.addEventListener("DOMContentLoaded", async (_e) => {
-  console.log("load?")
-
   settings.init()
 
   seperation_slider.init_slider()

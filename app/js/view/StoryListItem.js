@@ -224,11 +224,11 @@ function info_block(source_ob) {
   comments_link.addEventListener("click", click_webview)
   info.appendChild(comments_link)
 
-  info.appendChild(
-    document.createTextNode(
-      "  " + story_parser.human_time(source_ob.timestamp) + "  "
-    )
-  )
+  let time = document.createElement("div")
+  time.innerText = story_parser.human_time(source_ob.timestamp)
+  time.title = new Date(source_ob.timestamp).toISOString()
+  time.classList.add("time")
+  info.appendChild(time)
 
   return info
 }
