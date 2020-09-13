@@ -67,7 +67,7 @@ function attach_webtab() {
     if (select_el) {
       select_el.addEventListener("change", function select_change(e) {
         if (select_el.classList.contains("selected")) {
-          event.sender.send("update_selected", e.detail.story, story, colors)
+          event.sender.send("update_selected", e.detail.story, colors)
         } else {
           select_el.removeEventListener("change", select_change)
         }
@@ -319,12 +319,16 @@ function show_target_url(event, url) {
 }
 
 function update_selected(story, colors) {
-  var style =
-    document.querySelector(".tag_style") || document.createElement("style")
-  style.classList.add("tag_style")
-  style.type = "text/css"
-  style.innerHTML = colors
-  document.head.append(style)
+  if (typeof colors == "string") {
+    var style =
+      document.querySelector(".tag_style") || document.createElement("style")
+    style.classList.add("tag_style")
+    style.type = "text/css"
+    style.innerHTML = colors
+    document.head.append(style)
+  } else {
+    console.log("what are these colors", colors)
+  }
 
   selected_container.innerHTML = ""
   if (!story) {
