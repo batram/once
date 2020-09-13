@@ -146,17 +146,17 @@ function search_hn(needle) {
             title: story.title,
             comment_url: curl,
             timestamp: timestamp,
+            sources: [{ type: "HN", comment_url: curl, timestamp: timestamp }],
           }
         })
 
         let estories = await stroy_loader.enhance_stories(search_stories)
-        const story_list = require("./view/StoryList")
 
         estories.forEach((story) => {
-          story_list.add(story, "global_search_results")
+          require("./view/StoryList").add(story, "global_search_results")
         })
 
-        stroy_list.sort_stories("global_search_results")
+        require("./view/StoryList").sort_stories("global_search_results")
       })
     }
   })

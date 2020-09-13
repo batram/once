@@ -386,23 +386,7 @@ function load_started(e, x) {
     console.log('mousedown', e.button)
   })`)
 
-  darken_hn()
-
   inject_css()
-}
-
-function darken_hn() {
-  if (urlfield.value.startsWith("https://news.ycombinator.com/")) {
-    let css = `.c00, .c00 a:link { 
-      color: #bcc2cd !important; 
-    }`
-    webview.insertCSS(css)
-
-    webview.executeJavaScript(`
-      if(matchMedia("(prefers-color-scheme: dark)").matches)
-        hnmain.setAttribute("bgcolor", "#44475a")
-    `)
-  }
 }
 
 function inject_css() {
@@ -466,7 +450,11 @@ function inject_css() {
     }
 
     .athing .c00, .athing .c00 a:link, .athing a:link { 
-      color: #bcc2cd !important; 
+      color: #bcc2cd !important;
+    }
+
+    #hnmain {
+      background-color: #44475a !important;
     }
 
     a {

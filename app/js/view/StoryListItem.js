@@ -235,7 +235,11 @@ function info_block(source_ob) {
 
   let time = document.createElement("div")
   time.innerText = story_parser.human_time(source_ob.timestamp)
-  time.title = new Date(source_ob.timestamp).toISOString()
+  try {
+    time.title = new Date(source_ob.timestamp).toISOString()
+  } catch (e) {
+    console.log("date parsing error", source_ob)
+  }
   time.classList.add("time")
   info.appendChild(time)
 
