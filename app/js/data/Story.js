@@ -61,9 +61,12 @@ class Story {
 
   add_to_readlist() {
     settings.get_readlist().then((readlist) => {
-      readlist.push(onChange.target(this.href))
-      readlist = readlist.filter((v, i, a) => a.indexOf(v) === i)
-      settings.save_readlist(readlist, console.log)
+      let target_href = onChange.target(this.href)
+      if (!readlist.includes(target_href)) {
+        readlist.push(onChange.target(this.href))
+        readlist = readlist.filter((v, i, a) => a.indexOf(v) === i)
+        settings.save_readlist(readlist, console.log)
+      }
     })
   }
 
