@@ -32,7 +32,7 @@ function story_html(story, ipc = false) {
 
   let og_link = document.createElement("a")
   og_link.innerText = " [OG] "
-  og_link.href = story.href
+  og_link.href = story.og_href
   og_link.addEventListener("click", click_webview)
   title_line.appendChild(og_link)
 

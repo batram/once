@@ -123,22 +123,16 @@ class Story {
     }
   }
 
-  async is_read() {
+  async update_read() {
     const readlist = await settings.get_readlist()
-
-    if (!this.hasOwnProperty("read")) {
-      const readlist = await settings.get_readlist()
-      this.read = readlist.includes(this.href)
-    }
+    this.read = readlist.includes(this.href)
 
     return this.read
   }
 
-  async is_stared() {
-    if (!this.hasOwnProperty("stared")) {
-      const starlist = await settings.get_starlist()
-      this.stared = starlist.hasOwnProperty(this.href)
-    }
+  async update_stared() {
+    const starlist = await settings.get_starlist()
+    this.stared = starlist.hasOwnProperty(this.href)
 
     return this.stared
   }

@@ -99,19 +99,10 @@ async function cache_load(url, try_cache = true) {
   }
 }
 
-async function story_enhancers() {
-  let enhance = await Promise.all([
-    settings.get_readlist(),
-    settings.get_starlist(),
-  ])
-  return enhance
-}
-
 async function enhance_stories(stories) {
-  let enhance = await story_enhancers()
   let filtered_stories = await filters.filter_stories(stories)
-  let readlist = enhance[0]
-  let starlist = enhance[0]
+  let readlist = await settings.get_readlist()
+  let starlist = await settings.get_starlist()
 
   return filtered_stories.map((story) => {
     story = story_map.add(story)
@@ -146,11 +137,9 @@ async function load(urls) {
 
 function add_stored_stars(starlist) {
   for (let href in starlist) {
-    if (!story_loader.story_map.has(href.toString())) {
-      let star_story = starlist[href]
-      star_story.stared = true
-      star_story.stored_star = true
-      story_map.add(star_story)
-    }
+    let star_story = starlist[href]
+    star_story.stared = true
+    star_story.stored_star = true
+    story_map.add(star_story)
   }
 }

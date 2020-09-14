@@ -92,6 +92,13 @@ function add(story, bucket = "stories") {
     story = story_map.set(story.href.toString(), story)
     require("../view/StoryList").add(story, bucket)
   } else {
+    if (og_story.stared != story.stared) {
+      story.update_stared()
+    }
+    if (og_story.read != story.read) {
+      story.update_read()
+    }
+
     //check if we already have as alternate source
     let curls = og_story.sources.map((x) => {
       return x.comment_url

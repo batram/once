@@ -69,6 +69,10 @@ async function filter_story(story) {
 }
 
 function filter_run(filter_list, story) {
+  if (!story.og_href) {
+    story.og_href = story.href
+  }
+
   for (pattern in filter_list) {
     if (
       story.href.includes(filter_list[pattern]) ||
