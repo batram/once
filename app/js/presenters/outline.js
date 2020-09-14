@@ -34,7 +34,7 @@ module.exports = {
 }
 
 //check for more uniq data url
-const data_outline_url = "data:text/html;charset=utf-8,"
+const data_outline_url = "data:text/html;charset=utf-8,<!--outline-->"
 const outline_api = "https://api.outline.com/v3/parse_article?source_url="
 
 function handles(url) {
