@@ -9,11 +9,12 @@
   },
   "author": "",
   "devDependencies": {
-    "electron": "^9.2.1"
+    "electron": "^9.3.0"
   },
   "dependencies": {
-    "@cliqz/adblocker-electron": "^1.17.0",
-    "cross-fetch": "^3.0.5",
+    "@cliqz/adblocker-electron": "^1.18.2",
+    "cross-fetch": "^3.0.6",
+    "electron-packager": "^15.1.0",
     "electron-reload": "^1.5.0",
     "on-change": "^2.1.2"
   }

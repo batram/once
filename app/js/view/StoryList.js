@@ -204,9 +204,8 @@ function reload() {
     story_loader.story_map.clear()
   }
 
-
   document.querySelectorAll(".story").forEach((x) => {
-    if(!x.classList.contains("selected")){
+    if (!x.classList.contains("selected")) {
       x.outerHTML = ""
     }
   })

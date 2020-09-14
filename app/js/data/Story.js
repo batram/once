@@ -33,7 +33,6 @@ class Story {
         },
       ]
     }
-    console.log("from_obj", xstory)
     return xstory
   }
 
@@ -65,8 +64,7 @@ class Story {
     for (let i in this) {
       try {
         cloned[i] = onChange.target(this[i])
-      } catch(e) {
-        console.log(e, i, cloned[i] )
+      } catch (e) {
         cloned[i] = null
       }
     }
@@ -115,12 +113,6 @@ class Story {
   async is_read() {
     const readlist = await settings.get_readlist()
 
-    console.log(
-      "prop read",
-      this.read,
-      readlist.includes(this.href),
-      this.hasOwnProperty("read")
-    )
     if (!this.hasOwnProperty("read")) {
       const readlist = await settings.get_readlist()
       this.read = readlist.includes(this.href)
