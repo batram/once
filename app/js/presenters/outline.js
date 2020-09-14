@@ -38,12 +38,19 @@ const data_outline_url = "data:text/html;charset=utf-8,"
 const outline_api = "https://api.outline.com/v3/parse_article?source_url="
 
 function handles(url) {
-  //Hanlde non by default
+  //Handle non by default
   return false
 }
 
 function is_presenter_url(url) {
-  return url.startsWith(data_outline_url) || url.startsWith(outline_api)
+  let will_present =
+    url.startsWith(data_outline_url) || url.startsWith(outline_api)
+  if (will_present) {
+    outline_button_active()
+  } else {
+    outline_button_inactive()
+  }
+  return will_present
 }
 
 function outline_button_active() {
@@ -77,6 +84,7 @@ function story_elem_button(story, inmain = true) {
     }
   } else {
     outline_btn.onclick = (x) => {
+      outline_button_active()
       outline(story.href)
     }
   }
@@ -87,6 +95,7 @@ function story_elem_button(story, inmain = true) {
 function init_in_webtab() {
   const { ipcRenderer } = require("electron")
   ipcRenderer.on("outline", (event, href) => {
+    outline_button_active()
     outline(href)
   })
 

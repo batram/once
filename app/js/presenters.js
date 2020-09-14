@@ -6,9 +6,14 @@ module.exports = {
 }
 
 function get_active() {
-  let presenters = []
-  presenters.push(require("./presenters/outline"))
-  return presenters
+  //TODO: determine if active from settings
+  var normalizedPath = require("path").join(__dirname, "presenters")
+
+  return require("fs")
+    .readdirSync(normalizedPath)
+    .map((file) => {
+      return require("./presenters/" + file)
+    })
 }
 
 function modify_url(url) {
