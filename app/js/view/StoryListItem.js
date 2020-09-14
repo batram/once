@@ -1,5 +1,4 @@
 const { Story } = require("../data/Story")
-const story_list = require("./StoryList")
 const story_parser = require("../parser")
 const { ipcRenderer } = require("electron")
 const web_control = require("../web_control")
@@ -152,6 +151,7 @@ function direct_events(story, story_el) {
 
   let read_btn = story_el.querySelector(".read_btn")
   read_btn.addEventListener("click", (x) => {
+    const story_list = require("./StoryList")
     toggle_read(story.href, story_list.resort_single)
   })
 
