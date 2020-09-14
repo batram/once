@@ -99,13 +99,15 @@ async function cache_load(url, try_cache = true) {
   }
 }
 
-async function enhance_stories(stories) {
+async function enhance_stories(stories, add = true) {
   let filtered_stories = await filters.filter_stories(stories)
   let readlist = await settings.get_readlist()
   let starlist = await settings.get_starlist()
 
   return filtered_stories.map((story) => {
-    story = story_map.add(story)
+    if (add) {
+      story = story_map.add(story)
+    }
     story.read = readlist.includes(story.href)
     if (starlist.hasOwnProperty(story.href)) {
       story.stared = starlist.hasOwnProperty(story.href)

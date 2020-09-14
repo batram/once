@@ -181,7 +181,7 @@ function init_webtab() {
   })
 
   //webview.addEventListener("load-commit", loadcommit)
-  webview.addEventListener("did-stop-loading", inject_css)
+  webview.addEventListener("dom-ready", inject_css)
   webview.addEventListener("did-start-loading", load_started)
   webview.addEventListener("did-navigate", update_url)
   window.addEventListener("keyup", fullscreen.key_handler)

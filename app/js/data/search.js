@@ -150,7 +150,7 @@ function search_hn(needle) {
           }
         })
 
-        let estories = await stroy_loader.enhance_stories(search_stories)
+        let estories = await stroy_loader.enhance_stories(search_stories, false)
 
         estories.forEach((story) => {
           require("../view/StoryList").add(story, "global_search_results")

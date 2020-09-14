@@ -21,7 +21,7 @@ function createWindow() {
   })
 
   win.removeMenu()
-  win.openDevTools()
+  //win.openDevTools()
   //win.webContents.session.setProxy({ proxyRules: "socks5://127.0.0.1:9150" })
 
   // and load the index.html of the app.
