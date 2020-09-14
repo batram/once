@@ -1,5 +1,5 @@
-const stroy_loader = require("./data/StoryLoader")
-const menu = require("./menu")
+const stroy_loader = require("../data/StoryLoader")
+const menu = require("../view/menu")
 
 module.exports = {
   init_search,
@@ -115,7 +115,7 @@ function search_stories(needle) {
     }
   })
 
-  require("./view/StoryList").sort_stories()
+  require("../view/StoryList").sort_stories()
 }
 
 function search_hn(needle) {
@@ -153,10 +153,10 @@ function search_hn(needle) {
         let estories = await stroy_loader.enhance_stories(search_stories)
 
         estories.forEach((story) => {
-          require("./view/StoryList").add(story, "global_search_results")
+          require("../view/StoryList").add(story, "global_search_results")
         })
 
-        require("./view/StoryList").sort_stories("global_search_results")
+        require("../view/StoryList").sort_stories("global_search_results")
       })
     }
   })

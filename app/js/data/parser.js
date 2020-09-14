@@ -3,8 +3,8 @@ module.exports = {
   human_time,
 }
 
-const { Story } = require("./data/Story")
-const menu = require("./menu")
+const { Story } = require("./Story")
+const menu = require("../view/menu")
 
 let parsers = {
   "https://news.ycombinator.com/": {

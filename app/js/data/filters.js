@@ -1,5 +1,5 @@
-const settings = require("./settings")
-const menu = require("./menu")
+const settings = require("../settings")
+const menu = require("../view/menu")
 
 module.exports = {
   filter_story,

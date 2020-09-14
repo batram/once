@@ -8,8 +8,8 @@ module.exports = {
 }
 
 const { remote, ipcRenderer } = require("electron")
-const contextmenu = require("./contextmenu")
-const filters = require("./filters")
+const contextmenu = require("./view/contextmenu")
+const filters = require("./data/filters")
 const { webContents, BrowserWindow, BrowserView } = remote
 
 const outline_api = "https://api.outline.com/v3/parse_article?source_url="

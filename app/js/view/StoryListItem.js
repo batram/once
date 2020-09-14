@@ -1,5 +1,5 @@
 const { Story } = require("../data/Story")
-const story_parser = require("../parser")
+const story_parser = require("../data/parser")
 const { ipcRenderer } = require("electron")
 const web_control = require("../web_control")
 
@@ -137,7 +137,7 @@ function direct_events(story, story_el) {
       show_filter,
       show_filter_dialog,
       add_filter,
-    } = require("../filters")
+    } = require("../data/filters")
     if (story_el.classList.contains("filtered")) {
       show_filter(story.filter)
     } else {
@@ -186,7 +186,7 @@ function ipc_events(story, story_el) {
     if (story_el.classList.contains("filtered")) {
       web_control.send_to_main("show_filter", story.filter)
     } else {
-      const { show_filter_dialog } = require("../filters")
+      const { show_filter_dialog } = require("../data/filters")
       show_filter_dialog(x, filter_btn, story, (x) => {
         web_control.send_to_main("add_filter", x)
       })

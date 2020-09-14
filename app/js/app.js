@@ -1,7 +1,7 @@
 const settings = require("./js/settings")
 const web_control = require("./js/web_control")
-const seperation_slider = require("./js/sep_slider")
-const search = require("./js/search")
+const seperation_slider = require("./js/view/sep_slider")
+const search = require("./js/data/search")
 const story_loader = require("./js/data/StoryLoader")
 
 web_control.init_menu()

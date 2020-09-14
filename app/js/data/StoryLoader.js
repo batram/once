@@ -1,7 +1,6 @@
-const { Story } = require("./Story")
 const story_map = require("./StoryMap")
-const story_parser = require("../parser")
-const filters = require("../filters")
+const story_parser = require("./parser")
+const filters = require("../data/filters")
 
 module.exports = {
   load,

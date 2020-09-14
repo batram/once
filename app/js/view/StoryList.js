@@ -1,7 +1,7 @@
 const { Story } = require("../data/Story")
 const { get_starlist, story_sources } = require("../settings")
-const filters = require("../filters")
-const story_item = require("./StoryListItem")
+const filters = require("../data/filters")
+const story_item = require("../view/StoryListItem")
 const { story_map } = require("../data/StoryLoader")
 
 module.exports = {
