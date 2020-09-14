@@ -76,11 +76,11 @@ function attach_webtab() {
     send_to_webtab("update_selected", story, colors)
     let select_el = document.querySelector(".selected")
     if (select_el) {
-      select_el.addEventListener("change", function select_change(e) {
+      select_el.addEventListener("data_change", function select_change(e) {
         if (select_el.classList.contains("selected")) {
           send_to_webtab("update_selected", e.detail.story, colors)
         } else {
-          select_el.removeEventListener("change", select_change)
+          select_el.removeEventListener("data_change", select_change)
         }
       })
     }

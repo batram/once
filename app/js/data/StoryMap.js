@@ -4,14 +4,14 @@ const { Story } = require("./Story")
 let s_map = {}
 
 const story_map = onChange(s_map, function (path, value, previousValue, name) {
-  //console.log("change", path, value, previousValue, name)
+  //console.log("data_change", path, value, previousValue, name)
   if (path.length != 0) {
     if (typeof this[path[0]] == "object") {
       if (name && this[path[0]] instanceof Story) {
         //console.log("story change", name)
       }
 
-      const event = new CustomEvent("change", {
+      const event = new CustomEvent("data_change", {
         detail: {
           story: story_map.get(path[0]),
           path: path,

@@ -92,6 +92,7 @@ function story_html(story, ipc = false) {
 function update_storyel(e, story_el) {
   if (!e || !e.detail) {
     console.log("update_storyel fail", e, story_el)
+    return
   }
   if (e.detail.value instanceof Story && e.detail.name) {
     switch (e.detail.name) {
@@ -123,7 +124,7 @@ function update_storyel(e, story_el) {
 }
 
 function direct_events(story, story_el) {
-  story_el.addEventListener("change", (e) => {
+  story_el.addEventListener("data_change", (e) => {
     update_storyel(e, story_el)
   })
 
@@ -173,7 +174,7 @@ function direct_events(story, story_el) {
 }
 
 function ipc_events(story, story_el) {
-  story_el.addEventListener("change", (e) => {
+  story_el.addEventListener("data_change", (e) => {
     update_storyel(e, story_el)
   })
 
