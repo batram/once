@@ -7,7 +7,7 @@ const seperation_slider = require("./js/view/sep_slider")
 const search = require("./js/data/search")
 const story_loader = require("./js/data/StoryLoader")
 
-web_control.attach_webtab()
+web_control.attach_webtab(document.querySelector("#content"))
 
 document.addEventListener("DOMContentLoaded", async (_e) => {
   settings.init()

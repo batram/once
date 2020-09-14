@@ -1,7 +1,7 @@
 const { Story } = require("../data/Story")
 const story_parser = require("../data/parser")
-const { ipcRenderer } = require("electron")
 const web_control = require("../web_control")
+const webtab = require("../view/webtab")
 const presenters = require("../presenters")
 
 module.exports = {
@@ -35,7 +35,7 @@ function story_html(story, inmain = true) {
   let og_link = document.createElement("a")
   og_link.innerText = " [OG] "
   og_link.href = story.og_href
-  og_link.addEventListener("click", click_webview)
+  og_link.addEventListener("click", open_link_handler)
   title_line.appendChild(og_link)
 
   let hostname = document.createElement("p")
@@ -130,7 +130,7 @@ function direct_events(story, story_el) {
   })
 
   let link = story_el.querySelector(".title")
-  link.addEventListener("click", click_webview, false)
+  link.addEventListener("click", open_link_handler, false)
 
   let filter_btn = story_el.querySelector(".filter_btn")
   filter_btn.onclick = (x) => {
@@ -155,7 +155,7 @@ function direct_events(story, story_el) {
   //open story with middle click on "skip reading"
   read_btn.addEventListener("mousedown", (e) => {
     if (e.button == 1) {
-      return click_webview(e)
+      return open_link_handler(e)
     }
   })
 
@@ -175,23 +175,23 @@ function ipc_events(story, story_el) {
   })
 
   let link = story_el.querySelector(".title")
-  link.addEventListener("click", click_webview, false)
+  link.addEventListener("click", open_link_handler, false)
 
   let filter_btn = story_el.querySelector(".filter_btn")
   filter_btn.onclick = (x) => {
     if (story_el.classList.contains("filtered")) {
-      web_control.send_to_main("show_filter", story.filter)
+      webtab.send_to_main("show_filter", story.filter)
     } else {
       const { show_filter_dialog } = require("../data/filters")
       show_filter_dialog(x, filter_btn, story, (x) => {
-        web_control.send_to_main("add_filter", x)
+        webtab.send_to_main("add_filter", x)
       })
     }
   }
 
   let read_btn = story_el.querySelector(".read_btn")
   read_btn.addEventListener("click", (x) => {
-    web_control.send_to_main("update_story", {
+    webtab.send_to_main("update_story", {
       href: story.href,
       path: "read",
       value: !story.read,
@@ -207,7 +207,7 @@ function ipc_events(story, story_el) {
 
   let star_btn = story_el.querySelector(".star_btn")
   star_btn.addEventListener("click", (_) => {
-    web_control.send_to_main("update_story", {
+    webtab.send_to_main("update_story", {
       href: story.href,
       path: "stared",
       value: !story.stared,
@@ -229,7 +229,7 @@ function info_block(source_ob) {
   comments_link.classList.add("comment_url")
   comments_link.innerText = " [comments] "
   comments_link.href = source_ob.comment_url
-  comments_link.addEventListener("click", click_webview)
+  comments_link.addEventListener("click", open_link_handler)
   info.appendChild(comments_link)
 
   let time = document.createElement("div")
@@ -245,7 +245,7 @@ function info_block(source_ob) {
   return info
 }
 
-function click_webview(e) {
+function open_link_handler(e) {
   e.preventDefault()
   e.stopPropagation()
 
@@ -255,7 +255,7 @@ function click_webview(e) {
     href = e.target.href
   }
 
-  web_control.open_in_webview(href)
+  web_control.open_in_tab(href)
 
   return false
 }

@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html>
   <head>
+    <script>
+      window.main_id = location.hash.slice(1)
+    </script>
     <meta charset="UTF-8" />
     <title>once</title>
     <meta
@@ -34,9 +37,9 @@
   </body>
   <script src="js/third_party/Readability.js"></script>
   <script>
-    const web_control = require("./js/web_control")
+    const webtab = require("./js/view/webtab")
     const contextmenu = require("./js/view/contextmenu")
     contextmenu.init_menu()
-    web_control.init_webtab()
+    webtab.init()
   </script>
 </html>

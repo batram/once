@@ -80,7 +80,7 @@ function story_elem_button(story, inmain = true) {
   if (inmain) {
     outline_btn.onclick = (x) => {
       const web_control = require("../web_control")
-      web_control.send_or_create("outline", story.href)
+      web_control.send_or_create_tab("outline", story.href)
     }
   } else {
     outline_btn.onclick = (x) => {
@@ -155,7 +155,7 @@ async function present(url) {
 async function outline(url) {
   let urlfield = document.querySelector("#urlfield")
   if (urlfield == undefined) {
-    web_control.send_or_create("outline", url)
+    web_control.send_or_create_tab("outline", url)
     return
   }
   urlfield.value = url

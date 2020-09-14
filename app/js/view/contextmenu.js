@@ -14,11 +14,15 @@ function init_menu() {
 
   wc.on("update-target-url", show_target_url)
   wc.on("context-menu", inspect_menu)
+  wc.on("enter-full-screen", fullscreen.entered)
+  wc.on("leave-full-screen", fullscreen.left)
 
   window.addEventListener("beforeunload", (x) => {
     //Clean up listiners
-    wc.removeListener("context-menu", inspect_menu)
-    wc.removeListener("update-target-url", show_target_url)
+    wc.off("context-menu", inspect_menu)
+    wc.off("update-target-url", show_target_url)
+    wc.off("enter-full-screen", fullscreen.entered)
+    wc.off("leave-full-screen", fullscreen.left)
   })
 
   window.addEventListener("keyup", fullscreen.key_handler)
