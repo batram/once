@@ -2,13 +2,15 @@ const { Story } = require("../data/Story")
 const story_parser = require("../data/parser")
 const { ipcRenderer } = require("electron")
 const web_control = require("../web_control")
+const presenters = require("../presenters")
 
 module.exports = {
   story_html,
   info_block,
+  icon_button,
 }
 
-function story_html(story, ipc = false) {
+function story_html(story, inmain = true) {
   if (!(story instanceof Story)) {
     story = Story.from_obj(story)
   }
@@ -77,10 +79,9 @@ function story_html(story, ipc = false) {
   }
   story_el.appendChild(filter_btn)
 
-  let outline_btn = icon_button("outline", "outline_btn", "imgs/article.svg")
-  story_el.appendChild(outline_btn)
+  presenters.add_story_elem_buttons(story_el, story, inmain)
 
-  if (!ipc) {
+  if (inmain) {
     direct_events(story, story_el)
   } else {
     ipc_events(story, story_el)
@@ -145,11 +146,6 @@ function direct_events(story, story_el) {
     }
   }
 
-  let outline_btn = story_el.querySelector(".outline_btn")
-  outline_btn.onclick = (x) => {
-    web_control.outline(story.href)
-  }
-
   let read_btn = story_el.querySelector(".read_btn")
   read_btn.addEventListener("click", (x) => {
     const story_list = require("./StoryList")
@@ -191,11 +187,6 @@ function ipc_events(story, story_el) {
         web_control.send_to_main("add_filter", x)
       })
     }
-  }
-
-  let outline_btn = story_el.querySelector(".outline_btn")
-  outline_btn.onclick = (x) => {
-    web_control.outline(story.href)
   }
 
   let read_btn = story_el.querySelector(".read_btn")

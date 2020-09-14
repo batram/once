@@ -161,10 +161,6 @@ option {
   order: 1;
 }
 
-.outline_btn {
-  order: 2;
-}
-
 .star_btn {
   order: 3;
 }
@@ -301,9 +297,6 @@ option {
   margin-bottom: -1px;
 }
 
-#outline_webview_btn {
-  margin-right: 3px;
-}
 .active img {
   filter: invert(42%) sepia(93%) saturate(252%) hue-rotate(87deg)
     brightness(119%) contrast(119%);
@@ -431,6 +424,7 @@ option {
 
 ::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {

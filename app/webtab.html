@@ -12,9 +12,6 @@
   <body>
     <div id="webtab">
       <div id="controlbar" class="bar">
-        <div id="outline_webview_btn" class="btn bar_btn" title="outline">
-          <img src="imgs/article.svg" />
-        </div>
         <input type="text" id="urlfield" placeholder="about:blank" />
         <div id="reload_webview_btn" class="btn bar_btn" title="reload webview">
           <img src="imgs/reload.svg" />
@@ -38,7 +35,8 @@
   <script src="js/third_party/Readability.js"></script>
   <script>
     const web_control = require("./js/web_control")
-    web_control.init_menu()
+    const contextmenu = require("./js/view/contextmenu")
+    contextmenu.init_menu()
     web_control.init_webtab()
   </script>
 </html>

@@ -1,10 +1,47 @@
 module.exports = {
+  init_menu,
   story_menu,
   inspect_menu,
+  show_target_url,
 }
 
 const { remote, shell, clipboard } = require("electron")
 const { Menu, MenuItem } = remote
+const fullscreen = require("./fullscreen")
+
+function init_menu() {
+  let wc = remote.getCurrentWebContents()
+
+  wc.on("update-target-url", show_target_url)
+  wc.on("context-menu", inspect_menu)
+
+  window.addEventListener("beforeunload", (x) => {
+    //Clean up listiners
+    wc.removeListener("context-menu", inspect_menu)
+    wc.removeListener("update-target-url", show_target_url)
+  })
+
+  window.addEventListener("keyup", fullscreen.key_handler)
+}
+
+function show_target_url(event, url) {
+  if (!document.querySelector("#url_target")) {
+    return
+  }
+
+  if (url != "") {
+    url_target.style.opacity = "1"
+    url_target.style.zIndex = "16"
+    if (url.length <= 63) {
+      url_target.innerText = url
+    } else {
+      url_target.innerText = url.substring(0, 60) + "..."
+    }
+  } else {
+    url_target.style.opacity = "0"
+    url_target.style.zIndex = "-1"
+  }
+}
 
 const cmenu_data = {
   rightClickPosition: null,
