@@ -4,6 +4,7 @@ module.exports = {
   open_in_webview,
   outline,
   attach_webtab,
+  send_to_main,
 }
 
 const { remote, ipcRenderer } = require("electron")
@@ -32,12 +33,19 @@ function init_menu() {
 }
 
 function attach_webtab() {
-  const { ipcMain } = remote
+  ipcRenderer.on("mark_selected", mark_selected)
+  ipcRenderer.on("update_story", update_story)
+  ipcRenderer.on("show_filter", show_filter)
+  ipcRenderer.on("add_filter", add_filter)
 
-  ipcMain.on("mark_selected", mark_selected)
-  ipcMain.on("update_story", update_story)
-  ipcMain.on("show_filter", show_filter)
-  ipcMain.on("add_filter", add_filter)
+  window.addEventListener("beforeunload", (x) => {
+    ipcRenderer.removeListener("mark_selected", mark_selected)
+    ipcRenderer.removeListener("update_story", update_story)
+    ipcRenderer.removeListener("show_filter", show_filter)
+    ipcRenderer.removeListener("add_filter", add_filter)
+  })
+
+  remote.getCurrentWebContents().on("ipc-message", console.log)
 
   function show_filter(event, data) {
     filters.show_filter(data)
@@ -48,7 +56,6 @@ function attach_webtab() {
   }
 
   function update_story(event, data) {
-    console.log("ipcMain update_story", event, data)
     story_loader.story_map.update_story(data.href, data.path, data.value)
   }
 
@@ -65,12 +72,13 @@ function attach_webtab() {
     if (href == "about:gone") {
       return
     }
-    event.sender.send("update_selected", story, colors)
+
+    send_to_webtab("update_selected", story, colors)
     let select_el = document.querySelector(".selected")
     if (select_el) {
       select_el.addEventListener("change", function select_change(e) {
         if (select_el.classList.contains("selected")) {
-          event.sender.send("update_selected", e.detail.story, colors)
+          send_to_webtab("update_selected", e.detail.story, colors)
         } else {
           select_el.removeEventListener("change", select_change)
         }
@@ -78,16 +86,13 @@ function attach_webtab() {
     }
   }
 
-  //create_webtab(content)
+  create_webtab(content)
   let cwin = remote.getCurrentWindow()
 
   cwin.on("enter-full-screen", gone_fullscreen)
   cwin.on("leave-full-screen", left_fullscreen)
 
   window.addEventListener("beforeunload", (x) => {
-    //Clean up listiners
-    ipcMain.removeListener("mark_selected", mark_selected)
-    ipcMain.removeListener("update_story", mark_selected)
     cwin.removeListener("enter-full-screen", gone_fullscreen)
     cwin.removeListener("leave-full-screen", left_fullscreen)
 
@@ -111,8 +116,17 @@ function create_webtab(size_to_el) {
     },
   })
 
-  remote.getCurrentWindow().setBrowserView(view)
+  let cwin = remote.getCurrentWindow()
+  cwin.setBrowserView(view)
+
+  let cwin_id = cwin.id
+
   view.webContents.loadFile("app/webtab.html")
+  view.webContents.on("dom-ready", (x) => {
+    view.webContents.executeJavaScript(`
+      document.body.dataset.main_winid = ${cwin_id}
+    `)
+  })
 
   if (size_to_el) {
     const resizeObserver = new ResizeObserver((entries) => {
@@ -135,9 +149,6 @@ function create_webtab(size_to_el) {
       }
     })
 
-    window.addEventListener("beforeunload", (x) => {
-      resizeObserver.unobserve(size_to_el)
-    })
     resizeObserver.observe(size_to_el)
 
     view.setBounds({
@@ -160,6 +171,7 @@ function init_webtab() {
     outline(href)
   })
   ipcRenderer.on("update_selected", (event, story, colors) => {
+    console.log("update_selected", story)
     update_selected(story, colors)
   })
   window.webview = document.querySelector("#webview")
@@ -214,7 +226,7 @@ function init_webtab() {
   pop_out_btn.onclick = (x) => {
     let cwin = remote.getCurrentWindow()
     let size = cwin.getSize()
-    let csize = cwin.getContentSize()
+    let poped_view = cwin.getBrowserView()
 
     let win_popup = new BrowserWindow({
       width: window.innerWidth,
@@ -224,12 +236,14 @@ function init_webtab() {
     win_popup.loadURL(
       "data:text/html,<html style='width: 100%; height: 100%; background: black;'></html>"
     )
+
     win_popup.webContents.on("console-message", (e, x, m) => {
       if (!m.startsWith("[")) {
         return
       }
       let size = JSON.parse(m)
-      bw.setBounds({
+
+      poped_view.setBounds({
         x: 0,
         y: 0,
         width: size[0],
@@ -248,13 +262,16 @@ function init_webtab() {
       )
     })
 
-    let bw = cwin.getBrowserView()
-    win_popup.setBrowserView(bw)
-    detach_browserview(cwin, bw)
+    let winid = cwin.id
+    win_popup.setBrowserView(poped_view)
+    detach_browserview(cwin, poped_view)
 
     win_popup.on("close", (x) => {
-      ipcRenderer.send("mark_selected", "about:gone")
-      bw.destroy()
+      let main_browser_window = BrowserWindow.fromId(winid)
+      if (main_browser_window && !main_browser_window.isDestroyed()) {
+        main_browser_window.webContents.send("mark_selected", "about:gone")
+      }
+      poped_view.destroy()
     })
   }
 }
@@ -427,7 +444,7 @@ function update_url(e) {
     urlfield.value = url
   }
 
-  ipcRenderer.send("mark_selected", urlfield.value)
+  send_to_main("mark_selected", urlfield.value)
 }
 
 function load_started(e, x) {
@@ -554,10 +571,34 @@ function open_in_webview(href) {
   }
 }
 
+function send_to_webtab(...args) {
+  let cwin = remote.getCurrentWindow()
+  if (cwin && cwin.getBrowserView()) {
+    let view = cwin.getBrowserView()
+    if (view && !view.isDestroyed()) {
+      //active found
+      view.webContents.send(...args)
+      return
+    }
+  }
+}
+
+function send_to_main(...args) {
+  let main_winid = document.body.dataset.main_winid
+
+  if (main_winid) {
+    main_winid = parseInt(main_winid)
+    let main_browser_window = BrowserWindow.fromId(main_winid)
+    if (main_browser_window && !main_browser_window.isDestroyed()) {
+      main_browser_window.send(...args)
+    }
+  }
+}
+
 function send_or_create(name, value) {
   let cwin = remote.getCurrentWindow()
-  if (cwin && cwin.getBrowserViews().length != 0) {
-    let view = cwin.getBrowserViews()[0]
+  if (cwin && cwin.getBrowserView()) {
+    let view = cwin.getBrowserView()
     if (view && !view.isDestroyed()) {
       //active found
       view.webContents.send(name, value)

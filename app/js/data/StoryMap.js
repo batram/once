@@ -57,23 +57,21 @@ function update_story(href, path, value) {
   if (path == "story" && value instanceof Story) {
     story = value
   } else {
-    if (story.hasOwnProperty(path)) {
-      if (path == "read") {
-        if (value) {
-          story.add_to_readlist()
-        } else {
-          story.remove_from_readlist()
-        }
+    if (path == "read") {
+      if (value) {
+        story.add_to_readlist()
+      } else {
+        story.remove_from_readlist()
       }
-      if (path == "stared") {
-        if (value) {
-          story.star()
-        } else {
-          story.unstar()
-        }
-      }
-      story[path] = value
     }
+    if (path == "stared") {
+      if (value) {
+        story.star()
+      } else {
+        story.unstar()
+      }
+    }
+    story[path] = value
   }
 }
 

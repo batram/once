@@ -61,9 +61,7 @@ function story_html(story, ipc = false) {
   add_star_button(story_el, story)
 
   update_read(story.read, story_el)
-  story.is_stared().then((stared) => {
-    update_star(stared, story_el)
-  })
+  update_star(story.stared, story_el)
 
   let filter_btn = icon_button("filter", "filter_btn", "imgs/filter.svg")
   if (story.filter) {
@@ -142,8 +140,9 @@ function direct_events(story, story_el) {
     } = require("../filters")
     if (story_el.classList.contains("filtered")) {
       show_filter(story.filter)
+    } else {
+      show_filter_dialog(x, filter_btn, story, add_filter)
     }
-    show_filter_dialog(x, filter_btn, story, add_filter)
   }
 
   let outline_btn = story_el.querySelector(".outline_btn")
@@ -184,12 +183,13 @@ function ipc_events(story, story_el) {
   let filter_btn = story_el.querySelector(".filter_btn")
   filter_btn.onclick = (x) => {
     if (story_el.classList.contains("filtered")) {
-      ipcRenderer.send("show_filter", story.filter)
+      web_control.send_to_main("show_filter", story.filter)
+    } else {
+      const { show_filter_dialog } = require("../filters")
+      show_filter_dialog(x, filter_btn, story, (x) => {
+        web_control.send_to_main("add_filter", x)
+      })
     }
-    const { show_filter_dialog } = require("../filters")
-    show_filter_dialog(x, filter_btn, story, (x) => {
-      ipcRenderer.send("add_filter", x)
-    })
   }
 
   let outline_btn = story_el.querySelector(".outline_btn")
@@ -199,7 +199,7 @@ function ipc_events(story, story_el) {
 
   let read_btn = story_el.querySelector(".read_btn")
   read_btn.addEventListener("click", (x) => {
-    ipcRenderer.send("update_story", {
+    web_control.send_to_main("update_story", {
       href: story.href,
       path: "read",
       value: !story.read,
@@ -215,7 +215,7 @@ function ipc_events(story, story_el) {
 
   let star_btn = story_el.querySelector(".star_btn")
   star_btn.addEventListener("click", (_) => {
-    ipcRenderer.send("update_story", {
+    web_control.send_to_main("update_story", {
       href: story.href,
       path: "stared",
       value: !story.stared,

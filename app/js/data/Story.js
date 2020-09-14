@@ -36,6 +36,19 @@ class Story {
     return xstory
   }
 
+  to_obj() {
+    let cloned = {}
+    for (let i in this) {
+      try {
+        cloned[i] = onChange.target(this[i])
+      } catch (e) {
+        cloned[i] = null
+      }
+    }
+
+    return cloned
+  }
+
   remove_from_readlist() {
     settings.get_readlist().then((readlist) => {
       const index = readlist.indexOf(this.href)

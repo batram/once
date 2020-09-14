@@ -27,7 +27,6 @@ function init_search() {
       search_stories(e.target.value)
     } else if (e.keyCode === 13) {
       //ENTER
-      //ipcRenderer.send("search-text", e.target.value)
       search_stories(e.target.value)
     }
   })

@@ -26,25 +26,11 @@ function createWindow() {
   // and load the index.html of the app.
   win.loadFile("app/index.html")
 
-  /*
-  if (process.env.LDEV == "1") {
-    win.webContents.openDevTools()
-  }*/
-
   ElectronBlocker.ElectronBlocker.fromPrebuiltAdsAndTracking(fetch).then(
     (blocker) => {
       blocker.enableBlockingInSession(session.fromPartition("moep"))
     }
   )
-
-  win.webContents.on("found-in-page", (e, result) => {
-    if (result.finalUpdate) {
-      win.webContents.stopFindInPage("keepSelection")
-    }
-  })
-  ipcMain.on("search-text", (e, arg) => {
-    win.webContents.findInPage(arg)
-  })
 }
 
 app.whenReady().then(() => {

@@ -1,5 +1,6 @@
 const { Story } = require("../data/Story")
 const { get_starlist, story_sources } = require("../settings")
+const filters = require("../filters")
 const story_item = require("./StoryListItem")
 const { story_map } = require("../data/StoryLoader")
 
@@ -68,6 +69,8 @@ function mark_selected(story_el, url) {
       og_story.mark_as_read()
     }
     return og_story
+  } else {
+    return null
   }
 }
 
