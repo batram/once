@@ -1,6 +1,7 @@
 const { Story } = require("./Story")
 const story_map = require("./StoryMap")
-const story_list = require("../view/StoryList")
+const story_parser = require("../parser")
+const filters = require("../filters")
 
 module.exports = {
   load,
@@ -36,8 +37,8 @@ function get_cached(url) {
   return cached[1]
 }
 
-function sort_raw_stories(stories) {
-  return stories.sort()
+function sort_raw_stories(raw_stories) {
+  return raw_stories.sort()
 }
 
 async function collect_all_stories(urls, try_cache = true) {

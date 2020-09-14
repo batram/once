@@ -1,4 +1,5 @@
 const stroy_loader = require("./data/StoryLoader")
+const menu = require("./menu")
 
 module.exports = {
   init_search,

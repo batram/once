@@ -1,7 +1,6 @@
 const { Story } = require("../data/Story")
-const settings = require("../settings")
+const { get_starlist, story_sources } = require("../settings")
 const story_item = require("./StoryListItem")
-const { remote } = require("electron")
 const { story_map } = require("../data/StoryLoader")
 
 module.exports = {
@@ -166,7 +165,7 @@ function sort_stories(bucket = "stories") {
 }
 
 async function restar() {
-  let starlist = await settings.get_starlist()
+  let starlist = await get_starlist()
   document.querySelectorAll(".story").forEach((story_el) => {
     let sthref = story_el.dataset.href
     let story = story_loader.story_map.get(sthref.toString())
@@ -210,7 +209,7 @@ function reload() {
     }
   })
 
-  settings.story_sources().then(story_loader.load)
+  story_sources().then(story_loader.load)
 }
 
 if (document.querySelector("#reload_stories_btn")) {

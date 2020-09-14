@@ -8,7 +8,6 @@ module.exports = {
 
 const { remote, ipcRenderer } = require("electron")
 const contextmenu = require("./contextmenu")
-const { Story } = require("./data/Story")
 const filters = require("./filters")
 const { webContents, BrowserWindow, BrowserView } = remote
 
@@ -59,7 +58,10 @@ function attach_webtab() {
         return x.innerText
       })
       .join("\n")
-    let story = stories.mark_selected(null, href)
+
+    const { mark_selected } = require("./view/StoryList")
+    let story = mark_selected(null, href)
+
     if (href == "about:gone") {
       return
     }
@@ -426,9 +428,6 @@ function update_url(e) {
   }
 
   ipcRenderer.send("mark_selected", urlfield.value)
-
-  //let story_el = document.querySelector(`.story[data-href="${urlfield.value}"]`)
-  //stories.mark_selected(story_el, urlfield.value)
 }
 
 function load_started(e, x) {

@@ -1,7 +1,6 @@
 const { Story } = require("../data/Story")
-const { resort_single } = require("./StoryList")
+const story_list = require("./StoryList")
 const story_parser = require("../parser")
-const filters = require("../filters")
 const { ipcRenderer } = require("electron")
 const web_control = require("../web_control")
 
@@ -94,6 +93,9 @@ function story_html(story, ipc = false) {
 }
 
 function update_storyel(e, story_el) {
+  if (!e || !e.detail) {
+    console.log("update_storyel fail", e, story_el)
+  }
   if (e.detail.value instanceof Story && e.detail.name) {
     switch (e.detail.name) {
       //TODO diff class before after, or completley redraw or fix on-change
@@ -133,10 +135,15 @@ function direct_events(story, story_el) {
 
   let filter_btn = story_el.querySelector(".filter_btn")
   filter_btn.onclick = (x) => {
+    const {
+      show_filter,
+      show_filter_dialog,
+      add_filter,
+    } = require("../filters")
     if (story_el.classList.contains("filtered")) {
-      filters.show_filter(story.filter)
+      show_filter(story.filter)
     }
-    filters.show_filter_dialog(x, filter_btn, story, add_story)
+    show_filter_dialog(x, filter_btn, story, add_filter)
   }
 
   let outline_btn = story_el.querySelector(".outline_btn")
@@ -146,8 +153,7 @@ function direct_events(story, story_el) {
 
   let read_btn = story_el.querySelector(".read_btn")
   read_btn.addEventListener("click", (x) => {
-    const { resort_single } = require("./StoryList")
-    toggle_read(story.href, resort_single)
+    toggle_read(story.href, story_list.resort_single)
   })
 
   //open story with middle click on "skip reading"
@@ -180,7 +186,8 @@ function ipc_events(story, story_el) {
     if (story_el.classList.contains("filtered")) {
       ipcRenderer.send("show_filter", story.filter)
     }
-    filters.show_filter_dialog(x, filter_btn, story, (x) => {
+    const { show_filter_dialog } = require("../filters")
+    show_filter_dialog(x, filter_btn, story, (x) => {
       ipcRenderer.send("add_filter", x)
     })
   }

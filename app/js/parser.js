@@ -4,6 +4,7 @@ module.exports = {
 }
 
 const { Story } = require("./data/Story")
+const menu = require("./menu")
 
 let parsers = {
   "https://news.ycombinator.com/": {

@@ -9,6 +9,8 @@ module.exports = {
   init,
 }
 
+const story_list = require("./view/StoryList")
+
 const default_sources = [
   "https://news.ycombinator.com/",
   "https://news.ycombinator.com/news?p=2",
@@ -149,18 +151,18 @@ function update_on_change(event) {
       console.log("update", doc._id)
       switch (doc._id) {
         case "read_list":
-          stories.refilter()
+          story_list.refilter()
           break
         case "story_sources":
           set_sources_area()
-          stories.reload()
+          story_list.reload()
           break
         case "filter_list":
           set_filter_area()
-          stories.refilter()
+          story_list.refilter()
           break
         case "star_list":
-          stories.restar()
+          story_list.restar()
           break
         case "theme":
           restore_theme_settings()
@@ -243,7 +245,7 @@ async function save_sources_settings() {
     return x.trim() != ""
   })
 
-  pouch_set("story_sources", story_sources, stories.reload)
+  pouch_set("story_sources", story_sources, story_list.reload)
 }
 
 async function set_filter_area() {
@@ -255,7 +257,7 @@ function save_filter_settings() {
     return x.trim() != ""
   })
   save_filterlist(filter_list)
-  stories.refilter()
+  story_list.refilter()
 }
 
 function get_readlist() {
@@ -295,7 +297,7 @@ async function pouch_set(id, value, callback) {
 
 async function save_filterlist(filter_list) {
   pouch_set("filter_list", filter_list, (x) => {
-    stories.refilter()
+    story_list.refilter()
     set_filter_area()
   })
 }
