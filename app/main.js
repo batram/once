@@ -3,6 +3,14 @@ const path = require("path")
 
 require("electron-reload")(path.join(__dirname))
 
+global.icon_path = path.join(
+  __dirname,
+  "imgs",
+  "icons",
+  "mipmap-mdpi",
+  "ic_launcher.png"
+)
+
 const ElectronBlocker = require("@cliqz/adblocker-electron")
 const fetch = require("cross-fetch")
 
@@ -17,7 +25,7 @@ function createWindow() {
       webSecurity: false,
       webviewTag: true,
     },
-    icon: __dirname + "/imgs/icons/mipmap-mdpi/ic_launcher.png",
+    icon: global.icon_path,
   })
 
   win.removeMenu()

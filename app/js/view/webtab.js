@@ -45,6 +45,8 @@ function init() {
 
   presenters.init_in_webtab()
 
+  handle_urlbar()
+
   ipcRenderer.on("data_change", (event, data) => {
     console.log("data_change", event, data)
     const story_list = require("../view/StoryList")
@@ -99,51 +101,73 @@ function init() {
     webview.loadURL("about:blank")
   }
 
-  pop_out_btn.onclick = (x) => {
-    pop_out_btn.style.display = "none"
-    if (window.tab_state == "detached") {
-      return
+  pop_out_btn.onclick = pop_out
+}
+
+function pop_out() {
+  pop_out_btn.style.display = "none"
+  if (window.tab_state == "detached") {
+    return
+  }
+
+  let cwin = remote.getCurrentWindow()
+  let size = cwin.getSize()
+  let poped_view = cwin.getBrowserView()
+  let view_bound = poped_view.getBounds()
+  let parent_pos = cwin.getPosition()
+
+  let win_popup = new BrowserWindow({
+    x: parent_pos[0] + view_bound.x,
+    y: parent_pos[1],
+    width: view_bound.width,
+    height: size[1],
+    autoHideMenuBar: true,
+    icon: remote.getGlobal("icon_path"),
+  })
+
+  function follow_resize() {
+    let box = win_popup.getContentBounds()
+    console.log(size)
+    poped_view.setBounds({
+      x: 0,
+      y: 0,
+      width: box.width,
+      height: box.height,
+    })
+  }
+  follow_resize()
+  win_popup.on("resize", follow_resize)
+
+  let winid = cwin.id
+  win_popup.setBrowserView(poped_view)
+  cwin.removeBrowserView(poped_view)
+
+  window.tab_state = "detached"
+
+  win_popup.on("close", (x) => {
+    let main_browser_window = BrowserWindow.fromId(winid)
+    if (main_browser_window && !main_browser_window.isDestroyed()) {
+      main_browser_window.webContents.send("mark_selected", "about:gone")
     }
+    poped_view.destroy()
+  })
+}
 
-    let cwin = remote.getCurrentWindow()
-    let size = cwin.getSize()
-    let poped_view = cwin.getBrowserView()
-    let view_bound = poped_view.getBounds()
-    let parent_pos = cwin.getPosition()
-
-    let win_popup = new BrowserWindow({
-      x: parent_pos[0] + view_bound.x,
-      y: parent_pos[1],
-      width: view_bound.width,
-      height: size[1],
-      autoHideMenuBar: true,
+function handle_urlbar() {
+  let urlfield = document.querySelector("#urlfield")
+  if (urlfield) {
+    urlfield.addEventListener("focus", (e) => {
+      urlfield.select()
     })
 
-    function follow_resize() {
-      let box = win_popup.getContentBounds()
-      console.log(size)
-      poped_view.setBounds({
-        x: 0,
-        y: 0,
-        width: box.width,
-        height: box.height,
-      })
-    }
-    follow_resize()
-    win_popup.on("resize", follow_resize)
-
-    let winid = cwin.id
-    win_popup.setBrowserView(poped_view)
-    cwin.removeBrowserView(poped_view)
-
-    window.tab_state = "detached"
-
-    win_popup.on("close", (x) => {
-      let main_browser_window = BrowserWindow.fromId(winid)
-      if (main_browser_window && !main_browser_window.isDestroyed()) {
-        main_browser_window.webContents.send("mark_selected", "about:gone")
+    urlfield.addEventListener("keyup", (e) => {
+      console.log(e)
+      if (e.key == "Enter") {
+        if (urlfield.value == "") {
+          urlfield.value = "about:blank"
+        }
+        open_in_webview(urlfield.value)
       }
-      poped_view.destroy()
     })
   }
 }
