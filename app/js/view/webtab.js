@@ -7,7 +7,7 @@ module.exports = {
 }
 
 const { remote, ipcRenderer } = require("electron")
-const { webContents, BrowserWindow, BrowserView } = remote
+const { BrowserWindow, BrowserView } = remote
 const presenters = require("../presenters")
 const contextmenu = require("../view/contextmenu")
 const fullscreen = require("../view/fullscreen")
@@ -33,6 +33,10 @@ function create(main_id) {
 }
 
 function init() {
+  window.use_console_catch_mouse = true
+
+  window.addEventListener("mouseup", handle_history)
+
   ipcRenderer.on("set_main_id", (event, data) => {
     window.main_id = data
     window.tab_state = "attached"
@@ -48,7 +52,7 @@ function init() {
   handle_urlbar()
 
   ipcRenderer.on("data_change", (event, data) => {
-    console.log("data_change", event, data)
+    console.debug("data_change", event, data)
     const story_list = require("../view/StoryList")
     let selected = story_list.get_by_href(data.href)
     if (selected) {
@@ -60,7 +64,7 @@ function init() {
     open_in_webview(href)
   })
   ipcRenderer.on("update_selected", (event, story, colors) => {
-    console.log("update_selected", story)
+    console.debug("update_selected", story)
     update_selected(story, colors)
   })
   window.webview = document.querySelector("#webview")
@@ -70,32 +74,16 @@ function init() {
     send_to_main("update-target-url", url)
   })
 
-  webview.addEventListener("click", (e) => {
-    console.log("webview click", e)
-  })
   webview.addEventListener("did-fail-load", (e) => {
     console.log("webview did-fail-load", e)
   })
 
-  webview.addEventListener("console-message", (e) => {
-    console.log("webview log", e)
-    if (e.message == "mousedown 3") {
-      if (webview.canGoBack()) {
-        webview.goBack()
-      }
-    } else if (e.message == "mousedown 4") {
-      if (webview.canGoForward()) {
-        webview.goForward()
-      }
-    }
-  })
-
   //webview.addEventListener("load-commit", loadcommit)
-  webview.addEventListener("dom-ready", inject_css)
+  webview.addEventListener("dom-ready", dom_ready)
   webview.addEventListener("load-commit", load_once)
   webview.addEventListener("did-start-loading", load_started)
   webview.addEventListener("did-navigate", update_url)
-  webview.addEventListener("did-navigate-in-page", console.log)
+  webview.addEventListener("did-navigate-in-page", console.debug)
 
   webview.addEventListener("new-window", async (e) => {
     //TODO: open in own popup
@@ -136,7 +124,6 @@ function pop_out() {
 
   function follow_resize() {
     let box = win_popup.getContentBounds()
-    console.log(size)
     poped_view.setBounds({
       x: 0,
       y: 0,
@@ -170,7 +157,6 @@ function handle_urlbar() {
     })
 
     urlfield.addEventListener("keyup", (e) => {
-      console.log(e)
       if (e.key == "Enter") {
         if (urlfield.value == "") {
           urlfield.value = "about:blank"
@@ -179,6 +165,22 @@ function handle_urlbar() {
       }
     })
   }
+}
+
+function handle_history(e) {
+  if (e.button == 3) {
+    if (webview.canGoBack()) {
+      webview.goBack()
+    }
+    return true
+  }
+  if (e.button == 4) {
+    if (webview.canGoForward()) {
+      webview.goForward()
+    }
+    return true
+  }
+  return false
 }
 
 function is_attached() {
@@ -228,8 +230,23 @@ function load_once() {
   //waiting for the webcontents of webview to be intialized
   webview = document.querySelector("#webview")
   webview.removeEventListener("load-commit", load_once)
+  let webviewContents = remote.webContents.fromId(webview.getWebContentsId())
 
-  webviewContents = webContents.fromId(webview.getWebContentsId())
+  webviewContents.debugger.on("message", function (event, method, params) {
+    console.debug(event, method, params)
+    if (method == "Runtime.bindingCalled") {
+      let name = params.name
+      let payload = params.payload
+
+      if (name == "mhook") {
+        if (payload == "3") {
+          webview.goBack()
+        } else if (payload == "4") {
+          webview.goForward()
+        }
+      }
+    }
+  })
 
   webviewContents.on("context-menu", contextmenu.inspect_menu)
   webviewContents.on("update-target-url", (event, url) => {
@@ -246,13 +263,43 @@ function load_once() {
   })
 }
 
+function dom_ready() {
+  inject_css()
+
+  if (window.use_console_catch_mouse) {
+    let webviewContents = remote.webContents.fromId(webview.getWebContentsId())
+    try {
+      if (webviewContents.debugger.isAttached()) {
+        webviewContents.debugger.detach()
+        webviewContents.debugger.attach()
+      } else {
+        webviewContents.debugger.attach()
+      }
+    } catch (e) {
+      console.log(e)
+    }
+
+    webviewContents.debugger.sendCommand("Runtime.enable")
+
+    webviewContents.debugger
+      .sendCommand("Runtime.addBinding", { name: "mhook" })
+      .then((x) => {
+        let params = {
+          allowUnsafeEvalBlockedByCSP: true,
+          expression: `window.addEventListener('mousedown', (e) => {
+        mhook(e.button.toString())
+      }); 1`,
+        }
+
+        webviewContents.debugger
+          .sendCommand("Runtime.evaluate", params)
+          .catch(console.error)
+      })
+      .catch(console.error)
+  }
+}
+
 function load_started(e, x) {
-  webviewContents = webContents.fromId(webview.getWebContentsId())
-
-  webview.executeJavaScript(`document.addEventListener('mousedown', (e) => {
-    console.log('mousedown', e.button)
-  })`)
-
   inject_css()
 }
 
