@@ -232,6 +232,14 @@ function load_once() {
   webview.removeEventListener("load-commit", load_once)
   let webviewContents = remote.webContents.fromId(webview.getWebContentsId())
 
+  try {
+    if (!webviewContents.debugger.isAttached()) {
+      webviewContents.debugger.attach()
+    }
+  } catch (e) {
+    console.log(e)
+  }
+
   webviewContents.debugger.on("message", function (event, method, params) {
     console.debug(event, method, params)
     if (method == "Runtime.bindingCalled") {
@@ -247,6 +255,31 @@ function load_once() {
       }
     }
   })
+  webviewContents.debugger.sendCommand("Runtime.addBinding", {
+    name: "mhook",
+  })
+
+  webviewContents.debugger.sendCommand("Runtime.enable")
+  webviewContents.debugger.sendCommand("Page.enable")
+  webviewContents.debugger.sendCommand("Page.setLifecycleEventsEnabled", {
+    enabled: true,
+  })
+
+  webviewContents.debugger.sendCommand(
+    "Page.addScriptToEvaluateOnNewDocument",
+    {
+      source: `
+      {
+        let ß = window.mhook
+        window.addEventListener("mousedown", (e) => {
+          ß(e.button.toString())
+        })
+      }
+    
+      delete window.mhook
+      `,
+    }
+  )
 
   webviewContents.on("context-menu", contextmenu.inspect_menu)
   webviewContents.on("update-target-url", (event, url) => {
@@ -265,38 +298,6 @@ function load_once() {
 
 function dom_ready() {
   inject_css()
-
-  if (window.use_console_catch_mouse) {
-    let webviewContents = remote.webContents.fromId(webview.getWebContentsId())
-    try {
-      if (webviewContents.debugger.isAttached()) {
-        webviewContents.debugger.detach()
-        webviewContents.debugger.attach()
-      } else {
-        webviewContents.debugger.attach()
-      }
-    } catch (e) {
-      console.log(e)
-    }
-
-    webviewContents.debugger.sendCommand("Runtime.enable")
-
-    webviewContents.debugger
-      .sendCommand("Runtime.addBinding", { name: "mhook" })
-      .then((x) => {
-        let params = {
-          allowUnsafeEvalBlockedByCSP: true,
-          expression: `window.addEventListener('mousedown', (e) => {
-        mhook(e.button.toString())
-      }); 1`,
-        }
-
-        webviewContents.debugger
-          .sendCommand("Runtime.evaluate", params)
-          .catch(console.error)
-      })
-      .catch(console.error)
-  }
 }
 
 function load_started(e, x) {
