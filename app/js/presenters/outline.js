@@ -54,14 +54,16 @@ function is_presenter_url(url) {
 }
 
 function outline_button_active() {
-  if (document.querySelector("#outline_webview_btn")) {
-    outline_webview_btn.classList.add("active")
+  let button = document.querySelector("#outline_webview_btn")
+  if (button) {
+    button.classList.add("active")
   }
 }
 
 function outline_button_inactive() {
-  if (document.querySelector("#outline_webview_btn")) {
-    outline_webview_btn.classList.remove("active")
+  let button = document.querySelector("#outline_webview_btn")
+  if (button) {
+    button.classList.remove("active")
   }
 }
 
@@ -121,6 +123,16 @@ function urlbar_button() {
   button.style.marginRight = "3px"
 
   button.onclick = (x) => {
+    let webview = document.querySelector("#webview")
+    let urlfield = document.querySelector("#urlfield")
+    if (!webview || !urlfield) {
+      console.error(
+        "outline failed to find webview and urlfield",
+        webview,
+        urlfield
+      )
+      return
+    }
     //TODO: track state in a different way
     if (button.classList.contains("active")) {
       webview.loadURL(urlfield.value).catch((e) => {
@@ -138,7 +150,12 @@ function display_url(url) {
   outline_button_inactive()
 
   if (url.startsWith(outline_api)) {
-    webview.executeJavaScript("(" + outline_jshook.toString() + ")()")
+    let webview = document.querySelector("#webview")
+    if (webview) {
+      webview.executeJavaScript("(" + outline_jshook.toString() + ")()")
+    } else {
+      console.error("outline failed to find webview")
+    }
     outline_button_active()
   } else if (url.startsWith(data_outline_url)) {
     outline_button_active()
@@ -153,6 +170,12 @@ async function present(url) {
 }
 
 async function outline(url) {
+  let webview = document.querySelector("#webview")
+  if (!webview) {
+    console.error("outline failed to find webview")
+    return
+  }
+
   let urlfield = document.querySelector("#urlfield")
   if (urlfield == undefined) {
     web_control.send_or_create_tab("outline", url)
@@ -176,7 +199,7 @@ async function outline(url) {
   }
 
   if (!content_resp.ok) {
-    console.log("failed to get story content", url)
+    console.error("outline failed to get story content", url)
     story_content = "<h1>failed to get story content</h1>"
   } else {
     url = content_resp.url
@@ -261,6 +284,17 @@ async function google_cache(url) {
 }
 
 function outline_fallback(url) {
+  let webview = document.querySelector("#webview")
+  let urlfield = document.querySelector("#urlfield")
+  if (!webview || !urlfield) {
+    console.error(
+      "outline failed to find webview or urlfield",
+      webview,
+      urlfield
+    )
+    return
+  }
+
   urlfield.value = url
   let options = {
     httpReferrer: "https://outline.com/",
