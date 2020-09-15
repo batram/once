@@ -100,48 +100,43 @@ function init() {
   }
 
   pop_out_btn.onclick = (x) => {
+    pop_out_btn.style.display = "none"
+    if (window.tab_state == "detached") {
+      return
+    }
+
     let cwin = remote.getCurrentWindow()
     let size = cwin.getSize()
     let poped_view = cwin.getBrowserView()
-    window.tab_state = "detached"
+    let view_bound = poped_view.getBounds()
+    let parent_pos = cwin.getPosition()
 
     let win_popup = new BrowserWindow({
-      width: window.innerWidth,
+      x: parent_pos[0] + view_bound.x,
+      y: parent_pos[1],
+      width: view_bound.width,
       height: size[1],
+      autoHideMenuBar: true,
     })
-    win_popup.removeMenu()
-    win_popup.loadURL(
-      "data:text/html,<html style='width: 100%; height: 100%; background: black;'></html>"
-    )
 
-    win_popup.webContents.on("console-message", (e, x, m) => {
-      if (!m.startsWith("[")) {
-        return
-      }
-      let size = JSON.parse(m)
-
+    function follow_resize() {
+      let box = win_popup.getContentBounds()
+      console.log(size)
       poped_view.setBounds({
         x: 0,
         y: 0,
-        width: size[0],
-        height: size[1],
+        width: box.width,
+        height: box.height,
       })
-    })
-
-    win_popup.webContents.on("did-finish-load", (x) => {
-      win_popup.webContents.executeJavaScript(
-        `  
-        console.log(JSON.stringify([window.innerWidth, window.innerHeight]));
-        window.addEventListener("resize", (x) => {
-          console.log(JSON.stringify([window.innerWidth, window.innerHeight]));
-        });
-        `
-      )
-    })
+    }
+    follow_resize()
+    win_popup.on("resize", follow_resize)
 
     let winid = cwin.id
     win_popup.setBrowserView(poped_view)
     cwin.removeBrowserView(poped_view)
+
+    window.tab_state = "detached"
 
     win_popup.on("close", (x) => {
       let main_browser_window = BrowserWindow.fromId(winid)
