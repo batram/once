@@ -70,7 +70,15 @@ function init() {
     send_to_main("update-target-url", url)
   })
 
+  webview.addEventListener("click", (e) => {
+    console.log("webview click", e)
+  })
+  webview.addEventListener("did-fail-load", (e) => {
+    console.log("webview did-fail-load", e)
+  })
+
   webview.addEventListener("console-message", (e) => {
+    console.log("webview log", e)
     if (e.message == "mousedown 3") {
       if (webview.canGoBack()) {
         webview.goBack()
@@ -87,6 +95,7 @@ function init() {
   webview.addEventListener("load-commit", load_once)
   webview.addEventListener("did-start-loading", load_started)
   webview.addEventListener("did-navigate", update_url)
+  webview.addEventListener("did-navigate-in-page", console.log)
 
   webview.addEventListener("new-window", async (e) => {
     //TODO: open in own popup
