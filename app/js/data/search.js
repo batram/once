@@ -20,6 +20,12 @@ function init_search() {
     search_stories(e.target.value)
   })
 
+  search_scope.addEventListener("change", (e) => {
+    if (searchfield.value != "") {
+      search_stories(searchfield.value)
+    }
+  })
+
   searchfield.addEventListener("keyup", (e) => {
     if (e.keyCode === 27) {
       //ESC
