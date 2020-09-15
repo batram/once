@@ -5,11 +5,11 @@ module.exports = {
   send_to_webtab,
 }
 
-const { remote, ipcRenderer, WebContents } = require("electron")
+const { remote, ipcRenderer } = require("electron")
 const contextmenu = require("./view/contextmenu")
 const filters = require("./data/filters")
-const fullscreen = require("./view/fullscreen")
 const webtab = require("./view/webtab")
+const fullscreen = require("./view/fullscreen")
 
 function attach_webtab(size_to_el) {
   webtab_comms()
@@ -74,6 +74,7 @@ function webtab_comms() {
     ipcRenderer.removeListener("show_filter", show_filter)
     ipcRenderer.removeListener("add_filter", add_filter)
     ipcRenderer.removeListener("subscribe_to_change", subscribe_to_change)
+    ipcRenderer.removeListener("fullscreen", fullscreen.set)
     //TODO: remove presenter listeners
   })
 

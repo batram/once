@@ -3,6 +3,7 @@ module.exports = {
   open_in_webview,
   create,
   send_to_main,
+  is_attached,
 }
 
 const { remote, ipcRenderer } = require("electron")
@@ -11,7 +12,7 @@ const presenters = require("../presenters")
 const contextmenu = require("../view/contextmenu")
 const fullscreen = require("../view/fullscreen")
 
-function create(main_winid) {
+function create(main_id) {
   const view = new BrowserView({
     webPreferences: {
       nodeIntegration: true,
@@ -21,11 +22,11 @@ function create(main_winid) {
     },
   })
 
-  let main_window = BrowserWindow.fromId(main_winid)
+  let main_window = BrowserWindow.fromId(main_id)
   main_window.setBrowserView(view)
 
   view.webContents.loadFile("app/webtab.html").then((x) => {
-    view.webContents.send("set_main_id", main_winid)
+    view.webContents.send("set_main_id", main_id)
   })
 
   return view
@@ -34,14 +35,21 @@ function create(main_winid) {
 function init() {
   ipcRenderer.on("set_main_id", (event, data) => {
     window.main_id = data
+    window.tab_state = "attached"
     send_to_main("subscribe_to_change", { wc_id: current_wc.id })
+  })
+
+  ipcRenderer.on("detach", (event, data) => {
+    window.tab_state = "detached"
   })
 
   presenters.init_in_webtab()
 
   ipcRenderer.on("data_change", (event, data) => {
     console.log("data_change", event, data)
-    if (data.href == document.querySelector(".selected").dataset.href) {
+    const story_list = require("../view/StoryList")
+    let selected = story_list.get_by_href(data.href)
+    if (selected) {
       update_selected(data)
     }
   })
@@ -72,19 +80,11 @@ function init() {
     }
   })
 
-  webview.addEventListener("enter-html-full-screen", (e) => {
-    fullscreen.enter()
-  })
-  webview.addEventListener("leave-html-full-screen", (e) => {
-    fullscreen.leave()
-  })
-
   //webview.addEventListener("load-commit", loadcommit)
   webview.addEventListener("dom-ready", inject_css)
   webview.addEventListener("load-commit", load_once)
   webview.addEventListener("did-start-loading", load_started)
   webview.addEventListener("did-navigate", update_url)
-  window.addEventListener("keyup", fullscreen.key_handler)
 
   webview.addEventListener("new-window", async (e) => {
     //TODO: open in own popup
@@ -103,6 +103,7 @@ function init() {
     let cwin = remote.getCurrentWindow()
     let size = cwin.getSize()
     let poped_view = cwin.getBrowserView()
+    window.tab_state = "detached"
 
     let win_popup = new BrowserWindow({
       width: window.innerWidth,
@@ -152,6 +153,10 @@ function init() {
   }
 }
 
+function is_attached() {
+  return window.tab_state == "attached" && window.main_id
+}
+
 function update_selected(story, colors) {
   if (typeof colors == "string") {
     var style =
@@ -179,7 +184,15 @@ function update_selected(story, colors) {
 function update_url(e) {
   let url = e.url
   url = presenters.modify_url(url)
-  send_to_main("mark_selected", url)
+  if (is_attached()) {
+    send_to_main("mark_selected", url)
+  } else {
+    const story_list = require("../view/StoryList")
+    let selected = story_list.get_by_href(url)
+    if (!selected) {
+      update_selected(null, null)
+    }
+  }
   urlfield.value = url
 }
 

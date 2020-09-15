@@ -6,6 +6,7 @@ const { story_map } = require("../data/StoryLoader")
 
 module.exports = {
   mark_selected,
+  get_by_href,
   reload,
   refilter,
   restar,
@@ -34,22 +35,30 @@ function add(story, bucket = "stories") {
   stories_container.appendChild(new_story_el)
 }
 
-function mark_selected(story_el, url) {
-  if (!story_el && url) {
-    let info_can = document.querySelector(`.story a[href="${url}"]`)
-    if (info_can) {
-      let parent = info_can.parentElement
-      let max = 5
-      while (!parent.classList.contains("story") && max > 0) {
-        max -= 1
-        parent = parent.parentElement
+function get_by_href(url) {
+  let story_el = null
 
-        if (parent.classList.contains("story")) {
-          story_el = parent
-          break
-        }
+  let info_can = document.querySelector(`.story a[href="${url}"]`)
+  if (info_can) {
+    let parent = info_can.parentElement
+    let max = 5
+    while (!parent.classList.contains("story") && max > 0) {
+      max -= 1
+      parent = parent.parentElement
+
+      if (parent.classList.contains("story")) {
+        story_el = parent
+        break
       }
     }
+  }
+
+  return story_el
+}
+
+function mark_selected(story_el, url) {
+  if (!story_el && url) {
+    story_el = get_by_href(url)
   }
 
   document.querySelectorAll(".story").forEach((x) => {
