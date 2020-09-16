@@ -230,6 +230,7 @@ function info_block(source_ob) {
   comments_link.innerText = " [comments] "
   comments_link.href = source_ob.comment_url
   comments_link.addEventListener("click", open_link_handler)
+  comments_link.addEventListener("auxclick", open_link_handler)
   info.appendChild(comments_link)
 
   let time = document.createElement("div")
@@ -254,8 +255,11 @@ function open_link_handler(e) {
   if (e.target.href) {
     href = e.target.href
   }
-
-  web_control.open_in_tab(href)
+  if (e.button == 0) {
+    web_control.open_in_tab(href)
+  } else if (e.button == 1) {
+    web_control.open_in_new_tab(href)
+  }
 
   return false
 }

@@ -3,6 +3,8 @@ module.exports = {
   open_panel,
 }
 
+const sep_slider = require("./sep_slider")
+
 document.querySelectorAll("#menu .sub").forEach((x) => {
   x.onclick = (e) => {
     open_panel(x.dataset.panel)
@@ -10,6 +12,7 @@ document.querySelectorAll("#menu .sub").forEach((x) => {
 })
 
 function open_panel(panel) {
+  sep_slider.expand_left()
   document.querySelectorAll("#left_main .panel").forEach((x) => {
     if (x.dataset.panel != panel) {
       x.style.display = "none"

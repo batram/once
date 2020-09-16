@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>once</title>
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="script-src 'self' 'unsafe-inline';"
+    />
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body class="animated">
+    <div id="titlebar">once</div>
+    <div id="window_content">
+      <div id="left_panel">
+        <div id="menu">
+          <div class="sub" id="settings_menu_btn" data-panel="settings">
+            Settings
+          </div>
+          <div class="sub" id="stories_menu_btn" data-panel="stories">
+            Stories
+          </div>
+        </div>
+        <div id="left_main">
+          <div id="stories_panel" class="panel" data-panel="stories">
+            <div id="search" class="bar">
+              <select id="search_scope">
+                <option>local</option>
+                <option>global</option>
+              </select>
+              <input type="text" id="searchfield" placeholder="search" />
+              <div
+                id="cancel_search_btn"
+                class="bar_btn btn"
+                title="cancel search"
+              >
+                <img src="imgs/x.svg" />
+              </div>
+              <div
+                id="reload_stories_btn"
+                class="btn bar_btn"
+                title="reload stories"
+              >
+                <img src="imgs/reload.svg" />
+              </div>
+              <div class="btn bar_btn collapse" title="collapse">
+                &lt;
+              </div>
+            </div>
+            <div class="stories_container" id="stories"></div>
+            <div class="stories_container" id="global_search_results"></div>
+            <div class="stories_container" id="filtered_stories"></div>
+          </div>
+          <div id="settings_panel" class="panel" data-panel="settings">
+            <div class="bar" style="height: 28px;">
+              <div style="font-size: 13px; margin-top: 5px;">Settings</div>
+              <div class="btn bar_btn collapse" title="collapse">
+                &lt;
+              </div>
+            </div>
+
+            <div class="settings_block">
+              Story sources:
+              <textarea id="sources_area"></textarea>
+              <input type="button" value="save" />
+              <input type="button" value="cancel" />
+            </div>
+            <div class="settings_block">
+              Filters:
+              <textarea id="filter_area"></textarea>
+              <input type="button" value="save" />
+              <input type="button" value="cancel" />
+            </div>
+            <div class="settings_block">
+              CouchDB Sync:
+              <input
+                id="couch_input"
+                type="text"
+                placeholder="https://cred:entials@couchdb.example.org/once"
+              />
+              <input type="button" value="save" />
+              <input type="button" value="cancel" />
+            </div>
+            <div class="settings_block">
+              Theme:
+              <select id="theme_select">
+                <option value="dark">Dark</option>
+                <option value="light">Light</option>
+                <option value="system">System</option>
+                <option value="custom">TODO: Custom</option>
+              </select>
+              <p>
+                <input type="checkbox" id="anim_checkbox" />
+                <label for="anim_checkbox">Animations</label>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="sep_slider"></div>
+      <div id="right_panel">
+        <div id="tab_dropzone" class="bar">
+          <div id="addtab" title="open new tab">+</div>
+        </div>
+        <div id="tab_content">
+          <!-- space to display contents controlled by web_control -->
+          <div id="foverlay"></div>
+        </div>
+      </div>
+      <div id="url_target"></div>
+    </div>
+  </body>
+  <script src="js/third_party/pouchdb.min.js"></script>
+  <script src="js/main_window.js"></script>
+</html>

@@ -7,8 +7,30 @@ body {
   margin: 0;
   overflow: hidden;
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
+  box-sizing: content-box;
   font-family: Verdana, Geneva, sans-serif;
+}
+
+#titlebar {
+  -webkit-app-region: drag;
+  user-select: none;
+  width: 100%;
+  height: 30px;
+  padding: 5px;
+  display: none;
+  flex: 0;
+  background-color: var(--sep-color);
+}
+
+#window_content {
+  -webkit-app-region: no-drag;
+  display: flex;
+  flex-direction: row;
+  border: thin solid var(--sep-color);
+  display: flex;
+  flex: 1;
+  overflow: hidden;
 }
 
 @media (prefers-color-scheme: light) {
@@ -67,6 +89,8 @@ option {
   height: 100%;
   display: flex;
   flex-direction: row;
+  background: var(--main-bg-color);
+  overflow: hidden;
 }
 
 #stories_panel {
@@ -143,6 +167,15 @@ option {
   padding: 5px 15px;
   display: flex;
   flex-direction: row;
+}
+
+.bar .collapse {
+  margin-right: -17px;
+  border: thin solid var(--border-high-color);
+}
+
+#left_panel .bar {
+  justify-content: space-between;
 }
 
 .bar input {
@@ -243,15 +276,22 @@ option {
   color: var(--text-color);
 }
 
-#content {
+#right_panel {
   width: 50%;
+  height: 100%;
   min-width: 20%;
   display: flex;
   flex-direction: column;
 }
 
+#tab_content {
+  width: 100%;
+  height: 100%;
+}
+
 #webtab {
   width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
 }
@@ -345,7 +385,6 @@ option {
 }
 
 #settings_panel {
-  padding: 7px;
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
@@ -354,9 +393,10 @@ option {
   display: none;
 }
 
-#settings_panel div {
+#settings_panel .settings_block {
   font-size: 13px;
-  padding: 15px 5px;
+  padding: 15px;
+  margin: 5px;
   border-bottom: thin solid var(--border-color);
 }
 
@@ -409,6 +449,34 @@ option {
   border: none;
   border-right: thin solid black;
   background: none;
+}
+
+#tab_dropzone {
+  height: 20px;
+}
+
+#tab_dropzone .tab,
+#tab_dropzone #addtab {
+  min-width: 140px;
+  border: thin solid var(--border-high-color);
+  border-bottom: none;
+  margin-bottom: -5px;
+  padding: 4px;
+  height: 15px;
+  overflow: hidden;
+  cursor: pointer;
+  margin-left: 2px;
+  font-size: 13px;
+}
+
+#tab_dropzone .active {
+  background: var(--border-high-color);
+  cursor: pointer;
+  margin-top: 2px;
+}
+
+#tab_dropzone #addtab {
+  min-width: 10px;
 }
 
 .fullscreen #controlbar,

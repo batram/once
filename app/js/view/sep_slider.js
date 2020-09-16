@@ -1,18 +1,24 @@
 module.exports = {
   init_slider,
+  collapse_left,
+  expand_left,
 }
 
 function init_slider() {
-  let percent = get_slider_percent()
-  left_panel.style.width = 100 - percent + "%"
-  content.style.width = percent + "%"
+  reset_position()
 
+  document.querySelectorAll(".collapse").forEach((x) => {
+    x.onclick = collapse_left
+  })
   //resize on border
   function resize(e) {
     e.preventDefault()
     percent = ((window.innerWidth - e.x) / window.innerWidth) * 100
     left_panel.style.width = 100 - percent + "%"
-    content.style.width = percent + "%"
+    let right_panel = document.querySelector("#right_panel")
+    if (right_panel) {
+      right_panel.style.width = percent + "%"
+    }
     save_slider_percent(percent)
   }
 
@@ -28,6 +34,35 @@ function init_slider() {
     document.body.style.cursor = ""
     document.removeEventListener("mousemove", resize)
   })
+}
+
+function reset_position() {
+  let percent = get_slider_percent()
+  let left_panel = document.querySelector("#left_panel")
+  left_panel.style.width = 100 - percent + "%"
+  let right_panel = document.querySelector("#right_panel")
+  if (right_panel) {
+    right_panel.style.width = percent + "%"
+  }
+}
+
+function collapse_left() {
+  let right_panel = document.querySelector("#right_panel")
+  right_panel.style.width = "100%"
+
+  let left_panel = document.querySelector("#left_panel")
+  left_panel.style.width = "0%"
+  left_panel.style.minWidth = "80px"
+}
+
+function expand_left() {
+  let right_panel = document.querySelector("#right_panel")
+  right_panel.style.width = ""
+
+  let left_panel = document.querySelector("#left_panel")
+  left_panel.style.width = ""
+  left_panel.style.minWidth = ""
+  reset_position()
 }
 
 function save_slider_percent(p) {

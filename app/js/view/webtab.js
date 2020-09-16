@@ -22,23 +22,128 @@ function create(main_id) {
     },
   })
 
-  let main_window = BrowserWindow.fromId(main_id)
-  main_window.setBrowserView(view)
-
   view.webContents.loadFile("app/webtab.html").then((x) => {
-    view.webContents.send("set_main_id", main_id)
+    view.webContents.send("attached", main_id)
   })
 
   return view
 }
 
+function tab_move_handler(el) {
+  let offset = 0
+
+  function swivle(e) {
+    let win_popup = get_parent_win()
+    console.log("swivle", e)
+    let new_pos_x = offset + e.x
+    if (is_attached()) {
+      e.preventDefault()
+      if (new_pos_x < 0) {
+        pop_out()
+      }
+      el.style.marginLeft = new_pos_x + "px"
+    } else if (win_popup) {
+      el.setAttribute("style", "-webkit-app-region: drag")
+      /*
+      let pos = win_popup.getPosition()
+      let x = pos[0] + e.movementX
+      let y = pos[1] + e.movementY
+      win_popup.setPosition(x, y)*/
+    }
+  }
+
+  function deswivle() {
+    document.body.style.cursor = ""
+    document.removeEventListener("mousemove", swivle)
+    document.removeEventListener("mouseup", deswivle)
+  }
+
+  document.addEventListener("mouseout", (e) => {
+    console.log("mouseout")
+    e.preventDefault()
+    document.body.style.cursor = ""
+    document.removeEventListener("mousemove", swivle)
+    document.removeEventListener("mouseup", deswivle)
+  })
+
+  el.addEventListener("mousedown", (e) => {
+    offset = -e.x
+    console.log("mousedown tab")
+    e.preventDefault()
+    document.body.style.cursor = "move"
+    document.addEventListener("mousemove", swivle)
+    document.addEventListener("mouseup", deswivle)
+  })
+}
+
+function get_parent_win() {
+  if (window.parent_id && parseInt(window.parent_id)) {
+    let paren = BrowserWindow.fromBrowserView(parseInt(window.parent_id))
+    return BrowserWindow.fromId(parseInt(window.parent_id))
+  }
+}
+
 function init() {
   window.use_console_catch_mouse = true
+  let cwin = remote.getCurrentWindow()
+  let cview = cwin.getBrowserView()
 
+  let current_wc = remote.getCurrentWebContents()
+  /*
+  document.ondragover = (x) => {
+    x.preventDefault()
+    console.log("ondragover", x)
+    document.querySelector("#tab_dropzone").style.background = "red"
+  }
+
+  document.ondragleave = (x) => {
+    console.log("ondragleave", x)
+    document.querySelector("#tab_dropzone").style.background = ""
+  }
+
+  document.addEventListener("drop", (x) => {
+    console.log("ondrop", x)
+    document.querySelector("#tab_dropzone").style.background = "pink"
+  })
+
+  document.querySelectorAll(".tab").forEach((tab) => {
+    //tab_move_handler(tab)
+    tab.ondrag = (drag) => {
+      //drag.preventDefault()
+      //console.log("ondrag", drag)
+    }
+    tab.ondragstart = (drag) => {
+      let view_id = BrowserView.fromWebContents(current_wc).id
+
+      drag.dataTransfer.setData("text/plain", view_id)
+      //console.log("ondragstart", drag)
+    }
+    tab.ondragend = (drag) => {
+      drag.preventDefault()
+
+      console.log("ondragend", drag)
+      //is outside and no dropzone
+      //pop_out()
+    }
+  })
+*/
   window.addEventListener("mouseup", handle_history)
 
-  ipcRenderer.on("set_main_id", (event, data) => {
+  ipcRenderer.on("attached", (event, data) => {
+    console.log("attached", data)
+    if (window.parent_id) {
+      /*
+      let pop_win = BrowserWindow.fromId(window.parent_id)
+      pop_out_btn.style.display = ""
+
+      if (pop_win) {
+        pop_win.off("close", destory_on_close)
+        //TODO: check if last tab in window and close
+        pop_win.close()
+      }*/
+    }
     window.main_id = data
+    window.parent_id = data
     window.tab_state = "attached"
     send_to_main("subscribe_to_change", { wc_id: current_wc.id })
   })
@@ -50,6 +155,20 @@ function init() {
   presenters.init_in_webtab()
 
   handle_urlbar()
+  ipcRenderer.on("size_changed", size_changed)
+
+  function size_changed(event, data) {
+    console.log("size_changed", event, data)
+    cview.setBounds(data)
+  }
+
+  ipcRenderer.on("closed", (event, data) => {
+    console.debug("closed", event, data)
+    window.tab_state = "closed"
+    ipcRenderer.removeAllListeners()
+
+    //current_wc.destroy()
+  })
 
   ipcRenderer.on("data_change", (event, data) => {
     console.debug("data_change", event, data)
@@ -68,10 +187,14 @@ function init() {
     update_selected(story, colors)
   })
   window.webview = document.querySelector("#webview")
-  let current_wc = remote.getCurrentWebContents()
 
   current_wc.on("update-target-url", (event, url) => {
-    send_to_main("update-target-url", url)
+    send_to_parent("update-target-url", url)
+  })
+
+  webview.addEventListener("page-title-updated", (e) => {
+    console.log("page-title-updated", e.title.toString())
+    send_to_parent("page-title-updated", e.title.toString())
   })
 
   webview.addEventListener("did-fail-load", (e) => {
@@ -86,7 +209,7 @@ function init() {
   webview.addEventListener("did-navigate-in-page", console.debug)
 
   webview.addEventListener("new-window", async (e) => {
-    //TODO: open in own popup
+    send_to_parent("open_in_new_tab", e.url)
     console.log("webview new-window", e.url)
   })
 
@@ -95,6 +218,8 @@ function init() {
   }
 
   close_webview_btn.onclick = (x) => {
+    //TODO: maybe just close the tag
+    send_to_parent("page-title-updated", "about:blank")
     webview.loadURL("about:blank")
   }
 
@@ -107,11 +232,14 @@ function pop_out() {
     return
   }
 
-  let cwin = remote.getCurrentWindow()
+  send_to_parent("detaching")
+
+  let cwin = BrowserWindow.fromId(window.parent_id)
   let size = cwin.getSize()
   let poped_view = cwin.getBrowserView()
   let view_bound = poped_view.getBounds()
   let parent_pos = cwin.getPosition()
+  cwin.removeBrowserView(poped_view)
 
   let win_popup = new BrowserWindow({
     x: parent_pos[0] + view_bound.x,
@@ -120,33 +248,52 @@ function pop_out() {
     height: size[1],
     autoHideMenuBar: true,
     icon: remote.getGlobal("icon_path"),
+    webPreferences: {
+      nodeIntegration: true,
+      enableRemoteModule: true,
+      webSecurity: false,
+      webviewTag: true,
+    },
+    //frame: false,
   })
+
+  win_popup.setBrowserView(poped_view)
+  window.tab_state = "detached"
+  window.parent_id = win_popup.id
+
+  win_popup.openDevTools()
+  win_popup.loadFile("app/main_window.html")
 
   function follow_resize() {
-    let box = win_popup.getContentBounds()
-    poped_view.setBounds({
-      x: 0,
-      y: 0,
-      width: box.width,
-      height: box.height,
-    })
-  }
-  follow_resize()
-  win_popup.on("resize", follow_resize)
-
-  let winid = cwin.id
-  win_popup.setBrowserView(poped_view)
-  cwin.removeBrowserView(poped_view)
-
-  window.tab_state = "detached"
-
-  win_popup.on("close", (x) => {
-    let main_browser_window = BrowserWindow.fromId(winid)
-    if (main_browser_window && !main_browser_window.isDestroyed()) {
-      main_browser_window.webContents.send("mark_selected", "about:gone")
+    if (!is_attached()) {
+      let box = win_popup.getContentBounds()
+      console.log("follow_resize", box)
+      poped_view.setBounds({
+        x: 0,
+        y: 0,
+        width: box.width,
+        height: box.height,
+      })
     }
-    poped_view.destroy()
-  })
+  }
+  win_popup.on("resize", follow_resize)
+  win_popup.setSize(view_bound.width, size[1] + 1)
+
+  win_popup.on("close", destory_on_close)
+
+  return win_popup
+}
+
+function destory_on_close() {
+  win_popup.off("close", destory_on_close)
+  if (is_attached()) {
+    return
+  }
+  let main_browser_window = BrowserWindow.fromId(winid)
+  if (main_browser_window && !main_browser_window.isDestroyed()) {
+    main_browser_window.webContents.send("mark_selected", "about:gone")
+  }
+  poped_view.destroy()
 }
 
 function handle_urlbar() {
@@ -223,6 +370,9 @@ function update_url(e) {
       update_selected(null, null)
     }
   }
+
+  send_to_parent("page-title-updated", webview.getTitle())
+
   urlfield.value = url
 }
 
@@ -389,6 +539,12 @@ function open_in_webview(href) {
       console.log("webview.loadURL error", e)
     })
     urlfield.value = href
+  }
+}
+
+function send_to_parent(...args) {
+  if (window.parent_id) {
+    ipcRenderer.sendTo(window.parent_id, ...args)
   }
 }
 

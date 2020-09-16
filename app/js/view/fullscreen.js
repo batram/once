@@ -84,8 +84,9 @@ function enter(e) {
 
 function entered(e) {
   document.body.classList.add("fullscreen")
-  if (document.querySelector("#content")) {
-    document.querySelector("#content").style.minWidth = "100%"
+  let tab_cnt = document.querySelector("#tab_content")
+  if (document.querySelector("#tab_content")) {
+    document.querySelector("#tab_content").style.minWidth = "100%"
   }
 
   let webview = document.querySelector("#webview")
@@ -128,8 +129,9 @@ function left(e) {
 
   try {
     document.body.classList.remove("fullscreen")
-    if (document.querySelector("#content")) {
-      content.style.minWidth = ""
+    let tab_cnt = document.querySelector("#tab_content")
+    if (tab_cnt) {
+      tab_cnt.style.minWidth = ""
     }
     let webview = document.querySelector("webview")
     if (webview) {

@@ -21,12 +21,14 @@ global.icon_path = path.join(
 
 const ElectronBlocker = require("@cliqz/adblocker-electron")
 const fetch = require("cross-fetch")
+const { url } = require("inspector")
 
 function createWindow() {
   // Create the browser window.
   const win = new BrowserWindow({
     width: 800,
     height: 600,
+    //frame: false,
     webPreferences: {
       nodeIntegration: true,
       enableRemoteModule: true,
@@ -40,8 +42,17 @@ function createWindow() {
   //win.openDevTools()
   //win.webContents.session.setProxy({ proxyRules: "socks5://127.0.0.1:9150" })
 
+  win.webContents.on("new-window", (event, url) => {
+    console.log("will not open new window", event, url)
+    event.preventDefault()
+  })
+  win.webContents.on("will-navigate", (event, url) => {
+    console.log("will not navigate", event, url)
+    event.preventDefault()
+  })
+
   // and load the index.html of the app.
-  win.loadFile("app/index.html")
+  win.loadFile("app/main_window.html")
 
   ElectronBlocker.ElectronBlocker.fromPrebuiltAdsAndTracking(fetch).then(
     (blocker) => {

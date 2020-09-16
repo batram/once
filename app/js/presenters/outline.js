@@ -241,15 +241,19 @@ async function outline(url) {
     article.content = "Readability fail"
   }
 
-  let title = document.createElement("h1")
+  let h1_title = document.createElement("h1")
+  h1_title.innerText = article.title
+  h1_title.classList.add("outlined")
+
+  let title = document.createElement("title")
   title.innerText = article.title
-  title.classList.add("outlined")
 
   webview
     .loadURL(
       data_outline_url +
         encodeURIComponent(base.outerHTML) +
         encodeURIComponent(title.outerHTML) +
+        encodeURIComponent(h1_title.outerHTML) +
         encodeURIComponent(article.content) +
         "#" +
         encodeURIComponent(og_url)
