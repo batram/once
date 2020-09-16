@@ -259,7 +259,6 @@ function webtab_comms() {
   ipcRenderer.on("show_filter", show_filter)
   ipcRenderer.on("add_filter", add_filter)
   ipcRenderer.on("subscribe_to_change", subscribe_to_change)
-  ipcRenderer.on("subscribe_to_change", subscribe_to_change)
   ipcRenderer.on("page-title-updated", update_title)
   ipcRenderer.on("detaching", detaching)
   ipcRenderer.on("open_in_new_tab", open_in_new_tab_event)
@@ -299,9 +298,12 @@ function webtab_comms() {
     story_loader.story_map.update_story(data.href, data.path, data.value)
   }
 
+  let subscribers = []
+
   function subscribe_to_change(event, data) {
-    console.log("subscribe_to_change", data)
-    if (data.wc_id) {
+    if (data.wc_id && !subscribers.includes(data.wc_id)) {
+      console.debug("subscribe_to_change", data)
+      subscribers.push(data.wc_id)
       //TODO: filter here or on tab?
       document.body.addEventListener("data_change", function update(e) {
         //TODO: detect closed webcontent and remove listener

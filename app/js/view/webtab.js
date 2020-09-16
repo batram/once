@@ -89,47 +89,9 @@ function init() {
   let cview = cwin.getBrowserView()
 
   let current_wc = remote.getCurrentWebContents()
-  /*
-  document.ondragover = (x) => {
-    x.preventDefault()
-    console.log("ondragover", x)
-    document.querySelector("#tab_dropzone").style.background = "red"
-  }
 
-  document.ondragleave = (x) => {
-    console.log("ondragleave", x)
-    document.querySelector("#tab_dropzone").style.background = ""
-  }
-
-  document.addEventListener("drop", (x) => {
-    console.log("ondrop", x)
-    document.querySelector("#tab_dropzone").style.background = "pink"
-  })
-
-  document.querySelectorAll(".tab").forEach((tab) => {
-    //tab_move_handler(tab)
-    tab.ondrag = (drag) => {
-      //drag.preventDefault()
-      //console.log("ondrag", drag)
-    }
-    tab.ondragstart = (drag) => {
-      let view_id = BrowserView.fromWebContents(current_wc).id
-
-      drag.dataTransfer.setData("text/plain", view_id)
-      //console.log("ondragstart", drag)
-    }
-    tab.ondragend = (drag) => {
-      drag.preventDefault()
-
-      console.log("ondragend", drag)
-      //is outside and no dropzone
-      //pop_out()
-    }
-  })
-*/
   window.addEventListener("mouseup", handle_history)
   ipcRenderer.on("pop_out", (event, offset) => {
-    console.log("pop", offset)
     pop_new_main(offset)
   })
   ipcRenderer.on("attached", (event, data) => {
