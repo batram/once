@@ -89,6 +89,7 @@ function new_relative_win(
     if (win_popup.getBrowserViews().length != 0) {
       win_popup.getBrowserViews().forEach((v) => {
         win_popup.removeBrowserView(v)
+        v.destroy()
         win_popup.destroy()
       })
     }
