@@ -180,18 +180,18 @@ function ipc_events(story, story_el) {
   let filter_btn = story_el.querySelector(".filter_btn")
   filter_btn.onclick = (x) => {
     if (story_el.classList.contains("filtered")) {
-      webtab.send_to_main("show_filter", story.filter)
+      webtab.send_to_parent("show_filter", story.filter)
     } else {
       const { show_filter_dialog } = require("../data/filters")
       show_filter_dialog(x, filter_btn, story, (x) => {
-        webtab.send_to_main("add_filter", x)
+        webtab.send_to_parent("add_filter", x)
       })
     }
   }
 
   let read_btn = story_el.querySelector(".read_btn")
   read_btn.addEventListener("click", (x) => {
-    webtab.send_to_main("update_story", {
+    webtab.send_to_parent("update_story", {
       href: story.href,
       path: "read",
       value: !story.read,
@@ -207,7 +207,7 @@ function ipc_events(story, story_el) {
 
   let star_btn = story_el.querySelector(".star_btn")
   star_btn.addEventListener("click", (_) => {
-    webtab.send_to_main("update_story", {
+    webtab.send_to_parent("update_story", {
       href: story.href,
       path: "stared",
       value: !story.stared,

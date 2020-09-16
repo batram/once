@@ -18,11 +18,8 @@ if (bw) {
   let wc = bw.webContents
   let tab_info = { wc_id: wc.id, view_id: bw.id }
   web_control.new_webtab(document.querySelector("#tab_content"), tab_info)
-  //we opened as popup colapse left_panel
-  let left_panel = document.querySelector("#left_panel")
   seperation_slider.collapse_left()
 } else {
-  window.state = "main"
   web_control.new_webtab(document.querySelector("#tab_content"))
 }
 

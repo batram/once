@@ -61,7 +61,7 @@ function key_handler(e) {
 
 function enter(e) {
   if (webtab.is_attached()) {
-    webtab.send_to_main("fullscreen", true)
+    webtab.send_to_parent("fullscreen", true)
   }
 
   try {
@@ -108,7 +108,7 @@ function entered(e) {
 
 function leave(e) {
   if (webtab.is_attached()) {
-    webtab.send_to_main("fullscreen", false)
+    webtab.send_to_parent("fullscreen", false)
   }
 
   document.body.classList.remove("fullscreen")

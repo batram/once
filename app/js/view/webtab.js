@@ -2,7 +2,6 @@ module.exports = {
   init,
   open_in_webview,
   create,
-  send_to_main,
   is_attached,
 }
 
@@ -12,7 +11,7 @@ const presenters = require("../presenters")
 const contextmenu = require("../view/contextmenu")
 const fullscreen = require("../view/fullscreen")
 
-function create(main_id) {
+function create(parent_id) {
   const view = new BrowserView({
     webPreferences: {
       nodeIntegration: true,
@@ -23,7 +22,7 @@ function create(main_id) {
   })
 
   view.webContents.loadFile("app/webtab.html").then((x) => {
-    view.webContents.send("attached", main_id)
+    view.webContents.send("attached", parent_id)
   })
 
   return view
@@ -102,11 +101,10 @@ function init() {
       let old_parent = BrowserWindow.fromId(parseInt(window.parent_id))
       old_parent.removeBrowserView(cview)
     }
-    window.main_id = data
     window.parent_id = data
     window.parent_wc_id = parent_window.webContents.id
     window.tab_state = "attached"
-    send_to_main("subscribe_to_change", { wc_id: current_wc.id })
+    send_to_parent("subscribe_to_change", { wc_id: current_wc.id })
   })
 
   ipcRenderer.on("detach", (event, data) => {
@@ -159,6 +157,10 @@ function init() {
   webview.addEventListener("page-title-updated", (e) => {
     console.log("page-title-updated", e.title.toString())
     send_to_parent("page-title-updated", e.title.toString())
+  })
+  webview.addEventListener("destroyed", (e) => {
+    console.log("webview destroyed", e)
+    send_to_parent("mark_selected", "about:gone")
   })
 
   webview.addEventListener("did-fail-load", (e) => {
@@ -526,19 +528,5 @@ function open_in_webview(href) {
 function send_to_parent(...args) {
   if (window.parent_wc_id) {
     ipcRenderer.sendTo(window.parent_wc_id, ...args)
-  }
-}
-
-function send_to_main(...args) {
-  let main_winid = window.main_id
-
-  if (main_winid) {
-    main_winid = parseInt(main_winid)
-    let main_browser_window = BrowserWindow.fromId(main_winid)
-    if (main_browser_window && !main_browser_window.isDestroyed()) {
-      ipcRenderer.sendTo(main_winid, ...args)
-    }
-  } else {
-    console.log("no main window id set", ...args)
   }
 }
