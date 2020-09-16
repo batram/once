@@ -11,7 +11,6 @@ module.exports = {
 
 const { remote, ipcRenderer } = require("electron")
 const { BrowserView } = remote
-const contextmenu = require("./view/contextmenu")
 const filters = require("./data/filters")
 const webtab = require("./view/webtab")
 const fullscreen = require("./view/fullscreen")
@@ -103,8 +102,8 @@ function activate_tab(tab_el) {
 }
 
 function close_tab(tab_el) {
-  remove_tab_el(tab_el.dataset.wc_id)
   send_to_id(tab_el.dataset.wc_id, "closed")
+  remove_tab_el(tab_el.dataset.wc_id)
 }
 
 function add_tab(tab_info) {
@@ -148,6 +147,20 @@ function remove_tab_el(wc_id) {
     }
 
     tab_el.outerHTML = ""
+  }
+
+  maybe_close_window()
+}
+
+//close the window if we have no more tabs and are not the last window open
+function maybe_close_window() {
+  if (document.querySelectorAll("tab").length == 0) {
+    let windows = remote.BrowserWindow.getAllWindows()
+    if (windows && windows.length > 1) {
+      console.log("all the windows", windows)
+      ipcRenderer.removeAllListeners()
+      remote.getCurrentWindow().close()
+    }
   }
 }
 
@@ -264,7 +277,26 @@ function webtab_comms() {
   ipcRenderer.on("page-title-updated", update_title)
   ipcRenderer.on("detaching", detaching)
   ipcRenderer.on("open_in_new_tab", open_in_new_tab_event)
-  ipcRenderer.on("update-target-url", contextmenu.show_target_url)
+  ipcRenderer.on("update-target-url", show_target_url)
+
+  function show_target_url(event, url) {
+    if (!document.querySelector("#url_target")) {
+      return
+    }
+
+    if (url != "") {
+      url_target.style.opacity = "1"
+      url_target.style.zIndex = "16"
+      if (url.length <= 63) {
+        url_target.innerText = url
+      } else {
+        url_target.innerText = url.substring(0, 60) + "..."
+      }
+    } else {
+      url_target.style.opacity = "0"
+      url_target.style.zIndex = "-1"
+    }
+  }
 
   window.addEventListener("beforeunload", (x) => {
     ipcRenderer.removeListener("mark_selected", mark_selected)

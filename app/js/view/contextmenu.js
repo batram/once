@@ -2,45 +2,17 @@ module.exports = {
   init_menu,
   story_menu,
   inspect_menu,
-  show_target_url,
 }
 
-const { remote, shell, clipboard } = require("electron")
-const { Menu, MenuItem } = remote
-const fullscreen = require("./fullscreen")
+const { Menu, MenuItem, shell, clipboard, ipcMain } = require("electron")
+//const fullscreen = require("./fullscreen")
 
-function init_menu() {
-  let wc = remote.getCurrentWebContents()
-
-  wc.on("update-target-url", show_target_url)
+function init_menu(wc) {
   wc.on("context-menu", inspect_menu)
 
-  window.addEventListener("beforeunload", (x) => {
-    //Clean up listener
-    wc.off("context-menu", inspect_menu)
-    wc.off("update-target-url", show_target_url)
+  wc.on("update-target-url", (event, url) => {
+    wc.send("update-target-url", url)
   })
-
-  fullscreen.init_listeners()
-}
-
-function show_target_url(event, url) {
-  if (!document.querySelector("#url_target")) {
-    return
-  }
-
-  if (url != "") {
-    url_target.style.opacity = "1"
-    url_target.style.zIndex = "16"
-    if (url.length <= 63) {
-      url_target.innerText = url
-    } else {
-      url_target.innerText = url.substring(0, 60) + "..."
-    }
-  } else {
-    url_target.style.opacity = "0"
-    url_target.style.zIndex = "-1"
-  }
 }
 
 const cmenu_data = {
@@ -113,9 +85,7 @@ function inspect_menu(event, params) {
     x: params.x,
     y: params.y,
   }
-  con_menu.popup({
-    window: remote.getCurrentWindow(),
-  })
+  con_menu.popup()
 }
 
 function story_menu(event, params) {
@@ -133,7 +103,5 @@ function story_menu(event, params) {
     x: event.x,
     y: event.y,
   }
-  con_menu.popup({
-    window: remote.getCurrentWindow(),
-  })
+  con_menu.popup()
 }

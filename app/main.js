@@ -1,12 +1,4 @@
-const {
-  app,
-  BrowserWindow,
-  session,
-  WebContents,
-  App,
-  Event,
-  dialog,
-} = require("electron")
+const { app, BrowserWindow, session, ipcMain, dialog } = require("electron")
 const path = require("path")
 
 require("electron-reload")(path.join(__dirname))
@@ -21,8 +13,8 @@ global.icon_path = path.join(
 
 const ElectronBlocker = require("@cliqz/adblocker-electron")
 const fetch = require("cross-fetch")
-const { url } = require("inspector")
-
+const contextmenu = require("./js/view/contextmenu")
+console.log(__dirname, path.join(__dirname, "js"))
 function createWindow() {
   // Create the browser window.
   const win = new BrowserWindow({
@@ -31,16 +23,30 @@ function createWindow() {
     //frame: false,
     webPreferences: {
       nodeIntegration: true,
-      enableRemoteModule: true,
+      //enableRemoteModule: false,
       webSecurity: false,
       webviewTag: true,
     },
     icon: global.icon_path,
   })
 
+  ipcMain.on("fullscreen", (event, value) => {
+    console.log("fullscreen", BrowserWindow, event, value)
+    let win = BrowserWindow.getFocusedWindow()
+    if (win) {
+      let bw = win.getBrowserView()
+      if (bw && !bw.isDestroyed()) {
+        bw.webContents.send("fullscreen", value)
+      }
+
+      win.setFullScreen(value)
+    }
+  })
+
   win.removeMenu()
-  //win.openDevTools()
+  win.openDevTools()
   //win.webContents.session.setProxy({ proxyRules: "socks5://127.0.0.1:9150" })
+  contextmenu.init_menu(win.webContents)
 
   win.webContents.on("new-window", (event, url) => {
     console.log("will not open new window", event, url)
@@ -52,7 +58,7 @@ function createWindow() {
   })
 
   // and load the index.html of the app.
-  win.loadFile("app/main_window.html")
+  win.loadFile(path.join(__dirname, "main_window.html"))
 
   ElectronBlocker.ElectronBlocker.fromPrebuiltAdsAndTracking(fetch).then(
     (blocker) => {
@@ -68,6 +74,8 @@ app.whenReady().then(() => {
 //https://github.com/electron/electron/issues/12518#issuecomment-616155070
 //https://www.electronjs.org/docs/api/web-contents#event-will-prevent-unload
 app.on("web-contents-created", function (_event, webContents) {
+  contextmenu.init_menu(webContents)
+
   webContents.on("will-prevent-unload", function (event) {
     const win = BrowserWindow.fromWebContents(webContents)
     const choice = dialog.showMessageBoxSync(win, {

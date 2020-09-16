@@ -1,12 +1,11 @@
-const contextmenu = require("./js/view/contextmenu")
-contextmenu.init_menu()
-
 const settings = require("./js/settings")
 const web_control = require("./js/web_control")
 const seperation_slider = require("./js/view/sep_slider")
 const search = require("./js/data/search")
 const story_loader = require("./js/data/StoryLoader")
 const { remote } = require("electron")
+const fullscreen = require("./js/view/fullscreen")
+fullscreen.init_listeners()
 
 seperation_slider.init_slider()
 web_control.window_events()

@@ -13,13 +13,13 @@
     <div id="webtab">
       <div id="controlbar" class="bar">
         <input type="text" id="urlfield" placeholder="about:blank" />
-        <div id="reload_webview_btn" class="btn bar_btn" title="reload webview">
+        <div id="reload_tab_btn" class="btn bar_btn" title="reload tab">
           <img src="imgs/reload.svg" />
         </div>
-        <div id="pop_out_btn" class="btn bar_btn" title="pop out webview">
+        <div id="pop_out_btn" class="btn bar_btn" title="pop out tab">
           <img src="imgs/popout.svg" />
         </div>
-        <div id="close_webview_btn" class="btn bar_btn" title="close webview">
+        <div id="close_tab_btn" class="btn bar_btn" title="close tab">
           <img src="imgs/x.svg" />
         </div>
       </div>
@@ -35,8 +35,8 @@
   <script src="js/third_party/Readability.js"></script>
   <script>
     const webtab = require("./js/view/webtab")
-    const contextmenu = require("./js/view/contextmenu")
-    contextmenu.init_menu()
     webtab.init()
+    const fullscreen = require("./js/view/fullscreen")
+    fullscreen.init_listeners()
   </script>
 </html>

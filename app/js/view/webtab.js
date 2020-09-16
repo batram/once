@@ -9,8 +9,9 @@ module.exports = {
 const { remote, ipcRenderer } = require("electron")
 const { BrowserWindow, BrowserView } = remote
 const presenters = require("../presenters")
-const contextmenu = require("../view/contextmenu")
+//const contextmenu = require("../view/contextmenu")
 const fullscreen = require("../view/fullscreen")
+const path = require("path")
 
 function create(parent_id) {
   const view = new BrowserView({
@@ -22,9 +23,11 @@ function create(parent_id) {
     },
   })
 
-  view.webContents.loadFile("app/webtab.html").then((x) => {
-    view.webContents.send("attached", parent_id)
-  })
+  view.webContents
+    .loadFile(path.join(__dirname, "..", "..", "webtab.html"))
+    .then((x) => {
+      view.webContents.send("attached", parent_id)
+    })
 
   return view
 }
@@ -80,6 +83,14 @@ function get_parent_win() {
   if (window.parent_id && parseInt(window.parent_id)) {
     let paren = BrowserWindow.fromBrowserView(parseInt(window.parent_id))
     return BrowserWindow.fromId(parseInt(window.parent_id))
+  }
+}
+
+function get_current_view() {
+  let current_wc = remote.getCurrentWebContents()
+  if (current_wc) {
+    let current_view = BrowserView.fromWebContents(current_wc)
+    return current_view
   }
 }
 
@@ -180,22 +191,29 @@ function init() {
     console.log("webview new-window", e.url)
   })
 
-  reload_webview_btn.onclick = (x) => {
+  reload_tab_btn.onclick = (x) => {
     webview.reload()
   }
 
-  close_webview_btn.onclick = (x) => {
-    //TODO: maybe just close the tag
-    send_to_parent("page-title-updated", "about:blank")
+  close_tab_btn.onclick = (x) => {
     webview.loadURL("about:blank")
+    send_to_parent("page-title-updated", "about:blank")
+    remove_from_parent()
   }
 
   pop_out_btn.onauxclick = pop_no_tabs
   pop_out_btn.onclick = pop_new_main
 }
 
+function remove_from_parent() {
+  send_to_parent("detaching")
+  let parent = get_parent_win()
+  let cview = get_current_view()
+  parent.removeBrowserView(cview)
+}
+
 function new_relative_win(url, full_resize = false, initial_offset = null) {
-  let cwin = BrowserWindow.fromId(window.parent_id)
+  let cwin = get_parent_win()
   let size = cwin.getSize()
   let poped_view = cwin.getBrowserView()
   let view_bound = poped_view.getBounds()
@@ -415,7 +433,7 @@ function load_once() {
     }
   )
 
-  webviewContents.on("context-menu", contextmenu.inspect_menu)
+  //webviewContents.on("context-menu", contextmenu.inspect_menu)
   webviewContents.on("update-target-url", (event, url) => {
     send_to_parent("update-target-url", url)
   })

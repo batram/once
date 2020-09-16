@@ -8,8 +8,7 @@ module.exports = {
   init_listeners,
 }
 
-const { remote, ipcRenderer } = require("electron")
-const { BrowserWindow } = remote
+const { ipcRenderer } = require("electron")
 const webtab = require("./webtab")
 
 function init_listeners() {
@@ -65,23 +64,9 @@ function enter(e) {
     webtab.send_to_parent("fullscreen", true)
   }
 
-  try {
-    document.body.classList.add("fullscreen")
-
-    let win = remote.getCurrentWindow()
-    if (win) {
-      let bw = win.getBrowserView()
-      if (bw && !bw.isDestroyed()) {
-        bw.webContents.send("fullscreen", true)
-      }
-
-      win.setFullScreen(true)
-    }
-
-    entered(e)
-  } catch (e) {
-    console.log("full error", e)
-  }
+  document.body.classList.add("fullscreen")
+  ipcRenderer.send("fullscreen", true)
+  entered(e)
 }
 
 function entered(e) {
@@ -116,16 +101,7 @@ function leave(e) {
   }
 
   document.body.classList.remove("fullscreen")
-  let win = BrowserWindow.getFocusedWindow()
-  if (win) {
-    let bw = win.getBrowserView()
-    if (bw && !bw.isDestroyed()) {
-      bw.webContents.send("fullscreen", false)
-    }
-
-    win.setFullScreen(false)
-    left(e)
-  }
+  ipcRenderer.send("fullscreen", false)
 }
 
 function left(e) {
