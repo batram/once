@@ -20,27 +20,27 @@ function init_listeners() {
   }
 
   ipcRenderer.on("fullscreen", set)
+
+  window.removeEventListener("keyup", key_handler)
+  window.addEventListener("keyup", key_handler)
+
   window.addEventListener("beforeunload", (x) => {
     //Clean up listener
     ipcRenderer.removeListener("fullscreen", set)
+    window.removeEventListener("keyup", key_handler)
   })
-
-  window.addEventListener("keyup", key_handler)
 }
 
-function set(event, fullscreen) {
-  if (fullscreen) {
-    entered(event)
+function set(e, fullscreen_value) {
+  if (fullscreen_value) {
+    entered(e)
   } else {
-    left(event)
+    left(e)
   }
 }
 
 function key_handler(e) {
-  let win = remote.getCurrentWindow() || BrowserWindow.getFocusedWindow()
-
-  let is_fullscreen =
-    (win && win.fullScreen) || document.body.classList.contains("fullscreen")
+  let is_fullscreen = document.body.classList.contains("fullscreen")
 
   if (e.key == "F11") {
     if (is_fullscreen) {
@@ -60,13 +60,15 @@ function key_handler(e) {
 }
 
 function enter(e) {
+  console.debug("fullscreen enter", e)
   if (webtab.is_attached()) {
     webtab.send_to_parent("fullscreen", true)
   }
 
   try {
     document.body.classList.add("fullscreen")
-    let win = remote.getCurrentWindow() || BrowserWindow.getFocusedWindow()
+
+    let win = remote.getCurrentWindow()
     if (win) {
       let bw = win.getBrowserView()
       if (bw && !bw.isDestroyed()) {
@@ -83,10 +85,11 @@ function enter(e) {
 }
 
 function entered(e) {
+  console.debug("fullscreen entered", e)
   document.body.classList.add("fullscreen")
-  let tab_cnt = document.querySelector("#tab_content")
-  if (document.querySelector("#tab_content")) {
-    document.querySelector("#tab_content").style.minWidth = "100%"
+  let tab_cnt = document.querySelector("#right_panel")
+  if (tab_cnt) {
+    tab_cnt.style.minWidth = "100%"
   }
 
   let webview = document.querySelector("#webview")
@@ -107,6 +110,7 @@ function entered(e) {
 }
 
 function leave(e) {
+  console.debug("fullscreen leave", e)
   if (webtab.is_attached()) {
     webtab.send_to_parent("fullscreen", false)
   }
@@ -129,7 +133,7 @@ function left(e) {
 
   try {
     document.body.classList.remove("fullscreen")
-    let tab_cnt = document.querySelector("#tab_content")
+    let tab_cnt = document.querySelector("#right_panel")
     if (tab_cnt) {
       tab_cnt.style.minWidth = ""
     }

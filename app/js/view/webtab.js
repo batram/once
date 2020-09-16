@@ -1,6 +1,7 @@
 module.exports = {
   init,
   open_in_webview,
+  send_to_parent,
   create,
   is_attached,
 }

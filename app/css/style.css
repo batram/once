@@ -27,7 +27,6 @@ body {
   -webkit-app-region: no-drag;
   display: flex;
   flex-direction: row;
-  border: thin solid var(--sep-color);
   display: flex;
   flex: 1;
   overflow: hidden;
@@ -504,7 +503,8 @@ option {
 .fullscreen #controlbar,
 .fullscreen #sep_slider,
 .fullscreen #left_panel,
-.fullscreen #selected_container {
+.fullscreen #selected_container,
+.fullscreen #tab_dropzone {
   display: none;
 }
 
