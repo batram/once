@@ -170,7 +170,7 @@ function attach_webtab(size_to_el, view_id = null) {
     return
   }
 
-  send_to_id(view_id, "attached", cwin.id)
+  send_to_id(view.webContents.id, "attached", cwin.id)
   cwin.setBrowserView(view)
 
   window.addEventListener("beforeunload", (x) => {
@@ -190,15 +190,21 @@ function attach_webtab(size_to_el, view_id = null) {
     const resizeObserver = new ResizeObserver((entries) => {
       for (let entry of entries) {
         if ((entry.target.id = size_to_el.id)) {
-          if (size_to_el.dataset.active_wc_id == wc_id) {
-            view.setBounds({
-              x: Math.floor(size_to_el.offsetLeft),
-              y: Math.floor(size_to_el.offsetTop),
-              width: Math.floor(size_to_el.clientWidth),
-              height: Math.floor(size_to_el.clientHeight),
-            })
-          } else {
-            resizeObserver.unobserve(size_to_el)
+          let cw = remote.getCurrentWindow()
+          if (cw) {
+            let attached_view = cw.getBrowserView()
+            if (attached_view) {
+              if (
+                size_to_el.dataset.active_wc_id == attached_view.webContents.id
+              ) {
+                attached_view.setBounds({
+                  x: Math.floor(size_to_el.offsetLeft),
+                  y: Math.floor(size_to_el.offsetTop),
+                  width: Math.floor(size_to_el.clientWidth),
+                  height: Math.floor(size_to_el.clientHeight),
+                })
+              }
+            }
           }
           /*
           let box = entry.contentRect

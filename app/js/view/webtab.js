@@ -131,6 +131,7 @@ function init() {
 
   ipcRenderer.on("attached", (event, data) => {
     console.log("attached", data)
+    let parent_window = BrowserWindow.fromId(parseInt(data))
     if (window.parent_id) {
       /*
       let pop_win = BrowserWindow.fromId(window.parent_id)
@@ -144,6 +145,7 @@ function init() {
     }
     window.main_id = data
     window.parent_id = data
+    window.parent_wc_id = parent_window.webContents.id
     window.tab_state = "attached"
     send_to_main("subscribe_to_change", { wc_id: current_wc.id })
   })
@@ -166,7 +168,10 @@ function init() {
     console.debug("closed", event, data)
     window.tab_state = "closed"
     ipcRenderer.removeAllListeners()
-
+    let parent = get_parent_win()
+    if (parent) {
+      parent.removeBrowserView(cview)
+    }
     //current_wc.destroy()
   })
 
@@ -371,7 +376,7 @@ function update_url(e) {
   let url = e.url
   url = presenters.modify_url(url)
   if (is_attached()) {
-    send_to_main("mark_selected", url)
+    send_to_parent("mark_selected", url)
   } else {
     const story_list = require("../view/StoryList")
     let selected = story_list.get_by_href(url)
@@ -442,7 +447,7 @@ function load_once() {
 
   webviewContents.on("context-menu", contextmenu.inspect_menu)
   webviewContents.on("update-target-url", (event, url) => {
-    send_to_main("update-target-url", url)
+    send_to_parent("update-target-url", url)
   })
 
   webviewContents.on("before-input-event", (event, input) => {
@@ -552,8 +557,8 @@ function open_in_webview(href) {
 }
 
 function send_to_parent(...args) {
-  if (window.parent_id) {
-    ipcRenderer.sendTo(window.parent_id, ...args)
+  if (window.parent_wc_id) {
+    ipcRenderer.sendTo(window.parent_wc_id, ...args)
   }
 }
 
