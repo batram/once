@@ -223,17 +223,11 @@ function init() {
     webview.loadURL("about:blank")
   }
 
-  pop_out_btn.onclick = pop_out
+  pop_out_btn.onauxclick = pop_no_tabs
+  pop_out_btn.onclick = pop_new_main
 }
 
-function pop_out() {
-  pop_out_btn.style.display = "none"
-  if (window.tab_state == "detached") {
-    return
-  }
-
-  send_to_parent("detaching")
-
+function new_relative_win(url, full_resize = false) {
   let cwin = BrowserWindow.fromId(window.parent_id)
   let size = cwin.getSize()
   let poped_view = cwin.getBrowserView()
@@ -254,37 +248,52 @@ function pop_out() {
       webSecurity: false,
       webviewTag: true,
     },
-    //frame: false,
   })
 
   win_popup.setBrowserView(poped_view)
   window.tab_state = "detached"
   window.parent_id = win_popup.id
 
-  win_popup.openDevTools()
-  win_popup.loadFile("app/main_window.html")
-
-  function follow_resize() {
-    if (!is_attached()) {
-      let box = win_popup.getContentBounds()
-      console.log("follow_resize", box)
-      poped_view.setBounds({
-        x: 0,
-        y: 0,
-        width: box.width,
-        height: box.height,
-      })
+  if (full_resize) {
+    function follow_resize() {
+      if (!is_attached()) {
+        let box = win_popup.getContentBounds()
+        console.log("follow_resize", box)
+        poped_view.setBounds({
+          x: 0,
+          y: 0,
+          width: box.width,
+          height: box.height,
+        })
+      }
     }
+    win_popup.on("resize", follow_resize)
+    win_popup.setSize(view_bound.width, size[1] + 1)
   }
-  win_popup.on("resize", follow_resize)
-  win_popup.setSize(view_bound.width, size[1] + 1)
 
-  win_popup.on("close", destory_on_close)
+  win_popup.loadFile(url)
+  return win_popup
+}
 
+function pop_new_main() {
+  send_to_parent("detaching")
+  let win_popup = new_relative_win("app/main_window.html")
+  return win_popup
+}
+
+function pop_no_tabs() {
+  pop_out_btn.style.display = "none"
+  if (window.tab_state == "detached") {
+    return
+  }
+
+  send_to_parent("detaching")
+  let win_popup = new_relative_win("", true)
   return win_popup
 }
 
 function destory_on_close() {
+  /*
   win_popup.off("close", destory_on_close)
   if (is_attached()) {
     return
@@ -293,7 +302,7 @@ function destory_on_close() {
   if (main_browser_window && !main_browser_window.isDestroyed()) {
     main_browser_window.webContents.send("mark_selected", "about:gone")
   }
-  poped_view.destroy()
+  poped_view.destroy()*/
 }
 
 function handle_urlbar() {
@@ -331,7 +340,7 @@ function handle_history(e) {
 }
 
 function is_attached() {
-  return window.tab_state == "attached" && window.main_id
+  return window.tab_state == "attached" && window.parent_id
 }
 
 function update_selected(story, colors) {
