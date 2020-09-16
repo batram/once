@@ -128,7 +128,10 @@ function init() {
   })
 */
   window.addEventListener("mouseup", handle_history)
-
+  ipcRenderer.on("pop_out", (event, offset) => {
+    console.log("pop", offset)
+    pop_new_main(offset)
+  })
   ipcRenderer.on("attached", (event, data) => {
     console.log("attached", data)
     let parent_window = BrowserWindow.fromId(parseInt(data))
@@ -226,7 +229,7 @@ function init() {
   pop_out_btn.onclick = pop_new_main
 }
 
-function new_relative_win(url, full_resize = false) {
+function new_relative_win(url, full_resize = false, initial_offset = null) {
   let cwin = BrowserWindow.fromId(window.parent_id)
   let size = cwin.getSize()
   let poped_view = cwin.getBrowserView()
@@ -234,9 +237,17 @@ function new_relative_win(url, full_resize = false) {
   let parent_pos = cwin.getPosition()
   cwin.removeBrowserView(poped_view)
 
+  let initial_x = parent_pos[0] + view_bound.x
+  let initial_y = parent_pos[1]
+
+  if (initial_offset != null && initial_offset.length == 2) {
+    initial_x += initial_offset[0]
+    initial_y += initial_offset[1]
+  }
+
   let win_popup = new BrowserWindow({
-    x: parent_pos[0] + view_bound.x,
-    y: parent_pos[1],
+    x: initial_x,
+    y: initial_y,
     width: view_bound.width,
     height: size[1],
     autoHideMenuBar: true,
@@ -274,9 +285,9 @@ function new_relative_win(url, full_resize = false) {
   return win_popup
 }
 
-function pop_new_main() {
+function pop_new_main(offset = null) {
   send_to_parent("detaching")
-  let win_popup = new_relative_win("app/main_window.html")
+  let win_popup = new_relative_win("app/main_window.html", false, offset)
   return win_popup
 }
 

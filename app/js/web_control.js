@@ -76,11 +76,11 @@ function new_webtab(size_to_el, tab_info = null) {
   }
   tab_el.ondragend = (drag) => {
     drag.preventDefault()
-
     console.log("ondragend", drag.dataTransfer.dropEffect, drag)
 
-    //is outside and no dropzone
-    //pop_out()
+    if (drag.dataTransfer.dropEffect == "none") {
+      send_to_id(tab_el.dataset.wc_id, "pop_out", [drag.offsetX, drag.offsetY])
+    }
   }
 
   tab_el.addEventListener("mousedown", (e) => {
