@@ -1,11 +1,9 @@
 module.exports = {
   init_menu,
-  story_menu,
   inspect_menu,
 }
 
 const { Menu, MenuItem, shell, clipboard, ipcMain } = require("electron")
-//const fullscreen = require("./fullscreen")
 
 function init_menu(wc) {
   wc.on("context-menu", inspect_menu)
@@ -84,24 +82,6 @@ function inspect_menu(event, params) {
   cmenu_data.rightClickPosition = {
     x: params.x,
     y: params.y,
-  }
-  con_menu.popup()
-}
-
-function story_menu(event, params) {
-  if (event.hasOwnProperty("sender")) {
-    cmenu_data.sender = event.sender
-  } else {
-    cmenu_data.sender = null
-  }
-
-  event.preventDefault()
-  cmenu_data.href = params.href
-  con_menu.getMenuItemById("cp_url").visible = true
-  con_menu.getMenuItemById("open").visible = true
-  cmenu_data.rightClickPosition = {
-    x: event.x,
-    y: event.y,
   }
   con_menu.popup()
 }
