@@ -132,16 +132,10 @@ function init() {
   ipcRenderer.on("attached", (event, data) => {
     console.log("attached", data)
     let parent_window = BrowserWindow.fromId(parseInt(data))
-    if (window.parent_id) {
-      /*
-      let pop_win = BrowserWindow.fromId(window.parent_id)
-      pop_out_btn.style.display = ""
-
-      if (pop_win) {
-        pop_win.off("close", destory_on_close)
-        //TODO: check if last tab in window and close
-        pop_win.close()
-      }*/
+    if (window.parent_id && window.parent_id != parent_window.id) {
+      send_to_parent("detaching")
+      let old_parent = BrowserWindow.fromId(parseInt(window.parent_id))
+      old_parent.removeBrowserView(cview)
     }
     window.main_id = data
     window.parent_id = data

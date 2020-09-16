@@ -25,13 +25,18 @@ function new_webtab(size_to_el, tab_info = null) {
   let view = null
 
   if (tab_info != null) {
-    if (!tab_info || !tab_info.wc_id || !tab_info.view_id) {
+    if (
+      !tab_info ||
+      !tab_info.wc_id ||
+      !tab_info.view_id ||
+      isNaN(parseInt(tab_info.view_id))
+    ) {
       throw (
         "can't add tab with incomplete information {wc_id: i, view_id, i}: " +
         JSON.stringify(tab_info)
       )
     }
-    view = attach_webtab(size_to_el, tab_info.view_id)
+    view = attach_webtab(size_to_el, parseInt(tab_info.view_id))
     mark_tab_active(tab_el)
     tab_el.dataset.view_id = view.id
     tab_el.dataset.wc_id = view.webContents.id
@@ -112,11 +117,11 @@ function add_tab(tab_info) {
   if (existing_tab) {
     mark_tab_active(existing_tab)
   } else {
-    let dropzone = document.querySelector("#tab_dropzone")
-    if (dropzone) {
-      new_webtab(tab_info)
+    let tab_content = document.querySelector("#tab_content")
+    if (tab_content) {
+      new_webtab(tab_content, tab_info)
     } else {
-      console.error("failed to find dropzone for tabs")
+      console.error("failed to find tab_content to attach tabs")
       return
     }
   }
