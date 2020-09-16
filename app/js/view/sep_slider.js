@@ -50,15 +50,19 @@ function collapse_left() {
   let right_panel = document.querySelector("#right_panel")
   right_panel.style.width = "100%"
 
+  let menu = document.querySelector("#menu")
+  menu.classList.add("collapse")
   let left_panel = document.querySelector("#left_panel")
   left_panel.style.width = "0%"
-  left_panel.style.minWidth = "80px"
+  left_panel.style.minWidth = "28px"
 }
 
 function expand_left() {
   let right_panel = document.querySelector("#right_panel")
   right_panel.style.width = ""
 
+  let menu = document.querySelector("#menu")
+  menu.classList.remove("collapse")
   let left_panel = document.querySelector("#left_panel")
   left_panel.style.width = ""
   left_panel.style.minWidth = ""
