@@ -72,7 +72,9 @@ function new_webtab(size_to_el, tab_info = null) {
         wc_id: tab_el.dataset.wc_id,
       })
     )
-    drag.dataTransfer.setData("text", "https://batr.am/")
+    if (tab_el.dataset.href) {
+      drag.dataTransfer.setData("text", tab_el.dataset.href)
+    }
   }
   tab_el.ondragend = (drag) => {
     drag.preventDefault()
@@ -318,6 +320,11 @@ function webtab_comms() {
         return x.innerText
       })
       .join("\n")
+
+    let tab_el = tab_el_from_id(event.senderId)
+    if (tab_el) {
+      tab_el.dataset.href = href
+    }
 
     const { mark_selected } = require("./view/StoryList")
     let story = mark_selected(null, href)
