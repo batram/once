@@ -14,6 +14,7 @@ const fetch = require("cross-fetch")
 const contextmenu = require("./js/view/contextmenu")
 const tabbed_out = require("./js/view/tabbed_out")
 const fullscreen = require("./js/view/fullscreen")
+const { setInterval } = require("timers")
 
 require("electron-reload")(path.join(__dirname))
 
@@ -215,14 +216,17 @@ function createWindow() {
   )
 }
 
+setInterval((x) => {
+  webContents.getAllWebContents().forEach((x) => {
+    console.log(x.id, x.isDestroyed())
+  })
+}, 100)
+
 app.on("window-all-closed", (x) => {
   console.log("here we are now all alone")
-  BrowserView.getAllViews().forEach((x) => {
-    if (x && x.webContents) {
-      x.webContents.destroy()
-    }
-  })
+
   app.quit()
+  //app.quit()
 })
 
 app.whenReady().then(() => {
@@ -272,7 +276,7 @@ app.on("web-contents-created", function (_event, webContents) {
     name: "mhook",
   })
 
-  if (false) {
+  if (true) {
     webContents.debugger.sendCommand("Runtime.enable")
     webContents.debugger.sendCommand("Page.enable")
     webContents.debugger.sendCommand("Page.setLifecycleEventsEnabled", {

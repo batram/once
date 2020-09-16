@@ -8,6 +8,8 @@ fullscreen.init_listeners()
 
 seperation_slider.init_slider()
 web_control.webtab_comms()
+/*
+
 if (web_control.grab_attached_or_new()) {
   seperation_slider.collapse_left()
 }
@@ -22,3 +24,4 @@ document.addEventListener("DOMContentLoaded", async (_e) => {
 
   story_loader.parallel_load_stories(sources, dev_cache)
 })
+*/
