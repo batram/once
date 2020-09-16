@@ -22,12 +22,6 @@ function init_listeners() {
 
   window.removeEventListener("keyup", key_handler)
   window.addEventListener("keyup", key_handler)
-
-  window.addEventListener("beforeunload", (x) => {
-    //Clean up listener
-    ipcRenderer.removeListener("fullscreen", set)
-    window.removeEventListener("keyup", key_handler)
-  })
 }
 
 function set(e, fullscreen_value) {

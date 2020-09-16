@@ -2,54 +2,56 @@ module.exports = {
   open_in_tab,
   open_in_new_tab,
   webtab_comms,
-  window_events,
   new_webtab,
+  grab_attached_or_new,
   attach_webtab,
   send_or_create_tab,
-  send_to_webtab,
 }
 
-const { remote, ipcRenderer } = require("electron")
-const { BrowserView } = remote
+const { ipcRenderer } = require("electron")
 const filters = require("./data/filters")
 const webtab = require("./view/webtab")
-const fullscreen = require("./view/fullscreen")
 
-function new_webtab(size_to_el, tab_info = null) {
+function grab_attached_or_new() {
+  let wc_id = ipcRenderer.sendSync("get_attached_wc_id")
+
+  console.log("attacjed?", wc_id, wc_id != null)
+
+  if (wc_id != null) {
+    new_webtab(document.querySelector("#tab_content"), wc_id)
+    return true
+  } else {
+    new_webtab(document.querySelector("#tab_content"))
+    return false
+  }
+}
+
+function new_webtab(size_to_el, wc_id = null) {
   let tab_el = document.createElement("div")
   tab_el.setAttribute("draggable", "true")
   tab_el.classList.add("tab")
   tab_el.innerText = "New tab"
   tab_el.dataset.size_to = size_to_el.id
-  let view = null
 
-  if (tab_info != null) {
-    if (
-      !tab_info ||
-      !tab_info.wc_id ||
-      !tab_info.view_id ||
-      isNaN(parseInt(tab_info.view_id))
-    ) {
+  if (wc_id != null) {
+    if (!wc_id || isNaN(parseInt(wc_id))) {
       throw (
-        "can't add tab with incomplete information {wc_id: i, view_id, i}: " +
-        JSON.stringify(tab_info)
+        "can't add tab with incomplete information view_id: " +
+        JSON.stringify(wc_id)
       )
     }
-    view = attach_webtab(size_to_el, parseInt(tab_info.view_id))
-    mark_tab_active(tab_el)
-    tab_el.dataset.view_id = view.id
-    tab_el.dataset.wc_id = view.webContents.id
+    wc_id = attach_webtab(size_to_el, parseInt(wc_id))
   } else {
-    view = attach_webtab(size_to_el)
-    mark_tab_active(tab_el)
-    tab_el.dataset.view_id = view.id
-    tab_el.dataset.wc_id = view.webContents.id
+    wc_id = attach_webtab(size_to_el)
   }
 
-  if (view == null) {
+  if (wc_id == null) {
     console.error("failed to attach tab")
     return
   }
+
+  mark_tab_active(tab_el)
+  tab_el.dataset.wc_id = wc_id
 
   let dropzone = document.querySelector("#tab_dropzone")
   if (dropzone) {
@@ -67,7 +69,6 @@ function new_webtab(size_to_el, tab_info = null) {
     drag.dataTransfer.setData(
       "tab_drop",
       JSON.stringify({
-        view_id: tab_el.dataset.view_id,
         wc_id: tab_el.dataset.wc_id,
       })
     )
@@ -80,7 +81,8 @@ function new_webtab(size_to_el, tab_info = null) {
     console.log("ondragend", drag.dataTransfer.dropEffect, drag)
 
     if (drag.dataTransfer.dropEffect == "none") {
-      send_to_id(tab_el.dataset.wc_id, "pop_out", [drag.offsetX, drag.offsetY])
+      let offset = JSON.stringify([drag.offsetX, drag.offsetY])
+      send_to_id(tab_el.dataset.wc_id, "pop_out", offset)
     }
   }
 
@@ -92,12 +94,12 @@ function new_webtab(size_to_el, tab_info = null) {
     }
   })
 
-  return view
+  return wc_id
 }
 
 function activate_tab(tab_el) {
   let size_to_el = document.getElementById(tab_el.dataset.size_to)
-  attach_webtab(size_to_el, parseInt(tab_el.dataset.view_id))
+  attach_webtab(size_to_el, parseInt(tab_el.dataset.wc_id))
   mark_tab_active(tab_el)
 }
 
@@ -106,21 +108,18 @@ function close_tab(tab_el) {
   remove_tab_el(tab_el.dataset.wc_id)
 }
 
-function add_tab(tab_info) {
-  if (!tab_info || !tab_info.wc_id || !tab_info.view_id) {
-    console.error(
-      "can't add tab with incomplete information {wc_id: i, view_id, i}",
-      e
-    )
+function add_tab(wc_id) {
+  if (!wc_id) {
+    console.error("can't add tab with incomplete information")
     return
   }
-  let existing_tab = tab_el_from_id(tab_info.wc_id)
+  let existing_tab = tab_el_from_id(wc_id)
   if (existing_tab) {
     mark_tab_active(existing_tab)
   } else {
     let tab_content = document.querySelector("#tab_content")
     if (tab_content) {
-      new_webtab(tab_content, tab_info)
+      new_webtab(tab_content, wc_id)
     } else {
       console.error("failed to find tab_content to attach tabs")
       return
@@ -155,12 +154,7 @@ function remove_tab_el(wc_id) {
 //close the window if we have no more tabs and are not the last window open
 function maybe_close_window() {
   if (document.querySelectorAll("tab").length == 0) {
-    let windows = remote.BrowserWindow.getAllWindows()
-    if (windows && windows.length > 1) {
-      console.log("all the windows", windows)
-      ipcRenderer.removeAllListeners()
-      remote.getCurrentWindow().close()
-    }
+    ipcRenderer.send("no_more_tabs_can_i_go")
   }
 }
 
@@ -175,65 +169,41 @@ function mark_tab_active(tab_el) {
   tab_el.classList.add("active")
 }
 
-function attach_webtab(size_to_el, view_id = null) {
-  let cwin = remote.getCurrentWindow()
+function attach_webtab(size_to_el, wc_id = null) {
   let view = null
-
-  if (view_id != null) {
-    view = BrowserView.fromId(view_id)
+  if (wc_id != null) {
+    wc_id = ipcRenderer.sendSync("attach_wc_id", wc_id)
   } else {
-    view = webtab.create(cwin.id)
-    view_id = view.id
+    wc_id = ipcRenderer.sendSync("attach_new_tab")
   }
-  if (!view) {
+
+  if (!wc_id) {
     console.error("failed to create or retrieve view to attach")
     return
   }
 
-  send_to_id(view.webContents.id, "attached", cwin.id)
-  cwin.setBrowserView(view)
-
-  window.addEventListener("beforeunload", (x) => {
-    //kill all attached browserviews
-    if (cwin && cwin.getBrowserViews().length != 0) {
-      cwin.getBrowserViews().forEach((v) => {
-        cwin.removeBrowserView(v)
-        v.destroy()
-      })
-    }
-  })
+  //send_to_id(wc_id, "attached", cwin.id)
 
   if (size_to_el) {
-    let wc_id = view.webContents.id
-    size_to_el.dataset.active_wc_id = view.webContents.id
+    size_to_el.dataset.active_wc_id = wc_id
 
     const resizeObserver = new ResizeObserver((entries) => {
       for (let entry of entries) {
-        if ((entry.target.id = size_to_el.id)) {
-          let cw = remote.getCurrentWindow()
-          if (cw) {
-            let attached_view = cw.getBrowserView()
-            if (attached_view) {
-              if (
-                size_to_el.dataset.active_wc_id == attached_view.webContents.id
-              ) {
-                attached_view.setBounds({
-                  x: Math.floor(size_to_el.offsetLeft),
-                  y: Math.floor(size_to_el.offsetTop),
-                  width: Math.floor(size_to_el.clientWidth),
-                  height: Math.floor(size_to_el.clientHeight),
-                })
-              }
-            }
+        if (
+          entry.target.id == size_to_el.id &&
+          size_to_el.dataset.active_wc_id
+        ) {
+          let bounds = {
+            x: Math.floor(size_to_el.offsetLeft),
+            y: Math.floor(size_to_el.offsetTop),
+            width: Math.floor(size_to_el.clientWidth),
+            height: Math.floor(size_to_el.clientHeight),
           }
-          /*
-          let box = entry.contentRect
-          send_to_id(entry.target.dataset.active_id, "size_changed", {
-            x: Math.floor(entry.target.offsetLeft),
-            y: Math.floor(entry.target.offsetTop),
-            width: Math.floor(box.width),
-            height: Math.floor(box.height),
-          })*/
+          ipcRenderer.send(
+            "bound_attached",
+            size_to_el.dataset.active_wc_id,
+            bounds
+          )
         }
       }
     })
@@ -241,25 +211,7 @@ function attach_webtab(size_to_el, view_id = null) {
     resizeObserver.observe(size_to_el)
   }
 
-  return view
-}
-
-function window_events() {
-  let current_wc = remote.getCurrentWebContents()
-  current_wc.on("new-window", (event, url) => {
-    event.preventDefault()
-    console.log("caught new-window", url, event)
-    event.newGuest = null
-    open_in_tab(url)
-    return false
-  })
-
-  current_wc.on("will-navigate", (event, url) => {
-    event.preventDefault()
-    console.log("caught will-navigate", url, event)
-    open_in_tab(url)
-    return false
-  })
+  return wc_id
 }
 
 function webtab_comms() {
@@ -278,9 +230,10 @@ function webtab_comms() {
   ipcRenderer.on("detaching", detaching)
   ipcRenderer.on("open_in_new_tab", open_in_new_tab_event)
   ipcRenderer.on("update-target-url", show_target_url)
+  ipcRenderer.on("open_in_tab", open_in_tab_event)
 
   function show_target_url(event, url) {
-    if (!document.querySelector("#url_target")) {
+    if (!document.querySelector("#url_target") || !url) {
       return
     }
 
@@ -299,20 +252,14 @@ function webtab_comms() {
   }
 
   window.addEventListener("beforeunload", (x) => {
-    ipcRenderer.removeListener("mark_selected", mark_selected)
-    ipcRenderer.removeListener("update_story", update_story)
-    ipcRenderer.removeListener("show_filter", show_filter)
-    ipcRenderer.removeListener("add_filter", add_filter)
-    ipcRenderer.removeListener("subscribe_to_change", subscribe_to_change)
-    ipcRenderer.removeListener("fullscreen", fullscreen.set)
-    ipcRenderer.removeListener("page-title-updated", update_title)
-    ipcRenderer.removeListener("open_in_new_tab", open_in_new_tab_event)
-
-    //TODO: remove presenter listeners
+    ipcRenderer.removeAllListeners()
   })
 
   function open_in_new_tab_event(event, url) {
     open_in_new_tab(url)
+  }
+  function open_in_tab_event(event, url) {
+    open_in_tab(url)
   }
 
   function detaching(event) {
@@ -334,14 +281,14 @@ function webtab_comms() {
 
   let subscribers = []
 
-  function subscribe_to_change(event, data) {
-    if (data.wc_id && !subscribers.includes(data.wc_id)) {
-      console.debug("subscribe_to_change", data)
-      subscribers.push(data.wc_id)
+  function subscribe_to_change(event) {
+    if (event.senderId && !subscribers.includes(event.senderId)) {
+      console.debug("subscribe_to_change", event.senderId)
+      subscribers.push(event.senderId)
       //TODO: filter here or on tab?
       document.body.addEventListener("data_change", function update(e) {
         //TODO: detect closed webcontent and remove listener
-        send_to_id(data.wc_id, "data_change", e.detail.story)
+        send_to_id(event.senderId, "data_change", e.detail.story)
       })
     }
   }
@@ -453,39 +400,35 @@ function send_to_id(id, channel, ...args) {
   ipcRenderer.sendTo(id, channel, ...args)
 }
 
-function send_to_webtab(...args) {
-  let cwin = remote.getCurrentWindow()
-  if (cwin && cwin.getBrowserView()) {
-    let view = cwin.getBrowserView()
-    if (view && !view.isDestroyed()) {
-      //active found
-      view.webContents.send(...args)
-    }
-  }
-}
-
 function send_to_new_tab(name, value) {
   let tab_cnt = document.querySelector("#tab_content")
   if (tab_cnt) {
     //creating new webtab
-    let view = new_webtab(tab_cnt)
-    view.webContents.once("did-finish-load", (x) => {
-      view.webContents.send(name, value)
-    })
+    let wc_id = new_webtab(tab_cnt)
+    send_to_id(wc_id, name, value)
+  }
+}
+
+function get_active_tab_el() {
+  let active_tab = document.querySelector("#tab_dropzone .tab.active")
+  let tab_content = document.querySelector("#tab_content")
+  if (
+    tab_content &&
+    tab_content.dataset.active_wc_id &&
+    active_tab &&
+    active_tab.dataset.wc_id == tab_content.dataset.active_wc_id
+  ) {
+    return active_tab
   }
 }
 
 function send_or_create_tab(name, value) {
-  let cwin = remote.getCurrentWindow()
-  if (cwin && cwin.getBrowserView()) {
-    let view = cwin.getBrowserView()
-    if (view && !view.isDestroyed()) {
-      //active found
-      view.webContents.send(name, value)
-      return
-    }
+  let active = get_active_tab_el()
+  if (active) {
+    send_to_id(active.dataset.wc_id, name, value)
+  } else {
+    send_to_new_tab(name, value)
   }
-  send_to_new_tab(name, value)
 }
 
 function open_in_tab(href) {

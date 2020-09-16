@@ -10,6 +10,7 @@ module.exports = {
 }
 
 const story_list = require("./view/StoryList")
+const { ipcRenderer } = require("electron")
 
 const default_sources = [
   "https://news.ycombinator.com/",
@@ -21,8 +22,6 @@ const default_sources = [
 
 let syncHandler
 let once_db
-
-const { remote } = require("electron")
 
 function init() {
   once_db = new PouchDB(".once_db")
@@ -131,15 +130,16 @@ function set_animation(checked) {
 function set_theme(name) {
   switch (name) {
     case "dark":
-      remote.nativeTheme.themeSource = "dark"
+      ipcRenderer.send("theme", "dark")
       break
     case "light":
-      remote.nativeTheme.themeSource = "light"
+      ipcRenderer.send("theme", "dark")
       break
     case "custom":
+      console.log("custom theme, not implement, just hanging out here :D")
       break
     case "system":
-      remote.nativeTheme.themeSource = "system"
+      ipcRenderer.send("theme", "system")
       break
   }
 }
