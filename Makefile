@@ -3,3 +3,6 @@ build:
 
 drun:
 	LDEV=1 npm start
+
+rip:
+	LDEV=1 npm run re

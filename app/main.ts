@@ -26,9 +26,9 @@ let icon_path = path.join(
   "ic_launcher.png"
 )
 
-function createWindow() {
-  let main_window_preload = path.join(__dirname, "js", "main_window.js")
+global.main_window_preload = path.join(__dirname, "js", "main_window.js")
 
+function createWindow() {
   // Create the browser window.
   const win = new BrowserWindow({
     width: 800,
@@ -39,7 +39,7 @@ function createWindow() {
       enableRemoteModule: false,
       webSecurity: false,
       webviewTag: true,
-      preload: main_window_preload,
+      preload: global.main_window_preload,
     },
     icon: icon_path,
   })
@@ -154,17 +154,22 @@ function createWindow() {
     event.returnValue = null
   })
 
-  ipcMain.on("attach_wc_id", (event, wc_id) => {
+  ipcMain.on("attach_wc_id", (event, wc_id: string) => {
     let window = BrowserWindow.fromWebContents(event.sender)
     if (window) {
-      console.log("attach_wc_id", event.sender.id, wc_id)
-      let view_wc = webContents.fromId(wc_id)
+      console.log(
+        "attach_wc_id",
+        event.sender.id,
+        wc_id,
+        typeof parseInt(wc_id)
+      )
+      let view_wc = webContents.fromId(parseInt(wc_id))
       if (view_wc) {
         let view = BrowserView.fromWebContents(view_wc)
         if (view) {
           window.setBrowserView(view)
 
-          view.webContents.send("attach", event.sender.id)
+          view.webContents.send("attached", event.sender.id)
 
           console.log(
             "attach_wc_id",
@@ -202,21 +207,56 @@ function createWindow() {
   ).then((blocker: any) => {
     blocker.enableBlockingInSession(session.fromPartition("moep"))
   })
+
+  app.on("before-quit", (event) => {
+    console.log("byebye")
+    event.preventDefault()
+    ipcMain.on("alive", (x) => {
+      let wc = webContents.fromId(x.sender.id)
+
+      console.log("alive", wc.id, wc.isDestroyed())
+    })
+
+    setTimeout((x) => {
+      process.exit(0)
+    }, 2000)
+  })
 }
 
 app.on("window-all-closed", () => {
   console.log("here we are now all alone")
-
-  app.exit()
+  let allv = BrowserView.getAllViews()
+  allv.forEach((x) => {
+    x.destroy()
+  })
+  app.quit()
 })
 
 app.whenReady().then(() => {
   createWindow()
+  process.on("uncaughtException", console.log)
+  process.on("exit", console.log)
 })
 
 //https://github.com/electron/electron/issues/12518#issuecomment-616155070
 //https://www.electronjs.org/docs/api/web-contents#event-will-prevent-unload
 app.on("web-contents-created", function (_event, webContents) {
+  async function check_alive() {
+    if (webContents.isDestroyed()) {
+      return
+    }
+
+    let fae23 = await webContents.executeJavaScript(
+      'if(window.require  != undefined) window.require("electron").ipcRenderer.send("alive"); window.require  != undefined'
+    )
+    let allv = BrowserView.getAllViews()
+
+    // console.log("can js", fae23, allv.length)
+    setTimeout(check_alive, 500)
+  }
+
+  setTimeout(check_alive, 500)
+
   contextmenu.init_menu(webContents)
 
   webContents.on("new-window", (event, url) => {

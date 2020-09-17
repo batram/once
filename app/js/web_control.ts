@@ -1,4 +1,4 @@
-module.exports = {
+export {
   open_in_tab,
   open_in_new_tab,
   webtab_comms,
@@ -174,8 +174,6 @@ function attach_webtab(size_to_el: HTMLElement, wc_id: number) {
     console.error("failed to create or retrieve view to attach")
     return
   }
-
-  //send_to_id(wc_id, "attached", cwin.id)
 
   if (size_to_el) {
     size_to_el.dataset.active_wc_id = re_wc_id

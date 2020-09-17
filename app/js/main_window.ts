@@ -21,6 +21,8 @@ document.addEventListener("DOMContentLoaded", async (_e) => {
 
   search.init_search()
 
+  console.log("LDEV", process.env.LDEV == "1")
+
   let dev_cache = true //process.env.LDEV == "1"
   let sources = await settings.story_sources()
 

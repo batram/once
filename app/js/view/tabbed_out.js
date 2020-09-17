@@ -62,6 +62,7 @@ function new_relative_win(
       enableRemoteModule: false,
       webSecurity: false,
       webviewTag: true,
+      preload: global.main_window_preload,
     },
   })
 
