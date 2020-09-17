@@ -27,6 +27,8 @@ let icon_path = path.join(
 )
 
 function createWindow() {
+  let main_window_preload = path.join(__dirname, "js", "main_window.js")
+
   // Create the browser window.
   const win = new BrowserWindow({
     width: 800,
@@ -37,6 +39,7 @@ function createWindow() {
       enableRemoteModule: false,
       webSecurity: false,
       webviewTag: true,
+      preload: main_window_preload,
     },
     icon: icon_path,
   })

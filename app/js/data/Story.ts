@@ -1,6 +1,12 @@
 import * as onChange from "on-change"
 import * as settings from "../settings"
 
+export interface StorySource {
+  type: string
+  comment_url: string
+  timestamp: string | number | Date
+}
+
 export class Story {
   type: string
   href: string
@@ -8,10 +14,12 @@ export class Story {
   comment_url: string
   timestamp: string | number | Date
   filter: string
-  sources: {}[]
+  sources: StorySource[]
   read: boolean
   stared: boolean
-  stored_star: boolean;
+  stored_star: boolean
+  og_href: string;
+
   [index: string]: string | number | Date | {}[] | boolean | unknown
 
   constructor(

@@ -4,6 +4,7 @@ import * as filters from "../data/filters"
 import { Story } from "./Story"
 import * as settings from "../settings"
 import * as search from "../data/search"
+import * as story_filters from "../data/filters"
 
 export {
   load,
@@ -15,7 +16,7 @@ export {
 
 function get_cached(url: string) {
   let cached = localStorage.getItem(url)
-  let max_mins = 5
+  let max_mins = 5000
 
   try {
     cached = JSON.parse(cached)
@@ -107,7 +108,7 @@ async function cache_load(url: string, try_cache: boolean = true) {
 }
 
 async function enhance_stories(stories: Story[], add: boolean = true) {
-  let filtered_stories = await filters.filter_stories(stories)
+  let filtered_stories = await story_filters.filter_stories(stories)
   let readlist = await settings.get_readlist()
   let starlist = await settings.get_starlist()
 

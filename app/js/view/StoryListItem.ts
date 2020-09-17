@@ -1,7 +1,8 @@
-const { Story } = require("../data/Story")
 const story_parser = require("../data/parser")
 const web_control = require("../web_control")
-const webtab = require("../view/webtab")
+import { WebTab } from "../view/webtab"
+import * as story_filters from "../data/filters"
+import { Story, StorySource } from "../data/Story"
 const presenters = require("../presenters")
 
 module.exports = {
@@ -10,7 +11,7 @@ module.exports = {
   icon_button,
 }
 
-function story_html(story, inmain = true, webtab) {
+function story_html(story: Story, inmain = true, webtab: WebTab) {
   if (!(story instanceof Story)) {
     story = Story.from_obj(story)
   }
@@ -19,7 +20,7 @@ function story_html(story, inmain = true, webtab) {
   story_el.classList.add("story")
   story_el.dataset.title = story.title
   story_el.dataset.href = story.href
-  story_el.dataset.timestamp = story.timestamp
+  story_el.dataset.timestamp = story.timestamp.toString()
   story_el.dataset.type = "[" + story.type + "]"
   story_el.dataset.comment_url = story.comment_url
 
@@ -45,7 +46,7 @@ function story_html(story, inmain = true, webtab) {
 
   let sources = document.createElement("div")
   sources.classList.add("sources")
-  story.sources.forEach((x) => {
+  story.sources.forEach((x: StorySource) => {
     sources.append(info_block(x))
   })
 
@@ -90,33 +91,33 @@ function story_html(story, inmain = true, webtab) {
   return story_el
 }
 
-function update_storyel(e, story_el, webtab) {
-  if (!e || !e.detail) {
-    console.log("update_storyel fail", e, story_el)
+function update_storyel(event: CustomEvent, story_el: HTMLElement) {
+  if (!event || !event.detail) {
+    console.log("update_storyel fail", event, story_el)
     return
   }
-  if (e.detail.value instanceof Story && e.detail.name) {
-    switch (e.detail.name) {
+  if (event.detail.value instanceof Story && event.detail.name) {
+    switch (event.detail.name) {
       //TODO diff class before after, or completley redraw or fix on-change
       case "star":
       case "unstar":
-        update_star(e.detail.value.stared, story_el)
+        update_star(event.detail.value.stared, story_el)
         break
       case "mark_as_read":
       case "open_in_webview":
-        update_read(e.detail.value, story_el)
+        update_read(event.detail.value, story_el)
         break
     }
-  } else if (e.detail.path.length == 2) {
-    switch (e.detail.path[1]) {
+  } else if (event.detail.path.length == 2) {
+    switch (event.detail.path[1]) {
       case "read":
-        update_read(e.detail.value, story_el)
+        update_read(event.detail.value, story_el)
         break
       case "sources":
-        update_sources(e.detail.value, story_el)
+        update_sources(event.detail.value, story_el)
         break
       case "stared":
-        update_star(e.detail.value, story_el)
+        update_star(event.detail.value, story_el)
         break
       case "filter":
         break
@@ -124,27 +125,27 @@ function update_storyel(e, story_el, webtab) {
   }
 }
 
-function direct_events(story, story_el) {
-  story_el.addEventListener("data_change", (e) => {
+function direct_events(story: Story, story_el: HTMLElement) {
+  story_el.addEventListener("data_change", (e: CustomEvent) => {
     update_storyel(e, story_el)
   })
 
   let link = story_el.querySelector(".title")
   link.addEventListener("click", open_link_handler, false)
 
-  let filter_btn = story_el.querySelector(".filter_btn")
-  filter_btn.onclick = (x) => {
-    const {
-      show_filter,
-      show_filter_dialog,
-      add_filter,
-    } = require("../data/filters")
+  let filter_btn = story_el.querySelector<HTMLElement>(".filter_btn")
+  filter_btn.addEventListener("click", (x: MouseEvent) => {
     if (story_el.classList.contains("filtered")) {
-      show_filter(story.filter)
+      story_filters.show_filter(story.filter)
     } else {
-      show_filter_dialog(x, filter_btn, story, add_filter)
+      story_filters.show_filter_dialog(
+        x,
+        filter_btn,
+        story,
+        story_filters.add_filter
+      )
     }
-  }
+  })
 
   let read_btn = story_el.querySelector(".read_btn")
   read_btn.addEventListener("click", (x) => {
@@ -153,7 +154,7 @@ function direct_events(story, story_el) {
   })
 
   //open story with middle click on "skip reading"
-  read_btn.addEventListener("mousedown", (e) => {
+  read_btn.addEventListener("mousedown", (e: MouseEvent) => {
     if (e.button == 1) {
       return open_link_handler(e)
     }
@@ -169,21 +170,20 @@ function direct_events(story, story_el) {
   })
 }
 
-function ipc_events(story, story_el, webtab) {
-  story_el.addEventListener("data_change", (e) => {
+function ipc_events(story: Story, story_el: HTMLElement, webtab: WebTab) {
+  story_el.addEventListener("data_change", (e: CustomEvent) => {
     update_storyel(e, story_el)
   })
 
   let link = story_el.querySelector(".title")
   link.addEventListener("click", open_link_handler, false)
 
-  let filter_btn = story_el.querySelector(".filter_btn")
+  let filter_btn = story_el.querySelector<HTMLElement>(".filter_btn")
   filter_btn.onclick = (x) => {
     if (story_el.classList.contains("filtered")) {
       webtab.send_to_parent("show_filter", story.filter)
     } else {
-      const { show_filter_dialog } = require("../data/filters")
-      show_filter_dialog(x, filter_btn, story, (x) => {
+      story_filters.show_filter_dialog(x, filter_btn, story, (x) => {
         webtab.send_to_parent("add_filter", x)
       })
     }
@@ -199,9 +199,9 @@ function ipc_events(story, story_el, webtab) {
   })
 
   //open story with middle click on "skip reading"
-  read_btn.addEventListener("mousedown", (e) => {
+  read_btn.addEventListener("mousedown", (e: MouseEvent) => {
     if (e.button == 1) {
-      return click_webview(e)
+      return open_link_handler(e)
     }
   })
 
@@ -215,7 +215,7 @@ function ipc_events(story, story_el, webtab) {
   })
 }
 
-function info_block(source_ob) {
+function info_block(source_ob: StorySource) {
   let info = document.createElement("div")
   info.classList.add("info")
   info.dataset.tag = "[" + source_ob.type + "]"
@@ -246,12 +246,12 @@ function info_block(source_ob) {
   return info
 }
 
-function open_link_handler(e) {
+function open_link_handler(e: any | MouseEvent) {
   e.preventDefault()
   e.stopPropagation()
 
   let href = this.href
-
+  let target = e.target
   if (e.target.href) {
     href = e.target.href
   }
@@ -264,7 +264,7 @@ function open_link_handler(e) {
   return false
 }
 
-function icon_button(title, classname, icon_src) {
+function icon_button(title: string, classname: string, icon_src: string) {
   let btn = document.createElement("div")
   btn.classList.add("btn")
   btn.classList.add(classname)
@@ -275,14 +275,14 @@ function icon_button(title, classname, icon_src) {
   return btn
 }
 
-function add_read_button(story_el, story) {
+function add_read_button(story_el: HTMLElement, story: Story) {
   let read_btn = icon_button("", "read_btn", "")
   story_el.appendChild(read_btn)
 
   label_read(story_el)
 }
 
-function update_read(read, story_el) {
+function update_read(read: boolean, story_el: HTMLElement) {
   if (read) {
     story_el.classList.add("read")
   } else {
@@ -291,8 +291,8 @@ function update_read(read, story_el) {
   label_read(story_el)
 }
 
-function label_read(story_el) {
-  let btn = story_el.querySelector(".read_btn")
+function label_read(story_el: HTMLElement) {
+  let btn = story_el.querySelector<HTMLElement>(".read_btn")
 
   if (!btn) {
     return
@@ -308,8 +308,10 @@ function label_read(story_el) {
   }
 }
 
-function toggle_read(href, callback) {
-  let story_el = document.querySelector('.story[data-href="' + href + '"]')
+function toggle_read(href: string, callback: (story_el: HTMLElement) => any) {
+  let story_el = document.querySelector<HTMLElement>(
+    '.story[data-href="' + href + '"]'
+  )
   let story = story_loader.story_map.get(href)
 
   let anmim_class = ""
@@ -341,7 +343,7 @@ function toggle_read(href, callback) {
   }
 }
 
-function add_star_button(story_el, story) {
+function add_star_button(story_el: HTMLElement, story: Story) {
   if (story.hasOwnProperty("stored_star")) {
     story_el.classList.add("stored_star")
   }
@@ -351,8 +353,8 @@ function add_star_button(story_el, story) {
   label_star(story_el)
 }
 
-function label_star(story_el) {
-  let btn = story_el.querySelector(".star_btn")
+function label_star(story_el: HTMLElement) {
+  let btn = story_el.querySelector<HTMLElement>(".star_btn")
 
   if (!btn) {
     return
@@ -368,7 +370,7 @@ function label_star(story_el) {
   }
 }
 
-function update_star(stared, story_el) {
+function update_star(stared: boolean, story_el: HTMLElement) {
   if (stared) {
     story_el.classList.add("stared")
   } else {
@@ -378,11 +380,11 @@ function update_star(stared, story_el) {
   label_star(story_el)
 }
 
-function update_sources(sources, story_el) {
+function update_sources(sources: StorySource[], story_el: HTMLElement) {
   let sources_el = story_el.querySelector(".sources")
   sources_el.innerHTML = ""
 
-  sources.forEach((x) => {
+  sources.forEach((x: StorySource) => {
     sources_el.append(info_block(x))
   })
 }

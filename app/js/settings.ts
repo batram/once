@@ -1,4 +1,4 @@
-module.exports = {
+export {
   story_sources,
   get_filterlist,
   save_filterlist,
@@ -9,8 +9,9 @@ module.exports = {
   init,
 }
 
+import * as PouchDB from "pouchdb"
 const story_list = require("./view/StoryList")
-const { ipcRenderer } = require("electron")
+import { ipcRenderer } from "electron"
 
 const default_sources = [
   "https://news.ycombinator.com/",
@@ -20,8 +21,8 @@ const default_sources = [
   "https://old.reddit.com/r/netsec/.rss",
 ]
 
-let syncHandler
-let once_db
+let syncHandler: PouchDB.Replication.Sync<any>
+let once_db: PouchDB.Database<{}>
 
 function init() {
   once_db = new PouchDB(".once_db")
@@ -37,15 +38,18 @@ function init() {
       console.log("system theme change", e)
     })
 
+  let theme_select = document.querySelector<HTMLSelectElement>("#theme_select")
   theme_select.addEventListener("change", (x) => {
     save_theme(theme_select.value)
   })
 
+  let anim_checkbox = document.querySelector<HTMLInputElement>("#theme_select")
   restore_animation_settings()
   anim_checkbox.addEventListener("change", (x) => {
     save_animation(anim_checkbox.checked)
   })
 
+  let couch_input = document.querySelector<HTMLInputElement>("#couch_input")
   reset_couch_settings()
   couch_input.parentElement
     .querySelector('input[value="save"]')
@@ -56,6 +60,7 @@ function init() {
 
   set_sources_area()
 
+  let sources_area = document.querySelector<HTMLInputElement>("#sources_area")
   sources_area.parentElement
     .querySelector('input[value="save"]')
     .addEventListener("click", save_sources_settings)
@@ -75,6 +80,7 @@ function init() {
 
   set_filter_area()
 
+  let filter_area = document.querySelector<HTMLInputElement>("#filter_area")
   filter_area.parentElement
     .querySelector('input[value="save"]')
     .addEventListener("click", save_filter_settings)
@@ -96,30 +102,37 @@ function init() {
 
 function restore_theme_settings() {
   pouch_get("theme", "light").then((x) => {
+    let theme_select = document.querySelector<HTMLSelectElement>(
+      "#theme_select"
+    )
     theme_select.value = x
     set_theme(x)
   })
 }
 
-function save_theme(name) {
+function save_theme(name: string) {
   pouch_set("theme", name, console.log)
   set_theme(name)
 }
 
 function restore_animation_settings() {
   pouch_get("animation", true).then((checked) => {
+    let anim_checkbox = document.querySelector<HTMLInputElement>(
+      "#theme_select"
+    )
     anim_checkbox.checked = checked
     set_animation(checked)
   })
 }
 
-function save_animation(checked) {
+function save_animation(checked: boolean) {
   pouch_set("animation", checked, console.log)
+  let anim_checkbox = document.querySelector<HTMLInputElement>("#theme_select")
   anim_checkbox.checked = checked
   set_animation(checked)
 }
 
-function set_animation(checked) {
+function set_animation(checked: boolean) {
   if (checked) {
     document.body.classList.add("animated")
   } else {
@@ -127,7 +140,7 @@ function set_animation(checked) {
   }
 }
 
-function set_theme(name) {
+function set_theme(name: string) {
   switch (name) {
     case "dark":
       ipcRenderer.send("theme", "dark")
@@ -144,7 +157,7 @@ function set_theme(name) {
   }
 }
 
-function update_on_change(event) {
+function update_on_change(event: PouchDB.Replication.SyncResult<any>) {
   console.log("pouch change", event)
   if (event.direction == "pull") {
     event.change.docs.forEach((doc) => {
@@ -174,7 +187,7 @@ function update_on_change(event) {
   }
 }
 
-function couchdb_sync(couchdb_url) {
+function couchdb_sync(couchdb_url: string) {
   var remoteDB = new PouchDB(couchdb_url)
   if (syncHandler) {
     syncHandler.cancel()
@@ -186,15 +199,17 @@ function couchdb_sync(couchdb_url) {
 
   syncHandler
     .on("change", update_on_change)
-    .on("error", (err) => {
-      console.log("pouch err", err)
-    })
     .on("complete", (info) => {
       console.log("pouch sync stopped", info)
+    })
+
+    .on("error", (err: Error) => {
+      console.log("pouch err", err)
     })
 }
 
 function save_couch_settings() {
+  let couch_input = document.querySelector<HTMLInputElement>("#couch_input")
   let couchdb_url = couch_input.value
   if (get_couch_settings() != couchdb_url) {
     couchdb_sync(couchdb_url)
@@ -211,13 +226,14 @@ function get_couch_settings() {
 }
 
 function reset_couch_settings() {
+  let couch_input = document.querySelector<HTMLInputElement>("#couch_input")
   couch_input.value = get_couch_settings()
 }
 
-async function pouch_get(id, fallback) {
+async function pouch_get(id: string, fallback_value: Exclude<any, Function>) {
   return once_db
     .get(id)
-    .then((doc) => {
+    .then((doc: any) => {
       return doc.list
     })
     .catch((err) => {
@@ -225,10 +241,10 @@ async function pouch_get(id, fallback) {
       if (err.status == 404) {
         once_db.put({
           _id: id,
-          list: fallback,
+          list: fallback_value,
         })
       }
-      return fallback
+      return fallback_value
     })
 }
 
@@ -237,10 +253,12 @@ async function story_sources() {
 }
 
 async function set_sources_area() {
+  let sources_area = document.querySelector<HTMLInputElement>("#sources_area")
   sources_area.value = (await story_sources()).join("\n")
 }
 
 async function save_sources_settings() {
+  let sources_area = document.querySelector<HTMLInputElement>("#sources_area")
   let story_sources = sources_area.value.split("\n").filter((x) => {
     return x.trim() != ""
   })
@@ -249,10 +267,12 @@ async function save_sources_settings() {
 }
 
 async function set_filter_area() {
+  let filter_area = document.querySelector<HTMLInputElement>("#filter_area")
   filter_area.value = (await get_filterlist()).join("\n")
 }
 
 function save_filter_settings() {
+  let filter_area = document.querySelector<HTMLInputElement>("#filter_area")
   let filter_list = filter_area.value.split("\n").filter((x) => {
     return x.trim() != ""
   })
@@ -264,14 +284,14 @@ function get_readlist() {
   return pouch_get("read_list", [])
 }
 
-function get_filterlist() {
+function get_filterlist(): Promise<string[]> {
   return pouch_get("filter_list", default_filterlist)
 }
 
-async function pouch_set(id, value, callback) {
+async function pouch_set(id: string, value: any, callback: Function) {
   once_db
     .get(id)
-    .then((doc) => {
+    .then((doc: any) => {
       doc.list = value
       return once_db.put(doc)
     })
@@ -295,14 +315,14 @@ async function pouch_set(id, value, callback) {
     })
 }
 
-async function save_filterlist(filter_list) {
-  pouch_set("filter_list", filter_list, (x) => {
+async function save_filterlist(filter_list: string[]) {
+  pouch_set("filter_list", filter_list, () => {
     story_list.refilter()
     set_filter_area()
   })
 }
 
-async function save_readlist(readlist, callback) {
+async function save_readlist(readlist: string[], callback: Function) {
   pouch_set("read_list", readlist, callback)
 }
 
@@ -310,8 +330,8 @@ async function get_starlist() {
   return pouch_get("star_list", {})
 }
 
-async function save_starlist(readlist, callback) {
-  pouch_set("star_list", readlist, callback)
+async function save_starlist(starlist: string[], callback: Function) {
+  pouch_set("star_list", starlist, callback)
 }
 
 let default_filterlist = `bbc.co.uk

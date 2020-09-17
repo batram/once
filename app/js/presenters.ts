@@ -5,18 +5,20 @@ module.exports = {
   init_in_webtab,
 }
 
-const path = require("path")
+import * as path from "path"
+import * as fs from "fs"
+import { Story } from "./data/Story"
 
 function get_active() {
   //TODO: determine if active from settings
   var normalizedPath = path.join(__dirname, "presenters")
 
-  return require("fs")
+  return fs
     .readdirSync(normalizedPath)
-    .map((file) => {
+    .map((file_name: string) => {
       //TODO: better check
-      if (file.endsWith(".js")) {
-        return require(path.join(normalizedPath, file))
+      if (file_name.endsWith(".js")) {
+        return require(path.join(normalizedPath, file_name))
       }
     })
     .filter((x) => {
@@ -24,7 +26,7 @@ function get_active() {
     })
 }
 
-function modify_url(url) {
+function modify_url(url: string) {
   for (let presenter of get_active()) {
     if (presenter.is_presenter_url(url)) {
       return presenter.display_url(url)
@@ -33,7 +35,11 @@ function modify_url(url) {
   return url
 }
 
-function add_story_elem_buttons(story_el, story, inmain = true) {
+function add_story_elem_buttons(
+  story_el: HTMLElement,
+  story: Story,
+  inmain: boolean = true
+) {
   get_active().forEach((presenter) => {
     if (presenter.hasOwnProperty("story_elem_button")) {
       let button = presenter["story_elem_button"](story, inmain)

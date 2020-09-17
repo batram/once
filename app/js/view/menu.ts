@@ -1,19 +1,15 @@
 module.exports = {
   add_tag,
   open_panel,
+  init,
 }
 
+import * as search from "../data/search"
 const sep_slider = require("./sep_slider")
 
-document.querySelectorAll("#menu .sub").forEach((x) => {
-  x.onclick = (e) => {
-    open_panel(x.dataset.panel)
-  }
-})
-
-function open_panel(panel) {
+function open_panel(panel: string) {
   sep_slider.expand_left()
-  document.querySelectorAll("#left_main .panel").forEach((x) => {
+  document.querySelectorAll<HTMLElement>("#left_main .panel").forEach((x) => {
     if (x.dataset.panel != panel) {
       x.style.display = "none"
     } else {
@@ -22,9 +18,9 @@ function open_panel(panel) {
   })
 }
 
-function add_tag(type, colors) {
+function add_tag(type: string, colors: [string, string]) {
   if (!document.querySelector('#menu div[data-type="' + type + '"]')) {
-    tag = document.createElement("div")
+    let tag = document.createElement("div")
     tag.dataset.type = type
     tag.classList.add("btn")
     tag.classList.add("menu_btn")
@@ -51,8 +47,13 @@ function add_tag(type, colors) {
 
     tag.onclick = (x) => {
       open_panel("stories")
+      let search_scope = document.querySelector<HTMLInputElement>(
+        "#search_scope"
+      )
       search_scope.value = "local"
-      document.querySelector("#searchfield").value = "[" + type + "]"
+
+      let searchfield = document.querySelector<HTMLInputElement>("#searchfield")
+      searchfield.value = "[" + type + "]"
       search.search_stories("[" + type + "]")
     }
 
@@ -60,10 +61,18 @@ function add_tag(type, colors) {
   }
 }
 
-if (document.querySelector("#menu")) {
-  //Add special tags for search
-  add_tag("ALL", ["", ""])
-  add_tag("filtered", ["", ""])
-  add_tag("stared", ["", ""])
-  add_tag("new", ["", ""])
+function init() {
+  document.querySelectorAll<HTMLElement>("#menu .sub").forEach((x) => {
+    x.onclick = (e) => {
+      open_panel(x.dataset.panel)
+    }
+  })
+
+  if (document.querySelector("#menu")) {
+    //Add special tags for search
+    add_tag("ALL", ["", ""])
+    add_tag("filtered", ["", ""])
+    add_tag("stared", ["", ""])
+    add_tag("new", ["", ""])
+  }
 }
