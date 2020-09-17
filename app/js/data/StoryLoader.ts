@@ -1,8 +1,11 @@
 const story_map = require("./StoryMap")
 const story_parser = require("./parser")
-const filters = require("../data/filters")
+import * as filters from "../data/filters"
+import { Story } from "./Story"
+import * as settings from "../settings"
+import * as search from "../data/search"
 
-module.exports = {
+export {
   load,
   parallel_load_stories,
   story_map,
@@ -10,7 +13,7 @@ module.exports = {
   enhance_stories,
 }
 
-function get_cached(url) {
+function get_cached(url: string) {
   let cached = localStorage.getItem(url)
   let max_mins = 5
 
@@ -36,11 +39,15 @@ function get_cached(url) {
   return cached[1]
 }
 
-function sort_raw_stories(raw_stories) {
-  return raw_stories.sort()
+function sort_raw_stories(raw_stories: any[]): Story[] {
+  if (raw_stories) {
+    return raw_stories.sort()
+  } else {
+    return []
+  }
 }
 
-async function collect_all_stories(urls, try_cache = true) {
+async function collect_all_stories(urls: string[], try_cache: boolean = true) {
   let donso = await Promise.all(
     urls.map(async (url) => {
       return cache_load(url, try_cache)
@@ -56,13 +63,13 @@ async function collect_all_stories(urls, try_cache = true) {
   )
 }
 
-async function parallel_load_stories(urls, try_cache = true) {
+async function parallel_load_stories(urls: string[], try_cache = true) {
   urls.map(async (url) => {
     cache_load(url, try_cache).then(process_story_input)
   })
 }
 
-async function process_story_input(stories) {
+async function process_story_input(stories: Story[]) {
   let all_stories = sort_raw_stories(stories)
   all_stories.forEach((story) => {
     story_map.add(story)
@@ -73,14 +80,14 @@ async function process_story_input(stories) {
   add_stored_stars(starlist)
 
   require("../view/StoryList").sort_stories()
-
+  let searchfield = document.querySelector<HTMLInputElement>("#searchfield")
   if (searchfield.value != "") {
     search.search_stories(searchfield.value)
   }
 }
 
 //data loader
-async function cache_load(url, try_cache = true) {
+async function cache_load(url: string, try_cache: boolean = true) {
   let cached = null
   if (try_cache) {
     cached = get_cached(url)
@@ -99,12 +106,12 @@ async function cache_load(url, try_cache = true) {
   }
 }
 
-async function enhance_stories(stories, add = true) {
+async function enhance_stories(stories: Story[], add: boolean = true) {
   let filtered_stories = await filters.filter_stories(stories)
   let readlist = await settings.get_readlist()
   let starlist = await settings.get_starlist()
 
-  return filtered_stories.map((story) => {
+  return filtered_stories.map((story: Story) => {
     if (add) {
       story = story_map.add(story)
     }
@@ -116,7 +123,7 @@ async function enhance_stories(stories, add = true) {
   })
 }
 
-async function parse_story_response(val, url) {
+async function parse_story_response(val: string, url: string) {
   let dom_parser = new DOMParser()
   let doc = dom_parser.parseFromString(val, "text/html")
 
@@ -132,12 +139,17 @@ async function parse_story_response(val, url) {
   return enhance_stories(stories)
 }
 
-async function load(urls) {
+async function load(urls: string[]) {
   let cache = false
   parallel_load_stories(urls, cache)
 }
 
-function add_stored_stars(starlist) {
+interface Starlist {
+  [index: string]: Story | { stared: boolean; stored_star: boolean }
+}
+
+//TODO: specify starlist format
+function add_stored_stars(starlist: Starlist) {
   for (let href in starlist) {
     let star_story = starlist[href]
     star_story.stared = true

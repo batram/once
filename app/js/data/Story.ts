@@ -1,7 +1,27 @@
-const onChange = require("on-change")
+import * as onChange from "on-change"
+import * as settings from "../settings"
 
-class Story {
-  constructor(type, href, title, comment_url, timestamp, filter = "") {
+export class Story {
+  type: string
+  href: string
+  title: string
+  comment_url: string
+  timestamp: string | number | Date
+  filter: string
+  sources: {}[]
+  read: boolean
+  stared: boolean
+  stored_star: boolean;
+  [index: string]: string | number | Date | {}[] | boolean | unknown
+
+  constructor(
+    type?: string,
+    href?: string,
+    title?: string,
+    comment_url?: string,
+    timestamp?: Date,
+    filter?: string
+  ) {
     this.type = type
     this.href = href
     this.title = title
@@ -19,7 +39,7 @@ class Story {
     this.filter = filter
   }
 
-  static from_obj(story) {
+  static from_obj(story: any) {
     let xstory = new Story()
     for (let i in story) {
       xstory[i] = story[i]
@@ -37,7 +57,8 @@ class Story {
   }
 
   to_obj() {
-    let cloned = {}
+    let cloned = JSON.parse(JSON.stringify(this))
+
     for (let i in this) {
       try {
         cloned[i] = onChange.target(this[i])
@@ -61,10 +82,12 @@ class Story {
 
   add_to_readlist() {
     settings.get_readlist().then((readlist) => {
-      let target_href = onChange.target(this.href)
+      let target_href = onChange.target(this).href
       if (!readlist.includes(target_href)) {
-        readlist.push(onChange.target(this.href))
-        readlist = readlist.filter((v, i, a) => a.indexOf(v) === i)
+        readlist.push(target_href)
+        readlist = readlist.filter(
+          (href: string, i: number, a: any[]) => a.indexOf(href) === i
+        )
         settings.save_readlist(readlist, console.log)
       }
     })
@@ -79,7 +102,7 @@ class Story {
     let cloned = new Story()
     for (let i in this) {
       try {
-        cloned[i] = onChange.target(this[i])
+        cloned[i] = onChange.target(this)[i]
       } catch (e) {
         cloned[i] = null
       }
@@ -108,7 +131,7 @@ class Story {
     })
   }
 
-  has_or_get(story_el, prop, func) {
+  has_or_get(story_el: HTMLElement, prop: string, func: Function) {
     if (this.hasOwnProperty(prop)) {
       if (this[prop]) {
         story_el.classList.add(prop)
@@ -116,7 +139,8 @@ class Story {
       func(story_el, this)
     } else {
       if (typeof this["is_" + prop] == "function") {
-        this["is_" + prop]().then((x) => {
+        // @ts-ignore
+        this["is_" + prop]().then((x: any) => {
           if (x) {
             story_el.classList.add(prop)
           }
@@ -140,7 +164,10 @@ class Story {
     return this.stared
   }
 
-  static compare(a, b) {
+  static compare(
+    a: { read: boolean; timestamp: number | string | Date },
+    b: { read: boolean; timestamp: number | string | Date }
+  ) {
     //sort by read first and then timestamp
     if (a.read && !b.read) {
       return 1
@@ -156,5 +183,3 @@ class Story {
     return 0
   }
 }
-
-module.exports = { Story }
