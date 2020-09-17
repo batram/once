@@ -1,4 +1,4 @@
-let {
+import {
   app,
   BrowserWindow,
   session,
@@ -7,18 +7,18 @@ let {
   webContents,
   BrowserView,
   nativeTheme,
-} = require("electron")
-const path = require("path")
-const ElectronBlocker = require("@cliqz/adblocker-electron")
-const fetch = require("cross-fetch")
+  KeyboardInputEvent,
+} from "electron"
+
+import * as path from "path"
+import * as adblocker from "@cliqz/adblocker-electron"
+import * as fullscreen from "./js/view/fullscreen"
 const contextmenu = require("./js/view/contextmenu")
 const tabbed_out = require("./js/view/tabbed_out")
-const fullscreen = require("./js/view/fullscreen")
-const { setInterval } = require("timers")
 
 require("electron-reload")(path.join(__dirname))
 
-global.icon_path = path.join(
+let icon_path = path.join(
   __dirname,
   "imgs",
   "icons",
@@ -38,7 +38,7 @@ function createWindow() {
       webSecurity: false,
       webviewTag: true,
     },
-    icon: global.icon_path,
+    icon: icon_path,
   })
 
   ipcMain.on("fullscreen", (event, value) => {
@@ -120,7 +120,7 @@ function createWindow() {
   })
 
   ipcMain.on("tab_me_out", (event, data) => {
-    console.log("tab_me_out", (event, data))
+    console.log("tab_me_out", event, data)
     let view = BrowserView.fromWebContents(event.sender)
     if (view) {
       let window = BrowserWindow.fromBrowserView(view)
@@ -188,45 +188,23 @@ function createWindow() {
   })
 */
   win.removeMenu()
-  win.openDevTools()
+  //win.openDevTools()
   //win.webContents.session.setProxy({ proxyRules: "socks5://127.0.0.1:9150" })
-
-  win.webContents.on("new-window", (event, url) => {
-    event.preventDefault()
-    console.log("caught new-window", url)
-    event.newGuest = BrowserWindow.fromWebContents(event.sender)
-    event.sender.send("open_in_new_tab", url)
-    return false
-  })
-
-  win.webContents.on("will-navigate", (event, url) => {
-    console.log("caught will-navigate", url)
-    event.newGuest = BrowserWindow.fromWebContents(event.sender)
-    event.sender.send("open_in_tab", url)
-    return false
-  })
 
   // and load the index.html of the app.
   win.loadFile(path.join(__dirname, "main_window.html"))
 
-  ElectronBlocker.ElectronBlocker.fromPrebuiltAdsAndTracking(fetch).then(
-    (blocker) => {
-      blocker.enableBlockingInSession(session.fromPartition("moep"))
-    }
-  )
+  adblocker.ElectronBlocker.fromPrebuiltAdsAndTracking(
+    require("cross-fetch")
+  ).then((blocker: any) => {
+    blocker.enableBlockingInSession(session.fromPartition("moep"))
+  })
 }
 
-setInterval((x) => {
-  webContents.getAllWebContents().forEach((x) => {
-    console.log(x.id, x.isDestroyed())
-  })
-}, 100)
-
-app.on("window-all-closed", (x) => {
+app.on("window-all-closed", () => {
   console.log("here we are now all alone")
 
-  app.quit()
-  //app.quit()
+  app.exit()
 })
 
 app.whenReady().then(() => {
@@ -237,18 +215,20 @@ app.whenReady().then(() => {
 //https://www.electronjs.org/docs/api/web-contents#event-will-prevent-unload
 app.on("web-contents-created", function (_event, webContents) {
   contextmenu.init_menu(webContents)
-  /*
-  webContents.on("will-navigate", (x) => {
-    //kill all attached browserviews before navigation
-    const cwin = BrowserWindow.fromWebContents(webContents)
-    if (cwin && cwin.getBrowserViews().length != 0) {
-      cwin.getBrowserViews().forEach((v) => {
-        cwin.removeBrowserView(v)
-        v.destroy()
-      })
-    }
+
+  webContents.on("new-window", (event, url) => {
+    event.preventDefault()
+    console.log("caught new-window", url)
+    webContents.send("open_in_new_tab", url)
+    return false
   })
-*/
+
+  webContents.on("will-navigate", (event, url) => {
+    console.log("caught will-navigate", url)
+    webContents.send("open_in_tab", url)
+    return false
+  })
+
   try {
     if (!webContents.debugger.isAttached()) {
       webContents.debugger.attach()
@@ -276,7 +256,7 @@ app.on("web-contents-created", function (_event, webContents) {
     name: "mhook",
   })
 
-  if (true) {
+  if (false) {
     webContents.debugger.sendCommand("Runtime.enable")
     webContents.debugger.sendCommand("Page.enable")
     webContents.debugger.sendCommand("Page.setLifecycleEventsEnabled", {
@@ -292,20 +272,13 @@ app.on("web-contents-created", function (_event, webContents) {
           ß(e.button.toString())
         })
       }
-    
+      
       delete window.mhook
       `,
   })
 
-  webContents.on("before-input-event", (event, input) => {
-    if (input.type == "keyUp") {
-      let e = { key: input.key }
-      /*
-      if (fullscreen.main_hook(e)) {
-        event.preventDefault()
-      }*/
-    }
-  })
+  fullscreen.webview_key_catcher(webContents)
+
   /*
   webContents.on("will-prevent-unload", function (event) {
     const win = BrowserWindow.fromWebContents(webContents)

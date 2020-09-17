@@ -1,5 +1,6 @@
 const web_control = require("../web_control")
 let story_list_item = require("../view/StoryListItem")
+const Readability = require("../third_party/Readability.js")
 
 const description = "Presents contents of a webpage in more readable way"
 const options = {

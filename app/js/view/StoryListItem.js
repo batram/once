@@ -10,7 +10,7 @@ module.exports = {
   icon_button,
 }
 
-function story_html(story, inmain = true) {
+function story_html(story, inmain = true, webtab) {
   if (!(story instanceof Story)) {
     story = Story.from_obj(story)
   }
@@ -84,13 +84,13 @@ function story_html(story, inmain = true) {
   if (inmain) {
     direct_events(story, story_el)
   } else {
-    ipc_events(story, story_el)
+    ipc_events(story, story_el, webtab)
   }
 
   return story_el
 }
 
-function update_storyel(e, story_el) {
+function update_storyel(e, story_el, webtab) {
   if (!e || !e.detail) {
     console.log("update_storyel fail", e, story_el)
     return
@@ -169,7 +169,7 @@ function direct_events(story, story_el) {
   })
 }
 
-function ipc_events(story, story_el) {
+function ipc_events(story, story_el, webtab) {
   story_el.addEventListener("data_change", (e) => {
     update_storyel(e, story_el)
   })

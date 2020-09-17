@@ -32,10 +32,9 @@
       ></webview>
     </div>
   </body>
-  <script src="js/third_party/Readability.js"></script>
   <script>
     const webtab = require("./js/view/webtab")
-    webtab.init()
+    let tab = new WebTab()
     const fullscreen = require("./js/view/fullscreen")
     fullscreen.init_listeners()
   </script>

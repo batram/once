@@ -1,4 +1,4 @@
-module.exports = {
+export {
   key_handler,
   set,
   leave,
@@ -6,10 +6,34 @@ module.exports = {
   entered,
   left,
   init_listeners,
+  webview_key_catcher,
 }
 
-const { ipcRenderer } = require("electron")
-const webtab = require("./webtab")
+import { ipcRenderer, WebContents, BrowserWindow } from "electron"
+import * as webtab from "./webtab"
+
+function webview_key_catcher(webContents: WebContents) {
+  webContents.on("did-attach-webview", (event, guest_webContents) => {
+    console.log("did webcias", guest_webContents.id, webContents.id)
+    guest_webContents.on("before-input-event", (event, input) => {
+      let focused = BrowserWindow.getFocusedWindow()
+
+      if (input.code == "F11") {
+        focused.webContents.sendInputEvent({
+          keyCode: "F11",
+          type: input.type == "keyUp" ? "keyUp" : "keyDown",
+        })
+      }
+
+      if (input.key == "Escape") {
+        focused.webContents.sendInputEvent({
+          keyCode: "Escape",
+          type: input.type == "keyUp" ? "keyUp" : "keyDown",
+        })
+      }
+    })
+  })
+}
 
 function init_listeners() {
   let webview = document.querySelector("#webview")
@@ -24,15 +48,15 @@ function init_listeners() {
   window.addEventListener("keyup", key_handler)
 }
 
-function set(e, fullscreen_value) {
+function set(_: any, fullscreen_value: boolean) {
   if (fullscreen_value) {
-    entered(e)
+    entered()
   } else {
-    left(e)
+    left()
   }
 }
 
-function key_handler(e) {
+function key_handler(e: KeyboardEvent) {
   let is_fullscreen = document.body.classList.contains("fullscreen")
 
   if (e.key == "F11") {
@@ -52,26 +76,27 @@ function key_handler(e) {
   }
 }
 
-function enter(e) {
-  console.debug("fullscreen enter", e)
+function enter() {
+  console.debug("fullscreen enter")
+  /*
   if (webtab.is_attached()) {
     webtab.send_to_parent("fullscreen", true)
-  }
+  }*/
 
   document.body.classList.add("fullscreen")
   ipcRenderer.send("fullscreen", true)
-  entered(e)
+  entered()
 }
 
-function entered(e) {
-  console.debug("fullscreen entered", e)
+function entered() {
   document.body.classList.add("fullscreen")
-  let tab_cnt = document.querySelector("#right_panel")
+  let tab_cnt = document.querySelector<HTMLElement>("#right_panel")
   if (tab_cnt) {
+    tab_cnt
     tab_cnt.style.minWidth = "100%"
   }
 
-  let webview = document.querySelector("#webview")
+  let webview = document.querySelector<Electron.WebviewTag>("#webview")
   if (webview) {
     webview.executeJavaScript(
       `
@@ -88,26 +113,26 @@ function entered(e) {
   }
 }
 
-function leave(e) {
-  console.debug("fullscreen leave", e)
+function leave() {
+  /*
   if (webtab.is_attached()) {
     webtab.send_to_parent("fullscreen", false)
-  }
+  }*/
 
   document.body.classList.remove("fullscreen")
   ipcRenderer.send("fullscreen", false)
 }
 
-function left(e) {
-  console.log("leave full")
+function left() {
+  console.debug("leave full")
 
   try {
     document.body.classList.remove("fullscreen")
-    let tab_cnt = document.querySelector("#right_panel")
+    let tab_cnt = document.querySelector<HTMLElement>("#right_panel")
     if (tab_cnt) {
       tab_cnt.style.minWidth = ""
     }
-    let webview = document.querySelector("webview")
+    let webview = document.querySelector<Electron.WebviewTag>("webview")
     if (webview) {
       webview
         .executeJavaScript(

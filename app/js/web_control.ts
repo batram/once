@@ -18,7 +18,7 @@ function grab_attached_or_new() {
   console.log("attacjed?", wc_id, wc_id != null)
 
   if (wc_id != null) {
-    new_webtab(document.querySelector("#tab_content"), wc_id)
+    grab_webtab(document.querySelector("#tab_content"), wc_id)
     return true
   } else {
     new_webtab(document.querySelector("#tab_content"))
@@ -26,39 +26,23 @@ function grab_attached_or_new() {
   }
 }
 
-function new_webtab(size_to_el, wc_id = null) {
+function new_tab_element(
+  size_to_el: HTMLElement,
+  wc_id: number
+): HTMLElement | null {
   let tab_el = document.createElement("div")
   tab_el.setAttribute("draggable", "true")
   tab_el.classList.add("tab")
   tab_el.innerText = "New tab"
   tab_el.dataset.size_to = size_to_el.id
-
-  if (wc_id != null) {
-    if (!wc_id || isNaN(parseInt(wc_id))) {
-      throw (
-        "can't add tab with incomplete information view_id: " +
-        JSON.stringify(wc_id)
-      )
-    }
-    wc_id = attach_webtab(size_to_el, parseInt(wc_id))
-  } else {
-    wc_id = attach_webtab(size_to_el)
-  }
-
-  if (wc_id == null) {
-    console.error("failed to attach tab")
-    return
-  }
-
-  mark_tab_active(tab_el)
-  tab_el.dataset.wc_id = wc_id
+  tab_el.dataset.wc_id = wc_id.toString()
 
   let dropzone = document.querySelector("#tab_dropzone")
   if (dropzone) {
     dropzone.append(tab_el)
   } else {
     console.error("failed to find dropzone for tabs")
-    return
+    return null
   }
 
   tab_el.ondrag = (drag) => {
@@ -82,7 +66,7 @@ function new_webtab(size_to_el, wc_id = null) {
 
     if (drag.dataTransfer.dropEffect == "none") {
       let offset = JSON.stringify([drag.offsetX, drag.offsetY])
-      send_to_id(tab_el.dataset.wc_id, "pop_out", offset)
+      send_to_id(parseInt(tab_el.dataset.wc_id), "pop_out", offset)
     }
   }
 
@@ -94,50 +78,59 @@ function new_webtab(size_to_el, wc_id = null) {
     }
   })
 
-  return wc_id
+  return tab_el
 }
 
-function activate_tab(tab_el) {
+function grab_webtab(size_to_el: HTMLElement, wc_id: number) {
+  let ret_wc_id = attach_webtab(size_to_el, wc_id)
+  if (wc_id != 0 && ret_wc_id != wc_id) {
+    throw `Wanted to grab ${wc_id} but got ${ret_wc_id}`
+  }
+
+  if (ret_wc_id && ret_wc_id == 0) {
+    console.error(
+      "failed to attach tab",
+      `wc_id ${wc_id}, ret_wc_id ${ret_wc_id}`
+    )
+    return
+  }
+
+  let new_el = new_tab_element(size_to_el, ret_wc_id)
+  mark_tab_active(new_el)
+
+  return ret_wc_id
+}
+
+function new_webtab(size_to_el: HTMLElement): number {
+  return grab_webtab(size_to_el, 0)
+}
+
+function activate_tab(tab_el: HTMLElement) {
   let size_to_el = document.getElementById(tab_el.dataset.size_to)
   attach_webtab(size_to_el, parseInt(tab_el.dataset.wc_id))
   mark_tab_active(tab_el)
 }
 
-function close_tab(tab_el) {
-  send_to_id(tab_el.dataset.wc_id, "closed")
-  remove_tab_el(tab_el.dataset.wc_id)
+function close_tab(tab_el: HTMLElement) {
+  send_to_id(parseInt(tab_el.dataset.wc_id), "closed")
+  remove_tab_el(parseInt(tab_el.dataset.wc_id))
 }
 
-function add_tab(wc_id) {
-  if (!wc_id) {
-    console.error("can't add tab with incomplete information")
-    return
-  }
-  let existing_tab = tab_el_from_id(wc_id)
-  if (existing_tab) {
-    mark_tab_active(existing_tab)
-  } else {
-    let tab_content = document.querySelector("#tab_content")
-    if (tab_content) {
-      new_webtab(tab_content, wc_id)
-    } else {
-      console.error("failed to find tab_content to attach tabs")
-      return
-    }
-  }
+function get_active_wc_id(size_to_el: HTMLElement): number {
+  return parseInt(size_to_el.dataset.active_wc_id)
 }
 
-function remove_tab_el(wc_id) {
+function remove_tab_el(wc_id: number) {
   let tab_el = tab_el_from_id(wc_id)
   if (tab_el) {
     let size_to_el = document.getElementById(tab_el.dataset.size_to)
-    if (size_to_el.dataset.active_wc_id == wc_id) {
+    if (get_active_wc_id(size_to_el) == wc_id) {
       size_to_el.dataset.active_wc_id = ""
-      let prev = tab_el.previousElementSibling
+      let prev = tab_el.previousElementSibling as HTMLElement
       if (prev && prev.classList.contains("tab")) {
         activate_tab(prev)
       } else {
-        let next = tab_el.nextElementSibling
+        let next = tab_el.nextElementSibling as HTMLElement
         if (next && next.classList.contains("tab")) {
           next
           activate_tab(next)
@@ -158,26 +151,26 @@ function maybe_close_window() {
   }
 }
 
-function tab_el_from_id(id) {
-  return document.querySelector(`.tab[data-wc_id="${id}"]`)
+function tab_el_from_id(id: number) {
+  return document.querySelector<HTMLElement>(`.tab[data-wc_id="${id}"]`)
 }
 
-function mark_tab_active(tab_el) {
+function mark_tab_active(tab_el: HTMLElement) {
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.classList.remove("active")
   })
   tab_el.classList.add("active")
 }
 
-function attach_webtab(size_to_el, wc_id = null) {
-  let view = null
-  if (wc_id != null) {
-    wc_id = ipcRenderer.sendSync("attach_wc_id", wc_id)
+function attach_webtab(size_to_el: HTMLElement, wc_id: number) {
+  let re_wc_id = null
+  if (wc_id != null && wc_id != 0) {
+    re_wc_id = ipcRenderer.sendSync("attach_wc_id", wc_id)
   } else {
-    wc_id = ipcRenderer.sendSync("attach_new_tab")
+    re_wc_id = ipcRenderer.sendSync("attach_new_tab")
   }
 
-  if (!wc_id) {
+  if (!re_wc_id) {
     console.error("failed to create or retrieve view to attach")
     return
   }
@@ -185,8 +178,10 @@ function attach_webtab(size_to_el, wc_id = null) {
   //send_to_id(wc_id, "attached", cwin.id)
 
   if (size_to_el) {
-    size_to_el.dataset.active_wc_id = wc_id
+    size_to_el.dataset.active_wc_id = re_wc_id
 
+    //TODO: use polyfill if we ever leave electron?
+    // @ts-ignore
     const resizeObserver = new ResizeObserver((entries) => {
       for (let entry of entries) {
         if (
@@ -211,13 +206,13 @@ function attach_webtab(size_to_el, wc_id = null) {
     resizeObserver.observe(size_to_el)
   }
 
-  return wc_id
+  return re_wc_id
 }
 
 function webtab_comms() {
   let addtab_button = document.querySelector("#addtab")
   addtab_button.addEventListener("click", (x) => {
-    let tab_content = document.querySelector("#tab_content")
+    let tab_content = document.querySelector<HTMLElement>("#tab_content")
     new_webtab(tab_content)
   })
 
@@ -232,8 +227,9 @@ function webtab_comms() {
   ipcRenderer.on("update-target-url", show_target_url)
   ipcRenderer.on("open_in_tab", open_in_tab_event)
 
-  function show_target_url(event, url) {
-    if (!document.querySelector("#url_target") || !url) {
+  function show_target_url(event: Electron.IpcRendererEvent, url: string) {
+    let url_target = document.querySelector<HTMLElement>("#url_target")
+    if (!url_target || !url) {
       return
     }
 
@@ -252,49 +248,61 @@ function webtab_comms() {
   }
 
   window.addEventListener("beforeunload", (x) => {
-    ipcRenderer.removeAllListeners()
+    //TODO: move all listeners to channel "tabcoms"
+    ipcRenderer.removeAllListeners("tabcoms")
   })
 
-  function open_in_new_tab_event(event, url) {
+  function open_in_new_tab_event(
+    event: Electron.IpcRendererEvent,
+    url: string
+  ) {
     open_in_new_tab(url)
   }
-  function open_in_tab_event(event, url) {
+  function open_in_tab_event(event: Electron.IpcRendererEvent, url: string) {
     open_in_tab(url)
   }
 
-  function detaching(event) {
+  function detaching(event: Electron.IpcRendererEvent) {
     console.log("detaching", event)
     remove_tab_el(event.senderId)
   }
 
-  function show_filter(event, data) {
+  function show_filter(event: Electron.IpcRendererEvent, data: string) {
     filters.show_filter(data)
   }
 
-  function add_filter(event, data) {
+  function add_filter(event: Electron.IpcRendererEvent, data: string) {
     filters.add_filter(data)
   }
 
-  function update_story(event, data) {
+  function update_story(
+    event: Electron.IpcRendererEvent,
+    data: { href: string; path: string; value: string }
+  ) {
+    let story_loader = require("./data/StoryLoader")
     story_loader.story_map.update_story(data.href, data.path, data.value)
   }
 
-  let subscribers = []
+  let subscribers: number[] = []
 
-  function subscribe_to_change(event) {
+  function subscribe_to_change(event: Electron.IpcRendererEvent) {
     if (event.senderId && !subscribers.includes(event.senderId)) {
       console.debug("subscribe_to_change", event.senderId)
       subscribers.push(event.senderId)
       //TODO: filter here or on tab?
-      document.body.addEventListener("data_change", function update(e) {
+      document.body.addEventListener("data_change", function update(
+        e: CustomEvent
+      ) {
         //TODO: detect closed webcontent and remove listener
         send_to_id(event.senderId, "data_change", e.detail.story)
       })
     }
   }
 
-  function mark_selected(event, href) {
-    let colors = [...document.querySelectorAll(".tag_style")]
+  function mark_selected(event: Electron.IpcRendererEvent, href: string) {
+    let colors = Array.from(
+      document.querySelectorAll<HTMLElement>(".tag_style")
+    )
       .map((x) => {
         return x.innerText
       })
@@ -315,7 +323,7 @@ function webtab_comms() {
     send_to_id(event.senderId, "update_selected", story, colors)
   }
 
-  function update_title(event, title) {
+  function update_title(event: any, title: string) {
     let sender_tab = tab_el_from_id(event.senderId)
     console.log(event.senderId, title, sender_tab)
     if (sender_tab) {
@@ -354,7 +362,7 @@ function webtab_comms() {
     if (tap_drop && tap_drop.startsWith("{")) {
       try {
         let tab_info = JSON.parse(tap_drop)
-        add_tab(tab_info)
+        add_tab(tab_info.wc_id)
         return
       } catch (e) {
         console.error("ondrop", "thought it was an tap_drop, but it wasn't", e)
@@ -372,7 +380,7 @@ function webtab_comms() {
     }
 
     let view_id = parseInt(x.dataTransfer.getData("text"))
-    let tab_cnt = document.querySelector("#tab_content")
+    let tab_cnt = document.querySelector<HTMLElement>("#tab_content")
     if (!view_id || isNaN(view_id)) {
       return
     }
@@ -381,15 +389,26 @@ function webtab_comms() {
   })
 }
 
-function send_to_id(id, channel, ...args) {
-  if (typeof id != "number") {
-    id = parseInt(id)
-    if (isNaN(id) || id < 0) {
-      console.error("unusable id", id)
+function add_tab(wc_id: number) {
+  if (!wc_id) {
+    console.error("can't add tab with incomplete information")
+    return
+  }
+  let existing_tab = tab_el_from_id(wc_id)
+  if (existing_tab) {
+    mark_tab_active(existing_tab)
+  } else {
+    let tab_content = document.querySelector<HTMLElement>("#tab_content")
+    if (tab_content) {
+      grab_webtab(tab_content, wc_id)
+    } else {
+      console.error("failed to find tab_content to attach tabs")
       return
     }
   }
+}
 
+function send_to_id(id: number, channel: string, ...args: any[]) {
   args = [...args].map((x) => {
     if (typeof x == "object") {
       x = JSON.parse(JSON.stringify(x))
@@ -400,18 +419,20 @@ function send_to_id(id, channel, ...args) {
   ipcRenderer.sendTo(id, channel, ...args)
 }
 
-function send_to_new_tab(name, value) {
-  let tab_cnt = document.querySelector("#tab_content")
+function send_to_new_tab(channel: string, ...args: any[]) {
+  let tab_cnt = document.querySelector<HTMLElement>("#tab_content")
   if (tab_cnt) {
     //creating new webtab
     let wc_id = new_webtab(tab_cnt)
-    send_to_id(wc_id, name, value)
+    send_to_id(wc_id, channel, ...args)
   }
 }
 
-function get_active_tab_el() {
-  let active_tab = document.querySelector("#tab_dropzone .tab.active")
-  let tab_content = document.querySelector("#tab_content")
+function get_active_tab_el(): HTMLElement | null {
+  let active_tab = document.querySelector<HTMLElement>(
+    "#tab_dropzone .tab.active"
+  )
+  let tab_content = document.querySelector<HTMLElement>("#tab_content")
   if (
     tab_content &&
     tab_content.dataset.active_wc_id &&
@@ -420,28 +441,29 @@ function get_active_tab_el() {
   ) {
     return active_tab
   }
+  return null
 }
 
-function send_or_create_tab(name, value) {
+function send_or_create_tab(channel: string, ...args: any[]) {
   let active = get_active_tab_el()
   if (active) {
-    send_to_id(active.dataset.wc_id, name, value)
+    send_to_id(parseInt(active.dataset.wc_id), channel, ...args)
   } else {
-    send_to_new_tab(name, value)
+    send_to_new_tab(channel, ...args)
   }
 }
 
-function open_in_tab(href) {
+function open_in_tab(href: string) {
   //do we need to start looking at target dingens?
   let is_in_tab =
     document.querySelector("#webtab") && document.querySelector("#webview")
   if (is_in_tab) {
-    webtab.open_in_webview(href)
+    webtab.WebTab.open_in_webview(href)
   } else {
     send_or_create_tab("open_in_webview", href)
   }
 }
 
-function open_in_new_tab(href) {
+function open_in_new_tab(href: string) {
   send_to_new_tab("open_in_webview", href)
 }

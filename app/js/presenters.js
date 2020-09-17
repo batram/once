@@ -5,14 +5,22 @@ module.exports = {
   init_in_webtab,
 }
 
+const path = require("path")
+
 function get_active() {
   //TODO: determine if active from settings
-  var normalizedPath = require("path").join(__dirname, "presenters")
+  var normalizedPath = path.join(__dirname, "presenters")
 
   return require("fs")
     .readdirSync(normalizedPath)
     .map((file) => {
-      return require("./presenters/" + file)
+      //TODO: better check
+      if (file.endsWith(".js")) {
+        return require(path.join(normalizedPath, file))
+      }
+    })
+    .filter((x) => {
+      return x != undefined
     })
 }
 

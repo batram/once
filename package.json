@@ -2,14 +2,18 @@
   "name": "once",
   "version": "0.0.1",
   "description": "See it once",
-  "main": "app/main.js",
+  "main": "dist/main.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "electron ."
+    "build": "tsc --skipLibCheck",
+    "watch": "tsc --skipLibCheck -w",
+    "lint": "tslint -c tslint.json -p tsconfig.json",
+    "start": "npm run build && electron ./dist/main.js",
+    "re": "nodemon --watch * --exec \"node_modules/.bin/electron .\""
   },
   "author": "",
   "devDependencies": {
-    "electron": "^9.3.0"
+    "electron": "^10.1.2",
+    "typescript": "^4.0.2"
   },
   "dependencies": {
     "@cliqz/adblocker-electron": "^1.18.2",
