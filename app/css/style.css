@@ -70,6 +70,10 @@ body {
     --opacity: 0.8;
     color: #bcc2cd;
   }
+
+  #menu .sub img {
+    filter: contrast(0%);
+  }
 }
 
 input,
