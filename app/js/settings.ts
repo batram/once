@@ -1,4 +1,4 @@
-import * as PouchDB from "pouchdb"
+import * as PouchDB from "pouchdb-browser"
 import * as story_list from "./view/StoryList"
 import { ipcRenderer } from "electron"
 
@@ -159,7 +159,7 @@ function set_theme(name: string) {
 
 function update_on_change(event: PouchDB.Replication.SyncResult<any>) {
   console.log("pouch change", event)
-  if (event.direction == "pull") {
+  if (event.direction) {
     event.change.docs.forEach((doc) => {
       console.log("update", doc._id)
       switch (doc._id) {

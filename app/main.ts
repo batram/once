@@ -14,6 +14,7 @@ import * as adblocker from "@cliqz/adblocker-electron"
 import * as fullscreen from "./js/view/fullscreen"
 import * as contextmenu from "./js/view/contextmenu"
 import * as tabbed_out from "./js/view/tabbed_out"
+import * as mouse_debugger_hook from "./js/view/debugger_hook"
 
 declare global {
   var icon_path: string
@@ -252,6 +253,7 @@ app.whenReady().then(() => {
 //https://github.com/electron/electron/issues/12518#issuecomment-616155070
 //https://www.electronjs.org/docs/api/web-contents#event-will-prevent-unload
 app.on("web-contents-created", function (_event, webContents) {
+  /*
   async function check_alive() {
     if (webContents.isDestroyed()) {
       return
@@ -267,7 +269,7 @@ app.on("web-contents-created", function (_event, webContents) {
   }
 
   setTimeout(check_alive, 500)
-
+*/
   contextmenu.init_menu(webContents)
 
   webContents.on("new-window", (event, url) => {
@@ -283,54 +285,7 @@ app.on("web-contents-created", function (_event, webContents) {
     return false
   })
 
-  try {
-    if (!webContents.debugger.isAttached()) {
-      webContents.debugger.attach()
-    }
-  } catch (e) {
-    console.log(e)
-  }
-  webContents.debugger.on("message", function (event, method, params) {
-    console.debug(event, method, params)
-    if (method == "Runtime.bindingCalled") {
-      let name = params.name
-      let payload = params.payload
-
-      if (name == "mhook") {
-        if (payload == "3") {
-          webContents.goBack()
-        } else if (payload == "4") {
-          webContents.goForward()
-        }
-      }
-    }
-  })
-
-  webContents.debugger.sendCommand("Runtime.addBinding", {
-    name: "mhook",
-  })
-
-  if (false) {
-    webContents.debugger.sendCommand("Runtime.enable")
-    webContents.debugger.sendCommand("Page.enable")
-    webContents.debugger.sendCommand("Page.setLifecycleEventsEnabled", {
-      enabled: true,
-    })
-  }
-
-  webContents.debugger.sendCommand("Page.addScriptToEvaluateOnNewDocument", {
-    source: `
-      {
-        let ß = window.mhook
-        window.addEventListener("mousedown", (e) => {
-          ß(e.button.toString())
-        })
-      }
-      
-      delete window.mhook
-      `,
-  })
-
+  mouse_debugger_hook.history_nav(webContents)
   fullscreen.webview_key_catcher(webContents)
 
   webContents.on("will-prevent-unload", function (event) {
