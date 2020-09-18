@@ -1,13 +1,8 @@
-module.exports = {
-  get_active,
-  modify_url,
-  add_story_elem_buttons,
-  init_in_webtab,
-}
-
 import * as path from "path"
 import * as fs from "fs"
-import { Story } from "./data/Story"
+import { Story } from "../data/Story"
+
+export { get_active, modify_url, add_story_elem_buttons, init_in_webtab }
 
 function get_active() {
   //TODO: determine if active from settings

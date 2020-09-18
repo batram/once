@@ -1,11 +1,8 @@
-module.exports = {
-  init_menu,
-  inspect_menu,
-}
+import { Menu, MenuItem, shell, clipboard, webContents } from "electron"
 
-const { Menu, MenuItem, shell, clipboard, ipcMain } = require("electron")
+export { init_menu, inspect_menu }
 
-function init_menu(wc) {
+function init_menu(wc: webContents) {
   wc.on("context-menu", inspect_menu)
 
   wc.on("update-target-url", (event, url) => {
@@ -13,23 +10,36 @@ function init_menu(wc) {
   })
 }
 
-const cmenu_data = {
+declare interface CMenuData {
+  rightClickPosition: { x: number; y: number }
+  href: string
+  sender: null
+}
+
+const cmenu_data: CMenuData = {
   rightClickPosition: null,
   href: null,
   sender: null,
 }
 
-function inspect(e, cwin) {
+//Dafug why event: Electron.KeyboardEvent, ELectron why???
+function inspect(
+  menuItem: Electron.MenuItem,
+  cwin: Electron.BrowserWindow,
+  event: Electron.KeyboardEvent
+) {
+  let wc = cwin.webContents
+
   if (cmenu_data.sender) {
-    cwin = cmenu_data.sender
+    wc = cmenu_data.sender
   }
 
-  cwin.inspectElement(
+  wc.inspectElement(
     cmenu_data.rightClickPosition.x,
     cmenu_data.rightClickPosition.y
   )
-  if (cwin.isDevToolsOpened()) {
-    cwin.devToolsWebContents.focus()
+  if (wc.isDevToolsOpened()) {
+    wc.devToolsWebContents.focus()
   }
 }
 
@@ -61,9 +71,13 @@ con_menu.append(
   })
 )
 
-function inspect_menu(event, params) {
+function inspect_menu(
+  event: Electron.Event,
+  params: Electron.ContextMenuParams
+) {
   event.preventDefault()
   if (event.hasOwnProperty("sender")) {
+    // @ts-ignore
     cmenu_data.sender = event.sender
   } else {
     cmenu_data.sender = null

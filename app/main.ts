@@ -7,14 +7,19 @@ import {
   webContents,
   BrowserView,
   nativeTheme,
-  KeyboardInputEvent,
 } from "electron"
 
 import * as path from "path"
 import * as adblocker from "@cliqz/adblocker-electron"
 import * as fullscreen from "./js/view/fullscreen"
-const contextmenu = require("./js/view/contextmenu")
-const tabbed_out = require("./js/view/tabbed_out")
+import * as contextmenu from "./js/view/contextmenu"
+import * as tabbed_out from "./js/view/tabbed_out"
+
+declare global {
+  var icon_path: string
+  var main_window_preload: string
+  var tab_view_preload: string
+}
 
 if (process.env.LDEV == "1") {
   require("electron-reload")(path.join(__dirname))
@@ -28,7 +33,19 @@ let icon_path = path.join(
   "ic_launcher.png"
 )
 
-global.main_window_preload = path.join(__dirname, "js", "main_window.js")
+global.main_window_preload = path.join(
+  __dirname,
+  "js",
+  "view",
+  "main_window_preload.js"
+)
+
+global.tab_view_preload = path.join(
+  __dirname,
+  "js",
+  "view",
+  "tab_view_preload.js"
+)
 
 function createWindow() {
   // Create the browser window.
@@ -236,7 +253,10 @@ app.on("window-all-closed", () => {
 
 app.whenReady().then(() => {
   createWindow()
-  process.on("uncaughtException", console.log)
+  process.on("uncaughtException", (x) => {
+    //truncate errors
+    console.log(JSON.stringify(x).substring(0, 500))
+  })
   process.on("exit", console.log)
 })
 
@@ -324,7 +344,6 @@ app.on("web-contents-created", function (_event, webContents) {
 
   fullscreen.webview_key_catcher(webContents)
 
-  /*
   webContents.on("will-prevent-unload", function (event) {
     const win = BrowserWindow.fromWebContents(webContents)
     const choice = dialog.showMessageBoxSync(win, {
@@ -339,5 +358,5 @@ app.on("web-contents-created", function (_event, webContents) {
     if (leave) {
       event.preventDefault()
     }
-  }) */
+  })
 })

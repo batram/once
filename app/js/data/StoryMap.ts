@@ -1,19 +1,23 @@
-const onChange = require("on-change")
-const { Story } = require("./Story")
+import { Story } from "../data/Story"
+import * as onChange from "on-change"
+import * as story_list from "../view/StoryList"
+
+export { story_map, update_story, add, set, has, clear, get }
 
 let s_map = {}
 
-const story_map = onChange(s_map, function (path, value, previousValue, name) {
+const story_map: Record<string, Story> = onChange(s_map, function (
+  path,
+  value,
+  previousValue,
+  name
+) {
   //console.log("data_change", path, value, previousValue, name)
   if (path.length != 0) {
-    if (typeof this[path[0]] == "object") {
-      if (name && this[path[0]] instanceof Story) {
-        //console.log("story change", name)
-      }
-
+    if (typeof has(path[0])) {
       const event = new CustomEvent("data_change", {
         detail: {
-          story: story_map.get(path[0]),
+          story: get(path[0]),
           path: path,
           value: value,
           previousValue: previousValue,
@@ -31,20 +35,20 @@ const story_map = onChange(s_map, function (path, value, previousValue, name) {
   }
 })
 
-story_map.set = (x, y) => {
-  story_map[x] = y
-  return story_map[x]
+function set(href: string, y: Story) {
+  story_map[href] = y
+  return story_map[href]
 }
 
-story_map.get = (x) => {
-  return story_map[x]
+function get(href: string) {
+  return story_map[href]
 }
 
-story_map.has = (x) => {
-  return story_map.hasOwnProperty(x)
+function has(href: string) {
+  return story_map.hasOwnProperty(href)
 }
 
-story_map.clear = () => {
+function clear() {
   for (let i in story_map) {
     if (typeof story_map[i] != "function") {
       delete story_map[i]
@@ -52,8 +56,8 @@ story_map.clear = () => {
   }
 }
 
-function update_story(href, path, value) {
-  let story = story_map.get(href)
+function update_story(href: string, path: string, value: Story | string) {
+  let story = get(href)
   if (path == "story" && value instanceof Story) {
     story = value
   } else {
@@ -75,7 +79,12 @@ function update_story(href, path, value) {
   }
 }
 
-function add(story, bucket = "stories") {
+function add(story: Story, bucket = "stories") {
+  if (!(story instanceof Story)) {
+    console.log("wrong StoryMap enty", story)
+    throw "Please, only put stories in the StoryMap"
+  }
+  /*
   if (!(story instanceof Story)) {
     let xstory = new Story()
     for (let i in story) {
@@ -83,14 +92,14 @@ function add(story, bucket = "stories") {
     }
 
     story = xstory
-  }
+  }*/
   story.bucket = bucket
 
-  let og_story = story_map.get(story.href)
+  let og_story = get(story.href)
   if (!og_story) {
     //new story
-    story = story_map.set(story.href.toString(), story)
-    require("../view/StoryList").add(story, bucket)
+    story = set(story.href.toString(), story)
+    story_list.add(story, bucket)
   } else {
     if (og_story.stared != story.stared) {
       story.update_stared()
@@ -117,13 +126,4 @@ function add(story, bucket = "stories") {
   }
 
   return story
-}
-
-module.exports = {
-  set: story_map.set,
-  get: story_map.get,
-  has: story_map.has,
-  clear: story_map.clear,
-  update_story,
-  add,
 }

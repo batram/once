@@ -1,10 +1,7 @@
-module.exports = {
-  get_active,
-  get_parser,
-}
-
 import * as path from "path"
 import * as fs from "fs"
+
+export { get_active, get_parser }
 
 function get_active() {
   //TODO: determine if active from settings

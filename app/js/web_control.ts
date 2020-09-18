@@ -1,3 +1,9 @@
+import { ipcRenderer } from "electron"
+import * as filters from "./data/filters"
+import * as webtab from "./view/webtab"
+import * as story_map from "./data/StoryMap"
+import * as story_list from "./view/StoryList"
+
 export {
   open_in_tab,
   open_in_new_tab,
@@ -7,10 +13,6 @@ export {
   attach_webtab,
   send_or_create_tab,
 }
-
-const { ipcRenderer } = require("electron")
-const filters = require("./data/filters")
-const webtab = require("./view/webtab")
 
 function grab_attached_or_new() {
   let wc_id = ipcRenderer.sendSync("get_attached_wc_id")
@@ -277,8 +279,7 @@ function webtab_comms() {
     event: Electron.IpcRendererEvent,
     data: { href: string; path: string; value: string }
   ) {
-    let story_loader = require("./data/StoryLoader")
-    story_loader.story_map.update_story(data.href, data.path, data.value)
+    story_map.update_story(data.href, data.path, data.value)
   }
 
   let subscribers: number[] = []
@@ -311,8 +312,7 @@ function webtab_comms() {
       tab_el.dataset.href = href
     }
 
-    const { mark_selected } = require("./view/StoryList")
-    let story = mark_selected(null, href)
+    let story = story_list.mark_selected(null, href)
 
     if (href == "about:gone") {
       return

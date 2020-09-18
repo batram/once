@@ -1,17 +1,15 @@
-const story_parser = require("../data/parser")
-const web_control = require("../web_control")
+import * as story_parser from "../data/parser"
+import * as web_control from "../web_control"
 import { WebTab } from "../view/webtab"
 import * as story_filters from "../data/filters"
 import { Story, StorySource } from "../data/Story"
-const presenters = require("../presenters")
+import * as story_map from "../data/StoryMap"
+import * as presenters from "../view/presenters"
+import * as story_list from "../view/StoryList"
 
-module.exports = {
-  story_html,
-  info_block,
-  icon_button,
-}
+export { story_html, info_block, icon_button }
 
-function story_html(story: Story, inmain = true, webtab: WebTab) {
+function story_html(story: Story, inmain = true, webtab?: WebTab) {
   if (!(story instanceof Story)) {
     story = Story.from_obj(story)
   }
@@ -149,7 +147,6 @@ function direct_events(story: Story, story_el: HTMLElement) {
 
   let read_btn = story_el.querySelector(".read_btn")
   read_btn.addEventListener("click", (x) => {
-    const story_list = require("./StoryList")
     toggle_read(story.href, story_list.resort_single)
   })
 
@@ -312,7 +309,7 @@ function toggle_read(href: string, callback: (story_el: HTMLElement) => any) {
   let story_el = document.querySelector<HTMLElement>(
     '.story[data-href="' + href + '"]'
   )
-  let story = story_loader.story_map.get(href)
+  let story = story_map.get(href)
 
   let anmim_class = ""
 

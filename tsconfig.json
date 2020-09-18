@@ -4,7 +4,7 @@
     "allowSyntheticDefaultImports": true,
     "noImplicitAny": true,
     "sourceMap": true,
-    "outDir": "dist",
+    "outDir": "dist/",
     "baseUrl": ".",
     "allowJs": true,
     "paths": {

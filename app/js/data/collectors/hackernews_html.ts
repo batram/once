@@ -12,26 +12,25 @@ const options = {
   },
 }
 
-module.exports = {
-  parse,
-  options,
-}
+import { Story } from "../../data/Story"
+import { parse_human_time } from "../../data/parser"
 
-const { Story } = require("../data/Story")
-const { parse_human_time } = require("../data/parser")
+export { parse, options }
 
-function parse(doc, type) {
+function parse(doc: Document, type: string) {
   let curl = "https://news.ycombinator.com/item?id="
   let stories = Array.from(doc.querySelectorAll(".storylink"))
 
-  return stories.map((story_el) => {
+  return stories.map((story_el: HTMLAnchorElement) => {
     let pawpaw = story_el.parentElement.parentElement
     let id = pawpaw.id
     if (story_el.protocol == "file:") {
       story_el.href = curl + id
     }
 
-    let time = pawpaw.nextElementSibling.querySelector(".age a").innerText
+    let time = pawpaw.nextElementSibling.querySelector<HTMLAnchorElement>(
+      ".age a"
+    ).innerText
     let timestamp = parse_human_time(time)
 
     //filter ads

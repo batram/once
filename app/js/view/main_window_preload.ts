@@ -1,12 +1,14 @@
-const settings = require("./settings")
-const web_control = require("./web_control")
-const seperation_slider = require("./view/sep_slider")
-const side_menu = require("./view/menu")
-const search = require("./data/search")
-const story_loader = require("./data/StoryLoader")
-const fullscreen = require("./view/fullscreen")
+import * as settings from "../settings"
+import * as web_control from "../web_control"
+import * as fullscreen from "./fullscreen"
+import * as story_list from "./StoryList"
+import * as search from "../data/search"
+import * as side_menu from "./menu"
+import * as seperation_slider from "./sep_slider"
+import * as story_loader from "../data/StoryLoader"
 
 document.addEventListener("DOMContentLoaded", async (_e) => {
+  story_list.init()
   side_menu.init()
   fullscreen.init_listeners()
 

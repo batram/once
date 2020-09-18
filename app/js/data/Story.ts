@@ -7,6 +7,11 @@ export interface StorySource {
   timestamp: string | number | Date
 }
 
+export interface SortableStory {
+  read: boolean
+  timestamp: number | string | Date
+}
+
 export class Story {
   type: string
   href: string
@@ -27,7 +32,7 @@ export class Story {
     href?: string,
     title?: string,
     comment_url?: string,
-    timestamp?: Date,
+    timestamp?: string | number | Date,
     filter?: string
   ) {
     this.type = type
@@ -172,10 +177,7 @@ export class Story {
     return this.stared
   }
 
-  static compare(
-    a: { read: boolean; timestamp: number | string | Date },
-    b: { read: boolean; timestamp: number | string | Date }
-  ) {
+  static compare(a: SortableStory, b: SortableStory) {
     //sort by read first and then timestamp
     if (a.read && !b.read) {
       return 1

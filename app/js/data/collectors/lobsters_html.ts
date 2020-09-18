@@ -12,25 +12,24 @@ const options = {
   },
 }
 
-module.exports = {
-  parse,
-  options,
-}
+import { Story } from "../../data/Story"
 
-const { Story } = require("../data/Story")
+export { parse, options }
 
-function parse(doc, type) {
+function parse(doc: Document, type: string) {
   let curl = "https://lobste.rs/s/"
-  let stories = Array.from(doc.querySelectorAll(".story"))
+  let stories = Array.from(doc.querySelectorAll<HTMLElement>(".story"))
 
   return stories.map((story) => {
     let id = story.dataset.shortid
-    let link = story.querySelector(".u-url")
+    let link = story.querySelector<HTMLAnchorElement>(".u-url")
     if (link.protocol == "file:") {
       link.href = curl + id
     }
 
-    let timestamp = Date.parse(story.querySelector(".byline span").title)
+    let timestamp = Date.parse(
+      story.querySelector<HTMLElement>(".byline span").title
+    )
 
     return new Story(type, link.href, link.innerText, curl + id, timestamp)
   })

@@ -1,10 +1,11 @@
-export { WebTab }
+import { ipcRenderer } from "electron"
+import * as fullscreen from "../view/fullscreen"
+import * as presenters from "../view/presenters"
+import * as story_list from "../view/StoryList"
+import * as story_list_item from "../view/StoryListItem"
+import { Story } from "../data/Story"
 
-const { ipcRenderer } = require("electron")
-const presenters = require("../presenters")
-const fullscreen = require("./fullscreen")
-
-class WebTab {
+export class WebTab {
   tab_state: string
   parent_id: number
 
@@ -67,7 +68,6 @@ class WebTab {
 
     ipcRenderer.on("data_change", (event, data) => {
       console.debug("data_change", event, data)
-      const story_list = require("../view/StoryList")
       let selected = story_list.get_by_href(data.href)
       if (selected) {
         this.update_selected(data)
@@ -117,7 +117,6 @@ class WebTab {
       if (this.is_attached()) {
         this.send_to_parent("mark_selected", url)
       } else {
-        const story_list = require("../view/StoryList")
         let selected = story_list.get_by_href(url)
         if (!selected) {
           this.update_selected(null, null)
@@ -191,7 +190,7 @@ class WebTab {
   }
 
   //object | Story
-  update_selected(story: object, colors?: string) {
+  update_selected(story: Story, colors?: string) {
     let selected_container = document.querySelector("#selected_container")
 
     var style =
@@ -207,9 +206,7 @@ class WebTab {
       return
     }
 
-    const { story_html } = require("../view/StoryListItem")
-
-    let story_el = story_html(story, false, this)
+    let story_el = story_list_item.story_html(story, false, this)
     story_el.classList.add("selected")
     selected_container.append(story_el)
   }

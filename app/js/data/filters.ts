@@ -1,7 +1,6 @@
 import { Story } from "./Story"
-
-const settings = require("../settings")
-const menu = require("../view/menu")
+import * as settings from "../settings"
+import * as menu from "../view/menu"
 
 export {
   filter_story,

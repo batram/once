@@ -1,6 +1,7 @@
-const stroy_loader = require("../data/StoryLoader")
-const menu = require("../view/menu")
+import * as menu from "../view/menu"
 import { Story } from "../data/Story"
+import * as story_list from "../view/StoryList"
+import * as stroy_loader from "../data/StoryLoader"
 
 export { init_search, search_stories }
 
@@ -132,7 +133,7 @@ function search_stories(needle: string) {
     }
   })
 
-  require("../view/StoryList").sort_stories()
+  story_list.sort_stories()
 }
 
 function search_hn(needle: string) {
@@ -153,7 +154,7 @@ function search_hn(needle: string) {
         let search_stories = json_response.hits.map((result: any) => {
           //add the tag if we have not ingested stories from HN yet
           let type = "HN"
-          let colors = ["rgba(255, 102, 0, 0.56)", "white"]
+          let colors: [string, string] = ["rgba(255, 102, 0, 0.56)", "white"]
           menu.add_tag(type, colors)
 
           let curl = "https://news.ycombinator.com/item?id=" + result.objectID
@@ -174,10 +175,10 @@ function search_hn(needle: string) {
         let estories = await stroy_loader.enhance_stories(search_stories, false)
 
         estories.forEach((story: Story) => {
-          require("../view/StoryList").add(story, "global_search_results")
+          story_list.add(story, "global_search_results")
         })
 
-        require("../view/StoryList").sort_stories("global_search_results")
+        story_list.sort_stories("global_search_results")
       })
     }
   })

@@ -1,19 +1,16 @@
-const path = require("path")
-const { BrowserView, BrowserWindow } = require("electron")
+import { BrowserView, BrowserWindow, WebContents, webContents } from "electron"
+import * as path from "path"
 
-module.exports = {
-  create_view,
-  pop_new_main,
-  pop_no_tabs,
-}
+export { create_view, pop_new_main, pop_no_tabs }
 
-function create_view(parent_id) {
+function create_view(parent_id: number) {
   const view = new BrowserView({
     webPreferences: {
       nodeIntegration: true,
       enableRemoteModule: false,
       webSecurity: false,
       webviewTag: true,
+      preload: global.tab_view_preload,
     },
   })
 
@@ -27,11 +24,11 @@ function create_view(parent_id) {
 }
 
 function new_relative_win(
-  parent,
-  wc,
-  path,
+  parent: BrowserWindow,
+  wc: WebContents,
+  path: string,
   full_resize = false,
-  initial_offset = null
+  initial_offset: [number, number] = null
 ) {
   let size = parent.getSize()
   let poped_view = parent.getBrowserView()
@@ -70,17 +67,9 @@ function new_relative_win(
   wc.send("attached", win_popup.webContents.id)
 
   if (full_resize) {
-    function follow_resize() {
-      let box = win_popup.getContentBounds()
-      console.debug("follow_resize", box)
-      poped_view.setBounds({
-        x: 0,
-        y: 0,
-        width: box.width,
-        height: box.height,
-      })
-    }
-    win_popup.on("resize", follow_resize)
+    win_popup.on("resize", () => {
+      follow_resize(win_popup, poped_view)
+    })
     win_popup.setSize(view_bound.width, size[1] + 1)
   }
 
@@ -98,8 +87,23 @@ function new_relative_win(
   })
 }
 
-function pop_new_main(parent, wc, offset = null) {
-  //parent.send("detaching")
+function follow_resize(win_popup: BrowserWindow, poped_view: BrowserView) {
+  let box = win_popup.getContentBounds()
+  console.debug("follow_resize", box)
+  poped_view.setBounds({
+    x: 0,
+    y: 0,
+    width: box.width,
+    height: box.height,
+  })
+}
+
+function pop_new_main(
+  parent: BrowserWindow,
+  wc: webContents,
+  offset: [number, number] = null
+) {
+  parent.webContents.send("detaching")
   new_relative_win(
     parent,
     wc,
@@ -109,7 +113,7 @@ function pop_new_main(parent, wc, offset = null) {
   )
 }
 
-function pop_no_tabs(parent, wc) {
-  //parent.send("detaching")
+function pop_no_tabs(parent: BrowserWindow, wc: webContents) {
+  parent.webContents.send("detaching")
   new_relative_win(parent, wc, "", true)
 }

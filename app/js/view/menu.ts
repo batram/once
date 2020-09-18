@@ -1,14 +1,10 @@
-module.exports = {
-  add_tag,
-  open_panel,
-  init,
-}
-
 import * as search from "../data/search"
-const sep_slider = require("./sep_slider")
+import * as seperation_slider from "../view/sep_slider"
+
+export { add_tag, open_panel, init }
 
 function open_panel(panel: string) {
-  sep_slider.expand_left()
+  seperation_slider.expand_left()
   document.querySelectorAll<HTMLElement>("#left_main .panel").forEach((x) => {
     if (x.dataset.panel != panel) {
       x.style.display = "none"

@@ -1,18 +1,13 @@
-const story_map = require("./StoryMap")
-const story_parser = require("./parser")
 import * as filters from "../data/filters"
+import * as story_parser from "../data/parser"
+import * as story_map from "../data/StoryMap"
 import { Story } from "./Story"
 import * as settings from "../settings"
 import * as search from "../data/search"
 import * as story_filters from "../data/filters"
+import * as story_list from "../view/StoryList"
 
-export {
-  load,
-  parallel_load_stories,
-  story_map,
-  add_stored_stars,
-  enhance_stories,
-}
+export { load, parallel_load_stories, add_stored_stars, enhance_stories }
 
 function get_cached(url: string) {
   let cached = localStorage.getItem(url)
@@ -80,7 +75,7 @@ async function process_story_input(stories: Story[]) {
   let starlist = await settings.get_starlist()
   add_stored_stars(starlist)
 
-  require("../view/StoryList").sort_stories()
+  story_list.sort_stories()
   let searchfield = document.querySelector<HTMLInputElement>("#searchfield")
   if (searchfield.value != "") {
     search.search_stories(searchfield.value)
@@ -152,7 +147,7 @@ interface Starlist {
 //TODO: specify starlist format
 function add_stored_stars(starlist: Starlist) {
   for (let href in starlist) {
-    let star_story = starlist[href]
+    let star_story = Story.from_obj(starlist[href])
     star_story.stared = true
     star_story.stored_star = true
     story_map.add(star_story)

@@ -12,29 +12,28 @@ const options = {
   },
 }
 
-module.exports = {
-  parse,
-  options,
-}
+import { Story } from "../../data/Story"
 
-const { Story } = require("../data/Story")
+export { parse, options }
 
-function parse(doc, type) {
+function parse(doc: Document, type: string) {
   //Parse as RSS and not HTML ...
   let stories = doc.querySelectorAll("entry")
 
   return Array.from(stories).map((story) => {
     let dom_parser = new DOMParser()
     let content = dom_parser.parseFromString(
-      story.querySelector("content").innerText,
+      story.querySelector<HTMLElement>("content").innerText,
       "text/html"
     )
 
-    let timestamp = Date.parse(story.querySelector("updated").innerText)
+    let timestamp = Date.parse(
+      story.querySelector<HTMLElement>("updated").innerText
+    )
 
     return new Story(
       type,
-      content.querySelector("span a").href,
+      content.querySelector<HTMLAnchorElement>("span a").href,
       story.querySelector("title").innerText,
       story.querySelector("link").href,
       timestamp

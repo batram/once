@@ -1,3 +1,6 @@
+import { ipcRenderer, WebContents, BrowserWindow } from "electron"
+import { WebTab } from "./webtab"
+
 export {
   key_handler,
   set,
@@ -8,9 +11,6 @@ export {
   init_listeners,
   webview_key_catcher,
 }
-
-import { ipcRenderer, WebContents, BrowserWindow } from "electron"
-import * as webtab from "./webtab"
 
 function webview_key_catcher(webContents: WebContents) {
   webContents.on("did-attach-webview", (event, guest_webContents) => {
@@ -78,10 +78,7 @@ function key_handler(e: KeyboardEvent) {
 
 function enter() {
   console.debug("fullscreen enter")
-  /*
-  if (webtab.is_attached()) {
-    webtab.send_to_parent("fullscreen", true)
-  }*/
+  //WebTab.send_to_parent("fullscreen", true)
 
   document.body.classList.add("fullscreen")
   ipcRenderer.send("fullscreen", true)
@@ -114,10 +111,7 @@ function entered() {
 }
 
 function leave() {
-  /*
-  if (webtab.is_attached()) {
-    webtab.send_to_parent("fullscreen", false)
-  }*/
+  // WebTab.send_to_parent("fullscreen", false)
 
   document.body.classList.remove("fullscreen")
   ipcRenderer.send("fullscreen", false)

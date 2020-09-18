@@ -1,17 +1,13 @@
-module.exports = {
-  parse,
-  human_time,
-  parse_human_time,
-}
+import * as menu from "../view/menu"
+import * as collectors from "../data/collectors"
 
-const { Story } = require("./Story")
-const menu = require("../view/menu")
-const collectors = require("../collectors")
+export { parse, human_time, parse_human_time }
 
-function parse(url, doc) {
+function parse(url: string, doc: Document) {
   let parsers = collectors.get_parser()
 
-  for (parser of parsers) {
+  for (let i in parsers) {
+    let parser = parsers[i]
     if (url.startsWith(parser.options.pattern)) {
       menu.add_tag(parser.options.tag, parser.options.colors)
       return parser.parse(doc, parser.options.tag)
@@ -25,9 +21,9 @@ let day_off = 24 * hour_off
 let month_off = 30 * day_off
 let year_off = 365 * day_off
 
-function human_time(time) {
+function human_time(time: string | Date | number) {
   let now = Date.now()
-  let timestamp = parseInt(time)
+  let timestamp = parseInt(time.toString())
   let offset = (now - timestamp) / 1000
   let res = "?"
 
@@ -72,7 +68,7 @@ function human_time(time) {
   return res
 }
 
-function parse_human_time(str) {
+function parse_human_time(str: string) {
   let now = Date.now()
   let num = parseInt(str)
   let offset = 0

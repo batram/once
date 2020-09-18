@@ -1,3 +1,7 @@
+import * as PouchDB from "pouchdb"
+import * as story_list from "./view/StoryList"
+import { ipcRenderer } from "electron"
+
 export {
   story_sources,
   get_filterlist,
@@ -8,10 +12,6 @@ export {
   save_starlist,
   init,
 }
-
-import * as PouchDB from "pouchdb"
-const story_list = require("./view/StoryList")
-import { ipcRenderer } from "electron"
 
 const default_sources = [
   "https://news.ycombinator.com/",
