@@ -211,13 +211,15 @@ export class WebTab {
   update_selected(story: Story, colors?: string) {
     let selected_container = document.querySelector("#selected_container")
 
-    var style =
-      document.querySelector<HTMLStyleElement>(".tag_style") ||
-      document.createElement("style")
-    style.classList.add("tag_style")
-    style.type = "text/css"
-    style.innerHTML = colors
-    document.head.append(style)
+    if (colors != undefined) {
+      var style =
+        document.querySelector<HTMLStyleElement>(".tag_style") ||
+        document.createElement("style")
+      style.classList.add("tag_style")
+      style.type = "text/css"
+      style.innerHTML = colors
+      document.head.append(style)
+    }
 
     selected_container.innerHTML = ""
     if (!story) {
