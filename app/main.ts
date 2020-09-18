@@ -16,7 +16,9 @@ import * as fullscreen from "./js/view/fullscreen"
 const contextmenu = require("./js/view/contextmenu")
 const tabbed_out = require("./js/view/tabbed_out")
 
-require("electron-reload")(path.join(__dirname))
+if (process.env.LDEV == "1") {
+  require("electron-reload")(path.join(__dirname))
+}
 
 let icon_path = path.join(
   __dirname,

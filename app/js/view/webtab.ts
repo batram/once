@@ -34,7 +34,7 @@ class WebTab {
     })
 
     ipcRenderer.on("attached", (event, data) => {
-      console.log("attached", data)
+      console.debug("attached", data)
 
       if (this.parent_id && this.parent_id != data) {
         this.send_to_parent("detaching")
