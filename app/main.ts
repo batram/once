@@ -119,80 +119,11 @@ function createWindow() {
     event.returnValue = null
   })
 
-  ipcMain.on("no_more_tabs_can_i_go", (event) => {
-    let windows = BrowserWindow.getAllWindows()
-    if (windows && windows.length > 1) {
-      //no, you stay
-      return
-      let window = BrowserWindow.fromWebContents(event.sender)
-      if (window) {
-        window.close()
-      }
-    }
-  })
-
-  ipcMain.on("tab_me_out", (event, data) => {
-    console.log("tab_me_out", event, data)
-    let view = BrowserView.fromWebContents(event.sender)
-    if (view) {
-      let window = BrowserWindow.fromBrowserView(view)
-      if (window) {
-        if (data.type == "main") {
-          tabbed_out.pop_new_main(window, event.sender, data.offset)
-        } else if (data.type == "notabs") {
-          tabbed_out.pop_no_tabs(window, event.sender)
-        }
-      }
-    }
-  })
-
   ipcMain.on("theme", (event, data) => {
     nativeTheme.themeSource = data
   })
 
-  ipcMain.on("attach_new_tab", (event) => {
-    let view = tabbed_out.create_view(event.sender.id)
-    if (view) {
-      let window = BrowserWindow.fromWebContents(event.sender)
-      if (window) {
-        window.setBrowserView(view)
-        console.log("attach_new_tab", event.sender.id, view.webContents.id)
-        event.returnValue = view.webContents.id
-      }
-    }
-    event.returnValue = null
-  })
-
-  ipcMain.on("attach_wc_id", (event, wc_id: string) => {
-    let window = BrowserWindow.fromWebContents(event.sender)
-    if (window) {
-      console.log(
-        "attach_wc_id",
-        event.sender.id,
-        wc_id,
-        typeof parseInt(wc_id)
-      )
-      let view_wc = webContents.fromId(parseInt(wc_id))
-      if (view_wc) {
-        let view = BrowserView.fromWebContents(view_wc)
-        if (view) {
-          window.setBrowserView(view)
-
-          view.webContents.send("attached", event.sender.id)
-
-          console.log(
-            "attach_wc_id",
-            event.sender.id,
-            wc_id,
-            view.webContents.id
-          )
-          event.returnValue = view.webContents.id
-          return
-        }
-      }
-    }
-    event.returnValue = null
-  })
+  tabbed_out.tab_listeners()
   /*
   win.on("close", (x) => {
     //kill all attached browserviews before navigation

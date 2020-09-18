@@ -1,7 +1,89 @@
-import { BrowserView, BrowserWindow, WebContents, webContents } from "electron"
+import {
+  BrowserView,
+  BrowserWindow,
+  WebContents,
+  webContents,
+  ipcMain,
+} from "electron"
 import * as path from "path"
 
-export { create_view, pop_new_main, pop_no_tabs }
+export { create_view, pop_new_main, pop_no_tabs, tab_listeners }
+
+function tab_listeners() {
+  ipcMain.on("no_more_tabs_can_i_go", (event) => {
+    let windows = BrowserWindow.getAllWindows()
+    if (windows && windows.length > 2) {
+      let window = BrowserWindow.fromWebContents(event.sender)
+      if (window) {
+        window.close()
+      }
+    }
+  })
+
+  ipcMain.on("tab_me_out", (event, data) => {
+    console.log("tab_me_out", event, data)
+    let view = BrowserView.fromWebContents(event.sender)
+    if (view) {
+      let window = BrowserWindow.fromBrowserView(view)
+      if (window) {
+        if (data.type == "main") {
+          pop_new_main(window, event.sender, data.offset)
+        } else if (data.type == "notabs") {
+          pop_no_tabs(window, event.sender)
+        }
+      }
+    }
+  })
+
+  ipcMain.on("attach_new_tab", (event) => {
+    let view = create_view(event.sender.id)
+    if (view) {
+      let window = BrowserWindow.fromWebContents(event.sender)
+      if (window) {
+        window.setBrowserView(view)
+        console.log("attach_new_tab", event.sender.id, view.webContents.id)
+        event.returnValue = view.webContents.id
+      }
+    }
+    event.returnValue = null
+  })
+
+  ipcMain.on("attach_wc_id", (event, wc_id: string) => {
+    let window = BrowserWindow.fromWebContents(event.sender)
+    if (window) {
+      let view_wc = webContents.fromId(parseInt(wc_id))
+      if (view_wc) {
+        let view = BrowserView.fromWebContents(view_wc)
+        if (view) {
+          let old_parent = BrowserWindow.fromBrowserView(view)
+          if (old_parent) {
+            console.debug(
+              "removing from old_parent",
+              old_parent.webContents.id,
+              wc_id,
+              view.webContents.id
+            )
+            old_parent.removeBrowserView(view)
+          }
+
+          window.setBrowserView(view)
+
+          view.webContents.send("attached", event.sender.id)
+
+          console.log(
+            "attach_wc_id",
+            event.sender.id,
+            wc_id,
+            view.webContents.id
+          )
+          event.returnValue = view.webContents.id
+          return
+        }
+      }
+    }
+    event.returnValue = null
+  })
+}
 
 function create_view(parent_id: number) {
   const view = new BrowserView({
@@ -50,7 +132,7 @@ function new_relative_win(
   let win_popup = new BrowserWindow({
     x: initial_x,
     y: initial_y,
-    width: view_bound.width,
+    width: view_bound.width + 50,
     height: size[1],
     autoHideMenuBar: true,
     icon: global.icon_path,
@@ -74,15 +156,26 @@ function new_relative_win(
   }
 
   win_popup.loadFile(path)
+
   //return win_popup
   win_popup.on("close", (x) => {
+    console.log(
+      "closing had attached",
+      win_popup.getBrowserViews().length,
+      win_popup.getBrowserViews()
+    )
     if (win_popup.getBrowserViews().length != 0) {
       win_popup.getBrowserViews().forEach((v) => {
-        //win_popup.removeBrowserView(v)
-        v.destroy()
+        console.log(
+          "remaining views",
+          win_popup.webContents.id,
+          v.webContents.id
+        )
+        win_popup.removeBrowserView(v)
+        //v.destroy()
       })
     }
-
+    x.preventDefault()
     win_popup.destroy()
   })
 }

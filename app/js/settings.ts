@@ -127,7 +127,7 @@ function restore_animation_settings() {
 
 function save_animation(checked: boolean) {
   pouch_set("animation", checked, console.log)
-  let anim_checkbox = document.querySelector<HTMLInputElement>("#theme_select")
+  let anim_checkbox = document.querySelector<HTMLInputElement>("#anim_checkbox")
   anim_checkbox.checked = checked
   set_animation(checked)
 }

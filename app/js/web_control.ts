@@ -148,7 +148,7 @@ function remove_tab_el(wc_id: number) {
 
 //close the window if we have no more tabs and are not the last window open
 function maybe_close_window() {
-  if (document.querySelectorAll("tab").length == 0) {
+  if (document.querySelectorAll(".tab").length == 0) {
     ipcRenderer.send("no_more_tabs_can_i_go")
   }
 }
