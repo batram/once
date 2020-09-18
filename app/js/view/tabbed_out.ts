@@ -10,6 +10,8 @@ import * as path from "path"
 export { create_view, pop_new_main, pop_no_tabs, tab_listeners }
 
 function tab_listeners(win: BrowserWindow) {
+  let tabs = []
+
   ipcMain.on("get_attached_wc_id", (event) => {
     console.log("get_attached_view", event.sender.id)
     let window = BrowserWindow.fromWebContents(event.sender)
@@ -31,7 +33,7 @@ function tab_listeners(win: BrowserWindow) {
       let window = BrowserWindow.fromBrowserView(view)
       if (window) {
         window.removeBrowserView(view)
-        //.destroy()
+        view.destroy()
       }
     }
   })
@@ -105,6 +107,7 @@ function tab_listeners(win: BrowserWindow) {
       if (window) {
         window.setBrowserView(view)
         console.log("attach_new_tab", event.sender.id, view.webContents.id)
+        tabs[view.webContents.id] = view
         event.returnValue = view.webContents.id
       }
     }
@@ -119,10 +122,11 @@ function tab_listeners(win: BrowserWindow) {
         let view = BrowserView.fromWebContents(view_wc)
         if (view) {
           let old_parent = BrowserWindow.fromBrowserView(view)
-          if (old_parent) {
+          if (old_parent && old_parent.id != window.id) {
             console.debug(
               "removing from old_parent",
               old_parent.webContents.id,
+              window.webContents.id,
               wc_id,
               view.webContents.id
             )
