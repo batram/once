@@ -6,11 +6,15 @@ export { story_map, update_story, add, set, has, clear, get }
 
 let s_map = {}
 
-const story_map: Record<string, Story> = onChange(s_map, function (
-  path,
-  value,
-  previousValue,
-  name
+const story_map: Record<string, Story> = onChange(s_map, on_update, {
+  pathAsArray: true,
+})
+
+function on_update(
+  path: string,
+  value: unknown,
+  previousValue: unknown,
+  name: string
 ) {
   console.debug("data_change", path, value, previousValue, name)
   if (path.length != 0) {
@@ -33,8 +37,7 @@ const story_map: Record<string, Story> = onChange(s_map, function (
       document.body.dispatchEvent(event)
     }
   }
-})
-
+}
 function set(href: string, y: Story) {
   story_map[href] = y
   return story_map[href]

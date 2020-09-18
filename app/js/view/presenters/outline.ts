@@ -42,6 +42,7 @@ export {
 
 //check for more uniq data url
 const data_outline_url = "data:text/html;charset=utf-8,<!--outline-->"
+const data_outline_url_fail = "data:text/plain;charset=utf-8,outline%20failed"
 const outline_api = "https://api.outline.com/v3/parse_article?source_url="
 
 function handles(url: string) {
@@ -51,7 +52,9 @@ function handles(url: string) {
 
 function is_presenter_url(url: string) {
   let will_present =
-    url.startsWith(data_outline_url) || url.startsWith(outline_api)
+    url.startsWith(data_outline_url) ||
+    url.startsWith(data_outline_url_fail) ||
+    url.startsWith(outline_api)
   if (will_present) {
     outline_button_active()
   } else {
@@ -170,7 +173,10 @@ function display_url(url: string) {
       console.error("outline failed to find webview")
     }
     outline_button_active()
-  } else if (url.startsWith(data_outline_url)) {
+  } else if (
+    url.startsWith(data_outline_url) ||
+    url.startsWith(data_outline_url_fail)
+  ) {
     outline_button_active()
     if (url.split("#").length > 1) {
       return decodeURIComponent(url.split("#")[1])
@@ -185,7 +191,7 @@ async function present(url: string) {
 async function outline(url: string) {
   let webview = document.querySelector<Electron.WebviewTag>("#webview")
   if (!webview) {
-    console.error("outline failed to find webview")
+    fail_outline("failed to find webview")
     return
   }
 
@@ -213,9 +219,15 @@ async function outline(url: string) {
 
   if (!content_resp.ok) {
     console.error("outline failed to get story content", url)
-    story_content = "<h1>failed to get story content</h1>"
+    fail_outline("failed to fetch story content")
+    return
   } else {
     url = content_resp.url
+    let content_type = content_resp.headers.get("content-type")
+    if (!content_type.startsWith("text/html")) {
+      fail_outline("can not handle content type" + content_resp)
+      return
+    }
     story_content = await content_resp.text()
   }
 
@@ -248,16 +260,7 @@ async function outline(url: string) {
 
   var article = new Readability(doc, {}).parse()
   if (!article) {
-    webview
-      .loadURL(
-        data_outline_url +
-          encodeURIComponent("outline failed") +
-          "#" +
-          "outline:failed"
-      )
-      .catch((e) => {
-        console.log("webview.loadURL error", e)
-      })
+    fail_outline("Readability didn't find anything")
     return
   }
   if (!article.content) {
@@ -283,6 +286,20 @@ async function outline(url: string) {
         encodeURIComponent(article.content) +
         "#" +
         encodeURIComponent(og_url)
+    )
+    .catch((e) => {
+      console.log("webview.loadURL error", e)
+    })
+}
+
+function fail_outline(reason: string) {
+  let webview = document.querySelector<Electron.WebviewTag>("#webview")
+  webview
+    .loadURL(
+      data_outline_url_fail +
+        encodeURIComponent("  " + reason) +
+        "#" +
+        "outline:failed"
     )
     .catch((e) => {
       console.log("webview.loadURL error", e)
