@@ -9,7 +9,60 @@ import * as path from "path"
 
 export { create_view, pop_new_main, pop_no_tabs, tab_listeners }
 
-function tab_listeners() {
+function tab_listeners(win: BrowserWindow) {
+  ipcMain.on("get_attached_wc_id", (event) => {
+    console.log("get_attached_view", event.sender.id)
+    let window = BrowserWindow.fromWebContents(event.sender)
+    if (window) {
+      let attached_view = window.getBrowserView()
+      if (attached_view && !attached_view.isDestroyed()) {
+        let view_wc_id = attached_view.webContents.id
+        event.returnValue = view_wc_id
+        return
+      }
+    }
+
+    event.returnValue = null
+  })
+
+  ipcMain.on("end_me", (event) => {
+    let view = BrowserView.fromWebContents(event.sender)
+    if (view) {
+      let window = BrowserWindow.fromBrowserView(view)
+      if (window) {
+        window.removeBrowserView(view)
+        //.destroy()
+      }
+    }
+  })
+
+  ipcMain.on("bound_attached", (event, wc_id, bounds) => {
+    console.log("bound_attached", wc_id)
+    let window = BrowserWindow.fromWebContents(event.sender)
+    let attached_view = window.getBrowserView()
+    if (attached_view && !attached_view.isDestroyed()) {
+      let view_wc_id = attached_view.webContents.id
+      if (view_wc_id == wc_id) {
+        //console.log("bound_attached", event, view_wc_id, wc_id, bounds)
+        attached_view.setBounds(bounds)
+      }
+
+      event.returnValue = view_wc_id
+    }
+  })
+
+  ipcMain.on("get_parent_id", (event) => {
+    let view = BrowserView.fromWebContents(event.sender)
+    if (view) {
+      let window = BrowserWindow.fromBrowserView(view)
+      if (window) {
+        event.returnValue = window.webContents.id
+        return
+      }
+    }
+    event.returnValue = null
+  })
+
   ipcMain.on("no_more_tabs_can_i_go", (event) => {
     let windows = BrowserWindow.getAllWindows()
     if (windows && windows.length > 2) {
@@ -82,6 +135,18 @@ function tab_listeners() {
       }
     }
     event.returnValue = null
+  })
+
+  win.on("close", (x) => {
+    //kill all attached browserviews before close
+    if (win && win.getBrowserViews().length != 0) {
+      win.getBrowserViews().forEach((v) => {
+        win.removeBrowserView(v)
+        v.destroy()
+      })
+    }
+    win.destroy()
+    win.close()
   })
 }
 
@@ -172,7 +237,7 @@ function new_relative_win(
           v.webContents.id
         )
         win_popup.removeBrowserView(v)
-        //v.destroy()
+        v.destroy()
       })
     }
     x.preventDefault()
