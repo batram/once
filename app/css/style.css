@@ -84,7 +84,7 @@ option {
 
 #left_panel {
   width: 50%;
-  min-width: 400px;
+  min-width: 450px;
   height: 100%;
   display: flex;
   flex-direction: row;
