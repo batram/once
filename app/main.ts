@@ -63,18 +63,7 @@ function createWindow() {
     icon: icon_path,
   })
 
-  ipcMain.on("fullscreen", (event, value) => {
-    console.log("fullscreen", BrowserWindow, event, value)
-    let win = BrowserWindow.getFocusedWindow()
-    if (win) {
-      let bw = win.getBrowserView()
-      if (bw && !bw.isDestroyed()) {
-        bw.webContents.send("fullscreen", value)
-      }
-
-      win.setFullScreen(value)
-    }
-  })
+  fullscreen.main_listener()
 
   ipcMain.on("get_attached_wc_id", (event) => {
     console.log("get_attached_view", event.sender.id)

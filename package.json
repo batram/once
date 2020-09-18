@@ -22,6 +22,6 @@
     "@cliqz/adblocker-electron": "^1.18.2",
     "cross-fetch": "^3.0.6",
     "on-change": "^2.1.2",
-    "pouchdb": "^7.2.2"
+    "pouchdb-browser": "^7.2.2"
   }
 }

@@ -1,5 +1,6 @@
-import { ipcRenderer, WebContents, BrowserWindow } from "electron"
+import { ipcRenderer, WebContents, BrowserWindow, BrowserView } from "electron"
 import { WebTab } from "./webtab"
+import { ipcMain } from "electron"
 
 export {
   key_handler,
@@ -8,17 +9,37 @@ export {
   enter,
   entered,
   left,
-  init_listeners,
+  render_listeners,
+  main_listener,
   webview_key_catcher,
+}
+
+function main_listener() {
+  ipcMain.on("change_fullscreen", (event, value) => {
+    let win = BrowserWindow.getFocusedWindow()
+    if (win) {
+      let bw = win.getBrowserView()
+      if (bw && !bw.isDestroyed()) {
+        bw.webContents.send("fullscreen_changed", value)
+      }
+      win.webContents.send("fullscreen_changed", value)
+      win.setFullScreen(value)
+    }
+  })
 }
 
 function webview_key_catcher(webContents: WebContents) {
   webContents.on("did-attach-webview", (event, guest_webContents) => {
-    console.log("did webcias", guest_webContents.id, webContents.id)
     guest_webContents.on("before-input-event", (event, input) => {
       let focused = BrowserWindow.getFocusedWindow()
 
       if (input.code == "F11") {
+        console.log(
+          "webview_key_catcher F11",
+          guest_webContents.id,
+          webContents.id
+        )
+
         focused.webContents.sendInputEvent({
           keyCode: "F11",
           type: input.type == "keyUp" ? "keyUp" : "keyDown",
@@ -35,14 +56,14 @@ function webview_key_catcher(webContents: WebContents) {
   })
 }
 
-function init_listeners() {
+function render_listeners() {
   let webview = document.querySelector("#webview")
   if (webview) {
     webview.addEventListener("enter-html-full-screen", enter)
     webview.addEventListener("leave-html-full-screen", leave)
   }
 
-  ipcRenderer.on("fullscreen", set)
+  ipcRenderer.on("fullscreen_changed", set)
 
   window.removeEventListener("keyup", key_handler)
   window.addEventListener("keyup", key_handler)
@@ -81,7 +102,7 @@ function enter() {
   //WebTab.send_to_parent("fullscreen", true)
 
   document.body.classList.add("fullscreen")
-  ipcRenderer.send("fullscreen", true)
+  ipcRenderer.send("change_fullscreen", true)
   entered()
 }
 
@@ -114,7 +135,7 @@ function leave() {
   // WebTab.send_to_parent("fullscreen", false)
 
   document.body.classList.remove("fullscreen")
-  ipcRenderer.send("fullscreen", false)
+  ipcRenderer.send("change_fullscreen", false)
 }
 
 function left() {

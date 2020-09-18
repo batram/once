@@ -10,7 +10,7 @@ import * as story_loader from "../data/StoryLoader"
 document.addEventListener("DOMContentLoaded", async (_e) => {
   story_list.init()
   side_menu.init()
-  fullscreen.init_listeners()
+  fullscreen.render_listeners()
 
   seperation_slider.init_slider()
   web_control.webtab_comms()

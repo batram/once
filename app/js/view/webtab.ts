@@ -28,7 +28,7 @@ export class WebTab {
       return false
     })
 
-    fullscreen.init_listeners()
+    fullscreen.render_listeners()
 
     ipcRenderer.on("pop_out", (event, offset) => {
       this.pop_new_main(JSON.parse(offset))
