@@ -12,6 +12,7 @@ export {
   grab_attached_or_new,
   attach_webtab,
   send_or_create_tab,
+  send_to_new_tab,
 }
 
 function grab_attached_or_new() {
@@ -422,7 +423,7 @@ function send_to_new_tab(channel: string, ...args: any[]) {
   if (tab_content) {
     //creating new webtab
     let wc_id = new_webtab(tab_content)
-    send_to_id(wc_id, channel, ...args)
+    ipcRenderer.send("when_webview_ready", wc_id, channel, ...args)
   }
 }
 

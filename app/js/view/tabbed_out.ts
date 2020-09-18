@@ -88,6 +88,16 @@ function tab_listeners(win: BrowserWindow) {
     }
   })
 
+  ipcMain.on("when_webview_ready", (event, wc_id, channel, ...args) => {
+    let wc_target = webContents.fromId(wc_id)
+    if (wc_target) {
+      wc_target.once("did-attach-webview", (x) => {
+        console.log("when_ready target ready", channel, ...args)
+        wc_target.send(channel, ...args)
+      })
+    }
+  })
+
   ipcMain.on("attach_new_tab", (event) => {
     let view = create_view(event.sender.id)
     if (view) {

@@ -10,6 +10,11 @@ export class WebTab {
   parent_id: number
 
   constructor() {
+    ipcRenderer.on("open_in_webview", (event, href) => {
+      console.debug("open_in_webview", href)
+      WebTab.open_in_webview(href)
+    })
+
     window.addEventListener("mouseup", (e: MouseEvent) => {
       let webview = this.get_webview()
 
@@ -74,9 +79,6 @@ export class WebTab {
       }
     })
 
-    ipcRenderer.on("open_in_webview", (event, href) => {
-      WebTab.open_in_webview(href)
-    })
     ipcRenderer.on("update_selected", (event, story, colors) => {
       console.debug("update_selected", story)
       this.update_selected(story, colors)

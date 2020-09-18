@@ -87,9 +87,17 @@ function story_elem_button(story: Story, inmain = true) {
   outline_btn.style.order = "2"
 
   if (inmain) {
-    outline_btn.onclick = () => {
-      web_control.send_or_create_tab("outline", story.href)
-    }
+    outline_btn.addEventListener("mousedown", (event) => {
+      if (event.button == 0) {
+        web_control.send_or_create_tab("outline", story.href)
+      } else if (event.button == 1) {
+        event.preventDefault()
+        event.stopPropagation()
+        web_control.send_to_new_tab("outline", story.href)
+        return false
+      }
+      //TODO: show cache options on 2?
+    })
   } else {
     outline_btn.onclick = () => {
       outline_button_active()
