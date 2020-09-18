@@ -57,6 +57,8 @@ function new_tab_element(
       "tab_drop",
       JSON.stringify({
         wc_id: tab_el.dataset.wc_id,
+        title: tab_el.title,
+        href: tab_el.dataset.href,
       })
     )
     if (tab_el.dataset.href) {
@@ -222,7 +224,7 @@ function webtab_comms() {
   ipcRenderer.on("show_filter", show_filter)
   ipcRenderer.on("add_filter", add_filter)
   ipcRenderer.on("subscribe_to_change", subscribe_to_change)
-  ipcRenderer.on("page-title-updated", update_title)
+  ipcRenderer.on("update_tab_info", update_tab_info)
   ipcRenderer.on("detaching", detaching)
   ipcRenderer.on("open_in_new_tab", open_in_new_tab_event)
   ipcRenderer.on("update-target-url", show_target_url)
@@ -230,7 +232,7 @@ function webtab_comms() {
 
   function show_target_url(event: Electron.IpcRendererEvent, url: string) {
     let url_target = document.querySelector<HTMLElement>("#url_target")
-    if (!url_target || !url) {
+    if (!url_target) {
       return
     }
 
@@ -294,7 +296,9 @@ function webtab_comms() {
         e: CustomEvent
       ) {
         //TODO: detect closed webcontent and remove listener
-        send_to_id(event.senderId, "data_change", e.detail.story)
+        if (e.detail.story) {
+          send_to_id(event.senderId, "data_change", e.detail.story)
+        }
       })
     }
   }
@@ -322,10 +326,11 @@ function webtab_comms() {
     send_to_id(event.senderId, "update_selected", story, colors)
   }
 
-  function update_title(event: any, title: string) {
+  function update_tab_info(event: any, title: string, href: string) {
     let sender_tab = tab_el_from_id(event.senderId)
     console.log(event.senderId, title, sender_tab)
     if (sender_tab) {
+      sender_tab.dataset.href = href
       sender_tab.innerText = title.substring(0, 22)
       sender_tab.title = title
     }
@@ -361,7 +366,7 @@ function webtab_comms() {
     if (tap_drop && tap_drop.startsWith("{")) {
       try {
         let tab_info = JSON.parse(tap_drop)
-        add_tab(tab_info.wc_id)
+        add_tab(tab_info.wc_id, tab_info.title, tab_info.href)
         return
       } catch (e) {
         console.error("ondrop", "thought it was an tap_drop, but it wasn't", e)
@@ -388,7 +393,7 @@ function webtab_comms() {
   })
 }
 
-function add_tab(wc_id: number) {
+function add_tab(wc_id: number, title?: string, href?: string) {
   if (!wc_id) {
     console.error("can't add tab with incomplete information")
     return
@@ -399,7 +404,13 @@ function add_tab(wc_id: number) {
   } else {
     let tab_content = document.querySelector<HTMLElement>("#tab_content")
     if (tab_content) {
-      grab_webtab(tab_content, wc_id)
+      let ret_wc_id = grab_webtab(tab_content, wc_id)
+      if (ret_wc_id == wc_id) {
+        let tab_el = tab_el_from_id(ret_wc_id)
+        tab_el.dataset.href = href
+        tab_el.title = title
+        tab_el.innerText = title.substring(0, 22)
+      }
     } else {
       console.error("failed to find tab_content to attach tabs")
       return

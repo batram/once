@@ -8,8 +8,16 @@ import { Story } from "../data/Story"
 export class WebTab {
   tab_state: string
   parent_id: number
+  webview_ready: boolean
 
   constructor() {
+    this.webview_ready = false
+    let webview = document.querySelector<Electron.WebviewTag>("#webview")
+    webview.addEventListener("dom-ready", (x) => {
+      this.webview_ready = true
+      this.send_update_tab_info()
+    })
+
     ipcRenderer.on("open_in_webview", (event, href) => {
       console.debug("open_in_webview", href)
       WebTab.open_in_webview(href)
@@ -51,6 +59,8 @@ export class WebTab {
       this.parent_id = data
       this.tab_state = "attached"
       this.send_to_parent("subscribe_to_change")
+
+      this.send_update_tab_info()
     })
 
     ipcRenderer.on("detach", (event, data) => {
@@ -83,15 +93,14 @@ export class WebTab {
       console.debug("update_selected", story)
       this.update_selected(story, colors)
     })
-    let webview = document.querySelector<Electron.WebviewTag>("#webview")
 
     ipcRenderer.on("update-target-url", (event, url) => {
       this.send_to_parent("update-target-url", url)
     })
 
     webview.addEventListener("page-title-updated", (e) => {
+      this.send_update_tab_info()
       console.log("page-title-updated", e.title.toString())
-      this.send_to_parent("page-title-updated", e.title.toString())
     })
 
     webview.addEventListener("did-fail-load", (e) => {
@@ -124,8 +133,7 @@ export class WebTab {
           this.update_selected(null, null)
         }
       }
-      let webview = this.get_webview()
-      this.send_to_parent("page-title-updated", webview.getTitle())
+      this.send_update_tab_info()
       let urlfield = document.querySelector<HTMLInputElement>("#urlfield")
       urlfield.value = url
     })
@@ -145,7 +153,7 @@ export class WebTab {
     let close_tab_btn = document.querySelector<HTMLElement>("#close_tab_btn")
     close_tab_btn.onclick = (x) => {
       webview.loadURL("about:blank")
-      this.send_to_parent("page-title-updated", "about:blank")
+      this.send_to_parent("page-title-updated", "about:blank", "about:blank")
       this.send_to_parent("detaching")
       ipcRenderer.send("end_me")
     }
@@ -157,6 +165,14 @@ export class WebTab {
 
     pop_out_btn.onclick = (x) => {
       this.pop_new_main()
+    }
+  }
+
+  send_update_tab_info(e?: any) {
+    if (this.webview_ready) {
+      let webview = this.get_webview()
+      let urlfield = document.querySelector<HTMLInputElement>("#urlfield")
+      this.send_to_parent("update_tab_info", webview.getTitle(), urlfield.value)
     }
   }
 

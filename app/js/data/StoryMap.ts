@@ -12,7 +12,7 @@ const story_map: Record<string, Story> = onChange(s_map, function (
   previousValue,
   name
 ) {
-  //console.log("data_change", path, value, previousValue, name)
+  console.debug("data_change", path, value, previousValue, name)
   if (path.length != 0) {
     if (typeof has(path[0])) {
       const event = new CustomEvent("data_change", {
