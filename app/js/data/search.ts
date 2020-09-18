@@ -120,17 +120,33 @@ function search_stories(needle: string) {
     return
   }
 
-  document.querySelectorAll<HTMLElement>(".story").forEach((x) => {
-    if (
-      !(
-        x.dataset.title.toLowerCase().includes(needle.toLowerCase()) ||
-        x.dataset.href.toLowerCase().includes(needle.toLowerCase()) ||
-        x.dataset.type.toLowerCase().includes(needle.toLowerCase())
-      )
-    ) {
-      x.classList.add("nomatch")
+  document.querySelectorAll<HTMLElement>(".story").forEach((story_el) => {
+    let find_in = [
+      story_el.dataset.title,
+      story_el.dataset.href,
+      story_el.dataset.type,
+    ]
+
+    let og_href = story_el.querySelector<HTMLAnchorElement>(".og_href")
+    if (og_href) {
+      find_in.push(og_href.href)
+    }
+
+    story_el
+      .querySelectorAll<HTMLElement>(".sources .info")
+      .forEach((source_info) => {
+        find_in.push(source_info.dataset.tag)
+        find_in.push(source_info.dataset.comment_url)
+      })
+
+    let found_index = find_in.findIndex(
+      (x) => x != undefined && x.toLowerCase().includes(needle.toLowerCase())
+    )
+
+    if (found_index != -1) {
+      story_el.classList.remove("nomatch")
     } else {
-      x.classList.remove("nomatch")
+      story_el.classList.add("nomatch")
     }
   })
 

@@ -33,6 +33,7 @@ function story_html(story: Story, inmain = true, webtab?: WebTab) {
 
   let og_link = document.createElement("a")
   og_link.innerText = " [OG] "
+  og_link.classList.add("og_href")
   og_link.href = story.og_href
   og_link.addEventListener("click", open_link_handler)
   title_line.appendChild(og_link)
