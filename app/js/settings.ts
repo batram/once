@@ -43,7 +43,7 @@ function init() {
     save_theme(theme_select.value)
   })
 
-  let anim_checkbox = document.querySelector<HTMLInputElement>("#theme_select")
+  let anim_checkbox = document.querySelector<HTMLInputElement>("#anim_checkbox")
   restore_animation_settings()
   anim_checkbox.addEventListener("change", (x) => {
     save_animation(anim_checkbox.checked)
@@ -118,7 +118,7 @@ function save_theme(name: string) {
 function restore_animation_settings() {
   pouch_get("animation", true).then((checked) => {
     let anim_checkbox = document.querySelector<HTMLInputElement>(
-      "#theme_select"
+      "#anim_checkbox"
     )
     anim_checkbox.checked = checked
     set_animation(checked)

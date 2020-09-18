@@ -84,7 +84,8 @@ function search_stories(needle: string) {
 
   let specialk: Record<string, Function> = {
     "[ALL]": () => {
-      document.querySelector<HTMLInputElement>("#searchfield").value = ""
+      let searchfield = document.querySelector<HTMLInputElement>("#searchfield")
+      searchfield.value = ""
       search_stories("")
     },
     "[filtered]": () => {

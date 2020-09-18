@@ -108,10 +108,9 @@ function enter() {
 
 function entered() {
   document.body.classList.add("fullscreen")
-  let tab_cnt = document.querySelector<HTMLElement>("#right_panel")
-  if (tab_cnt) {
-    tab_cnt
-    tab_cnt.style.minWidth = "100%"
+  let right_panel = document.querySelector<HTMLElement>("#right_panel")
+  if (right_panel) {
+    right_panel.style.minWidth = "100%"
   }
 
   let webview = document.querySelector<Electron.WebviewTag>("#webview")
@@ -143,9 +142,9 @@ function left() {
 
   try {
     document.body.classList.remove("fullscreen")
-    let tab_cnt = document.querySelector<HTMLElement>("#right_panel")
-    if (tab_cnt) {
-      tab_cnt.style.minWidth = ""
+    let right_panel = document.querySelector<HTMLElement>("#right_panel")
+    if (right_panel) {
+      right_panel.style.minWidth = ""
     }
     let webview = document.querySelector<Electron.WebviewTag>("webview")
     if (webview) {

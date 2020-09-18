@@ -378,12 +378,12 @@ function webtab_comms() {
     }
 
     let view_id = parseInt(x.dataTransfer.getData("text"))
-    let tab_cnt = document.querySelector<HTMLElement>("#tab_content")
+    let tab_content = document.querySelector<HTMLElement>("#tab_content")
     if (!view_id || isNaN(view_id)) {
       return
     }
 
-    attach_webtab(tab_cnt, view_id)
+    attach_webtab(tab_content, view_id)
   })
 }
 
@@ -418,10 +418,10 @@ function send_to_id(id: number, channel: string, ...args: any[]) {
 }
 
 function send_to_new_tab(channel: string, ...args: any[]) {
-  let tab_cnt = document.querySelector<HTMLElement>("#tab_content")
-  if (tab_cnt) {
+  let tab_content = document.querySelector<HTMLElement>("#tab_content")
+  if (tab_content) {
     //creating new webtab
-    let wc_id = new_webtab(tab_cnt)
+    let wc_id = new_webtab(tab_content)
     send_to_id(wc_id, channel, ...args)
   }
 }

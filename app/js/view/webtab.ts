@@ -135,12 +135,12 @@ export class WebTab {
       console.log("webview new-window", e.url)
     })
 
-    let reload_tab_btn = document.querySelector<HTMLElement>("#pop_out_btn")
+    let reload_tab_btn = document.querySelector<HTMLElement>("#reload_tab_btn")
     reload_tab_btn.onclick = (x) => {
       webview.reload()
     }
 
-    let close_tab_btn = document.querySelector<HTMLElement>("#pop_out_btn")
+    let close_tab_btn = document.querySelector<HTMLElement>("#close_tab_btn")
     close_tab_btn.onclick = (x) => {
       webview.loadURL("about:blank")
       this.send_to_parent("page-title-updated", "about:blank")
