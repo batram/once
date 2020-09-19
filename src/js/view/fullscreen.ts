@@ -1,5 +1,4 @@
 import { ipcRenderer, WebContents, BrowserWindow, BrowserView } from "electron"
-import { WebTab } from "./webtab"
 import { ipcMain } from "electron"
 
 export {

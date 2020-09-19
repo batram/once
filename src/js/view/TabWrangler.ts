@@ -3,7 +3,6 @@ import * as filters from "../data/filters"
 import * as webtab from "./webtab"
 import { StoryMap } from "../data/StoryMap"
 import * as story_list from "./StoryList"
-import { read } from "fs"
 
 declare interface WranglerOptions {
   addtab_button: boolean
@@ -154,12 +153,14 @@ export class TabWrangler {
       )
       StoryMap.instance.persist_story_change(data.href, data.path, data.value)
     })
+
     ipcRenderer.on(
       "show_filter",
       (event: Electron.IpcRendererEvent, data: string) => {
         filters.show_filter(data)
       }
     )
+
     ipcRenderer.on(
       "add_filter",
       (event: Electron.IpcRendererEvent, data: string) => {
