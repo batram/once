@@ -59,7 +59,9 @@ export class TabWrangler {
     this.tabhandler_element = tabhandler_element
     this.tabcontent_element = tabcontent_element
 
-    this.webtab_comms()
+    this.init_webtab_comms()
+    this.init_draggable_tabs()
+
     if (options) {
       this.options = options
     }
@@ -91,7 +93,7 @@ export class TabWrangler {
     }
   }
 
-  webtab_comms() {
+  init_webtab_comms() {
     ipcRenderer.on(
       "tab_intercom",
       (event: Electron.IpcRendererEvent, ...args: any) => {
@@ -240,10 +242,48 @@ export class TabWrangler {
         }
       }
     )
+  }
 
+  insert_tab_by_offleft(tab_el: HTMLElement) {
+    let all_tabs = Array.from(
+      this.tabhandler_element.querySelectorAll<HTMLElement>(".tab")
+    )
+    //reset placeholder space
+    all_tabs.forEach((tab) => {
+      tab.style.marginLeft = ""
+    })
+
+    let tabs = all_tabs.filter((x) => x != tab_el)
+    if (tabs.length == 0) {
+      return
+    }
+
+    let i = 0
+    let current_el = tabs[i]
+    console.log(current_el.offsetLeft, "<", tab_el.offsetLeft)
+    while (
+      i < tabs.length &&
+      current_el.offsetLeft - this.tabhandler_element.scrollLeft <
+        tab_el.offsetLeft - tab_el.clientWidth / 2
+    ) {
+      i += 1
+      current_el = tabs[i]
+    }
+
+    let before_el = tabs[i]
+    console.log(tabs.length, i, tabs[i])
+
+    if (before_el) {
+      before_el.style.marginLeft = tab_el.clientWidth + "px"
+      this.tabhandler_element.insertBefore(tab_el, before_el)
+    } else {
+      this.tabhandler_element.append(tab_el)
+    }
+  }
+
+  init_draggable_tabs() {
     document.ondragover = (x) => {
       x.preventDefault()
-      console.debug("ondragover", x)
       document.body.style.background = "red"
     }
 
@@ -296,12 +336,78 @@ export class TabWrangler {
       }
 
       let view_id = parseInt(x.dataTransfer.getData("text"))
-      let tab_content = document.querySelector<HTMLElement>("#tab_content")
       if (!view_id || isNaN(view_id)) {
         return
       }
 
       this.attach_webtab(view_id)
+    })
+  }
+
+  make_tab_el_draggable(tab_el: HTMLElement) {
+    let start_offset = -1
+
+    tab_el.ondrag = (drag) => {
+      drag.preventDefault()
+      if (drag.target == tab_el) {
+        tab_el.style.position = "absolute"
+        if (drag.pageX > this.tabcontent_element.offsetLeft) {
+          tab_el.style.display = ""
+          tab_el.style.left = drag.pageX - start_offset + "px"
+        } else {
+          tab_el.style.display = "none"
+        }
+        this.insert_tab_by_offleft(tab_el)
+      }
+    }
+
+    tab_el.ondragstart = (drag) => {
+      if (start_offset == -1) {
+        start_offset = drag.offsetX
+      }
+      drag.dataTransfer.setData(
+        "tab_drop",
+        JSON.stringify({
+          wc_id: tab_el.dataset.wc_id,
+          title: tab_el.title,
+          href: tab_el.dataset.href,
+        })
+      )
+      if (tab_el.dataset.href) {
+        drag.dataTransfer.setData("text", tab_el.dataset.href)
+      }
+    }
+
+    tab_el.ondragend = (drag) => {
+      this.insert_tab_by_offleft(tab_el)
+      //reset placeholder space
+      let all_tabs = Array.from(
+        this.tabhandler_element.querySelectorAll<HTMLElement>(".tab")
+      )
+
+      all_tabs.forEach((tab) => {
+        tab.style.marginLeft = ""
+      })
+
+      tab_el.style.position = ""
+      tab_el.style.left = ""
+      console.log(tab_el.offsetLeft)
+
+      start_offset = -1
+      drag.preventDefault()
+
+      if (drag.dataTransfer.dropEffect == "none") {
+        let offset = JSON.stringify([drag.offsetX, drag.offsetY])
+        this.send_to_id(parseInt(tab_el.dataset.wc_id), "pop_out", offset)
+      }
+    }
+
+    tab_el.addEventListener("mousedown", (e) => {
+      if (e.button == 0) {
+        this.activate_tab(tab_el)
+      } else if (e.button == 1) {
+        this.close_tab(tab_el)
+      }
     })
   }
 
@@ -433,40 +539,7 @@ export class TabWrangler {
       return null
     }
 
-    tab_el.ondrag = (drag) => {
-      //drag.preventDefault()
-      //console.log("ondrag", drag)
-    }
-    tab_el.ondragstart = (drag) => {
-      drag.dataTransfer.setData(
-        "tab_drop",
-        JSON.stringify({
-          wc_id: tab_el.dataset.wc_id,
-          title: tab_el.title,
-          href: tab_el.dataset.href,
-        })
-      )
-      if (tab_el.dataset.href) {
-        drag.dataTransfer.setData("text", tab_el.dataset.href)
-      }
-    }
-    tab_el.ondragend = (drag) => {
-      drag.preventDefault()
-      console.log("ondragend", drag.dataTransfer.dropEffect, drag)
-
-      if (drag.dataTransfer.dropEffect == "none") {
-        let offset = JSON.stringify([drag.offsetX, drag.offsetY])
-        this.send_to_id(parseInt(tab_el.dataset.wc_id), "pop_out", offset)
-      }
-    }
-
-    tab_el.addEventListener("mousedown", (e) => {
-      if (e.button == 0) {
-        this.activate_tab(tab_el)
-      } else if (e.button == 1) {
-        this.close_tab(tab_el)
-      }
-    })
+    this.make_tab_el_draggable(tab_el)
 
     return tab_el
   }
