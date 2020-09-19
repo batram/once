@@ -62,6 +62,9 @@ function init() {
     x.onclick = (e) => {
       open_panel(x.dataset.panel)
     }
+    x.querySelectorAll("img").forEach((x) => {
+      x.setAttribute("draggable", "false")
+    })
   })
 
   if (document.querySelector("#menu")) {

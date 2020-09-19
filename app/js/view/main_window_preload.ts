@@ -1,5 +1,5 @@
 import * as settings from "../settings"
-import * as web_control from "../web_control"
+import { TabWrangler } from "../view/TabWrangler"
 import * as fullscreen from "./fullscreen"
 import * as story_list from "./StoryList"
 import * as search from "../data/search"
@@ -11,18 +11,20 @@ document.addEventListener("DOMContentLoaded", async (_e) => {
   story_list.init()
   side_menu.init()
   fullscreen.render_listeners()
-
-  seperation_slider.init_slider()
-  web_control.webtab_comms()
-
-  if (web_control.grab_attached_or_new()) {
-    seperation_slider.collapse_left()
-  }
-
   settings.init()
-
   search.init_search()
+  seperation_slider.init_slider()
 
+  let tab_content = document.querySelector<HTMLElement>("#tab_content")
+  let tab_dropzone = document.querySelector<HTMLElement>("#tab_dropzone")
+  if (tab_content && tab_dropzone) {
+    let tab_wrangler = new TabWrangler(tab_dropzone, tab_content, {
+      addtab_button: true,
+    })
+    if (tab_wrangler.grab_attached_or_new()) {
+      seperation_slider.collapse_left()
+    }
+  }
   console.log("LDEV", process.env.LDEV == "1")
 
   let dev_cache = process.env.LDEV == "1"

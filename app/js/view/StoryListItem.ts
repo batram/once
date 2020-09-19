@@ -1,5 +1,5 @@
 import * as story_parser from "../data/parser"
-import * as web_control from "../web_control"
+import { TabWrangler } from "../view/TabWrangler"
 import { WebTab } from "../view/webtab"
 import * as story_filters from "../data/filters"
 import { Story, StorySource } from "../data/Story"
@@ -254,9 +254,9 @@ function open_link_handler(e: any | MouseEvent) {
     href = e.target.href
   }
   if (e.button == 0) {
-    web_control.open_in_tab(href)
+    TabWrangler.ops.open_in_tab(href)
   } else if (e.button == 1) {
-    web_control.open_in_new_tab(href)
+    TabWrangler.ops.open_in_new_tab(href)
   }
 
   return false
@@ -266,7 +266,9 @@ function icon_button(title: string, classname: string, icon_src: string) {
   let btn = document.createElement("div")
   btn.classList.add("btn")
   btn.classList.add(classname)
+  btn.setAttribute("draggable", "false")
   let icon = document.createElement("img")
+  icon.setAttribute("draggable", "false")
   icon.src = icon_src
   btn.appendChild(icon)
   btn.title = title

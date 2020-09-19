@@ -1,7 +1,7 @@
 import { Story } from "../../data/Story"
 import * as story_list_item from "../../view/StoryListItem"
 import * as Readability from "../../third_party/Readability.js"
-import * as web_control from "../../web_control"
+import { TabWrangler } from "../../view/TabWrangler"
 import { ipcRenderer } from "electron"
 
 const description = "Presents contents of a webpage in more readable way"
@@ -90,13 +90,22 @@ function story_elem_button(story: Story, inmain = true) {
   outline_btn.style.order = "2"
 
   if (inmain) {
+    //prevent scroll, but fire interaction only on mouseup
     outline_btn.addEventListener("mousedown", (event) => {
+      if (event.button == 1) {
+        event.preventDefault()
+        event.stopPropagation()
+        return false
+      }
+    })
+
+    outline_btn.addEventListener("mouseup", (event) => {
       if (event.button == 0) {
-        web_control.send_or_create_tab("outline", story.href)
+        TabWrangler.ops.send_or_create_tab("outline", story.href)
       } else if (event.button == 1) {
         event.preventDefault()
         event.stopPropagation()
-        web_control.send_to_new_tab("outline", story.href)
+        TabWrangler.ops.send_to_new_tab("outline", story.href)
         return false
       }
       //TODO: show cache options on 2?
@@ -197,7 +206,7 @@ async function outline(url: string) {
 
   let urlfield = document.querySelector<HTMLInputElement>("#urlfield")
   if (urlfield == undefined) {
-    web_control.send_or_create_tab("outline", url)
+    TabWrangler.ops.send_or_create_tab("outline", url)
     return
   }
   urlfield.value = url

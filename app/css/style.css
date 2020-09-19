@@ -10,6 +10,7 @@ body {
   flex-direction: column;
   box-sizing: content-box;
   font-family: Verdana, Geneva, sans-serif;
+  user-select: none;
 }
 
 #titlebar {
@@ -330,6 +331,7 @@ option {
   margin: 2px;
   border-radius: 2px;
   background: var(--btn-bg-color);
+  user-select: none;
 }
 
 #menu .btn {
@@ -413,6 +415,14 @@ option {
   display: none;
 }
 
+#settings_panel .bar {
+  height: 28px;
+}
+#settings_panel .settings_title {
+  font-size: 13px;
+  margin-top: 7px;
+}
+
 .settings_container {
   height: 100%;
   overflow: scroll;
@@ -481,7 +491,7 @@ option {
 }
 
 #tab_dropzone .tab,
-#tab_dropzone #addtab {
+#tab_dropzone #addtab_button {
   min-width: 140px;
   border: thin solid var(--border-high-color);
   border-bottom: none;
@@ -492,6 +502,7 @@ option {
   cursor: pointer;
   margin-left: 2px;
   font-size: 13px;
+  user-select: none;
 }
 
 #tab_dropzone .active {
@@ -500,7 +511,7 @@ option {
   margin-top: 2px;
 }
 
-#tab_dropzone #addtab {
+#tab_dropzone #addtab_button {
   min-width: 10px;
 }
 
