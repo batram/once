@@ -126,7 +126,7 @@ export class WebTab {
       let url = e.url
       url = presenters.modify_url(url)
       if (this.is_attached()) {
-        this.send_to_parent("mark_selected", url)
+        this.send_to_parent("tab_url_changed", url)
       } else {
         let selected = story_list.get_by_href(url)
         if (!selected) {

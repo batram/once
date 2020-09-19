@@ -106,11 +106,6 @@ export class Story {
     })
   }
 
-  mark_as_read() {
-    this.read = true
-    this.add_to_readlist()
-  }
-
   clone() {
     let cloned = new Story()
     for (let i in this) {
@@ -124,18 +119,14 @@ export class Story {
     return cloned
   }
 
-  star() {
-    this.stared = true
-
+  add_to_starlist() {
     settings.get_starlist().then((starlist) => {
       starlist[this.href] = onChange.target(this)
       settings.save_starlist(starlist, console.log)
     })
   }
 
-  unstar() {
-    this.stared = false
-
+  remove_from_starlist() {
     settings.get_starlist().then((starlist) => {
       if (starlist.hasOwnProperty(this.href)) {
         delete starlist[this.href]

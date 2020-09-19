@@ -21,7 +21,7 @@ export class StoryMap {
   story_map: Record<string, Story> = onChange(
     this.s_map,
     (path: string, value: unknown, previousValue: unknown, name: string) => {
-      console.debug("data_change", path, value, previousValue, name)
+      console.debug("onChange data_change", path, value, previousValue, name)
       if (path.length != 0) {
         if (typeof this.has(path[0])) {
           const event = new CustomEvent("data_change", {
@@ -39,16 +39,7 @@ export class StoryMap {
           story_els.forEach((story_el) => {
             story_el.dispatchEvent(event)
           })
-          let global_event = new CustomEvent("global_data_change", {
-            detail: {
-              story: this.get(path[0]),
-              path: path,
-              value: value,
-              previousValue: previousValue,
-              name: name,
-            },
-          })
-          document.body.dispatchEvent(global_event)
+          document.body.dispatchEvent(event)
         }
       }
     },
@@ -78,27 +69,28 @@ export class StoryMap {
     }
   }
 
-  update_story(href: string, path: string, value: Story | string | boolean) {
+  persist_story_change(
+    href: string,
+    path: string,
+    value: Story | string | boolean
+  ) {
     let story = this.get(href)
     if (path == "story" && value instanceof Story) {
       story = value
     } else {
       if (path == "read") {
-        story.read = value as boolean
         if (value) {
           story.add_to_readlist()
         } else {
           story.remove_from_readlist()
         }
-        return
       }
       if (path == "stared") {
         if (value) {
-          story.star()
+          story.add_to_starlist()
         } else {
-          story.unstar()
+          story.remove_from_starlist()
         }
-        return
       }
       story[path] = value
     }

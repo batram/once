@@ -82,7 +82,7 @@ function story_html(story: Story) {
   presenters.add_story_elem_buttons(story_el, story)
   ipc_events(story, story_el)
   story_el.addEventListener("data_change", (x: CustomEvent) => {
-    update_story_el(x, story_el, story)
+    update_story_el(x, story_el, story.to_obj())
   })
   return story_el
 }
@@ -108,38 +108,40 @@ function animate_read(story_el: HTMLElement, new_read: boolean) {
   }
 }
 
+function animate_star(story_el: HTMLElement, new_stared: boolean) {
+  console.log("here I go animating again", story_el, new_stared)
+  let anmim_class = new_stared ? "star_anim" : "unstar_anim"
+  let icon_start = new_stared ? "imgs/star.svg" : "imgs/star_fill.svg"
+  let icon_end = new_stared ? "imgs/star_fill.svg" : "imgs/star.svg"
+  let star_btn_img = story_el.querySelector<HTMLImageElement>(".star_btn img")
+
+  if (document.body.classList.contains("animated")) {
+    star_btn_img.src = icon_start
+    story_el.classList.add(anmim_class)
+    story_el.addEventListener(
+      "animationend",
+      () => {
+        setTimeout(() => {
+          story_el.classList.remove(anmim_class)
+          star_btn_img.src = icon_end
+        }, 1)
+      },
+      false
+    )
+  }
+}
+
 function update_story_el(
   event: CustomEvent,
   story_el: HTMLElement,
-  old_story: Story
+  old_story: { read: boolean; stared: boolean }
 ) {
   if (!event || !event.detail || !event.detail.story) {
-    console.log("update_storyel fail", event, story_el)
+    console.debug("update_story_el fail", event, story_el)
     return
   }
-  let new_story = event.detail.story
-  let new_el = story_html(event.detail.story)
-  //animate_read(new_el, new_story.read)
-  story_el.replaceWith(new_el)
-  //TODO: resort ...
-  animate_read(new_el, new_story.read)
 
-  return
-
-  //TODO: maybe update pēs′mēl″ in the future
-
-  if (event.detail.value instanceof Story && event.detail.name) {
-    switch (event.detail.name) {
-      //TODO diff class before after, or completley redraw or fix on-change
-      case "star":
-      case "unstar":
-        update_star(event.detail.value.stared, story_el)
-        break
-      case "mark_as_read":
-        update_read(event.detail.value, story_el)
-        break
-    }
-  } else if (event.detail.path.length == 2) {
+  if (event.detail.path.length == 2) {
     switch (event.detail.path[1]) {
       case "read":
         update_read(event.detail.value, story_el)
@@ -151,9 +153,16 @@ function update_story_el(
         update_star(event.detail.value, story_el)
         break
       case "filter":
+      default:
+        update_complete_story_el(story_el, event.detail.story)
         break
     }
   }
+}
+
+function update_complete_story_el(story_el: HTMLElement, story: Story) {
+  let new_story_el = story_html(story)
+  story_el.replaceWith(new_story_el)
 }
 
 function ipc_events(story: Story, story_el: HTMLElement) {
@@ -175,7 +184,7 @@ function ipc_events(story: Story, story_el: HTMLElement) {
 */
   let read_btn = story_el.querySelector(".read_btn")
   read_btn.addEventListener("click", (x) => {
-    ipcRenderer.send("tab_intercom", "update_story", {
+    ipcRenderer.send("tab_intercom", "persist_story_change", {
       href: story.href,
       path: "read",
       value: !story.read,
@@ -204,7 +213,7 @@ function ipc_events(story: Story, story_el: HTMLElement) {
     let value = !story.stared
     story.stared = value
     console.log("click start value", story.stared, "setting", value)
-    ipcRenderer.send("tab_intercom", "update_story", {
+    ipcRenderer.send("tab_intercom", "persist_story_change", {
       href: story.href,
       path: "stared",
       value: value,
@@ -268,6 +277,7 @@ function update_read(read: boolean, story_el: HTMLElement) {
     story_el.classList.remove("read")
   }
   label_read(story_el)
+  animate_read(story_el, read)
 }
 
 function label_read(story_el: HTMLElement) {
@@ -284,41 +294,6 @@ function label_read(story_el: HTMLElement) {
   } else {
     btn.title = "mark as unread"
     icon.src = "imgs/unread.svg"
-  }
-}
-
-function toggle_read(href: string, callback: (story_el: HTMLElement) => any) {
-  let story_el = document.querySelector<HTMLElement>(
-    '.story[data-href="' + href + '"]'
-  )
-  let story = StoryMap.instance.get(href)
-
-  let anmim_class = ""
-
-  if (story_el.classList.contains("read")) {
-    story_el.classList.remove("read")
-    story.remove_from_readlist()
-    story.read = false
-    anmim_class = "unread_anim"
-  } else {
-    story_el.classList.add("read")
-    story.add_to_readlist()
-    story.read = true
-    anmim_class = "read_anim"
-  }
-
-  label_read(story_el)
-
-  if (typeof callback == "function") {
-    let resort = callback(story_el)
-    if (typeof resort == "function") {
-      if (document.body.classList.contains("animated")) {
-        story_el.classList.add(anmim_class)
-        story_el.addEventListener("transitionend", resort, false)
-      } else {
-        resort()
-      }
-    }
   }
 }
 
@@ -350,13 +325,20 @@ function label_star(story_el: HTMLElement) {
 }
 
 function update_star(stared: boolean, story_el: HTMLElement) {
+  let classes_before = story_el.classList.value.toString()
+
   if (stared) {
     story_el.classList.add("stared")
   } else {
     story_el.classList.remove("stared")
   }
+  let classes_after = story_el.classList.value.toString()
 
   label_star(story_el)
+
+  if (classes_after != classes_before) {
+    animate_star(story_el, stared)
+  }
 }
 
 function update_sources(sources: StorySource[], story_el: HTMLElement) {

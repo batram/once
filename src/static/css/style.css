@@ -246,6 +246,47 @@ option {
   margin-left: -100%;
 }
 
+@keyframes spin {
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes bounce {
+  0%,
+  20%,
+  40%,
+  50%,
+  70%,
+  90%,
+  100% {
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
+  30% {
+    transform: translateY(-10px) rotate(5deg) scale(1.2);
+  }
+  60% {
+    transform: translateY(-8px) rotate(-5deg) scale(1.2);
+  }
+  80% {
+    transform: translateY(-12px) rotate(0deg) scale(1);
+  }
+}
+
+@keyframes death_spin {
+  100% {
+    transform: rotate(360deg) scale(0);
+  }
+}
+
+.animated .unstar_anim .star_btn img {
+  animation: death_spin 1.7s cubic-bezier(0.69, -0.14, 0.59, 0.99);
+}
+
+.animated .star_anim .star_btn img {
+  animation: bounce 1s cubic-bezier(0, 0, 0.15, 0.99);
+}
+
 .read {
   background: var(--read-bg-color);
 }

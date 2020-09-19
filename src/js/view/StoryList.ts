@@ -86,9 +86,6 @@ function mark_selected(story_el: HTMLElement, url: string) {
   if (story_el) {
     story_el.classList.add("selected")
     let og_story = StoryMap.instance.get(story_el.dataset.href)
-    if (og_story.href == url) {
-      og_story.mark_as_read()
-    }
     return og_story
   } else {
     return null
@@ -121,6 +118,13 @@ function sortable_story(elem: HTMLElement) {
 
 function resort_single(elem: HTMLElement) {
   let story_con = elem.parentElement
+  if (!story_con) {
+    console.error(
+      "resort_single: cant sort that which is not contained",
+      "story_el has no parent"
+    )
+    return
+  }
   let stories = Array.from(story_con.querySelectorAll(".story")).filter(
     (el: HTMLElement) => {
       return (

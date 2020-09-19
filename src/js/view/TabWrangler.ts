@@ -3,6 +3,7 @@ import * as filters from "../data/filters"
 import * as webtab from "./webtab"
 import { StoryMap } from "../data/StoryMap"
 import * as story_list from "./StoryList"
+import { read } from "fs"
 
 declare interface WranglerOptions {
   addtab_button: boolean
@@ -144,9 +145,14 @@ export class TabWrangler {
       this.remove_tab_el(event.senderId)
     })
 
-    ipcRenderer.on("update_story", (event, data) => {
-      console.log("update_story received", data, "setting value", data.value)
-      StoryMap.instance.update_story(data.href, data.path, data.value)
+    ipcRenderer.on("persist_story_change", (event, data) => {
+      console.log(
+        "persist_story_change received",
+        data,
+        "setting value",
+        data.value
+      )
+      StoryMap.instance.persist_story_change(data.href, data.path, data.value)
     })
     ipcRenderer.on(
       "show_filter",
@@ -169,21 +175,19 @@ export class TabWrangler {
           console.debug("subscribe_to_change", event.senderId)
           subscribers.push(event.senderId)
           //TODO: filter here or on tab?
-          document.body.addEventListener(
-            "global_data_change",
-            (e: CustomEvent) => {
-              if (e.detail.story) {
-                this.send_to_id(event.senderId, "data_change", e.detail.story)
-              }
+          document.body.addEventListener("data_change", (e: CustomEvent) => {
+            if (e.detail.story) {
+              this.send_to_id(event.senderId, "data_change", e.detail.story)
             }
-          )
+          })
         }
       }
     )
 
     ipcRenderer.on(
-      "mark_selected",
+      "tab_url_changed",
       (event: Electron.IpcRendererEvent, href: string) => {
+        console.log("tab_url_changed", href)
         let colors = Array.from(
           document.querySelectorAll<HTMLElement>(".tag_style")
         )
@@ -198,6 +202,17 @@ export class TabWrangler {
         }
 
         let story = story_list.mark_selected(null, href)
+        if (
+          story &&
+          !story.read &&
+          (story.href == href || story.og_href == href)
+        ) {
+          ipcRenderer.send("tab_intercom", "persist_story_change", {
+            href: story.href,
+            path: "read",
+            value: true,
+          })
+        }
 
         if (href == "about:gone") {
           return

@@ -9,7 +9,7 @@ import * as seperation_slider from "./sep_slider"
 import * as story_loader from "../data/StoryLoader"
 
 document.addEventListener("DOMContentLoaded", async (_e) => {
-  let story_map = new StoryMap()
+  new StoryMap()
   story_list.init()
   side_menu.init()
   fullscreen.render_listeners()
