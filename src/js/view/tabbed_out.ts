@@ -175,7 +175,7 @@ function create_view(parent_id: number) {
     },
   })
 
-  view.webContents.loadFile(path.join(__dirname, "..", "..", "webtab.html"))
+  view.webContents.loadFile(global.tab_view_html)
 
   view.webContents.once("dom-ready", (x) => {
     view.webContents.send("attached", parent_id)
@@ -279,7 +279,7 @@ function pop_new_main(
   new_relative_win(
     parent,
     wc,
-    path.join(__dirname, "..", "..", "main_window.html"),
+    path.join(global.main_window_html),
     false,
     offset
   )

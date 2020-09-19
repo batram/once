@@ -18,7 +18,9 @@ import * as webcontents_enhancer from "./js/view/webcontents_enhancer"
 declare global {
   var icon_path: string
   var main_window_preload: string
+  var main_window_html: string
   var tab_view_preload: string
+  var tab_view_html: string
 }
 
 if (process.env.LDEV == "1") {
@@ -27,12 +29,14 @@ if (process.env.LDEV == "1") {
 
 let icon_path = path.join(
   __dirname,
+  "static",
   "imgs",
   "icons",
   "mipmap-mdpi",
   "ic_launcher.png"
 )
 
+global.main_window_html = path.join(__dirname, "static", "main_window.html")
 global.main_window_preload = path.join(
   __dirname,
   "js",
@@ -40,6 +44,7 @@ global.main_window_preload = path.join(
   "main_window_preload.js"
 )
 
+global.tab_view_html = path.join(__dirname, "static", "webtab.html")
 global.tab_view_preload = path.join(
   __dirname,
   "js",
@@ -73,8 +78,7 @@ function createWindow() {
 
   //win.webContents.session.setProxy({ proxyRules: "socks5://127.0.0.1:9150" })
 
-  // and load the index.html of the app.
-  win.loadFile(path.join(__dirname, "main_window.html"))
+  win.loadFile(global.main_window_html)
 
   adblocker.ElectronBlocker.fromPrebuiltAdsAndTracking(
     require("cross-fetch")
