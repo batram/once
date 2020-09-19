@@ -1,25 +1,36 @@
-import { app, BrowserView, BrowserWindow, dialog } from "electron"
+import { app, BrowserView, BrowserWindow, dialog, ipcRenderer } from "electron"
 import * as mouse_debugger_hook from "../view/debugger_hook"
 import * as contextmenu from "../view/contextmenu"
 import * as fullscreen from "../view/fullscreen"
+import * as tabbed_out from "../view/tabbed_out"
 
 export { on_each }
 
 function on_each() {
-  app.on("web-contents-created", function (_event, webContents) {
+  app.on("web-contents-created", function (event, webContents) {
+    //console.log("web-contents-created ", event, webContents.id)
     contextmenu.init_menu(webContents)
 
-    webContents.on("new-window", (event, url) => {
-      event.preventDefault()
-      console.log("caught new-window", url)
-      webContents.send("open_in_new_tab", url)
-      return false
-    })
+    webContents.on(
+      "new-window",
+      (event, url, frameName, disposition, additionalFeatures) => {
+        event.preventDefault()
+        console.log(
+          "caught new-window",
+          url,
+          frameName,
+          typeof disposition,
+          additionalFeatures
+        )
+        webContents.send("tab_intercom", "open_in_new_tab", url)
+        tabbed_out.tab_intercom({ sender: webContents }, "open_in_new_tab", url)
+      }
+    )
 
     webContents.on("will-navigate", (event, url) => {
+      event.preventDefault()
       console.log("caught will-navigate", url)
-      webContents.send("open_in_tab", url)
-      return false
+      tabbed_out.tab_intercom({ sender: webContents }, "open_in_tab", url)
     })
 
     mouse_debugger_hook.history_nav(webContents)

@@ -164,7 +164,7 @@ function update_on_change(event: PouchDB.Replication.SyncResult<any>) {
       console.log("update", doc._id)
       switch (doc._id) {
         case "read_list":
-          story_list.refilter()
+          story_list.reread(doc.list)
           break
         case "story_sources":
           set_sources_area()

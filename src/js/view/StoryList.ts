@@ -1,8 +1,8 @@
 import { Story, SortableStory } from "../data/Story"
-import { get_starlist, story_sources } from "../settings"
+import { get_starlist, get_readlist, story_sources } from "../settings"
 import * as story_item from "../view/StoryListItem"
 import * as filters from "../data/filters"
-import * as story_map from "../data/StoryMap"
+import { StoryMap } from "../data/StoryMap"
 import * as story_loader from "../data/StoryLoader"
 
 export {
@@ -14,6 +14,7 @@ export {
   sort_stories,
   resort_single,
   add,
+  reread,
   init,
 }
 
@@ -29,12 +30,12 @@ function init() {
 function add(story: Story, bucket = "stories") {
   if (!(story instanceof Story)) {
     story = Story.from_obj(story)
-    story = story_map.set(story.href.toString(), story)
+    story = StoryMap.instance.set(story.href.toString(), story)
   }
 
   story.bucket = bucket
 
-  let new_story_el = story_item.story_html(story, true)
+  let new_story_el = story_item.story_html(story)
   let stories_container = document.querySelector("#" + bucket)
 
   //hide new stories if search is active, will be matched and shown later
@@ -84,7 +85,7 @@ function mark_selected(story_el: HTMLElement, url: string) {
 
   if (story_el) {
     story_el.classList.add("selected")
-    let og_story = story_map.get(story_el.dataset.href)
+    let og_story = StoryMap.instance.get(story_el.dataset.href)
     if (og_story.href == url) {
       og_story.mark_as_read()
     }
@@ -191,21 +192,29 @@ async function restar() {
   let starlist = await get_starlist()
   document.querySelectorAll<HTMLElement>(".story").forEach((story_el) => {
     let sthref = story_el.dataset.href
-    let story = story_map.get(sthref.toString())
+    let story = StoryMap.instance.get(sthref.toString())
     story.stared = starlist.hasOwnProperty(sthref)
   })
 
   story_loader.add_stored_stars(starlist)
 }
 
+async function reread(readlist: any) {
+  StoryMap.instance.forEach((story: any) => {
+    story.read = readlist.includes(story.href)
+  })
+}
+
 function refilter() {
   document.querySelectorAll<HTMLElement>(".story").forEach((x) => {
     let sthref = x.dataset.href.toString()
-    let story = story_map.get(sthref.toString())
+    let story = StoryMap.instance.get(sthref.toString())
     let og_filter = story.filter
     filters.filter_story(story).then((story) => {
       if (story.filter != og_filter) {
-        let nstory = story_item.story_html(story_map.get(sthref.toString()))
+        let nstory = story_item.story_html(
+          StoryMap.instance.get(sthref.toString())
+        )
         x.replaceWith(nstory)
       }
     })
@@ -217,11 +226,11 @@ function reload() {
   let selected = document.querySelector<HTMLElement>(".selected")
   if (selected) {
     let href = selected.dataset.href
-    let story = story_map.get(href).clone()
-    story_map.clear()
-    story_map.set(href, story)
+    let story = StoryMap.instance.get(href).clone()
+    StoryMap.instance.clear()
+    StoryMap.instance.set(href, story)
   } else {
-    story_map.clear()
+    StoryMap.instance.clear()
   }
 
   document.querySelectorAll(".story").forEach((x) => {

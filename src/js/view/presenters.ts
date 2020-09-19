@@ -33,11 +33,11 @@ function modify_url(url: string) {
 function add_story_elem_buttons(
   story_el: HTMLElement,
   story: Story,
-  inmain: boolean = true
+  intab: boolean = false
 ) {
   get_active().forEach((presenter) => {
     if (presenter.hasOwnProperty("story_elem_button")) {
-      let button = presenter["story_elem_button"](story, inmain)
+      let button = presenter["story_elem_button"](story, intab)
       story_el.appendChild(button)
     }
   })

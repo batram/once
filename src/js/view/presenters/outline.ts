@@ -77,7 +77,7 @@ function outline_button_inactive() {
   }
 }
 
-function story_elem_button(story: Story, inmain = true) {
+function story_elem_button(story: Story, intab = false) {
   if (!presenter_options.story_button.value) {
     return
   }
@@ -89,7 +89,7 @@ function story_elem_button(story: Story, inmain = true) {
   )
   outline_btn.style.order = "2"
 
-  if (inmain) {
+  if (!intab) {
     //prevent scroll, but fire interaction only on mouseup
     outline_btn.addEventListener("mousedown", (event) => {
       if (event.button == 1) {

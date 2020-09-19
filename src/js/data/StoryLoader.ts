@@ -1,6 +1,6 @@
 import * as filters from "../data/filters"
 import * as story_parser from "../data/parser"
-import * as story_map from "../data/StoryMap"
+import { StoryMap } from "../data/StoryMap"
 import { Story } from "./Story"
 import * as settings from "../settings"
 import * as search from "../data/search"
@@ -68,7 +68,7 @@ async function parallel_load_stories(urls: string[], try_cache = true) {
 async function process_story_input(stories: Story[]) {
   let all_stories = sort_raw_stories(stories)
   all_stories.forEach((story) => {
-    story_map.add(story)
+    StoryMap.instance.add(story)
   })
 
   //add all stored stared stories
@@ -109,7 +109,7 @@ async function enhance_stories(stories: Story[], add: boolean = true) {
 
   return filtered_stories.map((story: Story) => {
     if (add) {
-      story = story_map.add(story)
+      story = StoryMap.instance.add(story)
     }
     story.read = readlist.includes(story.href)
     if (starlist.hasOwnProperty(story.href)) {
@@ -150,6 +150,6 @@ function add_stored_stars(starlist: Starlist) {
     let star_story = Story.from_obj(starlist[href])
     star_story.stared = true
     star_story.stored_star = true
-    story_map.add(star_story)
+    StoryMap.instance.add(star_story)
   }
 }

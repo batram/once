@@ -1,7 +1,7 @@
 import { ipcRenderer } from "electron"
 import * as filters from "../data/filters"
 import * as webtab from "./webtab"
-import * as story_map from "../data/StoryMap"
+import { StoryMap } from "../data/StoryMap"
 import * as story_list from "./StoryList"
 
 declare interface WranglerOptions {
@@ -29,8 +29,6 @@ export class TabWrangler {
           func.call(TabWrangler.instance, ...args)
         }
       } else {
-        //check comms
-        console.log("comms", func_name, ...args)
         ipcRenderer.send("tab_intercom", func_name, ...args)
       }
     },
@@ -92,7 +90,15 @@ export class TabWrangler {
     ipcRenderer.on(
       "tab_intercom",
       (event: Electron.IpcRendererEvent, ...args: any) => {
-        console.log("tab_intercom")
+        console.log("tab_intercom", ...args)
+      }
+    )
+
+    ipcRenderer.on(
+      "send_or_create_tab",
+      (event: Electron.IpcRendererEvent, channel: string, ...args: any) => {
+        console.log("outline as", ...args)
+        this.send_or_create_tab(channel, ...args)
       }
     )
 
@@ -138,7 +144,10 @@ export class TabWrangler {
       this.remove_tab_el(event.senderId)
     })
 
-    ipcRenderer.on("update_story", update_story)
+    ipcRenderer.on("update_story", (event, data) => {
+      console.log("update_story received", data, "setting value", data.value)
+      StoryMap.instance.update_story(data.href, data.path, data.value)
+    })
     ipcRenderer.on(
       "show_filter",
       (event: Electron.IpcRendererEvent, data: string) => {
@@ -152,13 +161,6 @@ export class TabWrangler {
       }
     )
 
-    function update_story(
-      event: Electron.IpcRendererEvent,
-      data: { href: string; path: string; value: string }
-    ) {
-      story_map.update_story(data.href, data.path, data.value)
-    }
-
     let subscribers: number[] = []
     ipcRenderer.on(
       "subscribe_to_change",
@@ -167,11 +169,14 @@ export class TabWrangler {
           console.debug("subscribe_to_change", event.senderId)
           subscribers.push(event.senderId)
           //TODO: filter here or on tab?
-          document.body.addEventListener("data_change", (e: CustomEvent) => {
-            if (e.detail.story) {
-              this.send_to_id(event.senderId, "data_change", e.detail.story)
+          document.body.addEventListener(
+            "global_data_change",
+            (e: CustomEvent) => {
+              if (e.detail.story) {
+                this.send_to_id(event.senderId, "data_change", e.detail.story)
+              }
             }
-          })
+          )
         }
       }
     )

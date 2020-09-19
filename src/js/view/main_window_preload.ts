@@ -3,11 +3,13 @@ import { TabWrangler } from "../view/TabWrangler"
 import * as fullscreen from "./fullscreen"
 import * as story_list from "./StoryList"
 import * as search from "../data/search"
+import { StoryMap } from "../data/StoryMap"
 import * as side_menu from "./menu"
 import * as seperation_slider from "./sep_slider"
 import * as story_loader from "../data/StoryLoader"
 
 document.addEventListener("DOMContentLoaded", async (_e) => {
+  let story_map = new StoryMap()
   story_list.init()
   side_menu.init()
   fullscreen.render_listeners()

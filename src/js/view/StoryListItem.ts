@@ -3,13 +3,14 @@ import { TabWrangler } from "../view/TabWrangler"
 import { WebTab } from "../view/webtab"
 import * as story_filters from "../data/filters"
 import { Story, StorySource } from "../data/Story"
-import * as story_map from "../data/StoryMap"
+import { StoryMap } from "../data/StoryMap"
 import * as presenters from "../view/presenters"
 import * as story_list from "../view/StoryList"
+import { ipcRenderer } from "electron"
 
 export { story_html, info_block, icon_button }
 
-function story_html(story: Story, inmain = true, webtab?: WebTab) {
+function story_html(story: Story) {
   if (!(story instanceof Story)) {
     story = Story.from_obj(story)
   }
@@ -35,7 +36,6 @@ function story_html(story: Story, inmain = true, webtab?: WebTab) {
   og_link.innerText = " [OG] "
   og_link.classList.add("og_href")
   og_link.href = story.og_href
-  og_link.addEventListener("click", open_link_handler)
   title_line.appendChild(og_link)
 
   let hostname = document.createElement("p")
@@ -79,22 +79,55 @@ function story_html(story: Story, inmain = true, webtab?: WebTab) {
   }
   story_el.appendChild(filter_btn)
 
-  presenters.add_story_elem_buttons(story_el, story, inmain)
-
-  if (inmain) {
-    direct_events(story, story_el)
-  } else {
-    ipc_events(story, story_el, webtab)
-  }
-
+  presenters.add_story_elem_buttons(story_el, story)
+  ipc_events(story, story_el)
+  story_el.addEventListener("data_change", (x: CustomEvent) => {
+    update_story_el(x, story_el, story)
+  })
   return story_el
 }
 
-function update_storyel(event: CustomEvent, story_el: HTMLElement) {
-  if (!event || !event.detail) {
+function animate_read(story_el: HTMLElement, new_read: boolean) {
+  console.log("here I go animating again", story_el, new_read)
+  let anmim_class = new_read ? "read_anim" : "unread_anim"
+
+  let resort = story_list.resort_single(story_el) as Function
+  if (typeof resort == "function") {
+    if (document.body.classList.contains("animated")) {
+      story_el.classList.add(anmim_class)
+      story_el.addEventListener(
+        "transitionend",
+        (x) => {
+          resort()
+        },
+        false
+      )
+    } else {
+      resort()
+    }
+  }
+}
+
+function update_story_el(
+  event: CustomEvent,
+  story_el: HTMLElement,
+  old_story: Story
+) {
+  if (!event || !event.detail || !event.detail.story) {
     console.log("update_storyel fail", event, story_el)
     return
   }
+  let new_story = event.detail.story
+  let new_el = story_html(event.detail.story)
+  //animate_read(new_el, new_story.read)
+  story_el.replaceWith(new_el)
+  //TODO: resort ...
+  animate_read(new_el, new_story.read)
+
+  return
+
+  //TODO: maybe update pēs′mēl″ in the future
+
   if (event.detail.value instanceof Story && event.detail.name) {
     switch (event.detail.name) {
       //TODO diff class before after, or completley redraw or fix on-change
@@ -103,7 +136,6 @@ function update_storyel(event: CustomEvent, story_el: HTMLElement) {
         update_star(event.detail.value.stared, story_el)
         break
       case "mark_as_read":
-      case "open_in_webview":
         update_read(event.detail.value, story_el)
         break
     }
@@ -124,72 +156,26 @@ function update_storyel(event: CustomEvent, story_el: HTMLElement) {
   }
 }
 
-function direct_events(story: Story, story_el: HTMLElement) {
-  story_el.addEventListener("data_change", (e: CustomEvent) => {
-    update_storyel(e, story_el)
-  })
-
-  let link = story_el.querySelector(".title")
-  link.addEventListener("click", open_link_handler, false)
-
+function ipc_events(story: Story, story_el: HTMLElement) {
   let filter_btn = story_el.querySelector<HTMLElement>(".filter_btn")
-  filter_btn.addEventListener("click", (x: MouseEvent) => {
+  filter_btn.onclick = (x) => {
     if (story_el.classList.contains("filtered")) {
-      story_filters.show_filter(story.filter)
+      ipcRenderer.send("tab_intercom", "show_filter", story.filter)
     } else {
-      story_filters.show_filter_dialog(
-        x,
-        filter_btn,
-        story,
-        story_filters.add_filter
-      )
+      story_filters.show_filter_dialog(x, filter_btn, story, (x) => {
+        ipcRenderer.send("tab_intercom", "add_filter", x)
+      })
     }
-  })
-
-  let read_btn = story_el.querySelector(".read_btn")
+  }
+  /*  let read_btn = story_el.querySelector(".read_btn")
   read_btn.addEventListener("click", (x) => {
     toggle_read(story.href, story_list.resort_single)
   })
 
-  //open story with middle click on "skip reading"
-  read_btn.addEventListener("mousedown", (e: MouseEvent) => {
-    if (e.button == 1) {
-      return open_link_handler(e)
-    }
-  })
-
-  let star_btn = story_el.querySelector(".star_btn")
-  star_btn.addEventListener("click", (_) => {
-    if (story.stared) {
-      story.unstar()
-    } else {
-      story.star()
-    }
-  })
-}
-
-function ipc_events(story: Story, story_el: HTMLElement, webtab: WebTab) {
-  story_el.addEventListener("data_change", (e: CustomEvent) => {
-    update_storyel(e, story_el)
-  })
-
-  let link = story_el.querySelector(".title")
-  link.addEventListener("click", open_link_handler, false)
-
-  let filter_btn = story_el.querySelector<HTMLElement>(".filter_btn")
-  filter_btn.onclick = (x) => {
-    if (story_el.classList.contains("filtered")) {
-      webtab.send_to_parent("show_filter", story.filter)
-    } else {
-      story_filters.show_filter_dialog(x, filter_btn, story, (x) => {
-        webtab.send_to_parent("add_filter", x)
-      })
-    }
-  }
-
+*/
   let read_btn = story_el.querySelector(".read_btn")
   read_btn.addEventListener("click", (x) => {
-    webtab.send_to_parent("update_story", {
+    ipcRenderer.send("tab_intercom", "update_story", {
       href: story.href,
       path: "read",
       value: !story.read,
@@ -197,18 +183,31 @@ function ipc_events(story: Story, story_el: HTMLElement, webtab: WebTab) {
   })
 
   //open story with middle click on "skip reading"
+  read_btn.addEventListener("mouseup", (e: MouseEvent) => {
+    if (e.button == 1) {
+      window.open(story.href)
+      e.stopPropagation()
+      e.preventDefault()
+      return true
+    }
+  })
   read_btn.addEventListener("mousedown", (e: MouseEvent) => {
     if (e.button == 1) {
-      return open_link_handler(e)
+      e.stopPropagation()
+      e.preventDefault()
+      return true
     }
   })
 
   let star_btn = story_el.querySelector(".star_btn")
   star_btn.addEventListener("click", (_) => {
-    webtab.send_to_parent("update_story", {
+    let value = !story.stared
+    story.stared = value
+    console.log("click start value", story.stared, "setting", value)
+    ipcRenderer.send("tab_intercom", "update_story", {
       href: story.href,
       path: "stared",
-      value: !story.stared,
+      value: value,
     })
   })
 }
@@ -227,8 +226,6 @@ function info_block(source_ob: StorySource) {
   comments_link.classList.add("comment_url")
   comments_link.innerText = " [comments] "
   comments_link.href = source_ob.comment_url
-  comments_link.addEventListener("click", open_link_handler)
-  comments_link.addEventListener("auxclick", open_link_handler)
   info.appendChild(comments_link)
 
   let time = document.createElement("div")
@@ -242,24 +239,6 @@ function info_block(source_ob: StorySource) {
   info.appendChild(time)
 
   return info
-}
-
-function open_link_handler(e: any | MouseEvent) {
-  e.preventDefault()
-  e.stopPropagation()
-
-  let href = this.href
-  let target = e.target
-  if (e.target.href) {
-    href = e.target.href
-  }
-  if (e.button == 0) {
-    TabWrangler.ops.open_in_tab(href)
-  } else if (e.button == 1) {
-    TabWrangler.ops.open_in_new_tab(href)
-  }
-
-  return false
 }
 
 function icon_button(title: string, classname: string, icon_src: string) {
@@ -312,7 +291,7 @@ function toggle_read(href: string, callback: (story_el: HTMLElement) => any) {
   let story_el = document.querySelector<HTMLElement>(
     '.story[data-href="' + href + '"]'
   )
-  let story = story_map.get(href)
+  let story = StoryMap.instance.get(href)
 
   let anmim_class = ""
 

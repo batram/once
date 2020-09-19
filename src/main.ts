@@ -27,7 +27,7 @@ if (process.env.LDEV == "1") {
   require("electron-reload")(path.join(__dirname))
 }
 
-let icon_path = path.join(
+global.icon_path = path.join(
   __dirname,
   "static",
   "imgs",
@@ -66,7 +66,7 @@ function createWindow() {
       preload: global.main_window_preload,
     },
     autoHideMenuBar: true,
-    icon: icon_path,
+    icon: global.icon_path,
   })
 
   fullscreen.main_listener()

@@ -140,11 +140,6 @@ export class WebTab {
 
     webview.addEventListener("did-navigate-in-page", console.debug)
 
-    webview.addEventListener("new-window", async (e) => {
-      this.send_to_parent("open_in_new_tab", e.url)
-      console.log("webview new-window", e.url)
-    })
-
     let reload_tab_btn = document.querySelector<HTMLElement>("#reload_tab_btn")
     reload_tab_btn.onclick = (x) => {
       webview.reload()
@@ -226,7 +221,7 @@ export class WebTab {
       return
     }
 
-    let story_el = story_list_item.story_html(story, false, this)
+    let story_el = story_list_item.story_html(story)
     story_el.classList.add("selected")
     selected_container.append(story_el)
   }

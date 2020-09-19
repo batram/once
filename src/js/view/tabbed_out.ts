@@ -6,11 +6,52 @@ import {
   ipcMain,
 } from "electron"
 import * as path from "path"
+export { create_view, pop_new_main, pop_no_tabs, tab_listeners, tab_intercom }
 
-export { create_view, pop_new_main, pop_no_tabs, tab_listeners }
+let tab_views: Record<number, BrowserView> = {}
+let parent_windows: Record<number, BrowserWindow> = {}
+let webviews: Record<number, WebContents> = {}
+
+function tab_intercom(
+  event: { sender: WebContents },
+  secondary_channel: string,
+  ...args: any
+) {
+  console.log(secondary_channel, ...args)
+  console.log(
+    event.sender.id,
+    event.sender.getType(),
+    Object.keys(parent_windows)
+  )
+  console.log(event.sender.id, event.sender.getType(), Object.keys(tab_views))
+
+  let parent = get_parent_window(event.sender)
+
+  if (parent) {
+    parent.webContents.send(secondary_channel, ...args)
+  }
+}
+
+function get_parent_window(webcontents: WebContents) {
+  switch (webcontents.getType()) {
+    case "window":
+      return BrowserWindow.fromWebContents(webcontents)
+    case "browserView":
+      let view = BrowserView.fromWebContents(webcontents)
+      return BrowserWindow.fromBrowserView(view)
+    case "webview":
+      let window = BrowserWindow.fromWebContents(webcontents.hostWebContents)
+      if (!window) {
+        let view = BrowserView.fromWebContents(webcontents.hostWebContents)
+        return BrowserWindow.fromBrowserView(view)
+      }
+      return window
+  }
+  return null
+}
 
 function tab_listeners(win: BrowserWindow) {
-  let tabs = []
+  ipcMain.on("tab_intercom", tab_intercom)
 
   ipcMain.on("get_attached_wc_id", (event) => {
     console.log("get_attached_view", event.sender.id)
@@ -54,13 +95,9 @@ function tab_listeners(win: BrowserWindow) {
   })
 
   ipcMain.on("get_parent_id", (event) => {
-    let view = BrowserView.fromWebContents(event.sender)
-    if (view) {
-      let window = BrowserWindow.fromBrowserView(view)
-      if (window) {
-        event.returnValue = window.webContents.id
-        return
-      }
+    let parent = get_parent_window(event.sender)
+    if (parent) {
+      event.returnValue = parent.webContents.id
     }
     event.returnValue = null
   })
@@ -107,7 +144,8 @@ function tab_listeners(win: BrowserWindow) {
       if (window) {
         window.setBrowserView(view)
         console.log("attach_new_tab", event.sender.id, view.webContents.id)
-        tabs[view.webContents.id] = view
+        tab_views[view.webContents.id] = view
+        parent_windows[window.webContents.id] = window
         event.returnValue = view.webContents.id
       }
     }
