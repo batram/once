@@ -173,12 +173,7 @@ function ipc_events(story: Story, story_el: HTMLElement) {
       })
     }
   }
-  /*  let read_btn = story_el.querySelector(".read_btn")
-  read_btn.addEventListener("click", (x) => {
-    toggle_read(story.href, story_list.resort_single)
-  })
 
-*/
   let read_btn = story_el.querySelector(".read_btn")
   read_btn.addEventListener("click", (x) => {
     ipcRenderer.send("tab_intercom", "persist_story_change", {

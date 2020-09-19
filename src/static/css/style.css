@@ -529,6 +529,18 @@ option {
 
 #tab_dropzone {
   height: 20px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+#tab_dropzone::-webkit-scrollbar {
+  width: 2px;
+  height: 2px;
+}
+
+#tab_dropzone::-webkit-scrollbar-thumb {
+  background: #0000008c;
+  border: 1px solid grey;
 }
 
 #tab_dropzone .tab,

@@ -76,6 +76,11 @@ export class TabWrangler {
       tabhandler_element.append(addtab_button)
     }
 
+    tabhandler_element.addEventListener("wheel", (event) => {
+      tabhandler_element.scrollBy(event.deltaY, 0)
+      event.preventDefault()
+    })
+
     TabWrangler.instance = this
   }
 
