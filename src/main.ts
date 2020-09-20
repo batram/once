@@ -21,6 +21,7 @@ declare global {
   var main_window_html: string
   var tab_view_preload: string
   var tab_view_html: string
+  var moep_session_preload: string
 }
 
 if (process.env.LDEV == "1") {
@@ -34,6 +35,13 @@ global.icon_path = path.join(
   "icons",
   "mipmap-mdpi",
   "ic_launcher.png"
+)
+
+global.moep_session_preload = path.join(
+  __dirname,
+  "js",
+  "view",
+  "moep_session_preload.js"
 )
 
 global.main_window_html = path.join(__dirname, "static", "main_window.html")

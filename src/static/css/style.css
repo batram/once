@@ -13,6 +13,10 @@ body {
   user-select: none;
 }
 
+.active_drag * {
+  pointer-events: none !important;
+}
+
 #titlebar {
   -webkit-app-region: drag;
   user-select: none;

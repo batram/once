@@ -1,4 +1,11 @@
-import { app, BrowserView, BrowserWindow, dialog, ipcRenderer } from "electron"
+import {
+  app,
+  BrowserView,
+  BrowserWindow,
+  dialog,
+  ipcRenderer,
+  session,
+} from "electron"
 import * as mouse_debugger_hook from "../view/debugger_hook"
 import * as contextmenu from "../view/contextmenu"
 import * as fullscreen from "../view/fullscreen"
@@ -7,6 +14,8 @@ import * as tabbed_out from "../view/tabbed_out"
 export { on_each }
 
 function on_each() {
+  session.fromPartition("moep").setPreloads([global.moep_session_preload])
+
   app.on("web-contents-created", function (event, webContents) {
     //console.log("web-contents-created ", event, webContents.id)
     contextmenu.init_menu(webContents)

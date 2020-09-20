@@ -79,6 +79,29 @@ function tab_listeners(win: BrowserWindow) {
     }
   })
 
+  ipcMain.on("hide_webtab", (event, wc_id) => {
+    let wc = webContents.fromId(parseInt(wc_id))
+    let view = BrowserView.fromWebContents(wc)
+    if (view) {
+      let window = BrowserWindow.fromBrowserView(view)
+      if (window) {
+        window.removeBrowserView(view)
+      }
+    }
+  })
+
+  ipcMain.on("show_webtab", (event, wc_id) => {
+    let wc = webContents.fromId(parseInt(wc_id))
+    let view = BrowserView.fromWebContents(wc)
+    if (view) {
+      let window = BrowserWindow.fromWebContents(event.sender)
+      if (window) {
+        window.setBrowserView(view)
+      }
+    }
+    event.returnValue = wc_id
+  })
+
   ipcMain.on("bound_attached", (event, wc_id, bounds) => {
     console.log("bound_attached", wc_id)
     let window = BrowserWindow.fromWebContents(event.sender)
@@ -117,12 +140,10 @@ function tab_listeners(win: BrowserWindow) {
     let view = BrowserView.fromWebContents(event.sender)
     if (view) {
       let window = BrowserWindow.fromBrowserView(view)
-      if (window) {
-        if (data.type == "main") {
-          pop_new_main(window, event.sender, data.offset)
-        } else if (data.type == "notabs") {
-          pop_no_tabs(window, event.sender)
-        }
+      if (data.type == "main") {
+        pop_new_main(window, event.sender, data.offset)
+      } else if (data.type == "notabs") {
+        pop_no_tabs(window, event.sender)
       }
     }
   })
@@ -189,13 +210,27 @@ function tab_listeners(win: BrowserWindow) {
     event.returnValue = null
   })
 
+  ipcMain.on("pic_webtab", async (event, wc_id: string) => {
+    let wc = webContents.fromId(parseInt(wc_id))
+    if (wc) {
+      let cap = await wc.capturePage()
+      if (cap) {
+        event.returnValue = cap.toDataURL()
+      }
+    }
+    event.returnValue = null
+  })
+
   win.on("close", (x) => {
     //kill all attached browserviews before close
-    if (win && win.getBrowserViews().length != 0) {
-      win.getBrowserViews().forEach((v) => {
-        win.removeBrowserView(v)
-        v.destroy()
-      })
+    if (win) {
+      let views = win.getBrowserViews()
+      if (views) {
+        win.getBrowserViews().forEach((v) => {
+          win.removeBrowserView(v)
+          v.destroy()
+        })
+      }
     }
     win.destroy()
     win.close()

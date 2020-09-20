@@ -234,7 +234,7 @@ export class TabWrangler {
       "update_tab_info",
       (event: any, title: string, href: string) => {
         let sender_tab = this.tab_el_from_id(event.senderId)
-        console.log(event.senderId, title, sender_tab)
+        console.debug("update_tab_info", event.senderId, title, sender_tab)
         if (sender_tab) {
           sender_tab.dataset.href = href
           sender_tab.innerText = title.substring(0, 22)
@@ -260,7 +260,7 @@ export class TabWrangler {
 
     let i = 0
     let current_el = tabs[i]
-    console.log(current_el.offsetLeft, "<", tab_el.offsetLeft)
+    console.debug(current_el.offsetLeft, "<", tab_el.offsetLeft)
     while (
       i < tabs.length &&
       current_el.offsetLeft - this.tabhandler_element.scrollLeft <
@@ -271,7 +271,7 @@ export class TabWrangler {
     }
 
     let before_el = tabs[i]
-    console.log(tabs.length, i, tabs[i])
+    console.debug(tabs.length, i, tabs[i])
 
     if (before_el) {
       before_el.style.marginLeft = tab_el.clientWidth + "px"
@@ -282,30 +282,51 @@ export class TabWrangler {
   }
 
   init_draggable_tabs() {
-    document.ondragover = (x) => {
+    window.addEventListener("dragover", (x) => {
       x.preventDefault()
-      document.body.style.background = "red"
-    }
+      document.body.style.background = "green"
+    })
 
-    document.ondragleave = (x) => {
+    window.addEventListener("dragenter", (x) => {
+      x.dataTransfer.dropEffect = "link"
+      x.preventDefault()
+      console.debug("ondragenter", x)
+      document.body.style.background = "green"
+
+      let window_content = document.querySelector("#window_content")
+      window_content.classList.add("active_drag")
+
+      let fimg = document.querySelector<HTMLImageElement>(".pic_webtab")
+      if (!fimg && this.active_wc_id != null) {
+        let img_url = ipcRenderer.sendSync("pic_webtab", this.active_wc_id)
+        fimg = document.createElement("img")
+        fimg.classList.add("pic_webtab")
+        fimg.style.position = "absolute"
+        fimg.style.opacity = "0.8"
+        window.addEventListener("mousemove", (x) => {
+          console.log("reset on mousemove")
+          this.reset_drag()
+        })
+        fimg.src = img_url
+        this.tabcontent_element.append(fimg)
+        ipcRenderer.send("hide_webtab", this.active_wc_id)
+      }
+      return true
+    })
+
+    window.addEventListener("dragleave", (x) => {
       console.debug("ondragleave", x)
       document.body.style.background = ""
-    }
+      if (x.pageX == 0 && x.pageY == 0) {
+        let window_content = document.querySelector("#window_content")
+        window_content.classList.remove("active_drag")
+      }
+    })
 
-    document.addEventListener("drop", (x) => {
-      document.body.style.background = ""
+    window.addEventListener("drop", (x) => {
       x.preventDefault()
-      console.debug("ondrop", x)
-
-      console.log(
-        "ondrop",
-        "text/html",
-        x.dataTransfer.getData("text/html"),
-        "tab_drop",
-        x.dataTransfer.getData("tab_drop"),
-        "text",
-        x.dataTransfer.getData("text")
-      )
+      this.reset_drag()
+      console.debug("on drop", x)
 
       let tap_drop = x.dataTransfer.getData("tab_drop")
       if (tap_drop && tap_drop.startsWith("{")) {
@@ -344,6 +365,22 @@ export class TabWrangler {
     })
   }
 
+  reset_drag() {
+    let window_content = document.querySelector("#window_content")
+    window_content.classList.remove("active_drag")
+
+    let fimg = document.querySelector<HTMLImageElement>(".pic_webtab")
+    if (fimg) {
+      ipcRenderer.send("attach_wc_id", this.active_wc_id)
+      fimg.outerHTML = ""
+    }
+    document.body.style.background = ""
+    let active_el = this.get_active_tab_el()
+    if (active_el) {
+      active_el.style.display = ""
+    }
+  }
+
   make_tab_el_draggable(tab_el: HTMLElement) {
     let start_offset = -1
 
@@ -380,6 +417,7 @@ export class TabWrangler {
 
     tab_el.ondragend = (drag) => {
       this.insert_tab_by_offleft(tab_el)
+      this.reset_drag()
       //reset placeholder space
       let all_tabs = Array.from(
         this.tabhandler_element.querySelectorAll<HTMLElement>(".tab")
@@ -391,14 +429,17 @@ export class TabWrangler {
 
       tab_el.style.position = ""
       tab_el.style.left = ""
-      console.log(tab_el.offsetLeft)
 
       start_offset = -1
       drag.preventDefault()
+      this.reset_drag()
+
+      console.log("drop tab_el", drag.dataTransfer.dropEffect)
 
       if (drag.dataTransfer.dropEffect == "none") {
         let offset = JSON.stringify([drag.offsetX, drag.offsetY])
         this.send_to_id(parseInt(tab_el.dataset.wc_id), "pop_out", offset)
+        //this.remove_tab_el(tab_el.dataset.wc_id)
       }
     }
 
@@ -418,6 +459,7 @@ export class TabWrangler {
     }
     let existing_tab = this.tab_el_from_id(wc_id)
     if (existing_tab) {
+      this.attach_webtab(wc_id)
       this.mark_tab_active(existing_tab)
     } else {
       let ret_wc_id = this.grab_webtab(wc_id)

@@ -48,10 +48,13 @@ function addEventListener(
     .sendCommand("Page.addScriptToEvaluateOnNewDocument", {
       source: `
       {
-        let ß = window.mhook
-        window.addEventListener(${event_string}, (e) => {
-          ß(${inline_js})
-        })
+        const ßß = (x) => {
+          let ß = window.mhook
+          window.addEventListener(${event_string}, (e) => {
+            ß(${inline_js})
+          })  
+        }
+        ßß()
       }
       delete window.mhook
       `,
