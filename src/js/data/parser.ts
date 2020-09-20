@@ -1,7 +1,77 @@
 import * as menu from "../view/menu"
 import * as collectors from "../data/collectors"
+import { Story } from "./Story"
 
-export { parse, human_time, parse_human_time }
+export {
+  parse,
+  human_time,
+  parse_human_time,
+  get_parser_for_url,
+  parse_dom,
+  parse_response,
+}
+
+declare interface StoryParser {
+  options: {
+    collects: "dom" | "json"
+  }
+  parse: (content: object | Document) => Story[]
+}
+
+function get_parser_for_url(url: string): StoryParser {
+  let parsers = collectors.get_parser()
+
+  for (let i in parsers) {
+    let parser = parsers[i]
+    if (pattern_matches(url, parser.options.pattern)) {
+      menu.add_tag(parser.options.tag, parser.options.colors)
+      return parser
+    }
+  }
+}
+
+async function parse_response(resp: Response, url: string) {
+  let parser = get_parser_for_url(url)
+
+  if (parser.options.collects == "json") {
+    let json_content = await resp.json()
+    localStorage.setItem(url, JSON.stringify([Date.now(), json_content]))
+    return parser.parse(json_content)
+  } else if (parser.options.collects == "dom") {
+    let text_content = await resp.text()
+    localStorage.setItem(url, JSON.stringify([Date.now(), text_content]))
+    let doc = parse_dom(text_content, url)
+    return parser.parse(doc)
+  }
+}
+
+function pattern_matches(url: string, pattern: string) {
+  if (pattern.includes("*")) {
+    let split = pattern.split("*")
+    if (split.length != 2) {
+      throw "For now only one wildcard * is allowd ..."
+    }
+
+    return url.startsWith(split[0]) && url.endsWith(split[1])
+  } else {
+  }
+  return url.startsWith(pattern)
+}
+
+function parse_dom(val: string, url: string) {
+  let dom_parser = new DOMParser()
+  let doc = dom_parser.parseFromString(val, "text/html")
+
+  if (!doc.querySelector("base")) {
+    let base = document.createElement("base")
+    base.href = url
+    doc.head.append(base)
+  } else {
+    console.log("base already there", doc.querySelector("base"))
+  }
+
+  return doc
+}
 
 function parse(url: string, doc: Document) {
   let parsers = collectors.get_parser()

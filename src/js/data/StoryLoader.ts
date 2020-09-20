@@ -65,6 +65,8 @@ async function parallel_load_stories(urls: string[], try_cache = true) {
 }
 
 async function process_story_input(stories: Story[]) {
+  stories = await enhance_stories(stories)
+
   let all_stories = sort_raw_stories(stories)
   all_stories.forEach((story) => {
     StoryMap.instance.add(story)
@@ -85,19 +87,21 @@ async function process_story_input(stories: Story[]) {
 async function cache_load(url: string, try_cache: boolean = true) {
   let cached = null
   if (try_cache) {
+    //TODO: do we need to store the type?
     cached = get_cached(url)
   }
+
   if (cached != null) {
-    return parse_story_response(cached, url)
+    let parser = story_parser.get_parser_for_url(url)
+    if (parser.options.collects == "dom") {
+      cached = story_parser.parse_dom(cached, url)
+    }
+    return parser.parse(cached)
   } else {
-    return fetch(url).then((x) => {
-      if (x.ok) {
-        return x.text().then((val) => {
-          localStorage.setItem(url, JSON.stringify([Date.now(), val]))
-          return parse_story_response(val, url)
-        })
-      }
-    })
+    let resp = await fetch(url)
+    if (resp.ok) {
+      return story_parser.parse_response(resp, url)
+    }
   }
 }
 
@@ -116,22 +120,6 @@ async function enhance_stories(stories: Story[], add: boolean = true) {
     }
     return story
   })
-}
-
-async function parse_story_response(val: string, url: string) {
-  let dom_parser = new DOMParser()
-  let doc = dom_parser.parseFromString(val, "text/html")
-
-  if (!doc.querySelector("base")) {
-    let base = document.createElement("base")
-    base.href = url
-    doc.head.append(base)
-  } else {
-    console.log("base already there", doc.querySelector("base"))
-  }
-
-  let stories = story_parser.parse(url, doc)
-  return enhance_stories(stories)
 }
 
 async function load(urls: string[]) {

@@ -3,6 +3,7 @@ const options = {
   description:
     "Collect stories from HackerNews (https://news.ycombinator.com/) by parsing HTML",
   pattern: "https://news.ycombinator.com/",
+  collects: "dom",
   colors: ["rgba(255, 102, 0, 0.56)", "white"],
   settings: {
     filter_ads: {
@@ -17,7 +18,7 @@ import { parse_human_time } from "../../data/parser"
 
 export { parse, options, domain_search, global_search }
 
-function parse(doc: Document, type: string) {
+function parse(doc: Document) {
   let curl = "https://news.ycombinator.com/item?id="
   let stories = Array.from(doc.querySelectorAll(".storylink"))
 
@@ -44,7 +45,7 @@ function parse(doc: Document, type: string) {
     }
 
     return new Story(
-      type,
+      options.tag,
       story_el.href,
       story_el.innerText,
       curl + id,

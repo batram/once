@@ -4,6 +4,7 @@ const options = {
   description:
     "Collect stories from Lobsters (https://lobste.rs/) by parsing HTML",
   pattern: "https://lobste.rs/",
+  collects: "dom",
   settings: {
     filter_ads: {
       value: true,
@@ -17,9 +18,10 @@ import { DomainSearchProvider } from "../collectors"
 
 export { parse, options, domain_search }
 
-function parse(doc: Document, type: string) {
+function parse(doc: Document) {
   let curl = "https://lobste.rs/s/"
   let stories = Array.from(doc.querySelectorAll<HTMLElement>(".story"))
+  console.log("lobsters parsers", stories)
 
   return stories
     .map((story) => {
@@ -36,7 +38,13 @@ function parse(doc: Document, type: string) {
         story.querySelector<HTMLElement>(".byline span").title
       )
 
-      return new Story(type, link.href, link.innerText, curl + id, timestamp)
+      return new Story(
+        options.tag,
+        link.href,
+        link.innerText,
+        curl + id,
+        timestamp
+      )
     })
     .filter((x) => x != null)
 }
@@ -48,7 +56,7 @@ async function domain_search(domain: string) {
     let content = await res.text()
     let dom_parser = new DOMParser()
     let doc = dom_parser.parseFromString(content, "text/html")
-    return parse(doc, options.tag)
+    return parse(doc)
   } else {
     return []
   }

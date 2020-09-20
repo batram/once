@@ -2,7 +2,8 @@ const options = {
   tag: "re",
   description:
     "Collect stories from HackerNews (https://old.reddit.com/) by parsing the rss feed of subreddits",
-  pattern: "https://old.reddit.com/",
+  pattern: "https://old.reddit.com/*.rss",
+  collects: "dom",
   colors: ["#cee3f8", "black"],
   settings: {
     filter_ads: {
@@ -16,7 +17,7 @@ import { Story } from "../../data/Story"
 
 export { parse, options }
 
-function parse(doc: Document, type: string) {
+function parse(doc: Document) {
   //Parse as RSS and not HTML ...
   let stories = doc.querySelectorAll("entry")
 
@@ -32,7 +33,7 @@ function parse(doc: Document, type: string) {
     )
 
     return new Story(
-      type,
+      options.tag,
       content.querySelector<HTMLAnchorElement>("span a").href,
       story.querySelector("title").innerText,
       story.querySelector("link").href,
