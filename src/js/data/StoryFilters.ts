@@ -1,92 +1,36 @@
 import { Story } from "./Story"
-import * as settings from "../settings"
 import * as menu from "../view/menu"
+import { OnceSettings } from "../OnceSettings"
+import { filter_url } from "../data/URLFilters"
 
 export {
   filter_story,
   add_filter,
   show_filter_dialog,
   filter_stories,
-  get_filterlist,
   show_filter,
 }
 
-interface FilterFunc {
-  (story: Story): Story
-}
-
-let dynamic_filters: Record<string, FilterFunc> = {
-  "twitter.com": twitnit,
-  "www.reddit.com": old_reddit,
-  "youtube.com": youtube_nocookie,
-  "youtu.be": youtube_nocookie,
-}
-
-function get_filterlist() {
-  return settings.get_filterlist()
-}
-
-function twitnit(story: Story) {
-  try {
-    let url = new URL(story.href)
-    if (url.hostname == "twitter.com" || url.hostname == "mobile.twitter.com") {
-      url.hostname = "nitter.net"
-      story.href = url.toString()
-    }
-  } catch (e) {
-    console.log("failed to parse URL", story.href)
-  }
-  return story
-}
-
-function old_reddit(story: Story) {
-  try {
-    let url = new URL(story.href)
-    if (url.hostname == "www.reddit.com") {
-      url.hostname = "old.reddit.com"
-      story.href = url.toString()
-    }
-  } catch (e) {
-    console.log("failed to parse URL", story.href)
-  }
-  story.href = story.href.replace("", "")
-  return story
-}
-
-function youtube_nocookie(story: Story) {
-  story.href = story.href.replace(
-    "www.youtube.com/watch?v=",
-    "www.youtube-nocookie.com/embed/"
-  )
-  story.href = story.href.replace(
-    "://youtube.com/watch?v=",
-    "://www.youtube-nocookie.com/embed/"
-  )
-  story.href = story.href.replace(
-    "://youtu.be/",
-    "://www.youtube-nocookie.com/embed/"
-  )
-  return story
-}
-
 function add_filter(filter: string) {
-  get_filterlist().then((filter_list: string[]) => {
+  OnceSettings.instance.get_filterlist().then((filter_list: string[]) => {
     filter_list.push(filter)
-    settings.save_filterlist(filter_list)
+    OnceSettings.instance.save_filterlist(filter_list)
   })
 }
 
 async function filter_stories(stories: Story[]) {
-  const filter_list = await get_filterlist()
+  const filter_list = await OnceSettings.instance.get_filterlist()
   return stories.map((story) => {
     return filter_run(filter_list, story)
   })
 }
 
 async function filter_story(story: Story) {
-  return get_filterlist().then((filter_list: string[]) => {
-    return filter_run(filter_list, story)
-  })
+  return OnceSettings.instance
+    .get_filterlist()
+    .then((filter_list: string[]) => {
+      return filter_run(filter_list, story)
+    })
 }
 
 function filter_run(filter_list: string[], story: Story) {
@@ -106,11 +50,7 @@ function filter_run(filter_list: string[], story: Story) {
     }
   }
 
-  for (let pattern in dynamic_filters) {
-    if (story.href.includes(pattern)) {
-      return dynamic_filters[pattern](story)
-    }
-  }
+  story.href = filter_url(story.href)
 
   if (story.filter && !story.filter.startsWith("::")) {
     delete story.filter

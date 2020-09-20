@@ -45,7 +45,7 @@ function parse(json: {
       )
     })
   } else {
-    throw "Can't handle reddit json of kind" + json.kind
+    console.error("Can't handle reddit json of kind ", json.kind, json)
   }
   return []
 }

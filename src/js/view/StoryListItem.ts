@@ -1,5 +1,5 @@
 import * as story_parser from "../data/parser"
-import * as story_filters from "../data/filters"
+import * as story_filters from "../data/StoryFilters"
 import { Story, StorySource } from "../data/Story"
 import * as presenters from "../view/presenters"
 import * as story_list from "../view/StoryList"
@@ -112,7 +112,7 @@ export class StoryListItem extends HTMLElement {
       //not attached to dom, no need to sort or animate anything, no on will see
       return
     }
-    console.log("here I go animating again", this, new_read)
+    console.debug("here I go animating again", this, new_read)
     let anmim_class = new_read ? "read_anim" : "unread_anim"
 
     let resort = story_list.resort_single(this) as Function

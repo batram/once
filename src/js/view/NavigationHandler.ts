@@ -1,3 +1,4 @@
+import { filter_url } from "../data/URLFilters"
 import * as tabbed_out from "../view/tabbed_out"
 //import { TabWrangler } from "./TabWrangler"
 
@@ -43,6 +44,8 @@ export class NavigationHandler {
   }
 
   open_url(url: string, target: string) {
+    url = filter_url(url)
+
     if (url.startsWith("http:") || url.startsWith("https:")) {
       if (target == "blank") {
         tabbed_out.tab_intercom(

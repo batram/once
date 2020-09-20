@@ -1,4 +1,4 @@
-import * as settings from "../settings"
+import { OnceSettings } from "../OnceSettings"
 import { TabWrangler } from "../view/TabWrangler"
 import * as fullscreen from "./fullscreen"
 import * as story_list from "./StoryList"
@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", async (_e) => {
   story_list.init()
   side_menu.init()
   fullscreen.render_listeners()
-  settings.init()
+  let once_settings = new OnceSettings()
   search.init_search()
   seperation_slider.init_slider()
 
@@ -30,7 +30,7 @@ document.addEventListener("DOMContentLoaded", async (_e) => {
   console.log("LDEV", process.env.LDEV == "1")
 
   let dev_cache = process.env.LDEV == "1"
-  let sources = await settings.story_sources()
+  let sources = await once_settings.story_sources()
 
   story_loader.parallel_load_stories(sources, dev_cache)
 })

@@ -1,7 +1,7 @@
 import { Story, SortableStory } from "../data/Story"
-import { get_starlist, get_readlist, story_sources } from "../settings"
+import { OnceSettings } from "../OnceSettings"
 import { StoryListItem } from "../view/StoryListItem"
-import * as filters from "../data/filters"
+import * as filters from "../data/StoryFilters"
 import { StoryMap } from "../data/StoryMap"
 import * as story_loader from "../data/StoryLoader"
 
@@ -121,7 +121,7 @@ function sortable_story(elem: StoryListItem) {
 function resort_single(elem: StoryListItem) {
   let story_con = elem.parentElement
   if (!story_con) {
-    console.error(
+    console.debug(
       "resort_single: cant sort that which is not contained",
       "story_el has no parent"
     )
@@ -195,7 +195,7 @@ function sort_stories(bucket = "stories") {
 }
 
 async function restar() {
-  let starlist = await get_starlist()
+  let starlist = await OnceSettings.instance.get_starlist()
   document.querySelectorAll<StoryListItem>(".story").forEach((story_el) => {
     let sthref = story_el.dataset.href
     let story = StoryMap.instance.get(sthref.toString())
@@ -243,5 +243,5 @@ function reload() {
     }
   })
 
-  story_sources().then(story_loader.load)
+  OnceSettings.instance.story_sources().then(story_loader.load)
 }

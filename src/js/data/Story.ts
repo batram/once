@@ -1,5 +1,5 @@
 import * as onChange from "on-change"
-import * as settings from "../settings"
+import { OnceSettings } from "../OnceSettings"
 
 export interface StorySource {
   type: string
@@ -84,24 +84,24 @@ export class Story {
   }
 
   remove_from_readlist() {
-    settings.get_readlist().then((readlist) => {
+    OnceSettings.instance.get_readlist().then((readlist) => {
       const index = readlist.indexOf(this.href)
       if (index > -1) {
         readlist.splice(index, 1)
       }
-      settings.save_readlist(readlist, console.log)
+      OnceSettings.instance.save_readlist(readlist, console.log)
     })
   }
 
   add_to_readlist() {
-    settings.get_readlist().then((readlist) => {
+    OnceSettings.instance.get_readlist().then((readlist) => {
       let target_href = onChange.target(this).href
       if (!readlist.includes(target_href)) {
         readlist.push(target_href)
         readlist = readlist.filter(
           (href: string, i: number, a: any[]) => a.indexOf(href) === i
         )
-        settings.save_readlist(readlist, console.log)
+        OnceSettings.instance.save_readlist(readlist, console.log)
       }
     })
   }
@@ -120,17 +120,17 @@ export class Story {
   }
 
   add_to_starlist() {
-    settings.get_starlist().then((starlist) => {
+    OnceSettings.instance.get_starlist().then((starlist) => {
       starlist[this.href] = onChange.target(this)
-      settings.save_starlist(starlist, console.log)
+      OnceSettings.instance.save_starlist(starlist, console.log)
     })
   }
 
   remove_from_starlist() {
-    settings.get_starlist().then((starlist) => {
+    OnceSettings.instance.get_starlist().then((starlist) => {
       if (starlist.hasOwnProperty(this.href)) {
         delete starlist[this.href]
-        settings.save_starlist(starlist, console.log)
+        OnceSettings.instance.save_starlist(starlist, console.log)
       }
     })
   }
@@ -155,14 +155,14 @@ export class Story {
   }
 
   async update_read() {
-    const readlist = await settings.get_readlist()
+    const readlist = await OnceSettings.instance.get_readlist()
     this.read = readlist.includes(this.href)
 
     return this.read
   }
 
   async update_stared() {
-    const starlist = await settings.get_starlist()
+    const starlist = await OnceSettings.instance.get_starlist()
     this.stared = starlist.hasOwnProperty(this.href)
 
     return this.stared

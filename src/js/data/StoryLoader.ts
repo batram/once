@@ -1,9 +1,9 @@
 import * as story_parser from "../data/parser"
 import { StoryMap } from "../data/StoryMap"
 import { Story } from "./Story"
-import * as settings from "../settings"
+import { OnceSettings } from "../OnceSettings"
 import * as search from "../data/search"
-import * as story_filters from "../data/filters"
+import * as story_filters from "./StoryFilters"
 import * as story_list from "../view/StoryList"
 
 export { load, parallel_load_stories, add_stored_stars, enhance_stories }
@@ -73,7 +73,7 @@ async function process_story_input(stories: Story[]) {
   })
 
   //add all stored stared stories
-  let starlist = await settings.get_starlist()
+  let starlist = await OnceSettings.instance.get_starlist()
   add_stored_stars(starlist)
 
   story_list.sort_stories()
@@ -96,6 +96,9 @@ async function cache_load(url: string, try_cache: boolean = true) {
     if (parser.options.collects == "dom") {
       cached = story_parser.parse_dom(cached, url)
     }
+    if (parser.options.collects == "json") {
+      cached = JSON.parse(cached)
+    }
     return parser.parse(cached)
   } else {
     let resp = await fetch(url)
@@ -107,8 +110,8 @@ async function cache_load(url: string, try_cache: boolean = true) {
 
 async function enhance_stories(stories: Story[], add: boolean = true) {
   let filtered_stories = await story_filters.filter_stories(stories)
-  let readlist = await settings.get_readlist()
-  let starlist = await settings.get_starlist()
+  let readlist = await OnceSettings.instance.get_readlist()
+  let starlist = await OnceSettings.instance.get_starlist()
 
   return filtered_stories.map((story: Story) => {
     if (add) {

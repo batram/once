@@ -1,5 +1,5 @@
 import { ipcRenderer } from "electron"
-import * as filters from "../data/filters"
+import * as filters from "../data/StoryFilters"
 import * as webtab from "./webtab"
 import { StoryMap, DataChangeEvent } from "../data/StoryMap"
 import * as story_list from "./StoryList"
