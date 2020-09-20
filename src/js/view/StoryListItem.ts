@@ -108,6 +108,10 @@ export class StoryListItem extends HTMLElement {
   }
 
   animate_read(new_read: boolean) {
+    if (!this.parentElement) {
+      //not attached to dom, no need to sort or animate anything, no on will see
+      return
+    }
     console.log("here I go animating again", this, new_read)
     let anmim_class = new_read ? "read_anim" : "unread_anim"
 
@@ -289,16 +293,10 @@ export class StoryListItem extends HTMLElement {
   }
 
   label_read() {
-    let btn = this.querySelector<HTMLElement>(".read_btn")
-
-    if (!btn) {
-      return
-    }
-
-    if (!this.classList.contains("read")) {
-      btn.title = "skip reading"
+    if (!this.story.read) {
+      this.read_btn.title = "skip reading"
     } else {
-      btn.title = "mark as unread"
+      this.read_btn.title = "mark as unread"
     }
   }
 
