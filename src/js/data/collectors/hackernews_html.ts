@@ -15,7 +15,7 @@ const options = {
 import { Story } from "../../data/Story"
 import { parse_human_time } from "../../data/parser"
 
-export { parse, options }
+export { parse, options, domain_search, global_search }
 
 function parse(doc: Document, type: string) {
   let curl = "https://news.ycombinator.com/item?id="
@@ -52,4 +52,60 @@ function parse(doc: Document, type: string) {
       filter
     )
   })
+}
+
+function domain_search(needle: string) {
+  let domain_search_url =
+    "https://hn.algolia.com/api/v1/search_by_date?tags=story&restrictSearchableAttributes=url&query="
+  return hn_search(needle, domain_search_url)
+}
+
+function global_search(needle: string) {
+  return hn_search(needle)
+}
+
+async function hn_search(needle: string, alt_url?: string) {
+  let search_url =
+    "https://hn.algolia.com/api/v1/search_by_date?tags=story&restrictSearchableAttributes=url,title&query="
+  if (alt_url) {
+    search_url = alt_url
+  }
+
+  let res = await fetch(search_url + encodeURIComponent(needle))
+
+  if (res.ok) {
+    let json_response = await res.json()
+
+    let searchfield = document.querySelector<HTMLInputElement>("#searchfield")
+
+    if (!alt_url && searchfield.value != needle) {
+      //search changed bail
+      return
+    }
+    let search_stories = json_response.hits.map((result: any) => {
+      /*
+       //add the tag if we have not ingested stories from HN yet
+     let type = "HN"
+      let colors: [string, string] = ["rgba(255, 102, 0, 0.56)", "white"]
+      menu.add_tag(type, colors)
+      */
+
+      let curl = "https://news.ycombinator.com/item?id=" + result.objectID
+
+      let timestamp = Date.parse(result.created_at)
+
+      return Story.from_obj({
+        type: "HN",
+        bucket: "global_search_results",
+        search_result: needle,
+        href: result.url || curl,
+        title: result.title,
+        comment_url: curl,
+        timestamp: timestamp,
+        sources: [{ type: "HN", comment_url: curl, timestamp: timestamp }],
+      })
+    })
+    return search_stories
+  }
+  return []
 }

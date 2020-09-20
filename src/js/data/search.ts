@@ -3,10 +3,9 @@ import { Story } from "../data/Story"
 import * as story_list from "../view/StoryList"
 import * as stroy_loader from "../data/StoryLoader"
 import { StoryListItem } from "../view/StoryListItem"
+import * as collectors from "../data/collectors"
 
 export { init_search, search_stories }
-
-let enabled_global_search = [search_hn]
 
 function init_search() {
   let searchfield = document.querySelector<HTMLInputElement>("#searchfield")
@@ -90,17 +89,22 @@ let extra_search_providers: Record<
 > = {
   domain: {
     type: "global",
-    func: (needle: string) => {
+    func: async (needle: string) => {
       let search_scope = document.querySelector<HTMLInputElement>(
         "#search_scope"
       )
       search_scope.value = "global"
-      search_hn_domain(needle)
+      let domain_search_providers = collectors.domain_search_providers()
+      domain_search_providers.forEach((dsp) => {
+        dsp.domain_search(needle).then((res: Story[]) => {
+          add_global_search_results(res)
+        })
+      })
     },
   },
 }
 
-function search_stories(needle: string) {
+async function search_stories(needle: string) {
   let searchfield = document.querySelector<HTMLInputElement>("#searchfield")
   searchfield.value = needle
   let story_container = document.querySelector<HTMLElement>("#stories")
@@ -150,13 +154,20 @@ function search_stories(needle: string) {
     global_search_results.style.display = "flex"
     story_container.style.display = "none"
     global_search_results.innerHTML = ""
-    enabled_global_search.forEach((fun) => {
-      fun(needle)
+    let global_search_providers = collectors.global_search_providers()
+    global_search_providers.forEach((gsp) => {
+      gsp.global_search(needle).then((results: Story[]) => {
+        add_global_search_results(results)
+      })
     })
 
     return
   }
 
+  local_search(needle)
+}
+
+async function local_search(needle: string) {
   document.querySelectorAll<StoryListItem>(".story").forEach((story_el) => {
     let find_in = [
       story_el.story.title,
@@ -184,81 +195,12 @@ function search_stories(needle: string) {
   story_list.sort_stories()
 }
 
-function search_hn_domain(needle: string) {
-  search_hn(
-    needle,
-    "https://hn.algolia.com/api/v1/search_by_date?tags=story&restrictSearchableAttributes=url&query="
-  )
-}
+async function add_global_search_results(search_stories: Story[]) {
+  let estories = await stroy_loader.enhance_stories(search_stories, false)
 
-function search_hn(needle: string, alt_url?: string) {
-  let search_url =
-    "https://hn.algolia.com/api/v1/search_by_date?tags=story&restrictSearchableAttributes=url,title&query="
-  if (alt_url) {
-    search_url = alt_url
-  }
-  fetch(search_url + encodeURIComponent(needle)).then((x) => {
-    if (x.ok) {
-      x.json().then(async (json_response) => {
-        let searchfield = document.querySelector<HTMLInputElement>(
-          "#searchfield"
-        )
-
-        if (!alt_url && searchfield.value != needle) {
-          //search changed bail
-          return
-        }
-        let search_stories = json_response.hits.map((result: any) => {
-          //add the tag if we have not ingested stories from HN yet
-          let type = "HN"
-          let colors: [string, string] = ["rgba(255, 102, 0, 0.56)", "white"]
-          menu.add_tag(type, colors)
-
-          let curl = "https://news.ycombinator.com/item?id=" + result.objectID
-
-          let timestamp = Date.parse(result.created_at)
-
-          return Story.from_obj({
-            type: "HN",
-            bucket: "global_search_results",
-            search_result: needle,
-            href: result.url || curl,
-            title: result.title,
-            comment_url: curl,
-            timestamp: timestamp,
-            sources: [{ type: "HN", comment_url: curl, timestamp: timestamp }],
-          })
-        })
-
-        let estories = await stroy_loader.enhance_stories(search_stories, false)
-
-        estories.forEach((story: Story) => {
-          story_list.add(story, "global_search_results")
-        })
-
-        story_list.sort_stories("global_search_results")
-      })
-    }
+  estories.forEach((story: Story) => {
+    story_list.add(story, "global_search_results")
   })
-}
 
-function search_lobsters_ddg(needle: string) {
-  fetch(
-    "https://html.duckduckgo.com/html/?q=site:lobste.rs/s/%20" +
-      encodeURIComponent(needle)
-  ).then((x) => {
-    if (x.ok) {
-      x.text().then(async (val) => {
-        let searchfield = document.querySelector<HTMLInputElement>(
-          "#searchfield"
-        )
-        if (searchfield.value != needle) {
-          //search changed bail
-          return
-        }
-
-        //TODO: think about it
-      })
-    }
-  })
+  story_list.sort_stories("global_search_results")
 }
