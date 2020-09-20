@@ -9,7 +9,7 @@ import {
 import * as mouse_debugger_hook from "../view/debugger_hook"
 import * as contextmenu from "../view/contextmenu"
 import * as fullscreen from "../view/fullscreen"
-import * as tabbed_out from "../view/tabbed_out"
+import { NavigationHandler } from "./NavigationHandler"
 
 export { on_each }
 
@@ -20,27 +20,7 @@ function on_each() {
     //console.log("web-contents-created ", event, webContents.id)
     contextmenu.init_menu(webContents)
 
-    webContents.on(
-      "new-window",
-      (event, url, frameName, disposition, additionalFeatures) => {
-        event.preventDefault()
-        console.log(
-          "caught new-window",
-          url,
-          frameName,
-          typeof disposition,
-          additionalFeatures
-        )
-        webContents.send("tab_intercom", "open_in_new_tab", url)
-        tabbed_out.tab_intercom({ sender: webContents }, "open_in_new_tab", url)
-      }
-    )
-
-    webContents.on("will-navigate", (event, url) => {
-      event.preventDefault()
-      console.log("caught will-navigate", url)
-      tabbed_out.tab_intercom({ sender: webContents }, "open_in_tab", url)
-    })
+    new NavigationHandler(webContents)
 
     mouse_debugger_hook.history_nav(webContents)
     fullscreen.webview_key_catcher(webContents)

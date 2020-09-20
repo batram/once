@@ -3,6 +3,7 @@ import * as filters from "../data/filters"
 import * as webtab from "./webtab"
 import { StoryMap, DataChangeEvent } from "../data/StoryMap"
 import * as story_list from "./StoryList"
+import { search_stories } from "../data/search"
 
 declare interface WranglerOptions {
   addtab_button: boolean
@@ -98,6 +99,14 @@ export class TabWrangler {
       "tab_intercom",
       (event: Electron.IpcRendererEvent, ...args: any) => {
         console.log("tab_intercom", ...args)
+      }
+    )
+
+    ipcRenderer.on(
+      "search_stories",
+      (event: Electron.IpcRendererEvent, needle) => {
+        console.debug("search_stories", needle)
+        search_stories(needle)
       }
     )
 

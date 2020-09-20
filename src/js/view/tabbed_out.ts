@@ -6,13 +6,13 @@ import {
   ipcMain,
 } from "electron"
 import * as path from "path"
-export { create_view, pop_new_main, pop_no_tabs, tab_listeners, tab_intercom }
+export { create_view, pop_new_main, pop_no_tabs, tab_listeners }
 
 let tab_views: Record<number, BrowserView> = {}
 let parent_windows: Record<number, BrowserWindow> = {}
 let webviews: Record<number, WebContents> = {}
 
-function tab_intercom(
+export function tab_intercom(
   event: { sender: WebContents },
   secondary_channel: string,
   ...args: any

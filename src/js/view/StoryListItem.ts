@@ -52,9 +52,11 @@ export class StoryListItem extends HTMLElement {
     }
     title_line.appendChild(og_link)
 
-    let hostname = document.createElement("p")
+    let hostname = document.createElement("a")
     hostname.classList.add("hostname")
     hostname.innerText = " (" + link.hostname + ") "
+    hostname.href = "search:domain:" + link.hostname
+    hostname.target = "search"
     title_line.appendChild(hostname)
 
     let sources = document.createElement("div")
