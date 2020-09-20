@@ -8,8 +8,10 @@ import { DataChangeEvent } from "../data/StoryMap"
 
 export class StoryListItem extends HTMLElement {
   story: Story
-  story_el: HTMLElement
   animated: boolean
+  read_btn: HTMLElement
+  filter_btn: HTMLElement
+  star_btn: HTMLElement
 
   constructor(story: Story | EventListenerObject) {
     super()
@@ -72,13 +74,13 @@ export class StoryListItem extends HTMLElement {
     this.update_read(this.story.read)
     this.update_star(this.story.stared)
 
-    let filter_btn = StoryListItem.icon_button(
+    this.filter_btn = StoryListItem.icon_button(
       "filter",
       "filter_btn",
       "imgs/filter.svg"
     )
     if (this.story.filter) {
-      filter_btn.title = "filtered"
+      this.filter_btn.title = "filtered"
       this.classList.add("filtered")
       let dinp = document.createElement("input")
       dinp.classList.add("filter_input")
@@ -86,21 +88,16 @@ export class StoryListItem extends HTMLElement {
       dinp.value = this.story.filter
       dinp.disabled = true
       dinp.style.cursor = "pointer"
-      filter_btn.prepend(dinp)
-      filter_btn.style.borderColor = "red"
+      this.filter_btn.prepend(dinp)
+      this.filter_btn.style.borderColor = "red"
     }
-    this.appendChild(filter_btn)
+    this.appendChild(this.filter_btn)
 
     presenters.add_story_elem_buttons(this, this.story)
     this.add_ipc_events()
 
     this.addEventListener("data_change", (event: DataChangeEvent) => {
       this.update_story_el(event)
-    })
-
-    //mark user-interaction to play animation when on-change triggers after persist
-    this.addEventListener("mouseup", (event) => {
-      this.classList.add("user_interaction")
     })
   }
 
@@ -110,9 +107,12 @@ export class StoryListItem extends HTMLElement {
 
     let resort = story_list.resort_single(this) as Function
     if (typeof resort == "function") {
-      if (this.animated && this.classList.contains("user_interaction")) {
+      if (
+        this.animated &&
+        this.read_btn.classList.contains("user_interaction")
+      ) {
         //consume user interaction
-        this.classList.remove("user_interaction")
+        this.read_btn.classList.remove("user_interaction")
         this.classList.add(anmim_class)
         this.addEventListener(
           "transitionend",
@@ -124,31 +124,6 @@ export class StoryListItem extends HTMLElement {
       } else {
         resort()
       }
-    }
-  }
-
-  animate_star(new_stared: boolean) {
-    console.log("here I go animating again", this, new_stared)
-    let anmim_class = new_stared ? "star_anim" : "unstar_anim"
-    let icon_start = new_stared ? "imgs/star.svg" : "imgs/star_fill.svg"
-    let icon_end = new_stared ? "imgs/star_fill.svg" : "imgs/star.svg"
-    let star_btn_img = this.querySelector<HTMLImageElement>(".star_btn img")
-
-    if (this.animated && this.classList.contains("user_interaction")) {
-      //consume user interaction
-      this.classList.remove("user_interaction")
-      star_btn_img.src = icon_start
-      this.classList.add(anmim_class)
-      this.addEventListener(
-        "animationend",
-        () => {
-          setTimeout(() => {
-            this.classList.remove(anmim_class)
-            star_btn_img.src = icon_end
-          }, 1)
-        },
-        false
-      )
     }
   }
 
@@ -189,19 +164,23 @@ export class StoryListItem extends HTMLElement {
   }
 
   add_ipc_events() {
-    let filter_btn = this.querySelector<HTMLElement>(".filter_btn")
-    filter_btn.onclick = (x) => {
+    this.filter_btn.onclick = (x) => {
       if (this.classList.contains("filtered")) {
         ipcRenderer.send("tab_intercom", "show_filter", this.story.filter)
       } else {
-        story_filters.show_filter_dialog(x, filter_btn, this.story, (x) => {
-          ipcRenderer.send("tab_intercom", "add_filter", x)
-        })
+        story_filters.show_filter_dialog(
+          x,
+          this.filter_btn,
+          this.story,
+          (x) => {
+            ipcRenderer.send("tab_intercom", "add_filter", x)
+          }
+        )
       }
     }
 
-    let read_btn = this.querySelector(".read_btn")
-    read_btn.addEventListener("click", (x) => {
+    this.read_btn.addEventListener("click", (x) => {
+      this.read_btn.classList.add("user_interaction")
       ipcRenderer.send("tab_intercom", "persist_story_change", {
         href: this.story.href,
         path: "read",
@@ -210,7 +189,7 @@ export class StoryListItem extends HTMLElement {
     })
 
     //open story with middle click on "skip reading"
-    read_btn.addEventListener("mouseup", (e: MouseEvent) => {
+    this.read_btn.addEventListener("mouseup", (e: MouseEvent) => {
       if (e.button == 1) {
         window.open(this.story.href)
         e.stopPropagation()
@@ -218,7 +197,7 @@ export class StoryListItem extends HTMLElement {
         return true
       }
     })
-    read_btn.addEventListener("mousedown", (e: MouseEvent) => {
+    this.read_btn.addEventListener("mousedown", (e: MouseEvent) => {
       if (e.button == 1) {
         e.stopPropagation()
         e.preventDefault()
@@ -226,8 +205,11 @@ export class StoryListItem extends HTMLElement {
       }
     })
 
-    let star_btn = this.querySelector(".star_btn")
-    star_btn.addEventListener("click", (_) => {
+    this.star_btn.addEventListener("animationend", (x) => {
+      this.star_btn.classList.remove("user_interaction")
+    })
+    this.star_btn.addEventListener("click", (_) => {
+      this.star_btn.classList.add("user_interaction")
       let value = !this.story.stared
       this.story.stared = value
       console.log("click start value", this.story.stared, "setting", value)
@@ -268,22 +250,24 @@ export class StoryListItem extends HTMLElement {
     return info
   }
 
-  static icon_button(title: string, classname: string, icon_src: string) {
+  static icon_button(title: string, classname: string, icon_src?: string) {
     let btn = document.createElement("div")
     btn.classList.add("btn")
     btn.classList.add(classname)
     btn.setAttribute("draggable", "false")
-    let icon = document.createElement("img")
-    icon.setAttribute("draggable", "false")
-    icon.src = icon_src
-    btn.appendChild(icon)
+    if (icon_src) {
+      let icon = document.createElement("img")
+      icon.setAttribute("draggable", "false")
+      icon.src = icon_src
+      btn.appendChild(icon)
+    }
     btn.title = title
     return btn
   }
 
   add_read_button() {
-    let read_btn = StoryListItem.icon_button("", "read_btn", "")
-    this.appendChild(read_btn)
+    this.read_btn = StoryListItem.icon_button("", "read_btn")
+    this.appendChild(this.read_btn)
 
     this.label_read()
   }
@@ -304,14 +288,11 @@ export class StoryListItem extends HTMLElement {
     if (!btn) {
       return
     }
-    let icon = btn.querySelector("img")
 
     if (!this.classList.contains("read")) {
       btn.title = "skip reading"
-      icon.src = "imgs/read.svg"
     } else {
       btn.title = "mark as unread"
-      icon.src = "imgs/unread.svg"
     }
   }
 
@@ -320,25 +301,20 @@ export class StoryListItem extends HTMLElement {
       this.classList.add("stored_star")
     }
 
-    let star_btn = StoryListItem.icon_button("", "star_btn", "")
-    this.appendChild(star_btn)
+    this.star_btn = StoryListItem.icon_button("", "star_btn")
+    this.appendChild(this.star_btn)
     this.label_star()
   }
 
   label_star() {
-    let btn = this.querySelector<HTMLElement>(".star_btn")
-
-    if (!btn) {
+    if (!this.star_btn) {
       return
     }
-    let icon = btn.querySelector("img")
 
     if (this.classList.contains("stared")) {
-      btn.title = "remove bookmark"
-      icon.src = "imgs/star_fill.svg"
+      this.star_btn.title = "remove bookmark"
     } else {
-      btn.title = "bookmark"
-      icon.src = "imgs/star.svg"
+      this.star_btn.title = "bookmark"
     }
   }
 
@@ -353,10 +329,6 @@ export class StoryListItem extends HTMLElement {
     let classes_after = this.classList.value.toString()
 
     this.label_star()
-
-    if (classes_after != classes_before) {
-      this.animate_star(stared)
-    }
   }
 
   update_sources(sources: StorySource[]) {

@@ -250,9 +250,15 @@ body[animated="true"] .unread_anim {
   margin-left: -100%;
 }
 
-@keyframes spin {
+@keyframes death_spin {
+  0% {
+    content: url(../imgs/star_fill.svg);
+    transform: rotate(0deg);
+  }
+
   100% {
-    transform: rotate(360deg);
+    transform: rotate(360deg) scale(0.2);
+    content: url(../imgs/star_fill.svg);
   }
 }
 
@@ -277,18 +283,72 @@ body[animated="true"] .unread_anim {
   }
 }
 
-@keyframes death_spin {
+@keyframes fillup {
+  0% {
+    clip-path: inset(100% 0% 0% 0%);
+  }
+  30% {
+    clip-path: inset(100% 0% 0% 0%);
+  }
+  40% {
+    clip-path: inset(65% 0% 0% 0%);
+  }
+  60% {
+    clip-path: inset(65% 0% 0% 0%);
+  }
+  70% {
+    clip-path: inset(40% 0% 0% 0%);
+  }
+  80% {
+    clip-path: inset(35% 0% 0% 0%);
+  }
   100% {
-    transform: rotate(360deg) scale(0);
+    clip-path: inset(0% 0% 0% 0%);
   }
 }
 
-body[animated="true"] .unstar_anim .star_btn img {
-  animation: death_spin 1.7s cubic-bezier(0.69, -0.14, 0.59, 0.99);
+.read_btn::after {
+  content: url(../imgs/read.svg);
+  display: block;
+  opacity: 0.6;
 }
 
-body[animated="true"] .star_anim .star_btn img {
-  animation: bounce 1s cubic-bezier(0, 0, 0.15, 0.99);
+.read .read_btn::after {
+  content: url(../imgs/unread.svg);
+  display: block;
+  opacity: 0.6;
+}
+
+.star_btn::after {
+  content: url(../imgs/star.svg);
+  display: block;
+  opacity: 0.6;
+}
+
+.stared .star_btn::after {
+  content: url(../imgs/star.svg);
+  margin-top: -19px;
+  display: block;
+  opacity: 0.6;
+}
+
+body[animated="true"] .star_btn.user_interaction::after {
+  animation: death_spin 0.9s cubic-bezier(0, 0, 0.15, 0.99);
+}
+
+body[animated="true"] .stared .user_interaction.star_btn::before {
+  animation: bounce 1.2s cubic-bezier(0, 0, 0.15, 0.99),
+    fillup 1.2s cubic-bezier(0, 0, 0.15, 0.99);
+}
+
+body[animated="true"] .stared .user_interaction.star_btn::after {
+  animation: bounce 1.2s cubic-bezier(0, 0, 0.15, 0.99);
+}
+
+.stared .star_btn::before {
+  content: url(../imgs/star_fill.svg);
+  display: block;
+  opacity: 0.6;
 }
 
 .read {
@@ -386,6 +446,7 @@ body[animated="true"] .star_anim .star_btn img {
 
 .story .btn {
   height: 16px;
+  box-sizing: content-box;
   white-space: nowrap;
 }
 

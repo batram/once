@@ -123,22 +123,16 @@ function search_stories(needle: string) {
 
   document.querySelectorAll<StoryListItem>(".story").forEach((story_el) => {
     let find_in = [
-      story_el.dataset.title,
-      story_el.dataset.href,
-      story_el.dataset.type,
+      story_el.story.title,
+      story_el.story.href,
+      story_el.story.type,
+      story_el.story.og_href,
     ]
 
-    let og_href = story_el.querySelector<HTMLAnchorElement>(".og_href")
-    if (og_href) {
-      find_in.push(og_href.href)
-    }
-
-    story_el
-      .querySelectorAll<HTMLElement>(".sources .info")
-      .forEach((source_info) => {
-        find_in.push(source_info.dataset.tag)
-        find_in.push(source_info.dataset.comment_url)
-      })
+    story_el.story.sources.forEach((source_info) => {
+      find_in.push("[" + source_info.type + "]")
+      find_in.push(source_info.comment_url)
+    })
 
     let found_index = find_in.findIndex(
       (x) => x != undefined && x.toLowerCase().includes(needle.toLowerCase())

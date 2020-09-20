@@ -50,30 +50,32 @@ function add(story: Story, bucket = "stories") {
 function get_by_href(url: string) {
   let story_el = null
 
-  let info_can = document.querySelector(`.story a[href="${url}"]`)
+  let info_can = document.querySelector<StoryListItem>(
+    `.story a[href="${url}"]`
+  )
   if (info_can) {
     let parent = info_can.parentElement
     let max = 5
-    while (!parent.classList.contains("story") && max > 0) {
+    while (!(parent.tagName == "STORY-ITEM") && max > 0) {
       max -= 1
       parent = parent.parentElement
 
-      if (parent.classList.contains("story")) {
+      if (parent.tagName == "STORY-ITEM") {
         story_el = parent
         break
       }
     }
   }
 
-  return story_el
+  return story_el as StoryListItem
 }
 
-function mark_selected(story_el: HTMLElement, url: string) {
+function mark_selected(story_el: StoryListItem, url: string) {
   if (!story_el && url) {
     story_el = get_by_href(url)
   }
 
-  document.querySelectorAll(".story").forEach((x: HTMLElement) => {
+  document.querySelectorAll(".story").forEach((x: StoryListItem) => {
     if (x.classList.contains("selected")) {
       x.classList.remove("selected")
       let fun = resort_single(x)
@@ -85,7 +87,7 @@ function mark_selected(story_el: HTMLElement, url: string) {
 
   if (story_el) {
     story_el.classList.add("selected")
-    let og_story = StoryMap.instance.get(story_el.dataset.href)
+    let og_story = StoryMap.instance.get(story_el.story.href)
     return og_story
   } else {
     return null
@@ -108,15 +110,15 @@ function story_compare(a: SortableStory, b: SortableStory) {
   return 0
 }
 
-function sortable_story(elem: HTMLElement) {
+function sortable_story(elem: StoryListItem) {
   return {
-    read: elem.classList.contains("read"),
-    timestamp: elem.dataset.timestamp,
+    read: elem.story.read,
+    timestamp: elem.story.timestamp,
     el: elem,
   }
 }
 
-function resort_single(elem: HTMLElement) {
+function resort_single(elem: StoryListItem) {
   let story_con = elem.parentElement
   if (!story_con) {
     console.error(
