@@ -1,5 +1,5 @@
 import { Story } from "../../data/Story"
-import * as story_list_item from "../../view/StoryListItem"
+import { StoryListItem } from "../../view/StoryListItem"
 import * as Readability from "../../third_party/Readability.js"
 import { TabWrangler } from "../../view/TabWrangler"
 import { ipcRenderer } from "electron"
@@ -82,7 +82,7 @@ function story_elem_button(story: Story, intab = false) {
     return
   }
 
-  let outline_btn = story_list_item.icon_button(
+  let outline_btn = StoryListItem.icon_button(
     "outline",
     "outline_btn",
     "imgs/article.svg"
@@ -137,7 +137,7 @@ function init_in_webtab() {
 }
 
 function urlbar_button() {
-  let button = story_list_item.icon_button(
+  let button = StoryListItem.icon_button(
     "outline",
     "outline_btn",
     "imgs/article.svg"

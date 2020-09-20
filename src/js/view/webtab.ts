@@ -2,13 +2,15 @@ import { ipcRenderer } from "electron"
 import * as fullscreen from "../view/fullscreen"
 import * as presenters from "../view/presenters"
 import * as story_list from "../view/StoryList"
-import * as story_list_item from "../view/StoryListItem"
+import { StoryListItem } from "../view/StoryListItem"
 import { Story } from "../data/Story"
+import { DataChangeEvent } from "../data/StoryMap"
 
 export class WebTab {
   tab_state: string
   parent_id: number
   webview_ready: boolean
+  current_story: Story
 
   constructor() {
     this.webview_ready = false
@@ -74,20 +76,28 @@ export class WebTab {
     ipcRenderer.on("closed", (event, data) => {
       console.debug("closed", event, data)
       this.tab_state = "closed"
-      ipcRenderer.removeAllListeners("data_change")
+      ipcRenderer.removeAllListeners("push_tab_data_change")
       ipcRenderer.removeAllListeners("closed")
       //...
       //detach and destroy
       ipcRenderer.send("end_me")
     })
 
-    ipcRenderer.on("data_change", (event, data) => {
-      console.debug("data_change", event, data)
-      let selected = story_list.get_by_href(data.href)
-      if (selected) {
-        this.update_selected(data)
+    ipcRenderer.on(
+      "push_tab_data_change",
+      (ipc_event, change_event: DataChangeEvent) => {
+        console.debug("push_tab_data_change", ipc_event, change_event)
+        let selected = story_list.get_by_href(change_event.detail.story.href)
+        if (selected) {
+          selected.dispatchEvent(
+            new DataChangeEvent("data_change", change_event.detail)
+          )
+          this.current_story = change_event.detail.story
+        } else {
+          this.current_story = null
+        }
       }
-    })
+    )
 
     ipcRenderer.on("update_selected", (event, story, colors) => {
       console.debug("update_selected", story)
@@ -221,7 +231,7 @@ export class WebTab {
       return
     }
 
-    let story_el = story_list_item.story_html(story)
+    let story_el = new StoryListItem(story)
     story_el.classList.add("selected")
     selected_container.append(story_el)
   }

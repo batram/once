@@ -2,6 +2,7 @@ import * as menu from "../view/menu"
 import { Story } from "../data/Story"
 import * as story_list from "../view/StoryList"
 import * as stroy_loader from "../data/StoryLoader"
+import { StoryListItem } from "../view/StoryListItem"
 
 export { init_search, search_stories }
 
@@ -120,7 +121,7 @@ function search_stories(needle: string) {
     return
   }
 
-  document.querySelectorAll<HTMLElement>(".story").forEach((story_el) => {
+  document.querySelectorAll<StoryListItem>(".story").forEach((story_el) => {
     let find_in = [
       story_el.dataset.title,
       story_el.dataset.href,

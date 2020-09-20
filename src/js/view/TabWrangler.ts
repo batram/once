@@ -1,7 +1,7 @@
 import { ipcRenderer } from "electron"
 import * as filters from "../data/filters"
 import * as webtab from "./webtab"
-import { StoryMap } from "../data/StoryMap"
+import { StoryMap, DataChangeEvent } from "../data/StoryMap"
 import * as story_list from "./StoryList"
 
 declare interface WranglerOptions {
@@ -183,11 +183,14 @@ export class TabWrangler {
           console.debug("subscribe_to_change", event.senderId)
           subscribers.push(event.senderId)
           //TODO: filter here or on tab?
-          document.body.addEventListener("data_change", (e: CustomEvent) => {
-            if (e.detail.story) {
-              this.send_to_id(event.senderId, "data_change", e.detail.story)
+          document.body.addEventListener(
+            "data_change",
+            (e: DataChangeEvent) => {
+              if (e.detail.story) {
+                this.send_to_id(event.senderId, "push_tab_data_change", e)
+              }
             }
-          })
+          )
         }
       }
     )
@@ -225,7 +228,7 @@ export class TabWrangler {
         if (href == "about:gone") {
           return
         }
-        //ipcRenderer.sendTo
+
         this.send_to_id(event.senderId, "update_selected", story, colors)
       }
     )

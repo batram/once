@@ -2,6 +2,23 @@ import { Story } from "../data/Story"
 import * as onChange from "on-change"
 import * as story_list from "../view/StoryList"
 
+export interface DataChangeEventDetail {
+  story: Story
+  path: string[] | string
+  value: any
+  previousValue: any
+  name: string
+}
+
+export class DataChangeEvent extends Event {
+  detail: DataChangeEventDetail
+
+  constructor(typeArg: string, detail: DataChangeEventDetail) {
+    super(typeArg)
+    this.detail = detail
+  }
+}
+
 export class StoryMap {
   s_map = {}
   static instance: StoryMap
@@ -20,18 +37,16 @@ export class StoryMap {
 
   story_map: Record<string, Story> = onChange(
     this.s_map,
-    (path: string, value: unknown, previousValue: unknown, name: string) => {
+    (path: string[], value: unknown, previousValue: unknown, name: string) => {
       console.debug("onChange data_change", path, value, previousValue, name)
       if (path.length != 0) {
         if (typeof this.has(path[0])) {
-          const event = new CustomEvent("data_change", {
-            detail: {
-              story: this.get(path[0]),
-              path: path,
-              value: value,
-              previousValue: previousValue,
-              name: name,
-            },
+          const event: DataChangeEvent = new DataChangeEvent("data_change", {
+            story: this.get(path[0]),
+            path: path,
+            value: value,
+            previousValue: previousValue,
+            name: name,
           })
           let story_els = document.querySelectorAll(
             `.story[data-href="${path[0]}"]`

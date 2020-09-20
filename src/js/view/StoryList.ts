@@ -1,6 +1,6 @@
 import { Story, SortableStory } from "../data/Story"
 import { get_starlist, get_readlist, story_sources } from "../settings"
-import * as story_item from "../view/StoryListItem"
+import { StoryListItem } from "../view/StoryListItem"
 import * as filters from "../data/filters"
 import { StoryMap } from "../data/StoryMap"
 import * as story_loader from "../data/StoryLoader"
@@ -35,7 +35,7 @@ function add(story: Story, bucket = "stories") {
 
   story.bucket = bucket
 
-  let new_story_el = story_item.story_html(story)
+  let new_story_el = new StoryListItem(story)
   let stories_container = document.querySelector("#" + bucket)
 
   //hide new stories if search is active, will be matched and shown later
@@ -194,7 +194,7 @@ function sort_stories(bucket = "stories") {
 
 async function restar() {
   let starlist = await get_starlist()
-  document.querySelectorAll<HTMLElement>(".story").forEach((story_el) => {
+  document.querySelectorAll<StoryListItem>(".story").forEach((story_el) => {
     let sthref = story_el.dataset.href
     let story = StoryMap.instance.get(sthref.toString())
     story.stared = starlist.hasOwnProperty(sthref)
@@ -210,15 +210,13 @@ async function reread(readlist: any) {
 }
 
 function refilter() {
-  document.querySelectorAll<HTMLElement>(".story").forEach((x) => {
+  document.querySelectorAll<StoryListItem>(".story").forEach((x) => {
     let sthref = x.dataset.href.toString()
     let story = StoryMap.instance.get(sthref.toString())
     let og_filter = story.filter
     filters.filter_story(story).then((story) => {
       if (story.filter != og_filter) {
-        let nstory = story_item.story_html(
-          StoryMap.instance.get(sthref.toString())
-        )
+        let nstory = new StoryListItem(StoryMap.instance.get(sthref.toString()))
         x.replaceWith(nstory)
       }
     })
@@ -227,7 +225,7 @@ function refilter() {
 
 function reload() {
   //dont remove the selected story on reload
-  let selected = document.querySelector<HTMLElement>(".selected")
+  let selected = document.querySelector<StoryListItem>(".selected")
   if (selected) {
     let href = selected.dataset.href
     let story = StoryMap.instance.get(href).clone()

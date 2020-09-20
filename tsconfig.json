@@ -5,6 +5,7 @@
     "noImplicitAny": true,
     "sourceMap": true,
     "outDir": "dist/",
+    "target": "es6",
     "baseUrl": ".",
     "allowJs": true,
     "paths": {
