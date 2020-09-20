@@ -8,6 +8,7 @@ export interface DataChangeEventDetail {
   value: any
   previousValue: any
   name: string
+  animated: boolean
 }
 
 export class DataChangeEvent extends Event {
@@ -47,6 +48,7 @@ export class StoryMap {
             value: value,
             previousValue: previousValue,
             name: name,
+            animated: document.body.getAttribute("animated") == "true",
           })
           let story_els = document.querySelectorAll(
             `.story[data-href="${path[0]}"]`

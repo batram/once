@@ -133,11 +133,7 @@ function save_animation(checked: boolean) {
 }
 
 function set_animation(checked: boolean) {
-  if (checked) {
-    document.body.classList.add("animated")
-  } else {
-    document.body.classList.remove("animated")
-  }
+  document.body.setAttribute("animated", checked.toString())
 }
 
 function set_theme(name: string) {

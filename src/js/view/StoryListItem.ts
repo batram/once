@@ -9,6 +9,7 @@ import { DataChangeEvent } from "../data/StoryMap"
 export class StoryListItem extends HTMLElement {
   story: Story
   story_el: HTMLElement
+  animated: boolean
 
   constructor(story: Story | EventListenerObject) {
     super()
@@ -109,10 +110,7 @@ export class StoryListItem extends HTMLElement {
 
     let resort = story_list.resort_single(this) as Function
     if (typeof resort == "function") {
-      if (
-        document.body.classList.contains("animated") &&
-        this.classList.contains("user_interaction")
-      ) {
+      if (this.animated && this.classList.contains("user_interaction")) {
         //consume user interaction
         this.classList.remove("user_interaction")
         this.classList.add(anmim_class)
@@ -136,10 +134,7 @@ export class StoryListItem extends HTMLElement {
     let icon_end = new_stared ? "imgs/star_fill.svg" : "imgs/star.svg"
     let star_btn_img = this.querySelector<HTMLImageElement>(".star_btn img")
 
-    if (
-      document.body.classList.contains("animated") &&
-      this.classList.contains("user_interaction")
-    ) {
+    if (this.animated && this.classList.contains("user_interaction")) {
       //consume user interaction
       this.classList.remove("user_interaction")
       star_btn_img.src = icon_start
@@ -162,6 +157,9 @@ export class StoryListItem extends HTMLElement {
       console.debug("update_story_el fail", event, this)
       return
     }
+
+    this.animated = event.detail.animated
+    document.body.setAttribute("animated", event.detail.animated.toString())
 
     if (event.detail.path.length == 2) {
       switch (event.detail.path[1]) {

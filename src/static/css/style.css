@@ -238,15 +238,15 @@ option {
   box-sizing: border-box;
 }
 
-.animated .story {
+body[animated="true"] .story {
   transition: margin-left 0.6s cubic-bezier(0.25, 0.1, 0, 1.65);
 }
 
-.animated .read_anim {
+body[animated="true"] .read_anim {
   margin-left: -100%;
 }
 
-.animated .unread_anim {
+body[animated="true"] .unread_anim {
   margin-left: -100%;
 }
 
@@ -283,11 +283,11 @@ option {
   }
 }
 
-.animated .unstar_anim .star_btn img {
+body[animated="true"] .unstar_anim .star_btn img {
   animation: death_spin 1.7s cubic-bezier(0.69, -0.14, 0.59, 0.99);
 }
 
-.animated .star_anim .star_btn img {
+body[animated="true"] .star_anim .star_btn img {
   animation: bounce 1s cubic-bezier(0, 0, 0.15, 0.99);
 }
 

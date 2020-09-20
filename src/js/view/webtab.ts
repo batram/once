@@ -269,6 +269,7 @@ export class WebTab {
     color: #6b6bef;
   }
 
+
   img, pre, p {
     max-width: 100%;
     max-height: 350px;
