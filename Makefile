@@ -11,5 +11,8 @@ package:
 drun:
 	LDEV=1 npm start
 
+stw:
+	nodemon --watch "src/static/*" --exec "npm run copy_static" -e "*" 
+
 rip:
 	LDEV=1 npm run re
