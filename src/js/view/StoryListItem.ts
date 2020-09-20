@@ -46,6 +46,10 @@ export class StoryListItem extends HTMLElement {
     og_link.innerText = " [OG] "
     og_link.classList.add("og_href")
     og_link.href = this.story.og_href
+    if (this.story.og_href == this.story.href) {
+      //og_link.style.opacity = "0.4"
+      og_link.style.display = "none"
+    }
     title_line.appendChild(og_link)
 
     let hostname = document.createElement("p")
