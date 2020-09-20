@@ -271,6 +271,9 @@ export class WebTab {
 
   img, pre, p {
     max-width: 100%;
+    max-height: 350px;
+    width: auto;
+    height: auto;  
   }
 
   pre {

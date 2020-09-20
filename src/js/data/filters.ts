@@ -27,12 +27,29 @@ function get_filterlist() {
 }
 
 function twitnit(story: Story) {
-  story.href = story.href.replace("twitter.com", "nitter.net")
+  try {
+    let url = new URL(story.href)
+    if (url.hostname == "twitter.com" || url.hostname == "mobile.twitter.com") {
+      url.hostname = "nitter.net"
+      story.href = url.toString()
+    }
+  } catch (e) {
+    console.log("failed to parse URL", story.href)
+  }
   return story
 }
 
 function old_reddit(story: Story) {
-  story.href = story.href.replace("www.reddit.com", "old.reddit.com")
+  try {
+    let url = new URL(story.href)
+    if (url.hostname == "www.reddit.com") {
+      url.hostname = "old.reddit.com"
+      story.href = url.toString()
+    }
+  } catch (e) {
+    console.log("failed to parse URL", story.href)
+  }
+  story.href = story.href.replace("", "")
   return story
 }
 
@@ -60,7 +77,6 @@ function add_filter(filter: string) {
 }
 
 async function filter_stories(stories: Story[]) {
-  let flist = get_filterlist()
   const filter_list = await get_filterlist()
   return stories.map((story) => {
     return filter_run(filter_list, story)
