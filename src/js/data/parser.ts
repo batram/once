@@ -33,8 +33,13 @@ function get_parser_for_url(url: string): StoryParser {
 async function parse_response(resp: Response, url: string) {
   let parser = get_parser_for_url(url)
 
+  if (!parser) {
+    throw "no parser found for: " + url
+  }
+
   if (parser.options.collects == "json") {
     let json_content = await resp.json()
+    console.log("got json for ", url, parser, json_content)
     localStorage.setItem(url, JSON.stringify([Date.now(), json_content]))
     return parser.parse(json_content)
   } else if (parser.options.collects == "dom") {
