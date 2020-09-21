@@ -1,6 +1,7 @@
 import * as PouchDB from "pouchdb-browser"
 import * as story_list from "./view/StoryList"
 import { ipcRenderer } from "electron"
+import { StoryMap } from "./data/StoryMap"
 
 export class OnceSettings {
   default_sources = [
@@ -159,7 +160,7 @@ export class OnceSettings {
         console.log("update", doc._id)
         switch (doc._id) {
           case "read_list":
-            story_list.reread(doc.list)
+            StoryMap.instance.reread(doc.list)
             break
           case "story_sources":
             this.set_sources_area()
@@ -170,7 +171,7 @@ export class OnceSettings {
             story_list.refilter()
             break
           case "star_list":
-            story_list.restar()
+            StoryMap.instance.restar(doc.list)
             break
           case "theme":
             this.restore_theme_settings()

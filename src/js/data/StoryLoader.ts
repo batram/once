@@ -6,7 +6,7 @@ import * as search from "../data/search"
 import * as story_filters from "./StoryFilters"
 import * as story_list from "../view/StoryList"
 
-export { load, parallel_load_stories, add_stored_stars, enhance_stories }
+export { load, parallel_load_stories, enhance_stories }
 
 function get_cached(url: string) {
   let cached = localStorage.getItem(url)
@@ -74,7 +74,7 @@ async function process_story_input(stories: Story[]) {
 
   //add all stored stared stories
   let starlist = await OnceSettings.instance.get_starlist()
-  add_stored_stars(starlist)
+  StoryMap.instance.add_stored_stars(starlist)
 
   story_list.sort_stories()
   let searchfield = document.querySelector<HTMLInputElement>("#searchfield")
@@ -125,18 +125,4 @@ async function enhance_stories(stories: Story[], add: boolean = true) {
 async function load(urls: string[]) {
   let cache = false
   parallel_load_stories(urls, cache)
-}
-
-interface Starlist {
-  [index: string]: Story | { stared: boolean; stored_star: boolean }
-}
-
-//TODO: specify starlist format
-function add_stored_stars(starlist: Starlist) {
-  for (let href in starlist) {
-    let star_story = Story.from_obj(starlist[href])
-    star_story.stared = true
-    star_story.stored_star = true
-    StoryMap.instance.add(star_story)
-  }
 }

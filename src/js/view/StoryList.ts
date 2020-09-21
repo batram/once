@@ -10,11 +10,9 @@ export {
   get_by_href,
   reload,
   refilter,
-  restar,
   sort_stories,
   resort_single,
   add,
-  reread,
   init,
 }
 
@@ -191,23 +189,6 @@ function sort_stories(bucket = "stories") {
         x.el.classList.remove("unread_anim")
       }, 1)
     }
-  })
-}
-
-async function restar() {
-  let starlist = await OnceSettings.instance.get_starlist()
-  document.querySelectorAll<StoryListItem>(".story").forEach((story_el) => {
-    let sthref = story_el.dataset.href
-    let story = StoryMap.instance.get(sthref.toString())
-    story.stared = starlist.hasOwnProperty(sthref)
-  })
-
-  story_loader.add_stored_stars(starlist)
-}
-
-async function reread(readlist: any) {
-  StoryMap.instance.forEach((story: any) => {
-    story.read = readlist.includes(story.href)
   })
 }
 

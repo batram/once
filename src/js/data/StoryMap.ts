@@ -1,6 +1,8 @@
 import { Story } from "../data/Story"
 import * as onChange from "on-change"
 import * as story_list from "../view/StoryList"
+import { OnceSettings } from "../OnceSettings"
+import { StoryListItem } from "../view/StoryListItem"
 
 export interface DataChangeEventDetail {
   story: Story
@@ -9,6 +11,10 @@ export interface DataChangeEventDetail {
   previousValue: any
   name: string
   animated: boolean
+}
+
+interface Starlist {
+  [index: string]: Story | { stared: boolean; stored_star: boolean }
 }
 
 export class DataChangeEvent extends Event {
@@ -152,5 +158,29 @@ export class StoryMap {
     }
 
     return story
+  }
+
+  restar(starlist: Starlist) {
+    this.forEach((story: any) => {
+      story.stared = starlist.hasOwnProperty(story.href)
+    })
+
+    this.add_stored_stars(starlist)
+  }
+
+  //TODO: specify starlist format
+  add_stored_stars(starlist: Starlist) {
+    for (let href in starlist) {
+      let star_story = Story.from_obj(starlist[href])
+      star_story.stared = true
+      star_story.stored_star = true
+      this.add(star_story)
+    }
+  }
+
+  reread(readlist: any) {
+    this.forEach((story: any) => {
+      story.read = readlist.includes(story.href)
+    })
   }
 }
