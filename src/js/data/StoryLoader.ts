@@ -96,9 +96,6 @@ async function cache_load(url: string, try_cache: boolean = true) {
     if (parser.options.collects == "dom") {
       cached = story_parser.parse_dom(cached, url)
     }
-    if (parser.options.collects == "json") {
-      cached = JSON.parse(cached)
-    }
     return parser.parse(cached)
   } else {
     let resp = await fetch(url)
