@@ -102,9 +102,57 @@ option {
 }
 
 #stories_panel {
-  display: flex;
+  display: none;
   flex-direction: column;
   height: 100%;
+}
+
+#left_panel[active_panel="stories"] #stories_panel {
+  display: flex;
+}
+
+#left_panel[active_panel="settings"] #settings_panel {
+  display: flex;
+}
+/*
+@keyframes roll_gadient {
+  0% {
+    content: url(../imgs/star_fill.svg);
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg) scale(0.2);
+    content: url(../imgs/star_fill.svg);
+  }
+}*/
+
+@keyframes roll_gadient {
+  0% {
+    background-position-x: -200px;
+  }
+  100% {
+    background-position-x: 0;
+  }
+}
+
+body[animated="true"] #left_panel .pseudo_active .bar {
+  animation: roll_gadient 2s cubic-bezier(0, 0, 0.15, 0.99);
+  background: radial-gradient(
+    at 50% 223%,
+    var(--highlight-bg-color),
+    transparent
+  );
+}
+
+body[animated="true"] #menu .sub:active {
+  background: var(--highlight-bg-color);
+}
+
+body[animated="true"] #menu .btn:active {
+  background: var(--highlight-bg-color);
+  filter: saturate(40%) contrast(100%);
+  border-color: var(--border-high-color);
 }
 
 #menu {
@@ -516,7 +564,6 @@ body[animated="true"] .stared .user_interaction.star_btn::after {
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  display: flex;
   flex-direction: column;
   display: none;
 }
