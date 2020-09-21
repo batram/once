@@ -41,6 +41,21 @@ export class NavigationHandler {
       console.debug("caught will-navigate", url, event)
       this.open_url(url, "self")
     })
+
+    webContents.on(
+      "will-redirect",
+      (event, url, isInPlace, isMainFrame, frameProcessId, frameRoutingId) => {
+        event.preventDefault()
+        console.debug(
+          "caught will-redirect",
+          url,
+          event,
+          isInPlace,
+          isMainFrame
+        )
+        this.open_url(url, "self")
+      }
+    )
   }
 
   open_url(url: string, target: string) {
