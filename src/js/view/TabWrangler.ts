@@ -294,6 +294,14 @@ export class TabWrangler {
   }
 
   init_draggable_tabs() {
+    window.addEventListener("mousemove", (x) => {
+      let fimg = document.querySelector<HTMLImageElement>(".pic_webtab")
+      if (!fimg && this.active_wc_id != null) {
+        console.log("reset on mousemove")
+        this.reset_drag()
+      }
+    })
+
     window.addEventListener("dragover", (x) => {
       x.preventDefault()
       document.body.style.background = "green"
@@ -315,10 +323,6 @@ export class TabWrangler {
         fimg.classList.add("pic_webtab")
         fimg.style.position = "absolute"
         fimg.style.opacity = "0.8"
-        window.addEventListener("mousemove", (x) => {
-          console.log("reset on mousemove")
-          this.reset_drag()
-        })
         fimg.src = img_url
         this.tabcontent_element.append(fimg)
         ipcRenderer.send("hide_webtab", this.active_wc_id)
