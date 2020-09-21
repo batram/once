@@ -21,7 +21,6 @@ export { parse, options, domain_search }
 function parse(doc: Document) {
   let curl = "https://lobste.rs/s/"
   let stories = Array.from(doc.querySelectorAll<HTMLElement>(".story"))
-  console.log("lobsters parsers", stories)
 
   return stories
     .map((story) => {

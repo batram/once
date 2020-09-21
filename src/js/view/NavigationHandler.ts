@@ -49,7 +49,7 @@ export class NavigationHandler {
         console.debug(
           "caught will-redirect",
           url,
-          event,
+          //event,
           isInPlace,
           isMainFrame
         )

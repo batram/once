@@ -17,7 +17,7 @@ import { Story } from "../Story"
 
 export { parse, options, domain_search, global_search }
 
-function parse(json: {
+interface RedditJSONData {
   kind: "Listing"
   data: {
     children: [
@@ -32,7 +32,10 @@ function parse(json: {
       }
     ]
   }
-}) {
+}
+
+function parse(json: RedditJSONData) {
+  console.debug(json)
   //Parse as RSS and not HTML ...
   if (json.kind == "Listing") {
     return json.data.children.map((story) => {
