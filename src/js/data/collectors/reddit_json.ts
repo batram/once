@@ -34,7 +34,7 @@ interface RedditJSONData {
   }
 }
 
-function parse(json: RedditJSONData) {
+function parse(json: RedditJSONData): Story[] {
   if (json.kind == "Listing") {
     return json.data.children.map((story) => {
       return new Story(
@@ -51,16 +51,16 @@ function parse(json: RedditJSONData) {
   return []
 }
 
-function domain_search(domain: string) {
+function domain_search(domain: string): Promise<Story[]> {
   return global_search("site:" + domain)
 }
 
-async function global_search(needle: string) {
-  let search_url = "https://old.reddit.com/search.json?q="
+async function global_search(needle: string): Promise<Story[]> {
+  const search_url = "https://old.reddit.com/search.json?q="
 
-  let res = await fetch(search_url + encodeURIComponent(needle))
+  const res = await fetch(search_url + encodeURIComponent(needle))
   if (res.ok) {
-    let json_response = await res.json()
+    const json_response = await res.json()
     return parse(json_response)
   }
   return []

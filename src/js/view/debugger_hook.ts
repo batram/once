@@ -6,8 +6,8 @@ function addEventListener(
   webContents: WebContents,
   event: string,
   inline_js: string,
-  callback: Function
-) {
+  callback: (a: unknown) => unknown
+): void {
   try {
     if (!webContents.debugger.isAttached()) {
       webContents.debugger.attach()
@@ -19,8 +19,7 @@ function addEventListener(
   webContents.debugger.on("message", function (event, method, params) {
     //console.log("debug_message", event, method, params)
     if (method == "Runtime.bindingCalled") {
-      let name = params.name
-      let payload = params.payload
+      const name = params.name
 
       if (name == "mhook") {
         callback(params.payload)
@@ -36,13 +35,15 @@ function addEventListener(
     name: "mhook",
   })
 
+  /*
   if (false) {
     webContents.debugger.sendCommand("Page.setLifecycleEventsEnabled", {
       enabled: true,
     })
   }
+  */
 
-  let event_string = JSON.stringify(event.toString())
+  const event_string = JSON.stringify(event.toString())
 
   webContents.debugger
     .sendCommand("Page.addScriptToEvaluateOnNewDocument", {
@@ -67,7 +68,7 @@ function addEventListener(
     })
 }
 
-function history_nav(webContents: WebContents) {
+function history_nav(webContents: WebContents): void {
   addEventListener(
     webContents,
     "mousedown",

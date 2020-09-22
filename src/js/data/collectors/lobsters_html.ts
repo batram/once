@@ -14,18 +14,17 @@ const options = {
 }
 
 import { Story } from "../../data/Story"
-import { DomainSearchProvider } from "../collectors"
 
 export { parse, options, domain_search }
 
-function parse(doc: Document) {
-  let curl = "https://lobste.rs/s/"
-  let stories = Array.from(doc.querySelectorAll<HTMLElement>(".story"))
+function parse(doc: Document): Story[] {
+  const curl = "https://lobste.rs/s/"
+  const stories = Array.from(doc.querySelectorAll<HTMLElement>(".story"))
 
   return stories
     .map((story) => {
-      let id = story.dataset.shortid
-      let link = story.querySelector<HTMLAnchorElement>(".u-url")
+      const id = story.dataset.shortid
+      const link = story.querySelector<HTMLAnchorElement>(".u-url")
       if (!link) {
         return null
       }
@@ -33,7 +32,7 @@ function parse(doc: Document) {
         link.href = curl + id
       }
 
-      let timestamp = Date.parse(
+      const timestamp = Date.parse(
         story.querySelector<HTMLElement>(".byline span").title
       )
 
@@ -48,36 +47,15 @@ function parse(doc: Document) {
     .filter((x) => x != null)
 }
 
-async function domain_search(domain: string) {
-  let search_url = "https://lobste.rs/domain/"
-  let res = await fetch(search_url + domain)
+async function domain_search(domain: string): Promise<Story[]> {
+  const search_url = "https://lobste.rs/domain/"
+  const res = await fetch(search_url + domain)
   if (res.ok) {
-    let content = await res.text()
-    let dom_parser = new DOMParser()
-    let doc = dom_parser.parseFromString(content, "text/html")
+    const content = await res.text()
+    const dom_parser = new DOMParser()
+    const doc = dom_parser.parseFromString(content, "text/html")
     return parse(doc)
   } else {
     return []
   }
-}
-
-function search_lobsters_ddg(needle: string) {
-  fetch(
-    "https://html.duckduckgo.com/html/?q=site:lobste.rs/s/%20" +
-      encodeURIComponent(needle)
-  ).then((x) => {
-    if (x.ok) {
-      x.text().then(async (val) => {
-        let searchfield = document.querySelector<HTMLInputElement>(
-          "#searchfield"
-        )
-        if (searchfield.value != needle) {
-          //search changed bail
-          return
-        }
-
-        //TODO: think about it
-      })
-    }
-  })
 }

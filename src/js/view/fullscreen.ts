@@ -1,4 +1,4 @@
-import { ipcRenderer, WebContents, BrowserWindow, BrowserView } from "electron"
+import { ipcRenderer, WebContents, BrowserWindow } from "electron"
 import { ipcMain } from "electron"
 
 export {
@@ -13,11 +13,11 @@ export {
   webview_key_catcher,
 }
 
-function main_listener() {
+function main_listener(): void {
   ipcMain.on("change_fullscreen", (event, value) => {
-    let win = BrowserWindow.getFocusedWindow()
+    const win = BrowserWindow.getFocusedWindow()
     if (win) {
-      let bw = win.getBrowserView()
+      const bw = win.getBrowserView()
       if (bw && !bw.isDestroyed()) {
         bw.webContents.send("fullscreen_changed", value)
       }
@@ -27,10 +27,10 @@ function main_listener() {
   })
 }
 
-function webview_key_catcher(webContents: WebContents) {
+function webview_key_catcher(webContents: WebContents): void {
   webContents.on("did-attach-webview", (event, guest_webContents) => {
     guest_webContents.on("before-input-event", (event, input) => {
-      let focused = BrowserWindow.getFocusedWindow()
+      const focused = BrowserWindow.getFocusedWindow()
 
       if (input.code == "F11") {
         console.log(
@@ -55,8 +55,8 @@ function webview_key_catcher(webContents: WebContents) {
   })
 }
 
-function render_listeners() {
-  let webview = document.querySelector("#webview")
+function render_listeners(): void {
+  const webview = document.querySelector("#webview")
   if (webview) {
     webview.addEventListener("enter-html-full-screen", enter)
     webview.addEventListener("leave-html-full-screen", leave)
@@ -68,7 +68,7 @@ function render_listeners() {
   window.addEventListener("keyup", key_handler)
 }
 
-function set(_: any, fullscreen_value: boolean) {
+function set(_: unknown, fullscreen_value: boolean): void {
   if (fullscreen_value) {
     entered()
   } else {
@@ -76,8 +76,8 @@ function set(_: any, fullscreen_value: boolean) {
   }
 }
 
-function key_handler(e: KeyboardEvent) {
-  let is_fullscreen = document.body.classList.contains("fullscreen")
+function key_handler(e: KeyboardEvent): boolean {
+  const is_fullscreen = document.body.classList.contains("fullscreen")
 
   if (e.key == "F11") {
     if (is_fullscreen) {
@@ -96,21 +96,21 @@ function key_handler(e: KeyboardEvent) {
   }
 }
 
-function enter() {
+function enter(): void {
   console.debug("fullscreen enter")
   document.body.classList.add("fullscreen")
   ipcRenderer.send("change_fullscreen", true)
   entered()
 }
 
-function entered() {
+function entered(): void {
   document.body.classList.add("fullscreen")
-  let right_panel = document.querySelector<HTMLElement>("#right_panel")
+  const right_panel = document.querySelector<HTMLElement>("#right_panel")
   if (right_panel) {
     right_panel.style.minWidth = "100%"
   }
 
-  let webview = document.querySelector<Electron.WebviewTag>("#webview")
+  const webview = document.querySelector<Electron.WebviewTag>("#webview")
   if (webview) {
     webview.executeJavaScript(
       `
@@ -127,21 +127,21 @@ function entered() {
   }
 }
 
-function leave() {
+function leave(): void {
   document.body.classList.remove("fullscreen")
   ipcRenderer.send("change_fullscreen", false)
 }
 
-function left() {
+function left(): void {
   console.debug("leave full")
 
   try {
     document.body.classList.remove("fullscreen")
-    let right_panel = document.querySelector<HTMLElement>("#right_panel")
+    const right_panel = document.querySelector<HTMLElement>("#right_panel")
     if (right_panel) {
       right_panel.style.minWidth = ""
     }
-    let webview = document.querySelector<Electron.WebviewTag>("webview")
+    const webview = document.querySelector<Electron.WebviewTag>("webview")
     if (webview) {
       webview
         .executeJavaScript(

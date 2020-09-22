@@ -25,7 +25,13 @@ export class Story {
   stored_star: boolean
   og_href: string;
 
-  [index: string]: string | number | Date | {}[] | boolean | unknown
+  [index: string]:
+    | string
+    | number
+    | Date
+    | Record<string, unknown>[]
+    | boolean
+    | unknown
 
   constructor(
     type?: string,
@@ -52,9 +58,9 @@ export class Story {
     this.filter = filter
   }
 
-  static from_obj(story: any) {
-    let xstory = new Story()
-    for (let i in story) {
+  static from_obj(story: Record<string, unknown>): Story {
+    const xstory = new Story()
+    for (const i in story) {
       xstory[i] = story[i]
     }
     if (!xstory.sources || xstory.sources.length == 0) {
@@ -69,10 +75,10 @@ export class Story {
     return xstory
   }
 
-  to_obj() {
-    let cloned = JSON.parse(JSON.stringify(this))
+  to_obj(): Record<string, unknown> {
+    const cloned = JSON.parse(JSON.stringify(this))
 
-    for (let i in this) {
+    for (const i in this) {
       try {
         cloned[i] = onChange.target(this[i])
       } catch (e) {
@@ -83,7 +89,7 @@ export class Story {
     return cloned
   }
 
-  remove_from_readlist() {
+  remove_from_readlist(): void {
     OnceSettings.instance.get_readlist().then((readlist) => {
       const index = readlist.indexOf(this.href)
       if (index > -1) {
@@ -93,22 +99,22 @@ export class Story {
     })
   }
 
-  add_to_readlist() {
+  add_to_readlist(): void {
     OnceSettings.instance.get_readlist().then((readlist) => {
-      let target_href = onChange.target(this).href
+      const target_href = onChange.target(this).href
       if (!readlist.includes(target_href)) {
         readlist.push(target_href)
         readlist = readlist.filter(
-          (href: string, i: number, a: any[]) => a.indexOf(href) === i
+          (href: string, i: number, a: string[]) => a.indexOf(href) === i
         )
         OnceSettings.instance.save_readlist(readlist, console.log)
       }
     })
   }
 
-  clone() {
-    let cloned = new Story()
-    for (let i in this) {
+  clone(): Story {
+    const cloned = new Story()
+    for (const i in this) {
       try {
         cloned[i] = onChange.target(this)[i]
       } catch (e) {
@@ -119,56 +125,37 @@ export class Story {
     return cloned
   }
 
-  add_to_starlist() {
+  add_to_starlist(): void {
     OnceSettings.instance.get_starlist().then((starlist) => {
       starlist[this.href] = onChange.target(this)
       OnceSettings.instance.save_starlist(starlist, console.log)
     })
   }
 
-  remove_from_starlist() {
+  remove_from_starlist(): void {
     OnceSettings.instance.get_starlist().then((starlist) => {
-      if (starlist.hasOwnProperty(this.href)) {
+      if (Object.prototype.hasOwnProperty.call(starlist, this.href)) {
         delete starlist[this.href]
         OnceSettings.instance.save_starlist(starlist, console.log)
       }
     })
   }
 
-  has_or_get(story_el: HTMLElement, prop: string, func: Function) {
-    if (this.hasOwnProperty(prop)) {
-      if (this[prop]) {
-        story_el.classList.add(prop)
-      }
-      func(story_el, this)
-    } else {
-      if (typeof this["is_" + prop] == "function") {
-        // @ts-ignore
-        this["is_" + prop]().then((x: any) => {
-          if (x) {
-            story_el.classList.add(prop)
-          }
-          func(story_el, this)
-        })
-      }
-    }
-  }
-
-  async update_read() {
+  async update_read(): Promise<boolean> {
     const readlist = await OnceSettings.instance.get_readlist()
     this.read = readlist.includes(this.href)
 
     return this.read
   }
 
-  async update_stared() {
+  async update_stared(): Promise<boolean> {
     const starlist = await OnceSettings.instance.get_starlist()
-    this.stared = starlist.hasOwnProperty(this.href)
+    this.stared = Object.prototype.hasOwnProperty.call(starlist, this.href)
 
     return this.stared
   }
 
-  static compare(a: SortableStory, b: SortableStory) {
+  static compare(a: SortableStory, b: SortableStory): 1 | 0 | -1 {
     //sort by read first and then timestamp
     if (a.read && !b.read) {
       return 1

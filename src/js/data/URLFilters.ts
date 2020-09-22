@@ -4,15 +4,15 @@ export interface URLFilter {
   (href: string): string
 }
 
-let dynamic_url_filters: Record<string, URLFilter> = {
+const dynamic_url_filters: Record<string, URLFilter> = {
   "twitter.com": twitnit,
   "www.reddit.com": old_reddit,
   "youtube.com": youtube_nocookie,
   "youtu.be": youtube_nocookie,
 }
 
-function filter_url(url: string) {
-  for (let pattern in dynamic_url_filters) {
+function filter_url(url: string): string {
+  for (const pattern in dynamic_url_filters) {
     if (url.includes(pattern)) {
       url = dynamic_url_filters[pattern](url)
     }
@@ -20,9 +20,9 @@ function filter_url(url: string) {
   return url
 }
 
-function twitnit(href: string) {
+function twitnit(href: string): string {
   try {
-    let url = new URL(href)
+    const url = new URL(href)
     if (url.hostname == "twitter.com" || url.hostname == "mobile.twitter.com") {
       url.hostname = "nitter.net"
       href = url.toString()
@@ -33,9 +33,9 @@ function twitnit(href: string) {
   return href
 }
 
-function old_reddit(href: string) {
+function old_reddit(href: string): string {
   try {
-    let url = new URL(href)
+    const url = new URL(href)
     if (url.hostname == "www.reddit.com") {
       url.hostname = "old.reddit.com"
       href = url.toString()
@@ -46,7 +46,7 @@ function old_reddit(href: string) {
   return href
 }
 
-function youtube_nocookie(href: string) {
+function youtube_nocookie(href: string): string {
   href = href.replace(
     "www.youtube.com/watch?v=",
     "www.youtube-nocookie.com/embed/"

@@ -43,18 +43,15 @@ export {
 //check for more uniq data url
 const data_outline_url = "data:text/html;charset=utf-8,<!--outline-->"
 const data_outline_url_fail = "data:text/plain;charset=utf-8,outline%20failed"
-const outline_api = "https://api.outline.com/v3/parse_article?source_url="
 
-function handles(url: string) {
+function handles(): boolean {
   //Handle non by default
   return false
 }
 
-function is_presenter_url(url: string) {
-  let will_present =
-    url.startsWith(data_outline_url) ||
-    url.startsWith(data_outline_url_fail) ||
-    url.startsWith(outline_api)
+function is_presenter_url(url: string): boolean {
+  const will_present =
+    url.startsWith(data_outline_url) || url.startsWith(data_outline_url_fail)
   if (will_present) {
     outline_button_active()
   } else {
@@ -64,25 +61,25 @@ function is_presenter_url(url: string) {
 }
 
 function outline_button_active() {
-  let button = document.querySelector("#outline_webview_btn")
+  const button = document.querySelector("#outline_webview_btn")
   if (button) {
     button.classList.add("active")
   }
 }
 
 function outline_button_inactive() {
-  let button = document.querySelector("#outline_webview_btn")
+  const button = document.querySelector("#outline_webview_btn")
   if (button) {
     button.classList.remove("active")
   }
 }
 
-function story_elem_button(story: Story, intab = false) {
+function story_elem_button(story: Story, intab = false): HTMLElement {
   if (!presenter_options.story_button.value) {
     return
   }
 
-  let outline_btn = StoryListItem.icon_button(
+  const outline_btn = StoryListItem.icon_button(
     "outline",
     "outline_btn",
     "imgs/article.svg"
@@ -120,8 +117,8 @@ function story_elem_button(story: Story, intab = false) {
   return outline_btn
 }
 
-function init_in_webtab() {
-  ipcRenderer.on("outline", (event, href) => {
+function init_in_webtab(): void {
+  ipcRenderer.on("outline", (_event, href) => {
     outline_button_active()
     outline(href)
   })
@@ -130,14 +127,14 @@ function init_in_webtab() {
     return
   }
 
-  let controlbar = document.querySelector("#controlbar")
+  const controlbar = document.querySelector("#controlbar")
   if (controlbar) {
     controlbar.insertBefore(urlbar_button(), controlbar.firstChild)
   }
 }
 
-function urlbar_button() {
-  let button = StoryListItem.icon_button(
+function urlbar_button(): HTMLElement {
+  const button = StoryListItem.icon_button(
     "outline",
     "outline_btn",
     "imgs/article.svg"
@@ -148,8 +145,8 @@ function urlbar_button() {
   button.style.marginRight = "3px"
 
   button.onclick = () => {
-    let webview = document.querySelector<Electron.WebviewTag>("#webview")
-    let urlfield = document.querySelector<HTMLInputElement>("#urlfield")
+    const webview = document.querySelector<Electron.WebviewTag>("#webview")
+    const urlfield = document.querySelector<HTMLInputElement>("#urlfield")
     if (!webview || !urlfield) {
       console.error(
         "outline failed to find webview and urlfield",
@@ -171,18 +168,10 @@ function urlbar_button() {
   return button
 }
 
-function display_url(url: string) {
+function display_url(url: string): string {
   outline_button_inactive()
 
-  if (url.startsWith(outline_api)) {
-    let webview = document.querySelector<Electron.WebviewTag>("#webview")
-    if (webview) {
-      webview.executeJavaScript("(" + outline_jshook.toString() + ")()")
-    } else {
-      console.error("outline failed to find webview")
-    }
-    outline_button_active()
-  } else if (
+  if (
     url.startsWith(data_outline_url) ||
     url.startsWith(data_outline_url_fail)
   ) {
@@ -193,24 +182,24 @@ function display_url(url: string) {
   }
 }
 
-async function present(url: string) {
+async function present(url: string): Promise<void> {
   outline(url)
 }
 
-async function outline(url: string) {
-  let webview = document.querySelector<Electron.WebviewTag>("#webview")
+async function outline(url: string): Promise<void> {
+  const webview = document.querySelector<Electron.WebviewTag>("#webview")
   if (!webview) {
     fail_outline("failed to find webview")
     return
   }
 
-  let urlfield = document.querySelector<HTMLInputElement>("#urlfield")
+  const urlfield = document.querySelector<HTMLInputElement>("#urlfield")
   if (urlfield == undefined) {
     TabWrangler.ops.send_or_create_tab("outline", url)
     return
   }
   urlfield.value = url
-  let og_url = url
+  const og_url = url
   let story_content = null
 
   let content_resp
@@ -232,7 +221,7 @@ async function outline(url: string) {
     return
   } else {
     url = content_resp.url
-    let content_type = content_resp.headers.get("content-type")
+    const content_type = content_resp.headers.get("content-type")
     if (!content_type.startsWith("text/html")) {
       fail_outline("can not handle content type" + content_resp)
       return
@@ -240,10 +229,10 @@ async function outline(url: string) {
     story_content = await content_resp.text()
   }
 
-  let dom_parser = new DOMParser()
-  let doc = dom_parser.parseFromString(story_content, "text/html")
+  const dom_parser = new DOMParser()
+  const doc = dom_parser.parseFromString(story_content, "text/html")
 
-  let base = document.createElement("base")
+  const base = document.createElement("base")
   base.setAttribute("href", url)
 
   if (
@@ -267,7 +256,7 @@ async function outline(url: string) {
     }
   })
 
-  var article = new Readability(doc, {}).parse()
+  const article = new Readability(doc, {}).parse()
   if (!article) {
     fail_outline("Readability didn't find anything")
     return
@@ -279,11 +268,11 @@ async function outline(url: string) {
     article.content = "Readability fail"
   }
 
-  let h1_title = document.createElement("h1")
+  const h1_title = document.createElement("h1")
   h1_title.innerText = article.title
   h1_title.classList.add("outlined")
 
-  let title = document.createElement("title")
+  const title = document.createElement("title")
   title.innerText = article.title
 
   webview
@@ -302,7 +291,7 @@ async function outline(url: string) {
 }
 
 function fail_outline(reason: string) {
-  let webview = document.querySelector<Electron.WebviewTag>("#webview")
+  const webview = document.querySelector<Electron.WebviewTag>("#webview")
   webview
     .loadURL(
       data_outline_url_fail +
@@ -316,56 +305,25 @@ function fail_outline(reason: string) {
 }
 
 async function archive_cache(url: string) {
-  let f = await fetch("https://archive.org/wayback/available?url=" + url)
-  let resp = await f.json()
+  const f = await fetch("https://archive.org/wayback/available?url=" + url)
+  const resp = await f.json()
   if (
-    resp.hasOwnProperty("archived_snapshots") &&
-    resp.archived_snapshots.hasOwnProperty("closest") &&
+    Object.prototype.hasOwnProperty.call(resp, "archived_snapshots") &&
+    Object.prototype.hasOwnProperty.call(resp, "closest") &&
     resp.archived_snapshots.closest.available
   ) {
-    let arch_url = new URL(resp.archived_snapshots.closest.url)
+    const arch_url = new URL(resp.archived_snapshots.closest.url)
     arch_url.protocol = "https:"
     url = arch_url.toString()
 
-    let f2 = await fetch(url)
+    const f2 = await fetch(url)
     return f2
   }
 }
 
 async function google_cache(url: string) {
-  let f = await fetch(
+  const f = await fetch(
     "https://webcache.googleusercontent.com/search?q=cache:" + url
   )
   return f
-}
-
-function outline_fallback(url: string) {
-  let webview = document.querySelector<Electron.WebviewTag>("#webview")
-  let urlfield = document.querySelector<HTMLInputElement>("#urlfield")
-  if (!webview || !urlfield) {
-    console.error(
-      "outline failed to find webview or urlfield",
-      webview,
-      urlfield
-    )
-    return
-  }
-
-  urlfield.value = url
-  let options = {
-    httpReferrer: "https://outline.com/",
-    userAgent:
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.125 Safari/537.36",
-  }
-  webview.loadURL(outline_api + escape(url), options).catch((e) => {
-    console.error("webview.loadURL error", e)
-  })
-}
-
-function outline_jshook() {
-  let data = JSON.parse(document.body.innerText).data
-  let title = document.createElement("h1")
-  title.innerText = data.title
-  document.body.innerHTML = title.outerHTML
-  document.body.innerHTML += data.html
 }

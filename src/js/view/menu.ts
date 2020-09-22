@@ -1,27 +1,30 @@
-import { target } from "on-change"
 import * as search from "../data/search"
 import * as seperation_slider from "../view/sep_slider"
 
 export { add_tag, open_panel, init }
 
-function open_panel(panel: string) {
+function open_panel(panel: string): void {
   seperation_slider.expand_left()
-  let left_panel = document.querySelector<HTMLElement>("#left_panel")
+  const left_panel = document.querySelector<HTMLElement>("#left_panel")
   left_panel.setAttribute("active_panel", panel)
 }
 
 function highlight_panel(panel: string) {
-  let target_panel = document.querySelector<HTMLElement>("#" + panel + "_panel")
+  const target_panel = document.querySelector<HTMLElement>(
+    "#" + panel + "_panel"
+  )
   target_panel.classList.add("pseudo_active")
 }
 function delight_panel(panel: string) {
-  let target_panel = document.querySelector<HTMLElement>("#" + panel + "_panel")
+  const target_panel = document.querySelector<HTMLElement>(
+    "#" + panel + "_panel"
+  )
   target_panel.classList.remove("pseudo_active")
 }
 
-function add_tag(type: string, colors: [string, string]) {
+function add_tag(type: string, colors: [string, string]): void {
   if (!document.querySelector('#menu div[data-type="' + type + '"]')) {
-    let tag = document.createElement("div")
+    const tag = document.createElement("div")
     tag.dataset.type = type
     tag.classList.add("btn")
     tag.classList.add("menu_btn")
@@ -34,7 +37,7 @@ function add_tag(type: string, colors: [string, string]) {
 
     if (colors && colors[0] != "") {
       //inject css for story tags
-      var style = document.createElement("style")
+      const style = document.createElement("style")
       style.classList.add("tag_style")
       style.type = "text/css"
       style.innerHTML = `
@@ -47,14 +50,16 @@ function add_tag(type: string, colors: [string, string]) {
       document.head.append(style)
     }
 
-    tag.onclick = (x) => {
+    tag.onclick = () => {
       open_panel("stories")
-      let search_scope = document.querySelector<HTMLInputElement>(
+      const search_scope = document.querySelector<HTMLInputElement>(
         "#search_scope"
       )
       search_scope.value = "local"
 
-      let searchfield = document.querySelector<HTMLInputElement>("#searchfield")
+      const searchfield = document.querySelector<HTMLInputElement>(
+        "#searchfield"
+      )
       searchfield.value = "[" + type + "]"
       search.search_stories("[" + type + "]")
     }
@@ -64,20 +69,20 @@ function add_tag(type: string, colors: [string, string]) {
 }
 
 function active_flash_panel(btn: HTMLElement) {
-  btn.onmousedown = (e) => {
+  btn.onmousedown = () => {
     highlight_panel(btn.dataset.panel)
   }
-  btn.onmouseup = (e) => {
+  btn.onmouseup = () => {
     delight_panel(btn.dataset.panel)
   }
-  btn.onmouseout = (e) => {
+  btn.onmouseout = () => {
     delight_panel(btn.dataset.panel)
   }
 }
 
-function init() {
+function init(): void {
   document.querySelectorAll<HTMLElement>("#menu .sub").forEach((sub_menu) => {
-    sub_menu.onclick = (e) => {
+    sub_menu.onclick = () => {
       open_panel(sub_menu.dataset.panel)
     }
     sub_menu.querySelectorAll("img").forEach((x) => {

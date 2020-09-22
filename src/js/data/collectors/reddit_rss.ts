@@ -17,18 +17,18 @@ import { Story } from "../../data/Story"
 
 export { parse, options }
 
-function parse(doc: Document) {
+function parse(doc: Document): Story[] {
   //Parse as RSS and not HTML ...
-  let stories = doc.querySelectorAll("entry")
+  const stories = doc.querySelectorAll("entry")
 
   return Array.from(stories).map((story) => {
-    let dom_parser = new DOMParser()
-    let content = dom_parser.parseFromString(
+    const dom_parser = new DOMParser()
+    const content = dom_parser.parseFromString(
       story.querySelector<HTMLElement>("content").innerText,
       "text/html"
     )
 
-    let timestamp = Date.parse(
+    const timestamp = Date.parse(
       story.querySelector<HTMLElement>("updated").innerText
     )
 

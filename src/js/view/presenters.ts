@@ -4,9 +4,16 @@ import { Story } from "../data/Story"
 
 export { get_active, modify_url, add_story_elem_buttons, init_in_webtab }
 
-function get_active() {
+export declare interface Presenter {
+  is_presenter_url: (url: string) => boolean
+  display_url: (url: string) => string
+  story_elem_button?: (story: Story, intab: boolean) => HTMLElement
+  [key: string]: (...args: unknown[]) => unknown
+}
+
+function get_active(): Presenter[] {
   //TODO: determine if active from settings
-  var normalizedPath = path.join(__dirname, "presenters")
+  const normalizedPath = path.join(__dirname, "presenters")
 
   return fs
     .readdirSync(normalizedPath)
@@ -21,8 +28,8 @@ function get_active() {
     })
 }
 
-function modify_url(url: string) {
-  for (let presenter of get_active()) {
+function modify_url(url: string): string {
+  for (const presenter of get_active()) {
     if (presenter.is_presenter_url(url)) {
       return presenter.display_url(url)
     }
@@ -33,11 +40,11 @@ function modify_url(url: string) {
 function add_story_elem_buttons(
   story_el: HTMLElement,
   story: Story,
-  intab: boolean = false
-) {
+  intab = false
+): void {
   get_active().forEach((presenter) => {
-    if (presenter.hasOwnProperty("story_elem_button")) {
-      let button = presenter["story_elem_button"](story, intab)
+    if (Object.prototype.hasOwnProperty.call(presenter, "story_elem_button")) {
+      const button = presenter["story_elem_button"](story, intab)
       story_el.appendChild(button)
     }
   })
@@ -55,9 +62,9 @@ function add_urlbar_buttons(elem, story, inmain = true) {
 }
 */
 
-function init_in_webtab() {
+function init_in_webtab(): void {
   get_active().forEach((presenter) => {
-    if (presenter.hasOwnProperty("init_in_webtab")) {
+    if (Object.prototype.hasOwnProperty.call(presenter, "init_in_webtab")) {
       presenter["init_in_webtab"]()
     }
   })

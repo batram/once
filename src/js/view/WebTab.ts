@@ -88,7 +88,7 @@ export class WebTab {
       "push_tab_data_change",
       (ipc_event, change_event: DataChangeEvent) => {
         console.debug("push_tab_data_change", ipc_event, change_event)
-        let selected = story_list.get_by_href(change_event.detail.story.href)
+        const selected = story_list.get_by_href(change_event.detail.story.href)
         if (selected) {
           selected.dispatchEvent(
             new DataChangeEvent("data_change", change_event.detail)
@@ -150,7 +150,7 @@ export class WebTab {
         if (this.is_attached()) {
           this.send_to_parent("tab_url_changed", url)
         } else {
-          let selected = story_list.get_by_href(url)
+          const selected = story_list.get_by_href(url)
           if (!selected) {
             this.update_selected(null, null)
           }
@@ -162,13 +162,15 @@ export class WebTab {
 
     this.webview.addEventListener("did-navigate-in-page", console.debug)
 
-    let reload_tab_btn = document.querySelector<HTMLElement>("#reload_tab_btn")
-    reload_tab_btn.onclick = (x) => {
+    const reload_tab_btn = document.querySelector<HTMLElement>(
+      "#reload_tab_btn"
+    )
+    reload_tab_btn.onclick = () => {
       this.webview.reload()
     }
 
-    let close_tab_btn = document.querySelector<HTMLElement>("#close_tab_btn")
-    close_tab_btn.onclick = (x) => {
+    const close_tab_btn = document.querySelector<HTMLElement>("#close_tab_btn")
+    close_tab_btn.onclick = () => {
       this.webview.loadURL("about:blank")
       this.send_to_parent("update_tab_info", "about:blank", "about:blank")
       this.send_to_parent("detaching")
@@ -176,17 +178,17 @@ export class WebTab {
       ipcRenderer.send("end_me")
     }
 
-    let pop_out_btn = document.querySelector<HTMLElement>("#pop_out_btn")
-    pop_out_btn.onauxclick = (x) => {
+    const pop_out_btn = document.querySelector<HTMLElement>("#pop_out_btn")
+    pop_out_btn.onauxclick = () => {
       this.pop_no_tabs()
     }
 
-    pop_out_btn.onclick = (x) => {
+    pop_out_btn.onclick = () => {
       this.pop_new_main()
     }
   }
 
-  send_update_tab_info(e?: any) {
+  send_update_tab_info(): void {
     if (this.webview_ready) {
       this.send_to_parent(
         "update_tab_info",
@@ -196,18 +198,18 @@ export class WebTab {
     }
   }
 
-  pop_no_tabs() {
+  pop_no_tabs(): void {
     ipcRenderer.send("tab_me_out", { type: "notabs" })
   }
 
-  pop_new_main(offset: [] | null = null) {
+  pop_new_main(offset: [] | null = null): void {
     offset = JSON.parse(JSON.stringify(offset))
     ipcRenderer.send("tab_me_out", { type: "main", offset: offset })
   }
 
-  handle_urlbar() {
+  handle_urlbar(): void {
     if (this.urlfield) {
-      this.urlfield.addEventListener("focus", (e) => {
+      this.urlfield.addEventListener("focus", () => {
         this.urlfield.select()
       })
 
@@ -222,16 +224,16 @@ export class WebTab {
     }
   }
 
-  is_attached() {
-    return this.tab_state == "attached" && this.parent_id
+  is_attached(): boolean {
+    return this.tab_state == "attached" && this.parent_id != null
   }
 
   //object | Story
-  update_selected(story: Story, colors?: string) {
-    let selected_container = document.querySelector("#selected_container")
+  update_selected(story: Story, colors?: string): void {
+    const selected_container = document.querySelector("#selected_container")
 
     if (colors != undefined) {
-      let style =
+      const style =
         document.querySelector<HTMLStyleElement>(".tag_style") ||
         document.createElement("style")
       style.classList.add("tag_style")
@@ -245,16 +247,16 @@ export class WebTab {
       return
     }
 
-    let story_el = new StoryListItem(story)
+    const story_el = new StoryListItem(story)
     story_el.classList.add("selected")
     selected_container.append(story_el)
   }
 
-  send_to_parent(channel: string, ...args: any) {
+  send_to_parent(channel: string, ...args: string[]): void {
     ipcRenderer.sendTo(this.parent_id, channel, ...args)
   }
 
-  inject_css() {
+  inject_css(): void {
     const css = `
   html {
     margin: 0;
@@ -335,7 +337,7 @@ export class WebTab {
     this.webview.insertCSS(css)
   }
 
-  open_in_webview(href: string) {
+  open_in_webview(href: string): void {
     if (this.webview && this.urlfield) {
       ipcRenderer.send("forward_to_parent", "tab_url_changed", href)
       this.webview

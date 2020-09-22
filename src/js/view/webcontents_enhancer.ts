@@ -1,11 +1,4 @@
-import {
-  app,
-  BrowserView,
-  BrowserWindow,
-  dialog,
-  ipcRenderer,
-  session,
-} from "electron"
+import { app, BrowserView, BrowserWindow, dialog, session } from "electron"
 import * as mouse_debugger_hook from "../view/debugger_hook"
 import * as contextmenu from "../view/contextmenu"
 import * as fullscreen from "../view/fullscreen"
@@ -13,7 +6,7 @@ import { NavigationHandler } from "./NavigationHandler"
 
 export { on_each }
 
-function on_each() {
+function on_each(): void {
   session.fromPartition("moep").setPreloads([global.paths.moep_session_preload])
 
   app.on("web-contents-created", function (event, webContents) {
@@ -29,7 +22,7 @@ function on_each() {
       console.log("will-prevent-unload")
       let win: BrowserWindow = BrowserWindow.fromWebContents(webContents)
       if (!win) {
-        let view = BrowserView.fromWebContents(webContents)
+        const view = BrowserView.fromWebContents(webContents)
         win = BrowserWindow.fromBrowserView(view)
       }
       const choice = dialog.showMessageBoxSync(win, {

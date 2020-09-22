@@ -1,6 +1,6 @@
 export { init_slider, collapse_left, expand_left }
 
-function init_slider() {
+function init_slider(): void {
   reset_position()
 
   document.querySelectorAll<HTMLElement>(".collapse").forEach((x) => {
@@ -9,19 +9,19 @@ function init_slider() {
   //resize on border
   function resize(event: MouseEvent) {
     event.preventDefault()
-    let percent = ((window.innerWidth - event.x) / window.innerWidth) * 100
+    const percent = ((window.innerWidth - event.x) / window.innerWidth) * 100
 
-    let left_panel = document.querySelector<HTMLElement>("#left_panel")
+    const left_panel = document.querySelector<HTMLElement>("#left_panel")
 
     left_panel.style.width = 100 - percent + "%"
-    let right_panel = document.querySelector<HTMLElement>("#right_panel")
+    const right_panel = document.querySelector<HTMLElement>("#right_panel")
     if (right_panel) {
       right_panel.style.width = percent + "%"
     }
     save_slider_percent(percent)
   }
 
-  let sep_slider = document.querySelector("#sep_slider")
+  const sep_slider = document.querySelector("#sep_slider")
 
   sep_slider.addEventListener("mousedown", (e) => {
     e.preventDefault()
@@ -38,33 +38,33 @@ function init_slider() {
 }
 
 function reset_position() {
-  let percent: number = get_slider_percent()
-  let left_panel = document.querySelector<HTMLElement>("#left_panel")
+  const percent: number = get_slider_percent()
+  const left_panel = document.querySelector<HTMLElement>("#left_panel")
   left_panel.style.width = 100 - percent + "%"
-  let right_panel = document.querySelector<HTMLElement>("#right_panel")
+  const right_panel = document.querySelector<HTMLElement>("#right_panel")
   if (right_panel) {
     right_panel.style.width = percent + "%"
   }
 }
 
-function collapse_left() {
-  let right_panel = document.querySelector<HTMLElement>("#right_panel")
+function collapse_left(): void {
+  const right_panel = document.querySelector<HTMLElement>("#right_panel")
   right_panel.style.width = "100%"
 
-  let menu = document.querySelector<HTMLElement>("#menu")
+  const menu = document.querySelector<HTMLElement>("#menu")
   menu.classList.add("collapse")
-  let left_panel = document.querySelector<HTMLElement>("#left_panel")
+  const left_panel = document.querySelector<HTMLElement>("#left_panel")
   left_panel.style.width = "0%"
   left_panel.style.minWidth = "28px"
 }
 
-function expand_left() {
-  let right_panel = document.querySelector<HTMLElement>("#right_panel")
+function expand_left(): void {
+  const right_panel = document.querySelector<HTMLElement>("#right_panel")
   right_panel.style.width = ""
 
-  let menu = document.querySelector("#menu")
+  const menu = document.querySelector("#menu")
   menu.classList.remove("collapse")
-  let left_panel = document.querySelector<HTMLElement>("#left_panel")
+  const left_panel = document.querySelector<HTMLElement>("#left_panel")
   left_panel.style.width = ""
   left_panel.style.minWidth = ""
   reset_position()

@@ -8,19 +8,19 @@ import * as side_menu from "./menu"
 import * as seperation_slider from "./sep_slider"
 import * as story_loader from "../data/StoryLoader"
 
-document.addEventListener("DOMContentLoaded", async (_e) => {
+document.addEventListener("DOMContentLoaded", async () => {
   new StoryMap()
   story_list.init()
   side_menu.init()
   fullscreen.render_listeners()
-  let once_settings = new OnceSettings()
+  const once_settings = new OnceSettings()
   search.init_search()
   seperation_slider.init_slider()
 
-  let tab_content = document.querySelector<HTMLElement>("#tab_content")
-  let tab_dropzone = document.querySelector<HTMLElement>("#tab_dropzone")
+  const tab_content = document.querySelector<HTMLElement>("#tab_content")
+  const tab_dropzone = document.querySelector<HTMLElement>("#tab_dropzone")
   if (tab_content && tab_dropzone) {
-    let tab_wrangler = new TabWrangler(tab_dropzone, tab_content, {
+    const tab_wrangler = new TabWrangler(tab_dropzone, tab_content, {
       addtab_button: true,
     })
     if (tab_wrangler.grab_attached_or_new()) {
@@ -29,8 +29,8 @@ document.addEventListener("DOMContentLoaded", async (_e) => {
   }
   console.log("LDEV", process.env.LDEV == "1")
 
-  let dev_cache = process.env.LDEV == "1"
-  let sources = await once_settings.story_sources()
+  const dev_cache = process.env.LDEV == "1"
+  const sources = await once_settings.story_sources()
 
   story_loader.parallel_load_stories(sources, dev_cache)
 })

@@ -8,9 +8,24 @@ export {
   domain_search_providers,
 }
 
-function get_active() {
+export declare interface StoryParser {
+  options: {
+    tag: string
+    desription: string
+    pattern: string
+    collects: "dom" | "json"
+    colors: [string, string]
+    settings?: Record<string, unknown>
+  }
+
+  parse: (input: Document | Record<string, unknown>) => Story[]
+  global_search: (needle: string) => Promise<Story[]>
+  domain_search: (needle: string) => Promise<Story[]>
+}
+
+function get_active(): StoryParser[] {
   //TODO: determine if active from settings
-  var normalizedPath = path.join(__dirname, "collectors")
+  const normalizedPath = path.join(__dirname, "collectors")
 
   return fs
     .readdirSync(normalizedPath)
@@ -25,28 +40,20 @@ function get_active() {
     })
 }
 
-function get_parser() {
-  return get_active().filter((x: string) => {
-    return x.hasOwnProperty("parse")
+function get_parser(): StoryParser[] {
+  return get_active().filter((parser: StoryParser) => {
+    return Object.prototype.hasOwnProperty.call(parser, "parse")
   })
 }
 
-export declare interface GlobalSearchProvider {
-  global_search: (needle: string) => Promise<Story[]>
-}
-
-function global_search_providers(): GlobalSearchProvider[] {
-  return get_active().filter((x: string) => {
-    return x.hasOwnProperty("global_search")
+function global_search_providers(): StoryParser[] {
+  return get_active().filter((parser: StoryParser) => {
+    return Object.prototype.hasOwnProperty.call(parser, "global_search")
   })
 }
 
-export declare interface DomainSearchProvider {
-  domain_search: (needle: string) => Promise<Story[]>
-}
-
-function domain_search_providers(): DomainSearchProvider[] {
-  return get_active().filter((x: string) => {
-    return x.hasOwnProperty("domain_search")
+function domain_search_providers(): StoryParser[] {
+  return get_active().filter((parser: StoryParser) => {
+    return Object.prototype.hasOwnProperty.call(parser, "domain_search")
   })
 }

@@ -11,21 +11,21 @@ export {
   show_filter,
 }
 
-function add_filter(filter: string) {
+function add_filter(filter: string): void {
   OnceSettings.instance.get_filterlist().then((filter_list: string[]) => {
     filter_list.push(filter)
     OnceSettings.instance.save_filterlist(filter_list)
   })
 }
 
-async function filter_stories(stories: Story[]) {
+async function filter_stories(stories: Story[]): Promise<Story[]> {
   const filter_list = await OnceSettings.instance.get_filterlist()
   return stories.map((story) => {
     return filter_run(filter_list, story)
   })
 }
 
-async function filter_story(story: Story) {
+async function filter_story(story: Story): Promise<Story> {
   return OnceSettings.instance
     .get_filterlist()
     .then((filter_list: string[]) => {
@@ -38,7 +38,7 @@ function filter_run(filter_list: string[], story: Story) {
     story.og_href = story.href
   }
 
-  for (let pattern in filter_list) {
+  for (const pattern in filter_list) {
     if (
       story.href.includes(filter_list[pattern]) ||
       story.title
@@ -63,8 +63,8 @@ function show_filter_dialog(
   event: MouseEvent,
   filter_btn: HTMLElement,
   story: Story,
-  callback: (filter: string) => any
-) {
+  callback: (filter: string) => unknown
+): void {
   event.stopPropagation()
   event.preventDefault()
 
@@ -81,7 +81,7 @@ function show_filter_dialog(
 
   if (inp) {
     if (event.target != inp) {
-      confirm_add_story(inp, filter_btn, callback)
+      confirm_add_story(inp, callback)
     }
     return
   }
@@ -107,37 +107,36 @@ function show_filter_dialog(
       inp.innerText = "filter"
     } else if (e.keyCode === 13) {
       //ENTER
-      confirm_add_story(inp, filter_btn, callback)
+      confirm_add_story(inp, callback)
     }
   })
 }
 
 function confirm_add_story(
   inp: HTMLInputElement,
-  filter_btn: HTMLElement,
-  callback: (filter: string) => any
+  callback: (filter: string) => unknown
 ) {
-  if (confirm('add filter: "' + inp.value + '"')) {
+  if (confirm(`add filter: "${inp.value}"`)) {
     callback(inp.value)
     inp.outerHTML = ""
   }
 }
 
-function show_filter(value: string) {
+function show_filter(value: string): void {
   if (value.startsWith(":: ")) {
     confirm("internal filter not changeable yet ...")
     return
   }
-  let filter_area = document.querySelector<HTMLInputElement>("#filter_area")
+  const filter_area = document.querySelector<HTMLInputElement>("#filter_area")
 
-  let start = filter_area.value.indexOf(value)
+  const start = filter_area.value.indexOf(value)
   if (start == -1) {
     confirm("Sorry I seem to have lost that fitler.")
     return
   }
 
   menu.open_panel("settings")
-  let end = start + value.length
+  const end = start + value.length
 
   filter_area.focus()
 

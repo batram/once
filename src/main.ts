@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-var-requires */
 import {
   app,
   BrowserWindow,
@@ -30,45 +31,33 @@ if (process.env.LDEV == "1") {
   require("electron-reload")(path.join(__dirname))
 }
 
-global.paths.icon_path = path.join(
-  __dirname,
-  "static",
-  "imgs",
-  "icons",
-  "mipmap-mdpi",
-  "ic_launcher.png"
-)
+global.paths = {
+  icon_path: path.join(
+    __dirname,
+    "static",
+    "imgs",
+    "icons",
+    "mipmap-mdpi",
+    "ic_launcher.png"
+  ),
+  moep_session_preload: path.join(
+    __dirname,
+    "js",
+    "view",
+    "moep_session_preload.js"
+  ),
 
-global.paths.moep_session_preload = path.join(
-  __dirname,
-  "js",
-  "view",
-  "moep_session_preload.js"
-)
+  main_window_html: path.join(__dirname, "static", "main_window.html"),
+  main_window_preload: path.join(
+    __dirname,
+    "js",
+    "view",
+    "main_window_preload.js"
+  ),
 
-global.paths.main_window_html = path.join(
-  __dirname,
-  "static",
-  "main_window.html"
-)
-global.paths.main_window_preload = path.join(
-  __dirname,
-  "js",
-  "view",
-  "main_window_preload.js"
-)
-
-global.global.paths.tab_view_html = path.join(
-  __dirname,
-  "static",
-  "webtab.html"
-)
-paths.tab_view_preload = path.join(
-  __dirname,
-  "js",
-  "view",
-  "tab_view_preload.js"
-)
+  tab_view_html: path.join(__dirname, "static", "webtab.html"),
+  tab_view_preload: path.join(__dirname, "js", "view", "tab_view_preload.js"),
+}
 
 function createWindow() {
   // Create the browser window.
@@ -100,7 +89,7 @@ function createWindow() {
 
   adblocker.ElectronBlocker.fromPrebuiltAdsAndTracking(
     require("cross-fetch")
-  ).then((blocker: any) => {
+  ).then((blocker: adblocker.ElectronBlocker) => {
     blocker.enableBlockingInSession(session.fromPartition("moep"))
   })
 
@@ -108,7 +97,7 @@ function createWindow() {
     console.log("byebye")
     event.preventDefault()
     ipcMain.on("alive", (x) => {
-      let wc = webContents.fromId(x.sender.id)
+      const wc = webContents.fromId(x.sender.id)
 
       console.log("alive", wc.id, wc.isDestroyed())
     })
@@ -121,7 +110,7 @@ function createWindow() {
 
 app.on("window-all-closed", () => {
   console.log("here we are now all alone")
-  let allv = BrowserView.getAllViews()
+  const allv = BrowserView.getAllViews()
   allv.forEach((x) => {
     x.destroy()
   })

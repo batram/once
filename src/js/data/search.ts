@@ -1,4 +1,3 @@
-import * as menu from "../view/menu"
 import { Story } from "../data/Story"
 import * as story_list from "../view/StoryList"
 import * as stroy_loader from "../data/StoryLoader"
@@ -7,8 +6,8 @@ import * as collectors from "../data/collectors"
 
 export { init_search, search_stories }
 
-function init_search() {
-  let searchfield = document.querySelector<HTMLInputElement>("#searchfield")
+function init_search(): void {
+  const searchfield = document.querySelector<HTMLInputElement>("#searchfield")
 
   window.addEventListener("keyup", (e) => {
     //CTRL + F
@@ -17,12 +16,12 @@ function init_search() {
     }
   })
 
-  searchfield.addEventListener("input", (e) => {
+  searchfield.addEventListener("input", () => {
     search_stories(searchfield.value)
   })
 
-  let search_scope = document.querySelector<HTMLInputElement>("#search_scope")
-  search_scope.addEventListener("change", (e) => {
+  const search_scope = document.querySelector<HTMLInputElement>("#search_scope")
+  search_scope.addEventListener("change", () => {
     if (searchfield.value != "") {
       search_stories(searchfield.value)
     }
@@ -39,23 +38,23 @@ function init_search() {
     }
   })
 
-  let cancel_search_btn = document.querySelector<HTMLElement>(
+  const cancel_search_btn = document.querySelector<HTMLElement>(
     "#cancel_search_btn"
   )
-  cancel_search_btn.onclick = (x) => {
+  cancel_search_btn.onclick = () => {
     searchfield.value = ""
     search_stories("")
   }
 }
 
-let specialk: Record<string, Function> = {
+const specialk: Record<string, () => void> = {
   "[ALL]": () => {
-    let searchfield = document.querySelector<HTMLInputElement>("#searchfield")
+    const searchfield = document.querySelector<HTMLInputElement>("#searchfield")
     searchfield.value = ""
     search_stories("")
   },
   "[filtered]": () => {
-    let story_container = document.querySelector<HTMLElement>("#stories")
+    const story_container = document.querySelector<HTMLElement>("#stories")
     story_container.classList.add("show_filtered")
     document.querySelectorAll(".story").forEach((x) => {
       x.classList.remove("nomatch")
@@ -83,18 +82,18 @@ let specialk: Record<string, Function> = {
 }
 
 //TODO: load from plugin files, or in case of domain search attach a special optional function to collectors
-let extra_search_providers: Record<
+const extra_search_providers: Record<
   string,
   { type: "global" | "local"; func: (needle: string) => void }
 > = {
   domain: {
     type: "global",
     func: async (needle: string) => {
-      let search_scope = document.querySelector<HTMLInputElement>(
+      const search_scope = document.querySelector<HTMLInputElement>(
         "#search_scope"
       )
       search_scope.value = "global"
-      let domain_search_providers = collectors.domain_search_providers()
+      const domain_search_providers = collectors.domain_search_providers()
       domain_search_providers.forEach((dsp) => {
         dsp.domain_search(needle).then((res: Story[]) => {
           add_global_search_results(res)
@@ -104,17 +103,17 @@ let extra_search_providers: Record<
   },
 }
 
-async function search_stories(needle: string) {
-  let searchfield = document.querySelector<HTMLInputElement>("#searchfield")
+async function search_stories(needle: string): Promise<void> {
+  const searchfield = document.querySelector<HTMLInputElement>("#searchfield")
   searchfield.value = needle
-  let story_container = document.querySelector<HTMLElement>("#stories")
-  let global_search_results = document.querySelector<HTMLElement>(
+  const story_container = document.querySelector<HTMLElement>("#stories")
+  const global_search_results = document.querySelector<HTMLElement>(
     "#global_search_results"
   )
-  let cancel_search_btn = document.querySelector<HTMLElement>(
+  const cancel_search_btn = document.querySelector<HTMLElement>(
     "#cancel_search_btn"
   )
-  let search_scope = document.querySelector<HTMLInputElement>("#search_scope")
+  const search_scope = document.querySelector<HTMLInputElement>("#search_scope")
 
   story_container.classList.remove("show_filtered")
   story_container.style.display = "flex"
@@ -128,17 +127,17 @@ async function search_stories(needle: string) {
     story_container.classList.remove("show_stored_star")
   }
 
-  if (specialk.hasOwnProperty(needle)) {
+  if (Object.prototype.hasOwnProperty.call(specialk, needle)) {
     specialk[needle]()
     return
   }
 
-  let split = needle.split(":")
+  const split = needle.split(":")
   if (split.length > 1) {
-    let proto = split.shift()
+    const proto = split.shift()
     needle = split.join(":")
     if (extra_search_providers[proto]) {
-      let search_provider = extra_search_providers[proto]
+      const search_provider = extra_search_providers[proto]
       if (search_provider.type == "global") {
         global_search_results.style.display = "flex"
         story_container.style.display = "none"
@@ -154,7 +153,7 @@ async function search_stories(needle: string) {
     global_search_results.style.display = "flex"
     story_container.style.display = "none"
     global_search_results.innerHTML = ""
-    let global_search_providers = collectors.global_search_providers()
+    const global_search_providers = collectors.global_search_providers()
     global_search_providers.forEach((gsp) => {
       gsp.global_search(needle).then((results: Story[]) => {
         add_global_search_results(results)
@@ -169,7 +168,7 @@ async function search_stories(needle: string) {
 
 async function local_search(needle: string) {
   document.querySelectorAll<StoryListItem>(".story").forEach((story_el) => {
-    let find_in = [
+    const find_in = [
       story_el.story.title,
       story_el.story.href,
       story_el.story.type,
@@ -181,7 +180,7 @@ async function local_search(needle: string) {
       find_in.push(source_info.comment_url)
     })
 
-    let found_index = find_in.findIndex(
+    const found_index = find_in.findIndex(
       (x) => x != undefined && x.toLowerCase().includes(needle.toLowerCase())
     )
 
@@ -196,7 +195,7 @@ async function local_search(needle: string) {
 }
 
 async function add_global_search_results(search_stories: Story[]) {
-  let estories = await stroy_loader.enhance_stories(search_stories, false)
+  const estories = await stroy_loader.enhance_stories(search_stories, false)
 
   estories.forEach((story: Story) => {
     story_list.add(story, "global_search_results")

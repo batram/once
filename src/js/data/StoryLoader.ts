@@ -10,7 +10,7 @@ export { load, parallel_load_stories, enhance_stories }
 
 function get_cached(url: string) {
   let cached = localStorage.getItem(url)
-  let max_mins = 5000
+  const max_mins = 5000
 
   try {
     cached = JSON.parse(cached)
@@ -20,7 +20,7 @@ function get_cached(url: string) {
     if (cached.length != 2) {
       throw "cached entry not length 2"
     }
-    let mins_old = (Date.now() - cached[0]) / (60 * 1000)
+    const mins_old = (Date.now() - cached[0]) / (60 * 1000)
     if (mins_old > max_mins) {
       throw "cached entry out of date " + mins_old
     } else {
@@ -34,31 +34,10 @@ function get_cached(url: string) {
   return cached[1]
 }
 
-function sort_raw_stories(raw_stories: any[]): Story[] {
-  if (raw_stories) {
-    return raw_stories.sort()
-  } else {
-    return []
-  }
-}
-
-async function collect_all_stories(urls: string[], try_cache: boolean = true) {
-  let donso = await Promise.all(
-    urls.map(async (url) => {
-      return cache_load(url, try_cache)
-    })
-  )
-
-  process_story_input(
-    donso
-      .filter((x) => {
-        return x != undefined
-      })
-      .flat()
-  )
-}
-
-async function parallel_load_stories(urls: string[], try_cache = true) {
+async function parallel_load_stories(
+  urls: string[],
+  try_cache = true
+): Promise<void> {
   urls.map(async (url) => {
     cache_load(url, try_cache).then(process_story_input)
   })
@@ -67,24 +46,24 @@ async function parallel_load_stories(urls: string[], try_cache = true) {
 async function process_story_input(stories: Story[]) {
   stories = await enhance_stories(stories)
 
-  let all_stories = sort_raw_stories(stories)
+  const all_stories = stories.sort()
   all_stories.forEach((story) => {
     StoryMap.instance.add(story)
   })
 
   //add all stored stared stories
-  let starlist = await OnceSettings.instance.get_starlist()
+  const starlist = await OnceSettings.instance.get_starlist()
   StoryMap.instance.add_stored_stars(starlist)
 
   story_list.sort_stories()
-  let searchfield = document.querySelector<HTMLInputElement>("#searchfield")
+  const searchfield = document.querySelector<HTMLInputElement>("#searchfield")
   if (searchfield.value != "") {
     search.search_stories(searchfield.value)
   }
 }
 
 //data loader
-async function cache_load(url: string, try_cache: boolean = true) {
+async function cache_load(url: string, try_cache = true) {
   let cached = null
   if (try_cache) {
     //TODO: do we need to store the type?
@@ -92,37 +71,35 @@ async function cache_load(url: string, try_cache: boolean = true) {
   }
 
   if (cached != null) {
-    let parser = story_parser.get_parser_for_url(url)
+    const parser = story_parser.get_parser_for_url(url)
     if (parser.options.collects == "dom") {
       cached = story_parser.parse_dom(cached, url)
     }
     return parser.parse(cached)
   } else {
-    let resp = await fetch(url)
+    const resp = await fetch(url)
     if (resp.ok) {
       return story_parser.parse_response(resp, url)
     }
   }
 }
 
-async function enhance_stories(stories: Story[], add: boolean = true) {
-  let filtered_stories = await story_filters.filter_stories(stories)
-  let readlist = await OnceSettings.instance.get_readlist()
-  let starlist = await OnceSettings.instance.get_starlist()
+async function enhance_stories(stories: Story[], add = true): Promise<Story[]> {
+  const filtered_stories = await story_filters.filter_stories(stories)
+  const readlist = await OnceSettings.instance.get_readlist()
+  const starlist = await OnceSettings.instance.get_starlist()
 
   return filtered_stories.map((story: Story) => {
     if (add) {
       story = StoryMap.instance.add(story)
     }
     story.read = readlist.includes(story.href)
-    if (starlist.hasOwnProperty(story.href)) {
-      story.stared = starlist.hasOwnProperty(story.href)
-    }
+    story.stared = Object.prototype.hasOwnProperty.call(starlist, story.href)
     return story
   })
 }
 
-async function load(urls: string[]) {
-  let cache = false
+async function load(urls: string[]): Promise<void> {
+  const cache = false
   parallel_load_stories(urls, cache)
 }

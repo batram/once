@@ -1,20 +1,15 @@
 import { Story } from "../data/Story"
 import * as onChange from "on-change"
 import * as story_list from "../view/StoryList"
-import { OnceSettings } from "../OnceSettings"
-import { StoryListItem } from "../view/StoryListItem"
+import { StarList } from "../OnceSettings"
 
 export interface DataChangeEventDetail {
   story: Story
   path: string[] | string
-  value: any
-  previousValue: any
+  value: unknown
+  previousValue: unknown
   name: string
   animated: boolean
-}
-
-interface Starlist {
-  [index: string]: Story | { stared: boolean; stored_star: boolean }
 }
 
 export class DataChangeEvent extends Event {
@@ -34,8 +29,8 @@ export class StoryMap {
     StoryMap.instance = this
   }
 
-  forEach(fun: Function) {
-    for (let i in this.story_map) {
+  forEach(fun: (arg0: Story) => unknown): void {
+    for (const i in this.story_map) {
       if (typeof this.story_map[i] != "function") {
         fun(this.story_map[i])
       }
@@ -47,7 +42,7 @@ export class StoryMap {
     (path: string[], value: unknown, previousValue: unknown, name: string) => {
       console.debug("onChange data_change", path, value, previousValue, name)
       if (path.length != 0) {
-        if (typeof this.has(path[0])) {
+        if (this.has(path[0])) {
           const event: DataChangeEvent = new DataChangeEvent("data_change", {
             story: this.get(path[0]),
             path: path,
@@ -56,7 +51,7 @@ export class StoryMap {
             name: name,
             animated: document.body.getAttribute("animated") == "true",
           })
-          let story_els = document.querySelectorAll(
+          const story_els = document.querySelectorAll(
             `.story[data-href="${path[0]}"]`
           )
           story_els.forEach((story_el) => {
@@ -71,21 +66,21 @@ export class StoryMap {
     }
   )
 
-  set(href: string, y: Story) {
+  set(href: string, y: Story): Story {
     this.story_map[href] = y
     return this.story_map[href]
   }
 
-  get(href: string) {
+  get(href: string): Story {
     return this.story_map[href]
   }
 
-  has(href: string) {
-    return this.story_map.hasOwnProperty(href)
+  has(href: string): boolean {
+    return Object.prototype.hasOwnProperty.call(this.story_map, href)
   }
 
-  clear() {
-    for (let i in this.story_map) {
+  clear(): void {
+    for (const i in this.story_map) {
       if (typeof this.story_map[i] != "function") {
         delete this.story_map[i]
       }
@@ -96,7 +91,7 @@ export class StoryMap {
     href: string,
     path: string,
     value: Story | string | boolean
-  ) {
+  ): void {
     let story = this.get(href)
     if (path == "story" && value instanceof Story) {
       story = value
@@ -119,7 +114,7 @@ export class StoryMap {
     }
   }
 
-  add(story: Story, bucket = "stories") {
+  add(story: Story, bucket = "stories"): Story {
     if (!(story instanceof Story)) {
       console.log("wrong StoryMap enty", story)
       throw "Please, only put stories in the StoryMap"
@@ -127,7 +122,7 @@ export class StoryMap {
 
     story.bucket = bucket
 
-    let og_story = this.get(story.href)
+    const og_story = this.get(story.href)
     if (!og_story) {
       //new story
       story = this.set(story.href.toString(), story)
@@ -141,7 +136,7 @@ export class StoryMap {
       }
 
       //check if we already have as alternate source
-      let curls = og_story.sources.map((x) => {
+      const curls = og_story.sources.map((x) => {
         return x.comment_url
       })
 
@@ -160,26 +155,26 @@ export class StoryMap {
     return story
   }
 
-  restar(starlist: Starlist) {
-    this.forEach((story: any) => {
-      story.stared = starlist.hasOwnProperty(story.href)
+  restar(starlist: StarList): void {
+    this.forEach((story: Story) => {
+      story.stared = Object.prototype.hasOwnProperty.call(starlist, story.href)
     })
 
     this.add_stored_stars(starlist)
   }
 
   //TODO: specify starlist format
-  add_stored_stars(starlist: Starlist) {
-    for (let href in starlist) {
-      let star_story = Story.from_obj(starlist[href])
+  add_stored_stars(starlist: StarList): void {
+    for (const href in starlist) {
+      const star_story = Story.from_obj(starlist[href])
       star_story.stared = true
       star_story.stored_star = true
       this.add(star_story)
     }
   }
 
-  reread(readlist: any) {
-    this.forEach((story: any) => {
+  reread(readlist: string[]): void {
+    this.forEach((story: Story) => {
       story.read = readlist.includes(story.href)
     })
   }

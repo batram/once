@@ -8,7 +8,7 @@ export class NavigationHandler {
     string,
     (url: string, target: string) => void
   > = {
-    search: (url, target) => {
+    search: (url) => {
       tabbed_out.send_to_parent(
         { sender: this.webContents },
         "search_stories",
@@ -42,23 +42,20 @@ export class NavigationHandler {
       this.open_url(url, "self")
     })
 
-    webContents.on(
-      "will-redirect",
-      (event, url, isInPlace, isMainFrame, frameProcessId, frameRoutingId) => {
-        event.preventDefault()
-        console.debug(
-          "caught will-redirect",
-          url,
-          //event,
-          isInPlace,
-          isMainFrame
-        )
-        this.open_url(url, "self")
-      }
-    )
+    webContents.on("will-redirect", (event, url, isInPlace, isMainFrame) => {
+      event.preventDefault()
+      console.debug(
+        "caught will-redirect",
+        url,
+        //event,
+        isInPlace,
+        isMainFrame
+      )
+      this.open_url(url, "self")
+    })
   }
 
-  open_url(url: string, target: string) {
+  open_url(url: string, target: string): void {
     url = filter_url(url)
 
     if (url.startsWith("http:") || url.startsWith("https:")) {
@@ -76,10 +73,10 @@ export class NavigationHandler {
         )
       }
     } else {
-      let split = url.split(":")
+      const split = url.split(":")
       if (split.length > 1) {
-        let proto = split.shift()
-        let url = split.join(":")
+        const proto = split.shift()
+        const url = split.join(":")
         console.debug(
           "custom proto?",
           proto,

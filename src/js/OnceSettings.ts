@@ -2,6 +2,11 @@ import * as PouchDB from "pouchdb-browser"
 import * as story_list from "./view/StoryList"
 import { ipcRenderer } from "electron"
 import { StoryMap } from "./data/StoryMap"
+import { Story } from "./data/Story"
+
+export interface StarList {
+  [index: string]: Story | { stared: boolean; stored_star: boolean }
+}
 
 export class OnceSettings {
   default_sources = [
@@ -12,15 +17,15 @@ export class OnceSettings {
     "https://old.reddit.com/r/netsec/.rss",
   ]
 
-  syncHandler: PouchDB.Replication.Sync<any>
-  once_db: PouchDB.Database<{}>
+  syncHandler: PouchDB.Replication.Sync<Record<string, unknown>>
+  once_db: PouchDB.Database<Record<string, unknown>>
   static instance: OnceSettings
 
   constructor() {
     OnceSettings.instance = this
     this.once_db = new PouchDB(".once_db")
 
-    let couchdb_url = this.get_couch_settings()
+    const couchdb_url = this.get_couch_settings()
     if (couchdb_url != "") {
       this.couchdb_sync(couchdb_url)
     }
@@ -32,22 +37,22 @@ export class OnceSettings {
         console.log("system theme change", e)
       })
 
-    let theme_select = document.querySelector<HTMLSelectElement>(
+    const theme_select = document.querySelector<HTMLSelectElement>(
       "#theme_select"
     )
-    theme_select.addEventListener("change", (x) => {
+    theme_select.addEventListener("change", () => {
       this.save_theme(theme_select.value)
     })
 
-    let anim_checkbox = document.querySelector<HTMLInputElement>(
+    const anim_checkbox = document.querySelector<HTMLInputElement>(
       "#anim_checkbox"
     )
     this.restore_animation_settings()
-    anim_checkbox.addEventListener("change", (x) => {
+    anim_checkbox.addEventListener("change", () => {
       this.save_animation(anim_checkbox.checked)
     })
 
-    let couch_input = document.querySelector<HTMLInputElement>("#couch_input")
+    const couch_input = document.querySelector<HTMLInputElement>("#couch_input")
     this.reset_couch_settings()
     couch_input.parentElement
       .querySelector('input[value="save"]')
@@ -58,7 +63,9 @@ export class OnceSettings {
 
     this.set_sources_area()
 
-    let sources_area = document.querySelector<HTMLInputElement>("#sources_area")
+    const sources_area = document.querySelector<HTMLInputElement>(
+      "#sources_area"
+    )
     sources_area.parentElement
       .querySelector('input[value="save"]')
       .addEventListener("click", this.save_sources_settings)
@@ -78,12 +85,12 @@ export class OnceSettings {
 
     this.set_filter_area()
 
-    let filter_area = document.querySelector<HTMLInputElement>("#filter_area")
+    const filter_area = document.querySelector<HTMLInputElement>("#filter_area")
     filter_area.parentElement
       .querySelector('input[value="save"]')
       .addEventListener("click", this.save_filter_settings)
     filter_area.parentElement
-      .querySelector('input[value="cancel"]')
+      .querySelector("input[value=cancel]")
       .addEventListener("click", this.set_filter_area)
 
     filter_area.addEventListener("keydown", (e) => {
@@ -98,24 +105,24 @@ export class OnceSettings {
     })
   }
 
-  restore_theme_settings() {
-    this.pouch_get("theme", "light").then((x) => {
-      let theme_select = document.querySelector<HTMLSelectElement>(
+  restore_theme_settings(): void {
+    this.pouch_get("theme", "light").then((theme_value: string) => {
+      const theme_select = document.querySelector<HTMLSelectElement>(
         "#theme_select"
       )
-      theme_select.value = x
-      this.set_theme(x)
+      theme_select.value = theme_value
+      this.set_theme(theme_value)
     })
   }
 
-  save_theme(name: string) {
+  save_theme(name: string): void {
     this.pouch_set("theme", name, console.log)
     this.set_theme(name)
   }
 
-  restore_animation_settings() {
-    this.pouch_get("animation", true).then((checked) => {
-      let anim_checkbox = document.querySelector<HTMLInputElement>(
+  restore_animation_settings(): void {
+    this.pouch_get("animation", true).then((checked: boolean) => {
+      const anim_checkbox = document.querySelector<HTMLInputElement>(
         "#anim_checkbox"
       )
       anim_checkbox.checked = checked
@@ -123,20 +130,20 @@ export class OnceSettings {
     })
   }
 
-  save_animation(checked: boolean) {
+  save_animation(checked: boolean): void {
     this.pouch_set("animation", checked, console.log)
-    let anim_checkbox = document.querySelector<HTMLInputElement>(
+    const anim_checkbox = document.querySelector<HTMLInputElement>(
       "#anim_checkbox"
     )
     anim_checkbox.checked = checked
     this.set_animation(checked)
   }
 
-  set_animation(checked: boolean) {
+  set_animation(checked: boolean): void {
     document.body.setAttribute("animated", checked.toString())
   }
 
-  set_theme(name: string) {
+  set_theme(name: string): void {
     switch (name) {
       case "dark":
         ipcRenderer.send("theme", "dark")
@@ -153,14 +160,16 @@ export class OnceSettings {
     }
   }
 
-  update_on_change(event: PouchDB.Replication.SyncResult<any>) {
+  update_on_change(
+    event: PouchDB.Replication.SyncResult<Record<string, unknown>>
+  ): void {
     console.log("pouch change", event)
     if (event.direction) {
       event.change.docs.forEach((doc) => {
         console.log("update", doc._id)
         switch (doc._id) {
           case "read_list":
-            StoryMap.instance.reread(doc.list)
+            StoryMap.instance.reread(doc.list as string[])
             break
           case "story_sources":
             this.set_sources_area()
@@ -171,7 +180,7 @@ export class OnceSettings {
             story_list.refilter()
             break
           case "star_list":
-            StoryMap.instance.restar(doc.list)
+            StoryMap.instance.restar(doc.list as StarList)
             break
           case "theme":
             this.restore_theme_settings()
@@ -183,8 +192,8 @@ export class OnceSettings {
     }
   }
 
-  couchdb_sync(couchdb_url: string) {
-    var remoteDB = new PouchDB(couchdb_url)
+  couchdb_sync(couchdb_url: string): void {
+    const remoteDB = new PouchDB(couchdb_url)
     if (this.syncHandler) {
       this.syncHandler.cancel()
     }
@@ -204,16 +213,16 @@ export class OnceSettings {
       })
   }
 
-  save_couch_settings() {
-    let couch_input = document.querySelector<HTMLInputElement>("#couch_input")
-    let couchdb_url = couch_input.value
+  save_couch_settings(): void {
+    const couch_input = document.querySelector<HTMLInputElement>("#couch_input")
+    const couchdb_url = couch_input.value
     if (this.get_couch_settings() != couchdb_url) {
       this.couchdb_sync(couchdb_url)
       localStorage.setItem("couch_url", couchdb_url)
     }
   }
 
-  get_couch_settings() {
+  get_couch_settings(): string {
     let couch_url = localStorage.getItem("couch_url")
     if (couch_url == null) {
       couch_url = ""
@@ -221,16 +230,16 @@ export class OnceSettings {
     return couch_url
   }
 
-  reset_couch_settings() {
-    let couch_input = document.querySelector<HTMLInputElement>("#couch_input")
+  reset_couch_settings(): void {
+    const couch_input = document.querySelector<HTMLInputElement>("#couch_input")
     couch_input.value = this.get_couch_settings()
   }
 
-  async pouch_get(id: string, fallback_value: Exclude<any, Function>) {
+  async pouch_get<T>(id: string, fallback_value: T): Promise<T> {
     return this.once_db
       .get(id)
-      .then((doc: any) => {
-        return doc.list
+      .then((doc) => {
+        return doc.list as T
       })
       .catch((err) => {
         console.log("pouch_get err", err)
@@ -244,39 +253,43 @@ export class OnceSettings {
       })
   }
 
-  async story_sources() {
+  async story_sources(): Promise<string[]> {
     return this.pouch_get("story_sources", this.default_sources)
   }
 
-  async set_sources_area() {
-    let sources_area = document.querySelector<HTMLInputElement>("#sources_area")
+  async set_sources_area(): Promise<void> {
+    const sources_area = document.querySelector<HTMLInputElement>(
+      "#sources_area"
+    )
     sources_area.value = (await this.story_sources()).join("\n")
   }
 
-  async save_sources_settings() {
-    let sources_area = document.querySelector<HTMLInputElement>("#sources_area")
-    let story_sources = sources_area.value.split("\n").filter((x) => {
+  async save_sources_settings(): Promise<void> {
+    const sources_area = document.querySelector<HTMLInputElement>(
+      "#sources_area"
+    )
+    const story_sources = sources_area.value.split("\n").filter((x) => {
       return x.trim() != ""
     })
 
     this.pouch_set("story_sources", story_sources, story_list.reload)
   }
 
-  async set_filter_area() {
-    let filter_area = document.querySelector<HTMLInputElement>("#filter_area")
+  async set_filter_area(): Promise<void> {
+    const filter_area = document.querySelector<HTMLInputElement>("#filter_area")
     filter_area.value = (await this.get_filterlist()).join("\n")
   }
 
-  save_filter_settings() {
-    let filter_area = document.querySelector<HTMLInputElement>("#filter_area")
-    let filter_list = filter_area.value.split("\n").filter((x) => {
+  save_filter_settings(): void {
+    const filter_area = document.querySelector<HTMLInputElement>("#filter_area")
+    const filter_list = filter_area.value.split("\n").filter((x) => {
       return x.trim() != ""
     })
     this.save_filterlist(filter_list)
     story_list.refilter()
   }
 
-  get_readlist() {
+  get_readlist(): Promise<string[]> {
     return this.pouch_get("read_list", [])
   }
 
@@ -284,14 +297,18 @@ export class OnceSettings {
     return this.pouch_get("filter_list", this.default_filterlist)
   }
 
-  async pouch_set(id: string, value: any, callback: Function) {
+  async pouch_set<T>(
+    id: string,
+    value: T,
+    callback: () => unknown
+  ): Promise<void> {
     this.once_db
       .get(id)
-      .then((doc: any) => {
+      .then((doc) => {
         doc.list = value
         return this.once_db.put(doc)
       })
-      .then((x) => {
+      .then(() => {
         callback()
       })
       .catch((err) => {
@@ -302,7 +319,7 @@ export class OnceSettings {
               _id: id,
               list: value,
             })
-            .then((x) => {
+            .then(() => {
               callback()
             })
         } else {
@@ -311,22 +328,28 @@ export class OnceSettings {
       })
   }
 
-  async save_filterlist(filter_list: string[]) {
+  async save_filterlist(filter_list: string[]): Promise<void> {
     this.pouch_set("filter_list", filter_list, () => {
       story_list.refilter()
       this.set_filter_area()
     })
   }
 
-  async save_readlist(readlist: string[], callback: Function) {
+  async save_readlist(
+    readlist: string[],
+    callback: () => unknown
+  ): Promise<void> {
     this.pouch_set("read_list", readlist, callback)
   }
 
-  async get_starlist() {
+  async get_starlist(): Promise<StarList> {
     return this.pouch_get("star_list", {})
   }
 
-  async save_starlist(starlist: string[], callback: Function) {
+  async save_starlist(
+    starlist: StarList,
+    callback: () => unknown
+  ): Promise<void> {
     this.pouch_set("star_list", starlist, callback)
   }
 

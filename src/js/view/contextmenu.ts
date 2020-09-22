@@ -1,11 +1,21 @@
-import { Menu, MenuItem, shell, clipboard, webContents } from "electron"
+import {
+  Menu,
+  MenuItem,
+  shell,
+  clipboard,
+  webContents,
+  WebContents,
+} from "electron"
 
-export { init_menu, inspect_menu }
+export { init_menu }
 
-function init_menu(wc: webContents) {
-  wc.on("context-menu", inspect_menu)
+function init_menu(wc: webContents): void {
+  wc.on("context-menu", (event, params) => {
+    event.preventDefault()
+    inspect_menu(wc, params)
+  })
 
-  wc.on("update-target-url", (event, url) => {
+  wc.on("update-target-url", (_event, url) => {
     wc.send("update-target-url", url)
   })
 }
@@ -13,7 +23,7 @@ function init_menu(wc: webContents) {
 declare interface CMenuData {
   rightClickPosition: { x: number; y: number }
   href: string
-  sender: null
+  sender: WebContents
 }
 
 const cmenu_data: CMenuData = {
@@ -23,11 +33,7 @@ const cmenu_data: CMenuData = {
 }
 
 //Dafug why event: Electron.KeyboardEvent, ELectron why???
-function inspect(
-  menuItem: Electron.MenuItem,
-  cwin: Electron.BrowserWindow,
-  event: Electron.KeyboardEvent
-) {
+function inspect(_menuItem: Electron.MenuItem, cwin: Electron.BrowserWindow) {
   let wc = cwin.webContents
 
   if (cmenu_data.sender) {
@@ -72,18 +78,15 @@ con_menu.append(
 )
 
 function inspect_menu(
-  event: Electron.Event,
+  sender: Electron.WebContents,
   params: Electron.ContextMenuParams
 ) {
-  event.preventDefault()
-  if (event.hasOwnProperty("sender")) {
-    // @ts-ignore
-    cmenu_data.sender = event.sender
-  } else {
-    cmenu_data.sender = null
-  }
+  cmenu_data.sender = sender
 
-  if (params.hasOwnProperty("linkURL") && params.linkURL != "") {
+  if (
+    Object.prototype.hasOwnProperty.call(params, "linkURL") &&
+    params.linkURL != ""
+  ) {
     con_menu.getMenuItemById("cp_url").visible = true
     con_menu.getMenuItemById("open").visible = true
     cmenu_data.href = params.linkURL
