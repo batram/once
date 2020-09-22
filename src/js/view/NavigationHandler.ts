@@ -34,11 +34,15 @@ export class NavigationHandler {
   }
 
   open_url(event: Electron.Event, url: string, target: string): void {
+    console.log("open_url", url, target, this.webContents.getType())
     if (url.startsWith("http:") || url.startsWith("https:")) {
       const new_url = filter_url(url)
       if (new_url != url) {
         event.preventDefault()
         url = new_url
+      } else if (this.webContents.getType() == "webview" && target == "self") {
+        console.log("open_url: let webview navigate on its own", url)
+        return
       }
 
       if (target == "blank") {
@@ -49,14 +53,12 @@ export class NavigationHandler {
           url
         )
       } else {
-        if (this.webContents.getType() != "webview") {
-          event.preventDefault()
-          tabbed_out.send_to_parent(
-            { sender: this.webContents },
-            "open_in_tab",
-            url
-          )
-        }
+        event.preventDefault()
+        tabbed_out.send_to_parent(
+          { sender: this.webContents },
+          "open_in_tab",
+          url
+        )
       }
     } else {
       // Not http or https can't let that through to default
