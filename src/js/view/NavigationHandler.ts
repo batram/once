@@ -14,65 +14,54 @@ export class NavigationHandler {
         "search_stories",
         url
       )
-      //TabWrangler.ops.search_stories(url)
     },
   }
 
   constructor(webContents: Electron.webContents) {
     this.webContents = webContents
 
-    webContents.on(
-      "new-window",
-      (event, url, frameName, disposition, additionalFeatures) => {
-        event.preventDefault()
-        console.debug(
-          "caught new-window",
-          url,
-          frameName,
-          disposition,
-          additionalFeatures
-        )
-        this.open_url(url, "blank")
-      }
-    )
-
-    webContents.on("will-navigate", (event, url) => {
-      event.preventDefault()
-      console.debug("caught will-navigate", url, event)
-      this.open_url(url, "self")
+    webContents.on("new-window", (event, url) => {
+      this.open_url(event, url, "blank")
     })
 
-    webContents.on("will-redirect", (event, url, isInPlace, isMainFrame) => {
-      event.preventDefault()
-      console.debug(
-        "caught will-redirect",
-        url,
-        //event,
-        isInPlace,
-        isMainFrame
-      )
-      this.open_url(url, "self")
+    webContents.on("will-navigate", (event, url) => {
+      this.open_url(event, url, "self")
+    })
+
+    webContents.on("will-redirect", (event, url) => {
+      this.open_url(event, url, "self")
     })
   }
 
-  open_url(url: string, target: string): void {
-    url = filter_url(url)
-
+  open_url(event: Electron.Event, url: string, target: string): void {
     if (url.startsWith("http:") || url.startsWith("https:")) {
+      const new_url = filter_url(url)
+      if (new_url != url) {
+        event.preventDefault()
+        url = new_url
+      }
+
       if (target == "blank") {
+        event.preventDefault()
         tabbed_out.send_to_parent(
           { sender: this.webContents },
           "open_in_new_tab",
           url
         )
       } else {
-        tabbed_out.send_to_parent(
-          { sender: this.webContents },
-          "open_in_tab",
-          url
-        )
+        if (this.webContents.getType() != "webview") {
+          event.preventDefault()
+          tabbed_out.send_to_parent(
+            { sender: this.webContents },
+            "open_in_tab",
+            url
+          )
+        }
       }
     } else {
+      // Not http or https can't let that through to default
+      event.preventDefault()
+      // check if we have custom protocoll
       const split = url.split(":")
       if (split.length > 1) {
         const proto = split.shift()
