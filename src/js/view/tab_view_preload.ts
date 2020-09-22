@@ -1,4 +1,4 @@
-import { WebTab } from "./webtab"
+import { WebTab } from "./WebTab"
 import * as fullscreen from "./fullscreen"
 
 document.addEventListener("DOMContentLoaded", async (_e) => {

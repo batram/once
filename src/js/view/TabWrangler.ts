@@ -1,6 +1,5 @@
 import { ipcRenderer } from "electron"
 import * as filters from "../data/StoryFilters"
-import * as webtab from "./webtab"
 import { StoryMap, DataChangeEvent } from "../data/StoryMap"
 import * as story_list from "./StoryList"
 import { search_stories } from "../data/search"
@@ -197,49 +196,18 @@ export class TabWrangler {
       }
     )
 
-    ipcRenderer.on(
-      "tab_url_changed",
-      (event: Electron.IpcRendererEvent, href: string) => {
-        console.log("tab_url_changed", href)
-        let colors = Array.from(
-          document.querySelectorAll<HTMLElement>(".tag_style")
-        )
-          .map((x) => {
-            return x.innerText
-          })
-          .join("\n")
+    ipcRenderer.on(      "tab_url_changed", this.handle_tab_url_change    )
 
-        let tab_el = this.tab_el_from_id(event.senderId)
-        if (tab_el) {
-          tab_el.dataset.href = href
-        }
 
-        let story = story_list.mark_selected(null, href)
-        if (
-          story &&
-          !story.read &&
-          (story.href == href || story.og_href == href)
-        ) {
-          ipcRenderer.send("forward_to_parent", "persist_story_change", {
-            href: story.href,
-            path: "read",
-            value: true,
-          })
-        }
-
-        if (href == "about:gone") {
-          return
-        }
-
-        this.send_to_id(event.senderId, "update_selected", story, colors)
-      }
-    )
 
     ipcRenderer.on(
       "update_tab_info",
-      (event: any, title: string, href: string) => {
+      (event: Electron.IpcRendererEvent, title: string, href: string) => {
         let sender_tab = this.tab_el_from_id(event.senderId)
         if (sender_tab) {
+          if(sender_tab.dataset.href != href){
+            this.handle_tab_url_change(event, href)
+          }
           sender_tab.dataset.href = href
           sender_tab.innerText = title.substring(0, 22)
           sender_tab.title = title
@@ -247,6 +215,42 @@ export class TabWrangler {
       }
     )
   }
+
+  handle_tab_url_change(event: Electron.IpcRendererEvent, href: string) {
+    console.log("tab_url_changed", href)
+    let colors = Array.from(
+      document.querySelectorAll<HTMLElement>(".tag_style")
+    )
+      .map((x) => {
+        return x.innerText
+      })
+      .join("\n")
+
+    let tab_el = this.tab_el_from_id(event.senderId)
+    if (tab_el) {
+      tab_el.dataset.href = href
+    }
+
+    let story = story_list.mark_selected(null, href)
+    if (
+      story &&
+      !story.read &&
+      (story.href == href || story.og_href == href)
+    ) {
+      ipcRenderer.send("forward_to_parent", "persist_story_change", {
+        href: story.href,
+        path: "read",
+        value: true,
+      })
+    }
+
+    if (href == "about:gone") {
+      return
+    }
+
+    this.send_to_id(event.senderId, "update_selected", story, colors)
+  }
+
 
   insert_tab_by_offleft(tab_el: HTMLElement) {
     let all_tabs = Array.from(

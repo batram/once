@@ -98,8 +98,6 @@ function key_handler(e: KeyboardEvent) {
 
 function enter() {
   console.debug("fullscreen enter")
-  //WebTab.send_to_parent("fullscreen", true)
-
   document.body.classList.add("fullscreen")
   ipcRenderer.send("change_fullscreen", true)
   entered()
@@ -130,8 +128,6 @@ function entered() {
 }
 
 function leave() {
-  // WebTab.send_to_parent("fullscreen", false)
-
   document.body.classList.remove("fullscreen")
   ipcRenderer.send("change_fullscreen", false)
 }
