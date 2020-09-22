@@ -12,31 +12,35 @@ export class WebTab {
   webview_ready: boolean
   current_story: Story
 
+  webview: Electron.WebviewTag
+  urlfield: HTMLInputElement
+
   constructor() {
     this.webview_ready = false
-    let webview = document.querySelector<Electron.WebviewTag>("#webview")
-    webview.addEventListener("dom-ready", (x) => {
+    this.webview = document.querySelector<Electron.WebviewTag>("#webview")
+    this.urlfield = document.querySelector<HTMLInputElement>("#urlfield")
+
+    this.webview.addEventListener("dom-ready", (x) => {
       this.webview_ready = true
       this.send_update_tab_info()
     })
 
     ipcRenderer.on("open_in_webview", (event, href) => {
       console.debug("open_in_webview", href)
-      WebTab.open_in_webview(href)
+      this.open_in_webview(href)
     })
 
     window.addEventListener("mouseup", (e: MouseEvent) => {
-      let webview = this.get_webview()
 
       if (e.button == 3) {
-        if (webview.canGoBack()) {
-          webview.goBack()
+        if (this.webview.canGoBack()) {
+          this.webview.goBack()
         }
         return true
       }
       if (e.button == 4) {
-        if (webview.canGoForward()) {
-          webview.goForward()
+        if (this.webview.canGoForward()) {
+          this.webview.goForward()
         }
         return true
       }
@@ -108,20 +112,20 @@ export class WebTab {
       this.send_to_parent("update-target-url", url)
     })
 
-    webview.addEventListener("page-title-updated", (e) => {
+    this.webview.addEventListener("page-title-updated", (e) => {
       this.send_update_tab_info()
       console.log("page-title-updated", e.title.toString())
     })
 
-    webview.addEventListener("did-fail-load", (e) => {
+    this.webview.addEventListener("did-fail-load", (e) => {
       console.log("webview did-fail-load", e)
     })
 
-    webview.addEventListener("dom-ready", () => {
+    this.webview.addEventListener("dom-ready", () => {
       this.inject_css()
     })
 
-    webview.addEventListener(
+    this.webview.addEventListener(
       "update-target-url",
       (e: Electron.UpdateTargetUrlEvent) => {
         console.debug("update-target-url", e)
@@ -129,16 +133,16 @@ export class WebTab {
       }
     )
 
-    webview.addEventListener("load-commit", (event: Electron.LoadCommitEvent) => {
+    this.webview.addEventListener("load-commit", (event: Electron.LoadCommitEvent) => {
       if (event.isMainFrame && this.is_attached()) {
         this.send_to_parent("tab_url_changed", event.url)
       } 
     })
 
-    webview.addEventListener("did-start-loading", () => {
+    this.webview.addEventListener("did-start-loading", () => {
       this.inject_css()
     })
-    webview.addEventListener("did-navigate", (e: Electron.DidNavigateEvent) => {
+    this.webview.addEventListener("did-navigate", (e: Electron.DidNavigateEvent) => {
       let url = e.url
       url = presenters.modify_url(url)
       if (this.is_attached()) {
@@ -150,20 +154,19 @@ export class WebTab {
         }
       }
       this.send_update_tab_info()
-      let urlfield = document.querySelector<HTMLInputElement>("#urlfield")
-      urlfield.value = url
+      this.urlfield.value = url
     })
 
-    webview.addEventListener("did-navigate-in-page", console.debug)
+    this.webview.addEventListener("did-navigate-in-page", console.debug)
 
     let reload_tab_btn = document.querySelector<HTMLElement>("#reload_tab_btn")
     reload_tab_btn.onclick = (x) => {
-      webview.reload()
+      this.webview.reload()
     }
 
     let close_tab_btn = document.querySelector<HTMLElement>("#close_tab_btn")
     close_tab_btn.onclick = (x) => {
-      webview.loadURL("about:blank")
+      this.webview.loadURL("about:blank")
       this.send_to_parent("page-title-updated", "about:blank", "about:blank")
       this.send_to_parent("detaching")
       ipcRenderer.send("end_me")
@@ -181,9 +184,7 @@ export class WebTab {
 
   send_update_tab_info(e?: any) {
     if (this.webview_ready) {
-      let webview = this.get_webview()
-      let urlfield = document.querySelector<HTMLInputElement>("#urlfield")
-      this.send_to_parent("update_tab_info", webview.getTitle(), urlfield.value)
+      this.send_to_parent("update_tab_info", this.webview.getTitle(), this.urlfield.value)
     }
   }
 
@@ -197,18 +198,17 @@ export class WebTab {
   }
 
   handle_urlbar() {
-    let urlfield = document.querySelector<HTMLInputElement>("#urlfield")
-    if (urlfield) {
-      urlfield.addEventListener("focus", (e) => {
-        urlfield.select()
+    if (this.urlfield) {
+      this.urlfield.addEventListener("focus", (e) => {
+        this.urlfield.select()
       })
 
-      urlfield.addEventListener("keyup", (e) => {
+      this.urlfield.addEventListener("keyup", (e) => {
         if (e.key == "Enter") {
-          if (urlfield.value == "") {
-            urlfield.value = "about:blank"
+          if (this.urlfield.value == "") {
+            this.urlfield.value = "about:blank"
           }
-          WebTab.open_in_webview(urlfield.value)
+          this.open_in_webview(this.urlfield.value)
         }
       })
     }
@@ -240,10 +240,6 @@ export class WebTab {
     let story_el = new StoryListItem(story)
     story_el.classList.add("selected")
     selected_container.append(story_el)
-  }
-
-  get_webview(): Electron.WebviewTag {
-    return document.querySelector<Electron.WebviewTag>("webview")
   }
 
   send_to_parent(channel: string, ...args: any) {
@@ -330,23 +326,20 @@ export class WebTab {
     }
   }
 `
-    let webview = document.querySelector<Electron.WebviewTag>("webview")
-    webview.insertCSS(css)
+    this.webview.insertCSS(css)
   }
 
-  static open_in_webview(href: string) {
-    let webview = document.querySelector<Electron.WebviewTag>("#webview")
-    let urlfield = document.querySelector<HTMLInputElement>("#urlfield")
-    if (webview && urlfield) {
+  open_in_webview(href: string) {
+    if (this.webview && this.urlfield) {
       ipcRenderer.send("forward_to_parent", "tab_url_changed", href)
-      webview.loadURL(href).then(e => {
+      this.webview.loadURL(href).then(e => {
         console.debug("open_in_webview load", e, href)
       }).catch((e) => {
         console.log("webview.loadURL error", e)
       })
-      urlfield.value = href
+      this.urlfield.value = href
     } else {
-      console.error("tried to open not in webtab", href)
+      console.error("webtab not ready to load:", href, this.webview, this.urlfield)
     }
   }
 }

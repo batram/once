@@ -522,14 +522,7 @@ export class TabWrangler {
   }
 
   open_in_tab(href: string) {
-    //do we need to start looking at target dingens?
-    let is_in_tab =
-      document.querySelector("#webtab") && document.querySelector("#webview")
-    if (is_in_tab) {
-      webtab.WebTab.open_in_webview(href)
-    } else {
-      this.send_or_create_tab("open_in_webview", href)
-    }
+    this.send_or_create_tab("open_in_webview", href)
   }
 
   open_in_new_tab(href: string) {
