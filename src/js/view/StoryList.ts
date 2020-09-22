@@ -7,6 +7,7 @@ import * as story_loader from "../data/StoryLoader"
 
 export {
   mark_selected,
+  unmark_selected,
   get_by_href,
   reload,
   refilter,
@@ -68,11 +69,7 @@ function get_by_href(url: string): StoryListItem {
   return story_el as StoryListItem
 }
 
-function mark_selected(story_el: StoryListItem, url: string): Story {
-  if (!story_el && url) {
-    story_el = get_by_href(url)
-  }
-
+function unmark_selected(): void {
   document.querySelectorAll(".story").forEach((x: StoryListItem) => {
     if (x.classList.contains("selected")) {
       x.classList.remove("selected")
@@ -82,6 +79,16 @@ function mark_selected(story_el: StoryListItem, url: string): Story {
       }
     }
   })
+}
+
+function mark_selected(story_el: StoryListItem, url: string): Story {
+  if (!story_el && url) {
+    story_el = get_by_href(url)
+  }
+
+  if (!story_el.classList.contains("selected")) {
+    unmark_selected()
+  }
 
   if (story_el) {
     story_el.classList.add("selected")

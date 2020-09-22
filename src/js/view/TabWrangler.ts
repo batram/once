@@ -201,21 +201,19 @@ export class TabWrangler {
       }
     )
 
-    ipcRenderer.on("tab_url_changed", (event, href) => {
-      this.handle_tab_url_change(event, href)
-    })
-
     ipcRenderer.on(
       "update_tab_info",
-      (event: Electron.IpcRendererEvent, title: string, href: string) => {
+      (event: Electron.IpcRendererEvent, href: string, title?: string) => {
         const sender_tab = this.tab_el_from_id(event.senderId)
         if (sender_tab) {
           if (sender_tab.dataset.href != href) {
             this.handle_tab_url_change(event, href)
           }
           sender_tab.dataset.href = href
-          sender_tab.innerText = title.substring(0, 22)
-          sender_tab.title = title
+          if (title) {
+            sender_tab.innerText = title.substring(0, 22)
+            sender_tab.title = title
+          }
         }
       }
     )
@@ -551,6 +549,7 @@ export class TabWrangler {
             this.activate_tab(next)
           } else {
             this.active_wc_id = null
+            story_list.unmark_selected()
           }
         }
       }
@@ -572,6 +571,7 @@ export class TabWrangler {
 
   activate_tab(tab_el: HTMLElement): void {
     this.attach_webtab(parseInt(tab_el.dataset.wc_id))
+    story_list.mark_selected(null, tab_el.dataset.href)
     this.mark_tab_active(tab_el)
   }
 

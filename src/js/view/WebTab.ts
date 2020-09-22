@@ -134,7 +134,7 @@ export class WebTab {
       "load-commit",
       (event: Electron.LoadCommitEvent) => {
         if (event.isMainFrame && this.is_attached()) {
-          this.send_to_parent("tab_url_changed", event.url)
+          this.url_changed(event.url)
         }
       }
     )
@@ -145,18 +145,14 @@ export class WebTab {
     this.webview.addEventListener(
       "did-navigate",
       (e: Electron.DidNavigateEvent) => {
-        let url = e.url
-        url = presenters.modify_url(url)
-        if (this.is_attached()) {
-          this.send_to_parent("tab_url_changed", url)
-        } else {
+        const url = this.url_changed(e.url)
+        if (!this.is_attached()) {
           const selected = story_list.get_by_href(url)
           if (!selected) {
             this.update_selected(null, null)
           }
         }
         this.send_update_tab_info()
-        this.urlfield.value = url
       }
     )
 
@@ -189,13 +185,11 @@ export class WebTab {
   }
 
   send_update_tab_info(): void {
-    if (this.webview_ready) {
-      this.send_to_parent(
-        "update_tab_info",
-        this.webview.getTitle(),
-        this.urlfield.value
-      )
-    }
+    this.send_to_parent(
+      "update_tab_info",
+      this.urlfield.value,
+      this.webview_ready ? this.webview.getTitle() : null
+    )
   }
 
   pop_no_tabs(): void {
@@ -337,9 +331,17 @@ export class WebTab {
     this.webview.insertCSS(css)
   }
 
+  url_changed(url: string): string {
+    url = presenters.modify_url(url)
+    this.urlfield.value = url
+    console.log("url_changed", url)
+    this.send_update_tab_info()
+    return url
+  }
+
   open_in_webview(href: string): void {
     if (this.webview && this.urlfield) {
-      ipcRenderer.send("forward_to_parent", "tab_url_changed", href)
+      this.url_changed(href)
       this.webview
         .loadURL(href)
         .then((e) => {
@@ -348,7 +350,6 @@ export class WebTab {
         .catch((e) => {
           console.log("webview.loadURL error", e)
         })
-      this.urlfield.value = href
     } else {
       console.error(
         "webtab not ready to load:",
