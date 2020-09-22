@@ -204,22 +204,12 @@ export class TabWrangler {
     ipcRenderer.on(
       "update_tab_info",
       (event: Electron.IpcRendererEvent, href: string, title?: string) => {
-        const sender_tab = this.tab_el_from_id(event.senderId)
-        if (sender_tab) {
-          if (sender_tab.dataset.href != href) {
-            this.handle_tab_url_change(event, href)
-          }
-          sender_tab.dataset.href = href
-          if (title) {
-            sender_tab.innerText = title.substring(0, 22)
-            sender_tab.title = title
-          }
-        }
+        this.update_tab_info(event.senderId, href, title)
       }
     )
   }
 
-  handle_tab_url_change(event: Electron.IpcRendererEvent, href: string): void {
+  handle_tab_url_change(sender_id: number, href: string): void {
     console.log("tab_url_changed", href)
     const colors = Array.from(
       document.querySelectorAll<HTMLElement>(".tag_style")
@@ -228,11 +218,6 @@ export class TabWrangler {
         return x.innerText
       })
       .join("\n")
-
-    const tab_el = this.tab_el_from_id(event.senderId)
-    if (tab_el) {
-      tab_el.dataset.href = href
-    }
 
     const story = story_list.mark_selected(null, href)
     if (story && !story.read && (story.href == href || story.og_href == href)) {
@@ -247,7 +232,7 @@ export class TabWrangler {
       return
     }
 
-    this.send_to_id(event.senderId, "update_selected", story, colors)
+    this.send_to_id(sender_id, "update_selected", story, colors)
   }
 
   insert_tab_by_offleft(tab_el: HTMLElement): void {
@@ -474,10 +459,29 @@ export class TabWrangler {
     } else {
       const ret_wc_id = this.grab_webtab(wc_id)
       if (ret_wc_id == wc_id) {
-        const tab_el = this.tab_el_from_id(ret_wc_id)
-        tab_el.dataset.href = href
-        tab_el.title = title
+        this.update_tab_info(ret_wc_id, href, title)
+      }
+    }
+  }
+
+  update_tab_info(wc_id: number, href: string, title?: string): void {
+    console.debug("update_tab_info", wc_id, href, title)
+    const tab_el = this.tab_el_from_id(wc_id)
+    if (tab_el) {
+      if (tab_el.dataset.href != href) {
+        this.handle_tab_url_change(wc_id, href)
+      }
+      tab_el.dataset.href = href
+      if (!title || (href != "about:blank" && title == "about:blank")) {
+        // try to find story with url and get title
+        const story = StoryMap.instance.get(href)
+        if (story) {
+          title = story.title
+        }
+      }
+      if (title) {
         tab_el.innerText = title.substring(0, 22)
+        tab_el.title = title
       }
     }
   }
@@ -497,9 +501,10 @@ export class TabWrangler {
     ipcRenderer.sendTo(id, channel, ...args)
   }
 
-  send_to_new_tab(channel: string, ...args: string[]): void {
+  send_to_new_tab(channel: string, ...args: string[]): number {
     const wc_id = this.new_webtab()
     ipcRenderer.send("when_webview_ready", wc_id, channel, ...args)
+    return wc_id
   }
 
   get_active_tab_el(): HTMLElement | null {
@@ -532,7 +537,13 @@ export class TabWrangler {
   }
 
   open_in_new_tab(href: string): void {
-    this.send_to_new_tab("open_in_webview", href)
+    const wc_id = this.send_to_new_tab("open_in_webview", href)
+    if (wc_id) {
+      const tab_el = this.tab_el_from_id(wc_id)
+      if (tab_el) {
+        tab_el.dataset.href = href
+      }
+    }
   }
 
   remove_tab_el(wc_id: number): void {
