@@ -12,7 +12,7 @@ let tab_views: Record<number, BrowserView> = {}
 let parent_windows: Record<number, BrowserWindow> = {}
 let webviews: Record<number, WebContents> = {}
 
-export function tab_intercom(
+export function send_to_parent(
   event: { sender: WebContents },
   secondary_channel: string,
   ...args: any
@@ -51,7 +51,7 @@ function get_parent_window(webcontents: WebContents) {
 }
 
 function tab_listeners(win: BrowserWindow) {
-  ipcMain.on("tab_intercom", tab_intercom)
+  ipcMain.on("forward_to_parent", send_to_parent)
 
   ipcMain.on("get_attached_wc_id", (event) => {
     console.log("get_attached_view", event.sender.id)

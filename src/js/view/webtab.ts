@@ -129,6 +129,12 @@ export class WebTab {
       }
     )
 
+    webview.addEventListener("load-commit", (event: Electron.LoadCommitEvent) => {
+      if (event.isMainFrame && this.is_attached()) {
+        this.send_to_parent("tab_url_changed", event.url)
+      } 
+    })
+
     webview.addEventListener("did-start-loading", () => {
       this.inject_css()
     })
@@ -332,10 +338,15 @@ export class WebTab {
     let webview = document.querySelector<Electron.WebviewTag>("#webview")
     let urlfield = document.querySelector<HTMLInputElement>("#urlfield")
     if (webview && urlfield) {
-      webview.loadURL(href).catch((e) => {
+      ipcRenderer.send("forward_to_parent", "tab_url_changed", href)
+      webview.loadURL(href).then(e => {
+        console.debug("open_in_webview load", e, href)
+      }).catch((e) => {
         console.log("webview.loadURL error", e)
       })
       urlfield.value = href
+    } else {
+      console.error("tried to open not in webtab", href)
     }
   }
 }

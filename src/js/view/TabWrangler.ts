@@ -30,7 +30,7 @@ export class TabWrangler {
           func.call(TabWrangler.instance, ...args)
         }
       } else {
-        ipcRenderer.send("tab_intercom", func_name, ...args)
+        ipcRenderer.send("forward_to_parent", func_name, ...args)
       }
     },
     send_to_new_tab: function (channel: string, ...args: any[]) {
@@ -95,13 +95,6 @@ export class TabWrangler {
   }
 
   init_webtab_comms() {
-    ipcRenderer.on(
-      "tab_intercom",
-      (event: Electron.IpcRendererEvent, ...args: any) => {
-        console.log("tab_intercom", ...args)
-      }
-    )
-
     ipcRenderer.on(
       "search_stories",
       (event: Electron.IpcRendererEvent, needle) => {
@@ -227,7 +220,7 @@ export class TabWrangler {
           !story.read &&
           (story.href == href || story.og_href == href)
         ) {
-          ipcRenderer.send("tab_intercom", "persist_story_change", {
+          ipcRenderer.send("forward_to_parent", "persist_story_change", {
             href: story.href,
             path: "read",
             value: true,
@@ -246,7 +239,6 @@ export class TabWrangler {
       "update_tab_info",
       (event: any, title: string, href: string) => {
         let sender_tab = this.tab_el_from_id(event.senderId)
-        console.debug("update_tab_info", event.senderId, title, sender_tab)
         if (sender_tab) {
           sender_tab.dataset.href = href
           sender_tab.innerText = title.substring(0, 22)
@@ -272,7 +264,6 @@ export class TabWrangler {
 
     let i = 0
     let current_el = tabs[i]
-    console.debug(current_el.offsetLeft, "<", tab_el.offsetLeft)
     while (
       i < tabs.length &&
       current_el.offsetLeft - this.tabhandler_element.scrollLeft <
@@ -283,7 +274,6 @@ export class TabWrangler {
     }
 
     let before_el = tabs[i]
-    console.debug(tabs.length, i, tabs[i])
 
     if (before_el) {
       before_el.style.marginLeft = tab_el.clientWidth + "px"
@@ -293,16 +283,19 @@ export class TabWrangler {
     }
   }
 
-  init_draggable_tabs() {
-    window.addEventListener("mousemove", (x) => {
-      let fimg = document.querySelector<HTMLImageElement>(".pic_webtab")
-      if (!fimg && this.active_wc_id != null) {
+  tab_image_overly: HTMLImageElement
+
+  drag_reset_listener(){
+      if (this.tab_image_overly && this.active_wc_id != null) {
         console.log("reset on mousemove")
         this.reset_drag()
       }
-    })
+      window.removeEventListener("mousemove", this.drag_reset_listener)
+  }
 
+  init_draggable_tabs() {
     window.addEventListener("dragover", (x) => {
+      window.addEventListener("mousemove", this.drag_reset_listener)
       x.preventDefault()
       document.body.style.background = "green"
     })
@@ -316,15 +309,14 @@ export class TabWrangler {
       let window_content = document.querySelector("#window_content")
       window_content.classList.add("active_drag")
 
-      let fimg = document.querySelector<HTMLImageElement>(".pic_webtab")
-      if (!fimg && this.active_wc_id != null) {
+      if (!this.tab_image_overly && this.active_wc_id != null) {
         let img_url = ipcRenderer.sendSync("pic_webtab", this.active_wc_id)
-        fimg = document.createElement("img")
-        fimg.classList.add("pic_webtab")
-        fimg.style.position = "absolute"
-        fimg.style.opacity = "0.8"
-        fimg.src = img_url
-        this.tabcontent_element.append(fimg)
+        this.tab_image_overly = document.createElement("img")
+        this.tab_image_overly.classList.add("pic_webtab")
+        this.tab_image_overly.style.position = "absolute"
+        this.tab_image_overly.style.opacity = "0.8"
+        this.tab_image_overly.src = img_url
+        this.tabcontent_element.append(this.tab_image_overly)
         ipcRenderer.send("hide_webtab", this.active_wc_id)
       }
       return true
@@ -385,10 +377,10 @@ export class TabWrangler {
     let window_content = document.querySelector("#window_content")
     window_content.classList.remove("active_drag")
 
-    let fimg = document.querySelector<HTMLImageElement>(".pic_webtab")
-    if (fimg) {
+    if (this.tab_image_overly) {
       ipcRenderer.send("attach_wc_id", this.active_wc_id)
-      fimg.outerHTML = ""
+      this.tab_image_overly.outerHTML = ""
+      this.tab_image_overly = null
     }
     document.body.style.background = ""
     let active_el = this.get_active_tab_el()

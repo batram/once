@@ -311,7 +311,7 @@ function fail_outline(reason: string) {
         "outline:failed"
     )
     .catch((e) => {
-      console.log("webview.loadURL error", e)
+      console.error("webview.loadURL error", e)
     })
 }
 
@@ -358,7 +358,7 @@ function outline_fallback(url: string) {
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.125 Safari/537.36",
   }
   webview.loadURL(outline_api + escape(url), options).catch((e) => {
-    console.log("webview.loadURL error", e)
+    console.error("webview.loadURL error", e)
   })
 }
 

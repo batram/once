@@ -35,8 +35,6 @@ interface RedditJSONData {
 }
 
 function parse(json: RedditJSONData) {
-  console.debug(json)
-  //Parse as RSS and not HTML ...
   if (json.kind == "Listing") {
     return json.data.children.map((story) => {
       return new Story(

@@ -112,7 +112,6 @@ export class StoryListItem extends HTMLElement {
       //not attached to dom, no need to sort or animate anything, no on will see
       return
     }
-    console.debug("here I go animating again", this, new_read)
     let anmim_class = new_read ? "read_anim" : "unread_anim"
 
     let resort = story_list.resort_single(this) as Function
@@ -122,6 +121,7 @@ export class StoryListItem extends HTMLElement {
         this.read_btn.classList.contains("user_interaction")
       ) {
         //consume user interaction
+        console.debug("here I go animating again", this, new_read)
         this.read_btn.classList.remove("user_interaction")
         this.classList.add(anmim_class)
         this.addEventListener(
@@ -176,14 +176,14 @@ export class StoryListItem extends HTMLElement {
   add_ipc_events() {
     this.filter_btn.onclick = (x) => {
       if (this.classList.contains("filtered")) {
-        ipcRenderer.send("tab_intercom", "show_filter", this.story.filter)
+        ipcRenderer.send("forward_to_parent", "show_filter", this.story.filter)
       } else {
         story_filters.show_filter_dialog(
           x,
           this.filter_btn,
           this.story,
           (x) => {
-            ipcRenderer.send("tab_intercom", "add_filter", x)
+            ipcRenderer.send("forward_to_parent", "add_filter", x)
           }
         )
       }
@@ -191,7 +191,7 @@ export class StoryListItem extends HTMLElement {
 
     this.read_btn.addEventListener("click", (x) => {
       this.read_btn.classList.add("user_interaction")
-      ipcRenderer.send("tab_intercom", "persist_story_change", {
+      ipcRenderer.send("forward_to_parent", "persist_story_change", {
         href: this.story.href,
         path: "read",
         value: !this.story.read,
@@ -223,7 +223,7 @@ export class StoryListItem extends HTMLElement {
       let value = !this.story.stared
       this.story.stared = value
       console.log("click start value", this.story.stared, "setting", value)
-      ipcRenderer.send("tab_intercom", "persist_story_change", {
+      ipcRenderer.send("forward_to_parent", "persist_story_change", {
         href: this.story.href,
         path: "stared",
         value: value,

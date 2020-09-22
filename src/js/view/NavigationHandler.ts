@@ -9,7 +9,7 @@ export class NavigationHandler {
     (url: string, target: string) => void
   > = {
     search: (url, target) => {
-      tabbed_out.tab_intercom(
+      tabbed_out.send_to_parent(
         { sender: this.webContents },
         "search_stories",
         url
@@ -63,13 +63,13 @@ export class NavigationHandler {
 
     if (url.startsWith("http:") || url.startsWith("https:")) {
       if (target == "blank") {
-        tabbed_out.tab_intercom(
+        tabbed_out.send_to_parent(
           { sender: this.webContents },
           "open_in_new_tab",
           url
         )
       } else {
-        tabbed_out.tab_intercom(
+        tabbed_out.send_to_parent(
           { sender: this.webContents },
           "open_in_tab",
           url
