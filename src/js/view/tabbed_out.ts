@@ -244,11 +244,11 @@ function create_view(parent_id: number) {
       enableRemoteModule: false,
       webSecurity: false,
       webviewTag: true,
-      preload: global.tab_view_preload,
+      preload: global.paths.tab_view_preload,
     },
   })
 
-  view.webContents.loadFile(global.tab_view_html)
+  view.webContents.loadFile(global.paths.tab_view_html)
 
   view.webContents.once("dom-ready", (x) => {
     view.webContents.send("attached", parent_id)
@@ -287,13 +287,13 @@ function new_relative_win(
     width: view_bound.width + 50,
     height: size[1],
     autoHideMenuBar: true,
-    icon: global.icon_path,
+    icon: global.paths.icon_path,
     webPreferences: {
       nodeIntegration: true,
       enableRemoteModule: false,
       webSecurity: false,
       webviewTag: true,
-      preload: global.main_window_preload,
+      preload: global.paths.main_window_preload,
     },
   })
 
@@ -352,7 +352,7 @@ function pop_new_main(
   new_relative_win(
     parent,
     wc,
-    path.join(global.main_window_html),
+    path.join(global.paths.main_window_html),
     false,
     offset
   )

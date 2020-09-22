@@ -20,7 +20,7 @@ export class WebTab {
     this.webview = document.querySelector<Electron.WebviewTag>("#webview")
     this.urlfield = document.querySelector<HTMLInputElement>("#urlfield")
 
-    this.webview.addEventListener("dom-ready", (x) => {
+    this.webview.addEventListener("dom-ready", () => {
       this.webview_ready = true
       this.send_update_tab_info()
     })
@@ -31,7 +31,6 @@ export class WebTab {
     })
 
     window.addEventListener("mouseup", (e: MouseEvent) => {
-
       if (e.button == 3) {
         if (this.webview.canGoBack()) {
           this.webview.goBack()
@@ -67,10 +66,6 @@ export class WebTab {
       this.send_update_tab_info()
     })
 
-    ipcRenderer.on("detach", (event, data) => {
-      this.tab_state = "detached"
-    })
-
     presenters.init_in_webtab()
 
     this.handle_urlbar()
@@ -80,7 +75,12 @@ export class WebTab {
       this.tab_state = "closed"
       ipcRenderer.removeAllListeners("push_tab_data_change")
       ipcRenderer.removeAllListeners("closed")
-      ipcRenderer.send("forward_to_parent", "update_tab_info", "about:blank", "about:blank")
+      ipcRenderer.send(
+        "forward_to_parent",
+        "update_tab_info",
+        "about:blank",
+        "about:blank"
+      )
       ipcRenderer.send("end_me")
     })
 
@@ -130,29 +130,35 @@ export class WebTab {
       }
     )
 
-    this.webview.addEventListener("load-commit", (event: Electron.LoadCommitEvent) => {
-      if (event.isMainFrame && this.is_attached()) {
-        this.send_to_parent("tab_url_changed", event.url)
-      } 
-    })
+    this.webview.addEventListener(
+      "load-commit",
+      (event: Electron.LoadCommitEvent) => {
+        if (event.isMainFrame && this.is_attached()) {
+          this.send_to_parent("tab_url_changed", event.url)
+        }
+      }
+    )
 
     this.webview.addEventListener("did-start-loading", () => {
       this.inject_css()
     })
-    this.webview.addEventListener("did-navigate", (e: Electron.DidNavigateEvent) => {
-      let url = e.url
-      url = presenters.modify_url(url)
-      if (this.is_attached()) {
-        this.send_to_parent("tab_url_changed", url)
-      } else {
-        let selected = story_list.get_by_href(url)
-        if (!selected) {
-          this.update_selected(null, null)
+    this.webview.addEventListener(
+      "did-navigate",
+      (e: Electron.DidNavigateEvent) => {
+        let url = e.url
+        url = presenters.modify_url(url)
+        if (this.is_attached()) {
+          this.send_to_parent("tab_url_changed", url)
+        } else {
+          let selected = story_list.get_by_href(url)
+          if (!selected) {
+            this.update_selected(null, null)
+          }
         }
+        this.send_update_tab_info()
+        this.urlfield.value = url
       }
-      this.send_update_tab_info()
-      this.urlfield.value = url
-    })
+    )
 
     this.webview.addEventListener("did-navigate-in-page", console.debug)
 
@@ -166,6 +172,7 @@ export class WebTab {
       this.webview.loadURL("about:blank")
       this.send_to_parent("update_tab_info", "about:blank", "about:blank")
       this.send_to_parent("detaching")
+      this.tab_state = "closed"
       ipcRenderer.send("end_me")
     }
 
@@ -181,7 +188,11 @@ export class WebTab {
 
   send_update_tab_info(e?: any) {
     if (this.webview_ready) {
-      this.send_to_parent("update_tab_info", this.webview.getTitle(), this.urlfield.value)
+      this.send_to_parent(
+        "update_tab_info",
+        this.webview.getTitle(),
+        this.urlfield.value
+      )
     }
   }
 
@@ -220,7 +231,7 @@ export class WebTab {
     let selected_container = document.querySelector("#selected_container")
 
     if (colors != undefined) {
-      var style =
+      let style =
         document.querySelector<HTMLStyleElement>(".tag_style") ||
         document.createElement("style")
       style.classList.add("tag_style")
@@ -243,10 +254,8 @@ export class WebTab {
     ipcRenderer.sendTo(this.parent_id, channel, ...args)
   }
 
-  load_started(_e: any) {}
-
   inject_css() {
-    let css = `
+    const css = `
   html {
     margin: 0;
     padding: 0;
@@ -329,14 +338,22 @@ export class WebTab {
   open_in_webview(href: string) {
     if (this.webview && this.urlfield) {
       ipcRenderer.send("forward_to_parent", "tab_url_changed", href)
-      this.webview.loadURL(href).then(e => {
-        console.debug("open_in_webview load", e, href)
-      }).catch((e) => {
-        console.log("webview.loadURL error", e)
-      })
+      this.webview
+        .loadURL(href)
+        .then((e) => {
+          console.debug("open_in_webview load", e, href)
+        })
+        .catch((e) => {
+          console.log("webview.loadURL error", e)
+        })
       this.urlfield.value = href
     } else {
-      console.error("webtab not ready to load:", href, this.webview, this.urlfield)
+      console.error(
+        "webtab not ready to load:",
+        href,
+        this.webview,
+        this.urlfield
+      )
     }
   }
 }

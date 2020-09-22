@@ -196,16 +196,16 @@ export class TabWrangler {
       }
     )
 
-    ipcRenderer.on(      "tab_url_changed", this.handle_tab_url_change    )
-
-
+    ipcRenderer.on("tab_url_changed", (event, href) => {
+      this.handle_tab_url_change(event, href)
+    })
 
     ipcRenderer.on(
       "update_tab_info",
       (event: Electron.IpcRendererEvent, title: string, href: string) => {
         let sender_tab = this.tab_el_from_id(event.senderId)
         if (sender_tab) {
-          if(sender_tab.dataset.href != href){
+          if (sender_tab.dataset.href != href) {
             this.handle_tab_url_change(event, href)
           }
           sender_tab.dataset.href = href
@@ -232,11 +232,7 @@ export class TabWrangler {
     }
 
     let story = story_list.mark_selected(null, href)
-    if (
-      story &&
-      !story.read &&
-      (story.href == href || story.og_href == href)
-    ) {
+    if (story && !story.read && (story.href == href || story.og_href == href)) {
       ipcRenderer.send("forward_to_parent", "persist_story_change", {
         href: story.href,
         path: "read",
@@ -250,7 +246,6 @@ export class TabWrangler {
 
     this.send_to_id(event.senderId, "update_selected", story, colors)
   }
-
 
   insert_tab_by_offleft(tab_el: HTMLElement) {
     let all_tabs = Array.from(
@@ -289,12 +284,12 @@ export class TabWrangler {
 
   tab_image_overly: HTMLImageElement
 
-  drag_reset_listener(){
-      if (this.tab_image_overly && this.active_wc_id != null) {
-        console.log("reset on mousemove")
-        this.reset_drag()
-      }
-      window.removeEventListener("mousemove", this.drag_reset_listener)
+  drag_reset_listener() {
+    if (this.tab_image_overly && this.active_wc_id != null) {
+      console.log("reset on mousemove")
+      this.reset_drag()
+    }
+    window.removeEventListener("mousemove", this.drag_reset_listener)
   }
 
   init_draggable_tabs() {

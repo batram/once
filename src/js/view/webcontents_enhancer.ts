@@ -14,7 +14,7 @@ import { NavigationHandler } from "./NavigationHandler"
 export { on_each }
 
 function on_each() {
-  session.fromPartition("moep").setPreloads([global.moep_session_preload])
+  session.fromPartition("moep").setPreloads([global.paths.moep_session_preload])
 
   app.on("web-contents-created", function (event, webContents) {
     //console.log("web-contents-created ", event, webContents.id)

@@ -3,7 +3,6 @@ import {
   BrowserWindow,
   session,
   ipcMain,
-  dialog,
   webContents,
   BrowserView,
   nativeTheme,
@@ -16,19 +15,22 @@ import * as tabbed_out from "./js/view/tabbed_out"
 import * as webcontents_enhancer from "./js/view/webcontents_enhancer"
 
 declare global {
-  var icon_path: string
-  var main_window_preload: string
-  var main_window_html: string
-  var tab_view_preload: string
-  var tab_view_html: string
-  var moep_session_preload: string
+  // eslint-disable-next-line no-var
+  var paths: {
+    icon_path: string
+    main_window_preload: string
+    main_window_html: string
+    tab_view_preload: string
+    tab_view_html: string
+    moep_session_preload: string
+  }
 }
 
 if (process.env.LDEV == "1") {
   require("electron-reload")(path.join(__dirname))
 }
 
-global.icon_path = path.join(
+global.paths.icon_path = path.join(
   __dirname,
   "static",
   "imgs",
@@ -37,23 +39,31 @@ global.icon_path = path.join(
   "ic_launcher.png"
 )
 
-global.moep_session_preload = path.join(
+global.paths.moep_session_preload = path.join(
   __dirname,
   "js",
   "view",
   "moep_session_preload.js"
 )
 
-global.main_window_html = path.join(__dirname, "static", "main_window.html")
-global.main_window_preload = path.join(
+global.paths.main_window_html = path.join(
+  __dirname,
+  "static",
+  "main_window.html"
+)
+global.paths.main_window_preload = path.join(
   __dirname,
   "js",
   "view",
   "main_window_preload.js"
 )
 
-global.tab_view_html = path.join(__dirname, "static", "webtab.html")
-global.tab_view_preload = path.join(
+global.global.paths.tab_view_html = path.join(
+  __dirname,
+  "static",
+  "webtab.html"
+)
+paths.tab_view_preload = path.join(
   __dirname,
   "js",
   "view",
@@ -71,10 +81,10 @@ function createWindow() {
       enableRemoteModule: false,
       webSecurity: false,
       webviewTag: true,
-      preload: global.main_window_preload,
+      preload: global.paths.main_window_preload,
     },
     autoHideMenuBar: true,
-    icon: global.icon_path,
+    icon: paths.icon_path,
   })
 
   fullscreen.main_listener()
@@ -86,7 +96,7 @@ function createWindow() {
 
   //win.webContents.session.setProxy({ proxyRules: "socks5://127.0.0.1:9150" })
 
-  win.loadFile(global.main_window_html)
+  win.loadFile(global.paths.main_window_html)
 
   adblocker.ElectronBlocker.fromPrebuiltAdsAndTracking(
     require("cross-fetch")
@@ -103,7 +113,7 @@ function createWindow() {
       console.log("alive", wc.id, wc.isDestroyed())
     })
 
-    setTimeout((x) => {
+    setTimeout(() => {
       process.exit(0)
     }, 2000)
   })
