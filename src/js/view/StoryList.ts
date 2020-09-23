@@ -69,13 +69,15 @@ function get_by_href(url: string): StoryListItem {
   return story_el as StoryListItem
 }
 
-function unmark_selected(): void {
+function unmark_selected(keep_selected?: HTMLElement): void {
   document.querySelectorAll(".story").forEach((x: StoryListItem) => {
     if (x.classList.contains("selected")) {
-      x.classList.remove("selected")
-      const fun = resort_single(x)
-      if (typeof fun == "function") {
-        fun()
+      if (!(keep_selected == x)) {
+        x.classList.remove("selected")
+        const fun = resort_single(x)
+        if (typeof fun == "function") {
+          fun()
+        }
       }
     }
   })
@@ -86,9 +88,7 @@ function mark_selected(story_el: StoryListItem, url: string): Story {
     story_el = get_by_href(url)
   }
 
-  if (!story_el.classList.contains("selected")) {
-    unmark_selected()
-  }
+  unmark_selected(story_el)
 
   if (story_el) {
     story_el.classList.add("selected")
