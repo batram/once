@@ -52,14 +52,14 @@ export class WebTab {
       this.pop_new_main(JSON.parse(offset))
     })
 
-    ipcRenderer.on("attached", (event, data) => {
-      console.debug("attached", data)
+    ipcRenderer.on("attached", (event, new_parent_id) => {
+      console.debug("attached", new_parent_id)
 
-      if (this.parent_id && this.parent_id != data) {
+      if (this.parent_id && this.parent_id != new_parent_id) {
         this.send_to_parent("detaching")
       }
 
-      this.parent_id = data
+      this.parent_id = new_parent_id
       this.tab_state = "attached"
       this.send_to_parent("subscribe_to_change")
 
@@ -70,8 +70,8 @@ export class WebTab {
 
     this.handle_urlbar()
 
-    ipcRenderer.on("closed", (event, data) => {
-      console.debug("closed", event, data)
+    ipcRenderer.on("closed", (event) => {
+      console.debug("closed", event)
       this.tab_state = "closed"
       ipcRenderer.removeAllListeners("push_tab_data_change")
       ipcRenderer.removeAllListeners("closed")
