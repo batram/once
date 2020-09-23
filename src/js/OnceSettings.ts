@@ -34,7 +34,7 @@ export class OnceSettings {
     window
       .matchMedia("(prefers-color-scheme: dark)")
       .addEventListener("change", (e) => {
-        console.log("system theme change", e)
+        console.debug("system theme change", e)
       })
 
     const theme_select = document.querySelector<HTMLSelectElement>(
@@ -56,10 +56,14 @@ export class OnceSettings {
     this.reset_couch_settings()
     couch_input.parentElement
       .querySelector('input[value="save"]')
-      .addEventListener("click", this.save_couch_settings)
+      .addEventListener("click", () => {
+        this.save_couch_settings()
+      })
     couch_input.parentElement
       .querySelector('input[value="cancel"]')
-      .addEventListener("click", this.reset_couch_settings)
+      .addEventListener("click", () => {
+        this.reset_couch_settings()
+      })
 
     this.set_sources_area()
 
@@ -68,10 +72,14 @@ export class OnceSettings {
     )
     sources_area.parentElement
       .querySelector('input[value="save"]')
-      .addEventListener("click", this.save_sources_settings)
+      .addEventListener("click", () => {
+        this.save_sources_settings()
+      })
     sources_area.parentElement
       .querySelector('input[value="cancel"]')
-      .addEventListener("click", this.set_sources_area)
+      .addEventListener("click", () => {
+        this.set_sources_area()
+      })
 
     sources_area.addEventListener("keydown", (e) => {
       if (e.keyCode === 27) {
@@ -88,13 +96,16 @@ export class OnceSettings {
     const filter_area = document.querySelector<HTMLInputElement>("#filter_area")
     filter_area.parentElement
       .querySelector('input[value="save"]')
-      .addEventListener("click", this.save_filter_settings)
+      .addEventListener("click", () => {
+        this.save_filter_settings()
+      })
     filter_area.parentElement
       .querySelector("input[value=cancel]")
-      .addEventListener("click", this.set_filter_area)
+      .addEventListener("click", () => {
+        this.set_filter_area()
+      })
 
     filter_area.addEventListener("keydown", (e) => {
-      console.log("filter_area", e)
       if (e.keyCode === 27) {
         //ESC
         this.set_filter_area()
@@ -106,7 +117,7 @@ export class OnceSettings {
   }
 
   restore_theme_settings(): void {
-    this.pouch_get("theme", "light").then((theme_value: string) => {
+    this.pouch_get("theme", "system").then((theme_value: string) => {
       const theme_select = document.querySelector<HTMLSelectElement>(
         "#theme_select"
       )
@@ -116,7 +127,7 @@ export class OnceSettings {
   }
 
   save_theme(name: string): void {
-    this.pouch_set("theme", name, console.log)
+    this.pouch_set("theme", name, console.debug)
     this.set_theme(name)
   }
 
@@ -131,7 +142,7 @@ export class OnceSettings {
   }
 
   save_animation(checked: boolean): void {
-    this.pouch_set("animation", checked, console.log)
+    this.pouch_set("animation", checked, console.debug)
     const anim_checkbox = document.querySelector<HTMLInputElement>(
       "#anim_checkbox"
     )
@@ -149,10 +160,10 @@ export class OnceSettings {
         ipcRenderer.send("theme", "dark")
         break
       case "light":
-        ipcRenderer.send("theme", "dark")
+        ipcRenderer.send("theme", "light")
         break
       case "custom":
-        console.log("custom theme, not implement, just hanging out here :D")
+        console.debug("custom theme, not implement, just hanging out here :D")
         break
       case "system":
         ipcRenderer.send("theme", "system")
@@ -163,10 +174,10 @@ export class OnceSettings {
   update_on_change(
     event: PouchDB.Replication.SyncResult<Record<string, unknown>>
   ): void {
-    console.log("pouch change", event)
+    console.debug("pouch change", event)
     if (event.direction) {
       event.change.docs.forEach((doc) => {
-        console.log("update", doc._id)
+        console.debug("update", doc._id)
         switch (doc._id) {
           case "read_list":
             StoryMap.instance.reread(doc.list as string[])
@@ -203,13 +214,15 @@ export class OnceSettings {
     })
 
     this.syncHandler
-      .on("change", this.update_on_change)
+      .on("change", (event) => {
+        this.update_on_change(event)
+      })
       .on("complete", (info) => {
-        console.log("pouch sync stopped", info)
+        console.debug("pouch sync stopped", info)
       })
 
       .on("error", (err: Error) => {
-        console.log("pouch err", err)
+        console.error("pouch err", err)
       })
   }
 
@@ -242,7 +255,7 @@ export class OnceSettings {
         return doc.list as T
       })
       .catch((err) => {
-        console.log("pouch_get err", err)
+        console.error("pouch_get err", err)
         if (err.status == 404) {
           this.once_db.put({
             _id: id,
@@ -271,7 +284,6 @@ export class OnceSettings {
     const story_sources = sources_area.value.split("\n").filter((x) => {
       return x.trim() != ""
     })
-
     this.pouch_set("story_sources", story_sources, story_list.reload)
   }
 
@@ -323,7 +335,7 @@ export class OnceSettings {
               callback()
             })
         } else {
-          console.log("pouch_set error:", err)
+          console.error("pouch_set error:", err)
         }
       })
   }
