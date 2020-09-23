@@ -75,8 +75,8 @@ function tab_listeners(win: BrowserWindow): void {
       const window = BrowserWindow.fromBrowserView(view)
       if (window) {
         window.removeBrowserView(view)
-        view.destroy()
       }
+      view.destroy()
     }
   })
 
