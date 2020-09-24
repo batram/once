@@ -43,6 +43,7 @@ export class Story {
     this.type = type
     this.href = href
     this.title = title
+    this.read_state = "unread"
 
     //TODO: class source or add complete stories as sources?
     this.sources = [
