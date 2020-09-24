@@ -4,10 +4,6 @@ import { ipcRenderer } from "electron"
 import { StoryMap } from "./data/StoryMap"
 import { Story } from "./data/Story"
 
-export interface StarList {
-  [index: string]: Story | { stared: boolean; stored_star: boolean }
-}
-
 export class OnceSettings {
   default_sources = [
     "https://news.ycombinator.com/",
@@ -24,6 +20,10 @@ export class OnceSettings {
   constructor() {
     OnceSettings.instance = this
     this.once_db = new PouchDB(".once_db")
+
+    this.get_stories().then((stories) => {
+      StoryMap.instance.stored_add(stories)
+    })
 
     const couchdb_url = this.get_couch_settings()
     if (couchdb_url != "") {
@@ -179,9 +179,6 @@ export class OnceSettings {
       event.change.docs.forEach((doc) => {
         console.debug("update", doc._id)
         switch (doc._id) {
-          case "read_list":
-            StoryMap.instance.reread(doc.list as string[])
-            break
           case "story_sources":
             this.set_sources_area()
             story_list.reload()
@@ -189,9 +186,6 @@ export class OnceSettings {
           case "filter_list":
             this.set_filter_area()
             story_list.refilter()
-            break
-          case "star_list":
-            StoryMap.instance.restar(doc.list as StarList)
             break
           case "theme":
             this.restore_theme_settings()
@@ -213,6 +207,26 @@ export class OnceSettings {
       retry: true,
     })
 
+    this.once_db
+      .changes({
+        since: "now",
+        live: true,
+        include_docs: true,
+      })
+      .on("change", (change) => {
+        console.log("changes", change)
+        if (change.id.startsWith("sto_") && change.doc) {
+          const changed_story = Story.from_obj(change.doc)
+          const stored = StoryMap.instance.get(changed_story.href)
+          if (stored._rev != change.doc._rev) {
+            StoryMap.instance.set(
+              changed_story.href,
+              Story.from_obj(change.doc)
+            )
+          }
+        }
+      })
+
     this.syncHandler
       .on("change", (event) => {
         this.update_on_change(event)
@@ -220,7 +234,6 @@ export class OnceSettings {
       .on("complete", (info) => {
         console.debug("pouch sync stopped", info)
       })
-
       .on("error", (err: Error) => {
         console.error("pouch err", err)
       })
@@ -301,12 +314,55 @@ export class OnceSettings {
     story_list.refilter()
   }
 
-  get_readlist(): Promise<string[]> {
-    return this.pouch_get("read_list", [])
-  }
-
   get_filterlist(): Promise<string[]> {
     return this.pouch_get("filter_list", this.default_filterlist)
+  }
+
+  story_id(url: string): string {
+    return "sto_" + url
+  }
+
+  async get_stories(): Promise<Story[]> {
+    const response = await this.once_db.allDocs({
+      include_docs: true,
+      startkey: this.story_id("h"),
+      endkey: this.story_id("i"),
+    })
+
+    return response.rows.map((entry) => {
+      return Story.from_obj(entry.doc)
+    })
+  }
+
+  async get_story(url: string): Promise<Story> {
+    return this.once_db
+      .get(this.story_id(url))
+      .then((doc: unknown) => {
+        return doc as Story
+      })
+      .catch((err) => {
+        console.error("get_story err", err)
+        return null
+      })
+  }
+
+  async save_story(story: Story): Promise<PouchDB.Core.Response | void> {
+    return this.once_db
+      .get(this.story_id(story.href))
+      .then((doc) => {
+        story._id = doc._id
+        story._rev = doc._rev
+        return this.once_db.put(story.to_obj())
+      })
+      .catch((err) => {
+        if (err.status == 404) {
+          story._id = this.story_id(story.href)
+          story.ingested_at = Date.now()
+          return this.once_db.put(story.to_obj())
+        } else {
+          console.error("pouch_set error:", err)
+        }
+      })
   }
 
   async pouch_set<T>(
@@ -345,24 +401,6 @@ export class OnceSettings {
       story_list.refilter()
       this.set_filter_area()
     })
-  }
-
-  async save_readlist(
-    readlist: string[],
-    callback: () => unknown
-  ): Promise<void> {
-    this.pouch_set("read_list", readlist, callback)
-  }
-
-  async get_starlist(): Promise<StarList> {
-    return this.pouch_get("star_list", {})
-  }
-
-  async save_starlist(
-    starlist: StarList,
-    callback: () => unknown
-  ): Promise<void> {
-    this.pouch_set("star_list", starlist, callback)
   }
 
   default_filterlist = `bbc.co.uk

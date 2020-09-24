@@ -4,6 +4,7 @@ import { StoryListItem } from "../view/StoryListItem"
 import * as filters from "../data/StoryFilters"
 import { StoryMap } from "../data/StoryMap"
 import * as story_loader from "../data/StoryLoader"
+import * as onChange from "on-change"
 
 export {
   mark_selected,
@@ -28,8 +29,11 @@ function init(): void {
 
 function add(story: Story, bucket = "stories"): void {
   if (!(story instanceof Story)) {
-    story = Story.from_obj(story)
-    story = StoryMap.instance.set(story.href.toString(), story)
+    throw "only stories allowed into the story list"
+  }
+  if (document.querySelector(`.story[data-href="${story.href}"]`)) {
+    console.debug("deduped story ins storylist: ", story.href)
+    return
   }
 
   story.bucket = bucket
@@ -117,8 +121,8 @@ function story_compare(a: SortableStory, b: SortableStory) {
 
 function sortable_story(elem: StoryListItem) {
   return {
-    read: elem.story.read,
-    timestamp: elem.story.timestamp,
+    read: onChange.target(elem.story).read == true,
+    timestamp: onChange.target(elem.story).timestamp,
     el: elem,
   }
 }
@@ -218,14 +222,6 @@ function refilter(): void {
 function reload(): void {
   //dont remove the selected story on reload
   const selected = document.querySelector<StoryListItem>(".selected")
-  if (selected) {
-    const href = selected.dataset.href
-    const story = StoryMap.instance.get(href).clone()
-    StoryMap.instance.clear()
-    StoryMap.instance.set(href, story)
-  } else {
-    StoryMap.instance.clear()
-  }
 
   document.querySelectorAll(".story").forEach((x) => {
     if (!x.classList.contains("selected")) {
@@ -233,5 +229,10 @@ function reload(): void {
     }
   })
 
+  if (selected) {
+    const href = selected.dataset.href
+    const story = StoryMap.instance.get(href).clone()
+    add(story)
+  }
   OnceSettings.instance.story_sources().then(story_loader.load)
 }

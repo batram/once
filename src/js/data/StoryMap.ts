@@ -1,7 +1,6 @@
 import { Story } from "../data/Story"
 import * as onChange from "on-change"
-import * as story_list from "../view/StoryList"
-import { StarList } from "../OnceSettings"
+import { OnceSettings } from "../OnceSettings"
 
 export interface DataChangeEventDetail {
   story: Story
@@ -37,6 +36,18 @@ export class StoryMap {
     }
   }
 
+  map(fun: (arg0: Story) => boolean): Story[] {
+    const ar = []
+    for (const i in this.story_map) {
+      if (typeof this.story_map[i] != "function") {
+        if (fun(this.story_map[i])) {
+          ar.push(this.story_map[i])
+        }
+      }
+    }
+    return ar
+  }
+
   story_map: Record<string, Story> = onChange(
     this.s_map,
     (path: string[], value: unknown, previousValue: unknown, name: string) => {
@@ -62,6 +73,7 @@ export class StoryMap {
       }
     },
     {
+      ignoreUnderscores: true,
       pathAsArray: true,
     }
   )
@@ -96,22 +108,26 @@ export class StoryMap {
     if (path == "story" && value instanceof Story) {
       story = value
     } else {
-      if (path == "read") {
-        if (value) {
-          story.add_to_readlist()
-        } else {
-          story.remove_from_readlist()
-        }
-      }
-      if (path == "stared") {
-        if (value) {
-          story.add_to_starlist()
-        } else {
-          story.remove_from_starlist()
-        }
-      }
       story[path] = value
+      OnceSettings.instance.save_story(story).then((resp) => {
+        if (resp && (resp as PouchDB.Core.Response).rev) {
+          story._rev = resp.rev
+        }
+      })
     }
+  }
+
+  stored_add(stories: Story[]): void {
+    console.debug("add intial stories", stories)
+    stories.forEach((story) => {
+      this.set(story.href.toString(), story)
+    })
+  }
+
+  get_all_stared(): Story[] {
+    return this.map((story) => {
+      return story.stared == true
+    })
   }
 
   add(story: Story, bucket = "stories"): Story {
@@ -126,15 +142,8 @@ export class StoryMap {
     if (!og_story) {
       //new story
       story = this.set(story.href.toString(), story)
-      story_list.add(story, bucket)
+      OnceSettings.instance.save_story(story)
     } else {
-      if (og_story.stared != story.stared) {
-        story.update_stared()
-      }
-      if (og_story.read != story.read) {
-        story.update_read()
-      }
-
       //check if we already have as alternate source
       const curls = og_story.sources.map((x) => {
         return x.comment_url
@@ -147,35 +156,12 @@ export class StoryMap {
           comment_url: story.comment_url,
           timestamp: story.timestamp,
         })
+        OnceSettings.instance.save_story(og_story)
       }
 
       story = og_story
     }
 
     return story
-  }
-
-  restar(starlist: StarList): void {
-    this.forEach((story: Story) => {
-      story.stared = Object.prototype.hasOwnProperty.call(starlist, story.href)
-    })
-
-    this.add_stored_stars(starlist)
-  }
-
-  //TODO: specify starlist format
-  add_stored_stars(starlist: StarList): void {
-    for (const href in starlist) {
-      const star_story = Story.from_obj(starlist[href])
-      star_story.stared = true
-      star_story.stored_star = true
-      this.add(star_story)
-    }
-  }
-
-  reread(readlist: string[]): void {
-    this.forEach((story: Story) => {
-      story.read = readlist.includes(story.href)
-    })
   }
 }

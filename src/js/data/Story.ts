@@ -1,5 +1,4 @@
 import * as onChange from "on-change"
-import { OnceSettings } from "../OnceSettings"
 
 export interface StorySource {
   type: string
@@ -22,7 +21,6 @@ export class Story {
   sources: StorySource[]
   read: boolean
   stared: boolean
-  stored_star: boolean
   og_href: string;
 
   [index: string]:
@@ -89,29 +87,6 @@ export class Story {
     return cloned
   }
 
-  remove_from_readlist(): void {
-    OnceSettings.instance.get_readlist().then((readlist) => {
-      const index = readlist.indexOf(this.href)
-      if (index > -1) {
-        readlist.splice(index, 1)
-      }
-      OnceSettings.instance.save_readlist(readlist, console.log)
-    })
-  }
-
-  add_to_readlist(): void {
-    OnceSettings.instance.get_readlist().then((readlist) => {
-      const target_href = onChange.target(this).href
-      if (!readlist.includes(target_href)) {
-        readlist.push(target_href)
-        readlist = readlist.filter(
-          (href: string, i: number, a: string[]) => a.indexOf(href) === i
-        )
-        OnceSettings.instance.save_readlist(readlist, console.log)
-      }
-    })
-  }
-
   clone(): Story {
     const cloned = new Story()
     for (const i in this) {
@@ -123,36 +98,6 @@ export class Story {
     }
 
     return cloned
-  }
-
-  add_to_starlist(): void {
-    OnceSettings.instance.get_starlist().then((starlist) => {
-      starlist[this.href] = onChange.target(this)
-      OnceSettings.instance.save_starlist(starlist, console.log)
-    })
-  }
-
-  remove_from_starlist(): void {
-    OnceSettings.instance.get_starlist().then((starlist) => {
-      if (Object.prototype.hasOwnProperty.call(starlist, this.href)) {
-        delete starlist[this.href]
-        OnceSettings.instance.save_starlist(starlist, console.log)
-      }
-    })
-  }
-
-  async update_read(): Promise<boolean> {
-    const readlist = await OnceSettings.instance.get_readlist()
-    this.read = readlist.includes(this.href)
-
-    return this.read
-  }
-
-  async update_stared(): Promise<boolean> {
-    const starlist = await OnceSettings.instance.get_starlist()
-    this.stared = Object.prototype.hasOwnProperty.call(starlist, this.href)
-
-    return this.stared
   }
 
   static compare(a: SortableStory, b: SortableStory): 1 | 0 | -1 {

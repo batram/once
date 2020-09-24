@@ -3,6 +3,7 @@ import * as story_list from "../view/StoryList"
 import * as stroy_loader from "../data/StoryLoader"
 import { StoryListItem } from "../view/StoryListItem"
 import * as collectors from "../data/collectors"
+import { StoryMap } from "./StoryMap"
 
 export { init_search, search_stories }
 
@@ -64,6 +65,10 @@ const specialk: Record<string, () => void> = {
     })
   },
   "[stared]": () => {
+    StoryMap.instance.get_all_stared().forEach((story) => {
+      story_list.add(story)
+    })
+
     document.querySelectorAll(".story").forEach((x) => {
       x.classList.add("nomatch")
       if (x.classList.contains("stared")) {

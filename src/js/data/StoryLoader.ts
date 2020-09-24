@@ -1,7 +1,6 @@
 import * as story_parser from "../data/parser"
 import { StoryMap } from "../data/StoryMap"
 import { Story } from "./Story"
-import { OnceSettings } from "../OnceSettings"
 import * as search from "../data/search"
 import * as story_filters from "./StoryFilters"
 import * as story_list from "../view/StoryList"
@@ -51,10 +50,6 @@ async function process_story_input(stories: Story[]) {
     StoryMap.instance.add(story)
   })
 
-  //add all stored stared stories
-  const starlist = await OnceSettings.instance.get_starlist()
-  StoryMap.instance.add_stored_stars(starlist)
-
   story_list.sort_stories()
   const searchfield = document.querySelector<HTMLInputElement>("#searchfield")
   if (searchfield.value != "") {
@@ -86,15 +81,12 @@ async function cache_load(url: string, try_cache = true) {
 
 async function enhance_stories(stories: Story[], add = true): Promise<Story[]> {
   const filtered_stories = await story_filters.filter_stories(stories)
-  const readlist = await OnceSettings.instance.get_readlist()
-  const starlist = await OnceSettings.instance.get_starlist()
 
   return filtered_stories.map((story: Story) => {
     if (add) {
       story = StoryMap.instance.add(story)
+      story_list.add(story)
     }
-    story.read = readlist.includes(story.href)
-    story.stared = Object.prototype.hasOwnProperty.call(starlist, story.href)
     return story
   })
 }

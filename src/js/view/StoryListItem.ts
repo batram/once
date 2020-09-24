@@ -16,8 +16,9 @@ export class StoryListItem extends HTMLElement {
   constructor(story: Story | Record<string, unknown>) {
     super()
 
-    if (!(this.story instanceof Story)) {
-      this.story = Story.from_obj(story)
+    if (!(story instanceof Story)) {
+      console.error("story not a story?", story)
+      throw "only put a story in a story obj, no more magic"
     } else {
       this.story = story as Story
     }
@@ -77,9 +78,6 @@ export class StoryListItem extends HTMLElement {
     this.add_read_button()
     this.add_star_button()
 
-    this.update_read(this.story.read)
-    this.update_star(this.story.stared)
-
     this.filter_btn = StoryListItem.icon_button(
       "filter",
       "filter_btn",
@@ -107,13 +105,12 @@ export class StoryListItem extends HTMLElement {
     })
   }
 
-  animate_read(new_read: boolean): void {
+  animate_read(): void {
     if (!this.parentElement) {
       //not attached to dom, no need to sort or animate anything, no on will see
       return
     }
-    const anmim_class = new_read ? "read_anim" : "unread_anim"
-
+    const anmim_class = this.story.read ? "read_anim" : "unread_anim"
     const resort = story_list.resort_single(this)
     if (typeof resort == "function") {
       if (
@@ -121,7 +118,6 @@ export class StoryListItem extends HTMLElement {
         this.read_btn.classList.contains("user_interaction")
       ) {
         //consume user interaction
-        console.debug("here I go animating again", this, new_read)
         this.read_btn.classList.remove("user_interaction")
         this.classList.add(anmim_class)
         this.addEventListener(
@@ -145,32 +141,33 @@ export class StoryListItem extends HTMLElement {
 
     this.animated = event.detail.animated
     document.body.setAttribute("animated", event.detail.animated.toString())
+    this.story = event.detail.story
 
     if (event.detail.path.length == 2) {
       switch (event.detail.path[1]) {
         case "read":
-          this.update_read(event.detail.value as boolean)
+          this.update_read()
           break
         case "sources":
           //TODO: typeguard?
-          this.update_sources(event.detail.value as StorySource[])
+          this.update_sources()
           break
         case "stared":
-          this.update_star(event.detail.value as boolean)
+          this.update_star()
           break
         case "filter":
         default:
           this.update_complete_story_el()
           break
       }
+    } else {
+      this.update_complete_story_el()
     }
-
-    this.story = event.detail.story
   }
 
   update_complete_story_el(): void {
+    this.innerHTML = ""
     this.story_html()
-    this.replaceWith(this)
   }
 
   add_ipc_events(): void {
@@ -283,17 +280,17 @@ export class StoryListItem extends HTMLElement {
     this.read_btn = StoryListItem.icon_button("", "read_btn")
     this.appendChild(this.read_btn)
 
-    this.label_read()
+    this.update_read()
   }
 
-  update_read(read: boolean): void {
-    if (read) {
+  update_read(): void {
+    if (this.story.read) {
       this.classList.add("read")
     } else {
       this.classList.remove("read")
     }
     this.label_read()
-    this.animate_read(read)
+    this.animate_read()
   }
 
   label_read(): void {
@@ -311,7 +308,7 @@ export class StoryListItem extends HTMLElement {
 
     this.star_btn = StoryListItem.icon_button("", "star_btn")
     this.appendChild(this.star_btn)
-    this.label_star()
+    this.update_star()
   }
 
   label_star(): void {
@@ -326,8 +323,8 @@ export class StoryListItem extends HTMLElement {
     }
   }
 
-  update_star(stared: boolean): void {
-    if (stared) {
+  update_star(): void {
+    if (this.story.stared) {
       this.classList.add("stared")
     } else {
       this.classList.remove("stared")
@@ -336,11 +333,11 @@ export class StoryListItem extends HTMLElement {
     this.label_star()
   }
 
-  update_sources(sources: StorySource[]): void {
+  update_sources(): void {
     const sources_el = this.querySelector(".sources")
     sources_el.innerHTML = ""
 
-    sources.forEach((x: StorySource) => {
+    this.story.sources.forEach((x: StorySource) => {
       sources_el.append(this.info_block(x))
     })
   }
