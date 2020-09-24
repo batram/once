@@ -223,7 +223,10 @@ export class WebTab {
   }
 
   //object | Story
-  update_selected(story: Story, colors?: string): void {
+  update_selected(
+    story: Story | Record<string, unknown>,
+    colors?: string
+  ): void {
     const selected_container = document.querySelector("#selected_container")
 
     if (colors != undefined) {
@@ -239,6 +242,10 @@ export class WebTab {
     selected_container.innerHTML = ""
     if (!story) {
       return
+    }
+
+    if (!(story instanceof Story)) {
+      story = Story.from_obj(story)
     }
 
     const story_el = new StoryListItem(story)
