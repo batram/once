@@ -15,8 +15,8 @@ const presenter_options: Record<
     description: "show outline-button in urlbar",
   },
   story_button: {
-    value: true,
-    description: "show outline-button for each story",
+    value: "always",
+    description: "show outline-button for story (always | never | handled)",
   },
   use_google_cache: {
     value: true,
@@ -32,7 +32,8 @@ export {
   description,
   presenter_options,
   present,
-  handles,
+  handle,
+  handle_url,
   is_presenter_url,
   display_url,
   story_elem_button,
@@ -44,7 +45,11 @@ export {
 const data_outline_url = "data:text/html;charset=utf-8,<!--outline-->"
 const data_outline_url_fail = "data:text/plain;charset=utf-8,outline%20failed"
 
-function handles(): boolean {
+function handle_url(): boolean {
+  return false
+}
+
+async function handle(): Promise<boolean> {
   //Handle non by default
   return false
 }
@@ -75,10 +80,6 @@ function outline_button_inactive() {
 }
 
 function story_elem_button(story: Story, intab = false): HTMLElement {
-  if (!presenter_options.story_button.value) {
-    return
-  }
-
   const outline_btn = StoryListItem.icon_button(
     "outline",
     "outline_btn",
@@ -188,6 +189,17 @@ async function present(url: string): Promise<void> {
 
 async function outline(url: string): Promise<void> {
   const webview = document.querySelector<Electron.WebviewTag>("#webview")
+  webview
+    .loadURL(
+      data_outline_url +
+        "<title>outlining</title>started outlining" +
+        "#" +
+        encodeURIComponent(url)
+    )
+    .catch((e) => {
+      console.log("webview.loadURL error", e)
+    })
+
   if (!webview) {
     fail_outline("failed to find webview")
     return

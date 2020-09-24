@@ -104,7 +104,7 @@ function tab_listeners(win: BrowserWindow): void {
   })
 
   ipcMain.on("bound_attached", (event, wc_id, bounds) => {
-    console.log("bound_attached", wc_id)
+    //console.log("bound_attached", wc_id)
     const window = BrowserWindow.fromWebContents(event.sender)
     const attached_view = window.getBrowserView()
     if (attached_view && !attached_view.isDestroyed()) {

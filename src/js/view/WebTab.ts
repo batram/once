@@ -339,8 +339,12 @@ export class WebTab {
     return url
   }
 
-  open_in_webview(href: string): void {
+  async open_in_webview(href: string): Promise<void> {
     if (this.webview && this.urlfield) {
+      if (await presenters.handled_by(href)) {
+        //a presenter will handle everything about this url
+        return
+      }
       this.url_changed(href)
       this.webview
         .loadURL(href)

@@ -1,31 +1,57 @@
 import * as path from "path"
 import * as fs from "fs"
 import { Story } from "../data/Story"
+export {
+  get_active,
+  modify_url,
+  handled_by,
+  add_story_elem_buttons,
+  init_in_webtab,
+}
 
-export { get_active, modify_url, add_story_elem_buttons, init_in_webtab }
+export declare interface PresenterOptions {
+  story_button: {
+    value: "always" | "handled" | "never"
+    description: string
+  }
+  [key: string]: { value: boolean | string; description: string }
+}
 
 export declare interface Presenter {
   is_presenter_url: (url: string) => boolean
+  present: (url: string) => void
+  description: string
+  presenter_options: PresenterOptions
   display_url: (url: string) => string
   story_elem_button?: (story: Story, intab: boolean) => HTMLElement
-  [key: string]: (...args: unknown[]) => unknown
+  handle(url: string): Promise<boolean>
+  handle_url(url: string): Promise<boolean>
+  init_in_webtab?(): void
+  [key: string]: ((...args: unknown[]) => unknown) | PresenterOptions | string
 }
 
-function get_active(): Presenter[] {
-  //TODO: determine if active from settings
-  const normalizedPath = path.join(__dirname, "presenters")
+let presenters: Presenter[] = []
 
-  return fs
-    .readdirSync(normalizedPath)
-    .map((file_name: string) => {
-      //TODO: better check
-      if (file_name.endsWith(".js")) {
-        return require(path.join(normalizedPath, file_name))
-      }
-    })
-    .filter((x) => {
-      return x != undefined
-    })
+function get_active(): Presenter[] {
+  if (presenters.length == 0) {
+    //TODO: determine if active from settings
+    const normalizedPath = path.join(__dirname, "presenters")
+
+    presenters = fs
+      .readdirSync(normalizedPath)
+      .map((file_name: string) => {
+        //TODO: better check
+        if (file_name.endsWith(".js")) {
+          return require(path.join(normalizedPath, file_name))
+        }
+      })
+      .filter(
+        (presenter) =>
+          presenter != undefined && presenter.present && presenter.description
+      )
+  }
+
+  return presenters
 }
 
 function modify_url(url: string): string {
@@ -37,6 +63,16 @@ function modify_url(url: string): string {
   return url
 }
 
+async function handled_by(url: string): Promise<boolean> {
+  for (const presenter of get_active()) {
+    const present_handles = await presenter.handle(url)
+    if (present_handles) {
+      return true
+    }
+  }
+  return false
+}
+
 function add_story_elem_buttons(
   story_el: HTMLElement,
   story: Story,
@@ -44,8 +80,14 @@ function add_story_elem_buttons(
 ): void {
   get_active().forEach((presenter) => {
     if (Object.prototype.hasOwnProperty.call(presenter, "story_elem_button")) {
-      const button = presenter["story_elem_button"](story, intab)
-      story_el.appendChild(button)
+      if (
+        presenter.presenter_options.story_button.value == "always" ||
+        (presenter.presenter_options.story_button.value == "handled" &&
+          presenter.handle_url(story.href))
+      ) {
+        const button = presenter["story_elem_button"](story, intab)
+        story_el.appendChild(button)
+      }
     }
   })
 }
@@ -64,8 +106,8 @@ function add_urlbar_buttons(elem, story, inmain = true) {
 
 function init_in_webtab(): void {
   get_active().forEach((presenter) => {
-    if (Object.prototype.hasOwnProperty.call(presenter, "init_in_webtab")) {
-      presenter["init_in_webtab"]()
+    if (presenter.init_in_webtab) {
+      presenter.init_in_webtab()
     }
   })
 }
