@@ -110,7 +110,8 @@ export class StoryListItem extends HTMLElement {
       //not attached to dom, no need to sort or animate anything, no on will see
       return
     }
-    const anmim_class = this.story.read ? "read_anim" : "unread_anim"
+    const anmim_class =
+      this.story.read_state != "unread" ? "read_anim" : "unread_anim"
     const resort = story_list.resort_single(this)
     if (typeof resort == "function") {
       if (
@@ -145,7 +146,7 @@ export class StoryListItem extends HTMLElement {
 
     if (event.detail.path.length == 2) {
       switch (event.detail.path[1]) {
-        case "read":
+        case "read_state":
           this.update_read()
           break
         case "sources":
@@ -190,8 +191,8 @@ export class StoryListItem extends HTMLElement {
       this.read_btn.classList.add("user_interaction")
       ipcRenderer.send("forward_to_parent", "persist_story_change", {
         href: this.story.href,
-        path: "read",
-        value: !this.story.read,
+        path: "read_state",
+        value: this.story.read_state == "unread" ? "skipped" : "unread",
       })
     })
 
@@ -284,20 +285,34 @@ export class StoryListItem extends HTMLElement {
   }
 
   update_read(): void {
-    if (this.story.read) {
-      this.classList.add("read")
-    } else {
-      this.classList.remove("read")
+    switch (this.story.read_state) {
+      case "unread":
+        this.classList.remove("read")
+        this.classList.remove("skipped")
+        break
+      case "read":
+        this.classList.add("read")
+        break
+      case "skipped":
+        this.classList.add("read")
+        this.classList.add("skipped")
+        break
     }
     this.label_read()
     this.animate_read()
   }
 
   label_read(): void {
-    if (!this.story.read) {
-      this.read_btn.title = "skip reading"
-    } else {
-      this.read_btn.title = "mark as unread"
+    switch (this.story.read_state) {
+      case "unread":
+        this.read_btn.title = "skip reading"
+        break
+      case "read":
+        this.read_btn.title = "mark as unread"
+        break
+      case "skipped":
+        this.read_btn.title = "unskip"
+        break
     }
   }
 

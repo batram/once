@@ -220,11 +220,15 @@ export class TabWrangler {
       .join("\n")
 
     const story = story_list.mark_selected(null, href)
-    if (story && !story.read && (story.href == href || story.og_href == href)) {
+    if (
+      story &&
+      story.read_state != "read" &&
+      (story.href == href || story.og_href == href)
+    ) {
       ipcRenderer.send("forward_to_parent", "persist_story_change", {
         href: story.href,
-        path: "read",
-        value: true,
+        path: "read_state",
+        value: "read",
       })
     }
 

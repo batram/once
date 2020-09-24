@@ -103,25 +103,12 @@ function mark_selected(story_el: StoryListItem, url: string): Story {
   }
 }
 
-function story_compare(a: SortableStory, b: SortableStory) {
-  //sort by read first and then timestamp
-  if (a.read && !b.read) {
-    return 1
-  } else if (!a.read && b.read) {
-    return -1
-  } else if ((a.read && b.read) || (!a.read && !b.read)) {
-    if (a.timestamp > b.timestamp) return -1
-    if (a.timestamp < b.timestamp) return 1
-    return 0
-  }
-  if (a.timestamp > b.timestamp) return -1
-  if (a.timestamp < b.timestamp) return 1
-  return 0
-}
-
-function sortable_story(elem: StoryListItem) {
+function sortable_story(elem: StoryListItem): SortableStory {
   return {
-    read: onChange.target(elem.story).read == true,
+    read_state: onChange.target(elem.story).read_state as
+      | "unread"
+      | "read"
+      | "skipped",
     timestamp: onChange.target(elem.story).timestamp,
     el: elem,
   }
@@ -147,7 +134,7 @@ function resort_single(elem: StoryListItem): () => void {
 
   const stories_sorted = stories
     .map(sortable_story)
-    .sort(story_compare)
+    .sort(Story.compare)
     .map((x) => x.el)
 
   let insert_before_el: HTMLElement = null
@@ -185,7 +172,7 @@ function sort_stories(bucket = "stories"): void {
 
   const storted = Array.from(story_con.querySelectorAll(".story"))
     .map(sortable_story)
-    .sort(story_compare)
+    .sort(Story.compare)
 
   storted.forEach((x) => {
     const paw = x.el.parentElement

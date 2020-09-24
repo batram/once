@@ -361,8 +361,14 @@ body[animated="true"] .unread_anim {
   opacity: 0.6;
 }
 
-.read .read_btn::after {
-  content: url(../imgs/unread.svg);
+.read:not(.skipped) .read_btn::after {
+  content: url(../imgs/real_read.svg);
+  display: block;
+  opacity: 0.6;
+}
+
+.skipped .read_btn::after {
+  content: url(../imgs/skipped_read.svg);
   display: block;
   opacity: 0.6;
 }

@@ -7,8 +7,9 @@ export interface StorySource {
 }
 
 export interface SortableStory {
-  read: boolean
+  read_state: "unread" | "read" | "skipped"
   timestamp: number | string | Date
+  el?: HTMLElement
 }
 
 export class Story {
@@ -19,7 +20,7 @@ export class Story {
   timestamp: string | number | Date
   filter: string
   sources: StorySource[]
-  read: boolean
+  read: "unread" | "read" | "skipped"
   stared: boolean
   og_href: string;
 
@@ -102,11 +103,14 @@ export class Story {
 
   static compare(a: SortableStory, b: SortableStory): 1 | 0 | -1 {
     //sort by read first and then timestamp
-    if (a.read && !b.read) {
+    const a_read = a.read_state != "unread"
+    const b_read = b.read_state != "unread"
+
+    if (a_read && !b_read) {
       return 1
-    } else if (!a.read && b.read) {
+    } else if (!a_read && b_read) {
       return -1
-    } else if ((a.read && b.read) || (!a.read && !b.read)) {
+    } else if ((a_read && b_read) || (!a_read && !b_read)) {
       if (a.timestamp > b.timestamp) return -1
       if (a.timestamp < b.timestamp) return 1
       return 0
