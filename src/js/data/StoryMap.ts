@@ -146,12 +146,19 @@ export class StoryMap {
       })
 
       if (!curls.includes(story.comment_url)) {
+        const prev_subs = og_story.substories
         //duplicate story
         og_story.substories.push({
           type: story.type,
           comment_url: story.comment_url,
           timestamp: story.timestamp,
         })
+        this.emit_data_change(
+          [story.href, "substories"],
+          og_story.substories,
+          prev_subs,
+          null
+        )
         OnceSettings.instance.save_story(og_story)
       }
 
