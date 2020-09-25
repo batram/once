@@ -47,14 +47,24 @@ function old_reddit(href: string): string {
 }
 
 function youtube_nocookie(href: string): string {
-  href = href.replace(
+  const split = href.split("&")
+  split[0] = split[0].replace(
     "www.youtube.com/watch?v=",
     "www.youtube-nocookie.com/embed/"
   )
-  href = href.replace(
+  split[0] = split[0].replace(
     "://youtube.com/watch?v=",
     "://www.youtube-nocookie.com/embed/"
   )
-  href = href.replace("://youtu.be/", "://www.youtube-nocookie.com/embed/")
-  return href
+  split[0] = split[0].replace(
+    "://youtu.be/",
+    "://www.youtube-nocookie.com/embed/"
+  )
+  if (split.length == 1 && !split[0].includes("?")) {
+    split[0] += "?"
+  }
+  split.push("version=3")
+  split.push("rel=0")
+  split.push("autoplay=1")
+  return split.join("&")
 }
