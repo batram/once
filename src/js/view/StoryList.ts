@@ -4,7 +4,6 @@ import { StoryListItem } from "../view/StoryListItem"
 import * as filters from "../data/StoryFilters"
 import { StoryMap } from "../data/StoryMap"
 import * as story_loader from "../data/StoryLoader"
-import * as onChange from "on-change"
 
 export {
   mark_selected,
@@ -105,11 +104,8 @@ function mark_selected(story_el: StoryListItem, url: string): Story {
 
 function sortable_story(elem: StoryListItem): SortableStory {
   return {
-    read_state: onChange.target(elem.story).read_state as
-      | "unread"
-      | "read"
-      | "skipped",
-    timestamp: onChange.target(elem.story).timestamp,
+    read_state: elem.story.read_state as "unread" | "read" | "skipped",
+    timestamp: elem.story.timestamp,
     el: elem,
   }
 }
@@ -218,7 +214,7 @@ function reload(): void {
 
   if (selected) {
     const href = selected.dataset.href
-    const story = StoryMap.instance.get(href).clone()
+    const story = StoryMap.instance.get(href)
     add(story)
   }
   OnceSettings.instance.story_sources().then(story_loader.load)

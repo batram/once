@@ -1,5 +1,4 @@
 import { Story } from "../data/Story"
-import * as onChange from "on-change"
 import { OnceSettings } from "../OnceSettings"
 
 export interface DataChangeEventDetail {
@@ -21,80 +20,79 @@ export class DataChangeEvent extends Event {
 }
 
 export class StoryMap {
-  s_map = {}
   static instance: StoryMap
 
   constructor() {
     StoryMap.instance = this
   }
 
+  internal_map: Record<string, Story> = {}
+
   forEach(fun: (arg0: Story) => unknown): void {
-    for (const i in this.story_map) {
-      if (typeof this.story_map[i] != "function") {
-        fun(this.story_map[i])
+    for (const i in this.internal_map) {
+      if (typeof this.internal_map[i] != "function") {
+        fun(this.internal_map[i])
       }
     }
   }
 
   map(fun: (arg0: Story) => boolean): Story[] {
     const ar = []
-    for (const i in this.story_map) {
-      if (typeof this.story_map[i] != "function") {
-        if (fun(this.story_map[i])) {
-          ar.push(this.story_map[i])
+    for (const i in this.internal_map) {
+      if (typeof this.internal_map[i] != "function") {
+        if (fun(this.internal_map[i])) {
+          ar.push(this.internal_map[i])
         }
       }
     }
     return ar
   }
 
-  story_map: Record<string, Story> = onChange(
-    this.s_map,
-    (path: string[], value: unknown, previousValue: unknown, name: string) => {
-      console.debug("onChange data_change", path, value, previousValue, name)
-      if (path.length != 0) {
-        if (this.has(path[0])) {
-          const event: DataChangeEvent = new DataChangeEvent("data_change", {
-            story: this.get(path[0]),
-            path: path,
-            value: value,
-            previousValue: previousValue,
-            name: name,
-            animated: document.body.getAttribute("animated") == "true",
-          })
-          const story_els = document.querySelectorAll(
-            `.story[data-href="${path[0]}"]`
-          )
-          story_els.forEach((story_el) => {
-            story_el.dispatchEvent(event)
-          })
-          document.body.dispatchEvent(event)
-        }
+  emit_data_change(
+    path: string[],
+    value: unknown,
+    previousValue: unknown,
+    name: string
+  ): void {
+    if (path.length != 0) {
+      if (this.has(path[0])) {
+        console.debug("fire DataChangeEvent", path, value, previousValue, name)
+        const event: DataChangeEvent = new DataChangeEvent("data_change", {
+          story: this.get(path[0]),
+          path: path,
+          value: value,
+          previousValue: previousValue,
+          name: name,
+          animated: document.body.getAttribute("animated") == "true",
+        })
+        const story_els = document.querySelectorAll(
+          `.story[data-href="${path[0]}"]`
+        )
+        story_els.forEach((story_el) => {
+          story_el.dispatchEvent(event)
+        })
+        document.body.dispatchEvent(event)
       }
-    },
-    {
-      ignoreUnderscores: true,
-      pathAsArray: true,
     }
-  )
+  }
 
   set(href: string, y: Story): Story {
-    this.story_map[href] = y
-    return this.story_map[href]
+    this.internal_map[href] = y
+    return this.internal_map[href]
   }
 
   get(href: string): Story {
-    return this.story_map[href]
+    return this.internal_map[href]
   }
 
   has(href: string): boolean {
-    return Object.prototype.hasOwnProperty.call(this.story_map, href)
+    return Object.prototype.hasOwnProperty.call(this.internal_map, href)
   }
 
   clear(): void {
-    for (const i in this.story_map) {
-      if (typeof this.story_map[i] != "function") {
-        delete this.story_map[i]
+    for (const i in this.internal_map) {
+      if (typeof this.internal_map[i] != "function") {
+        delete this.internal_map[i]
       }
     }
   }
@@ -104,17 +102,15 @@ export class StoryMap {
     path: string,
     value: Story | string | boolean
   ): void {
-    let story = this.get(href)
-    if (path == "story" && value instanceof Story) {
-      story = value
-    } else {
-      story[path] = value
-      OnceSettings.instance.save_story(story).then((resp) => {
-        if (resp && (resp as PouchDB.Core.Response).rev) {
-          story._rev = resp.rev
-        }
-      })
-    }
+    const story = this.get(href)
+    const previous_value = story[path]
+    story[path] = value
+    this.emit_data_change([href, path], value, previous_value, null)
+    OnceSettings.instance.save_story(story).then((resp) => {
+      if (resp && (resp as PouchDB.Core.Response).rev) {
+        story._rev = resp.rev
+      }
+    })
   }
 
   stored_add(stories: Story[]): void {
@@ -145,13 +141,13 @@ export class StoryMap {
       OnceSettings.instance.save_story(story)
     } else {
       //check if we already have as alternate source
-      const curls = og_story.sources.map((x) => {
+      const curls = og_story.substories.map((x) => {
         return x.comment_url
       })
 
       if (!curls.includes(story.comment_url)) {
         //duplicate story
-        og_story.sources.push({
+        og_story.substories.push({
           type: story.type,
           comment_url: story.comment_url,
           timestamp: story.timestamp,

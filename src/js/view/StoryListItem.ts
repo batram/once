@@ -1,6 +1,6 @@
 import * as story_parser from "../data/parser"
 import * as story_filters from "../data/StoryFilters"
-import { Story, StorySource } from "../data/Story"
+import { Story, SubStory } from "../data/Story"
 import * as presenters from "../view/presenters"
 import * as story_list from "../view/StoryList"
 import { ipcRenderer } from "electron"
@@ -12,6 +12,7 @@ export class StoryListItem extends HTMLElement {
   read_btn: HTMLElement
   filter_btn: HTMLElement
   star_btn: HTMLElement
+  substories_el: HTMLElement
 
   constructor(story: Story | Record<string, unknown>) {
     super()
@@ -60,10 +61,10 @@ export class StoryListItem extends HTMLElement {
     hostname.target = "search"
     title_line.appendChild(hostname)
 
-    const sources = document.createElement("div")
-    sources.classList.add("sources")
-    this.story.sources.forEach((x: StorySource) => {
-      sources.append(this.info_block(x))
+    this.substories_el = document.createElement("div")
+    this.substories_el.classList.add("substories")
+    this.story.substories.forEach((substory: SubStory) => {
+      this.substories_el.append(this.info_block(substory))
     })
 
     const data = document.createElement("div")
@@ -71,7 +72,7 @@ export class StoryListItem extends HTMLElement {
     data.classList.add("data")
 
     data.appendChild(title_line)
-    data.appendChild(sources)
+    data.appendChild(this.substories_el)
 
     this.appendChild(data)
 
@@ -149,9 +150,8 @@ export class StoryListItem extends HTMLElement {
         case "read_state":
           this.update_read()
           break
-        case "sources":
-          //TODO: typeguard?
-          this.update_sources()
+        case "substories":
+          this.update_substories()
           break
         case "stared":
           this.update_star()
@@ -229,28 +229,28 @@ export class StoryListItem extends HTMLElement {
     })
   }
 
-  info_block(source_ob: StorySource): HTMLElement {
+  info_block(sub_story_ob: SubStory): HTMLElement {
     const info = document.createElement("div")
     info.classList.add("info")
-    info.dataset.tag = "[" + source_ob.type + "]"
+    info.dataset.tag = "[" + sub_story_ob.type + "]"
     const type = document.createElement("p")
     type.classList.add("tag")
-    type.innerText = source_ob.type
+    type.innerText = sub_story_ob.type
     info.appendChild(type)
 
     //comments
     const comments_link = document.createElement("a")
     comments_link.classList.add("comment_url")
     comments_link.innerText = " [comments] "
-    comments_link.href = source_ob.comment_url
+    comments_link.href = sub_story_ob.comment_url
     info.appendChild(comments_link)
 
     const time = document.createElement("div")
-    time.innerText = story_parser.human_time(source_ob.timestamp)
+    time.innerText = story_parser.human_time(sub_story_ob.timestamp)
     try {
-      time.title = new Date(source_ob.timestamp).toISOString()
+      time.title = new Date(sub_story_ob.timestamp).toISOString()
     } catch (e) {
-      console.log("date parsing error", source_ob)
+      console.log("date parsing error", sub_story_ob)
     }
     time.classList.add("time")
     info.appendChild(time)
@@ -348,12 +348,11 @@ export class StoryListItem extends HTMLElement {
     this.label_star()
   }
 
-  update_sources(): void {
-    const sources_el = this.querySelector(".sources")
-    sources_el.innerHTML = ""
+  update_substories(): void {
+    this.substories_el.innerHTML = ""
 
-    this.story.sources.forEach((x: StorySource) => {
-      sources_el.append(this.info_block(x))
+    this.story.substories.forEach((x: SubStory) => {
+      this.substories_el.append(this.info_block(x))
     })
   }
 }

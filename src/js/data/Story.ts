@@ -1,6 +1,4 @@
-import * as onChange from "on-change"
-
-export interface StorySource {
+export interface SubStory {
   type: string
   comment_url: string
   timestamp: string | number | Date
@@ -19,7 +17,7 @@ export class Story {
   comment_url: string
   timestamp: string | number | Date
   filter: string
-  sources: StorySource[]
+  substories: SubStory[]
   read: "unread" | "read" | "skipped"
   stared: boolean
   og_href: string;
@@ -45,8 +43,7 @@ export class Story {
     this.title = title
     this.read_state = "unread"
 
-    //TODO: class source or add complete stories as sources?
-    this.sources = [
+    this.substories = [
       {
         type: type,
         comment_url: comment_url,
@@ -63,8 +60,8 @@ export class Story {
     for (const i in story) {
       xstory[i] = story[i]
     }
-    if (!xstory.sources || xstory.sources.length == 0) {
-      xstory.sources = [
+    if (!xstory.substories || xstory.substories.length == 0) {
+      xstory.substories = [
         {
           type: xstory.type,
           comment_url: xstory.comment_url,
@@ -80,20 +77,7 @@ export class Story {
 
     for (const i in this) {
       try {
-        cloned[i] = onChange.target(this[i])
-      } catch (e) {
-        cloned[i] = null
-      }
-    }
-
-    return cloned
-  }
-
-  clone(): Story {
-    const cloned = new Story()
-    for (const i in this) {
-      try {
-        cloned[i] = onChange.target(this)[i]
+        cloned[i] = this[i]
       } catch (e) {
         cloned[i] = null
       }

@@ -180,7 +180,7 @@ async function local_search(needle: string) {
       story_el.story.og_href,
     ]
 
-    story_el.story.sources.forEach((source_info) => {
+    story_el.story.substories.forEach((source_info) => {
       find_in.push("[" + source_info.type + "]")
       find_in.push(source_info.comment_url)
     })
