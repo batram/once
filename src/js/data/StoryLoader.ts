@@ -5,7 +5,7 @@ import * as search from "../data/search"
 import * as story_filters from "./StoryFilters"
 import * as story_list from "../view/StoryList"
 
-export { load, parallel_load_stories, enhance_stories }
+export { load, parallel_load_stories }
 
 function get_cached(url: string) {
   let cached = localStorage.getItem(url)
@@ -43,14 +43,20 @@ async function parallel_load_stories(
 }
 
 async function process_story_input(stories: Story[]) {
-  stories = await enhance_stories(stories)
+  const filtered_stories = await story_filters.filter_stories(stories)
 
-  const all_stories = stories.sort()
+  StoryMap.instance.get_all_stared().forEach((story) => {
+    story_list.add(story)
+  })
+
+  const all_stories = filtered_stories.sort()
   all_stories.forEach((story) => {
-    StoryMap.instance.add(story)
+    const mapped_story = StoryMap.instance.add(story)
+    story_list.add(mapped_story)
   })
 
   story_list.sort_stories()
+
   const searchfield = document.querySelector<HTMLInputElement>("#searchfield")
   if (searchfield.value != "") {
     search.search_stories(searchfield.value)
@@ -77,18 +83,6 @@ async function cache_load(url: string, try_cache = true) {
       return story_parser.parse_response(resp, url)
     }
   }
-}
-
-async function enhance_stories(stories: Story[], add = true): Promise<Story[]> {
-  const filtered_stories = await story_filters.filter_stories(stories)
-
-  return filtered_stories.map((story: Story) => {
-    if (add) {
-      story = StoryMap.instance.add(story)
-      story_list.add(story)
-    }
-    return story
-  })
 }
 
 async function load(urls: string[]): Promise<void> {

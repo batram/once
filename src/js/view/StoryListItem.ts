@@ -64,7 +64,11 @@ export class StoryListItem extends HTMLElement {
     this.substories_el = document.createElement("div")
     this.substories_el.classList.add("substories")
     this.story.substories.forEach((substory: SubStory) => {
-      this.substories_el.append(this.info_block(substory))
+      if (substory.timestamp == undefined) {
+        console.error("wrong substory format", this.story)
+      } else {
+        this.substories_el.append(this.info_block(substory))
+      }
     })
 
     const data = document.createElement("div")

@@ -1,9 +1,9 @@
 import { Story } from "../data/Story"
 import * as story_list from "../view/StoryList"
-import * as stroy_loader from "../data/StoryLoader"
 import { StoryListItem } from "../view/StoryListItem"
 import * as collectors from "../data/collectors"
 import { StoryMap } from "./StoryMap"
+import * as story_filters from "./StoryFilters"
 
 export { init_search, search_stories }
 
@@ -16,12 +16,14 @@ function init_search(): void {
       searchfield.focus()
     }
   })
+  const search_scope = document.querySelector<HTMLInputElement>("#search_scope")
 
   searchfield.addEventListener("input", () => {
-    search_stories(searchfield.value)
+    if (search_scope.value == "local") {
+      search_stories(searchfield.value)
+    }
   })
 
-  const search_scope = document.querySelector<HTMLInputElement>("#search_scope")
   search_scope.addEventListener("change", () => {
     if (searchfield.value != "") {
       search_stories(searchfield.value)
@@ -65,10 +67,6 @@ const specialk: Record<string, () => void> = {
     })
   },
   "[stared]": () => {
-    StoryMap.instance.get_all_stared().forEach((story) => {
-      story_list.add(story)
-    })
-
     document.querySelectorAll(".story").forEach((x) => {
       x.classList.add("nomatch")
       if (x.classList.contains("stared")) {
@@ -200,10 +198,11 @@ async function local_search(needle: string) {
 }
 
 async function add_global_search_results(search_stories: Story[]) {
-  const estories = await stroy_loader.enhance_stories(search_stories, false)
+  const filtered_stories = await story_filters.filter_stories(search_stories)
 
-  estories.forEach((story: Story) => {
-    story_list.add(story, "global_search_results")
+  filtered_stories.forEach((story: Story) => {
+    const mapped_story = StoryMap.instance.add(story)
+    story_list.add(mapped_story, "global_search_results")
   })
 
   story_list.sort_stories("global_search_results")
