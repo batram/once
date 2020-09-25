@@ -687,6 +687,22 @@ body[animated="true"] .stared .user_interaction.star_btn::after {
   min-width: 10px;
 }
 
+.tab {
+  display: flex;
+}
+
+.tab[media="started"] .tab_mediastate {
+  width: 16px;
+  background: url("../imgs/play.svg");
+  display: block;
+}
+
+.tab[media="paused"] .tab_mediastate {
+  width: 16px;
+  background: url("../imgs/pause.svg");
+  display: block;
+}
+
 .fullscreen #controlbar,
 .fullscreen #sep_slider,
 .fullscreen #left_panel,

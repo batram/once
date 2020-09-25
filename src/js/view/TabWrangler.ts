@@ -207,6 +207,24 @@ export class TabWrangler {
         this.update_tab_info(event.senderId, href, title)
       }
     )
+
+    ipcRenderer.on(
+      "tab_media_paused",
+      (event: Electron.IpcRendererEvent, audible) => {
+        console.debug("tab_media_paused", event, audible)
+        const tab_el = this.tab_el_from_id(event.senderId)
+        tab_el.setAttribute("media", "paused")
+      }
+    )
+
+    ipcRenderer.on(
+      "tab_media_started_playing",
+      (event: Electron.IpcRendererEvent, audible) => {
+        console.debug("tab_media_started_playing", event, audible)
+        const tab_el = this.tab_el_from_id(event.senderId)
+        tab_el.setAttribute("media", "started")
+      }
+    )
   }
 
   handle_tab_url_change(sender_id: number, href: string): void {
@@ -484,7 +502,9 @@ export class TabWrangler {
         }
       }
       if (title) {
-        tab_el.innerText = title.substring(0, 22)
+        tab_el.querySelector<HTMLElement>(
+          ".tab_title"
+        ).innerText = title.substring(0, 22)
         tab_el.title = title
       }
     }
@@ -594,7 +614,23 @@ export class TabWrangler {
     const tab_el = document.createElement("div")
     tab_el.setAttribute("draggable", "true")
     tab_el.classList.add("tab")
-    tab_el.innerText = "New tab"
+
+    const mediastate = document.createElement("div")
+    mediastate.classList.add("tab_mediastate")
+    mediastate.onclick = () => {
+      if (tab_el.getAttribute("media") == "paused") {
+        ipcRenderer.sendTo(wc_id, "start_media")
+      } else {
+        ipcRenderer.sendTo(wc_id, "pause_media")
+      }
+    }
+    tab_el.append(mediastate)
+
+    const tab_title = document.createElement("div")
+    tab_title.classList.add("tab_title")
+    tab_title.innerText = "New tab"
+    tab_el.append(tab_title)
+
     tab_el.dataset.wc_id = wc_id.toString()
 
     const dropzone = document.querySelector("#tab_dropzone")

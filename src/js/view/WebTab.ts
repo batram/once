@@ -109,6 +109,35 @@ export class WebTab {
       this.send_to_parent("update-target-url", url)
     })
 
+    ipcRenderer.on("start_media", () => {
+      console.debug("start_media")
+      //Force stop via JS since sending key does not end up with the correct result
+      //TODO: toggle only the once we paused ...
+      this.webview.executeJavaScript(`
+        document.querySelectorAll("video, audio").forEach(x => x.play())
+      `)
+      this.webview.focus()
+      this.webview.sendInputEvent({
+        type: "keyDown",
+        keyCode: "mediaplaypause",
+      })
+      this.webview.sendInputEvent({ type: "keyUp", keyCode: "mediaplaypause" })
+    })
+
+    ipcRenderer.on("pause_media", () => {
+      console.debug("pause_media")
+      //Force stop via JS since sending key does not end up with the correct result
+      this.webview.executeJavaScript(`
+        document.querySelectorAll("video, audio").forEach(x => x.pause())
+      `)
+      this.webview.focus()
+      this.webview.sendInputEvent({
+        type: "keyDown",
+        keyCode: "mediaplaypause",
+      })
+      this.webview.sendInputEvent({ type: "keyUp", keyCode: "mediaplaypause" })
+    })
+
     this.webview.addEventListener("page-title-updated", (e) => {
       this.send_update_tab_info()
       console.log("page-title-updated", e.title.toString())
@@ -157,6 +186,20 @@ export class WebTab {
     )
 
     this.webview.addEventListener("did-navigate-in-page", console.debug)
+
+    this.webview.addEventListener("media-started-playing", () => {
+      this.send_to_parent(
+        "tab_media_started_playing",
+        this.webview.isCurrentlyAudible().toString()
+      )
+    })
+
+    this.webview.addEventListener("media-paused", () => {
+      this.send_to_parent(
+        "tab_media_paused",
+        this.webview.isCurrentlyAudible().toString()
+      )
+    })
 
     const reload_tab_btn = document.querySelector<HTMLElement>(
       "#reload_tab_btn"
