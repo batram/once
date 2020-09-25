@@ -112,9 +112,8 @@ export class WebTab {
     ipcRenderer.on("start_media", () => {
       console.debug("start_media")
       //Force stop via JS since sending key does not end up with the correct result
-      //TODO: toggle only the once we paused ...
       this.webview.executeJavaScript(`
-        document.querySelectorAll("video, audio").forEach(x => x.play())
+        document.querySelectorAll("video, audio").forEach(x => {if(x.played.length != 0) x.play()})
       `)
       this.webview.focus()
       this.webview.sendInputEvent({

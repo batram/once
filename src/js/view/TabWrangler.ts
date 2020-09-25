@@ -491,6 +491,7 @@ export class TabWrangler {
     const tab_el = this.tab_el_from_id(wc_id)
     if (tab_el) {
       if (tab_el.dataset.href != href) {
+        tab_el.removeAttribute("media")
         this.handle_tab_url_change(wc_id, href)
       }
       tab_el.dataset.href = href
