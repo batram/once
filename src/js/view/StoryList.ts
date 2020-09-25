@@ -193,6 +193,7 @@ function refilter(): void {
     const og_filter = story.filter
     filters.filter_story(story).then((story) => {
       if (story.filter != og_filter) {
+        OnceSettings.instance.save_story(story)
         const nstory = new StoryListItem(
           StoryMap.instance.get(sthref.toString())
         )
