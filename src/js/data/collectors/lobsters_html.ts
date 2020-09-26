@@ -5,12 +5,7 @@ const options = {
     "Collect stories from Lobsters (https://lobste.rs/) by parsing HTML",
   pattern: "https://lobste.rs/",
   collects: "dom",
-  settings: {
-    filter_ads: {
-      value: true,
-      description: "Filter advertising for job oppenings without comments",
-    },
-  },
+  settings: {},
 }
 
 import { Story } from "../../data/Story"

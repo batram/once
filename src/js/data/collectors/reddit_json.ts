@@ -5,12 +5,7 @@ const options = {
   pattern: "https://old.reddit.com/*.json",
   collects: "json",
   colors: ["#cee3f8", "black"],
-  settings: {
-    filter_ads: {
-      value: true,
-      description: "Filter advertising for job oppenings without comments",
-    },
-  },
+  settings: {},
 }
 
 import { Story } from "../Story"
