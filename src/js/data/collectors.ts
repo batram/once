@@ -13,7 +13,7 @@ export declare interface StoryParser {
     tag: string
     desription: string
     pattern: string
-    collects: "dom" | "json"
+    collects: "dom" | "json" | "xml"
     colors: [string, string]
     settings?: Record<string, unknown>
   }

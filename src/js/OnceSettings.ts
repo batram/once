@@ -205,6 +205,7 @@ export class OnceSettings {
     this.syncHandler = this.once_db.sync(remoteDB, {
       live: true,
       retry: true,
+      batch_size: 5,
     })
 
     this.once_db

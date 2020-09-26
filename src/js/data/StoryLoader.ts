@@ -75,6 +75,8 @@ async function cache_load(url: string, try_cache = true) {
     const parser = story_parser.get_parser_for_url(url)
     if (parser.options.collects == "dom") {
       cached = story_parser.parse_dom(cached, url)
+    } else if (parser.options.collects == "xml") {
+      cached = story_parser.parse_xml(cached)
     }
     return parser.parse(cached)
   } else {

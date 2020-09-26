@@ -8,6 +8,7 @@ export {
   parse_human_time,
   get_parser_for_url,
   parse_dom,
+  parse_xml,
   parse_response,
 }
 
@@ -40,6 +41,11 @@ async function parse_response(resp: Response, url: string): Promise<Story[]> {
     localStorage.setItem(url, JSON.stringify([Date.now(), text_content]))
     const doc = parse_dom(text_content, url)
     return parser.parse(doc)
+  } else if (parser.options.collects == "xml") {
+    const text_content = await resp.text()
+    localStorage.setItem(url, JSON.stringify([Date.now(), text_content]))
+    const doc = parse_xml(text_content)
+    return parser.parse(doc)
   }
 }
 
@@ -53,6 +59,26 @@ function pattern_matches(url: string, pattern: string) {
     return url.startsWith(split[0]) && url.endsWith(split[1])
   }
   return url.startsWith(pattern)
+}
+
+function parse_xml(val: string): Document {
+  const dom_parser = new DOMParser()
+  let doc = dom_parser.parseFromString(val, "text/xml")
+
+  if (doc.querySelector("parsererror")) {
+    console.error("xml parser failed", doc.querySelector("parsererror"))
+
+    const twice = dom_parser.parseFromString(
+      val.replace(/ & /g, " &amp; "),
+      "text/xml"
+    )
+    if (!twice.querySelector("parsererror")) {
+      doc = twice
+    } else {
+      return
+    }
+  }
+  return doc
 }
 
 function parse_dom(val: string, url: string): Document {
