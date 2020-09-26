@@ -19,7 +19,7 @@ const presenter_options: Record<
     description: "show outline-button for story (always | never | handled)",
   },
   use_google_cache: {
-    value: true,
+    value: false,
     description: "Try to get the content from google cache",
   },
   use_webarchive: {
@@ -43,6 +43,7 @@ export {
 
 //check for more uniq data url
 const data_outline_url = "data:text/html;charset=utf-8,<!--outline-->"
+const outline_proto = "outline://data"
 const data_outline_url_fail = "data:text/plain;charset=utf-8,outline%20failed"
 
 function handle_url(): boolean {
@@ -56,7 +57,9 @@ async function handle(): Promise<boolean> {
 
 function is_presenter_url(url: string): boolean {
   const will_present =
-    url.startsWith(data_outline_url) || url.startsWith(data_outline_url_fail)
+    url.startsWith(data_outline_url) ||
+    url.startsWith(data_outline_url_fail) ||
+    url.startsWith(outline_proto)
   if (will_present) {
     outline_button_active()
   } else {
@@ -174,7 +177,8 @@ function display_url(url: string): string {
 
   if (
     url.startsWith(data_outline_url) ||
-    url.startsWith(data_outline_url_fail)
+    url.startsWith(data_outline_url_fail) ||
+    url.startsWith(outline_proto)
   ) {
     outline_button_active()
     if (url.split("#").length > 1) {
@@ -189,16 +193,29 @@ async function present(url: string): Promise<void> {
 
 async function outline(url: string): Promise<void> {
   const webview = document.querySelector<Electron.WebviewTag>("#webview")
-  webview
-    .loadURL(
-      data_outline_url +
-        "<title>outlining</title>started outlining" +
-        "#" +
-        encodeURIComponent(url)
+
+  let story_content = null
+  if (webview.getURL() == url) {
+    //already have the url loaded, get the document
+    story_content = await webview.executeJavaScript(
+      "document.documentElement.outerHTML"
     )
-    .catch((e) => {
-      console.log("webview.loadURL error", e)
-    })
+  }
+
+  try {
+    webview
+      .loadURL(
+        data_outline_url +
+          "<title>outlining</title>started outlining" +
+          "#" +
+          encodeURIComponent(url)
+      )
+      .catch((e) => {
+        console.log("webview.loadURL error", e)
+      })
+  } catch (e) {
+    console.log("meop")
+  }
 
   if (!webview) {
     fail_outline("failed to find webview")
@@ -212,33 +229,34 @@ async function outline(url: string): Promise<void> {
   }
   urlfield.value = url
   const og_url = url
-  let story_content = null
 
-  let content_resp
-  if (presenter_options.use_webarchive.value) {
-    content_resp = await archive_cache(url)
-  }
-  if (content_resp == undefined || !content_resp.ok) {
-    if (presenter_options.use_google_cache.value) {
-      content_resp = await google_cache(url)
+  if (!story_content) {
+    let content_resp
+    if (presenter_options.use_webarchive.value) {
+      content_resp = await archive_cache(url)
     }
-  }
-  if (content_resp == undefined || !content_resp.ok) {
-    content_resp = await fetch(url)
-  }
+    if (content_resp == undefined || !content_resp.ok) {
+      if (presenter_options.use_google_cache.value) {
+        content_resp = await google_cache(url)
+      }
+    }
+    if (content_resp == undefined || !content_resp.ok) {
+      content_resp = await fetch(url)
+    }
 
-  if (!content_resp.ok) {
-    console.error("outline failed to get story content", url)
-    fail_outline("failed to fetch story content")
-    return
-  } else {
-    url = content_resp.url
-    const content_type = content_resp.headers.get("content-type")
-    if (!content_type.startsWith("text/html")) {
-      fail_outline("can not handle content type" + content_resp)
+    if (!content_resp.ok) {
+      console.error("outline failed to get story content", url)
+      fail_outline("failed to fetch story content")
       return
+    } else {
+      url = content_resp.url
+      const content_type = content_resp.headers.get("content-type")
+      if (!content_type.startsWith("text/html")) {
+        fail_outline("can not handle content type" + content_resp)
+        return
+      }
+      story_content = await content_resp.text()
     }
-    story_content = await content_resp.text()
   }
 
   const dom_parser = new DOMParser()
@@ -287,18 +305,22 @@ async function outline(url: string): Promise<void> {
   const title = document.createElement("title")
   title.innerText = article.title
 
+  const data =
+    '<link rel="stylesheet" href="outline://css">' +
+    base.outerHTML +
+    title.outerHTML +
+    h1_title.outerHTML +
+    article.content
+
+  ipcRenderer.send("outlined", data)
+
   webview
-    .loadURL(
-      data_outline_url +
-        encodeURIComponent(base.outerHTML) +
-        encodeURIComponent(title.outerHTML) +
-        encodeURIComponent(h1_title.outerHTML) +
-        encodeURIComponent(article.content) +
-        "#" +
-        encodeURIComponent(og_url)
-    )
+    .loadURL("outline://data" + "#" + encodeURIComponent(og_url))
+    .then((e) => {
+      console.debug("open_in_webview load", e)
+    })
     .catch((e) => {
-      console.log("webview.loadURL error", e)
+      console.log("rejected ", e)
     })
 }
 
@@ -320,8 +342,8 @@ async function archive_cache(url: string) {
   const f = await fetch("https://archive.org/wayback/available?url=" + url)
   const resp = await f.json()
   if (
-    Object.prototype.hasOwnProperty.call(resp, "archived_snapshots") &&
-    Object.prototype.hasOwnProperty.call(resp, "closest") &&
+    resp.archived_snapshots &&
+    resp.archived_snapshots.closest &&
     resp.archived_snapshots.closest.available
   ) {
     const arch_url = new URL(resp.archived_snapshots.closest.url)
@@ -334,8 +356,13 @@ async function archive_cache(url: string) {
 }
 
 async function google_cache(url: string) {
-  const f = await fetch(
-    "https://webcache.googleusercontent.com/search?q=cache:" + url
-  )
-  return f
+  try {
+    const f = await fetch(
+      "https://webcache.googleusercontent.com/search?q=cache:" + url
+    )
+    return f
+  } catch (e) {
+    console.error("fetch", e)
+  }
+  return null
 }

@@ -209,7 +209,6 @@ export class WebTab {
 
     const close_tab_btn = document.querySelector<HTMLElement>("#close_tab_btn")
     close_tab_btn.onclick = () => {
-      this.webview.loadURL("about:blank")
       this.send_to_parent("update_tab_info", "about:blank", "about:blank")
       this.send_to_parent("detaching")
       this.tab_state = "closed"
@@ -301,45 +300,6 @@ export class WebTab {
 
   inject_css(): void {
     const css = `
-  html {
-    margin: 0;
-    padding: 0;
-    display: flex;
-    box-sizing: content-box;
-    width: 100%;    
-  }
-
-  body {
-    margin: 0;
-    padding: 0px 10px;
-    box-sizing: border-box;
-    width: 100%;    
-    display: flex;
-    flex-direction: column;
-  }
-
-  a {
-    color: #6b6bef;
-  }
-
-
-  img, pre, p {
-    max-width: 100%;
-    max-height: 350px;
-    width: auto;
-    height: auto;  
-  }
-
-  pre {
-    overflow-x: auto;
-    padding: 10px;
-  }
-
-  ul {
-    margin: 5px;
-    padding: 0 25px;
-  }
-
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;

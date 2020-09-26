@@ -14,6 +14,7 @@ import * as adblocker from "@cliqz/adblocker-electron"
 import * as fullscreen from "./js/view/fullscreen"
 import * as tabbed_out from "./js/view/tabbed_out"
 import * as webcontents_enhancer from "./js/view/webcontents_enhancer"
+import * as outline from "./js/view/presenters/outline/inmain"
 
 declare global {
   // eslint-disable-next-line no-var
@@ -28,7 +29,7 @@ declare global {
 }
 
 if (process.env.LDEV == "1") {
-  require("electron-reload")(path.join(__dirname))
+  // require("electron-reload")(path.join(__dirname))
 }
 
 global.paths = {
@@ -83,6 +84,9 @@ function createWindow() {
     nativeTheme.themeSource = data
   })
 
+  // TODO: handle general for all presenters
+  outline.custom_protocol()
+
   //win.webContents.session.setProxy({ proxyRules: "socks5://127.0.0.1:9150" })
 
   win.loadFile(global.paths.main_window_html)
@@ -118,12 +122,17 @@ app.on("window-all-closed", () => {
 })
 
 app.whenReady().then(() => {
-  webcontents_enhancer.on_each()
-
-  createWindow()
-  process.on("uncaughtException", (x) => {
+  process.on("uncaughtException", (e) => {
     //truncate errors
-    console.log(JSON.stringify(x).substring(0, 500))
+    //console.log("moep", e)
+    console.log("err caught", e)
   })
-  process.on("exit", console.log)
+
+  process.on("unhandledRejection", (e) => {
+    console.log("unhandledRejection", e)
+    return false
+  })
+
+  webcontents_enhancer.on_each()
+  createWindow()
 })
