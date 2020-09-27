@@ -60,11 +60,11 @@ function youtube_nocookie(href: string): string {
     "://youtu.be/",
     "://www.youtube-nocookie.com/embed/"
   )
-  if (split.length == 1 && !split[0].includes("?")) {
+  if (split.length == 1 || !split[0].includes("?")) {
     split[0] += "?"
   }
   split.push("version=3")
-  split.push("rel=0")
+  split.push("modestbranding=1")
   split.push("autoplay=1")
   return split.join("&")
 }
