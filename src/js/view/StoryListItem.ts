@@ -63,13 +63,7 @@ export class StoryListItem extends HTMLElement {
 
     this.substories_el = document.createElement("div")
     this.substories_el.classList.add("substories")
-    this.story.substories.forEach((substory: SubStory) => {
-      if (substory.timestamp == undefined) {
-        console.error("wrong substory format", this.story)
-      } else {
-        this.substories_el.append(this.info_block(substory))
-      }
-    })
+    this.update_substories()
 
     const data = document.createElement("div")
     document.createElement("data")
@@ -355,7 +349,18 @@ export class StoryListItem extends HTMLElement {
   update_substories(): void {
     this.substories_el.innerHTML = ""
 
-    this.story.substories.forEach((x: SubStory) => {
+    const subs = [
+      {
+        type: this.story.type,
+        comment_url: this.story.comment_url,
+        timestamp: this.story.timestamp,
+      },
+      ...this.story.substories.filter((sub) => {
+        return sub.comment_url != this.story.comment_url && sub.timestamp
+      }),
+    ]
+
+    subs.forEach((x: SubStory) => {
       this.substories_el.append(this.info_block(x))
     })
   }

@@ -77,7 +77,9 @@ export class StoryMap {
   }
 
   set(href: string, y: Story): Story {
+    const old_story = this.internal_map[href]
     this.internal_map[href] = y
+    this.emit_data_change([href], y, old_story, null)
     return this.internal_map[href]
   }
 
@@ -145,7 +147,10 @@ export class StoryMap {
         return x.comment_url
       })
 
-      if (!curls.includes(story.comment_url)) {
+      if (
+        story.comment_url != og_story.comment_url &&
+        !curls.includes(story.comment_url)
+      ) {
         const prev_subs = og_story.substories
         //duplicate story
         og_story.substories.push({

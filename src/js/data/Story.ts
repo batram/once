@@ -42,32 +42,16 @@ export class Story {
     this.href = href
     this.title = title
     this.read_state = "unread"
-
-    this.substories = [
-      {
-        type: type,
-        comment_url: comment_url,
-        timestamp: timestamp,
-      },
-    ]
     this.comment_url = comment_url
     this.timestamp = timestamp
     this.filter = filter
+    this.substories = []
   }
 
   static from_obj(story: Record<string, unknown>): Story {
     const xstory = new Story()
     for (const i in story) {
       xstory[i] = story[i]
-    }
-    if (!xstory.substories || xstory.substories.length == 0) {
-      xstory.substories = [
-        {
-          type: xstory.type,
-          comment_url: xstory.comment_url,
-          timestamp: xstory.timestamp,
-        },
-      ]
     }
     return xstory
   }

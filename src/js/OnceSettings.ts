@@ -219,7 +219,7 @@ export class OnceSettings {
         if (change.id.startsWith("sto_") && change.doc) {
           const changed_story = Story.from_obj(change.doc)
           const stored = StoryMap.instance.get(changed_story.href)
-          if (stored._rev != change.doc._rev) {
+          if (!stored._rev || stored._rev != change.doc._rev) {
             StoryMap.instance.set(
               changed_story.href,
               Story.from_obj(change.doc)

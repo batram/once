@@ -109,7 +109,6 @@ async function hn_search(needle: string, alt_url?: string): Promise<Story[]> {
           title: result.title,
           comment_url: curl,
           timestamp: timestamp,
-          substories: [{ type: "HN", comment_url: curl, timestamp: timestamp }],
         })
       }
     )
