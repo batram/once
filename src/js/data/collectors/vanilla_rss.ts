@@ -50,14 +50,14 @@ function parse_rss_2(doc: Document) {
   const def: FeedFormat = {
     story_tag: "item",
     title_tag: "title",
-    timestamp_tags: ["pubDate", "pubdate", "dc\\:date"],
+    timestamp_tags: ["pubDate", "pubdate", "dc:date"],
     link_tags: [
-      { tag: "guid", startsWith: "http" },
-      "feedburner\\:origLink",
+      "feedburner:origLink",
       "link",
+      { tag: "guid", startsWith: "http" },
     ],
     content_tags: [
-      { tag: "content\\:encoded", minLength: 1000 },
+      { tag: "content:encoded", minLength: 1000 },
       { tag: "description", minLength: 1000 },
     ],
   }
@@ -102,32 +102,33 @@ function get_feed_value(
     }
 
     let value = null
-    const element = story.querySelector(tag_format.tag)
-    if (element) {
+    const elements = story.getElementsByTagName(tag_format.tag)
+    if (elements.length != 0) {
+      const element = elements[0]
       if (tag_format.attr) {
         value = element.getAttribute(tag_format.attr)
       } else {
         value = element.textContent
       }
-    }
 
-    if (value && typeof value == "string") {
-      if (tag_format.startsWith && !value.startsWith(tag_format.startsWith)) {
-        value = null
+      if (value && typeof value == "string") {
+        if (tag_format.startsWith && !value.startsWith(tag_format.startsWith)) {
+          value = null
+        }
+
+        if (
+          tag_format.minLength &&
+          value &&
+          value.length &&
+          value.length < tag_format.minLength
+        ) {
+          value = null
+        }
       }
 
-      if (
-        tag_format.minLength &&
-        value &&
-        value.length &&
-        value.length < tag_format.minLength
-      ) {
-        value = null
+      if (value) {
+        return value
       }
-    }
-
-    if (value) {
-      return value
     }
   }
 }
