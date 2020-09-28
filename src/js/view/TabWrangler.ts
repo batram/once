@@ -237,24 +237,28 @@ export class TabWrangler {
       })
       .join("\n")
 
-    const story = story_list.mark_selected(null, href)
-    if (
-      story &&
-      story.read_state != "read" &&
-      (story.href == href || story.og_href == href)
-    ) {
-      ipcRenderer.send("forward_to_parent", "persist_story_change", {
-        href: story.href,
-        path: "read_state",
-        value: "read",
-      })
-    }
+    const story_el = story_list.mark_selected(null, href)
+    if (story_el) {
+      const story = story_el.story
+      if (
+        story &&
+        story.read_state != "read" &&
+        (story.href == href || story_el.dataset.filtered_url == href)
+      ) {
+        ipcRenderer.send("forward_to_parent", "persist_story_change", {
+          href: story.href,
+          path: "read_state",
+          value: "read",
+        })
+      }
+      this.send_to_id(sender_id, "update_selected", story, colors)
+    } else {
+      if (href == "about:gone") {
+        return
+      }
 
-    if (href == "about:gone") {
-      return
+      this.send_to_id(sender_id, "update_selected", null, colors)
     }
-
-    this.send_to_id(sender_id, "update_selected", story, colors)
   }
 
   insert_tab_by_offleft(tab_el: HTMLElement): void {

@@ -19,8 +19,7 @@ export class Story {
   filter: string
   substories: SubStory[]
   read: "unread" | "read" | "skipped"
-  stared: boolean
-  og_href: string;
+  stared: boolean;
 
   [index: string]:
     | string

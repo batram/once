@@ -174,8 +174,8 @@ async function local_search(needle: string) {
     const find_in = [
       story_el.story.title,
       story_el.story.href,
-      story_el.story.type,
-      story_el.story.og_href,
+      "[" + story_el.story.type + "]",
+      story_el.dataset.filtered_url,
     ]
 
     story_el.story.substories.forEach((source_info) => {

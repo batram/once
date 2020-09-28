@@ -5,6 +5,7 @@ import * as presenters from "../view/presenters"
 import * as story_list from "../view/StoryList"
 import { ipcRenderer } from "electron"
 import { DataChangeEvent } from "../data/StoryMap"
+import * as URLFilters from "../data/URLFilters"
 
 export class StoryListItem extends HTMLElement {
   story: Story
@@ -29,8 +30,12 @@ export class StoryListItem extends HTMLElement {
 
   story_html(): void {
     this.classList.add("story")
+
+    const filtered_url = URLFilters.filter_url(this.story.href)
+
     this.dataset.title = this.story.title
     this.dataset.href = this.story.href
+    this.dataset.filtered_url = filtered_url
     this.dataset.timestamp = this.story.timestamp.toString()
     this.dataset.type = "[" + this.story.type + "]"
     this.dataset.comment_url = this.story.comment_url
@@ -39,7 +44,7 @@ export class StoryListItem extends HTMLElement {
     title_line.classList.add("title_line")
 
     const link = document.createElement("a")
-    link.href = this.story.href
+    link.href = filtered_url
     link.classList.add("title")
     link.innerText = this.story.title
     title_line.appendChild(link)
@@ -47,17 +52,17 @@ export class StoryListItem extends HTMLElement {
     const og_link = document.createElement("a")
     og_link.innerText = " [OG] "
     og_link.classList.add("og_href")
-    og_link.href = this.story.og_href
-    if (this.story.og_href == this.story.href) {
+    og_link.href = this.story.href
+    title_line.appendChild(og_link)
+    if (link.href == og_link.href) {
       //og_link.style.opacity = "0.4"
       og_link.style.display = "none"
     }
-    title_line.appendChild(og_link)
 
     const hostname = document.createElement("a")
     hostname.classList.add("hostname")
-    hostname.innerText = " (" + link.hostname + ") "
-    hostname.href = "search:domain:" + link.hostname
+    hostname.innerText = " (" + og_link.hostname + ") "
+    hostname.href = "search:domain:" + og_link.hostname
     hostname.target = "search"
     title_line.appendChild(hostname)
 

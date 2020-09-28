@@ -86,7 +86,7 @@ function unmark_selected(keep_selected?: HTMLElement): void {
   })
 }
 
-function mark_selected(story_el: StoryListItem, url: string): Story {
+function mark_selected(story_el: StoryListItem, url: string): StoryListItem {
   if (!story_el && url) {
     story_el = get_by_href(url)
   }
@@ -95,8 +95,7 @@ function mark_selected(story_el: StoryListItem, url: string): Story {
 
   if (story_el) {
     story_el.classList.add("selected")
-    const og_story = StoryMap.instance.get(story_el.story.href)
-    return og_story
+    return story_el
   } else {
     return null
   }
@@ -187,9 +186,9 @@ function sort_stories(bucket = "stories"): void {
 }
 
 function refilter(): void {
-  document.querySelectorAll<StoryListItem>(".story").forEach((x) => {
-    const sthref = x.dataset.href.toString()
-    const story = StoryMap.instance.get(sthref.toString())
+  document.querySelectorAll<StoryListItem>(".story").forEach((story_el) => {
+    const sthref = story_el.dataset.href
+    const story = StoryMap.instance.get(sthref)
     const og_filter = story.filter
     filters.filter_story(story).then((story) => {
       if (story.filter != og_filter) {
@@ -197,7 +196,7 @@ function refilter(): void {
         const nstory = new StoryListItem(
           StoryMap.instance.get(sthref.toString())
         )
-        x.replaceWith(nstory)
+        story_el.replaceWith(nstory)
       }
     })
   })

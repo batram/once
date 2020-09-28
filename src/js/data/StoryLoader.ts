@@ -43,6 +43,9 @@ async function parallel_load_stories(
 }
 
 async function process_story_input(stories: Story[]) {
+  if (!stories) {
+    return
+  }
   const filtered_stories = await story_filters.filter_stories(stories)
 
   StoryMap.instance.get_all_stared().forEach((story) => {
@@ -78,11 +81,11 @@ async function cache_load(url: string, try_cache = true) {
     } else if (parser.options.collects == "xml") {
       cached = story_parser.parse_xml(cached)
     }
-    return parser.parse(cached)
+    return parser.parse(cached) || []
   } else {
     const resp = await fetch(url)
     if (resp.ok) {
-      return story_parser.parse_response(resp, url)
+      return story_parser.parse_response(resp, url) || []
     }
   }
 }

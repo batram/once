@@ -1,7 +1,6 @@
 import { Story } from "./Story"
 import * as menu from "../view/menu"
 import { OnceSettings } from "../OnceSettings"
-import { filter_url } from "../data/URLFilters"
 
 export {
   filter_story,
@@ -34,10 +33,6 @@ async function filter_story(story: Story): Promise<Story> {
 }
 
 function filter_run(filter_list: string[], story: Story) {
-  if (!story.og_href) {
-    story.og_href = story.href
-  }
-
   for (const pattern in filter_list) {
     if (
       story.href.includes(filter_list[pattern]) ||
@@ -49,8 +44,6 @@ function filter_run(filter_list: string[], story: Story) {
       return story
     }
   }
-
-  story.href = filter_url(story.href)
 
   if (story.filter && !story.filter.startsWith("::")) {
     delete story.filter

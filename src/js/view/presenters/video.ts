@@ -504,7 +504,7 @@ async function youtube_dash(
     `PT${response.videoDetails.lengthSeconds}S`
   )
   mpd_base.setAttribute("profiles", "urn:mpeg:dash:profile:full:2011")
-  //mpd_base.setAttribute("minBufferTime", "PT1.5S")
+  mpd_base.setAttribute("minBufferTime", "PT0.2S")
   mpd_base.setAttribute("type", "static")
 
   const period = xmlDoc.createElement("Period")
