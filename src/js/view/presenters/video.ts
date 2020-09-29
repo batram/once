@@ -27,13 +27,15 @@ const data_video_url = "data:text/html;charset=utf-8,<!--video-->"
 const data_video_url_fail = "data:text/plain;charset=utf-8,video%20failed"
 
 export function handle_url(url: string): boolean {
+  const parsed_url = new URL(url)
+  const host = parsed_url.hostname
   return (
-    url.includes("gfycat.com") ||
-    url.startsWith("https://v.redd.it") ||
-    url.includes("imgur.") ||
-    url.includes("://roosterteeth.com") ||
-    (url.includes("youtu") &&
-      url.match(/[/=:]+([0-9A-Za-z_-]{11})/).length != 0)
+    host &&
+    (host.includes("gfycat.com") ||
+      host.startsWith("v.redd.it") ||
+      host.includes("imgur.") ||
+      host.includes("roosterteeth.com") ||
+      (host.includes("youtu") && /[/=:]+([0-9A-Za-z_-]{11})/.test(url)))
   )
 }
 
