@@ -1,6 +1,4 @@
-export { init_slider, collapse_left, expand_left }
-
-function init_slider(): void {
+export function init_slider(): void {
   reset_position()
 
   document.querySelectorAll<HTMLElement>(".collapse").forEach((x) => {
@@ -47,7 +45,7 @@ function reset_position() {
   }
 }
 
-function collapse_left(): void {
+export function collapse_left(): void {
   const right_panel = document.querySelector<HTMLElement>("#right_panel")
   right_panel.style.width = "100%"
 
@@ -58,7 +56,7 @@ function collapse_left(): void {
   left_panel.style.minWidth = "28px"
 }
 
-function expand_left(): void {
+export function expand_left(): void {
   const right_panel = document.querySelector<HTMLElement>("#right_panel")
   right_panel.style.width = ""
 

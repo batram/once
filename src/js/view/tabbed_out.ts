@@ -6,7 +6,6 @@ import {
   ipcMain,
 } from "electron"
 import * as path from "path"
-export { create_view, pop_new_main, pop_no_tabs, tab_listeners }
 
 const tab_views: Record<number, BrowserView> = {}
 const parent_windows: Record<number, BrowserWindow> = {}
@@ -51,7 +50,7 @@ function get_parent_window(webcontents: WebContents) {
   return null
 }
 
-function tab_listeners(win: BrowserWindow): void {
+export function tab_listeners(win: BrowserWindow): void {
   ipcMain.on("forward_to_parent", send_to_parent)
 
   ipcMain.handle("get_attached_wc_id", (event) => {

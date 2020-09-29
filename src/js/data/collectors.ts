@@ -1,12 +1,6 @@
 import * as path from "path"
 import * as fs from "fs"
 import { Story } from "../data/Story"
-export {
-  get_active,
-  get_parser,
-  global_search_providers,
-  domain_search_providers,
-}
 
 export declare interface StoryParser {
   options: {
@@ -23,7 +17,7 @@ export declare interface StoryParser {
   domain_search: (needle: string) => Promise<Story[]>
 }
 
-function get_active(): StoryParser[] {
+export function get_active(): StoryParser[] {
   //TODO: determine if active from settings
   const normalizedPath = path.join(__dirname, "collectors")
 
@@ -40,19 +34,19 @@ function get_active(): StoryParser[] {
     })
 }
 
-function get_parser(): StoryParser[] {
+export function get_parser(): StoryParser[] {
   return get_active().filter((parser: StoryParser) => {
     return Object.prototype.hasOwnProperty.call(parser, "parse")
   })
 }
 
-function global_search_providers(): StoryParser[] {
+export function global_search_providers(): StoryParser[] {
   return get_active().filter((parser: StoryParser) => {
     return Object.prototype.hasOwnProperty.call(parser, "global_search")
   })
 }
 
-function domain_search_providers(): StoryParser[] {
+export function domain_search_providers(): StoryParser[] {
   return get_active().filter((parser: StoryParser) => {
     return Object.prototype.hasOwnProperty.call(parser, "domain_search")
   })

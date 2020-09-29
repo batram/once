@@ -2,13 +2,11 @@ import { ipcMain, session } from "electron"
 import * as fs from "fs"
 import * as path from "path"
 
-export { custom_protocol }
-
 const outline_css = fs.readFileSync(path.join(__dirname, "outline_style.css"))
 const outline_font = fs.readFileSync(path.join(__dirname, "spectral.ttf"))
 const outlined: Record<string, string> = {}
 
-function custom_protocol(): void {
+export function custom_protocol(): void {
   ipcMain.on("outlined", (event, url, data) => {
     console.debug("outlined", url)
     outlined[url] = data

@@ -1,4 +1,4 @@
-const options = {
+export const options = {
   tag: "RSS",
   description: "Collect stories from RSS feed",
   pattern: "*.rss",
@@ -18,9 +18,7 @@ const options = {
 
 import { Story } from "../Story"
 
-export { parse, options }
-
-function parse(doc: Document): Story[] {
+export function parse(doc: Document): Story[] {
   if (!doc) {
     return []
   }

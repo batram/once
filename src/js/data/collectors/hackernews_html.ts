@@ -1,4 +1,4 @@
-const options = {
+export const options = {
   tag: "HN",
   description:
     "Collect stories from HackerNews (https://news.ycombinator.com/) by parsing HTML",
@@ -16,9 +16,7 @@ const options = {
 import { Story } from "../../data/Story"
 import { parse_human_time } from "../../data/parser"
 
-export { parse, options, domain_search, global_search }
-
-function parse(doc: Document): Story[] {
+export function parse(doc: Document): Story[] {
   const curl = "https://news.ycombinator.com/item?id="
   const stories = Array.from(doc.querySelectorAll(".storylink"))
 
@@ -55,13 +53,13 @@ function parse(doc: Document): Story[] {
   })
 }
 
-function domain_search(needle: string): Promise<Story[]> {
+export function domain_search(needle: string): Promise<Story[]> {
   const domain_search_url =
     "https://hn.algolia.com/api/v1/search_by_date?tags=story&restrictSearchableAttributes=url&query="
   return hn_search(needle, domain_search_url)
 }
 
-function global_search(needle: string): Promise<Story[]> {
+export function global_search(needle: string): Promise<Story[]> {
   return hn_search(needle)
 }
 

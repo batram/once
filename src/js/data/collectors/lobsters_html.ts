@@ -1,4 +1,4 @@
-const options = {
+export const options = {
   tag: "LO",
   colors: ["rgba(143, 0, 0, 0.56)", "white"],
   description:
@@ -10,9 +10,7 @@ const options = {
 
 import { Story } from "../../data/Story"
 
-export { parse, options, domain_search }
-
-function parse(doc: Document): Story[] {
+export function parse(doc: Document): Story[] {
   const curl = "https://lobste.rs/s/"
   const stories = Array.from(doc.querySelectorAll<HTMLElement>(".story"))
 
@@ -42,7 +40,7 @@ function parse(doc: Document): Story[] {
     .filter((x) => x != null)
 }
 
-async function domain_search(domain: string): Promise<Story[]> {
+export async function domain_search(domain: string): Promise<Story[]> {
   const search_url = "https://lobste.rs/domain/"
   const res = await fetch(search_url + domain)
   if (res.ok) {

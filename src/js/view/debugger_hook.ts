@@ -1,7 +1,5 @@
 import { WebContents } from "electron"
 
-export { addEventListener, history_nav }
-
 function addEventListener(
   webContents: WebContents,
   event: string,
@@ -68,7 +66,7 @@ function addEventListener(
     })
 }
 
-function history_nav(webContents: WebContents): void {
+export function history_nav(webContents: WebContents): void {
   addEventListener(
     webContents,
     "mousedown",

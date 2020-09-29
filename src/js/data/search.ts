@@ -5,9 +5,7 @@ import * as collectors from "../data/collectors"
 import { StoryMap } from "./StoryMap"
 import * as story_filters from "./StoryFilters"
 
-export { init_search, search_stories }
-
-function init_search(): void {
+export function init_search(): void {
   const searchfield = document.querySelector<HTMLInputElement>("#searchfield")
 
   window.addEventListener("keyup", (e) => {
@@ -106,7 +104,7 @@ const extra_search_providers: Record<
   },
 }
 
-async function search_stories(needle: string): Promise<void> {
+export async function search_stories(needle: string): Promise<void> {
   const searchfield = document.querySelector<HTMLInputElement>("#searchfield")
   searchfield.value = needle
   const story_container = document.querySelector<HTMLElement>("#stories")

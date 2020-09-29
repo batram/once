@@ -3,8 +3,6 @@ import { StoryMap } from "../data/StoryMap"
 import { Story } from "./Story"
 import * as story_filters from "./StoryFilters"
 
-export { load, parallel_load_stories }
-
 function get_cached(url: string) {
   let cached = localStorage.getItem(url)
   const max_mins = 5000
@@ -31,7 +29,7 @@ function get_cached(url: string) {
   return cached[1]
 }
 
-async function parallel_load_stories(
+export async function parallel_load_stories(
   urls: string[],
   try_cache = true
 ): Promise<void> {
@@ -73,7 +71,7 @@ async function cache_load(url: string, try_cache = true) {
   }
 }
 
-async function load(urls: string[]): Promise<void> {
+export async function load(urls: string[]): Promise<void> {
   const cache = false
   parallel_load_stories(urls, cache)
 }

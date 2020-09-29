@@ -1,9 +1,7 @@
 import * as menu from "../view/menu"
 import { Story } from "../data/Story"
 
-export { show_filter_dialog, show_filter }
-
-function show_filter_dialog(
+export function show_filter_dialog(
   event: MouseEvent,
   filter_btn: HTMLElement,
   story: Story,
@@ -66,7 +64,7 @@ function confirm_add_story(
   }
 }
 
-function show_filter(value: string): void {
+export function show_filter(value: string): void {
   if (value.startsWith(":: ")) {
     confirm("internal filter not changeable yet ...")
     return

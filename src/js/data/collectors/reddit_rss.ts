@@ -1,4 +1,4 @@
-const options = {
+export const options = {
   tag: "re",
   description:
     "Collect stories from HackerNews (https://old.reddit.com/) by parsing the rss feed of subreddits",
@@ -10,9 +10,7 @@ const options = {
 
 import { Story } from "../../data/Story"
 
-export { parse, options }
-
-function parse(doc: Document): Story[] {
+export function parse(doc: Document): Story[] {
   //Parse as RSS and not HTML ...
   const stories = doc.querySelectorAll("entry")
 

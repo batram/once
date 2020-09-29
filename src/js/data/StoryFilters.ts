@@ -1,16 +1,14 @@
 import { Story } from "./Story"
 import { ipcRenderer } from "electron"
 
-export { filter_story, filter_stories }
-
-async function filter_stories(stories: Story[]): Promise<Story[]> {
+export async function filter_stories(stories: Story[]): Promise<Story[]> {
   const filter_list = await ipcRenderer.invoke("inv_settings", "get_filterlist")
   return stories.map((story) => {
     return filter_run(filter_list, story)
   })
 }
 
-async function filter_story(story: Story): Promise<Story> {
+export async function filter_story(story: Story): Promise<Story> {
   const filter_list = await ipcRenderer.invoke("inv_settings", "get_filterlist")
   return filter_run(filter_list, story)
 }

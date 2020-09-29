@@ -2,17 +2,7 @@ import * as menu from "../view/menu"
 import * as collectors from "../data/collectors"
 import { Story } from "./Story"
 
-export {
-  parse,
-  human_time,
-  parse_human_time,
-  get_parser_for_url,
-  parse_dom,
-  parse_xml,
-  parse_response,
-}
-
-function get_parser_for_url(url: string): collectors.StoryParser {
+export function get_parser_for_url(url: string): collectors.StoryParser {
   const parsers = collectors.get_parser()
 
   for (const i in parsers) {
@@ -24,7 +14,10 @@ function get_parser_for_url(url: string): collectors.StoryParser {
   }
 }
 
-async function parse_response(resp: Response, url: string): Promise<Story[]> {
+export async function parse_response(
+  resp: Response,
+  url: string
+): Promise<Story[]> {
   const parser = get_parser_for_url(url)
 
   if (!parser) {
@@ -61,7 +54,7 @@ function pattern_matches(url: string, pattern: string) {
   return url.startsWith(pattern)
 }
 
-function parse_xml(val: string): Document {
+export function parse_xml(val: string): Document {
   const dom_parser = new DOMParser()
   let doc = dom_parser.parseFromString(val, "text/xml")
 
@@ -81,7 +74,7 @@ function parse_xml(val: string): Document {
   return doc
 }
 
-function parse_dom(val: string, url: string): Document {
+export function parse_dom(val: string, url: string): Document {
   const dom_parser = new DOMParser()
   const doc = dom_parser.parseFromString(val, "text/html")
 
@@ -96,25 +89,13 @@ function parse_dom(val: string, url: string): Document {
   return doc
 }
 
-function parse(url: string, doc: Document): Story[] {
-  const parsers = collectors.get_parser()
-
-  for (const i in parsers) {
-    const parser = parsers[i]
-    if (url.startsWith(parser.options.pattern)) {
-      menu.add_tag(parser.options.tag, parser.options.colors)
-      return parser.parse(doc)
-    }
-  }
-}
-
 const min_off = 60
 const hour_off = 60 * min_off
 const day_off = 24 * hour_off
 const month_off = 30 * day_off
 const year_off = 365 * day_off
 
-function human_time(time: string | Date | number): string {
+export function human_time(time: string | Date | number): string {
   const now = Date.now()
   const timestamp = parseInt(time.toString())
   const offset = (now - timestamp) / 1000
@@ -161,7 +142,7 @@ function human_time(time: string | Date | number): string {
   return res
 }
 
-function parse_human_time(str: string): number {
+export function parse_human_time(str: string): number {
   const now = Date.now()
   const num = parseInt(str)
   let offset = 0

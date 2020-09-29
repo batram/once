@@ -1,19 +1,7 @@
 import { ipcRenderer, WebContents, BrowserWindow } from "electron"
 import { ipcMain } from "electron"
 
-export {
-  key_handler,
-  set,
-  leave,
-  enter,
-  entered,
-  left,
-  render_listeners,
-  main_listener,
-  webview_key_catcher,
-}
-
-function main_listener(): void {
+export function main_listener(): void {
   ipcMain.on("change_fullscreen", (event, value) => {
     const win = BrowserWindow.getFocusedWindow()
     if (win) {
@@ -27,7 +15,7 @@ function main_listener(): void {
   })
 }
 
-function webview_key_catcher(webContents: WebContents): void {
+export function webview_key_catcher(webContents: WebContents): void {
   webContents.on("did-attach-webview", (event, guest_webContents) => {
     guest_webContents.on("before-input-event", (event, input) => {
       const focused = BrowserWindow.getFocusedWindow()
@@ -55,7 +43,7 @@ function webview_key_catcher(webContents: WebContents): void {
   })
 }
 
-function render_listeners(): void {
+export function render_listeners(): void {
   const webview = document.querySelector("#webview")
   if (webview) {
     webview.addEventListener("enter-html-full-screen", enter)

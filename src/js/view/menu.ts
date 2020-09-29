@@ -1,9 +1,7 @@
 import * as search from "../data/search"
 import * as seperation_slider from "../view/sep_slider"
 
-export { add_tag, open_panel, init }
-
-function open_panel(panel: string): void {
+export function open_panel(panel: string): void {
   seperation_slider.expand_left()
   const left_panel = document.querySelector<HTMLElement>("#left_panel")
   left_panel.setAttribute("active_panel", panel)
@@ -22,7 +20,7 @@ function delight_panel(panel: string) {
   target_panel.classList.remove("pseudo_active")
 }
 
-function add_tag(type: string, colors: [string, string]): void {
+export function add_tag(type: string, colors: [string, string]): void {
   if (!document.querySelector('#menu div[data-type="' + type + '"]')) {
     const tag = document.createElement("div")
     tag.dataset.type = type
@@ -80,7 +78,7 @@ function active_flash_panel(btn: HTMLElement) {
   }
 }
 
-function init(): void {
+export function init(): void {
   document.querySelectorAll<HTMLElement>("#menu .sub").forEach((sub_menu) => {
     sub_menu.onclick = () => {
       open_panel(sub_menu.dataset.panel)

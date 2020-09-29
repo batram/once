@@ -1,13 +1,6 @@
 import * as path from "path"
 import * as fs from "fs"
 import { Story } from "../data/Story"
-export {
-  get_active,
-  modify_url,
-  handled_by,
-  add_story_elem_buttons,
-  init_in_webtab,
-}
 
 export declare interface PresenterOptions {
   story_button: {
@@ -54,7 +47,7 @@ function get_active(): Presenter[] {
   return presenters
 }
 
-function modify_url(url: string): string {
+export function modify_url(url: string): string {
   for (const presenter of get_active()) {
     if (presenter.is_presenter_url(url)) {
       return presenter.display_url(url)
@@ -63,7 +56,7 @@ function modify_url(url: string): string {
   return url
 }
 
-async function handled_by(url: string): Promise<boolean> {
+export async function handled_by(url: string): Promise<boolean> {
   for (const presenter of get_active()) {
     const present_handles = await presenter.handle(url)
     if (present_handles) {
@@ -73,7 +66,7 @@ async function handled_by(url: string): Promise<boolean> {
   return false
 }
 
-function add_story_elem_buttons(
+export function add_story_elem_buttons(
   story_el: HTMLElement,
   story: Story,
   intab = false
@@ -104,7 +97,7 @@ function add_urlbar_buttons(elem, story, inmain = true) {
 }
 */
 
-function init_in_webtab(): void {
+export function init_in_webtab(): void {
   get_active().forEach((presenter) => {
     if (presenter.init_in_webtab) {
       presenter.init_in_webtab()

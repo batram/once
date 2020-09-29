@@ -1,5 +1,3 @@
-export { dynamic_url_filters, filter_url }
-
 export interface URLFilter {
   (href: string): string
 }
@@ -11,7 +9,7 @@ const dynamic_url_filters: Record<string, URLFilter> = {
   "youtu.be": youtube_nocookie,
 }
 
-function filter_url(url: string): string {
+export function filter_url(url: string): string {
   for (const pattern in dynamic_url_filters) {
     if (url.includes(pattern)) {
       url = dynamic_url_filters[pattern](url)

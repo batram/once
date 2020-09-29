@@ -7,19 +7,6 @@ import * as story_loader from "../data/StoryLoader"
 import { ipcRenderer } from "electron"
 import * as search from "../data/search"
 
-export {
-  mark_selected,
-  unmark_selected,
-  get_by_href,
-  reload,
-  refilter,
-  sort_stories,
-  resort_single,
-  add,
-  init,
-  remote_story_change,
-}
-
 export class DataChangeEvent extends Event {
   detail: DataChangeEventDetail
 
@@ -29,7 +16,7 @@ export class DataChangeEvent extends Event {
   }
 }
 
-function init(): void {
+export function init(): void {
   const reload_stories_btn = document.querySelector<HTMLElement>(
     "#reload_stories_btn"
   )
@@ -40,7 +27,7 @@ function init(): void {
   remote_story_change()
 }
 
-function remote_story_change(): void {
+export function remote_story_change(): void {
   ipcRenderer.send("story_map", "subscribe_to_changes")
   ipcRenderer.on(
     "story_map",
@@ -135,7 +122,7 @@ function add(story: Story, bucket = "stories"): void {
   stories_container.appendChild(new_story_el)
 }
 
-function get_by_href(url: string): StoryListItem {
+export function get_by_href(url: string): StoryListItem {
   let story_el = null
 
   const info_can = document.querySelector<StoryListItem>(
@@ -158,7 +145,7 @@ function get_by_href(url: string): StoryListItem {
   return story_el as StoryListItem
 }
 
-function unmark_selected(keep_selected?: HTMLElement): void {
+export function unmark_selected(keep_selected?: HTMLElement): void {
   document.querySelectorAll(".story").forEach((x: StoryListItem) => {
     if (x.classList.contains("selected")) {
       if (!(keep_selected == x)) {
@@ -172,7 +159,10 @@ function unmark_selected(keep_selected?: HTMLElement): void {
   })
 }
 
-function mark_selected(story_el: StoryListItem, url: string): StoryListItem {
+export function mark_selected(
+  story_el: StoryListItem,
+  url: string
+): StoryListItem {
   if (!story_el && url) {
     story_el = get_by_href(url)
   }
@@ -195,7 +185,7 @@ function sortable_story(elem: StoryListItem): SortableStory {
   }
 }
 
-function resort_single(elem: StoryListItem): () => void {
+export function resort_single(elem: StoryListItem): () => void {
   const story_con = elem.parentElement
   if (!story_con) {
     console.debug(
@@ -248,7 +238,7 @@ function resort_single(elem: StoryListItem): () => void {
   }
 }
 
-function sort_stories(bucket = "stories"): void {
+export function sort_stories(bucket = "stories"): void {
   const story_con = document.querySelector("#" + bucket)
 
   const storted = Array.from(story_con.querySelectorAll(".story"))

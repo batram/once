@@ -4,9 +4,7 @@ import * as contextmenu from "../view/contextmenu"
 import * as fullscreen from "../view/fullscreen"
 import { NavigationHandler } from "./NavigationHandler"
 
-export { on_each }
-
-function on_each(): void {
+export function on_each(): void {
   session.fromPartition("moep").setPreloads([global.paths.moep_session_preload])
 
   app.on("web-contents-created", function (event, webContents) {

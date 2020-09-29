@@ -7,9 +7,7 @@ import {
   WebContents,
 } from "electron"
 
-export { init_menu }
-
-function init_menu(wc: webContents): void {
+export function init_menu(wc: webContents): void {
   wc.on("context-menu", (event, params) => {
     event.preventDefault()
     inspect_menu(wc, params)

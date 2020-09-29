@@ -5,9 +5,9 @@ import { TabWrangler } from "../../view/TabWrangler"
 import { ipcRenderer } from "electron"
 import { StoryMap } from "../../data/StoryMap"
 
-const description = "Presents contents of a webpage in more readable way"
+export const description = "Presents contents of a webpage in more readable way"
 
-const presenter_options: Record<
+export const presenter_options: Record<
   string,
   { value: boolean | string; description: string }
 > = {
@@ -29,34 +29,21 @@ const presenter_options: Record<
   },
 }
 
-export {
-  description,
-  presenter_options,
-  present,
-  handle,
-  handle_url,
-  is_presenter_url,
-  display_url,
-  story_elem_button,
-  urlbar_button,
-  init_in_webtab,
-}
-
 //check for more uniq data url
 const data_outline_url = "data:text/html;charset=utf-8,<!--outline-->"
 const outline_proto = "outline://data"
 const data_outline_url_fail = "data:text/plain;charset=utf-8,outline%20failed"
 
-function handle_url(): boolean {
+export function handle_url(): boolean {
   return false
 }
 
-async function handle(): Promise<boolean> {
+export async function handle(): Promise<boolean> {
   //Handle non by default
   return false
 }
 
-function is_presenter_url(url: string): boolean {
+export function is_presenter_url(url: string): boolean {
   const will_present =
     url.startsWith(data_outline_url) ||
     url.startsWith(data_outline_url_fail) ||
@@ -83,7 +70,7 @@ function outline_button_inactive() {
   }
 }
 
-function story_elem_button(story: Story): HTMLElement {
+export function story_elem_button(story: Story): HTMLElement {
   const outline_btn = StoryListItem.icon_button(
     "outline",
     "outline_btn",
@@ -119,7 +106,7 @@ function story_elem_button(story: Story): HTMLElement {
   return outline_btn
 }
 
-function init_in_webtab(): void {
+export function init_in_webtab(): void {
   ipcRenderer.on("outline", (_event, href) => {
     outline_button_active()
     outline(href)
@@ -135,7 +122,7 @@ function init_in_webtab(): void {
   }
 }
 
-function urlbar_button(): HTMLElement {
+export function urlbar_button(): HTMLElement {
   const button = StoryListItem.icon_button(
     "outline",
     "outline_btn",
@@ -170,7 +157,7 @@ function urlbar_button(): HTMLElement {
   return button
 }
 
-function display_url(url: string): string {
+export function display_url(url: string): string {
   outline_button_inactive()
 
   if (
@@ -187,7 +174,7 @@ function display_url(url: string): string {
   }
 }
 
-async function present(url: string): Promise<void> {
+export async function present(url: string): Promise<void> {
   outline(url)
 }
 

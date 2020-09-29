@@ -5,10 +5,10 @@ import { ipcRenderer, WebviewTag } from "electron"
 import * as child_process from "child_process"
 import * as path from "path"
 
-const description = "Presents contents of a webpage in more readable way"
+export const description = "Presents contents of a webpage in more readable way"
 const player_html = path.join(__dirname, "video", "player.html")
 
-const presenter_options: Record<
+export const presenter_options: Record<
   string,
   { value: boolean | string; description: string }
 > = {
@@ -22,24 +22,11 @@ const presenter_options: Record<
   },
 }
 
-export {
-  description,
-  presenter_options,
-  present,
-  handle,
-  handle_url,
-  is_presenter_url,
-  display_url,
-  story_elem_button,
-  urlbar_button,
-  init_in_webtab,
-}
-
 //check for more uniq data url
 const data_video_url = "data:text/html;charset=utf-8,<!--video-->"
 const data_video_url_fail = "data:text/plain;charset=utf-8,video%20failed"
 
-function handle_url(url: string): boolean {
+export function handle_url(url: string): boolean {
   return (
     url.includes("gfycat.com") ||
     url.startsWith("https://v.redd.it") ||
@@ -50,7 +37,7 @@ function handle_url(url: string): boolean {
   )
 }
 
-async function handle(url: string): Promise<boolean> {
+export async function handle(url: string): Promise<boolean> {
   if (handle_url(url)) {
     return present(url)
   }
@@ -145,7 +132,7 @@ function find_source(video_info: VideoDLInfo): { src: string; type?: string } {
   }
 }
 
-function is_presenter_url(url: string): boolean {
+export function is_presenter_url(url: string): boolean {
   console.debug(player_html)
   const will_present =
     url.startsWith(data_video_url) ||
@@ -174,7 +161,7 @@ function video_button_inactive() {
   }
 }
 
-function story_elem_button(story: Story, intab = false): HTMLElement {
+export function story_elem_button(story: Story, intab = false): HTMLElement {
   const video_btn = StoryListItem.icon_button(
     "video-dl",
     "video_btn",
@@ -213,7 +200,7 @@ function story_elem_button(story: Story, intab = false): HTMLElement {
   return video_btn
 }
 
-function init_in_webtab(): void {
+export function init_in_webtab(): void {
   ipcRenderer.on("video", (_event, href) => {
     video_button_active()
     present(href)
@@ -229,7 +216,7 @@ function init_in_webtab(): void {
   }
 }
 
-function urlbar_button(): HTMLElement {
+export function urlbar_button(): HTMLElement {
   const button = StoryListItem.icon_button(
     "video-dl",
     "video_btn",
@@ -264,7 +251,7 @@ function urlbar_button(): HTMLElement {
   return button
 }
 
-function display_url(url: string): string {
+export function display_url(url: string): string {
   video_button_inactive()
 
   if (is_presenter_url(url)) {
@@ -286,7 +273,7 @@ async function video_dl(url: string): Promise<VideoDLInfo> {
   }
 }
 
-async function present(url: string): Promise<boolean> {
+export async function present(url: string): Promise<boolean> {
   const webview = document.querySelector<Electron.WebviewTag>("#webview")
   const urlfield = document.querySelector<HTMLInputElement>("#urlfield")
   if (!webview || !urlfield) {

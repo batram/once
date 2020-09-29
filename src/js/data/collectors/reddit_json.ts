@@ -1,4 +1,4 @@
-const options = {
+export const options = {
   tag: "re",
   description:
     "Collect stories from HackerNews (https://old.reddit.com/) by parsing json of subreddits",
@@ -9,8 +9,6 @@ const options = {
 }
 
 import { Story } from "../Story"
-
-export { parse, options, domain_search, global_search }
 
 interface RedditJSONData {
   kind: "Listing"
@@ -29,7 +27,7 @@ interface RedditJSONData {
   }
 }
 
-function parse(json: RedditJSONData): Story[] {
+export function parse(json: RedditJSONData): Story[] {
   if (json.kind == "Listing") {
     return json.data.children.map((story) => {
       return new Story(
@@ -46,11 +44,11 @@ function parse(json: RedditJSONData): Story[] {
   return []
 }
 
-function domain_search(domain: string): Promise<Story[]> {
+export function domain_search(domain: string): Promise<Story[]> {
   return global_search("site:" + domain)
 }
 
-async function global_search(needle: string): Promise<Story[]> {
+export async function global_search(needle: string): Promise<Story[]> {
   const search_url = "https://old.reddit.com/search.json?q="
 
   const res = await fetch(search_url + encodeURIComponent(needle))
