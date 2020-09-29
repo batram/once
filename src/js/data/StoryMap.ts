@@ -71,7 +71,6 @@ export class StoryMap {
         story_els.forEach((story_el) => {
           story_el.dispatchEvent(event)
         })
-        document.body.dispatchEvent(event)
       }
     }
   }
