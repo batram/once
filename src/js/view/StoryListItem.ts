@@ -1,11 +1,11 @@
 import * as story_parser from "../data/parser"
-import * as story_filters from "../data/StoryFilters"
+import * as StoryFilterView from "../view/StoryFilterView"
 import { Story, SubStory } from "../data/Story"
 import * as presenters from "../view/presenters"
 import * as story_list from "../view/StoryList"
 import { ipcRenderer } from "electron"
-import { DataChangeEvent } from "../data/StoryMap"
 import * as URLFilters from "../data/URLFilters"
+import { StoryMap } from "../data/StoryMap"
 
 export class StoryListItem extends HTMLElement {
   story: Story
@@ -15,7 +15,7 @@ export class StoryListItem extends HTMLElement {
   star_btn: HTMLElement
   substories_el: HTMLElement
 
-  constructor(story: Story | Record<string, unknown>) {
+  constructor(story: Story) {
     super()
 
     if (!(story instanceof Story)) {
@@ -104,9 +104,12 @@ export class StoryListItem extends HTMLElement {
     presenters.add_story_elem_buttons(this, this.story)
     this.add_ipc_events()
 
-    this.addEventListener("data_change", (event: DataChangeEvent) => {
-      this.update_story_el(event)
-    })
+    this.addEventListener(
+      "data_change",
+      (event: story_list.DataChangeEvent) => {
+        this.update_story_el(event)
+      }
+    )
   }
 
   animate_read(): void {
@@ -138,15 +141,21 @@ export class StoryListItem extends HTMLElement {
     }
   }
 
-  update_story_el(event: DataChangeEvent): void {
+  update_story_el(event: story_list.DataChangeEvent): void {
     if (!event || !event.detail || !event.detail.story) {
       console.debug("update_story_el fail", event, this)
       return
+    }
+    if (!(event.detail.story instanceof Story)) {
+      console.error("only like stories, got this:", event.detail.story)
+      throw "nope, that is not a story ..."
     }
 
     this.animated = event.detail.animated
     document.body.setAttribute("animated", event.detail.animated.toString())
     this.story = event.detail.story
+
+    console.debug("update_story_el", event.detail)
 
     if (event.detail.path.length == 2) {
       switch (event.detail.path[1]) {
@@ -175,16 +184,16 @@ export class StoryListItem extends HTMLElement {
   }
 
   add_ipc_events(): void {
-    this.filter_btn.onclick = (x) => {
+    this.filter_btn.onclick = (event) => {
       if (this.classList.contains("filtered")) {
         ipcRenderer.send("forward_to_parent", "show_filter", this.story.filter)
       } else {
-        story_filters.show_filter_dialog(
-          x,
+        StoryFilterView.show_filter_dialog(
+          event,
           this.filter_btn,
           this.story,
-          (x) => {
-            ipcRenderer.send("forward_to_parent", "add_filter", x)
+          (filter) => {
+            ipcRenderer.send("settings", "add_filter", filter)
           }
         )
       }
@@ -192,11 +201,11 @@ export class StoryListItem extends HTMLElement {
 
     this.read_btn.addEventListener("click", () => {
       this.read_btn.classList.add("user_interaction")
-      ipcRenderer.send("forward_to_parent", "persist_story_change", {
-        href: this.story.href,
-        path: "read_state",
-        value: this.story.read_state == "unread" ? "skipped" : "unread",
-      })
+      StoryMap.remote.persist_story_change(
+        this.story.href,
+        "read_state",
+        this.story.read_state == "unread" ? "skipped" : "unread"
+      )
     })
 
     //open story with middle click on "skip reading"
@@ -224,11 +233,7 @@ export class StoryListItem extends HTMLElement {
       const value = !this.story.stared
       this.story.stared = value
       console.log("click start value", this.story.stared, "setting", value)
-      ipcRenderer.send("forward_to_parent", "persist_story_change", {
-        href: this.story.href,
-        path: "stared",
-        value: value,
-      })
+      StoryMap.remote.persist_story_change(this.story.href, "stared", value)
     })
   }
 

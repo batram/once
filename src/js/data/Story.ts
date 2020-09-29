@@ -15,7 +15,8 @@ export interface SortableStory {
 interface Attachment {
   [index: string]: {
     content_type: string
-    data: Blob
+    data?: string
+    raw_content?: string
     digest?: string
     length?: number
   }
@@ -102,17 +103,31 @@ export class Story {
     return 0
   }
 
+  has_content(): boolean {
+    return (
+      this._attachments &&
+      this._attachments.content &&
+      this._attachments.content.length != 0
+    )
+  }
+
   async get_content(): Promise<string> {
     if (this._attachments && this._attachments.content) {
       let body = null
       if (this._attachments.content.data) {
-        body = await this._attachments.content.data.text()
+        body = btoa(this._attachments.content.data)
       } else {
+        let provider = null
         if (OnceSettings.instance) {
-          body = await ((await OnceSettings.instance.once_db.getAttachment(
-            this._id,
-            "content"
-          )) as Blob).text()
+          provider = OnceSettings.instance.once_db
+        } else {
+          provider = OnceSettings.remote
+        }
+        if (provider) {
+          const attachment = await provider.getAttachment(this._id, "content")
+          if (attachment) {
+            body = new TextDecoder("utf-8").decode(attachment as Buffer)
+          }
         }
       }
 

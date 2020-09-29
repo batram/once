@@ -1,6 +1,5 @@
-import * as PouchDB from "pouchdb-browser"
-import * as story_list from "./view/StoryList"
-import { ipcRenderer } from "electron"
+import * as PouchDB from "pouchdb"
+import { ipcMain, ipcRenderer, webContents, nativeTheme } from "electron"
 import { StoryMap } from "./data/StoryMap"
 import { Story } from "./data/Story"
 
@@ -17,182 +16,110 @@ export class OnceSettings {
   once_db: PouchDB.Database<Record<string, unknown>>
   static instance: OnceSettings
 
+  static remote = {
+    story_sources(): Promise<string[]> {
+      return ipcRenderer.invoke("inv_settings", "story_sources")
+    },
+    get_filterlist(): Promise<string[]> {
+      return ipcRenderer.invoke("inv_settings", "get_filterlist")
+    },
+    pouch_get<T>(id: string, fallback_value: T): Promise<T> {
+      return ipcRenderer.invoke("inv_settings", "pouch_get", id, fallback_value)
+    },
+    getAttachment(id: string, key: string): Promise<string> {
+      return ipcRenderer.invoke("inv_settings", "getAttachment", id, key)
+    },
+  }
+
+  subscribers: webContents[] = []
+  animated = true
+
   constructor() {
     OnceSettings.instance = this
     this.once_db = new PouchDB(".once_db")
 
     this.get_stories().then((stories) => {
-      StoryMap.instance.stored_add(stories)
+      StoryMap.instance.set_initial_stories(stories)
     })
 
-    const couchdb_url = this.get_couch_settings()
-    if (couchdb_url != "") {
-      this.couchdb_sync(couchdb_url)
-    }
-    this.restore_theme_settings()
-
-    window
-      .matchMedia("(prefers-color-scheme: dark)")
-      .addEventListener("change", (e) => {
-        console.debug("system theme change", e)
-      })
-
-    const theme_select = document.querySelector<HTMLSelectElement>(
-      "#theme_select"
-    )
-    theme_select.addEventListener("change", () => {
-      this.save_theme(theme_select.value)
-    })
-
-    const anim_checkbox = document.querySelector<HTMLInputElement>(
-      "#anim_checkbox"
-    )
-    this.restore_animation_settings()
-    anim_checkbox.addEventListener("change", () => {
-      this.save_animation(anim_checkbox.checked)
-    })
-
-    const couch_input = document.querySelector<HTMLInputElement>("#couch_input")
-    this.reset_couch_settings()
-    couch_input.parentElement
-      .querySelector('input[value="save"]')
-      .addEventListener("click", () => {
-        this.save_couch_settings()
-      })
-    couch_input.parentElement
-      .querySelector('input[value="cancel"]')
-      .addEventListener("click", () => {
-        this.reset_couch_settings()
-      })
-
-    this.set_sources_area()
-
-    const sources_area = document.querySelector<HTMLInputElement>(
-      "#sources_area"
-    )
-    sources_area.parentElement
-      .querySelector('input[value="save"]')
-      .addEventListener("click", () => {
-        this.save_sources_settings()
-      })
-    sources_area.parentElement
-      .querySelector('input[value="cancel"]')
-      .addEventListener("click", () => {
-        this.set_sources_area()
-      })
-
-    sources_area.addEventListener("keydown", (e) => {
-      if (e.keyCode === 27) {
-        //ESC
-        this.set_sources_area()
-      } else if (e.key == "s" && e.ctrlKey) {
-        //CTRL + s
-        this.save_sources_settings()
+    this.once_db.get("sync_url").then((sync_url) => {
+      console.log("sync_url", sync_url)
+      if (sync_url.list && sync_url.list != "") {
+        this.couchdb_sync(sync_url.list as string)
       }
     })
 
-    this.set_filter_area()
+    this.pouch_get("animation", true).then((animated) => {
+      this.animated = animated
+    })
 
-    const filter_area = document.querySelector<HTMLInputElement>("#filter_area")
-    filter_area.parentElement
-      .querySelector('input[value="save"]')
-      .addEventListener("click", () => {
-        this.save_filter_settings()
-      })
-    filter_area.parentElement
-      .querySelector("input[value=cancel]")
-      .addEventListener("click", () => {
-        this.set_filter_area()
-      })
-
-    filter_area.addEventListener("keydown", (e) => {
-      if (e.keyCode === 27) {
-        //ESC
-        this.set_filter_area()
-      } else if (e.key == "s" && e.ctrlKey) {
-        //CTRL + s
-        this.save_filter_settings()
+    ipcMain.handle("inv_settings", async (event, cmd, ...args: unknown[]) => {
+      switch (cmd) {
+        case "story_sources":
+          return this.story_sources()
+        case "get_filterlist":
+          return this.get_filterlist()
+        case "pouch_get":
+          return this.pouch_get(args[0] as string, args[1])
+        case "getAttachment": {
+          const tat = this.once_db.getAttachment(
+            args[0] as string,
+            args[1] as string
+          )
+          console.log("getAttachment", args[0], args[1], tat)
+          return tat
+        }
+        default:
+          console.log("unhandled inv_settings", cmd)
       }
     })
-  }
 
-  restore_theme_settings(): void {
-    this.pouch_get("theme", "system").then((theme_value: string) => {
-      const theme_select = document.querySelector<HTMLSelectElement>(
-        "#theme_select"
-      )
-      theme_select.value = theme_value
-      this.set_theme(theme_value)
+    ipcMain.on("settings", async (event, cmd, ...args: unknown[]) => {
+      switch (cmd) {
+        case "subscribe_to_changes":
+          if (!this.subscribers.includes(event.sender)) {
+            this.subscribers.push(event.sender)
+          }
+          break
+        case "set_theme":
+          nativeTheme.themeSource = args[0] as "system" | "light" | "dark"
+          break
+        case "pouch_set":
+          console.log("pouch_set", args[0], args[1])
+          event.returnValue = await this.pouch_set(
+            args[0] as string,
+            args[1],
+            console.log
+          )
+          break
+        case "sync_url": {
+          const sync_url = args[0]
+          console.log("sync_url", sync_url)
+          this.pouch_set("sync_url", sync_url, console.log)
+          this.couchdb_sync(sync_url as string)
+          console.log("sync set?", await this.pouch_get("sync_url", sync_url))
+          break
+        }
+        case "save_filterlist":
+          event.returnValue = await this.save_filterlist(args[0] as string[])
+          break
+        case "add_filter":
+          this.add_filter(args[0] as string)
+          break
+        default:
+          console.log("unhandled settings", cmd)
+          event.returnValue = null
+      }
     })
-  }
-
-  save_theme(name: string): void {
-    this.pouch_set("theme", name, console.debug)
-    this.set_theme(name)
-  }
-
-  restore_animation_settings(): void {
-    this.pouch_get("animation", true).then((checked: boolean) => {
-      const anim_checkbox = document.querySelector<HTMLInputElement>(
-        "#anim_checkbox"
-      )
-      anim_checkbox.checked = checked
-      this.set_animation(checked)
-    })
-  }
-
-  save_animation(checked: boolean): void {
-    this.pouch_set("animation", checked, console.debug)
-    const anim_checkbox = document.querySelector<HTMLInputElement>(
-      "#anim_checkbox"
-    )
-    anim_checkbox.checked = checked
-    this.set_animation(checked)
-  }
-
-  set_animation(checked: boolean): void {
-    document.body.setAttribute("animated", checked.toString())
-  }
-
-  set_theme(name: string): void {
-    switch (name) {
-      case "dark":
-        ipcRenderer.send("theme", "dark")
-        break
-      case "light":
-        ipcRenderer.send("theme", "light")
-        break
-      case "custom":
-        console.debug("custom theme, not implement, just hanging out here :D")
-        break
-      case "system":
-        ipcRenderer.send("theme", "system")
-        break
-    }
   }
 
   update_on_change(
     event: PouchDB.Replication.SyncResult<Record<string, unknown>>
   ): void {
-    console.debug("pouch change", event)
-    if (event.direction) {
+    //console.debug("pouch change", event)
+    if (event.direction == "pull") {
       event.change.docs.forEach((doc) => {
         console.debug("update", doc._id)
-        switch (doc._id) {
-          case "story_sources":
-            this.set_sources_area()
-            story_list.reload()
-            break
-          case "filter_list":
-            this.set_filter_area()
-            story_list.refilter()
-            break
-          case "theme":
-            this.restore_theme_settings()
-            break
-          case "animation":
-            this.restore_animation_settings()
-        }
       })
     }
   }
@@ -215,17 +142,40 @@ export class OnceSettings {
         include_docs: true,
       })
       .on("change", (change) => {
-        console.log("changes", change)
-        if (change.id.startsWith("sto_") && change.doc) {
-          const changed_story = Story.from_obj(change.doc)
-          const stored = StoryMap.instance.get(changed_story.href)
-          if (!stored._rev || stored._rev != change.doc._rev) {
-            StoryMap.instance.set(
-              changed_story.href,
-              Story.from_obj(change.doc)
-            )
+        this.subscribers.forEach((subscriber) => {
+          if (subscriber.isDestroyed()) {
+            return
           }
-        }
+          if (change.id.startsWith("sto_") && change.doc) {
+            const changed_story = Story.from_obj(change.doc)
+            const stored = StoryMap.instance.get(changed_story.href)
+            if (!stored || !stored._rev || stored._rev != change.doc._rev) {
+              StoryMap.instance.set(
+                changed_story.href,
+                Story.from_obj(change.doc)
+              )
+            }
+          } else {
+            switch (change.id) {
+              case "story_sources":
+                subscriber.send("settings", "set_sources_area")
+                subscriber.send("story_list", "reload")
+                break
+              case "filter_list":
+                subscriber.send("settings", "set_filter_area")
+                subscriber.send("story_list", "refilter")
+                break
+              case "theme":
+                subscriber.send("settings", "restore_theme_settings")
+                break
+              case "animation":
+                this.animated = change.doc.list as boolean
+                subscriber.send("settings", "restore_animation_settings")
+            }
+          }
+        })
+
+        console.log("changes", change.id)
       })
 
     this.syncHandler
@@ -238,28 +188,6 @@ export class OnceSettings {
       .on("error", (err: Error) => {
         console.error("pouch err", err)
       })
-  }
-
-  save_couch_settings(): void {
-    const couch_input = document.querySelector<HTMLInputElement>("#couch_input")
-    const couchdb_url = couch_input.value
-    if (this.get_couch_settings() != couchdb_url) {
-      this.couchdb_sync(couchdb_url)
-      localStorage.setItem("couch_url", couchdb_url)
-    }
-  }
-
-  get_couch_settings(): string {
-    let couch_url = localStorage.getItem("couch_url")
-    if (couch_url == null) {
-      couch_url = ""
-    }
-    return couch_url
-  }
-
-  reset_couch_settings(): void {
-    const couch_input = document.querySelector<HTMLInputElement>("#couch_input")
-    couch_input.value = this.get_couch_settings()
   }
 
   async pouch_get<T>(id: string, fallback_value: T): Promise<T> {
@@ -282,37 +210,6 @@ export class OnceSettings {
 
   async story_sources(): Promise<string[]> {
     return this.pouch_get("story_sources", this.default_sources)
-  }
-
-  async set_sources_area(): Promise<void> {
-    const sources_area = document.querySelector<HTMLInputElement>(
-      "#sources_area"
-    )
-    sources_area.value = (await this.story_sources()).join("\n")
-  }
-
-  async save_sources_settings(): Promise<void> {
-    const sources_area = document.querySelector<HTMLInputElement>(
-      "#sources_area"
-    )
-    const story_sources = sources_area.value.split("\n").filter((x) => {
-      return x.trim() != ""
-    })
-    this.pouch_set("story_sources", story_sources, story_list.reload)
-  }
-
-  async set_filter_area(): Promise<void> {
-    const filter_area = document.querySelector<HTMLInputElement>("#filter_area")
-    filter_area.value = (await this.get_filterlist()).join("\n")
-  }
-
-  save_filter_settings(): void {
-    const filter_area = document.querySelector<HTMLInputElement>("#filter_area")
-    const filter_list = filter_area.value.split("\n").filter((x) => {
-      return x.trim() != ""
-    })
-    this.save_filterlist(filter_list)
-    story_list.refilter()
   }
 
   get_filterlist(): Promise<string[]> {
@@ -348,6 +245,15 @@ export class OnceSettings {
   }
 
   async save_story(story: Story): Promise<PouchDB.Core.Response | void> {
+    if (story._attachments) {
+      for (const i in story._attachments) {
+        if (story._attachments[i].raw_content) {
+          story._attachments[i].data = Buffer.from(
+            story._attachments[i].raw_content
+          ).toString("base64")
+        }
+      }
+    }
     return this.once_db
       .get(this.story_id(story.href))
       .then((doc) => {
@@ -397,11 +303,14 @@ export class OnceSettings {
       })
   }
 
+  async add_filter(filter: string): Promise<void> {
+    const filter_list = await this.get_filterlist()
+    filter_list.push(filter)
+    this.save_filterlist(filter_list)
+  }
+
   async save_filterlist(filter_list: string[]): Promise<void> {
-    this.pouch_set("filter_list", filter_list, () => {
-      story_list.refilter()
-      this.set_filter_area()
-    })
+    this.pouch_set("filter_list", filter_list, console.log)
   }
 
   default_filterlist = `bbc.co.uk

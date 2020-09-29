@@ -6,7 +6,6 @@ import {
   ipcMain,
   webContents,
   BrowserView,
-  nativeTheme,
 } from "electron"
 
 import * as path from "path"
@@ -15,6 +14,8 @@ import * as fullscreen from "./js/view/fullscreen"
 import * as tabbed_out from "./js/view/tabbed_out"
 import * as webcontents_enhancer from "./js/view/webcontents_enhancer"
 import * as outline from "./js/view/presenters/outline/inmain"
+import { StoryMap } from "./js/data/StoryMap"
+import { OnceSettings } from "./js/OnceSettings"
 
 declare global {
   // eslint-disable-next-line no-var
@@ -76,20 +77,18 @@ function createWindow() {
     autoHideMenuBar: true,
     icon: paths.icon_path,
   })
+  win.loadFile(global.paths.main_window_html)
+
+  new OnceSettings()
+  new StoryMap()
 
   fullscreen.main_listener()
   tabbed_out.tab_listeners(win)
-
-  ipcMain.on("theme", (event, data) => {
-    nativeTheme.themeSource = data
-  })
 
   // TODO: handle general for all presenters
   outline.custom_protocol()
 
   //win.webContents.session.setProxy({ proxyRules: "socks5://127.0.0.1:9150" })
-
-  win.loadFile(global.paths.main_window_html)
 
   adblocker.ElectronBlocker.fromPrebuiltAdsAndTracking(
     require("cross-fetch")
@@ -123,8 +122,6 @@ app.on("window-all-closed", () => {
 
 app.whenReady().then(() => {
   process.on("uncaughtException", (e) => {
-    //truncate errors
-    //console.log("moep", e)
     console.log("err caught", e)
   })
 

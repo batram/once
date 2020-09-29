@@ -2,8 +2,10 @@ import { Story, SortableStory } from "../data/Story"
 import { OnceSettings } from "../OnceSettings"
 import { StoryListItem } from "../view/StoryListItem"
 import * as filters from "../data/StoryFilters"
-import { StoryMap } from "../data/StoryMap"
+import { StoryMap, DataChangeEventDetail } from "../data/StoryMap"
 import * as story_loader from "../data/StoryLoader"
+import { ipcRenderer } from "electron"
+import * as search from "../data/search"
 
 export {
   mark_selected,
@@ -15,6 +17,16 @@ export {
   resort_single,
   add,
   init,
+  remote_story_change,
+}
+
+export class DataChangeEvent extends Event {
+  detail: DataChangeEventDetail
+
+  constructor(typeArg: string, detail: DataChangeEventDetail) {
+    super(typeArg)
+    this.detail = detail
+  }
 }
 
 function init(): void {
@@ -23,6 +35,80 @@ function init(): void {
   )
   if (reload_stories_btn) {
     reload_stories_btn.onclick = reload
+  }
+
+  remote_story_change()
+}
+
+function remote_story_change(): void {
+  ipcRenderer.send("story_map", "subscribe_to_changes")
+  ipcRenderer.on(
+    "story_map",
+    async (event, cmd: "data_change", details: DataChangeEventDetail) => {
+      switch (cmd) {
+        case "data_change": {
+          if (details.story && !(details.story instanceof Story)) {
+            details.story = Story.from_obj(details.story)
+          }
+          console.debug("data_change", details)
+          if (details.path && details.path.length != 0) {
+            const story_els = document.querySelectorAll(
+              `.story[data-href="${details.path[0]}"]`
+            )
+            story_els.forEach((story_el) => {
+              story_el.dispatchEvent(
+                new DataChangeEvent("data_change", details)
+              )
+            })
+          }
+
+          break
+        }
+        default:
+          console.log("unhandled story_list", cmd)
+          event.returnValue = null
+      }
+    }
+  )
+
+  ipcRenderer.send("settings", "subscribe_to_changes")
+  ipcRenderer.on(
+    "story_list",
+    async (event, cmd: string, ...args: unknown[]) => {
+      switch (cmd) {
+        case "add_stories":
+          add_stories(
+            (args[0] as Record<string, unknown>[]).map((story: Story) => {
+              return Story.from_obj(story)
+            }),
+            args[1] as string
+          )
+          break
+        case "reload":
+          reload()
+          break
+        case "refilter":
+          refilter()
+          break
+        default:
+          console.log("unhandled story_list", cmd)
+          event.returnValue = null
+      }
+    }
+  )
+}
+
+function add_stories(stories: Story[], bucket = "stories") {
+  stories.forEach((story: Story) => {
+    add(story, bucket)
+  })
+
+  sort_stories(bucket)
+
+  const searchfield = document.querySelector<HTMLInputElement>("#searchfield")
+  const search_scope = document.querySelector<HTMLInputElement>("#search_scope")
+  if (searchfield.value != "" && search_scope.value != "global") {
+    search.search_stories(searchfield.value)
   }
 }
 
@@ -186,23 +272,29 @@ function sort_stories(bucket = "stories"): void {
 }
 
 function refilter(): void {
-  document.querySelectorAll<StoryListItem>(".story").forEach((story_el) => {
-    const sthref = story_el.dataset.href
-    const story = StoryMap.instance.get(sthref)
-    const og_filter = story.filter
-    filters.filter_story(story).then((story) => {
-      if (story.filter != og_filter) {
-        OnceSettings.instance.save_story(story)
-        const nstory = new StoryListItem(
-          StoryMap.instance.get(sthref.toString())
-        )
-        story_el.replaceWith(nstory)
-      }
+  document
+    .querySelectorAll<StoryListItem>(".story")
+    .forEach(async (story_el) => {
+      const sthref = story_el.dataset.href
+      const story = await StoryMap.remote.get(sthref)
+      const og_filter = story.filter
+      filters.filter_story(story).then(async (story) => {
+        if (story.filter != og_filter) {
+          StoryMap.remote.persist_story_change(
+            story.href,
+            "filter",
+            story.filter
+          )
+          const nstory = new StoryListItem(
+            await StoryMap.remote.get(sthref.toString())
+          )
+          story_el.replaceWith(nstory)
+        }
+      })
     })
-  })
 }
 
-function reload(): void {
+async function reload(): Promise<void> {
   //dont remove the selected story on reload
   const selected = document.querySelector<StoryListItem>(".selected")
 
@@ -214,8 +306,11 @@ function reload(): void {
 
   if (selected) {
     const href = selected.dataset.href
-    const story = StoryMap.instance.get(href)
+    const story = await StoryMap.remote.get(href)
     add(story)
   }
-  OnceSettings.instance.story_sources().then(story_loader.load)
+
+  OnceSettings.remote.story_sources().then((story_sources) => {
+    story_loader.load(story_sources)
+  })
 }

@@ -3,8 +3,9 @@ import * as fullscreen from "./fullscreen"
 import * as presenters from "./presenters"
 import * as story_list from "./StoryList"
 import { StoryListItem } from "./StoryListItem"
+import { remote_story_change } from "./StoryList"
 import { Story } from "../data/Story"
-import { DataChangeEvent } from "../data/StoryMap"
+import { StoryMap } from "../data/StoryMap"
 
 export class WebTab {
   tab_state: string
@@ -24,6 +25,8 @@ export class WebTab {
       this.webview_ready = true
       this.send_update_tab_info()
     })
+
+    remote_story_change()
 
     ipcRenderer.on("open_in_webview", (event, href) => {
       console.debug("open_in_webview", href)
@@ -61,8 +64,6 @@ export class WebTab {
 
       this.parent_id = new_parent_id
       this.tab_state = "attached"
-      this.send_to_parent("subscribe_to_change")
-
       this.send_update_tab_info()
     })
 
@@ -84,25 +85,9 @@ export class WebTab {
       ipcRenderer.send("end_me")
     })
 
-    ipcRenderer.on(
-      "push_tab_data_change",
-      (ipc_event, change_event: DataChangeEvent) => {
-        console.debug("push_tab_data_change", ipc_event, change_event)
-        const selected = story_list.get_by_href(change_event.detail.story.href)
-        if (selected) {
-          selected.dispatchEvent(
-            new DataChangeEvent("data_change", change_event.detail)
-          )
-          this.current_story = change_event.detail.story
-        } else {
-          this.current_story = null
-        }
-      }
-    )
-
-    ipcRenderer.on("update_selected", (event, story, colors) => {
-      console.debug("update_selected", story)
-      this.update_selected(story, colors)
+    ipcRenderer.on("update_selected", (event, href, colors) => {
+      console.debug("update_selected", href)
+      this.update_selected(href, colors)
     })
 
     ipcRenderer.on("update-target-url", (event, url) => {
@@ -264,10 +249,7 @@ export class WebTab {
   }
 
   //object | Story
-  update_selected(
-    story: Story | Record<string, unknown>,
-    colors?: string
-  ): void {
+  update_selected(href: string, colors?: string): void {
     const selected_container = document.querySelector("#selected_container")
 
     if (colors != undefined) {
@@ -281,17 +263,15 @@ export class WebTab {
     }
 
     selected_container.innerHTML = ""
-    if (!story) {
+    if (!href) {
       return
     }
 
-    if (!(story instanceof Story)) {
-      story = Story.from_obj(story)
-    }
-
-    const story_el = new StoryListItem(story)
-    story_el.classList.add("selected")
-    selected_container.append(story_el)
+    StoryMap.remote.get(href).then((story) => {
+      const story_el = new StoryListItem(story)
+      story_el.classList.add("selected")
+      selected_container.append(story_el)
+    })
   }
 
   send_to_parent(channel: string, ...args: string[]): void {

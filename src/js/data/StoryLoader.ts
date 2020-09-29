@@ -1,9 +1,7 @@
 import * as story_parser from "../data/parser"
 import { StoryMap } from "../data/StoryMap"
 import { Story } from "./Story"
-import * as search from "../data/search"
 import * as story_filters from "./StoryFilters"
-import * as story_list from "../view/StoryList"
 
 export { load, parallel_load_stories }
 
@@ -47,23 +45,8 @@ async function process_story_input(stories: Story[]) {
     return
   }
   const filtered_stories = await story_filters.filter_stories(stories)
-
-  StoryMap.instance.get_all_stared().forEach((story) => {
-    story_list.add(story)
-  })
-
   const all_stories = filtered_stories.sort()
-  all_stories.forEach((story) => {
-    const mapped_story = StoryMap.instance.add(story)
-    story_list.add(mapped_story)
-  })
-
-  story_list.sort_stories()
-
-  const searchfield = document.querySelector<HTMLInputElement>("#searchfield")
-  if (searchfield.value != "") {
-    search.search_stories(searchfield.value)
-  }
+  StoryMap.remote.stories_loaded(all_stories, "stories")
 }
 
 //data loader

@@ -168,7 +168,7 @@ function common_rss_parser(doc: Document, def: FeedFormat) {
       new_story._attachments = {
         content: {
           content_type: "text/plain",
-          data: new Blob([content], { type: "text/plain" }),
+          raw_content: content,
         },
       }
     }

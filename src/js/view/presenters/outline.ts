@@ -3,6 +3,7 @@ import { StoryListItem } from "../../view/StoryListItem"
 import * as Readability from "../../third_party/Readability.js"
 import { TabWrangler } from "../../view/TabWrangler"
 import { ipcRenderer } from "electron"
+import { StoryMap } from "../../data/StoryMap"
 
 const description = "Presents contents of a webpage in more readable way"
 
@@ -82,13 +83,17 @@ function outline_button_inactive() {
   }
 }
 
-function story_elem_button(story: Story, intab = false): HTMLElement {
+function story_elem_button(story: Story): HTMLElement {
   const outline_btn = StoryListItem.icon_button(
     "outline",
     "outline_btn",
     "imgs/article.svg"
   )
   outline_btn.style.order = "2"
+
+  if (story.has_content()) {
+    outline_btn.querySelector("img").src = "imgs/stored_content.svg"
+  }
 
   //prevent scroll, but fire interaction only on mouseup
   outline_btn.addEventListener("mousedown", (event) => {
@@ -100,17 +105,12 @@ function story_elem_button(story: Story, intab = false): HTMLElement {
   })
 
   outline_btn.addEventListener("mouseup", async (event) => {
-    let content = await story.get_content()
-    if (intab && !content) {
-      content = await TabWrangler.ops.content_up(story.href)
-    }
-
     if (event.button == 0) {
-      TabWrangler.ops.send_or_create_tab("outline", story.href, content)
+      TabWrangler.ops.send_or_create_tab("outline", story.href)
     } else if (event.button == 1) {
       event.preventDefault()
       event.stopPropagation()
-      TabWrangler.ops.send_to_new_tab("outline", story.href, content)
+      TabWrangler.ops.send_to_new_tab("outline", story.href)
       return false
     }
     //TODO: show cache options on 2?
@@ -120,9 +120,9 @@ function story_elem_button(story: Story, intab = false): HTMLElement {
 }
 
 function init_in_webtab(): void {
-  ipcRenderer.on("outline", (_event, href, content: string) => {
+  ipcRenderer.on("outline", (_event, href) => {
     outline_button_active()
-    outline(href, content)
+    outline(href)
   })
 
   if (!presenter_options.urlbar_button.value) {
@@ -163,8 +163,7 @@ function urlbar_button(): HTMLElement {
         console.log("webview.loadURL error", e)
       })
     } else {
-      const content = await TabWrangler.ops.content_up(urlfield.value)
-      outline(urlfield.value, content)
+      outline(urlfield.value)
     }
   }
 
@@ -192,8 +191,15 @@ async function present(url: string): Promise<void> {
   outline(url)
 }
 
-async function outline(url: string, story_content?: string): Promise<void> {
+async function outline(url: string): Promise<void> {
   const webview = document.querySelector<Electron.WebviewTag>("#webview")
+  let story_content = null
+
+  const story = await StoryMap.remote.get(url)
+  if (story) {
+    story_content = await story.get_content()
+  }
+
   if (!story_content) {
     if (ipcRenderer.sendSync("has_outlined", url)) {
       webview
@@ -309,6 +315,10 @@ async function outline(url: string, story_content?: string): Promise<void> {
   }
   if (!article.content) {
     article.content = "Readability fail"
+  }
+
+  if (!article.title && story && story.title) {
+    article.title = story.title
   }
 
   const h1_title = document.createElement("h1")

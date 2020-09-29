@@ -1,6 +1,6 @@
 import { ipcRenderer } from "electron"
-import * as filters from "../data/StoryFilters"
-import { StoryMap, DataChangeEvent } from "../data/StoryMap"
+import * as StoryFilterView from "../view/StoryFilterView"
+import { StoryMap } from "../data/StoryMap"
 import * as story_list from "./StoryList"
 import { search_stories } from "../data/search"
 import { Story } from "../data/Story"
@@ -50,16 +50,6 @@ export class TabWrangler {
     },
     open_in_new_tab(href: string): void {
       this.proxy_func("open_in_new_tab", href)
-    },
-    content_up(href: string): Promise<string> {
-      ipcRenderer.sendSync("forward_to_parent", "content_up", href)
-      return new Promise((resolutionFunc) => {
-        ipcRenderer.once("content_response", (event, url, content) => {
-          if (url == href) {
-            resolutionFunc(content)
-          }
-        })
-      })
     },
   }
 
@@ -173,47 +163,10 @@ export class TabWrangler {
       this.remove_tab_el(event.senderId)
     })
 
-    ipcRenderer.on("persist_story_change", (event, data) => {
-      console.log(
-        "persist_story_change received",
-        data,
-        "setting value",
-        data.value
-      )
-      StoryMap.instance.persist_story_change(data.href, data.path, data.value)
-    })
-
     ipcRenderer.on(
       "show_filter",
       (event: Electron.IpcRendererEvent, data: string) => {
-        filters.show_filter(data)
-      }
-    )
-
-    ipcRenderer.on(
-      "add_filter",
-      (event: Electron.IpcRendererEvent, data: string) => {
-        filters.add_filter(data)
-      }
-    )
-
-    const subscribers: number[] = []
-    ipcRenderer.on(
-      "subscribe_to_change",
-      (event: Electron.IpcRendererEvent) => {
-        if (event.senderId && !subscribers.includes(event.senderId)) {
-          console.debug("subscribe_to_change", event.senderId)
-          subscribers.push(event.senderId)
-          //TODO: filter here or on tab?
-          document.body.addEventListener(
-            "data_change",
-            (e: DataChangeEvent) => {
-              if (e.detail.story) {
-                this.send_to_id(event.senderId, "push_tab_data_change", e)
-              }
-            }
-          )
-        }
+        StoryFilterView.show_filter(data)
       }
     )
 
@@ -241,16 +194,6 @@ export class TabWrangler {
         tab_el.setAttribute("media", "started")
       }
     )
-
-    ipcRenderer.on(
-      "content_up",
-      async (event: Electron.IpcRendererEvent, href) => {
-        console.debug("content_up", event, href)
-        const story = StoryMap.instance.get(href)
-        const content = await story.get_content()
-        event.sender.send("content_response", href, content)
-      }
-    )
   }
 
   handle_tab_url_change(sender_id: number, href: string): void {
@@ -271,19 +214,9 @@ export class TabWrangler {
         story.read_state != "read" &&
         (story.href == href || story_el.dataset.filtered_url == href)
       ) {
-        ipcRenderer.send("forward_to_parent", "persist_story_change", {
-          href: story.href,
-          path: "read_state",
-          value: "read",
-        })
+        StoryMap.remote.persist_story_change(story.href, "read_state", "read")
       }
-      this.send_to_id(sender_id, "update_selected", story, colors)
-    } else {
-      if (href == "about:gone") {
-        return
-      }
-
-      this.send_to_id(sender_id, "update_selected", null, colors)
+      this.send_to_id(sender_id, "update_selected", story.href, colors)
     }
   }
 
@@ -349,12 +282,20 @@ export class TabWrangler {
       window_content.classList.add("active_drag")
 
       if (!this.tab_image_overly && this.active_wc_id != null) {
-        const img_url = ipcRenderer.sendSync("pic_webtab", this.active_wc_id)
         this.tab_image_overly = document.createElement("img")
         this.tab_image_overly.classList.add("pic_webtab")
         this.tab_image_overly.style.position = "absolute"
         this.tab_image_overly.style.opacity = "0.8"
-        this.tab_image_overly.src = img_url
+
+        const gen_img = async () => {
+          const img_url = await ipcRenderer.invoke(
+            "pic_webtab",
+            this.active_wc_id
+          )
+          this.tab_image_overly.src = img_url
+        }
+        gen_img()
+
         this.tabcontent_element.append(this.tab_image_overly)
         ipcRenderer.send("hide_webtab", this.active_wc_id)
       }
@@ -499,7 +440,7 @@ export class TabWrangler {
     })
   }
 
-  add_tab(wc_id: number, title?: string, href?: string): void {
+  async add_tab(wc_id: number, title?: string, href?: string): Promise<void> {
     if (!wc_id) {
       console.error("can't add tab with incomplete information")
       return
@@ -509,14 +450,18 @@ export class TabWrangler {
       this.attach_webtab(wc_id)
       this.mark_tab_active(existing_tab)
     } else {
-      const ret_wc_id = this.grab_webtab(wc_id)
+      const ret_wc_id = await this.grab_webtab(wc_id)
       if (ret_wc_id == wc_id) {
         this.update_tab_info(ret_wc_id, href, title)
       }
     }
   }
 
-  update_tab_info(wc_id: number, href: string, title?: string): void {
+  async update_tab_info(
+    wc_id: number,
+    href: string,
+    title?: string
+  ): Promise<void> {
     console.debug("update_tab_info", wc_id, href, title)
     const tab_el = this.tab_el_from_id(wc_id)
     if (tab_el) {
@@ -527,7 +472,7 @@ export class TabWrangler {
       tab_el.dataset.href = href
       if (!title || (href != "about:blank" && title == "about:blank")) {
         // try to find story with url and get title
-        const story = StoryMap.instance.get(href)
+        const story = await StoryMap.remote.get(href)
         if (story) {
           title = story.title
         }
@@ -544,7 +489,7 @@ export class TabWrangler {
   send_to_id(
     id: number,
     channel: string,
-    ...args: (string | Story | DataChangeEvent)[]
+    ...args: (string | Story | story_list.DataChangeEvent)[]
   ): void {
     args = [...args].map((x) => {
       if (typeof x == "object") {
@@ -556,8 +501,8 @@ export class TabWrangler {
     ipcRenderer.sendTo(id, channel, ...args)
   }
 
-  send_to_new_tab(channel: string, ...args: string[]): number {
-    const wc_id = this.new_webtab()
+  async send_to_new_tab(channel: string, ...args: string[]): Promise<number> {
+    const wc_id = await this.new_webtab()
     ipcRenderer.send("when_webview_ready", wc_id, channel, ...args)
     return wc_id
   }
@@ -591,8 +536,8 @@ export class TabWrangler {
     this.send_or_create_tab("open_in_webview", href)
   }
 
-  open_in_new_tab(href: string): void {
-    const wc_id = this.send_to_new_tab("open_in_webview", href)
+  async open_in_new_tab(href: string): Promise<void> {
+    const wc_id = await this.send_to_new_tab("open_in_webview", href)
     if (wc_id) {
       const tab_el = this.tab_el_from_id(wc_id)
       if (tab_el) {
@@ -631,7 +576,7 @@ export class TabWrangler {
     this.remove_tab_el(parseInt(tab_el.dataset.wc_id))
   }
 
-  new_webtab(): number {
+  async new_webtab(): Promise<number> {
     return this.grab_webtab(0)
   }
 
@@ -681,8 +626,8 @@ export class TabWrangler {
     return document.querySelector<HTMLElement>(`.tab[data-wc_id="${wc_id}"]`)
   }
 
-  grab_attached_or_new(): boolean {
-    const wc_id = ipcRenderer.sendSync("get_attached_wc_id")
+  async grab_attached_or_new(): Promise<boolean> {
+    const wc_id = await ipcRenderer.invoke("get_attached_wc_id")
 
     console.log("attacjed?", wc_id, wc_id != null)
 
@@ -695,8 +640,8 @@ export class TabWrangler {
     }
   }
 
-  grab_webtab(wc_id: number): number {
-    const ret_wc_id = this.attach_webtab(wc_id)
+  async grab_webtab(wc_id: number): Promise<number> {
+    const ret_wc_id = await this.attach_webtab(wc_id)
     if (wc_id != 0 && ret_wc_id != wc_id) {
       throw `Wanted to grab ${wc_id} but got ${ret_wc_id}`
     }
@@ -722,12 +667,12 @@ export class TabWrangler {
     tab_el.classList.add("active")
   }
 
-  attach_webtab(wc_id: number): number {
+  async attach_webtab(wc_id: number): Promise<number> {
     let re_wc_id = null
     if (wc_id != null && wc_id != 0) {
-      re_wc_id = ipcRenderer.sendSync("attach_wc_id", wc_id)
+      re_wc_id = await ipcRenderer.invoke("attach_wc_id", wc_id)
     } else {
-      re_wc_id = ipcRenderer.sendSync("attach_new_tab")
+      re_wc_id = await ipcRenderer.invoke("attach_new_tab")
     }
 
     if (!re_wc_id) {

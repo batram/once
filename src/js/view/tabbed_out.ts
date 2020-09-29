@@ -54,19 +54,15 @@ function get_parent_window(webcontents: WebContents) {
 function tab_listeners(win: BrowserWindow): void {
   ipcMain.on("forward_to_parent", send_to_parent)
 
-  ipcMain.on("get_attached_wc_id", (event) => {
+  ipcMain.handle("get_attached_wc_id", (event) => {
     console.log("get_attached_view", event.sender.id)
     const window = BrowserWindow.fromWebContents(event.sender)
     if (window) {
       const attached_view = window.getBrowserView()
       if (attached_view && !attached_view.isDestroyed()) {
-        const view_wc_id = attached_view.webContents.id
-        event.returnValue = view_wc_id
-        return
+        return attached_view.webContents.id
       }
     }
-
-    event.returnValue = null
   })
 
   ipcMain.on("end_me", (event) => {
@@ -159,7 +155,7 @@ function tab_listeners(win: BrowserWindow): void {
     }
   })
 
-  ipcMain.on("attach_new_tab", (event) => {
+  ipcMain.handle("attach_new_tab", (event) => {
     const view = create_view(event.sender.id)
     if (view) {
       const window = BrowserWindow.fromWebContents(event.sender)
@@ -168,13 +164,13 @@ function tab_listeners(win: BrowserWindow): void {
         console.log("attach_new_tab", event.sender.id, view.webContents.id)
         tab_views[view.webContents.id] = view
         parent_windows[window.webContents.id] = window
-        event.returnValue = view.webContents.id
+        return view.webContents.id
       }
     }
     event.returnValue = null
   })
 
-  ipcMain.on("attach_wc_id", (event, wc_id: string) => {
+  ipcMain.handle("attach_wc_id", (event, wc_id: string) => {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (window) {
       const view_wc = webContents.fromId(parseInt(wc_id))
@@ -203,23 +199,21 @@ function tab_listeners(win: BrowserWindow): void {
             wc_id,
             view.webContents.id
           )
-          event.returnValue = view.webContents.id
-          return
+          return view.webContents.id
         }
       }
     }
     event.returnValue = null
   })
 
-  ipcMain.on("pic_webtab", async (event, wc_id: string) => {
+  ipcMain.handle("pic_webtab", async (event, wc_id: string) => {
     const wc = webContents.fromId(parseInt(wc_id))
     if (wc) {
       const cap = await wc.capturePage()
       if (cap) {
-        event.returnValue = cap.toDataURL()
+        return cap.toDataURL()
       }
     }
-    event.returnValue = null
   })
 
   win.on("close", () => {
@@ -234,7 +228,6 @@ function tab_listeners(win: BrowserWindow): void {
       }
     }
     win.destroy()
-    win.close()
   })
 }
 
