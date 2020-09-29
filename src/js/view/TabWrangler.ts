@@ -33,10 +33,16 @@ export class TabWrangler {
         ipcRenderer.send("forward_to_parent", func_name, ...args)
       }
     },
-    send_to_new_tab: function (channel: string, ...args: string[]): void {
+    send_to_new_tab: function (
+      channel: string,
+      ...args: (string | Blob | Buffer)[]
+    ): void {
       this.proxy_func("send_to_new_tab", channel, ...args)
     },
-    send_or_create_tab: function (channel: string, ...args: string[]): void {
+    send_or_create_tab: function (
+      channel: string,
+      ...args: (string | Blob | Buffer)[]
+    ): void {
       this.proxy_func("send_or_create_tab", channel, ...args)
     },
     open_in_tab(href: string): void {
@@ -44,6 +50,16 @@ export class TabWrangler {
     },
     open_in_new_tab(href: string): void {
       this.proxy_func("open_in_new_tab", href)
+    },
+    content_up(href: string): Promise<string> {
+      ipcRenderer.sendSync("forward_to_parent", "content_up", href)
+      return new Promise((resolutionFunc) => {
+        ipcRenderer.once("content_response", (event, url, content) => {
+          if (url == href) {
+            resolutionFunc(content)
+          }
+        })
+      })
     },
   }
 
@@ -110,7 +126,7 @@ export class TabWrangler {
         channel: string,
         ...args: string[]
       ) => {
-        console.log("outline as", ...args)
+        console.debug("send_or_create_tab", ...args)
         this.send_or_create_tab(channel, ...args)
       }
     )
@@ -223,6 +239,16 @@ export class TabWrangler {
         console.debug("tab_media_started_playing", event, audible)
         const tab_el = this.tab_el_from_id(event.senderId)
         tab_el.setAttribute("media", "started")
+      }
+    )
+
+    ipcRenderer.on(
+      "content_up",
+      async (event: Electron.IpcRendererEvent, href) => {
+        console.debug("content_up", event, href)
+        const story = StoryMap.instance.get(href)
+        const content = await story.get_content()
+        event.sender.send("content_response", href, content)
       }
     )
   }

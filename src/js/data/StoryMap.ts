@@ -167,6 +167,38 @@ export class StoryMap {
         OnceSettings.instance.save_story(og_story)
       }
 
+      if (story._attachments) {
+        const prev_attached = og_story._attachments
+        if (!og_story._attachments) {
+          og_story._attachments = story._attachments
+        } else {
+          for (const i in story._attachments) {
+            if (story._attachments[i].data) {
+              if (og_story._attachments[i]) {
+                //TODO: compare md5
+                if (
+                  og_story._attachments[i].length !=
+                  story._attachments[i].data.size
+                ) {
+                  og_story._attachments[i] = story._attachments[i]
+                }
+              } else {
+                og_story._attachments[i] = story._attachments[i]
+              }
+            }
+          }
+        }
+        if (prev_attached != og_story._attachments) {
+          this.emit_data_change(
+            [story.href, "_attachments"],
+            og_story._attachments,
+            prev_attached,
+            null
+          )
+          OnceSettings.instance.save_story(og_story)
+        }
+      }
+
       story = og_story
     }
 

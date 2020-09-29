@@ -1,3 +1,5 @@
+import { OnceSettings } from "../OnceSettings"
+
 export interface SubStory {
   type: string
   comment_url: string
@@ -10,6 +12,15 @@ export interface SortableStory {
   el?: HTMLElement
 }
 
+interface Attachment {
+  [index: string]: {
+    content_type: string
+    data: Blob
+    digest?: string
+    length?: number
+  }
+}
+
 export class Story {
   type: string
   href: string
@@ -19,7 +30,10 @@ export class Story {
   filter: string
   substories: SubStory[]
   read: "unread" | "read" | "skipped"
-  stared: boolean;
+  stared: boolean
+  _attachments?: Attachment
+  _rev?: string
+  _id?: string;
 
   [index: string]:
     | string
@@ -86,5 +100,28 @@ export class Story {
     if (a.timestamp > b.timestamp) return -1
     if (a.timestamp < b.timestamp) return 1
     return 0
+  }
+
+  async get_content(): Promise<string> {
+    if (this._attachments && this._attachments.content) {
+      let body = null
+      if (this._attachments.content.data) {
+        body = await this._attachments.content.data.text()
+      } else {
+        if (OnceSettings.instance) {
+          body = await ((await OnceSettings.instance.once_db.getAttachment(
+            this._id,
+            "content"
+          )) as Blob).text()
+        }
+      }
+
+      if (body) {
+        const title = document.createElement("title")
+        title.innerText = this.title
+        const content = title.outerHTML + body
+        return content
+      }
+    }
   }
 }

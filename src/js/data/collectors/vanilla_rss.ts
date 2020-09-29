@@ -165,8 +165,12 @@ function common_rss_parser(doc: Document, def: FeedFormat) {
 
     const new_story = new Story(options.tag, link, title, link, timestamp)
     if (content) {
-      //TODO: content as Attachment
-      new_story.content = content
+      new_story._attachments = {
+        content: {
+          content_type: "text/plain",
+          data: new Blob([content], { type: "text/plain" }),
+        },
+      }
     }
     return new_story
   })

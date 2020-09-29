@@ -90,41 +90,39 @@ function story_elem_button(story: Story, intab = false): HTMLElement {
   )
   outline_btn.style.order = "2"
 
-  if (!intab) {
-    //prevent scroll, but fire interaction only on mouseup
-    outline_btn.addEventListener("mousedown", (event) => {
-      if (event.button == 1) {
-        event.preventDefault()
-        event.stopPropagation()
-        return false
-      }
-    })
-
-    outline_btn.addEventListener("mouseup", (event) => {
-      if (event.button == 0) {
-        TabWrangler.ops.send_or_create_tab("outline", story.href)
-      } else if (event.button == 1) {
-        event.preventDefault()
-        event.stopPropagation()
-        TabWrangler.ops.send_to_new_tab("outline", story.href)
-        return false
-      }
-      //TODO: show cache options on 2?
-    })
-  } else {
-    outline_btn.onclick = () => {
-      outline_button_active()
-      outline(story.href)
+  //prevent scroll, but fire interaction only on mouseup
+  outline_btn.addEventListener("mousedown", (event) => {
+    if (event.button == 1) {
+      event.preventDefault()
+      event.stopPropagation()
+      return false
     }
-  }
+  })
+
+  outline_btn.addEventListener("mouseup", async (event) => {
+    let content = await story.get_content()
+    if (intab && !content) {
+      content = await TabWrangler.ops.content_up(story.href)
+    }
+
+    if (event.button == 0) {
+      TabWrangler.ops.send_or_create_tab("outline", story.href, content)
+    } else if (event.button == 1) {
+      event.preventDefault()
+      event.stopPropagation()
+      TabWrangler.ops.send_to_new_tab("outline", story.href, content)
+      return false
+    }
+    //TODO: show cache options on 2?
+  })
 
   return outline_btn
 }
 
 function init_in_webtab(): void {
-  ipcRenderer.on("outline", (_event, href) => {
+  ipcRenderer.on("outline", (_event, href, content: string) => {
     outline_button_active()
-    outline(href)
+    outline(href, content)
   })
 
   if (!presenter_options.urlbar_button.value) {
@@ -148,7 +146,7 @@ function urlbar_button(): HTMLElement {
   button.classList.add("bar_btn")
   button.style.marginRight = "3px"
 
-  button.onclick = () => {
+  button.onclick = async () => {
     const webview = document.querySelector<Electron.WebviewTag>("#webview")
     const urlfield = document.querySelector<HTMLInputElement>("#urlfield")
     if (!webview || !urlfield) {
@@ -165,7 +163,8 @@ function urlbar_button(): HTMLElement {
         console.log("webview.loadURL error", e)
       })
     } else {
-      outline(urlfield.value)
+      const content = await TabWrangler.ops.content_up(urlfield.value)
+      outline(urlfield.value, content)
     }
   }
 
@@ -181,7 +180,9 @@ function display_url(url: string): string {
     url.startsWith(outline_proto)
   ) {
     outline_button_active()
-    if (url.split("#").length > 1) {
+    if (url.split("outline://data:").length > 1) {
+      return decodeURIComponent(url.split("outline://data:")[1])
+    } else if (url.split("#").length > 1) {
       return decodeURIComponent(url.split("#")[1])
     }
   }
@@ -191,15 +192,27 @@ async function present(url: string): Promise<void> {
   outline(url)
 }
 
-async function outline(url: string): Promise<void> {
+async function outline(url: string, story_content?: string): Promise<void> {
   const webview = document.querySelector<Electron.WebviewTag>("#webview")
-
-  let story_content = null
-  if (webview.getURL() == url) {
-    //already have the url loaded, get the document
-    story_content = await webview.executeJavaScript(
-      "document.documentElement.outerHTML"
-    )
+  if (!story_content) {
+    if (ipcRenderer.sendSync("has_outlined", url)) {
+      webview
+        .loadURL("outline://data:" + encodeURIComponent(url))
+        .then((e) => {
+          console.debug("open_in_webview load", e)
+        })
+        .catch((e) => {
+          console.log("rejected ", e)
+        })
+      return
+    } else {
+      if (webview.getURL() == url) {
+        //already have the url loaded, get the document
+        story_content = await webview.executeJavaScript(
+          "document.documentElement.outerHTML"
+        )
+      }
+    }
   }
 
   try {
@@ -312,10 +325,10 @@ async function outline(url: string): Promise<void> {
     h1_title.outerHTML +
     article.content
 
-  ipcRenderer.send("outlined", data)
+  ipcRenderer.sendSync("outlined", og_url, data)
 
   webview
-    .loadURL("outline://data" + "#" + encodeURIComponent(og_url))
+    .loadURL("outline://data:" + encodeURIComponent(og_url))
     .then((e) => {
       console.debug("open_in_webview load", e)
     })
