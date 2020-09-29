@@ -78,7 +78,7 @@ export class StoryMap {
             }
           )
 
-          const mapped_stories = this.add_stories(stories)
+          const mapped_stories = await this.add_stories(stories)
 
           this.get_all_stared().forEach((story) => {
             mapped_stories.push(story)
@@ -172,20 +172,17 @@ export class StoryMap {
     }
   }
 
-  persist_story_change(
+  async persist_story_change(
     href: string,
     path: string,
     value: Story | string | boolean
-  ): void {
-    const story = this.get(href)
+  ): Promise<Story> {
+    let story = this.get(href)
     const previous_value = story[path]
     story[path] = value
     this.emit_data_change([href, path], value, previous_value, null)
-    OnceSettings.instance.save_story(story).then((resp) => {
-      if (resp && (resp as PouchDB.Core.Response).rev) {
-        story._rev = resp.rev
-      }
-    })
+    story = await OnceSettings.instance.save_story(story)
+    return story
   }
 
   set_initial_stories(stories: Story[]): Story[] {
@@ -194,10 +191,13 @@ export class StoryMap {
     })
   }
 
-  add_stories(stories: Story[]): Story[] {
-    return stories.map((story) => {
-      return this.add(story)
-    })
+  async add_stories(stories: Story[]): Promise<Story[]> {
+    const pomised_stories = Array.from(
+      stories.map((story) => {
+        return this.add(story)
+      })
+    )
+    return Promise.all(pomised_stories)
   }
 
   get_all_stared(): Story[] {
@@ -206,7 +206,7 @@ export class StoryMap {
     })
   }
 
-  add(story: Story, bucket = "stories"): Story {
+  async add(story: Story, bucket = "stories"): Promise<Story> {
     if (!(story instanceof Story)) {
       console.log("wrong StoryMap entry", story)
       throw "Please, only put stories in the StoryMap"
@@ -214,11 +214,11 @@ export class StoryMap {
 
     story.bucket = bucket
 
-    const og_story = this.get(story.href)
+    let og_story = this.get(story.href)
     if (!og_story) {
       //new story
       story = this.set(story.href.toString(), story)
-      OnceSettings.instance.save_story(story)
+      story = await OnceSettings.instance.save_story(story)
     } else {
       //check if we already have as alternate source
       const curls = og_story.substories.map((x) => {
@@ -237,12 +237,12 @@ export class StoryMap {
           timestamp: story.timestamp,
         })
         this.emit_data_change(
-          [story.href, "substories"],
+          [og_story.href, "substories"],
           og_story.substories,
           prev_subs,
           null
         )
-        OnceSettings.instance.save_story(og_story)
+        og_story = await OnceSettings.instance.save_story(og_story)
       }
 
       if (story._attachments) {
@@ -273,7 +273,7 @@ export class StoryMap {
             prev_attached,
             null
           )
-          OnceSettings.instance.save_story(og_story)
+          og_story = await OnceSettings.instance.save_story(og_story)
         }
       }
 

@@ -244,7 +244,7 @@ export class OnceSettings {
       })
   }
 
-  async save_story(story: Story): Promise<PouchDB.Core.Response | void> {
+  async save_story(story: Story): Promise<Story> {
     if (story._attachments) {
       for (const i in story._attachments) {
         if (story._attachments[i].raw_content) {
@@ -254,7 +254,7 @@ export class OnceSettings {
         }
       }
     }
-    return this.once_db
+    const resp = await this.once_db
       .get(this.story_id(story.href))
       .then((doc) => {
         story._id = doc._id
@@ -270,6 +270,11 @@ export class OnceSettings {
           console.error("pouch_set error:", err)
         }
       })
+
+    if (resp && (resp as PouchDB.Core.Response).rev) {
+      story._rev = resp.rev
+    }
+    return story
   }
 
   async pouch_set<T>(
