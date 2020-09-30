@@ -2,6 +2,7 @@ import * as PouchDB from "pouchdb"
 import { ipcMain, ipcRenderer, webContents, nativeTheme } from "electron"
 import { StoryMap } from "./data/StoryMap"
 import { Story } from "./data/Story"
+import * as fs from "fs"
 
 export class OnceSettings {
   default_sources = [
@@ -20,6 +21,12 @@ export class OnceSettings {
     story_sources(): Promise<string[]> {
       return ipcRenderer.invoke("inv_settings", "story_sources")
     },
+    get_sync_url(): Promise<string> {
+      return ipcRenderer.invoke("inv_settings", "get_sync_url")
+    },
+    set_sync_url(url: string): Promise<string> {
+      return ipcRenderer.invoke("inv_settings", "set_sync_url", url)
+    },
     get_filterlist(): Promise<string[]> {
       return ipcRenderer.invoke("inv_settings", "get_filterlist")
     },
@@ -37,16 +44,15 @@ export class OnceSettings {
   constructor() {
     OnceSettings.instance = this
     this.once_db = new PouchDB(".once_db")
+    const sync_url = this.get_sync_url()
+    console.log("sync_url", sync_url)
+
+    if (sync_url) {
+      this.couchdb_sync(sync_url)
+    }
 
     this.get_stories().then((stories) => {
       StoryMap.instance.set_initial_stories(stories)
-    })
-
-    this.once_db.get("sync_url").then((sync_url) => {
-      console.log("sync_url", sync_url)
-      if (sync_url.list && sync_url.list != "") {
-        this.couchdb_sync(sync_url.list as string)
-      }
     })
 
     this.pouch_get("animation", true).then((animated) => {
@@ -57,6 +63,10 @@ export class OnceSettings {
       switch (cmd) {
         case "story_sources":
           return this.story_sources()
+        case "get_sync_url":
+          return this.get_sync_url()
+        case "set_sync_url":
+          return this.set_sync_url(args[0] as string)
         case "get_filterlist":
           return this.get_filterlist()
         case "pouch_get":
@@ -93,11 +103,7 @@ export class OnceSettings {
           )
           break
         case "sync_url": {
-          const sync_url = args[0]
-          console.log("sync_url", sync_url)
-          this.pouch_set("sync_url", sync_url, console.log)
-          this.couchdb_sync(sync_url as string)
-          console.log("sync set?", await this.pouch_get("sync_url", sync_url))
+          this.set_sync_url(args[0] as string)
           break
         }
         case "save_filterlist":
@@ -110,29 +116,6 @@ export class OnceSettings {
           console.log("unhandled settings", cmd)
           event.returnValue = null
       }
-    })
-  }
-
-  update_on_change(
-    event: PouchDB.Replication.SyncResult<Record<string, unknown>>
-  ): void {
-    //console.debug("pouch change", event)
-    if (event.direction == "pull") {
-      event.change.docs.forEach((doc) => {
-        console.debug("update", doc._id)
-      })
-    }
-  }
-
-  couchdb_sync(couchdb_url: string): void {
-    const remoteDB = new PouchDB(couchdb_url)
-    if (this.syncHandler) {
-      this.syncHandler.cancel()
-    }
-    this.syncHandler = this.once_db.sync(remoteDB, {
-      live: true,
-      retry: true,
-      batch_size: 5,
     })
 
     this.once_db
@@ -177,16 +160,69 @@ export class OnceSettings {
 
         console.log("changes", change.id)
       })
+  }
 
-    this.syncHandler
-      .on("change", (event) => {
-        this.update_on_change(event)
+  set_sync_url(sync_url: string): void {
+    const old_url = this.get_sync_url()
+    if (sync_url != old_url) {
+      fs.mkdirSync(global.paths.nosync_path, { recursive: true })
+      fs.writeFileSync(global.paths.sync_url_file, sync_url)
+      this.couchdb_sync(sync_url)
+    }
+  }
+
+  get_sync_url(): string {
+    if (fs.existsSync(global.paths.sync_url_file)) {
+      return fs.readFileSync(global.paths.sync_url_file, "utf8")
+    } else {
+      return ""
+    }
+  }
+
+  update_on_change(
+    event: PouchDB.Replication.SyncResult<Record<string, unknown>>
+  ): void {
+    if (event.direction == "pull") {
+      event.change.docs.forEach((doc) => {
+        console.debug("update", doc._id)
       })
+    }
+  }
+
+  couchdb_sync(couchdb_url: string): void {
+    const sync_ops = {
+      live: true,
+      retry: true,
+      batch_size: 100,
+    }
+    if (this.syncHandler) {
+      this.syncHandler.cancel()
+    }
+
+    this.once_db.replicate
+      .from(couchdb_url)
       .on("complete", (info) => {
-        console.debug("pouch sync stopped", info)
+        console.log("complete info replicate", info)
+        this.syncHandler = this.once_db.sync(couchdb_url, sync_ops)
+        this.syncHandler
+          .on("change", (event) => {
+            this.update_on_change(event)
+          })
+          .on("complete", (info) => {
+            console.debug("pouch sync stopped", info)
+          })
+          .on("error", (err: Error) => {
+            console.error("pouch err", err)
+          })
+          .on("denied", (err: Error) => {
+            console.error("pouch denied", err)
+          })
+          .on("paused", () => {
+            console.error("pouch paused")
+          })
       })
-      .on("error", (err: Error) => {
-        console.error("pouch err", err)
+      .on("error", (e: Error) => {
+        console.error("pouch sync error", e)
       })
   }
 

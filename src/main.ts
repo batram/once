@@ -26,7 +26,14 @@ declare global {
     tab_view_preload: string
     tab_view_html: string
     moep_session_preload: string
+    nosync_path: string
+    sync_url_file: string
   }
+}
+
+const gotTheLock = app.requestSingleInstanceLock()
+if (!gotTheLock) {
+  app.quit()
 }
 
 if (process.env.LDEV == "1") {
@@ -59,6 +66,8 @@ global.paths = {
 
   tab_view_html: path.join(__dirname, "static", "webtab.html"),
   tab_view_preload: path.join(__dirname, "js", "view", "tab_view_preload.js"),
+  nosync_path: path.join(process.cwd(), ".nosync"),
+  sync_url_file: path.join(process.cwd(), ".nosync", "sync_url"),
 }
 
 function createWindow() {
@@ -78,6 +87,13 @@ function createWindow() {
     icon: paths.icon_path,
   })
   win.loadFile(global.paths.main_window_html)
+
+  app.on("second-instance", () => {
+    if (win) {
+      if (win.isMinimized()) win.restore()
+      win.focus()
+    }
+  })
 
   new OnceSettings()
   new StoryMap()

@@ -120,12 +120,12 @@ export class SettingsPanel {
 
   async reset_couch_settings(): Promise<void> {
     const couch_input = document.querySelector<HTMLInputElement>("#couch_input")
-    couch_input.value = await OnceSettings.remote.pouch_get("sync_url", null)
+    couch_input.value = await OnceSettings.remote.get_sync_url()
   }
 
   save_couch_settings(): void {
     const couch_input = document.querySelector<HTMLInputElement>("#couch_input")
-    ipcRenderer.send("settings", "sync_url", couch_input.value)
+    OnceSettings.remote.set_sync_url(couch_input.value)
   }
 
   async restore_theme_settings(): Promise<void> {
