@@ -1,4 +1,5 @@
 import { OnceSettings } from "../OnceSettings"
+import * as URLFilters from "../data/URLFilters"
 
 export interface SubStory {
   type: string
@@ -101,6 +102,29 @@ export class Story {
     if (a.timestamp > b.timestamp) return -1
     if (a.timestamp < b.timestamp) return 1
     return 0
+  }
+
+  matches_url(url: string): boolean {
+    return this.matches_story_url(url) || this.matches_comment_url(url)
+  }
+
+  matches_story_url(url: string): boolean {
+    const filtered_url = URLFilters.filter_url(this.href)
+    return (
+      this.href === url || (filtered_url != this.href && filtered_url == url)
+    )
+  }
+
+  matches_comment_url(url: string): boolean {
+    return (
+      this.comment_url === url ||
+      (this.substories &&
+        this.substories
+          .map((x) => {
+            return x.comment_url
+          })
+          .includes(url))
+    )
   }
 
   has_content(): boolean {

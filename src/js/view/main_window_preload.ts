@@ -7,6 +7,7 @@ import * as search from "../data/search"
 import * as side_menu from "./menu"
 import * as seperation_slider from "./sep_slider"
 import * as story_loader from "../data/StoryLoader"
+import * as story_parser from "../data/parser"
 
 document.addEventListener("DOMContentLoaded", async () => {
   new SettingsPanel()
@@ -15,6 +16,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   fullscreen.render_listeners()
   search.init_search()
   seperation_slider.init_slider()
+  story_parser.add_all_css_colors()
   const tab_content = document.querySelector<HTMLElement>("#tab_content")
   const tab_dropzone = document.querySelector<HTMLElement>("#tab_dropzone")
   if (tab_content && tab_dropzone) {

@@ -1,6 +1,7 @@
 import * as path from "path"
 import * as fs from "fs"
 import { Story } from "../data/Story"
+import { WebTab } from "./WebTab"
 
 export declare interface PresenterOptions {
   story_button: {
@@ -19,7 +20,7 @@ export declare interface Presenter {
   story_elem_button?: (story: Story, intab: boolean) => HTMLElement
   handle(url: string): Promise<boolean>
   handle_url(url: string): Promise<boolean>
-  init_in_webtab?(): void
+  init_in_webtab?(tab: WebTab): void
   [key: string]: ((...args: unknown[]) => unknown) | PresenterOptions | string
 }
 
@@ -97,10 +98,10 @@ function add_urlbar_buttons(elem, story, inmain = true) {
 }
 */
 
-export function init_in_webtab(): void {
+export function init_in_webtab(tab: WebTab): void {
   get_active().forEach((presenter) => {
     if (presenter.init_in_webtab) {
-      presenter.init_in_webtab()
+      presenter.init_in_webtab(tab)
     }
   })
 }

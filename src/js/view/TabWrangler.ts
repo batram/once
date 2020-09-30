@@ -196,30 +196,6 @@ export class TabWrangler {
     )
   }
 
-  handle_tab_url_change(sender_id: number, href: string): void {
-    console.log("tab_url_changed", href)
-    const colors = Array.from(
-      document.querySelectorAll<HTMLElement>(".tag_style")
-    )
-      .map((x) => {
-        return x.innerText
-      })
-      .join("\n")
-
-    const story_el = story_list.mark_selected(null, href)
-    if (story_el) {
-      const story = story_el.story
-      if (
-        story &&
-        story.read_state != "read" &&
-        (story.href == href || story_el.dataset.filtered_url == href)
-      ) {
-        StoryMap.remote.persist_story_change(story.href, "read_state", "read")
-      }
-      this.send_to_id(sender_id, "update_selected", story.href, colors)
-    }
-  }
-
   insert_tab_by_offleft(tab_el: HTMLElement): void {
     const all_tabs = Array.from(
       this.tabhandler_element.querySelectorAll<HTMLElement>(".tab")
@@ -467,7 +443,7 @@ export class TabWrangler {
     if (tab_el) {
       if (tab_el.dataset.href != href) {
         tab_el.removeAttribute("media")
-        this.handle_tab_url_change(wc_id, href)
+        story_list.mark_selected(null, href)
       }
       tab_el.dataset.href = href
       if (!title || (href != "about:blank" && title == "about:blank")) {

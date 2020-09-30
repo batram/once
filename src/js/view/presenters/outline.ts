@@ -4,6 +4,7 @@ import * as Readability from "../../third_party/Readability.js"
 import { TabWrangler } from "../../view/TabWrangler"
 import { ipcRenderer } from "electron"
 import { StoryMap } from "../../data/StoryMap"
+import { WebTab } from "../WebTab"
 
 export const description = "Presents contents of a webpage in more readable way"
 
@@ -33,6 +34,8 @@ export const presenter_options: Record<
 const data_outline_url = "data:text/html;charset=utf-8,<!--outline-->"
 const outline_proto = "outline://data"
 const data_outline_url_fail = "data:text/plain;charset=utf-8,outline%20failed"
+
+let current_tab: WebTab
 
 export function handle_url(): boolean {
   return false
@@ -106,7 +109,8 @@ export function story_elem_button(story: Story): HTMLElement {
   return outline_btn
 }
 
-export function init_in_webtab(): void {
+export function init_in_webtab(tab: WebTab): void {
+  current_tab = tab
   ipcRenderer.on("outline", (_event, href) => {
     outline_button_active()
     outline(href)
@@ -233,7 +237,7 @@ async function outline(url: string): Promise<void> {
     TabWrangler.ops.send_or_create_tab("outline", url)
     return
   }
-  urlfield.value = url
+  current_tab.set_url(url)
   const og_url = url
 
   if (!story_content) {

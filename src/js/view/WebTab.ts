@@ -67,7 +67,7 @@ export class WebTab {
       this.send_update_tab_info()
     })
 
-    presenters.init_in_webtab()
+    presenters.init_in_webtab(this)
 
     this.handle_urlbar()
 
@@ -83,11 +83,6 @@ export class WebTab {
         "about:blank"
       )
       ipcRenderer.send("end_me")
-    })
-
-    ipcRenderer.on("update_selected", (event, href, colors) => {
-      console.debug("update_selected", href)
-      this.update_selected(href, colors)
     })
 
     ipcRenderer.on("update-target-url", (event, url) => {
@@ -157,12 +152,12 @@ export class WebTab {
     })
     this.webview.addEventListener(
       "did-navigate",
-      (e: Electron.DidNavigateEvent) => {
-        const url = this.url_changed(e.url)
+      async (e: Electron.DidNavigateEvent) => {
+        const url = await this.url_changed(e.url)
         if (!this.is_attached()) {
           const selected = story_list.get_by_href(url)
           if (!selected) {
-            this.update_selected(null, null)
+            this.update_selected(null)
           }
         }
         this.send_update_tab_info()
@@ -248,30 +243,17 @@ export class WebTab {
     return this.tab_state == "attached" && this.parent_id != null
   }
 
-  //object | Story
-  update_selected(href: string, colors?: string): void {
+  update_selected(story: Story): void {
     const selected_container = document.querySelector("#selected_container")
 
-    if (colors != undefined) {
-      const style =
-        document.querySelector<HTMLStyleElement>(".tag_style") ||
-        document.createElement("style")
-      style.classList.add("tag_style")
-      style.type = "text/css"
-      style.innerHTML = colors
-      document.head.append(style)
-    }
-
     selected_container.innerHTML = ""
-    if (!href) {
+    if (!story) {
       return
     }
 
-    StoryMap.remote.get(href).then((story) => {
-      const story_el = new StoryListItem(story)
-      story_el.classList.add("selected")
-      selected_container.append(story_el)
-    })
+    const story_el = new StoryListItem(story)
+    story_el.classList.add("selected")
+    selected_container.append(story_el)
   }
 
   send_to_parent(channel: string, ...args: string[]): void {
@@ -320,11 +302,26 @@ export class WebTab {
     this.webview.insertCSS(css)
   }
 
-  url_changed(url: string): string {
-    url = presenters.modify_url(url)
+  async set_url(url: string): Promise<void> {
     this.urlfield.value = url
     console.log("url_changed", url)
+    const story = await StoryMap.remote.find_by_url(url)
+    console.debug(story, url)
+    this.update_selected(story)
+    if (story) {
+      if (story.matches_story_url(url) && story.read_state != "read") {
+        StoryMap.remote.persist_story_change(story.href, "read_state", "read")
+      }
+    }
     this.send_update_tab_info()
+  }
+
+  async url_changed(url: string): Promise<string> {
+    if (url) {
+      url = presenters.modify_url(url)
+      this.set_url(url)
+    }
+
     return url
   }
 

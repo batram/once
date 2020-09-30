@@ -20,33 +20,16 @@ function delight_panel(panel: string) {
   target_panel.classList.remove("pseudo_active")
 }
 
-export function add_tag(type: string, colors: [string, string]): void {
-  if (!document.querySelector('#menu div[data-type="' + type + '"]')) {
+export function add_tag(type: string): void {
+  const tagged = "[" + type + "]"
+  if (!document.querySelector('#menu div[data-tag="' + tagged + '"]')) {
     const tag = document.createElement("div")
-    tag.dataset.type = type
+    tag.dataset.tag = tagged
     tag.classList.add("btn")
     tag.classList.add("menu_btn")
     tag.classList.add("tag")
-    tag.classList.add("tag")
-    tag.innerText = "[" + type + "]"
-    tag.style.backgroundColor = colors[0]
-    tag.style.color = colors[1]
+    tag.innerText = tagged
     tag.dataset.panel = "stories"
-
-    if (colors && colors[0] != "") {
-      //inject css for story tags
-      const style = document.createElement("style")
-      style.classList.add("tag_style")
-      style.type = "text/css"
-      style.innerHTML = `
-      .info[data-tag='${tag.innerText}'] .tag {
-        background-color: ${colors[0]};
-        border-color: ${colors[1]};
-        color: ${colors[1]};
-      }
-      `
-      document.head.append(style)
-    }
 
     tag.onclick = () => {
       open_panel("stories")
@@ -93,9 +76,9 @@ export function init(): void {
 
   if (document.querySelector("#menu")) {
     //Add special tags for search
-    add_tag("ALL", ["", ""])
-    add_tag("filtered", ["", ""])
-    add_tag("stared", ["", ""])
-    add_tag("new", ["", ""])
+    add_tag("ALL")
+    add_tag("filtered")
+    add_tag("stared")
+    add_tag("new")
   }
 }

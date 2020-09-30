@@ -8,8 +8,36 @@ export function get_parser_for_url(url: string): collectors.StoryParser {
   for (const i in parsers) {
     const parser = parsers[i]
     if (pattern_matches(url, parser.options.pattern)) {
-      menu.add_tag(parser.options.tag, parser.options.colors)
+      menu.add_tag(parser.options.tag)
       return parser
+    }
+  }
+}
+
+export function add_all_css_colors(): void {
+  const parsers = collectors.get_parser()
+
+  for (const i in parsers) {
+    const parser = parsers[i]
+    const colors = parser.options.colors
+    const tag = "[" + parser.options.tag + "]"
+    if (colors && colors[0] != "") {
+      const style = document.createElement("style")
+      style.classList.add("tag_style")
+      style.type = "text/css"
+      style.innerHTML = `
+      .info[data-tag='${tag}'] .tag {
+        background-color: ${colors[0]};
+        border-color: ${colors[1]};
+        color: ${colors[1]};
+      }
+
+      .menu_btn[data-tag='${tag}'].tag {
+        background-color: ${colors[0]};
+        color: ${colors[1]};
+      }
+      `
+      document.head.append(style)
     }
   }
 }

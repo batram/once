@@ -88,13 +88,6 @@ async function hn_search(needle: string, alt_url?: string): Promise<Story[]> {
         url: string
         title: string
       }) => {
-        /*
-       //add the tag if we have not ingested stories from HN yet
-     let type = "HN"
-      let colors: [string, string] = ["rgba(255, 102, 0, 0.56)", "white"]
-      menu.add_tag(type, colors)
-      */
-
         const curl = "https://news.ycombinator.com/item?id=" + result.objectID
 
         const timestamp = Date.parse(result.created_at)

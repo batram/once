@@ -15,9 +15,8 @@ export class StoryMap {
   static instance: StoryMap
   static remote = {
     async get(href: string): Promise<Story> {
-      return Story.from_obj(
-        await ipcRenderer.invoke("inv_story_map", "get", href)
-      )
+      const story_obj = await ipcRenderer.invoke("inv_story_map", "get", href)
+      if (story_obj) return Story.from_obj(story_obj)
     },
     async add(href: Story): Promise<Story> {
       return Story.from_obj(
@@ -37,6 +36,17 @@ export class StoryMap {
     ): void {
       ipcRenderer.send("story_map", "persist_story_change", href, path, value)
     },
+    async find_by_url(url: string): Promise<Story> {
+      if (!url) {
+        return
+      }
+      const story_obj = await ipcRenderer.invoke(
+        "inv_story_map",
+        "find_by_url",
+        url
+      )
+      if (story_obj) return Story.from_obj(story_obj)
+    },
   }
 
   subscribers: webContents[] = []
@@ -50,6 +60,8 @@ export class StoryMap {
           return this.get(args[0] as string)
         case "add":
           return this.add(Story.from_obj(args[0] as Record<string, unknown>))
+        case "find_by_url":
+          return this.find_by_url(args[0] as string)
         default:
           console.log("unhandled inv_story_map", cmd)
           event.returnValue = null
@@ -119,6 +131,18 @@ export class StoryMap {
       }
     }
     return ar
+  }
+
+  find_by_url(url: string): Story {
+    console.debug("find_by_url", url)
+    for (const i in this.internal_map) {
+      if (typeof this.internal_map[i] != "function") {
+        const story = this.internal_map[i]
+        if (story.matches_url(url)) {
+          return story
+        }
+      }
+    }
   }
 
   emit_data_change(

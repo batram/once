@@ -4,9 +4,11 @@ import { TabWrangler } from "../TabWrangler"
 import { ipcRenderer, WebviewTag } from "electron"
 import * as child_process from "child_process"
 import * as path from "path"
+import { WebTab } from "../WebTab"
 
 export const description = "Presents contents of a webpage in more readable way"
 const player_html = path.join(__dirname, "video", "player.html")
+let current_tab: WebTab
 
 export const presenter_options: Record<
   string,
@@ -202,7 +204,8 @@ export function story_elem_button(story: Story, intab = false): HTMLElement {
   return video_btn
 }
 
-export function init_in_webtab(): void {
+export function init_in_webtab(tab: WebTab): void {
+  current_tab = tab
   ipcRenderer.on("video", (_event, href) => {
     video_button_active()
     present(href)
@@ -305,11 +308,12 @@ export async function present(url: string): Promise<boolean> {
     }
   }
   if (src) {
-    urlfield.value = url
+    current_tab.set_url(url)
 
     const set_src = () => {
       video_button_active()
-      urlfield.value = url
+      current_tab.set_url(url)
+
       webview.executeJavaScript(`
             videojs("#player").src(${JSON.stringify(src)})
             videojs("#player").play()
