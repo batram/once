@@ -43,7 +43,7 @@ export class OnceSettings {
 
   constructor() {
     OnceSettings.instance = this
-    this.once_db = new PouchDB(".once_db")
+    this.once_db = new PouchDB(global.paths.pouchdb_path)
     const sync_url = this.get_sync_url()
     console.log("sync_url", sync_url)
 

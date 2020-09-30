@@ -26,18 +26,22 @@ declare global {
     tab_view_preload: string
     tab_view_html: string
     moep_session_preload: string
+    pouchdb_path: string
     nosync_path: string
     sync_url_file: string
   }
 }
 
+if (process.env.LDEV == "1") {
+  const dev_name = "once_dev"
+  app.setName(dev_name)
+  app.setPath("userData", path.join(app.getPath("appData"), dev_name))
+  // require("electron-reload")(path.join(__dirname))
+}
+
 const gotTheLock = app.requestSingleInstanceLock()
 if (!gotTheLock) {
   app.quit()
-}
-
-if (process.env.LDEV == "1") {
-  // require("electron-reload")(path.join(__dirname))
 }
 
 global.paths = {
@@ -66,8 +70,9 @@ global.paths = {
 
   tab_view_html: path.join(__dirname, "static", "webtab.html"),
   tab_view_preload: path.join(__dirname, "js", "view", "tab_view_preload.js"),
-  nosync_path: path.join(process.cwd(), ".nosync"),
-  sync_url_file: path.join(process.cwd(), ".nosync", "sync_url"),
+  pouchdb_path: path.join(app.getPath("userData"), ".once_db"),
+  nosync_path: path.join(app.getPath("userData"), ".nosync"),
+  sync_url_file: path.join(app.getPath("userData"), ".nosync", "sync_url"),
 }
 
 function createWindow() {
