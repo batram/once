@@ -7,8 +7,12 @@ export function get_parser_for_url(url: string): collectors.StoryParser {
 
   for (const i in parsers) {
     const parser = parsers[i]
-    if (pattern_matches(url, parser.options.pattern)) {
-      menu.add_tag(parser.options.tag)
+    let patterns = parser.options.pattern
+    if (typeof patterns == "string") {
+      patterns = [patterns]
+    }
+    if (pattern_matches(url, patterns)) {
+      menu.add_type(parser.options.type)
       return parser
     }
   }
@@ -20,19 +24,19 @@ export function add_all_css_colors(): void {
   for (const i in parsers) {
     const parser = parsers[i]
     const colors = parser.options.colors
-    const tag = "[" + parser.options.tag + "]"
+    const br_type = "[" + parser.options.type + "]"
     if (colors && colors[0] != "") {
       const style = document.createElement("style")
-      style.classList.add("tag_style")
+      style.classList.add("type_style")
       style.type = "text/css"
       style.innerHTML = `
-      .info[data-tag='${tag}'] .tag {
+      .info[data-type='${br_type}'] .type {
         background-color: ${colors[0]};
         border-color: ${colors[1]};
         color: ${colors[1]};
       }
 
-      .menu_btn[data-tag='${tag}'].tag {
+      .menu_btn[data-type='${br_type}'].type {
         background-color: ${colors[0]};
         color: ${colors[1]};
       }
@@ -70,16 +74,24 @@ export async function parse_response(
   }
 }
 
-function pattern_matches(url: string, pattern: string) {
-  if (pattern.includes("*")) {
-    const split = pattern.split("*")
-    if (split.length != 2) {
-      throw "For now only one wildcard * is allowd ..."
-    }
+function pattern_matches(url: string, patterns: string[]) {
+  for (const pattern of patterns) {
+    if (pattern.includes("*")) {
+      const split = pattern.split("*")
+      if (split.length != 2) {
+        throw "For now only one wildcard * is allowd ..."
+      }
 
-    return url.startsWith(split[0]) && url.endsWith(split[1])
+      if (url.startsWith(split[0]) && url.endsWith(split[1])) {
+        return true
+      }
+    }
+    if (url.startsWith(pattern)) {
+      return true
+    }
   }
-  return url.startsWith(pattern)
+
+  return false
 }
 
 export function parse_xml(val: string): Document {
@@ -120,8 +132,13 @@ export function parse_dom(val: string, url: string): Document {
 const min_off = 60
 const hour_off = 60 * min_off
 const day_off = 24 * hour_off
+const week_off = 7 * day_off
 const month_off = 30 * day_off
 const year_off = 365 * day_off
+
+export function days_ago(timestamp: number): number {
+  return (Date.now() - timestamp) / day_off / 1000
+}
 
 export function human_time(time: string | Date | number): string {
   const now = Date.now()
@@ -181,6 +198,8 @@ export function parse_human_time(str: string): number {
     offset = hour_off * 1000 * num
   } else if (str.includes("day")) {
     offset = day_off * 1000 * num
+  } else if (str.includes("week")) {
+    offset = week_off * 1000 * num
   } else if (str.includes("month")) {
     offset = month_off * 1000 * num
   } else if (str.includes("year")) {

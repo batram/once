@@ -1,5 +1,5 @@
 export const options = {
-  tag: "LO",
+  type: "LO",
   colors: ["rgba(143, 0, 0, 0.56)", "white"],
   description:
     "Collect stories from Lobsters (https://lobste.rs/) by parsing HTML",
@@ -30,7 +30,7 @@ export function parse(doc: Document): Story[] {
       )
 
       return new Story(
-        options.tag,
+        options.type,
         link.href,
         link.innerText,
         curl + id,

@@ -175,7 +175,7 @@ body[animated="true"] #menu .btn:active {
 }
 
 #menu.collapse .heading,
-#menu.collapse .tag {
+#menu.collapse .type {
   display: none;
 }
 
@@ -441,7 +441,7 @@ body[animated="true"] .stared .user_interaction.star_btn::after {
   display: inline;
 }
 
-.story .tag {
+.story .type {
   margin: 0;
   display: inline-block;
   width: 20px;

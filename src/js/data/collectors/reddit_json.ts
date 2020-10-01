@@ -1,5 +1,5 @@
 export const options = {
-  tag: "re",
+  type: "re",
   description:
     "Collect stories from HackerNews (https://old.reddit.com/) by parsing json of subreddits",
   pattern: "https://old.reddit.com/*.json",
@@ -31,7 +31,7 @@ export function parse(json: RedditJSONData): Story[] {
   if (json.kind == "Listing") {
     return json.data.children.map((story) => {
       return new Story(
-        options.tag,
+        options.type,
         story.data.url,
         story.data.title,
         "https://old.reddit.com" + story.data.permalink,

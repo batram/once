@@ -1,5 +1,5 @@
 export const options = {
-  tag: "HN",
+  type: "HN",
   description:
     "Collect stories from HackerNews (https://news.ycombinator.com/) by parsing HTML",
   pattern: "https://news.ycombinator.com/",
@@ -43,7 +43,7 @@ export function parse(doc: Document): Story[] {
     }
 
     return new Story(
-      options.tag,
+      options.type,
       story_el.href,
       story_el.innerText,
       curl + id,

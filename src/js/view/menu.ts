@@ -20,18 +20,18 @@ function delight_panel(panel: string) {
   target_panel.classList.remove("pseudo_active")
 }
 
-export function add_tag(type: string): void {
-  const tagged = "[" + type + "]"
-  if (!document.querySelector('#menu div[data-tag="' + tagged + '"]')) {
-    const tag = document.createElement("div")
-    tag.dataset.tag = tagged
-    tag.classList.add("btn")
-    tag.classList.add("menu_btn")
-    tag.classList.add("tag")
-    tag.innerText = tagged
-    tag.dataset.panel = "stories"
+export function add_type(type: string): void {
+  const br_type = "[" + type + "]"
+  if (!document.querySelector('#menu div[data-type="' + br_type + '"]')) {
+    const type_el = document.createElement("div")
+    type_el.dataset.type = br_type
+    type_el.classList.add("btn")
+    type_el.classList.add("menu_btn")
+    type_el.classList.add("type")
+    type_el.innerText = br_type
+    type_el.dataset.panel = "stories"
 
-    tag.onclick = () => {
+    type_el.onclick = () => {
       open_panel("stories")
       const search_scope = document.querySelector<HTMLInputElement>(
         "#search_scope"
@@ -44,8 +44,8 @@ export function add_tag(type: string): void {
       searchfield.value = "[" + type + "]"
       search.search_stories("[" + type + "]")
     }
-    active_flash_panel(tag)
-    document.querySelector("#menu").appendChild(tag)
+    active_flash_panel(type_el)
+    document.querySelector("#menu").appendChild(type_el)
   }
 }
 
@@ -75,10 +75,10 @@ export function init(): void {
   open_panel("stories")
 
   if (document.querySelector("#menu")) {
-    //Add special tags for search
-    add_tag("ALL")
-    add_tag("filtered")
-    add_tag("stared")
-    add_tag("new")
+    //Add special types for search
+    add_type("ALL")
+    add_type("filtered")
+    add_type("stared")
+    add_type("new")
   }
 }

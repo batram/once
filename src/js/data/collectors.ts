@@ -4,9 +4,9 @@ import { Story } from "../data/Story"
 
 export declare interface StoryParser {
   options: {
-    tag: string
+    type: string
     desription: string
-    pattern: string
+    pattern: string | string[]
     collects: "dom" | "json" | "xml"
     colors: [string, string]
     settings?: Record<string, unknown>
@@ -15,6 +15,7 @@ export declare interface StoryParser {
   parse: (input: Document | Record<string, unknown>) => Story[]
   global_search: (needle: string) => Promise<Story[]>
   domain_search: (needle: string) => Promise<Story[]>
+  resolve_url?: (entry: string) => string
 }
 
 export function get_active(): StoryParser[] {

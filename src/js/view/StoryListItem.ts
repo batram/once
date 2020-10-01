@@ -240,9 +240,9 @@ export class StoryListItem extends HTMLElement {
   info_block(sub_story_ob: SubStory): HTMLElement {
     const info = document.createElement("div")
     info.classList.add("info")
-    info.dataset.tag = "[" + sub_story_ob.type + "]"
+    info.dataset.type = "[" + sub_story_ob.type + "]"
     const type = document.createElement("p")
-    type.classList.add("tag")
+    type.classList.add("type")
     type.innerText = sub_story_ob.type
     info.appendChild(type)
 

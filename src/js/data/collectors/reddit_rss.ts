@@ -1,5 +1,5 @@
 export const options = {
-  tag: "re",
+  type: "re",
   description:
     "Collect stories from HackerNews (https://old.reddit.com/) by parsing the rss feed of subreddits",
   pattern: "https://old.reddit.com/*.rss",
@@ -26,7 +26,7 @@ export function parse(doc: Document): Story[] {
     )
 
     return new Story(
-      options.tag,
+      options.type,
       content.querySelector<HTMLAnchorElement>("span a").href,
       story.querySelector("title").innerText,
       story.querySelector("link").href,

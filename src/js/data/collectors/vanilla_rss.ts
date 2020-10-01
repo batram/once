@@ -1,5 +1,5 @@
 export const options = {
-  tag: "RSS",
+  type: "RSS",
   description: "Collect stories from RSS feed",
   pattern: "*.rss",
   collects: "xml",
@@ -16,6 +16,7 @@ export const options = {
   },
 }
 
+import { days_ago } from "../parser"
 import { Story } from "../Story"
 
 export function parse(doc: Document): Story[] {
@@ -61,8 +62,6 @@ function parse_rss_2(doc: Document) {
   }
   return common_rss_parser(doc, def)
 }
-
-const day_off = 24 * 60 * 60 * 1000
 
 function parse_atom(doc: Document) {
   const def: FeedFormat = {
@@ -138,11 +137,8 @@ function common_rss_parser(doc: Document, def: FeedFormat) {
     let timestamp: string | number = get_feed_value(story, def.timestamp_tags)
     if (timestamp) {
       timestamp = Date.parse(timestamp)
-      if (
-        Date.now() - timestamp >
-        options.settings.time_cut_off.value * day_off
-      ) {
-        return null
+      if (days_ago(timestamp) > options.settings.time_cut_off.value) {
+        return
       }
     } else {
       if (!timestamp && options.settings.discard_timeless.value) {
@@ -161,7 +157,7 @@ function common_rss_parser(doc: Document, def: FeedFormat) {
       return
     }
 
-    const new_story = new Story(options.tag, link, title, link, timestamp)
+    const new_story = new Story(options.type, link, title, link, timestamp)
     if (content) {
       new_story._attachments = {
         content: {
