@@ -4,10 +4,16 @@ export function init_slider(): void {
   document.querySelectorAll<HTMLElement>(".collapse").forEach((x) => {
     x.onclick = collapse_left
   })
-  //resize on border
-  function resize(event: MouseEvent) {
-    event.preventDefault()
-    const percent = ((window.innerWidth - event.x) / window.innerWidth) * 100
+
+  function mouse_resize(event: MouseEvent) {
+    resize(event.x)
+  }
+  function touch_resize(event: TouchEvent) {
+    resize(event.touches[0].clientX)
+  }
+
+  function resize(x: number) {
+    const percent = ((window.innerWidth - x) / window.innerWidth) * 100
 
     const left_panel = document.querySelector<HTMLElement>("#left_panel")
 
@@ -21,19 +27,30 @@ export function init_slider(): void {
 
   const sep_slider = document.querySelector("#sep_slider")
 
-  sep_slider.addEventListener("mousedown", (e) => {
+  sep_slider.addEventListener("touchmove", (e) => {
+    document.getElementById("foverlay").style.display = "block"
+    document.addEventListener("touchmove", touch_resize)
+  })
+
+
+  sep_slider.addEventListener("pointerdown", (e) => {
     e.preventDefault()
     document.getElementById("foverlay").style.display = "block"
     document.body.style.cursor = "w-resize"
-    document.addEventListener("mousemove", resize)
+    document.addEventListener("pointermove", mouse_resize)
   })
 
-  document.addEventListener("mouseup", () => {
+  function end_resize() {
     document.getElementById("foverlay").style.display = "none"
     document.body.style.cursor = ""
-    document.removeEventListener("mousemove", resize)
-  })
+    document.removeEventListener("touchmove", touch_resize)
+    document.removeEventListener("pointermove", mouse_resize)
+  }
+
+  document.addEventListener("touchend", end_resize)
+  document.addEventListener("pointerup", end_resize)
 }
+
 
 function reset_position() {
   const percent: number = get_slider_percent()
