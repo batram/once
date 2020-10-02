@@ -151,9 +151,9 @@ export function human_time(time: string | Date | number): string {
   } else if (offset < hour_off) {
     const mins = Math.round(offset / min_off)
     if (mins <= 1) {
-      res = "1 minute ago"
+      res = "1 min ago"
     } else {
-      res = mins + " minutes ago"
+      res = mins + " mins ago"
     }
   } else if (offset < day_off) {
     const hour = Math.round(offset / hour_off)
@@ -192,7 +192,7 @@ export function parse_human_time(str: string): number {
   const num = parseInt(str)
   let offset = 0
 
-  if (str.includes("minute")) {
+  if (str.includes("min")) {
     offset = min_off * 1000 * num
   } else if (str.includes("hour")) {
     offset = hour_off * 1000 * num
