@@ -10,6 +10,7 @@ import { StoryMap } from "../data/StoryMap"
 export class StoryListItem extends HTMLElement {
   story: Story
   animated: boolean
+  link: HTMLAnchorElement
   read_btn: HTMLElement
   filter_btn: HTMLElement
   star_btn: HTMLElement
@@ -43,18 +44,18 @@ export class StoryListItem extends HTMLElement {
     const title_line = document.createElement("div")
     title_line.classList.add("title_line")
 
-    const link = document.createElement("a")
-    link.href = filtered_url
-    link.classList.add("title")
-    link.innerText = this.story.title
-    title_line.appendChild(link)
+    this.link = document.createElement("a")
+    this.link.href = filtered_url
+    this.link.classList.add("title")
+    this.link.innerText = this.story.title
+    title_line.appendChild(this.link)
 
     const og_link = document.createElement("a")
     og_link.innerText = " [OG] "
     og_link.classList.add("og_href")
     og_link.href = this.story.href
     title_line.appendChild(og_link)
-    if (link.href == og_link.href) {
+    if (this.link.href == og_link.href) {
       //og_link.style.opacity = "0.4"
       og_link.style.display = "none"
     }
@@ -103,6 +104,8 @@ export class StoryListItem extends HTMLElement {
 
     presenters.add_story_elem_buttons(this, this.story)
     this.add_ipc_events()
+
+    this.swipeable()
 
     this.addEventListener(
       "data_change",
@@ -232,9 +235,124 @@ export class StoryListItem extends HTMLElement {
       this.star_btn.classList.add("user_interaction")
       const value = !this.story.stared
       this.story.stared = value
-      console.log("click start value", this.story.stared, "setting", value)
+      console.debug("click start value", this.story.stared, "setting", value)
       StoryMap.remote.persist_story_change(this.story.href, "stared", value)
     })
+  }
+
+  swipeable = (): void => {
+    let start_offset = -1
+    const threshold = 0.2
+    const min_swipe = 0.05
+
+    const add_background_element = () => {
+      this.style.display = "inline-flex"
+
+      const bb_slide_el = document.createElement("div")
+      bb_slide_el.style.height = this.clientHeight + "px"
+      bb_slide_el.style.marginBottom = -this.clientHeight + "px"
+      bb_slide_el.style.lineHeight = this.clientHeight + "px"
+
+      bb_slide_el.classList.add("bb_slide")
+
+      const bb_slide_left = document.createElement("div")
+      bb_slide_left.innerText = "read"
+      bb_slide_left.classList.add("swipe_left")
+      bb_slide_el.append(bb_slide_left)
+
+      const bb_slide_right = document.createElement("div")
+      bb_slide_right.innerText = "skip"
+      bb_slide_right.classList.add("swipe_right")
+      bb_slide_el.append(bb_slide_right)
+
+      this.before(bb_slide_el)
+    }
+
+    const mouse_swipe = (event: MouseEvent) => {
+      if (start_offset == -1) {
+        start_offset = event.pageX
+        add_background_element()
+      }
+      swipe(event.pageX)
+    }
+
+    const touch_swipe = (event: TouchEvent) => {
+      const one_touch = event.touches[0]
+      if (start_offset == -1) {
+        start_offset = one_touch.clientX
+        add_background_element()
+      }
+      swipe(one_touch.clientX)
+    }
+
+    const swipe = (x: number) => {
+      this.style.transition = "none"
+      const shift = x - start_offset
+      if (Math.abs(shift) / this.clientWidth < min_swipe) {
+        return
+      }
+      if (shift < 0) {
+        document.querySelector<HTMLElement>(".swipe_left").style.display =
+          "none"
+        document.querySelector<HTMLElement>(".swipe_right").style.display =
+          "block"
+      } else {
+        document.querySelector<HTMLElement>(".swipe_left").style.display =
+          "block"
+        document.querySelector<HTMLElement>(".swipe_right").style.display =
+          "none"
+      }
+      this.style.marginLeft = shift + "px"
+    }
+
+    this.addEventListener("touchmove", () => {
+      document.addEventListener("touchmove", touch_swipe)
+      document.addEventListener("touchend", end_swipe)
+      document.addEventListener("pointerup", end_swipe)
+      this.parentElement.addEventListener("scroll", end_swipe)
+    })
+
+    this.addEventListener("pointerdown", (e) => {
+      e.preventDefault()
+      document.body.style.cursor = "w-resize"
+      document.addEventListener("pointermove", mouse_swipe)
+      document.addEventListener("touchmove", touch_swipe)
+      document.addEventListener("touchend", end_swipe)
+      document.addEventListener("pointerup", end_swipe)
+      this.parentElement.addEventListener("scroll", end_swipe)
+    })
+
+    const end_swipe = () => {
+      this.style.display = ""
+      const shift = parseInt(this.style.marginLeft)
+      if (Math.abs(shift) / this.clientWidth > threshold) {
+        if (shift < 0) {
+          this.read_btn.classList.add("user_interaction")
+          StoryMap.remote.persist_story_change(
+            this.story.href,
+            "read_state",
+            "skipped"
+          )
+        } else {
+          this.link.click()
+        }
+      }
+
+      this.parentElement
+        .querySelectorAll(".bb_slide")
+        .forEach((el: HTMLElement) => {
+          el.outerHTML = ""
+        })
+
+      start_offset = -1
+      this.style.transition = ""
+      this.style.marginLeft = ""
+      document.body.style.cursor = ""
+      document.removeEventListener("touchmove", touch_swipe)
+      document.removeEventListener("pointermove", mouse_swipe)
+      document.removeEventListener("touchend", end_swipe)
+      document.removeEventListener("pointerup", end_swipe)
+    }
   }
 
   info_block(sub_story_ob: SubStory): HTMLElement {

@@ -286,6 +286,33 @@ body[animated="true"] #menu .btn:active {
   box-sizing: border-box;
 }
 
+.bb_slide {
+  width: 100%;
+  display: flex;
+}
+
+.bb_slide .swipe_left {
+  height: 100%;
+  width: 100%;
+  background: green;
+  padding-left: 5px;
+}
+
+.bb_slide .swipe_left {
+  height: 100%;
+  width: 100%;
+  background: green;
+  padding-left: 5px;
+}
+
+.bb_slide .swipe_right {
+  height: 100%;
+  width: 100%;
+  background: red;
+  padding-right: 5px;
+  text-align: right;
+}
+
 body[animated="true"] .story {
   transition: margin-left 0.6s cubic-bezier(0.25, 0.1, 0, 1.65);
 }
@@ -565,10 +592,6 @@ body[animated="true"] .stared .user_interaction.star_btn::after {
 
 .show_filtered .filtered {
   display: flex;
-}
-
-#selected_container .story {
-  display: flex !important;
 }
 
 .stored_star {
