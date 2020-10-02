@@ -5,6 +5,14 @@ export interface SubStory {
   type: string
   comment_url: string
   timestamp: string | number | Date
+  tags?: StoryTag[]
+}
+
+export interface StoryTag {
+  class: string
+  text: string
+  href?: string
+  icon?: string
 }
 
 export interface SortableStory {
@@ -33,6 +41,8 @@ export class Story {
   substories: SubStory[]
   read: "unread" | "read" | "skipped"
   stared: boolean
+  tags: StoryTag[]
+
   _attachments?: Attachment
   _rev?: string
   _id?: string;
@@ -61,6 +71,7 @@ export class Story {
     this.timestamp = timestamp
     this.filter = filter
     this.substories = []
+    this.tags = []
   }
 
   static from_obj(story: Record<string, unknown>): Story {
@@ -139,7 +150,7 @@ export class Story {
     if (this._attachments && this._attachments.content) {
       let body = null
       if (this._attachments.content.data) {
-        body = btoa(this._attachments.content.data)
+        body = atob(this._attachments.content.data)
       } else {
         let provider = null
         if (OnceSettings.instance) {

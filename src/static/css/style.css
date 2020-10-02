@@ -438,7 +438,20 @@ body[animated="true"] .stared .user_interaction.star_btn::after {
 }
 
 .info .time {
-  display: inline;
+  display: inline-flex;
+  min-width: 65px;
+}
+
+.tags_container {
+  display: inline-flex;
+}
+
+.tags_container .tag {
+  padding: 1px 4px;
+  margin: 2px;
+  border: thin solid var(--text-color);
+  border-radius: 2px;
+  opacity: 0.8;
 }
 
 .story .type {

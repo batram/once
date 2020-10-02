@@ -176,9 +176,26 @@ async function local_search(needle: string) {
       story_el.dataset.filtered_url,
     ]
 
+    if (story_el.story.tags) {
+      story_el.story.tags.forEach((tag_info) => {
+        find_in.push(tag_info.text)
+        if (tag_info.href) {
+          find_in.push(tag_info.href)
+        }
+      })
+    }
+
     story_el.story.substories.forEach((source_info) => {
       find_in.push("[" + source_info.type + "]")
       find_in.push(source_info.comment_url)
+      if (source_info.tags) {
+        source_info.tags.forEach((tag_info) => {
+          find_in.push(tag_info.text)
+          if (tag_info.href) {
+            find_in.push(tag_info.href)
+          }
+        })
+      }
     })
 
     const found_index = find_in.findIndex(

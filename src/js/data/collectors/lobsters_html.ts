@@ -11,7 +11,7 @@ export const options = {
 import { Story } from "../../data/Story"
 
 export function parse(doc: Document): Story[] {
-  const curl = "https://lobste.rs/s/"
+  const base_url = "https://lobste.rs"
   const stories = Array.from(doc.querySelectorAll<HTMLElement>(".story"))
 
   return stories
@@ -22,20 +22,43 @@ export function parse(doc: Document): Story[] {
         return null
       }
       if (link.protocol == "file:") {
-        link.href = curl + id
+        link.href = base_url + "/s/" + id
       }
 
       const timestamp = Date.parse(
         story.querySelector<HTMLElement>(".byline span").title
       )
 
-      return new Story(
+      const new_story = new Story(
         options.type,
         link.href,
         link.innerText,
-        curl + id,
+        base_url + "/s/" + id,
         timestamp
       )
+
+      const user_el = story.querySelector<HTMLElement>(".u-author")
+      const username = user_el.innerText
+      if (user_el) {
+        new_story.tags.push({
+          class: "user",
+          text: username,
+          href: base_url + "/newest/" + username,
+          icon: base_url + "/avatars/" + username + "-16.png",
+        })
+      }
+
+      const tag_els = story.querySelectorAll<HTMLElement>(".tags .tag")
+      tag_els.forEach((tag) => {
+        const tag_name = tag.innerText
+        new_story.tags.push({
+          class: "category",
+          text: tag_name,
+          href: base_url + "/t/" + tag_name,
+        })
+      })
+
+      return new_story
     })
     .filter((x) => x != null)
 }

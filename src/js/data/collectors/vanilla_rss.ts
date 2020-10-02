@@ -47,6 +47,8 @@ export function parse(doc: Document): Story[] {
 
 function parse_rss_2(doc: Document) {
   const def: FeedFormat = {
+    main_title: ["title"],
+    main_link: ["link"],
     story_tag: "item",
     title_tag: "title",
     timestamp_tags: ["pubDate", "pubdate", "dc:date"],
@@ -65,6 +67,8 @@ function parse_rss_2(doc: Document) {
 
 function parse_atom(doc: Document) {
   const def: FeedFormat = {
+    main_title: ["title"],
+    main_link: [{ tag: "link", attr: "href" }],
     story_tag: "entry",
     title_tag: "title",
     timestamp_tags: ["updated"],
@@ -82,6 +86,8 @@ declare interface FeedFromatTag {
 }
 
 declare interface FeedFormat {
+  main_title: (string | FeedFromatTag)[]
+  main_link: (string | FeedFromatTag)[]
   story_tag: string
   title_tag: string
   timestamp_tags: (string | FeedFromatTag)[]
@@ -133,6 +139,9 @@ function get_feed_value(
 function common_rss_parser(doc: Document, def: FeedFormat) {
   const items = doc.querySelectorAll(def.story_tag)
 
+  const main_title = get_feed_value(doc.documentElement, def.main_title)
+  const main_link = get_feed_value(doc.documentElement, def.main_link)
+
   const stories = Array.from(items).map((story) => {
     let timestamp: string | number = get_feed_value(story, def.timestamp_tags)
     if (timestamp) {
@@ -158,6 +167,7 @@ function common_rss_parser(doc: Document, def: FeedFormat) {
     }
 
     const new_story = new Story(options.type, link, title, link, timestamp)
+
     if (content) {
       new_story._attachments = {
         content: {
@@ -166,6 +176,14 @@ function common_rss_parser(doc: Document, def: FeedFormat) {
         },
       }
     }
+
+    const user_tag = {
+      class: "user",
+      text: main_title,
+      href: main_link,
+    }
+    new_story.tags.push(user_tag)
+
     return new_story
   })
   console.debug("rss :: ", doc, stories)

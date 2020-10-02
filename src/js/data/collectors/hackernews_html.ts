@@ -22,27 +22,25 @@ export function parse(doc: Document): Story[] {
 
   return stories.map((story_el: HTMLAnchorElement) => {
     const pawpaw = story_el.parentElement.parentElement
+    const subtext = pawpaw.nextElementSibling
+
     const id = pawpaw.id
     if (story_el.protocol == "file:") {
       story_el.href = curl + id
     }
 
-    const time = pawpaw.nextElementSibling.querySelector<HTMLAnchorElement>(
-      ".age a"
-    ).innerText
+    const time = subtext.querySelector<HTMLAnchorElement>(".age a").innerText
     const timestamp = parse_human_time(time)
 
     //filter ads
     let filter = null
     if (options.settings.filter_ads.value) {
-      if (
-        story_el.parentElement.parentElement.querySelector(".votelinks") == null
-      ) {
+      if (pawpaw.querySelector(".votelinks") == null) {
         filter = ":: HN ads ::"
       }
     }
 
-    return new Story(
+    const new_story = new Story(
       options.type,
       story_el.href,
       story_el.innerText,
@@ -50,6 +48,17 @@ export function parse(doc: Document): Story[] {
       timestamp,
       filter
     )
+
+    const user = subtext.querySelector<HTMLAnchorElement>(".hnuser").innerText
+
+    const user_tag = {
+      class: "user",
+      text: user,
+      href: "https://news.ycombinator.com/user?id=" + user,
+    }
+    new_story.tags.push(user_tag)
+
+    return new_story
   })
 }
 
@@ -87,12 +96,13 @@ async function hn_search(needle: string, alt_url?: string): Promise<Story[]> {
         created_at: string
         url: string
         title: string
+        author: string
       }) => {
         const curl = "https://news.ycombinator.com/item?id=" + result.objectID
 
         const timestamp = Date.parse(result.created_at)
 
-        return Story.from_obj({
+        const new_story = Story.from_obj({
           type: "HN",
           bucket: "global_search_results",
           search_result: needle,
@@ -101,6 +111,15 @@ async function hn_search(needle: string, alt_url?: string): Promise<Story[]> {
           comment_url: curl,
           timestamp: timestamp,
         })
+
+        const user_tag = {
+          class: "user",
+          text: result.author,
+          href: "https://news.ycombinator.com/submitted?id=" + result.author,
+        }
+        new_story.tags.push(user_tag)
+
+        return new_story
       }
     )
     return search_stories

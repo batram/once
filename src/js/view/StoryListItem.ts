@@ -263,6 +263,31 @@ export class StoryListItem extends HTMLElement {
     time.classList.add("time")
     info.appendChild(time)
 
+    const tags_container = document.createElement("div")
+    tags_container.classList.add("tags_container")
+    if (sub_story_ob.tags) {
+      sub_story_ob.tags.forEach((tag) => {
+        const tag_el = document.createElement("a")
+        tag_el.classList.add("tag")
+        tag_el.classList.add("tag_" + tag.class)
+        tag_el.innerText = tag.text
+
+        if (tag.href) {
+          tag_el.href = tag.href
+        }
+
+        if (tag.icon) {
+          tag_el.style.background = `url(${tag.icon}) no-repeat`
+          tag_el.style.backgroundSize = "13px"
+          tag_el.style.backgroundPosition = "left top"
+          tag_el.style.paddingLeft = "17px"
+        }
+
+        tags_container.append(tag_el)
+      })
+    }
+    info.appendChild(tags_container)
+
     return info
   }
 
@@ -364,6 +389,7 @@ export class StoryListItem extends HTMLElement {
         type: this.story.type,
         comment_url: this.story.comment_url,
         timestamp: this.story.timestamp,
+        tags: this.story.tags,
       },
       ...this.story.substories.filter((sub) => {
         return sub.comment_url != this.story.comment_url && sub.timestamp
