@@ -27,11 +27,10 @@ export function init_slider(): void {
 
   const sep_slider = document.querySelector("#sep_slider")
 
-  sep_slider.addEventListener("touchmove", (e) => {
+  sep_slider.addEventListener("touchmove", () => {
     document.getElementById("foverlay").style.display = "block"
     document.addEventListener("touchmove", touch_resize)
   })
-
 
   sep_slider.addEventListener("pointerdown", (e) => {
     e.preventDefault()
@@ -50,7 +49,6 @@ export function init_slider(): void {
   document.addEventListener("touchend", end_resize)
   document.addEventListener("pointerup", end_resize)
 }
-
 
 function reset_position() {
   const percent: number = get_slider_percent()
