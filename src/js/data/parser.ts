@@ -28,7 +28,6 @@ export function add_all_css_colors(): void {
     if (colors && colors[0] != "") {
       const style = document.createElement("style")
       style.classList.add("type_style")
-      style.type = "text/css"
       style.innerHTML = `
       .info[data-type='${br_type}'] .type {
         background-color: ${colors[0]};
@@ -36,7 +35,7 @@ export function add_all_css_colors(): void {
         color: ${colors[1]};
       }
 
-      .menu_btn[data-type='${br_type}'].type {
+      .menu_btn[data-type='${br_type}'] {
         background-color: ${colors[0]};
         color: ${colors[1]};
       }

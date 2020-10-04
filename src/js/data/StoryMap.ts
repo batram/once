@@ -249,6 +249,22 @@ export class StoryMap {
         return x.comment_url
       })
 
+      if (story.comment_url == og_story.comment_url) {
+        const prev_tags = og_story.tags
+        story.tags.forEach((tag) => {
+          if (!og_story.tags.map((t) => t.text).includes(tag.text)) {
+            og_story.tags.push(tag)
+          }
+        })
+        this.emit_data_change(
+          [og_story.href, "tags"],
+          og_story.tags,
+          prev_tags,
+          null
+        )
+        og_story = await OnceSettings.instance.save_story(og_story)
+      }
+
       if (
         story.comment_url != og_story.comment_url &&
         !curls.includes(story.comment_url)
@@ -259,6 +275,7 @@ export class StoryMap {
           type: story.type,
           comment_url: story.comment_url,
           timestamp: story.timestamp,
+          tags: story.tags,
         })
         this.emit_data_change(
           [og_story.href, "substories"],

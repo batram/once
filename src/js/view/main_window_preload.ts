@@ -34,10 +34,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const dev_cache = process.env.LDEV == "1"
 
-  const story_sources = await OnceSettings.remote.story_sources()
-  if (story_sources) {
-    story_loader.parallel_load_stories(story_sources, dev_cache)
+  const grouped_story_sources = await OnceSettings.remote.grouped_story_sources()
+  if (grouped_story_sources) {
+    story_loader.parallel_load_stories(grouped_story_sources, dev_cache)
   } else {
-    console.error("no sources", story_sources)
+    console.error("no sources", grouped_story_sources)
   }
 })

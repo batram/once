@@ -300,7 +300,7 @@ async function reload(): Promise<void> {
     add(story)
   }
 
-  OnceSettings.remote.story_sources().then((story_sources) => {
-    story_loader.load(story_sources)
+  OnceSettings.remote.grouped_story_sources().then((grouped_story_sources) => {
+    story_loader.load(grouped_story_sources)
   })
 }

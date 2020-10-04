@@ -145,7 +145,7 @@ body[animated="true"] #left_panel .pseudo_active .bar {
   );
 }
 
-body[animated="true"] #menu .sub:active {
+body[animated="true"] #menu .heading:active {
   background: var(--highlight-bg-color);
 }
 
@@ -167,25 +167,31 @@ body[animated="true"] #menu .btn:active {
 }
 
 #menu .sub {
-  padding: 3px;
   border-top: thin solid var(--border-high-color);
   cursor: pointer;
   font-size: 13px;
   display: flex;
+  flex-direction: column;
 }
 
-#menu.collapse .heading,
-#menu.collapse .type {
+#menu .heading {
+  display: flex;
+  padding: 5px;
+}
+
+#menu .heading p {
+  padding-left: 3px;
+  margin: 0;
+}
+
+#menu.collapse .heading p,
+#menu.collapse .type,
+#menu.collapse .group {
   display: none;
 }
 
 #menu.collapse {
   flex: 0 0 28px;
-}
-
-#menu .sub img,
-#menu .sub div {
-  padding: 3px;
 }
 
 #left_main {

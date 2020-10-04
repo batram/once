@@ -20,15 +20,26 @@ function delight_panel(panel: string) {
   target_panel.classList.remove("pseudo_active")
 }
 
+export function add_group(group_name: string): void {
+  add_entry("*" + group_name, "group", "groups")
+}
+
 export function add_type(type: string): void {
-  const br_type = "[" + type + "]"
-  if (!document.querySelector('#menu div[data-type="' + br_type + '"]')) {
+  add_entry("[" + type + "]", "type", "types")
+}
+
+export function add_entry(
+  label: string,
+  class_name: string,
+  container_id: string
+): void {
+  if (!document.querySelector('#menu div[data-type="' + label + '"]')) {
     const type_el = document.createElement("div")
-    type_el.dataset.type = br_type
+    type_el.dataset.type = label
     type_el.classList.add("btn")
     type_el.classList.add("menu_btn")
-    type_el.classList.add("type")
-    type_el.innerText = br_type
+    type_el.classList.add(class_name)
+    type_el.innerText = label
     type_el.dataset.panel = "stories"
 
     type_el.onclick = () => {
@@ -41,11 +52,11 @@ export function add_type(type: string): void {
       const searchfield = document.querySelector<HTMLInputElement>(
         "#searchfield"
       )
-      searchfield.value = "[" + type + "]"
-      search.search_stories("[" + type + "]")
+      searchfield.value = label
+      search.search_stories(label)
     }
     active_flash_panel(type_el)
-    document.querySelector("#menu").appendChild(type_el)
+    document.querySelector("#menu #" + container_id).appendChild(type_el)
   }
 }
 

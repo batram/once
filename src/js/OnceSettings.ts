@@ -18,6 +18,9 @@ export class OnceSettings {
   static instance: OnceSettings
 
   static remote = {
+    grouped_story_sources(): Promise<Record<string, string[]>> {
+      return ipcRenderer.invoke("inv_settings", "grouped_story_sources")
+    },
     story_sources(): Promise<string[]> {
       return ipcRenderer.invoke("inv_settings", "story_sources")
     },
@@ -63,6 +66,8 @@ export class OnceSettings {
       switch (cmd) {
         case "story_sources":
           return this.story_sources()
+        case "grouped_story_sources":
+          return this.grouped_story_sources()
         case "get_sync_url":
           return this.get_sync_url()
         case "set_sync_url":
@@ -246,6 +251,24 @@ export class OnceSettings {
 
   async story_sources(): Promise<string[]> {
     return this.pouch_get("story_sources", this.default_sources)
+  }
+
+  async grouped_story_sources(): Promise<Record<string, string[]>> {
+    const story_sources = await this.story_sources()
+    const grouped_sources: Record<string, string[]> = {
+      default: [],
+    }
+    let current_group = "default"
+    story_sources.forEach((source_entry) => {
+      if (/^\*(.*)$/.test(source_entry)) {
+        current_group = source_entry.replace(/^\*/, "")
+        grouped_sources[current_group] = []
+      } else {
+        grouped_sources[current_group].push(source_entry)
+      }
+    })
+
+    return grouped_sources
   }
 
   get_filterlist(): Promise<string[]> {

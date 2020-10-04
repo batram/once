@@ -1,5 +1,6 @@
 import * as story_parser from "../data/parser"
 import { StoryMap } from "../data/StoryMap"
+import * as menu from "../view/menu"
 import { Story } from "./Story"
 import * as story_filters from "./StoryFilters"
 
@@ -30,20 +31,33 @@ function get_cached(url: string) {
 }
 
 export async function parallel_load_stories(
-  urls: string[],
+  story_groups: Record<string, string[]>,
   try_cache = true
 ): Promise<void> {
-  urls.map(async (url) => {
-    cache_load(url, try_cache).then(process_story_input)
-  })
+  for (const group_name in story_groups) {
+    menu.add_group(group_name)
+    const group = story_groups[group_name]
+    group.map(async (source_entry) => {
+      cache_load(source_entry, try_cache).then((stories) => {
+        process_story_input(stories, group_name)
+      })
+    })
+  }
 }
 
-async function process_story_input(stories: Story[]) {
+async function process_story_input(stories: Story[], group_name: string) {
   if (!stories) {
     return
   }
   const filtered_stories = await story_filters.filter_stories(stories)
   const all_stories = filtered_stories.sort()
+  all_stories.forEach((story) => {
+    story.tags.push({
+      class: "group",
+      text: "*" + group_name,
+      href: "search:" + "*" + group_name,
+    })
+  })
   StoryMap.remote.stories_loaded(all_stories, "stories")
 }
 
@@ -79,7 +93,9 @@ async function cache_load(url: string, try_cache = true) {
   }
 }
 
-export async function load(urls: string[]): Promise<void> {
+export async function load(
+  story_groups: Record<string, string[]>
+): Promise<void> {
   const cache = false
-  parallel_load_stories(urls, cache)
+  parallel_load_stories(story_groups, cache)
 }
