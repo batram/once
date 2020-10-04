@@ -13,11 +13,14 @@ export const options = {
   },
 }
 
+const item_url = "https://news.ycombinator.com/item?id="
+const user_url = "https://news.ycombinator.com/submitted?id="
+
 import { Story } from "../../data/Story"
 import { parse_human_time } from "../../data/parser"
 
 export function parse(doc: Document): Story[] {
-  const curl = "https://news.ycombinator.com/item?id="
+  const curl = item_url
   const stories = Array.from(doc.querySelectorAll(".storylink"))
 
   return stories.map((story_el: HTMLAnchorElement) => {
@@ -51,12 +54,13 @@ export function parse(doc: Document): Story[] {
 
     const user_el = subtext.querySelector<HTMLAnchorElement>(".hnuser")
     if (user_el) {
-      const user = subtext.querySelector<HTMLAnchorElement>(".hnuser").innerText
+      const user_id = subtext.querySelector<HTMLAnchorElement>(".hnuser")
+        .innerText
 
       const user_tag = {
         class: "user",
-        text: user,
-        href: "https://news.ycombinator.com/user?id=" + user,
+        text: user_id,
+        href: user_url + user_id,
       }
       new_story.tags.push(user_tag)
     }
@@ -101,7 +105,7 @@ async function hn_search(needle: string, alt_url?: string): Promise<Story[]> {
         title: string
         author: string
       }) => {
-        const curl = "https://news.ycombinator.com/item?id=" + result.objectID
+        const curl = item_url + result.objectID
 
         const timestamp = Date.parse(result.created_at)
 
@@ -118,7 +122,7 @@ async function hn_search(needle: string, alt_url?: string): Promise<Story[]> {
         const user_tag = {
           class: "user",
           text: result.author,
-          href: "https://news.ycombinator.com/submitted?id=" + result.author,
+          href: user_url + result.author,
         }
         new_story.tags.push(user_tag)
 
