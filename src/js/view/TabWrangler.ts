@@ -268,7 +268,9 @@ export class TabWrangler {
             "pic_webtab",
             this.active_wc_id
           )
-          this.tab_image_overly.src = img_url
+          if (this.tab_image_overly) {
+            this.tab_image_overly.src = img_url
+          }
         }
         gen_img()
 
