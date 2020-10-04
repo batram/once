@@ -2,6 +2,7 @@ import * as path from "path"
 import * as fs from "fs"
 import { Story } from "../data/Story"
 import { WebTab } from "./WebTab"
+import { StoryListItem } from "./StoryListItem"
 
 export declare interface PresenterOptions {
   story_button: {
@@ -68,7 +69,7 @@ export async function handled_by(url: string): Promise<boolean> {
 }
 
 export function add_story_elem_buttons(
-  story_el: HTMLElement,
+  story_el: StoryListItem,
   story: Story,
   intab = false
 ): void {
@@ -80,7 +81,7 @@ export function add_story_elem_buttons(
           presenter.handle_url(story.href))
       ) {
         const button = presenter["story_elem_button"](story, intab)
-        story_el.appendChild(button)
+        story_el.button_group.appendChild(button)
       }
     }
   })

@@ -191,9 +191,8 @@ body[animated="true"] #menu .btn:active {
 #left_main {
   display: flex;
   flex-direction: column;
-  scrollbar-color: rebeccapurple green;
-  scrollbar-width: thin;
-  width: 100%;
+  width: 80%;
+  flex: 1 1;
 }
 
 .stories_container {
@@ -282,6 +281,7 @@ body[animated="true"] #menu .btn:active {
   background: var(--unread-bg-color);
   padding: 5px 15px;
   display: flex;
+  flex-wrap: wrap;
   width: 100%;
   box-sizing: border-box;
 }
@@ -446,19 +446,23 @@ body[animated="true"] .stared .user_interaction.star_btn::after {
 
 .story .hostname {
   display: inline;
-  color: #828282;
+  color: var(--text-color);
   font-size: 6.9pt;
 }
 
 .story .data {
   width: 100%;
-  color: #828282;
+  color: var(--text-color);
   font-size: 6.9pt;
-  order: 0;
+  flex: 1 1 300px;
 }
 
 .story .info {
   margin: 5px 0;
+}
+
+.story .button_group {
+  display: inline-flex;
 }
 
 .info .time {
@@ -468,6 +472,7 @@ body[animated="true"] .stared .user_interaction.star_btn::after {
 
 .tags_container {
   display: inline-flex;
+  flex-wrap: wrap;
 }
 
 .tags_container .tag {

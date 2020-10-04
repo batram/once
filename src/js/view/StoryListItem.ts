@@ -11,6 +11,7 @@ export class StoryListItem extends HTMLElement {
   story: Story
   animated: boolean
   link: HTMLAnchorElement
+  button_group: HTMLElement
   read_btn: HTMLElement
   filter_btn: HTMLElement
   star_btn: HTMLElement
@@ -80,6 +81,10 @@ export class StoryListItem extends HTMLElement {
 
     this.appendChild(data)
 
+    this.button_group = document.createElement("div")
+    this.button_group.classList.add("button_group")
+    this.appendChild(this.button_group)
+
     this.add_read_button()
     this.add_star_button()
 
@@ -100,7 +105,7 @@ export class StoryListItem extends HTMLElement {
       this.filter_btn.prepend(dinp)
       this.filter_btn.style.borderColor = "red"
     }
-    this.appendChild(this.filter_btn)
+    this.button_group.appendChild(this.filter_btn)
 
     presenters.add_story_elem_buttons(this, this.story)
     this.add_ipc_events()
@@ -350,7 +355,9 @@ export class StoryListItem extends HTMLElement {
       e.preventDefault()
       e.stopPropagation()
       this.style.display = ""
-      this.parentElement.style.width = ""
+      if (this.parentElement) {
+        this.parentElement.style.width = ""
+      }
       const shift = parseInt(this.style.marginLeft)
       if (Math.abs(shift) / this.clientWidth > threshold) {
         if (shift < 0) {
@@ -457,7 +464,7 @@ export class StoryListItem extends HTMLElement {
 
   add_read_button(): void {
     this.read_btn = StoryListItem.icon_button("", "read_btn")
-    this.appendChild(this.read_btn)
+    this.button_group.appendChild(this.read_btn)
 
     this.update_read()
   }
@@ -500,7 +507,7 @@ export class StoryListItem extends HTMLElement {
     }
 
     this.star_btn = StoryListItem.icon_button("", "star_btn")
-    this.appendChild(this.star_btn)
+    this.button_group.appendChild(this.star_btn)
     this.update_star()
   }
 
