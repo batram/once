@@ -243,7 +243,6 @@ export class StoryListItem extends HTMLElement {
   swipeable = (): void => {
     let start_offset = -1
     const threshold = 0.2
-    const min_swipe = 0.05
 
     const add_background_element = () => {
       this.style.display = "inline-flex"
@@ -252,7 +251,6 @@ export class StoryListItem extends HTMLElement {
       bb_slide_el.style.height = this.clientHeight + "px"
       bb_slide_el.style.marginBottom = -this.clientHeight + "px"
       bb_slide_el.style.lineHeight = this.clientHeight + "px"
-
       bb_slide_el.classList.add("bb_slide")
 
       const bb_slide_left = document.createElement("div")
@@ -288,20 +286,38 @@ export class StoryListItem extends HTMLElement {
     const swipe = (x: number) => {
       this.style.transition = "none"
       const shift = x - start_offset
-      if (Math.abs(shift) / this.clientWidth < min_swipe) {
-        return
-      }
+      const shift_percent = Math.abs(shift) / this.clientWidth
+
+      const sw_left = document.querySelector<HTMLElement>(".swipe_left")
+      const sw_right = document.querySelector<HTMLElement>(".swipe_right")
+
+      const threshold_percent = shift_percent / threshold
+
       if (shift < 0) {
-        document.querySelector<HTMLElement>(".swipe_left").style.display =
-          "none"
-        document.querySelector<HTMLElement>(".swipe_right").style.display =
-          "block"
+        sw_left.style.display = "none"
+        sw_right.style.display = "block"
       } else {
-        document.querySelector<HTMLElement>(".swipe_left").style.display =
-          "block"
-        document.querySelector<HTMLElement>(".swipe_right").style.display =
-          "none"
+        sw_left.style.display = "block"
+        sw_right.style.display = "none"
       }
+
+      if (shift_percent > threshold) {
+        sw_left.style.fontWeight = "bold"
+        sw_right.style.fontWeight = "bold"
+      } else {
+        sw_left.style.fontWeight = ""
+        sw_right.style.fontWeight = ""
+      }
+
+      sw_left.style.backgroundImage = `linear-gradient(45deg, rgba(0, 128, 0, ${Math.min(
+        threshold_percent * 0.5,
+        0.5
+      )}), transparent 50% )`
+      sw_right.style.backgroundImage = `linear-gradient(45deg, transparent 50% , rgba(200, 0, 0, ${Math.min(
+        threshold_percent * 0.5,
+        0.5
+      )}))`
+
       this.style.marginLeft = shift + "px"
     }
 
@@ -313,6 +329,14 @@ export class StoryListItem extends HTMLElement {
     })
 
     this.addEventListener("pointerdown", (e) => {
+      if (
+        e.button != 0 ||
+        (e.target as HTMLElement).getAttribute("draggable") == "false"
+      ) {
+        e.stopPropagation()
+        return
+      }
+      this.parentElement.style.width = this.parentElement.offsetWidth + "px"
       e.preventDefault()
       document.body.style.cursor = "w-resize"
       document.addEventListener("pointermove", mouse_swipe)
@@ -322,8 +346,11 @@ export class StoryListItem extends HTMLElement {
       this.parentElement.addEventListener("scroll", end_swipe)
     })
 
-    const end_swipe = () => {
+    const end_swipe = (e: Event) => {
+      e.preventDefault()
+      e.stopPropagation()
       this.style.display = ""
+      this.parentElement.style.width = ""
       const shift = parseInt(this.style.marginLeft)
       if (Math.abs(shift) / this.clientWidth > threshold) {
         if (shift < 0) {
@@ -338,11 +365,9 @@ export class StoryListItem extends HTMLElement {
         }
       }
 
-      this.parentElement
-        .querySelectorAll(".bb_slide")
-        .forEach((el: HTMLElement) => {
-          el.outerHTML = ""
-        })
+      document.querySelectorAll(".bb_slide").forEach((el: HTMLElement) => {
+        el.outerHTML = ""
+      })
 
       start_offset = -1
       this.style.transition = ""
@@ -352,6 +377,8 @@ export class StoryListItem extends HTMLElement {
       document.removeEventListener("pointermove", mouse_swipe)
       document.removeEventListener("touchend", end_swipe)
       document.removeEventListener("pointerup", end_swipe)
+
+      return false
     }
   }
 

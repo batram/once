@@ -48,7 +48,7 @@ body {
     --sep-color: rgb(114, 100, 100);
     --btn-bg-color: none;
     --input-bg-color: white;
-    --unread-bg-color: none;
+    --unread-bg-color: var(--main-bg-color);
     --read-bg-color: var(--second-bg-color);
     --text-high-color: black;
     --text-color: #828282;
@@ -294,21 +294,18 @@ body[animated="true"] #menu .btn:active {
 .bb_slide .swipe_left {
   height: 100%;
   width: 100%;
-  background: green;
   padding-left: 5px;
 }
 
 .bb_slide .swipe_left {
   height: 100%;
   width: 100%;
-  background: green;
   padding-left: 5px;
 }
 
 .bb_slide .swipe_right {
   height: 100%;
   width: 100%;
-  background: red;
   padding-right: 5px;
   text-align: right;
 }
