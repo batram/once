@@ -49,14 +49,17 @@ export function parse(doc: Document): Story[] {
       filter
     )
 
-    const user = subtext.querySelector<HTMLAnchorElement>(".hnuser").innerText
+    const user_el = subtext.querySelector<HTMLAnchorElement>(".hnuser")
+    if (user_el) {
+      const user = subtext.querySelector<HTMLAnchorElement>(".hnuser").innerText
 
-    const user_tag = {
-      class: "user",
-      text: user,
-      href: "https://news.ycombinator.com/user?id=" + user,
+      const user_tag = {
+        class: "user",
+        text: user,
+        href: "https://news.ycombinator.com/user?id=" + user,
+      }
+      new_story.tags.push(user_tag)
     }
-    new_story.tags.push(user_tag)
 
     return new_story
   })
