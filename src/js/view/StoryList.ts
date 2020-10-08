@@ -145,38 +145,6 @@ export function get_by_href(url: string): StoryListItem {
   return story_el as StoryListItem
 }
 
-export function unmark_selected(keep_selected?: HTMLElement): void {
-  document.querySelectorAll(".story").forEach((x: StoryListItem) => {
-    if (x.classList.contains("selected")) {
-      if (!(keep_selected == x)) {
-        x.classList.remove("selected")
-        const fun = resort_single(x)
-        if (typeof fun == "function") {
-          fun()
-        }
-      }
-    }
-  })
-}
-
-export function mark_selected(
-  story_el: StoryListItem,
-  url: string
-): StoryListItem {
-  if (!story_el && url) {
-    story_el = get_by_href(url)
-  }
-
-  unmark_selected(story_el)
-
-  if (story_el) {
-    story_el.classList.add("selected")
-    return story_el
-  } else {
-    return null
-  }
-}
-
 function sortable_story(elem: StoryListItem): SortableStory {
   return {
     read_state: elem.story.read_state as "unread" | "read" | "skipped",
@@ -196,10 +164,7 @@ export function resort_single(elem: StoryListItem): () => void {
   }
   const stories = Array.from(story_con.querySelectorAll(".story")).filter(
     (el: HTMLElement) => {
-      return (
-        getComputedStyle(el).display != "none" &&
-        !el.classList.contains("selected")
-      )
+      return getComputedStyle(el).display != "none"
     }
   )
 
@@ -285,20 +250,9 @@ function refilter(): void {
 }
 
 async function reload(): Promise<void> {
-  //dont remove the selected story on reload
-  const selected = document.querySelector<StoryListItem>(".selected")
-
   document.querySelectorAll(".story").forEach((x) => {
-    if (!x.classList.contains("selected")) {
-      x.outerHTML = ""
-    }
+    x.outerHTML = ""
   })
-
-  if (selected) {
-    const href = selected.dataset.href
-    const story = await StoryMap.remote.get(href)
-    add(story)
-  }
 
   OnceSettings.remote.grouped_story_sources().then((grouped_story_sources) => {
     story_loader.load(grouped_story_sources)

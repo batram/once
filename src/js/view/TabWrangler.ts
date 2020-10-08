@@ -445,7 +445,6 @@ export class TabWrangler {
     if (tab_el) {
       if (tab_el.dataset.href != href) {
         tab_el.removeAttribute("media")
-        story_list.mark_selected(null, href)
       }
       tab_el.dataset.href = href
       if (!title || (href != "about:blank" && title == "about:blank")) {
@@ -538,7 +537,6 @@ export class TabWrangler {
             this.activate_tab(next)
           } else {
             this.active_wc_id = null
-            story_list.unmark_selected()
           }
         }
       }
@@ -560,7 +558,6 @@ export class TabWrangler {
 
   activate_tab(tab_el: HTMLElement): void {
     this.attach_webtab(parseInt(tab_el.dataset.wc_id))
-    story_list.mark_selected(null, tab_el.dataset.href)
     this.mark_tab_active(tab_el)
   }
 
