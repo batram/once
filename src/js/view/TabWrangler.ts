@@ -178,6 +178,21 @@ export class TabWrangler {
     )
 
     ipcRenderer.on(
+      "tab_close",
+      (event: Electron.IpcRendererEvent, wc_id: string) => {
+        this.close_tab(this.tab_el_from_id(parseInt(wc_id)))
+      }
+    )
+
+    ipcRenderer.on(
+      "tab_dupe",
+      (event: Electron.IpcRendererEvent, wc_id: string) => {
+        const tab_el = this.tab_el_from_id(parseInt(wc_id))
+        this.open_in_new_tab(tab_el.dataset.href)
+      }
+    )
+
+    ipcRenderer.on(
       "tab_media_paused",
       (event: Electron.IpcRendererEvent, audible) => {
         console.debug("tab_media_paused", event, audible)
@@ -416,6 +431,21 @@ export class TabWrangler {
         this.close_tab(tab_el)
       }
     })
+
+    tab_el.addEventListener(
+      "contextmenu",
+      (e) => {
+        e.preventDefault()
+        ipcRenderer.send(
+          "show_tab_menu",
+          e.x,
+          e.y,
+          tab_el.dataset.href,
+          tab_el.dataset.wc_id
+        )
+      },
+      false
+    )
   }
 
   async add_tab(wc_id: number, title?: string, href?: string): Promise<void> {
