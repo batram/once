@@ -40,6 +40,7 @@ export function show_filter_dialog(
 
   inp = document.createElement("input")
   inp.type = "text"
+  inp.setAttribute("draggable", "false")
   inp.value = new URL(story.href).hostname
   filter_btn.prepend(inp)
   inp.focus()
