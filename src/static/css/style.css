@@ -321,6 +321,10 @@ body[animated="true"] .story {
 }
 
 body[animated="true"] .read_anim {
+  margin-left: 100%;
+}
+
+body[animated="true"] .skipped_anim {
   margin-left: -100%;
 }
 

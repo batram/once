@@ -189,17 +189,13 @@ export function resort_single(elem: StoryListItem): () => void {
     } else {
       story_con.insertBefore(elem, insert_before_el)
     }
-
-    if (elem.classList.contains("read_anim")) {
-      setTimeout(() => {
-        elem.classList.remove("read_anim")
-      }, 1)
-    }
-    if (elem.classList.contains("unread_anim")) {
-      setTimeout(() => {
-        elem.classList.remove("unread_anim")
-      }, 1)
-    }
+    setTimeout(() => {
+      elem.classList.forEach((class_name) => {
+        if (class_name.endsWith("_anim")) {
+          elem.classList.remove(class_name)
+        }
+      })
+    }, 1)
   }
 }
 

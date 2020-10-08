@@ -128,8 +128,7 @@ export class StoryListItem extends HTMLElement {
       //not attached to dom, no need to sort or animate anything, no on will see
       return
     }
-    const anmim_class =
-      this.story.read_state != "unread" ? "read_anim" : "unread_anim"
+    const anmim_class = this.story.read_state + "_anim"
     const resort = story_list.resort_single(this)
     if (typeof resort == "function") {
       if (
