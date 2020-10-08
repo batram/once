@@ -39,7 +39,7 @@ export class Story {
   timestamp: string | number | Date
   filter: string
   substories: SubStory[]
-  read: "unread" | "read" | "skipped"
+  read_state: "unread" | "read" | "skipped"
   stared: boolean
   tags: StoryTag[]
 
