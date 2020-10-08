@@ -49,6 +49,9 @@ export class StoryListItem extends HTMLElement {
     this.link.href = filtered_url
     this.link.classList.add("title")
     this.link.innerText = this.story.title
+    this.link.addEventListener("click", () => {
+      this.read_btn.classList.add("user_interaction")
+    })
     title_line.appendChild(this.link)
 
     const og_link = document.createElement("a")

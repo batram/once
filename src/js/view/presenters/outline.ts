@@ -95,6 +95,10 @@ export function story_elem_button(story: Story): HTMLElement {
   })
 
   outline_btn.addEventListener("mouseup", async (event) => {
+    outline_btn.parentElement
+      .querySelector(".read_btn")
+      .classList.add("user_interaction")
+
     if (event.button == 0) {
       TabWrangler.ops.send_or_create_tab("outline", story.href)
     } else if (event.button == 1) {
