@@ -30,7 +30,7 @@ export class StoryListItem extends HTMLElement {
     this.story_html()
   }
 
-  story_html(): void {
+  story_html(add_listeners = true): void {
     this.classList.add("story")
 
     const filtered_url = URLFilters.filter_url(this.story.href)
@@ -111,16 +111,18 @@ export class StoryListItem extends HTMLElement {
     this.button_group.appendChild(this.filter_btn)
 
     presenters.add_story_elem_buttons(this, this.story)
-    this.add_ipc_events()
+    this.button_events()
 
-    this.swipeable()
+    if (add_listeners) {
+      this.swipeable()
 
-    this.addEventListener(
-      "data_change",
-      (event: story_list.DataChangeEvent) => {
-        this.update_story_el(event)
-      }
-    )
+      this.addEventListener(
+        "data_change",
+        (event: story_list.DataChangeEvent) => {
+          this.update_story_el(event)
+        }
+      )
+    }
   }
 
   animate_read(): void {
@@ -190,10 +192,10 @@ export class StoryListItem extends HTMLElement {
 
   update_complete_story_el(): void {
     this.innerHTML = ""
-    this.story_html()
+    this.story_html(false)
   }
 
-  add_ipc_events(): void {
+  button_events(): void {
     this.filter_btn.onclick = (event) => {
       if (this.classList.contains("filtered")) {
         ipcRenderer.send("forward_to_parent", "show_filter", this.story.filter)
