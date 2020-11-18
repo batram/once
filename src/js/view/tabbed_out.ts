@@ -250,7 +250,7 @@ function create_view(parent_id: number): BrowserView {
   return view
 }
 
-function new_relative_win(
+function tab_in_new_win(
   parent: BrowserWindow,
   wc: WebContents,
   path: string,
@@ -273,22 +273,9 @@ function new_relative_win(
     initial_x += initial_offset[0]
     initial_y += initial_offset[1]
   }
+  const bounds = [initial_x, initial_y, view_bound.width + 50, size[1]]
 
-  const win_popup = new BrowserWindow({
-    x: initial_x,
-    y: initial_y,
-    width: view_bound.width + 50,
-    height: size[1],
-    autoHideMenuBar: true,
-    icon: global.paths.icon_path,
-    webPreferences: {
-      nodeIntegration: true,
-      enableRemoteModule: false,
-      webSecurity: false,
-      webviewTag: true,
-      preload: global.paths.main_window_preload,
-    },
-  })
+  const win_popup = new_window(path, global.paths.main_window_preload, bounds)
 
   win_popup.setBrowserView(poped_view)
   wc.send("attached", win_popup.webContents.id)
@@ -299,8 +286,68 @@ function new_relative_win(
     })
     win_popup.setSize(view_bound.width, size[1] + 1)
   }
+}
 
-  win_popup.loadFile(path)
+function follow_resize(win_popup: BrowserWindow, poped_view: BrowserView) {
+  const box = win_popup.getContentBounds()
+  console.debug("follow_resize", box)
+  poped_view.setBounds({
+    x: 0,
+    y: 0,
+    width: box.width,
+    height: box.height,
+  })
+}
+
+function pop_new_main(
+  parent: BrowserWindow,
+  wc: webContents,
+  offset: [number, number] = null
+): void {
+  parent.webContents.send("detaching")
+  tab_in_new_win(
+    parent,
+    wc,
+    path.join(global.paths.main_window_html),
+    false,
+    offset
+  )
+}
+
+export function new_main(parent: BrowserWindow): void {
+  const size = parent.getSize()
+  const parent_pos = parent.getPosition()
+
+  const bounds = [parent_pos[0], parent_pos[1], size[0], size[1]]
+  new_window(
+    path.join(global.paths.main_window_html),
+    global.paths.main_window_preload,
+    bounds
+  )
+}
+
+export function new_window(
+  html_path: string,
+  preload_path: string,
+  bounds: number[]
+): BrowserWindow {
+  const win_popup = new BrowserWindow({
+    x: bounds[0],
+    y: bounds[1],
+    width: bounds[2],
+    height: bounds[3],
+    autoHideMenuBar: true,
+    icon: global.paths.icon_path,
+    webPreferences: {
+      nodeIntegration: true,
+      enableRemoteModule: false,
+      webSecurity: false,
+      webviewTag: true,
+      preload: preload_path,
+    },
+  })
+
+  win_popup.loadFile(html_path)
 
   //return win_popup
   win_popup.on("close", (x) => {
@@ -323,35 +370,11 @@ function new_relative_win(
     x.preventDefault()
     win_popup.destroy()
   })
-}
 
-function follow_resize(win_popup: BrowserWindow, poped_view: BrowserView) {
-  const box = win_popup.getContentBounds()
-  console.debug("follow_resize", box)
-  poped_view.setBounds({
-    x: 0,
-    y: 0,
-    width: box.width,
-    height: box.height,
-  })
-}
-
-function pop_new_main(
-  parent: BrowserWindow,
-  wc: webContents,
-  offset: [number, number] = null
-): void {
-  parent.webContents.send("detaching")
-  new_relative_win(
-    parent,
-    wc,
-    path.join(global.paths.main_window_html),
-    false,
-    offset
-  )
+  return win_popup
 }
 
 function pop_no_tabs(parent: BrowserWindow, wc: webContents): void {
   parent.webContents.send("detaching")
-  new_relative_win(parent, wc, "", true)
+  tab_in_new_win(parent, wc, "", true)
 }
