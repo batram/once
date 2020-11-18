@@ -5,7 +5,9 @@ export const options = {
   pattern: "https://old.reddit.com/*.json",
   collects: "json",
   colors: ["#cee3f8", "black"],
-  settings: {},
+  settings: {
+    min_points: 15,
+  },
 }
 
 import { Story } from "../Story"
@@ -24,6 +26,7 @@ interface RedditJSONData {
           created_utc: number
           subreddit: string
           subreddit_name_prefixed: string
+          ups: number
         }
       }
     ]
@@ -32,33 +35,38 @@ interface RedditJSONData {
 
 export function parse(json: RedditJSONData): Story[] {
   if (json.kind == "Listing") {
-    return json.data.children.map((story) => {
-      const new_story = new Story(
-        options.type,
-        story.data.url,
-        story.data.title,
-        "https://old.reddit.com" + story.data.permalink,
-        story.data.created_utc * 1000
-      )
+    return json.data.children
+      .map((story) => {
+        if (story.data.ups < options.settings.min_points) {
+          return
+        }
+        const new_story = new Story(
+          options.type,
+          story.data.url,
+          story.data.title,
+          "https://old.reddit.com" + story.data.permalink,
+          story.data.created_utc * 1000
+        )
 
-      const user_tag = {
-        class: "user",
-        text: story.data.author,
-        href:
-          "https://old.reddit.com/user/" + story.data.author + "/submitted/",
-      }
-      new_story.tags.push(user_tag)
+        const user_tag = {
+          class: "user",
+          text: story.data.author,
+          href:
+            "https://old.reddit.com/user/" + story.data.author + "/submitted/",
+        }
+        new_story.tags.push(user_tag)
 
-      const subreddit = "/" + story.data.subreddit_name_prefixed
-      const subreddit_tag = {
-        class: "channel",
-        text: subreddit,
-        href: "https://old.reddit.com" + subreddit,
-      }
-      new_story.tags.push(subreddit_tag)
+        const subreddit = "/" + story.data.subreddit_name_prefixed
+        const subreddit_tag = {
+          class: "channel",
+          text: subreddit,
+          href: "https://old.reddit.com" + subreddit,
+        }
+        new_story.tags.push(subreddit_tag)
 
-      return new_story
-    })
+        return new_story
+      })
+      .filter((x) => x != undefined)
   } else {
     console.error("Can't handle reddit json of kind ", json.kind, json)
   }
