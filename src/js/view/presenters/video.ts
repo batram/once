@@ -275,8 +275,14 @@ async function video_dl(url: string): Promise<VideoDLInfo> {
   })
   if (bat.status == 0) {
     const json_resp = bat.stdout
-    const video_info = JSON.parse(json_resp)
-    return video_info
+    if (json_resp != "") {
+      try {
+        const video_info = JSON.parse(json_resp)
+        return video_info
+      } catch (e) {
+        console.warn("youtube-dl json fail", e, json_resp)
+      }
+    }
   }
 }
 
