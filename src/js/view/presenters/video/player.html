@@ -32,6 +32,24 @@
       }
       var player = videojs("#player", options)
       player.httpSourceSelector()
+      const player_url = location.href
+      if (player_url.split("#vidinfo_").length > 1) {
+        const b64_split = atob(player_url.split("#vidinfo_")[1])
+        const vid_info = JSON.parse(b64_split)
+        videojs("#player").src(vid_info.src)
+        videojs("#player").play()
+        document.title = vid_info.title
+
+        try {
+          const parsed_url = new URL(vid_info.url)
+          const params = parsed_url.searchParams
+          if (params.has("t")) {
+            videojs("#player").currentTime(parseInt(params.get("t")))
+          }
+        } catch (e) {
+          console.error("time url parsing failed", e)
+        }
+      }
     </script>
   </body>
 </html>

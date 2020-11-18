@@ -261,8 +261,10 @@ export function display_url(url: string): string {
 
   if (is_presenter_url(url)) {
     video_button_active()
-    if (url.split("#").length > 1) {
-      return decodeURIComponent(url.split("#")[1])
+    if (url.split("#vidinfo_").length > 1) {
+      const b64_split = atob(url.split("#vidinfo_")[1])
+      const vid_info = JSON.parse(b64_split)
+      return vid_info.url
     }
   }
 }
@@ -309,32 +311,17 @@ export async function present(url: string): Promise<boolean> {
   }
   if (src) {
     current_tab.set_url(url)
+    const b64_json_info =
+      "vidinfo_" + btoa(JSON.stringify({ url: url, src: src, title: title }))
 
-    const set_src = () => {
+    const vid_ready = () => {
       video_button_active()
       current_tab.set_url(url)
-
-      webview.executeJavaScript(`
-            videojs("#player").src(${JSON.stringify(src)})
-            videojs("#player").play()
-            document.title = ${JSON.stringify(title)}
-          `)
-      try {
-        const parsed_url = new URL(url)
-        const params = parsed_url.searchParams
-        if (params.has("t")) {
-          webview.executeJavaScript(`
-              videojs("#player").currentTime(${parseInt(params.get("t"))})
-            `)
-        }
-      } catch (e) {
-        console.error("time url parsing failed", e)
-      }
-      webview.removeEventListener("dom-ready", set_src)
+      webview.removeEventListener("dom-ready", vid_ready)
     }
+    webview.addEventListener("dom-ready", vid_ready)
 
-    webview.addEventListener("dom-ready", set_src)
-    webview.loadURL(player_html).catch((e) => {
+    webview.loadURL(player_html + "#" + b64_json_info).catch((e) => {
       console.log("webview.loadURL error", e)
     })
     return true
