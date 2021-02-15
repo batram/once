@@ -162,8 +162,6 @@ export class OnceSettings {
             }
           }
         })
-
-        console.log("changes", change.id)
       })
   }
 
