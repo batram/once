@@ -5,7 +5,7 @@
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc --skipLibCheck && npm run copy_static",
-    "package": "electron-packager . once --out ../build_once --platform=win32 --arch=x64 --overwrite --icon \"dist/static/imgs/icons/mipmap-mdpi/ic_launcher.png\" --prune --ignore=\"^/src\" --ignore=\"/\\..*\"",
+    "package": "electron-packager . once --out ../build_once --overwrite --icon \"dist/static/imgs/icons/mipmap-mdpi/ic_launcher.png\" --prune --ignore=\"^/src\" --ignore=\"/\\..*\"",
     "watch": "tsc --skipLibCheck -w",
     "copy_static": "copyfiles -u 1 src/**/**/*.html src/**/**/*.css src/**/**/*.js src/**/*.png src/**/*.svg src/**/*.ico src/**/*.txt src/**/*.ttf dist/",
     "watch_static": "nodemon --watch \"src/**/*\" --exec \"npm run copy_static\" -e \"*\" ",
