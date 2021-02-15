@@ -110,6 +110,18 @@ export class TabWrangler {
     )
 
     ipcRenderer.on(
+      "send_to_new_tab",
+      (
+        event: Electron.IpcRendererEvent,
+        channel: string,
+        ...args: string[]
+      ) => {
+        console.debug("send_to_new_tab", ...args)
+        this.send_to_new_tab(channel, ...args)
+      }
+    )
+
+    ipcRenderer.on(
       "send_or_create_tab",
       (
         event: Electron.IpcRendererEvent,
