@@ -2,7 +2,7 @@
 
 ## About
 
-Collect stories from different sources (like RSS, hacker news, lobsters or reddit) and look at them once, so you can stop scrolling through those sites all day.
+Collect stories from different sources (RSS, Hacker News, Lobsters or Reddit), so you can stop scrolling through those sites all day and look at each story once.
 
 
 ## Features
