@@ -16,17 +16,17 @@
   "author": "",
   "devDependencies": {
     "@types/pouchdb": "^6.4.0",
-    "@typescript-eslint/eslint-plugin": "^4.2.0",
-    "@typescript-eslint/parser": "^4.2.0",
-    "copyfiles": "^2.3.0",
-    "electron": "^10.1.2",
-    "electron-packager": "^15.1.0",
+    "@typescript-eslint/eslint-plugin": "^4.11.0",
+    "@typescript-eslint/parser": "^4.11.0",
+    "copyfiles": "^2.4.1",
+    "electron": "^10.2.0",
+    "electron-packager": "^15.2.0",
     "electron-reload": "^1.5.0",
-    "eslint": "^7.9.0",
-    "typescript": "^4.0.3"
+    "eslint": "^7.16.0",
+    "typescript": "^4.1.3"
   },
   "dependencies": {
-    "@cliqz/adblocker-electron": "^1.18.3",
+    "@cliqz/adblocker-electron": "^1.19.0",
     "cross-fetch": "^3.0.6",
     "pouchdb": "^7.2.2"
   }
