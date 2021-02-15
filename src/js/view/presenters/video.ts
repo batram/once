@@ -7,7 +7,8 @@ import * as path from "path"
 import { WebTab } from "../WebTab"
 
 export const description = "Presents contents of a webpage in more readable way"
-const player_html = path.join(__dirname, "video", "player.html")
+const player_html_path =
+  "file://" + path.join(__dirname, "video", "player.html")
 let current_tab: WebTab
 
 export const presenter_options: Record<
@@ -137,11 +138,11 @@ function find_source(video_info: VideoDLInfo): { src: string; type?: string } {
 }
 
 export function is_presenter_url(url: string): boolean {
-  console.debug(player_html)
+  console.debug(player_html_path)
   const will_present =
     url.startsWith(data_video_url) ||
     url.startsWith(data_video_url_fail) ||
-    url.startsWith(player_html) ||
+    url.startsWith(player_html_path) ||
     url.includes("js/view/presenters/video/player.html")
   if (will_present) {
     video_button_active()
@@ -327,7 +328,7 @@ export async function present(url: string): Promise<boolean> {
     }
     webview.addEventListener("dom-ready", vid_ready)
 
-    webview.loadURL(player_html + "#" + b64_json_info).catch((e) => {
+    webview.loadURL(player_html_path + "#" + b64_json_info).catch((e) => {
       console.log("webview.loadURL error", e)
     })
     return true
