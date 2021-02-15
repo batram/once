@@ -343,35 +343,40 @@ async function source_youtube(
     const text = await resp.text()
     const dp = new DOMParser()
     const ydoc = dp.parseFromString(text, "text/html")
-
-    const scriptle = Array.from(
-      ydoc.querySelectorAll<HTMLElement>("#player-wrap script")
-    ).filter((script) => script.innerText.includes("ytplayer.config = "))
+    const conf_var = "ytInitialPlayerResponse"
+    const scriptle = Array.from(ydoc.querySelectorAll("script")).filter(
+      (script) => {
+        return (
+          script.innerText.includes(conf_var) &&
+          script.innerText.includes("streamingData")
+        )
+      }
+    )
     if (scriptle.length != 0) {
       const title = ydoc.querySelector("title").innerText
 
-      const yt_config_raw = scriptle[0].innerText.split("ytplayer.config = ")[1]
+      let yt_config_raw = scriptle[0].innerText.split(conf_var)[1]
+      const first_bracket = yt_config_raw.indexOf("{")
+
+      yt_config_raw = yt_config_raw.slice(first_bracket)
 
       let yt_config: {
         assets: { js?: string }
         args?: { player_response?: string }
       }
 
-      try {
-        yt_config = JSON.parse(yt_config_raw)
-      } catch (e) {
-        const numnum = e.toString().match(/; in JSON at position (\d+)/)
-        if (numnum) {
-          yt_config = JSON.parse(yt_config_raw.substring(0, numnum[1]))
-          console.log(yt_config)
-        }
-      }
-
-      if (yt_config) {
+      if (yt_config_raw) {
+        let player_response: PlayerResponse
         try {
-          const player_response: PlayerResponse = JSON.parse(
-            yt_config.args.player_response
-          )
+          player_response = JSON.parse(yt_config_raw)
+        } catch (e) {
+          console.debug("yt json error", e)
+          const numnum = e.toString().match(/; in JSON at position (\d+)/)
+          if (numnum) {
+            player_response = JSON.parse(yt_config_raw.substring(0, numnum[1]))
+          }
+        }
+        try {
           if (player_response.streamingData.dashManifestUrl) {
             return {
               src: player_response.streamingData.dashManifestUrl,
@@ -383,7 +388,7 @@ async function source_youtube(
             player_response.streamingData.adaptiveFormats[0].signatureCipher
           ) {
             let base_js = null
-            if (yt_config.assets && yt_config.assets.js) {
+            if (yt_config && yt_config.assets && yt_config.assets.js) {
               base_js = yt_config.assets.js
             } else {
               if (ydoc.querySelector("script[src*='base.js']")) {
@@ -519,7 +524,6 @@ async function youtube_dash(
         representation.setAttribute("bandwidth", format.bitrate.toString())
       }
 
-      //codecs="avc1.640028" height="1080"  bandwidth="4403702"
       adaptationSet.append(representation)
       const baseURL = xmlDoc.createElement("BaseURL")
       baseURL.textContent = format.url
