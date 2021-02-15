@@ -12,7 +12,7 @@
   <body animated="true">
     <div id="webtab">
       <div id="controlbar" class="bar">
-        <input type="text" id="urlfield" placeholder="about:blank" />
+        <input type="text" id="urlfield" placeholder="type URL here" />
         <div id="reload_tab_btn" class="btn bar_btn" title="reload tab">
           <img src="imgs/reload.svg" />
         </div>
@@ -26,7 +26,6 @@
       <div class="stories_container" id="selected_container"></div>
       <webview
         id="webview"
-        src="about:blank"
         webpreferences="contextIsolation=yes, disableHtmlFullscreenWindowResize=yes"
         partition="moep"
       ></webview>

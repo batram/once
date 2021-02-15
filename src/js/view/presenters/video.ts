@@ -246,9 +246,7 @@ export function urlbar_button(): HTMLElement {
     }
     //TODO: track state in a different way
     if (button.classList.contains("active")) {
-      webview.loadURL(urlfield.value).catch((e) => {
-        console.log("webview.loadURL error", e)
-      })
+      webview.setAttribute("src", urlfield.value)
     } else {
       present(urlfield.value)
     }
@@ -327,10 +325,7 @@ export async function present(url: string): Promise<boolean> {
       webview.removeEventListener("dom-ready", vid_ready)
     }
     webview.addEventListener("dom-ready", vid_ready)
-
-    webview.loadURL(player_html_path + "#" + b64_json_info).catch((e) => {
-      console.log("webview.loadURL error", e)
-    })
+    webview.setAttribute("src", player_html_path + "#" + b64_json_info)
     return true
   }
 }

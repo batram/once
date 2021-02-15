@@ -332,14 +332,7 @@ export class WebTab {
         return
       }
       this.url_changed(href)
-      this.webview
-        .loadURL(href)
-        .then((e) => {
-          console.debug("open_in_webview load", e, href)
-        })
-        .catch((e) => {
-          console.log("webview.loadURL error", e)
-        })
+      this.webview.setAttribute("src", href)
     } else {
       console.error(
         "webtab not ready to load:",

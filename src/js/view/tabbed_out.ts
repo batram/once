@@ -147,7 +147,7 @@ export function tab_listeners(win: BrowserWindow): void {
   ipcMain.on("when_webview_ready", (event, wc_id, channel, ...args) => {
     const wc_target = webContents.fromId(wc_id)
     if (wc_target) {
-      wc_target.once("did-attach-webview", () => {
+      wc_target.once("dom-ready", () => {
         console.log("when_ready target ready", channel, ...args)
         wc_target.send(channel, ...args)
       })

@@ -154,9 +154,7 @@ export function urlbar_button(): HTMLElement {
     }
     //TODO: track state in a different way
     if (button.classList.contains("active")) {
-      webview.loadURL(urlfield.value).catch((e) => {
-        console.log("webview.loadURL error", e)
-      })
+      webview.setAttribute("src", urlfield.value)
     } else {
       outline(urlfield.value)
     }
@@ -197,17 +195,10 @@ async function outline(url: string): Promise<void> {
 
   if (!story_content) {
     if (ipcRenderer.sendSync("has_outlined", url)) {
-      webview
-        .loadURL("outline://data:" + encodeURIComponent(url))
-        .then((e) => {
-          console.debug("open_in_webview load", e)
-        })
-        .catch((e) => {
-          console.log("rejected ", e)
-        })
+      webview.setAttribute("src", "outline://data:" + encodeURIComponent(url))
       return
     } else {
-      if (webview.getURL() == url) {
+      if (webview.getAttribute("src") == url) {
         //already have the url loaded, get the document
         story_content = await webview.executeJavaScript(
           "document.documentElement.outerHTML"
@@ -217,16 +208,13 @@ async function outline(url: string): Promise<void> {
   }
 
   try {
-    webview
-      .loadURL(
-        data_outline_url +
-          "<title>outlining</title>started outlining" +
-          "#" +
-          encodeURIComponent(url)
-      )
-      .catch((e) => {
-        console.log("webview.loadURL error", e)
-      })
+    webview.setAttribute(
+      "src",
+      data_outline_url +
+        "<title>outlining</title>started outlining" +
+        "#" +
+        encodeURIComponent(url)
+    )
   } catch (e) {
     console.log("meop")
   }
@@ -332,28 +320,18 @@ async function outline(url: string): Promise<void> {
 
   ipcRenderer.sendSync("outlined", og_url, data)
 
-  webview
-    .loadURL("outline://data:" + encodeURIComponent(og_url))
-    .then((e) => {
-      console.debug("open_in_webview load", e)
-    })
-    .catch((e) => {
-      console.log("rejected ", e)
-    })
+  webview.setAttribute("src", "outline://data:" + encodeURIComponent(og_url))
 }
 
 function fail_outline(reason: string) {
   const webview = document.querySelector<Electron.WebviewTag>("#webview")
-  webview
-    .loadURL(
-      data_outline_url_fail +
-        encodeURIComponent("  " + reason) +
-        "#" +
-        "outline:failed"
-    )
-    .catch((e) => {
-      console.error("webview.loadURL error", e)
-    })
+  webview.setAttribute(
+    "src",
+    data_outline_url_fail +
+      encodeURIComponent("  " + reason) +
+      "#" +
+      "outline:failed"
+  )
 }
 
 async function archive_cache(url: string) {
