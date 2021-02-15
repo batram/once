@@ -17,6 +17,7 @@ Collect stories from different sources (RSS, Hacker News, Lobsters or Reddit), s
 ## build
 
 ```
+npm install
 npm run build
 npm run package
 ```
