@@ -24,6 +24,16 @@ export class WebTab {
     this.webview.addEventListener("dom-ready", () => {
       this.webview_ready = true
       this.send_update_tab_info()
+      this.webview.executeJavaScript(`
+        window.addEventListener("keydown", (e) => {
+          if(e.code == 'KeyR'){
+            var uts = new SpeechSynthesisUtterance(window.getSelection().toString()) 
+            uts.rate = 2 
+            var synth = window.speechSynthesis;
+            speechSynthesis.speak(uts)
+          }
+        })
+      `)
     })
 
     remote_story_change()
