@@ -1,3 +1,5 @@
+import { OnceSettings } from "../OnceSettings"
+
 export class Redirect {
   match_url: string
   replace_url: string
@@ -5,6 +7,13 @@ export class Redirect {
 
 export class URLRedirect {
   static dynamic_url_redirects: Redirect[]
+
+  static init(): void {
+    const sets = OnceSettings.instance || OnceSettings.remote
+    sets.get_redirectlist().then((x) => {
+      URLRedirect.dynamic_url_redirects = x
+    })
+  }
 
   static redirect_url(url: string): string {
     URLRedirect.dynamic_url_redirects.forEach((redirect) => {

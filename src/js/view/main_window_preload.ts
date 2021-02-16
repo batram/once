@@ -10,6 +10,8 @@ import * as seperation_slider from "./sep_slider"
 import * as story_loader from "../data/StoryLoader"
 import * as story_parser from "../data/parser"
 
+URLRedirect.init()
+
 document.addEventListener("DOMContentLoaded", async () => {
   new SettingsPanel()
   story_list.init()
@@ -35,7 +37,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const dev_cache = process.env.LDEV == "1"
 
-  URLRedirect.dynamic_url_redirects = await OnceSettings.remote.get_redirectlist()
   const grouped_story_sources = await OnceSettings.remote.grouped_story_sources()
   if (grouped_story_sources) {
     story_loader.parallel_load_stories(grouped_story_sources, dev_cache)

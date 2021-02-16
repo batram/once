@@ -66,9 +66,7 @@ export class OnceSettings {
       this.animated = animated
     })
 
-    this.get_redirectlist().then((redirs) => {
-      URLRedirect.dynamic_url_redirects = redirs
-    })
+    URLRedirect.init()
 
     ipcMain.handle("inv_settings", async (event, cmd, ...args: unknown[]) => {
       switch (cmd) {
