@@ -18,6 +18,7 @@
     <script src="./video.min.js"></script>
     <script src="./videojs-http-source-selector.min.js"></script>
     <script src="./videojs-contrib-quality-levels.min.js"></script>
+    <script src="./yt_adskip.js"></script>
   </head>
   <body>
     <video
@@ -37,6 +38,11 @@
         const b64_split = atob(player_url.split("#vidinfo_")[1])
         const vid_info = JSON.parse(b64_split)
         videojs("#player").src(vid_info.src)
+
+        if (vid_info.src.provider == "youtube") {
+          adskippy_youtube(vid_info.src.id)
+        }
+
         videojs("#player").play()
         document.title = vid_info.title
 

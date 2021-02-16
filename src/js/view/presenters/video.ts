@@ -333,7 +333,13 @@ export async function present(url: string): Promise<boolean> {
 async function source_youtube(
   id: string,
   url: string
-): Promise<{ src: string; type?: string; title?: string }> {
+): Promise<{
+  src: string
+  type?: string
+  title?: string
+  provider: string
+  id: string
+}> {
   const resp = await fetch("https://www.youtube.com/watch?v=" + id)
   if (resp.ok) {
     const text = await resp.text()
@@ -378,6 +384,8 @@ async function source_youtube(
               src: player_response.streamingData.dashManifestUrl,
               type: "application/dash+xml",
               title: title,
+              provider: "youtube",
+              id: id,
             }
           }
           if (
@@ -436,10 +444,13 @@ async function source_youtube(
           }
 
           const dash_src = await youtube_dash(player_response)
-          if (title) {
-            dash_src.title = title
+          return {
+            src: dash_src.src,
+            type: dash_src.type,
+            title: title,
+            provider: "youtube",
+            id: id,
           }
-          return dash_src
         } catch (e) {
           console.error("yt ", e)
         }
