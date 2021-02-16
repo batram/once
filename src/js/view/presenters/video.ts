@@ -467,6 +467,10 @@ async function source_youtube(
           if (
             player_response.streamingData.adaptiveFormats[0].signatureCipher
           ) {
+            const webview = document.querySelector<WebviewTag>("webview")
+            //initialize webview, so we can run some js in its context
+            webview.setAttribute("src", "about:blank")
+
             let base_js = null
             if (yt_config && yt_config.assets && yt_config.assets.js) {
               base_js = yt_config.assets.js
@@ -490,7 +494,6 @@ async function source_youtube(
                   .match(new RegExp(`var ${k}={.*?};`))[0]
                 const fungy_code =
                   var_body + "\n" + "var fungy" + func.groups.fungy
-                const webview = document.querySelector<WebviewTag>("webview")
 
                 for (const format of player_response.streamingData
                   .adaptiveFormats) {
