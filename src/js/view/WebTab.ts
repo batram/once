@@ -29,7 +29,6 @@ export class WebTab {
           if(e.code == 'KeyR'){
             var uts = new SpeechSynthesisUtterance(window.getSelection().toString()) 
             uts.rate = 2 
-            var synth = window.speechSynthesis;
             speechSynthesis.speak(uts)
           }
         })
