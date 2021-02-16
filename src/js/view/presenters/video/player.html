@@ -15,9 +15,11 @@
     <meta charset="utf-8" />
     <title>video</title>
     <link href="./video-js.min.css" rel="stylesheet" />
+    <link href="./videojs-vtt-thumbnails.css" rel="stylesheet" />
     <script src="./video.min.js"></script>
     <script src="./videojs-http-source-selector.min.js"></script>
     <script src="./videojs-contrib-quality-levels.min.js"></script>
+    <script src="./videojs-vtt-thumbnails.min.js"></script>
     <script src="./yt_adskip.js"></script>
   </head>
   <body>
@@ -41,6 +43,14 @@
 
         if (vid_info.src.provider == "youtube") {
           adskippy_youtube(vid_info.src.id)
+
+          if (vid_info.src.vtt_data) {
+            player.on("loadedmetadata", () => {
+              player.vttThumbnails({
+                src: vid_info.src.vtt_data,
+              })
+            })
+          }
         }
 
         videojs("#player").play()

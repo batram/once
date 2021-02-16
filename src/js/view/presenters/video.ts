@@ -330,6 +330,58 @@ export async function present(url: string): Promise<boolean> {
   }
 }
 
+function zerobup(num: number): string {
+  return num < 10 ? "0" + num : num.toString()
+}
+
+function formtime(secs: number): string {
+  const fhours = zerobup(Math.floor(secs / 3600))
+  const fmins = zerobup(Math.floor((secs / 60) % 60))
+  const fsecs = zerobup(Math.floor(secs % 60))
+  return `${fhours}:${fmins}:${fsecs}.000`
+}
+
+function generate_vtt(conf: VTT_Conf): string {
+  let vtt_string = `WEBVTT
+
+`
+
+  let x = 0
+  while (x <= conf.count) {
+    const start = formtime(conf.interval * x)
+    const end = formtime(conf.interval * (x + 1))
+
+    vtt_string += `${start} --> ${end}\n`
+
+    let img_url = conf.img_url
+
+    const x_start = conf.width * (x % conf.cols)
+    const width = conf.width
+    let y_start = conf.height * Math.floor(x / conf.cols)
+    const height = conf.height
+
+    const n = Math.floor(x / (conf.cols * conf.rows))
+    img_url = conf.img_url.replace("$N", `M${n}`)
+    y_start =
+      (conf.height * Math.floor(x / conf.cols)) % (conf.rows * conf.height)
+
+    /*
+    if(conf.schnibble){
+      $n = floor(x / ((conf.cols * conf.rows) ));
+      $img_url = str_replace("$N", "$n", conf.img_url)
+      $y_start = (conf.height * floor(x / conf.cols)) % ((conf.rows) * conf.height );
+    }*/
+
+    vtt_string += `${img_url}#xywh=${x_start},${y_start},${width},${height}\n\n`
+    x += 1
+  }
+
+  let data_url = "data:text/plain;base64,"
+  data_url += btoa(vtt_string)
+
+  return data_url
+}
+
 async function source_youtube(
   id: string,
   url: string
@@ -339,6 +391,7 @@ async function source_youtube(
   title?: string
   provider: string
   id: string
+  vtt_data: string
 }> {
   const resp = await fetch("https://www.youtube.com/watch?v=" + id)
   if (resp.ok) {
@@ -379,6 +432,28 @@ async function source_youtube(
           }
         }
         try {
+          let vtt_data: string
+
+          if (player_response.storyboards.playerStoryboardSpecRenderer) {
+            const sel = player_response.storyboards.playerStoryboardSpecRenderer.spec.split(
+              "|"
+            )
+            const url_pattern = sel[0].replace("$L", "2")
+            const image_info = sel[3].split("#")
+            const conf: VTT_Conf = {
+              cols: parseInt(image_info[3]),
+              rows: parseInt(image_info[4]),
+              width: parseInt(image_info[0]),
+              height: parseInt(image_info[1]),
+              interval: parseInt(image_info[5]) / 1000,
+              count: parseInt(image_info[2]),
+              img_url: url_pattern + "&sigh=" + image_info[7],
+              schnibble: false,
+            }
+
+            vtt_data = generate_vtt(conf)
+          }
+
           if (player_response.streamingData.dashManifestUrl) {
             return {
               src: player_response.streamingData.dashManifestUrl,
@@ -386,6 +461,7 @@ async function source_youtube(
               title: title,
               provider: "youtube",
               id: id,
+              vtt_data: vtt_data,
             }
           }
           if (
@@ -450,6 +526,7 @@ async function source_youtube(
             title: title,
             provider: "youtube",
             id: id,
+            vtt_data: vtt_data,
           }
         } catch (e) {
           console.error("yt ", e)
@@ -459,9 +536,25 @@ async function source_youtube(
   }
 }
 
+declare interface VTT_Conf {
+  cols: number
+  rows: number
+  width: number
+  height: number
+  interval: number
+  count: number
+  img_url: string
+  schnibble: boolean
+}
+
 declare interface PlayerResponse {
   videoDetails?: {
     lengthSeconds?: number
+  }
+  storyboards?: {
+    playerStoryboardSpecRenderer: {
+      spec: string
+    }
   }
   streamingData?: {
     dashManifestUrl?: string
