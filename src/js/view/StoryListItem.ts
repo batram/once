@@ -4,7 +4,7 @@ import { Story, SubStory } from "../data/Story"
 import * as presenters from "../view/presenters"
 import * as story_list from "../view/StoryList"
 import { ipcRenderer } from "electron"
-import * as URLFilters from "../data/URLFilters"
+import { URLRedirect } from "../data/URLRedirect"
 import { StoryMap } from "../data/StoryMap"
 
 export class StoryListItem extends HTMLElement {
@@ -33,11 +33,11 @@ export class StoryListItem extends HTMLElement {
   story_html(add_listeners = true): void {
     this.classList.add("story")
 
-    const filtered_url = URLFilters.filter_url(this.story.href)
+    const redirected_url = URLRedirect.redirect_url(this.story.href)
 
     this.dataset.title = this.story.title
     this.dataset.href = this.story.href
-    this.dataset.filtered_url = filtered_url
+    this.dataset.redirected_url = redirected_url
     this.dataset.timestamp = this.story.timestamp.toString()
     this.dataset.type = "[" + this.story.type + "]"
     this.dataset.comment_url = this.story.comment_url
@@ -46,7 +46,7 @@ export class StoryListItem extends HTMLElement {
     title_line.classList.add("title_line")
 
     this.link = document.createElement("a")
-    this.link.href = filtered_url
+    this.link.href = redirected_url
     this.link.classList.add("title")
     this.link.innerText = this.story.title
     this.link.addEventListener("click", () => {

@@ -173,7 +173,7 @@ async function local_search(needle: string) {
       story_el.story.title,
       story_el.story.href,
       "[" + story_el.story.type + "]",
-      story_el.dataset.filtered_url,
+      story_el.dataset.redirected_url,
     ]
 
     if (story_el.story.tags) {

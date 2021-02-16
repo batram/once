@@ -1,5 +1,5 @@
 import { OnceSettings } from "../OnceSettings"
-import * as URLFilters from "../data/URLFilters"
+import { URLRedirect } from "./URLRedirect"
 
 export interface SubStory {
   type: string
@@ -120,9 +120,10 @@ export class Story {
   }
 
   matches_story_url(url: string): boolean {
-    const filtered_url = URLFilters.filter_url(this.href)
+    const redirected_url = URLRedirect.redirect_url(this.href)
     return (
-      this.href === url || (filtered_url != this.href && filtered_url == url)
+      this.href === url ||
+      (redirected_url != this.href && redirected_url == url)
     )
   }
 

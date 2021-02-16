@@ -1,6 +1,7 @@
 import { OnceSettings } from "../OnceSettings"
 import { SettingsPanel } from "../view/SettingsPanel"
 import { TabWrangler } from "../view/TabWrangler"
+import { URLRedirect } from "../data/URLRedirect"
 import * as fullscreen from "./fullscreen"
 import * as story_list from "./StoryList"
 import * as search from "../data/search"
@@ -34,6 +35,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const dev_cache = process.env.LDEV == "1"
 
+  URLRedirect.dynamic_url_redirects = await OnceSettings.remote.get_redirectlist()
   const grouped_story_sources = await OnceSettings.remote.grouped_story_sources()
   if (grouped_story_sources) {
     story_loader.parallel_load_stories(grouped_story_sources, dev_cache)

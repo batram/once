@@ -1,4 +1,4 @@
-import { filter_url } from "../data/URLFilters"
+import { URLRedirect } from "../data/URLRedirect"
 import * as tabbed_out from "../view/tabbed_out"
 //import { TabWrangler } from "./TabWrangler"
 
@@ -36,7 +36,7 @@ export class NavigationHandler {
   open_url(event: Electron.Event, url: string, target: string): void {
     console.log("open_url", url, target, this.webContents.getType())
     if (url.startsWith("http:") || url.startsWith("https:")) {
-      const new_url = filter_url(url)
+      const new_url = URLRedirect.redirect_url(url)
       if (new_url != url) {
         event.preventDefault()
         url = new_url

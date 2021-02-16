@@ -2,6 +2,7 @@ import * as PouchDB from "pouchdb"
 import { ipcMain, ipcRenderer, webContents, nativeTheme } from "electron"
 import { StoryMap } from "./data/StoryMap"
 import { Story } from "./data/Story"
+import { Redirect, URLRedirect } from "./data/URLRedirect"
 import * as fs from "fs"
 
 export class OnceSettings {
@@ -33,6 +34,9 @@ export class OnceSettings {
     get_filterlist(): Promise<string[]> {
       return ipcRenderer.invoke("inv_settings", "get_filterlist")
     },
+    get_redirectlist(): Promise<Redirect[]> {
+      return ipcRenderer.invoke("inv_settings", "get_redirectlist")
+    },
     pouch_get<T>(id: string, fallback_value: T): Promise<T> {
       return ipcRenderer.invoke("inv_settings", "pouch_get", id, fallback_value)
     },
@@ -62,6 +66,10 @@ export class OnceSettings {
       this.animated = animated
     })
 
+    this.get_redirectlist().then((redirs) => {
+      URLRedirect.dynamic_url_redirects = redirs
+    })
+
     ipcMain.handle("inv_settings", async (event, cmd, ...args: unknown[]) => {
       switch (cmd) {
         case "story_sources":
@@ -74,6 +82,8 @@ export class OnceSettings {
           return this.set_sync_url(args[0] as string)
         case "get_filterlist":
           return this.get_filterlist()
+        case "get_redirectlist":
+          return this.get_redirectlist()
         case "pouch_get":
           return this.pouch_get(args[0] as string, args[1])
         case "getAttachment": {
@@ -114,6 +124,11 @@ export class OnceSettings {
         case "save_filterlist":
           event.returnValue = await this.save_filterlist(args[0] as string[])
           break
+        case "save_redirectlist":
+          event.returnValue = await this.save_redirectlist(
+            args[0] as Redirect[]
+          )
+          break
         case "add_filter":
           this.add_filter(args[0] as string)
           break
@@ -152,6 +167,9 @@ export class OnceSettings {
               case "filter_list":
                 subscriber.send("settings", "set_filter_area")
                 subscriber.send("story_list", "refilter")
+                break
+              case "redirect_list":
+                subscriber.send("settings", "set_redirect_area")
                 break
               case "theme":
                 subscriber.send("settings", "restore_theme_settings")
@@ -269,10 +287,6 @@ export class OnceSettings {
     return grouped_sources
   }
 
-  get_filterlist(): Promise<string[]> {
-    return this.pouch_get("filter_list", this.default_filterlist)
-  }
-
   story_id(url: string): string {
     return "sto_" + url
   }
@@ -371,6 +385,10 @@ export class OnceSettings {
     this.save_filterlist(filter_list)
   }
 
+  get_filterlist(): Promise<string[]> {
+    return this.pouch_get("filter_list", this.default_filterlist)
+  }
+
   async save_filterlist(filter_list: string[]): Promise<void> {
     this.pouch_set("filter_list", filter_list, console.log)
   }
@@ -413,4 +431,28 @@ export class OnceSettings {
   yahoo.com`
     .split("\n")
     .map((x) => x.trim())
+
+  get_redirectlist(): Promise<Redirect[]> {
+    return this.pouch_get("redirect_list", this.default_redirectlist)
+  }
+
+  async save_redirectlist(redirect_list: Redirect[]): Promise<void> {
+    this.pouch_set("redirect_list", redirect_list, console.log)
+  }
+
+  static parse_redirectlist(lines: string): Redirect[] {
+    return lines.split("\n").map((line) => {
+      const split = line.trim().split(" => ")
+      return { match_url: split[0], replace_url: split[1] }
+    })
+  }
+
+  static present_redirectlist(redirect_list: Redirect[]): string {
+    return redirect_list
+      .map((entry) => entry.match_url + " => " + entry.replace_url)
+      .join("\n")
+  }
+
+  default_redirectlist = OnceSettings.parse_redirectlist(`https:\/\/www.reddit.com\/(.*) => https://old.reddit.com/$1
+         https:\/\/(mobile.)?twitter.com\/(.*) => https://nitter.cc/$1`)
 }

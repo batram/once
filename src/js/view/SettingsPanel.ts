@@ -12,6 +12,10 @@ export class SettingsPanel {
             console.debug("set_filter_area", args)
             this.set_filter_area()
             break
+          case "set_redirect_area":
+            console.debug("set_redirect_area", args)
+            this.set_redirect_area()
+            break
           case "set_sources_area":
             console.debug("set_sources_area", args)
             this.set_sources_area()
@@ -116,6 +120,32 @@ export class SettingsPanel {
         this.save_filter_settings()
       }
     })
+
+    this.set_redirect_area()
+
+    const redirect_area = document.querySelector<HTMLInputElement>(
+      "#redirect_area"
+    )
+    redirect_area.parentElement
+      .querySelector('input[value="save"]')
+      .addEventListener("click", () => {
+        this.save_redirect_settings()
+      })
+    redirect_area.parentElement
+      .querySelector("input[value=cancel]")
+      .addEventListener("click", () => {
+        this.set_redirect_area()
+      })
+
+    redirect_area.addEventListener("keydown", (e) => {
+      if (e.keyCode === 27) {
+        //ESC
+        this.set_filter_area()
+      } else if (e.key == "s" && e.ctrlKey) {
+        //CTRL + s
+        this.save_redirect_settings()
+      }
+    })
   }
 
   async reset_couch_settings(): Promise<void> {
@@ -204,8 +234,8 @@ export class SettingsPanel {
 
   async set_filter_area(): Promise<void> {
     const filter_area = document.querySelector<HTMLInputElement>("#filter_area")
-    const filterlist = await OnceSettings.remote.get_filterlist()
-    filter_area.value = filterlist.join("\n")
+    const filter_list = await OnceSettings.remote.get_filterlist()
+    filter_area.value = filter_list.join("\n")
   }
 
   save_filter_settings(): void {
@@ -214,5 +244,21 @@ export class SettingsPanel {
       return x.trim() != ""
     })
     ipcRenderer.send("settings", "save_filterlist", filter_list)
+  }
+
+  async set_redirect_area(): Promise<void> {
+    const redirect_area = document.querySelector<HTMLInputElement>(
+      "#redirect_area"
+    )
+    const redirect_list = await OnceSettings.remote.get_redirectlist()
+    redirect_area.value = OnceSettings.present_redirectlist(redirect_list)
+  }
+
+  save_redirect_settings(): void {
+    const redirect_area = document.querySelector<HTMLInputElement>(
+      "#redirect_area"
+    )
+    const redirect_list = OnceSettings.parse_redirectlist(redirect_area.value)
+    ipcRenderer.send("settings", "save_redirectlist", redirect_list)
   }
 }
