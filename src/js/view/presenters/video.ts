@@ -269,19 +269,9 @@ export function display_url(url: string): string {
 }
 
 async function video_dl(url: string): Promise<VideoDLInfo> {
-  const bat = child_process.spawnSync("youtube-dl", ["--dump-json", url], {
-    encoding: "utf8",
-  })
-  if (bat.status == 0) {
-    const json_resp = bat.stdout
-    if (json_resp != "") {
-      try {
-        const video_info = JSON.parse(json_resp)
-        return video_info
-      } catch (e) {
-        console.warn("youtube-dl json fail", e, json_resp)
-      }
-    }
+  const ydl = child_process.spawn("youtube-dl", ["--dump-json", url])
+  for await (const json_resp of ydl.stdout) {
+    return JSON.parse(json_resp)
   }
 }
 
@@ -296,6 +286,15 @@ export async function present(url: string): Promise<boolean> {
     )
     return
   }
+  const extracting_info =
+    data_video_url +
+    "<title>Video: getting info</title> Please wait while we get the video source for you :D"
+  current_tab.set_url(url)
+  const b64_json_info = "vidinfo_" + btoa(JSON.stringify({ url: url }))
+
+  current_tab.set_url(url)
+  webview.setAttribute("src", extracting_info + "#" + b64_json_info)
+
   //TODO: this is way to slow ... extract pattern
   let src: { src: string; type?: string; title?: string } = null
   let title: string = null
@@ -314,10 +313,41 @@ export async function present(url: string): Promise<boolean> {
       title = video_info.title
     }
   }
-  if (src) {
+
+  return show_video({ url: url, src: src, title: title }, url)
+}
+
+function fallback_to_src(url: string) {
+  const webview = document.querySelector<Electron.WebviewTag>("#webview")
+
+  const src_fail =
+    data_video_url +
+    "<title>extraction failed</title>" +
+    "We couldn't find a video. Sending you back to the original site."
+  const b64_json_info = "vidinfo_" + btoa(JSON.stringify({ url: url }))
+
+  webview.setAttribute("src", src_fail + "#" + b64_json_info)
+
+  setTimeout(() => {
+    video_button_inactive()
+    webview.setAttribute("src", url)
+  }, 2000)
+}
+
+function show_video(
+  video_info: {
+    url: string
+    src: { src: string; type?: string; title?: string }
+    title: string
+  },
+  url: string
+): boolean {
+  const webview = document.querySelector<Electron.WebviewTag>("#webview")
+
+  if (video_info && video_info.src) {
     current_tab.set_url(url)
-    const b64_json_info =
-      "vidinfo_" + btoa(JSON.stringify({ url: url, src: src, title: title }))
+    video_info.title = video_info.title.replace(/[\u0250-\ue007]/g, "")
+    const b64_json_info = "vidinfo_" + btoa(JSON.stringify(video_info))
 
     const vid_ready = () => {
       video_button_active()
@@ -327,7 +357,10 @@ export async function present(url: string): Promise<boolean> {
     webview.addEventListener("dom-ready", vid_ready)
     webview.setAttribute("src", player_html_path + "#" + b64_json_info)
     return true
+  } else {
+    fallback_to_src(url)
   }
+  return false
 }
 
 function zerobup(num: number): string {
@@ -467,10 +500,6 @@ async function source_youtube(
           if (
             player_response.streamingData.adaptiveFormats[0].signatureCipher
           ) {
-            const webview = document.querySelector<WebviewTag>("webview")
-            //initialize webview, so we can run some js in its context
-            webview.setAttribute("src", "about:blank")
-
             let base_js = null
             if (yt_config && yt_config.assets && yt_config.assets.js) {
               base_js = yt_config.assets.js
@@ -498,6 +527,9 @@ async function source_youtube(
                 for (const format of player_response.streamingData
                   .adaptiveFormats) {
                   const ul = new URLSearchParams(format.signatureCipher)
+                  const webview = document.querySelector<Electron.WebviewTag>(
+                    "#webview"
+                  )
                   const defunged = await webview.executeJavaScript(
                     fungy_code + "\n" + `fungy(atob("${btoa(ul.get("s"))}"))`
                   )
