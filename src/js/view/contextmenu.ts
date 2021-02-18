@@ -86,8 +86,30 @@ function inspect_menu(
       new MenuItem({
         id: "url_open",
         label: "Open in Browser",
-        click: async () => {
-          await shell.openExternal(cmenu_data.href)
+        click: () => {
+          shell.openExternal(cmenu_data.href)
+        },
+      })
+    )
+    con_menu.append(
+      new MenuItem({
+        id: "url_open",
+        label: "Open in new window",
+        click: () => {
+          cmenu_data.sender.executeJavaScript(`
+            window.open(unescape("${escape(cmenu_data.href)}"), "popout-window")
+          `)
+        },
+      })
+    )
+    con_menu.append(
+      new MenuItem({
+        id: "url_open",
+        label: "Open in new tab",
+        click: () => {
+          cmenu_data.sender.executeJavaScript(`
+            window.open(unescape("${escape(cmenu_data.href)}"), "new-tab")
+          `)
         },
       })
     )

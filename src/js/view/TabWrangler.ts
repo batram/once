@@ -162,6 +162,12 @@ export class TabWrangler {
         this.open_in_new_tab(url)
       }
     )
+    ipcRenderer.on(
+      "open_in_new_window",
+      (event: Electron.IpcRendererEvent, url: string) => {
+        this.open_in_new_window(url)
+      }
+    )
 
     ipcRenderer.on(
       "open_in_tab",
@@ -563,6 +569,17 @@ export class TabWrangler {
         tab_el.dataset.href = href
       }
     }
+  }
+
+  async open_in_new_window(href: string): Promise<void> {
+    const wc_id = await this.new_webtab()
+    ipcRenderer.send(
+      "when_webview_ready",
+      wc_id,
+      "pop_out",
+      JSON.stringify([0, 0])
+    )
+    ipcRenderer.send("when_webview_ready", wc_id, "open_in_webview", href)
   }
 
   remove_tab_el(wc_id: number): void {
