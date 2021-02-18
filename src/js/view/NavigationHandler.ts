@@ -19,14 +19,17 @@ export class NavigationHandler {
   constructor(webContents: Electron.webContents) {
     this.webContents = webContents
 
-    webContents.on("new-window", (event, url, target, ...args) => {
-      console.debug("new-window", target, args)
-      if (target == "popout-window") {
-        this.open_url(event, url, "popout-window")
-      } else {
-        this.open_url(event, url, "blank")
+    webContents.on(
+      "new-window",
+      (event, url, frameName, disposition, ...args) => {
+        console.debug("new-window", frameName, args)
+        if (frameName == "popout-window" || disposition == "new-window") {
+          this.open_url(event, url, "popout-window")
+        } else {
+          this.open_url(event, url, "blank")
+        }
       }
-    })
+    )
 
     webContents.on("will-navigate", (event, url) => {
       this.open_url(event, url, "self")
@@ -58,11 +61,7 @@ export class NavigationHandler {
         )
       } else if (target == "popout-window") {
         event.preventDefault()
-        tabbed_out.send_to_parent(
-          { sender: this.webContents },
-          "open_in_new_window",
-          url
-        )
+        tabbed_out.open_in_new_window(this.webContents, url)
       } else {
         event.preventDefault()
         tabbed_out.send_to_parent(
