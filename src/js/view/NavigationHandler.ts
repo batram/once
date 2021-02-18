@@ -3,16 +3,12 @@ import * as tabbed_out from "../view/tabbed_out"
 
 export class NavigationHandler {
   webContents: Electron.webContents
-  custom_protocol_handlers: Record<
+  static custom_protocol_handlers: Record<
     string,
-    (url: string, target: string) => void
+    (webContents: Electron.webContents, url: string, target: string) => void
   > = {
-    search: (url) => {
-      tabbed_out.send_to_parent(
-        { sender: this.webContents },
-        "search_stories",
-        url
-      )
+    search: (webContents, url) => {
+      tabbed_out.send_to_parent({ sender: webContents }, "search_stories", url)
     },
   }
 
@@ -24,55 +20,65 @@ export class NavigationHandler {
       (event, url, frameName, disposition, ...args) => {
         console.debug("new-window", frameName, args)
         if (frameName == "popout-window" || disposition == "new-window") {
-          this.open_url(event, url, "popout-window")
+          NavigationHandler.open_url(webContents, event, url, "popout-window")
         } else {
-          this.open_url(event, url, "blank")
+          NavigationHandler.open_url(webContents, event, url, "blank")
         }
       }
     )
 
     webContents.on("will-navigate", (event, url) => {
-      this.open_url(event, url, "self")
+      NavigationHandler.open_url(webContents, event, url, "self")
     })
 
     webContents.on("will-redirect", (event, url) => {
-      this.open_url(event, url, "self")
+      NavigationHandler.open_url(webContents, event, url, "self")
     })
   }
 
-  open_url(event: Electron.Event, url: string, target: string): void {
-    console.log("open_url", url, target, this.webContents.getType())
+  static open_url(
+    webContents: Electron.webContents,
+    event: Electron.Event,
+    url: string,
+    target: string
+  ): void {
     if (url.startsWith("http:") || url.startsWith("https:")) {
       const new_url = URLRedirect.redirect_url(url)
       if (new_url != url) {
-        event.preventDefault()
+        if (event.preventDefault) {
+          event.preventDefault()
+        }
         url = new_url
-      } else if (this.webContents.getType() == "webview" && target == "self") {
+      } else if (webContents.getType() == "webview" && target == "self") {
         console.log("open_url: let webview navigate on its own", url)
         return
       }
 
       if (target == "blank") {
-        event.preventDefault()
+        if (event.preventDefault) {
+          event.preventDefault()
+        }
         tabbed_out.send_to_parent(
-          { sender: this.webContents },
+          { sender: webContents },
           "open_in_new_tab",
           url
         )
       } else if (target == "popout-window") {
-        event.preventDefault()
-        tabbed_out.open_in_new_window(this.webContents, url)
+        if (event.preventDefault) {
+          event.preventDefault()
+        }
+        tabbed_out.open_in_new_window(webContents, url)
       } else {
-        event.preventDefault()
-        tabbed_out.send_to_parent(
-          { sender: this.webContents },
-          "open_in_tab",
-          url
-        )
+        if (event.preventDefault) {
+          event.preventDefault()
+        }
+        tabbed_out.send_to_parent({ sender: webContents }, "open_in_tab", url)
       }
     } else {
       // Not http or https can't let that through to default
-      event.preventDefault()
+      if (event.preventDefault) {
+        event.preventDefault()
+      }
       // check if we have custom protocoll
       const split = url.split(":")
       if (split.length > 1) {
@@ -82,10 +88,14 @@ export class NavigationHandler {
           "custom proto?",
           proto,
           url,
-          this.custom_protocol_handlers[proto]
+          NavigationHandler.custom_protocol_handlers[proto]
         )
         if (this.custom_protocol_handlers[proto]) {
-          this.custom_protocol_handlers[proto](url, target)
+          NavigationHandler.custom_protocol_handlers[proto](
+            webContents,
+            url,
+            target
+          )
         }
       }
     }

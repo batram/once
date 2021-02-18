@@ -235,12 +235,11 @@ export function tab_listeners(win: BrowserWindow): void {
 }
 
 export function open_in_new_window(sender: webContents, href: string): void {
-  const parent = get_parent_window(sender)
-  const wc = create_view(-1).webContents
-  tab_in_new_win(parent, wc, path.join(global.paths.main_window_html), false, [
-    0,
-    0,
-  ])
+  const og_window = get_parent_window(sender)
+  const new_parent = new_main(og_window)
+  const view = create_view(new_parent.webContents.id)
+  new_parent.setBrowserView(view)
+  const wc = view.webContents
   wc.once("dom-ready", () => {
     wc.send("open_in_webview", href)
   })
@@ -332,12 +331,12 @@ function pop_new_main(
   )
 }
 
-export function new_main(parent: BrowserWindow): void {
+export function new_main(parent: BrowserWindow): BrowserWindow {
   const size = parent.getSize()
   const parent_pos = parent.getPosition()
 
   const bounds = [parent_pos[0], parent_pos[1], size[0], size[1]]
-  new_window(
+  return new_window(
     path.join(global.paths.main_window_html),
     global.paths.main_window_preload,
     bounds

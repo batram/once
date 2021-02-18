@@ -7,7 +7,7 @@ import {
   WebContents,
   ipcMain,
 } from "electron"
-import * as tabbed_out from "../view/tabbed_out"
+import { NavigationHandler } from "../view/NavigationHandler"
 
 export function init_menu(wc: webContents): void {
   wc.on("context-menu", (event, params) => {
@@ -96,8 +96,13 @@ function inspect_menu(
       new MenuItem({
         id: "url_open",
         label: "Open in new window",
-        click: () => {
-          tabbed_out.open_in_new_window(cmenu_data.sender, cmenu_data.href)
+        click: (_e, _x, event) => {
+          NavigationHandler.open_url(
+            cmenu_data.sender,
+            event,
+            cmenu_data.href,
+            "popout-window"
+          )
         },
       })
     )
@@ -105,10 +110,13 @@ function inspect_menu(
       new MenuItem({
         id: "url_open",
         label: "Open in new tab",
-        click: () => {
-          cmenu_data.sender.executeJavaScript(`
-            window.open(unescape("${escape(cmenu_data.href)}"), "new-tab")
-          `)
+        click: (_e, _x, event) => {
+          NavigationHandler.open_url(
+            cmenu_data.sender,
+            event,
+            cmenu_data.href,
+            "new-tab"
+          )
         },
       })
     )
