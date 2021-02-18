@@ -75,3 +75,16 @@ export async function domain_search(domain: string): Promise<Story[]> {
     return []
   }
 }
+
+export async function global_search(needle: string): Promise<Story[]> {
+  const search_url = "https://lobste.rs/search?what=stories&order=relevance&q="
+
+  const res = await fetch(search_url + encodeURIComponent(needle))
+  if (res.ok) {
+    const content = await res.text()
+    const dom_parser = new DOMParser()
+    const doc = dom_parser.parseFromString(content, "text/html")
+    return parse(doc)
+  }
+  return []
+}
