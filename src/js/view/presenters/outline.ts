@@ -282,6 +282,19 @@ async function outline(url: string): Promise<void> {
     }
   })
 
+  doc.querySelectorAll<HTMLImageElement>("iframe").forEach((e) => {
+    if (e.hasAttribute("src")) {
+      const src = e.getAttribute("src")
+      if (
+        src.startsWith("https://web.archive.org/web/") &&
+        src.includes("if_/") &&
+        (src.includes("youtube.com") || src.includes("youtu.be"))
+      ) {
+        e.src = src.split("if_/")[1]
+      }
+    }
+  })
+
   doc.querySelectorAll<HTMLLinkElement>("a").forEach((e) => {
     if (e.hasAttribute("href") && e.getAttribute("href") != e.href) {
       e.setAttribute("href", e.href)
