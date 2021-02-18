@@ -15,12 +15,22 @@ export async function filter_story(story: Story): Promise<Story> {
 
 function filter_run(filter_list: string[], story: Story) {
   for (const pattern in filter_list) {
-    if (
-      story.href.includes(filter_list[pattern]) ||
-      story.title
-        .toLocaleLowerCase()
-        .includes(filter_list[pattern].toLocaleLowerCase())
-    ) {
+    const match_strings = []
+    match_strings.push(story.href)
+    match_strings.push(story.title)
+    if (story.tags) {
+      match_strings.push(story.tags.map((x) => x.text).join(" "))
+    }
+    if (story.substories) {
+      story.substories.forEach((sub) => {
+        if (sub.tags) {
+          match_strings.push(sub.tags.map((x) => x.text).join(" "))
+        }
+      })
+    }
+    const match = match_strings.join(" ").toLocaleLowerCase()
+
+    if (match.includes(filter_list[pattern].toLocaleLowerCase())) {
       story.filter = filter_list[pattern]
       return story
     }
