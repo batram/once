@@ -7,6 +7,7 @@ import {
   WebContents,
   ipcMain,
 } from "electron"
+import * as tabbed_out from "../view/tabbed_out"
 
 export function init_menu(wc: webContents): void {
   wc.on("context-menu", (event, params) => {
@@ -96,9 +97,7 @@ function inspect_menu(
         id: "url_open",
         label: "Open in new window",
         click: () => {
-          cmenu_data.sender.executeJavaScript(`
-            window.open(unescape("${escape(cmenu_data.href)}"), "popout-window")
-          `)
+          tabbed_out.open_in_new_window(cmenu_data.sender, cmenu_data.href)
         },
       })
     )

@@ -154,6 +154,10 @@ export function tab_listeners(win: BrowserWindow): void {
     }
   })
 
+  ipcMain.on("open_in_new_window", (event, href) => {
+    open_in_new_window(event.sender, href)
+  })
+
   ipcMain.handle("attach_new_tab", (event) => {
     const view = create_view(event.sender.id)
     if (view) {
@@ -230,6 +234,18 @@ export function tab_listeners(win: BrowserWindow): void {
   })
 }
 
+export function open_in_new_window(sender: webContents, href: string): void {
+  const parent = get_parent_window(sender)
+  const wc = create_view(-1).webContents
+  tab_in_new_win(parent, wc, path.join(global.paths.main_window_html), false, [
+    0,
+    0,
+  ])
+  wc.once("dom-ready", () => {
+    wc.send("open_in_webview", href)
+  })
+}
+
 function create_view(parent_id: number): BrowserView {
   const view = new BrowserView({
     webPreferences: {
@@ -243,9 +259,11 @@ function create_view(parent_id: number): BrowserView {
 
   view.webContents.loadFile(global.paths.tab_view_html)
 
-  view.webContents.once("dom-ready", () => {
-    view.webContents.send("attached", parent_id)
-  })
+  if (parent_id != -1) {
+    view.webContents.once("dom-ready", () => {
+      view.webContents.send("attached", parent_id)
+    })
+  }
 
   return view
 }
