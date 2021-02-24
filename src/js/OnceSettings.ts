@@ -451,6 +451,6 @@ export class OnceSettings {
       .join("\n")
   }
 
-  default_redirectlist = OnceSettings.parse_redirectlist(`https:\/\/www.reddit.com\/(.*) => https://old.reddit.com/$1
-         https:\/\/(mobile.)?twitter.com\/(.*) => https://nitter.cc/$1`)
+  default_redirectlist = OnceSettings.parse_redirectlist(`https:\\/\\/www.reddit.com\\/(.*) => https://old.reddit.com/$1
+         https:\\/\\/(mobile.)?twitter.com\\/(.*) => https://nitter.cc/$1`)
 }
