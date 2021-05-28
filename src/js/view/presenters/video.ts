@@ -426,7 +426,7 @@ async function source_youtube(
   id: string
   vtt_data: string
 }> {
-  const resp = await fetch("https://www.youtube.com/watch?v=" + id)
+  const resp = await fetch("https://www.youtube.com/watch?ucbcb=1&v=" + id)
   if (resp.ok) {
     const text = await resp.text()
     const dp = new DOMParser()
