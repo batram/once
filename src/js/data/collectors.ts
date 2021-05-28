@@ -12,7 +12,11 @@ export declare interface StoryParser {
     settings?: Record<string, unknown>
   }
 
-  parse: (input: Document | Record<string, unknown>) => Story[]
+  parse: (
+    input: Document | Record<string, unknown>,
+    url?: string,
+    og_url?: string
+  ) => Story[]
   global_search: (needle: string) => Promise<Story[]>
   domain_search: (needle: string) => Promise<Story[]>
   resolve_url?: (entry: string) => string

@@ -74,6 +74,9 @@ async function cache_load(url: string, try_cache = true) {
     console.error("no parser for", url)
     return
   }
+
+  const og_url = url
+
   if (parser && parser.resolve_url) {
     url = parser.resolve_url(url)
   }
@@ -88,7 +91,7 @@ async function cache_load(url: string, try_cache = true) {
   } else {
     const resp = await fetch(url)
     if (resp.ok) {
-      return story_parser.parse_response(resp, url) || []
+      return story_parser.parse_response(resp, url, og_url) || []
     }
   }
 }

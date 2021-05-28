@@ -47,29 +47,30 @@ export function add_all_css_colors(): void {
 
 export async function parse_response(
   resp: Response,
-  url: string
+  url: string,
+  og_url: string
 ): Promise<Story[]> {
-  const parser = get_parser_for_url(url)
+  const parser = get_parser_for_url(og_url)
 
   if (!parser) {
-    throw "no parser found for: " + url
+    throw "no parser found for: " + og_url
   }
 
   if (parser.options.collects == "json") {
     const json_content = await resp.json()
     console.log("got json for ", url, parser, json_content)
     localStorage.setItem(url, JSON.stringify([Date.now(), json_content]))
-    return parser.parse(json_content)
+    return parser.parse(json_content, url, og_url)
   } else if (parser.options.collects == "dom") {
     const text_content = await resp.text()
     localStorage.setItem(url, JSON.stringify([Date.now(), text_content]))
     const doc = parse_dom(text_content, url)
-    return parser.parse(doc)
+    return parser.parse(doc, url, og_url)
   } else if (parser.options.collects == "xml") {
     const text_content = await resp.text()
     localStorage.setItem(url, JSON.stringify([Date.now(), text_content]))
     const doc = parse_xml(text_content)
-    return parser.parse(doc)
+    return parser.parse(doc, url, og_url)
   }
 }
 
