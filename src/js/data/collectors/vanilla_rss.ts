@@ -186,6 +186,6 @@ function common_rss_parser(doc: Document, def: FeedFormat) {
 
     return new_story
   })
-  console.debug("rss :: ", doc, stories)
+  //console.debug("rss :: ", doc, stories)
   return stories.filter((x) => x != undefined)
 }

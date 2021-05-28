@@ -37,7 +37,7 @@ export function remote_story_change(): void {
           if (details.story && !(details.story instanceof Story)) {
             details.story = Story.from_obj(details.story)
           }
-          console.debug("data_change", details)
+          //console.debug("data_change", details)
           if (details.path && details.path.length != 0) {
             const story_els = document.querySelectorAll(
               `.story[data-href="${details.path[0]}"]`
@@ -104,7 +104,7 @@ function add(story: Story, bucket = "stories"): void {
     throw "only stories allowed into the story list"
   }
   if (document.querySelector(`.story[data-href="${story.href}"]`)) {
-    console.debug("deduped story ins storylist: ", story.href)
+    //console.debug("deduped story ins storylist: ", story.href, story.title)
     return
   }
 
