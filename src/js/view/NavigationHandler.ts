@@ -2,17 +2,17 @@ import { URLRedirect } from "../data/URLRedirect"
 import * as tabbed_out from "../view/tabbed_out"
 
 export class NavigationHandler {
-  webContents: Electron.webContents
+  webContents: Electron.WebContents
   static custom_protocol_handlers: Record<
     string,
-    (webContents: Electron.webContents, url: string, target: string) => void
+    (webContents: Electron.WebContents, url: string, target: string) => void
   > = {
     search: (webContents, url) => {
       tabbed_out.send_to_parent({ sender: webContents }, "search_stories", url)
     },
   }
 
-  constructor(webContents: Electron.webContents) {
+  constructor(webContents: Electron.WebContents) {
     this.webContents = webContents
 
     webContents.on(
@@ -37,7 +37,7 @@ export class NavigationHandler {
   }
 
   static open_url(
-    webContents: Electron.webContents,
+    webContents: Electron.WebContents,
     event: Electron.Event,
     url: string,
     target: string

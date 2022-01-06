@@ -39,9 +39,8 @@ export function init_search(): void {
     }
   })
 
-  const cancel_search_btn = document.querySelector<HTMLElement>(
-    "#cancel_search_btn"
-  )
+  const cancel_search_btn =
+    document.querySelector<HTMLElement>("#cancel_search_btn")
   cancel_search_btn.onclick = () => {
     searchfield.value = ""
     search_stories("")
@@ -90,9 +89,8 @@ const extra_search_providers: Record<
   domain: {
     type: "global",
     func: async (needle: string) => {
-      const search_scope = document.querySelector<HTMLInputElement>(
-        "#search_scope"
-      )
+      const search_scope =
+        document.querySelector<HTMLInputElement>("#search_scope")
       search_scope.value = "global"
       const domain_search_providers = collectors.domain_search_providers()
       domain_search_providers.forEach((dsp) => {
@@ -111,9 +109,8 @@ export async function search_stories(needle: string): Promise<void> {
   const global_search_results = document.querySelector<HTMLElement>(
     "#global_search_results"
   )
-  const cancel_search_btn = document.querySelector<HTMLElement>(
-    "#cancel_search_btn"
-  )
+  const cancel_search_btn =
+    document.querySelector<HTMLElement>("#cancel_search_btn")
   const search_scope = document.querySelector<HTMLInputElement>("#search_scope")
 
   story_container.classList.remove("show_filtered")

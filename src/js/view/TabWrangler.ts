@@ -141,7 +141,7 @@ export class TabWrangler {
           return
         }
 
-        if (url != "") {
+        if (url && url != "") {
           url_target.style.opacity = "1"
           url_target.style.zIndex = "16"
           if (url.length <= 63) {
@@ -503,9 +503,8 @@ export class TabWrangler {
         }
       }
       if (title) {
-        tab_el.querySelector<HTMLElement>(
-          ".tab_title"
-        ).innerText = title.substring(0, 22)
+        tab_el.querySelector<HTMLElement>(".tab_title").innerText =
+          title.substring(0, 22)
         tab_el.title = title
       }
     }

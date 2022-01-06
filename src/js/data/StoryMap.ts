@@ -1,4 +1,4 @@
-import { ipcMain, ipcRenderer, webContents } from "electron"
+import { ipcMain, ipcRenderer, WebContents } from "electron"
 import { Story } from "../data/Story"
 import { OnceSettings } from "../OnceSettings"
 
@@ -49,7 +49,7 @@ export class StoryMap {
     },
   }
 
-  subscribers: webContents[] = []
+  subscribers: WebContents[] = []
 
   constructor() {
     StoryMap.instance = this

@@ -1,5 +1,5 @@
 import * as PouchDB from "pouchdb"
-import { ipcMain, ipcRenderer, webContents, nativeTheme } from "electron"
+import { ipcMain, ipcRenderer, WebContents, nativeTheme } from "electron"
 import { StoryMap } from "./data/StoryMap"
 import { Story } from "./data/Story"
 import { Redirect, URLRedirect } from "./data/URLRedirect"
@@ -45,7 +45,7 @@ export class OnceSettings {
     },
   }
 
-  subscribers: webContents[] = []
+  subscribers: WebContents[] = []
   animated = true
 
   constructor() {
@@ -451,6 +451,7 @@ export class OnceSettings {
       .join("\n")
   }
 
-  default_redirectlist = OnceSettings.parse_redirectlist(`https:\\/\\/www.reddit.com\\/(.*) => https://old.reddit.com/$1
+  default_redirectlist =
+    OnceSettings.parse_redirectlist(`https:\\/\\/www.reddit.com\\/(.*) => https://old.reddit.com/$1
          https:\\/\\/(mobile.)?twitter.com\\/(.*) => https://nitter.cc/$1`)
 }

@@ -558,4 +558,6 @@ export class StoryListItem extends HTMLElement {
   }
 }
 
-customElements.define("story-item", StoryListItem)
+if (window.customElements) {
+  window.customElements.define("story-item", StoryListItem)
+}

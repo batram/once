@@ -3,13 +3,12 @@ import {
   MenuItem,
   shell,
   clipboard,
-  webContents,
   WebContents,
   ipcMain,
 } from "electron"
 import { NavigationHandler } from "../view/NavigationHandler"
 
-export function init_menu(wc: webContents): void {
+export function init_menu(wc: WebContents): void {
   wc.on("context-menu", (event, params) => {
     event.preventDefault()
     inspect_menu(wc, params)
@@ -99,7 +98,7 @@ function inspect_menu(
         click: (_e, _x, event) => {
           NavigationHandler.open_url(
             cmenu_data.sender,
-            event,
+            event as Event,
             cmenu_data.href,
             "popout-window"
           )
@@ -113,7 +112,7 @@ function inspect_menu(
         click: (_e, _x, event) => {
           NavigationHandler.open_url(
             cmenu_data.sender,
-            event,
+            event as Event,
             cmenu_data.href,
             "new-tab"
           )

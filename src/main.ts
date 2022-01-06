@@ -1,15 +1,8 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
-import {
-  app,
-  BrowserWindow,
-  session,
-  ipcMain,
-  webContents,
-  BrowserView,
-} from "electron"
+import { app, BrowserWindow, ipcMain, webContents } from "electron"
 
 import * as path from "path"
-import * as adblocker from "@cliqz/adblocker-electron"
+//import * as adblocker from "@cliqz/adblocker-electron"
 import * as fullscreen from "./js/view/fullscreen"
 import * as tabbed_out from "./js/view/tabbed_out"
 import * as webcontents_enhancer from "./js/view/webcontents_enhancer"
@@ -83,7 +76,8 @@ function createWindow() {
     //frame: false,
     webPreferences: {
       nodeIntegration: true,
-      enableRemoteModule: false,
+      //enableRemoteModule: false,
+      contextIsolation: false,
       webSecurity: false,
       webviewTag: true,
       preload: global.paths.main_window_preload,
@@ -109,13 +103,13 @@ function createWindow() {
   outline.custom_protocol()
 
   //win.webContents.session.setProxy({ proxyRules: "socks5://127.0.0.1:9150" })
-
+  /*
   adblocker.ElectronBlocker.fromPrebuiltAdsAndTracking(
     require("cross-fetch")
   ).then((blocker: adblocker.ElectronBlocker) => {
     blocker.enableBlockingInSession(session.fromPartition("moep"))
   })
-
+*/
   app.on("before-quit", (event) => {
     console.log("byebye")
     event.preventDefault()
@@ -133,10 +127,6 @@ function createWindow() {
 
 app.on("window-all-closed", () => {
   console.log("here we are now all alone")
-  const allv = BrowserView.getAllViews()
-  allv.forEach((x) => {
-    x.destroy()
-  })
   app.quit()
 })
 

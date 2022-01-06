@@ -1,4 +1,4 @@
-import { app, BrowserView, BrowserWindow, dialog, session } from "electron"
+import { app, BrowserWindow, dialog, session } from "electron"
 import * as mouse_debugger_hook from "../view/debugger_hook"
 import * as contextmenu from "../view/contextmenu"
 import * as fullscreen from "../view/fullscreen"
@@ -20,8 +20,7 @@ export function on_each(): void {
       console.log("will-prevent-unload")
       let win: BrowserWindow = BrowserWindow.fromWebContents(webContents)
       if (!win) {
-        const view = BrowserView.fromWebContents(webContents)
-        win = BrowserWindow.fromBrowserView(view)
+        win = BrowserWindow.fromWebContents(webContents)
       }
       const choice = dialog.showMessageBoxSync(win, {
         type: "question",

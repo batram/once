@@ -6,7 +6,7 @@ export function main_listener(): void {
     const win = BrowserWindow.getFocusedWindow()
     if (win) {
       const bw = win.getBrowserView()
-      if (bw && !bw.isDestroyed()) {
+      if (bw) {
         bw.webContents.send("fullscreen_changed", value)
       }
       win.webContents.send("fullscreen_changed", value)

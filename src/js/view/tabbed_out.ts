@@ -35,13 +35,13 @@ function get_parent_window(webcontents: WebContents) {
     case "window":
       return BrowserWindow.fromWebContents(webcontents)
     case "browserView": {
-      const view = BrowserView.fromWebContents(webcontents)
+      const view = tab_views[webcontents.id]
       return BrowserWindow.fromBrowserView(view)
     }
     case "webview": {
       const window = BrowserWindow.fromWebContents(webcontents.hostWebContents)
       if (!window) {
-        const view = BrowserView.fromWebContents(webcontents.hostWebContents)
+        const view = tab_views[webcontents.id]
         return BrowserWindow.fromBrowserView(view)
       }
       return window
@@ -58,26 +58,24 @@ export function tab_listeners(win: BrowserWindow): void {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (window) {
       const attached_view = window.getBrowserView()
-      if (attached_view && !attached_view.isDestroyed()) {
+      if (attached_view) {
         return attached_view.webContents.id
       }
     }
   })
 
   ipcMain.on("end_me", (event) => {
-    const view = BrowserView.fromWebContents(event.sender)
+    const view = tab_views[event.sender.id]
     if (view) {
       const window = BrowserWindow.fromBrowserView(view)
       if (window) {
         window.removeBrowserView(view)
       }
-      view.destroy()
     }
   })
 
   ipcMain.on("hide_webtab", (event, wc_id) => {
-    const wc = webContents.fromId(parseInt(wc_id))
-    const view = BrowserView.fromWebContents(wc)
+    const view = tab_views[wc_id]
     if (view) {
       const window = BrowserWindow.fromBrowserView(view)
       if (window) {
@@ -87,10 +85,9 @@ export function tab_listeners(win: BrowserWindow): void {
   })
 
   ipcMain.on("show_webtab", (event, wc_id) => {
-    const wc = webContents.fromId(parseInt(wc_id))
-    const view = BrowserView.fromWebContents(wc)
+    const window = BrowserWindow.fromWebContents(event.sender)
+    const view = tab_views[wc_id]
     if (view) {
-      const window = BrowserWindow.fromWebContents(event.sender)
       if (window) {
         window.setBrowserView(view)
       }
@@ -102,7 +99,7 @@ export function tab_listeners(win: BrowserWindow): void {
     //console.log("bound_attached", wc_id)
     const window = BrowserWindow.fromWebContents(event.sender)
     const attached_view = window.getBrowserView()
-    if (attached_view && !attached_view.isDestroyed()) {
+    if (attached_view) {
       const view_wc_id = attached_view.webContents.id
       if (view_wc_id == wc_id) {
         //console.log("bound_attached", event, view_wc_id, wc_id, bounds)
@@ -133,9 +130,10 @@ export function tab_listeners(win: BrowserWindow): void {
 
   ipcMain.on("tab_me_out", (event, data) => {
     console.log("tab_me_out", event, data)
-    const view = BrowserView.fromWebContents(event.sender)
+    const window = BrowserWindow.fromWebContents(event.sender)
+    const view = tab_views[event.sender.id]
+
     if (view) {
-      const window = BrowserWindow.fromBrowserView(view)
       if (data.type == "main") {
         pop_new_main(window, event.sender, data.offset)
       } else if (data.type == "notabs") {
@@ -174,36 +172,33 @@ export function tab_listeners(win: BrowserWindow): void {
   })
 
   ipcMain.handle("attach_wc_id", (event, wc_id: string) => {
-    const window = BrowserWindow.fromWebContents(event.sender)
-    if (window) {
-      const view_wc = webContents.fromId(parseInt(wc_id))
-      if (view_wc) {
-        const view = BrowserView.fromWebContents(view_wc)
-        if (view) {
-          const old_parent = BrowserWindow.fromBrowserView(view)
-          if (old_parent && old_parent.id != window.id) {
-            console.debug(
-              "removing from old_parent",
-              old_parent.webContents.id,
-              window.webContents.id,
-              wc_id,
-              view.webContents.id
-            )
-            old_parent.removeBrowserView(view)
-          }
+    const view = tab_views[parseInt(wc_id)]
+    console.log("attach_wc_id", view, wc_id, event.sender.id, tab_views)
+    if (view) {
+      const parent = BrowserWindow.fromWebContents(
+        webContents.fromId(event.sender.id)
+      )
 
-          window.setBrowserView(view)
-
-          view.webContents.send("attached", event.sender.id)
-
-          console.log(
-            "attach_wc_id",
-            event.sender.id,
+      if (parent) {
+        console.log("attach_wc_id parent", parent)
+        const old_parent = BrowserWindow.fromBrowserView(view)
+        if (old_parent && old_parent.id != parent.id) {
+          console.debug(
+            "removing from old_parent",
+            old_parent.webContents.id,
+            parent.webContents.id,
             wc_id,
             view.webContents.id
           )
-          return view.webContents.id
+          old_parent.removeBrowserView(view)
         }
+
+        parent.setBrowserView(view)
+
+        view.webContents.send("attached", event.sender.id)
+
+        console.log("attach_wc_id", event.sender.id, wc_id, view.webContents.id)
+        return view.webContents.id
       }
     }
     event.returnValue = null
@@ -226,7 +221,7 @@ export function tab_listeners(win: BrowserWindow): void {
       if (views) {
         win.getBrowserViews().forEach((v) => {
           win.removeBrowserView(v)
-          v.destroy()
+          //v.destroy()
         })
       }
     }
@@ -234,7 +229,7 @@ export function tab_listeners(win: BrowserWindow): void {
   })
 }
 
-export function open_in_new_window(sender: webContents, href: string): void {
+export function open_in_new_window(sender: WebContents, href: string): void {
   const og_window = get_parent_window(sender)
   const new_parent = new_main(og_window)
   const view = create_view(new_parent.webContents.id)
@@ -249,7 +244,8 @@ function create_view(parent_id: number): BrowserView {
   const view = new BrowserView({
     webPreferences: {
       nodeIntegration: true,
-      enableRemoteModule: false,
+      //enableRemoteModule: false,
+      contextIsolation: false,
       webSecurity: false,
       webviewTag: true,
       preload: global.paths.tab_view_preload,
@@ -277,7 +273,7 @@ function tab_in_new_win(
   const size = parent.getSize()
   let poped_view = parent.getBrowserView()
   if (!poped_view) {
-    poped_view = BrowserView.fromWebContents(wc)
+    poped_view = tab_views[wc.id]
   }
   const view_bound = poped_view.getBounds()
   const parent_pos = parent.getPosition()
@@ -318,7 +314,7 @@ function follow_resize(win_popup: BrowserWindow, poped_view: BrowserView) {
 
 function pop_new_main(
   parent: BrowserWindow,
-  wc: webContents,
+  wc: WebContents,
   offset: [number, number] = null
 ): void {
   parent.webContents.send("detaching")
@@ -357,7 +353,8 @@ export function new_window(
     icon: global.paths.icon_path,
     webPreferences: {
       nodeIntegration: true,
-      enableRemoteModule: false,
+      //enableRemoteModule: false,
+      contextIsolation: false,
       webSecurity: false,
       webviewTag: true,
       preload: preload_path,
@@ -381,7 +378,7 @@ export function new_window(
           v.webContents.id
         )
         win_popup.removeBrowserView(v)
-        v.destroy()
+        //v.destroy()
       })
     }
     x.preventDefault()
@@ -391,7 +388,7 @@ export function new_window(
   return win_popup
 }
 
-function pop_no_tabs(parent: BrowserWindow, wc: webContents): void {
+function pop_no_tabs(parent: BrowserWindow, wc: WebContents): void {
   parent.webContents.send("detaching")
   tab_in_new_win(parent, wc, "", true)
 }

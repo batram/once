@@ -1,7 +1,7 @@
 import { Story } from "../../data/Story"
 import { StoryListItem } from "../StoryListItem"
 import { TabWrangler } from "../TabWrangler"
-import { ipcRenderer, WebviewTag } from "electron"
+import { ipcRenderer } from "electron"
 import * as child_process from "child_process"
 import * as path from "path"
 import { WebTab } from "../WebTab"
@@ -468,9 +468,10 @@ async function source_youtube(
           let vtt_data: string
 
           if (player_response.storyboards.playerStoryboardSpecRenderer) {
-            const sel = player_response.storyboards.playerStoryboardSpecRenderer.spec.split(
-              "|"
-            )
+            const sel =
+              player_response.storyboards.playerStoryboardSpecRenderer.spec.split(
+                "|"
+              )
             const url_pattern = sel[0].replace("$L", "2")
             const image_info = sel[3].split("#")
             const conf: VTT_Conf = {
@@ -527,9 +528,8 @@ async function source_youtube(
                 for (const format of player_response.streamingData
                   .adaptiveFormats) {
                   const ul = new URLSearchParams(format.signatureCipher)
-                  const webview = document.querySelector<Electron.WebviewTag>(
-                    "#webview"
-                  )
+                  const webview =
+                    document.querySelector<Electron.WebviewTag>("#webview")
                   const defunged = await webview.executeJavaScript(
                     fungy_code + "\n" + `fungy(atob("${btoa(ul.get("s"))}"))`
                   )
