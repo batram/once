@@ -21,7 +21,7 @@ import { parse_human_time } from "../../data/parser"
 
 export function parse(doc: Document): Story[] {
   const curl = item_url
-  const stories = Array.from(doc.querySelectorAll(".storylink"))
+  const stories = Array.from(doc.querySelectorAll(".titlelink"))
 
   return stories.map((story_el: HTMLAnchorElement) => {
     const pawpaw = story_el.parentElement.parentElement
@@ -54,8 +54,8 @@ export function parse(doc: Document): Story[] {
 
     const user_el = subtext.querySelector<HTMLAnchorElement>(".hnuser")
     if (user_el) {
-      const user_id = subtext.querySelector<HTMLAnchorElement>(".hnuser")
-        .innerText
+      const user_id =
+        subtext.querySelector<HTMLAnchorElement>(".hnuser").innerText
 
       const user_tag = {
         class: "user",
