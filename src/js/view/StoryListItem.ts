@@ -6,6 +6,7 @@ import * as story_list from "../view/StoryList"
 import { ipcRenderer } from "electron"
 import { URLRedirect } from "../data/URLRedirect"
 import { StoryMap } from "../data/StoryMap"
+import { StoryHistory } from "./StoryHistory"
 
 export class StoryListItem extends HTMLElement {
   story: Story
@@ -213,10 +214,13 @@ export class StoryListItem extends HTMLElement {
 
     this.read_btn.addEventListener("click", () => {
       this.read_btn.classList.add("user_interaction")
+      const old_state = this.story.read_state
+      const new_state = this.story.read_state == "unread" ? "skipped" : "unread"
+      StoryHistory.instance.story_change(this.story, new_state, old_state)
       StoryMap.remote.persist_story_change(
         this.story.href,
         "read_state",
-        this.story.read_state == "unread" ? "skipped" : "unread"
+        new_state
       )
     })
 
@@ -366,6 +370,11 @@ export class StoryListItem extends HTMLElement {
       if (Math.abs(shift) / this.clientWidth > threshold) {
         if (shift < 0) {
           this.read_btn.classList.add("user_interaction")
+          StoryHistory.instance.story_change(
+            this.story,
+            "skipped",
+            this.story.read_state
+          )
           StoryMap.remote.persist_story_change(
             this.story.href,
             "read_state",

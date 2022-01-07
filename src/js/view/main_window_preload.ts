@@ -1,5 +1,6 @@
 import { OnceSettings } from "../OnceSettings"
 import { SettingsPanel } from "../view/SettingsPanel"
+import { StoryHistory } from "./StoryHistory"
 import { TabWrangler } from "../view/TabWrangler"
 import { URLRedirect } from "../data/URLRedirect"
 import * as fullscreen from "./fullscreen"
@@ -14,6 +15,7 @@ URLRedirect.init()
 
 document.addEventListener("DOMContentLoaded", async () => {
   new SettingsPanel()
+  new StoryHistory()
   story_list.init()
   side_menu.init()
   fullscreen.render_listeners()
@@ -37,7 +39,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const dev_cache = process.env.LDEV == "1"
 
-  const grouped_story_sources = await OnceSettings.remote.grouped_story_sources()
+  const grouped_story_sources =
+    await OnceSettings.remote.grouped_story_sources()
   if (grouped_story_sources) {
     story_loader.parallel_load_stories(grouped_story_sources, dev_cache)
   } else {
