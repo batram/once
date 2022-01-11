@@ -66,11 +66,12 @@ export function tab_listeners(win: BrowserWindow): void {
 
   ipcMain.on("end_me", (event) => {
     const view = tab_views[event.sender.id]
+    view.webContents.loadURL("about:blank")
+    tab_views[event.sender.id] = null
     if (view) {
       const window = BrowserWindow.fromBrowserView(view)
       if (window) {
         window.removeBrowserView(view)
-        view.webContents.loadURL("about:blank")
       }
     }
   })
