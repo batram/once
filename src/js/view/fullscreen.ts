@@ -128,7 +128,19 @@ function left(): void {
     const right_panel = document.querySelector<HTMLElement>("#right_panel")
     if (right_panel) {
       right_panel.style.minWidth = ""
+      const tab_content = document.querySelector<HTMLElement>("#tab_content")
+      const bounds = {
+        x: Math.floor(tab_content.offsetLeft),
+        y: Math.floor(tab_content.offsetTop),
+        width: Math.floor(tab_content.clientWidth),
+        height: Math.floor(tab_content.clientHeight),
+      }
+      const active_tab = document.querySelector<HTMLElement>(".tab.active")
+      if (active_tab) {
+        ipcRenderer.send("bound_attached", active_tab.dataset.wc_id, bounds)
+      }
     }
+
     const webview = document.querySelector<Electron.WebviewTag>("webview")
     if (webview) {
       webview
