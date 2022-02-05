@@ -157,7 +157,7 @@ export class WebTab {
     )
 
     this.webview.addEventListener("did-start-loading", () => {
-      this.inject_css()
+      //this.inject_css()
     })
     this.webview.addEventListener(
       "did-navigate",
@@ -189,9 +189,8 @@ export class WebTab {
       )
     })
 
-    const reload_tab_btn = document.querySelector<HTMLElement>(
-      "#reload_tab_btn"
-    )
+    const reload_tab_btn =
+      document.querySelector<HTMLElement>("#reload_tab_btn")
     reload_tab_btn.onclick = () => {
       this.webview.reload()
     }
@@ -266,7 +265,9 @@ export class WebTab {
   }
 
   send_to_parent(channel: string, ...args: string[]): void {
-    ipcRenderer.sendTo(this.parent_id, channel, ...args)
+    if (this.parent_id) {
+      ipcRenderer.sendTo(this.parent_id, channel, ...args)
+    }
   }
 
   inject_css(): void {
