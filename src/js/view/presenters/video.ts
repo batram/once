@@ -351,11 +351,17 @@ function show_video(
 
     const vid_ready = () => {
       video_button_active()
+      webview.loadURL(
+        player_html_path + "?" + Math.random() + "#" + b64_json_info
+      )
       current_tab.set_url(url)
       webview.removeEventListener("dom-ready", vid_ready)
     }
-    webview.addEventListener("dom-ready", vid_ready)
-    webview.setAttribute("src", player_html_path + "#" + b64_json_info)
+    try {
+      vid_ready()
+    } catch (e) {
+      webview.addEventListener("dom-ready", vid_ready)
+    }
     return true
   } else {
     fallback_to_src(url)
