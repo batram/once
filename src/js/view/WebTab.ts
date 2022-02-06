@@ -159,6 +159,7 @@ export class WebTab {
     this.webview.addEventListener("did-start-loading", () => {
       //this.inject_css()
     })
+
     this.webview.addEventListener(
       "did-navigate",
       async (e: Electron.DidNavigateEvent) => {
