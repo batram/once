@@ -79,7 +79,7 @@ function inspect_menu(
     })
   )
 
-  if (params.inputFieldType != "none") {
+  if (params.inputFieldType != "none" && params.inputFieldType != undefined) {
     con_menu.append(
       new MenuItem({
         id: "paste",
@@ -91,9 +91,13 @@ function inspect_menu(
     )
   }
 
-  if (params.linkURL == "" && params.selectionText.startsWith("http")) {
+  if (
+    params.linkURL == "" &&
+    params.selectionText != undefined &&
+    params.selectionText.startsWith("http")
+  ) {
     params.linkURL = params.selectionText
-  } else if (params.selectionText != "") {
+  } else if (params.selectionText != undefined && params.selectionText != "") {
     con_menu.append(
       new MenuItem({
         id: "copy",
@@ -177,7 +181,7 @@ function inspect_menu(
             cmenu_data.sender,
             event as Event,
             cmenu_data.href,
-            "new-tab"
+            "blank"
           )
         },
       })

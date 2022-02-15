@@ -234,11 +234,9 @@ export function tab_listeners(win: BrowserWindow): void {
 export function open_in_new_window(sender: WebContents, href: string): void {
   const og_window = get_parent_window(sender)
   const new_parent = new_main(og_window)
-  const view = create_view(new_parent.webContents.id)
-  new_parent.setBrowserView(view)
-  const wc = view.webContents
+  const wc = new_parent.webContents
   wc.once("dom-ready", () => {
-    wc.send("open_in_webview", href)
+    wc.send("open_in_tab", href)
   })
 }
 
