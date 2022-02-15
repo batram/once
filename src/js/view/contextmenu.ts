@@ -7,6 +7,7 @@ import {
   ipcMain,
 } from "electron"
 import { NavigationHandler } from "../view/NavigationHandler"
+import { execFile } from "child_process"
 
 export function init_menu(wc: WebContents): void {
   wc.on("context-menu", (event, params) => {
@@ -60,7 +61,14 @@ function inspect(_menuItem: Electron.MenuItem, cwin: Electron.BrowserWindow) {
 
 function inspect_menu(
   sender: Electron.WebContents,
-  params: { linkURL?: string; x?: number; y?: number; wc_id?: string }
+  params: {
+    linkURL?: string
+    x?: number
+    y?: number
+    wc_id?: string
+    selectionText?: string
+    inputFieldType?: string
+  }
 ) {
   cmenu_data.sender = sender
   const con_menu = new Menu()
@@ -70,6 +78,50 @@ function inspect_menu(
       click: inspect,
     })
   )
+
+  if (params.inputFieldType != "none") {
+    con_menu.append(
+      new MenuItem({
+        id: "paste",
+        label: "paste",
+        click() {
+          sender.paste()
+        },
+      })
+    )
+  }
+
+  if (params.linkURL == "" && params.selectionText.startsWith("http")) {
+    params.linkURL = params.selectionText
+  } else if (params.selectionText != "") {
+    con_menu.append(
+      new MenuItem({
+        id: "copy",
+        label: "copy",
+        click() {
+          clipboard.writeText(params.selectionText, "selection")
+        },
+      })
+    )
+    con_menu.append(
+      new MenuItem({
+        id: "google_search",
+        label: "google",
+        click: () => {
+          execFile(
+            "chrome",
+            [
+              "https://www.google.com/search?q=" +
+                encodeURIComponent(params.selectionText),
+            ],
+            function (err, data) {
+              console.log(err, data)
+            }
+          )
+        },
+      })
+    )
+  }
 
   if (params.linkURL && params.linkURL != "") {
     con_menu.append(new MenuItem({ type: "separator", id: "url_sep" }))
@@ -88,6 +140,17 @@ function inspect_menu(
         label: "Open in Browser",
         click: () => {
           shell.openExternal(cmenu_data.href)
+        },
+      })
+    )
+    con_menu.append(
+      new MenuItem({
+        id: "chrome_open",
+        label: "Open in Chrome",
+        click: () => {
+          execFile("chrome", [cmenu_data.href], function (err, data) {
+            console.log(err, data)
+          })
         },
       })
     )
