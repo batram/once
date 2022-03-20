@@ -6,7 +6,7 @@ import * as path from "path"
 import * as fullscreen from "./js/view/fullscreen"
 import * as tabbed_out from "./js/view/tabbed_out"
 import * as webcontents_enhancer from "./js/view/webcontents_enhancer"
-import * as outline from "./js/view/presenters/outline/inmain"
+import * as presenters_backend from "./js/view/presenters_backend"
 import { StoryMap } from "./js/data/StoryMap"
 import { OnceSettings } from "./js/OnceSettings"
 
@@ -99,8 +99,7 @@ function createWindow() {
   fullscreen.main_listener()
   tabbed_out.tab_listeners(win)
 
-  // TODO: handle general for all presenters
-  outline.custom_protocol()
+  presenters_backend.custom_protocol()
 
   //win.webContents.session.setProxy({ proxyRules: "socks5://127.0.0.1:9150" })
   /*

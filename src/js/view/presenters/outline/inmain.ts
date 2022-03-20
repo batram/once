@@ -1,6 +1,9 @@
 import { ipcMain, session } from "electron"
 import * as fs from "fs"
 import * as path from "path"
+import * as tabbed_out from "../../../view/tabbed_out"
+import { Menu, MenuItem } from "electron"
+import { CMenuData } from "../../../view/contextmenu"
 
 const outline_css = fs.readFileSync(path.join(__dirname, "outline_style.css"))
 const outline_font = fs.readFileSync(path.join(__dirname, "spectral.ttf"))
@@ -41,4 +44,21 @@ export function custom_protocol(): void {
         })
       }
     })
+}
+
+export function context_link(con_menu: Menu, cmenu_data: CMenuData): void {
+  con_menu.append(
+    new MenuItem({
+      id: "url_reader_open",
+      label: "Open in reader",
+      click: () => {
+        tabbed_out.send_to_parent(
+          { sender: cmenu_data.sender },
+          "send_to_new_tab",
+          "outline",
+          cmenu_data.href
+        )
+      },
+    })
+  )
 }

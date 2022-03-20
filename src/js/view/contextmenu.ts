@@ -8,6 +8,7 @@ import {
 } from "electron"
 import { NavigationHandler } from "../view/NavigationHandler"
 import { execFile } from "child_process"
+import * as presenters_backend from "../view/presenters_backend"
 
 export function init_menu(wc: WebContents): void {
   wc.on("context-menu", (event, params) => {
@@ -29,7 +30,7 @@ export function init_menu(wc: WebContents): void {
   })
 }
 
-declare interface CMenuData {
+export declare interface CMenuData {
   rightClickPosition: { x: number; y: number }
   href: string
   sender: WebContents
@@ -186,6 +187,9 @@ function inspect_menu(
         },
       })
     )
+
+    presenters_backend.context_link(con_menu, cmenu_data)
+
     cmenu_data.href = params.linkURL
   } else {
     cmenu_data.href = null

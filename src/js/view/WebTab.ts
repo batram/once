@@ -1,6 +1,6 @@
 import { ipcRenderer } from "electron"
 import * as fullscreen from "./fullscreen"
-import * as presenters from "./presenters"
+import * as presenters from "./presenters_frontend"
 import * as story_list from "./StoryList"
 import { StoryListItem } from "./StoryListItem"
 import { remote_story_change } from "./StoryList"

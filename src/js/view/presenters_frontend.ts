@@ -3,6 +3,8 @@ import * as fs from "fs"
 import { Story } from "../data/Story"
 import { WebTab } from "./WebTab"
 import { StoryListItem } from "./StoryListItem"
+import { Menu } from "electron"
+import { CMenuData } from "./contextmenu"
 
 export declare interface PresenterOptions {
   story_button: {
@@ -19,6 +21,7 @@ export declare interface Presenter {
   presenter_options: PresenterOptions
   display_url: (url: string) => string
   story_elem_button?: (story: Story, intab: boolean) => HTMLElement
+  context_link?: (con_menu: Menu, cmenu_data: CMenuData) => void
   handle(url: string): Promise<boolean>
   handle_url(url: string): Promise<boolean>
   init_in_webtab?(tab: WebTab): void
@@ -103,6 +106,14 @@ export function init_in_webtab(tab: WebTab): void {
   get_active().forEach((presenter) => {
     if (presenter.init_in_webtab) {
       presenter.init_in_webtab(tab)
+    }
+  })
+}
+
+export function context_link(con_menu: Menu, cmenu_data: CMenuData): void {
+  get_active().forEach((presenter) => {
+    if (Object.prototype.hasOwnProperty.call(presenter, "context_link")) {
+      presenter["context_link"](con_menu, cmenu_data)
     }
   })
 }

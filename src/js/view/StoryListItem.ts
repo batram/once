@@ -1,7 +1,7 @@
 import * as story_parser from "../data/parser"
 import * as StoryFilterView from "../view/StoryFilterView"
 import { Story, SubStory } from "../data/Story"
-import * as presenters from "../view/presenters"
+import * as presenters from "./presenters_frontend"
 import * as story_list from "../view/StoryList"
 import { ipcRenderer } from "electron"
 import { URLRedirect } from "../data/URLRedirect"
