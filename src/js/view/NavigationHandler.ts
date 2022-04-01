@@ -1,5 +1,6 @@
 import { URLRedirect } from "../data/URLRedirect"
 import * as tabbed_out from "../view/tabbed_out"
+import { execFile } from "child_process"
 
 export class NavigationHandler {
   webContents: Electron.WebContents
@@ -18,9 +19,15 @@ export class NavigationHandler {
     webContents.on(
       "new-window",
       (event, url, frameName, disposition, ...args) => {
+        console.log("new-window", event, url, frameName, disposition, args)
         console.debug("new-window", frameName, args)
         if (frameName == "popout-window" || disposition == "new-window") {
           NavigationHandler.open_url(webContents, event, url, "popout-window")
+        } else if (disposition == "foreground-tab") {
+          event.preventDefault()
+          execFile("chrome", [url], function (err, data) {
+            console.log(err, data)
+          })
         } else {
           NavigationHandler.open_url(webContents, event, url, "blank")
         }
