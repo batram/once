@@ -35,7 +35,7 @@ export class StoryHistory {
         if (e.ctrlKey) {
           if (e.key == "z") {
             this.undo()
-          } else if (e.key == "r") {
+          } else if (e.key == "y") {
             this.redo()
           }
         }
@@ -44,7 +44,6 @@ export class StoryHistory {
       true
     )
   }
-
   story_change(
     story: Story,
     new_state: "unread" | "read" | "skipped",
