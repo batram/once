@@ -216,7 +216,9 @@ export class StoryListItem extends HTMLElement {
       this.read_btn.classList.add("user_interaction")
       const old_state = this.story.read_state
       const new_state = this.story.read_state == "unread" ? "skipped" : "unread"
-      StoryHistory.instance.story_change(this.story, new_state, old_state)
+      if (StoryHistory.instance) {
+        StoryHistory.instance.story_change(this.story, new_state, old_state)
+      }
       StoryMap.remote.persist_story_change(
         this.story.href,
         "read_state",
