@@ -1,4 +1,4 @@
-# ![once icon](https://batr.am/once/icon.png?small) once
+# ![icon](https://user-images.githubusercontent.com/1382274/184474910-e0b46b64-8254-4604-a176-1679255c65bb.png?small) once
 
 ## About
 
@@ -23,6 +23,5 @@ npm run package
 ```
 
 ## Screenshots
-
-![main view](https://batr.am/once/main.png) 
-![main view](https://batr.am/once/main_dark.png) 
+![main](https://user-images.githubusercontent.com/1382274/184474922-fbccd4f5-b0d4-42c1-bf48-aee1cd575ddd.png)
+![main_dark](https://user-images.githubusercontent.com/1382274/184474927-a99326c5-b2a6-417a-b96b-1b5313596d39.png)
