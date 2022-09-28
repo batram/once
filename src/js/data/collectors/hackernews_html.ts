@@ -21,15 +21,16 @@ import { parse_human_time } from "../../data/parser"
 
 export function parse(doc: Document): Story[] {
   const curl = item_url
-  const stories = Array.from(doc.querySelectorAll(".titlelink"))
+  const stories = Array.from(doc.querySelectorAll(".athing"))
 
-  return stories.map((story_el: HTMLAnchorElement) => {
-    const pawpaw = story_el.parentElement.parentElement
-    const subtext = pawpaw.nextElementSibling
+  return stories.map((story_el: HTMLElement) => {
+    const story_link =
+      story_el.querySelector<HTMLAnchorElement>(".titleline > a")
+    const subtext = story_el.nextElementSibling
 
-    const id = pawpaw.id
-    if (story_el.protocol == "file:") {
-      story_el.href = curl + id
+    const id = story_el.id
+    if (story_link.protocol == "file:") {
+      story_link.href = curl + id
     }
 
     const time = subtext.querySelector<HTMLAnchorElement>(".age a").innerText
@@ -38,15 +39,15 @@ export function parse(doc: Document): Story[] {
     //filter ads
     let filter = null
     if (options.settings.filter_ads.value) {
-      if (pawpaw.querySelector(".votelinks") == null) {
+      if (story_el.querySelector(".votelinks") == null) {
         filter = ":: HN ads ::"
       }
     }
 
     const new_story = new Story(
       options.type,
-      story_el.href,
-      story_el.innerText,
+      story_link.href,
+      story_link.innerText,
       curl + id,
       timestamp,
       filter
