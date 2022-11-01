@@ -25,8 +25,8 @@ export function parse(doc: Document): Story[] {
         link.href = base_url + "/s/" + id
       }
 
-      const timestamp = Date.parse(
-        story.querySelector<HTMLElement>(".byline span").title
+      let timestamp = Date.parse(
+        story.querySelector<HTMLElement>(".byline span[title]").title
       )
 
       const new_story = new Story(
