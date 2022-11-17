@@ -39,7 +39,9 @@ export class StoryListItem extends HTMLElement {
     this.dataset.title = this.story.title
     this.dataset.href = this.story.href
     this.dataset.redirected_url = redirected_url
-    this.dataset.timestamp = this.story.timestamp.toString()
+    this.dataset.timestamp = this.story.timestamp
+      ? this.story.timestamp.toString()
+      : ""
     this.dataset.type = "[" + this.story.type + "]"
     this.dataset.comment_url = this.story.comment_url
 
@@ -423,7 +425,9 @@ export class StoryListItem extends HTMLElement {
     const time = document.createElement("div")
     time.innerText = story_parser.human_time(sub_story_ob.timestamp)
     try {
-      time.title = new Date(sub_story_ob.timestamp).toISOString()
+      time.title = new Date(
+        parseInt(sub_story_ob.timestamp.toString())
+      ).toISOString()
     } catch (e) {
       console.log("date parsing error", sub_story_ob)
     }
