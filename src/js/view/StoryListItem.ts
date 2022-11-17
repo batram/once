@@ -383,7 +383,7 @@ export class StoryListItem extends HTMLElement {
             "skipped"
           )
         } else {
-          this.link.click()
+          window.open(this.link.href, "new_tab")
         }
       }
 
