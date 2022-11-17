@@ -142,7 +142,7 @@ export function days_ago(timestamp: number): number {
 
 export function human_time(time: string | Date | number): string {
   const now = Date.now()
-  const timestamp = parseInt(time.toString())
+  const timestamp = parseInt(time ? time.toString() : "")
   const offset = (now - timestamp) / 1000
   let res = "?"
 
