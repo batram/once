@@ -26,7 +26,7 @@ export function parse(doc: Document): Story[] {
       }
 
       let timestamp = Date.parse(
-        story.querySelector<HTMLElement>(".byline span[title]").title
+        story.querySelector<HTMLElement>(".byline time").title
       )
 
       const new_story = new Story(
