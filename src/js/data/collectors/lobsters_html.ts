@@ -25,9 +25,16 @@ export function parse(doc: Document): Story[] {
         link.href = base_url + "/s/" + id
       }
 
-      let timestamp = Date.parse(
-        story.querySelector<HTMLElement>(".byline time").title
-      )
+      const time_el = story.querySelector<HTMLElement>(".byline time")
+      let timestamp = Date.now()
+      if (time_el) {
+        const unix_sec = time_el.getAttribute("data-at-unix")
+        if (unix_sec) {
+          timestamp = parseInt(unix_sec, 10) * 1000
+        } else if (time_el.title) {
+          timestamp = Date.parse(time_el.title)
+        }
+      }
 
       const new_story = new Story(
         options.type,
@@ -37,9 +44,10 @@ export function parse(doc: Document): Story[] {
         timestamp
       )
 
-      const user_el = story.querySelector<HTMLElement>(".u-author")
-      const username = user_el.innerText
+      const user_links = Array.from(story.querySelectorAll<HTMLAnchorElement>(".byline a[href^='/~']"))
+      const user_el = user_links.find(el => el.innerText.trim().length > 0)
       if (user_el) {
+        const username = user_el.innerText.trim()
         new_story.tags.push({
           class: "user",
           text: username,
