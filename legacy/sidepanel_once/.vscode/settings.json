@@ -1,0 +1,27 @@
+{
+  "workbench.colorCustomizations": {
+    "activityBar.background": "#13332E",
+    "titleBar.activeBackground": "#19423B",
+    "titleBar.activeForeground": "#F6FBFB"
+  },
+  "window.title": "${rootName}${separator}${activeEditorShort}",
+  "files.exclude": {
+    ".once_db": true,
+    "**/node_modules": true
+  },
+  "git.scanRepositories": [".git"],
+  "git.supportCancellation": true,
+  "files.eol": "\n",
+  "eslint.options": {
+    "extensions": [".ts", ".js"]
+  },
+  "eslint.validate": ["javascript", "typescript"],
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.formatOnPaste": true,
+  "editor.formatOnSave": true,
+  "editor.tabSize": 2,
+  "prettier.semi": false
+}

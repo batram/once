@@ -1,0 +1,28 @@
+{
+  "name": "Once Sidepanel",
+  "description": "Put once in your sidepanel",
+  "version": "0.0.1",
+  "manifest_version": 3,
+  "icons": {
+    "48": "static/imgs/icons/mipmap-mdpi/ic_launcher.png"
+  },
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "sidePanel",
+    "contextMenus",
+    "storage",
+    "history",
+    "unlimitedStorage"
+  ],
+  "host_permissions": ["https://*/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "side_panel": {
+    "default_path": "static/sidepanel.html"
+  },
+  "action": {
+    "default_title": "Click to open panel"
+  }
+}

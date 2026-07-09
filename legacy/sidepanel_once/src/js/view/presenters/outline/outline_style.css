@@ -1,0 +1,69 @@
+html {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  box-sizing: content-box;
+  width: 100%;
+}
+
+@font-face {
+  font-family: "Spectral";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: local("Spectral Regular"), local("Spectral-Regular"),
+    url(outline://font) format("truetype");
+}
+
+body {
+  margin: auto;
+  padding: 0 20px;
+  max-width: 700px;
+  font-family: Spectral, Merriweather, Georgia, serif;
+  font-size: 1.1em;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+a {
+  color: #6b6bef;
+}
+
+h1 {
+  margin: 5px 0;
+  font-size: 25px;
+}
+
+img,
+pre,
+p {
+  max-width: 100%;
+  width: auto;
+  height: auto;
+}
+
+iframe {
+  min-width: 600px;
+  min-height: 340px;
+}
+
+img {
+  max-width: 100%;
+  max-height: 350px;
+}
+
+pre {
+  background: rgb(216 216 216 / 40%);
+  font-size: 0.8em;
+  overflow-x: auto;
+  padding: 10px;
+}
+
+ul {
+  margin: 5px;
+  padding: 0 25px;
+}

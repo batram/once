@@ -1,0 +1,58 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "moep",
+      "type": "shell",
+      "command": "echo moep",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "dependsOn": ["moep1", "moep2", "moep3"],
+      "dependsOrder": "parallel",
+      "presentation": {
+        "group": "moep",
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "moep1",
+      "type": "shell",
+      "command": "npm run relaunch",
+      "group": "build",
+      "presentation": {
+        "group": "moep",
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "moep2",
+      "type": "shell",
+      "command": "npm run watch_static",
+      "group": "build",
+      "presentation": {
+        "group": "moep",
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "moep3",
+      "type": "shell",
+      "command": "npm run watch",
+      "group": "build",
+      "presentation": {
+        "group": "moep",
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    }
+  ]
+}
