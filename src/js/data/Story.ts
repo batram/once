@@ -1,106 +1,19 @@
 import { OnceSettings } from "../OnceSettings"
 import { URLRedirect } from "./URLRedirect"
-import { compareStories } from "@once/core"
+import {
+  CoreStory,
+  SortableStory as CoreSortableStory,
+  StoryTag,
+  SubStory
+} from "@once/core"
 
-export interface SubStory {
-  type: string
-  comment_url: string
-  timestamp: string | number | Date
-  tags?: StoryTag[]
-}
+export { StoryTag, SubStory }
 
-export interface StoryTag {
-  class: string
-  text: string
-  href?: string
-  icon?: string
-}
-
-export interface SortableStory {
-  read_state: "unread" | "read" | "skipped"
-  timestamp: number | string | Date
+export interface SortableStory extends CoreSortableStory {
   el?: HTMLElement
 }
 
-interface Attachment {
-  [index: string]: {
-    content_type: string
-    data?: string
-    raw_content?: string
-    digest?: string
-    length?: number
-  }
-}
-
-export class Story {
-  type: string
-  href: string
-  title: string
-  comment_url: string
-  timestamp: string | number | Date
-  filter: string
-  substories: SubStory[]
-  read_state: "unread" | "read" | "skipped"
-  stared: boolean
-  tags: StoryTag[]
-
-  _attachments?: Attachment
-  _rev?: string
-  _id?: string;
-
-  [index: string]:
-    | string
-    | number
-    | Date
-    | Record<string, unknown>[]
-    | boolean
-    | unknown
-
-  constructor(
-    type?: string,
-    href?: string,
-    title?: string,
-    comment_url?: string,
-    timestamp?: string | number | Date,
-    filter?: string
-  ) {
-    this.type = type
-    this.href = href
-    this.title = title
-    this.read_state = "unread"
-    this.comment_url = comment_url
-    this.timestamp = timestamp
-    this.filter = filter
-    this.substories = []
-    this.tags = []
-  }
-
-  static from_obj(story: Record<string, unknown>): Story {
-    const xstory = new Story()
-    for (const i in story) {
-      xstory[i] = story[i]
-    }
-    return xstory
-  }
-
-  to_obj(): Record<string, unknown> {
-    const cloned = JSON.parse(JSON.stringify(this))
-
-    for (const i in this) {
-      try {
-        cloned[i] = this[i]
-      } catch (e) {
-        cloned[i] = null
-      }
-    }
-
-    return cloned
-  }
-
-  static compare(a: SortableStory, b: SortableStory): 1 | 0 | -1 {
-    return compareStories(a, b)
-  }
-
+export class Story extends CoreStory {
   matches_url(url: string): boolean {
     return this.matches_story_url(url) || this.matches_comment_url(url)
   }
@@ -110,26 +23,6 @@ export class Story {
     return (
       this.href === url ||
       (redirected_url != this.href && redirected_url == url)
-    )
-  }
-
-  matches_comment_url(url: string): boolean {
-    return (
-      this.comment_url === url ||
-      (this.substories &&
-        this.substories
-          .map((x) => {
-            return x.comment_url
-          })
-          .includes(url))
-    )
-  }
-
-  has_content(): boolean {
-    return (
-      this._attachments &&
-      this._attachments.content &&
-      this._attachments.content.length != 0
     )
   }
 

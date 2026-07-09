@@ -5,6 +5,23 @@ export interface StoryTag {
   icon?: string
 }
 
+export interface SubStory {
+  type: string
+  comment_url: string
+  timestamp: string | number | Date
+  tags?: StoryTag[]
+}
+
+export interface StoryAttachment {
+  [index: string]: {
+    content_type: string
+    data?: string
+    raw_content?: string
+    digest?: string
+    length?: number
+  }
+}
+
 export interface FilterableStory {
   href: string
   title: string
@@ -18,4 +35,5 @@ export interface FilterableStory {
 export interface SortableStory {
   read_state: "unread" | "read" | "skipped"
   timestamp: number | string | Date
+  el?: unknown
 }

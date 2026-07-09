@@ -1,5 +1,6 @@
 export * from "./settings/defaults"
 export * from "./settings/sourceGroups"
+export * from "./story/CoreStory"
 export * from "./story/compareStories"
 export * from "./story/filterStories"
 export * from "./story/StoryTypes"
