@@ -117,7 +117,8 @@ c98904a Move IndexedDB cache to webext platform
 - `StoryLoader` remains as legacy helper code, but Firefox sidepanel now uses `OnceApp.reloadStories`.
 - `StoryMap` no longer registers transport handlers; Firefox sidepanel story state is owned by `OnceApp`.
 - `packages/ui-web` is shared DOM UI and no longer imports webextension platform packages.
-- `src/js/view/sidepanel.ts` remains the Firefox-specific bootstrap that wires core and UI together.
+- `apps/firefox-extension/src/sidepanel.ts` is the Firefox-specific bootstrap that wires core and UI together.
+- `apps/firefox-extension/src/background.ts` is the Firefox background entrypoint; the legacy root `src/` tree has been removed.
 - Build tooling still relies on root TypeScript path aliases and webpack aliases rather than package-local builds.
   - `packages/app` and all platform packages are now included in root typechecking
 - Guardrails now exist:

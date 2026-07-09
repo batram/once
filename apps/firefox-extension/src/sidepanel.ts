@@ -1,6 +1,4 @@
-import {
-  StoryParser
-} from "@once/core"
+import { StoryParser } from "@once/core"
 import { createOnceApp, OnceClient } from "@once/app"
 import {
   LoaderInsights,
@@ -10,7 +8,7 @@ import {
   StoryHistory,
   StoryList,
   StoryListItem,
-  setOnceClient
+  setOnceClient,
 } from "@once/ui-web"
 import { createWebExtPlatform } from "@once/platform-webext"
 
@@ -30,57 +28,55 @@ document.addEventListener("DOMContentLoaded", async () => {
   Search.init()
   StoryParser.addAllCssColors()
 
-  const dev_cache = false
+  const devCache = false
 
   client.subscribe("selectedUrlChanged", ({ url }) => {
-    update_selected(client, url)
+    updateSelected(client, url)
   })
-  await client.reloadStories(dev_cache)
+  await client.reloadStories(devCache)
 
-  document.querySelectorAll<HTMLElement>(".collapsebutton").forEach((x) => {
-    x.onclick = collapse_menu
+  document.querySelectorAll<HTMLElement>(".collapsebutton").forEach((element) => {
+    element.onclick = collapseMenu
   })
 })
 
-function collapse_menu() {
+function collapseMenu() {
   const menu = document.querySelector("#menu")
   if (menu.classList.contains("collapse")) {
     menu.classList.remove("collapse")
-    document.querySelectorAll<HTMLElement>(".collapsebutton").forEach((x) => {
-      x.innerText = "<"
+    document.querySelectorAll<HTMLElement>(".collapsebutton").forEach((element) => {
+      element.innerText = "<"
     })
   } else {
     menu.classList.add("collapse")
-    document.querySelectorAll<HTMLElement>(".collapsebutton").forEach((x) => {
-      x.innerText = ">"
+    document.querySelectorAll<HTMLElement>(".collapsebutton").forEach((element) => {
+      element.innerText = ">"
     })
   }
 }
 
-async function update_selected(client: OnceClient, href: string) {
-  // ReaderMode: Extract and decode the original URL from the query string
+async function updateSelected(client: OnceClient, href: string) {
   if (href.startsWith("about:reader?url=")) {
     const urlParams = new URLSearchParams(href.replace("about:reader", ""))
     href = decodeURIComponent(urlParams.get("url"))
   }
 
-  const selected_container = document.querySelector("#selected_container")
-  const selected_story_el =
-    selected_container.querySelector<StoryListItem>("story-item")
+  const selectedContainer = document.querySelector("#selected_container")
+  const selectedStory = selectedContainer.querySelector<StoryListItem>("story-item")
 
-  if (selected_story_el && selected_story_el.story.href == href) {
+  if (selectedStory && selectedStory.story.href === href) {
     return
   }
 
   const story = await client.findStoryByUrl(href)
 
   if (!story) {
-    selected_container.innerHTML = ""
+    selectedContainer.innerHTML = ""
     return
   }
 
-  const story_el = new StoryListItem(story)
-  story_el.classList.add("selected")
-  selected_container.innerHTML = ""
-  selected_container.append(story_el)
+  const storyElement = new StoryListItem(story)
+  storyElement.classList.add("selected")
+  selectedContainer.innerHTML = ""
+  selectedContainer.append(storyElement)
 }

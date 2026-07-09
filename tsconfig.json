@@ -26,7 +26,7 @@
     }
   },
   "include": [
-    "src/**/*",
+    "apps/firefox-extension/src/**/*",
     "packages/app/src/**/*",
     "packages/core/src/**/*",
     "packages/persistence/src/**/*",
