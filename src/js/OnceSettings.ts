@@ -9,9 +9,10 @@ import {
   defaultFilterList,
   defaultRedirectList,
   defaultSources,
+  groupStorySources,
   parseRedirectList,
   presentRedirectList
-} from "@once/core/settings/defaults"
+} from "@once/core"
 
 export class OnceSettings {
   default_sources = defaultSources
@@ -319,20 +320,7 @@ export class OnceSettings {
 
   async grouped_story_sources(): Promise<Record<string, string[]>> {
     const story_sources = await this.story_sources()
-    const grouped_sources: Record<string, string[]> = {
-      default: []
-    }
-    let current_group = "default"
-    story_sources.forEach((source_entry) => {
-      if (/^\*(.*)$/.test(source_entry)) {
-        current_group = source_entry.replace(/^\*/, "")
-        grouped_sources[current_group] = []
-      } else {
-        grouped_sources[current_group].push(source_entry)
-      }
-    })
-
-    return grouped_sources
+    return groupStorySources(story_sources)
   }
 
   story_id(url: string): string {
