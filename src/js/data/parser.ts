@@ -3,6 +3,12 @@ import * as collectors from "../data/collectors"
 import { Story } from "./Story"
 import { context_link } from "../view/presenters_frontend"
 import { CacheStore } from "./CacheStore"
+import {
+  daysAgo,
+  humanTime,
+  parseHumanTime,
+  patternMatches
+} from "@once/core"
 
 export function get_parser_for_url(url: string): collectors.StoryParser {
   const parsers = collectors.get_parser()
@@ -13,7 +19,7 @@ export function get_parser_for_url(url: string): collectors.StoryParser {
     if (typeof patterns == "string") {
       patterns = [patterns]
     }
-    if (pattern_matches(url, patterns)) {
+    if (patternMatches(url, patterns)) {
       menu.add_type(parser.options.type)
       return parser
     }
@@ -94,26 +100,6 @@ export async function parse_response(
   }
 }
 
-function pattern_matches(url: string, patterns: string[]) {
-  for (const pattern of patterns) {
-    if (pattern.includes("*")) {
-      const split = pattern.split("*")
-      if (split.length != 2) {
-        throw new Error("For now only one wildcard * is allowed in pattern")
-      }
-
-      if (url.startsWith(split[0]) && url.endsWith(split[1])) {
-        return true
-      }
-    }
-    if (url.startsWith(pattern)) {
-      return true
-    }
-  }
-
-  return false
-}
-
 export function parse_xml(val: string): Document {
   const dom_parser = new DOMParser()
   let doc = dom_parser.parseFromString(val, "text/xml")
@@ -153,84 +139,16 @@ export function parse_dom(val: string, url: string): Document {
   return doc
 }
 
-const min_off = 60
-const hour_off = 60 * min_off
-const day_off = 24 * hour_off
-const week_off = 7 * day_off
-const month_off = 30 * day_off
-const year_off = 365 * day_off
-
 export function days_ago(timestamp: number): number {
-  return (Date.now() - timestamp) / day_off / 1000
+  return daysAgo(timestamp)
 }
 
 export function human_time(time: string | Date | number): string {
-  const now = Date.now()
-  const timestamp = parseInt(time ? time.toString() : "")
-  const offset = (now - timestamp) / 1000
-  let res = "?"
-
-  if (offset < min_off) {
-    res = "seconds ago"
-  } else if (offset < hour_off) {
-    const mins = Math.round(offset / min_off)
-    if (mins <= 1) {
-      res = "1 min ago"
-    } else {
-      res = mins + " mins ago"
-    }
-  } else if (offset < day_off) {
-    const hour = Math.round(offset / hour_off)
-    if (hour <= 1) {
-      res = "1 hour ago"
-    } else {
-      res = hour + " hours ago"
-    }
-  } else if (offset < month_off) {
-    const day = Math.round(offset / day_off)
-    if (day <= 1) {
-      res = "1 day ago"
-    } else {
-      res = day + " days ago"
-    }
-  } else if (offset < year_off) {
-    const month = Math.round(offset / month_off)
-    if (month <= 1) {
-      res = "1 month ago"
-    } else {
-      res = month + " months ago"
-    }
-  } else {
-    if (offset / year_off <= 1) {
-      res = "1 year ago"
-    } else {
-      res = Math.round(offset / year_off) + " years ago"
-    }
-  }
-
-  return res
+  return humanTime(time)
 }
 
 export function parse_human_time(str: string): number {
-  const now = Date.now()
-  const num = parseInt(str)
-  let offset = 0
-
-  if (str.includes("min")) {
-    offset = min_off * 1000 * num
-  } else if (str.includes("hour")) {
-    offset = hour_off * 1000 * num
-  } else if (str.includes("day")) {
-    offset = day_off * 1000 * num
-  } else if (str.includes("week")) {
-    offset = week_off * 1000 * num
-  } else if (str.includes("month")) {
-    offset = month_off * 1000 * num
-  } else if (str.includes("year")) {
-    offset = year_off * 1000 * num
-  }
-
-  return now - offset
+  return parseHumanTime(str)
 }
 
 async function cache_result(url: string, content: any) {
