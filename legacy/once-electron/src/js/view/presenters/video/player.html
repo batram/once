@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <style>
+      body,
+      html,
+      .video-js,
+      video {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+    </style>
+    <meta charset="utf-8" />
+    <title>video</title>
+    <link href="./video-js.min.css" rel="stylesheet" />
+    <link href="./videojs-vtt-thumbnails.css" rel="stylesheet" />
+    <script src="./video.min.js"></script>
+    <script src="./videojs-http-source-selector.min.js"></script>
+    <script src="./videojs-contrib-quality-levels.min.js"></script>
+    <script src="./videojs-vtt-thumbnails.min.js"></script>
+    <script src="./yt_adskip.js"></script>
+  </head>
+  <body>
+    <video
+      id="player"
+      class="video-js"
+      controls
+      setup="{autoplay:true}"
+    ></video>
+    <script>
+      var options = {
+        plugins: {},
+      }
+      var player = videojs("#player", options)
+      player.httpSourceSelector()
+      const player_url = location.href
+      if (player_url.split("#vidinfo_").length > 1) {
+        const b64_split = atob(player_url.split("#vidinfo_")[1])
+        const vid_info = JSON.parse(b64_split)
+        videojs("#player").src(vid_info.src)
+
+        if (vid_info.src.provider == "youtube") {
+          adskippy_youtube(vid_info.src.id)
+
+          if (vid_info.src.vtt_data) {
+            player.on("loadedmetadata", () => {
+              player.vttThumbnails({
+                src: vid_info.src.vtt_data,
+              })
+            })
+          }
+        }
+
+        videojs("#player").play()
+        document.title = vid_info.title
+
+        try {
+          const parsed_url = new URL(vid_info.url)
+          const params = parsed_url.searchParams
+          if (params.has("t")) {
+            videojs("#player").currentTime(parseInt(params.get("t")))
+          }
+        } catch (e) {
+          console.error("time url parsing failed", e)
+        }
+      }
+    </script>
+  </body>
+</html>
