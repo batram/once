@@ -1,101 +1,69 @@
 # Once Monorepo Migration Plan
 
-## Direction
+## Objective
 
-Use `sidepanel_once_firefox` as the canonical starting repo because it has the
-most current code. Keep Firefox working first, then add Chrome, then port the
-Electron shell.
+Keep Firefox as the working reference application while making the shared
+application and platform boundaries portable. Chrome, Electron, website, and
+mobile are follow-on compositions, not active applications yet.
 
-Long term GitHub target:
-
-- Rename `batram/once` to `batram/once-electron-legacy`.
-- Rename `batram/sidepanel_once` to `batram/sidepanel_once-legacy`.
-- Rename `batram/sidepanel_once_firefox` to `batram/once`.
-
-## Target Structure
+## Current Architecture
 
 ```text
 apps/
-  firefox-extension/
-  chrome-extension/
-  electron/
-  website/
-  mobile/
+  firefox-extension/  # active entrypoints, public assets, webpack build
+  chrome-extension/   # package placeholder
+  electron/           # package placeholder
+  website/            # package placeholder
+  mobile/             # package placeholder
 
 packages/
-  core/
-  ui-web/
-  platform-webext/
-  platform-electron/
-  platform-web/
-  platform-mobile/
-  persistence/
-
-legacy/
-  sidepanel_once/
-  once-electron/
+  core/               # story, source, parser, collector, and settings logic
+  app/                # OnceApp orchestration and typed client/event API
+  ui-web/             # shared DOM UI
+  persistence/        # PouchDB stores and sync service
+  platform-webext/    # working Firefox/WebExtension ports
+  platform-web/       # localStorage/browser prototype ports
+  platform-electron/  # Electron port placeholder
+  platform-mobile/    # mobile port placeholder
 ```
 
-## Boundaries
+Firefox composition is in `apps/firefox-extension/src/` and uses `OnceApp`
+with `createWebExtPlatform`. The old root `src/` tree has been removed.
 
-- `packages/core`: stories, sources, parsers, collectors, filters, redirects,
-  settings model, sync rules, repository interfaces.
-- `packages/ui-web`: DOM UI shared by extension, website, and maybe Electron.
-- `packages/platform-webext`: Firefox/Chrome APIs, manifests, background,
-  side panel/sidebar glue.
-- `packages/platform-electron`: Electron main process, preload, IPC, windows,
-  tabs, filesystem glue.
-- `apps/*`: packaging, build entrypoints, target-specific config.
+## Boundary Goals
 
-Core must not import `browser`, `chrome`, `electron`, `document`, `window`, or
-filesystem APIs.
+- `core` must be independent of browser, Electron, DOM, and filesystem APIs.
+- `app` owns loading, settings, story state, and the typed client/event API.
+- `ui-web` owns shared DOM presentation and depends on `app`, not platforms.
+- `persistence` owns PouchDB-specific storage and sync.
+- `platform-*` packages implement the ports required by `app`.
+- `apps/*` contain entrypoints, packaging, manifests, and target build config.
 
-## Preserve Git History
+## Completed
 
-Import old repos as subtrees under `legacy/`:
+- Imported legacy Chrome and Electron repositories under `legacy/`.
+- Created the workspace structure and extracted the shared packages.
+- Restored and verified the Firefox development and production builds.
+- Removed `core` imports of webextension/UI packages; the boundary baseline is zero.
+- Moved the Firefox entrypoints out of the old source tree.
 
-```bash
-git remote add legacy-chrome https://github.com/batram/sidepanel_once.git
-git remote add legacy-electron https://github.com/batram/once.git
-git fetch legacy-chrome
-git fetch legacy-electron
+## Remaining Sequence
 
-git subtree add --prefix=legacy/sidepanel_once legacy-chrome master
-git subtree add --prefix=legacy/once-electron legacy-electron master
-```
+1. Make `core` platform-neutral by isolating its remaining DOM assumptions.
+2. Add fake-port tests for `OnceApp` reload, settings, story-change, and
+   database-change behavior.
+3. Remove or explicitly retain the legacy `StoryLoader` and `OnceSettings`
+   compatibility APIs after their callers are accounted for.
+4. Replace root TypeScript/webpack aliases with an explicit package build
+   strategy.
+5. Implement real Electron and mobile ports; their current factories only
+   return caller-supplied ports.
+6. Add Chrome composition/build, then Electron composition/build, using the
+   legacy applications as references. Website and mobile come afterward.
 
-This keeps old commit history available without making the first migration too
-fragile.
+## Validation
 
-## Migration Steps
+- `npm run check`: typecheck, boundary check, and Firefox development build.
+- `npm run b2`: Firefox production build.
 
-1. Create a migration branch: `codex/monorepo-structure`.
-2. Tag current repo tips before moving code:
-   - `pre-monorepo-firefox`
-   - `pre-monorepo-chrome`
-   - `pre-monorepo-electron`
-3. Import Chrome and Electron legacy repos under `legacy/` with `git subtree`.
-4. Add the workspace skeleton: `apps/` and `packages/`.
-5. Move Firefox app packaging into `apps/firefox-extension/`.
-6. Extract platform-neutral modules into `packages/core/`.
-7. Split `OnceSettings` into core services plus platform adapters.
-8. Split `StoryLoader` so core handles loading/parsing and UI handles status.
-9. Move shared DOM UI into `packages/ui-web/`.
-10. Add `packages/platform-webext/` adapters and restore the Firefox build.
-11. Add Chrome manifest/build using the old Chrome repo as reference.
-12. Add Electron shell using the old Electron repo as reference.
-13. Add website/mobile only after the core and web UI boundaries are stable.
-
-## Commit Plan
-
-```text
-1. Import legacy Chrome and Electron repos under legacy/
-2. Add workspace and package skeleton
-3. Move Firefox app files under apps/firefox-extension
-4. Extract core story/parser/collector modules
-5. Extract shared web UI package
-6. Add webextension platform adapters
-7. Restore Firefox build
-8. Add Chrome manifest and build
-9. Add Electron shell
-```
+Keep both commands passing for each incremental migration change.
