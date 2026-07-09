@@ -1,5 +1,6 @@
 export * from "./settings/defaults"
 export * from "./settings/sourceGroups"
+export * from "./story/compareStories"
 export * from "./story/filterStories"
 export * from "./story/StoryTypes"
 export * from "./url/Redirect"

@@ -14,3 +14,8 @@ export interface FilterableStory {
     tags?: StoryTag[]
   }[]
 }
+
+export interface SortableStory {
+  read_state: "unread" | "read" | "skipped"
+  timestamp: number | string | Date
+}

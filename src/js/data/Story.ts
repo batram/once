@@ -1,5 +1,6 @@
 import { OnceSettings } from "../OnceSettings"
 import { URLRedirect } from "./URLRedirect"
+import { compareStories } from "@once/core"
 
 export interface SubStory {
   type: string
@@ -97,22 +98,7 @@ export class Story {
   }
 
   static compare(a: SortableStory, b: SortableStory): 1 | 0 | -1 {
-    //sort by read first and then timestamp
-    const a_read = a.read_state != "unread"
-    const b_read = b.read_state != "unread"
-
-    if (a_read && !b_read) {
-      return 1
-    } else if (!a_read && b_read) {
-      return -1
-    } else if ((a_read && b_read) || (!a_read && !b_read)) {
-      if (a.timestamp > b.timestamp) return -1
-      if (a.timestamp < b.timestamp) return 1
-      return 0
-    }
-    if (a.timestamp > b.timestamp) return -1
-    if (a.timestamp < b.timestamp) return 1
-    return 0
+    return compareStories(a, b)
   }
 
   matches_url(url: string): boolean {
