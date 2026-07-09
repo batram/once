@@ -14,11 +14,35 @@ import {
   StoryList,
   StoryListItem
 } from "@once/ui-web"
-import { BackComms } from "@once/platform-webext"
+import { BackComms, CacheStore } from "@once/platform-webext"
 
 document.addEventListener("DOMContentLoaded", async () => {
   new OnceSettings()
   new StoryMap()
+  StoryLoader.configureStoryLoader({
+    cache: CacheStore,
+    ui: {
+      resetErrors: () => BackComms.send("loader_insights", "reset_errors"),
+      showProcessing: (sources) =>
+        BackComms.send("loader_insights", "show_processing", sources),
+      clearSourceErrors: () =>
+        BackComms.send("settings", "clear_source_errors"),
+      addGroup: (groupName) => BackComms.send("menu", "add_group", groupName),
+      addType: (parserType) => BackComms.send("menu", "add_type", parserType),
+      addSourceError: (url, message, level) =>
+        BackComms.send("settings", "add_source_error", url, message, level),
+      showError: (errorType, url, message, sourceInfo) =>
+        BackComms.send(
+          "loader_insights",
+          "show_error",
+          errorType,
+          url,
+          message,
+          sourceInfo
+        ),
+      hideInsights: () => BackComms.send("loader_insights", "hide")
+    }
+  })
   new SettingsPanel()
   new StoryHistory()
   URLRedirect.init({

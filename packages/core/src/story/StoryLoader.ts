@@ -2,12 +2,76 @@ import * as StoryParser from "../parser/parser"
 import { StoryMap } from "./StoryMap"
 import { Story } from "./Story"
 import * as story_filters from "./StoryFilters"
-import { CacheStore } from "@once/platform-webext"
-import { BackComms } from "@once/platform-webext"
 import { OnceSettings } from "../OnceSettings"
 
+export interface StoryLoaderCacheAdapter {
+  get(url: string): Promise<unknown>
+  set(url: string, content: unknown): Promise<void>
+}
+
+export interface StoryLoaderUiAdapter {
+  resetErrors(): void
+  showProcessing(sources: { domain: string; parserType: string }[]): void
+  clearSourceErrors(): void
+  addGroup(groupName: string): void
+  addType(parserType: string): void
+  addSourceError(
+    url: string,
+    message: string,
+    level: "warning" | "error"
+  ): void
+  showError(
+    errorType: string,
+    url: string,
+    message: string,
+    sourceInfo?: { domain: string; parserType: string }
+  ): void
+  hideInsights(): void
+}
+
+export interface StoryLoaderAdapters {
+  cache?: StoryLoaderCacheAdapter
+  ui?: Partial<StoryLoaderUiAdapter>
+  storiesLoaded?: (stories: Story[], bucket: string) => void
+}
+
+const noopUiAdapter: StoryLoaderUiAdapter = {
+  resetErrors() {},
+  showProcessing() {},
+  clearSourceErrors() {},
+  addGroup() {},
+  addType() {},
+  addSourceError() {},
+  showError() {},
+  hideInsights() {}
+}
+
+const adapters: {
+  cache?: StoryLoaderCacheAdapter
+  ui: StoryLoaderUiAdapter
+  storiesLoaded: (stories: Story[], bucket: string) => void
+} = {
+  ui: noopUiAdapter,
+  storiesLoaded: (stories, bucket) =>
+    StoryMap.remote.stories_loaded(stories, bucket)
+}
+
+export function configureStoryLoader(nextAdapters: StoryLoaderAdapters): void {
+  if (nextAdapters.cache !== undefined) {
+    adapters.cache = nextAdapters.cache
+  }
+  if (nextAdapters.ui) {
+    adapters.ui = { ...adapters.ui, ...nextAdapters.ui }
+  }
+  if (nextAdapters.storiesLoaded) {
+    adapters.storiesLoaded = nextAdapters.storiesLoaded
+  }
+}
+
 async function get_cached(url: string) {
-  const cached = await CacheStore.get(url)
+  if (!adapters.cache) return null
+
+  const cached = await adapters.cache.get(url)
 
   if (!cached) return null
 
@@ -42,26 +106,22 @@ export async function parallel_load_stories(
     { domain: string; parserType: string }
   >()
 
-  BackComms.send("loader_insights", "reset_errors")
+  adapters.ui.resetErrors()
 
   const updateProcessing = () => {
-    BackComms.send(
-      "loader_insights",
-      "show_processing",
-      Array.from(processingSources.values())
-    )
+    adapters.ui.showProcessing(Array.from(processingSources.values()))
   }
 
   // Clear previous source errors
-  BackComms.send("settings", "clear_source_errors")
+  adapters.ui.clearSourceErrors()
 
   for (const group_name in story_groups) {
-    BackComms.send("menu", "add_group", group_name)
+    adapters.ui.addGroup(group_name)
     const group = story_groups[group_name]
     group.map((source_entry) => {
       const sourceInfo = getDomainAndParserType(source_entry)
       if (sourceInfo.parserType != "Unknown") {
-        BackComms.send("menu", "add_type", sourceInfo.parserType)
+        adapters.ui.addType(sourceInfo.parserType)
       }
       processingSources.set(source_entry, sourceInfo)
       updateProcessing()
@@ -99,16 +159,8 @@ export async function parallel_load_stories(
               errorDetail = detail
             }
 
-            BackComms.send(
-              "settings",
-              "add_source_error",
-              source_entry,
-              errorDetail,
-              "error"
-            )
-            BackComms.send(
-              "loader_insights",
-              "show_error",
+            adapters.ui.addSourceError(source_entry, errorDetail, "error")
+            adapters.ui.showError(
               errorType,
               source_entry,
               `Source: ${source_entry}\nError: ${errorDetail}`,
@@ -128,7 +180,7 @@ export async function parallel_load_stories(
   } catch (e) {
     console.error(e)
   }
-  BackComms.send("loader_insights", "hide")
+  adapters.ui.hideInsights()
 }
 
 export const parallelLoadStories = parallel_load_stories
@@ -169,7 +221,7 @@ async function process_story_input(stories: Story[], group_name: string) {
       href: "search:" + "*" + group_name
     })
   })
-  StoryMap.remote.stories_loaded(all_stories, "stories")
+  adapters.storiesLoaded(all_stories, "stories")
 }
 
 //data loader
@@ -184,8 +236,8 @@ async function cache_load(url: string, try_cache = true) {
     const message =
       "No handler available for this source type. You may need to add a custom parser."
 
-    BackComms.send("settings", "add_source_error", url, message, "warning")
-    BackComms.send("loader_insights", "show_error", "No Handler", url, message)
+    adapters.ui.addSourceError(url, message, "warning")
+    adapters.ui.showError("No Handler", url, message)
 
     return
   }
@@ -215,7 +267,8 @@ async function cache_load(url: string, try_cache = true) {
       if (resp.ok) {
         return (
           StoryParser.parse_response(resp, url, og_url, {
-            cacheResult: (cacheUrl, content) => CacheStore.set(cacheUrl, content)
+            cacheResult: (cacheUrl, content) =>
+              adapters.cache?.set(cacheUrl, content) || Promise.resolve()
           }) || []
         )
       } else {
