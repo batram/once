@@ -18,12 +18,14 @@ import {
   ThemeName,
   WebExtSyncStorage
 } from "@once/platform-webext"
+import { PouchListStore } from "@once/persistence"
 
 export class OnceSettings {
   default_sources = defaultSources
 
   syncHandler: PouchDB.Replication.Sync<Record<string, unknown>>
   once_db: PouchDB.Database<Record<string, unknown>>
+  listStore: PouchListStore
   syncStorage = new WebExtSyncStorage()
   static instance: OnceSettings
 
@@ -66,6 +68,7 @@ export class OnceSettings {
   constructor() {
     OnceSettings.instance = this
     this.once_db = new PouchDB("once_db")
+    this.listStore = new PouchListStore(this.once_db)
     this.get_stories().then((stories) => {
       //console.log("init stories", stories.length, stories)
       StoryMap.instance.set_initial_stories(stories)
@@ -289,21 +292,7 @@ export class OnceSettings {
   }
 
   async pouch_get<T>(id: string, fallback_value: T): Promise<T> {
-    return this.once_db
-      .get(id)
-      .then((doc) => {
-        return doc.list as T
-      })
-      .catch((err) => {
-        console.error("pouch_get err", err)
-        if (err.status == 404) {
-          this.once_db.put({
-            _id: id,
-            list: fallback_value
-          })
-        }
-        return fallback_value
-      })
+    return this.listStore.get(id, fallback_value)
   }
 
   async story_sources(): Promise<string[]> {
@@ -379,31 +368,7 @@ export class OnceSettings {
     value: T,
     callback: () => unknown
   ): Promise<void> {
-    const tryUpdate = async (retryCount = 0): Promise<void> => {
-      try {
-        const doc = await this.once_db.get(id)
-        doc.list = value
-        await this.once_db.put(doc)
-        callback()
-      } catch (err: any) {
-        if (err.status === 404) {
-          // Create if id doesn't exist
-          await this.once_db.put({
-            _id: id,
-            list: value
-          })
-          callback()
-        } else if (err.status === 409 && retryCount < 3) {
-          // Conflict - retry with latest document
-          console.log(`Conflict on ${id}, retrying... (${retryCount + 1}/3)`)
-          await tryUpdate(retryCount + 1)
-        } else {
-          console.error("pouch_set error:", err)
-        }
-      }
-    }
-    
-    tryUpdate()
+    return this.listStore.set(id, value, callback)
   }
 
   async add_filter(filter: string): Promise<void> {

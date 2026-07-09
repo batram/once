@@ -13,6 +13,8 @@
     "paths": {
       "@once/core": ["packages/core/src/index.ts"],
       "@once/core/*": ["packages/core/src/*"],
+      "@once/persistence": ["packages/persistence/src/index.ts"],
+      "@once/persistence/*": ["packages/persistence/src/*"],
       "@once/platform-webext": ["packages/platform-webext/src/index.ts"],
       "@once/platform-webext/*": ["packages/platform-webext/src/*"]
     }
@@ -20,6 +22,7 @@
   "include": [
     "src/**/*",
     "packages/core/src/**/*",
+    "packages/persistence/src/**/*",
     "packages/platform-webext/src/**/*"
   ]
 }
