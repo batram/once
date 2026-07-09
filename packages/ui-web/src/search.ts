@@ -2,8 +2,8 @@ import { Story } from "@once/core"
 import * as StoryList from "./StoryList"
 import { StoryListItem } from "./StoryListItem"
 import { domain_search_providers, global_search_providers } from "@once/core"
-import { StoryMap } from "@once/core"
-import { filter_stories } from "@once/core"
+import { applyStoryFilters } from "@once/core"
+import { getOnceClient } from "./client"
 
 export function init_search(): void {
   const searchfield = document.querySelector<HTMLInputElement>("#searchfield")
@@ -211,6 +211,16 @@ async function local_search(needle: string) {
 }
 
 async function add_global_search_results(search_stories: Story[]) {
-  const filtered_stories = await filter_stories(search_stories)
-  StoryMap.instance.stories_loaded(filtered_stories, "global_search_results")
+  const filterList = await getOnceClient().getFilterList()
+  const filtered_stories = applyStoryFilters(filterList, search_stories)
+  const global_search_results = document.querySelector<HTMLElement>(
+    "#global_search_results"
+  )
+  filtered_stories.forEach((story) => {
+    if (!global_search_results.querySelector(`.story[data-href="${story.href}"]`)) {
+      story.bucket = "global_search_results"
+      global_search_results.appendChild(new StoryListItem(story))
+    }
+  })
+  StoryList.sortStories("global_search_results")
 }

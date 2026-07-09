@@ -14,7 +14,7 @@
 - Last verified checks:
   - `npm run check`
 - Last verified commit:
-  - `63aaeb6 Mass move files`
+  - current `HEAD` (`Introduce OnceApp client architecture`)
 
 ## History And Layout
 
@@ -35,6 +35,7 @@
   - `packages/platform-web`
   - `packages/platform-mobile`
   - `packages/persistence`
+  - `packages/app`
 
 ## Extracted So Far
 
@@ -49,6 +50,7 @@
   - story comparison
   - parser modules and pattern matching
   - parser response caching is now injected by the caller
+  - core no longer imports webextension platform code
   - reusable collectors:
     - generic matcher
     - Hacker News HTML
@@ -70,11 +72,22 @@
   - search UI
   - outline and video presenters
   - presenter frontend/backend adapters
+  - shared DOM UI now depends on typed `OnceClient` APIs instead of webextension messaging
+- App package:
+  - typed `OnceApp`/`OnceClient` command and query API
+  - typed event bus for loader, source errors, stories, story changes, settings, redirects, menu state, and selected URL
+  - source loading orchestration, settings persistence orchestration, story merge/update orchestration
+  - platform port interfaces for stores, cache, sync settings, theme, active tab, fetch, DB changes, and transport
+- Platform packages:
+  - `packages/platform-webext` exposes `createWebExtPlatform`
+  - `packages/platform-web` exposes a localStorage-backed `createWebPlatform`
+  - `packages/platform-electron` exposes `createElectronPlatform` for Electron-provided ports
+  - `packages/platform-mobile` exposes `createMobilePlatform` for WebView/native-provided ports
 - Webextension platform package:
   - IndexedDB cache store
   - browser sync storage for sync URL and cache time
   - document theme handling
-  - background/runtime messaging adapter
+  - Firefox/webextension platform factory for PouchDB, cache, sync storage, theme, active-tab integration, and DB change subscriptions
 - Persistence package:
   - PouchDB list store
   - PouchDB story store
@@ -83,6 +96,7 @@
 ## Recent Commits
 
 ```text
+aa98bc9 Extract StoryLoader platform adapters
 63aaeb6 Mass move files
 467c077 Fix optional sync handler typing
 d1629a3 Fix refactor lint and type issues
@@ -97,26 +111,15 @@ c98904a Move IndexedDB cache to webext platform
 ## Remaining Big Knots
 
 - `packages/core` is not platform-neutral yet despite the package move:
-  - 3 known `@once/platform-webext` import violations remain, tracked by `scripts/core-boundary-baseline.json`
+  - 0 known `@once/platform-webext` import violations remain, tracked by `scripts/core-boundary-baseline.json`
   - still contains some DOM assumptions in parser/collector/story helpers
-- `OnceSettings` still owns too much orchestration:
-  - creating the PouchDB instance
-  - registering `BackComms` handlers
-  - reacting to DB changes
-  - forwarding UI refresh messages
-  - exposing compatibility methods
-- `StoryLoader` now lives in core, but still mixes source loading with:
-  - cache access
-  - menu group/type buttons
-  - loader processing status
-  - settings-panel source errors
-- `StoryMap` still mixes domain map behavior with:
-  - messaging/invocation
-  - persistence calls
-  - UI refresh events
-- `packages/ui-web` is shared DOM UI, but currently imports webextension messaging directly.
+- `OnceSettings` is now a platform-neutral compatibility/defaults shell; app orchestration lives in `packages/app`.
+- `StoryLoader` remains as legacy helper code, but Firefox sidepanel now uses `OnceApp.reloadStories`.
+- `StoryMap` no longer registers transport handlers; Firefox sidepanel story state is owned by `OnceApp`.
+- `packages/ui-web` is shared DOM UI and no longer imports webextension platform packages.
 - `src/js/view/sidepanel.ts` remains the Firefox-specific bootstrap that wires core and UI together.
 - Build tooling still relies on root TypeScript path aliases and webpack aliases rather than package-local builds.
+  - `packages/app` and all platform packages are now included in root typechecking
 - Guardrails now exist:
   - `npm run check:types`
   - `npm run check:boundaries`
@@ -126,32 +129,19 @@ c98904a Move IndexedDB cache to webext platform
 ## Next Steps
 
 1. Keep reducing the `packages/core` boundary baseline:
-   - remove `BackComms`/`CacheStore` from `StoryLoader`
-   - remove `BackComms` from `StoryMap`
-   - move `OnceSettings` platform orchestration behind app/platform composition
+   - done: known core platform import violations are now zero
+   - next: move remaining DOM-only helpers such as CSS injection into `packages/ui-web`
 2. Make `packages/core` genuinely platform-neutral:
    - keep `npm run check` green after every step
-   - move DOM-only helpers such as CSS injection into `packages/ui-web`
-   - replace UI notifications with callback/event interfaces owned by the caller
-3. Split `StoryLoader` first, before `StoryMap`:
-   - core: source selection, fetching/parsing/filtering, story tagging
-   - platform adapter: cache get/set and network policy
-   - UI adapter: menu type/group updates, loader insights, settings errors
-4. Then split `StoryMap`:
-   - core story collection and merge/update rules
-   - persistence adapter backed by `packages/persistence`
-   - webextension messaging wrapper in `packages/platform-webext`
-5. Extract `OnceSettings` orchestration last among the current knots:
-   - keep the working Firefox bootstrap stable while lower-level seams are introduced
-   - move PouchDB setup toward persistence/platform composition
-   - leave compatibility methods until callers are migrated
-6. Introduce app-level composition modules:
-   - Firefox sidepanel wires core, ui-web, persistence, and platform-webext
-   - Chrome can reuse the same composition after manifest/build setup
-   - Electron should wait until core no longer depends on webextension APIs
-7. Decide on old-path compatibility re-exports only if external or legacy callers need them.
-8. Add Chrome manifest/build after the Firefox composition path is explicit and repeatable.
-9. Port Electron after the core/platform split is real, not just directory-based.
+   - replace or isolate parser DOM assumptions where they block non-browser runtimes
+3. Harden the new `packages/app` layer:
+   - add focused fake-port tests for reload events, settings events, story changes, and DB changes
+   - decide whether legacy `StoryLoader`/`OnceSettings` exports should remain or be removed after callers are fully migrated
+4. Introduce runtime platform factories:
+   - done: `createWebExtPlatform`, `createWebPlatform`, `createElectronPlatform`, and `createMobilePlatform` entrypoints exist
+   - next: fill Electron/mobile native ports with real IPC/WebView bridge implementations
+5. Add Chrome manifest/build after the Firefox composition path is explicit and repeatable.
+6. Port Electron after the app/platform split is real, not just directory-based.
 
 ## Notes
 

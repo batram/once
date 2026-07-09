@@ -1,23 +1,23 @@
 import { Story, SortableStory } from "@once/core"
-import { OnceSettings } from "@once/core"
 import { StoryListItem } from "./StoryListItem"
-import { filter_story } from "@once/core"
-import { StoryMap, DataChangeEventDetail } from "@once/core"
-import { StoryLoader } from "@once/core"
+import { applyStoryFilter } from "@once/core"
+import { StoryChangeDetail, OnceClient } from "@once/app"
 import * as Search from "./search"
-import { BackComms } from "@once/platform-webext"
 import { URLRedirect } from "@once/core"
 
 export class DataChangeEvent extends Event {
-  detail: DataChangeEventDetail
+  detail: StoryChangeDetail
 
-  constructor(typeArg: string, detail: DataChangeEventDetail) {
+  constructor(typeArg: string, detail: StoryChangeDetail) {
     super(typeArg)
     this.detail = detail
   }
 }
 
-export function init(): void {
+let onceClient: OnceClient
+
+export function init(client: OnceClient): void {
+  onceClient = client
   const reload_stories_btn = document.querySelector<HTMLElement>(
     "#reload_stories_btn"
   )
@@ -44,62 +44,38 @@ export function init(): void {
     }
   }
 
-  remote_story_change()
+  remote_story_change(client)
 }
 
-export function remote_story_change(): void {
-  BackComms.on(
-    "story_map",
-    async (event, cmd: "data_change", details: DataChangeEventDetail) => {
-      switch (cmd) {
-        case "data_change": {
-          if (details.story && !(details.story instanceof Story)) {
-            details.story = Story.from_obj(details.story)
-          }
-          //console.debug("data_change", details)
-          if (details.path && details.path.length != 0) {
-            const story_els = document.querySelectorAll(
-              `.story[data-href="${details.path[0]}"]`
-            )
-            story_els.forEach((story_el) => {
-              story_el.dispatchEvent(
-                new DataChangeEvent("data_change", details)
-              )
-            })
-          }
-
-          break
-        }
-        default:
-          console.log("unhandled story_list", cmd)
-          if (event) event.returnValue = null
-      }
+export function remote_story_change(client = onceClient): void {
+  client.subscribe("storyChanged", (details) => {
+    if (details.story && !(details.story instanceof Story)) {
+      details.story = Story.from_obj(details.story)
     }
-  )
-
-  BackComms.on("story_list", async (event, cmd: string, ...args: unknown[]) => {
-    switch (cmd) {
-      case "add_stories":
-        add_stories(
-          (args[0] as Record<string, unknown>[]).map((story: Story) => {
-            return Story.from_obj(story)
-          }),
-          args[1] as string
-        )
-        break
-      case "reload":
-        reload()
-        break
-      case "refilter":
-        refilter()
-        break
-      case "update_redirects":
-        update_redirects()
-        break
-      default:
-        console.log("unhandled story_list", cmd)
-        event.returnValue = null
+    if (details.path && details.path.length != 0) {
+      const story_els = document.querySelectorAll(
+        `.story[data-href="${details.path[0]}"]`
+      )
+      story_els.forEach((story_el) => {
+        story_el.dispatchEvent(new DataChangeEvent("data_change", details))
+      })
     }
+  })
+  client.subscribe("storiesChanged", ({ stories, bucket, replace }) => {
+    if (replace) {
+      document.querySelectorAll(`#${bucket} .story`).forEach((x) => {
+        x.outerHTML = ""
+      })
+    }
+    add_stories(stories, bucket)
+  })
+  client.subscribe("settingsChanged", ({ section }) => {
+    if (section === "filters") {
+      refilter()
+    }
+  })
+  client.subscribe("redirectsChanged", () => {
+    update_redirects()
   })
 }
 
@@ -249,18 +225,17 @@ function refilter(): void {
     .querySelectorAll<StoryListItem>(".story")
     .forEach(async (story_el) => {
       const sthref = story_el.dataset.href
-      const story = await StoryMap.instance.get(sthref)
+      const story = story_el.story
       const og_filter = story.filter
-          filter_story(story).then(async (story) => {
+      onceClient.getFilterList().then((filterList) => {
+        const filteredStory = applyStoryFilter(filterList, story)
         if (story.filter != og_filter) {
-          StoryMap.instance.persist_story_change(
-            story.href,
+          onceClient.persistStoryChange(
+            filteredStory.href,
             "filter",
-            story.filter
+            filteredStory.filter
           )
-          const nstory = new StoryListItem(
-            await StoryMap.instance.get(sthref.toString())
-          )
+          const nstory = new StoryListItem(filteredStory)
           story_el.replaceWith(nstory)
         }
       })
@@ -279,14 +254,7 @@ async function reload(try_cache = true): Promise<void> {
       x.outerHTML = ""
     })
 
-    const grouped_story_sources =
-      await OnceSettings.instance.grouped_story_sources()
-
-    if (grouped_story_sources) {
-      await StoryLoader.parallelLoadStories(grouped_story_sources, try_cache)
-    } else {
-      console.error("no sources", grouped_story_sources)
-    }
+    await onceClient.reloadStories(try_cache)
   } finally {
     btn?.classList.remove("disabled")
     btn_img?.classList.remove("rotating")

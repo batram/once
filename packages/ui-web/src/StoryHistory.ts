@@ -1,5 +1,5 @@
 import { Story } from "@once/core"
-import { StoryMap } from "@once/core"
+import { getOnceClient } from "./client"
 
 export class StoryHistory {
   undo_history: {
@@ -44,11 +44,6 @@ export class StoryHistory {
       true
     )
 
-    browser.contextMenus.onClicked.addListener((info, tab) => {
-      if (info.menuItemId === "once_undo") {
-        this.undo()
-      }
-    })
   }
   story_change(
     story: Story,
@@ -64,7 +59,7 @@ export class StoryHistory {
     if (this.undo_history.length > 0) {
       const hstate = this.undo_history.pop()
       console.log("undo", hstate)
-      StoryMap.instance.persist_story_change(
+      getOnceClient().persistStoryChange(
         hstate.story.href,
         "read_state",
         hstate.old_state
@@ -83,7 +78,7 @@ export class StoryHistory {
     if (this.redo_history.length > 0) {
       const hstate = this.redo_history.pop()
       console.log("redo", hstate)
-      StoryMap.instance.persist_story_change(
+      getOnceClient().persistStoryChange(
         hstate.story.href,
         "read_state",
         hstate.old_state

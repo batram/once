@@ -51,6 +51,6 @@ export class PouchListStore {
       }
     }
 
-    tryUpdate()
+    await tryUpdate()
   }
 }

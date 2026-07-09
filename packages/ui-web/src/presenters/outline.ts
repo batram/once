@@ -1,9 +1,8 @@
 import { Story } from "@once/core"
 import { StoryListItem } from "../../src/StoryListItem"
 //import * as Readability from "../../third_party/Readability.js"
-import { BackComms } from "@once/platform-webext"
-import { StoryMap } from "@once/core"
 import { Presenter, PresenterOptions } from "../../src/presenters_frontend"
+import { getOnceClient } from "../client"
 
 export const description = "Presents contents of a webpage in more readable way"
 
@@ -96,7 +95,7 @@ export function story_elem_button(story: Story): HTMLElement {
     outline_btn.parentElement
       ?.querySelector(".read_btn")
       ?.classList.add("user_interaction")
-    await StoryMap.instance.persist_story_change(
+    await getOnceClient().persistStoryChange(
       story.href,
       "read_state",
       "read"
@@ -118,48 +117,18 @@ export function story_elem_button(story: Story): HTMLElement {
 }
 
 async function openInReaderMode(url: string, newTab = false) {
-  let tab: browser.tabs.Tab
-  if (newTab) {
-    // Create the tab with the standard URL first
-    tab = await browser.tabs.create({ url })
-  } else {
-    // Update current tab to the standard URL
-    tab = await browser.tabs.update({ url })
-  }
-
-  // Wait for the page to be "article-ready" so Firefox can enter Reader Mode
-  browser.tabs.onUpdated.addListener(function listener(tabId, changeInfo) {
-    if (tabId === tab.id && changeInfo.isArticle) {
-      browser.tabs.toggleReaderMode(tabId)
-      browser.tabs.onUpdated.removeListener(listener)
-    }
-  })
+  getOnceClient().openUrl(url, newTab ? "blank" : "_self")
 }
 
 async function openInCurrentTab(url: string) {
-  // Query for the active tab in the window where the sidebar is open
-  const tabs = await browser.tabs.query({ active: true, currentWindow: true })
-
-  if (tabs.length > 0) {
-    // Update the URL of the found active tab
-    browser.tabs.update(tabs[0].id, { url: url })
-  }
+  getOnceClient().openUrl(url, "_self")
 }
 
 function openInNewTab(url: string) {
-  browser.tabs.create({
-    url: url,
-    active: true // Set to false if you want it to open in the background
-  })
+  getOnceClient().openUrl(url, "blank")
 }
 
 export function init_in_webtab(): void {
-  //current_tab = tab
-  BackComms.on("outline", (_event, href) => {
-    outline_button_active()
-    outline(href)
-  })
-
   if (!presenter_options.urlbar_button.value) {
     return
   }
@@ -225,166 +194,11 @@ export async function present(url: string): Promise<void> {
 }
 
 async function outline(url: string): Promise<void> {
-  /* const webview = document.querySelector<Electron.WebviewTag>("#webview")
-  let story_content = null
-
-  const story = await StoryMap.remote.get(url)
-  if (story) {
-    story_content = await story.get_content()
-  }
-
-  if (!story_content) {
-    if (BackComms.sendSync("has_outlined", url)) {
-      //webview.setAttribute("src", "outline://data:" + encodeURIComponent(url))
-      return
-    } else {
-      if (webview.getAttribute("src") == url) {
-        //already have the url loaded, get the document
-        story_content = await webview.executeJavaScript(
-          "document.documentElement.outerHTML"
-        )
-    }
-    }
-  }
-
-  try {
-    webview.setAttribute(
-      "src",
-      data_outline_url +
-        "<title>outlining</title>started outlining" +
-        "#" +
-        encodeURIComponent(url)
-    )
-  } catch (e) {
-    console.log("meop")
-  }
-
-  if (!webview) {
-    fail_outline("failed to find webview")
-    return
-  }
-
-  const urlfield = document.querySelector<HTMLInputElement>("#urlfield")
-  if (urlfield == undefined) {
-    return
-  }
-  //current_tab.set_url(url)
-  const og_url = url
-
-  if (!story_content) {
-    let content_resp
-    if (presenter_options.use_webarchive.value) {
-      content_resp = await archive_cache(url)
-    }
-    if (content_resp == undefined || !content_resp.ok) {
-      if (presenter_options.use_google_cache.value) {
-        content_resp = await google_cache(url)
-      }
-    }
-    if (content_resp == undefined || !content_resp.ok) {
-      content_resp = await fetch(url)
-    }
-
-    if (!content_resp.ok) {
-      console.error("outline failed to get story content", url)
-      fail_outline("failed to fetch story content")
-      return
-    } else {
-      url = content_resp.url
-      const content_type = content_resp.headers.get("content-type")
-      if (!content_type.startsWith("text/html")) {
-        fail_outline("can not handle content type" + content_resp)
-        return
-      }
-      story_content = await content_resp.text()
-    }
-  }
-
-  const dom_parser = new DOMParser()
-  const doc = dom_parser.parseFromString(story_content, "text/html")
-
-  const base = document.createElement("base")
-  base.setAttribute("href", url)
-
-  if (
-    doc.querySelector("base") &&
-    doc.querySelector("base").hasAttribute("href")
-  ) {
-    console.log("base already there", doc.querySelector("base"))
-  } else {
-    doc.head.append(base)
-  }
-
-  doc.querySelectorAll<HTMLImageElement>("img").forEach((e) => {
-    if (e.hasAttribute("src") && e.getAttribute("src") != e.src) {
-      e.setAttribute("src", e.src)
-    }
-  })
-
-  doc.querySelectorAll<HTMLImageElement>("iframe").forEach((e) => {
-    if (e.hasAttribute("src")) {
-      const src = e.getAttribute("src")
-      if (
-        src.startsWith("https://web.archive.org/web/") &&
-        src.includes("if_/") &&
-        (src.includes("youtube.com") || src.includes("youtu.be"))
-      ) {
-        e.src = src.split("if_/")[1]
-      }
-    }
-  })
-
-  doc.querySelectorAll<HTMLLinkElement>("a").forEach((e) => {
-    if (e.hasAttribute("href") && e.getAttribute("href") != e.href) {
-      e.setAttribute("href", e.href)
-    }
-  })
-
-  const article = new Readability(doc, {}).parse()
-  if (!article) {
-    fail_outline("Readability didn't find anything")
-    return
-  }
-  if (!article.content) {
-    article.title = ""
-  }
-  if (!article.content) {
-    article.content = "Readability fail"
-  }
-
-  if (!article.title && story && story.title) {
-    article.title = story.title
-  }
-
-  const h1_title = document.createElement("h1")
-  h1_title.innerText = article.title
-  h1_title.classList.add("outlined")
-
-  const title = document.createElement("title")
-  title.innerText = article.title
-
-  const data =
-    '<link rel="stylesheet" href="outline://css">' +
-    base.outerHTML +
-    title.outerHTML +
-    h1_title.outerHTML +
-    article.content
-
-  BackComms.sendSync("outlined", og_url, data)
-
-  webview.setAttribute("src", "outline://data:" + encodeURIComponent(og_url))
-  */
+  console.debug("outline presenter is not implemented for this surface", url)
 }
 
 function fail_outline(reason: string) {
-  /*const webview = document.querySelector<Electron.WebviewTag>("#webview")
-  webview.setAttribute(
-    "src",
-    data_outline_url_fail +
-      encodeURIComponent("  " + reason) +
-      "#" +
-      "outline:failed"
-  )*/
+  console.error("outline failed", reason)
 }
 
 async function archive_cache(url: string) {

@@ -15,6 +15,8 @@
     "paths": {
       "@once/core": ["packages/core/src/index.ts"],
       "@once/core/*": ["packages/core/src/*"],
+      "@once/app": ["packages/app/src/index.ts"],
+      "@once/app/*": ["packages/app/src/*"],
       "@once/persistence": ["packages/persistence/src/index.ts"],
       "@once/persistence/*": ["packages/persistence/src/*"],
       "@once/platform-webext": ["packages/platform-webext/src/index.ts"],
@@ -25,9 +27,13 @@
   },
   "include": [
     "src/**/*",
+    "packages/app/src/**/*",
     "packages/core/src/**/*",
     "packages/persistence/src/**/*",
     "packages/ui-web/src/**/*",
-    "packages/platform-webext/src/**/*"
+    "packages/platform-webext/src/**/*",
+    "packages/platform-web/src/**/*",
+    "packages/platform-electron/src/**/*",
+    "packages/platform-mobile/src/**/*"
   ]
 }

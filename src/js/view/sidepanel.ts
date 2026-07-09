@@ -1,10 +1,7 @@
 import {
-  OnceSettings,
-  StoryLoader,
-  StoryMap,
-  StoryParser,
-  URLRedirect
+  StoryParser
 } from "@once/core"
+import { createOnceApp, OnceClient } from "@once/app"
 import {
   LoaderInsights,
   Menu,
@@ -12,78 +9,33 @@ import {
   SettingsPanel,
   StoryHistory,
   StoryList,
-  StoryListItem
+  StoryListItem,
+  setOnceClient
 } from "@once/ui-web"
-import { BackComms, CacheStore } from "@once/platform-webext"
+import { createWebExtPlatform } from "@once/platform-webext"
 
 document.addEventListener("DOMContentLoaded", async () => {
-  new OnceSettings()
-  new StoryMap()
-  StoryLoader.configureStoryLoader({
-    cache: CacheStore,
-    ui: {
-      resetErrors: () => BackComms.send("loader_insights", "reset_errors"),
-      showProcessing: (sources) =>
-        BackComms.send("loader_insights", "show_processing", sources),
-      clearSourceErrors: () =>
-        BackComms.send("settings", "clear_source_errors"),
-      addGroup: (groupName) => BackComms.send("menu", "add_group", groupName),
-      addType: (parserType) => BackComms.send("menu", "add_type", parserType),
-      addSourceError: (url, message, level) =>
-        BackComms.send("settings", "add_source_error", url, message, level),
-      showError: (errorType, url, message, sourceInfo) =>
-        BackComms.send(
-          "loader_insights",
-          "show_error",
-          errorType,
-          url,
-          message,
-          sourceInfo
-        ),
-      hideInsights: () => BackComms.send("loader_insights", "hide")
-    }
-  })
-  new SettingsPanel()
+  const platform = createWebExtPlatform()
+  const app = createOnceApp(platform)
+  const client = app.client
+  setOnceClient(client)
+
+  await app.start()
+
+  new SettingsPanel(client)
   new StoryHistory()
-  URLRedirect.init({
-    onUpdated: () => {
-      BackComms.send("story_list", "update_redirects")
-    }
-  })
-  StoryList.init()
-  Menu.init()
-  LoaderInsights.init()
+  StoryList.init(client)
+  Menu.init(client)
+  LoaderInsights.init(client)
   Search.init()
   StoryParser.addAllCssColors()
 
   const dev_cache = false
 
-  const grouped_story_sources =
-    await OnceSettings.instance.grouped_story_sources()
-  console.log("grouped_story_sources", grouped_story_sources)
-  if (grouped_story_sources) {
-    StoryLoader.parallelLoadStories(grouped_story_sources, dev_cache)
-  } else {
-    console.error("no sources", grouped_story_sources)
-  }
-
-  browser.tabs.onActivated.addListener(async (activeInfo) => {
-    const win = await browser.windows.getCurrent()
-    const tab = await browser.tabs.get(activeInfo.tabId)
-    console.log("Tab switched, new URL:", tab, win.id, tab.windowId)
-    if (tab.windowId == win.id) {
-      update_selected(tab.url)
-    }
+  client.subscribe("selectedUrlChanged", ({ url }) => {
+    update_selected(client, url)
   })
-
-  browser.tabs.onUpdated.addListener(async function (tabId, changeInfo, tab) {
-    console.log(tabId, changeInfo, tab)
-    const cw = await browser.windows.getCurrent()
-
-    if (tab.active && tab.windowId == cw.id) {
-      update_selected(tab.url)
-    }
-  })
+  await client.reloadStories(dev_cache)
 
   document.querySelectorAll<HTMLElement>(".collapsebutton").forEach((x) => {
     x.onclick = collapse_menu
@@ -105,7 +57,7 @@ function collapse_menu() {
   }
 }
 
-async function update_selected(href: string) {
+async function update_selected(client: OnceClient, href: string) {
   // ReaderMode: Extract and decode the original URL from the query string
   if (href.startsWith("about:reader?url=")) {
     const urlParams = new URLSearchParams(href.replace("about:reader", ""))
@@ -120,7 +72,7 @@ async function update_selected(href: string) {
     return
   }
 
-  const story = await StoryMap.instance.find_by_url(href)
+  const story = await client.findStoryByUrl(href)
 
   if (!story) {
     selected_container.innerHTML = ""

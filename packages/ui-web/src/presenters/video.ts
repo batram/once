@@ -1,6 +1,5 @@
 import { Story } from "@once/core"
 import { StoryListItem } from "../StoryListItem"
-import { BackComms } from "@once/platform-webext"
 //import * as child_process from "child_process"
 import * as path from "path"
 //import { WebTab } from "../WebTab"
@@ -205,12 +204,6 @@ export function story_elem_button(story: Story, intab = false): HTMLElement {
 }
 
 export function init_in_webtab(): void {
-  //current_tab = tab
-  BackComms.on("video", (_event, href) => {
-    video_button_active()
-    present(href)
-  })
-
   if (!presenter_options.urlbar_button.value) {
     return
   }

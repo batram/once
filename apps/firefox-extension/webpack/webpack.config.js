@@ -39,6 +39,15 @@ module.exports = {
         "core",
         "src",
       ),
+      "@once/app": path.resolve(
+        __dirname,
+        "..",
+        "..",
+        "..",
+        "packages",
+        "app",
+        "src",
+      ),
       "@once/ui-web": path.resolve(
         __dirname,
         "..",

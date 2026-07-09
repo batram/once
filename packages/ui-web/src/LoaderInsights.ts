@@ -1,45 +1,27 @@
 import { SettingsPanel } from "./SettingsPanel"
-import { BackComms } from "@once/platform-webext"
-
-export interface ProcessingSource {
-  domain: string
-  parserType: string
-}
+import { OnceClient, ProcessingSource } from "@once/app"
 
 export class LoaderInsights {
   private static el: HTMLElement | null = null
   private static timeout: ReturnType<typeof setTimeout> | null = null
   private static commsRegistered = false
 
-  static init(): void {
+  static init(client?: OnceClient): void {
     if (!this.commsRegistered) {
       this.commsRegistered = true
-      BackComms.on(
-        "loader_insights",
-        async (_event, cmd: string, ...args: unknown[]) => {
-          switch (cmd) {
-            case "reset_errors":
-              this.resetErrors()
-              break
-            case "show_processing":
-              this.showProcessing(args[0] as ProcessingSource[])
-              break
-            case "show_error":
-              this.showError(
-                args[0] as string,
-                args[1] as string,
-                args[2] as string,
-                args[3] as ProcessingSource
-              )
-              break
-            case "hide":
-              this.hide()
-              break
-            default:
-              console.log("unhandled loader_insights", cmd)
-          }
+      client?.subscribe("loaderChanged", ({ processing, visible }) => {
+        if (processing.length > 0) {
+          this.showProcessing(processing)
+        } else if (!visible) {
+          this.hide()
         }
-      )
+      })
+      client?.subscribe("sourceErrorsChanged", ({ errors }) => {
+        this.resetErrors()
+        errors.forEach((error) => {
+          this.showError(error.type === "warning" ? "No Handler" : "Failed", error.url, error.message)
+        })
+      })
     }
 
     if (this.el) return

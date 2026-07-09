@@ -1,4 +1,4 @@
 export * from "./storage/CacheStore"
 export * from "./storage/WebExtSyncStorage"
 export * from "./ui/WebExtTheme"
-export * from "./messaging/BackComms"
+export * from "./WebExtPlatform"

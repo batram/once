@@ -1,5 +1,5 @@
 import * as Search from "./search"
-import { BackComms } from "@once/platform-webext"
+import { OnceClient } from "@once/app"
 
 let commsRegistered = false
 
@@ -71,20 +71,12 @@ function active_flash_panel(btn: HTMLElement) {
   }
 }
 
-export function init(): void {
+export function init(client?: OnceClient): void {
   if (!commsRegistered) {
     commsRegistered = true
-    BackComms.on("menu", async (_event, cmd: string, ...args: unknown[]) => {
-      switch (cmd) {
-        case "add_group":
-          add_group(args[0] as string)
-          break
-        case "add_type":
-          add_type(args[0] as string)
-          break
-        default:
-          console.log("unhandled menu", cmd)
-      }
+    client?.subscribe("menuChanged", ({ groups, types }) => {
+      groups.forEach(add_group)
+      types.forEach(add_type)
     })
   }
 

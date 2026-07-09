@@ -5,8 +5,23 @@ const root = path.resolve(__dirname, "..")
 const baselinePath = path.join(__dirname, "core-boundary-baseline.json")
 const baseline = JSON.parse(fs.readFileSync(baselinePath, "utf8"))
 
-const coreSrc = path.join(root, "packages", "core", "src")
-const disallowedImports = ["@once/platform-webext", "@once/ui-web"]
+const scopedRules = [
+  {
+    name: "core",
+    src: path.join(root, "packages", "core", "src"),
+    disallowedImports: ["@once/platform-webext", "@once/ui-web"]
+  },
+  {
+    name: "ui-web",
+    src: path.join(root, "packages", "ui-web", "src"),
+    disallowedImports: [
+      "@once/platform-webext",
+      "@once/platform-electron",
+      "@once/platform-web",
+      "@once/platform-mobile"
+    ]
+  }
+]
 
 function toPosix(relativePath) {
   return relativePath.split(path.sep).join("/")
@@ -22,7 +37,7 @@ function walk(dir) {
   })
 }
 
-function importViolations(source) {
+function importViolations(source, disallowedImports) {
   const matches = new Set()
   const importPattern = /\b(?:import|export)\b[^"']*["']([^"']+)["']/g
   let match
@@ -40,11 +55,13 @@ function importViolations(source) {
 }
 
 const actual = {}
-for (const file of walk(coreSrc)) {
-  const source = fs.readFileSync(file, "utf8")
-  const violations = importViolations(source)
-  if (violations.length > 0) {
-    actual[toPosix(path.relative(root, file))] = violations
+for (const rule of scopedRules) {
+  for (const file of walk(rule.src)) {
+    const source = fs.readFileSync(file, "utf8")
+    const violations = importViolations(source, rule.disallowedImports)
+    if (violations.length > 0) {
+      actual[toPosix(path.relative(root, file))] = violations
+    }
   }
 }
 
@@ -87,7 +104,7 @@ const count = Object.values(actual).reduce(
   0
 )
 console.log(
-  `Boundary check passed with ${count} known core import violation${
+  `Boundary check passed with ${count} known package boundary violation${
     count === 1 ? "" : "s"
   } tracked in ${path.relative(root, baselinePath)}.`
 )

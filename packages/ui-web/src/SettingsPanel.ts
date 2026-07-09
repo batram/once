@@ -1,61 +1,40 @@
-import { OnceSettings } from "@once/core"
-import { BackComms } from "@once/platform-webext"
+import { OnceApp, OnceClient, ThemeName } from "@once/app"
 import * as menu from "./menu"
 
 export class SettingsPanel {
   static instance: SettingsPanel
-  constructor() {
+  constructor(private client: OnceClient) {
     SettingsPanel.instance = this
-    BackComms.on("settings", async (event, cmd: string, ...args: unknown[]) => {
-      switch (cmd) {
-        case "set_filter_area":
-          console.debug("set_filter_area", args)
+    client.subscribe("settingsChanged", ({ section }) => {
+      switch (section) {
+        case "filters":
           this.set_filter_area()
           break
-        case "set_redirect_area":
-          console.debug("set_redirect_area", args)
+        case "redirects":
           this.set_redirect_area()
           break
-        case "set_sources_area":
-          console.debug("set_sources_area", args)
+        case "sources":
           this.set_sources_area()
           break
-        case "highlight_sources":
-          this.highlight_sources(
-            args[0] as Record<string, string>,
-            args[1] as boolean
-          )
-          break
-        case "add_source_error":
-          this.addSourceError(
-            args[0] as string,
-            args[1] as string,
-            args[2] as "warning" | "error"
-          )
-          break
-        case "clear_source_errors":
-          this.clearSourceErrors()
-          break
-        case "restore_theme_settings":
-          console.debug("restore_theme_settings", args)
+        case "theme":
           this.restore_theme_settings()
           break
-        case "restore_animation_settings":
-          console.debug("restore_animation_settings", args)
+        case "animation":
           this.restore_animation_settings()
           break
-        case "restore_cache_settings":
-          console.debug("restore_cache_settings", args)
+        case "cache":
           this.restore_cache_settings()
           break
-        case "restore_couch_settings":
-          console.debug("restore_couch_settings", args)
+        case "sync":
           this.reset_couch_settings()
           break
-        default:
-          console.log("unhandled settings_panel", cmd)
-          if (event) event.returnValue = null
       }
+    })
+    client.subscribe("sourceErrorsChanged", ({ errors }) => {
+      this.clearSourceErrors()
+      errors.forEach((error) => {
+        this.addSourceError(error.url, error.message, error.type)
+      })
     })
 
     window
@@ -342,25 +321,23 @@ export class SettingsPanel {
 
   async reset_couch_settings(): Promise<void> {
     const couch_input = document.querySelector<HTMLInputElement>("#couch_input")
-    couch_input.value = await OnceSettings.instance.get_sync_url()
+    couch_input.value = await this.client.getSyncUrl()
     // Trigger password highlighting update using existing function
     couch_input.dispatchEvent(new Event("input"))
   }
 
   save_couch_settings(): void {
     const couch_input = document.querySelector<HTMLInputElement>("#couch_input")
-    OnceSettings.instance.set_sync_url(couch_input.value).then( 
+    this.client.setSyncUrl(couch_input.value).then(
       () => {
         // Trigger password highlighting update using existing input event listener
         couch_input.dispatchEvent(new Event("input"))
-        // Notify other windows to update their CouchDB settings
-        BackComms.send("settings", "restore_couch_settings")
       }
     )
   }
 
   async restore_theme_settings(): Promise<void> {
-    const theme_value = await OnceSettings.instance.pouch_get("theme", "dark")
+    const theme_value = await this.client.getTheme()
 
     const theme_select =
       document.querySelector<HTMLSelectElement>("#theme_select")
@@ -369,12 +346,12 @@ export class SettingsPanel {
   }
 
   save_theme(name: string): void {
-    BackComms.send("settings", "pouch_set", "theme", name)
+    this.client.setTheme(name as ThemeName)
     this.set_theme(name)
   }
 
   async restore_animation_settings(): Promise<void> {
-    const checked = await OnceSettings.instance.pouch_get("animation", true)
+    const checked = await this.client.getAnimation()
 
     const anim_checkbox =
       document.querySelector<HTMLInputElement>("#anim_checkbox")
@@ -383,7 +360,7 @@ export class SettingsPanel {
   }
 
   save_animation(checked: boolean): void {
-    BackComms.send("settings", "pouch_set", "animation", checked)
+    this.client.setAnimation(checked)
     const anim_checkbox =
       document.querySelector<HTMLInputElement>("#anim_checkbox")
     anim_checkbox.checked = checked
@@ -395,18 +372,18 @@ export class SettingsPanel {
   }
 
   set_theme(name: string): void {
+    document.body.removeAttribute("data-theme")
     switch (name) {
       case "dark":
-        BackComms.send("settings", "set_theme", "dark")
+        document.body.setAttribute("data-theme", "dark")
         break
       case "light":
-        BackComms.send("settings", "set_theme", "light")
+        document.body.setAttribute("data-theme", "light")
         break
       case "custom":
         console.debug("custom theme, not implement, just hanging out here :D")
         break
       case "system":
-        BackComms.send("settings", "set_theme", "system")
         break
     }
   }
@@ -414,7 +391,7 @@ export class SettingsPanel {
   async set_sources_area(): Promise<void> {
     const sources_area =
       document.querySelector<HTMLTextAreaElement>("#sources_area")
-    const story_sources = await OnceSettings.instance.story_sources()
+    const story_sources = await this.client.getStorySources()
     sources_area.value = story_sources.join("\n")
     // Trigger input event to update highlights
     sources_area.dispatchEvent(new Event("input"))
@@ -427,12 +404,12 @@ export class SettingsPanel {
       return x.trim() != ""
     })
 
-    BackComms.send("settings", "pouch_set", "story_sources", story_sources)
+    this.client.saveStorySources(story_sources)
   }
 
   async set_filter_area(): Promise<void> {
     const filter_area = document.querySelector<HTMLInputElement>("#filter_area")
-    const filter_list = await OnceSettings.instance.get_filterlist()
+    const filter_list = await this.client.getFilterList()
     filter_area.value = filter_list.join("\n")
   }
 
@@ -441,21 +418,21 @@ export class SettingsPanel {
     const filter_list = filter_area.value.split("\n").filter((x) => {
       return x.trim() != ""
     })
-    BackComms.send("settings", "save_filterlist", filter_list)
+    this.client.saveFilterList(filter_list)
   }
 
   async set_redirect_area(): Promise<void> {
     const redirect_area =
       document.querySelector<HTMLInputElement>("#redirect_area")
-    const redirect_list = await OnceSettings.instance.get_redirectlist()
-    redirect_area.value = OnceSettings.present_redirectlist(redirect_list)
+    const redirect_list = await this.client.getRedirectList()
+    redirect_area.value = OnceApp.presentRedirectList(redirect_list)
   }
 
   save_redirect_settings(): void {
     const redirect_area =
       document.querySelector<HTMLInputElement>("#redirect_area")
-    const redirect_list = OnceSettings.parse_redirectlist(redirect_area.value)
-    BackComms.send("settings", "save_redirectlist", redirect_list)
+    const redirect_list = OnceApp.parseRedirectList(redirect_area.value)
+    this.client.saveRedirectList(redirect_list)
   }
 
   failedSources: Record<string, string> = {}
@@ -608,15 +585,13 @@ export class SettingsPanel {
 
   async restore_cache_settings(): Promise<void> {
     const cache_time_input = document.querySelector<HTMLInputElement>("#cache_time_input")
-    const cache_time = await OnceSettings.instance.get_cache_time()
+    const cache_time = await this.client.getCacheTime()
     cache_time_input.value = cache_time.toString()
   }
 
   async save_cache_settings(): Promise<void> {
     const cache_time_input = document.querySelector<HTMLInputElement>("#cache_time_input")
     const cache_time = cache_time_input.value
-    await OnceSettings.instance.set_cache_time(cache_time)
-    // Notify other windows to update their cache settings
-    BackComms.send("settings", "restore_cache_settings")
+    await this.client.setCacheTime(cache_time)
   }
 }

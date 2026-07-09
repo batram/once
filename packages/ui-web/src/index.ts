@@ -1,4 +1,4 @@
-export type { ProcessingSource } from "./LoaderInsights"
+export type { ProcessingSource, OnceClient } from "@once/app"
 export type { PresenterOptions, Presenter } from "./presenters_frontend"
 export type { Presenter_Backend } from "./presenters_backend"
 
@@ -41,3 +41,4 @@ export {
   context_link as context_link_frontend
 } from "./presenters_frontend"
 export { custom_protocol } from "./presenters_backend"
+export { setOnceClient, getOnceClient } from "./client"

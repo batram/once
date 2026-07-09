@@ -1,8 +1,8 @@
-import { OnceSettings } from "../OnceSettings"
 import { Redirect } from "../url/Redirect"
 import { redirectUrl } from "../url/redirectUrl"
 
 interface URLRedirectOptions {
+  getRedirects?: () => Promise<Redirect[]>
   onUpdated?: () => void
 }
 
@@ -15,11 +15,14 @@ export class URLRedirect {
       URLRedirect.onUpdated = options.onUpdated
     }
 
-    const sets = OnceSettings.instance
-    sets.get_redirectlist().then((x) => {
-      URLRedirect.dynamic_url_redirects = x
-      URLRedirect.onUpdated?.()
+    options.getRedirects?.().then((redirects) => {
+      URLRedirect.setRedirects(redirects)
     })
+  }
+
+  static setRedirects(redirects: Redirect[]): void {
+    URLRedirect.dynamic_url_redirects = redirects
+    URLRedirect.onUpdated?.()
   }
 
   static redirect_url(url: string): string {
