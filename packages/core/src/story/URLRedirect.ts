@@ -1,5 +1,8 @@
-import { Redirect } from "../url/Redirect"
-import { redirectUrl } from "../url/redirectUrl"
+export interface Redirect {
+  match_url: string
+  replace_url: string
+}
+
 
 interface URLRedirectOptions {
   getRedirects?: () => Promise<Redirect[]>
@@ -26,6 +29,13 @@ export class URLRedirect {
   }
 
   static redirect_url(url: string): string {
-    return redirectUrl(url, URLRedirect.dynamic_url_redirects)
+    URLRedirect.dynamic_url_redirects.forEach((redirect) => {
+      const rex = new RegExp(redirect.match_url)
+      if (url.match(rex)) {
+        url = url.replace(rex, redirect.replace_url)
+      }
+    })
+
+    return url
   }
 }

@@ -1,4 +1,4 @@
-import { Redirect } from "../url/Redirect"
+import { Redirect } from "@once/core"
 
 export const defaultSources = [
   "https://news.ycombinator.com/",

@@ -1,4 +1,4 @@
-import { Redirect } from "./url/Redirect"
+import { Redirect } from "@once/core"
 import {
   defaultFilterList,
   defaultRedirectList,
