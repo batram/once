@@ -13,7 +13,11 @@ import {
   parseRedirectList,
   presentRedirectList
 } from "@once/core"
-import { WebExtSyncStorage } from "@once/platform-webext"
+import {
+  setDocumentTheme,
+  ThemeName,
+  WebExtSyncStorage
+} from "@once/platform-webext"
 
 export class OnceSettings {
   default_sources = defaultSources
@@ -80,7 +84,7 @@ export class OnceSettings {
 
     // Initialize theme
     this.pouch_get("theme", "dark").then((theme) => {
-      this.set_theme(theme as "system" | "light" | "dark")
+      this.set_theme(theme as ThemeName)
     })
 
     URLRedirect.init()
@@ -90,7 +94,7 @@ export class OnceSettings {
     BackComms.on("settings", async (event, cmd, ...args: any[]) => {
       switch (cmd) {
         case "set_theme":
-          this.set_theme(args[0] as "system" | "light" | "dark")
+          this.set_theme(args[0] as ThemeName)
           break
         case "pouch_set":
           console.log("pouch_set", args[0], args[1])
@@ -171,19 +175,8 @@ export class OnceSettings {
       })
   }
 
-  set_theme(theme: "system" | "light" | "dark"): void {
-    // Remove existing theme attributes
-    document.body.removeAttribute("data-theme")
-
-    if (theme === "system") {
-      // Let the browser use the system preference via CSS media queries
-      // No data-theme attribute needed, CSS @media (prefers-color-scheme) will handle it
-    } else {
-      // Set explicit theme via data attribute for CSS to target
-      document.body.setAttribute("data-theme", theme)
-    }
-
-    console.log(`Theme set to: ${theme}`)
+  set_theme(theme: ThemeName): void {
+    setDocumentTheme(theme)
   }
 
   async handle(_: any, cmd: string, ...args: any[]): Promise<any> {
