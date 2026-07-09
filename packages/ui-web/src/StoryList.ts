@@ -1,10 +1,10 @@
 import { Story, SortableStory } from "@once/core"
 import { OnceSettings } from "@once/core"
-import { StoryListItem } from "@once/ui-web"
-import * as filters from "@once/core"
+import { StoryListItem } from "./StoryListItem"
+import { filter_story } from "@once/core"
 import { StoryMap, DataChangeEventDetail } from "@once/core"
-import * as story_loader from "@once/core"
-import * as search from "@once/ui-web"
+import { StoryLoader } from "@once/core"
+import * as Search from "./search"
 import { BackComms } from "@once/platform-webext"
 import { URLRedirect } from "@once/core"
 
@@ -113,7 +113,7 @@ function add_stories(stories: Story[], bucket = "stories") {
   const searchfield = document.querySelector<HTMLInputElement>("#searchfield")
   const search_scope = document.querySelector<HTMLInputElement>("#search_scope")
   if (searchfield.value != "" && search_scope.value != "global") {
-    search.search_stories(searchfield.value)
+    Search.searchStories(searchfield.value)
   }
 }
 
@@ -240,6 +240,10 @@ export function sort_stories(bucket = "stories"): void {
   })
 }
 
+export const getByHref = get_by_href
+export const resortSingle = resort_single
+export const sortStories = sort_stories
+
 function refilter(): void {
   document
     .querySelectorAll<StoryListItem>(".story")
@@ -247,7 +251,7 @@ function refilter(): void {
       const sthref = story_el.dataset.href
       const story = await StoryMap.instance.get(sthref)
       const og_filter = story.filter
-      filters.filter_story(story).then(async (story) => {
+          filter_story(story).then(async (story) => {
         if (story.filter != og_filter) {
           StoryMap.instance.persist_story_change(
             story.href,
@@ -279,7 +283,7 @@ async function reload(try_cache = true): Promise<void> {
       await OnceSettings.instance.grouped_story_sources()
 
     if (grouped_story_sources) {
-      await story_loader.parallel_load_stories(grouped_story_sources, try_cache)
+      await StoryLoader.parallelLoadStories(grouped_story_sources, try_cache)
     } else {
       console.error("no sources", grouped_story_sources)
     }

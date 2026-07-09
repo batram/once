@@ -57,6 +57,8 @@ export function add_all_css_colors(): void {
   }
 }
 
+export const addAllCssColors = add_all_css_colors
+
 export async function parse_response(
   resp: Response,
   url: string,

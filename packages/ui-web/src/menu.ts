@@ -1,4 +1,4 @@
-import * as search from "./search"
+import * as Search from "./search"
 import { BackComms } from "@once/platform-webext"
 
 let commsRegistered = false
@@ -52,7 +52,7 @@ export function add_entry(
       const searchfield =
         document.querySelector<HTMLInputElement>("#searchfield")
       searchfield.value = label
-      search.search_stories(label)
+      Search.searchStories(label)
     }
     active_flash_panel(type_el)
     document.querySelector("#menu #" + container_id).appendChild(type_el)

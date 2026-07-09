@@ -1,9 +1,9 @@
 import { Story } from "@once/core"
-import * as story_list from "./StoryList"
+import * as StoryList from "./StoryList"
 import { StoryListItem } from "./StoryListItem"
-import * as collectors from "@once/core"
+import { domain_search_providers, global_search_providers } from "@once/core"
 import { StoryMap } from "@once/core"
-import * as story_filters from "@once/core"
+import { filter_stories } from "@once/core"
 
 export function init_search(): void {
   const searchfield = document.querySelector<HTMLInputElement>("#searchfield")
@@ -92,8 +92,7 @@ const extra_search_providers: Record<
       const search_scope =
         document.querySelector<HTMLInputElement>("#search_scope")
       search_scope.value = "global"
-      const domain_search_providers = collectors.domain_search_providers()
-      domain_search_providers.forEach((dsp) => {
+      domain_search_providers().forEach((dsp) => {
         dsp.domain_search(needle).then((res: Story[]) => {
           add_global_search_results(res)
         })
@@ -151,8 +150,7 @@ export async function search_stories(needle: string): Promise<void> {
     global_search_results.style.display = "flex"
     story_container.style.display = "none"
     global_search_results.innerHTML = ""
-    const global_search_providers = collectors.global_search_providers()
-    global_search_providers.forEach((gsp) => {
+    global_search_providers().forEach((gsp) => {
       gsp.global_search(needle).then((results: Story[]) => {
         add_global_search_results(results)
       })
@@ -163,6 +161,9 @@ export async function search_stories(needle: string): Promise<void> {
 
   local_search(needle)
 }
+
+export const init = init_search
+export const searchStories = search_stories
 
 async function local_search(needle: string) {
   document.querySelectorAll<StoryListItem>(".story").forEach((story_el) => {
@@ -206,10 +207,10 @@ async function local_search(needle: string) {
     }
   })
 
-  story_list.sort_stories()
+  StoryList.sortStories()
 }
 
 async function add_global_search_results(search_stories: Story[]) {
-  const filtered_stories = await story_filters.filter_stories(search_stories)
+  const filtered_stories = await filter_stories(search_stories)
   StoryMap.instance.stories_loaded(filtered_stories, "global_search_results")
 }

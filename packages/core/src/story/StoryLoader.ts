@@ -1,6 +1,6 @@
-import * as story_parser from "@once/core"
-import { StoryMap } from "@once/core"
-import { Story } from "@once/core"
+import * as StoryParser from "../parser/parser"
+import { StoryMap } from "./StoryMap"
+import { Story } from "./Story"
 import * as story_filters from "./StoryFilters"
 import { CacheStore } from "@once/platform-webext"
 import { BackComms } from "@once/platform-webext"
@@ -131,11 +131,13 @@ export async function parallel_load_stories(
   BackComms.send("loader_insights", "hide")
 }
 
+export const parallelLoadStories = parallel_load_stories
+
 function getDomainAndParserType(sourceUrl: string): {
   domain: string
   parserType: string
 } {
-  const parser = story_parser.get_parser_for_url(sourceUrl)
+  const parser = StoryParser.get_parser_for_url(sourceUrl)
   let resolvedUrl = sourceUrl
   if (parser && parser.resolve_url) {
     resolvedUrl = parser.resolve_url(sourceUrl)
@@ -177,7 +179,7 @@ async function cache_load(url: string, try_cache = true) {
     cached = await get_cached(url)
   }
 
-  const parser = story_parser.get_parser_for_url(url)
+  const parser = StoryParser.get_parser_for_url(url)
   if (!parser) {
     const message =
       "No handler available for this source type. You may need to add a custom parser."
@@ -197,9 +199,9 @@ async function cache_load(url: string, try_cache = true) {
   if (cached != null) {
     try {
       if (parser.options.collects == "dom") {
-        cached = story_parser.parse_dom(cached, url)
+        cached = StoryParser.parse_dom(cached, url)
       } else if (parser.options.collects == "xml") {
-        cached = story_parser.parse_xml(cached)
+        cached = StoryParser.parse_xml(cached)
       }
       return parser.parse(cached) || []
     } catch (parseError) {
@@ -212,7 +214,7 @@ async function cache_load(url: string, try_cache = true) {
       const resp = await fetch(url)
       if (resp.ok) {
         return (
-          story_parser.parse_response(resp, url, og_url, {
+          StoryParser.parse_response(resp, url, og_url, {
             cacheResult: (cacheUrl, content) => CacheStore.set(cacheUrl, content)
           }) || []
         )
@@ -235,5 +237,5 @@ export async function load(
   story_groups: Record<string, string[]>
 ): Promise<void> {
   const cache = false
-  parallel_load_stories(story_groups, cache)
+  parallelLoadStories(story_groups, cache)
 }

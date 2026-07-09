@@ -1,15 +1,19 @@
-import { OnceSettings } from "@once/core"
-import { SettingsPanel } from "@once/ui-web"
-import { StoryHistory } from "@once/ui-web"
-import { URLRedirect } from "@once/core"
-import * as story_list from "@once/ui-web"
-import * as search from "@once/ui-web"
-import * as side_menu from "@once/ui-web"
-import * as story_loader from "@once/core"
-import * as story_parser from "@once/core"
-import { StoryListItem } from "@once/ui-web"
-import { StoryMap } from "@once/core"
-import { LoaderInsights } from "@once/ui-web"
+import {
+  OnceSettings,
+  StoryLoader,
+  StoryMap,
+  StoryParser,
+  URLRedirect
+} from "@once/core"
+import {
+  LoaderInsights,
+  Menu,
+  Search,
+  SettingsPanel,
+  StoryHistory,
+  StoryList,
+  StoryListItem
+} from "@once/ui-web"
 import { BackComms } from "@once/platform-webext"
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -22,11 +26,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       BackComms.send("story_list", "update_redirects")
     }
   })
-  story_list.init_story_list()
-  side_menu.init_menu_panel()
+  StoryList.init()
+  Menu.init()
   LoaderInsights.init()
-  search.init_search()
-  story_parser.add_all_css_colors()
+  Search.init()
+  StoryParser.addAllCssColors()
 
   const dev_cache = false
 
@@ -34,7 +38,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     await OnceSettings.instance.grouped_story_sources()
   console.log("grouped_story_sources", grouped_story_sources)
   if (grouped_story_sources) {
-    story_loader.parallel_load_stories(grouped_story_sources, dev_cache)
+    StoryLoader.parallelLoadStories(grouped_story_sources, dev_cache)
   } else {
     console.error("no sources", grouped_story_sources)
   }

@@ -1,8 +1,8 @@
-import * as story_parser from "@once/core"
-import * as StoryFilterView from "@once/ui-web"
+import { humanTime } from "@once/core"
+import * as StoryFilterView from "./StoryFilterView"
 import { Story, SubStory } from "@once/core"
 import * as presenters from "./presenters_frontend"
-import * as story_list from "@once/ui-web"
+import { DataChangeEvent, resortSingle } from "./StoryList"
 import { BackComms } from "@once/platform-webext"
 import { URLRedirect } from "@once/core"
 import { StoryMap } from "@once/core"
@@ -152,7 +152,7 @@ export class StoryListItem extends HTMLElement {
 
       this.addEventListener(
         "data_change",
-        (event: story_list.DataChangeEvent) => {
+        (event: DataChangeEvent) => {
           this.update_story_el(event)
         }
       )
@@ -165,7 +165,7 @@ export class StoryListItem extends HTMLElement {
       return
     }
     const anmim_class = this.story.read_state + "_anim"
-    const resort = story_list.resort_single(this)
+    const resort = resortSingle(this)
     if (typeof resort == "function") {
       if (
         this.animated &&
@@ -187,7 +187,7 @@ export class StoryListItem extends HTMLElement {
     }
   }
 
-  update_story_el(event: story_list.DataChangeEvent): void {
+  update_story_el(event: DataChangeEvent): void {
     if (!event || !event.detail || !event.detail.story) {
       console.debug("update_story_el fail", event, this)
       return
@@ -470,7 +470,7 @@ export class StoryListItem extends HTMLElement {
     })
 
     const time = document.createElement("div")
-    time.innerText = story_parser.human_time(sub_story_ob.timestamp)
+    time.innerText = humanTime(sub_story_ob.timestamp)
     try {
       time.title = new Date(
         parseInt(sub_story_ob.timestamp.toString())
