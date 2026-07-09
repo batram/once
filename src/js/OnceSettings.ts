@@ -18,15 +18,19 @@ import {
   ThemeName,
   WebExtSyncStorage
 } from "@once/platform-webext"
-import { PouchListStore, PouchStoryStore } from "@once/persistence"
+import {
+  PouchListStore,
+  PouchStoryStore,
+  PouchSyncService
+} from "@once/persistence"
 
 export class OnceSettings {
   default_sources = defaultSources
 
-  syncHandler: PouchDB.Replication.Sync<Record<string, unknown>>
   once_db: PouchDB.Database<Record<string, unknown>>
   listStore: PouchListStore
   storyStore: PouchStoryStore<Story>
+  syncService: PouchSyncService<Record<string, unknown>>
   syncStorage = new WebExtSyncStorage()
   static instance: OnceSettings
 
@@ -73,6 +77,11 @@ export class OnceSettings {
     this.storyStore = new PouchStoryStore(this.once_db, (story) =>
       Story.from_obj(story)
     )
+    this.syncService = new PouchSyncService(this.once_db, (event) => {
+      this.update_on_change(
+        event as PouchDB.Replication.SyncResult<Record<string, unknown>>
+      )
+    })
     this.get_stories().then((stories) => {
       //console.log("init stories", stories.length, stories)
       StoryMap.instance.set_initial_stories(stories)
@@ -258,41 +267,7 @@ export class OnceSettings {
   }
 
   couchdb_sync(couchdb_url: string): void {
-    const sync_ops = {
-      live: true,
-      retry: true,
-      batch_size: 100
-    }
-    if (this.syncHandler) {
-      this.syncHandler.cancel()
-    }
-    this.once_db.replicate
-      .from(couchdb_url)
-      .on("complete", (info) => {
-        console.log("complete info replicate", info)
-        if (!this.syncHandler) {
-          this.syncHandler = this.once_db.sync(couchdb_url, sync_ops)
-          this.syncHandler
-            .on("change", (event) => {
-              this.update_on_change(event)
-            })
-            .on("complete", (info) => {
-              console.debug("pouch sync stopped", info)
-            })
-            .on("error", (err: Error) => {
-              console.error("pouch err", err)
-            })
-            .on("denied", (err: Error) => {
-              console.error("pouch denied", err)
-            })
-            .on("paused", () => {
-              console.info("pouch paused")
-            })
-        }
-      })
-      .on("error", (e: Error) => {
-        console.error("pouch sync error", e)
-      })
+    this.syncService.syncFrom(couchdb_url)
   }
 
   async pouch_get<T>(id: string, fallback_value: T): Promise<T> {
