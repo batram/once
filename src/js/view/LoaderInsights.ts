@@ -7,7 +7,7 @@ export interface ProcessingSource {
 
 export class LoaderInsights {
   private static el: HTMLElement | null = null
-  private static timeout: NodeJS.Timeout | null = null
+  private static timeout: ReturnType<typeof setTimeout> | null = null
 
   static init(): void {
     if (this.el) return
