@@ -2,13 +2,18 @@
   "compilerOptions": {
     "module": "commonjs",
     "allowSyntheticDefaultImports": true,
+    "baseUrl": ".",
     "noImplicitAny": true,
     "sourceMap": true,
-    "rootDir": "src",
+    "rootDir": ".",
     "outDir": "dist/",
     "target": "es6",
     "allowJs": true,
-    "lib": ["es2019", "DOM", "ES6", "DOM.Iterable", "ScriptHost"]
+    "lib": ["es2019", "DOM", "ES6", "DOM.Iterable", "ScriptHost"],
+    "paths": {
+      "@once/core": ["packages/core/src/index.ts"],
+      "@once/core/*": ["packages/core/src/*"]
+    }
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*", "packages/core/src/**/*"]
 }

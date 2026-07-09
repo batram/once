@@ -5,15 +5,16 @@ import { Redirect, URLRedirect } from "./data/URLRedirect"
 //import * as fs from "fs"
 import { BackComms } from "./data/BackComms"
 import { SettingsPanel } from "./view/SettingsPanel"
+import {
+  defaultFilterList,
+  defaultRedirectList,
+  defaultSources,
+  parseRedirectList,
+  presentRedirectList
+} from "@once/core/settings/defaults"
 
 export class OnceSettings {
-  default_sources = [
-    "https://news.ycombinator.com/",
-    "https://news.ycombinator.com/news?p=2",
-    "https://news.ycombinator.com/news?p=3",
-    "https://lobste.rs/",
-    "https://old.reddit.com/r/netsec/.rss"
-  ]
+  default_sources = defaultSources
 
   syncHandler: PouchDB.Replication.Sync<Record<string, unknown>>
   once_db: PouchDB.Database<Record<string, unknown>>
@@ -440,44 +441,7 @@ export class OnceSettings {
     BackComms.send("story_list", "refilter")
   }
 
-  default_filterlist = `bbc.co.uk
-  bbc.com
-  bloomberg.com
-  brave.com
-  buzzfeed.com
-  cnbc.com
-  cnn.com
-  dw.com
-  forbes.com
-  fortune.com
-  foxnews.com
-  hbr.org
-  latimes.com
-  mercurynews.com
-  mozilla.org
-  newyorker.com
-  npr.org
-  nytimes.com
-  rarehistoricalphotos.com
-  reuters.com
-  sfchronicle.com
-  sfgate.com
-  slate.com
-  techcrunch.com
-  theatlantic.com
-  thedailybeast.com
-  thedrive.com
-  theguardian.com
-  thetimes.co.uk
-  theverge.com
-  vice.com
-  vox.com
-  washingtonpost.com
-  wired.com
-  wsj.com
-  yahoo.com`
-    .split("\n")
-    .map((x) => x.trim())
+  default_filterlist = defaultFilterList
 
   get_redirectlist(): Promise<Redirect[]> {
     return this.pouch_get("redirect_list", this.default_redirectlist)
@@ -488,21 +452,14 @@ export class OnceSettings {
   }
 
   static parse_redirectlist(lines: string): Redirect[] {
-    return lines.split("\n").map((line) => {
-      const split = line.trim().split(" => ")
-      return { match_url: split[0], replace_url: split[1] }
-    })
+    return parseRedirectList(lines)
   }
 
   static present_redirectlist(redirect_list: Redirect[]): string {
-    return redirect_list
-      .map((entry) => entry.match_url + " => " + entry.replace_url)
-      .join("\n")
+    return presentRedirectList(redirect_list)
   }
 
-  default_redirectlist =
-    OnceSettings.parse_redirectlist(`https:\\/\\/www.reddit.com\\/(.*) => https://old.reddit.com/$1
-         https?:\\/\\/(?:www\\.|mobile\\.)?(?:twitter|x)\\.com\\/(.*) => https://nitter.net/$1`)
+  default_redirectlist = defaultRedirectList
 
   async highlightSources(
     failedSources: Record<string, string>,

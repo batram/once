@@ -26,6 +26,9 @@ module.exports = {
   },
   resolve: {
     extensions: [".ts", ".js"],
+    alias: {
+      "@once/core": path.resolve(__dirname, "..", "..", "..", "packages", "core", "src"),
+    },
     fallback: { path: false },
   },
   module: {
