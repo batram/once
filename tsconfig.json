@@ -12,8 +12,14 @@
     "lib": ["es2019", "DOM", "ES6", "DOM.Iterable", "ScriptHost"],
     "paths": {
       "@once/core": ["packages/core/src/index.ts"],
-      "@once/core/*": ["packages/core/src/*"]
+      "@once/core/*": ["packages/core/src/*"],
+      "@once/platform-webext": ["packages/platform-webext/src/index.ts"],
+      "@once/platform-webext/*": ["packages/platform-webext/src/*"]
     }
   },
-  "include": ["src/**/*", "packages/core/src/**/*"]
+  "include": [
+    "src/**/*",
+    "packages/core/src/**/*",
+    "packages/platform-webext/src/**/*"
+  ]
 }

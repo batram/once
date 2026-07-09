@@ -28,6 +28,7 @@ module.exports = {
     extensions: [".ts", ".js"],
     alias: {
       "@once/core": path.resolve(__dirname, "..", "..", "..", "packages", "core", "src"),
+      "@once/platform-webext": path.resolve(__dirname, "..", "..", "..", "packages", "platform-webext", "src"),
     },
     fallback: { path: false },
   },
