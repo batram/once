@@ -18,7 +18,7 @@ import {
   ThemeName,
   WebExtSyncStorage
 } from "@once/platform-webext"
-import { PouchListStore } from "@once/persistence"
+import { PouchListStore, PouchStoryStore } from "@once/persistence"
 
 export class OnceSettings {
   default_sources = defaultSources
@@ -26,6 +26,7 @@ export class OnceSettings {
   syncHandler: PouchDB.Replication.Sync<Record<string, unknown>>
   once_db: PouchDB.Database<Record<string, unknown>>
   listStore: PouchListStore
+  storyStore: PouchStoryStore<Story>
   syncStorage = new WebExtSyncStorage()
   static instance: OnceSettings
 
@@ -69,6 +70,9 @@ export class OnceSettings {
     OnceSettings.instance = this
     this.once_db = new PouchDB("once_db")
     this.listStore = new PouchListStore(this.once_db)
+    this.storyStore = new PouchStoryStore(this.once_db, (story) =>
+      Story.from_obj(story)
+    )
     this.get_stories().then((stories) => {
       //console.log("init stories", stories.length, stories)
       StoryMap.instance.set_initial_stories(stories)
@@ -305,62 +309,19 @@ export class OnceSettings {
   }
 
   story_id(url: string): string {
-    return "sto_" + url
+    return this.storyStore.storyId(url)
   }
 
   async get_stories(): Promise<Story[]> {
-    const response = await this.once_db.allDocs({
-      include_docs: true,
-      startkey: this.story_id("h"),
-      endkey: this.story_id("i")
-    })
-
-    return response.rows.map((entry) => {
-      return Story.from_obj(entry.doc)
-    })
+    return this.storyStore.getStories()
   }
 
   async get_story(url: string): Promise<Story> {
-    return this.once_db
-      .get(this.story_id(url))
-      .then((doc: unknown) => {
-        return Story.from_obj(doc as Story)
-      })
-      .catch((err): any => {
-        console.error("get_story err", err)
-        return null
-      })
+    return this.storyStore.getStory(url)
   }
 
   async save_story(story: Story): Promise<Story> {
-    const trySave = async (retryCount = 0): Promise<PouchDB.Core.Response | undefined> => {
-      try {
-        const doc = await this.once_db.get(this.story_id(story.href))
-        story._id = doc._id
-        story._rev = doc._rev
-        return await this.once_db.put(story.to_obj())
-      } catch (err: any) {
-        if (err.status === 404) {
-          // Create new story
-          story._id = this.story_id(story.href)
-          story.ingested_at = Date.now()
-          return await this.once_db.put(story.to_obj())
-        } else if (err.status === 409 && retryCount < 3) {
-          // Conflict - retry with latest document
-          console.log(`Conflict on story ${story.href}, retrying... (${retryCount + 1}/3)`)
-          return await trySave(retryCount + 1)
-        } else {
-          console.error("save_story error:", err)
-          return undefined
-        }
-      }
-    }
-
-    const resp = await trySave()
-    if (resp && resp.rev) {
-      story._rev = resp.rev
-    }
-    return story
+    return this.storyStore.saveStory(story)
   }
 
   async pouch_set<T>(
