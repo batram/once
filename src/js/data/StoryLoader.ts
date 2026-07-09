@@ -4,7 +4,7 @@ import * as menu from "../view/menu"
 import { Story } from "./Story"
 import * as story_filters from "./StoryFilters"
 import { LoaderInsights, ProcessingSource } from "../view/LoaderInsights"
-import { CacheStore } from "./CacheStore"
+import { CacheStore } from "@once/platform-webext"
 import { SettingsPanel } from "../view/SettingsPanel"
 import { OnceSettings } from "../OnceSettings"
 

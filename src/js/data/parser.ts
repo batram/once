@@ -2,7 +2,7 @@ import * as menu from "../view/menu"
 import * as collectors from "../data/collectors"
 import { Story } from "./Story"
 import { context_link } from "../view/presenters_frontend"
-import { CacheStore } from "./CacheStore"
+import { CacheStore } from "@once/platform-webext"
 import {
   daysAgo,
   humanTime,
