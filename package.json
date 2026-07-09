@@ -1,6 +1,6 @@
 {
   "name": "once_sidepanel",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Once in firefox sidepanel",
   "main": "dist/main.js",
   "scripts": {
