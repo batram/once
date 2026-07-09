@@ -1,10 +1,8 @@
 import { OnceSettings } from "../OnceSettings"
 import { BackComms } from "./BackComms"
+import { Redirect, redirectUrl } from "@once/core"
 
-export class Redirect {
-  match_url: string
-  replace_url: string
-}
+export { Redirect }
 
 export class URLRedirect {
   static dynamic_url_redirects: Redirect[]
@@ -18,16 +16,6 @@ export class URLRedirect {
   }
 
   static redirect_url(url: string): string {
-    if (URLRedirect.dynamic_url_redirects)
-      URLRedirect.dynamic_url_redirects.forEach((redirect) => {
-        const rex = new RegExp(redirect.match_url)
-        if (url.match(rex)) {
-          url = url.replace(
-            new RegExp(redirect.match_url),
-            redirect.replace_url
-          )
-        }
-      })
-    return url
+    return redirectUrl(url, URLRedirect.dynamic_url_redirects)
   }
 }
