@@ -11,7 +11,7 @@ export interface PouchSyncDatabase {
 }
 
 export class PouchSyncService {
-  private syncHandler: PouchEventChain
+  private syncHandler?: PouchEventChain
 
   constructor(
     private db: PouchSyncDatabase,
