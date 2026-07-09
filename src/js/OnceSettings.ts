@@ -72,6 +72,9 @@ export class OnceSettings {
 
   constructor() {
     OnceSettings.instance = this
+    BackComms.setFallbackHandler((event, cmd, ...args) =>
+      OnceSettings.instance.handle(event, cmd, args)
+    )
     this.once_db = new PouchDB("once_db")
     this.listStore = new PouchListStore(this.once_db)
     this.storyStore = new PouchStoryStore(this.once_db, (story) =>

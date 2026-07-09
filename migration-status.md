@@ -13,7 +13,7 @@
   - `npm run build-dev`
 - Last verified checks:
   - `npm run build-dev`
-  - `npx eslint packages\persistence\src\PouchSyncService.ts`
+  - `npx eslint packages\platform-webext\src\messaging\BackComms.ts src\js\OnceSettings.ts`
 
 ## History And Layout
 
@@ -50,6 +50,7 @@
   - IndexedDB cache store
   - browser sync storage for sync URL and cache time
   - document theme handling
+  - background/runtime messaging adapter
 - Persistence package:
   - PouchDB list store
   - PouchDB story store
@@ -76,7 +77,6 @@ c98904a Move IndexedDB cache to webext platform
   - reacting to DB changes
   - forwarding UI refresh messages
   - exposing compatibility methods
-- `BackComms` is still in `src/js/data` and should move to `packages/platform-webext`.
 - `StoryMap` still mixes domain map behavior with messaging and persistence calls.
 - `StoryLoader` still mixes loading/parsing with UI status and settings panel errors.
 - Collectors and parser modules still live under `src/js/data`; many are reusable but some import the extension `Story` wrapper.
@@ -84,19 +84,18 @@ c98904a Move IndexedDB cache to webext platform
 
 ## Next Steps
 
-1. Move `BackComms` into `packages/platform-webext`, leaving `src/js/data/BackComms.ts` as a compatibility re-export.
-2. Split `StoryMap` into:
+1. Split `StoryMap` into:
    - core story map/domain behavior
    - platform messaging wrapper
    - persistence calls through injected store/service
-3. Split `StoryLoader` into:
+2. Split `StoryLoader` into:
    - core source loading/parsing workflow
    - web UI progress/error reporting
-4. Move reusable collectors/parser contracts toward `packages/core`.
-5. Move shared DOM views into `packages/ui-web`.
-6. Restore and verify Firefox after each step with `npm run build-dev`.
-7. Add Chrome manifest/build using `legacy/sidepanel_once` as reference.
-8. Port Electron shell from `legacy/once-electron` after the shared core and web UI boundaries stabilize.
+3. Move reusable collectors/parser contracts toward `packages/core`.
+4. Move shared DOM views into `packages/ui-web`.
+5. Restore and verify Firefox after each step with `npm run build-dev`.
+6. Add Chrome manifest/build using `legacy/sidepanel_once` as reference.
+7. Port Electron shell from `legacy/once-electron` after the shared core and web UI boundaries stabilize.
 
 ## Notes
 
