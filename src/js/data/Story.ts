@@ -26,9 +26,9 @@ export class Story extends CoreStory {
     )
   }
 
-  async get_content(): Promise<string> {
+  async get_content(): Promise<string | undefined> {
     if (this._attachments && this._attachments.content) {
-      let body = null
+      let body: string | undefined
       if (this._attachments.content.data) {
         body = atob(this._attachments.content.data)
       } else {
@@ -39,7 +39,9 @@ export class Story extends CoreStory {
           provider = OnceSettings.remote
         }
         if (provider) {
-          const attachment = await provider.getAttachment(this._id, "content")
+          const attachment = this._id
+            ? await provider.getAttachment(this._id, "content")
+            : null
           if (attachment) {
             body = new TextDecoder("utf-8").decode(attachment as Buffer)
           }
@@ -53,5 +55,6 @@ export class Story extends CoreStory {
         return content
       }
     }
+    return undefined
   }
 }

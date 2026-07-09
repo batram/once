@@ -30,7 +30,7 @@ export class OnceSettings {
   once_db: PouchDB.Database<Record<string, unknown>>
   listStore: PouchListStore
   storyStore: PouchStoryStore<Story>
-  syncService: PouchSyncService<Record<string, unknown>>
+  syncService: PouchSyncService
   syncStorage = new WebExtSyncStorage()
   static instance: OnceSettings
 
@@ -77,11 +77,14 @@ export class OnceSettings {
     this.storyStore = new PouchStoryStore(this.once_db, (story) =>
       Story.from_obj(story)
     )
-    this.syncService = new PouchSyncService(this.once_db, (event) => {
-      this.update_on_change(
-        event as PouchDB.Replication.SyncResult<Record<string, unknown>>
-      )
-    })
+    this.syncService = new PouchSyncService(
+      this.once_db as unknown as PouchSyncService["db"],
+      (event) => {
+        this.update_on_change(
+          event as PouchDB.Replication.SyncResult<Record<string, unknown>>
+        )
+      }
+    )
     this.get_stories().then((stories) => {
       //console.log("init stories", stories.length, stories)
       StoryMap.instance.set_initial_stories(stories)

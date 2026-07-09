@@ -1,15 +1,20 @@
-export interface PouchSyncDatabase<TDoc> {
-  replicate: {
-    from(url: string): any
-  }
-  sync(url: string, options: Record<string, unknown>): any
+export interface PouchEventChain {
+  cancel?: () => void
+  on(event: string, handler: (...args: unknown[]) => void): PouchEventChain
 }
 
-export class PouchSyncService<TDoc> {
-  private syncHandler: any
+export interface PouchSyncDatabase {
+  replicate: {
+    from(url: string): PouchEventChain
+  }
+  sync(url: string, options: Record<string, unknown>): PouchEventChain
+}
+
+export class PouchSyncService {
+  private syncHandler: PouchEventChain
 
   constructor(
-    private db: PouchSyncDatabase<TDoc>,
+    private db: PouchSyncDatabase,
     private onChange: (event: unknown) => void
   ) {}
 
@@ -21,7 +26,7 @@ export class PouchSyncService<TDoc> {
     }
 
     if (this.syncHandler) {
-      this.syncHandler.cancel()
+      this.syncHandler.cancel?.()
     }
 
     this.db.replicate
@@ -37,10 +42,10 @@ export class PouchSyncService<TDoc> {
             .on("complete", (info: unknown) => {
               console.debug("pouch sync stopped", info)
             })
-            .on("error", (err: Error) => {
+            .on("error", (err: unknown) => {
               console.error("pouch err", err)
             })
-            .on("denied", (err: Error) => {
+            .on("denied", (err: unknown) => {
               console.error("pouch denied", err)
             })
             .on("paused", () => {
@@ -48,7 +53,7 @@ export class PouchSyncService<TDoc> {
             })
         }
       })
-      .on("error", (e: Error) => {
+      .on("error", (e: unknown) => {
         console.error("pouch sync error", e)
       })
   }
