@@ -13,12 +13,14 @@ import {
   parseRedirectList,
   presentRedirectList
 } from "@once/core"
+import { WebExtSyncStorage } from "@once/platform-webext"
 
 export class OnceSettings {
   default_sources = defaultSources
 
   syncHandler: PouchDB.Replication.Sync<Record<string, unknown>>
   once_db: PouchDB.Database<Record<string, unknown>>
+  syncStorage = new WebExtSyncStorage()
   static instance: OnceSettings
 
   static remote = {
@@ -222,14 +224,13 @@ export class OnceSettings {
     const old_url = await this.get_sync_url()
     console.log("set_sync_url", sync_url, old_url)
     if (sync_url != old_url) {
-      browser.storage.sync.set({ sync_url: sync_url })
+      await this.syncStorage.setSyncUrl(sync_url)
       this.couchdb_sync(sync_url)
     }
   }
 
   async get_sync_url(): Promise<string> {
-    const data = await browser.storage.sync.get("sync_url")
-    return data ? data.sync_url : ""
+    return this.syncStorage.getSyncUrl()
   }
 
   async set_cache_time(cache_time: string): Promise<void> {
@@ -237,14 +238,12 @@ export class OnceSettings {
     const old_time = await this.get_cache_time()
     console.log("set_cache_time", ct, old_time)
     if (!Number.isNaN(ct) && ct != old_time) {
-      browser.storage.sync.set({ cache_time: cache_time })
+      await this.syncStorage.setCacheTime(cache_time)
     }
   }
 
   async get_cache_time(): Promise<number> {
-    const data = await browser.storage.sync.get("cache_time")
-    const time = parseInt(data.cache_time)
-    return data && !Number.isNaN(time) ? time : 120
+    return this.syncStorage.getCacheTime()
   }
 
   update_on_change(
