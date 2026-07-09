@@ -57,6 +57,9 @@ export interface OnceAppEvents {
   selectedUrlChanged: {
     url: string
   }
+  historyCommand: {
+    action: "undo" | "redo"
+  }
 }
 
 export type OnceEventName = keyof OnceAppEvents
@@ -156,5 +159,8 @@ export interface OncePlatformPorts {
   activeTab?: ActiveTabPort
   fetch: typeof fetch
   onDatabaseChange?: (handler: (change: DatabaseChange) => void) => () => void
+  onHistoryCommand?: (
+    handler: (action: "undo" | "redo") => void
+  ) => () => void
   transport?: OnceTransport
 }

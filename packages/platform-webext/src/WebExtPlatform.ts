@@ -81,6 +81,23 @@ export function createWebExtPlatform(): OncePlatformPorts {
       }
     },
     fetch: window.fetch.bind(window),
+    onHistoryCommand(handler) {
+      const listener = (
+        message: { onceCommand?: string; action?: "undo" | "redo" }
+      ) => {
+        if (
+          message?.onceCommand === "history" &&
+          (message.action === "undo" || message.action === "redo")
+        ) {
+          handler(message.action)
+        }
+      }
+
+      browser.runtime.onMessage.addListener(listener)
+      return () => {
+        browser.runtime.onMessage.removeListener(listener)
+      }
+    },
     onDatabaseChange(handler) {
       const changes = onceDb
         .changes({

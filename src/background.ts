@@ -28,3 +28,12 @@ browser.contextMenus.create({
   viewTypes: ["sidebar"],
   documentUrlPatterns: [browser.runtime.getURL("/static/sidepanel.html")]
 })
+
+browser.contextMenus.onClicked.addListener((info) => {
+  if (info.menuItemId === "once_undo") {
+    browser.runtime.sendMessage({
+      onceCommand: "history",
+      action: "undo"
+    })
+  }
+})

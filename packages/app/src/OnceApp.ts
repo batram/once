@@ -67,6 +67,9 @@ export class OnceApp {
     this.platform.activeTab?.onSelectedUrlChanged((url) => {
       this.client.selectUrl(url)
     })
+    this.platform.onHistoryCommand?.((action) => {
+      this.events.publish("historyCommand", { action })
+    })
     this.emitMenuChanged()
   }
 

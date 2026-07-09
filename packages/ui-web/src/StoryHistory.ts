@@ -1,4 +1,5 @@
 import { Story } from "@once/core"
+import { OnceClient } from "@once/app"
 import { getOnceClient } from "./client"
 
 export class StoryHistory {
@@ -14,7 +15,7 @@ export class StoryHistory {
   }[]
   static instance: StoryHistory
 
-  constructor() {
+  constructor(client: OnceClient = getOnceClient()) {
     StoryHistory.instance = this
     this.undo_history = []
     this.redo_history = []
@@ -44,6 +45,13 @@ export class StoryHistory {
       true
     )
 
+    client.subscribe("historyCommand", ({ action }) => {
+      if (action === "undo") {
+        this.undo()
+      } else {
+        this.redo()
+      }
+    })
   }
   story_change(
     story: Story,

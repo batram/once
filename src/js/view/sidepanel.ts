@@ -23,7 +23,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   await app.start()
 
   new SettingsPanel(client)
-  new StoryHistory()
+  new StoryHistory(client)
   StoryList.init(client)
   Menu.init(client)
   LoaderInsights.init(client)
