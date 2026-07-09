@@ -4,13 +4,10 @@
     "allowSyntheticDefaultImports": true,
     "noImplicitAny": true,
     "sourceMap": true,
+    "rootDir": "src",
     "outDir": "dist/",
     "target": "es6",
-    "baseUrl": ".",
     "allowJs": true,
-    "paths": {
-      "*": ["node_modules/*"]
-    },
     "lib": ["es2019", "DOM", "ES6", "DOM.Iterable", "ScriptHost"]
   },
   "include": ["src/**/*"]
