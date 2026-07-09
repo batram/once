@@ -12,7 +12,7 @@
 }
 
 #selected_container {
-  overflow: hidden;
+  overflow: initial;
   border-bottom: 1px solid var(--sep-color);
   border-top: 1px solid var(--sep-color);
 }
