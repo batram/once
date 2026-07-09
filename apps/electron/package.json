@@ -1,0 +1,6 @@
+{
+  "name": "@once/electron",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Electron app packaging for Once"
+}

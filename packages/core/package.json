@@ -1,0 +1,8 @@
+{
+  "name": "@once/core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Platform-neutral Once domain logic",
+  "main": "src/index.ts",
+  "types": "src/index.ts"
+}

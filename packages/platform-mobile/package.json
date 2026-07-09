@@ -1,0 +1,8 @@
+{
+  "name": "@once/platform-mobile",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Mobile platform adapters for Once",
+  "main": "src/index.ts",
+  "types": "src/index.ts"
+}
