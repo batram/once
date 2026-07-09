@@ -3,7 +3,7 @@ import { StoryMap } from "./data/StoryMap"
 import { Story } from "./data/Story"
 import { Redirect, URLRedirect } from "./data/URLRedirect"
 //import * as fs from "fs"
-import { BackComms } from "./data/BackComms"
+import { BackComms } from "@once/platform-webext"
 import { SettingsPanel } from "./view/SettingsPanel"
 import {
   defaultFilterList,

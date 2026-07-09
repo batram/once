@@ -5,7 +5,7 @@ import * as filters from "../data/StoryFilters"
 import { StoryMap, DataChangeEventDetail } from "../data/StoryMap"
 import * as story_loader from "../data/StoryLoader"
 import * as search from "../data/search"
-import { BackComms } from "../data/BackComms"
+import { BackComms } from "@once/platform-webext"
 import { URLRedirect } from "../data/URLRedirect"
 
 export class DataChangeEvent extends Event {
@@ -167,7 +167,7 @@ function sortable_story(elem: StoryListItem): SortableStory {
   return {
     read_state: elem.story.read_state as "unread" | "read" | "skipped",
     timestamp: elem.story.timestamp,
-    el: elem,
+    el: elem
   }
 }
 

@@ -1,5 +1,5 @@
 import { OnceSettings } from "../OnceSettings"
-import { BackComms } from "./BackComms"
+import { BackComms } from "@once/platform-webext"
 import { Redirect, redirectUrl } from "@once/core"
 
 export { Redirect }

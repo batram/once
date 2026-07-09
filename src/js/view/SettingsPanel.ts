@@ -1,5 +1,5 @@
 import { OnceSettings } from "../OnceSettings"
-import { BackComms } from "../data/BackComms"
+import { BackComms } from "@once/platform-webext"
 import * as menu from "./menu"
 
 export class SettingsPanel {

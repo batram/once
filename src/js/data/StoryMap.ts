@@ -1,6 +1,6 @@
 import { Story } from "../data/Story"
 import { OnceSettings } from "../OnceSettings"
-import { BackComms } from "./BackComms"
+import { BackComms } from "@once/platform-webext"
 
 export interface DataChangeEventDetail {
   story: Story
@@ -46,7 +46,7 @@ export class StoryMap {
         url
       )
       if (story_obj) return Story.from_obj(story_obj)
-    },
+    }
   }
 
   subscribers: number[] = []
@@ -127,7 +127,7 @@ export class StoryMap {
           value: value,
           previousValue: previousValue,
           name: name,
-          animated: OnceSettings.instance.animated,
+          animated: OnceSettings.instance.animated
         }
 
         BackComms.send("story_map", "data_change", detail)
@@ -272,7 +272,7 @@ export class StoryMap {
         type: new_story.type,
         comment_url: new_story.comment_url,
         timestamp: new_story.timestamp,
-        tags: new_story.tags,
+        tags: new_story.tags
       })
       this.emit_data_change(
         [og_story.href, "substories"],

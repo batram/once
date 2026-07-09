@@ -1,7 +1,7 @@
 import { Story } from "../../data/Story"
 import { StoryListItem } from "../../view/StoryListItem"
 import * as Readability from "../../third_party/Readability.js"
-import { BackComms } from "../../data/BackComms"
+import { BackComms } from "@once/platform-webext"
 import { StoryMap } from "../../data/StoryMap"
 import { Presenter, PresenterOptions } from "../../view/presenters_frontend"
 
@@ -10,20 +10,20 @@ export const description = "Presents contents of a webpage in more readable way"
 export const presenter_options: PresenterOptions = {
   urlbar_button: {
     value: true,
-    description: "show outline-button in urlbar",
+    description: "show outline-button in urlbar"
   },
   story_button: {
     value: "always",
-    description: "show outline-button for story (always | never | handled)",
+    description: "show outline-button for story (always | never | handled)"
   },
   use_google_cache: {
     value: false,
-    description: "Try to get the content from google cache",
+    description: "Try to get the content from google cache"
   },
   use_webarchive: {
     value: true,
-    description: "Try to get the content from webarchive",
-  },
+    description: "Try to get the content from webarchive"
+  }
 }
 
 //check for more uniq data url
@@ -149,7 +149,7 @@ async function openInCurrentTab(url: string) {
 function openInNewTab(url: string) {
   browser.tabs.create({
     url: url,
-    active: true, // Set to false if you want it to open in the background
+    active: true // Set to false if you want it to open in the background
   })
 }
 

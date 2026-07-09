@@ -1,6 +1,6 @@
 import { Story } from "../../data/Story"
 import { StoryListItem } from "../StoryListItem"
-import { BackComms } from "../../data/BackComms"
+import { BackComms } from "@once/platform-webext"
 import * as child_process from "child_process"
 import * as path from "path"
 //import { WebTab } from "../WebTab"
@@ -16,12 +16,12 @@ export const presenter_options: Record<
 > = {
   urlbar_button: {
     value: true,
-    description: "show video-button in urlbar",
+    description: "show video-button in urlbar"
   },
   story_button: {
     value: "handled",
-    description: "video-button for story (always | never | handled)",
-  },
+    description: "video-button for story (always | never | handled)"
+  }
 }
 
 //check for more uniq data url
@@ -54,7 +54,7 @@ async function shortcut(
   if (url.startsWith("https://v.redd.it/")) {
     return {
       src: url + "/DASHPlaylist.mpd",
-      type: "application/dash+xml",
+      type: "application/dash+xml"
     }
   } else if (url.includes("youtu") && url.match(/[/=:]+([0-9A-Za-z_-]{11})/)) {
     const id = url.match(/[/=:]+([0-9A-Za-z_-]{11})/)[1]
@@ -109,7 +109,7 @@ function find_source(video_info: VideoDLInfo): { src: string; type?: string } {
     if (video_info.manifest_url) {
       return {
         src: video_info.manifest_url,
-        type: "application/dash+xml",
+        type: "application/dash+xml"
       }
     }
 
@@ -121,7 +121,7 @@ function find_source(video_info: VideoDLInfo): { src: string; type?: string } {
     ) {
       return {
         src: video_info.requested_formats[0].manifest_url,
-        type: "application/dash+xml",
+        type: "application/dash+xml"
       }
     }
     if (
@@ -130,7 +130,7 @@ function find_source(video_info: VideoDLInfo): { src: string; type?: string } {
       video_info.requested_formats[0].url
     ) {
       return {
-        src: video_info.requested_formats[0].url,
+        src: video_info.requested_formats[0].url
       }
     }
   }
@@ -491,7 +491,7 @@ async function source_youtube(
               interval: parseInt(image_info[5]) / 1000,
               count: parseInt(image_info[2]),
               img_url: url_pattern + "&sigh=" + image_info[7],
-              schnibble: false,
+              schnibble: false
             }
 
             vtt_data = generate_vtt(conf)
@@ -504,7 +504,7 @@ async function source_youtube(
               title: title,
               provider: "youtube",
               id: id,
-              vtt_data: vtt_data,
+              vtt_data: vtt_data
             }
           }
           if (
@@ -570,7 +570,7 @@ async function source_youtube(
             title: title,
             provider: "youtube",
             id: id,
-            vtt_data: vtt_data,
+            vtt_data: vtt_data
           }
         } catch (e) {
           console.error("yt ", e)
