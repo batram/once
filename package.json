@@ -9,10 +9,10 @@
     "packages/*"
   ],
   "scripts": {
-    "b2": "webpack --config webpack/webpack.config.js",
-    "b1": "webpack --config webpack/webpack.dev.config.js",
-    "build-dev": "webpack --config webpack/webpack.dev.config.js",
-    "webex": "web-ext build --source-dir ./dist"
+    "b2": "webpack --config apps/firefox-extension/webpack/webpack.config.js",
+    "b1": "webpack --config apps/firefox-extension/webpack/webpack.dev.config.js",
+    "build-dev": "webpack --config apps/firefox-extension/webpack/webpack.dev.config.js",
+    "webex": "web-ext build --source-dir ./apps/firefox-extension/dist"
   },
   "author": "",
   "devDependencies": {

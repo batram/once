@@ -1,27 +1,25 @@
 const path = require("path")
 const CopyPlugin = require("copy-webpack-plugin")
-
 module.exports = {
-  mode: "development",
+  mode: "production",
   entry: {
-    background: path.resolve(__dirname, "..", "src", "background.ts"),
+    background: path.resolve(__dirname, "..", "..", "..", "src", "background.ts"),
     sidepanel: path.resolve(
       __dirname,
+      "..",
+      "..",
       "..",
       "src",
       "js",
       "view",
-      "sidepanel.ts",
+      "sidepanel.ts"
     ),
   },
   output: {
-    path: path.join(__dirname, "../dist"),
+    path: path.join(__dirname, "..", "dist"),
     filename: "[name].js",
   },
-  devtool: "inline-source-map",
-  optimization: {
-    minimize: false,
-  },
+  //devtool: "inline-source-map",
   resolve: {
     extensions: [".ts", ".js"],
     fallback: { path: false },
@@ -37,7 +35,7 @@ module.exports = {
   },
   plugins: [
     new CopyPlugin({
-      patterns: [{ from: ".", to: ".", context: "public" }],
+      patterns: [{ from: ".", to: ".", context: path.resolve(__dirname, "..", "public") }],
     }),
   ],
 }
