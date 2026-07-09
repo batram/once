@@ -1,15 +1,15 @@
-import { OnceSettings } from "../OnceSettings"
-import { SettingsPanel } from "./SettingsPanel"
-import { StoryHistory } from "./StoryHistory"
-import { URLRedirect } from "../data/URLRedirect"
-import * as story_list from "./StoryList"
-import * as search from "../data/search"
-import * as side_menu from "./menu"
-import * as story_loader from "../data/StoryLoader"
-import * as story_parser from "../data/parser"
-import { StoryListItem } from "./StoryListItem"
-import { StoryMap } from "../data/StoryMap"
-import { LoaderInsights } from "./LoaderInsights"
+import { OnceSettings } from "@once/core"
+import { SettingsPanel } from "@once/ui-web"
+import { StoryHistory } from "@once/ui-web"
+import { URLRedirect } from "@once/core"
+import * as story_list from "@once/ui-web"
+import * as search from "@once/ui-web"
+import * as side_menu from "@once/ui-web"
+import * as story_loader from "@once/core"
+import * as story_parser from "@once/core"
+import { StoryListItem } from "@once/ui-web"
+import { StoryMap } from "@once/core"
+import { LoaderInsights } from "@once/ui-web"
 
 document.addEventListener("DOMContentLoaded", async () => {
   new OnceSettings()
@@ -17,8 +17,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   new SettingsPanel()
   new StoryHistory()
   URLRedirect.init()
-  story_list.init()
-  side_menu.init()
+  story_list.init_story_list()
+  side_menu.init_menu_panel()
   LoaderInsights.init()
   search.init_search()
   story_parser.add_all_css_colors()

@@ -3,7 +3,14 @@ const CopyPlugin = require("copy-webpack-plugin")
 module.exports = {
   mode: "production",
   entry: {
-    background: path.resolve(__dirname, "..", "..", "..", "src", "background.ts"),
+    background: path.resolve(
+      __dirname,
+      "..",
+      "..",
+      "..",
+      "src",
+      "background.ts",
+    ),
     sidepanel: path.resolve(
       __dirname,
       "..",
@@ -12,7 +19,7 @@ module.exports = {
       "src",
       "js",
       "view",
-      "sidepanel.ts"
+      "sidepanel.ts",
     ),
   },
   output: {
@@ -23,9 +30,42 @@ module.exports = {
   resolve: {
     extensions: [".ts", ".js"],
     alias: {
-      "@once/core": path.resolve(__dirname, "..", "..", "..", "packages", "core", "src"),
-      "@once/persistence": path.resolve(__dirname, "..", "..", "..", "packages", "persistence", "src"),
-      "@once/platform-webext": path.resolve(__dirname, "..", "..", "..", "packages", "platform-webext", "src"),
+      "@once/core": path.resolve(
+        __dirname,
+        "..",
+        "..",
+        "..",
+        "packages",
+        "core",
+        "src",
+      ),
+      "@once/ui-web": path.resolve(
+        __dirname,
+        "..",
+        "..",
+        "..",
+        "packages",
+        "ui-web",
+        "src",
+      ),
+      "@once/persistence": path.resolve(
+        __dirname,
+        "..",
+        "..",
+        "..",
+        "packages",
+        "persistence",
+        "src",
+      ),
+      "@once/platform-webext": path.resolve(
+        __dirname,
+        "..",
+        "..",
+        "..",
+        "packages",
+        "platform-webext",
+        "src",
+      ),
     },
     fallback: { path: false },
   },
@@ -40,7 +80,13 @@ module.exports = {
   },
   plugins: [
     new CopyPlugin({
-      patterns: [{ from: ".", to: ".", context: path.resolve(__dirname, "..", "public") }],
+      patterns: [
+        {
+          from: ".",
+          to: ".",
+          context: path.resolve(__dirname, "..", "public"),
+        },
+      ],
     }),
   ],
 }

@@ -17,13 +17,16 @@
       "@once/persistence": ["packages/persistence/src/index.ts"],
       "@once/persistence/*": ["packages/persistence/src/*"],
       "@once/platform-webext": ["packages/platform-webext/src/index.ts"],
-      "@once/platform-webext/*": ["packages/platform-webext/src/*"]
+      "@once/platform-webext/*": ["packages/platform-webext/src/*"],
+      "@once/ui-web": ["packages/ui-web/src/index.ts"],
+      "@once/ui-web/*": ["packages/ui-web/src/*"]
     }
   },
   "include": [
     "src/**/*",
     "packages/core/src/**/*",
     "packages/persistence/src/**/*",
+    "packages/ui-web/src/**/*",
     "packages/platform-webext/src/**/*"
   ]
 }

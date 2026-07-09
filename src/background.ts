@@ -1,12 +1,13 @@
-import * as presenters_backend from "./js/view/presenters_backend"
-import { StoryMap } from "./js/data/StoryMap"
-import { OnceSettings } from "./js/OnceSettings"
+//TODO: split presenter into packages with forground and background
+//import * as presenters_backend from "./js/view/presenters_backend"
+import { StoryMap } from "@once/core"
+import { OnceSettings } from "@once/core"
 
 function iniBackground() {
   new OnceSettings()
   new StoryMap()
 
-  presenters_backend.custom_protocol()
+  //presenters_backend.custom_protocol()
 
   console.log("moin background=? ", browser, browser.action)
 
@@ -25,5 +26,5 @@ browser.contextMenus.create({
   title: "undo",
   contexts: ["all"],
   viewTypes: ["sidebar"],
-  documentUrlPatterns: [browser.runtime.getURL("/static/sidepanel.html")],
+  documentUrlPatterns: [browser.runtime.getURL("/static/sidepanel.html")]
 })

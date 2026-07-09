@@ -1,4 +1,4 @@
-import { CoreStory } from "@once/core"
+import { Story } from "@once/core"
 
 export interface PouchStoryDatabase {
   allDocs(options: Record<string, unknown>): Promise<{ rows: { doc?: unknown }[] }>
@@ -6,7 +6,7 @@ export interface PouchStoryDatabase {
   put(doc: Record<string, unknown>): Promise<{ rev?: string }>
 }
 
-export class PouchStoryStore<TStory extends CoreStory> {
+export class PouchStoryStore<TStory extends Story> {
   constructor(
     private db: PouchStoryDatabase,
     private fromObj: (story: Record<string, unknown>) => TStory

@@ -32,8 +32,8 @@ export interface FilterableStory {
   }[]
 }
 
-export interface SortableStory {
+export interface SortableStory<TElement = unknown> {
   read_state: "unread" | "read" | "skipped"
   timestamp: number | string | Date
-  el?: unknown
+  el?: TElement
 }
