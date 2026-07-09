@@ -12,6 +12,9 @@
     "b2": "webpack --config apps/firefox-extension/webpack/webpack.config.js",
     "b1": "webpack --config apps/firefox-extension/webpack/webpack.dev.config.js",
     "build-dev": "webpack --config apps/firefox-extension/webpack/webpack.dev.config.js",
+    "check:types": "tsc --noEmit",
+    "check:boundaries": "node scripts/check-boundaries.js",
+    "check": "npm run check:types && npm run check:boundaries && npm run build-dev",
     "webex": "web-ext build --source-dir ./apps/firefox-extension/dist"
   },
   "author": "",

@@ -1,15 +1,20 @@
 import * as collectors from "../story/collectors"
-import { Story } from "@once/core"
-import { CacheStore } from "@once/platform-webext"
-import { BackComms } from "@once/platform-webext"
-import {
-  daysAgo,
-  humanTime,
-  parseHumanTime,
-  patternMatches
-} from "@once/core"
+import { Story } from "../story/Story"
+import { daysAgo, humanTime, parseHumanTime } from "../time/relativeTime"
+import { patternMatches } from "./patterns"
 
-export function get_parser_for_url(url: string): collectors.StoryParser {
+export interface ParserLookupOptions {
+  onParserMatched?: (parserType: string) => void
+}
+
+export interface ParseResponseOptions extends ParserLookupOptions {
+  cacheResult?: (url: string, content: unknown) => Promise<void>
+}
+
+export function get_parser_for_url(
+  url: string,
+  options: ParserLookupOptions = {}
+): collectors.StoryParser {
   const parsers = collectors.get_parser()
 
   for (const i in parsers) {
@@ -19,7 +24,7 @@ export function get_parser_for_url(url: string): collectors.StoryParser {
       patterns = [patterns]
     }
     if (patternMatches(url, patterns)) {
-      BackComms.send("menu", "add_type", parser.options.type)
+      options.onParserMatched?.(parser.options.type)
       return parser
     }
   }
@@ -55,9 +60,10 @@ export function add_all_css_colors(): void {
 export async function parse_response(
   resp: Response,
   url: string,
-  og_url: string
+  og_url: string,
+  options: ParseResponseOptions = {}
 ): Promise<Story[]> {
-  const parser = get_parser_for_url(og_url)
+  const parser = get_parser_for_url(og_url, options)
 
   if (!parser) {
     throw new Error(`no parser found for: ${og_url}`)
@@ -67,7 +73,7 @@ export async function parse_response(
     try {
       const json_content = await resp.json()
       console.log("got json for ", url, parser, json_content)
-      await cache_result(url, [Date.now(), json_content])
+      await cache_result(options, url, [Date.now(), json_content])
       return parser.parse(json_content, url, og_url)
     } catch (parseError) {
       const detail =
@@ -77,7 +83,7 @@ export async function parse_response(
   } else if (parser.options.collects == "dom") {
     try {
       const text_content = await resp.text()
-      await cache_result(url, [Date.now(), text_content])
+      await cache_result(options, url, [Date.now(), text_content])
       const doc = parse_dom(text_content, url)
       return parser.parse(doc, url, og_url)
     } catch (parseError) {
@@ -88,7 +94,7 @@ export async function parse_response(
   } else if (parser.options.collects == "xml") {
     try {
       const text_content = await resp.text()
-      await cache_result(url, [Date.now(), text_content])
+      await cache_result(options, url, [Date.now(), text_content])
       const doc = parse_xml(text_content)
       return parser.parse(doc, url, og_url)
     } catch (parseError) {
@@ -150,9 +156,17 @@ export function parse_human_time(str: string): number {
   return parseHumanTime(str)
 }
 
-async function cache_result(url: string, content: any) {
+async function cache_result(
+  options: ParseResponseOptions,
+  url: string,
+  content: unknown
+) {
+  if (!options.cacheResult) {
+    return
+  }
+
   try {
-    await CacheStore.set(url, content)
+    await options.cacheResult(url, content)
   } catch (e) {
     console.log("CacheStore cache issue", e)
   }

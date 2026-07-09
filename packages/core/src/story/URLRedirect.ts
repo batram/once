@@ -1,15 +1,24 @@
-import { OnceSettings } from "@once/core"
-import { Redirect, redirectUrl } from "@once/core"
-import { BackComms } from "@once/platform-webext"
+import { OnceSettings } from "../OnceSettings"
+import { Redirect } from "../url/Redirect"
+import { redirectUrl } from "../url/redirectUrl"
+
+interface URLRedirectOptions {
+  onUpdated?: () => void
+}
 
 export class URLRedirect {
   static dynamic_url_redirects: Redirect[]
+  private static onUpdated?: () => void
 
-  static init(): void {
+  static init(options: URLRedirectOptions = {}): void {
+    if (options.onUpdated) {
+      URLRedirect.onUpdated = options.onUpdated
+    }
+
     const sets = OnceSettings.instance
     sets.get_redirectlist().then((x) => {
       URLRedirect.dynamic_url_redirects = x
-      BackComms.send("story_list", "update_redirects")
+      URLRedirect.onUpdated?.()
     })
   }
 

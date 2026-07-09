@@ -211,7 +211,11 @@ async function cache_load(url: string, try_cache = true) {
     try {
       const resp = await fetch(url)
       if (resp.ok) {
-        return story_parser.parse_response(resp, url, og_url) || []
+        return (
+          story_parser.parse_response(resp, url, og_url, {
+            cacheResult: (cacheUrl, content) => CacheStore.set(cacheUrl, content)
+          }) || []
+        )
       } else {
         throw new Error(`HTTP ${resp.status}: ${resp.statusText}`)
       }

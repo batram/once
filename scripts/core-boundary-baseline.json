@@ -1,0 +1,7 @@
+{
+  "disallowedImports": {
+    "packages/core/src/OnceSettings.ts": ["@once/platform-webext"],
+    "packages/core/src/story/StoryLoader.ts": ["@once/platform-webext"],
+    "packages/core/src/story/StoryMap.ts": ["@once/platform-webext"]
+  }
+}

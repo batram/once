@@ -10,13 +10,18 @@ import * as story_parser from "@once/core"
 import { StoryListItem } from "@once/ui-web"
 import { StoryMap } from "@once/core"
 import { LoaderInsights } from "@once/ui-web"
+import { BackComms } from "@once/platform-webext"
 
 document.addEventListener("DOMContentLoaded", async () => {
   new OnceSettings()
   new StoryMap()
   new SettingsPanel()
   new StoryHistory()
-  URLRedirect.init()
+  URLRedirect.init({
+    onUpdated: () => {
+      BackComms.send("story_list", "update_redirects")
+    }
+  })
   story_list.init_story_list()
   side_menu.init_menu_panel()
   LoaderInsights.init()
