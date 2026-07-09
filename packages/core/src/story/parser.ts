@@ -1,7 +1,6 @@
-import * as collectors from "../story/collectors"
-import { Story } from "../story/Story"
+import * as collectors from "./collectors"
+import { Story } from "./Story"
 import { daysAgo, humanTime, parseHumanTime } from "../time/relativeTime"
-import { patternMatches } from "./patterns"
 
 export interface ParserLookupOptions {
   onParserMatched?: (parserType: string) => void
@@ -9,6 +8,26 @@ export interface ParserLookupOptions {
 
 export interface ParseResponseOptions extends ParserLookupOptions {
   cacheResult?: (url: string, content: unknown) => Promise<void>
+}
+
+export function patternMatches(url: string, patterns: string[]): boolean {
+  for (const pattern of patterns) {
+    if (pattern.includes("*")) {
+      const split = pattern.split("*")
+      if (split.length != 2) {
+        throw new Error("For now only one wildcard * is allowed in pattern")
+      }
+
+      if (url.startsWith(split[0]) && url.endsWith(split[1])) {
+        return true
+      }
+    }
+    if (url.startsWith(pattern)) {
+      return true
+    }
+  }
+
+  return false
 }
 
 export function get_parser_for_url(

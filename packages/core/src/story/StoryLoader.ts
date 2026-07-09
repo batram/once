@@ -1,4 +1,4 @@
-import * as StoryParser from "../parser/parser"
+import * as StoryParser from "./parser"
 import { StoryMap } from "./StoryMap"
 import { Story } from "./Story"
 import * as story_filters from "./StoryFilters"
