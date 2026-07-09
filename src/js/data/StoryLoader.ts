@@ -3,7 +3,7 @@ import { StoryMap } from "../data/StoryMap"
 import * as menu from "../view/menu"
 import { Story } from "./Story"
 import * as story_filters from "./StoryFilters"
-import { LoaderInsights } from "../view/LoaderInsights"
+import { LoaderInsights, ProcessingSource } from "../view/LoaderInsights"
 import { CacheStore } from "./CacheStore"
 import { SettingsPanel } from "../view/SettingsPanel"
 import { OnceSettings } from "../OnceSettings"
@@ -39,7 +39,12 @@ export async function parallel_load_stories(
   try_cache = true
 ): Promise<void> {
   const promises: Promise<void>[] = []
+  const processingSources = new Map<string, ProcessingSource>()
   LoaderInsights.resetErrors()
+
+  const updateProcessing = () => {
+    LoaderInsights.showProcessing(Array.from(processingSources.values()))
+  }
 
   // Clear previous source errors
   if (SettingsPanel.instance) {
@@ -50,11 +55,11 @@ export async function parallel_load_stories(
     menu.add_group(group_name)
     const group = story_groups[group_name]
     group.map((source_entry) => {
+      processingSources.set(source_entry, getDomainAndParserType(source_entry))
+      updateProcessing()
       promises.push(
         cache_load(source_entry, try_cache)
           .then((stories) => {
-            const { domain, parserType } = getDomainAndParserType(source_entry)
-            LoaderInsights.show(`Processed ${domain} [${parserType}]`)
             process_story_input(stories, group_name)
           })
           .catch((e) => {
@@ -96,10 +101,15 @@ export async function parallel_load_stories(
             }
 
             LoaderInsights.showError(
-              `${errorType}: ${domain} [${parserType}]`,
+              errorType,
               source_entry,
-              `Source: ${source_entry}\nError: ${errorDetail}`
+              `Source: ${source_entry}\nError: ${errorDetail}`,
+              { domain, parserType }
             )
+          })
+          .finally(() => {
+            processingSources.delete(source_entry)
+            updateProcessing()
           })
       )
     })
@@ -178,9 +188,6 @@ async function cache_load(url: string, try_cache = true) {
   if (parser && parser.resolve_url) {
     url = parser.resolve_url(url)
   }
-
-  const { domain, parserType } = getDomainAndParserType(og_url)
-  LoaderInsights.show(`Fetching ${domain} [${parserType}]`)
 
   if (cached != null) {
     try {

@@ -1,5 +1,10 @@
 import { SettingsPanel } from "./SettingsPanel"
 
+export interface ProcessingSource {
+  domain: string
+  parserType: string
+}
+
 export class LoaderInsights {
   private static el: HTMLElement | null = null
   private static timeout: NodeJS.Timeout | null = null
@@ -7,14 +12,14 @@ export class LoaderInsights {
   static init(): void {
     if (this.el) return
 
-    const container = document.querySelector("#stories_panel")
-    if (container) {
+    const stories = document.querySelector("#stories")
+    if (stories) {
       // Check if container already exists (retry mechanics)
       let notifContainer = document.querySelector("#notification_container")
       if (!notifContainer) {
         notifContainer = document.createElement("div")
         notifContainer.id = "notification_container"
-        container.appendChild(notifContainer)
+        stories.insertAdjacentElement("afterend", notifContainer)
       }
 
       this.el = document.createElement("div")
@@ -26,29 +31,82 @@ export class LoaderInsights {
   static show(message: string): void {
     if (!this.el) return
 
-    this.el.innerText = message
+    this.el.textContent = message
     this.el.classList.add("visible")
 
     if (this.timeout) {
       clearTimeout(this.timeout)
+      this.timeout = null
+    }
+  }
+
+  static showProcessing(items: ProcessingSource[]): void {
+    if (!this.el) return
+
+    if (items.length === 0) {
+      this.hide()
+      return
+    }
+
+    this.el.replaceChildren()
+
+    const label = document.createElement("div")
+    label.classList.add("loader_insights_label")
+    label.textContent =
+      items.length === 1
+        ? "Still processing 1 source"
+        : `Still processing ${items.length} sources`
+    this.el.appendChild(label)
+
+    const list = document.createElement("div")
+    list.classList.add("loader_insights_items")
+    items.forEach((item) => {
+      const itemEl = document.createElement("span")
+      itemEl.classList.add("loader_insights_item")
+      itemEl.classList.add("info")
+      itemEl.dataset.type = `[${item.parserType}]`
+
+      const type = document.createElement("span")
+      type.classList.add("type")
+      type.textContent = item.parserType
+      itemEl.appendChild(type)
+
+      const domain = document.createElement("span")
+      domain.classList.add("loader_source_domain")
+      domain.textContent = item.domain
+      itemEl.appendChild(domain)
+
+      list.appendChild(itemEl)
+    })
+    this.el.appendChild(list)
+
+    this.el.classList.add("visible")
+
+    if (this.timeout) {
+      clearTimeout(this.timeout)
+      this.timeout = null
     }
   }
 
   static showError(
     message: string,
     url?: string,
-    detailedMessage?: string
+    detailedMessage?: string,
+    source?: ProcessingSource
   ): void {
     const container = document.querySelector("#notification_container")
     if (!container) return
 
-    // Deduplicate: check if this URL already has an error displayed in SettingsPanel
-    if (url && SettingsPanel.instance && SettingsPanel.instance.hasError(url)) {
-      return
+    // Deduplicate rendered errors without suppressing settings-backed errors.
+    if (url) {
+      const existingError = Array.from(
+        container.querySelectorAll<HTMLElement>(".loader_error")
+      ).find((el) => el.dataset.url === url)
+      if (existingError) return
     }
 
-    // Add error to SettingsPanel
-    if (url && SettingsPanel.instance) {
+    // Add error to SettingsPanel if the caller did not already do it.
+    if (url && SettingsPanel.instance && !SettingsPanel.instance.hasError(url)) {
       SettingsPanel.instance.addSourceError(
         url,
         detailedMessage || message,
@@ -58,10 +116,38 @@ export class LoaderInsights {
 
     const errorEl = document.createElement("div")
     errorEl.classList.add("loader_error")
+    if (url) {
+      errorEl.dataset.url = url
+    }
 
-    // Text span for the message
     const textSpan = document.createElement("span")
-    textSpan.innerText = message
+    textSpan.classList.add("loader_error_message")
+
+    if (source) {
+      const sourceEl = document.createElement("span")
+      sourceEl.classList.add("loader_insights_item")
+      sourceEl.classList.add("info")
+      sourceEl.dataset.type = `[${source.parserType}]`
+
+      const type = document.createElement("span")
+      type.classList.add("type")
+      type.textContent = source.parserType
+      sourceEl.appendChild(type)
+
+      const domain = document.createElement("span")
+      domain.classList.add("loader_source_domain")
+      domain.textContent = source.domain
+      sourceEl.appendChild(domain)
+
+      const label = document.createElement("span")
+      label.textContent = message
+
+      textSpan.appendChild(label)
+      textSpan.appendChild(sourceEl)
+    } else {
+      textSpan.innerText = message
+    }
+
     errorEl.appendChild(textSpan)
 
     // Close button (X)
