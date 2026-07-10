@@ -17,6 +17,7 @@ export class BrowserShell {
   private readonly backButton: HTMLButtonElement
   private readonly forwardButton: HTMLButtonElement
   private readonly reloadButton: HTMLButtonElement
+  private readonly readerButton: HTMLButtonElement
   private readonly popoutButton: HTMLButtonElement
   private readonly closeButton: HTMLButtonElement
   private readonly addressError: HTMLElement
@@ -25,7 +26,10 @@ export class BrowserShell {
   private draggingTabId: string | null = null
   private dropHandled = false
 
-  constructor(private readonly bridge: ElectronBridge) {
+  constructor(
+    private readonly bridge: ElectronBridge,
+    private readonly openReader: (url: string) => Promise<void>
+  ) {
     const windowContent = required<HTMLElement>("#window_content")
     this.leftPanel = required<HTMLElement>("#left_panel")
 
@@ -48,6 +52,9 @@ export class BrowserShell {
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
         </button>
         <input id="urlfield" type="text" spellcheck="false" aria-label="Address" aria-describedby="url_error" placeholder="type URL here" />
+        <button id="browser_reader" class="browser-button image-button" title="Reader mode" aria-label="Reader mode">
+          <img src="imgs/article.svg" alt="" />
+        </button>
         <button id="browser_reload" class="browser-button image-button" title="Reload" aria-label="Reload">
           <img src="imgs/reload.svg" alt="" />
         </button>
@@ -76,6 +83,7 @@ export class BrowserShell {
     this.backButton = required<HTMLButtonElement>("#browser_back")
     this.forwardButton = required<HTMLButtonElement>("#browser_forward")
     this.reloadButton = required<HTMLButtonElement>("#browser_reload")
+    this.readerButton = required<HTMLButtonElement>("#browser_reader")
     this.popoutButton = required<HTMLButtonElement>("#browser_popout")
     this.closeButton = required<HTMLButtonElement>("#browser_close")
 
@@ -103,6 +111,22 @@ export class BrowserShell {
       this.withActive((tab) =>
         tab.loading ? this.bridge.tabs.stop(tab.id) : this.bridge.tabs.reload(tab.id)
       )
+    }
+    this.readerButton.onclick = () => {
+      const active = this.activeTab()
+      if (!active) return
+      this.setAddressError("")
+      const readerSource = sourceUrlFromReaderUrl(active.url)
+      if (readerSource) {
+        void this.bridge.tabs.navigate(active.id, readerSource).catch((error) => {
+          this.setAddressError(readerErrorMessage(error))
+        })
+        return
+      }
+      if (!isReadableUrl(active.url)) return
+      void this.openReader(active.url).catch((error) => {
+        this.setAddressError(readerErrorMessage(error))
+      })
     }
     this.popoutButton.onclick = () =>
       this.withActive((tab) => this.bridge.tabs.detach(tab.id))
@@ -280,7 +304,9 @@ export class BrowserShell {
 
     const active = this.activeTab()
     if (active) {
-      if (document.activeElement !== this.address) this.address.value = active.url
+      if (document.activeElement !== this.address) {
+        this.address.value = displayBrowserUrl(active.url)
+      }
       this.backButton.disabled = !active.canGoBack
       this.forwardButton.disabled = !active.canGoForward
       this.reloadButton.innerHTML = active.loading
@@ -289,12 +315,19 @@ export class BrowserShell {
       this.reloadButton.title = active.loading ? "Stop" : "Reload"
       this.reloadButton.setAttribute("aria-label", this.reloadButton.title)
       this.reloadButton.disabled = false
+      const readerActive = sourceUrlFromReaderUrl(active.url) != null
+      this.readerButton.disabled = !readerActive && !isReadableUrl(active.url)
+      this.readerButton.classList.toggle("active", readerActive)
+      this.readerButton.title = readerActive ? "Exit reader mode" : "Reader mode"
+      this.readerButton.setAttribute("aria-label", this.readerButton.title)
       this.popoutButton.disabled = false
       this.closeButton.disabled = false
     } else {
       this.backButton.disabled = true
       this.forwardButton.disabled = true
       this.reloadButton.disabled = true
+      this.readerButton.disabled = true
+      this.readerButton.classList.remove("active")
       this.popoutButton.disabled = true
       this.closeButton.disabled = true
     }
@@ -412,6 +445,31 @@ export class BrowserShell {
         height: Math.round(rect.height)
       })
     })
+  }
+}
+
+function isReadableUrl(url: string): boolean {
+  return url.startsWith("http://") || url.startsWith("https://")
+}
+
+function readerErrorMessage(error: unknown): string {
+  const detail = error instanceof Error ? error.message : String(error)
+  return `Reader mode failed: ${detail}`
+}
+
+function displayBrowserUrl(url: string): string {
+  const source = sourceUrlFromReaderUrl(url)
+  return source ? `once-reader://${source}` : url
+}
+
+function sourceUrlFromReaderUrl(url: string): string | null {
+  if (!url.startsWith("once-reader://")) return null
+  try {
+    const parsed = new URL(url)
+    if (parsed.hostname !== "http" && parsed.hostname !== "https") return null
+    return new URL(`${parsed.hostname}:${parsed.pathname}${parsed.search}${parsed.hash}`).toString()
+  } catch {
+    return null
   }
 }
 

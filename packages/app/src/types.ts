@@ -94,6 +94,7 @@ export interface OnceClient {
     value: Story | string | boolean
   ): Promise<Story>
   addFilter(filter: string): Promise<void>
+  fetchDocument(url: string): Promise<{ html: string; url: string }>
   openUrl(url: string, target: "_self" | "middle" | "blank" | string): void
   selectUrl(url: string): Promise<void>
   subscribe<T extends OnceEventName>(

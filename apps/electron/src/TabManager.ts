@@ -24,6 +24,7 @@ import {
   normalizeBrowserUrl,
   resolveOpenDisposition
 } from "@once/platform-electron/navigation"
+import { storeReaderDocument } from "./ReaderProtocol"
 
 interface TabEntry {
   id: string
@@ -188,6 +189,25 @@ export class BrowserCoordinator {
     } else {
       await this.navigate(state, state.activeId, normalized)
     }
+  }
+
+  async openReader(
+    state: WindowEntry,
+    html: string,
+    sourceUrl: string,
+    target: ElectronOpenTarget
+  ): Promise<void> {
+    if (typeof html !== "string" || html.length < 20 || html.length > 20_000_000) {
+      throw new Error("Invalid reader document")
+    }
+    const readerUrl = storeReaderDocument(sourceUrl, html)
+    const disposition = resolveOpenDisposition(target)
+    if (disposition === "current" && state.activeId) {
+      this.load(this.requireOwnedTab(state, state.activeId), readerUrl)
+      return
+    }
+    const id = await this.createTab(state, "about:blank", disposition !== "background")
+    this.load(this.requireOwnedTab(state, id), readerUrl)
   }
 
   activate(state: WindowEntry, id: string): void {

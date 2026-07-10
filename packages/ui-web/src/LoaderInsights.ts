@@ -8,6 +8,7 @@ interface LoaderInsightsOptions {
 type StatusKind = "error" | "info" | "link" | "loading" | "warning"
 
 const INFO_FADE_DELAY = 2500
+const ERROR_FADE_DELAY = 8000
 const WARNING_COLLAPSE_DELAY = 5000
 
 export class LoaderInsights {
@@ -22,6 +23,7 @@ export class LoaderInsights {
   private static expandedIssue: SourceError | null = null
   private static hoveredUrl = ""
   private static infoMessage = ""
+  private static infoKind: StatusKind = "info"
   private static wasProcessing = false
   private static infoTimeout: ReturnType<typeof setTimeout> | null = null
   private static warningTimeout: ReturnType<typeof setTimeout> | null = null
@@ -156,7 +158,8 @@ export class LoaderInsights {
     } else if (this.wasProcessing) {
       this.wasProcessing = false
       this.infoMessage = "Stories updated"
-      this.scheduleInfoFade()
+      this.infoKind = "info"
+      this.scheduleInfoFade(INFO_FADE_DELAY)
     }
 
     this.render()
@@ -233,7 +236,15 @@ export class LoaderInsights {
 
   static show(message: string): void {
     this.infoMessage = message
-    this.scheduleInfoFade()
+    this.infoKind = "info"
+    this.scheduleInfoFade(INFO_FADE_DELAY)
+    this.render()
+  }
+
+  static showErrorMessage(message: string): void {
+    this.infoMessage = message
+    this.infoKind = "error"
+    this.scheduleInfoFade(ERROR_FADE_DELAY)
     this.render()
   }
 
@@ -248,6 +259,7 @@ export class LoaderInsights {
 
   static hide(): void {
     this.infoMessage = ""
+    this.infoKind = "info"
     this.clearInfoTimeout()
     this.render()
   }
@@ -303,6 +315,7 @@ export class LoaderInsights {
       title = `${this.expandedIssue.message}\n${this.expandedIssue.url}`
       clickable = true
     } else if (this.infoMessage) {
+      kind = this.infoKind
       text = this.infoMessage
       title = this.infoMessage
     }
@@ -339,13 +352,14 @@ export class LoaderInsights {
     return url.trim() || "Unknown source"
   }
 
-  private static scheduleInfoFade(): void {
+  private static scheduleInfoFade(delay: number): void {
     this.clearInfoTimeout()
     this.infoTimeout = setTimeout(() => {
       this.infoMessage = ""
+      this.infoKind = "info"
       this.infoTimeout = null
       this.render()
-    }, INFO_FADE_DELAY)
+    }, delay)
   }
 
   private static scheduleWarningCollapse(): void {

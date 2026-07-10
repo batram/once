@@ -18,11 +18,17 @@ import {
 } from "@once/platform-electron/bridge"
 import { SecureSettings } from "./SecureSettings"
 import { BrowserCoordinator } from "./TabManager"
+import {
+  configureReaderProtocol,
+  registerReaderScheme
+} from "./ReaderProtocol"
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string
 
 if (started) app.quit()
+
+registerReaderScheme()
 
 if (process.env.ONCE_ELECTRON_TEST_USER_DATA) {
   app.setPath("userData", process.env.ONCE_ELECTRON_TEST_USER_DATA)
@@ -112,6 +118,13 @@ function registerIpc(
     const current = browser(event)
     return current.coordinator.openUrl(current.window, url, target)
   })
+  ipcMain.handle(
+    ELECTRON_IPC.tabsOpenReader,
+    (event, html: string, sourceUrl: string, target: string) => {
+      const current = browser(event)
+      return current.coordinator.openReader(current.window, html, sourceUrl, target)
+    }
+  )
   ipcMain.handle(ELECTRON_IPC.tabsCreate, (event, url?: string, active?: boolean) => {
     const current = browser(event)
     return current.coordinator.createTab(current.window, url, active)
@@ -227,6 +240,7 @@ function createShellWindow(bounds?: Rectangle): BrowserWindow {
 
 function configureBrowserSession(): void {
   const browserSession = session.fromPartition("persist:once-browser-v2")
+  configureReaderProtocol(browserSession)
   browserSession.setPermissionCheckHandler(() => false)
   browserSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
     callback(false)

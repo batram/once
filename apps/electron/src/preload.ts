@@ -24,6 +24,8 @@ const bridge: ElectronBridge = {
     getAll: () => ipcRenderer.invoke(ELECTRON_IPC.tabsGetAll),
     openUrl: (url, target) =>
       ipcRenderer.invoke(ELECTRON_IPC.tabsOpenUrl, url, target),
+    openReader: (html, sourceUrl, target) =>
+      ipcRenderer.invoke(ELECTRON_IPC.tabsOpenReader, html, sourceUrl, target),
     create: (url, active) =>
       ipcRenderer.invoke(ELECTRON_IPC.tabsCreate, url, active),
     activate: (id) => ipcRenderer.invoke(ELECTRON_IPC.tabsActivate, id),

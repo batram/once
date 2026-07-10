@@ -54,6 +54,7 @@ export interface ElectronBridge {
   tabs: {
     getAll(): Promise<ElectronTabState[]>
     openUrl(url: string, target: ElectronOpenTarget): Promise<void>
+    openReader(html: string, sourceUrl: string, target: ElectronOpenTarget): Promise<void>
     create(url?: string, active?: boolean): Promise<string>
     activate(id: string): Promise<void>
     close(id: string): Promise<void>
@@ -88,6 +89,7 @@ export const ELECTRON_IPC = {
   setCacheTime: "once:settings:set-cache-time",
   tabsGetAll: "once:tabs:get-all",
   tabsOpenUrl: "once:tabs:open-url",
+  tabsOpenReader: "once:tabs:open-reader",
   tabsCreate: "once:tabs:create",
   tabsActivate: "once:tabs:activate",
   tabsClose: "once:tabs:close",

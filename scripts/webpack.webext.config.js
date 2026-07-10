@@ -19,6 +19,7 @@ module.exports = (env = {}, argv = {}) => {
     entry: {
       background: path.join(appRoot, "src", "background.ts"),
       sidepanel: path.join(root, "packages", "webext-shell", "dist", "sidepanel.js"),
+      "reader-content": path.join(root, "packages", "ui-web", "dist", "reader", "contentScript.js"),
     },
     output: {
       path: path.join(appRoot, "dist"),

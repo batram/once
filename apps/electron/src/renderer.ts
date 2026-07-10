@@ -1,14 +1,22 @@
 import { createOnceApp } from "@once/app"
 import { createElectronPlatform } from "@once/platform-electron"
 import { ElectronRedirectRule } from "@once/platform-electron/bridge"
-import { mountOnceUi } from "@once/ui-web"
+import { mountOnceUi, ReaderView } from "@once/ui-web"
 import { BrowserShell } from "./BrowserShell"
 import "./electron.css"
 
 document.addEventListener("DOMContentLoaded", async () => {
-  const browserShell = new BrowserShell(window.onceElectron)
   const platform = createElectronPlatform(window.onceElectron)
   const app = createOnceApp(platform)
+  ReaderView.mount(
+    app.client,
+    (html, sourceUrl, target) =>
+      window.onceElectron.tabs.openReader(html, sourceUrl, target)
+  )
+  const browserShell = new BrowserShell(
+    window.onceElectron,
+    (url) => ReaderView.open(url)
+  )
 
   await app.start()
   const updateRedirects = async (

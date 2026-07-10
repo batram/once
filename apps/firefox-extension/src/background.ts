@@ -1,3 +1,7 @@
+import { installReaderBackground } from "@once/webext-shell/dist/readerBackground"
+
+installReaderBackground()
+
 async function initBackground() {
   browser.action.onClicked.addListener(() => {
     browser.sidebarAction.toggle()

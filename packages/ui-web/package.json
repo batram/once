@@ -5,13 +5,23 @@
   "description": "Shared DOM UI for Once",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "reader/readerDocument": ["dist/reader/readerDocument.d.ts"]
+    }
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./reader/readerDocument": {
+      "types": "./dist/reader/readerDocument.d.ts",
+      "default": "./dist/reader/readerDocument.js"
     }
   },
   "dependencies": {
+    "@mozilla/readability": "^0.6.0",
     "@once/app": "*",
     "@once/collectors": "*",
     "@once/core": "*"

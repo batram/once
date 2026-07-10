@@ -1,3 +1,7 @@
+import { installReaderBackground } from "@once/webext-shell/dist/readerBackground"
+
+installReaderBackground()
+
 interface ChromeSidePanelApi {
   setPanelBehavior(options: { openPanelOnActionClick: boolean }): Promise<void>
 }

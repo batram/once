@@ -8,6 +8,7 @@ import { SettingsPanel } from "./SettingsPanel"
 import { StoryHistory } from "./StoryHistory"
 import * as StoryList from "./StoryList"
 import { StoryListItem } from "./StoryListItem"
+import { ReaderView } from "./reader/ReaderView"
 
 export interface MountOnceUiOptions {
   showHoveredLinks?: boolean
@@ -19,6 +20,7 @@ export async function mountOnceUi(
   options: MountOnceUiOptions = {}
 ): Promise<void> {
   setOnceClient(client)
+  ReaderView.mount(client)
 
   new SettingsPanel(client)
   new StoryHistory(client)
@@ -61,6 +63,8 @@ function toggleMenu(): boolean {
 async function updateSelected(client: OnceClient, href: string): Promise<void> {
   if (!href) return
 
+  href = sourceUrlFromReaderUrl(href) || href
+
   if (href.startsWith("about:reader?url=")) {
     const urlParams = new URLSearchParams(href.replace("about:reader", ""))
     const readerUrl = urlParams.get("url")
@@ -80,5 +84,16 @@ async function updateSelected(client: OnceClient, href: string): Promise<void> {
     const storyElement = new StoryListItem(story)
     storyElement.classList.add("selected")
     selectedContainer.append(storyElement)
+  }
+}
+
+function sourceUrlFromReaderUrl(url: string): string | null {
+  if (!url.startsWith("once-reader://")) return null
+  try {
+    const parsed = new URL(url)
+    if (parsed.hostname !== "http" && parsed.hostname !== "https") return null
+    return new URL(`${parsed.hostname}:${parsed.pathname}${parsed.search}${parsed.hash}`).toString()
+  } catch {
+    return null
   }
 }

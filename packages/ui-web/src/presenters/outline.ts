@@ -3,6 +3,8 @@ import { StoryListItem } from "../StoryListItem"
 //import * as Readability from "../../third_party/Readability.js"
 import { Presenter, PresenterOptions } from "../presenters_frontend"
 import { getOnceClient } from "../client"
+import { ReaderView } from "../reader/ReaderView"
+import { LoaderInsights } from "../LoaderInsights"
 
 export const description = "Presents contents of a webpage in more readable way"
 
@@ -90,26 +92,29 @@ export function story_elem_button(story: Story): HTMLElement {
   })
 
   outline_btn.addEventListener("mouseup", async (e: MouseEvent) => {
-    if (e.button === 2) return
+    if (e.button !== 0 && e.button !== 1) return
 
-    outline_btn.parentElement
-      ?.querySelector(".read_btn")
-      ?.classList.add("user_interaction")
-    await getOnceClient().persistStoryChange(
-      story.href,
-      "read_state",
-      "read"
-    )
+    try {
+      if (e.button === 1) {
+        // Middle click
+        e.preventDefault()
+        e.stopPropagation()
+        await openInReaderMode(story.href, true)
+      } else if (e.button === 0) {
+        // Left click
+        await openInReaderMode(story.href, false)
+      }
 
-    // Use the helper function instead of encodeToReaderModeUrl
-    if (e.button === 1) {
-      // Middle click
-      e.preventDefault()
-      e.stopPropagation()
-      openInReaderMode(story.href, true)
-    } else if (e.button === 0) {
-      // Left click
-      openInReaderMode(story.href, false)
+      outline_btn.parentElement
+        ?.querySelector(".read_btn")
+        ?.classList.add("user_interaction")
+      await getOnceClient().persistStoryChange(
+        story.href,
+        "read_state",
+        "read"
+      )
+    } catch (error) {
+      showReaderError(error)
     }
   })
 
@@ -117,7 +122,11 @@ export function story_elem_button(story: Story): HTMLElement {
 }
 
 async function openInReaderMode(url: string, newTab = false) {
-  getOnceClient().openUrl(url, newTab ? "blank" : "_self")
+  if (newTab) {
+    await ReaderView.open(url, "middle")
+    return
+  }
+  await ReaderView.open(url)
 }
 
 async function openInCurrentTab(url: string) {
@@ -190,15 +199,23 @@ export function display_url(url: string): string {
 }
 
 export async function present(url: string): Promise<void> {
-  outline(url)
+  try {
+    await ReaderView.open(url)
+  } catch (error) {
+    showReaderError(error)
+  }
 }
 
-async function outline(url: string): Promise<void> {
-  console.debug("outline presenter is not implemented for this surface", url)
-}
+async function outline(url: string): Promise<void> { await ReaderView.open(url) }
 
 function fail_outline(reason: string) {
   console.error("outline failed", reason)
+}
+
+function showReaderError(error: unknown): void {
+  const detail = error instanceof Error ? error.message : String(error)
+  console.error("Reader mode failed", error)
+  LoaderInsights.showErrorMessage(`Reader mode failed: ${detail}`)
 }
 
 async function archive_cache(url: string) {

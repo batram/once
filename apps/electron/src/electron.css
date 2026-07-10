@@ -214,6 +214,11 @@ body {
   background: var(--highlight-bg-color);
 }
 
+#browser_reader.active {
+  background: var(--highlight-bg-color);
+  border-color: var(--text-high-color);
+}
+
 .browser-button:disabled {
   cursor: default;
   opacity: 0.4;
@@ -317,10 +322,8 @@ body {
   min-width: 100%;
 }
 
-/* Presenter controls remain hidden until their Electron behavior is real. */
-body .outline_btn,
+/* Video presentation is not yet implemented for Electron. */
 body .video_btn,
-body #outline_webview_btn,
 body #video_webview_btn {
   display: none !important;
 }
