@@ -88,8 +88,10 @@ export function createWebPlatform(): OncePlatformPorts {
     },
     activeTab: {
       openUrl(url, target) {
-        if (target !== "middle") {
-          window.open(url, target === "_self" ? "_blank" : target)
+        if (target === "middle" || target === "_self") {
+          window.open(url, "_blank")
+        } else {
+          window.open(url, target)
         }
       },
       onSelectedUrlChanged() {

@@ -7,6 +7,7 @@ import { URLRedirect } from "@once/core"
 import { StoryHistory } from "./StoryHistory"
 import { SettingsPanel } from "./SettingsPanel"
 import { getOnceClient } from "./client"
+import * as Search from "./search"
 
 export class StoryListItem extends HTMLElement {
   story: Story
@@ -54,28 +55,14 @@ export class StoryListItem extends HTMLElement {
     this.link.href = redirected_url
     this.link.classList.add("title")
     this.link.innerText = this.story.title
-    this.link.addEventListener("click", (e: MouseEvent) => {
-      this.read_btn.classList.add("user_interaction")
-      open_story(this.story.href, "_self")
-      e.stopPropagation()
-      e.preventDefault()
-    })
-    this.link.addEventListener("mouseup", (e: MouseEvent) => {
-      if (e.button == 1) {
+    bindLinkBehavior(this.link, {
+      onClick: () => {
+        this.read_btn.classList.add("user_interaction")
+        open_story(this.story.href, "_self")
+      },
+      onMiddleClick: () => {
         this.read_btn.classList.add("user_interaction")
         open_story(this.story.href, "middle")
-
-        e.stopPropagation()
-        e.preventDefault()
-        return true
-      }
-    })
-
-    this.link.addEventListener("mousedown", (e: MouseEvent) => {
-      if (e.button == 1) {
-        e.stopPropagation()
-        e.preventDefault()
-        return true
       }
     })
 
@@ -85,6 +72,16 @@ export class StoryListItem extends HTMLElement {
     og_link.innerText = " [OG] "
     og_link.classList.add("og_href")
     og_link.href = this.story.href
+    bindLinkBehavior(og_link, {
+      onClick: () => {
+        this.read_btn.classList.add("user_interaction")
+        openStoryUrl(this.story.href, "_self", false)
+      },
+      onMiddleClick: () => {
+        this.read_btn.classList.add("user_interaction")
+        openStoryUrl(this.story.href, "middle", false)
+      }
+    })
     title_line.appendChild(og_link)
     if (this.link.href == og_link.href) {
       //og_link.style.opacity = "0.4"
@@ -96,6 +93,11 @@ export class StoryListItem extends HTMLElement {
     hostname.innerText = " (" + og_link.hostname + ") "
     hostname.href = "search:domain:" + og_link.hostname
     hostname.target = "search"
+    bindLinkBehavior(hostname, {
+      onClick: () => {
+        Search.searchStories("domain:" + og_link.hostname)
+      }
+    })
     title_line.appendChild(hostname)
 
     this.substories_el = document.createElement("div")
@@ -463,9 +465,16 @@ export class StoryListItem extends HTMLElement {
     comments_link.href = sub_story_ob.comment_url || this.story.href
     info.appendChild(comments_link)
 
-    comments_link.addEventListener("click", (e) => {
-      console.log("clickedy comments link", e)
-      //open_story(comments_link.href, "_self")
+    const commentsUrl = sub_story_ob.comment_url || this.story.href
+    bindLinkBehavior(comments_link, {
+      onClick: () => {
+        this.read_btn.classList.add("user_interaction")
+        openStoryUrl(commentsUrl, "_self", false)
+      },
+      onMiddleClick: () => {
+        this.read_btn.classList.add("user_interaction")
+        openStoryUrl(commentsUrl, "middle", false)
+      }
     })
 
     const time = document.createElement("div")
@@ -491,6 +500,14 @@ export class StoryListItem extends HTMLElement {
 
         if (tag.href) {
           tag_el.href = tag.href
+          bindLinkBehavior(tag_el, {
+            onClick: () => {
+              getOnceClient().openUrl(tag.href!, "_self")
+            },
+            onMiddleClick: () => {
+              getOnceClient().openUrl(tag.href!, "middle")
+            }
+          })
         }
 
         if (tag.icon) {
@@ -623,8 +640,52 @@ if (window.customElements && !window.customElements.get("story-item")) {
   window.customElements.define("story-item", StoryListItem)
 }
 
-function open_story(href: string, target: string) {
-  const redirected_url = URLRedirect.redirect_url(href)
+function bindLinkBehavior(
+  el: HTMLAnchorElement,
+  options: {
+    onClick: () => void
+    onMiddleClick?: () => void
+  }
+) {
+  el.addEventListener("click", (e: MouseEvent) => {
+    if (e.button === 0) {
+      e.preventDefault()
+      e.stopPropagation()
+      options.onClick()
+    }
+  })
+
+  if (options.onMiddleClick) {
+    el.addEventListener("mousedown", (e: MouseEvent) => {
+      if (e.button === 1) {
+        e.preventDefault()
+        e.stopPropagation()
+      }
+    })
+
+    el.addEventListener("mouseup", (e: MouseEvent) => {
+      if (e.button === 1) {
+        e.preventDefault()
+        e.stopPropagation()
+        options.onMiddleClick!()
+      }
+    })
+
+    el.addEventListener("auxclick", (e: MouseEvent) => {
+      if (e.button === 1) {
+        e.preventDefault()
+        e.stopPropagation()
+      }
+    })
+  }
+}
+
+function openStoryUrl(href: string, target: string, useRedirect = true) {
+  const url = useRedirect ? URLRedirect.redirect_url(href) : href
   getOnceClient().persistStoryChange(href, "read_state", "read")
-  getOnceClient().openUrl(redirected_url, target)
+  getOnceClient().openUrl(url, target)
+}
+
+function open_story(href: string, target: string) {
+  openStoryUrl(href, target, true)
 }

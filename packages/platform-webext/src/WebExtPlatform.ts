@@ -40,6 +40,10 @@ export function createWebExtPlatform(): OncePlatformPorts {
     activeTab: {
       openUrl(url, target) {
         if (target === "middle") {
+          browser.tabs.create({
+            url,
+            active: false
+          })
           return
         }
         if (target === "_self") {
