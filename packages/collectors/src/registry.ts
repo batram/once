@@ -1,4 +1,12 @@
 import { Story } from "@once/core"
+import * as genyMatch from "./collectors/geny_match"
+import * as hackerNewsHtml from "./collectors/hackernews_html"
+import * as jsonSelect from "./collectors/json_select"
+import * as lobstersHtml from "./collectors/lobsters_html"
+import * as redditJson from "./collectors/reddit_json"
+import * as redditRss from "./collectors/reddit_rss"
+import * as twitterHtml from "./collectors/twitter_html"
+import * as vanillaRss from "./collectors/vanilla_rss"
 
 export declare interface StoryParser {
   options: {
@@ -21,20 +29,16 @@ export declare interface StoryParser {
 }
 
 export function get_active(): StoryParser[] {
-  const collectors = [
-    "geny_match",
-    "hackernews_html",
-    "json_select",
-    "lobsters_html",
-    "reddit_json",
-    "reddit_rss",
-    "twitter_html",
-    "vanilla_rss"
-  ]
-
-  return collectors.map((x) => {
-    return require("./collectors/" + x)
-  })
+  return [
+    genyMatch,
+    hackerNewsHtml,
+    jsonSelect,
+    lobstersHtml,
+    redditJson,
+    redditRss,
+    twitterHtml,
+    vanillaRss
+  ] as StoryParser[]
 }
 
 export function get_parser(): StoryParser[] {

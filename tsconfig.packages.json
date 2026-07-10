@@ -1,0 +1,14 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/collectors" },
+    { "path": "packages/app" },
+    { "path": "packages/persistence" },
+    { "path": "packages/platform-electron" },
+    { "path": "packages/platform-mobile" },
+    { "path": "packages/platform-web" },
+    { "path": "packages/platform-webext" },
+    { "path": "packages/ui-web" }
+  ]
+}

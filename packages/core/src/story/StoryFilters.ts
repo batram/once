@@ -1,9 +1,6 @@
-import { Story } from "@once/core"
 import { defaultFilterList } from "../settings/defaults"
-import {
-  applyStoryFilter,
-  applyStoryFilters
-} from "@once/core/story/filterStories"
+import { Story } from "./Story"
+import { applyStoryFilter, applyStoryFilters } from "./filterStories"
 
 let filterListProvider: () => Promise<string[]> = async () => defaultFilterList
 

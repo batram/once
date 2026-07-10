@@ -25,14 +25,19 @@
   loading is owned by `OnceApp`.
 - The unused legacy `OnceSettings` singleton API has been removed; settings
   access is owned by `OnceApp` and its platform ports.
+- Every `@once/*` package builds JavaScript and declarations into its own
+  `dist/` directory through TypeScript project references. Package manifests
+  declare their real dependencies and compiled entrypoints.
+- Firefox resolves workspace packages through their manifests; the root
+  TypeScript paths and duplicated webpack aliases have been removed.
 - `packages/core` is DOM-free. The boundary check rejects DOM, collector,
   platform, UI, and persistence dependencies in core.
 - Dynamic collector loading and per-source packages are deferred.
 
 ## next steps
 
-1. Move from root aliases to an explicit package build strategy.
-2. Clean up migration compatibility code after those boundaries are in place.
+1. Clean up the remaining migration compatibility code now that package
+   boundaries and build outputs are explicit.
 
 ## future steps
 
@@ -41,6 +46,8 @@
 
 ## Commands
 
+- `npm run build:packages`: incrementally build all workspace packages.
+- `npm run clean:packages`: remove TypeScript package build outputs.
 - `npm run check`: typecheck, boundary check, and Firefox development build.
 - `npm run b2`: Firefox production build.
 

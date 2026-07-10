@@ -2,5 +2,11 @@
   "name": "@once/firefox-extension",
   "version": "0.0.0",
   "private": true,
-  "description": "Firefox extension packaging for Once"
+  "description": "Firefox extension packaging for Once",
+  "dependencies": {
+    "@once/app": "*",
+    "@once/core": "*",
+    "@once/platform-webext": "*",
+    "@once/ui-web": "*"
+  }
 }

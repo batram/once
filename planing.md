@@ -52,6 +52,9 @@ with `createWebExtPlatform`. The old root `src/` tree has been removed.
   `@once/collectors` package, then removed the unused legacy `StoryLoader`.
 - Removed the legacy `OnceSettings` singleton; `OnceApp` and its platform ports
   now own settings access.
+- Added per-package TypeScript builds and manifest-owned entrypoints and
+  dependencies. Firefox now resolves compiled npm workspace packages without
+  root TypeScript or webpack aliases.
 - Made `core` DOM-free and added a boundary check to keep it that way.
 - Moved the Firefox entrypoints out of the old source tree.
 
@@ -66,15 +69,15 @@ are complete and there is a demonstrated need.
 
 1. Add fake-port tests for `OnceApp` reload, settings, story-change, and
    database-change behavior.
-2. Replace root TypeScript/webpack aliases with an explicit package build
-   strategy.
-3. Implement real Electron and mobile ports; their current factories only
+2. Implement real Electron and mobile ports; their current factories only
    return caller-supplied ports.
-4. Add Chrome composition/build, then Electron composition/build, using the
+3. Add Chrome composition/build, then Electron composition/build, using the
    legacy applications as references. Website and mobile come afterward.
 
 ## Validation
 
+- `npm run build:packages`: incrementally build every workspace package.
+- `npm run clean:packages`: remove TypeScript package build outputs.
 - `npm run check`: typecheck, boundary check, and Firefox development build.
 - `npm run b2`: Firefox production build.
 

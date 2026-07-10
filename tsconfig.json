@@ -1,42 +1,9 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "module": "commonjs",
-    "allowSyntheticDefaultImports": true,
-    "baseUrl": ".",
-    "ignoreDeprecations": "6.0",
-    "noImplicitAny": true,
-    "skipLibCheck": true,
-    "sourceMap": true,
-    "rootDir": ".",
-    "outDir": "dist/",
-    "target": "es6",
-    "allowJs": true,
-    "lib": ["es2019", "DOM", "ES6", "DOM.Iterable", "ScriptHost"],
-    "paths": {
-      "@once/core": ["packages/core/src/index.ts"],
-      "@once/core/*": ["packages/core/src/*"],
-      "@once/collectors": ["packages/collectors/src/index.ts"],
-      "@once/collectors/*": ["packages/collectors/src/*"],
-      "@once/app": ["packages/app/src/index.ts"],
-      "@once/app/*": ["packages/app/src/*"],
-      "@once/persistence": ["packages/persistence/src/index.ts"],
-      "@once/persistence/*": ["packages/persistence/src/*"],
-      "@once/platform-webext": ["packages/platform-webext/src/index.ts"],
-      "@once/platform-webext/*": ["packages/platform-webext/src/*"],
-      "@once/ui-web": ["packages/ui-web/src/index.ts"],
-      "@once/ui-web/*": ["packages/ui-web/src/*"]
-    }
+    "composite": false,
+    "declaration": false,
+    "rootDir": "."
   },
-  "include": [
-    "apps/firefox-extension/src/**/*",
-    "packages/app/src/**/*",
-    "packages/collectors/src/**/*",
-    "packages/core/src/**/*",
-    "packages/persistence/src/**/*",
-    "packages/ui-web/src/**/*",
-    "packages/platform-webext/src/**/*",
-    "packages/platform-web/src/**/*",
-    "packages/platform-electron/src/**/*",
-    "packages/platform-mobile/src/**/*"
-  ]
+  "include": ["apps/firefox-extension/src/**/*"]
 }

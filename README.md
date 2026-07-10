@@ -22,7 +22,7 @@ npm install
 npm run b2
 ```
 
-Load unpacked extension (dist folder) in chrome.
+Load the unpacked extension from `apps/firefox-extension/dist` in Firefox.
 
 ## Screenshots
 <img width="1266" height="880" alt="image" src="https://github.com/user-attachments/assets/3a0ff606-ce39-4a9c-a002-1eedfa9873df" />

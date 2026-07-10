@@ -1,7 +1,7 @@
 import { Story } from "@once/core"
-import { StoryListItem } from "../../src/StoryListItem"
+import { StoryListItem } from "../StoryListItem"
 //import * as Readability from "../../third_party/Readability.js"
-import { Presenter, PresenterOptions } from "../../src/presenters_frontend"
+import { Presenter, PresenterOptions } from "../presenters_frontend"
 import { getOnceClient } from "../client"
 
 export const description = "Presents contents of a webpage in more readable way"

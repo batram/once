@@ -619,7 +619,7 @@ export class StoryListItem extends HTMLElement {
   }
 }
 
-if (window.customElements) {
+if (window.customElements && !window.customElements.get("story-item")) {
   window.customElements.define("story-item", StoryListItem)
 }
 
