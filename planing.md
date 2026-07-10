@@ -55,6 +55,11 @@ with `createWebExtPlatform`. The old root `src/` tree has been removed.
 - Added per-package TypeScript builds and manifest-owned entrypoints and
   dependencies. Firefox now resolves compiled npm workspace packages without
   root TypeScript or webpack aliases.
+- Package cleanup removes full output directories, preventing deleted source
+  files from leaving stale JavaScript or declarations behind.
+- Removed the migration-only story/filter shells, remote transport seam,
+  callback-style list-store API, forwarding helpers, duplicate UI exports,
+  and no-op Electron/context-menu backend stubs.
 - Made `core` DOM-free and added a boundary check to keep it that way.
 - Moved the Firefox entrypoints out of the old source tree.
 

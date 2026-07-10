@@ -1,4 +1,5 @@
-import { OnceApp, OnceClient, SourceError, ThemeName } from "@once/app"
+import { OnceClient, SourceError, ThemeName } from "@once/app"
+import { parseRedirectList, presentRedirectList } from "@once/core"
 import * as menu from "./menu"
 
 export class SettingsPanel {
@@ -397,13 +398,13 @@ export class SettingsPanel {
     const redirect_area =
       document.querySelector<HTMLInputElement>("#redirect_area")
     const redirect_list = await this.client.getRedirectList()
-    redirect_area.value = OnceApp.presentRedirectList(redirect_list)
+    redirect_area.value = presentRedirectList(redirect_list)
   }
 
   save_redirect_settings(): void {
     const redirect_area =
       document.querySelector<HTMLInputElement>("#redirect_area")
-    const redirect_list = OnceApp.parseRedirectList(redirect_area.value)
+    const redirect_list = parseRedirectList(redirect_area.value)
     this.client.saveRedirectList(redirect_list)
   }
 

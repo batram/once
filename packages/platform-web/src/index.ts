@@ -5,15 +5,14 @@ class WebListStore {
   async get<T>(id: string, fallbackValue: T): Promise<T> {
     const stored = window.localStorage.getItem(`once:list:${id}`)
     if (!stored) {
-      await this.set(id, fallbackValue, () => undefined)
+      await this.set(id, fallbackValue)
       return fallbackValue
     }
     return JSON.parse(stored) as T
   }
 
-  async set<T>(id: string, value: T, callback: () => unknown): Promise<void> {
+  async set<T>(id: string, value: T): Promise<void> {
     window.localStorage.setItem(`once:list:${id}`, JSON.stringify(value))
-    callback()
   }
 }
 

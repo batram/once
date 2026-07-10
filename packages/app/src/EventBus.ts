@@ -1,18 +1,13 @@
 import {
   OnceAppEvents,
   OnceEventHandler,
-  OnceEventName,
-  OnceTransport
+  OnceEventName
 } from "./types"
 
-export class LocalEventBus implements OnceTransport {
+export class LocalEventBus {
   private handlers: {
     [T in OnceEventName]?: OnceEventHandler<T>[]
   } = {}
-
-  async request<TResponse = unknown>(): Promise<TResponse> {
-    throw new Error("LocalEventBus does not implement remote request")
-  }
 
   publish<T extends OnceEventName>(event: T, payload: OnceAppEvents[T]): void {
     ;(this.handlers[event] || []).forEach((handler) => {

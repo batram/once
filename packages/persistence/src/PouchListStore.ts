@@ -24,24 +24,18 @@ export class PouchListStore {
       })
   }
 
-  async set<T>(
-    id: string,
-    value: T,
-    callback: () => unknown
-  ): Promise<void> {
+  async set<T>(id: string, value: T): Promise<void> {
     const tryUpdate = async (retryCount = 0): Promise<void> => {
       try {
         const doc = await this.db.get(id)
         doc.list = value
         await this.db.put(doc as Record<string, unknown>)
-        callback()
       } catch (err: any) {
         if (err.status === 404) {
           await this.db.put({
             _id: id,
             list: value
           })
-          callback()
         } else if (err.status === 409 && retryCount < 3) {
           console.log(`Conflict on ${id}, retrying... (${retryCount + 1}/3)`)
           await tryUpdate(retryCount + 1)

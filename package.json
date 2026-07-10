@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "build:packages": "tsc -b tsconfig.packages.json",
-    "clean:packages": "tsc -b tsconfig.packages.json --clean",
+    "clean:packages": "node scripts/clean-package-outputs.js",
     "b2": "npm run build:packages && webpack --config apps/firefox-extension/webpack/webpack.config.js",
     "b1": "npm run build-dev",
     "build-dev": "npm run build:packages && webpack --config apps/firefox-extension/webpack/webpack.dev.config.js",

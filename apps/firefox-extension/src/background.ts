@@ -1,8 +1,4 @@
-import { StoryMap } from "@once/core"
-
 function initBackground() {
-  new StoryMap()
-
   console.log("moin background=? ", browser, browser.action)
 
   if (browser && browser.action && browser.sidebarAction) {

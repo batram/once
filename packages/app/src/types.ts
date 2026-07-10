@@ -99,18 +99,9 @@ export interface OnceClient {
   ): () => void
 }
 
-export interface OnceTransport {
-  request<TResponse = unknown>(method: string, payload?: unknown): Promise<TResponse>
-  publish<T extends OnceEventName>(event: T, payload: OnceAppEvents[T]): void
-  subscribe<T extends OnceEventName>(
-    event: T,
-    handler: OnceEventHandler<T>
-  ): () => void
-}
-
 export interface ListStorePort {
   get<T>(id: string, fallbackValue: T): Promise<T>
-  set<T>(id: string, value: T, callback: () => unknown): Promise<void>
+  set<T>(id: string, value: T): Promise<void>
 }
 
 export interface StoryStorePort {
@@ -163,5 +154,4 @@ export interface OncePlatformPorts {
   onHistoryCommand?: (
     handler: (action: "undo" | "redo") => void
   ) => () => void
-  transport?: OnceTransport
 }

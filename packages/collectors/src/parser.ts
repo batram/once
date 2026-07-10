@@ -1,4 +1,4 @@
-import { Story, daysAgo, humanTime, parseHumanTime } from "@once/core"
+import { Story } from "@once/core"
 import * as collectors from "./registry"
 
 export interface ParserLookupOptions {
@@ -133,18 +133,6 @@ export function parse_dom(val: string, url: string): Document {
   }
 
   return doc
-}
-
-export function days_ago(timestamp: number): number {
-  return daysAgo(timestamp)
-}
-
-export function human_time(time: string | Date | number): string {
-  return humanTime(time)
-}
-
-export function parse_human_time(str: string): number {
-  return parseHumanTime(str)
 }
 
 async function cache_result(

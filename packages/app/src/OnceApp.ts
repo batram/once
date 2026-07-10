@@ -5,8 +5,6 @@ import {
   defaultRedirectList,
   defaultSources,
   groupStorySources,
-  parseRedirectList,
-  presentRedirectList,
   Redirect,
   Story,
   URLRedirect
@@ -73,14 +71,6 @@ export class OnceApp {
     this.emitMenuChanged()
   }
 
-  static parseRedirectList(lines: string): Redirect[] {
-    return parseRedirectList(lines)
-  }
-
-  static presentRedirectList(redirectList: Redirect[]): string {
-    return presentRedirectList(redirectList)
-  }
-
   private createClient(): OnceClient {
     return {
       getStorySources: () => this.getStorySources(),
@@ -120,7 +110,7 @@ export class OnceApp {
   }
 
   private async saveStorySources(storySources: string[]): Promise<void> {
-    await this.platform.listStore.set("story_sources", storySources, console.log)
+    await this.platform.listStore.set("story_sources", storySources)
     this.events.publish("settingsChanged", { section: "sources" })
     await this.reloadStories(true)
   }
@@ -130,7 +120,7 @@ export class OnceApp {
   }
 
   private async saveFilterList(filterList: string[]): Promise<void> {
-    await this.platform.listStore.set("filter_list", filterList, console.log)
+    await this.platform.listStore.set("filter_list", filterList)
     this.events.publish("settingsChanged", { section: "filters" })
     await this.refilterStories()
   }
@@ -140,7 +130,7 @@ export class OnceApp {
   }
 
   private async saveRedirectList(redirectList: Redirect[]): Promise<void> {
-    await this.platform.listStore.set("redirect_list", redirectList, console.log)
+    await this.platform.listStore.set("redirect_list", redirectList)
     await this.refreshRedirects()
     this.events.publish("settingsChanged", { section: "redirects" })
   }
@@ -182,7 +172,7 @@ export class OnceApp {
       this.events.publish("settingsChanged", { section: "theme" })
       return
     }
-    await this.platform.listStore.set("theme", theme, console.log)
+    await this.platform.listStore.set("theme", theme)
     this.platform.theme.setTheme(theme)
     this.events.publish("settingsChanged", { section: "theme" })
   }
@@ -197,7 +187,7 @@ export class OnceApp {
       this.events.publish("settingsChanged", { section: "animation" })
       return
     }
-    await this.platform.listStore.set("animation", animated, console.log)
+    await this.platform.listStore.set("animation", animated)
     this.animated = animated
     this.events.publish("settingsChanged", { section: "animation" })
   }
@@ -476,7 +466,7 @@ export class OnceApp {
 
   private async addStory(newStory: Story, bucket = "stories"): Promise<Story> {
     if (!(newStory instanceof Story)) {
-      throw new Error("Please, only put stories in the StoryMap")
+      throw new Error("Please, only add Story instances")
     }
 
     newStory.bucket = bucket

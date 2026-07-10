@@ -44,10 +44,10 @@ export function init(client: OnceClient): void {
     }
   }
 
-  remote_story_change(client)
+  subscribeToStoryChanges(client)
 }
 
-export function remote_story_change(client = onceClient): void {
+function subscribeToStoryChanges(client: OnceClient): void {
   client.subscribe("storyChanged", (details) => {
     if (details.story && !(details.story instanceof Story)) {
       details.story = Story.from_obj(details.story)
@@ -84,7 +84,7 @@ function add_stories(stories: Story[], bucket = "stories") {
     add(story, bucket)
   })
 
-  sort_stories(bucket)
+  sortStories(bucket)
 
   const searchfield = document.querySelector<HTMLInputElement>("#searchfield")
   const search_scope = document.querySelector<HTMLInputElement>("#search_scope")
@@ -116,29 +116,6 @@ function add(story: Story, bucket = "stories"): void {
   stories_container.appendChild(new_story_el)
 }
 
-export function get_by_href(url: string): StoryListItem {
-  let story_el = null
-
-  const info_can = document.querySelector<StoryListItem>(
-    `.story a[href="${url}"]`
-  )
-  if (info_can) {
-    let parent = info_can.parentElement
-    let max = 5
-    while (!(parent.tagName == "STORY-ITEM") && max > 0) {
-      max -= 1
-      parent = parent.parentElement
-
-      if (parent.tagName == "STORY-ITEM") {
-        story_el = parent
-        break
-      }
-    }
-  }
-
-  return story_el as StoryListItem
-}
-
 function sortable_story(elem: StoryListItem): SortableStory<StoryListItem> {
   return {
     read_state: elem.story.read_state as "unread" | "read" | "skipped",
@@ -147,11 +124,11 @@ function sortable_story(elem: StoryListItem): SortableStory<StoryListItem> {
   }
 }
 
-export function resort_single(elem: StoryListItem): () => void {
+export function resortSingle(elem: StoryListItem): () => void {
   const story_con = elem.parentElement
   if (!story_con) {
     console.debug(
-      "resort_single: cant sort that which is not contained",
+      "resortSingle: cannot sort an item without a parent",
       "story_el has no parent"
     )
     return null
@@ -193,7 +170,7 @@ export function resort_single(elem: StoryListItem): () => void {
   }
 }
 
-export function sort_stories(bucket = "stories"): void {
+export function sortStories(bucket = "stories"): void {
   const story_con = document.querySelector("#" + bucket)
 
   const storted = Array.from(story_con.querySelectorAll<StoryListItem>(".story"))
@@ -215,10 +192,6 @@ export function sort_stories(bucket = "stories"): void {
     }
   })
 }
-
-export const getByHref = get_by_href
-export const resortSingle = resort_single
-export const sortStories = sort_stories
 
 function refilter(): void {
   document

@@ -28,21 +28,23 @@
 - Every `@once/*` package builds JavaScript and declarations into its own
   `dist/` directory through TypeScript project references. Package manifests
   declare their real dependencies and compiled entrypoints.
+- Package cleanup removes complete `dist/` trees so deleted sources cannot
+  leave orphaned JavaScript or declarations behind.
 - Firefox resolves workspace packages through their manifests; the root
   TypeScript paths and duplicated webpack aliases have been removed.
+- The leftover `StoryMap`/filter compatibility shells, remote transport seam,
+  list-store callbacks, parser forwarding helpers, and duplicate UI export
+  aliases have been removed. No-op Electron/context-menu backend stubs no
+  longer compile as part of `ui-web`; the imported legacy apps remain the
+  reference for future ports.
 - `packages/core` is DOM-free. The boundary check rejects DOM, collector,
   platform, UI, and persistence dependencies in core.
 - Dynamic collector loading and per-source packages are deferred.
 
 ## next steps
 
-1. Clean up the remaining migration compatibility code now that package
-   boundaries and build outputs are explicit.
-
-## future steps
-
-- Test suite
-- Implement real Electron/mobile ports, then build Chrome and Electron apps.
+1. Add a test suite for `OnceApp` and the package ports.
+2. Implement real Electron/mobile ports, then build Chrome and Electron apps.
 
 ## Commands
 

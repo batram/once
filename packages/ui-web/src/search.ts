@@ -8,7 +8,7 @@ import {
 import { applyStoryFilters } from "@once/core"
 import { getOnceClient } from "./client"
 
-export function init_search(): void {
+export function init(): void {
   const searchfield = document.querySelector<HTMLInputElement>("#searchfield")
 
   window.addEventListener("keyup", (e) => {
@@ -21,13 +21,13 @@ export function init_search(): void {
 
   searchfield.addEventListener("input", () => {
     if (search_scope.value == "local") {
-      search_stories(searchfield.value)
+      searchStories(searchfield.value)
     }
   })
 
   search_scope.addEventListener("change", () => {
     if (searchfield.value != "") {
-      search_stories(searchfield.value)
+      searchStories(searchfield.value)
     }
   })
 
@@ -35,10 +35,10 @@ export function init_search(): void {
     if (e.keyCode === 27) {
       //ESC
       searchfield.value = ""
-      search_stories(searchfield.value)
+      searchStories(searchfield.value)
     } else if (e.keyCode === 13) {
       //ENTER
-      search_stories(searchfield.value)
+      searchStories(searchfield.value)
     }
   })
 
@@ -46,7 +46,7 @@ export function init_search(): void {
     document.querySelector<HTMLElement>("#cancel_search_btn")
   cancel_search_btn.onclick = () => {
     searchfield.value = ""
-    search_stories("")
+    searchStories("")
   }
 }
 
@@ -54,7 +54,7 @@ const specialk: Record<string, () => void> = {
   "[ALL]": () => {
     const searchfield = document.querySelector<HTMLInputElement>("#searchfield")
     searchfield.value = ""
-    search_stories("")
+    searchStories("")
   },
   "[filtered]": () => {
     const story_container = document.querySelector<HTMLElement>("#stories")
@@ -104,7 +104,7 @@ const extra_search_providers: Record<
   }
 }
 
-export async function search_stories(needle: string): Promise<void> {
+export async function searchStories(needle: string): Promise<void> {
   const searchfield = document.querySelector<HTMLInputElement>("#searchfield")
   searchfield.value = needle
   const story_container = document.querySelector<HTMLElement>("#stories")
@@ -164,9 +164,6 @@ export async function search_stories(needle: string): Promise<void> {
 
   local_search(needle)
 }
-
-export const init = init_search
-export const searchStories = search_stories
 
 async function local_search(needle: string) {
   document.querySelectorAll<StoryListItem>(".story").forEach((story_el) => {
