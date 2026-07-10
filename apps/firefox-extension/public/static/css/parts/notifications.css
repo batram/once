@@ -118,6 +118,14 @@
   opacity: 1;
 }
 
+.loader_error.warning {
+  background-color: #f57c00;
+}
+
+.loader_error.warning:hover {
+  background-color: #e65100;
+}
+
 .error_close {
   flex: 0 0 auto;
   color: white;

@@ -1,13 +1,11 @@
 import { Story } from "@once/core"
-import { OnceSettings } from "@once/core"
+import { defaultFilterList } from "../settings/defaults"
 import {
   applyStoryFilter,
   applyStoryFilters
 } from "@once/core/story/filterStories"
 
-let filterListProvider: () => Promise<string[]> = async () => {
-  return (OnceSettings.instance || new OnceSettings()).get_filterlist()
-}
+let filterListProvider: () => Promise<string[]> = async () => defaultFilterList
 
 export function configureStoryFilters(
   provider: () => Promise<string[]>

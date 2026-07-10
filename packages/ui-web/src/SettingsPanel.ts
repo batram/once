@@ -1,4 +1,4 @@
-import { OnceApp, OnceClient, ThemeName } from "@once/app"
+import { OnceApp, OnceClient, SourceError, ThemeName } from "@once/app"
 import * as menu from "./menu"
 
 export class SettingsPanel {
@@ -31,10 +31,7 @@ export class SettingsPanel {
       }
     })
     client.subscribe("sourceErrorsChanged", ({ errors }) => {
-      this.clearSourceErrors()
-      errors.forEach((error) => {
-        this.addSourceError(error.url, error.message, error.type)
-      })
+      this.setSourceErrors(errors)
     })
 
     window
@@ -171,41 +168,16 @@ export class SettingsPanel {
       const lines = text.split("\n")
 
       lines.forEach((line) => {
-        let errorMessage: string | null = null
-        let errorType: "warning" | "error" | null = null
-
-        // Check both old failedSources and new sourceErrors
-        for (const [url, message] of Object.entries(this.failedSources)) {
-          if (!url) continue
-          if (line.trim() === url.trim()) {
-            errorMessage = message
-            errorType = "error"
-            break
-          }
-        }
-
-        // Check new sourceErrors if not found in old ones
-        if (!errorMessage) {
-          for (const [url, error] of this.sourceErrors) {
-            if (line.trim() === url.trim()) {
-              errorMessage = error.message
-              errorType = error.type
-              break
-            }
-          }
-        }
+        const sourceError = this.sourceErrors.get(line.trim())
 
         const lineContainer = document.createElement("div")
         lineContainer.classList.add("line-mirrored")
 
-        if (errorMessage) {
+        if (sourceError) {
           lineContainer.classList.add("error-line")
           const icon = document.createElement("div")
 
-          // Determine if this is a warning or error
-          const isWarning =
-            errorType === "warning" ||
-            errorMessage.includes("No handler available for this source type")
+          const isWarning = sourceError.type === "warning"
           icon.classList.add("error-icon")
           icon.textContent = isWarning ? "⚠️" : "❗"
           icon.title = isWarning
@@ -217,7 +189,7 @@ export class SettingsPanel {
             alert(
               `${
                 isWarning ? "Warning" : "Error"
-              } loading source:\n${errorMessage}`
+              } loading source:\n${sourceError.message}`
             )
           }
           lineContainer.appendChild(icon)
@@ -435,37 +407,13 @@ export class SettingsPanel {
     this.client.saveRedirectList(redirect_list)
   }
 
-  failedSources: Record<string, string> = {}
-  private sourceErrors: Map<
-    string,
-    { message: string; type: "warning" | "error" }
-  > = new Map()
+  private sourceErrors = new Map<string, SourceError>()
 
-  // Simple methods to manage source errors
-  addSourceError(
-    url: string,
-    message: string,
-    type: "warning" | "error" = "error"
-  ): void {
-    this.sourceErrors.set(url, { message, type })
+  private setSourceErrors(errors: SourceError[]): void {
+    this.sourceErrors = new Map(
+      errors.map((error) => [error.url.trim(), error])
+    )
     this.updateSourcesDisplay()
-  }
-
-  removeSourceError(url: string): void {
-    if (this.sourceErrors.delete(url)) {
-      this.updateSourcesDisplay()
-    }
-  }
-
-  clearSourceErrors(): void {
-    if (this.sourceErrors.size > 0) {
-      this.sourceErrors.clear()
-      this.updateSourcesDisplay()
-    }
-  }
-
-  hasError(url: string): boolean {
-    return this.sourceErrors.has(url)
   }
 
   private updateSourcesDisplay(): void {
@@ -554,33 +502,8 @@ export class SettingsPanel {
     )
   }
 
-  public highlight_sources(
-    failedSources: Record<string, string>,
-    shouldOpenPanel = true
-  ): void {
-    console.log("SettingsPanel: highlighting sources", failedSources)
-    this.failedSources = failedSources
-
-    // Always update the visual display, even if not opening panel
-    const sources_area =
-      document.querySelector<HTMLTextAreaElement>("#sources_area")
-    if (sources_area) {
-      // Trigger input event to update highlights
-      sources_area.dispatchEvent(new Event("input"))
-    }
-
-    // Scroll to first error if opening panel
-    if (shouldOpenPanel) {
-      const urls = Object.keys(failedSources)
-      if (urls.length > 0) {
-        this.highlight_textarea_content(
-          "sources_area",
-          urls[0],
-          shouldOpenPanel,
-          true
-        )
-      }
-    }
+  public highlightSource(sourceUrl: string): void {
+    this.highlight_textarea_content("sources_area", sourceUrl, true, true)
   }
 
   async restore_cache_settings(): Promise<void> {

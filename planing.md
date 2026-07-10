@@ -48,8 +48,10 @@ with `createWebExtPlatform`. The old root `src/` tree has been removed.
 - Created the workspace structure and extracted the shared packages.
 - Restored and verified the Firefox development and production builds.
 - Removed `core` imports of webextension/UI packages; the boundary baseline is zero.
-- Moved all collectors, parser helpers, the registry, and the legacy
-  `StoryLoader` into one `@once/collectors` package.
+- Moved all collectors, parser helpers, and the registry into one
+  `@once/collectors` package, then removed the unused legacy `StoryLoader`.
+- Removed the legacy `OnceSettings` singleton; `OnceApp` and its platform ports
+  now own settings access.
 - Made `core` DOM-free and added a boundary check to keep it that way.
 - Moved the Firefox entrypoints out of the old source tree.
 
@@ -64,13 +66,11 @@ are complete and there is a demonstrated need.
 
 1. Add fake-port tests for `OnceApp` reload, settings, story-change, and
    database-change behavior.
-2. Remove the legacy `StoryLoader` and `OnceSettings`
-   compatibility APIs after their callers are accounted for.
-3. Replace root TypeScript/webpack aliases with an explicit package build
+2. Replace root TypeScript/webpack aliases with an explicit package build
    strategy.
-4. Implement real Electron and mobile ports; their current factories only
+3. Implement real Electron and mobile ports; their current factories only
    return caller-supplied ports.
-5. Add Chrome composition/build, then Electron composition/build, using the
+4. Add Chrome composition/build, then Electron composition/build, using the
    legacy applications as references. Website and mobile come afterward.
 
 ## Validation

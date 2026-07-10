@@ -1,7 +1,6 @@
 import { compareStories } from "./compareStories"
 import { SortableStory, StoryAttachment, StoryTag, SubStory } from "./StoryTypes"
 
-//import { OnceSettings } from "../OnceSettings"
 import { URLRedirect } from "./URLRedirect"
 
 export class Story {
@@ -105,22 +104,6 @@ export class Story {
       let body: string | undefined
       if (this._attachments.content.data) {
         body = atob(this._attachments.content.data)
-      } else {
-        //TODO: fix attachment loading
-        /*let provider = null
-        if (OnceSettings.instance) {
-          provider = OnceSettings.instance.once_db
-        } else {
-          provider = OnceSettings.remote
-        }
-        if (provider) {
-          const attachment = this._id
-            ? await provider.getAttachment(this._id, "content")
-            : null
-          if (attachment) {
-            body = new TextDecoder("utf-8").decode(attachment as Buffer)
-          }
-        }*/
       }
 
       if (body) {
@@ -134,7 +117,6 @@ export class Story {
     }
     return undefined
   }
-
 
   has_content(): boolean {
     return (

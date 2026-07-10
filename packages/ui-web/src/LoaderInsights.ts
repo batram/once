@@ -1,5 +1,5 @@
 import { SettingsPanel } from "./SettingsPanel"
-import { OnceClient, ProcessingSource } from "@once/app"
+import { OnceClient, ProcessingSource, SourceError } from "@once/app"
 
 export class LoaderInsights {
   private static el: HTMLElement | null = null
@@ -18,9 +18,7 @@ export class LoaderInsights {
       })
       client?.subscribe("sourceErrorsChanged", ({ errors }) => {
         this.resetErrors()
-        errors.forEach((error) => {
-          this.showError(error.type === "warning" ? "No Handler" : "Failed", error.url, error.message)
-        })
+        errors.forEach((error) => this.showError(error))
       })
     }
 
@@ -102,65 +100,21 @@ export class LoaderInsights {
     }
   }
 
-  static showError(
-    message: string,
-    url?: string,
-    detailedMessage?: string,
-    source?: ProcessingSource
-  ): void {
+  static showError(error: SourceError): void {
     const container = document.querySelector("#notification_container")
+
     if (!container) return
-
-    // Deduplicate rendered errors without suppressing settings-backed errors.
-    if (url) {
-      const existingError = Array.from(
-        container.querySelectorAll<HTMLElement>(".loader_error")
-      ).find((el) => el.dataset.url === url)
-      if (existingError) return
-    }
-
-    // Add error to SettingsPanel if the caller did not already do it.
-    if (url && SettingsPanel.instance && !SettingsPanel.instance.hasError(url)) {
-      SettingsPanel.instance.addSourceError(
-        url,
-        detailedMessage || message,
-        "error"
-      )
-    }
 
     const errorEl = document.createElement("div")
     errorEl.classList.add("loader_error")
-    if (url) {
-      errorEl.dataset.url = url
+    if (error.type === "warning") {
+      errorEl.classList.add("warning")
     }
+    errorEl.dataset.url = error.url
 
     const textSpan = document.createElement("span")
     textSpan.classList.add("loader_error_message")
-
-    if (source) {
-      const sourceEl = document.createElement("span")
-      sourceEl.classList.add("loader_insights_item")
-      sourceEl.classList.add("info")
-      sourceEl.dataset.type = `[${source.parserType}]`
-
-      const type = document.createElement("span")
-      type.classList.add("type")
-      type.textContent = source.parserType
-      sourceEl.appendChild(type)
-
-      const domain = document.createElement("span")
-      domain.classList.add("loader_source_domain")
-      domain.textContent = source.domain
-      sourceEl.appendChild(domain)
-
-      const label = document.createElement("span")
-      label.textContent = message
-
-      textSpan.appendChild(label)
-      textSpan.appendChild(sourceEl)
-    } else {
-      textSpan.innerText = message
-    }
+    textSpan.textContent = `${error.title} ${error.url}`
 
     errorEl.appendChild(textSpan)
 
@@ -177,11 +131,7 @@ export class LoaderInsights {
 
     // Clicking the main area navigates to settings
     errorEl.onclick = () => {
-      if (url && SettingsPanel.instance) {
-        // Navigate to settings and highlight the specific source
-        const failedMap = { [url]: detailedMessage || message }
-        SettingsPanel.instance.highlight_sources(failedMap, true)
-      }
+      SettingsPanel.instance?.highlightSource(error.url)
 
       errorEl.classList.remove("visible")
       setTimeout(() => errorEl.remove(), 300)
@@ -207,12 +157,6 @@ export class LoaderInsights {
   }
 
   static resetErrors(): void {
-    // Clear highlights in Settings panel using the new clean method
-    if (SettingsPanel.instance) {
-      SettingsPanel.instance.clearSourceErrors()
-    }
-
-    // Optionally remove existing error elements if we want a fresh start ui-wise too
     const container = document.querySelector("#notification_container")
     if (container) {
       container.querySelectorAll(".loader_error").forEach((el) => el.remove())

@@ -10,6 +10,7 @@ export interface ProcessingSource {
 
 export interface SourceError {
   url: string
+  title: string
   message: string
   type: "warning" | "error"
 }

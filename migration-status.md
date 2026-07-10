@@ -19,18 +19,20 @@
   the checked boundary baseline is zero.
 - Collector-generated UI styles now live in `ui-web`, and `Story` no longer
   uses `document` to build stored content.
-- All collectors, parsing helpers, the registry, and the legacy `StoryLoader`
-  now live in one `@once/collectors` package.
+- All active collectors, parsing helpers, and the registry now live in one
+  `@once/collectors` package.
+- The unused legacy `StoryLoader` compatibility API has been removed; source
+  loading is owned by `OnceApp`.
+- The unused legacy `OnceSettings` singleton API has been removed; settings
+  access is owned by `OnceApp` and its platform ports.
 - `packages/core` is DOM-free. The boundary check rejects DOM, collector,
   platform, UI, and persistence dependencies in core.
 - Dynamic collector loading and per-source packages are deferred.
 
 ## next steps
 
-1. Remove the legacy `StoryLoader` and `OnceSettings` APIs after confirming no
-   external callers remain.
-2. Move from root aliases to an explicit package build strategy.
-3. Clean up migration compatibility code after those boundaries are in place.
+1. Move from root aliases to an explicit package build strategy.
+2. Clean up migration compatibility code after those boundaries are in place.
 
 ## future steps
 

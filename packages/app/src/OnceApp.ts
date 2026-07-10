@@ -302,9 +302,13 @@ export class OnceApp {
 
     const parser = StoryParser.get_parser_for_url(url)
     if (!parser) {
-      const message =
-        "No handler available for this source type. You may need to add a custom parser."
-      this.setSourceError(sourceUrl, message, "warning")
+      this.setSourceError({
+        url: sourceUrl,
+        title: "No Handler",
+        message:
+          "No handler available for this source type. You may need to add a custom parser.",
+        type: "warning"
+      })
       return
     }
 
@@ -389,30 +393,38 @@ export class OnceApp {
   private reportLoadError(sourceUrl: string, error: unknown): void {
     console.error(error)
     const detail = error instanceof Error ? error.message : String(error)
-    let errorType: "warning" | "error" = "error"
+    let title = "Failed"
     let errorDetail = detail
 
     if (detail.includes("Parsing failed:")) {
+      title = "Parse Error"
       errorDetail = detail.replace("Parsing failed: ", "")
     } else if (detail.includes("JSON parsing failed:")) {
+      title = "JSON Error"
       errorDetail = detail.replace("JSON parsing failed: ", "")
     } else if (detail.includes("DOM parsing failed:")) {
+      title = "DOM Error"
       errorDetail = detail.replace("DOM parsing failed: ", "")
     } else if (detail.includes("XML parsing failed:")) {
+      title = "XML Error"
       errorDetail = detail.replace("XML parsing failed: ", "")
     } else if (detail.includes("HTTP 404")) {
+      title = "Not Found"
       errorDetail = "The requested resource was not found"
+    } else if (detail.includes("HTTP")) {
+      title = "HTTP Error"
     }
 
-    this.setSourceError(sourceUrl, errorDetail, errorType)
+    this.setSourceError({
+      url: sourceUrl,
+      title,
+      message: errorDetail,
+      type: "error"
+    })
   }
 
-  private setSourceError(
-    url: string,
-    message: string,
-    type: "warning" | "error"
-  ): void {
-    this.sourceErrors.set(url, { url, message, type })
+  private setSourceError(error: SourceError): void {
+    this.sourceErrors.set(error.url, error)
     this.emitSourceErrors()
   }
 

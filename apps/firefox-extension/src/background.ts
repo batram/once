@@ -1,7 +1,6 @@
-import { OnceSettings, StoryMap } from "@once/core"
+import { StoryMap } from "@once/core"
 
 function initBackground() {
-  new OnceSettings()
   new StoryMap()
 
   console.log("moin background=? ", browser, browser.action)
