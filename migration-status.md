@@ -1,57 +1,54 @@
-# Monorepo Migration Status
+# Monorepo Migration
 
-## Current State
+## Goal and current state
 
-- Firefox is the only active, verified application composition.
-- Its entrypoints are in `apps/firefox-extension/src/`; assets and manifest are
-  in `apps/firefox-extension/public`; output is `apps/firefox-extension/dist`.
-- The sidepanel uses `OnceApp`/`OnceClient` and `createWebExtPlatform`.
-- `apps/chrome-extension`, `apps/electron`, `apps/website`, and `apps/mobile`
-  are package placeholders, not working application builds.
+Firefox is the working reference application. Its entrypoints, public files,
+and build output live under `apps/firefox-extension/`, and it uses `OnceApp`
+with `createWebExtPlatform`.
 
-## Complete
+Chrome, Electron, website, and mobile are placeholders. Their future
+implementations should reuse the shared packages and keep target-specific
+entrypoints, packaging, and manifests inside `apps/*`. Legacy Chrome and
+Electron repositories remain under `legacy/` as references.
 
-- Shared core, app, DOM UI, persistence, and platform packages exist.
-- Firefox has working development and production webpack builds.
-- The legacy root `src/` tree and its unused vendored Readability/PouchDB files
-  have been removed.
-- `packages/core` has no prohibited imports from webextension or UI packages;
-  the checked boundary baseline is zero.
-- Collector-generated UI styles now live in `ui-web`, and `Story` no longer
-  uses `document` to build stored content.
-- All active collectors, parsing helpers, and the registry now live in one
-  `@once/collectors` package.
-- The unused legacy `StoryLoader` compatibility API has been removed; source
-  loading is owned by `OnceApp`.
-- The unused legacy `OnceSettings` singleton API has been removed; settings
-  access is owned by `OnceApp` and its platform ports.
-- Every `@once/*` package builds JavaScript and declarations into its own
-  `dist/` directory through TypeScript project references. Package manifests
-  declare their real dependencies and compiled entrypoints.
-- Package cleanup removes complete `dist/` trees so deleted sources cannot
-  leave orphaned JavaScript or declarations behind.
-- Firefox resolves workspace packages through their manifests; the root
-  TypeScript paths and duplicated webpack aliases have been removed.
-- The leftover `StoryMap`/filter compatibility shells, remote transport seam,
-  list-store callbacks, parser forwarding helpers, and duplicate UI export
-  aliases have been removed. No-op Electron/context-menu backend stubs no
-  longer compile as part of `ui-web`; the imported legacy apps remain the
-  reference for future ports.
-- `packages/core` is DOM-free. The boundary check rejects DOM, collector,
-  platform, UI, and persistence dependencies in core.
-- Dynamic collector loading and per-source packages are deferred.
+## Package boundaries
 
-## next steps
+- `core`: platform-neutral domain, story, and settings logic; no DOM, platform,
+  collector, UI, or persistence dependencies.
+- `collectors`: source collectors, parsing helpers, and the collector registry.
+- `app`: application orchestration, settings, story state, and client events.
+- `ui-web`: shared DOM presentation.
+- `persistence`: PouchDB storage and synchronization.
+- `platform-*`: target-specific implementations of the ports used by `app`.
+- `apps/*`: application composition, entrypoints, assets, and build config.
 
-1. Add a test suite for `OnceApp` and the package ports.
-2. Implement real Electron/mobile ports, then build Chrome and Electron apps.
+## Completed
 
-## Commands
+- Created the workspace packages and imported the legacy applications.
+- Migrated Firefox to the monorepo and verified development and production
+  builds.
+- Removed the old root `src/` tree, vendored dependencies, obsolete APIs,
+  compatibility shells, forwarding helpers, duplicate exports, and no-op
+  backend stubs.
+- Consolidated collectors into `@once/collectors` and made `core` DOM-free.
+- Added a boundary check that prevents forbidden dependencies in `core`.
+- Added package-owned TypeScript builds, declarations, dependencies, and clean
+  output handling.
+- Made Firefox consume compiled workspace packages through their manifests.
+- Deferred dynamic collector loading and per-source collector packages until a
+  concrete need appears.
 
-- `npm run build:packages`: incrementally build all workspace packages.
-- `npm run clean:packages`: remove TypeScript package build outputs.
-- `npm run check`: typecheck, boundary check, and Firefox development build.
-- `npm run b2`: Firefox production build.
+## Next steps
 
-Legacy Chrome and Electron repositories remain under `legacy/` as reference
-material for their later ports.
+1. Add fake-port tests for `OnceApp` reload, settings, story-change, and
+   database-change behavior.
+2. Implement real Electron and mobile ports.
+3. Build the Chrome and Electron applications, followed by website and mobile.
+
+## Validation
+
+- `npm run build:packages`: build all workspace packages.
+- `npm run clean:packages`: remove package build output.
+- `npm run check`: typecheck, check boundaries, and build Firefox for
+  development.
+- `npm run b2`: build Firefox for production.
