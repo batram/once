@@ -5,6 +5,16 @@ export interface ElectronRect {
   height: number
 }
 
+export interface ElectronPoint {
+  x: number
+  y: number
+}
+
+export interface ElectronRedirectRule {
+  match_url: string
+  replace_url: string
+}
+
 export interface ElectronTabState {
   id: string
   url: string
@@ -13,6 +23,7 @@ export interface ElectronTabState {
   canGoBack: boolean
   canGoForward: boolean
   audible: boolean
+  muted: boolean
   active: boolean
 }
 
@@ -51,8 +62,21 @@ export interface ElectronBridge {
     forward(id: string): Promise<void>
     reload(id: string): Promise<void>
     stop(id: string): Promise<void>
+    duplicate(id: string): Promise<string>
+    reorder(id: string, beforeId?: string): Promise<void>
+    moveHere(id: string, beforeId?: string): Promise<void>
+    detach(id: string, point?: ElectronPoint): Promise<void>
+    toggleMuted(id: string): Promise<void>
+    openDroppedUrls(urls: string[]): Promise<void>
+    showMenu(id: string, point: ElectronPoint): Promise<void>
     setBounds(bounds: ElectronRect): Promise<void>
     onChanged(handler: (tabs: ElectronTabState[]) => void): () => void
+  }
+  window: {
+    setFullscreen(fullscreen: boolean): Promise<void>
+    setRedirects(redirects: ElectronRedirectRule[]): Promise<void>
+    onTargetUrlChanged(handler: (url: string) => void): () => void
+    onFullscreenChanged(handler: (fullscreen: boolean) => void): () => void
   }
 }
 
@@ -72,8 +96,19 @@ export const ELECTRON_IPC = {
   tabsForward: "once:tabs:forward",
   tabsReload: "once:tabs:reload",
   tabsStop: "once:tabs:stop",
+  tabsDuplicate: "once:tabs:duplicate",
+  tabsReorder: "once:tabs:reorder",
+  tabsMoveHere: "once:tabs:move-here",
+  tabsDetach: "once:tabs:detach",
+  tabsToggleMuted: "once:tabs:toggle-muted",
+  tabsOpenDroppedUrls: "once:tabs:open-dropped-urls",
+  tabsShowMenu: "once:tabs:show-menu",
   tabsSetBounds: "once:tabs:set-bounds",
-  tabsChanged: "once:tabs:changed"
+  tabsChanged: "once:tabs:changed",
+  windowSetFullscreen: "once:window:set-fullscreen",
+  windowSetRedirects: "once:window:set-redirects",
+  windowTargetUrlChanged: "once:window:target-url-changed",
+  windowFullscreenChanged: "once:window:fullscreen-changed"
 } as const
 
 declare global {

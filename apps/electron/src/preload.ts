@@ -3,7 +3,9 @@ import {
   ELECTRON_IPC,
   ElectronBridge,
   ElectronFetchRequest,
+  ElectronPoint,
   ElectronRect,
+  ElectronRedirectRule,
   ElectronTabState
 } from "@once/platform-electron/bridge"
 
@@ -32,6 +34,19 @@ const bridge: ElectronBridge = {
     forward: (id) => ipcRenderer.invoke(ELECTRON_IPC.tabsForward, id),
     reload: (id) => ipcRenderer.invoke(ELECTRON_IPC.tabsReload, id),
     stop: (id) => ipcRenderer.invoke(ELECTRON_IPC.tabsStop, id),
+    duplicate: (id) => ipcRenderer.invoke(ELECTRON_IPC.tabsDuplicate, id),
+    reorder: (id, beforeId) =>
+      ipcRenderer.invoke(ELECTRON_IPC.tabsReorder, id, beforeId),
+    moveHere: (id, beforeId) =>
+      ipcRenderer.invoke(ELECTRON_IPC.tabsMoveHere, id, beforeId),
+    detach: (id, point?: ElectronPoint) =>
+      ipcRenderer.invoke(ELECTRON_IPC.tabsDetach, id, point),
+    toggleMuted: (id) =>
+      ipcRenderer.invoke(ELECTRON_IPC.tabsToggleMuted, id),
+    openDroppedUrls: (urls) =>
+      ipcRenderer.invoke(ELECTRON_IPC.tabsOpenDroppedUrls, urls),
+    showMenu: (id, point: ElectronPoint) =>
+      ipcRenderer.invoke(ELECTRON_IPC.tabsShowMenu, id, point),
     setBounds: (bounds: ElectronRect) =>
       ipcRenderer.invoke(ELECTRON_IPC.tabsSetBounds, bounds),
     onChanged(handler: (tabs: ElectronTabState[]) => void) {
@@ -39,6 +54,28 @@ const bridge: ElectronBridge = {
         handler(tabs)
       ipcRenderer.on(ELECTRON_IPC.tabsChanged, listener)
       return () => ipcRenderer.removeListener(ELECTRON_IPC.tabsChanged, listener)
+    }
+  },
+  window: {
+    setFullscreen: (fullscreen) =>
+      ipcRenderer.invoke(ELECTRON_IPC.windowSetFullscreen, fullscreen),
+    setRedirects: (redirects: ElectronRedirectRule[]) =>
+      ipcRenderer.invoke(ELECTRON_IPC.windowSetRedirects, redirects),
+    onTargetUrlChanged(handler: (url: string) => void) {
+      const listener = (_event: Electron.IpcRendererEvent, url: string) =>
+        handler(url)
+      ipcRenderer.on(ELECTRON_IPC.windowTargetUrlChanged, listener)
+      return () =>
+        ipcRenderer.removeListener(ELECTRON_IPC.windowTargetUrlChanged, listener)
+    },
+    onFullscreenChanged(handler: (fullscreen: boolean) => void) {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        fullscreen: boolean
+      ) => handler(fullscreen)
+      ipcRenderer.on(ELECTRON_IPC.windowFullscreenChanged, listener)
+      return () =>
+        ipcRenderer.removeListener(ELECTRON_IPC.windowFullscreenChanged, listener)
     }
   }
 }

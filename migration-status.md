@@ -48,6 +48,14 @@ repository was removed.
 - Added standard tab and navigation controls, bridge-backed HTTP/CouchDB
   requests, encrypted desktop sync settings, a fresh IndexedDB profile, and a
   persistent browser-cookie partition.
+- Restored viable legacy Electron browser parity: compact legacy-styled tabs
+  and controls, middle-click close, tab reordering and URL drops, live tab
+  transfers between detachable Once windows, tab media muting, link-hover
+  status, fullscreen coordination, browser mouse history commands, and
+  before-unload confirmation.
+- Restored native page and tab context menus with edit, selection, link,
+  duplicate, close, move-to-window, system-browser, and always-available
+  Inspect/DevTools actions while keeping remote pages sandboxed.
 - Added Electron Forge development, packaging, Squirrel.Windows, ZIP, security
   fuses, unit tests, and a Playwright Electron smoke test.
 - Moved the shared HTML, CSS, images, UI mounting, and IndexedDB cache adapter
@@ -59,8 +67,9 @@ repository was removed.
    CouchDB failure/retry scenarios.
 2. Implement real mobile ports and build the mobile application.
 3. Build the website application.
-4. Add deferred Electron session restoration, detachable windows, presenters,
-   media controls, signing, and updates as separate milestones.
+4. Add complete Electron session restoration (windows, tabs, navigation/page
+   state, scroll positions, and recently closed tabs), working reader/video
+   presenters, signing, and updates as separate milestones.
 
 ## Validation
 

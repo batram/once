@@ -4,6 +4,7 @@ import {
   ipcMain,
   IpcMainInvokeEvent,
   net,
+  Rectangle,
   session
 } from "electron"
 import started from "electron-squirrel-startup"
@@ -11,10 +12,12 @@ import {
   ELECTRON_IPC,
   ElectronFetchRequest,
   ElectronFetchResponse,
-  ElectronRect
+  ElectronPoint,
+  ElectronRect,
+  ElectronRedirectRule
 } from "@once/platform-electron/bridge"
 import { SecureSettings } from "./SecureSettings"
-import { TabManager } from "./TabManager"
+import { BrowserCoordinator } from "./TabManager"
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string
@@ -28,26 +31,28 @@ if (process.env.ONCE_ELECTRON_TEST_USER_DATA) {
 const hasLock = app.requestSingleInstanceLock()
 if (!hasLock) app.quit()
 
-let mainWindow: BrowserWindow | null = null
-let tabManager: TabManager | null = null
+let browserCoordinator: BrowserCoordinator | null = null
 
 function assertTrusted(event: IpcMainInvokeEvent): void {
-  if (
-    !mainWindow ||
-    event.sender !== mainWindow.webContents ||
-    event.senderFrame !== mainWindow.webContents.mainFrame
-  ) {
-    throw new Error("Untrusted IPC sender")
+  if (!browserCoordinator) throw new Error("Browser coordinator is unavailable")
+  browserCoordinator.requireWindow(event)
+}
+
+function browser(event: IpcMainInvokeEvent): {
+  coordinator: BrowserCoordinator
+  window: ReturnType<BrowserCoordinator["requireWindow"]>
+} {
+  if (!browserCoordinator) throw new Error("Browser coordinator is unavailable")
+  return {
+    coordinator: browserCoordinator,
+    window: browserCoordinator.requireWindow(event)
   }
 }
 
-function manager(event: IpcMainInvokeEvent): TabManager {
-  assertTrusted(event)
-  if (!tabManager) throw new Error("Tab manager is unavailable")
-  return tabManager
-}
-
-function registerIpc(settings: SecureSettings): void {
+function registerIpc(
+  settings: SecureSettings,
+  coordinator: BrowserCoordinator
+): void {
   ipcMain.handle(
     ELECTRON_IPC.fetch,
     async (event, request: ElectronFetchRequest): Promise<ElectronFetchResponse> => {
@@ -99,49 +104,112 @@ function registerIpc(settings: SecureSettings): void {
     return settings.setCacheTime(value)
   })
 
-  ipcMain.handle(ELECTRON_IPC.tabsGetAll, (event) => manager(event).getAll())
-  ipcMain.handle(ELECTRON_IPC.tabsOpenUrl, (event, url: string, target: string) =>
-    manager(event).openUrl(url, target)
+  ipcMain.handle(ELECTRON_IPC.tabsGetAll, (event) => {
+    const target = browser(event)
+    return target.coordinator.getAll(target.window)
+  })
+  ipcMain.handle(ELECTRON_IPC.tabsOpenUrl, (event, url: string, target: string) => {
+    const current = browser(event)
+    return current.coordinator.openUrl(current.window, url, target)
+  })
+  ipcMain.handle(ELECTRON_IPC.tabsCreate, (event, url?: string, active?: boolean) => {
+    const current = browser(event)
+    return current.coordinator.createTab(current.window, url, active)
+  })
+  ipcMain.handle(ELECTRON_IPC.tabsActivate, (event, id: string) => {
+    const current = browser(event)
+    return current.coordinator.activate(current.window, id)
+  })
+  ipcMain.handle(ELECTRON_IPC.tabsClose, (event, id: string) => {
+    const current = browser(event)
+    return current.coordinator.close(current.window, id)
+  })
+  ipcMain.handle(ELECTRON_IPC.tabsNavigate, (event, id: string, url: string) => {
+    const current = browser(event)
+    return current.coordinator.navigate(current.window, id, url)
+  })
+  ipcMain.handle(ELECTRON_IPC.tabsBack, (event, id: string) => {
+    const current = browser(event)
+    return current.coordinator.back(current.window, id)
+  })
+  ipcMain.handle(ELECTRON_IPC.tabsForward, (event, id: string) => {
+    const current = browser(event)
+    return current.coordinator.forward(current.window, id)
+  })
+  ipcMain.handle(ELECTRON_IPC.tabsReload, (event, id: string) => {
+    const current = browser(event)
+    return current.coordinator.reload(current.window, id)
+  })
+  ipcMain.handle(ELECTRON_IPC.tabsStop, (event, id: string) => {
+    const current = browser(event)
+    return current.coordinator.stop(current.window, id)
+  })
+  ipcMain.handle(ELECTRON_IPC.tabsDuplicate, (event, id: string) => {
+    const current = browser(event)
+    return current.coordinator.duplicate(current.window, id)
+  })
+  ipcMain.handle(
+    ELECTRON_IPC.tabsReorder,
+    (event, id: string, beforeId?: string) => {
+      const current = browser(event)
+      return current.coordinator.reorder(current.window, id, beforeId)
+    }
   )
-  ipcMain.handle(ELECTRON_IPC.tabsCreate, (event, url?: string, active?: boolean) =>
-    manager(event).create(url, active)
+  ipcMain.handle(
+    ELECTRON_IPC.tabsMoveHere,
+    (event, id: string, beforeId?: string) => {
+      const current = browser(event)
+      return current.coordinator.moveHere(current.window, id, beforeId)
+    }
   )
-  ipcMain.handle(ELECTRON_IPC.tabsActivate, (event, id: string) =>
-    manager(event).activate(id)
+  ipcMain.handle(
+    ELECTRON_IPC.tabsDetach,
+    (event, id: string, point?: ElectronPoint) => {
+      const current = browser(event)
+      return current.coordinator.detach(current.window, id, point)
+    }
   )
-  ipcMain.handle(ELECTRON_IPC.tabsClose, (event, id: string) =>
-    manager(event).close(id)
+  ipcMain.handle(ELECTRON_IPC.tabsToggleMuted, (event, id: string) => {
+    const current = browser(event)
+    return current.coordinator.toggleMuted(current.window, id)
+  })
+  ipcMain.handle(ELECTRON_IPC.tabsOpenDroppedUrls, (event, urls: string[]) => {
+    const current = browser(event)
+    return current.coordinator.openDroppedUrls(current.window, urls)
+  })
+  ipcMain.handle(
+    ELECTRON_IPC.tabsShowMenu,
+    (event, id: string, point: ElectronPoint) => {
+      const current = browser(event)
+      return current.coordinator.showTabMenu(current.window, id, point)
+    }
   )
-  ipcMain.handle(ELECTRON_IPC.tabsNavigate, (event, id: string, url: string) =>
-    manager(event).navigate(id, url)
+  ipcMain.handle(ELECTRON_IPC.tabsSetBounds, (event, bounds: ElectronRect) => {
+    const current = browser(event)
+    return current.coordinator.setBounds(current.window, bounds)
+  })
+  ipcMain.handle(
+    ELECTRON_IPC.windowSetFullscreen,
+    (event, fullscreen: boolean) => {
+      const current = browser(event)
+      return current.coordinator.setFullscreen(current.window, fullscreen)
+    }
   )
-  ipcMain.handle(ELECTRON_IPC.tabsBack, (event, id: string) =>
-    manager(event).back(id)
-  )
-  ipcMain.handle(ELECTRON_IPC.tabsForward, (event, id: string) =>
-    manager(event).forward(id)
-  )
-  ipcMain.handle(ELECTRON_IPC.tabsReload, (event, id: string) =>
-    manager(event).reload(id)
-  )
-  ipcMain.handle(ELECTRON_IPC.tabsStop, (event, id: string) =>
-    manager(event).stop(id)
-  )
-  ipcMain.handle(ELECTRON_IPC.tabsSetBounds, (event, bounds: ElectronRect) =>
-    manager(event).setBounds(bounds)
+  ipcMain.handle(
+    ELECTRON_IPC.windowSetRedirects,
+    (event, redirects: ElectronRedirectRule[]) => {
+      assertTrusted(event)
+      return coordinator.setRedirects(redirects)
+    }
   )
 }
 
-async function createWindow(): Promise<void> {
-  const browserSession = session.fromPartition("persist:once-browser-v2")
-  browserSession.setPermissionCheckHandler(() => false)
-  browserSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
-    callback(false)
-  })
-
-  mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
+function createShellWindow(bounds?: Rectangle): BrowserWindow {
+  return new BrowserWindow({
+    x: bounds?.x,
+    y: bounds?.y,
+    width: bounds?.width || 1280,
+    height: bounds?.height || 800,
     minWidth: 760,
     minHeight: 480,
     show: false,
@@ -155,25 +223,31 @@ async function createWindow(): Promise<void> {
       webSecurity: true
     }
   })
-  tabManager = new TabManager(mainWindow)
+}
 
-  mainWindow.once("ready-to-show", () => mainWindow?.show())
-  mainWindow.on("closed", () => {
-    mainWindow = null
-    tabManager = null
+function configureBrowserSession(): void {
+  const browserSession = session.fromPartition("persist:once-browser-v2")
+  browserSession.setPermissionCheckHandler(() => false)
+  browserSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
+    callback(false)
   })
-  await mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY)
-  await tabManager.create("about:blank", true)
 }
 
 app
   .whenReady()
   .then(async () => {
-    registerIpc(new SecureSettings())
-    await createWindow()
+    configureBrowserSession()
+    browserCoordinator = new BrowserCoordinator(
+      createShellWindow,
+      MAIN_WINDOW_WEBPACK_ENTRY
+    )
+    registerIpc(new SecureSettings(), browserCoordinator)
+    await browserCoordinator.createWindow()
 
     app.on("activate", () => {
-      if (BrowserWindow.getAllWindows().length === 0) createWindow()
+      if (BrowserWindow.getAllWindows().length === 0) {
+        void browserCoordinator?.createWindow()
+      }
     })
   })
   .catch((error) => {
@@ -190,10 +264,7 @@ process.on("unhandledRejection", (error) => {
 })
 
 app.on("second-instance", () => {
-  if (!mainWindow) return
-  if (mainWindow.isMinimized()) mainWindow.restore()
-  mainWindow.show()
-  mainWindow.focus()
+  void browserCoordinator?.createWindow()
 })
 
 app.on("window-all-closed", () => {

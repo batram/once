@@ -12,15 +12,21 @@ body {
 
 #right_panel {
   min-width: 320px;
+  display: flex;
+  flex-direction: column;
   background: var(--main-bg-color);
   overflow: hidden;
 }
 
 #tab_dropzone {
-  flex: 0 0 34px;
+  flex: 0 0 30px;
+  box-sizing: border-box;
   display: flex;
   min-width: 0;
-  border-bottom: 1px solid var(--border-color);
+  height: 30px;
+  padding: 5px 4px 0;
+  border-bottom: 1px solid var(--border-high-color);
+  overflow: hidden;
 }
 
 #electron_tabs {
@@ -29,63 +35,225 @@ body {
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+#electron_tabs::-webkit-scrollbar {
+  width: 2px;
+  height: 2px;
+}
+
+#electron_tabs::-webkit-scrollbar-thumb {
+  background: #0000008c;
+  border: 1px solid grey;
 }
 
 .electron-tab,
-.browser-button {
+.legacy-tab-button {
+  box-sizing: border-box;
+  height: 24px;
+  border: 1px solid var(--border-high-color);
+  border-bottom: 0;
+  border-radius: 2px 2px 0 0;
   color: var(--text-color);
   background: var(--read-bg-color);
-  border: 0;
-  border-right: 1px solid var(--border-color);
+  cursor: pointer;
+  user-select: none;
 }
 
 .electron-tab {
+  position: relative;
   display: flex;
   align-items: center;
-  min-width: 120px;
+  flex: 0 1 220px;
+  min-width: 140px;
   max-width: 220px;
-  padding: 4px 6px 4px 10px;
+  margin-left: 2px;
+  padding: 3px 4px;
+  font-size: 13px;
+  outline: none;
 }
 
 .electron-tab.active {
+  margin-top: 2px;
   color: var(--text-high-color);
-  background: var(--selected_bg_color);
+  background: var(--border-high-color);
+}
+
+.electron-tab:focus-visible,
+.browser-button:focus-visible,
+.legacy-tab-button:focus-visible {
+  outline: 2px solid var(--highlight-bg-color);
+  outline-offset: -2px;
 }
 
 .electron-tab-title {
   flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: left;
 }
 
-.electron-tab-close {
+.electron-tab-close,
+.electron-tab-media {
   flex: 0 0 auto;
-  padding: 2px 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 1px;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.electron-tab-close {
+  opacity: 0;
+  pointer-events: none;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.electron-tab:hover .electron-tab-close,
+.electron-tab:focus-within .electron-tab-close {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.electron-tab-close:hover,
+.electron-tab-media:hover {
+  background: var(--highlight-bg-color);
+}
+
+.electron-tab-media img {
+  width: 14px;
+  height: 14px;
+  opacity: 0.75;
+}
+
+.electron-tab.dragging {
+  opacity: 0.55;
+}
+
+.electron-tab.drop-before::before,
+.electron-tab.drop-after::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--highlight-bg-color);
+  content: "";
+}
+
+.electron-tab.drop-before::before {
+  left: -2px;
+}
+
+.electron-tab.drop-after::after {
+  right: -2px;
+}
+
+.legacy-tab-button {
+  flex: 0 0 26px;
+  min-width: 26px;
+  margin-left: 2px;
+  padding: 1px 6px;
   font-size: 16px;
 }
 
+#controlbar {
+  flex: 0 0 34px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 34px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border-high-color);
+}
+
 .browser-button {
-  min-width: 34px;
-  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  margin: 0;
+  padding: 3px;
+  color: var(--text-high-color);
+  background: var(--btn-bg-color);
+  border: 1px solid black;
+  border-radius: 2px;
+  cursor: pointer;
+  font-size: 15px;
+}
+
+.browser-button img,
+.browser-button svg {
+  width: 16px;
+  height: 16px;
+  opacity: 0.75;
+}
+
+.browser-button svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.browser-button:hover:not(:disabled),
+.legacy-tab-button:hover {
+  background: var(--highlight-bg-color);
 }
 
 .browser-button:disabled {
+  cursor: default;
   opacity: 0.4;
 }
 
-#controlbar {
-  flex: 0 0 36px;
-  display: flex;
-  border-bottom: 1px solid var(--border-color);
+.stop-symbol {
+  font-size: 19px;
+  line-height: 1;
 }
 
 #urlfield {
   flex: 1 1 auto;
   min-width: 0;
-  margin: 4px;
-  padding: 3px 8px;
+  height: 26px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 2px 8px;
+  border: 1px solid black;
+  border-radius: 2px;
+}
+
+#url_error {
+  flex: 0 0 0;
+  box-sizing: border-box;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 8px;
+  color: #fff;
+  background: #9b2c2c;
+  border-bottom: 0 solid #641d1d;
+  font-size: 12px;
+  line-height: 22px;
+  opacity: 0;
+}
+
+#url_error.visible {
+  flex-basis: 24px;
+  min-height: 24px;
+  border-bottom-width: 1px;
+  opacity: 1;
 }
 
 #tab_content {
@@ -94,9 +262,36 @@ body {
 }
 
 #sep_slider {
-  flex: 0 0 4px;
   position: static;
+  flex: 0 0 4px;
+  width: 4px;
+  height: auto;
   border: 0;
+  background: var(--sep-color);
+  cursor: ew-resize;
+}
+
+#url_target {
+  position: absolute;
+  z-index: 30;
+  bottom: 0;
+  right: 0;
+  max-width: min(70vw, 800px);
+  overflow: hidden;
+  padding: 3px 6px;
+  color: var(--text-high-color);
+  background: var(--highlight-bg-color);
+  border: 1px solid var(--border-color);
+  font-size: 12px;
+  opacity: 0;
+  pointer-events: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: opacity 150ms ease-out;
+}
+
+#url_target.visible {
+  opacity: 1;
 }
 
 .electron-left-collapsed #left_panel,
@@ -106,4 +301,30 @@ body {
 
 .electron-left-collapsed #right_panel {
   min-width: 100%;
+}
+
+.electron-fullscreen #left_panel,
+.electron-fullscreen #sep_slider,
+.electron-fullscreen #tab_dropzone,
+.electron-fullscreen #controlbar,
+.electron-fullscreen #url_error,
+.electron-fullscreen #selected_container,
+.electron-fullscreen #url_target {
+  display: none;
+}
+
+.electron-fullscreen #right_panel {
+  min-width: 100%;
+}
+
+/* Presenter controls remain hidden until their Electron behavior is real. */
+body .outline_btn,
+body .video_btn,
+body #outline_webview_btn,
+body #video_webview_btn {
+  display: none !important;
+}
+
+body[animated="false"] #url_target {
+  transition: none;
 }
