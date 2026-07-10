@@ -14,6 +14,8 @@ import {
 } from "@once/ui-web"
 import { createWebExtPlatform } from "@once/platform-webext"
 
+declare const __ONCE_WEBEXT_TARGET__: "chrome" | "firefox"
+
 document.addEventListener("DOMContentLoaded", async () => {
   const platform = createWebExtPlatform()
   const app = createOnceApp(platform)
@@ -26,7 +28,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   new StoryHistory(client)
   StoryList.init(client)
   Menu.init(client)
-  LoaderInsights.init(client)
+  LoaderInsights.init(client, {
+    showHoveredLinks: __ONCE_WEBEXT_TARGET__ === "chrome",
+  })
   Search.init()
   addCollectorColorStyles()
 

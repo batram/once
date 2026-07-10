@@ -1,165 +1,373 @@
-import { SettingsPanel } from "./SettingsPanel"
 import { OnceClient, ProcessingSource, SourceError } from "@once/app"
+import { SettingsPanel } from "./SettingsPanel"
+
+interface LoaderInsightsOptions {
+  showHoveredLinks?: boolean
+}
+
+type StatusKind = "error" | "info" | "link" | "loading" | "warning"
+
+const INFO_FADE_DELAY = 2500
+const WARNING_COLLAPSE_DELAY = 5000
 
 export class LoaderInsights {
-  private static el: HTMLElement | null = null
-  private static timeout: ReturnType<typeof setTimeout> | null = null
+  private static bar: HTMLElement | null = null
+  private static message: HTMLElement | null = null
+  private static messageText: HTMLElement | null = null
+  private static activityIcon: HTMLElement | null = null
+  private static warningIndicator: HTMLButtonElement | null = null
+  private static errorIndicator: HTMLButtonElement | null = null
+  private static processing: ProcessingSource[] = []
+  private static sourceErrors: SourceError[] = []
+  private static expandedIssue: SourceError | null = null
+  private static hoveredUrl = ""
+  private static infoMessage = ""
+  private static wasProcessing = false
+  private static infoTimeout: ReturnType<typeof setTimeout> | null = null
+  private static warningTimeout: ReturnType<typeof setTimeout> | null = null
   private static commsRegistered = false
+  private static hoverRegistered = false
+  private static hoveredAnchor: HTMLAnchorElement | null = null
 
-  static init(client?: OnceClient): void {
+  static init(
+    client?: OnceClient,
+    options: LoaderInsightsOptions = {}
+  ): void {
+    this.ensureBar()
+
     if (!this.commsRegistered) {
       this.commsRegistered = true
-      client?.subscribe("loaderChanged", ({ processing, visible }) => {
-        if (processing.length > 0) {
-          this.showProcessing(processing)
-        } else if (!visible) {
-          this.hide()
-        }
+      client?.subscribe("loaderChanged", ({ processing }) => {
+        this.updateProcessing(processing)
       })
       client?.subscribe("sourceErrorsChanged", ({ errors }) => {
-        this.resetErrors()
-        errors.forEach((error) => this.showError(error))
+        this.updateSourceErrors(errors)
       })
     }
 
-    if (this.el) return
+    if (options.showHoveredLinks) {
+      this.registerHoveredLinks()
+    }
+  }
 
-    const stories = document.querySelector("#stories")
-    if (stories) {
-      // Check if container already exists (retry mechanics)
-      let notifContainer = document.querySelector("#notification_container")
-      if (!notifContainer) {
-        notifContainer = document.createElement("div")
-        notifContainer.id = "notification_container"
-        stories.insertAdjacentElement("afterend", notifContainer)
+  private static ensureBar(): void {
+    if (this.bar) return
+
+    const guiRoot = document.querySelector("#left_main")
+    if (!guiRoot) return
+
+    const existingBar = document.querySelector<HTMLElement>("#status_bar")
+    if (existingBar) {
+      if (existingBar.parentElement !== guiRoot) {
+        guiRoot.appendChild(existingBar)
       }
-
-      this.el = document.createElement("div")
-      this.el.id = "loader_insights"
-      notifContainer.appendChild(this.el)
-    }
-  }
-
-  static show(message: string): void {
-    if (!this.el) return
-
-    this.el.textContent = message
-    this.el.classList.add("visible")
-
-    if (this.timeout) {
-      clearTimeout(this.timeout)
-      this.timeout = null
-    }
-  }
-
-  static showProcessing(items: ProcessingSource[]): void {
-    if (!this.el) return
-
-    if (items.length === 0) {
-      this.hide()
+      this.bar = existingBar
+      this.message = existingBar.querySelector("#status_bar_message")
+      this.messageText = existingBar.querySelector("#status_bar_text")
+      this.activityIcon = existingBar.querySelector("#status_bar_activity")
+      this.warningIndicator = existingBar.querySelector(
+        "#status_bar_warnings"
+      )
+      this.errorIndicator = existingBar.querySelector("#status_bar_errors")
       return
     }
 
-    this.el.replaceChildren()
+    this.bar = document.createElement("div")
+    this.bar.id = "status_bar"
+    this.bar.setAttribute("role", "status")
+    this.bar.setAttribute("aria-live", "polite")
 
-    const label = document.createElement("div")
-    label.classList.add("loader_insights_label")
-    label.textContent =
-      items.length === 1
-        ? "Still processing 1 source"
-        : `Still processing ${items.length} sources`
-    this.el.appendChild(label)
-
-    const list = document.createElement("div")
-    list.classList.add("loader_insights_items")
-    items.forEach((item) => {
-      const itemEl = document.createElement("span")
-      itemEl.classList.add("loader_insights_item")
-      itemEl.classList.add("info")
-      itemEl.dataset.type = `[${item.parserType}]`
-
-      const type = document.createElement("span")
-      type.classList.add("type")
-      type.textContent = item.parserType
-      itemEl.appendChild(type)
-
-      const domain = document.createElement("span")
-      domain.classList.add("loader_source_domain")
-      domain.textContent = item.domain
-      itemEl.appendChild(domain)
-
-      list.appendChild(itemEl)
+    this.message = document.createElement("div")
+    this.message.id = "status_bar_message"
+    this.message.addEventListener("click", () => {
+      if (
+        this.message?.classList.contains("clickable") &&
+        this.expandedIssue
+      ) {
+        SettingsPanel.instance?.highlightSource(this.expandedIssue.url)
+      }
     })
-    this.el.appendChild(list)
 
-    this.el.classList.add("visible")
+    this.activityIcon = document.createElement("span")
+    this.activityIcon.id = "status_bar_activity"
+    this.activityIcon.setAttribute("aria-hidden", "true")
+    this.message.appendChild(this.activityIcon)
 
-    if (this.timeout) {
-      clearTimeout(this.timeout)
-      this.timeout = null
+    this.messageText = document.createElement("span")
+    this.messageText.id = "status_bar_text"
+    this.message.appendChild(this.messageText)
+    this.bar.appendChild(this.message)
+
+    const indicators = document.createElement("div")
+    indicators.id = "status_bar_indicators"
+    this.warningIndicator = this.createIssueIndicator("warning", "⚠")
+    this.errorIndicator = this.createIssueIndicator("error", "!")
+    indicators.append(this.warningIndicator, this.errorIndicator)
+    this.bar.appendChild(indicators)
+
+    guiRoot.appendChild(this.bar)
+    this.render()
+  }
+
+  private static createIssueIndicator(
+    type: "warning" | "error",
+    symbol: string
+  ): HTMLButtonElement {
+    const indicator = document.createElement("button")
+    indicator.id = `status_bar_${type}s`
+    indicator.classList.add("status_issue", type)
+    indicator.type = "button"
+    indicator.hidden = true
+
+    const icon = document.createElement("span")
+    icon.classList.add("status_issue_icon")
+    icon.setAttribute("aria-hidden", "true")
+    icon.textContent = symbol
+    indicator.appendChild(icon)
+
+    const count = document.createElement("span")
+    count.classList.add("status_issue_count")
+    indicator.appendChild(count)
+
+    indicator.addEventListener("click", () => {
+      const issues = this.sourceErrors.filter((error) => error.type === type)
+      if (issues.length === 0) return
+
+      const currentIndex = issues.findIndex(
+        (error) => error.url === this.expandedIssue?.url
+      )
+      const nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % issues.length
+      this.expandedIssue = issues[nextIndex]
+      this.clearInfoTimeout()
+      this.render()
+      if (type === "warning") this.scheduleWarningCollapse()
+    })
+    return indicator
+  }
+
+  private static updateProcessing(items: ProcessingSource[]): void {
+    const isProcessing = items.length > 0
+    this.processing = items
+
+    if (isProcessing) {
+      this.wasProcessing = true
+      this.infoMessage = ""
+      this.clearInfoTimeout()
+    } else if (this.wasProcessing) {
+      this.wasProcessing = false
+      this.infoMessage = "Stories updated"
+      this.scheduleInfoFade()
     }
+
+    this.render()
+  }
+
+  private static updateSourceErrors(errors: SourceError[]): void {
+    this.sourceErrors = errors
+
+    if (
+      this.expandedIssue &&
+      !errors.some((error) => error.url === this.expandedIssue?.url)
+    ) {
+      this.expandedIssue = null
+    }
+
+    const latestError = [...errors]
+      .reverse()
+      .find((error) => error.type === "error")
+    const latestWarning = [...errors]
+      .reverse()
+      .find((error) => error.type === "warning")
+
+    if (latestError) {
+      this.expandedIssue = latestError
+      this.clearWarningTimeout()
+    } else if (latestWarning) {
+      this.expandedIssue = latestWarning
+      this.scheduleWarningCollapse()
+    } else {
+      this.expandedIssue = null
+      this.clearWarningTimeout()
+    }
+
+    this.render()
+  }
+
+  private static registerHoveredLinks(): void {
+    if (this.hoverRegistered) return
+    this.hoverRegistered = true
+
+    document.addEventListener("mouseover", (event) => {
+      const target = event.target
+      if (!(target instanceof Element)) return
+
+      const anchor = target.closest<HTMLAnchorElement>("a[href]")
+      if (!anchor || anchor === this.hoveredAnchor) return
+
+      this.hoveredAnchor = anchor
+      this.hoveredUrl = anchor.href || anchor.getAttribute("href") || ""
+      this.render()
+    })
+
+    document.addEventListener("mouseout", (event) => {
+      if (!this.hoveredAnchor) return
+
+      const relatedTarget = event.relatedTarget
+      if (
+        relatedTarget instanceof Node &&
+        this.hoveredAnchor.contains(relatedTarget)
+      ) {
+        return
+      }
+
+      const target = event.target
+      if (!(target instanceof Node) || !this.hoveredAnchor.contains(target)) {
+        return
+      }
+
+      this.hoveredAnchor = null
+      this.hoveredUrl = ""
+      this.render()
+    })
+  }
+
+  static show(message: string): void {
+    this.infoMessage = message
+    this.scheduleInfoFade()
+    this.render()
+  }
+
+  static showProcessing(items: ProcessingSource[]): void {
+    this.updateProcessing(items)
   }
 
   static showError(error: SourceError): void {
-    const container = document.querySelector("#notification_container")
-
-    if (!container) return
-
-    const errorEl = document.createElement("div")
-    errorEl.classList.add("loader_error")
-    if (error.type === "warning") {
-      errorEl.classList.add("warning")
-    }
-    errorEl.dataset.url = error.url
-
-    const textSpan = document.createElement("span")
-    textSpan.classList.add("loader_error_message")
-    textSpan.textContent = `${error.title} ${error.url}`
-
-    errorEl.appendChild(textSpan)
-
-    // Close button (X)
-    const closeBtn = document.createElement("span")
-    closeBtn.classList.add("error_close")
-    closeBtn.innerText = "×"
-    closeBtn.onclick = (e) => {
-      e.stopPropagation() // Don't navigate to settings
-      errorEl.classList.remove("visible")
-      setTimeout(() => errorEl.remove(), 300)
-    }
-    errorEl.appendChild(closeBtn)
-
-    // Clicking the main area navigates to settings
-    errorEl.onclick = () => {
-      SettingsPanel.instance?.highlightSource(error.url)
-
-      errorEl.classList.remove("visible")
-      setTimeout(() => errorEl.remove(), 300)
-    }
-    container.appendChild(errorEl)
-
-    // Trigger reflow to enable transition
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const _ = errorEl.offsetHeight
-
-    requestAnimationFrame(() => {
-      errorEl.classList.add("visible")
-    })
+    const remaining = this.sourceErrors.filter((item) => item.url !== error.url)
+    this.updateSourceErrors([...remaining, error])
   }
 
   static hide(): void {
-    if (!this.el) return
-
-    // Allow a small delay before hiding so the last message is readable
-    this.timeout = setTimeout(() => {
-      this.el?.classList.remove("visible")
-    }, 1000)
+    this.infoMessage = ""
+    this.clearInfoTimeout()
+    this.render()
   }
 
   static resetErrors(): void {
-    const container = document.querySelector("#notification_container")
-    if (container) {
-      container.querySelectorAll(".loader_error").forEach((el) => el.remove())
+    this.updateSourceErrors([])
+  }
+
+  private static render(): void {
+    if (
+      !this.bar ||
+      !this.message ||
+      !this.messageText ||
+      !this.activityIcon
+    ) {
+      return
     }
+
+    this.updateIndicator(this.warningIndicator, "warning")
+    this.updateIndicator(this.errorIndicator, "error")
+
+    let kind: StatusKind = "info"
+    let text = ""
+    let title = ""
+    let clickable = false
+
+    if (this.hoveredUrl) {
+      kind = "link"
+      text = this.hoveredUrl
+      title = this.hoveredUrl
+    } else if (this.processing.length > 0) {
+      kind = "loading"
+      const count = this.processing.length
+      const domains = this.processing.map((item) => item.domain)
+      text = `Loading ${count} ${count === 1 ? "source" : "sources"}`
+      if (domains.length > 0) text += ` · ${domains.join(", ")}`
+      title = this.processing
+        .map((item) => `${item.domain} [${item.parserType}]`)
+        .join("\n")
+    } else if (this.expandedIssue) {
+      kind = this.expandedIssue.type
+      const matchingIssues = this.sourceErrors.filter(
+        (error) => error.type === this.expandedIssue?.type
+      )
+      const issueIndex = matchingIssues.findIndex(
+        (error) => error.url === this.expandedIssue?.url
+      )
+      const position =
+        matchingIssues.length > 1 ? `${issueIndex + 1}/${matchingIssues.length} ` : ""
+      text = `${position}${this.expandedIssue.title} · ${this.sourceLabel(
+        this.expandedIssue.url
+      )}`
+      title = `${this.expandedIssue.message}\n${this.expandedIssue.url}`
+      clickable = true
+    } else if (this.infoMessage) {
+      text = this.infoMessage
+      title = this.infoMessage
+    }
+
+    this.bar.dataset.kind = kind
+    this.message.classList.toggle("visible", text.length > 0)
+    this.message.classList.toggle("clickable", clickable)
+    this.message.title = title
+    this.messageText.textContent = text
+    this.activityIcon.classList.toggle("spinning", kind === "loading")
+  }
+
+  private static updateIndicator(
+    indicator: HTMLButtonElement | null,
+    type: "warning" | "error"
+  ): void {
+    if (!indicator) return
+
+    const issues = this.sourceErrors.filter((error) => error.type === type)
+    const count = issues.length
+    indicator.hidden = count === 0
+    indicator.querySelector<HTMLElement>(".status_issue_count").textContent =
+      count.toString()
+    indicator.setAttribute(
+      "aria-label",
+      `${count} source ${count === 1 ? type : `${type}s`}`
+    )
+    indicator.title = `${count} source ${
+      count === 1 ? type : `${type}s`
+    }. Click to show${count > 1 ? " next" : ""}.`
+  }
+
+  private static sourceLabel(url: string): string {
+    return url.trim() || "Unknown source"
+  }
+
+  private static scheduleInfoFade(): void {
+    this.clearInfoTimeout()
+    this.infoTimeout = setTimeout(() => {
+      this.infoMessage = ""
+      this.infoTimeout = null
+      this.render()
+    }, INFO_FADE_DELAY)
+  }
+
+  private static scheduleWarningCollapse(): void {
+    this.clearWarningTimeout()
+    this.warningTimeout = setTimeout(() => {
+      if (this.expandedIssue?.type === "warning") {
+        this.expandedIssue = null
+        this.render()
+      }
+      this.warningTimeout = null
+    }, WARNING_COLLAPSE_DELAY)
+  }
+
+  private static clearInfoTimeout(): void {
+    if (!this.infoTimeout) return
+    clearTimeout(this.infoTimeout)
+    this.infoTimeout = null
+  }
+
+  private static clearWarningTimeout(): void {
+    if (!this.warningTimeout) return
+    clearTimeout(this.warningTimeout)
+    this.warningTimeout = null
   }
 }

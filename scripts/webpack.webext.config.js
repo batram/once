@@ -1,5 +1,6 @@
 const path = require("path")
 const CopyPlugin = require("copy-webpack-plugin")
+const webpack = require("webpack")
 
 const root = path.resolve(__dirname, "..")
 const targets = new Set(["chrome", "firefox"])
@@ -49,6 +50,9 @@ module.exports = (env = {}, argv = {}) => {
       ],
     },
     plugins: [
+      new webpack.DefinePlugin({
+        __ONCE_WEBEXT_TARGET__: JSON.stringify(target),
+      }),
       new CopyPlugin({
         patterns: [
           {

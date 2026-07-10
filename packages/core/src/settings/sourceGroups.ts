@@ -7,11 +7,14 @@ export function groupStorySources(
   let currentGroup = "default"
 
   storySources.forEach((sourceEntry) => {
-    if (/^\*(.*)$/.test(sourceEntry)) {
-      currentGroup = sourceEntry.replace(/^\*/, "")
+    const normalizedEntry = sourceEntry.trim()
+    if (!normalizedEntry) return
+
+    if (/^\*(.*)$/.test(normalizedEntry)) {
+      currentGroup = normalizedEntry.replace(/^\*/, "")
       groupedSources[currentGroup] = []
     } else {
-      groupedSources[currentGroup].push(sourceEntry)
+      groupedSources[currentGroup].push(normalizedEntry)
     }
   })
 

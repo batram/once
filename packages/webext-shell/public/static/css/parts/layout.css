@@ -59,6 +59,14 @@
   flex-direction: column;
   width: 80%;
   flex: 1 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#left_main > .panel {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
 }
 
 #right_panel {
