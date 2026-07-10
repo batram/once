@@ -52,11 +52,15 @@ export function createWebExtPlatform(): OncePlatformPorts {
         window.open(url, target)
       },
       onSelectedUrlChanged(handler) {
+        const notifySelectedTab = (tab: browser.tabs.Tab | undefined) => {
+          if (tab?.url) handler(tab.url)
+        }
+
         const activatedListener = async (activeInfo: browser.tabs._OnActivatedActiveInfo) => {
           const win = await browser.windows.getCurrent()
           const tab = await browser.tabs.get(activeInfo.tabId)
           if (tab.windowId == win.id) {
-            handler(tab.url)
+            notifySelectedTab(tab)
           }
         }
 
@@ -67,12 +71,15 @@ export function createWebExtPlatform(): OncePlatformPorts {
         ) => {
           const currentWindow = await browser.windows.getCurrent()
           if (tab.active && tab.windowId == currentWindow.id) {
-            handler(tab.url)
+            notifySelectedTab(tab)
           }
         }
 
         browser.tabs.onActivated.addListener(activatedListener)
         browser.tabs.onUpdated.addListener(updatedListener)
+        browser.tabs
+          .query({ currentWindow: true, active: true })
+          .then((tabs) => notifySelectedTab(tabs[0]))
 
         return () => {
           browser.tabs.onActivated.removeListener(activatedListener)

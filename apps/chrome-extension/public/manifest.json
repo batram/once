@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "minimum_chrome_version": "114",
+  "name": "Once Sidepanel",
+  "description": "Put once in your side panel",
+  "version": "0.0.7",
+  "icons": {
+    "48": "static/imgs/icons/mipmap-mdpi/ic_launcher.png"
+  },
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "sidePanel",
+    "storage",
+    "history",
+    "unlimitedStorage",
+    "tabs"
+  ],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "side_panel": {
+    "default_path": "static/sidepanel.html"
+  },
+  "action": {
+    "default_icon": {
+      "48": "static/imgs/icons/mipmap-mdpi/ic_launcher.png"
+    },
+    "default_title": "Click to open panel"
+  }
+}

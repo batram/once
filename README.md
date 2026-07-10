@@ -1,8 +1,8 @@
-# ![icon](https://user-images.githubusercontent.com/1382274/184474910-e0b46b64-8254-4604-a176-1679255c65bb.png?small) Once - Firefox Side panel extension
+# ![icon](https://user-images.githubusercontent.com/1382274/184474910-e0b46b64-8254-4604-a176-1679255c65bb.png?small) Once browser side-panel extension
 
 ## About
 
-[Once](https://github.com/batram/) retooled as an Side panel extension for Firefox.
+[Once](https://github.com/batram/) retooled as a side-panel extension for Firefox and Chrome.
 Collect stories from different sources (RSS, Hacker News, Lobsters or Reddit), so you can stop scrolling through those sites all day and look at each story once.
 
 ## Features
@@ -15,14 +15,16 @@ Collect stories from different sources (RSS, Hacker News, Lobsters or Reddit), s
 - Dark and Light theme
 - _TODO_ Extract and present just the content (text, images, video)
 
-## build
+## Build
 
 ```
 npm install
-npm run b2
+npm run build:extensions
 ```
 
-Load the unpacked extension from `apps/firefox-extension/dist` in Firefox.
+Load the unpacked extension from `apps/firefox-extension/dist` in Firefox or
+`apps/chrome-extension/dist` in Chrome. See `DEVELOPMENT.md` for development,
+validation, and packaging commands.
 
 ## Screenshots
 <img width="1266" height="880" alt="image" src="https://github.com/user-attachments/assets/3a0ff606-ce39-4a9c-a002-1eedfa9873df" />

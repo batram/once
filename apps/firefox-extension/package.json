@@ -4,9 +4,6 @@
   "private": true,
   "description": "Firefox extension packaging for Once",
   "dependencies": {
-    "@once/app": "*",
-    "@once/core": "*",
-    "@once/platform-webext": "*",
-    "@once/ui-web": "*"
+    "@once/webext-shell": "*"
   }
 }

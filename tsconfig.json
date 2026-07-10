@@ -5,5 +5,5 @@
     "declaration": false,
     "rootDir": "."
   },
-  "include": ["apps/firefox-extension/src/**/*"]
+  "include": ["apps/*-extension/src/**/*"]
 }

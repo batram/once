@@ -2,5 +2,8 @@
   "name": "@once/chrome-extension",
   "version": "0.0.0",
   "private": true,
-  "description": "Chrome extension packaging for Once"
+  "description": "Chrome extension packaging for Once",
+  "dependencies": {
+    "@once/webext-shell": "*"
+  }
 }

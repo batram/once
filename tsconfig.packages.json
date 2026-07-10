@@ -9,6 +9,7 @@
     { "path": "packages/platform-mobile" },
     { "path": "packages/platform-web" },
     { "path": "packages/platform-webext" },
-    { "path": "packages/ui-web" }
+    { "path": "packages/ui-web" },
+    { "path": "packages/webext-shell" }
   ]
 }

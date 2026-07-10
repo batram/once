@@ -1,0 +1,66 @@
+const path = require("path")
+const CopyPlugin = require("copy-webpack-plugin")
+
+const root = path.resolve(__dirname, "..")
+const targets = new Set(["chrome", "firefox"])
+
+module.exports = (env = {}, argv = {}) => {
+  const target = env.target
+  if (!targets.has(target)) {
+    throw new Error(`Pass --env target=chrome or --env target=firefox (received ${target || "none"})`)
+  }
+
+  const mode = argv.mode || "development"
+  const appRoot = path.join(root, "apps", `${target}-extension`)
+
+  return {
+    mode,
+    entry: {
+      background: path.join(appRoot, "src", "background.ts"),
+      sidepanel: path.join(root, "packages", "webext-shell", "dist", "sidepanel.js"),
+    },
+    output: {
+      path: path.join(appRoot, "dist"),
+      filename: "[name].js",
+      clean: true,
+      globalObject: "globalThis",
+      environment: {
+        globalThis: true,
+      },
+    },
+    devtool: mode === "development" ? "inline-source-map" : false,
+    optimization: {
+      minimize: mode === "production",
+    },
+    resolve: {
+      extensions: [".ts", ".js"],
+      fallback: { path: false },
+    },
+    module: {
+      rules: [
+        {
+          test: /\.tsx?$/,
+          loader: "ts-loader",
+          exclude: /node_modules/,
+          options: {
+            configFile: path.join(root, "tsconfig.json"),
+          },
+        },
+      ],
+    },
+    plugins: [
+      new CopyPlugin({
+        patterns: [
+          {
+            from: path.join(root, "packages", "webext-shell", "public", "static"),
+            to: "static",
+          },
+          {
+            from: path.join(appRoot, "public", "manifest.json"),
+            to: "manifest.json",
+          },
+        ],
+      }),
+    ],
+  }
+}
