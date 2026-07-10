@@ -64,7 +64,7 @@ are complete and there is a demonstrated need.
 
 1. Add fake-port tests for `OnceApp` reload, settings, story-change, and
    database-change behavior.
-2. Remove or explicitly retain the legacy `StoryLoader` and `OnceSettings`
+2. Remove the legacy `StoryLoader` and `OnceSettings`
    compatibility APIs after their callers are accounted for.
 3. Replace root TypeScript/webpack aliases with an explicit package build
    strategy.

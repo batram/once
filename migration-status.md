@@ -25,14 +25,17 @@
   platform, UI, and persistence dependencies in core.
 - Dynamic collector loading and per-source packages are deferred.
 
-## Still Needed
+## next steps
 
-1. Remove or explicitly retain the legacy `StoryLoader` and `OnceSettings` APIs
-   after confirming no external callers remain.
-2. Test `OnceApp` with fake ports; no automated test suite exists yet.
-3. Move from root aliases to an explicit package build strategy.
-4. Clean up migration compatibility code after those boundaries are in place.
-5. Implement real Electron/mobile ports, then build Chrome and Electron apps.
+1. Remove the legacy `StoryLoader` and `OnceSettings` APIs after confirming no
+   external callers remain.
+2. Move from root aliases to an explicit package build strategy.
+3. Clean up migration compatibility code after those boundaries are in place.
+
+## future steps
+
+- Test suite
+- Implement real Electron/mobile ports, then build Chrome and Electron apps.
 
 ## Commands
 
