@@ -7,10 +7,11 @@ browser-specific background entrypoints, and build outputs live under
 `apps/*-extension/`. Both use `OnceApp` with `createWebExtPlatform` and the
 shared `@once/webext-shell` side-panel bootstrap and static resources.
 
-Electron, website, and mobile are placeholders. Their future implementations
-should reuse the shared packages and keep target-specific entrypoints and
-packaging inside `apps/*`. The legacy Electron repository remains under
-`legacy/` as a reference; the replaced legacy Chrome repository was removed.
+Electron is now a working Windows-first desktop target. Website and mobile are
+placeholders. Future targets should reuse the shared packages and keep
+target-specific entrypoints and packaging inside `apps/*`. The legacy Electron
+repository remains under `legacy/` as a reference; the replaced legacy Chrome
+repository was removed.
 
 ## Package boundaries
 
@@ -42,13 +43,24 @@ packaging inside `apps/*`. The legacy Electron repository remains under
 - Removed the replaced legacy Chrome application.
 - Deferred dynamic collector loading and per-source collector packages until a
   concrete need appears.
+- Added a secure Electron 43 application using a trusted Once renderer and
+  main-process-owned `WebContentsView` tabs for remote content.
+- Added standard tab and navigation controls, bridge-backed HTTP/CouchDB
+  requests, encrypted desktop sync settings, a fresh IndexedDB profile, and a
+  persistent browser-cookie partition.
+- Added Electron Forge development, packaging, Squirrel.Windows, ZIP, security
+  fuses, unit tests, and a Playwright Electron smoke test.
+- Moved the shared HTML, CSS, images, UI mounting, and IndexedDB cache adapter
+  into target-neutral shared packages.
 
 ## Next steps
 
-1. Add fake-port tests for `OnceApp` reload, settings, story-change, and
-   database-change behavior.
-2. Implement real Electron and mobile ports.
-3. Build the Electron application, followed by website and mobile.
+1. Expand fake-port coverage for collector-specific successful reloads and
+   CouchDB failure/retry scenarios.
+2. Implement real mobile ports and build the mobile application.
+3. Build the website application.
+4. Add deferred Electron session restoration, detachable windows, presenters,
+   media controls, signing, and updates as separate milestones.
 
 ## Validation
 
@@ -59,3 +71,9 @@ packaging inside `apps/*`. The legacy Electron repository remains under
 - `npm run b2`: build Firefox for production.
 - `npm run build:chrome`: build Chrome for production.
 - `npm run build:extensions`: build both browser targets for production.
+- `npm run start:electron`: run the Electron app in development.
+- `npm run build:electron`: build packages and typecheck Electron.
+- `npm run test:electron`: run Electron and `OnceApp` unit tests.
+- `npm run test:electron:e2e`: package Electron and run the Playwright smoke test.
+- `npm run package:electron`: create an unpacked Windows application.
+- `npm run make:electron`: create unsigned Squirrel.Windows and ZIP artifacts.

@@ -9,9 +9,24 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./bridge": {
+      "types": "./dist/types.d.ts",
+      "default": "./dist/types.js"
+    },
+    "./fetch": {
+      "types": "./dist/fetch.d.ts",
+      "default": "./dist/fetch.js"
+    },
+    "./navigation": {
+      "types": "./dist/navigation.d.ts",
+      "default": "./dist/navigation.js"
     }
   },
   "dependencies": {
-    "@once/app": "*"
+    "@once/app": "*",
+    "@once/core": "*",
+    "@once/persistence": "*",
+    "pouchdb-browser": "^8.0.1"
   }
 }

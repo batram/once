@@ -56,8 +56,17 @@ module.exports = (env = {}, argv = {}) => {
       new CopyPlugin({
         patterns: [
           {
-            from: path.join(root, "packages", "webext-shell", "public", "static"),
+            from: path.join(root, "packages", "ui-web", "public", "static"),
             to: "static",
+          },
+          {
+            from: path.join(root, "packages", "ui-web", "public", "shell.html"),
+            to: "static/sidepanel.html",
+            transform(content) {
+              return content
+                .toString()
+                .replace("</body>", '  <script src="../sidepanel.js"></script>\n  </body>')
+            },
           },
           {
             from: path.join(appRoot, "public", "manifest.json"),

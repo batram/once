@@ -92,7 +92,7 @@ export class OnceApp {
       persistStoryChange: (href, path, value) =>
         this.persistStoryChange(href, path, value),
       addFilter: (filter) => this.addFilter(filter),
-      openUrl: (url, target) => this.platform.activeTab?.openUrl(url, target),
+      openUrl: (url, target) => this.openUrl(url, target),
       selectUrl: (url) => this.selectUrl(url),
       subscribe: (event, handler) => this.subscribe(event, handler)
     }
@@ -570,6 +570,17 @@ export class OnceApp {
 
   private async selectUrl(url: string): Promise<void> {
     this.events.publish("selectedUrlChanged", { url })
+  }
+
+  private openUrl(url: string, target: string): void {
+    if (url.startsWith("search:")) {
+      this.events.publish("searchRequested", {
+        query: url.substring("search:".length)
+      })
+      return
+    }
+
+    this.platform.activeTab?.openUrl(url, target)
   }
 
   private handleDatabaseChange(change: DatabaseChange): void {

@@ -8,9 +8,9 @@ import {
 import {
   PouchListStore,
   PouchStoryStore,
-  PouchSyncService
+  PouchSyncService,
+  IndexedDbCacheStore
 } from "@once/persistence"
-import { CacheStore } from "./storage/CacheStore"
 import { WebExtSyncStorage } from "./storage/WebExtSyncStorage"
 import { setDocumentTheme } from "./ui/WebExtTheme"
 
@@ -32,7 +32,7 @@ export function createWebExtPlatform(): OncePlatformPorts {
     listStore,
     storyStore,
     syncService,
-    cacheStore: CacheStore,
+    cacheStore: IndexedDbCacheStore,
     syncSettingsStore,
     theme: {
       setTheme: (theme: ThemeName) => setDocumentTheme(theme)

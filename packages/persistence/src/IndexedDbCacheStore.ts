@@ -1,4 +1,4 @@
-export class CacheStore {
+export class IndexedDbCacheStore {
   private static DB_NAME = "NetworkCache"
   private static STORE_NAME = "requests"
   private static DB_VERSION = 1
@@ -25,7 +25,7 @@ export class CacheStore {
     })
   }
 
-  static async get(url: string): Promise<any> {
+  static async get(url: string): Promise<unknown> {
     try {
       const db = await this.getDB()
       return new Promise((resolve, reject) => {
@@ -36,13 +36,13 @@ export class CacheStore {
         request.onerror = () => reject(request.error)
         request.onsuccess = () => resolve(request.result)
       })
-    } catch (e) {
-      console.error("CacheStore.get error", e)
+    } catch (error) {
+      console.error("IndexedDbCacheStore.get error", error)
       return null
     }
   }
 
-  static async set(url: string, value: any): Promise<void> {
+  static async set(url: string, value: unknown): Promise<void> {
     try {
       const db = await this.getDB()
       return new Promise((resolve, reject) => {
@@ -53,8 +53,8 @@ export class CacheStore {
         request.onerror = () => reject(request.error)
         request.onsuccess = () => resolve()
       })
-    } catch (e) {
-      console.error("CacheStore.set error", e)
+    } catch (error) {
+      console.error("IndexedDbCacheStore.set error", error)
     }
   }
 
@@ -69,8 +69,8 @@ export class CacheStore {
         request.onerror = () => reject(request.error)
         request.onsuccess = () => resolve()
       })
-    } catch (e) {
-      console.error("CacheStore.clear error", e)
+    } catch (error) {
+      console.error("IndexedDbCacheStore.clear error", error)
     }
   }
 }

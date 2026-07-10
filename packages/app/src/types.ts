@@ -61,6 +61,9 @@ export interface OnceAppEvents {
   historyCommand: {
     action: "undo" | "redo"
   }
+  searchRequested: {
+    query: string
+  }
 }
 
 export type OnceEventName = keyof OnceAppEvents

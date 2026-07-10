@@ -20,6 +20,9 @@ Collect stories from different sources (RSS, Hacker News, Lobsters or Reddit), s
 ```
 npm install
 npm run build:extensions
+npm run start:electron
+npm run test:electron
+npm run make:electron
 ```
 
 Load the unpacked extension from `apps/firefox-extension/dist` in Firefox or
