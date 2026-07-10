@@ -1,7 +1,10 @@
 import { Story } from "@once/core"
 import * as StoryList from "./StoryList"
 import { StoryListItem } from "./StoryListItem"
-import { domain_search_providers, global_search_providers } from "@once/core"
+import {
+  domain_search_providers,
+  global_search_providers
+} from "@once/collectors"
 import { applyStoryFilters } from "@once/core"
 import { getOnceClient } from "./client"
 

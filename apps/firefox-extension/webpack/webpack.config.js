@@ -33,6 +33,15 @@ module.exports = {
         "core",
         "src",
       ),
+      "@once/collectors": path.resolve(
+        __dirname,
+        "..",
+        "..",
+        "..",
+        "packages",
+        "collectors",
+        "src",
+      ),
       "@once/app": path.resolve(
         __dirname,
         "..",

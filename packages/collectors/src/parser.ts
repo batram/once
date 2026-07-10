@@ -1,6 +1,5 @@
-import * as collectors from "./collectors"
-import { Story } from "./Story"
-import { daysAgo, humanTime, parseHumanTime } from "../time/relativeTime"
+import { Story, daysAgo, humanTime, parseHumanTime } from "@once/core"
+import * as collectors from "./registry"
 
 export interface ParserLookupOptions {
   onParserMatched?: (parserType: string) => void
@@ -48,35 +47,6 @@ export function get_parser_for_url(
     }
   }
 }
-
-export function add_all_css_colors(): void {
-  const parsers = collectors.get_parser()
-
-  for (const i in parsers) {
-    const parser = parsers[i]
-    const colors = parser.options.colors
-    const br_type = "[" + parser.options.type + "]"
-    if (colors && colors[0] != "") {
-      const style = document.createElement("style")
-      style.classList.add("type_style")
-      style.innerHTML = `
-      .info[data-type='${br_type}'] .type {
-        background-color: ${colors[0]};
-        border-color: ${colors[1]};
-        color: ${colors[1]};
-      }
-
-      .menu_btn[data-type='${br_type}'] {
-        background-color: ${colors[0]};
-        color: ${colors[1]};
-      }
-      `
-      document.head.append(style)
-    }
-  }
-}
-
-export const addAllCssColors = add_all_css_colors
 
 export async function parse_response(
   resp: Response,
@@ -155,7 +125,7 @@ export function parse_dom(val: string, url: string): Document {
   const doc = dom_parser.parseFromString(val, "text/html")
 
   if (!doc.querySelector("base")) {
-    const base = document.createElement("base")
+    const base = doc.createElement("base")
     base.href = url
     doc.head.append(base)
   } else {

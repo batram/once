@@ -1,8 +1,5 @@
 import * as StoryParser from "./parser"
-import { StoryMap } from "./StoryMap"
-import { Story } from "./Story"
-import * as story_filters from "./StoryFilters"
-import { OnceSettings } from "../OnceSettings"
+import { filter_stories, OnceSettings, Story, StoryMap } from "@once/core"
 
 export interface StoryLoaderCacheAdapter {
   get(url: string): Promise<unknown>
@@ -162,7 +159,6 @@ export async function parallel_load_stories(
               errorType = "HTTP Error"
               errorDetail = detail
             }
-
             adapters.ui.addSourceError(source_entry, errorDetail, "error")
             adapters.ui.showError(
               errorType,
@@ -216,7 +212,7 @@ async function process_story_input(stories: Story[], group_name: string) {
   if (!stories) {
     return
   }
-  const filtered_stories = await story_filters.filter_stories(stories)
+  const filtered_stories = await filter_stories(stories)
   const all_stories = filtered_stories.sort()
   all_stories.forEach((story) => {
     story.tags.push({

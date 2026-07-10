@@ -17,13 +17,21 @@
   have been removed.
 - `packages/core` has no prohibited imports from webextension or UI packages;
   the checked boundary baseline is zero.
+- Collector-generated UI styles now live in `ui-web`, and `Story` no longer
+  uses `document` to build stored content.
+- All collectors, parsing helpers, the registry, and the legacy `StoryLoader`
+  now live in one `@once/collectors` package.
+- `packages/core` is DOM-free. The boundary check rejects DOM, collector,
+  platform, UI, and persistence dependencies in core.
+- Dynamic collector loading and per-source packages are deferred.
 
 ## Still Needed
 
-1. Remove or isolate DOM dependencies that remain inside `packages/core`.
+1. Remove or explicitly retain the legacy `StoryLoader` and `OnceSettings` APIs
+   after confirming no external callers remain.
 2. Test `OnceApp` with fake ports; no automated test suite exists yet.
-3. Resolve the future of legacy `StoryLoader` and `OnceSettings` APIs.
-4. Move from root aliases to an explicit package build strategy.
+3. Move from root aliases to an explicit package build strategy.
+4. Clean up migration compatibility code after those boundaries are in place.
 5. Implement real Electron/mobile ports, then build Chrome and Electron apps.
 
 ## Commands

@@ -9,7 +9,29 @@ const scopedRules = [
   {
     name: "core",
     src: path.join(root, "packages", "core", "src"),
-    disallowedImports: ["@once/platform-webext", "@once/ui-web"]
+    disallowedImports: [
+      "@once/app",
+      "@once/collectors",
+      "@once/persistence",
+      "@once/platform-webext",
+      "@once/platform-electron",
+      "@once/platform-web",
+      "@once/platform-mobile",
+      "@once/ui-web"
+    ]
+  },
+  {
+    name: "collectors",
+    src: path.join(root, "packages", "collectors", "src"),
+    disallowedImports: [
+      "@once/app",
+      "@once/persistence",
+      "@once/platform-webext",
+      "@once/platform-electron",
+      "@once/platform-web",
+      "@once/platform-mobile",
+      "@once/ui-web"
+    ]
   },
   {
     name: "ui-web",
@@ -67,6 +89,17 @@ for (const rule of scopedRules) {
 
 const expected = baseline.disallowedImports
 const errors = []
+
+const coreSourceRoot = path.join(root, "packages", "core", "src")
+const domPattern = /\b(?:document|window|DOMParser|Document|Element|HTMLElement|HTML[A-Za-z]+Element)\b/
+for (const file of walk(coreSourceRoot)) {
+  const relativeFile = toPosix(path.relative(root, file))
+  const source = fs.readFileSync(file, "utf8")
+
+  if (domPattern.test(source)) {
+    errors.push(`${relativeFile} uses DOM APIs; core must remain DOM-free`)
+  }
+}
 
 for (const [file, violations] of Object.entries(actual)) {
   const expectedViolations = expected[file] || []

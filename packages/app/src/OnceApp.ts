@@ -9,9 +9,9 @@ import {
   presentRedirectList,
   Redirect,
   Story,
-  StoryParser,
   URLRedirect
 } from "@once/core"
+import * as StoryParser from "@once/collectors"
 import {
   AnimationSetting,
   DatabaseChange,

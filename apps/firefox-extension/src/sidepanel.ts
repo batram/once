@@ -1,6 +1,6 @@
-import { StoryParser } from "@once/core"
 import { createOnceApp, OnceClient } from "@once/app"
 import {
+  addCollectorColorStyles,
   LoaderInsights,
   Menu,
   Search,
@@ -26,8 +26,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   Menu.init(client)
   LoaderInsights.init(client)
   Search.init()
-  StoryParser.addAllCssColors()
-
+  addCollectorColorStyles()
   const devCache = false
 
   client.subscribe("selectedUrlChanged", ({ url }) => {

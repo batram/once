@@ -1,11 +1,9 @@
-//import * as path from "path"
-//import * as fs from "fs"
 import { Story } from "@once/core"
 
 export declare interface StoryParser {
   options: {
     type: string
-    desription: string
+    description: string
     pattern: string | string[]
     collects: "dom" | "json" | "xml"
     colors: [string, string]
@@ -35,7 +33,7 @@ export function get_active(): StoryParser[] {
   ]
 
   return collectors.map((x) => {
-    return require("../collectors/" + x)
+    return require("./collectors/" + x)
   })
 }
 

@@ -124,9 +124,11 @@ export class Story {
       }
 
       if (body) {
-        const title = document.createElement("title")
-        title.innerText = this.title
-        const content = title.outerHTML + body
+        const title = this.title
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+        const content = `<title>${title}</title>${body}`
         return content
       }
     }

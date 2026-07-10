@@ -17,7 +17,8 @@ apps/
   mobile/             # package placeholder
 
 packages/
-  core/               # story, source, parser, collector, and settings logic
+  core/               # platform-neutral story, settings, and domain logic
+  collectors/         # all source collectors, parsing, and collector registry
   app/                # OnceApp orchestration and typed client/event API
   ui-web/             # shared DOM UI
   persistence/        # PouchDB stores and sync service
@@ -33,6 +34,8 @@ with `createWebExtPlatform`. The old root `src/` tree has been removed.
 ## Boundary Goals
 
 - `core` must be independent of browser, Electron, DOM, and filesystem APIs.
+- `collectors` owns every source-specific collector, DOM/XML parsing, and the
+  collector registry. It may depend on `core`, but `core` must not depend on it.
 - `app` owns loading, settings, story state, and the typed client/event API.
 - `ui-web` owns shared DOM presentation and depends on `app`, not platforms.
 - `persistence` owns PouchDB-specific storage and sync.
@@ -45,20 +48,29 @@ with `createWebExtPlatform`. The old root `src/` tree has been removed.
 - Created the workspace structure and extracted the shared packages.
 - Restored and verified the Firefox development and production builds.
 - Removed `core` imports of webextension/UI packages; the boundary baseline is zero.
+- Moved all collectors, parser helpers, the registry, and the legacy
+  `StoryLoader` into one `@once/collectors` package.
+- Made `core` DOM-free and added a boundary check to keep it that way.
 - Moved the Firefox entrypoints out of the old source tree.
+
+## Collector Plan
+
+Keep collectors simple for now: one local `@once/collectors` package, bundled
+with each application. Dynamic loading, remote collector services, and
+per-source packages are explicitly deferred until the application migrations
+are complete and there is a demonstrated need.
 
 ## Remaining Sequence
 
-1. Make `core` platform-neutral by isolating its remaining DOM assumptions.
-2. Add fake-port tests for `OnceApp` reload, settings, story-change, and
+1. Add fake-port tests for `OnceApp` reload, settings, story-change, and
    database-change behavior.
-3. Remove or explicitly retain the legacy `StoryLoader` and `OnceSettings`
+2. Remove or explicitly retain the legacy `StoryLoader` and `OnceSettings`
    compatibility APIs after their callers are accounted for.
-4. Replace root TypeScript/webpack aliases with an explicit package build
+3. Replace root TypeScript/webpack aliases with an explicit package build
    strategy.
-5. Implement real Electron and mobile ports; their current factories only
+4. Implement real Electron and mobile ports; their current factories only
    return caller-supplied ports.
-6. Add Chrome composition/build, then Electron composition/build, using the
+5. Add Chrome composition/build, then Electron composition/build, using the
    legacy applications as references. Website and mobile come afterward.
 
 ## Validation
@@ -67,3 +79,6 @@ with `createWebExtPlatform`. The old root `src/` tree has been removed.
 - `npm run b2`: Firefox production build.
 
 Keep both commands passing for each incremental migration change.
+
+The boundary check prevents collector, platform, UI, persistence, and DOM
+dependencies from entering `core`.
