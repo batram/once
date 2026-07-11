@@ -26,7 +26,9 @@ async function startPageServer() {
 
 async function launchApp() {
   const userData = await fs.mkdtemp(path.join(os.tmpdir(), "once-electron-test-"))
-  const executablePath = path.resolve(__dirname, "../../../node_modules/electron/dist/electron.exe")
+  // Electron 43+ downloads its development binary lazily when the package is required,
+  // so do not hard-code node_modules/electron/dist/electron.exe after a clean npm ci.
+  const executablePath = require("electron")
   const appPath = path.resolve(__dirname, "../../../apps/electron/.webpack/x64/main/index.js")
   const electronApp = await electron.launch({
     executablePath,
