@@ -2,11 +2,14 @@ const path = require("path")
 const { FusesPlugin } = require("@electron-forge/plugin-fuses")
 const { WebpackPlugin } = require("@electron-forge/plugin-webpack")
 const { FuseVersion, FuseV1Options } = require("@electron/fuses")
+const { version } = require("../../package.json")
 
 module.exports = {
   outDir: path.resolve(__dirname, "out"),
   packagerConfig: {
     asar: true,
+    appVersion: version,
+    buildVersion: version,
     name: "Once",
     executableName: "once",
     icon: path.resolve(

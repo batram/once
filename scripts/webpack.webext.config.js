@@ -3,6 +3,7 @@ const CopyPlugin = require("copy-webpack-plugin")
 const webpack = require("webpack")
 
 const root = path.resolve(__dirname, "..")
+const { version } = require(path.join(root, "package.json"))
 const targets = new Set(["chrome", "firefox"])
 
 module.exports = (env = {}, argv = {}) => {
@@ -72,6 +73,11 @@ module.exports = (env = {}, argv = {}) => {
           {
             from: path.join(appRoot, "public", "manifest.json"),
             to: "manifest.json",
+            transform(content) {
+              const manifest = JSON.parse(content.toString())
+              manifest.version = version
+              return `${JSON.stringify(manifest, null, 2)}\n`
+            },
           },
         ],
       }),

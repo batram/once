@@ -19,6 +19,9 @@
     "build:electron": "npm run build:packages && npm run typecheck --workspace @once/electron",
     "package:electron": "npm run build:packages && npm run package --workspace @once/electron",
     "make:electron": "npm run build:packages && npm run make --workspace @once/electron",
+    "verify:release-version": "node scripts/verify-release-version.js",
+    "verify:release-artifacts": "node scripts/verify-release-artifacts.js",
+    "version": "node scripts/sync-release-version.js",
     "test:electron": "npm run build:electron && node --test tests/electron/*.test.js",
     "test:electron:e2e": "npm run package:electron && playwright test --config tests/electron-e2e/playwright.config.js",
     "b2": "npm run build:firefox",
@@ -43,6 +46,7 @@
     "pouchdb-browser": "^8.0.1",
     "ts-loader": "^9.4.4",
     "typescript": "^4.9.5",
+    "web-ext": "10.3.0",
     "webextension-polyfill": "^0.10.0",
     "webpack": "^5.88.1",
     "webpack-cli": "^5.1.4"

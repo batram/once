@@ -1,0 +1,122 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing v-prefixed tag to release
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  extensions:
+    name: Browser extensions
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run verify:release-version -- "$RELEASE_TAG"
+      - run: npm run build:extensions
+      - run: npm run verify:release-artifacts -- extensions .
+      - name: Package extensions
+        shell: bash
+        run: |
+          mkdir release
+          (cd apps/chrome-extension/dist && zip -qr "../../../release/once-chrome-${RELEASE_TAG}.zip" .)
+      - name: Sign Firefox extension with Mozilla
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        shell: bash
+        run: |
+          npm exec -- web-ext sign \
+            --source-dir apps/firefox-extension/dist \
+            --artifacts-dir release/firefox-signed \
+            --channel unlisted \
+            --api-key "$AMO_JWT_ISSUER" \
+            --api-secret "$AMO_JWT_SECRET"
+          signed_xpi=$(find release/firefox-signed -maxdepth 1 -type f -name '*.xpi' -print -quit)
+          test -n "$signed_xpi"
+          mv "$signed_xpi" "release/once-firefox-${RELEASE_TAG}.xpi"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extensions
+          path: |
+            release/*.zip
+            release/*.xpi
+          if-no-files-found: error
+
+  electron:
+    name: Electron for Windows
+    runs-on: windows-latest
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run verify:release-version -- "$env:RELEASE_TAG"
+      - run: npm run test:electron
+      - run: npm run make:electron
+      - run: npm run verify:release-artifacts -- electron apps/electron/out/make
+      - uses: actions/upload-artifact@v4
+        with:
+          name: electron-windows
+          path: |
+            apps/electron/out/make/**/*.exe
+            apps/electron/out/make/**/*.nupkg
+            apps/electron/out/make/**/*.zip
+            apps/electron/out/make/**/RELEASES
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub release
+    needs: [extensions, electron]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+      - run: npm run verify:release-version -- "$RELEASE_TAG"
+      - run: npm run verify:release-artifacts -- release release
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir assets
+          find release -type f -exec cp {} assets/ \;
+          gh release create "$RELEASE_TAG" assets/* --verify-tag --notes-file ".github/release-notes/${RELEASE_TAG}.md" --title "Once $RELEASE_TAG"
