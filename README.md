@@ -1,7 +1,5 @@
 # ![icon](https://user-images.githubusercontent.com/1382274/184474910-e0b46b64-8254-4604-a176-1679255c65bb.png?small) Once
 
-## About
-
 Collect stories from different sources (RSS, Hacker News, Lobsters or Reddit, custom), so you can stop scrolling through those sites all day and look at each story once.
 Available as desktop app for Electron and side-panel extensions for Firefox and Chrome.
 
