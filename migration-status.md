@@ -9,9 +9,10 @@ shared `@once/webext-shell` side-panel bootstrap and static resources.
 
 Electron is now a working Windows-first desktop target. Website and mobile are
 placeholders. Future targets should reuse the shared packages and keep
-target-specific entrypoints and packaging inside `apps/*`. The legacy Electron
-repository remains under `legacy/` as a reference; the replaced legacy Chrome
-repository was removed.
+target-specific entrypoints and packaging inside `apps/*`. The replaced legacy
+Chrome and Electron repositories were removed after migration audits. The
+Electron audit and source-recovery reference are in
+`legacy-electron-archive.md`.
 
 ## Package boundaries
 
@@ -56,6 +57,12 @@ repository was removed.
 - Restored native page and tab context menus with edit, selection, link,
   duplicate, close, move-to-window, system-browser, and always-available
   Inspect/DevTools actions while keeping remote pages sandboxed.
+- Added secure shared reader mode with Readability extraction, sanitized themed
+  documents, Electron and extension delivery, original-page navigation, and
+  coordinated text-to-speech controls.
+- Audited and removed the legacy Electron application; historical details and
+  remaining presenter differences are recorded in
+  `legacy-electron-archive.md`.
 - Added Electron Forge development, packaging, Squirrel.Windows, ZIP, security
   fuses, unit tests, and a Playwright Electron smoke test.
 - Moved the shared HTML, CSS, images, UI mounting, and IndexedDB cache adapter
@@ -68,8 +75,9 @@ repository was removed.
 2. Implement real mobile ports and build the mobile application.
 3. Build the website application.
 4. Add complete Electron session restoration (windows, tabs, navigation/page
-   state, scroll positions, and recently closed tabs), working reader/video
-   presenters, signing, and updates as separate milestones.
+   state, scroll positions, and recently closed tabs), optional reader
+   archive/cache fallback, a working video presenter, signing, and updates as
+   separate milestones.
 
 ## Validation
 
