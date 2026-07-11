@@ -41,8 +41,13 @@ Browser build outputs are written to `apps/firefox-extension/dist` and
 `apps/chrome-extension/dist`. Load the relevant directory as a temporary
 Firefox add-on or an unpacked Chrome extension.
 
-See [DEVELOPMENT.md](DEVELOPMENT.md) for local loading instructions, individual
-build commands, validation, Firefox signing, and Electron packaging.
+## Documentation
+
+- [Development](DEVELOPMENT.md): installation, local workflows, testing, and
+  packaging
+- [Architecture](ARCHITECTURE.md): platform design, package structure, and
+  boundaries
+- [Roadmap](ROADMAP.md)
 
 ## Screenshots
 
