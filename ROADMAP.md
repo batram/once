@@ -8,6 +8,7 @@
   - Firefox and Chrome integration tests
   - Broader Electron unit and Playwright coverage
   - Portable, deterministic Electron E2E setup
+  - Scheduled live collector compatibility monitoring with failure artifacts and notifications
 - **Distribution**
   - Publish Firefox and Chrome extensions through official stores
   - Repeatable release validation, signing, and update workflows

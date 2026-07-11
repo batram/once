@@ -1,0 +1,71 @@
+const test = require("node:test")
+const assert = require("node:assert/strict")
+const path = require("node:path")
+const { Builder, By, until } = require("selenium-webdriver")
+const firefox = require("selenium-webdriver/firefox")
+const { startLocalSource } = require("./local-source")
+
+test("installed Firefox extension loads, collects, persists settings, and opens a story", { timeout: 90_000 }, async () => {
+  const expectedAddonId = "once_sidepanel_f@zmarn.com"
+  const extensionUuid = "00000000-0000-4000-8000-000000000001"
+  const options = new firefox.Options()
+    .addArguments("-no-remote")
+    .setPreference("extensions.webextensions.uuids", JSON.stringify({ [expectedAddonId]: extensionUuid }))
+    .enableBidi()
+  if (process.platform !== "win32") options.addArguments("-headless")
+  const driver = await new Builder().forBrowser("firefox").setFirefoxOptions(options).build()
+  const source = await startLocalSource()
+  try {
+    const extensionPath = path.resolve(__dirname, "../../../apps/firefox-extension/dist")
+    const bidi = await driver.getBidi()
+    const installResult = await bidi.send({
+      method: "webExtension.install",
+      params: { extensionData: { type: "path", path: extensionPath } },
+    })
+    assert.equal(installResult.result.extension, expectedAddonId)
+
+    const extensionOrigin = `moz-extension://${extensionUuid}`
+    const contextResult = await bidi.send({
+      method: "browsingContext.create",
+      params: { type: "tab" },
+    })
+    assert.ok(contextResult.result?.context, JSON.stringify(contextResult))
+    await driver.switchTo().window(contextResult.result.context)
+    await driver.get(`${extensionOrigin}/static/sidepanel.html?once-e2e=1`)
+    await driver.wait(async () => (await driver.findElement(By.css("body")).getAttribute("data-once-ready")) === "true", 15_000)
+    const settings = await driver.wait(until.elementLocated(By.css('[data-testid="settings-menu"]')), 15_000)
+    await settings.click()
+    const sources = await driver.findElement(By.css('[data-testid="sources"]'))
+    await sources.clear()
+    await sources.sendKeys(source.source)
+    await driver.findElement(By.css('[data-testid="save-sources"]')).click()
+    await driver.findElement(By.css('[data-testid="stories-menu"]')).click()
+    await driver.findElement(By.css("#searchfield")).clear()
+    let story
+    try {
+      story = await driver.wait(until.elementLocated(By.xpath('//story-item[contains(., "Extension smoke story")]')), 15_000)
+    } catch (error) {
+      const bodyText = await driver.findElement(By.css("body")).getText()
+      error.message += `\nLocal requests: ${JSON.stringify(source.requests)}\nPage text: ${bodyText}`
+      throw error
+    }
+    await driver.navigate().refresh()
+    await driver.wait(until.elementLocated(By.css('[data-testid="settings-menu"]')), 15_000).then((element) => element.click())
+    assert.equal(await driver.findElement(By.css('[data-testid="sources"]')).getAttribute("value"), source.source)
+    await driver.findElement(By.css('[data-testid="stories-menu"]')).click()
+    await driver.findElement(By.css("#searchfield")).clear()
+    await driver.findElement(By.css('[data-testid="reload-stories"]')).click()
+    const restoredStory = await driver.wait(until.elementLocated(By.xpath('//story-item[contains(., "Extension smoke story")]')), 15_000)
+    const existingHandles = new Set(await driver.getAllWindowHandles())
+    await restoredStory.findElement(By.css("a.title")).click()
+    const openedHandle = await driver.wait(async () => {
+      const handles = await driver.getAllWindowHandles()
+      return handles.find((handle) => !existingHandles.has(handle)) || false
+    }, 10_000)
+    await driver.switchTo().window(openedHandle)
+    await driver.wait(until.urlIs(`${source.origin}/story`), 10_000)
+  } finally {
+    await driver.quit()
+    await source.close()
+  }
+})

@@ -5,5 +5,8 @@
     "declaration": false,
     "rootDir": "."
   },
-  "include": ["apps/*-extension/src/**/*"]
+  "include": [
+    "apps/*-extension/src/**/*",
+    "packages/webext-shell/src/webextension-polyfill.d.ts"
+  ]
 }

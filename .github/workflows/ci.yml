@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Deterministic tests and builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test:ci
+
+  extensions:
+    name: Chrome and Firefox extensions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm exec -- playwright install --with-deps chromium
+      - run: npm run test:extensions
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: extension-test-results
+          path: test-results
+          if-no-files-found: ignore
+
+  electron:
+    name: Packaged Electron on Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test:electron
+      - run: npm run test:electron:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: electron-test-results
+          path: test-results
+          if-no-files-found: ignore

@@ -23,7 +23,7 @@ export async function mountOnceUi(
   setOnceClient(client)
   ReaderView.mount(client)
 
-  new SettingsPanel(client)
+  const settingsPanel = new SettingsPanel(client)
   new StoryHistory(client)
   StoryList.init(client)
   Menu.init(client)
@@ -32,6 +32,7 @@ export async function mountOnceUi(
   })
   Search.init()
   addCollectorColorStyles()
+  await settingsPanel.ready
 
   client.subscribe("selectedUrlChanged", ({ url }) => {
     updateSelected(client, url)

@@ -116,17 +116,41 @@ npm run test:electron
 
 # Packaged application smoke test
 npm run test:electron:e2e
+```
 
-# Explicitly refresh the one live story-source fixture (never run by normal tests)
-npm run test:story-sources:refresh
+## Test harness
 
+```bash
+# Fast deterministic unit and integration tests (never contact story sources)
+npm test
+
+# Collector/parser fixtures only
+npm run test:collectors
+
+# Build, validate, and smoke-test installed Chrome and Firefox extensions
+npm run test:extensions
+
+# Explicit manual live collector compatibility probes
+npm run test:live:collectors
+
+# Refresh exactly one named live capture for review
+npm run fixtures:refresh:collectors -- reddit_json
+```
+
+On Linux, the Firefox extension smoke runs headlessly. On Windows it opens a
+separate headful Firefox instance because current Windows Firefox headless
+sessions can discard their initial browsing context. The test uses a temporary
+profile, `-no-remote`, a test-owned internal extension UUID, and WebDriver BiDi;
+it does not reuse or close a developer's normal Firefox session.
+
+```bash
 # Windows outputs
 npm run package:electron
 npm run make:electron
 ```
 
-`npm run test:electron` executes the Node test files in `tests/electron` after a
-type-check. `npm run test:electron:e2e` packages the application, then launches
+`npm run test:electron` executes the shared app and Electron integration tests
+after a type-check. `npm run test:electron:e2e` packages the application, then launches
 the packaged webpack entry with Playwright. The E2E test currently references
 `electron.exe` directly and therefore runs on Windows. Failure traces and other
 Playwright artifacts are written below `test-results/`.
@@ -138,12 +162,13 @@ Both write below `apps/electron/out`; neither signs the resulting application.
 Automated tests override the user data directory with a temporary directory so
 they do not touch a developer's normal Once profile.
 
-Normal unit and Electron E2E tests do not contact story-source servers. Unit
-tests use responses below `tests/fixtures/story-sources`, and window/tab E2E
+Normal unit, integration, extension, and Electron E2E tests do not contact
+third-party story-source servers. Tests use responses below `tests/fixtures/collectors`, and window/tab E2E
 tests disable initial story loading and the renderer's network-fetch bridge.
-`test:story-sources:refresh` is the only live-source test: it is opt-in, makes
-one allowlisted request with a timeout and response-size cap, and replaces the
-reusable fixture consumed by the unit suite.
+`test:live:collectors` is opt-in and makes one allowlisted request per source
+with a timeout and response-size cap. `fixtures:refresh:collectors` requires one
+source name and writes only that reviewed capture. Live checks are never part
+of pull-request CI.
 
 ## Generated files
 

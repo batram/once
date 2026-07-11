@@ -4,6 +4,8 @@ import * as menu from "./menu"
 
 export class SettingsPanel {
   static instance: SettingsPanel
+  readonly ready: Promise<void>
+
   constructor(private client: OnceClient) {
     SettingsPanel.instance = this
     client.subscribe("settingsChanged", ({ section }) => {
@@ -134,7 +136,7 @@ export class SettingsPanel {
         this.reset_couch_settings().then(() => updateCouchHighlights())
       })
 
-    this.set_sources_area()
+    this.ready = this.set_sources_area()
 
     const sources_area =
       document.querySelector<HTMLInputElement>("#sources_area")

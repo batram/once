@@ -1,31 +1,8 @@
+import browser = require("webextension-polyfill")
 import { installReaderBackground } from "@once/webext-shell/dist/readerBackground"
+import { initFirefoxBackground } from "@once/webext-shell/dist/firefoxBackground"
 
-installReaderBackground()
-
-async function initBackground() {
-  browser.action.onClicked.addListener(() => {
-    browser.sidebarAction.toggle()
-  })
-
-  await browser.contextMenus.removeAll()
-  browser.contextMenus.create({
-    id: "once_undo",
-    title: "undo",
-    contexts: ["all"],
-    viewTypes: ["sidebar"],
-    documentUrlPatterns: [browser.runtime.getURL("/static/sidepanel.html")],
-  })
-}
-
-browser.contextMenus.onClicked.addListener((info) => {
-  if (info.menuItemId === "once_undo") {
-    browser.runtime.sendMessage({
-      onceCommand: "history",
-      action: "undo",
-    })
-  }
-})
-
-initBackground().catch((error: unknown) => {
+installReaderBackground(browser)
+initFirefoxBackground(browser).catch((error: unknown) => {
   console.error("Unable to initialize the Firefox background page", error)
 })

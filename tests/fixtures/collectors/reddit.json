@@ -1,0 +1,7 @@
+{
+  "kind": "Listing",
+  "data": { "children": [
+    { "data": { "author": "alice", "permalink": "/r/netsec/comments/good", "url": "https://example.com/reddit", "title": "Accepted Reddit story", "id": "good", "created_utc": 1700000000, "subreddit": "netsec", "subreddit_name_prefixed": "r/netsec", "ups": 50 } },
+    { "data": { "author": "bob", "permalink": "/r/netsec/comments/low", "url": "https://example.com/low", "title": "Low score", "id": "low", "created_utc": 1700000100, "subreddit": "netsec", "subreddit_name_prefixed": "r/netsec", "ups": 3 } }
+  ] }
+}
