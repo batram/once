@@ -76,6 +76,7 @@ export interface ElectronBridge {
   window: {
     setFullscreen(fullscreen: boolean): Promise<void>
     setRedirects(redirects: ElectronRedirectRule[]): Promise<void>
+    setBackgroundColor(color: string): Promise<void>
     onTargetUrlChanged(handler: (url: string) => void): () => void
     onFullscreenChanged(handler: (fullscreen: boolean) => void): () => void
   }
@@ -109,6 +110,7 @@ export const ELECTRON_IPC = {
   tabsChanged: "once:tabs:changed",
   windowSetFullscreen: "once:window:set-fullscreen",
   windowSetRedirects: "once:window:set-redirects",
+  windowSetBackgroundColor: "once:window:set-background-color",
   windowTargetUrlChanged: "once:window:target-url-changed",
   windowFullscreenChanged: "once:window:fullscreen-changed"
 } as const

@@ -40,6 +40,9 @@ interface WindowEntry {
   window: BrowserWindow
   tabs: string[]
   activeId: string | null
+  backgroundColor: string
+  backgroundReady: Promise<void>
+  resolveBackgroundReady: () => void
   bounds: Rectangle
   closing: boolean
 }
@@ -72,10 +75,17 @@ export class BrowserCoordinator {
       ? this.detachedBounds(options.tabId, options.point)
       : undefined
     const window = this.createShellWindow(bounds)
+    let resolveBackgroundReady = () => {}
+    const backgroundReady = new Promise<void>((resolve) => {
+      resolveBackgroundReady = resolve
+    })
     const state: WindowEntry = {
       window,
       tabs: [],
       activeId: null,
+      backgroundColor: window.getBackgroundColor(),
+      backgroundReady,
+      resolveBackgroundReady,
       bounds: { x: 0, y: 0, width: 0, height: 0 },
       closing: false
     }
@@ -85,6 +95,7 @@ export class BrowserCoordinator {
 
     try {
       await window.loadURL(this.shellEntry)
+      await state.backgroundReady
       if (options.tabId && this.tabs.has(options.tabId)) {
         this.moveTab(state, options.tabId)
       } else {
@@ -151,7 +162,7 @@ export class BrowserCoordinator {
         partition: "persist:once-browser-v2"
       }
     })
-    view.setBackgroundColor("#ffffff")
+    view.setBackgroundColor(state.backgroundColor)
 
     const id = randomUUID()
     const entry: TabEntry = {
@@ -188,6 +199,21 @@ export class BrowserCoordinator {
       await this.createTab(state, normalized, true)
     } else {
       await this.navigate(state, state.activeId, normalized)
+    }
+  }
+
+  setBackgroundColor(state: WindowEntry, color: string): void {
+    if (typeof color !== "string" || color.length === 0 || color.length > 100) {
+      throw new Error("Invalid background color")
+    }
+    state.window.setBackgroundColor(color)
+    state.backgroundColor = color
+    state.resolveBackgroundReady()
+    for (const id of state.tabs) {
+      const entry = this.tabs.get(id)
+      if (entry && !entry.view.webContents.isDestroyed()) {
+        entry.view.setBackgroundColor(color)
+      }
     }
   }
 
@@ -572,6 +598,7 @@ export class BrowserCoordinator {
     source.tabs.splice(oldIndex, 1)
 
     entry.ownerId = state.window.webContents.id
+    entry.view.setBackgroundColor(state.backgroundColor)
     this.insertTabId(state.tabs, id, beforeId)
     this.activate(state, id)
 

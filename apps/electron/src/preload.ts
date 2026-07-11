@@ -63,6 +63,8 @@ const bridge: ElectronBridge = {
       ipcRenderer.invoke(ELECTRON_IPC.windowSetFullscreen, fullscreen),
     setRedirects: (redirects: ElectronRedirectRule[]) =>
       ipcRenderer.invoke(ELECTRON_IPC.windowSetRedirects, redirects),
+    setBackgroundColor: (color) =>
+      ipcRenderer.invoke(ELECTRON_IPC.windowSetBackgroundColor, color),
     onTargetUrlChanged(handler: (url: string) => void) {
       const listener = (_event: Electron.IpcRendererEvent, url: string) =>
         handler(url)

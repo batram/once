@@ -215,6 +215,10 @@ function registerIpc(
       return coordinator.setRedirects(redirects)
     }
   )
+  ipcMain.handle(ELECTRON_IPC.windowSetBackgroundColor, (event, color: string) => {
+    const current = browser(event)
+    return current.coordinator.setBackgroundColor(current.window, color)
+  })
 }
 
 function createShellWindow(bounds?: Rectangle): BrowserWindow {
@@ -227,7 +231,6 @@ function createShellWindow(bounds?: Rectangle): BrowserWindow {
     minHeight: 480,
     show: false,
     autoHideMenuBar: true,
-    backgroundColor: "#282a36",
     webPreferences: {
       preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
       nodeIntegration: false,

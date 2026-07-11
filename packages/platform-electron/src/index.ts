@@ -18,6 +18,16 @@ export * from "./navigation"
 export function createElectronPlatform(
   bridge: ElectronBridge
 ): OncePlatformPorts {
+  const syncWindowBackground = () => {
+    const color = getComputedStyle(document.body).backgroundColor
+    void bridge.window.setBackgroundColor(color).catch((error) => {
+      console.error("Failed to update Electron window background", error)
+    })
+  }
+  window.matchMedia("(prefers-color-scheme: dark)")
+    .addEventListener("change", syncWindowBackground)
+  syncWindowBackground()
+
   const onceDb = new PouchDB("once_electron_v2")
   const fetchThroughMain = (input: RequestInfo, init?: RequestInit) =>
     bridgeFetch(bridge, input, init)
@@ -33,7 +43,6 @@ export function createElectronPlatform(
         fetch: fetchThroughMain
       }) as unknown as PouchSyncDatabase
   )
-
   return {
     listStore,
     storyStore,
@@ -46,6 +55,7 @@ export function createElectronPlatform(
         if (theme !== "system") {
           document.body.setAttribute("data-theme", theme)
         }
+        syncWindowBackground()
       }
     },
     activeTab: {
