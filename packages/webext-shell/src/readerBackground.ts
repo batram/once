@@ -1,15 +1,49 @@
 import "webextension-polyfill"
 import { readerStyles } from "@once/ui-web/reader/readerDocument"
 
+let activeReaderTabId: number | null = null
+
 export function installReaderBackground(): void {
   browser.runtime.onMessage.addListener((message: {
     onceCommand?: string
     url?: string
     active?: boolean
     theme?: "system" | "light" | "dark"
-  }) => {
+    rate?: number
+  }, sender) => {
+    if (message?.onceCommand === "claimReaderTts") {
+      const tabId = sender.tab?.id
+      if (tabId == null) return undefined
+      const previous = activeReaderTabId
+      activeReaderTabId = tabId
+      if (previous != null && previous !== tabId) {
+        void browser.tabs.sendMessage(previous, {
+          onceCommand: "stopReaderTts"
+        }).catch(() => undefined)
+      }
+      return Promise.resolve()
+    }
+    if (message?.onceCommand === "releaseReaderTts") {
+      if (sender.tab?.id === activeReaderTabId) activeReaderTabId = null
+      return Promise.resolve()
+    }
+    if (message?.onceCommand === "getReaderTtsRate") {
+      return browser.storage.local.get("onceReaderTtsRate").then((stored) => ({
+        rate: stored.onceReaderTtsRate
+      }))
+    }
+    if (message?.onceCommand === "setReaderTtsRate") {
+      const rate = Number(message.rate)
+      if (!Number.isFinite(rate) || rate < 0.5 || rate > 6) {
+        throw new Error("Invalid reader TTS speed")
+      }
+      return browser.storage.local.set({ onceReaderTtsRate: rate })
+    }
     if (message?.onceCommand !== "openReader" || !message.url) return undefined
     return openReaderTab(message.url, message.active !== false, message.theme || "system")
+  })
+  browser.tabs.onRemoved.addListener((tabId) => {
+    if (tabId === activeReaderTabId) activeReaderTabId = null
   })
 }
 

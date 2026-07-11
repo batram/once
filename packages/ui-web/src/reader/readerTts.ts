@@ -1,6 +1,9 @@
 export function installReaderTts(options: {
   initialRate?: number
   onRateChange?: (rate: number) => void
+  claimOwnership?: () => void
+  releaseOwnership?: () => void
+  subscribeToStop?: (handler: () => void) => (() => void) | void
 } = {}): void {
   if (document.documentElement.dataset.onceTtsInstalled === "true") return
   document.documentElement.dataset.onceTtsInstalled = "true"
@@ -11,6 +14,7 @@ export function installReaderTts(options: {
   const back = document.querySelector<HTMLButtonElement>("[data-tts-back]")
   const forward = document.querySelector<HTMLButtonElement>("[data-tts-forward]")
   const voiceSelect = document.querySelector<HTMLSelectElement>("[data-tts-voice]")
+  const voiceSettings = document.querySelector<HTMLDetailsElement>(".tts-settings")
   const rateInput = document.querySelector<HTMLInputElement>("[data-tts-rate]")
   const rateValue = document.querySelector<HTMLElement>("[data-tts-rate-value]")
   const article = document.querySelector<HTMLElement>("article")
@@ -54,6 +58,10 @@ export function installReaderTts(options: {
   let active = false
   let paused = false
   let generation = 0
+  const ownerId = `${Date.now()}-${Math.random()}`
+  let ownershipChannel: BroadcastChannel | null = null
+  const playIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/></svg>'
+  const pauseIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h3v14H8zM14 5h3v14h-3z" fill="currentColor" stroke="none"/></svg>'
 
   const voices = (): SpeechSynthesisVoice[] => synth.getVoices()
   const selectedVoice = (): SpeechSynthesisVoice | undefined =>
@@ -81,8 +89,12 @@ export function installReaderTts(options: {
   }
 
   const updateControls = (): void => {
-    play.textContent = active ? (paused ? "Resume" : "Pause") : "Speak"
-    play.setAttribute("aria-label", play.textContent + " article")
+    const action = active
+      ? (paused ? "Resume" : "Pause")
+      : (currentIndex > 0 ? "Resume" : "Play")
+    play.innerHTML = active && !paused ? pauseIcon : playIcon
+    play.title = action
+    play.setAttribute("aria-label", action + " article")
     stop.disabled = !active
     back.disabled = !active || currentIndex <= 0
     forward.disabled = !active || currentIndex >= segments.length - 1
@@ -105,15 +117,34 @@ export function installReaderTts(options: {
     updateControls()
   }
 
-  const finish = (): void => {
+  const finish = (resetPosition = true): void => {
     active = false
     paused = false
-    currentIndex = 0
-    clearHighlight()
+    if (resetPosition) {
+      currentIndex = 0
+      clearHighlight()
+    } else {
+      highlight(currentIndex)
+    }
     updateControls()
+    options.releaseOwnership?.()
+  }
+
+  const stopPlayback = (): void => {
+    generation += 1
+    synth.cancel()
+    finish()
+  }
+
+  const yieldPlayback = (): void => {
+    generation += 1
+    synth.cancel()
+    finish(false)
   }
 
   const start = (from = currentIndex): void => {
+    options.claimOwnership?.()
+    ownershipChannel?.postMessage({ type: "claim", ownerId })
     synth.cancel()
     generation += 1
     const run = generation
@@ -161,9 +192,7 @@ export function installReaderTts(options: {
     }
   })
   stop.addEventListener("click", () => {
-    generation += 1
-    synth.cancel()
-    finish()
+    stopPlayback()
   })
   back.addEventListener("click", () => {
     if (active) start(Math.max(0, currentIndex - 1))
@@ -172,7 +201,17 @@ export function installReaderTts(options: {
     if (active) start(Math.min(segments.length - 1, currentIndex + 1))
   })
   voiceSelect.addEventListener("change", () => {
+    if (voiceSettings) voiceSettings.open = false
     if (active) start(currentIndex)
+  })
+  document.addEventListener("pointerdown", (event) => {
+    if (
+      voiceSettings?.open &&
+      event.target instanceof Node &&
+      !voiceSettings.contains(event.target)
+    ) {
+      voiceSettings.open = false
+    }
   })
   rateInput.addEventListener("input", updateControls)
   rateInput.addEventListener("change", () => {
@@ -190,6 +229,24 @@ export function installReaderTts(options: {
 
   populateVoices()
   synth.addEventListener?.("voiceschanged", populateVoices)
+  const unsubscribeStop = options.subscribeToStop?.(yieldPlayback)
+  if (!options.claimOwnership && typeof BroadcastChannel !== "undefined") {
+    try {
+      ownershipChannel = new BroadcastChannel("once-reader-tts")
+      ownershipChannel.addEventListener("message", (event) => {
+        if (event.data?.type === "claim" && event.data.ownerId !== ownerId) {
+          yieldPlayback()
+        }
+      })
+    } catch {
+      ownershipChannel = null
+    }
+  }
+  window.addEventListener("pagehide", () => {
+    stopPlayback()
+    if (typeof unsubscribeStop === "function") unsubscribeStop()
+    ownershipChannel?.close()
+  }, { once: true })
   updateControls()
 
   function createSegments(root: HTMLElement): Array<{ element: HTMLElement; text: string }> {

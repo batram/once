@@ -20,8 +20,10 @@ async function render(): Promise<void> {
     document.replaceChild(replacement, document.documentElement)
     let initialRate = 1
     try {
-      const stored = await browser.storage.local.get("onceReaderTtsRate")
-      const parsedRate = Number(stored.onceReaderTtsRate)
+      const stored = await browser.runtime.sendMessage({
+        onceCommand: "getReaderTtsRate"
+      }) as { rate?: unknown }
+      const parsedRate = Number(stored?.rate)
       if (Number.isFinite(parsedRate)) initialRate = parsedRate
     } catch {
       // TTS remains available with defaults when extension storage is unavailable.
@@ -29,7 +31,29 @@ async function render(): Promise<void> {
     installReaderTts({
       initialRate,
       onRateChange: (rate) => {
-        void browser.storage.local.set({ onceReaderTtsRate: rate })
+        void browser.runtime.sendMessage({
+          onceCommand: "setReaderTtsRate",
+          rate
+        }).catch((error) => {
+          console.warn("Unable to save reader TTS speed", error)
+        })
+      },
+      claimOwnership: () => {
+        void browser.runtime
+          .sendMessage({ onceCommand: "claimReaderTts" })
+          .catch(() => undefined)
+      },
+      releaseOwnership: () => {
+        void browser.runtime
+          .sendMessage({ onceCommand: "releaseReaderTts" })
+          .catch(() => undefined)
+      },
+      subscribeToStop: (handler) => {
+        const listener = (message: { onceCommand?: string }) => {
+          if (message?.onceCommand === "stopReaderTts") handler()
+        }
+        browser.runtime.onMessage.addListener(listener)
+        return () => browser.runtime.onMessage.removeListener(listener)
       }
     })
   } catch (error) {

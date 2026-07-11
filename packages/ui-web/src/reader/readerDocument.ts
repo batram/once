@@ -4,7 +4,7 @@ import { installReaderTts } from "./readerTts"
 export type ReaderTheme = "system" | "light" | "dark"
 
 export function readerDocument(article: ReaderArticle, theme: ReaderTheme = "system"): string {
-  return `<!doctype html><html data-theme="${theme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>${escapeHtml(article.title)}</title><style>${readerStyles}</style></head><body><header class="toolbar"><div class="tts-controls" role="group" aria-label="Text to speech"><button class="tts-button" type="button" data-tts-back disabled title="Previous segment" aria-label="Previous segment">&#8592;</button><button class="tts-button tts-play" type="button" data-tts-play>Speak</button><button class="tts-button" type="button" data-tts-forward disabled title="Next segment" aria-label="Next segment">&#8594;</button><button class="tts-button" type="button" data-tts-stop disabled title="Stop" aria-label="Stop">&#9632;</button><label class="tts-speed">Speed <input data-tts-rate type="range" min="0.5" max="6" step="0.1" value="1"><output data-tts-rate-value>1.0×</output></label><details class="tts-settings"><summary>Voice</summary><div class="tts-settings-menu"><label for="tts-voice-select">Speaker</label><select id="tts-voice-select" data-tts-voice><option>Default voice</option></select></div></details></div><a href="${escapeHtml(article.sourceUrl)}">Original</a></header><main><p class="site">${escapeHtml(article.siteName)}</p><h1>${escapeHtml(article.title)}</h1>${article.byline ? `<p class="byline">${escapeHtml(article.byline)}</p>` : ""}<article>${article.content}</article><script>(${installReaderTts.toString()})();</script></main></body></html>`
+  return `<!doctype html><html data-theme="${theme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>${escapeHtml(article.title)}</title><style>${readerStyles}</style></head><body><header class="toolbar"><div class="tts-controls" role="group" aria-label="Text to speech"><div class="tts-transport"><button class="tts-button" type="button" data-tts-back disabled title="Previous segment" aria-label="Previous segment"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6l-9 6 9 6z"/><path d="M6 6v12"/></svg></button><button class="tts-button tts-play" type="button" data-tts-play title="Play" aria-label="Play article"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/></svg></button><button class="tts-button" type="button" data-tts-forward disabled title="Next segment" aria-label="Next segment"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l9 6-9 6z"/><path d="M18 6v12"/></svg></button><button class="tts-button" type="button" data-tts-stop disabled title="Stop" aria-label="Stop"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1" fill="currentColor" stroke="none"/></svg></button></div><label class="tts-speed"><span>Speed</span><input data-tts-rate type="range" min="0.5" max="6" step="0.1" value="1"><output data-tts-rate-value>1.0×</output></label><details class="tts-settings"><summary><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4zM15 9c1.2 1.6 1.2 4.4 0 6M18 6c3.5 3.3 3.5 8.7 0 12"/></svg><span>Voice</span></summary><div class="tts-settings-menu"><label for="tts-voice-select">Speaker</label><select id="tts-voice-select" data-tts-voice><option>Default voice</option></select></div></details></div><a class="reader-original" href="${escapeHtml(article.sourceUrl)}">Original</a></header><main><p class="site">${escapeHtml(article.siteName)}</p><h1>${escapeHtml(article.title)}</h1>${article.byline ? `<p class="byline">${escapeHtml(article.byline)}</p>` : ""}<article>${article.content}</article><script>(${installReaderTts.toString()})();</script></main></body></html>`
 }
 
 export const readerStyles = `
@@ -104,50 +104,81 @@ ul {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   margin: 0 -20px;
-  padding: 6px 12px;
-  background: var(--reader-bg);
+  padding: 7px 12px;
+  background: color-mix(in srgb, var(--reader-bg) 94%, var(--reader-text));
   border-bottom: 1px solid var(--reader-border);
 }
 
-.toolbar a {
+.reader-original {
+  flex: 0 0 auto;
   padding: 4px 10px;
   font: 600 13px system-ui;
+  text-underline-offset: 2px;
 }
 
 .tts-controls {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
+  padding: 3px;
+  background: color-mix(in srgb, var(--reader-bg) 86%, var(--reader-text));
+  border: 1px solid color-mix(in srgb, var(--reader-border) 72%, transparent);
+  border-radius: 8px;
   font: 600 12px/1.3 system-ui, sans-serif;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
+}
+
+.tts-transport {
+  display: flex;
+  align-items: center;
+  gap: 1px;
 }
 
 .tts-button,
 .tts-settings summary,
 .tts-settings-menu select {
   box-sizing: border-box;
-  min-height: 26px;
   color: var(--reader-text);
-  background: var(--reader-bg);
-  border: 1px solid #000;
-  border-radius: 2px;
 }
 
 .tts-button {
-  min-width: 28px;
-  padding: 3px 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 6px;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
   cursor: pointer;
 }
 
-.tts-play {
-  min-width: 62px;
+.tts-button svg,
+.tts-settings summary svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
 }
 
 .tts-button:hover:not(:disabled),
 .tts-settings summary:hover {
-  background: rgb(107 107 239 / 20%);
+  background: color-mix(in srgb, #6b6bef 18%, transparent);
+}
+
+.tts-button:focus-visible,
+.tts-settings summary:focus-visible,
+.tts-settings-menu select:focus-visible,
+.tts-speed input:focus-visible {
+  outline: 2px solid #6b6bef;
+  outline-offset: 1px;
 }
 
 .tts-button:disabled {
@@ -158,12 +189,16 @@ ul {
 .tts-speed {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  padding: 0 3px;
   white-space: nowrap;
 }
 
 .tts-speed input {
-  width: 90px;
+  width: clamp(70px, 14vw, 118px);
+  height: 4px;
+  margin: 0;
+  accent-color: #6b6bef;
 }
 
 .tts-speed output {
@@ -178,7 +213,12 @@ ul {
 .tts-settings summary {
   display: flex;
   align-items: center;
-  padding: 3px 9px;
+  gap: 5px;
+  min-height: 30px;
+  padding: 4px 8px;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
   cursor: pointer;
   list-style: none;
   user-select: none;
@@ -189,26 +229,34 @@ ul {
 }
 
 .tts-settings summary::after {
-  margin-left: 5px;
-  content: "▾";
+  width: 5px;
+  height: 5px;
+  margin: -3px 1px 0 2px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  content: "";
+  transform: rotate(45deg);
 }
 
 .tts-settings[open] summary::after {
-  content: "▴";
+  margin-top: 3px;
+  transform: rotate(225deg);
 }
 
 .tts-settings-menu {
   position: absolute;
-  top: calc(100% + 5px);
-  left: 0;
-  z-index: 5;
+  top: calc(100% + 7px);
+  right: 0;
+  left: auto;
+  z-index: 50;
   box-sizing: border-box;
-  width: min(320px, 80vw);
-  padding: 10px;
+  width: min(290px, calc(100vw - 28px));
+  padding: 12px;
   color: var(--reader-text);
   background: var(--reader-bg);
   border: 1px solid var(--reader-border);
-  box-shadow: 0 4px 14px rgb(0 0 0 / 24%);
+  border-radius: 7px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 24%);
 }
 
 .tts-settings-menu label {
@@ -218,6 +266,11 @@ ul {
 
 .tts-settings-menu select {
   width: 100%;
+  min-height: 32px;
+  padding: 3px 6px;
+  background: var(--reader-bg);
+  border: 1px solid var(--reader-border);
+  border-radius: 4px;
 }
 
 .tts-segment {
@@ -235,22 +288,19 @@ ul {
   box-shadow: 0 0 0 2px rgb(107 107 239 / 12%);
 }
 
-@media (max-width: 700px) {
-  .toolbar {
-    align-items: stretch;
-    flex-direction: column-reverse;
-  }
-
-  .toolbar > a {
-    align-self: flex-end;
-  }
-
+@media (max-width: 520px) {
   .tts-controls {
+    flex: 1 1 auto;
     flex-wrap: wrap;
   }
 
   .tts-speed {
-    flex: 1 1 180px;
+    flex: 1 1 150px;
+  }
+
+  .reader-original {
+    align-self: flex-start;
+    padding-right: 2px;
   }
 }
 
