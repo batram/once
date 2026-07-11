@@ -42,6 +42,8 @@ async function launchApp() {
     env: {
       ...process.env,
       ONCE_ELECTRON_TEST_USER_DATA: userData,
+      ONCE_ELECTRON_DISABLE_STORY_LOADING: "1",
+      ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "1",
     },
   })
   await expect

@@ -63,6 +63,9 @@ function registerIpc(
     ELECTRON_IPC.fetch,
     async (event, request: ElectronFetchRequest): Promise<ElectronFetchResponse> => {
       assertTrusted(event)
+      if (process.env.ONCE_ELECTRON_DISABLE_NETWORK_FETCH === "1") {
+        throw new Error("Network fetches are disabled for this Electron test")
+      }
       const url = new URL(request.url)
       if (url.protocol !== "http:" && url.protocol !== "https:") {
         throw new Error("Only HTTP and HTTPS requests are allowed")
@@ -256,7 +259,9 @@ app
     configureBrowserSession()
     browserCoordinator = new BrowserCoordinator(
       createShellWindow,
-      MAIN_WINDOW_WEBPACK_ENTRY
+      process.env.ONCE_ELECTRON_DISABLE_STORY_LOADING === "1"
+        ? `${MAIN_WINDOW_WEBPACK_ENTRY}?disableStoryLoading`
+        : MAIN_WINDOW_WEBPACK_ENTRY
     )
     registerIpc(new SecureSettings(), browserCoordinator)
     await browserCoordinator.createWindow()

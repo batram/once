@@ -13,6 +13,7 @@ import { ReaderView } from "./reader/ReaderView"
 export interface MountOnceUiOptions {
   showHoveredLinks?: boolean
   onMenuCollapsedChanged?: (collapsed: boolean) => void
+  initialStoryLoad?: "network" | "cache" | "disabled"
 }
 
 export async function mountOnceUi(
@@ -39,7 +40,10 @@ export async function mountOnceUi(
     Search.searchStories(query)
   })
 
-  await client.reloadStories(false)
+  const initialStoryLoad = options.initialStoryLoad || "network"
+  if (initialStoryLoad !== "disabled") {
+    await client.reloadStories(initialStoryLoad === "cache")
+  }
 
   document.querySelectorAll<HTMLElement>(".collapsebutton").forEach((element) => {
     element.onclick = () => {

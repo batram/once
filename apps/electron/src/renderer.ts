@@ -36,6 +36,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   })
   await mountOnceUi(app.client, {
     showHoveredLinks: true,
+    initialStoryLoad: new URL(window.location.href).searchParams.has(
+      "disableStoryLoading"
+    )
+      ? "disabled"
+      : "network",
     onMenuCollapsedChanged: (collapsed) =>
       browserShell.setLeftCollapsed(collapsed)
   })

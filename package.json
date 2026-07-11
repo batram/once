@@ -23,6 +23,7 @@
     "verify:release-artifacts": "node scripts/verify-release-artifacts.js",
     "version": "node scripts/sync-release-version.js",
     "test:electron": "npm run build:electron && node --test tests/electron/*.test.js",
+    "test:story-sources:refresh": "node --test tests/network/refresh-story-source-cache.test.js",
     "test:electron:e2e": "npm run package:electron && playwright test --config tests/electron-e2e/playwright.config.js",
     "b2": "npm run build:firefox",
     "b1": "npm run build-dev",

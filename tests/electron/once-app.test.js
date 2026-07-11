@@ -2,10 +2,13 @@ const test = require("node:test")
 const assert = require("node:assert/strict")
 const { createOnceApp } = require("../../packages/app/dist")
 const { Story } = require("../../packages/core/dist")
+const cachedRedditSource = require("../fixtures/story-sources/reddit-netsec.json")
 
-function createFakePlatform(stories = []) {
+function createFakePlatform(stories = [], options = {}) {
   const lists = new Map()
+  if (options.storySources) lists.set("story_sources", options.storySources)
   const savedStories = new Map(stories.map((story) => [story.href, story]))
+  const cachedResponses = new Map(options.cachedResponses || [])
   let databaseHandler
   let historyHandler
   const opened = []
@@ -60,7 +63,17 @@ function createFakePlatform(stories = []) {
           return () => undefined
         },
       },
-      fetch: globalThis.fetch,
+      cacheStore: {
+        async get(url) {
+          return cachedResponses.get(url) || null
+        },
+        async set(url, value) {
+          cachedResponses.set(url, value)
+        },
+      },
+      fetch: options.fetch || (async (url) => {
+        throw new Error(`Unexpected network request in test: ${url}`)
+      }),
       onDatabaseChange(handler) {
         databaseHandler = handler
         return () => undefined
@@ -72,6 +85,35 @@ function createFakePlatform(stories = []) {
     },
   }
 }
+
+test("loads a faked story source once and reuses its cached response", async () => {
+  const sourceUrl = "https://old.reddit.com/r/netsec/.json"
+  let requests = 0
+  const fake = createFakePlatform([], {
+    storySources: [sourceUrl],
+    fetch: async (url) => {
+      requests += 1
+      assert.equal(url, sourceUrl)
+      return new Response(JSON.stringify(cachedRedditSource), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    },
+  })
+  const app = createOnceApp(fake.ports)
+  const loaded = []
+  app.client.subscribe("storiesChanged", ({ stories }) => loaded.push(stories))
+
+  await app.start()
+  await app.client.reloadStories(false)
+  await app.client.reloadStories(true)
+
+  assert.equal(requests, 1)
+  const expected = cachedRedditSource.data.children.find(
+    ({ data }) => data.ups >= 35
+  )
+  assert.equal(loaded.at(-1)[0].title, expected.data.title)
+})
 
 test("routes search links internally and normal links to the active-tab port", async () => {
   const fake = createFakePlatform()

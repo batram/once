@@ -117,6 +117,9 @@ npm run test:electron
 # Packaged application smoke test
 npm run test:electron:e2e
 
+# Explicitly refresh the one live story-source fixture (never run by normal tests)
+npm run test:story-sources:refresh
+
 # Windows outputs
 npm run package:electron
 npm run make:electron
@@ -134,6 +137,13 @@ Both write below `apps/electron/out`; neither signs the resulting application.
 
 Automated tests override the user data directory with a temporary directory so
 they do not touch a developer's normal Once profile.
+
+Normal unit and Electron E2E tests do not contact story-source servers. Unit
+tests use responses below `tests/fixtures/story-sources`, and window/tab E2E
+tests disable initial story loading and the renderer's network-fetch bridge.
+`test:story-sources:refresh` is the only live-source test: it is opt-in, makes
+one allowlisted request with a timeout and response-size cap, and replaces the
+reusable fixture consumed by the unit suite.
 
 ## Generated files
 

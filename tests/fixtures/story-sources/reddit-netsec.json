@@ -1,0 +1,20 @@
+{
+  "kind": "Listing",
+  "data": {
+    "children": [
+      {
+        "data": {
+          "author": "fixture-author",
+          "permalink": "/r/netsec/comments/fixture/reusable_cached_security_story/",
+          "url": "https://example.test/reusable-cached-security-story",
+          "title": "Reusable cached security story",
+          "id": "fixture",
+          "created_utc": 1893456000,
+          "subreddit": "netsec",
+          "subreddit_name_prefixed": "r/netsec",
+          "ups": 100
+        }
+      }
+    ]
+  }
+}
