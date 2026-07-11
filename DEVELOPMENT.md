@@ -47,8 +47,8 @@ npm run build:chrome
 npm run build:extensions
 
 # Development bundles with inline source maps
-npm run build-dev:firefox
-npm run build-dev:chrome
+npm run build:firefox:dev
+npm run build:chrome:dev
 npm run build:extensions:dev
 ```
 
@@ -56,9 +56,6 @@ Outputs are written to:
 
 - `apps/firefox-extension/dist`
 - `apps/chrome-extension/dist`
-
-The compatibility aliases `npm run b1`, `npm run build-dev`, and `npm run b2`
-continue to build Firefox.
 
 Webpack cleans the selected target's `dist` directory on each extension build.
 Production builds are minified and omit source maps; development builds include
@@ -83,7 +80,7 @@ Add-on**, and open `apps/firefox-extension/dist/manifest.json`.
 For automatic reloads:
 
 ```bash
-npm run build-dev:firefox
+npm run build:firefox:dev
 npx web-ext run --source-dir ./apps/firefox-extension/dist
 ```
 
