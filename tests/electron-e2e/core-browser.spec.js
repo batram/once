@@ -180,6 +180,32 @@ test("launches a secure browser shell with legacy tab interactions", async () =>
   }
 })
 
+test("clears a stale tab title when the next page has no title", async () => {
+  const { electronApp, userData, window } = await launchApp()
+  try {
+    const address = window.locator("#urlfield")
+    const title = window.locator(".electron-tab-title")
+
+    await address.fill(`${origin}/titled`)
+    await address.press("Enter")
+    await expect(title).toHaveText("Titled")
+
+    await address.fill("about:blank")
+    await address.press("Enter")
+    await expect(title).toHaveText("New tab")
+
+    await address.fill(`${origin}/titled-again`)
+    await address.press("Enter")
+    await expect(title).toHaveText("Titled-again")
+
+    await address.fill("http://127.0.0.1:1/unreachable")
+    await address.press("Enter")
+    await expect(title).toHaveText("New tab")
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
 test("moves a live tab out to a new Once window and back", async () => {
   const { electronApp, userData, window } = await launchApp()
   try {

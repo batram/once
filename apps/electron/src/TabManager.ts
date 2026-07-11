@@ -425,6 +425,11 @@ export class BrowserCoordinator {
       entry.loading = false
       changed()
     })
+    contents.on("did-start-navigation", (event) => {
+      if (!event.isMainFrame || event.isSameDocument) return
+      entry.title = "New tab"
+      changed()
+    })
     contents.on("did-navigate", changed)
     contents.on("did-navigate-in-page", changed)
     contents.on("page-title-updated", (_event, title) => {
