@@ -1,4 +1,4 @@
-# ![icon](https://user-images.githubusercontent.com/1382274/184474910-e0b46b64-8254-4604-a176-1679255c65bb.png?small) Once browser side-panel extension
+# ![icon](https://user-images.githubusercontent.com/1382274/184474910-e0b46b64-8254-4604-a176-1679255c65bb.png?small) Once
 
 ## About
 
