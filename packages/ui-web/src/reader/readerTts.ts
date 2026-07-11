@@ -21,7 +21,7 @@ export function installReaderTts(options: {
   if (!play || !stop || !back || !forward || !voiceSelect || !rateInput || !rateValue || !article) return
 
   if (!synth || typeof SpeechSynthesisUtterance === "undefined") {
-    ;[play, stop, back, forward, voiceSelect, rateInput].forEach((control) => {
+    [play, stop, back, forward, voiceSelect, rateInput].forEach((control) => {
       control.disabled = true
     })
     play.title = "Text to speech is not available in this browser"

@@ -499,13 +499,14 @@ export class StoryListItem extends HTMLElement {
         tag_el.innerText = tag.text
 
         if (tag.href) {
-          tag_el.href = tag.href
+          const tag_href = tag.href
+          tag_el.href = tag_href
           bindLinkBehavior(tag_el, {
             onClick: () => {
-              getOnceClient().openUrl(tag.href!, "_self")
+              getOnceClient().openUrl(tag_href, "_self")
             },
             onMiddleClick: () => {
-              getOnceClient().openUrl(tag.href!, "middle")
+              getOnceClient().openUrl(tag_href, "middle")
             }
           })
         }
@@ -656,6 +657,7 @@ function bindLinkBehavior(
   })
 
   if (options.onMiddleClick) {
+    const onMiddleClick = options.onMiddleClick
     el.addEventListener("mousedown", (e: MouseEvent) => {
       if (e.button === 1) {
         e.preventDefault()
@@ -667,7 +669,7 @@ function bindLinkBehavior(
       if (e.button === 1) {
         e.preventDefault()
         e.stopPropagation()
-        options.onMiddleClick!()
+        onMiddleClick()
       }
     })
 

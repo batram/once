@@ -12,7 +12,7 @@ function event() {
       const index = listeners.indexOf(listener)
       if (index >= 0) listeners.splice(index, 1)
     },
-    emit(...args) { return listeners.map((listener) => listener(...args)) },
+    emit(...args) { return listeners.map((listener) => listener(...args)) }
   }
 }
 
@@ -37,12 +37,12 @@ test("sets up Firefox sidebar action, context menu, and undo command", async () 
     contextMenus: {
       async removeAll() { calls.push("removeAll") },
       create(options) { calls.push(options) },
-      onClicked: menuClicked,
+      onClicked: menuClicked
     },
     runtime: {
       getURL: (value) => `moz-extension://test${value}`,
-      async sendMessage(message) { calls.push(message) },
-    },
+      async sendMessage(message) { calls.push(message) }
+    }
   }
   await initFirefoxBackground(api)
   actionClicked.emit()

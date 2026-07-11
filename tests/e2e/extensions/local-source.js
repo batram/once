@@ -11,14 +11,14 @@ async function startLocalSource() {
     }
     response.writeHead(200, {
       "content-type": "application/json",
-      "access-control-allow-origin": "*",
+      "access-control-allow-origin": "*"
     })
     response.end(JSON.stringify({
       items: [{
         href: `${origin}/story`,
         title: "Extension smoke story",
-        published: "2024-01-02T03:04:05Z",
-      }],
+        published: "2024-01-02T03:04:05Z"
+      }]
     }))
   })
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve))
@@ -31,9 +31,9 @@ async function startLocalSource() {
       link: { sel: "href" },
       title: { sel: "title" },
       timestamp: { sel: "published" },
-      tags: [],
+      tags: []
     })}§§${origin}/feed.json`,
-    close: () => new Promise((resolve) => server.close(resolve)),
+    close: () => new Promise((resolve) => server.close(resolve))
   }
 }
 

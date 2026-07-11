@@ -1,7 +1,7 @@
 import { Story } from "@once/core"
 import { StoryListItem } from "../StoryListItem"
 //import * as Readability from "../../third_party/Readability.js"
-import { Presenter, PresenterOptions } from "../presenters_frontend"
+import { PresenterOptions } from "../presenters_frontend"
 import { getOnceClient } from "../client"
 import { ReaderView } from "../reader/ReaderView"
 import { LoaderInsights } from "../LoaderInsights"
@@ -129,14 +129,6 @@ async function openInReaderMode(url: string, newTab = false) {
   await ReaderView.open(url)
 }
 
-async function openInCurrentTab(url: string) {
-  getOnceClient().openUrl(url, "_self")
-}
-
-function openInNewTab(url: string) {
-  getOnceClient().openUrl(url, "blank")
-}
-
 export function init_in_webtab(): void {
   if (!presenter_options.urlbar_button.value) {
     return
@@ -206,48 +198,8 @@ export async function present(url: string): Promise<void> {
   }
 }
 
-async function outline(url: string): Promise<void> { await ReaderView.open(url) }
-
-function fail_outline(reason: string) {
-  console.error("outline failed", reason)
-}
-
 function showReaderError(error: unknown): void {
   const detail = error instanceof Error ? error.message : String(error)
   console.error("Reader mode failed", error)
   LoaderInsights.showErrorMessage(`Reader mode failed: ${detail}`)
-}
-
-async function archive_cache(url: string) {
-  const f = await fetch("https://archive.org/wayback/available?url=" + url)
-  const resp = await f.json()
-  if (
-    resp.archived_snapshots &&
-    resp.archived_snapshots.closest &&
-    resp.archived_snapshots.closest.available
-  ) {
-    const arch_url = new URL(resp.archived_snapshots.closest.url)
-    arch_url.protocol = "https:"
-    url = arch_url.toString()
-
-    const f2 = await fetch(url)
-    return f2
-  }
-}
-
-async function google_cache(url: string) {
-  try {
-    const f = await fetch(
-      "https://webcache.googleusercontent.com/search?q=cache:" + url
-    )
-    return f
-  } catch (e) {
-    console.error("fetch", e)
-  }
-  return null
-}
-
-function encodeToReaderModeUrl(originalUrl: string): string {
-  const encodedUrl = encodeURIComponent(originalUrl)
-  return `about:reader?url=${encodedUrl}`
 }

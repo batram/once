@@ -10,27 +10,27 @@ module.exports = {
       ...rules,
       {
         test: /\.css$/,
-        use: ["style-loader", "css-loader"],
-      },
-    ],
+        use: ["style-loader", "css-loader"]
+      }
+    ]
   },
   resolve: {
     extensions: [".js", ".ts", ".jsx", ".tsx", ".css"],
-    fallback: { path: false },
+    fallback: { path: false }
   },
   plugins: [
     new CopyPlugin({
       patterns: [
         {
           from: path.join(root, "packages", "ui-web", "public", "static", "css"),
-          to: "main_window/css",
+          to: "main_window/css"
         },
         {
           from: path.join(root, "packages", "ui-web", "public", "static", "imgs"),
-          to: "main_window/imgs",
-        },
-      ],
-    }),
+          to: "main_window/imgs"
+        }
+      ]
+    })
   ],
-  devtool: "source-map",
+  devtool: "source-map"
 }

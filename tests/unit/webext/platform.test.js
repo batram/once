@@ -7,7 +7,7 @@ function event() {
   return {
     listeners,
     addListener(listener) { listeners.push(listener) },
-    removeListener(listener) { listeners.splice(listeners.indexOf(listener), 1) },
+    removeListener(listener) { listeners.splice(listeners.indexOf(listener), 1) }
   }
 }
 
@@ -22,9 +22,9 @@ test("maps tab dispositions and tracks only the selected tab in the current wind
       onUpdated: updated,
       create(options) { created.push(options) },
       async get(id) { return { id, windowId: 1, active: true, url: "https://example.com/activated" } },
-      async query() { return [{ windowId: 1, active: true, url: "https://example.com/initial" }] },
+      async query() { return [{ windowId: 1, active: true, url: "https://example.com/initial" }] }
     },
-    windows: { async getCurrent() { return { id: 1 } } },
+    windows: { async getCurrent() { return { id: 1 } } }
   }
   const port = createWebExtActiveTab(api, { open(url, target) { opened.push({ url, target }) } })
   port.openUrl("https://example.com/background", "middle")
@@ -32,7 +32,7 @@ test("maps tab dispositions and tracks only the selected tab in the current wind
   port.openUrl("https://example.com/window", "blank")
   assert.deepEqual(created, [
     { url: "https://example.com/background", active: false },
-    { url: "https://example.com/current", active: true },
+    { url: "https://example.com/current", active: true }
   ])
   assert.deepEqual(opened, [{ url: "https://example.com/window", target: "blank" }])
 

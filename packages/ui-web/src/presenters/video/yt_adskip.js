@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- called from player.html
 function adskippy_youtube(id) {
   let res = []
   try {

@@ -39,7 +39,10 @@ export class SecureSettings {
 
   async getCacheTime(): Promise<number> {
     const settings = await this.read()
-    return Number.isFinite(settings.cacheTime) ? settings.cacheTime! : 120
+    const cacheTime = settings.cacheTime
+    return typeof cacheTime === "number" && Number.isFinite(cacheTime)
+      ? cacheTime
+      : 120
   }
 
   async setCacheTime(cacheTime: string): Promise<void> {
@@ -56,8 +59,8 @@ export class SecureSettings {
   private async read(): Promise<StoredSettings> {
     try {
       return JSON.parse(await fs.readFile(this.filePath, "utf8"))
-    } catch (error: any) {
-      if (error?.code === "ENOENT") return {}
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return {}
       throw error
     }
   }

@@ -15,7 +15,7 @@ module.exports = {
     icon: path.resolve(
       __dirname,
       "../../packages/ui-web/public/static/imgs/icons/mipmap-mdpi/ic_launcher"
-    ),
+    )
   },
   makers: [
     {
@@ -27,13 +27,13 @@ module.exports = {
         setupIcon: path.resolve(
           __dirname,
           "../../packages/ui-web/public/static/imgs/icons/mipmap-mdpi/ic_launcher.ico"
-        ),
-      },
+        )
+      }
     },
     {
       name: "@electron-forge/maker-zip",
-      platforms: ["win32"],
-    },
+      platforms: ["win32"]
+    }
   ],
   plugins: [
     new WebpackPlugin({
@@ -46,11 +46,11 @@ module.exports = {
             js: "./src/renderer.ts",
             name: "main_window",
             preload: {
-              js: "./src/preload.ts",
-            },
-          },
-        ],
-      },
+              js: "./src/preload.ts"
+            }
+          }
+        ]
+      }
     }),
     new FusesPlugin({
       version: FuseVersion.V1,
@@ -59,7 +59,7 @@ module.exports = {
       [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false,
       [FuseV1Options.EnableNodeCliInspectArguments]: false,
       [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: true,
-      [FuseV1Options.OnlyLoadAppFromAsar]: true,
-    }),
-  ],
+      [FuseV1Options.OnlyLoadAppFromAsar]: true
+    })
+  ]
 }

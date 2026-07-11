@@ -7,6 +7,6 @@ module.exports = defineConfig({
   workers: 1,
   reporter: "line",
   use: {
-    trace: "retain-on-failure",
-  },
+    trace: "retain-on-failure"
+  }
 })

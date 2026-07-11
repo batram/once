@@ -6,5 +6,5 @@ module.exports = defineConfig({
   timeout: 45_000,
   workers: 1,
   reporter: "line",
-  use: { trace: "retain-on-failure", screenshot: "only-on-failure" },
+  use: { trace: "retain-on-failure", screenshot: "only-on-failure" }
 })

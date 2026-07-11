@@ -13,7 +13,7 @@ test("loads a faked story source once and reuses its cached response", async () 
       requests += 1
       assert.equal(url, sourceUrl)
       return new Response(JSON.stringify(cachedRedditSource), { status: 200, headers: { "content-type": "application/json" } })
-    },
+    }
   })
   const app = createOnceApp(fake.ports)
   const loaded = []

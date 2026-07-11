@@ -4,7 +4,7 @@ module.exports = {
   entry: "./src/main.ts",
   module: { rules },
   resolve: {
-    extensions: [".js", ".ts", ".jsx", ".tsx", ".css"],
+    extensions: [".js", ".ts", ".jsx", ".tsx", ".css"]
   },
-  devtool: "source-map",
+  devtool: "source-map"
 }

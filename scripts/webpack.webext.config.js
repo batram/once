@@ -20,7 +20,7 @@ module.exports = (env = {}, argv = {}) => {
     entry: {
       background: path.join(appRoot, "src", "background.ts"),
       sidepanel: path.join(root, "packages", "webext-shell", "dist", "sidepanel.js"),
-      "reader-content": path.join(root, "packages", "ui-web", "dist", "reader", "contentScript.js"),
+      "reader-content": path.join(root, "packages", "ui-web", "dist", "reader", "contentScript.js")
     },
     output: {
       path: path.join(appRoot, "dist"),
@@ -28,16 +28,16 @@ module.exports = (env = {}, argv = {}) => {
       clean: true,
       globalObject: "globalThis",
       environment: {
-        globalThis: true,
-      },
+        globalThis: true
+      }
     },
     devtool: mode === "development" ? "inline-source-map" : false,
     optimization: {
-      minimize: mode === "production",
+      minimize: mode === "production"
     },
     resolve: {
       extensions: [".ts", ".js"],
-      fallback: { path: false },
+      fallback: { path: false }
     },
     module: {
       rules: [
@@ -46,20 +46,20 @@ module.exports = (env = {}, argv = {}) => {
           loader: "ts-loader",
           exclude: /node_modules/,
           options: {
-            configFile: path.join(root, "tsconfig.json"),
-          },
-        },
-      ],
+            configFile: path.join(root, "tsconfig.json")
+          }
+        }
+      ]
     },
     plugins: [
       new webpack.DefinePlugin({
-        __ONCE_WEBEXT_TARGET__: JSON.stringify(target),
+        __ONCE_WEBEXT_TARGET__: JSON.stringify(target)
       }),
       new CopyPlugin({
         patterns: [
           {
             from: path.join(root, "packages", "ui-web", "public", "static"),
-            to: "static",
+            to: "static"
           },
           {
             from: path.join(root, "packages", "ui-web", "public", "shell.html"),
@@ -68,7 +68,7 @@ module.exports = (env = {}, argv = {}) => {
               return content
                 .toString()
                 .replace("</body>", '  <script src="../sidepanel.js"></script>\n  </body>')
-            },
+            }
           },
           {
             from: path.join(appRoot, "public", "manifest.json"),
@@ -77,10 +77,10 @@ module.exports = (env = {}, argv = {}) => {
               const manifest = JSON.parse(content.toString())
               manifest.version = version
               return `${JSON.stringify(manifest, null, 2)}\n`
-            },
-          },
-        ],
-      }),
-    ],
+            }
+          }
+        ]
+      })
+    ]
   }
 }

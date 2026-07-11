@@ -2,8 +2,18 @@
   "env": {
     "browser": true,
     "commonjs": true,
+    "node": true,
     "es2021": true
   },
+  "ignorePatterns": [
+    "**/dist/",
+    "**/node_modules/",
+    "**/*.min.js",
+    "web-ext-artifacts/",
+    "test-results/",
+    "apps/electron/out/",
+    "apps/electron/.webpack/"
+  ],
   "extends": ["eslint:recommended", "plugin:@typescript-eslint/recommended"],
   "parser": "@typescript-eslint/parser",
   "parserOptions": {
@@ -16,6 +26,25 @@
     "quotes": ["error", "double", { "avoidEscape": true }],
     "semi": ["error", "never"],
     "prefer-const": "warn",
-    "comma-dangle": ["warn", "never"]
-  }
+    "comma-dangle": ["warn", "never"],
+    "no-constant-condition": ["error", { "checkLoops": false }],
+    "@typescript-eslint/no-unused-vars": [
+      "warn",
+      { "args": "none", "varsIgnorePattern": "^_" }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["**/*.js"],
+      "rules": {
+        "@typescript-eslint/no-var-requires": "off"
+      }
+    },
+    {
+      "files": ["tests/**"],
+      "rules": {
+        "@typescript-eslint/no-empty-function": "off"
+      }
+    }
+  ]
 }

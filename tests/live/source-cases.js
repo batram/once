@@ -3,7 +3,7 @@ const sources = {
   lobsters: { url: "https://lobste.rs/", extension: "html", type: "LO" },
   reddit_json: { url: "https://old.reddit.com/r/netsec/.json", extension: "json", type: "re" },
   reddit_rss: { url: "https://old.reddit.com/r/netsec/.rss", extension: "xml", type: "re" },
-  nitter: { url: "https://nitter.net/jack", extension: "html", type: "tw" },
+  nitter: { url: "https://nitter.net/jack", extension: "html", type: "tw" }
 }
 
 const MAX_RESPONSE_BYTES = 1_000_000
@@ -15,8 +15,8 @@ async function fetchSource(source) {
     signal: AbortSignal.timeout(TIMEOUT_MS),
     headers: {
       accept: "application/json, application/atom+xml, application/rss+xml, text/html;q=0.9, */*;q=0.1",
-      "user-agent": "once-collector-compatibility-check/1.0 (manual single-request probe)",
-    },
+      "user-agent": "once-collector-compatibility-check/1.0 (manual single-request probe)"
+    }
   })
   if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}`)
   const declaredSize = Number(response.headers.get("content-length") || 0)

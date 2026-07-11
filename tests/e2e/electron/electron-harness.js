@@ -5,7 +5,7 @@ const os = require("node:os")
 const path = require("node:path")
 
 async function startPageServer() {
-  let origin
+  let origin = ""
   const server = http.createServer((request, response) => {
     const name = request.url.slice(1) || "one"
     const title = name.charAt(0).toUpperCase() + name.slice(1)
@@ -13,14 +13,14 @@ async function startPageServer() {
     response.end(`<!doctype html>
       <title>${title}</title>
       <h1>${title}</h1>
-      <a id="page-link" href="${origin || ""}/linked">Linked page</a>
+      <a id="page-link" href="${origin}/linked">Linked page</a>
       <input id="page-input" value="editable" />`)
   })
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve))
   origin = `http://127.0.0.1:${server.address().port}`
   return {
     origin,
-    close: () => new Promise((resolve) => server.close(resolve)),
+    close: () => new Promise((resolve) => server.close(resolve))
   }
 }
 
@@ -35,8 +35,8 @@ async function launchApp() {
       ...process.env,
       ONCE_ELECTRON_TEST_USER_DATA: userData,
       ONCE_ELECTRON_DISABLE_STORY_LOADING: "1",
-      ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "1",
-    },
+      ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "1"
+    }
   })
   await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows().length
@@ -64,7 +64,7 @@ async function getOnceWindows(electronApp) {
   return electronApp.evaluate(async ({ BrowserWindow }) =>
     Promise.all(BrowserWindow.getAllWindows().map(async (candidate) => ({
       id: candidate.id,
-      tabs: await candidate.webContents.executeJavaScript("window.onceElectron.tabs.getAll()"),
+      tabs: await candidate.webContents.executeJavaScript("window.onceElectron.tabs.getAll()")
     })))
   )
 }
@@ -84,7 +84,7 @@ async function getLiveContentsState(electronApp, contentsId) {
     if (!contents || contents.isDestroyed()) return null
     return {
       url: contents.getURL(),
-      state: await contents.executeJavaScript("window.__onceE2EState"),
+      state: await contents.executeJavaScript("window.__onceE2EState")
     }
   }, contentsId)
 }
@@ -109,5 +109,5 @@ module.exports = {
   launchApp,
   markLiveContents,
   startPageServer,
-  transferTab,
+  transferTab
 }

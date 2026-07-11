@@ -1,0 +1,8 @@
+**/dist/
+node_modules/
+**/*.min.js
+web-ext-artifacts/
+test-results/
+apps/electron/out/
+apps/electron/.webpack/
+package-lock.json

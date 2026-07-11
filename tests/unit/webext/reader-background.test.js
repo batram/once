@@ -10,7 +10,7 @@ function event() {
     removeListener(listener) {
       const index = listeners.indexOf(listener)
       if (index >= 0) listeners.splice(index, 1)
-    },
+    }
   }
 }
 
@@ -31,17 +31,17 @@ function createBrowser() {
         onUpdated,
         async create(options) { calls.push(["create", options]); return { id: 7, status: "complete" } },
         async get() { return { id: 7, status: "complete" } },
-        async sendMessage(tabId, message) { calls.push(["sendMessage", tabId, message]) },
+        async sendMessage(tabId, message) { calls.push(["sendMessage", tabId, message]) }
       },
       storage: { local: {
         async get(key) { return { [key]: stored[key] } },
-        async set(values) { Object.assign(stored, values); calls.push(["store", values]) },
+        async set(values) { Object.assign(stored, values); calls.push(["store", values]) }
       } },
       scripting: {
         async executeScript(options) { calls.push(["script", options]) },
-        async insertCSS(options) { calls.push(["css", options]) },
-      },
-    },
+        async insertCSS(options) { calls.push(["css", options]) }
+      }
+    }
   }
 }
 

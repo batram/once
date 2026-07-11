@@ -30,13 +30,14 @@ export class PouchListStore {
         const doc = await this.db.get(id)
         doc.list = value
         await this.db.put(doc as Record<string, unknown>)
-      } catch (err: any) {
-        if (err.status === 404) {
+      } catch (err) {
+        const status = (err as { status?: number }).status
+        if (status === 404) {
           await this.db.put({
             _id: id,
             list: value
           })
-        } else if (err.status === 409 && retryCount < 3) {
+        } else if (status === 409 && retryCount < 3) {
           console.log(`Conflict on ${id}, retrying... (${retryCount + 1}/3)`)
           await tryUpdate(retryCount + 1)
         } else {

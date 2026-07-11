@@ -17,7 +17,7 @@ function createFakePlatform(stories = [], options = {}) {
           if (!lists.has(id)) lists.set(id, fallback)
           return lists.get(id)
         },
-        async set(id, value) { lists.set(id, value) },
+        async set(id, value) { lists.set(id, value) }
       },
       storyStore: {
         storyId: (url) => `sto_${url}`,
@@ -26,22 +26,22 @@ function createFakePlatform(stories = [], options = {}) {
         async saveStory(story) {
           savedStories.set(story.href, story)
           return story
-        },
+        }
       },
       syncSettingsStore: {
         async getSyncUrl() { return "" },
         async setSyncUrl() {},
         async getCacheTime() { return 120 },
-        async setCacheTime() {},
+        async setCacheTime() {}
       },
       theme: { setTheme() {} },
       activeTab: {
         openUrl(url, target) { opened.push({ url, target }) },
-        onSelectedUrlChanged() { return () => undefined },
+        onSelectedUrlChanged() { return () => undefined }
       },
       cacheStore: {
         async get(url) { return cachedResponses.get(url) || null },
-        async set(url, value) { cachedResponses.set(url, value) },
+        async set(url, value) { cachedResponses.set(url, value) }
       },
       fetch: options.fetch || (async (url) => { throw new Error(`Unexpected network request in test: ${url}`) }),
       onDatabaseChange(handler) {
@@ -51,8 +51,8 @@ function createFakePlatform(stories = [], options = {}) {
       onHistoryCommand(handler) {
         historyHandler = handler
         return () => { historyHandler = undefined }
-      },
-    },
+      }
+    }
   }
 }
 

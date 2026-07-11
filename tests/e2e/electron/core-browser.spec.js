@@ -33,7 +33,7 @@ test("launches a secure browser shell with legacy tab interactions", async () =>
         "urlfield",
         "browser_reload",
         "browser_popout",
-        "browser_close",
+        "browser_close"
       ].map((id) => {
         const rect = document.getElementById(id).getBoundingClientRect()
         return { top: Math.round(rect.top), height: Math.round(rect.height) }
@@ -56,7 +56,7 @@ test("launches a secure browser shell with legacy tab interactions", async () =>
       const content = document.querySelector("#tab_content").getBoundingClientRect()
       return {
         errorBottom: Math.round(error.bottom),
-        contentTop: Math.round(content.top),
+        contentTop: Math.round(content.top)
       }
     })
     expect(validationLayout.errorBottom).toBeLessThanOrEqual(
@@ -92,7 +92,7 @@ test("launches a secure browser shell with legacy tab interactions", async () =>
       .toEqual({
         requireType: "undefined",
         processType: "undefined",
-        bridgeType: "undefined",
+        bridgeType: "undefined"
       })
 
     const ids = await window.evaluate(() => window.onceElectron.tabs.getAll())
@@ -103,7 +103,7 @@ test("launches a secure browser shell with legacy tab interactions", async () =>
     await expect(window.locator(".electron-tab-title").first()).toHaveText("Two")
 
     await window.locator(".electron-tab").first().dispatchEvent("auxclick", {
-      button: 1,
+      button: 1
     })
     await expect(window.locator(".electron-tab")).toHaveCount(1)
 
@@ -115,7 +115,7 @@ test("launches a secure browser shell with legacy tab interactions", async () =>
         new DragEvent("drop", {
           bubbles: true,
           cancelable: true,
-          dataTransfer: transfer,
+          dataTransfer: transfer
         })
       )
     }, `${origin}/dropped`)

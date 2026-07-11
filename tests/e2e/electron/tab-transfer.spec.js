@@ -7,7 +7,7 @@ const {
   launchApp,
   markLiveContents,
   startPageServer,
-  transferTab,
+  transferTab
 } = require("./electron-harness")
 
 let pageServer
@@ -46,11 +46,11 @@ test("moves a live tab out to a new Once window and back", async () => {
     expect(detachedWindows).toHaveLength(2)
     expect(detachedWindows.find((candidate) => candidate.id === sourceWindowId)?.tabs).toHaveLength(1)
     expect(detachedWindows.find((candidate) => candidate.id !== sourceWindowId)?.tabs).toEqual([
-      expect.objectContaining({ id: detachedId, url: detachedUrl, active: true }),
+      expect.objectContaining({ id: detachedId, url: detachedUrl, active: true })
     ])
     expect(await getLiveContentsState(electronApp, liveContentsId)).toEqual({
       url: detachedUrl,
-      state: 42,
+      state: 42
     })
 
     await transferTab(electronApp, sourceWindowId, "moveHere", detachedId)
@@ -61,11 +61,11 @@ test("moves a live tab out to a new Once window and back", async () => {
     expect(restoredTabs).toHaveLength(2)
     expect(restoredTabs.find((tab) => tab.id === detachedId)).toMatchObject({
       url: detachedUrl,
-      active: true,
+      active: true
     })
     expect(await getLiveContentsState(electronApp, liveContentsId)).toEqual({
       url: detachedUrl,
-      state: 42,
+      state: 42
     })
   } finally {
     await closeApp(electronApp, userData)

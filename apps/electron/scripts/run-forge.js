@@ -21,7 +21,7 @@ const forgeCli = path.join(
 const result = spawnSync(nodeBinary, [forgeCli, ...process.argv.slice(2)], {
   cwd: path.resolve(__dirname, ".."),
   env: process.env,
-  stdio: "inherit",
+  stdio: "inherit"
 })
 
 if (result.error) throw result.error

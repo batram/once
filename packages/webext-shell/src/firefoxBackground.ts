@@ -20,7 +20,7 @@ export async function initFirefoxBackground(api: FirefoxBackgroundApi): Promise<
     title: "undo",
     contexts: ["all"],
     viewTypes: ["sidebar"],
-    documentUrlPatterns: [api.runtime.getURL("/static/sidepanel.html")],
+    documentUrlPatterns: [api.runtime.getURL("/static/sidepanel.html")]
   })
   api.contextMenus.onClicked.addListener((info) => {
     if (info.menuItemId === "once_undo") {

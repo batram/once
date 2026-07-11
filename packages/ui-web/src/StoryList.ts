@@ -136,7 +136,7 @@ export function resortSingle(elem: StoryListItem): () => void {
   const stories = Array.from(
     story_con.querySelectorAll<StoryListItem>(".story")
   ).filter((el: StoryListItem) => {
-      return getComputedStyle(el).display != "none"
+    return getComputedStyle(el).display != "none"
   })
 
   const stories_sorted = stories
@@ -197,7 +197,6 @@ function refilter(): void {
   document
     .querySelectorAll<StoryListItem>(".story")
     .forEach(async (story_el) => {
-      const sthref = story_el.dataset.href
       const story = story_el.story
       const og_filter = story.filter
       onceClient.getFilterList().then((filterList) => {

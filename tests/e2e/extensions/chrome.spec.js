@@ -12,7 +12,7 @@ test("installed Chrome extension loads, collects, persists settings, and opens a
   const testPageUnexpectedRequests = []
   const context = await chromium.launchPersistentContext(userDataDir, {
     channel: "chromium",
-    args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`],
+    args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`]
   })
   try {
     await context.route(/^https?:/, async (route) => {

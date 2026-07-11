@@ -75,7 +75,7 @@ export class BrowserCoordinator {
       ? this.detachedBounds(options.tabId, options.point)
       : undefined
     const window = this.createShellWindow(bounds)
-    let resolveBackgroundReady = () => {}
+    let resolveBackgroundReady!: () => void
     const backgroundReady = new Promise<void>((resolve) => {
       resolveBackgroundReady = resolve
     })

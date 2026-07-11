@@ -36,9 +36,9 @@ export class PouchStoryStore<TStory extends Story> {
       .then((doc: unknown) => {
         return this.fromObj(doc as Record<string, unknown>)
       })
-      .catch((err): any => {
+      .catch((err) => {
         console.error("get_story err", err)
-        return null
+        return null as unknown as TStory
       })
   }
 
@@ -51,12 +51,13 @@ export class PouchStoryStore<TStory extends Story> {
         story._id = doc._id as string
         story._rev = doc._rev as string
         return await this.db.put(story.to_obj())
-      } catch (err: any) {
-        if (err.status === 404) {
+      } catch (err) {
+        const status = (err as { status?: number }).status
+        if (status === 404) {
           story._id = this.storyId(story.href)
           ;(story as Record<string, unknown>)["ingested_at"] = Date.now()
           return await this.db.put(story.to_obj())
-        } else if (err.status === 409 && retryCount < 3) {
+        } else if (status === 409 && retryCount < 3) {
           console.log(
             `Conflict on story ${story.href}, retrying... (${retryCount + 1}/3)`
           )

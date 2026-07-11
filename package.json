@@ -35,9 +35,11 @@
     "build-dev": "npm run build-dev:firefox",
     "build-dev:firefox": "npm run build:packages && webpack --config scripts/webpack.webext.config.js --env target=firefox --mode development",
     "build-dev:chrome": "npm run build:packages && webpack --config scripts/webpack.webext.config.js --env target=chrome --mode development",
+    "lint": "eslint --ext .ts,.js apps packages scripts tests",
+    "lint:fix": "eslint --ext .ts,.js apps packages scripts tests --fix",
     "check:types": "npm run build:packages && tsc --noEmit",
     "check:boundaries": "node scripts/check-boundaries.js",
-    "check": "npm run check:types && npm run check:boundaries && npm run build:extensions:dev && npm run build:electron",
+    "check": "npm run lint && npm run check:types && npm run check:boundaries && npm run build:extensions:dev && npm run build:electron",
     "webex": "web-ext build --source-dir ./apps/firefox-extension/dist"
   },
   "author": "",

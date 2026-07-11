@@ -5,7 +5,7 @@ const {
   patternMatches,
   get_parser_for_url,
   parse_response,
-  parse_xml,
+  parse_xml
 } = require("../../../packages/collectors/dist/parser")
 
 installDomGlobals()
@@ -20,7 +20,7 @@ test("matches exact prefixes and one-wildcard collector patterns", () => {
 test("reports the selected parser and leaves unsupported URLs unmatched", () => {
   let matched
   const parser = get_parser_for_url("https://old.reddit.com/r/netsec/.json", {
-    onParserMatched: (type) => { matched = type },
+    onParserMatched: (type) => { matched = type }
   })
   assert.equal(parser.options.type, "re")
   assert.equal(matched, "re")
@@ -57,7 +57,7 @@ test("adds an HTML base element and rejects unrecoverable XML", () => {
       return {
         querySelector(selector) {
           return selector === "parsererror" ? { textContent: "mismatched tag" } : null
-        },
+        }
       }
     }
   }

@@ -10,7 +10,7 @@ export class LocalEventBus {
   } = {}
 
   publish<T extends OnceEventName>(event: T, payload: OnceAppEvents[T]): void {
-    ;(this.handlers[event] || []).forEach((handler) => {
+    (this.handlers[event] || []).forEach((handler) => {
       handler(payload)
     })
   }

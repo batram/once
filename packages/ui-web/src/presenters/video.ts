@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars -- helpers for the webview flow are kept while that code path is commented out */
 import { Story } from "@once/core"
 import { StoryListItem } from "../StoryListItem"
 //import * as child_process from "child_process"

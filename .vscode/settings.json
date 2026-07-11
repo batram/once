@@ -15,7 +15,9 @@
   "eslint.options": {
     "extensions": [".ts", ".js"]
   },
+  "typescript.tsdk": "node_modules/typescript/lib",
   "eslint.validate": ["javascript", "typescript"],
+  "eslint.format.enable": true,
   "editor.codeActionsOnSave": {
     "source.fixAll.eslint": "explicit"
   },
@@ -23,8 +25,10 @@
   "editor.formatOnPaste": true,
   "editor.formatOnSave": true,
   "editor.tabSize": 2,
-  "prettier.semi": false,
   "[typescript]": {
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint"
+  },
+  "[javascript]": {
     "editor.defaultFormatter": "dbaeumer.vscode-eslint"
   }
 }

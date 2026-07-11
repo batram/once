@@ -28,7 +28,7 @@ test("restores native tab and page menus with Inspect in packaged builds", async
 
     for (const target of [
       { menu: "#settings_menu_btn", panel: "#settings_panel" },
-      { menu: "#stories_menu_btn", panel: "#stories_panel" },
+      { menu: "#stories_menu_btn", panel: "#stories_panel" }
     ]) {
       await window.locator(target.menu).click()
       await electronApp.evaluate(() => { globalThis.__onceLastMenuTemplate = null })
@@ -51,7 +51,7 @@ test("restores native tab and page menus with Inspect in packaged builds", async
       globalThis.__onceLastMenuTemplate.map((item) => item.label || item.role || item.type)
     )
     expect(tabLabels).toEqual([
-      "Inspect", "separator", "Duplicate Tab", "Move Tab to New Window", "Close Tab",
+      "Inspect", "separator", "Duplicate Tab", "Move Tab to New Window", "Close Tab"
     ])
 
     await electronApp.evaluate(({ webContents }, expectedUrl) => {
@@ -62,7 +62,7 @@ test("restores native tab and page menus with Inspect in packaged builds", async
         isEditable: false,
         selectionText: "selected words",
         linkURL: `${expectedUrl}/linked`,
-        editFlags: {},
+        editFlags: {}
       })
     }, `${origin}/menus`)
     const pageLabels = await electronApp.evaluate(() =>
@@ -71,7 +71,7 @@ test("restores native tab and page menus with Inspect in packaged builds", async
     expect(pageLabels).toEqual([
       "Inspect", "separator", "Copy", "Search the Web", "separator", "Open in New Tab",
       "Open in Background Tab", "Open in New Once Window", "Open in Default Browser",
-      "Copy Link Address",
+      "Copy Link Address"
     ])
 
     await electronApp.evaluate(({ Menu }) => {

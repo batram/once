@@ -3,7 +3,7 @@ const assert = require("node:assert/strict")
 const { bridgeFetch } = require("@once/platform-electron/fetch")
 const {
   normalizeBrowserUrl,
-  resolveOpenDisposition,
+  resolveOpenDisposition
 } = require("@once/platform-electron/navigation")
 const { PouchSyncService } = require("@once/persistence")
 
@@ -20,7 +20,7 @@ function eventChain() {
     },
     emit(name, value) {
       handlers.get(name)?.(value)
-    },
+    }
   }
 }
 
@@ -48,15 +48,15 @@ test("serializes fetch requests through the preload bridge", async () => {
         status: 201,
         statusText: "Created",
         headers: [["content-type", "application/json"]],
-        body: new TextEncoder().encode('{"ok":true}').buffer,
+        body: new TextEncoder().encode('{"ok":true}').buffer
       }
-    },
+    }
   }
 
   const response = await bridgeFetch(bridge, "https://example.com/db", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: '{"name":"once"}',
+    body: '{"name":"once"}'
   })
 
   assert.equal(received.url, "https://example.com/db")
@@ -76,13 +76,13 @@ test("cancels old CouchDB work when the sync URL changes", () => {
         const chain = eventChain()
         replications.push({ target, chain })
         return chain
-      },
+      }
     },
     sync(target) {
       const chain = eventChain()
       syncs.push({ target, chain })
       return chain
-    },
+    }
   }
   const service = new PouchSyncService(
     db,

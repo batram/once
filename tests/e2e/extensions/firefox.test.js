@@ -20,14 +20,14 @@ test("installed Firefox extension loads, collects, persists settings, and opens 
     const bidi = await driver.getBidi()
     const installResult = await bidi.send({
       method: "webExtension.install",
-      params: { extensionData: { type: "path", path: extensionPath } },
+      params: { extensionData: { type: "path", path: extensionPath } }
     })
     assert.equal(installResult.result.extension, expectedAddonId)
 
     const extensionOrigin = `moz-extension://${extensionUuid}`
     const contextResult = await bidi.send({
       method: "browsingContext.create",
-      params: { type: "tab" },
+      params: { type: "tab" }
     })
     assert.ok(contextResult.result?.context, JSON.stringify(contextResult))
     await driver.switchTo().window(contextResult.result.context)
@@ -41,9 +41,8 @@ test("installed Firefox extension loads, collects, persists settings, and opens 
     await driver.findElement(By.css('[data-testid="save-sources"]')).click()
     await driver.findElement(By.css('[data-testid="stories-menu"]')).click()
     await driver.findElement(By.css("#searchfield")).clear()
-    let story
     try {
-      story = await driver.wait(until.elementLocated(By.xpath('//story-item[contains(., "Extension smoke story")]')), 15_000)
+      await driver.wait(until.elementLocated(By.xpath('//story-item[contains(., "Extension smoke story")]')), 15_000)
     } catch (error) {
       const bodyText = await driver.findElement(By.css("body")).getText()
       error.message += `\nLocal requests: ${JSON.stringify(source.requests)}\nPage text: ${bodyText}`
