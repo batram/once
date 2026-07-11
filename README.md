@@ -2,8 +2,8 @@
 
 ## About
 
-[Once](https://github.com/batram/) retooled as a side-panel extension for Firefox and Chrome.
-Collect stories from different sources (RSS, Hacker News, Lobsters or Reddit), so you can stop scrolling through those sites all day and look at each story once.
+Collect stories from different sources (RSS, Hacker News, Lobsters or Reddit, custom), so you can stop scrolling through those sites all day and look at each story once.
+Available as desktop app for Electron and side-panel extensions for Firefox and Chrome.
 
 ## Features
 
@@ -13,21 +13,37 @@ Collect stories from different sources (RSS, Hacker News, Lobsters or Reddit), s
 - Sync state via couchdb
 - Filter stories based on keywords
 - Dark and Light theme
-- _TODO_ Extract and present just the content (text, images, video)
+- Reader mode
 
-## Build
+## Quick start
 
-```
+```bash
 npm install
+npm run check
+```
+
+`npm run check` type-checks the workspace, validates package boundaries, and
+creates development builds for both browser extensions.
+
+## Run and build
+
+```bash
+# Browser extensions
 npm run build:extensions
+
+# Electron desktop app
 npm run start:electron
 npm run test:electron
 npm run make:electron
 ```
 
-Load the unpacked extension from `apps/firefox-extension/dist` in Firefox or
-`apps/chrome-extension/dist` in Chrome. See `DEVELOPMENT.md` for development,
-validation, and packaging commands.
+Browser build outputs are written to `apps/firefox-extension/dist` and
+`apps/chrome-extension/dist`. Load the relevant directory as a temporary
+Firefox add-on or an unpacked Chrome extension.
+
+See [DEVELOPMENT.md](DEVELOPMENT.md) for local loading instructions, individual
+build commands, validation, Firefox signing, and Electron packaging.
 
 ## Screenshots
+
 <img width="1266" height="880" alt="image" src="https://github.com/user-attachments/assets/3a0ff606-ce39-4a9c-a002-1eedfa9873df" />
