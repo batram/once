@@ -44,6 +44,9 @@ export interface ElectronFetchResponse {
 export type ElectronOpenTarget = "_self" | "middle" | "blank" | string
 
 export interface ElectronBridge {
+  app: {
+    getVersion(): Promise<string>
+  }
   fetch(request: ElectronFetchRequest): Promise<ElectronFetchResponse>
   settings: {
     getSyncUrl(): Promise<string>
@@ -83,6 +86,7 @@ export interface ElectronBridge {
 }
 
 export const ELECTRON_IPC = {
+  appGetVersion: "once:app:get-version",
   fetch: "once:fetch",
   getSyncUrl: "once:settings:get-sync-url",
   setSyncUrl: "once:settings:set-sync-url",

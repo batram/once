@@ -21,6 +21,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   await app.start()
   await mountOnceUi(client, {
+    appVersion: browser.runtime.getManifest().version,
     showHoveredLinks: __ONCE_WEBEXT_TARGET__ === "chrome",
     initialStoryLoad: testMode ? "disabled" : "network"
   })

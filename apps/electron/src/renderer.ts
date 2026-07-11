@@ -35,6 +35,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     void updateRedirects(redirects)
   })
   await mountOnceUi(app.client, {
+    appVersion: await window.onceElectron.app.getVersion(),
     showHoveredLinks: true,
     initialStoryLoad: new URL(window.location.href).searchParams.has(
       "disableStoryLoading"

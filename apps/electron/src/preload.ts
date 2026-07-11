@@ -10,6 +10,9 @@ import {
 } from "@once/platform-electron/bridge"
 
 const bridge: ElectronBridge = {
+  app: {
+    getVersion: () => ipcRenderer.invoke(ELECTRON_IPC.appGetVersion)
+  },
   fetch(request: ElectronFetchRequest) {
     return ipcRenderer.invoke(ELECTRON_IPC.fetch, request)
   },

@@ -26,6 +26,10 @@
   border-bottom: thin solid var(--border-color);
 }
 
+#settings_panel .settings_version {
+  color: var(--text-color);
+}
+
 /* Textareas are now styled via .input_container */
 
 /* Highlightable Textarea Styles */

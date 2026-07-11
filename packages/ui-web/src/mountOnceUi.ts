@@ -11,6 +11,7 @@ import { StoryListItem } from "./StoryListItem"
 import { ReaderView } from "./reader/ReaderView"
 
 export interface MountOnceUiOptions {
+  appVersion: string
   showHoveredLinks?: boolean
   onMenuCollapsedChanged?: (collapsed: boolean) => void
   initialStoryLoad?: "network" | "cache" | "disabled"
@@ -18,10 +19,15 @@ export interface MountOnceUiOptions {
 
 export async function mountOnceUi(
   client: OnceClient,
-  options: MountOnceUiOptions = {}
+  options: MountOnceUiOptions
 ): Promise<void> {
   setOnceClient(client)
   ReaderView.mount(client)
+
+  const version = document.querySelector<HTMLElement>(
+    "[data-testid='app-version']"
+  )
+  if (version) version.textContent = options.appVersion
 
   const settingsPanel = new SettingsPanel(client)
   new StoryHistory(client)

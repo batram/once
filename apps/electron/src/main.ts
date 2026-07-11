@@ -59,6 +59,11 @@ function registerIpc(
   settings: SecureSettings,
   coordinator: BrowserCoordinator
 ): void {
+  ipcMain.handle(ELECTRON_IPC.appGetVersion, (event) => {
+    assertTrusted(event)
+    return app.getVersion()
+  })
+
   ipcMain.handle(
     ELECTRON_IPC.fetch,
     async (event, request: ElectronFetchRequest): Promise<ElectronFetchResponse> => {

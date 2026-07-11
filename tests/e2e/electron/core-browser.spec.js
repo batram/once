@@ -18,6 +18,9 @@ test("launches a secure browser shell with legacy tab interactions", async () =>
   try {
     await expect(window.locator("#right_panel")).toBeVisible()
     await expect(window.locator(".electron-tab")).toHaveCount(1)
+    await expect(window.getByTestId("app-version")).toHaveText(
+      await electronApp.evaluate(({ app }) => app.getVersion())
+    )
 
     await expect(window.locator(".electron-tab")).toHaveCSS("min-width", "140px")
     await expect(window.locator(".electron-tab")).toHaveCSS(
