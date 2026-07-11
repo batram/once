@@ -31,7 +31,6 @@ body {
 
 #electron_tabs {
   display: flex;
-  flex: 1 1 auto;
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
