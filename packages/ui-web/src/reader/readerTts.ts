@@ -60,9 +60,6 @@ export function installReaderTts(options: {
   let generation = 0
   const ownerId = `${Date.now()}-${Math.random()}`
   let ownershipChannel: BroadcastChannel | null = null
-  const playIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/></svg>'
-  const pauseIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h3v14H8zM14 5h3v14h-3z" fill="currentColor" stroke="none"/></svg>'
-
   const voices = (): SpeechSynthesisVoice[] => synth.getVoices()
   const selectedVoice = (): SpeechSynthesisVoice | undefined =>
     voices().find((voice) => voice.voiceURI === voiceSelect.value)
@@ -92,7 +89,7 @@ export function installReaderTts(options: {
     const action = active
       ? (paused ? "Resume" : "Pause")
       : (currentIndex > 0 ? "Resume" : "Play")
-    play.innerHTML = active && !paused ? pauseIcon : playIcon
+    play.dataset.playing = String(active && !paused)
     play.title = action
     play.setAttribute("aria-label", action + " article")
     stop.disabled = !active
