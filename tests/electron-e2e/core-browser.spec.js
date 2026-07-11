@@ -55,12 +55,78 @@ async function launchApp() {
       { timeout: 10_000 }
     )
     .toBe(1)
-  return { electronApp, userData, window: await electronApp.firstWindow() }
+  const window = await electronApp.firstWindow()
+  await expect
+    .poll(() => window.evaluate(() => window.onceElectron.tabs.getAll()))
+    .toMatchObject([{ url: "about:blank", active: true }])
+  return { electronApp, userData, window }
 }
 
 async function closeApp(electronApp, userData) {
   await electronApp.close()
   await fs.rm(userData, { recursive: true, force: true })
+}
+
+async function getWindowTabs(electronApp, windowId) {
+  return electronApp.evaluate(async ({ BrowserWindow }, id) => {
+    const target = BrowserWindow.fromId(id)
+    if (!target) throw new Error(`Missing BrowserWindow ${id}`)
+    return target.webContents.executeJavaScript(
+      "window.onceElectron.tabs.getAll()"
+    )
+  }, windowId)
+}
+
+async function getOnceWindows(electronApp) {
+  return electronApp.evaluate(async ({ BrowserWindow }) =>
+    Promise.all(
+      BrowserWindow.getAllWindows().map(async (candidate) => ({
+        id: candidate.id,
+        tabs: await candidate.webContents.executeJavaScript(
+          "window.onceElectron.tabs.getAll()"
+        ),
+      }))
+    )
+  )
+}
+
+async function markLiveContents(electronApp, url) {
+  return electronApp.evaluate(async ({ webContents }, targetUrl) => {
+    const contents = webContents
+      .getAllWebContents()
+      .find((candidate) => candidate.getURL() === targetUrl)
+    if (!contents) throw new Error(`Missing webContents for ${targetUrl}`)
+    await contents.executeJavaScript("window.__onceE2EState = 42")
+    return contents.id
+  }, url)
+}
+
+async function getLiveContentsState(electronApp, contentsId) {
+  return electronApp.evaluate(async ({ webContents }, id) => {
+    const contents = webContents.fromId(id)
+    if (!contents || contents.isDestroyed()) return null
+    return {
+      url: contents.getURL(),
+      state: await contents.executeJavaScript("window.__onceE2EState"),
+    }
+  }, contentsId)
+}
+
+async function transferTab(electronApp, windowId, action, tabId) {
+  if (action !== "detach" && action !== "moveHere") {
+    throw new Error(`Unsupported tab transfer: ${action}`)
+  }
+  return electronApp.evaluate(
+    async ({ BrowserWindow }, request) => {
+      const target = BrowserWindow.fromId(request.windowId)
+      if (!target) throw new Error(`Missing BrowserWindow ${request.windowId}`)
+      const script = `window.onceElectron.tabs[${JSON.stringify(
+        request.action
+      )}](${JSON.stringify(request.tabId)})`
+      await target.webContents.executeJavaScript(script)
+    },
+    { windowId, action, tabId }
+  )
 }
 
 test("launches a secure browser shell with legacy tab interactions", async () => {
@@ -211,72 +277,66 @@ test("clears a stale tab title when the next page has no title", async () => {
 test("moves a live tab out to a new Once window and back", async () => {
   const { electronApp, userData, window } = await launchApp()
   try {
+    const detachedUrl = `${origin}/detached`
+    const sourceWindowId = await electronApp.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].id
+    )
+
     await window.evaluate(
       (url) => window.onceElectron.tabs.openUrl(url, "blank"),
-      `${origin}/detached`
+      detachedUrl
     )
-    await expect(window.locator(".electron-tab")).toHaveCount(2)
-    await window.locator("#browser_popout").click()
-
     await expect
-      .poll(() =>
-        electronApp.evaluate(({ BrowserWindow }) =>
-          BrowserWindow.getAllWindows().length
-        )
+      .poll(async () =>
+        (await getWindowTabs(electronApp, sourceWindowId)).find(
+          (tab) => tab.url === detachedUrl
+        )?.title
       )
-      .toBe(2)
-    let detached
-    let source
-    await expect
-      .poll(async () => {
-        let nextDetached
-        let nextSource
-        for (const candidate of electronApp.windows()) {
-          if (!(await candidate.locator("#right_panel").count())) continue
-          const tabs = await candidate.evaluate(() => window.onceElectron.tabs.getAll())
-          if (tabs.some((tab) => tab.url === `${origin}/detached`)) {
-            nextDetached = candidate
-          } else if (tabs.length > 0) {
-            nextSource = candidate
-          }
-        }
-        if (nextDetached && nextSource) {
-          detached = nextDetached
-          source = nextSource
-          return true
-        }
-        return false
-      })
-      .toBe(true)
-    await expect(detached.locator(".electron-tab")).toHaveCount(1)
-    await expect
-      .poll(() =>
-        electronApp.evaluate(async ({ BrowserWindow }) => {
-          const focused = BrowserWindow.getFocusedWindow()
-          if (!focused) return null
-          return focused.webContents.executeJavaScript(
-            "window.onceElectron.tabs.getAll().then((tabs) => tabs.find((tab) => tab.active)?.url || null)"
-          )
-        })
-      )
-      .toBe(`${origin}/detached`)
+      .toBe("Detached")
 
-    const detachedId = await detached.evaluate(async () => {
-      const tabs = await window.onceElectron.tabs.getAll()
-      return tabs[0].id
+    const liveContentsId = await markLiveContents(electronApp, detachedUrl)
+    const sourceTabs = await getWindowTabs(electronApp, sourceWindowId)
+    expect(sourceTabs).toHaveLength(2)
+    const detachedTab = sourceTabs.find((tab) => tab.url === detachedUrl)
+    expect(detachedTab).toMatchObject({ url: detachedUrl, active: true })
+    if (!detachedTab) throw new Error("Detached tab was not created")
+    const detachedId = detachedTab.id
+
+    await transferTab(electronApp, sourceWindowId, "detach", detachedId)
+    const detachedWindows = await getOnceWindows(electronApp)
+    expect(detachedWindows).toHaveLength(2)
+    expect(
+      detachedWindows.find((candidate) => candidate.id === sourceWindowId)?.tabs
+    ).toHaveLength(1)
+    expect(
+      detachedWindows.find((candidate) => candidate.id !== sourceWindowId)?.tabs
+    ).toEqual([
+      expect.objectContaining({
+        id: detachedId,
+        url: detachedUrl,
+        active: true,
+      }),
+    ])
+    expect(await getLiveContentsState(electronApp, liveContentsId)).toEqual({
+      url: detachedUrl,
+      state: 42,
     })
-    await source.evaluate(
-      (id) => window.onceElectron.tabs.moveHere(id),
-      detachedId
-    )
+
+    await transferTab(electronApp, sourceWindowId, "moveHere", detachedId)
     await expect
-      .poll(() =>
-        electronApp.evaluate(({ BrowserWindow }) =>
-          BrowserWindow.getAllWindows().length
-        )
-      )
-      .toBe(1)
-    await expect(source.locator(".electron-tab")).toHaveCount(2)
+      .poll(async () => (await getOnceWindows(electronApp)).map(({ id }) => id))
+      .toEqual([sourceWindowId])
+
+    const restoredTabs = await getWindowTabs(electronApp, sourceWindowId)
+    expect(restoredTabs).toHaveLength(2)
+    expect(restoredTabs.find((tab) => tab.id === detachedId)).toMatchObject({
+      url: detachedUrl,
+      active: true,
+    })
+    expect(await getLiveContentsState(electronApp, liveContentsId)).toEqual({
+      url: detachedUrl,
+      state: 42,
+    })
   } finally {
     await closeApp(electronApp, userData)
   }
