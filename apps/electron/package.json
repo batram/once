@@ -9,7 +9,9 @@
     "start": "node scripts/run-forge.js start",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "package": "node scripts/run-forge.js package",
-    "make": "node scripts/run-forge.js make"
+    "package:dev": "node scripts/run-forge.js package --dev",
+    "make": "node scripts/run-forge.js make",
+    "make:dev": "node scripts/run-forge.js make --dev"
   },
   "dependencies": {
     "@once/app": "*",

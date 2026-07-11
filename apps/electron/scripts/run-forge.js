@@ -18,9 +18,16 @@ const forgeCli = path.join(
   "electron-forge.js"
 )
 
-const result = spawnSync(nodeBinary, [forgeCli, ...process.argv.slice(2)], {
+const args = process.argv.slice(2).filter((arg) => arg !== "--dev")
+const defaultChannel =
+  process.argv.includes("--dev") || args[0] === "start" ? "dev" : "release"
+
+const result = spawnSync(nodeBinary, [forgeCli, ...args], {
   cwd: path.resolve(__dirname, ".."),
-  env: process.env,
+  env: {
+    ...process.env,
+    ONCE_BUILD_CHANNEL: process.env.ONCE_BUILD_CHANNEL || defaultChannel
+  },
   stdio: "inherit"
 })
 

@@ -4,30 +4,35 @@ const { WebpackPlugin } = require("@electron-forge/plugin-webpack")
 const { FuseVersion, FuseV1Options } = require("@electron/fuses")
 const { version } = require("../../package.json")
 
+// Dev bundles ("--dev" via run-forge.js) get their own name, executable and
+// icon so they are distinguishable and installable next to a release build.
+const isDevChannel = process.env.ONCE_BUILD_CHANNEL === "dev"
+const iconBase = path.resolve(
+  __dirname,
+  "../../packages/ui-web/public/static/imgs/icons/mipmap-mdpi",
+  isDevChannel ? "ic_launcher_dev" : "ic_launcher"
+)
+
 module.exports = {
-  outDir: path.resolve(__dirname, "out"),
+  // Dev bundles get their own output tree so Squirrel's make outputs (notably
+  // the shared RELEASES metadata file) never mix with release artifacts.
+  outDir: path.resolve(__dirname, isDevChannel ? "out/dev" : "out"),
   packagerConfig: {
     asar: true,
     appVersion: version,
     buildVersion: version,
-    name: "Once",
-    executableName: "once",
-    icon: path.resolve(
-      __dirname,
-      "../../packages/ui-web/public/static/imgs/icons/mipmap-mdpi/ic_launcher"
-    )
+    name: isDevChannel ? "Once Dev" : "Once",
+    executableName: isDevChannel ? "once-dev" : "once",
+    icon: iconBase
   },
   makers: [
     {
       name: "@electron-forge/maker-squirrel",
       config: {
-        name: "once",
+        name: isDevChannel ? "oncedev" : "once",
         authors: "Once contributors",
         description: "Collect stories and see them once",
-        setupIcon: path.resolve(
-          __dirname,
-          "../../packages/ui-web/public/static/imgs/icons/mipmap-mdpi/ic_launcher.ico"
-        )
+        setupIcon: `${iconBase}.ico`
       }
     },
     {

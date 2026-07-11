@@ -33,10 +33,10 @@ become stale, use `npm run clean:packages` before rebuilding.
 npm run check
 ```
 
-`npm run check` builds the shared packages, type-checks the workspace, checks
-package boundaries, creates development builds for both browser targets, and
-type-checks Electron. It does not run the Electron unit or E2E test suites; run
-those separately as described below.
+`npm run check` lints the workspace, builds the shared packages, type-checks
+the workspace, checks package boundaries, creates development builds for both
+browser targets, and type-checks Electron. It does not run the Electron unit or
+E2E test suites; run those separately as described below.
 
 ## Build commands
 
@@ -63,6 +63,15 @@ continue to build Firefox.
 Webpack cleans the selected target's `dist` directory on each extension build.
 Production builds are minified and omit source maps; development builds include
 inline source maps.
+
+Every build carries a build channel (`release` or `dev`) that is shown next to
+the version in the settings panel, as `x.y.z (dev)` on dev builds. Production
+extension builds are release-channel; development builds are dev-channel and
+additionally rename the extension to "Once Sidepanel (dev)" and switch the
+manifest icons to `ic_launcher_dev.png`, so a dev install is distinguishable
+from a store install in the toolbar and extension list. The icon sources live
+in `packages/ui-web/public/static/imgs/icons/` (`icon.svg`/`icon_dev.svg` plus
+the exported `ic_launcher*` files under `mipmap-mdpi/`).
 
 ## Load locally
 
@@ -147,6 +156,10 @@ it does not reuse or close a developer's normal Firefox session.
 # Windows outputs
 npm run package:electron
 npm run make:electron
+
+# Dev-channel Windows outputs, installable next to a release build
+npm run package:electron:dev
+npm run make:electron:dev
 ```
 
 `npm run test:electron` executes the shared app and Electron integration tests
@@ -157,7 +170,17 @@ Playwright artifacts are written below `test-results/`.
 
 `npm run package:electron` creates an unpacked Windows application.
 `npm run make:electron` also creates the configured Squirrel installer and ZIP.
-Both write below `apps/electron/out`; neither signs the resulting application.
+Release output is written below `apps/electron/out` and dev-channel output
+below `apps/electron/out/dev`, so the two channels never mix make artifacts;
+neither variant signs the resulting application.
+
+The Electron build channel is fixed at build time: `npm run start:electron`
+runs as dev-channel, `package:electron`/`make:electron` produce release-channel
+output, and the `:dev` variants produce a dev-channel bundle. A dev bundle is
+branded "Once Dev" (`once-dev.exe`, dev icon, Squirrel package `oncedev`) and
+installs alongside a release build with a separate user data profile.
+Dev-channel runs also use the dev icon for the window and taskbar. Setting
+`ONCE_BUILD_CHANNEL` overrides the default channel for any Electron command.
 
 Automated tests override the user data directory with a temporary directory so
 they do not touch a developer's normal Once profile.

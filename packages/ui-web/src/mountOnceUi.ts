@@ -12,6 +12,7 @@ import { ReaderView } from "./reader/ReaderView"
 
 export interface MountOnceUiOptions {
   appVersion: string
+  buildChannel: "release" | "dev"
   showHoveredLinks?: boolean
   onMenuCollapsedChanged?: (collapsed: boolean) => void
   initialStoryLoad?: "network" | "cache" | "disabled"
@@ -27,7 +28,13 @@ export async function mountOnceUi(
   const version = document.querySelector<HTMLElement>(
     "[data-testid='app-version']"
   )
-  if (version) version.textContent = options.appVersion
+  if (version) {
+    version.textContent =
+      options.buildChannel === "dev"
+        ? `${options.appVersion} (dev)`
+        : options.appVersion
+    version.dataset.buildChannel = options.buildChannel
+  }
 
   const settingsPanel = new SettingsPanel(client)
   new StoryHistory(client)

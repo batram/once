@@ -11,7 +11,7 @@ import {
 
 const bridge: ElectronBridge = {
   app: {
-    getVersion: () => ipcRenderer.invoke(ELECTRON_IPC.appGetVersion)
+    getBuildInfo: () => ipcRenderer.invoke(ELECTRON_IPC.appGetBuildInfo)
   },
   fetch(request: ElectronFetchRequest) {
     return ipcRenderer.invoke(ELECTRON_IPC.fetch, request)

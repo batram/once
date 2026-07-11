@@ -13,6 +13,7 @@ module.exports = (env = {}, argv = {}) => {
   }
 
   const mode = argv.mode || "development"
+  const buildChannel = mode === "production" ? "release" : "dev"
   const appRoot = path.join(root, "apps", `${target}-extension`)
 
   return {
@@ -53,7 +54,8 @@ module.exports = (env = {}, argv = {}) => {
     },
     plugins: [
       new webpack.DefinePlugin({
-        __ONCE_WEBEXT_TARGET__: JSON.stringify(target)
+        __ONCE_WEBEXT_TARGET__: JSON.stringify(target),
+        __ONCE_BUILD_CHANNEL__: JSON.stringify(buildChannel)
       }),
       new CopyPlugin({
         patterns: [
@@ -76,7 +78,14 @@ module.exports = (env = {}, argv = {}) => {
             transform(content) {
               const manifest = JSON.parse(content.toString())
               manifest.version = version
-              return `${JSON.stringify(manifest, null, 2)}\n`
+              if (buildChannel === "dev") {
+                manifest.name = `${manifest.name} (dev)`
+              }
+              let json = JSON.stringify(manifest, null, 2)
+              if (buildChannel === "dev") {
+                json = json.replaceAll("ic_launcher.png", "ic_launcher_dev.png")
+              }
+              return `${json}\n`
             }
           }
         ]

@@ -8,8 +8,10 @@ import {
   session
 } from "electron"
 import started from "electron-squirrel-startup"
+import path from "path"
 import {
   ELECTRON_IPC,
+  ElectronBuildInfo,
   ElectronFetchRequest,
   ElectronFetchResponse,
   ElectronPoint,
@@ -25,6 +27,7 @@ import {
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string
+declare const __ONCE_BUILD_CHANNEL__: "release" | "dev"
 
 if (started) app.quit()
 
@@ -59,9 +62,12 @@ function registerIpc(
   settings: SecureSettings,
   coordinator: BrowserCoordinator
 ): void {
-  ipcMain.handle(ELECTRON_IPC.appGetVersion, (event) => {
+  ipcMain.handle(ELECTRON_IPC.appGetBuildInfo, (event): ElectronBuildInfo => {
     assertTrusted(event)
-    return app.getVersion()
+    return {
+      version: app.getVersion(),
+      channel: __ONCE_BUILD_CHANNEL__
+    }
   })
 
   ipcMain.handle(
@@ -231,6 +237,14 @@ function registerIpc(
 
 function createShellWindow(bounds?: Rectangle): BrowserWindow {
   return new BrowserWindow({
+    // Packaged builds get their icon from the executable (release or dev per
+    // forge.config.js); unpackaged dev runs load the dev logo from the repo.
+    icon: app.isPackaged
+      ? undefined
+      : path.join(
+        app.getAppPath(),
+        "../../packages/ui-web/public/static/imgs/icons/mipmap-mdpi/ic_launcher_dev.ico"
+      ),
     x: bounds?.x,
     y: bounds?.y,
     width: bounds?.width || 1280,
