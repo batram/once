@@ -15,3 +15,6 @@ web-ext-artifacts/
 
 # Logs
 npm-debug.log*
+
+# keep agents to ourself for now
+AGENTS.md
