@@ -24,6 +24,8 @@ export class BrowserShell {
   private readonly targetUrl: HTMLElement
   private draggingTabId: string | null = null
   private dropHandled = false
+  private renderedAddressTabId: string | null = null
+  private renderedAddressUrl = ""
 
   constructor(
     private readonly bridge: ElectronBridge,
@@ -132,9 +134,11 @@ export class BrowserShell {
       if (event.key !== "Enter") return
       const active = this.activeTab()
       if (!active) return
+      const url = this.address.value
+      this.address.blur()
       try {
         this.setAddressError("")
-        await this.bridge.tabs.navigate(active.id, this.address.value)
+        await this.bridge.tabs.navigate(active.id, url)
       } catch (error) {
         this.setAddressError(
           error instanceof Error ? error.message : String(error)
@@ -297,8 +301,14 @@ export class BrowserShell {
 
     const active = this.activeTab()
     if (active) {
-      if (document.activeElement !== this.address) {
-        this.address.value = displayBrowserUrl(active.url)
+      const addressUrl = displayBrowserUrl(active.url)
+      const navigationChanged =
+        this.renderedAddressTabId !== active.id ||
+        this.renderedAddressUrl !== addressUrl
+      this.renderedAddressTabId = active.id
+      this.renderedAddressUrl = addressUrl
+      if (navigationChanged || document.activeElement !== this.address) {
+        this.address.value = addressUrl
       }
       this.backButton.disabled = !active.canGoBack
       this.forwardButton.disabled = !active.canGoForward
@@ -315,6 +325,8 @@ export class BrowserShell {
       this.readerButton.setAttribute("aria-label", this.readerButton.title)
       this.closeButton.disabled = false
     } else {
+      this.renderedAddressTabId = null
+      this.renderedAddressUrl = ""
       this.backButton.disabled = true
       this.forwardButton.disabled = true
       this.reloadButton.disabled = true

@@ -27,7 +27,18 @@ function eventChain() {
 test("normalizes supported browser URLs and rejects privileged schemes", () => {
   assert.equal(normalizeBrowserUrl(" about:blank "), "about:blank")
   assert.equal(normalizeBrowserUrl("https://example.com"), "https://example.com/")
-  assert.throws(() => normalizeBrowserUrl("example.com"), /complete HTTP/)
+  assert.equal(normalizeBrowserUrl("example.com"), "https://example.com/")
+  assert.equal(
+    normalizeBrowserUrl("localhost:8443/path"),
+    "https://localhost:8443/path"
+  )
+  assert.equal(
+    normalizeBrowserUrl("//example.com/path"),
+    "https://example.com/path"
+  )
+  assert.throws(() => normalizeBrowserUrl("not a valid URL"), /complete HTTP/)
+  assert.throws(() => normalizeBrowserUrl("data:text/plain,reader"), /Only HTTP/)
+  assert.throws(() => normalizeBrowserUrl("once-reader://https/example.com"), /Only HTTP/)
   assert.throws(() => normalizeBrowserUrl("file:///secret"), /Only HTTP/)
   assert.throws(() => normalizeBrowserUrl("javascript:alert(1)"), /Only HTTP/)
 })

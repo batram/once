@@ -7,6 +7,11 @@ const path = require("node:path")
 async function startPageServer() {
   let origin = ""
   const server = http.createServer((request, response) => {
+    if (request.url === "/redirect") {
+      response.writeHead(302, { location: `${origin}/redirected` })
+      response.end()
+      return
+    }
     const name = request.url.slice(1) || "one"
     const title = name.charAt(0).toUpperCase() + name.slice(1)
     response.writeHead(200, { "content-type": "text/html; charset=utf-8" })

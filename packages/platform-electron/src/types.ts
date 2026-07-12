@@ -25,6 +25,7 @@ export interface ElectronTabState {
   audible: boolean
   muted: boolean
   active: boolean
+  loadError: string | null
 }
 
 export interface ElectronFetchRequest {
