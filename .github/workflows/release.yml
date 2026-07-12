@@ -57,7 +57,7 @@ jobs:
           signed_xpi=$(find release/firefox-signed -maxdepth 1 -type f -name '*.xpi' -print -quit)
           test -n "$signed_xpi"
           mv "$signed_xpi" "release/once-firefox-${RELEASE_TAG}.xpi"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: extensions
           path: |
@@ -84,7 +84,7 @@ jobs:
       - run: npm run test:electron:e2e
       - run: npm run make:electron
       - run: npm run verify:release-artifacts -- electron apps/electron/out/make
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: electron-windows
           path: |
@@ -109,7 +109,7 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 24
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: release
           merge-multiple: true
