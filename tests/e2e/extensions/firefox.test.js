@@ -39,7 +39,7 @@ test("installed Firefox extension loads, collects, persists settings, and opens 
     await sources.clear()
     await sources.sendKeys(source.source)
     await driver.findElement(By.css('[data-testid="save-sources"]')).click()
-    await driver.findElement(By.css('[data-testid="stories-menu"]')).click()
+    await driver.findElement(By.css('[data-testid="stories-menu"] > .heading')).click()
     await driver.findElement(By.css("#searchfield")).clear()
     try {
       await driver.wait(until.elementLocated(By.xpath('//story-item[contains(., "Extension smoke story")]')), 15_000)
@@ -51,7 +51,7 @@ test("installed Firefox extension loads, collects, persists settings, and opens 
     await driver.navigate().refresh()
     await driver.wait(until.elementLocated(By.css('[data-testid="settings-menu"]')), 15_000).then((element) => element.click())
     assert.equal(await driver.findElement(By.css('[data-testid="sources"]')).getAttribute("value"), source.source)
-    await driver.findElement(By.css('[data-testid="stories-menu"]')).click()
+    await driver.findElement(By.css('[data-testid="stories-menu"] > .heading')).click()
     await driver.findElement(By.css("#searchfield")).clear()
     await driver.findElement(By.css('[data-testid="reload-stories"]')).click()
     const restoredStory = await driver.wait(until.elementLocated(By.xpath('//story-item[contains(., "Extension smoke story")]')), 15_000)

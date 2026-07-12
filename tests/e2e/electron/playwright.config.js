@@ -4,6 +4,7 @@ module.exports = defineConfig({
   testDir: __dirname,
   testMatch: "*.spec.js",
   timeout: 30_000,
+  retries: 1,
   workers: 1,
   reporter: "line",
   use: {

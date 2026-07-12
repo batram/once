@@ -1,4 +1,31 @@
 const http = require("node:http")
+const storyFixture = require("../shared/story-fixture")
+
+// Serves the shared story fixture (feed + story/comment/rewritten pages) for
+// the richer story-list suites. startLocalSource below stays untouched for
+// the original smoke tests.
+async function startStoryFixture() {
+  const requests = []
+  let origin = ""
+  const server = http.createServer((request, response) => {
+    requests.push(request.url)
+    if (storyFixture.handleRequest(request, response, origin)) {
+      return
+    }
+    response.writeHead(404, { "content-type": "text/plain" })
+    response.end("not part of the story fixture")
+  })
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve))
+  origin = `http://127.0.0.1:${server.address().port}`
+  return {
+    origin,
+    requests,
+    source: storyFixture.sourceLine(origin),
+    urls: storyFixture.storyUrls(origin),
+    redirectRule: storyFixture.redirectRule(origin),
+    close: () => new Promise((resolve) => server.close(resolve))
+  }
+}
 
 async function startLocalSource() {
   const requests = []
@@ -37,4 +64,4 @@ async function startLocalSource() {
   }
 }
 
-module.exports = { startLocalSource }
+module.exports = { startLocalSource, startStoryFixture }

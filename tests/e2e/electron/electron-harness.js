@@ -3,10 +3,14 @@ const fs = require("node:fs/promises")
 const http = require("node:http")
 const os = require("node:os")
 const path = require("node:path")
+const storyFixture = require("../shared/story-fixture")
 
 async function startPageServer() {
   let origin = ""
   const server = http.createServer((request, response) => {
+    if (storyFixture.handleRequest(request, response, origin)) {
+      return
+    }
     if (request.url === "/redirect") {
       response.writeHead(302, { location: `${origin}/redirected` })
       response.end()
@@ -89,7 +93,11 @@ async function startPageServer() {
 }
 
 async function launchApp(options = {}) {
-  const userData = await fs.mkdtemp(path.join(os.tmpdir(), "once-electron-test-"))
+  // Reusing an existing userData dir relaunches the app on the same profile
+  // (persistence tests); otherwise every launch gets a fresh temp profile.
+  const userData =
+    options.userData ||
+    (await fs.mkdtemp(path.join(os.tmpdir(), "once-electron-test-")))
   // Electron 43+ downloads its development binary lazily when the package is required,
   // so do not hard-code node_modules/electron/dist/electron.exe after a clean npm ci.
   const executablePath = require("electron")
@@ -114,9 +122,40 @@ async function launchApp(options = {}) {
   return { electronApp, userData, window }
 }
 
-async function closeApp(electronApp, userData) {
+async function closeApp(electronApp, userData, { keepUserData = false } = {}) {
   await electronApp.close()
-  await fs.rm(userData, { recursive: true, force: true })
+  if (!keepUserData) {
+    await fs.rm(userData, { recursive: true, force: true })
+  }
+}
+
+// Seeds the app with the shared story fixture through the settings UI and
+// waits until the story list is rendered. Also disables animations so class
+// and position assertions are immediate instead of waiting on transitions.
+async function seedLocalSource(window, sourceLine) {
+  await window.getByTestId("settings-menu").click()
+  await window.locator("#anim_checkbox").uncheck()
+  await window.getByTestId("sources").fill(sourceLine)
+  await window.getByTestId("save-sources").click()
+  await window.getByTestId("stories-menu").locator(":scope > .heading").click()
+  await window.locator("#searchfield").fill("")
+  await expect(window.locator("#stories story-item").first()).toBeVisible()
+}
+
+async function saveFilters(window, text) {
+  await window.getByTestId("settings-menu").click()
+  await window.getByTestId("filters").fill(text)
+  await window.getByTestId("save-filters").click()
+  await window.getByTestId("stories-menu").locator(":scope > .heading").click()
+  await window.locator("#searchfield").fill("")
+}
+
+async function saveRedirects(window, text) {
+  await window.getByTestId("settings-menu").click()
+  await window.getByTestId("redirects").fill(text)
+  await window.getByTestId("save-redirects").click()
+  await window.getByTestId("stories-menu").locator(":scope > .heading").click()
+  await window.locator("#searchfield").fill("")
 }
 
 async function getWindowTabs(electronApp, windowId) {
@@ -175,6 +214,9 @@ module.exports = {
   getWindowTabs,
   launchApp,
   markLiveContents,
+  saveFilters,
+  saveRedirects,
+  seedLocalSource,
   startPageServer,
   transferTab
 }
