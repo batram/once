@@ -41,12 +41,12 @@ async function render(): Promise<void> {
       claimOwnership: () => {
         void browser.runtime
           .sendMessage({ onceCommand: "claimReaderTts" })
-          .catch(() => undefined)
+          .catch((): void => undefined)
       },
       releaseOwnership: () => {
         void browser.runtime
           .sendMessage({ onceCommand: "releaseReaderTts" })
-          .catch(() => undefined)
+          .catch((): void => undefined)
       },
       subscribeToStop: (handler) => {
         const listener = (message: { onceCommand?: string }) => {

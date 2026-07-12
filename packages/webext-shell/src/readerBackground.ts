@@ -19,7 +19,7 @@ export function installReaderBackground(
       if (previous != null && previous !== tabId) {
         void browserApi.tabs.sendMessage(previous, {
           onceCommand: "stopReaderTts"
-        }).catch(() => undefined)
+        }).catch((): void => undefined)
       }
       return Promise.resolve()
     }

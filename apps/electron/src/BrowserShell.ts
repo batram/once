@@ -368,7 +368,7 @@ export class BrowserShell {
       const id = this.draggingTabId
       this.draggingTabId = null
       if (id && !this.dropHandled && event.dataTransfer?.dropEffect === "none") {
-        void this.bridge.tabs.detach(id, { x: event.screenX, y: event.screenY }).catch(() => undefined)
+        void this.bridge.tabs.detach(id, { x: event.screenX, y: event.screenY }).catch((): void => undefined)
       }
       this.dropHandled = false
     }
