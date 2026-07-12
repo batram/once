@@ -144,6 +144,13 @@ function registerIpc(
       return current.coordinator.openReader(current.window, html, sourceUrl, target)
     }
   )
+  ipcMain.handle(
+    ELECTRON_IPC.tabsShowReaderError,
+    (event, sourceUrl: string, error: string) => {
+      const current = browser(event)
+      return current.coordinator.showReaderError(current.window, sourceUrl, error)
+    }
+  )
   ipcMain.handle(ELECTRON_IPC.tabsCreate, (event, url?: string, active?: boolean) => {
     const current = browser(event)
     return current.coordinator.createTab(current.window, url, active)

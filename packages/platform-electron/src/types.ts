@@ -66,6 +66,7 @@ export interface ElectronBridge {
     getAll(): Promise<ElectronTabState[]>
     openUrl(url: string, target: ElectronOpenTarget): Promise<void>
     openReader(html: string, sourceUrl: string, target: ElectronOpenTarget): Promise<void>
+    showReaderError(sourceUrl: string, error: string): Promise<void>
     create(url?: string, active?: boolean): Promise<string>
     activate(id: string): Promise<void>
     close(id: string): Promise<void>
@@ -105,6 +106,7 @@ export const ELECTRON_IPC = {
   tabsGetAll: "once:tabs:get-all",
   tabsOpenUrl: "once:tabs:open-url",
   tabsOpenReader: "once:tabs:open-reader",
+  tabsShowReaderError: "once:tabs:show-reader-error",
   tabsCreate: "once:tabs:create",
   tabsActivate: "once:tabs:activate",
   tabsClose: "once:tabs:close",

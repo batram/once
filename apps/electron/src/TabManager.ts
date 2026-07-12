@@ -252,6 +252,24 @@ export class BrowserCoordinator {
     await this.createTab(state, readerUrl, disposition !== "background")
   }
 
+  showReaderError(state: WindowEntry, sourceUrl: string, error: string): void {
+    if (!state.activeId) throw new Error("There is no active tab for the reader error")
+    if (typeof error !== "string" || error.length === 0 || error.length > 10_000) {
+      throw new Error("Invalid reader error")
+    }
+    const source = new URL(sourceUrl)
+    if (source.protocol !== "http:" && source.protocol !== "https:") {
+      throw new Error("Reader source must use HTTP or HTTPS")
+    }
+    const entry = this.requireOwnedTab(state, state.activeId)
+    this.navigationErrors.handleFailure(
+      entry,
+      `once-reader://${source.toString()}`,
+      error,
+      true
+    )
+  }
+
   activate(state: WindowEntry, id: string): void {
     const entry = this.requireOwnedTab(state, id)
     if (state.activeId === id) return

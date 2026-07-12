@@ -62,7 +62,7 @@ export class BrowserShell {
     this.bridge.tabs.onRegenerateReader((sourceUrl) => {
       this.setAddressError("")
       void this.openReader(sourceUrl).catch((error) => {
-        this.setAddressError(readerErrorMessage(error))
+        this.showReaderError(sourceUrl, error)
       })
     })
     void this.bridge.tabs.getAll().then((tabs) => this.render(tabs))
@@ -98,7 +98,7 @@ export class BrowserShell {
       }
       if (!isReadableUrl(active.url)) return
       void this.openReader(active.url).catch((error) => {
-        this.setAddressError(readerErrorMessage(error))
+        this.showReaderError(active.url, error)
       })
     }
     this.closeButton.onclick = () =>
@@ -420,6 +420,15 @@ export class BrowserShell {
     this.addressError.classList.toggle("visible", Boolean(message))
     this.address.toggleAttribute("aria-invalid", Boolean(message))
     this.reportBounds()
+  }
+
+  private showReaderError(sourceUrl: string, error: unknown): void {
+    this.setAddressError("")
+    void this.bridge.tabs
+      .showReaderError(sourceUrl, readerErrorMessage(error))
+      .catch((reportError) => {
+        console.error("Failed to display the reader error page", reportError)
+      })
   }
 
   private withActive(action: (tab: ElectronTabState) => Promise<unknown>): void {

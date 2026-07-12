@@ -316,8 +316,26 @@ test("duplicates a reader tab into a second reader tab", async () => {
 
     await address.fill("once-reader://https://example.com/never-opened")
     await address.press("Enter")
-    await expect(window.locator("#url_error")).toContainText("Reader mode failed")
-    await expect(window.locator("#url_error")).toContainText("Network fetches are disabled")
+    await expect(window.locator("#url_error")).toBeHidden()
+    await expect(window.locator(".electron-tab-title").nth(2)).toHaveText("Failed to load")
+    await expect(address).toHaveValue("once-reader://https://example.com/never-opened")
+    await expect.poll(() => window.evaluate(async () => {
+      const active = (await window.onceElectron.tabs.getAll()).find((tab) => tab.active)
+      return active?.loadError
+    })).toContain("Reader mode failed: Network fetches are disabled")
+    await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
+      const contents = webContents
+        .getAllWebContents()
+        .find((candidate) => candidate.getURL().startsWith("once-error://"))
+      if (!contents) return null
+      return contents.executeJavaScript(`({
+        text: document.body.innerText,
+        retryCount: document.querySelectorAll(".retry").length
+      })`)
+    })).toEqual({
+      text: expect.stringContaining("Reader mode failed: Network fetches are disabled"),
+      retryCount: 1
+    })
   } finally {
     await closeApp(electronApp, userData)
   }
