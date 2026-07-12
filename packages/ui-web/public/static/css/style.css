@@ -2,6 +2,7 @@
 @import "./parts/base.css";
 @import "./parts/layout.css";
 @import "./parts/animations.css";
+@import "./parts/dialogs.css";
 @import "./parts/stories.css";
 @import "./parts/menu.css";
 @import "./parts/settings.css";

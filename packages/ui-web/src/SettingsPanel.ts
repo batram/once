@@ -2,6 +2,7 @@ import { OnceClient, SourceError, ThemeName } from "@once/app"
 import { parseRedirectList, presentRedirectList } from "@once/core"
 import { requireClosestElement, requireElement } from "./dom"
 import * as menu from "./menu"
+import { showConfirmDialog } from "./ConfirmDialog"
 
 export class SettingsPanel {
   static instance: SettingsPanel
@@ -211,11 +212,13 @@ export class SettingsPanel {
           icon.style.pointerEvents = "auto"
           icon.style.cursor = "pointer"
           icon.onclick = () => {
-            alert(
-              `${
+            void showConfirmDialog({
+              message: `${
                 isWarning ? "Warning" : "Error"
-              } loading source:\n${sourceError.message}`
-            )
+              } loading source:\n${sourceError.message}`,
+              cancelLabel: null,
+              positionWithin: requireElement<HTMLElement>("#settings_panel")
+            })
           }
           lineContainer.appendChild(icon)
 

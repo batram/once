@@ -2,6 +2,7 @@
 import { Story } from "@once/core"
 import { LoaderInsights } from "../LoaderInsights"
 import { StoryListItem } from "../StoryListItem"
+import { showConfirmDialog } from "../ConfirmDialog"
 //import * as child_process from "child_process"
 import * as path from "path"
 //import { WebTab } from "../WebTab"
@@ -235,7 +236,10 @@ export function urlbar_button(): HTMLElement {
   button.style.marginRight = "3px"
 
   button.onclick = () => {
-    alert(/moin/)
+    void showConfirmDialog({
+      message: String(/moin/),
+      cancelLabel: null
+    })
     /*const webview = document.querySelector<Electron.WebviewTag>("#webview")
     const urlfield = document.querySelector<HTMLInputElement>("#urlfield")
     if (!webview || !urlfield) {
