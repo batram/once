@@ -5,10 +5,19 @@
   "description": "Once source collectors, parsing, and collector registry",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "geny": ["dist/collectors/geny_match.d.ts"]
+    }
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./geny": {
+      "types": "./dist/collectors/geny_match.d.ts",
+      "default": "./dist/collectors/geny_match.js"
     }
   },
   "dependencies": {

@@ -1,7 +1,7 @@
 import { createOnceApp } from "@once/app"
 import { createElectronPlatform } from "@once/platform-electron"
 import { ElectronRedirectRule } from "@once/platform-electron/bridge"
-import { mountOnceUi, ReaderView } from "@once/ui-web"
+import { mountOnceUi, ReaderView, SourcePickerView } from "@once/ui-web"
 import { BrowserShell } from "./BrowserShell"
 import "./electron.css"
 
@@ -12,6 +12,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     app.client,
     (html, sourceUrl, target) =>
       window.onceElectron.tabs.openReader(html, sourceUrl, target)
+  )
+  SourcePickerView.mount(app.client, () =>
+    window.onceElectron.tabs.startSourcePicker()
   )
   const browserShell = new BrowserShell(
     window.onceElectron,

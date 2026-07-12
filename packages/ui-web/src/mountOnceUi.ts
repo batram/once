@@ -9,6 +9,7 @@ import { StoryHistory } from "./StoryHistory"
 import * as StoryList from "./StoryList"
 import { StoryListItem } from "./StoryListItem"
 import { ReaderView } from "./reader/ReaderView"
+import { SourcePickerView } from "./picker/SourcePickerView"
 
 export interface MountOnceUiOptions {
   appVersion: string
@@ -37,6 +38,7 @@ export async function mountOnceUi(
   }
 
   const settingsPanel = new SettingsPanel(client)
+  SourcePickerView.mount(client)
   new StoryHistory(client)
   StoryList.init(client)
   Menu.init(client)

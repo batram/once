@@ -50,6 +50,8 @@ const bridge: ElectronBridge = {
       ipcRenderer.invoke(ELECTRON_IPC.tabsToggleMuted, id),
     openDroppedUrls: (urls) =>
       ipcRenderer.invoke(ELECTRON_IPC.tabsOpenDroppedUrls, urls),
+    startSourcePicker: () =>
+      ipcRenderer.invoke(ELECTRON_IPC.tabsStartSourcePicker),
     showMenu: (id, point: ElectronPoint) =>
       ipcRenderer.invoke(ELECTRON_IPC.tabsShowMenu, id, point),
     setBounds: (bounds: ElectronRect) =>

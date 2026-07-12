@@ -80,6 +80,7 @@ export interface ElectronBridge {
     detach(id: string, point?: ElectronPoint): Promise<void>
     toggleMuted(id: string): Promise<void>
     openDroppedUrls(urls: string[]): Promise<void>
+    startSourcePicker(): Promise<string | null>
     showMenu(id: string, point: ElectronPoint): Promise<void>
     setBounds(bounds: ElectronRect): Promise<void>
     onChanged(handler: (tabs: ElectronTabState[]) => void): () => void
@@ -118,6 +119,7 @@ export const ELECTRON_IPC = {
   tabsDetach: "once:tabs:detach",
   tabsToggleMuted: "once:tabs:toggle-muted",
   tabsOpenDroppedUrls: "once:tabs:open-dropped-urls",
+  tabsStartSourcePicker: "once:tabs:start-source-picker",
   tabsShowMenu: "once:tabs:show-menu",
   tabsSetBounds: "once:tabs:set-bounds",
   tabsChanged: "once:tabs:changed",

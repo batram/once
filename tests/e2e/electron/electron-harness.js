@@ -38,6 +38,21 @@ async function startPageServer() {
         </article>`)
       return
     }
+    if (request.url === "/stories") {
+      const stories = ["One", "Two", "Three"].map((name) => `
+        <li class="story">
+          <h2><a class="title" href="${origin}/${name.toLowerCase()}">Story ${name}</a></h2>
+          <span class="tag">tag-${name.toLowerCase()}</span>
+        </li>`).join("")
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8" })
+      response.end(`<!doctype html>
+        <title>Stories</title>
+        <main>
+          <h1>Story list</h1>
+          <ul class="stories">${stories}</ul>
+        </main>`)
+      return
+    }
     if (request.url === "/video-player") {
       response.writeHead(200, { "content-type": "text/html; charset=utf-8" })
       response.end(`<!doctype html>

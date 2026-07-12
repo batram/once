@@ -204,6 +204,10 @@ function registerIpc(
     const current = browser(event)
     return current.coordinator.openDroppedUrls(current.window, urls)
   })
+  ipcMain.handle(ELECTRON_IPC.tabsStartSourcePicker, (event) => {
+    const current = browser(event)
+    return current.coordinator.startSourcePicker(current.window)
+  })
   ipcMain.handle(
     ELECTRON_IPC.tabsShowMenu,
     (event, id: string, point: ElectronPoint) => {

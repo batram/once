@@ -7,7 +7,8 @@
   "types": "dist/index.d.ts",
   "typesVersions": {
     "*": {
-      "reader/readerDocument": ["dist/reader/readerDocument.d.ts"]
+      "reader/readerDocument": ["dist/reader/readerDocument.d.ts"],
+      "picker/sourcePicker": ["dist/picker/sourcePicker.d.ts"]
     }
   },
   "exports": {
@@ -18,6 +19,10 @@
     "./reader/readerDocument": {
       "types": "./dist/reader/readerDocument.d.ts",
       "default": "./dist/reader/readerDocument.js"
+    },
+    "./picker/sourcePicker": {
+      "types": "./dist/picker/sourcePicker.d.ts",
+      "default": "./dist/picker/sourcePicker.js"
     }
   },
   "dependencies": {
