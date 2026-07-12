@@ -214,7 +214,8 @@ export class BrowserShell {
       document.body.classList.toggle("electron-fullscreen", fullscreen)
       this.reportBounds()
     })
-    window.addEventListener("keyup", (event) => {
+    window.addEventListener("keydown", (event) => {
+      if (event.repeat) return
       if (event.key === "F11") {
         event.preventDefault()
         void this.bridge.window.setFullscreen(

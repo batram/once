@@ -39,6 +39,7 @@ interface TabEntry {
   loadErrorRetryable: boolean
   errorPageUrl: string | null
   errorPages: Map<string, ErrorPageState>
+  htmlFullscreen: boolean
 }
 
 interface ErrorPageState {
@@ -55,6 +56,8 @@ interface WindowEntry {
   backgroundReady: Promise<void>
   resolveBackgroundReady: () => void
   bounds: Rectangle
+  normalBounds: Rectangle | null
+  fullscreen: boolean
   closing: boolean
 }
 
@@ -98,6 +101,8 @@ export class BrowserCoordinator {
       backgroundReady,
       resolveBackgroundReady,
       bounds: { x: 0, y: 0, width: 0, height: 0 },
+      normalBounds: null,
+      fullscreen: false,
       closing: false
     }
     this.windows.set(window.webContents.id, state)
@@ -168,6 +173,7 @@ export class BrowserCoordinator {
         contextIsolation: true,
         sandbox: true,
         webSecurity: true,
+        disableHtmlFullscreenWindowResize: true,
         partition: "persist:once-browser-v2"
       }
     })
@@ -186,7 +192,8 @@ export class BrowserCoordinator {
       loadError: null,
       loadErrorRetryable: false,
       errorPageUrl: null,
-      errorPages: new Map()
+      errorPages: new Map(),
+      htmlFullscreen: false
     }
     this.tabs.set(id, entry)
     state.tabs.push(id)
@@ -371,10 +378,16 @@ export class BrowserCoordinator {
     }
     const active = state.activeId ? this.tabs.get(state.activeId) : undefined
     active?.view.setBounds(state.bounds)
+    if (!state.fullscreen && !active?.htmlFullscreen) state.normalBounds = null
   }
 
   setFullscreen(state: WindowEntry, fullscreen: boolean): void {
     if (typeof fullscreen !== "boolean") throw new Error("Invalid fullscreen state")
+    if (fullscreen) {
+      state.normalBounds ??= { ...state.bounds }
+    } else {
+      this.restoreNormalBounds(state)
+    }
     state.window.setFullScreen(fullscreen)
   }
 
@@ -422,8 +435,19 @@ export class BrowserCoordinator {
       if (command === "browser-backward") this.back(state, state.activeId)
       if (command === "browser-forward") this.forward(state, state.activeId)
     })
-    window.on("enter-full-screen", () => this.sendFullscreen(state, true))
-    window.on("leave-full-screen", () => this.sendFullscreen(state, false))
+    window.on("enter-full-screen", () => {
+      state.fullscreen = true
+      this.sendFullscreen(state, true)
+    })
+    window.on("leave-full-screen", () => {
+      state.fullscreen = false
+      this.restoreNormalBounds(state)
+      this.sendFullscreen(state, false)
+      const active = state.activeId ? this.tabs.get(state.activeId) : undefined
+      if (active?.htmlFullscreen && !active.view.webContents.isDestroyed()) {
+        void active.view.webContents.executeJavaScript("document.exitFullscreen()")
+      }
+    })
     window.on("close", () => {
       state.closing = true
     })
@@ -552,22 +576,33 @@ export class BrowserCoordinator {
     })
     contents.on("enter-html-full-screen", () => {
       const owner = this.windows.get(entry.ownerId)
-      owner?.window.setFullScreen(true)
+      if (!owner) return
+      entry.htmlFullscreen = true
+      this.sendFullscreen(owner, true)
+      this.setFullscreen(owner, true)
     })
     contents.on("leave-html-full-screen", () => {
       const owner = this.windows.get(entry.ownerId)
-      owner?.window.setFullScreen(false)
+      entry.htmlFullscreen = false
+      if (!owner) return
+      this.sendFullscreen(owner, false)
+      this.setFullscreen(owner, false)
     })
     contents.on("before-input-event", (event, input) => {
-      if (input.type !== "keyUp") return
+      if (input.type !== "keyDown" || input.isAutoRepeat) return
       const owner = this.windows.get(entry.ownerId)
       if (!owner) return
       if (input.key === "F11") {
         event.preventDefault()
-        owner.window.setFullScreen(!owner.window.isFullScreen())
+        if (entry.htmlFullscreen) {
+          void contents.executeJavaScript("document.exitFullscreen()")
+        } else {
+          this.setFullscreen(owner, !owner.window.isFullScreen())
+        }
       } else if (input.key === "Escape" && owner.window.isFullScreen()) {
+        if (entry.htmlFullscreen) return
         event.preventDefault()
-        owner.window.setFullScreen(false)
+        this.setFullscreen(owner, false)
       }
     })
     contents.setWindowOpenHandler(({ url, disposition }) => {
@@ -896,6 +931,13 @@ export class BrowserCoordinator {
     if (!state.window.isDestroyed()) {
       state.window.webContents.send(ELECTRON_IPC.windowFullscreenChanged, fullscreen)
     }
+  }
+
+  private restoreNormalBounds(state: WindowEntry): void {
+    if (!state.normalBounds) return
+    state.bounds = { ...state.normalBounds }
+    const active = state.activeId ? this.tabs.get(state.activeId) : undefined
+    active?.view.setBounds(state.bounds)
   }
 
   private notifyOwner(entry: TabEntry): void {

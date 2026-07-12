@@ -266,9 +266,11 @@ function createShellWindow(bounds?: Rectangle): BrowserWindow {
 function configureBrowserSession(): void {
   const browserSession = session.fromPartition("persist:once-browser-v2")
   configureReaderProtocol(browserSession)
-  browserSession.setPermissionCheckHandler(() => false)
-  browserSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
-    callback(false)
+  browserSession.setPermissionCheckHandler((_webContents, permission) => {
+    return permission === "fullscreen"
+  })
+  browserSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    callback(permission === "fullscreen")
   })
 }
 

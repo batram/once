@@ -12,6 +12,35 @@ async function startPageServer() {
       response.end()
       return
     }
+    if (request.url === "/video") {
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8" })
+      response.end(`<!doctype html>
+        <title>Fullscreen video</title>
+        <style>
+          body { margin: 0; background: #111; }
+          iframe { width: 700px; height: 440px; border: 0; }
+        </style>
+        <iframe id="player-frame" src="${origin}/video-player" allow="fullscreen"></iframe>`)
+      return
+    }
+    if (request.url === "/video-player") {
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8" })
+      response.end(`<!doctype html>
+        <title>Embedded player</title>
+        <style>
+          body { margin: 0; background: #111; color: white; }
+          video { display: block; width: 640px; height: 360px; background: #222; }
+          button { margin: 16px; padding: 12px; }
+        </style>
+        <button id="enter-fullscreen" type="button">Enter video fullscreen</button>
+        <video id="test-video" controls></video>
+        <script>
+          document.querySelector("#enter-fullscreen").addEventListener("click", () => {
+            document.querySelector("#test-video").requestFullscreen()
+          })
+        </script>`)
+      return
+    }
     const name = request.url.slice(1) || "one"
     const title = name.charAt(0).toUpperCase() + name.slice(1)
     response.writeHead(200, { "content-type": "text/html; charset=utf-8" })
