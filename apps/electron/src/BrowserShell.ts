@@ -281,6 +281,11 @@ export class BrowserShell {
       element.append(close)
 
       element.onclick = () => void this.bridge.tabs.activate(tab.id)
+      element.onmousedown = (event) => {
+        if (event.button === 1) {
+          event.preventDefault() 
+        }
+      }
       element.onauxclick = (event) => {
         if (event.button !== 1) return
         event.preventDefault()
