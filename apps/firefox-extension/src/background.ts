@@ -1,4 +1,4 @@
-import browser = require("webextension-polyfill")
+import browser from "webextension-polyfill"
 import { installReaderBackground } from "@once/webext-shell/dist/readerBackground"
 import { initFirefoxBackground } from "@once/webext-shell/dist/firefoxBackground"
 
