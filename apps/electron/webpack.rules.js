@@ -2,6 +2,11 @@ const path = require("path")
 
 module.exports = [
   {
+    test: /\.html$/,
+    include: path.resolve(__dirname, "src", "browser"),
+    type: "asset/source"
+  },
+  {
     test: /\.tsx?$/,
     exclude: /node_modules/,
     use: {

@@ -55,7 +55,7 @@ test("launches a secure browser shell with legacy tab interactions", async () =>
     await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
       const contents = webContents
         .getAllWebContents()
-        .find((candidate) => candidate.getURL().startsWith("data:text/html"))
+        .find((candidate) => candidate.getURL().startsWith("once-error://"))
       if (!contents) return null
       return contents.executeJavaScript(`({
         text: document.body.innerText,
@@ -211,7 +211,7 @@ test("preserves a failed URL and renders a theme-aware error page", async () => 
     await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
       const contents = webContents
         .getAllWebContents()
-        .find((candidate) => candidate.getURL().startsWith("data:text/html"))
+        .find((candidate) => candidate.getURL().startsWith("once-error://"))
       if (!contents) return null
       return contents.executeJavaScript(`({
         text: document.body.innerText,
@@ -226,7 +226,7 @@ test("preserves a failed URL and renders a theme-aware error page", async () => 
     await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
       const contents = webContents
         .getAllWebContents()
-        .find((candidate) => candidate.getURL().startsWith("data:text/html"))
+        .find((candidate) => candidate.getURL().startsWith("once-error://"))
       if (!contents) return null
       return contents.executeJavaScript(`({
         theme: document.documentElement.dataset.theme,
@@ -241,7 +241,7 @@ test("preserves a failed URL and renders a theme-aware error page", async () => 
     await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
       const contents = webContents
         .getAllWebContents()
-        .find((candidate) => candidate.getURL().startsWith("data:text/html"))
+        .find((candidate) => candidate.getURL().startsWith("once-error://"))
       if (!contents) return null
       return contents.executeJavaScript(`({
         theme: document.documentElement.dataset.theme,
@@ -365,7 +365,17 @@ test("goes back past a DNS failure to the previous page", async () => {
       return active?.loadError
     })).toContain("ERR_NAME_NOT_RESOLVED")
 
-    await window.locator("#browser_back").click()
+    const nativeBackTarget = await electronApp.evaluate(({ webContents }) => {
+      const contents = webContents
+        .getAllWebContents()
+        .find((candidate) => candidate.getURL().startsWith("once-error://"))
+      if (!contents) throw new Error("Missing error page web contents")
+      const history = contents.navigationHistory
+      const target = history.getEntryAtIndex(history.getActiveIndex() - 1)?.url
+      history.goBack()
+      return target
+    })
+    expect(nativeBackTarget).toBe(`${origin}/before-dns-failure`)
     await expect(address).toHaveValue(`${origin}/before-dns-failure`)
     await expect(window.locator(".electron-tab-title")).toHaveText("Before-dns-failure")
   } finally {

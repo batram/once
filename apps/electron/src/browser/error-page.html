@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en" data-theme="{{THEME}}">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src once-error:" />
+    <title>Failed to load</title>
+    <link rel="stylesheet" href="{{STYLESHEET}}" />
+  </head>
+  <body>
+    <div class="error-card">
+      <div class="error-heading">
+        <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="12" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>
+        <div>
+          <h1>This page failed to load</h1>
+          <div class="error-message">{{ERROR}}</div>
+        </div>
+      </div>
+      <div class="url-box">{{URL}}</div>
+      {{RETRY}}
+    </div>
+  </body>
+</html>

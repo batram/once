@@ -2,6 +2,7 @@ import {
   ElectronBridge,
   ElectronTabState
 } from "@once/platform-electron/bridge"
+import browserShellMarkup from "./browser/browser-shell.html"
 
 const TAB_MIME = "application/x-once-tab"
 const SPLIT_RATIO_KEY = "once-electron-split-ratio"
@@ -34,44 +35,13 @@ export class BrowserShell {
     const windowContent = required<HTMLElement>("#window_content")
     this.leftPanel = required<HTMLElement>("#left_panel")
 
-    this.splitter = document.createElement("div")
-    this.splitter.id = "sep_slider"
-    windowContent.append(this.splitter)
+    const template = document.createElement("template")
+    template.innerHTML = browserShellMarkup.trim()
+    windowContent.append(template.content.cloneNode(true))
 
-    this.rightPanel = document.createElement("section")
-    this.rightPanel.id = "right_panel"
-    this.rightPanel.innerHTML = `
-      <div id="tab_dropzone" class="bar">
-        <div id="electron_tabs" role="tablist" aria-label="Browser tabs"></div>
-        <button id="new_tab_btn" class="legacy-tab-button" title="New tab" aria-label="New tab">+</button>
-      </div>
-      <div id="controlbar" class="bar">
-        <button id="browser_back" class="browser-button image-button" title="Back" aria-label="Back">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6" /></svg>
-        </button>
-        <button id="browser_forward" class="browser-button image-button" title="Forward" aria-label="Forward">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-        </button>
-        <input id="urlfield" type="text" spellcheck="false" aria-label="Address" aria-describedby="url_error" placeholder="type URL here" />
-        <button id="browser_reader" class="browser-button image-button" title="Reader mode" aria-label="Reader mode">
-          <img src="imgs/article.svg" alt="" />
-        </button>
-        <button id="browser_reload" class="browser-button image-button" title="Reload" aria-label="Reload">
-          <img src="imgs/reload.svg" alt="" />
-        </button>
-        <button id="browser_close" class="browser-button image-button" title="Close tab" aria-label="Close tab">
-          <img src="imgs/x.svg" alt="" />
-        </button>
-      </div>
-      <div id="url_error" role="alert" aria-live="polite"></div>
-      <div id="tab_content"></div>
-    `
-    windowContent.append(this.rightPanel)
-
-    this.targetUrl = document.createElement("div")
-    this.targetUrl.id = "url_target"
-    this.targetUrl.setAttribute("aria-hidden", "true")
-    windowContent.append(this.targetUrl)
+    this.splitter = required<HTMLElement>("#sep_slider")
+    this.rightPanel = required<HTMLElement>("#right_panel")
+    this.targetUrl = required<HTMLElement>("#url_target")
 
     this.dropzone = required<HTMLElement>("#tab_dropzone")
     this.tabStrip = required<HTMLElement>("#electron_tabs")
@@ -239,7 +209,7 @@ export class BrowserShell {
 
   private render(tabs: ElectronTabState[]): void {
     this.tabs = tabs
-    this.tabStrip.innerHTML = ""
+    this.tabStrip.replaceChildren()
 
     for (const tab of tabs) {
       const element = document.createElement("div")
@@ -324,9 +294,16 @@ export class BrowserShell {
       }
       this.backButton.disabled = !active.canGoBack
       this.forwardButton.disabled = !active.canGoForward
-      this.reloadButton.innerHTML = active.loading
-        ? '<span class="stop-symbol" aria-hidden="true">×</span>'
-        : '<img src="imgs/reload.svg" alt="" />'
+      const reloadContent = document.createElement(active.loading ? "span" : "img")
+      if (active.loading) {
+        reloadContent.className = "stop-symbol"
+        reloadContent.setAttribute("aria-hidden", "true")
+        reloadContent.textContent = "×"
+      } else {
+        reloadContent.setAttribute("src", "imgs/reload.svg")
+        reloadContent.setAttribute("alt", "")
+      }
+      this.reloadButton.replaceChildren(reloadContent)
       this.reloadButton.title = active.loading ? "Stop" : "Reload"
       this.reloadButton.setAttribute("aria-label", this.reloadButton.title)
       this.reloadButton.disabled = false

@@ -24,6 +24,10 @@ import {
   configureReaderProtocol,
   registerReaderScheme
 } from "./ReaderProtocol"
+import {
+  configureErrorPageProtocol,
+  registerErrorPageScheme
+} from "./browser/ErrorPageProtocol"
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string
@@ -32,6 +36,7 @@ declare const __ONCE_BUILD_CHANNEL__: "release" | "dev"
 if (started) app.quit()
 
 registerReaderScheme()
+registerErrorPageScheme()
 
 if (process.env.ONCE_ELECTRON_TEST_USER_DATA) {
   app.setPath("userData", process.env.ONCE_ELECTRON_TEST_USER_DATA)
@@ -270,6 +275,7 @@ function createShellWindow(bounds?: Rectangle): BrowserWindow {
 function configureBrowserSession(): void {
   const browserSession = session.fromPartition("persist:once-browser-v2")
   configureReaderProtocol(browserSession)
+  configureErrorPageProtocol(browserSession)
   browserSession.setPermissionCheckHandler((_webContents, permission) => {
     return permission === "fullscreen"
   })

@@ -15,7 +15,15 @@ module.exports = {
   output: {
     filename: "[name].js"
   },
-  module: { rules },
+  module: {
+    rules: [
+      ...rules,
+      {
+        test: /error-page\.css$/,
+        type: "asset/source"
+      }
+    ]
+  },
   resolve: {
     extensions: [".js", ".ts", ".jsx", ".tsx", ".css"]
   },

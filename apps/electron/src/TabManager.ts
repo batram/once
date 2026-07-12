@@ -1,17 +1,8 @@
 import { randomUUID } from "node:crypto"
-import { readFileSync } from "node:fs"
-import path from "node:path"
 import {
   BrowserWindow,
-  clipboard,
-  ContextMenuParams,
-  dialog,
   IpcMainInvokeEvent,
-  Menu,
-  MenuItemConstructorOptions,
   Rectangle,
-  shell,
-  WebContents,
   WebContentsView
 } from "electron"
 import {
@@ -26,48 +17,17 @@ import {
   normalizeBrowserUrl,
   resolveOpenDisposition
 } from "@once/platform-electron/navigation"
-import { build_source, sanitize_selector_conf } from "@once/collectors/geny"
 import {
   hasReaderDocument,
   sourceUrlFromReaderUrl,
   storeReaderDocument
 } from "./ReaderProtocol"
-
-interface TabEntry {
-  id: string
-  view: WebContentsView
-  ownerId: number
-  title: string
-  loading: boolean
-  audible: boolean
-  muted: boolean
-  displayedUrl: string
-  loadError: string | null
-  loadErrorRetryable: boolean
-  errorPageUrl: string | null
-  errorPages: Map<string, ErrorPageState>
-  htmlFullscreen: boolean
-  pickerSession: Promise<string | null> | null
-}
-
-interface ErrorPageState {
-  url: string
-  error: string
-  retryable: boolean
-}
-
-interface WindowEntry {
-  window: BrowserWindow
-  tabs: string[]
-  activeId: string | null
-  backgroundColor: string
-  backgroundReady: Promise<void>
-  resolveBackgroundReady: () => void
-  bounds: Rectangle
-  normalBounds: Rectangle | null
-  fullscreen: boolean
-  closing: boolean
-}
+import { releaseErrorPages } from "./browser/ErrorPageProtocol"
+import { TabEntry, WindowEntry } from "./browser/BrowserState"
+import { NativeMenus } from "./browser/NativeMenus"
+import { NavigationErrors } from "./browser/NavigationErrors"
+import { SourcePicker } from "./browser/SourcePicker"
+import { TabEvents } from "./browser/TabEvents"
 
 interface CreateWindowOptions {
   url?: string
@@ -85,12 +45,38 @@ type WindowFactory = (bounds?: Rectangle) => BrowserWindow
 export class BrowserCoordinator {
   private readonly tabs = new Map<string, TabEntry>()
   private readonly windows = new Map<number, WindowEntry>()
+  private readonly menus: NativeMenus
+  private readonly navigationErrors: NavigationErrors
+  private readonly sourcePicker = new SourcePicker()
+  private readonly tabEvents: TabEvents
   private redirects: CompiledRedirect[] = []
 
   constructor(
     private readonly createShellWindow: WindowFactory,
     private readonly shellEntry: string
-  ) {}
+  ) {
+    this.menus = new NativeMenus({
+      close: (owner, id) => this.close(owner, id),
+      createTab: (owner, url, active) => this.createTab(owner, url, active),
+      createWindow: async (url) => { await this.createWindow({ url }) },
+      detach: (owner, id) => this.detach(owner, id),
+      duplicate: (owner, id) => this.duplicate(owner, id),
+      normalizeUrl: (url) => this.tryNormalizeUrl(url)
+    })
+    this.navigationErrors = new NavigationErrors({
+      ownerFor: (entry) => this.windows.get(entry.ownerId),
+      notify: (entry) => this.notifyOwner(entry)
+    })
+    this.tabEvents = new TabEvents(this.navigationErrors, this.menus, {
+      applyRedirects: (url) => this.applyRedirects(url),
+      createTab: (owner, url, active) => this.createTab(owner, url, active),
+      createWindow: async (url) => { await this.createWindow({ url }) },
+      finalizeClosedTab: (entry) => this.finalizeClosedTab(entry),
+      ownerFor: (entry) => this.windows.get(entry.ownerId),
+      setFullscreen: (owner, fullscreen) => this.setFullscreen(owner, fullscreen),
+      notify: (entry) => this.notifyOwner(entry)
+    })
+  }
 
   async createWindow(options: CreateWindowOptions = {}): Promise<BrowserWindow> {
     const bounds = options.point
@@ -158,7 +144,7 @@ export class BrowserCoordinator {
         url: entry.displayedUrl,
         title: entry.title || "New tab",
         loading: entry.loading,
-        canGoBack: !contents.isDestroyed() && this.backTargetIndex(entry) >= 0,
+        canGoBack: !contents.isDestroyed() && this.navigationErrors.backTargetIndex(entry) >= 0,
         canGoForward:
           !contents.isDestroyed() && contents.navigationHistory.canGoForward(),
         audible: entry.audible,
@@ -206,10 +192,10 @@ export class BrowserCoordinator {
     }
     this.tabs.set(id, entry)
     state.tabs.push(id)
-    this.bindTab(entry)
+    this.tabEvents.bind(entry)
 
     if (active || !state.activeId) this.activate(state, id)
-    this.load(entry, normalized)
+    this.navigationErrors.load(entry, normalized)
     this.notify(state)
     return id
   }
@@ -243,7 +229,7 @@ export class BrowserCoordinator {
       const entry = this.tabs.get(id)
       if (entry && !entry.view.webContents.isDestroyed()) {
         entry.view.setBackgroundColor(state.backgroundColor)
-        this.applyErrorPageTheme(entry, state.backgroundColor)
+        this.navigationErrors.applyTheme(entry, state.backgroundColor)
       }
     }
   }
@@ -260,7 +246,7 @@ export class BrowserCoordinator {
     const readerUrl = storeReaderDocument(sourceUrl, html)
     const disposition = resolveOpenDisposition(target)
     if (disposition === "current" && state.activeId) {
-      this.load(this.requireOwnedTab(state, state.activeId), readerUrl)
+      this.navigationErrors.load(this.requireOwnedTab(state, state.activeId), readerUrl)
       return
     }
     await this.createTab(state, readerUrl, disposition !== "background")
@@ -341,73 +327,7 @@ export class BrowserCoordinator {
   startSourcePicker(state: WindowEntry): Promise<string | null> {
     if (!state.activeId) throw new Error("There is no active tab to pick from")
     const entry = this.requireOwnedTab(state, state.activeId)
-    if (entry.pickerSession) return entry.pickerSession
-    const url = entry.view.webContents.getURL()
-    if (!url.startsWith("http://") && !url.startsWith("https://")) {
-      throw new Error("Source picking needs an HTTP or HTTPS page")
-    }
-    entry.pickerSession = this.runSourcePicker(entry).finally(() => {
-      entry.pickerSession = null
-    })
-    return entry.pickerSession
-  }
-
-  private async runSourcePicker(entry: TabEntry): Promise<string | null> {
-    const contents = entry.view.webContents
-    let cleanup = (): void => undefined
-    // The overlay dies with the document, so a navigation or tab close ends
-    // the session as a cancel instead of leaving the caller hanging.
-    const cancelled = new Promise<null>((resolve) => {
-      const cancel = () => resolve(null)
-      const onNavigation = (
-        event: Electron.Event<Electron.WebContentsDidStartNavigationEventParams>
-      ) => {
-        if (event.isMainFrame && !event.isSameDocument) cancel()
-      }
-      contents.on("did-start-navigation", onNavigation)
-      contents.once("destroyed", cancel)
-      cleanup = () => {
-        contents.removeListener("did-start-navigation", onNavigation)
-        contents.removeListener("destroyed", cancel)
-      }
-    })
-
-    try {
-      const execution = this.executeSourcePicker(contents)
-      // The cancellation race can settle first; a later rejection from the
-      // torn-down script context must not surface as an unhandled rejection.
-      execution.catch((): void => undefined)
-      const conf = await Promise.race([cancelled, execution])
-      if (conf == null || contents.isDestroyed()) return null
-      if (typeof conf !== "string" || conf.length > 10_000) {
-        throw new Error("The source picker returned an invalid result")
-      }
-      const sanitized = sanitize_selector_conf(JSON.parse(conf))
-      return build_source(sanitized, contents.getURL())
-    } catch (error) {
-      if (contents.isDestroyed()) return null
-      throw error
-    } finally {
-      cleanup()
-    }
-  }
-
-  private async executeSourcePicker(
-    contents: WebContents
-  ): Promise<unknown> {
-    try {
-      await contents.executeJavaScript(pickerInjectionSource(), true)
-      return await contents.executeJavaScript(
-        "window.__onceSourcePicker ? window.__onceSourcePicker() : null",
-        true
-      )
-    } catch (error) {
-      // A navigation while picking tears down the script context; the
-      // cancellation race resolves the session, so swallow the rejection.
-      if (contents.isDestroyed()) return null
-      const detail = error instanceof Error ? error.message : String(error)
-      throw new Error(`The source picker could not run on this page: ${detail}`)
-    }
+    return this.sourcePicker.start(entry)
   }
 
   async navigate(state: WindowEntry, id: string, url: string): Promise<void> {
@@ -425,17 +345,17 @@ export class BrowserCoordinator {
         )
         return
       }
-      this.load(entry, normalized)
+      this.navigationErrors.load(entry, normalized)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      this.handleLoadFailure(entry, url.trim(), message, false)
+      this.navigationErrors.handleFailure(entry, url.trim(), message, false)
     }
   }
 
   back(state: WindowEntry, id: string): void {
     const entry = this.requireOwnedTab(state, id)
     const history = entry.view.webContents.navigationHistory
-    const targetIndex = this.backTargetIndex(entry)
+    const targetIndex = this.navigationErrors.backTargetIndex(entry)
     if (targetIndex >= 0) history.goToIndex(targetIndex)
   }
 
@@ -447,9 +367,9 @@ export class BrowserCoordinator {
   reload(state: WindowEntry, id: string): void {
     const entry = this.requireOwnedTab(state, id)
     if (entry.loadError && !entry.loadErrorRetryable) {
-      this.showErrorPage(entry, entry.displayedUrl, entry.loadError, false)
+      this.navigationErrors.show(entry, entry.displayedUrl, entry.loadError, false)
     } else if (entry.loadError || entry.errorPageUrl) {
-      this.load(entry, entry.displayedUrl)
+      this.navigationErrors.load(entry, entry.displayedUrl)
     }
     else entry.view.webContents.reload()
   }
@@ -510,26 +430,24 @@ export class BrowserCoordinator {
   showTabMenu(state: WindowEntry, id: string, point: ElectronPoint): void {
     this.requireOwnedTab(state, id)
     this.validatePoint(point)
-    const inspect = () => this.inspect(state.window.webContents, point.x, point.y)
-    const template: MenuItemConstructorOptions[] = [
-      { label: "Inspect", click: inspect },
-      { type: "separator" },
-      { label: "Duplicate Tab", click: () => void this.duplicate(state, id) },
-      { label: "Move Tab to New Window", click: () => void this.detach(state, id) },
-      { label: "Close Tab", click: () => this.close(state, id) }
-    ]
-    Menu.buildFromTemplate(template).popup({ window: state.window })
+    this.menus.showTabMenu(state, id, point)
   }
 
   private bindWindow(state: WindowEntry): void {
     const { window } = state
     window.webContents.on("context-menu", (_event, params) => {
-      this.showContentsMenu(state, window.webContents, params)
+      this.menus.showContentsMenu(state, window.webContents, params)
     })
-    window.on("app-command", (_event, command) => {
+    window.on("app-command", (event, command) => {
       if (!state.activeId) return
-      if (command === "browser-backward") this.back(state, state.activeId)
-      if (command === "browser-forward") this.forward(state, state.activeId)
+      if (command === "browser-backward") {
+        event.preventDefault()
+        this.back(state, state.activeId)
+      }
+      if (command === "browser-forward") {
+        event.preventDefault()
+        this.forward(state, state.activeId)
+      }
     })
     window.on("enter-full-screen", () => {
       state.fullscreen = true
@@ -552,6 +470,7 @@ export class BrowserCoordinator {
       for (const id of [...state.tabs]) {
         const entry = this.tabs.get(id)
         this.tabs.delete(id)
+        if (entry) releaseErrorPages(entry.errorPages.keys())
         if (entry && !entry.view.webContents.isDestroyed()) {
           entry.view.webContents.close({ waitForBeforeUnload: false })
         }
@@ -559,231 +478,6 @@ export class BrowserCoordinator {
       state.tabs = []
       state.activeId = null
     })
-  }
-
-  private bindTab(entry: TabEntry): void {
-    const contents = entry.view.webContents
-    const changed = () => this.notifyOwner(entry)
-
-    contents.on("did-start-loading", () => {
-      entry.loading = true
-      changed()
-    })
-    contents.on("did-stop-loading", () => {
-      entry.loading = false
-      changed()
-    })
-    contents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
-      if (!isMainFrame) return
-      // ERR_ABORTED is normal for Stop, replacement navigations, and redirects.
-      if (errorCode === -3 || this.errorPageState(entry, validatedURL)) return
-      if (validatedURL && !sameUrl(validatedURL, entry.displayedUrl)) return
-      const message = `${errorDescription} (${errorCode})`
-      this.handleLoadFailure(entry, validatedURL || entry.displayedUrl, message)
-    })
-    contents.on("did-start-navigation", (event) => {
-      if (!event.isMainFrame || event.isSameDocument) return
-      const errorPage = this.errorPageState(entry, event.url)
-      if (errorPage) {
-        this.restoreErrorPageState(entry, event.url, errorPage)
-        return
-      }
-      entry.displayedUrl = event.url
-      entry.loadError = null
-      entry.loadErrorRetryable = false
-      entry.errorPageUrl = null
-      entry.title = "New tab"
-      changed()
-    })
-    contents.on("did-redirect-navigation", (event) => {
-      if (!event.isMainFrame || event.isSameDocument) return
-      entry.displayedUrl = event.url
-      changed()
-    })
-    contents.on("did-navigate", (_event, url) => {
-      const errorPage = this.errorPageState(entry, url)
-      if (errorPage) {
-        this.restoreErrorPageState(entry, url, errorPage)
-        return
-      }
-      entry.displayedUrl = url
-      entry.loadError = null
-      entry.loadErrorRetryable = false
-      entry.errorPageUrl = null
-      changed()
-    })
-    contents.on("did-navigate-in-page", (_event, url, isMainFrame) => {
-      if (!isMainFrame) return
-      const errorPage = this.errorPageState(entry, url)
-      if (errorPage) {
-        this.restoreErrorPageState(entry, url, errorPage)
-        return
-      }
-      entry.displayedUrl = url
-      entry.loadError = null
-      entry.loadErrorRetryable = false
-      entry.errorPageUrl = null
-      changed()
-    })
-    contents.on("did-finish-load", () => {
-      const owner = this.windows.get(entry.ownerId)
-      if (owner && this.errorPageState(entry, contents.getURL())) {
-        this.applyErrorPageTheme(entry, owner.backgroundColor)
-      }
-    })
-    contents.on("page-title-updated", (_event, title) => {
-      entry.title = title || "New tab"
-      changed()
-    })
-    contents.on("audio-state-changed", (event) => {
-      entry.audible = event.audible
-      changed()
-    })
-    contents.on("update-target-url", (_event, url) => {
-      const owner = this.windows.get(entry.ownerId)
-      if (owner && owner.activeId === entry.id && !owner.window.isDestroyed()) {
-        owner.window.webContents.send(ELECTRON_IPC.windowTargetUrlChanged, url)
-      }
-    })
-    contents.on("will-navigate", (event, url) => {
-      try {
-        const normalized = normalizeBrowserUrl(url)
-        const redirected = this.applyRedirects(normalized)
-        if (redirected !== normalized) {
-          event.preventDefault()
-          this.load(entry, normalizeBrowserUrl(redirected))
-        }
-      } catch {
-        event.preventDefault()
-      }
-    })
-    contents.on("will-prevent-unload", (event) => {
-      const owner = this.windows.get(entry.ownerId)
-      if (!owner || owner.window.isDestroyed()) return
-      const choice = dialog.showMessageBoxSync(owner.window, {
-        type: "question",
-        buttons: ["Leave", "Stay"],
-        defaultId: 0,
-        cancelId: 1,
-        title: "Do you want to leave this site?",
-        message: "Changes you made may not be saved."
-      })
-      if (choice === 0) event.preventDefault()
-    })
-    contents.on("enter-html-full-screen", () => {
-      const owner = this.windows.get(entry.ownerId)
-      if (!owner) return
-      entry.htmlFullscreen = true
-      this.sendFullscreen(owner, true)
-      this.setFullscreen(owner, true)
-    })
-    contents.on("leave-html-full-screen", () => {
-      const owner = this.windows.get(entry.ownerId)
-      entry.htmlFullscreen = false
-      if (!owner) return
-      this.sendFullscreen(owner, false)
-      this.setFullscreen(owner, false)
-    })
-    contents.on("before-input-event", (event, input) => {
-      if (input.type !== "keyDown" || input.isAutoRepeat) return
-      const owner = this.windows.get(entry.ownerId)
-      if (!owner) return
-      if (input.key === "F11") {
-        event.preventDefault()
-        if (entry.htmlFullscreen) {
-          void contents.executeJavaScript("document.exitFullscreen()")
-        } else {
-          this.setFullscreen(owner, !owner.window.isFullScreen())
-        }
-      } else if (input.key === "Escape" && owner.window.isFullScreen()) {
-        if (entry.htmlFullscreen) return
-        event.preventDefault()
-        this.setFullscreen(owner, false)
-      }
-    })
-    contents.setWindowOpenHandler(({ url, disposition }) => {
-      const owner = this.windows.get(entry.ownerId)
-      if (!owner) return { action: "deny" }
-      try {
-        const normalized = normalizeBrowserUrl(url)
-        if (disposition === "new-window") {
-          void this.createWindow({ url: normalized })
-        } else {
-          void this.createTab(owner, normalized, disposition !== "background-tab")
-        }
-      } catch {
-        // Unsupported schemes are intentionally denied.
-      }
-      return { action: "deny" }
-    })
-    contents.on("context-menu", (_event, params) => {
-      const owner = this.windows.get(entry.ownerId)
-      if (owner) this.showContentsMenu(owner, contents, params)
-    })
-    contents.on("destroyed", () => this.finalizeClosedTab(entry))
-  }
-
-  private showContentsMenu(
-    owner: WindowEntry,
-    contents: WebContents,
-    params: ContextMenuParams
-  ): void {
-    if (owner.window.isDestroyed() || contents.isDestroyed()) return
-    const template: MenuItemConstructorOptions[] = [
-      { label: "Inspect", click: () => this.inspect(contents, params.x, params.y) }
-    ]
-
-    if (params.isEditable) {
-      template.push(
-        { type: "separator" },
-        { role: "cut", enabled: params.editFlags.canCut },
-        { role: "copy", enabled: params.editFlags.canCopy },
-        { role: "paste", enabled: params.editFlags.canPaste },
-        { role: "selectAll", enabled: params.editFlags.canSelectAll }
-      )
-    } else if (params.selectionText) {
-      const selection = params.selectionText
-      template.push(
-        { type: "separator" },
-        { label: "Copy", click: () => clipboard.writeText(selection) },
-        {
-          label: "Search the Web",
-          click: () =>
-            void this.createTab(
-              owner,
-              `https://www.google.com/search?q=${encodeURIComponent(selection)}`,
-              true
-            )
-        }
-      )
-    }
-
-    const link = this.tryNormalizeUrl(params.linkURL)
-    if (link) {
-      template.push(
-        { type: "separator" },
-        { label: "Open in New Tab", click: () => void this.createTab(owner, link, true) },
-        {
-          label: "Open in Background Tab",
-          click: () => void this.createTab(owner, link, false)
-        },
-        { label: "Open in New Once Window", click: () => void this.createWindow({ url: link }) },
-        { label: "Open in Default Browser", click: () => void shell.openExternal(link) },
-        { label: "Copy Link Address", click: () => clipboard.writeText(link) }
-      )
-    }
-
-    Menu.buildFromTemplate(template).popup({ window: owner.window })
-  }
-
-  private inspect(contents: WebContents, x: number, y: number): void {
-    if (contents.isDestroyed()) return
-    contents.inspectElement(Math.round(x), Math.round(y))
-    setTimeout(() => {
-      if (!contents.isDestroyed() && contents.isDevToolsOpened()) {
-        contents.devToolsWebContents?.focus()
-      }
-    }, 0)
   }
 
   private focusWindow(state: WindowEntry): void {
@@ -832,6 +526,7 @@ export class BrowserCoordinator {
 
   private finalizeClosedTab(entry: TabEntry): void {
     if (!this.tabs.delete(entry.id)) return
+    releaseErrorPages(entry.errorPages.keys())
     const owner = this.windows.get(entry.ownerId)
     if (!owner) return
     const index = owner.tabs.indexOf(entry.id)
@@ -915,121 +610,6 @@ export class BrowserCoordinator {
     }
   }
 
-  private load(entry: TabEntry, url: string): void {
-    entry.displayedUrl = url
-    entry.loadError = null
-    entry.loadErrorRetryable = false
-    entry.errorPageUrl = null
-    this.notifyOwner(entry)
-
-    entry.view.webContents.loadURL(url).catch((error) => {
-      if (error?.code === "ERR_ABORTED") return
-      if (entry.view.webContents.isDestroyed()) return
-      if (!sameUrl(entry.displayedUrl, url) || entry.loadError) return
-      const message = error?.message || String(error)
-      this.handleLoadFailure(entry, url, message, true)
-    })
-  }
-
-  private handleLoadFailure(
-    entry: TabEntry,
-    url: string,
-    error: string,
-    retryable = true
-  ): void {
-    entry.displayedUrl = url
-    entry.loadError = error
-    entry.loadErrorRetryable = retryable
-    entry.loading = false
-    entry.title = "Failed to load"
-    this.notifyOwner(entry)
-    this.showErrorPage(entry, url, error, retryable)
-  }
-
-  private showErrorPage(
-    entry: TabEntry,
-    url: string,
-    error: string,
-    retryable: boolean
-  ): void {
-    if (entry.view.webContents.isDestroyed()) return
-    const owner = this.windows.get(entry.ownerId)
-    const backgroundColor = owner?.backgroundColor || "#FFFFFF"
-    const html = generateErrorPage(url, error, backgroundColor, retryable)
-    const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`
-    entry.errorPageUrl = dataUrl
-    entry.errorPages.set(dataUrl, { url, error, retryable })
-    entry.view.webContents.loadURL(dataUrl).catch((pageError) => {
-      console.error("Failed to render the browser error page", pageError)
-    })
-  }
-
-  private errorPageState(
-    entry: TabEntry,
-    url: string
-  ): ErrorPageState | undefined {
-    return entry.errorPages.get(url)
-  }
-
-  private backTargetIndex(entry: TabEntry): number {
-    const history = entry.view.webContents.navigationHistory
-    let targetIndex = history.getActiveIndex() - 1
-    const currentError = this.errorPageState(
-      entry,
-      history.getEntryAtIndex(history.getActiveIndex())?.url || ""
-    )
-
-    // A failed network navigation is committed immediately before our error
-    // document. Treat that pair as one logical history entry.
-    if (!currentError) return targetIndex
-
-    if (
-      targetIndex >= 0 &&
-      sameUrl(history.getEntryAtIndex(targetIndex).url, currentError.url)
-    ) targetIndex -= 1
-
-    // Re-rendering an error can leave older error documents adjacent in history.
-    // Skip each document and only its own immediately preceding failed target.
-    while (targetIndex >= 0) {
-      const errorState = this.errorPageState(
-        entry,
-        history.getEntryAtIndex(targetIndex).url
-      )
-      if (!errorState) break
-      targetIndex -= 1
-      if (
-        targetIndex >= 0 &&
-        sameUrl(history.getEntryAtIndex(targetIndex).url, errorState.url)
-      ) {
-        targetIndex -= 1
-      }
-    }
-    return targetIndex
-  }
-
-  private restoreErrorPageState(
-    entry: TabEntry,
-    errorPageUrl: string,
-    state: ErrorPageState
-  ): void {
-    entry.displayedUrl = state.url
-    entry.loadError = state.error
-    entry.loadErrorRetryable = state.retryable
-    entry.errorPageUrl = errorPageUrl
-    entry.title = "Failed to load"
-    this.notifyOwner(entry)
-  }
-
-  private applyErrorPageTheme(entry: TabEntry, backgroundColor: string): void {
-    const contents = entry.view.webContents
-    if (contents.isDestroyed() || !this.errorPageState(entry, contents.getURL())) return
-    const theme = errorPageTheme(backgroundColor)
-    const script = `document.documentElement.dataset.theme = ${JSON.stringify(theme.name)}; document.documentElement.style.setProperty("--page-bg", ${JSON.stringify(theme.background)})`
-    void contents.executeJavaScript(script).catch(() => {
-      // A navigation away from the error page can race this theme update.
-    })
-  }
-
   private sendFullscreen(state: WindowEntry, fullscreen: boolean): void {
     if (!state.window.isDestroyed()) {
       state.window.webContents.send(ELECTRON_IPC.windowFullscreenChanged, fullscreen)
@@ -1053,174 +633,4 @@ export class BrowserCoordinator {
       state.window.webContents.send(ELECTRON_IPC.tabsChanged, this.getAll(state))
     }
   }
-}
-
-let pickerInjectionBundle: string | null = null
-
-// The picker overlay is compiled as its own browser-world bundle beside the
-// main-process bundle (see webpack.main.config.js).
-function pickerInjectionSource(): string {
-  pickerInjectionBundle ??= readFileSync(
-    path.join(__dirname, "picker-injection.js"),
-    "utf8"
-  )
-  return pickerInjectionBundle
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;")
-}
-
-function sameUrl(left: string, right: string): boolean {
-  if (left === right) return true
-  try {
-    return new URL(left).toString() === new URL(right).toString()
-  } catch {
-    return false
-  }
-}
-
-function errorPageTheme(background: string): {
-  name: "light" | "dark"
-  background: string
-} {
-  const match = /^#([\da-f]{2})([\da-f]{2})([\da-f]{2})/i.exec(background)
-  if (!match) return { name: "light", background: "#FFFFFF" }
-  const [red, green, blue] = match.slice(1).map((value) => Number.parseInt(value, 16))
-  const luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255
-  return {
-    name: luminance < 0.5 ? "dark" : "light",
-    background
-  }
-}
-
-function generateErrorPage(
-  url: string,
-  error: string,
-  background: string,
-  retryable: boolean
-): string {
-  const safeUrl = escapeHtml(url)
-  const safeError = escapeHtml(error)
-  const theme = errorPageTheme(background)
-  return `<!DOCTYPE html>
-<html lang="en" data-theme="${theme.name}" style="--page-bg: ${theme.background}">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'" />
-<title>Failed to load</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  :root {
-    color-scheme: light;
-    --text: #111;
-    --muted: #5f6368;
-    --surface: rgba(0, 0, 0, 0.035);
-    --border: #b3b3b3;
-    --error: #9b2c2c;
-    --button-bg: transparent;
-    --button-hover: #cacaac;
-  }
-  :root[data-theme="dark"] {
-    color-scheme: dark;
-    --text: #bcc2cd;
-    --muted: #9298a4;
-    --surface: #383a59;
-    --border: #373f6e;
-    --error: #ff8a8a;
-    --button-bg: #383a59;
-    --button-hover: #4050ac;
-  }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background: var(--page-bg);
-    color: var(--text);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    padding: 24px;
-  }
-  .error-card {
-    max-width: 510px;
-    width: 100%;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 3px;
-    padding: 22px 24px 24px;
-  }
-  .error-heading {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 16px;
-  }
-  .error-icon {
-    flex: 0 0 auto;
-    width: 34px;
-    height: 34px;
-    color: var(--error);
-  }
-  h1 {
-    font-size: 17px;
-    font-weight: 600;
-    margin-bottom: 3px;
-    color: var(--text);
-  }
-  .error-message {
-    font-size: 12px;
-    color: var(--error);
-    line-height: 1.35;
-    word-break: break-word;
-  }
-  .url-box {
-    background: var(--page-bg);
-    border: 1px solid var(--border);
-    border-radius: 2px;
-    padding: 7px 9px;
-    font-size: 12px;
-    color: var(--muted);
-    word-break: break-all;
-    margin-bottom: 14px;
-    font-family: "SF Mono", Monaco, Consolas, monospace;
-  }
-  .retry {
-    display: inline-block;
-    padding: 5px 10px;
-    border-radius: 2px;
-    border: 1px solid #111;
-    background: var(--button-bg);
-    color: var(--text);
-    font-size: 12px;
-    cursor: pointer;
-    text-decoration: none;
-  }
-  .retry:hover { background: var(--button-hover); }
-  .retry:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
-</style>
-</head>
-<body>
-  <div class="error-card">
-    <div class="error-heading">
-      <svg class="error-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <circle cx="12" cy="12" r="10" />
-        <line x1="12" y1="8" x2="12" y2="12" />
-        <line x1="12" y1="16" x2="12.01" y2="16" />
-      </svg>
-      <div>
-        <h1>This page failed to load</h1>
-        <div class="error-message">${safeError}</div>
-      </div>
-    </div>
-    <div class="url-box">${safeUrl}</div>
-    ${retryable ? `<a class="retry" href="${safeUrl}">Try again</a>` : ""}
-  </div>
-</body>
-</html>`
 }
