@@ -18,7 +18,6 @@ export class BrowserShell {
   private readonly forwardButton: HTMLButtonElement
   private readonly reloadButton: HTMLButtonElement
   private readonly readerButton: HTMLButtonElement
-  private readonly popoutButton: HTMLButtonElement
   private readonly closeButton: HTMLButtonElement
   private readonly addressError: HTMLElement
   private readonly splitter: HTMLElement
@@ -58,9 +57,6 @@ export class BrowserShell {
         <button id="browser_reload" class="browser-button image-button" title="Reload" aria-label="Reload">
           <img src="imgs/reload.svg" alt="" />
         </button>
-        <button id="browser_popout" class="browser-button image-button" title="Move tab to new window" aria-label="Move tab to new window">
-          <img src="imgs/popout.svg" alt="" />
-        </button>
         <button id="browser_close" class="browser-button image-button" title="Close tab" aria-label="Close tab">
           <img src="imgs/x.svg" alt="" />
         </button>
@@ -84,7 +80,6 @@ export class BrowserShell {
     this.forwardButton = required<HTMLButtonElement>("#browser_forward")
     this.reloadButton = required<HTMLButtonElement>("#browser_reload")
     this.readerButton = required<HTMLButtonElement>("#browser_reader")
-    this.popoutButton = required<HTMLButtonElement>("#browser_popout")
     this.closeButton = required<HTMLButtonElement>("#browser_close")
 
     this.bindControls()
@@ -128,8 +123,6 @@ export class BrowserShell {
         this.setAddressError(readerErrorMessage(error))
       })
     }
-    this.popoutButton.onclick = () =>
-      this.withActive((tab) => this.bridge.tabs.detach(tab.id))
     this.closeButton.onclick = () =>
       this.withActive((tab) => this.bridge.tabs.close(tab.id))
 
@@ -320,7 +313,6 @@ export class BrowserShell {
       this.readerButton.classList.toggle("active", readerActive)
       this.readerButton.title = readerActive ? "Exit reader mode" : "Reader mode"
       this.readerButton.setAttribute("aria-label", this.readerButton.title)
-      this.popoutButton.disabled = false
       this.closeButton.disabled = false
     } else {
       this.backButton.disabled = true
@@ -328,7 +320,6 @@ export class BrowserShell {
       this.reloadButton.disabled = true
       this.readerButton.disabled = true
       this.readerButton.classList.remove("active")
-      this.popoutButton.disabled = true
       this.closeButton.disabled = true
     }
     this.reportBounds()

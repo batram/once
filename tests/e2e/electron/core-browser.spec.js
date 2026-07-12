@@ -35,7 +35,6 @@ test("launches a secure browser shell with legacy tab interactions", async () =>
         "browser_forward",
         "urlfield",
         "browser_reload",
-        "browser_popout",
         "browser_close"
       ].map((id) => {
         const rect = document.getElementById(id).getBoundingClientRect()
