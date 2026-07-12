@@ -31,32 +31,32 @@ Each step ends green and gets its own commit(s), so regressions bisect cleanly.
 
 ### Step 0 — Baseline and pinning
 
-- [ ] Record a green baseline on current versions: `npm run check`, `npm test`, `npm run build-dev:firefox`
-- [ ] Add `"engines": { "node": ">=24" }` to root `package.json`
-- [ ] Add `.nvmrc` containing `24` (matches CI)
+- [x] Record a green baseline on current versions: `npm run check`, `npm test`, `npm run build-dev:firefox`
+- [x] Add `"engines": { "node": ">=24" }` to root `package.json`
+- [x] Add `.nvmrc` containing `24` (matches CI)
 
 ### Step 1 — TypeScript 4.9.5 → 5.9.x (compiler only, no config changes)
 
-- [ ] Bump `typescript` to `^5.9`
-- [ ] Bump `ts-loader` to latest 9.5.x
-- [ ] **Deliberately keep** `moduleResolution: "node"` — deprecated-but-silent in 5.x;
+- [x] Bump `typescript` to `^5.9`
+- [x] Bump `ts-loader` to latest 9.5.x
+- [x] **Deliberately keep** `moduleResolution: "node"` — deprecated-but-silent in 5.x;
       holding config constant isolates this step to pure compiler fallout
-- [ ] Fix new type errors (six versions of lib.dom.d.ts updates + strictness improvements;
+- [x] Fix new type errors (six versions of lib.dom.d.ts updates + strictness improvements;
       `skipLibCheck: true` absorbs the stale `@types/pouchdb` / `@types/firefox-webext-browser`)
-- [ ] Verify: full matrix (below)
+- [x] Verify: full matrix (below)
 
 Expected noise: @typescript-eslint 4.x warns it doesn't support TS 5.9 — harmless until Step 2.
 
 ### Step 2 — Lint stack: ESLint 9 + typescript-eslint v8 + flat config
 
-- [ ] Bump `eslint` to `^9`, `@typescript-eslint/*` to the `typescript-eslint` v8 meta-package
-- [ ] Migrate `.eslintrc.json` → `eslint.config.mjs` (flat config); the config is small:
+- [x] Bump `eslint` to `^9`, `@typescript-eslint/*` to the `typescript-eslint` v8 meta-package
+- [x] Migrate `.eslintrc.json` → `eslint.config.mjs` (flat config); the config is small:
       `eslint:recommended` + `tseslint.configs.recommended` + six stylistic rules
-- [ ] Core stylistic rules (`indent`, `quotes`, `semi`, `comma-dangle`, `linebreak-style`)
+- [x] Core stylistic rules (`indent`, `quotes`, `semi`, `comma-dangle`, `linebreak-style`)
       are frozen in ESLint 9 — move them to `@stylistic/eslint-plugin`
-- [ ] Add `"lint": "eslint ."` root script; wire into `check` / `test:ci`
-- [ ] Delete `.eslintrc.json`
-- [ ] Verify: `npm run lint` clean (or document intentional rule relaxations)
+- [x] Add `"lint": "eslint ."` root script; wire into `check` / `test:ci`
+- [x] Delete `.eslintrc.json`
+- [x] Verify: `npm run lint` clean (or document intentional rule relaxations)
 
 ### Step 3 — Retire node10 module resolution (the real 6/7 prep)
 
@@ -68,24 +68,38 @@ Split by how each surface consumes modules:
 | Root `tsconfig.json` (extension bundle via webpack + ts-loader) | inherits | `module: "esnext"`, `moduleResolution: "bundler"` |
 | `apps/electron/tsconfig.json` | already `node16` | `nodenext` |
 
-- [ ] Remove `module` / `moduleResolution` from `tsconfig.base.json`; set explicitly per surface
-- [ ] Modernize `target` / `lib` from the stale `es6` / `es2019` mix to `es2022`
+- [x] Remove `module` / `moduleResolution` from `tsconfig.base.json`; set explicitly per surface
+- [x] Modernize `target` / `lib` from the stale `es6` / `es2019` mix to `es2022`
       (Electron 43, current Firefox and Chrome all support it)
-- [ ] Expect friction: `nodenext` is stricter about `exports` maps in `packages/*/package.json`
+- [x] Expect friction: `nodenext` is stricter about `exports` maps in `packages/*/package.json`
       (they already have `types` + `default` conditions — likely fine);
       `bundler` resolution tightens some import patterns in extension code
-- [ ] Verify: full matrix **plus runtime smoke** of the built Firefox extension and the
+- [x] Verify: full matrix **plus runtime smoke** of the built Firefox extension and the
       Electron app — this step changes emitted output, not just types
 
 ### Step 4 — TypeScript 6.0.x
 
-- [ ] Bump `typescript` to `^6.0` (latest patch; 6.0 is the only 6.x line — the last
+- [x] Bump `typescript` to `^6.0` (latest patch; 6.0 is the only 6.x line — the last
       JS-based compiler before the Go-based 7)
-- [ ] 6.0 turns remaining deprecations into errors; after Step 3 none should fire.
+- [x] 6.0 turns remaining deprecations into errors; after Step 3 none should fire.
       Needing `"ignoreDeprecations": "6.0"` means Step 3 missed something — fix it there
-- [ ] Bump `ts-loader` if a newer patch exists (changelog already has TS 6.0 fixes)
-- [ ] typescript-eslint v8 supports `<6.1.0` — no lint changes needed
-- [ ] Verify: full matrix
+- [x] Bump `ts-loader` if a newer patch exists (changelog already has TS 6.0 fixes)
+- [x] typescript-eslint v8 supports `<6.1.0` — no lint changes needed
+- [x] Verify: full matrix
+
+**Done 2026-07-12 (commits `0b893cc`..`abd8829`).** Deviations from plan:
+
+- Step 1 fallout was small: one named-capture-group regex (TS 5.5 validates regex
+  syntax against `target`) and four `.catch(() => undefined)` implicit-any returns.
+- Step 2: `@eslint/js` v10 exists and peer-requires ESLint 10 — pinned to `^9`.
+  Parity options for changed defaults: `caughtErrors: "none"` on `no-unused-vars`,
+  `allowAsImport` on `no-require-imports` (v8 removed `no-var-requires`).
+- Step 4 (unplanned): TS 6.0 also **flips compiler defaults** — `strict` on,
+  `types` no longer auto-includes `@types`, `noUncheckedSideEffectImports` on.
+  Pinned previous semantics in `tsconfig.base.json` (`"strict": false`,
+  `"types": ["*"]`) and added a `*.css` ambient declaration for the electron
+  renderer. Enabling `strict` for real is a separate future project.
+- No `ignoreDeprecations` needed anywhere, as hoped.
 
 ## Verification matrix
 
