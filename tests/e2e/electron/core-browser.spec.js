@@ -277,6 +277,38 @@ test("preserves a failed URL and renders a theme-aware error page", async () => 
   }
 })
 
+test("duplicates a reader tab into a second reader tab", async () => {
+  const { electronApp, userData, window } = await launchApp()
+  try {
+    await window.evaluate(({ html, sourceUrl }) =>
+      window.onceElectron.tabs.openReader(html, sourceUrl, "_self"),
+    {
+      html: "<!doctype html><title>Reader Article</title><h1>Reader body</h1>",
+      sourceUrl: "https://example.com/article"
+    })
+    await expect(window.locator(".electron-tab-title")).toHaveText("Reader Article")
+
+    const [readerTab] = await window.evaluate(() => window.onceElectron.tabs.getAll())
+    expect(readerTab.url).toMatch(/^once-reader:\/\//)
+
+    await window.evaluate((id) => window.onceElectron.tabs.duplicate(id), readerTab.id)
+    await expect(window.locator(".electron-tab")).toHaveCount(2)
+    await expect(window.locator(".electron-tab-title").nth(1)).toHaveText("Reader Article")
+    await expect.poll(() => window.evaluate(async () =>
+      (await window.onceElectron.tabs.getAll()).map((tab) => ({
+        url: tab.url,
+        active: tab.active,
+        loadError: tab.loadError
+      }))
+    )).toEqual([
+      { url: readerTab.url, active: false, loadError: null },
+      { url: readerTab.url, active: true, loadError: null }
+    ])
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
 test("goes back past a DNS failure to the previous page", async () => {
   const { electronApp, userData, window } = await launchApp()
   try {

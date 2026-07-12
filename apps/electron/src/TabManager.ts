@@ -24,7 +24,7 @@ import {
   normalizeBrowserUrl,
   resolveOpenDisposition
 } from "@once/platform-electron/navigation"
-import { storeReaderDocument } from "./ReaderProtocol"
+import { sourceUrlFromReaderUrl, storeReaderDocument } from "./ReaderProtocol"
 
 interface TabEntry {
   id: string
@@ -166,7 +166,9 @@ export class BrowserCoordinator {
     url = "about:blank",
     active = true
   ): Promise<string> {
-    const normalized = normalizeBrowserUrl(url)
+    // Reader URLs reference documents we stored ourselves, so they skip the
+    // HTTP-only normalization applied to navigable input.
+    const normalized = sourceUrlFromReaderUrl(url) ? url : normalizeBrowserUrl(url)
     const view = new WebContentsView({
       webPreferences: {
         nodeIntegration: false,
@@ -254,8 +256,7 @@ export class BrowserCoordinator {
       this.load(this.requireOwnedTab(state, state.activeId), readerUrl)
       return
     }
-    const id = await this.createTab(state, "about:blank", disposition !== "background")
-    this.load(this.requireOwnedTab(state, id), readerUrl)
+    await this.createTab(state, readerUrl, disposition !== "background")
   }
 
   activate(state: WindowEntry, id: string): void {
