@@ -4,6 +4,9 @@
   "private": true,
   "description": "Once in firefox sidepanel",
   "main": "dist/main.js",
+  "engines": {
+    "node": ">=24"
+  },
   "workspaces": [
     "apps/*",
     "packages/*"
