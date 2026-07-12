@@ -226,6 +226,8 @@ export class OnceApp {
   private async refreshRedirects(): Promise<void> {
     const redirects = await this.getRedirectList()
     URLRedirect.setRedirects(redirects)
+    //setRedirects drops the rewritten -> original lookup, rebuild it
+    this.stories.forEach((story) => URLRedirect.redirect_url(story.href))
     this.events.publish("redirectsChanged", { redirects })
   }
 
@@ -470,6 +472,8 @@ export class OnceApp {
     }
     const oldStory = this.stories.get(href)
     this.stories.set(href, story)
+    //prime the rewritten -> original lookup used by findStoryByUrl
+    URLRedirect.redirect_url(story.href)
     if (story.comment_url) {
       this.comments.set(story.comment_url, story.href)
     }
@@ -561,6 +565,19 @@ export class OnceApp {
   }
 
   private findStoryByUrl(url: string): Story | null {
+    const story = this.lookupStory(url)
+    if (story) {
+      return story
+    }
+    //the url might be the rewritten form of a story href
+    const original = URLRedirect.original_url(url)
+    if (original !== url) {
+      return this.lookupStory(original)
+    }
+    return null
+  }
+
+  private lookupStory(url: string): Story | null {
     const story = this.stories.get(url)
     if (story) {
       return story

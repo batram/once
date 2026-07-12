@@ -95,7 +95,7 @@ async function updateSelected(client: OnceClient, href: string): Promise<void> {
   if (!selectedContainer) return
 
   const selectedStory = selectedContainer.querySelector<StoryListItem>("story-item")
-  if (selectedStory && selectedStory.story.href === href) return
+  if (selectedStory && selectedStory.story.matches_url(href)) return
 
   const story = await client.findStoryByUrl(href)
   selectedContainer.innerHTML = ""

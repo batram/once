@@ -40,6 +40,23 @@ test("rejects empty new stories and does not index empty comment URLs", async ()
   assert.equal(await app.client.findStoryByUrl(""), null)
 })
 
+test("finds a story by its rewritten redirect url", async () => {
+  const story = new Story("rss", "https://old.example.com/story", "Redirected story")
+  const fake = createFakePlatform([story])
+  const app = createOnceApp(fake.ports)
+  await app.start()
+
+  await app.client.saveRedirectList([
+    { match_url: "^https://old\\.example\\.com", replace_url: "https://new.example.com" }
+  ])
+
+  const found = await app.client.findStoryByUrl("https://new.example.com/story")
+  assert.equal(found?.href, story.href)
+
+  await app.client.saveRedirectList([])
+  assert.equal(await app.client.findStoryByUrl("https://new.example.com/story"), null)
+})
+
 test("publishes settings, database, reload, and history events", async () => {
   const fake = createFakePlatform()
   const app = createOnceApp(fake.ports)

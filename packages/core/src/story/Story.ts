@@ -126,7 +126,6 @@ export class Story {
   }
 
   matches_story_url(url: string): boolean {
-    //todo: fix redirect lookup
     const redirected_url = URLRedirect.redirect_url(this.href)
     return (
       this.href === url ||
