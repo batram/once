@@ -89,6 +89,12 @@ export class BrowserShell {
     this.bindLayout()
     this.bindWindowState()
     this.bridge.tabs.onChanged((tabs) => this.render(tabs))
+    this.bridge.tabs.onRegenerateReader((sourceUrl) => {
+      this.setAddressError("")
+      void this.openReader(sourceUrl).catch((error) => {
+        this.setAddressError(readerErrorMessage(error))
+      })
+    })
     void this.bridge.tabs.getAll().then((tabs) => this.render(tabs))
   }
 

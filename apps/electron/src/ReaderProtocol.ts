@@ -42,6 +42,10 @@ export function storeReaderDocument(sourceUrl: string, html: string): string {
   return `once-reader://${normalized}`
 }
 
+export function hasReaderDocument(sourceUrl: string): boolean {
+  return documents.has(sourceUrl)
+}
+
 export function sourceUrlFromReaderUrl(readerUrl: string): string | null {
   if (!readerUrl.startsWith("once-reader://")) return null
   try {

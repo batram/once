@@ -304,6 +304,43 @@ test("duplicates a reader tab into a second reader tab", async () => {
       { url: readerTab.url, active: false, loadError: null },
       { url: readerTab.url, active: true, loadError: null }
     ])
+
+    await window.evaluate(() => window.onceElectron.tabs.create("about:blank", true))
+    await expect(window.locator(".electron-tab")).toHaveCount(3)
+    const address = window.locator("#urlfield")
+    await address.fill("once-reader://https://example.com/article")
+    await address.press("Enter")
+    await expect(window.locator(".electron-tab-title").nth(2)).toHaveText("Reader Article")
+    await expect(address).toHaveValue("once-reader://https://example.com/article")
+    await expect(window.locator("#url_error")).toBeHidden()
+
+    await address.fill("once-reader://https://example.com/never-opened")
+    await address.press("Enter")
+    await expect(window.locator("#url_error")).toContainText("Reader mode failed")
+    await expect(window.locator("#url_error")).toContainText("Network fetches are disabled")
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
+test("regenerates a missing reader document from its source URL", async () => {
+  const { electronApp, userData, window } = await launchApp({
+    env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0" }
+  })
+  try {
+    const address = window.locator("#urlfield")
+    await address.fill(`once-reader://${origin}/article`)
+    await address.press("Enter")
+    await expect(window.locator(".electron-tab-title")).toHaveText("Regenerated Article")
+    await expect(address).toHaveValue(`once-reader://${origin}/article`)
+    await expect(window.locator("#url_error")).toBeHidden()
+    await expect.poll(() => window.evaluate(async () => {
+      const active = (await window.onceElectron.tabs.getAll()).find((tab) => tab.active)
+      return active && { url: active.url, loadError: active.loadError }
+    })).toEqual({
+      url: expect.stringMatching(/^once-reader:\/\//),
+      loadError: null
+    })
   } finally {
     await closeApp(electronApp, userData)
   }

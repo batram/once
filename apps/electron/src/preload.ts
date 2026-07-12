@@ -59,6 +59,13 @@ const bridge: ElectronBridge = {
         handler(tabs)
       ipcRenderer.on(ELECTRON_IPC.tabsChanged, listener)
       return () => ipcRenderer.removeListener(ELECTRON_IPC.tabsChanged, listener)
+    },
+    onRegenerateReader(handler: (sourceUrl: string) => void) {
+      const listener = (_event: Electron.IpcRendererEvent, sourceUrl: string) =>
+        handler(sourceUrl)
+      ipcRenderer.on(ELECTRON_IPC.tabsRegenerateReader, listener)
+      return () =>
+        ipcRenderer.removeListener(ELECTRON_IPC.tabsRegenerateReader, listener)
     }
   },
   window: {

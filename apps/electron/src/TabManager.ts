@@ -24,7 +24,11 @@ import {
   normalizeBrowserUrl,
   resolveOpenDisposition
 } from "@once/platform-electron/navigation"
-import { sourceUrlFromReaderUrl, storeReaderDocument } from "./ReaderProtocol"
+import {
+  hasReaderDocument,
+  sourceUrlFromReaderUrl,
+  storeReaderDocument
+} from "./ReaderProtocol"
 
 interface TabEntry {
   id: string
@@ -166,9 +170,7 @@ export class BrowserCoordinator {
     url = "about:blank",
     active = true
   ): Promise<string> {
-    // Reader URLs reference documents we stored ourselves, so they skip the
-    // HTTP-only normalization applied to navigable input.
-    const normalized = sourceUrlFromReaderUrl(url) ? url : normalizeBrowserUrl(url)
+    const normalized = this.normalizeTabUrl(url)
     const view = new WebContentsView({
       webPreferences: {
         nodeIntegration: false,
@@ -212,7 +214,7 @@ export class BrowserCoordinator {
     url: string,
     target: ElectronOpenTarget
   ): Promise<void> {
-    const normalized = normalizeBrowserUrl(url)
+    const normalized = this.normalizeTabUrl(url)
     const disposition = resolveOpenDisposition(target)
     if (disposition === "background") {
       await this.createTab(state, normalized, false)
@@ -330,7 +332,19 @@ export class BrowserCoordinator {
   async navigate(state: WindowEntry, id: string, url: string): Promise<void> {
     const entry = this.requireOwnedTab(state, id)
     try {
-      this.load(entry, normalizeBrowserUrl(url))
+      const normalized = this.normalizeTabUrl(url)
+      const readerSource = sourceUrlFromReaderUrl(normalized)
+      // Reader documents only live for the current session, so a typed or
+      // bookmarked reader URL may reference a document we no longer hold.
+      // Ask the shell to regenerate it through the normal reader flow.
+      if (readerSource && !hasReaderDocument(readerSource)) {
+        state.window.webContents.send(
+          ELECTRON_IPC.tabsRegenerateReader,
+          readerSource
+        )
+        return
+      }
+      this.load(entry, normalized)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       this.handleLoadFailure(entry, url.trim(), message, false)
@@ -802,6 +816,13 @@ export class BrowserCoordinator {
       url = url.replace(redirect.match, redirect.replacement)
     }
     return url
+  }
+
+  // Reader URLs reference documents we stored ourselves, so they skip the
+  // HTTP-only normalization applied to other navigable input.
+  private normalizeTabUrl(url: string): string {
+    const trimmed = url.trim()
+    return sourceUrlFromReaderUrl(trimmed) ? trimmed : normalizeBrowserUrl(trimmed)
   }
 
   private tryNormalizeUrl(url: string): string | null {

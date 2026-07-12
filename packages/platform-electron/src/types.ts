@@ -83,6 +83,7 @@ export interface ElectronBridge {
     showMenu(id: string, point: ElectronPoint): Promise<void>
     setBounds(bounds: ElectronRect): Promise<void>
     onChanged(handler: (tabs: ElectronTabState[]) => void): () => void
+    onRegenerateReader(handler: (sourceUrl: string) => void): () => void
   }
   window: {
     setFullscreen(fullscreen: boolean): Promise<void>
@@ -120,6 +121,7 @@ export const ELECTRON_IPC = {
   tabsShowMenu: "once:tabs:show-menu",
   tabsSetBounds: "once:tabs:set-bounds",
   tabsChanged: "once:tabs:changed",
+  tabsRegenerateReader: "once:tabs:regenerate-reader",
   windowSetFullscreen: "once:window:set-fullscreen",
   windowSetRedirects: "once:window:set-redirects",
   windowSetBackgroundColor: "once:window:set-background-color",

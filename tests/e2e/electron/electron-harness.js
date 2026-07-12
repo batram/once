@@ -23,6 +23,21 @@ async function startPageServer() {
         <iframe id="player-frame" src="${origin}/video-player" allow="fullscreen"></iframe>`)
       return
     }
+    if (request.url === "/article") {
+      const paragraph = "The reader pipeline extracts long-form content from ordinary pages. " +
+        "This paragraph exists so the readability heuristics find enough article text to accept the page. " +
+        "It repeats a few times to comfortably clear the extraction thresholds used by the application."
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8" })
+      response.end(`<!doctype html>
+        <title>Regenerated Article</title>
+        <article>
+          <h1>Regenerated Article</h1>
+          <p>${paragraph}</p>
+          <p>${paragraph}</p>
+          <p>${paragraph}</p>
+        </article>`)
+      return
+    }
     if (request.url === "/video-player") {
       response.writeHead(200, { "content-type": "text/html; charset=utf-8" })
       response.end(`<!doctype html>
@@ -58,7 +73,7 @@ async function startPageServer() {
   }
 }
 
-async function launchApp() {
+async function launchApp(options = {}) {
   const userData = await fs.mkdtemp(path.join(os.tmpdir(), "once-electron-test-"))
   // Electron 43+ downloads its development binary lazily when the package is required,
   // so do not hard-code node_modules/electron/dist/electron.exe after a clean npm ci.
@@ -71,7 +86,8 @@ async function launchApp() {
       ...process.env,
       ONCE_ELECTRON_TEST_USER_DATA: userData,
       ONCE_ELECTRON_DISABLE_STORY_LOADING: "1",
-      ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "1"
+      ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "1",
+      ...options.env
     }
   })
   await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) =>
