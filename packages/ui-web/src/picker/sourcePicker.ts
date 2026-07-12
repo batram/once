@@ -287,6 +287,7 @@ class PickerOverlay {
   private readonly hoverHint: HTMLElement
   private readonly status: HTMLElement
   private readonly preview: HTMLElement
+  private readonly sourceInput: HTMLTextAreaElement
   private readonly saveButton: HTMLButtonElement
   private readonly inputs = new Map<FieldKey, HTMLInputElement>()
   private readonly counts = new Map<FieldKey, HTMLElement>()
@@ -295,7 +296,11 @@ class PickerOverlay {
   private picking: FieldKey | null = null
   private focusField: FieldKey = "stories"
   private hoverTarget: Element | null = null
+  // Extras from a hand-edited source line (comment_href, additional tags,
+  // custom processors) survive as long as their form fields stay untouched.
+  private baseConf: GenySelectorConf = {}
   private updateTimer: number | null = null
+  private sourceTimer: number | null = null
   private frame: number | null = null
   private finish: ((result: SourcePickResult | null) => void) | null = null
 
@@ -326,6 +331,13 @@ class PickerOverlay {
     const panel = this.el("div", { id: "panel" })
     panel.append(this.el("h1", { text: "Pick a story source" }))
     for (const field of FIELDS) panel.append(this.buildRow(field))
+    const source = this.el("div", { id: "source" })
+    source.append(this.el("label", { text: "Source line" }))
+    this.sourceInput = document.createElement("textarea")
+    this.sourceInput.spellcheck = false
+    this.sourceInput.rows = 3
+    this.sourceInput.oninput = () => this.scheduleSourceApply()
+    source.append(this.sourceInput)
     this.status = this.el("div", { id: "status" })
     this.preview = this.el("div", { id: "preview" })
     const actions = this.el("div", { id: "actions" })
@@ -336,7 +348,7 @@ class PickerOverlay {
     this.saveButton.disabled = true
     this.saveButton.onclick = () => this.save()
     actions.append(cancel, this.saveButton)
-    panel.append(this.status, this.preview, actions)
+    panel.append(source, this.status, this.preview, actions)
 
     this.shadow.append(this.boxes, this.catcher, this.hoverHint, panel)
     this.bindCatcher()
@@ -530,29 +542,59 @@ class PickerOverlay {
   }
 
   private buildConf(): GenySelectorConf | null {
-    const stories = this.value("stories")
-    const link = this.value("link")
-    const title = this.value("title")
-    if (!stories || !link || !title) return null
-    const conf: GenySelectorConf = {
-      stories: { sel: stories, all: true },
-      link: { sel: link, component: this.components.get("link") || "href" },
-      title: { sel: title, component: "innerText", processors: ["trim"] }
+    if (!this.value("stories") || !this.value("link") || !this.value("title")) {
+      return null
     }
-    const timestamp = this.value("timestamp")
-    if (timestamp) {
-      conf.timestamp = {
-        sel: timestamp,
-        component: this.components.get("timestamp") || "innerText"
-      }
-    }
+    return this.buildLooseConf()
+  }
+
+  // Combines the form fields with the extras of a hand-edited source line;
+  // a field only regenerates its selector slot when its selector changed, so
+  // custom components and processors survive round trips through the fields.
+  private buildLooseConf(): GenySelectorConf {
+    const conf = JSON.parse(JSON.stringify(this.baseConf)) as GenySelectorConf
+    this.applyFieldSlot(conf, "stories", { all: true })
+    this.applyFieldSlot(conf, "link", {
+      component: this.components.get("link") || "href"
+    })
+    this.applyFieldSlot(conf, "title", {
+      component: "innerText",
+      processors: ["trim"]
+    })
+    this.applyFieldSlot(conf, "timestamp", {
+      component: this.components.get("timestamp") || "innerText"
+    })
+
     const tag = this.value("tag")
-    if (tag) {
+    const baseTagText = conf.tags?.[0]?.elements?.text
+    if (!tag) {
+      delete conf.tags
+    } else if (baseTagText?.sel !== tag) {
       conf.tags = [
-        { elements: { text: { sel: tag, component: "innerText" } } }
+        {
+          elements: {
+            text: { sel: tag, component: this.components.get("tag") || "innerText" }
+          }
+        }
       ]
     }
-    return conf
+    // Cleared fields leave undefined-valued keys behind; serialize them away
+    // so validation sees the same configuration that will be saved.
+    return JSON.parse(JSON.stringify(conf)) as GenySelectorConf
+  }
+
+  private applyFieldSlot(
+    conf: GenySelectorConf,
+    field: "stories" | "link" | "title" | "timestamp",
+    defaults: GenySelector
+  ): void {
+    const sel = this.value(field)
+    if (!sel) {
+      // undefined slots disappear when the configuration is serialized.
+      conf[field] = undefined
+    } else if (conf[field]?.sel !== sel) {
+      conf[field] = { ...defaults, sel }
+    }
   }
 
   private scheduleUpdate(): void {
@@ -586,6 +628,7 @@ class PickerOverlay {
       count.textContent = `${matched}/${stories.length}`
     }
     this.renderPreview(stories.length)
+    this.renderSourceLine()
     this.scheduleRender()
   }
 
@@ -603,7 +646,7 @@ class PickerOverlay {
     }
     let parsed
     try {
-      const source = this.buildSourceUrl(conf)
+      const source = this.buildSourceLine(conf)
       parsed = genyParse(document, location.href, source)
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error)
@@ -647,9 +690,74 @@ class PickerOverlay {
     this.preview.append(summary)
   }
 
-  private buildSourceUrl(conf: GenySelectorConf): string {
+  private buildSourceLine(conf: GenySelectorConf): string {
     const separator = genyOptions.separator
     return `geny:${separator}${JSON.stringify(conf)}${separator}${location.href}`
+  }
+
+  private renderSourceLine(): void {
+    // Never rewrite the line under the user while they are editing it.
+    if (this.shadow.activeElement === this.sourceInput) return
+    this.sourceInput.value = this.buildSourceLine(this.buildLooseConf())
+  }
+
+  private scheduleSourceApply(): void {
+    if (this.sourceTimer !== null) window.clearTimeout(this.sourceTimer)
+    this.sourceTimer = window.setTimeout(() => {
+      this.sourceTimer = null
+      this.applySourceEdit()
+    }, 250)
+  }
+
+  private applySourceEdit(): void {
+    let warning: string
+    try {
+      warning = this.applySourceLine(this.sourceInput.value)
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error)
+      this.setStatus(`Source line: ${detail}`)
+      return
+    }
+    this.update()
+    // The preview clears the status when it parses; a collector rejection of
+    // the edited configuration still matters more than a green preview.
+    if (warning) this.setStatus(warning)
+  }
+
+  // Parses an edited source line back into the form fields. Returns a
+  // warning when the configuration parses but the collector would reject it.
+  private applySourceLine(raw: string): string {
+    const separator = genyOptions.separator
+    const parts = raw.trim().split(separator)
+    if (!parts[0].startsWith("geny:") || parts.length < 3) {
+      throw new Error(
+        `expected geny:${separator}{"stories":…}${separator}${location.origin}…`
+      )
+    }
+    const parsed: unknown = JSON.parse(parts[1])
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      throw new Error("the configuration must be a JSON object")
+    }
+    const conf = parsed as GenySelectorConf
+    this.baseConf = conf
+    this.applyFieldSelector("stories", conf.stories)
+    this.applyFieldSelector("link", conf.link)
+    this.applyFieldSelector("title", conf.title)
+    this.applyFieldSelector("timestamp", conf.timestamp)
+    const tagText = conf.tags?.[0]?.elements?.text
+    this.setValue("tag", tagText?.sel || "")
+    if (tagText?.component) this.components.set("tag", tagText.component)
+    try {
+      sanitize_selector_conf(conf)
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error)
+    }
+    return ""
+  }
+
+  private applyFieldSelector(field: FieldKey, selector?: GenySelector): void {
+    this.setValue(field, selector?.sel || "")
+    if (selector?.component) this.components.set(field, selector.component)
   }
 
   private scheduleRender(): void {
@@ -697,6 +805,13 @@ class PickerOverlay {
   private save(): void {
     const conf = this.buildConf()
     if (!conf) return
+    try {
+      sanitize_selector_conf(conf)
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error)
+      this.setStatus(detail)
+      return
+    }
     this.resolve({ conf: JSON.stringify(conf), url: location.href })
   }
 
@@ -709,6 +824,7 @@ class PickerOverlay {
     window.removeEventListener("keydown", this.onKeyDown, true)
     window.removeEventListener("pagehide", this.onPageHide)
     if (this.updateTimer !== null) window.clearTimeout(this.updateTimer)
+    if (this.sourceTimer !== null) window.clearTimeout(this.sourceTimer)
     if (this.frame !== null) window.cancelAnimationFrame(this.frame)
     this.host.remove()
     finish(result)

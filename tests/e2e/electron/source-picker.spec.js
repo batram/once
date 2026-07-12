@@ -157,6 +157,85 @@ test("picks stories, link, and title by clicking page elements", async () => {
   }
 })
 
+test("cross updates the selector fields and the editable source line", async () => {
+  const { electronApp, userData, window } = await launchApp()
+  try {
+    const [tab] = await window.evaluate(() => window.onceElectron.tabs.getAll())
+    await window.evaluate(
+      ({ id, url }) => window.onceElectron.tabs.navigate(id, url),
+      { id: tab.id, url: `${origin}/stories` }
+    )
+    await expect(window.locator(".electron-tab-title")).toHaveText("Stories")
+
+    await window.evaluate(() => {
+      window.__oncePickResult = window.onceElectron.tabs.startSourcePicker()
+    })
+    await expect.poll(() => evaluateInPage(electronApp, `${origin}/stories`, `
+      Boolean(document.querySelector("once-source-picker"))
+    `)).toBe(true)
+
+    // Fields feed the source line.
+    const lineFromFields = await evaluateInPage(electronApp, `${origin}/stories`, `
+      (async () => {
+        const shadow = document.querySelector("once-source-picker").shadowRoot
+        const input = shadow.querySelectorAll(".row input[type=text]")[0]
+        input.value = "li.story"
+        input.dispatchEvent(new Event("input"))
+        await new Promise((resolve) => setTimeout(resolve, 400))
+        return shadow.querySelector("#source textarea").value
+      })()
+    `)
+    expect(lineFromFields).toContain('"stories":{"all":true,"sel":"li.story"}')
+    expect(lineFromFields.endsWith(`§§${origin}/stories`)).toBe(true)
+
+    // A pasted source line feeds the fields, the preview, and keeps extras
+    // (comment_href has no form field) through the save round trip.
+    const pastedConf = {
+      stories: { sel: "ul.stories > li", all: true },
+      link: { sel: "a.title", component: "href" },
+      title: { sel: "a.title", component: "innerText" },
+      comment_href: { sel: "a.title", component: "href" },
+      tags: [{ elements: { text: { sel: "span.tag", component: "innerText" } } }]
+    }
+    const state = await evaluateInPage(electronApp, `${origin}/stories`, `
+      (async () => {
+        const shadow = document.querySelector("once-source-picker").shadowRoot
+        const textarea = shadow.querySelector("#source textarea")
+        textarea.focus()
+        textarea.value = ${JSON.stringify(
+          `geny:§§${JSON.stringify(pastedConf)}§§https://example.com/ignored`
+        )}
+        textarea.dispatchEvent(new Event("input"))
+        await new Promise((resolve) => setTimeout(resolve, 700))
+        return {
+          fields: Array.from(
+            shadow.querySelectorAll(".row input[type=text]"),
+            (input) => input.value
+          ),
+          summary: shadow.querySelector("#preview .summary").textContent,
+          saveDisabled: shadow.querySelector("#actions .save").disabled
+        }
+      })()
+    `)
+    expect(state.fields).toEqual([
+      "ul.stories > li", "a.title", "a.title", "", "span.tag"
+    ])
+    expect(state.summary).toContain("3 stories parsed")
+    expect(state.saveDisabled).toBe(false)
+
+    await evaluateInPage(electronApp, `${origin}/stories`, `
+      document.querySelector("once-source-picker")
+        .shadowRoot.querySelector("#actions .save").click()
+    `)
+    const line = await window.evaluate(() => window.__oncePickResult)
+    expect(JSON.parse(line.split("§§")[1])).toEqual(pastedConf)
+    // The settings entry always uses the tab's real URL, not the edited one.
+    expect(line.endsWith(`§§${origin}/stories`)).toBe(true)
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
 test("cancels the picker when the tab navigates away", async () => {
   const { electronApp, userData, window } = await launchApp()
   try {
