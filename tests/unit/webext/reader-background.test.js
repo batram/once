@@ -52,7 +52,10 @@ test("injects reader theme, styles, and content after a safe page loads", async 
   await handler({ onceCommand: "openReader", url: "https://example.com/article", active: false, theme: "dark" }, {})
   assert.deepEqual(fake.calls[0], ["create", { url: "https://example.com/article", active: false }])
   assert.equal(fake.calls.filter(([kind]) => kind === "script").length, 2)
-  assert.equal(fake.calls.filter(([kind]) => kind === "css").length, 1)
+  assert.deepEqual(fake.calls.find(([kind]) => kind === "css"), [
+    "css",
+    { target: { tabId: 7 }, files: ["/reader.css"] }
+  ])
   await assert.rejects(() => handler({ onceCommand: "openReader", url: "file:///secret" }, {}), /HTTP or HTTPS/)
   cleanup()
   assert.equal(fake.onMessage.listeners.length, 0)

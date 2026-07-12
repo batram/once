@@ -1,5 +1,3 @@
-import { readerStyles } from "@once/ui-web/reader/readerDocument"
-
 export function installReaderBackground(
   browserApi: typeof browser = browser
 ): () => void {
@@ -78,7 +76,7 @@ async function openReaderTab(
   })
   await browserApi.scripting.insertCSS({
     target: { tabId: tab.id },
-    css: readerStyles
+    files: ["/reader.css"]
   })
   await browserApi.scripting.executeScript({
     target: { tabId: tab.id },

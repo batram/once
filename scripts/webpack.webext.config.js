@@ -44,6 +44,10 @@ module.exports = (env = {}, argv = {}) => {
     module: {
       rules: [
         {
+          resourceQuery: /raw/,
+          type: "asset/source"
+        },
+        {
           test: /\.tsx?$/,
           loader: "ts-loader",
           exclude: /node_modules/,
@@ -63,6 +67,10 @@ module.exports = (env = {}, argv = {}) => {
           {
             from: path.join(root, "packages", "ui-web", "public", "static"),
             to: "static"
+          },
+          {
+            from: path.join(root, "packages", "ui-web", "src", "reader", "readerDocument.css"),
+            to: "reader.css"
           },
           {
             from: path.join(root, "packages", "ui-web", "public", "shell.html"),

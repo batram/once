@@ -334,6 +334,21 @@ test("regenerates a missing reader document from its source URL", async () => {
     await expect(window.locator(".electron-tab-title")).toHaveText("Regenerated Article")
     await expect(address).toHaveValue(`once-reader://${origin}/article`)
     await expect(window.locator("#url_error")).toBeHidden()
+    await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
+      const contents = webContents
+        .getAllWebContents()
+        .find((candidate) => candidate.getURL().startsWith("once-reader://"))
+      if (!contents) return null
+      return contents.executeJavaScript(`({
+        bodyMaxWidth: getComputedStyle(document.body).maxWidth,
+        buttonWidth: getComputedStyle(document.querySelector(".tts-button")).width,
+        toolbarPosition: getComputedStyle(document.querySelector(".toolbar")).position
+      })`)
+    })).toEqual({
+      bodyMaxWidth: "700px",
+      buttonWidth: "30px",
+      toolbarPosition: "sticky"
+    })
     await expect.poll(() => window.evaluate(async () => {
       const active = (await window.onceElectron.tabs.getAll()).find((tab) => tab.active)
       return active && { url: active.url, loadError: active.loadError }

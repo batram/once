@@ -1,0 +1,42 @@
+<!doctype html>
+<html data-theme="{{THEME}}">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>{{TITLE}}</title>
+    <style>{{STYLES}}</style>
+  </head>
+  <body>
+    <header class="toolbar">
+      <div class="tts-controls" role="group" aria-label="Text to speech">
+        <div class="tts-transport">
+          <button class="tts-button" type="button" data-tts-back disabled title="Previous segment" aria-label="Previous segment">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6l-9 6 9 6z"/><path d="M6 6v12"/></svg>
+          </button>
+          <button class="tts-button tts-play" type="button" data-tts-play title="Play" aria-label="Play article">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path class="tts-icon-play" d="M8 5v14l11-7z" fill="currentColor" stroke="none"/><path class="tts-icon-pause" d="M8 5h3v14H8zM14 5h3v14h-3z" fill="currentColor" stroke="none"/></svg>
+          </button>
+          <button class="tts-button" type="button" data-tts-forward disabled title="Next segment" aria-label="Next segment">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l9 6-9 6z"/><path d="M18 6v12"/></svg>
+          </button>
+          <button class="tts-button" type="button" data-tts-stop disabled title="Stop" aria-label="Stop">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1" fill="currentColor" stroke="none"/></svg>
+          </button>
+        </div>
+        <label class="tts-speed"><span>Speed</span><input data-tts-rate type="range" min="0.5" max="6" step="0.1" value="1"><output data-tts-rate-value>1.0×</output></label>
+        <details class="tts-settings">
+          <summary><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4zM15 9c1.2 1.6 1.2 4.4 0 6M18 6c3.5 3.3 3.5 8.7 0 12"/></svg><span>Voice</span></summary>
+          <div class="tts-settings-menu"><label for="tts-voice-select">Speaker</label><select id="tts-voice-select" data-tts-voice><option>Default voice</option></select></div>
+        </details>
+      </div>
+      <a class="reader-original" href="{{SOURCE_URL}}">Original</a>
+    </header>
+    <main>
+      <p class="site">{{SITE_NAME}}</p>
+      <h1>{{TITLE}}</h1>
+      {{BYLINE}}
+      <article>{{ARTICLE}}</article>
+      <script>{{TTS_SCRIPT}}</script>
+    </main>
+  </body>
+</html>

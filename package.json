@@ -12,7 +12,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build:packages": "tsc -b tsconfig.packages.json",
+    "build:packages": "tsc -b tsconfig.packages.json && node scripts/copy-package-assets.js",
     "clean": "node scripts/clean-build-outputs.js",
     "clean:packages": "node scripts/clean-build-outputs.js --packages",
     "build:firefox": "npm run build:packages && webpack --config scripts/webpack.webext.config.js --env target=firefox --mode production",

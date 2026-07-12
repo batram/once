@@ -10,6 +10,7 @@ module.exports = {
       ...rules,
       {
         test: /\.css$/,
+        resourceQuery: { not: [/raw/] },
         use: ["style-loader", "css-loader"]
       }
     ]
