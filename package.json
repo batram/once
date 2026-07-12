@@ -13,7 +13,8 @@
   ],
   "scripts": {
     "build:packages": "tsc -b tsconfig.packages.json",
-    "clean:packages": "node scripts/clean-package-outputs.js",
+    "clean": "node scripts/clean-build-outputs.js",
+    "clean:packages": "node scripts/clean-build-outputs.js --packages",
     "build:firefox": "npm run build:packages && webpack --config scripts/webpack.webext.config.js --env target=firefox --mode production",
     "build:firefox:dev": "npm run build:packages && webpack --config scripts/webpack.webext.config.js --env target=firefox --mode development",
     "build:chrome": "npm run build:packages && webpack --config scripts/webpack.webext.config.js --env target=chrome --mode production",
