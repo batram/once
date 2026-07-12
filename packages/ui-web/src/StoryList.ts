@@ -4,6 +4,7 @@ import { applyStoryFilter } from "@once/core"
 import { StoryChangeDetail, OnceClient } from "@once/app"
 import * as Search from "./search"
 import { URLRedirect } from "@once/core"
+import { requireElement } from "./dom"
 
 export class DataChangeEvent extends Event {
   detail: StoryChangeDetail
@@ -86,16 +87,19 @@ function add_stories(stories: Story[], bucket = "stories") {
 
   sortStories(bucket)
 
-  const searchfield = document.querySelector<HTMLInputElement>("#searchfield")
-  const search_scope = document.querySelector<HTMLInputElement>("#search_scope")
-  if (searchfield.value != "" && search_scope.value != "global") {
+  const searchfield = requireElement<HTMLInputElement>("#searchfield")
+  const search_scope = requireElement<HTMLInputElement>("#search_scope")
+  if (
+    searchfield.value != "" &&
+    search_scope.value != "global"
+  ) {
     Search.searchStories(searchfield.value)
   }
 }
 
 function add(story: Story, bucket = "stories"): void {
   if (!(story instanceof Story)) {
-    throw "only stories allowed into the story list"
+    throw new TypeError("Only Story instances can be added to the story list")
   }
   if (document.querySelector(`.story[data-href="${story.href}"]`)) {
     //console.debug("deduped story ins storylist: ", story.href, story.title)
@@ -105,11 +109,14 @@ function add(story: Story, bucket = "stories"): void {
   story.bucket = bucket
 
   const new_story_el = new StoryListItem(story)
-  const stories_container = document.querySelector("#" + bucket)
+  const stories_container = requireElement("#" + bucket)
 
   //hide new stories if search is active, will be matched and shown later
-  const searchfield = document.querySelector<HTMLInputElement>("#searchfield")
-  if (searchfield.value != "" && bucket != "global_search_results") {
+  const searchfield = requireElement<HTMLInputElement>("#searchfield")
+  if (
+    searchfield.value != "" &&
+    bucket != "global_search_results"
+  ) {
     new_story_el.classList.add("nomatch")
   }
 
@@ -124,7 +131,7 @@ function sortable_story(elem: StoryListItem): SortableStory<StoryListItem> {
   }
 }
 
-export function resortSingle(elem: StoryListItem): () => void {
+export function resortSingle(elem: StoryListItem): (() => void) | null {
   const story_con = elem.parentElement
   if (!story_con) {
     console.debug(
@@ -143,8 +150,9 @@ export function resortSingle(elem: StoryListItem): () => void {
     .map(sortable_story)
     .sort(Story.compare)
     .map((x) => x.el)
+    .filter((el): el is StoryListItem => el != undefined)
 
-  let insert_before_el: HTMLElement = null
+  let insert_before_el: HTMLElement | null = null
   const sorted_pos = stories_sorted.indexOf(elem)
 
   if (stories.indexOf(elem) == sorted_pos) {
@@ -171,23 +179,26 @@ export function resortSingle(elem: StoryListItem): () => void {
 }
 
 export function sortStories(bucket = "stories"): void {
-  const story_con = document.querySelector("#" + bucket)
+  const story_con = requireElement("#" + bucket)
 
   const storted = Array.from(story_con.querySelectorAll<StoryListItem>(".story"))
     .map(sortable_story)
     .sort(Story.compare)
 
   storted.forEach((x) => {
-    const paw = x.el.parentElement
-    paw.appendChild(x.el)
-    if (x.el.classList.contains("read_anim")) {
+    const el = x.el
+    if (!el) {
+      return
+    }
+    el.parentElement?.appendChild(el)
+    if (el.classList.contains("read_anim")) {
       setTimeout(() => {
-        x.el.classList.remove("read_anim")
+        el.classList.remove("read_anim")
       }, 1)
     }
-    if (x.el.classList.contains("unread_anim")) {
+    if (el.classList.contains("unread_anim")) {
       setTimeout(() => {
-        x.el.classList.remove("unread_anim")
+        el.classList.remove("unread_anim")
       }, 1)
     }
   })

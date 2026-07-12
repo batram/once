@@ -12,6 +12,9 @@ test("maps Reddit listings and applies the score threshold", () => {
   assert.equal(collector.parse(fixture, false).length, 2)
 })
 
-test("ignores unsupported listing kinds", () => {
-  assert.deepEqual(collector.parse({ kind: "Thing", data: { children: [] } }), [])
+test("rejects unsupported listing kinds so the source error can surface", () => {
+  assert.throws(
+    () => collector.parse({ kind: "Thing", data: { children: [] } }),
+    /Unsupported Reddit JSON kind: Thing/
+  )
 })

@@ -24,10 +24,12 @@ class WebStoryStore {
   async getStories(): Promise<Story[]> {
     return Object.keys(window.localStorage)
       .filter((key) => key.startsWith("once:story:"))
-      .map((key) => Story.from_obj(JSON.parse(window.localStorage.getItem(key))))
+      .map((key) => window.localStorage.getItem(key))
+      .filter((stored): stored is string => stored !== null)
+      .map((stored) => Story.from_obj(JSON.parse(stored)))
   }
 
-  async getStory(url: string): Promise<Story> {
+  async getStory(url: string): Promise<Story | null> {
     const stored = window.localStorage.getItem(`once:story:${this.storyId(url)}`)
     return stored ? Story.from_obj(JSON.parse(stored)) : null
   }
@@ -63,7 +65,7 @@ class WebSyncSettingsStore {
   }
 
   async getCacheTime(): Promise<number> {
-    const time = parseInt(window.localStorage.getItem("once:cache_time"))
+    const time = parseInt(window.localStorage.getItem("once:cache_time") ?? "")
     return Number.isNaN(time) ? 120 : time
   }
 

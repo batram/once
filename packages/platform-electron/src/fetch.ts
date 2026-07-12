@@ -6,7 +6,7 @@ import {
 
 export async function bridgeFetch(
   bridge: ElectronBridge,
-  input: RequestInfo,
+  input: RequestInfo | URL,
   init?: RequestInit
 ): Promise<Response> {
   const request = new Request(input, init)

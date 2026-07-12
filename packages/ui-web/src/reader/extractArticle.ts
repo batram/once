@@ -18,7 +18,7 @@ export function extractArticle(html: string, sourceUrl: string): ReaderArticle {
     charThreshold: 140,
     keepClasses: false
   }).parse()
-  if (!parsed?.content || parsed.textContent.trim().length < 80) {
+  if (!parsed?.content || (parsed.textContent ?? "").trim().length < 80) {
     throw new Error("No readable article content was found")
   }
 

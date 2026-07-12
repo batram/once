@@ -11,22 +11,22 @@ import * as Search from "./search"
 
 export class StoryListItem extends HTMLElement {
   story: Story
-  animated: boolean
-  link: HTMLAnchorElement
-  button_group: HTMLElement
-  read_btn: HTMLElement
-  filter_btn: HTMLElement
-  star_btn: HTMLElement
-  substories_el: HTMLElement
-  sw_left: HTMLElement
-  sw_right: HTMLElement
+  animated = false
+  // assigned in story_html(), which the constructor always calls
+  link!: HTMLAnchorElement
+  button_group!: HTMLElement
+  read_btn!: HTMLElement
+  filter_btn!: HTMLElement
+  star_btn!: HTMLElement
+  substories_el!: HTMLElement
+  sw_left!: HTMLElement
+  sw_right!: HTMLElement
 
   constructor(story: Story) {
     super()
 
     if (!(story instanceof Story)) {
-      console.error("story not a story?", story)
-      throw "only put a story in a story obj, no more magic"
+      throw new TypeError("StoryListItem requires a Story instance")
     } else {
       this.story = story as Story
     }
@@ -153,8 +153,8 @@ export class StoryListItem extends HTMLElement {
 
       this.addEventListener(
         "data_change",
-        (event: DataChangeEvent) => {
-          this.update_story_el(event)
+        (event) => {
+          this.update_story_el(event as DataChangeEvent)
         }
       )
     }
@@ -194,8 +194,7 @@ export class StoryListItem extends HTMLElement {
       return
     }
     if (!(event.detail.story instanceof Story)) {
-      console.error("only like stories, got this:", event.detail.story)
-      throw "nope, that is not a story ..."
+      throw new TypeError("Story update requires a Story instance")
     }
 
     this.animated = event.detail.animated
@@ -346,7 +345,7 @@ export class StoryListItem extends HTMLElement {
     
     const swipe = (x: number) => {
       //check that slide_bb is infront of our story element
-      if (!this.previousElementSibling.classList.contains("bb_slide")) {
+      if (!this.previousElementSibling?.classList.contains("bb_slide")) {
         //find and place in front of story element
         const bb_slide_el = document.querySelector(".bb_slide")
         if (bb_slide_el) {
@@ -375,7 +374,7 @@ export class StoryListItem extends HTMLElement {
       document.addEventListener("touchmove", touch_swipe)
       document.addEventListener("touchend", end_swipe)
       document.addEventListener("pointerup", end_swipe)
-      this.parentElement.addEventListener("scroll", end_swipe)
+      this.parentElement?.addEventListener("scroll", end_swipe)
     })
 
     this.addEventListener("pointerdown", (e) => {
@@ -386,14 +385,16 @@ export class StoryListItem extends HTMLElement {
         e.stopPropagation()
         return
       }
-      this.parentElement.style.width = this.parentElement.offsetWidth + "px"
+      if (this.parentElement) {
+        this.parentElement.style.width = this.parentElement.offsetWidth + "px"
+      }
       e.preventDefault()
       document.body.style.cursor = "w-resize"
       document.addEventListener("pointermove", mouse_swipe)
       document.addEventListener("touchmove", touch_swipe)
       document.addEventListener("touchend", end_swipe)
       document.addEventListener("pointerup", end_swipe)
-      this.parentElement.addEventListener("scroll", end_swipe)
+      this.parentElement?.addEventListener("scroll", end_swipe)
     })
 
     const end_swipe = (e: Event) => {
@@ -432,7 +433,7 @@ export class StoryListItem extends HTMLElement {
         }
       }
 
-      document.querySelectorAll(".bb_slide").forEach((el: HTMLElement) => {
+      document.querySelectorAll<HTMLElement>(".bb_slide").forEach((el) => {
         el.outerHTML = ""
       })
 

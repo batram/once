@@ -464,20 +464,28 @@ export class OnceApp {
   }
 
   private setStory(href: string, story: Story, quiet = false): Story {
+    Story.assertIngestible(story)
+    if (href !== story.href) {
+      throw new Error("Story map key does not match its URL")
+    }
     const oldStory = this.stories.get(href)
     this.stories.set(href, story)
-    this.comments.set(story.comment_url, story.href)
+    if (story.comment_url) {
+      this.comments.set(story.comment_url, story.href)
+    }
     story.substories.forEach((substory) => {
-      this.comments.set(substory.comment_url, story.href)
+      if (substory.comment_url) {
+        this.comments.set(substory.comment_url, story.href)
+      }
     })
 
     if (!quiet) {
       this.emitDataChange([href], story, oldStory, null)
     }
-    return this.stories.get(href)
+    return story
   }
 
-  private getStory(href: string): Story {
+  private getStory(href: string): Story | undefined {
     return this.stories.get(href)
   }
 
@@ -493,9 +501,10 @@ export class OnceApp {
     if (!(newStory instanceof Story)) {
       throw new Error("Please, only add Story instances")
     }
+    Story.assertIngestible(newStory)
 
     newStory.bucket = bucket
-    let oldStory: Story
+    let oldStory: Story | null | undefined
 
     if (this.internalMapReady) {
       oldStory = this.getStory(newStory.href)
@@ -512,10 +521,11 @@ export class OnceApp {
       newStory.comment_url == oldStory.comment_url &&
       JSON.stringify(newStory.tags) != JSON.stringify(oldStory.tags)
     ) {
-      const previousTags = oldStory.tags
+      const previousTags = [...oldStory.tags]
+      const existingStory = oldStory
       newStory.tags.forEach((tag) => {
-        if (!oldStory.tags.map((existingTag) => existingTag.text).includes(tag.text)) {
-          oldStory.tags.push(tag)
+        if (!existingStory.tags.map((existingTag) => existingTag.text).includes(tag.text)) {
+          existingStory.tags.push(tag)
         }
       })
       this.emitDataChange([oldStory.href, "tags"], oldStory.tags, previousTags, null)
@@ -527,10 +537,11 @@ export class OnceApp {
     })
 
     if (
+      newStory.comment_url &&
       newStory.comment_url != oldStory.comment_url &&
       !oldCommentUrls.includes(newStory.comment_url)
     ) {
-      const previousSubstories = oldStory.substories
+      const previousSubstories = [...oldStory.substories]
       oldStory.substories.push({
         type: newStory.type,
         comment_url: newStory.comment_url,
@@ -549,12 +560,14 @@ export class OnceApp {
     return oldStory
   }
 
-  private findStoryByUrl(url: string): Story {
-    if (this.stories.has(url)) {
-      return this.stories.get(url)
+  private findStoryByUrl(url: string): Story | null {
+    const story = this.stories.get(url)
+    if (story) {
+      return story
     }
-    if (this.comments.has(url)) {
-      return this.stories.get(this.comments.get(url))
+    const commentHref = this.comments.get(url)
+    if (commentHref) {
+      return this.stories.get(commentHref) ?? null
     }
     return null
   }
@@ -563,7 +576,7 @@ export class OnceApp {
     href: string,
     path: string,
     value: Story | string | boolean
-  ): Promise<Story> {
+  ): Promise<Story | undefined> {
     let story = this.getStory(href)
     if (story) {
       const previousValue = story[path]
@@ -578,12 +591,13 @@ export class OnceApp {
     path: string[],
     value: unknown,
     previousValue: unknown,
-    name: string
+    name: string | null
   ): void {
-    if (path.length == 0 || !this.stories.has(path[0])) return
+    const story = path.length > 0 ? this.stories.get(path[0]) : undefined
+    if (!story) return
 
     const detail: StoryChangeDetail = {
-      story: this.getStory(path[0]),
+      story,
       path,
       value,
       previousValue,

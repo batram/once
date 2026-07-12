@@ -41,7 +41,9 @@ const processor_functions: Record<string, (arg0: string) => string> = {
 
 function selecti(selector: GenySelector, parent_el: HTMLElement): unknown {
   let ret: unknown = null
-  const elem = parent_el.querySelectorAll<HTMLElement>(selector.sel)
+  const elem = selector.sel
+    ? parent_el.querySelectorAll<HTMLElement>(selector.sel)
+    : []
   if (selector.all) {
     ret = elem
   } else {
@@ -56,7 +58,11 @@ function selecti(selector: GenySelector, parent_el: HTMLElement): unknown {
   if (ret && selector.processors) {
     //TODO: Post process stuff?
     selector.processors.forEach((processor) => {
-      ret = processor_functions[processor](ret as string)
+      const processorFunction = processor_functions[processor]
+      if (!processorFunction) {
+        throw new Error(`Unknown geny_match processor: ${processor}`)
+      }
+      ret = processorFunction(ret as string)
     })
   }
   return ret
@@ -69,7 +75,8 @@ function process_templates(story: Story): Story {
       const url = new URL(story.href)
       story.title = story.title.replace("{url.path}", url.pathname.slice(1))
     } catch (e) {
-      console.error("templating story failed", e)
+      const detail = e instanceof Error ? e.message : String(e)
+      throw new Error(`Story URL template failed: ${detail}`)
     }
   }
   return story
@@ -87,24 +94,30 @@ export function parse(doc: Document, url: string, og_url: string): Story[] {
     try {
       selectors = JSON.parse(split[1])
     } catch (e) {
-      console.error("geny_match failed to parse config", e)
-      return []
+      const detail = e instanceof Error ? e.message : String(e)
+      throw new Error(`geny_match config is invalid JSON: ${detail}`)
     }
   } else {
     return []
   }
 
-  const stories = Array.from(
-    selecti(selectors.stories, doc.body) as HTMLElement[]
-  )
+  const { stories: stories_sel, link: link_sel, title: title_sel } = selectors
+  if (!stories_sel || !link_sel || !title_sel) {
+    throw new Error("geny_match config is missing stories, link, or title")
+  }
+
+  const stories = Array.from(selecti(stories_sel, doc.body) as HTMLElement[])
 
   return stories
     .map((story_el) => {
-      const href = selecti(selectors.link, story_el) as string
-      const title = selecti(selectors.title, story_el) as string
+      const href = selecti(link_sel, story_el) as string
+      const title = selecti(title_sel, story_el) as string
+      if (typeof href !== "string" || !href || typeof title !== "string" || !title) {
+        throw new Error("geny_match selectors produced an empty link or title")
+      }
       const comment_href = selectors.comment_href
         ? (selecti(selectors.comment_href, story_el) as string)
-        : null
+        : ""
       const timestamp = selectors.timestamp
         ? Date.parse(selecti(selectors.timestamp, story_el) as string)
         : Date.now()
@@ -117,7 +130,7 @@ export function parse(doc: Document, url: string, og_url: string): Story[] {
         timestamp
       )
 
-      selectors.tags.forEach((tag_sel) => {
+      selectors.tags?.forEach((tag_sel) => {
         let tag_els = [story_el]
         if (tag_sel.group_el) {
           tag_els = selecti(tag_sel.group_el, story_el) as HTMLElement[]
@@ -135,24 +148,28 @@ export function parse(doc: Document, url: string, og_url: string): Story[] {
     .filter((x) => x != null)
 }
 
-function parse_tag(tag_sel: TagSelector, story: HTMLElement): StoryTag {
-  const tclass = tag_sel.elements.class
-    ? (selecti(tag_sel.elements.class, story) as string)
+function parse_tag(
+  tag_sel: TagSelector,
+  story: HTMLElement
+): StoryTag | undefined {
+  const elements = tag_sel.elements
+  if (!elements?.text) {
+    throw new Error("geny_match tag config is missing elements.text")
+  }
+  const tclass = elements.class
+    ? (selecti(elements.class, story) as string)
     : "category"
-  const text = selecti(tag_sel.elements.text, story) as string
+  const text = selecti(elements.text, story) as string
   if (!text) {
-    return
+    return undefined
   }
   const new_tag: StoryTag = {
     class: tclass,
     text: text
   }
-  for (const key in tag_sel.elements) {
+  for (const key in elements) {
     if (key != "class" && key != "text") {
-      new_tag[key as keyof StoryTag] = selecti(
-        tag_sel.elements[key],
-        story
-      ) as string
+      new_tag[key as keyof StoryTag] = selecti(elements[key], story) as string
     }
   }
   return new_tag

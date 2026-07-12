@@ -61,7 +61,11 @@ function selecti(
     //TODO: Post process stuff?
     selector.processors.forEach((processor) => {
       if (typeof ret === "string") {
-        ret = processor_functions[processor](ret)
+        const processorFunction = processor_functions[processor]
+        if (!processorFunction) {
+          throw new Error(`Unknown json_select processor: ${processor}`)
+        }
+        ret = processorFunction(ret)
       }
     })
   }
@@ -75,7 +79,8 @@ function process_templates(story: Story): Story {
       const url = new URL(story.href)
       story.title = story.title.replace("{url.path}", url.pathname.slice(1))
     } catch (e) {
-      console.error("templating story failed", e)
+      const detail = e instanceof Error ? e.message : String(e)
+      throw new Error(`Story URL template failed: ${detail}`)
     }
   }
   return story
@@ -97,26 +102,35 @@ export function parse(
     try {
       selectors = JSON.parse(split[1])
     } catch (e) {
-      console.error("json_select failed to parse config", e)
-      return []
+      const detail = e instanceof Error ? e.message : String(e)
+      throw new Error(`json_select config is invalid JSON: ${detail}`)
     }
   } else {
     return []
   }
 
-  const stories = selectors.stories
-    ? Array.from(selecti(selectors.stories, json) as Record<string, unknown>[])
-    : []
+  const { stories: stories_sel, link: link_sel, title: title_sel } = selectors
+  if (!stories_sel || !link_sel || !title_sel) {
+    throw new Error("json_select config is missing stories, link, or title")
+  }
+
+  const stories = Array.from(
+    selecti(stories_sel, json) as Record<string, unknown>[]
+  )
 
   return stories
     .map((story_el: Record<string, unknown>) => {
-      const href = selecti(selectors.link, story_el)
-      if (typeof href !== "string") return null
-      const title = selecti(selectors.title, story_el)
-      if (typeof title !== "string") return null
+      const href = selecti(link_sel, story_el)
+      if (typeof href !== "string" || !href) {
+        throw new Error("json_select link selector produced an empty value")
+      }
+      const title = selecti(title_sel, story_el)
+      if (typeof title !== "string" || !title) {
+        throw new Error("json_select title selector produced an empty value")
+      }
       const comment_href = selectors.comment_href
         ? (selecti(selectors.comment_href, story_el) as string)
-        : null
+        : ""
       const timestamp = selectors.timestamp
         ? Date.parse(selecti(selectors.timestamp, story_el) as string)
         : Date.now()
@@ -129,7 +143,7 @@ export function parse(
         timestamp
       )
 
-      selectors.tags.forEach((tag_sel) => {
+      selectors.tags?.forEach((tag_sel) => {
         let tag_els = [story_el]
         if (tag_sel.group_el) {
           tag_els = selecti(tag_sel.group_el, story_el) as Record<
@@ -154,10 +168,14 @@ function parse_tag(
   tag_sel: TagSelector,
   story: Record<string, unknown>
 ): StoryTag | undefined {
-  const tclass = tag_sel.elements.class
-    ? (selecti(tag_sel.elements.class, story) as string)
+  const elements = tag_sel.elements
+  if (!elements?.text) {
+    throw new Error("json_select tag config is missing elements.text")
+  }
+  const tclass = elements.class
+    ? (selecti(elements.class, story) as string)
     : "category"
-  const text = selecti(tag_sel.elements.text, story) as string
+  const text = selecti(elements.text, story) as string
   if (!text) {
     return undefined
   }
@@ -165,12 +183,9 @@ function parse_tag(
     class: tclass,
     text: text
   }
-  for (const key in tag_sel.elements) {
+  for (const key in elements) {
     if (key != "class" && key != "text") {
-      new_tag[key as keyof StoryTag] = selecti(
-        tag_sel.elements[key],
-        story
-      ) as string
+      new_tag[key as keyof StoryTag] = selecti(elements[key], story) as string
     }
   }
   return new_tag

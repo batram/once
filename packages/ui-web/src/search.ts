@@ -7,9 +7,15 @@ import {
 } from "@once/collectors"
 import { applyStoryFilters } from "@once/core"
 import { getOnceClient } from "./client"
+import { requireElement } from "./dom"
 
 export function init(): void {
-  const searchfield = document.querySelector<HTMLInputElement>("#searchfield")
+  const searchfield =
+    requireElement<HTMLInputElement>("#searchfield")
+  const search_scope =
+    requireElement<HTMLInputElement>("#search_scope")
+  const cancel_search_btn =
+    requireElement<HTMLElement>("#cancel_search_btn")
 
   window.addEventListener("keyup", (e) => {
     //CTRL + F
@@ -17,7 +23,6 @@ export function init(): void {
       searchfield.focus()
     }
   })
-  const search_scope = document.querySelector<HTMLInputElement>("#search_scope")
 
   searchfield.addEventListener("input", () => {
     if (search_scope.value == "local") {
@@ -42,8 +47,6 @@ export function init(): void {
     }
   })
 
-  const cancel_search_btn =
-    document.querySelector<HTMLElement>("#cancel_search_btn")
   cancel_search_btn.onclick = () => {
     searchfield.value = ""
     searchStories("")
@@ -52,12 +55,12 @@ export function init(): void {
 
 const specialk: Record<string, () => void> = {
   "[ALL]": () => {
-    const searchfield = document.querySelector<HTMLInputElement>("#searchfield")
+    const searchfield = requireElement<HTMLInputElement>("#searchfield")
     searchfield.value = ""
     searchStories("")
   },
   "[filtered]": () => {
-    const story_container = document.querySelector<HTMLElement>("#stories")
+    const story_container = requireElement<HTMLElement>("#stories")
     story_container.classList.add("show_filtered")
     document.querySelectorAll(".story").forEach((x) => {
       x.classList.remove("nomatch")
@@ -92,8 +95,7 @@ const extra_search_providers: Record<
   domain: {
     type: "global",
     func: async (needle: string) => {
-      const search_scope =
-        document.querySelector<HTMLInputElement>("#search_scope")
+      const search_scope = requireElement<HTMLInputElement>("#search_scope")
       search_scope.value = "global"
       domain_search_providers().forEach((dsp) => {
         dsp.domain_search(needle).then((res: Story[]) => {
@@ -105,15 +107,18 @@ const extra_search_providers: Record<
 }
 
 export async function searchStories(needle: string): Promise<void> {
-  const searchfield = document.querySelector<HTMLInputElement>("#searchfield")
-  searchfield.value = needle
-  const story_container = document.querySelector<HTMLElement>("#stories")
-  const global_search_results = document.querySelector<HTMLElement>(
+  const searchfield =
+    requireElement<HTMLInputElement>("#searchfield")
+  const story_container = requireElement<HTMLElement>("#stories")
+  const global_search_results = requireElement<HTMLElement>(
     "#global_search_results"
   )
   const cancel_search_btn =
-    document.querySelector<HTMLElement>("#cancel_search_btn")
-  const search_scope = document.querySelector<HTMLInputElement>("#search_scope")
+    requireElement<HTMLElement>("#cancel_search_btn")
+  const search_scope =
+    requireElement<HTMLInputElement>("#search_scope")
+
+  searchfield.value = needle
 
   story_container.classList.remove("show_filtered")
   story_container.style.display = "flex"
@@ -134,7 +139,7 @@ export async function searchStories(needle: string): Promise<void> {
 
   const split = needle.split(":")
   if (split.length > 1) {
-    const proto = split.shift()
+    const proto = split.shift() ?? ""
     needle = split.join(":")
     if (extra_search_providers[proto]) {
       const search_provider = extra_search_providers[proto]
@@ -167,7 +172,7 @@ export async function searchStories(needle: string): Promise<void> {
 
 async function local_search(needle: string) {
   document.querySelectorAll<StoryListItem>(".story").forEach((story_el) => {
-    const find_in = [
+    const find_in: (string | undefined)[] = [
       story_el.story.title,
       story_el.story.href,
       "[" + story_el.story.type + "]",
@@ -213,7 +218,7 @@ async function local_search(needle: string) {
 async function add_global_search_results(search_stories: Story[]) {
   const filterList = await getOnceClient().getFilterList()
   const filtered_stories = applyStoryFilters(filterList, search_stories)
-  const global_search_results = document.querySelector<HTMLElement>(
+  const global_search_results = requireElement<HTMLElement>(
     "#global_search_results"
   )
   filtered_stories.forEach((story) => {

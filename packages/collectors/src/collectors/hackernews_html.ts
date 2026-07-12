@@ -21,23 +21,31 @@ import { parseHumanTime } from "@once/core"
 
 export function parse(doc: Document): Story[] {
   const curl = item_url
-  const stories = Array.from(doc.querySelectorAll(".athing"))
+  const stories = Array.from(doc.querySelectorAll<HTMLElement>(".athing"))
 
-  return stories.map((story_el: HTMLElement) => {
+  return stories.flatMap((story_el) => {
     const story_link =
       story_el.querySelector<HTMLAnchorElement>(".titleline > a")
     const subtext = story_el.nextElementSibling
+
+    if (!story_link || !story_link.href || !story_link.innerText || !subtext) {
+      return []
+    }
 
     const id = story_el.id
     if (story_link.protocol == "file:") {
       story_link.href = curl + id
     }
 
-    const time = subtext.querySelector<HTMLAnchorElement>(".age a").innerText
+    const time =
+      subtext.querySelector<HTMLAnchorElement>(".age a")?.innerText ?? ""
     const timestamp = parseHumanTime(time)
+    if (!time || !Number.isFinite(timestamp)) {
+      return []
+    }
 
     //filter ads
-    let filter = null
+    let filter = ""
     if (options.settings.filter_ads.value) {
       if (story_el.querySelector(".votelinks") == null) {
         filter = ":: HN ads ::"
@@ -48,15 +56,14 @@ export function parse(doc: Document): Story[] {
       options.type,
       story_link.href,
       story_link.innerText,
-      curl + id,
+      id ? curl + id : "",
       timestamp,
       filter
     )
 
     const user_el = subtext.querySelector<HTMLAnchorElement>(".hnuser")
     if (user_el) {
-      const user_id =
-        subtext.querySelector<HTMLAnchorElement>(".hnuser").innerText
+      const user_id = user_el.innerText
 
       const user_tag = {
         class: "user",
@@ -66,7 +73,7 @@ export function parse(doc: Document): Story[] {
       new_story.tags.push(user_tag)
     }
 
-    return new_story
+    return [new_story]
   })
 }
 
@@ -94,9 +101,9 @@ async function hn_search(needle: string, alt_url?: string): Promise<Story[]> {
 
     const searchfield = document.querySelector<HTMLInputElement>("#searchfield")
 
-    if (!alt_url && searchfield.value != needle) {
+    if (!alt_url && searchfield?.value != needle) {
       //search changed bail
-      return
+      return []
     }
     const search_stories = json_response.hits.map(
       (result: {

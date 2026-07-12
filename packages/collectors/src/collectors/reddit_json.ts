@@ -68,9 +68,8 @@ export function parse(json: RedditJSONData, filter = true): Story[] {
       })
       .filter((x) => x != undefined)
   } else {
-    console.error("Can't handle reddit json of kind ", json.kind, json)
+    throw new Error(`Unsupported Reddit JSON kind: ${json.kind}`)
   }
-  return []
 }
 
 export function domain_search(domain: string): Promise<Story[]> {

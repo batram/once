@@ -1,5 +1,6 @@
 import { OnceClient, ProcessingSource, SourceError } from "@once/app"
 import { SettingsPanel } from "./SettingsPanel"
+import { requireElement } from "./dom"
 
 interface LoaderInsightsOptions {
   showHoveredLinks?: boolean
@@ -337,8 +338,8 @@ export class LoaderInsights {
     const issues = this.sourceErrors.filter((error) => error.type === type)
     const count = issues.length
     indicator.hidden = count === 0
-    indicator.querySelector<HTMLElement>(".status_issue_count").textContent =
-      count.toString()
+    const countEl = requireElement<HTMLElement>(".status_issue_count", indicator)
+    countEl.textContent = count.toString()
     indicator.setAttribute(
       "aria-label",
       `${count} source ${count === 1 ? type : `${type}s`}`

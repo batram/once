@@ -1,21 +1,28 @@
 import * as Search from "./search"
 import { OnceClient } from "@once/app"
+import { requireElement } from "./dom"
 
 let commsRegistered = false
 
+function panelFor(button: HTMLElement): string {
+  const panel = button.dataset.panel
+  if (panel) return panel
+  throw new Error("Menu button is missing data-panel")
+}
+
 export function open_panel(panel: string): void {
-  const left_panel = document.querySelector<HTMLElement>("#left_panel")
+  const left_panel = requireElement<HTMLElement>("#left_panel")
   left_panel.setAttribute("active_panel", panel)
 }
 
 function highlight_panel(panel: string) {
-  const target_panel = document.querySelector<HTMLElement>(
+  const target_panel = requireElement<HTMLElement>(
     "#" + panel + "_panel"
   )
   target_panel.classList.add("pseudo_active")
 }
 function delight_panel(panel: string) {
-  const target_panel = document.querySelector<HTMLElement>(
+  const target_panel = requireElement<HTMLElement>(
     "#" + panel + "_panel"
   )
   target_panel.classList.remove("pseudo_active")
@@ -45,29 +52,27 @@ export function add_entry(
 
     type_el.onclick = () => {
       open_panel("stories")
-      const search_scope =
-        document.querySelector<HTMLInputElement>("#search_scope")
+      const search_scope = requireElement<HTMLInputElement>("#search_scope")
       search_scope.value = "local"
 
-      const searchfield =
-        document.querySelector<HTMLInputElement>("#searchfield")
+      const searchfield = requireElement<HTMLInputElement>("#searchfield")
       searchfield.value = label
       Search.searchStories(label)
     }
     active_flash_panel(type_el)
-    document.querySelector("#menu #" + container_id).appendChild(type_el)
+    requireElement("#menu #" + container_id).appendChild(type_el)
   }
 }
 
 function active_flash_panel(btn: HTMLElement) {
   btn.onmousedown = () => {
-    highlight_panel(btn.dataset.panel)
+    highlight_panel(panelFor(btn))
   }
   btn.onmouseup = () => {
-    delight_panel(btn.dataset.panel)
+    delight_panel(panelFor(btn))
   }
   btn.onmouseout = () => {
-    delight_panel(btn.dataset.panel)
+    delight_panel(panelFor(btn))
   }
 }
 
@@ -82,7 +87,7 @@ export function init(client?: OnceClient): void {
 
   document.querySelectorAll<HTMLElement>("#menu .sub").forEach((sub_menu) => {
     sub_menu.onclick = () => {
-      open_panel(sub_menu.dataset.panel)
+      open_panel(panelFor(sub_menu))
     }
     sub_menu.querySelectorAll("img").forEach((x) => {
       x.setAttribute("draggable", "false")

@@ -460,7 +460,8 @@ export class BrowserCoordinator {
     })
     contents.on("will-prevent-unload", (event) => {
       const owner = this.windows.get(entry.ownerId)
-      const choice = dialog.showMessageBoxSync(owner?.window, {
+      if (!owner || owner.window.isDestroyed()) return
+      const choice = dialog.showMessageBoxSync(owner.window, {
         type: "question",
         buttons: ["Leave", "Stay"],
         defaultId: 0,

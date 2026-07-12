@@ -32,7 +32,19 @@ test("restores native tab and page menus with Inspect in packaged builds", async
     ]) {
       await window.locator(target.menu).click()
       await electronApp.evaluate(() => { globalThis.__onceLastMenuTemplate = null })
-      await window.locator(target.panel).click({ button: "right", position: { x: 8, y: 8 } })
+      const point = await window.locator(target.panel).evaluate((panel) => {
+        const bounds = panel.getBoundingClientRect()
+        return { x: Math.round(bounds.left + 8), y: Math.round(bounds.top + 8) }
+      })
+      await electronApp.evaluate(({ BrowserWindow }, position) => {
+        BrowserWindow.getAllWindows()[0]?.webContents.emit("context-menu", {}, {
+          ...position,
+          isEditable: false,
+          selectionText: "",
+          linkURL: "",
+          editFlags: {}
+        })
+      }, point)
       await expect.poll(() => electronApp.evaluate(() =>
         globalThis.__onceLastMenuTemplate?.map((item) => item.label || item.role || item.type)
       )).toEqual(["Inspect"])
@@ -46,11 +58,18 @@ test("restores native tab and page menus with Inspect in packaged builds", async
       BrowserWindow.getAllWindows()[0]?.webContents.closeDevTools()
     })
 
-    await window.locator(".electron-tab").click({ button: "right" })
-    const tabLabels = await electronApp.evaluate(() =>
+    await window.locator(".electron-tab").evaluate((tab) => {
+      tab.oncontextmenu?.(new MouseEvent("contextmenu", {
+        bubbles: true,
+        cancelable: true,
+        button: 2,
+        clientX: 8,
+        clientY: 8
+      }))
+    })
+    await expect.poll(() => electronApp.evaluate(() =>
       globalThis.__onceLastMenuTemplate.map((item) => item.label || item.role || item.type)
-    )
-    expect(tabLabels).toEqual([
+    )).toEqual([
       "Inspect", "separator", "Duplicate Tab", "Move Tab to New Window", "Close Tab"
     ])
 

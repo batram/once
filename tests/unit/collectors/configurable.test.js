@@ -31,3 +31,18 @@ test("parses configured HTML selectors and skips invalid configuration", () => {
   assert.equal(stories[0].tags[0].text, "tools")
   assert.deepEqual(collector.parse(doc, "", "geny:bad"), [])
 })
+
+test("rejects malformed configurable-source JSON", () => {
+  const jsonCollector = require("../../../packages/collectors/dist/collectors/json_select")
+  const htmlCollector = require("../../../packages/collectors/dist/collectors/geny_match")
+  const doc = parseDocument("<main></main>")
+
+  assert.throws(
+    () => jsonCollector.parse({}, "", `json:${separator}{bad${separator}https://example.com/feed.json`),
+    /json_select config is invalid JSON/
+  )
+  assert.throws(
+    () => htmlCollector.parse(doc, "", `geny:${separator}{bad${separator}https://example.com/`),
+    /geny_match config is invalid JSON/
+  )
+})

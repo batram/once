@@ -32,7 +32,7 @@ export function patternMatches(url: string, patterns: string[]): boolean {
 export function get_parser_for_url(
   url: string,
   options: ParserLookupOptions = {}
-): collectors.StoryParser {
+): collectors.StoryParser | undefined {
   const parsers = collectors.get_parser()
 
   for (const i in parsers) {
@@ -46,6 +46,8 @@ export function get_parser_for_url(
       return parser
     }
   }
+
+  return undefined
 }
 
 export async function parse_response(
@@ -94,6 +96,10 @@ export async function parse_response(
       throw new Error(`XML parsing failed: ${detail}`)
     }
   }
+
+  throw new Error(
+    `unsupported collects type "${parser.options.collects}" for: ${og_url}`
+  )
 }
 
 export function parse_xml(val: string): Document {
@@ -102,8 +108,6 @@ export function parse_xml(val: string): Document {
 
   if (doc.querySelector("parsererror")) {
     const parserError = doc.querySelector("parsererror")
-    console.error("xml parser failed", parserError)
-
     const errorText = parserError?.textContent || "Unknown XML parsing error"
 
     // Try to fix common XML issues

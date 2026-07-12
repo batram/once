@@ -5,6 +5,7 @@ import { PresenterOptions } from "../presenters_frontend"
 import { getOnceClient } from "../client"
 import { ReaderView } from "../reader/ReaderView"
 import { LoaderInsights } from "../LoaderInsights"
+import { requireElement } from "../dom"
 
 export const description = "Presents contents of a webpage in more readable way"
 
@@ -34,7 +35,7 @@ const data_outline_url_fail = "data:text/plain;charset=utf-8,outline%20failed"
 
 //let current_tab: WebTab
 
-export async function handle_url(_: string): Promise<boolean> {
+export function handle_url(_: string): boolean {
   return false
 }
 
@@ -79,7 +80,8 @@ export function story_elem_button(story: Story): HTMLElement {
   outline_btn.style.order = "2"
 
   if (story.has_content()) {
-    outline_btn.querySelector("img").src = "imgs/stored_content.svg"
+    const img = requireElement<HTMLImageElement>("img", outline_btn)
+    img.src = "imgs/stored_content.svg"
   }
 
   //prevent scroll, but fire interaction only on mouseup
@@ -188,6 +190,8 @@ export function display_url(url: string): string {
       return decodeURIComponent(url.split("#")[1])
     }
   }
+
+  return url
 }
 
 export async function present(url: string): Promise<void> {

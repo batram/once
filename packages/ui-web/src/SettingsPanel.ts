@@ -1,5 +1,6 @@
 import { OnceClient, SourceError, ThemeName } from "@once/app"
 import { parseRedirectList, presentRedirectList } from "@once/core"
+import { requireClosestElement, requireElement } from "./dom"
 import * as menu from "./menu"
 
 export class SettingsPanel {
@@ -46,24 +47,34 @@ export class SettingsPanel {
     this.restore_theme_settings()
 
     const theme_select =
-      document.querySelector<HTMLSelectElement>("#theme_select")
+      requireElement<HTMLSelectElement>("#theme_select")
     theme_select.addEventListener("change", () => {
       this.save_theme(theme_select.value)
     })
 
     const anim_checkbox =
-      document.querySelector<HTMLInputElement>("#anim_checkbox")
+      requireElement<HTMLInputElement>("#anim_checkbox")
     this.restore_animation_settings()
     anim_checkbox.addEventListener("change", () => {
       this.save_animation(anim_checkbox.checked)
     })
 
-    const couch_input = document.querySelector<HTMLInputElement>("#couch_input")
-    const couch_container = couch_input.parentElement as HTMLElement
+    const couch_input =
+      requireElement<HTMLInputElement>("#couch_input")
+    const couch_container = couch_input.parentElement
+    if (!couch_container) {
+      const message = "Settings are unavailable because the sync URL container is missing"
+      throw new Error(message)
+    }
     const couch_highlights =
-      couch_container.querySelector<HTMLElement>(".couch-highlights")
+      requireElement<HTMLElement>(".couch-highlights", couch_container)
     const couch_toggle =
-      couch_container.querySelector<HTMLButtonElement>("#couch_toggle")
+      requireElement<HTMLButtonElement>("#couch_toggle", couch_container)
+    const couch_actions = couch_container.parentElement
+    if (!couch_actions) {
+      const message = "Settings are unavailable because the sync actions are missing"
+      throw new Error(message)
+    }
 
     const updateCouchHighlights = () => {
       const val = couch_input.value
@@ -125,13 +136,17 @@ export class SettingsPanel {
 
     this.reset_couch_settings().then(() => updateCouchHighlights())
 
-    couch_container.parentElement
-      .querySelector('input[value="save"]')
+    requireElement<HTMLInputElement>(
+      'input[value="save"]',
+      couch_actions
+    )
       .addEventListener("click", () => {
         this.save_couch_settings()
       })
-    couch_container.parentElement
-      .querySelector('input[value="cancel"]')
+    requireElement<HTMLInputElement>(
+      'input[value="cancel"]',
+      couch_actions
+    )
       .addEventListener("click", () => {
         this.reset_couch_settings().then(() => updateCouchHighlights())
       })
@@ -139,15 +154,22 @@ export class SettingsPanel {
     this.ready = this.set_sources_area()
 
     const sources_area =
-      document.querySelector<HTMLInputElement>("#sources_area")
-    const sources_block = sources_area.closest(".settings_block")
-    sources_block
-      .querySelector('input[value="save"]')
+      requireElement<HTMLInputElement>("#sources_area")
+    const sources_block = requireClosestElement<HTMLElement>(
+      sources_area,
+      ".settings_block"
+    )
+    requireElement<HTMLInputElement>(
+      'input[value="save"]',
+      sources_block
+    )
       .addEventListener("click", () => {
         this.save_sources_settings()
       })
-    sources_block
-      .querySelector('input[value="cancel"]')
+    requireElement<HTMLInputElement>(
+      'input[value="cancel"]',
+      sources_block
+    )
       .addEventListener("click", () => {
         this.set_sources_area()
       })
@@ -162,7 +184,7 @@ export class SettingsPanel {
       }
     })
 
-    const highlights = document.querySelector<HTMLElement>(".highlights")
+    const highlights = requireElement<HTMLElement>(".highlights")
 
     const handleInput = () => {
       const text = sources_area.value
@@ -219,15 +241,23 @@ export class SettingsPanel {
 
     this.set_filter_area()
 
-    const filter_area = document.querySelector<HTMLInputElement>("#filter_area")
-    const filter_block = filter_area.closest(".settings_block")
-    filter_block
-      .querySelector('input[value="save"]')
+    const filter_area =
+      requireElement<HTMLInputElement>("#filter_area")
+    const filter_block = requireClosestElement<HTMLElement>(
+      filter_area,
+      ".settings_block"
+    )
+    requireElement<HTMLInputElement>(
+      'input[value="save"]',
+      filter_block
+    )
       .addEventListener("click", () => {
         this.save_filter_settings()
       })
-    filter_block
-      .querySelector("input[value=cancel]")
+    requireElement<HTMLInputElement>(
+      "input[value=cancel]",
+      filter_block
+    )
       .addEventListener("click", () => {
         this.set_filter_area()
       })
@@ -245,15 +275,22 @@ export class SettingsPanel {
     this.set_redirect_area()
 
     const redirect_area =
-      document.querySelector<HTMLInputElement>("#redirect_area")
-    const redirect_block = redirect_area.closest(".settings_block")
-    redirect_block
-      .querySelector('input[value="save"]')
+      requireElement<HTMLInputElement>("#redirect_area")
+    const redirect_block = requireClosestElement<HTMLElement>(
+      redirect_area,
+      ".settings_block"
+    )
+    requireElement<HTMLInputElement>(
+      'input[value="save"]',
+      redirect_block
+    )
       .addEventListener("click", () => {
         this.save_redirect_settings()
       })
-    redirect_block
-      .querySelector("input[value=cancel]")
+    requireElement<HTMLInputElement>(
+      "input[value=cancel]",
+      redirect_block
+    )
       .addEventListener("click", () => {
         this.set_redirect_area()
       })
@@ -270,15 +307,17 @@ export class SettingsPanel {
 
     // Cache timing settings
     this.restore_cache_settings()
-    const cache_time_input = document.querySelector<HTMLInputElement>("#cache_time_input")
-    const cache_block = cache_time_input.closest(".settings_block")
-    cache_block
-      .querySelector("#cache_time_save")
+    const cache_time_input =
+      requireElement<HTMLInputElement>("#cache_time_input")
+    const cache_block = requireClosestElement<HTMLElement>(
+      cache_time_input,
+      ".settings_block"
+    )
+    requireElement<HTMLInputElement>("#cache_time_save", cache_block)
       .addEventListener("click", () => {
         this.save_cache_settings()
       })
-    cache_block
-      .querySelector("#cache_time_cancel")
+    requireElement<HTMLInputElement>("#cache_time_cancel", cache_block)
       .addEventListener("click", () => {
         this.restore_cache_settings()
       })
@@ -295,14 +334,16 @@ export class SettingsPanel {
   }
 
   async reset_couch_settings(): Promise<void> {
-    const couch_input = document.querySelector<HTMLInputElement>("#couch_input")
+    const couch_input =
+      requireElement<HTMLInputElement>("#couch_input")
     couch_input.value = await this.client.getSyncUrl()
     // Trigger password highlighting update using existing function
     couch_input.dispatchEvent(new Event("input"))
   }
 
   save_couch_settings(): void {
-    const couch_input = document.querySelector<HTMLInputElement>("#couch_input")
+    const couch_input =
+      requireElement<HTMLInputElement>("#couch_input")
     this.client.setSyncUrl(couch_input.value).then(
       () => {
         // Trigger password highlighting update using existing input event listener
@@ -315,7 +356,7 @@ export class SettingsPanel {
     const theme_value = await this.client.getTheme()
 
     const theme_select =
-      document.querySelector<HTMLSelectElement>("#theme_select")
+      requireElement<HTMLSelectElement>("#theme_select")
     theme_select.value = theme_value
     this.set_theme(theme_value)
   }
@@ -329,7 +370,7 @@ export class SettingsPanel {
     const checked = await this.client.getAnimation()
 
     const anim_checkbox =
-      document.querySelector<HTMLInputElement>("#anim_checkbox")
+      requireElement<HTMLInputElement>("#anim_checkbox")
     anim_checkbox.checked = checked
     this.set_animation(checked)
   }
@@ -337,7 +378,7 @@ export class SettingsPanel {
   save_animation(checked: boolean): void {
     this.client.setAnimation(checked)
     const anim_checkbox =
-      document.querySelector<HTMLInputElement>("#anim_checkbox")
+      requireElement<HTMLInputElement>("#anim_checkbox")
     anim_checkbox.checked = checked
     this.set_animation(checked)
   }
@@ -365,7 +406,7 @@ export class SettingsPanel {
 
   async set_sources_area(): Promise<void> {
     const sources_area =
-      document.querySelector<HTMLTextAreaElement>("#sources_area")
+      requireElement<HTMLTextAreaElement>("#sources_area")
     const story_sources = await this.client.getStorySources()
     sources_area.value = story_sources.join("\n")
     // Trigger input event to update highlights
@@ -374,7 +415,7 @@ export class SettingsPanel {
 
   async save_sources_settings(): Promise<void> {
     const sources_area =
-      document.querySelector<HTMLTextAreaElement>("#sources_area")
+      requireElement<HTMLTextAreaElement>("#sources_area")
     const story_sources = sources_area.value.split("\n").filter((x) => {
       return x.trim() != ""
     })
@@ -383,13 +424,15 @@ export class SettingsPanel {
   }
 
   async set_filter_area(): Promise<void> {
-    const filter_area = document.querySelector<HTMLInputElement>("#filter_area")
+    const filter_area =
+      requireElement<HTMLInputElement>("#filter_area")
     const filter_list = await this.client.getFilterList()
     filter_area.value = filter_list.join("\n")
   }
 
   save_filter_settings(): void {
-    const filter_area = document.querySelector<HTMLInputElement>("#filter_area")
+    const filter_area =
+      requireElement<HTMLInputElement>("#filter_area")
     const filter_list = filter_area.value.split("\n").filter((x) => {
       return x.trim() != ""
     })
@@ -398,14 +441,14 @@ export class SettingsPanel {
 
   async set_redirect_area(): Promise<void> {
     const redirect_area =
-      document.querySelector<HTMLInputElement>("#redirect_area")
+      requireElement<HTMLInputElement>("#redirect_area")
     const redirect_list = await this.client.getRedirectList()
     redirect_area.value = presentRedirectList(redirect_list)
   }
 
   save_redirect_settings(): void {
     const redirect_area =
-      document.querySelector<HTMLInputElement>("#redirect_area")
+      requireElement<HTMLInputElement>("#redirect_area")
     const redirect_list = parseRedirectList(redirect_area.value)
     this.client.saveRedirectList(redirect_list)
   }
@@ -439,13 +482,7 @@ export class SettingsPanel {
       menu.open_panel("settings")
     }
 
-    const textarea = document.querySelector<HTMLTextAreaElement>(
-      `#${textareaId}`
-    )
-    if (!textarea) {
-      console.error(`SettingsPanel: ${textareaId} not found!`)
-      return
-    }
+    const textarea = requireElement<HTMLTextAreaElement>(`#${textareaId}`)
 
     // Trigger input event if needed (for sources highlighting)
     if (triggerInputEvent) {
@@ -546,13 +583,15 @@ export class SettingsPanel {
   }
 
   async restore_cache_settings(): Promise<void> {
-    const cache_time_input = document.querySelector<HTMLInputElement>("#cache_time_input")
+    const cache_time_input =
+      requireElement<HTMLInputElement>("#cache_time_input")
     const cache_time = await this.client.getCacheTime()
     cache_time_input.value = cache_time.toString()
   }
 
   async save_cache_settings(): Promise<void> {
-    const cache_time_input = document.querySelector<HTMLInputElement>("#cache_time_input")
+    const cache_time_input =
+      requireElement<HTMLInputElement>("#cache_time_input")
     const cache_time = cache_time_input.value
     await this.client.setCacheTime(cache_time)
   }

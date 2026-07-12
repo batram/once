@@ -3,7 +3,7 @@ export function installReaderTts(options: {
   onRateChange?: (rate: number) => void
   claimOwnership?: () => void
   releaseOwnership?: () => void
-  subscribeToStop?: (handler: () => void) => (() => void) | void
+  subscribeToStop?: (handler: () => void) => (() => void) | undefined
 } = {}): void {
   if (document.documentElement.dataset.onceTtsInstalled === "true") return
   document.documentElement.dataset.onceTtsInstalled = "true"

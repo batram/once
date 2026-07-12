@@ -64,8 +64,8 @@ export class StoryHistory {
 
   undo(): void {
     console.log("undo")
-    if (this.undo_history.length > 0) {
-      const hstate = this.undo_history.pop()
+    const hstate = this.undo_history.pop()
+    if (hstate) {
       console.log("undo", hstate)
       getOnceClient().persistStoryChange(
         hstate.story.href,
@@ -83,8 +83,8 @@ export class StoryHistory {
 
   redo(): void {
     console.log("redo")
-    if (this.redo_history.length > 0) {
-      const hstate = this.redo_history.pop()
+    const hstate = this.redo_history.pop()
+    if (hstate) {
       console.log("redo", hstate)
       getOnceClient().persistStoryChange(
         hstate.story.href,

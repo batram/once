@@ -24,23 +24,24 @@ export function parse(doc: Document): Story[] {
     return []
   }
 
+  const root = doc.firstElementChild
+  if (!root) {
+    throw new Error("RSS feed has no root element")
+  }
+
   if (
-    (doc.firstElementChild.nodeName == "rss" &&
-      doc.firstElementChild.getAttribute("version") == "2.0") ||
-    doc.firstElementChild.getAttribute("xmlns") == "http://purl.org/rss/1.0/"
+    (root.nodeName == "rss" && root.getAttribute("version") == "2.0") ||
+    root.getAttribute("xmlns") == "http://purl.org/rss/1.0/"
   ) {
     return parse_rss_2(doc)
   } else if (
-    doc.firstElementChild.nodeName == "feed" &&
-    doc.firstElementChild.getAttribute("xmlns") == "http://www.w3.org/2005/Atom"
+    root.nodeName == "feed" &&
+    root.getAttribute("xmlns") == "http://www.w3.org/2005/Atom"
   ) {
     return parse_atom(doc)
   } else {
-    console.error(
-      "rest",
-      doc.firstElementChild.nodeName,
-      doc.firstElementChild.getAttribute("version"),
-      doc
+    throw new Error(
+      `Unsupported feed format: ${root.nodeName} ${root.getAttribute("version") ?? ""}`.trim()
     )
   }
 }
@@ -98,7 +99,7 @@ declare interface FeedFormat {
 function get_feed_value(
   story: Element,
   tag_formats: (string | FeedFromatTag)[]
-) {
+): string | undefined {
   for (let tag_format of tag_formats) {
     if (typeof tag_format == "string") {
       tag_format = { tag: tag_format }
@@ -134,6 +135,8 @@ function get_feed_value(
       }
     }
   }
+
+  return undefined
 }
 
 function common_rss_parser(doc: Document, def: FeedFormat) {
@@ -143,9 +146,15 @@ function common_rss_parser(doc: Document, def: FeedFormat) {
   const main_link = get_feed_value(doc.documentElement, def.main_link)
 
   const stories = Array.from(items).map((story) => {
-    let timestamp: string | number = get_feed_value(story, def.timestamp_tags)
+    let timestamp: string | number | undefined = get_feed_value(
+      story,
+      def.timestamp_tags
+    )
     if (timestamp) {
       timestamp = Date.parse(timestamp)
+      if (!Number.isFinite(timestamp)) {
+        return
+      }
       if (daysAgo(timestamp) > options.settings.time_cut_off.value) {
         return
       }
@@ -166,21 +175,22 @@ function common_rss_parser(doc: Document, def: FeedFormat) {
     }
 
     if (!link || !title) {
-      console.error("no link or title? byebye", story, doc)
       return
     }
 
     const new_story = new Story(options.type, link, title, link, timestamp)
 
-    const user_tag = {
-      class: "user",
-      text: main_title,
-      href: main_link
+    if (main_title) {
+      const user_tag = {
+        class: "user",
+        text: main_title,
+        href: main_link
+      }
+      new_story.tags.push(user_tag)
     }
-    new_story.tags.push(user_tag)
 
     return new_story
   })
   //console.debug("rss :: ", doc, stories)
-  return stories.filter((x) => x != undefined)
+  return stories.filter((x): x is Story => x != undefined)
 }

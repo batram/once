@@ -28,6 +28,18 @@ test("starts from stored stories and persists story changes", async () => {
   assert.equal(changes.at(-1).value, "read")
 })
 
+test("rejects empty new stories and does not index empty comment URLs", async () => {
+  assert.throws(() => new Story(), /Story is missing required type/)
+  assert.throws(() => Story.from_obj({}), /Story is missing required type/)
+
+  const story = new Story("rss", "https://example.com/no-comments", "No comments")
+  const fake = createFakePlatform([story])
+  const app = createOnceApp(fake.ports)
+  await app.start()
+
+  assert.equal(await app.client.findStoryByUrl(""), null)
+})
+
 test("publishes settings, database, reload, and history events", async () => {
   const fake = createFakePlatform()
   const app = createOnceApp(fake.ports)

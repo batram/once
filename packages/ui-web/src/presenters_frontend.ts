@@ -19,9 +19,9 @@ export declare interface Presenter {
   story_elem_button?: (story: Story, intab: boolean) => HTMLElement
   context_link?: (/*con_menu: Menu, cmenu_data: CMenuData*/) => void
   handle(url: string): Promise<boolean>
-  handle_url(url: string): Promise<boolean>
+  handle_url(url: string): boolean
   init_in_webtab?(/*tab: WebTab*/): void
-  [key: string]: ((...args: unknown[]) => unknown) | PresenterOptions | string
+  [key: string]: unknown
 }
 
 let presenters: Presenter[] = []
@@ -62,13 +62,14 @@ export function add_story_elem_buttons(
   intab = false
 ): void {
   get_active().forEach((presenter) => {
-    if (Object.prototype.hasOwnProperty.call(presenter, "story_elem_button")) {
+    const story_elem_button = presenter.story_elem_button
+    if (story_elem_button) {
       if (
         presenter.presenter_options.story_button.value == "always" ||
         (presenter.presenter_options.story_button.value == "handled" &&
           presenter.handle_url(story.href))
       ) {
-        const button = presenter["story_elem_button"](story, intab)
+        const button = story_elem_button(story, intab)
         story_el.button_group.appendChild(button)
       }
     }
@@ -97,8 +98,6 @@ export function init_in_webtab(/*tab: WebTab*/): void {
 
 export function context_link(/*con_menu: Menu, cmenu_data: CMenuData*/): void {
   get_active().forEach((presenter) => {
-    if (Object.prototype.hasOwnProperty.call(presenter, "context_link")) {
-      presenter["context_link"](/*con_menu, cmenu_data*/)
-    }
+    presenter.context_link?.(/*con_menu, cmenu_data*/)
   })
 }

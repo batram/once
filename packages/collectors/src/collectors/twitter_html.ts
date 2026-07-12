@@ -18,24 +18,35 @@ const user_url = "https://nitter.net/"
 import { Story } from "@once/core"
 
 export function parse(doc: Document): Story[] {
-  const stories = Array.from(doc.querySelectorAll(".timeline-item"))
+  const stories = Array.from(doc.querySelectorAll<HTMLElement>(".timeline-item"))
 
-  return stories.map((story_el: HTMLElement) => {
+  return stories.flatMap((story_el) => {
     const story_link =
       story_el.querySelector<HTMLAnchorElement>(".tweet-date a")
 
-    const time = story_link.getAttribute("title").replace("·", "")
-    const timestamp = Date.parse(time)
+    if (!story_link) {
+      return []
+    }
 
-    const user_id = story_el
-      .querySelector<HTMLAnchorElement>(".tweet-avatar")
-      .href.substring(1)
+    const time = (story_link.getAttribute("title") ?? "").replace("·", "")
+    const timestamp = Date.parse(time)
+    if (!time || !Number.isFinite(timestamp)) {
+      return []
+    }
+
+    const user_id =
+      story_el
+        .querySelector<HTMLAnchorElement>(".tweet-avatar")
+        ?.href.substring(1) ?? ""
 
     const story_text =
-      story_el.querySelector<HTMLDivElement>(".tweet-content").innerText
+      story_el.querySelector<HTMLDivElement>(".tweet-content")?.innerText ?? ""
+    if (!story_link.href || !story_text) {
+      return []
+    }
 
     //filter ads
-    let filter = null
+    let filter = ""
     if (options.settings.filter_ads.value) {
       if (story_el.querySelector(".ProfileTweet-actionCountList") != null) {
         filter = ":: Twitter ads ::"
@@ -46,24 +57,21 @@ export function parse(doc: Document): Story[] {
       options.type,
       story_link.href,
       story_text,
-      user_url + user_id,
+      user_id ? user_url + user_id : "",
       timestamp,
       filter
     )
 
     const user_el = story_el.querySelector<HTMLAnchorElement>(".username")
     if (user_el) {
-      const user_id =
-        story_el.querySelector<HTMLAnchorElement>(".username").innerText
-
       const user_tag = {
         class: "user",
-        text: user_id,
-        href: user_url + user_id
+        text: user_el.innerText,
+        href: user_url + user_el.innerText
       }
       new_story.tags.push(user_tag)
     }
 
-    return new_story
+    return [new_story]
   })
 }

@@ -1,5 +1,6 @@
 import * as menu from "./menu"
 import { Story } from "@once/core"
+import { requireElement } from "./dom"
 
 export function show_filter_dialog(
   event: MouseEvent,
@@ -70,7 +71,7 @@ export function show_filter(value: string): void {
     confirm("internal filter not changeable yet ...")
     return
   }
-  const filter_area = document.querySelector<HTMLInputElement>("#filter_area")
+  const filter_area = requireElement<HTMLInputElement>("#filter_area")
 
   const start = filter_area.value.indexOf(value)
   if (start == -1) {

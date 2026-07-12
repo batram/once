@@ -29,7 +29,7 @@ export function createElectronPlatform(
   syncWindowBackground()
 
   const onceDb = new PouchDB("once_electron_v2")
-  const fetchThroughMain = (input: RequestInfo, init?: RequestInit) =>
+  const fetchThroughMain = (input: RequestInfo | URL, init?: RequestInit) =>
     bridgeFetch(bridge, input, init)
   const listStore = new PouchListStore(onceDb)
   const storyStore = new PouchStoryStore(onceDb, (story) =>

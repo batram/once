@@ -30,22 +30,22 @@ export class PouchStoryStore<TStory extends Story> {
       })
   }
 
-  async getStory(url: string): Promise<TStory> {
+  async getStory(url: string): Promise<TStory | null> {
     return this.db
       .get(this.storyId(url))
       .then((doc: unknown) => {
         return this.fromObj(doc as Record<string, unknown>)
       })
       .catch((err) => {
-        console.error("get_story err", err)
-        return null as unknown as TStory
+        if ((err as { status?: number }).status === 404) {
+          return null
+        }
+        throw err
       })
   }
 
   async saveStory(story: TStory): Promise<TStory> {
-    const trySave = async (
-      retryCount = 0
-    ): Promise<{ rev?: string } | undefined> => {
+    const trySave = async (retryCount = 0): Promise<{ rev?: string }> => {
       try {
         const doc = await this.db.get(this.storyId(story.href))
         story._id = doc._id as string
@@ -63,14 +63,13 @@ export class PouchStoryStore<TStory extends Story> {
           )
           return await trySave(retryCount + 1)
         } else {
-          console.error("save_story error:", err)
-          return undefined
+          throw err
         }
       }
     }
 
     const resp = await trySave()
-    if (resp && resp.rev) {
+    if (resp.rev) {
       story._rev = resp.rev
     }
     return story

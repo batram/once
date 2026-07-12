@@ -28,12 +28,12 @@ export class Story {
     | unknown
 
   constructor(
-    type?: string,
-    href?: string,
-    title?: string,
-    comment_url?: string,
-    timestamp?: string | number | Date,
-    filter?: string
+    type: string,
+    href: string,
+    title: string,
+    comment_url = "",
+    timestamp: string | number | Date = Date.now(),
+    filter = ""
   ) {
     this.type = type
     this.href = href
@@ -44,16 +44,51 @@ export class Story {
     this.filter = filter
     this.substories = []
     this.tags = []
+    this.stared = false
+    Story.assertIngestible(this)
+  }
+
+  static assertIngestible(
+    story: Pick<Story, "type" | "href" | "title" | "timestamp">
+  ): void {
+    for (const field of ["type", "href", "title"] as const) {
+      if (typeof story[field] !== "string" || !story[field].trim()) {
+        throw new Error(`Story is missing required ${field}`)
+      }
+    }
+
+    const timestamp =
+      story.timestamp instanceof Date
+        ? story.timestamp.getTime()
+        : typeof story.timestamp === "number"
+          ? story.timestamp
+          : Date.parse(story.timestamp)
+    if (!Number.isFinite(timestamp)) {
+      throw new Error("Story has an invalid timestamp")
+    }
   }
 
   static from_obj<T extends Story>(
-    this: new () => T,
+    this: { prototype: T },
     story: Record<string, unknown>
   ): T {
-    const xstory = new this()
-    for (const i in story) {
-      (xstory as Record<string, unknown>)[i] = story[i]
-    }
+    const xstory = Object.assign(
+      Object.create(this.prototype) as T,
+      {
+        type: "",
+        href: "",
+        title: "",
+        comment_url: "",
+        timestamp: "",
+        filter: "",
+        read_state: "unread",
+        substories: [],
+        tags: [],
+        stared: false
+      },
+      story
+    )
+    Story.assertIngestible(xstory)
     return xstory
   }
 
@@ -119,7 +154,7 @@ export class Story {
   }
 
   has_content(): boolean {
-    return (
+    return Boolean(
       this._attachments &&
       this._attachments.content &&
       this._attachments.content.length != 0

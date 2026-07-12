@@ -14,23 +14,29 @@ export function parse(doc: Document): Story[] {
   //Parse as RSS and not HTML ...
   const stories = doc.querySelectorAll("entry")
 
-  return Array.from(stories).map((story) => {
+  return Array.from(stories).flatMap((story) => {
     const dom_parser = new DOMParser()
     const content = dom_parser.parseFromString(
-      story.querySelector<HTMLElement>("content").innerText,
+      story.querySelector<HTMLElement>("content")?.innerText ?? "",
       "text/html"
     )
 
-    const timestamp = Date.parse(
-      story.querySelector<HTMLElement>("updated").innerText
-    )
+    const updated = story.querySelector<HTMLElement>("updated")?.innerText
+    const href = content.querySelector<HTMLAnchorElement>("span a")?.href
+    const title = story.querySelector("title")?.innerText
+    if (!updated || !href || !title) {
+      return []
+    }
+    const timestamp = Date.parse(updated)
 
-    return new Story(
-      options.type,
-      content.querySelector<HTMLAnchorElement>("span a").href,
-      story.querySelector("title").innerText,
-      story.querySelector("link").href,
-      timestamp
-    )
+    return [
+      new Story(
+        options.type,
+        href,
+        title,
+        story.querySelector("link")?.href ?? "",
+        timestamp
+      )
+    ]
   })
 }

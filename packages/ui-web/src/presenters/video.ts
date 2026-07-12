@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars -- helpers for the webview flow are kept while that code path is commented out */
 import { Story } from "@once/core"
+import { LoaderInsights } from "../LoaderInsights"
 import { StoryListItem } from "../StoryListItem"
 //import * as child_process from "child_process"
 import * as path from "path"
@@ -31,7 +32,7 @@ const data_video_url_fail = "data:text/plain;charset=utf-8,video%20failed"
 export function handle_url(url: string): boolean {
   const parsed_url = new URL(url)
   const host = parsed_url.hostname
-  return (
+  return Boolean(
     host &&
     (host.includes("gfycat.com") ||
       host.startsWith("v.redd.it") ||
@@ -50,16 +51,19 @@ export async function handle(url: string): Promise<boolean> {
 
 async function shortcut(
   url: string
-): Promise<{ src: string; type?: string; title?: string }> {
+): Promise<{ src: string; type?: string; title?: string } | undefined> {
   if (url.startsWith("https://v.redd.it/")) {
     return {
       src: url + "/DASHPlaylist.mpd",
       type: "application/dash+xml"
     }
-  } else if (url.includes("youtu") && url.match(/[/=:]+([0-9A-Za-z_-]{11})/)) {
-    const id = url.match(/[/=:]+([0-9A-Za-z_-]{11})/)[1]
-    return source_youtube(id, url)
+  } else if (url.includes("youtu")) {
+    const id_match = url.match(/[/=:]+([0-9A-Za-z_-]{11})/)
+    if (id_match) {
+      return source_youtube(id_match[1], url)
+    }
   }
+  return undefined
 }
 
 interface RequestFormat {
@@ -102,7 +106,9 @@ interface VideoDLInfo {
   title: string
 }
 
-function find_source(video_info: VideoDLInfo): { src: string; type?: string } {
+function find_source(
+  video_info: VideoDLInfo
+): { src: string; type?: string } | undefined {
   if (video_info.format_id == "mp4" && video_info.url) {
     return { src: video_info.url }
   } else if (video_info.format_id.includes("dash")) {
@@ -117,7 +123,7 @@ function find_source(video_info: VideoDLInfo): { src: string; type?: string } {
       video_info.requested_formats &&
       video_info.requested_formats.length != 0 &&
       video_info.requested_formats[0].manifest_url &&
-      video_info.requested_formats[0].format_id.includes("dash")
+      video_info.requested_formats[0].format_id?.includes("dash")
     ) {
       return {
         src: video_info.requested_formats[0].manifest_url,
@@ -134,6 +140,8 @@ function find_source(video_info: VideoDLInfo): { src: string; type?: string } {
       }
     }
   }
+
+  return undefined
 }
 
 export function is_presenter_url(url: string): boolean {
@@ -260,6 +268,8 @@ export function display_url(url: string): string {
       return vid_info.url
     }
   }
+
+  return url
 }
 
 async function video_dl(url: string): Promise<VideoDLInfo | null> {
@@ -272,8 +282,8 @@ async function video_dl(url: string): Promise<VideoDLInfo | null> {
 }
 
 export async function present(url: string): Promise<boolean> {
-  const src: { src: string; type?: string; title?: string } = null
-  const title: string = null
+  const src: { src: string; type?: string; title?: string } | null = null
+  const title: string | null = null
   /*
   const webview = document.querySelector<Electron.WebviewTag>("#webview")
   const urlfield = document.querySelector<HTMLInputElement>("#urlfield")
@@ -336,8 +346,8 @@ function fallback_to_src(url: string) {
 function show_video(
   video_info: {
     url: string
-    src: { src: string; type?: string; title?: string }
-    title: string
+    src: { src: string; type?: string; title?: string } | null
+    title: string | null
   },
   url: string
 ): boolean {
@@ -345,7 +355,7 @@ function show_video(
 
   if (video_info && video_info.src) {
     //current_tab.set_url(url)
-    video_info.title = video_info.title.replace(/[\u0250-\ue007]/g, "")
+    video_info.title = (video_info.title ?? "").replace(/[\u0250-\ue007]/g, "")
     const b64_json_info = "vidinfo_" + btoa(JSON.stringify(video_info))
 
     const vid_ready = () => {
@@ -430,9 +440,13 @@ async function source_youtube(
   provider: string
   id: string
   vtt_data: string
-}> {
-  const resp = await fetch("https://www.youtube.com/watch?ucbcb=1&v=" + id)
-  if (resp.ok) {
+} | undefined> {
+  try {
+    const resp = await fetch("https://www.youtube.com/watch?ucbcb=1&v=" + id)
+    if (!resp.ok) {
+      throw new Error(`YouTube returned HTTP ${resp.status}`)
+    }
+
     const text = await resp.text()
     const dp = new DOMParser()
     const ydoc = dp.parseFromString(text, "text/html")
@@ -445,137 +459,105 @@ async function source_youtube(
         )
       }
     )
-    if (scriptle.length != 0) {
-      const title = ydoc.querySelector("title").innerText
+    const configScript = scriptle[0]
+    if (!configScript) {
+      throw new Error("The YouTube player response was not found")
+    }
 
-      let yt_config_raw = scriptle[0].innerText.split(conf_var)[1]
-      const first_bracket = yt_config_raw.indexOf("{")
+    const title = ydoc.querySelector("title")?.innerText ?? "YouTube video"
+    let yt_config_raw = configScript.innerText.split(conf_var)[1]
+    const first_bracket = yt_config_raw?.indexOf("{") ?? -1
+    if (!yt_config_raw || first_bracket < 0) {
+      throw new Error("The YouTube player response was malformed")
+    }
+    yt_config_raw = yt_config_raw.slice(first_bracket)
 
-      yt_config_raw = yt_config_raw.slice(first_bracket)
+    let player_response: PlayerResponse
+    try {
+      player_response = JSON.parse(yt_config_raw)
+    } catch (error) {
+      const position =
+        error instanceof Error
+          ? error.message.match(/(?:at position|position) (\d+)/)
+          : null
+      if (!position) throw error
+      player_response = JSON.parse(
+        yt_config_raw.substring(0, Number(position[1]))
+      )
+    }
 
-      let yt_config: {
-        assets: { js?: string }
-        args?: { player_response?: string }
-      }
+    const streamingData = player_response.streamingData
+    const adaptiveFormats = streamingData?.adaptiveFormats
+    if (!streamingData || !adaptiveFormats?.length) {
+      throw new Error("YouTube did not provide playable video formats")
+    }
 
-      if (yt_config_raw) {
-        let player_response: PlayerResponse
-        try {
-          player_response = JSON.parse(yt_config_raw)
-        } catch (e) {
-          console.debug("yt json error", e)
-          const numnum = e.toString().match(/; in JSON at position (\d+)/)
-          if (numnum) {
-            player_response = JSON.parse(yt_config_raw.substring(0, numnum[1]))
+    let vtt_data = ""
+    const storyboard =
+      player_response.storyboards?.playerStoryboardSpecRenderer
+    if (storyboard) {
+      const sel = storyboard.spec.split("|")
+      if (sel[0] && sel[3]) {
+        const url_pattern = sel[0].replace("$L", "2")
+        const image_info = sel[3].split("#")
+        if (image_info.length >= 8) {
+          const conf: VTT_Conf = {
+            cols: parseInt(image_info[3]),
+            rows: parseInt(image_info[4]),
+            width: parseInt(image_info[0]),
+            height: parseInt(image_info[1]),
+            interval: parseInt(image_info[5]) / 1000,
+            count: parseInt(image_info[2]),
+            img_url: url_pattern + "&sigh=" + image_info[7],
+            schnibble: false
           }
-        }
-        try {
-          let vtt_data: string
-
-          if (player_response.storyboards.playerStoryboardSpecRenderer) {
-            const sel =
-              player_response.storyboards.playerStoryboardSpecRenderer.spec.split(
-                "|"
-              )
-            const url_pattern = sel[0].replace("$L", "2")
-            const image_info = sel[3].split("#")
-            const conf: VTT_Conf = {
-              cols: parseInt(image_info[3]),
-              rows: parseInt(image_info[4]),
-              width: parseInt(image_info[0]),
-              height: parseInt(image_info[1]),
-              interval: parseInt(image_info[5]) / 1000,
-              count: parseInt(image_info[2]),
-              img_url: url_pattern + "&sigh=" + image_info[7],
-              schnibble: false
-            }
-
-            vtt_data = generate_vtt(conf)
-          }
-
-          if (player_response.streamingData.dashManifestUrl) {
-            return {
-              src: player_response.streamingData.dashManifestUrl,
-              type: "application/dash+xml",
-              title: title,
-              provider: "youtube",
-              id: id,
-              vtt_data: vtt_data
-            }
-          }
-          if (
-            player_response.streamingData.adaptiveFormats[0].signatureCipher
-          ) {
-            let base_js = null
-            if (yt_config && yt_config.assets && yt_config.assets.js) {
-              base_js = yt_config.assets.js
-            } else {
-              if (ydoc.querySelector("script[src*='base.js']")) {
-                base_js = ydoc
-                  .querySelector("script[src*='base.js']")
-                  .getAttribute("src")
-              }
-            }
-            if (base_js) {
-              const base_req = await fetch("https://www.youtube.com" + base_js)
-              if (base_req.ok) {
-                const base_src = await base_req.text()
-                const func = base_src.match(
-                  /^[^=]+(=function\(\w\){\w=\w\.split\(""\);[^. ]+\.[^( ]+[^}]+})/m
-                )
-                const k = func[0].split(";")[1].split(".")[0]
-                const var_body = base_src
-                  .replace(/\n/g, "")
-                  .match(new RegExp(`var ${k}={.*?};`))[0]
-                const fungy_code =
-                  var_body + "\n" + "var fungy" + func[1]
-
-                for (const format of player_response.streamingData
-                  .adaptiveFormats) {
-                  const ul = new URLSearchParams(format.signatureCipher)
-                  /*const webview =
-                    document.querySelector<Electron.WebviewTag>("#webview")
-                  const defunged = await webview.executeJavaScript(
-                    fungy_code + "\n" + `fungy(atob("${btoa(ul.get("s"))}"))`
-                  )
-                  format.url =
-                    ul.get("url") + "&" + ul.get("sp") + "=" + defunged*/
-                }
-              }
-            } else {
-              const info = await video_dl(url)
-              console.debug("video_dl", info)
-              if (!info) {
-                return
-              }
-              const deciphered: Record<string, string> = {}
-
-              info.formats.forEach((x) => {
-                deciphered[x.format_id] = x.url
-              })
-
-              player_response.streamingData.adaptiveFormats.forEach(
-                (format) => {
-                  format.url = deciphered[format.itag]
-                }
-              )
-            }
-          }
-
-          const dash_src = await youtube_dash(player_response)
-          return {
-            src: dash_src.src,
-            type: dash_src.type,
-            title: title,
-            provider: "youtube",
-            id: id,
-            vtt_data: vtt_data
-          }
-        } catch (e) {
-          console.error("yt ", e)
+          vtt_data = generate_vtt(conf)
         }
       }
     }
+
+    if (streamingData.dashManifestUrl) {
+      return {
+        src: streamingData.dashManifestUrl,
+        type: "application/dash+xml",
+        title: title,
+        provider: "youtube",
+        id: id,
+        vtt_data: vtt_data
+      }
+    }
+
+    if (adaptiveFormats.some((format) => format.signatureCipher && !format.url)) {
+      const info = await video_dl(url)
+      console.debug("video_dl", info)
+      if (!info?.formats) {
+        throw new Error("The signed YouTube video URLs could not be decoded")
+      }
+      const deciphered: Record<string, string> = {}
+
+      info.formats.forEach((x) => {
+        deciphered[x.format_id] = x.url
+      })
+
+      adaptiveFormats.forEach((format) => {
+        format.url = deciphered[format.itag]
+      })
+    }
+
+    const dash_src = await youtube_dash(player_response)
+    return {
+      src: dash_src.src,
+      type: dash_src.type,
+      title: title,
+      provider: "youtube",
+      id: id,
+      vtt_data: vtt_data
+    }
+  } catch (error) {
+    console.error("YouTube video extraction failed", error)
+    const detail = error instanceof Error ? error.message : String(error)
+    LoaderInsights.showErrorMessage(`Could not load YouTube video: ${detail}`)
+    return undefined
   }
 }
 
@@ -633,9 +615,17 @@ async function youtube_dash(
     null
   )
   const mpd_base = xmlDoc.firstElementChild
+  if (!mpd_base) {
+    throw new Error("The video manifest could not be created")
+  }
+  const lengthSeconds = response.videoDetails?.lengthSeconds
+  const adaptiveFormats = response.streamingData?.adaptiveFormats
+  if (lengthSeconds === undefined || !adaptiveFormats?.length) {
+    throw new Error("YouTube returned incomplete video metadata")
+  }
   mpd_base.setAttribute(
     "mediaPresentationDuration",
-    `PT${response.videoDetails.lengthSeconds}S`
+    `PT${lengthSeconds}S`
   )
   mpd_base.setAttribute("profiles", "urn:mpeg:dash:profile:full:2011")
   mpd_base.setAttribute("minBufferTime", "PT0.2S")
@@ -646,8 +636,8 @@ async function youtube_dash(
 
   let n = 0
 
-  response.streamingData.adaptiveFormats.forEach((format) => {
-    if (chosen_formats.includes(format.itag.toString())) {
+  adaptiveFormats.forEach((format) => {
+    if (chosen_formats.includes(format.itag.toString()) && format.url) {
       const mime_codec = format.mimeType.split("; ")
       const mimeType = mime_codec[0]
       const codec = mime_codec[1].split('"')[1]

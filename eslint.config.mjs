@@ -8,6 +8,7 @@ export default tseslint.config(
     ignores: [
       "**/dist/",
       "**/node_modules/",
+      ".claude/",
       "**/*.min.js",
       "web-ext-artifacts/",
       "test-results/",
@@ -16,7 +17,7 @@ export default tseslint.config(
     ]
   },
   js.configs.recommended,
-  tseslint.configs.recommended,
+  tseslint.configs.strict,
   {
     languageOptions: {
       globals: {
@@ -44,6 +45,10 @@ export default tseslint.config(
       "@typescript-eslint/no-require-imports": [
         "error",
         { allowAsImport: true }
+      ],
+      "@typescript-eslint/no-extraneous-class": [
+        "error",
+        { allowStaticOnly: true }
       ]
     }
   },

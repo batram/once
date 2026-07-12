@@ -20,7 +20,7 @@ export interface StoryChangeDetail {
   path: string[] | string
   value: unknown
   previousValue: unknown
-  name: string
+  name: string | null
   animated: boolean
 }
 
@@ -87,12 +87,12 @@ export interface OnceClient {
   getAnimation(): Promise<AnimationSetting>
   setAnimation(animated: AnimationSetting): Promise<void>
   reloadStories(tryCache?: boolean): Promise<void>
-  findStoryByUrl(url: string): Promise<Story>
+  findStoryByUrl(url: string): Promise<Story | null>
   persistStoryChange(
     href: string,
     path: string,
     value: Story | string | boolean
-  ): Promise<Story>
+  ): Promise<Story | undefined>
   addFilter(filter: string): Promise<void>
   fetchDocument(url: string): Promise<{ html: string; url: string }>
   openUrl(url: string, target: "_self" | "middle" | "blank" | string): void
@@ -111,7 +111,7 @@ export interface ListStorePort {
 export interface StoryStorePort {
   storyId(url: string): string
   getStories(): Promise<Story[]>
-  getStory(url: string): Promise<Story>
+  getStory(url: string): Promise<Story | null>
   saveStory(story: Story): Promise<Story>
 }
 
