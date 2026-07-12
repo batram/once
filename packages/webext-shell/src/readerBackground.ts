@@ -19,7 +19,7 @@ export function installReaderBackground(
       if (previous != null && previous !== tabId) {
         void browserApi.tabs.sendMessage(previous, {
           onceCommand: "stopReaderTts"
-        }).catch(() => undefined)
+        }).catch((): void => undefined)
       }
       return Promise.resolve()
     }
@@ -95,7 +95,8 @@ function waitUntilLoaded(browserApi: typeof browser, tabId: number): Promise<voi
     const finish = (error?: Error) => {
       clearTimeout(timeout)
       browserApi.tabs.onUpdated.removeListener(listener)
-      error ? reject(error) : resolve()
+      if (error) reject(error)
+      else resolve()
     }
     browserApi.tabs.onUpdated.addListener(listener)
     browserApi.tabs.get(tabId).then((tab) => {

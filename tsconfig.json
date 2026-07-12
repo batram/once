@@ -3,6 +3,8 @@
   "compilerOptions": {
     "composite": false,
     "declaration": false,
+    "module": "esnext",
+    "moduleResolution": "bundler",
     "rootDir": "."
   },
   "include": [

@@ -4,13 +4,17 @@
   "private": true,
   "description": "Once in firefox sidepanel",
   "main": "dist/main.js",
+  "engines": {
+    "node": ">=24"
+  },
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
     "build:packages": "tsc -b tsconfig.packages.json",
-    "clean:packages": "node scripts/clean-package-outputs.js",
+    "clean": "node scripts/clean-build-outputs.js",
+    "clean:packages": "node scripts/clean-build-outputs.js --packages",
     "build:firefox": "npm run build:packages && webpack --config scripts/webpack.webext.config.js --env target=firefox --mode production",
     "build:firefox:dev": "npm run build:packages && webpack --config scripts/webpack.webext.config.js --env target=firefox --mode development",
     "build:chrome": "npm run build:packages && webpack --config scripts/webpack.webext.config.js --env target=chrome --mode production",
@@ -34,8 +38,8 @@
     "test:live:collectors": "npm run build:packages && node --test tests/live/collectors/*.test.js",
     "fixtures:refresh:collectors": "npm run build:packages && node scripts/refresh-collector-fixture.js",
     "test:ci": "npm run check && npm test",
-    "lint": "eslint --ext .ts,.js apps packages scripts tests",
-    "lint:fix": "eslint --ext .ts,.js apps packages scripts tests --fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "check:types": "npm run build:packages && tsc --noEmit",
     "check:boundaries": "node scripts/check-boundaries.js",
     "check": "npm run lint && npm run check:types && npm run check:boundaries && npm run build:extensions:dev && npm run build:electron",
@@ -43,24 +47,29 @@
   },
   "author": "",
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@stylistic/eslint-plugin": "^5.10.0",
     "@types/firefox-webext-browser": "",
     "@types/pouchdb": "^6.4.0",
-    "@typescript-eslint/eslint-plugin": "^4.15.0",
-    "@typescript-eslint/parser": "^4.15.0",
-    "copy-webpack-plugin": "^11.0.0",
+    "copy-webpack-plugin": "^14.0.0",
     "copyfiles": "^2.4.1",
-    "eslint": "^7.20.0",
+    "eslint": "^9.39.5",
+    "globals": "^17.7.0",
     "linkedom": "^0.18.13",
-    "pouchdb-browser": "^8.0.1",
+    "pouchdb-browser": "^9.0.0",
     "selenium-webdriver": "^4.46.0",
-    "ts-loader": "^9.4.4",
-    "typescript": "^4.9.5",
-    "web-ext": "10.3.0",
+    "ts-loader": "^9.6.2",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.63.0",
+    "web-ext": "^10.5.0",
     "webextension-polyfill": "^0.10.0",
     "webpack": "^5.88.1",
     "webpack-cli": "^5.1.4"
   },
   "dependencies": {
-    "pouchdb-browser": "^8.0.1"
+    "pouchdb-browser": "^9.0.0"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
   }
 }

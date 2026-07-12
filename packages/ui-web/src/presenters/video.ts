@@ -521,14 +521,14 @@ async function source_youtube(
               if (base_req.ok) {
                 const base_src = await base_req.text()
                 const func = base_src.match(
-                  /^[^=]+(?<fungy>=function\(\w\){\w=\w\.split\(""\);[^. ]+\.[^( ]+[^}]+})/m
+                  /^[^=]+(=function\(\w\){\w=\w\.split\(""\);[^. ]+\.[^( ]+[^}]+})/m
                 )
                 const k = func[0].split(";")[1].split(".")[0]
                 const var_body = base_src
                   .replace(/\n/g, "")
                   .match(new RegExp(`var ${k}={.*?};`))[0]
                 const fungy_code =
-                  var_body + "\n" + "var fungy" + func.groups.fungy
+                  var_body + "\n" + "var fungy" + func[1]
 
                 for (const format of player_response.streamingData
                   .adaptiveFormats) {
