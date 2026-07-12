@@ -135,8 +135,15 @@ async function closeApp(electronApp, userData, { keepUserData = false } = {}) {
 async function seedLocalSource(window, sourceLine) {
   await window.getByTestId("settings-menu").click()
   await window.locator("#anim_checkbox").uncheck()
-  await window.getByTestId("sources").fill(sourceLine)
-  await window.getByTestId("save-sources").click()
+  const sources = window.getByTestId("sources")
+  // This is fixture setup, not an editor interaction under test. Setting the
+  // value directly avoids Electron text-focus/input handling, which can hang
+  // in the non-interactive Windows session used by GitHub-hosted runners.
+  await sources.evaluate((textarea, value) => {
+    textarea.value = value
+  }, sourceLine)
+  await expect(sources).toHaveValue(sourceLine)
+  await window.getByTestId("save-sources").evaluate((button) => button.click())
   await window.getByTestId("stories-menu").locator(":scope > .heading").click()
   await window.locator("#searchfield").fill("")
   await expect(window.locator("#stories story-item").first()).toBeVisible()
