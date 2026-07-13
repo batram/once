@@ -45,6 +45,8 @@ Firefox add-on or an unpacked Chrome extension.
   packaging
 - [Architecture](docs/ARCHITECTURE.md): platform design, package structure, and
   boundaries
+- [Collectors](docs/COLLECTORS.md): source loading, built-in collectors, and
+  Geny Match selector configuration
 - [Roadmap](docs/ROADMAP.md)
 
 ## Screenshots
