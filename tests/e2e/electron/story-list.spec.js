@@ -77,7 +77,7 @@ async function swipeStory(window, story, direction) {
   for (const fraction of [0.25, 0.5, 0.75, 1]) {
     await window.mouse.move(
       Math.round(startX + distance * fraction),
-      y,
+      y
     )
   }
 
