@@ -3,6 +3,7 @@ const assert = require("node:assert/strict")
 const { createOnceApp } = require("../../../packages/app/dist")
 const { createFakePlatform } = require("../../helpers/fake-platform")
 const { installDomGlobals } = require("../../helpers/dom")
+const storyFixture = require("../../e2e/shared/story-fixture")
 const cachedRedditSource = require("../../fixtures/collectors/reddit.json")
 
 installDomGlobals()
@@ -28,6 +29,73 @@ test("loads a faked story source once and reuses its cached response", async () 
 
   assert.equal(requests, 1)
   assert.equal(loaded.at(-1)[0].title, "Accepted Reddit story")
+})
+
+test("loads a saved source once when PouchDB echoes the local setting change", async () => {
+  const sourceUrl = "https://old.reddit.com/r/netsec/.json"
+  let requests = 0
+  const fake = createFakePlatform([], {
+    emitDatabaseChangesOnSet: true,
+    fetch: async (url) => {
+      requests += 1
+      assert.equal(url, sourceUrl)
+      return new Response(JSON.stringify(cachedRedditSource), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      })
+    }
+  })
+  const app = createOnceApp(fake.ports)
+
+  await app.start()
+  await app.client.saveStorySources([sourceUrl])
+
+  assert.equal(requests, 1)
+})
+
+test("serializes duplicate story writes while preserving substories", async () => {
+  const origin = "https://fixture.example"
+  const sourceUrl = storyFixture.sourceLine(origin)
+  const fake = createFakePlatform([], {
+    storySources: [sourceUrl],
+    fetch: async (url) => {
+      assert.equal(url, `${origin}/feed.json`)
+      return new Response(JSON.stringify(storyFixture.feedJson(origin)), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      })
+    }
+  })
+  const saveStory = fake.ports.storyStore.saveStory
+  const writes = new Set()
+  fake.ports.storyStore.saveStory = async (story) => {
+    assert.equal(
+      writes.has(story.href),
+      false,
+      `concurrent write for ${story.href}`
+    )
+    writes.add(story.href)
+    try {
+      await new Promise((resolve) => setImmediate(resolve))
+      return await saveStory(story)
+    } finally {
+      writes.delete(story.href)
+    }
+  }
+  const app = createOnceApp(fake.ports)
+  const batches = []
+  app.client.subscribe("storiesChanged", ({ stories }) => {
+    batches.push(stories)
+  })
+
+  await app.start()
+  await app.client.reloadStories(false)
+
+  const beta = batches.at(-1).find(
+    (story) => story.href === storyFixture.storyUrls(origin).beta
+  )
+  assert.equal(beta.substories.length, 1)
+  assert.equal(beta.substories[0].comment_url, storyFixture.storyUrls(origin).betaSubstoryComments)
 })
 
 test("publishes configurable parser failures as source errors", async () => {

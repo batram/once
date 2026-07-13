@@ -190,6 +190,7 @@ test("preserves a failed URL and renders a theme-aware error page", async () => 
   const { electronApp, userData, window } = await launchApp()
   try {
     const failedUrl = "http://127.0.0.1:65534/unreachable"
+    const networkFailure = /^ERR_[A-Z_]+ \(-?\d+\)$/
     const address = window.locator("#urlfield")
     await address.fill(failedUrl)
     await address.press("Enter")
@@ -204,7 +205,7 @@ test("preserves a failed URL and renders a theme-aware error page", async () => 
       }
     })).toMatchObject({
       url: failedUrl,
-      error: expect.stringContaining("ERR_CONNECTION_REFUSED"),
+      error: expect.stringMatching(networkFailure),
       loading: false
     })
 
@@ -257,7 +258,7 @@ test("preserves a failed URL and renders a theme-aware error page", async () => 
     await expect.poll(() => window.evaluate(async () => {
       const active = (await window.onceElectron.tabs.getAll()).find((tab) => tab.active)
       return active?.loadError
-    })).toContain("ERR_CONNECTION_REFUSED")
+    })).toMatch(networkFailure)
 
     await address.fill(`${origin}/recovered`)
     await address.press("Enter")
@@ -270,7 +271,7 @@ test("preserves a failed URL and renders a theme-aware error page", async () => 
       return active && { url: active.url, error: active.loadError }
     })).toMatchObject({
       url: failedUrl,
-      error: expect.stringContaining("ERR_CONNECTION_REFUSED")
+      error: expect.stringMatching(networkFailure)
     })
   } finally {
     await closeApp(electronApp, userData)

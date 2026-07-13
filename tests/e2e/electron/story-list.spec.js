@@ -2,9 +2,11 @@ const { test, expect } = require("@playwright/test")
 const {
   closeApp,
   launchApp,
+  openPanel,
   saveFilters,
   saveRedirects,
   seedLocalSource,
+  showAllStories,
   startPageServer
 } = require("./electron-harness")
 const storyFixture = require("../shared/story-fixture")
@@ -87,7 +89,7 @@ async function swipeStory(window, story, direction) {
 test("opens stories via title click, middle click, and comment links", async () => {
   const { electronApp, userData, window } = await launchApp(STORY_ENV)
   try {
-    await seedLocalSource(window, storyFixture.sourceLine(origin))
+    await seedLocalSource(window, storyFixture.sourceLine(origin), urls.alpha)
     const address = window.locator("#urlfield")
     const alpha = storyItem(window, urls.alpha)
     const beta = storyItem(window, urls.beta)
@@ -119,7 +121,7 @@ test("opens stories via title click, middle click, and comment links", async () 
 test("outline button opens the story in reader mode", async () => {
   const { electronApp, userData, window } = await launchApp(STORY_ENV)
   try {
-    await seedLocalSource(window, storyFixture.sourceLine(origin))
+    await seedLocalSource(window, storyFixture.sourceLine(origin), urls.alpha)
     const alpha = storyItem(window, urls.alpha)
 
     await alpha.locator(".outline_btn").click()
@@ -142,7 +144,7 @@ test("outline button opens the story in reader mode", async () => {
 test("swipe right opens a story", async () => {
   const { electronApp, userData, window } = await launchApp(STORY_ENV)
   try {
-    await seedLocalSource(window, storyFixture.sourceLine(origin))
+    await seedLocalSource(window, storyFixture.sourceLine(origin), urls.alpha)
     const address = window.locator("#urlfield")
     const beta = storyItem(window, urls.beta)
 
@@ -158,7 +160,7 @@ test("swipe right opens a story", async () => {
 test("swipe left skips a story without navigating", async () => {
   const { electronApp, userData, window } = await launchApp(STORY_ENV)
   try {
-    await seedLocalSource(window, storyFixture.sourceLine(origin))
+    await seedLocalSource(window, storyFixture.sourceLine(origin), urls.alpha)
     const address = window.locator("#urlfield")
     const gamma = storyItem(window, urls.gamma)
     const initialAddress = await address.inputValue()
@@ -181,7 +183,7 @@ test("skip and star toggles persist across an app relaunch", async () => {
   let electronApp = first.electronApp
   try {
     const window = first.window
-    await seedLocalSource(window, storyFixture.sourceLine(origin))
+    await seedLocalSource(window, storyFixture.sourceLine(origin), urls.alpha)
     const alpha = storyItem(window, urls.alpha)
     const beta = storyItem(window, urls.beta)
     const gamma = storyItem(window, urls.gamma)
@@ -208,11 +210,7 @@ test("skip and star toggles persist across an app relaunch", async () => {
     electronApp = second.electronApp
     const window2 = second.window
 
-    await window2
-      .getByTestId("stories-menu")
-      .locator(":scope > .heading")
-      .click()
-    await window2.locator("#searchfield").fill("")
+    await showAllStories(window2)
     await window2.getByTestId("reload-stories").click()
     const beta2 = storyItem(window2, urls.beta)
     const gamma2 = storyItem(window2, urls.gamma)
@@ -229,7 +227,7 @@ test("skip and star toggles persist across an app relaunch", async () => {
 test("filters a story from the story list and removes the filter again", async () => {
   const { electronApp, userData, window } = await launchApp(STORY_ENV)
   try {
-    await seedLocalSource(window, storyFixture.sourceLine(origin))
+    await seedLocalSource(window, storyFixture.sourceLine(origin), urls.alpha)
     const delta = storyItem(window, urls.delta)
 
     await delta.locator(".filter_btn").click()
@@ -267,16 +265,13 @@ test("filters a story from the story list and removes the filter again", async (
     await expect(delta).toHaveClass(/filtered/)
     await expect(delta).toBeHidden()
 
-    await window.getByTestId("settings-menu").click()
+    await openPanel(window, "settings")
     const filtersArea = window.getByTestId("filters")
     await expect(filtersArea).toHaveValue(
       new RegExp(storyFixture.FILTER_TOKEN)
     )
 
-    await window
-      .getByTestId("stories-menu")
-      .locator(":scope > .heading")
-      .click()
+    await openPanel(window, "stories")
     await window.locator("#searchfield").fill("[filtered]")
     await expect(window.locator("#stories")).toHaveClass(/show_filtered/)
     await expect(delta).toBeVisible()
@@ -298,7 +293,7 @@ test("filters a story from the story list and removes the filter again", async (
 test("selects the story for rewritten URLs opened from the list or the URL bar", async () => {
   const { electronApp, userData, window } = await launchApp(STORY_ENV)
   try {
-    await seedLocalSource(window, storyFixture.sourceLine(origin))
+    await seedLocalSource(window, storyFixture.sourceLine(origin), urls.alpha)
     const rule = storyFixture.redirectRule(origin)
     await saveRedirects(window, rule.line)
 

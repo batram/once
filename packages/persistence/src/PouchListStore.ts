@@ -7,21 +7,18 @@ export class PouchListStore {
   constructor(private db: PouchListDatabase) {}
 
   async get<T>(id: string, fallbackValue: T): Promise<T> {
-    return this.db
-      .get(id)
-      .then((doc) => {
-        return doc.list as T
-      })
-      .catch((err) => {
-        console.error("pouch_get err", err)
-        if (err.status == 404) {
-          this.db.put({
-            _id: id,
-            list: fallbackValue
-          })
-        }
+    try {
+      const doc = await this.db.get(id)
+      return doc.list as T
+    } catch (err) {
+      if ((err as { status?: number }).status === 404) {
+        // Defaults are read-time fallbacks, not settings changes. Persisting
+        // them here emits a PouchDB change that can trigger work such as a
+        // story reload even when the caller only wanted to render settings.
         return fallbackValue
-      })
+      }
+      throw err
+    }
   }
 
   async set<T>(id: string, value: T): Promise<void> {

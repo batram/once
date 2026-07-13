@@ -17,7 +17,12 @@ function createFakePlatform(stories = [], options = {}) {
           if (!lists.has(id)) lists.set(id, fallback)
           return lists.get(id)
         },
-        async set(id, value) { lists.set(id, value) }
+        async set(id, value) {
+          lists.set(id, value)
+          if (options.emitDatabaseChangesOnSet) {
+            databaseHandler?.({ id, doc: { list: value } })
+          }
+        }
       },
       storyStore: {
         storyId: (url) => `sto_${url}`,

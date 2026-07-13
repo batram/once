@@ -203,12 +203,41 @@ async function closeApp(electronApp, userData, { keepUserData = false } = {}) {
   }
 }
 
+async function openPanel(window, panel) {
+  const heading = window
+    .getByTestId(`${panel}-menu`)
+    .locator(":scope > .heading")
+  await expect(heading).toBeVisible()
+  await heading.click()
+  await expect(window.locator("#left_panel")).toHaveAttribute(
+    "active_panel",
+    panel
+  )
+  await expect(window.locator(`#${panel}_panel`)).toBeVisible()
+}
+
+async function showAllStories(window) {
+  await openPanel(window, "stories")
+  const search = window.locator("#searchfield")
+  await search.fill("")
+  await expect(search).toHaveValue("")
+  const stories = window.locator("#stories")
+  await expect(stories).toBeVisible()
+  await expect(stories).not.toHaveClass(/\bshow_filtered\b/)
+}
+
 // Seeds the app with the shared story fixture through the settings UI and
-// waits until the story list is rendered. Also disables animations so class
-// and position assertions are immediate instead of waiting on transitions.
-async function seedLocalSource(window, sourceLine) {
-  await window.getByTestId("settings-menu").click()
+// waits for a specific fixture story. Waiting on the first story is unsafe:
+// an older or concurrently loaded story may legitimately be hidden by the
+// user's filters. Also disables animations so class and position assertions
+// are immediate instead of waiting on transitions.
+async function seedLocalSource(window, sourceLine, expectedStoryHref) {
+  if (!expectedStoryHref) {
+    throw new Error("seedLocalSource requires an expected fixture story URL")
+  }
+  await openPanel(window, "settings")
   await window.locator("#anim_checkbox").uncheck()
+  await expect(window.locator("body")).toHaveAttribute("animated", "false")
   const sources = window.getByTestId("sources")
   // This is fixture setup, not an editor interaction under test. Setting the
   // value directly avoids Electron text-focus/input handling, which can hang
@@ -218,25 +247,24 @@ async function seedLocalSource(window, sourceLine) {
   }, sourceLine)
   await expect(sources).toHaveValue(sourceLine)
   await window.getByTestId("save-sources").evaluate((button) => button.click())
-  await window.getByTestId("stories-menu").locator(":scope > .heading").click()
-  await window.locator("#searchfield").fill("")
-  await expect(window.locator("#stories story-item").first()).toBeVisible()
+  await showAllStories(window)
+  await expect(
+    window.locator(`#stories story-item[data-href="${expectedStoryHref}"]`)
+  ).toBeVisible({ timeout: 10_000 })
 }
 
 async function saveFilters(window, text) {
-  await window.getByTestId("settings-menu").click()
+  await openPanel(window, "settings")
   await window.getByTestId("filters").fill(text)
   await window.getByTestId("save-filters").click()
-  await window.getByTestId("stories-menu").locator(":scope > .heading").click()
-  await window.locator("#searchfield").fill("")
+  await showAllStories(window)
 }
 
 async function saveRedirects(window, text) {
-  await window.getByTestId("settings-menu").click()
+  await openPanel(window, "settings")
   await window.getByTestId("redirects").fill(text)
   await window.getByTestId("save-redirects").click()
-  await window.getByTestId("stories-menu").locator(":scope > .heading").click()
-  await window.locator("#searchfield").fill("")
+  await showAllStories(window)
 }
 
 async function getWindowTabs(electronApp, windowId) {
@@ -295,9 +323,11 @@ module.exports = {
   getWindowTabs,
   launchApp,
   markLiveContents,
+  openPanel,
   saveFilters,
   saveRedirects,
   seedLocalSource,
+  showAllStories,
   startPageServer,
   transferTab
 }

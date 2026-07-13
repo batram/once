@@ -37,6 +37,8 @@ export class OnceApp {
     "stared",
     "new"
   ])
+  private readonly localListChanges = new Map<string, string>()
+  private readonly storyWrites = new Map<string, Promise<Story>>()
   private internalMapReady = false
   private animated = true
 
@@ -135,7 +137,7 @@ export class OnceApp {
   }
 
   private async saveStorySources(storySources: string[]): Promise<void> {
-    await this.platform.listStore.set("story_sources", storySources)
+    await this.setListSetting("story_sources", storySources)
     this.events.publish("settingsChanged", { section: "sources" })
     await this.reloadStories(true)
   }
@@ -145,7 +147,7 @@ export class OnceApp {
   }
 
   private async saveFilterList(filterList: string[]): Promise<void> {
-    await this.platform.listStore.set("filter_list", filterList)
+    await this.setListSetting("filter_list", filterList)
     this.events.publish("settingsChanged", { section: "filters" })
     await this.refilterStories()
   }
@@ -155,9 +157,22 @@ export class OnceApp {
   }
 
   private async saveRedirectList(redirectList: Redirect[]): Promise<void> {
-    await this.platform.listStore.set("redirect_list", redirectList)
+    await this.setListSetting("redirect_list", redirectList)
     await this.refreshRedirects()
     this.events.publish("settingsChanged", { section: "redirects" })
+  }
+
+  private async setListSetting<T>(id: string, value: T): Promise<void> {
+    const serialized = JSON.stringify(value)
+    this.localListChanges.set(id, serialized)
+    try {
+      await this.platform.listStore.set(id, value)
+    } catch (error) {
+      if (this.localListChanges.get(id) === serialized) {
+        this.localListChanges.delete(id)
+      }
+      throw error
+    }
   }
 
   private getSyncUrl(): Promise<string> {
@@ -197,7 +212,7 @@ export class OnceApp {
       this.events.publish("settingsChanged", { section: "theme" })
       return
     }
-    await this.platform.listStore.set("theme", theme)
+    await this.setListSetting("theme", theme)
     this.platform.theme.setTheme(theme)
     this.events.publish("settingsChanged", { section: "theme" })
   }
@@ -212,7 +227,7 @@ export class OnceApp {
       this.events.publish("settingsChanged", { section: "animation" })
       return
     }
-    await this.platform.listStore.set("animation", animated)
+    await this.setListSetting("animation", animated)
     this.animated = animated
     this.events.publish("settingsChanged", { section: "animation" })
   }
@@ -502,6 +517,30 @@ export class OnceApp {
   }
 
   private async addStory(newStory: Story, bucket = "stories"): Promise<Story> {
+    const previousWrite = this.storyWrites.get(newStory.href)
+    const waitForPrevious = previousWrite
+      ? previousWrite.then(
+        () => undefined,
+        () => undefined
+      )
+      : Promise.resolve()
+    const write = waitForPrevious.then(() =>
+      this.addStoryNow(newStory, bucket)
+    )
+    this.storyWrites.set(newStory.href, write)
+    try {
+      return await write
+    } finally {
+      if (this.storyWrites.get(newStory.href) === write) {
+        this.storyWrites.delete(newStory.href)
+      }
+    }
+  }
+
+  private async addStoryNow(
+    newStory: Story,
+    bucket = "stories"
+  ): Promise<Story> {
     if (!(newStory instanceof Story)) {
       throw new Error("Please, only add Story instances")
     }
@@ -647,6 +686,17 @@ export class OnceApp {
         this.setStory(changedStory.href, changedStory)
       }
       return
+    }
+
+    const localValue = this.localListChanges.get(change.id)
+    if (localValue !== undefined) {
+      this.localListChanges.delete(change.id)
+      if (JSON.stringify(change.doc?.list) === localValue) {
+        // The save method already publishes and awaits the corresponding UI
+        // work. Ignore its PouchDB echo so source loads and refilters do not
+        // run twice and race each other.
+        return
+      }
     }
 
     switch (change.id) {
