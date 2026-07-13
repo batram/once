@@ -12,6 +12,7 @@ export default tseslint.config(
       "**/*.min.js",
       "web-ext-artifacts/",
       "test-results/",
+      "playwright-report/",
       "apps/electron/out/",
       "apps/electron/.webpack/"
     ]

@@ -5,9 +5,78 @@ const os = require("node:os")
 const path = require("node:path")
 const storyFixture = require("../shared/story-fixture")
 
-async function startPageServer() {
+async function startPageServer(options = {}) {
   let origin = ""
   const server = http.createServer((request, response) => {
+    if (typeof options.onRequest === "function") {
+      const startedAt = Date.now()
+      const requestDetails = {
+        method: request.method || "GET",
+        url: request.url || "",
+        host: request.headers.host || "",
+        remoteAddress: request.socket.remoteAddress || ""
+      }
+      const observe = (details) => {
+        try {
+          options.onRequest({ ...requestDetails, ...details })
+        } catch (error) {
+          console.error("Electron fixture request observer failed", error)
+        }
+      }
+
+      observe({ phase: "request" })
+      response.on("finish", () => {
+        observe({
+          phase: "response",
+          statusCode: response.statusCode,
+          durationMs: Date.now() - startedAt
+        })
+      })
+      response.on("close", () => {
+        if (!response.writableFinished) {
+          observe({
+            phase: "response-closed",
+            statusCode: response.statusCode,
+            durationMs: Date.now() - startedAt
+          })
+        }
+      })
+      request.on("aborted", () => {
+        observe({
+          phase: "request-aborted",
+          durationMs: Date.now() - startedAt
+        })
+      })
+      request.on("error", (error) => {
+        observe({
+          phase: "request-error",
+          durationMs: Date.now() - startedAt,
+          error: error.message
+        })
+      })
+      response.on("error", (error) => {
+        observe({
+          phase: "response-error",
+          durationMs: Date.now() - startedAt,
+          error: error.message
+        })
+      })
+      request.socket.once("error", (error) => {
+        observe({
+          phase: "socket-error",
+          durationMs: Date.now() - startedAt,
+          error: error.message
+        })
+      })
+      request.socket.once("close", (hadError) => {
+        observe({
+          phase: "socket-closed",
+          durationMs: Date.now() - startedAt,
+          hadError
+        })
+      })
+    }
+
     if (storyFixture.handleRequest(request, response, origin)) {
       return
     }

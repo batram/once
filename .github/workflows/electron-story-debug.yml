@@ -1,0 +1,47 @@
+name: Electron story diagnostic
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  story-debug:
+    name: Electron story diagnostic on Windows
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run package:electron
+      - name: Run isolated story diagnostic
+        run: npm run test:electron:e2e:story-debug:run
+        env:
+          DEBUG: pw:api
+          ELECTRON_ENABLE_LOGGING: "1"
+          ELECTRON_ENABLE_STACK_DUMPING: "1"
+      - name: Upload diagnostic evidence
+        id: upload
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: electron-story-debug-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/electron-story-debug
+            playwright-report/electron-story-debug
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Add diagnostic links to summary
+        if: always()
+        shell: pwsh
+        run: |
+          "### Electron story diagnostic" >> $env:GITHUB_STEP_SUMMARY
+          "" >> $env:GITHUB_STEP_SUMMARY
+          "Artifact: [download diagnostic evidence](${{ steps.upload.outputs.artifact-url }})" >> $env:GITHUB_STEP_SUMMARY
+          "" >> $env:GITHUB_STEP_SUMMARY
+          "Download command: ``gh run download ${{ github.run_id }} --name electron-story-debug-${{ github.run_id }}-${{ github.run_attempt }}``" >> $env:GITHUB_STEP_SUMMARY

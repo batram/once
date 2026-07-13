@@ -11,6 +11,7 @@ dist-*/
 .webpack/
 out/
 test-results/
+playwright-report/
 web-ext-artifacts/
 
 # Logs
