@@ -12,9 +12,7 @@ export class PouchListStore {
       return doc.list as T
     } catch (err) {
       if ((err as { status?: number }).status === 404) {
-        // Defaults are read-time fallbacks, not settings changes. Persisting
-        // them here emits a PouchDB change that can trigger work such as a
-        // story reload even when the caller only wanted to render settings.
+        // Reading a default must not emit a settings change.
         return fallbackValue
       }
       throw err

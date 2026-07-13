@@ -37,7 +37,8 @@ export class OnceApp {
     "stared",
     "new"
   ])
-  private readonly localListChanges = new Map<string, string>()
+  // Suppress local PouchDB echoes already applied by save methods.
+  private readonly pendingSettingWrites = new Map<string, string>()
   private readonly storyWrites = new Map<string, Promise<Story>>()
   private internalMapReady = false
   private animated = true
@@ -164,12 +165,12 @@ export class OnceApp {
 
   private async setListSetting<T>(id: string, value: T): Promise<void> {
     const serialized = JSON.stringify(value)
-    this.localListChanges.set(id, serialized)
+    this.pendingSettingWrites.set(id, serialized)
     try {
       await this.platform.listStore.set(id, value)
     } catch (error) {
-      if (this.localListChanges.get(id) === serialized) {
-        this.localListChanges.delete(id)
+      if (this.pendingSettingWrites.get(id) === serialized) {
+        this.pendingSettingWrites.delete(id)
       }
       throw error
     }
@@ -688,15 +689,13 @@ export class OnceApp {
       return
     }
 
-    const localValue = this.localListChanges.get(change.id)
-    if (localValue !== undefined) {
-      this.localListChanges.delete(change.id)
-      if (JSON.stringify(change.doc?.list) === localValue) {
-        // The save method already publishes and awaits the corresponding UI
-        // work. Ignore its PouchDB echo so source loads and refilters do not
-        // run twice and race each other.
-        return
-      }
+    const pendingValue = this.pendingSettingWrites.get(change.id)
+    if (
+      pendingValue !== undefined &&
+      JSON.stringify(change.doc?.list) === pendingValue
+    ) {
+      this.pendingSettingWrites.delete(change.id)
+      return
     }
 
     switch (change.id) {

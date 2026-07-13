@@ -226,11 +226,7 @@ async function showAllStories(window) {
   await expect(stories).not.toHaveClass(/\bshow_filtered\b/)
 }
 
-// Seeds the app with the shared story fixture through the settings UI and
-// waits for a specific fixture story. Waiting on the first story is unsafe:
-// an older or concurrently loaded story may legitimately be hidden by the
-// user's filters. Also disables animations so class and position assertions
-// are immediate instead of waiting on transitions.
+// Seed through settings and wait for the exact fixture story before continuing.
 async function seedLocalSource(window, sourceLine, expectedStoryHref) {
   if (!expectedStoryHref) {
     throw new Error("seedLocalSource requires an expected fixture story URL")
