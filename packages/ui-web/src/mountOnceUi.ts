@@ -1,6 +1,7 @@
 import { OnceClient } from "@once/app"
 import { addCollectorColorStyles } from "./CollectorStyles"
 import { LoaderInsights } from "./LoaderInsights"
+import { HoverUrlIndicator } from "./HoverUrlIndicator"
 import * as Menu from "./menu"
 import * as Search from "./search"
 import { setOnceClient } from "./client"
@@ -42,9 +43,8 @@ export async function mountOnceUi(
   new StoryHistory(client)
   StoryList.init(client)
   Menu.init(client)
-  LoaderInsights.init(client, {
-    showHoveredLinks: options.showHoveredLinks || false
-  })
+  LoaderInsights.init(client)
+  if (options.showHoveredLinks) HoverUrlIndicator.mount()
   Search.init()
   addCollectorColorStyles()
   await settingsPanel.ready

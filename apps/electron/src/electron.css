@@ -275,29 +275,6 @@ body {
   cursor: ew-resize;
 }
 
-#url_target {
-  position: absolute;
-  z-index: 30;
-  bottom: 0;
-  right: 0;
-  max-width: min(70vw, 800px);
-  overflow: hidden;
-  padding: 3px 6px;
-  color: var(--text-high-color);
-  background: var(--highlight-bg-color);
-  border: 1px solid var(--border-color);
-  font-size: 12px;
-  opacity: 0;
-  pointer-events: none;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  transition: opacity 150ms ease-out;
-}
-
-#url_target.visible {
-  opacity: 1;
-}
-
 .electron-left-collapsed #left_panel,
 .electron-left-collapsed #sep_slider {
   display: none;
@@ -312,8 +289,7 @@ body {
 .electron-fullscreen #tab_dropzone,
 .electron-fullscreen #controlbar,
 .electron-fullscreen #url_error,
-.electron-fullscreen #selected_container,
-.electron-fullscreen #url_target {
+.electron-fullscreen #selected_container {
   display: none;
 }
 
@@ -325,8 +301,4 @@ body {
 body .video_btn,
 body #video_webview_btn {
   display: none !important;
-}
-
-body[animated="false"] #url_target {
-  transition: none;
 }

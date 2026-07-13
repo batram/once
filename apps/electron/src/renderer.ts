@@ -1,7 +1,12 @@
 import { createOnceApp } from "@once/app"
 import { createElectronPlatform } from "@once/platform-electron"
 import { ElectronRedirectRule } from "@once/platform-electron/bridge"
-import { mountOnceUi, ReaderView, SourcePickerView } from "@once/ui-web"
+import {
+  HoverUrlIndicator,
+  mountOnceUi,
+  ReaderView,
+  SourcePickerView
+} from "@once/ui-web"
 import { BrowserShell } from "./BrowserShell"
 import "./electron.css"
 
@@ -49,6 +54,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       : "network",
     onMenuCollapsedChanged: (collapsed) =>
       browserShell.setLeftCollapsed(collapsed)
+  })
+  window.onceElectron.window.onTargetUrlChanged((url) => {
+    HoverUrlIndicator.show(url)
   })
   document.body.dataset.onceReady = "true"
 })

@@ -22,7 +22,6 @@ export class BrowserShell {
   private readonly closeButton: HTMLButtonElement
   private readonly addressError: HTMLElement
   private readonly splitter: HTMLElement
-  private readonly targetUrl: HTMLElement
   private draggingTabId: string | null = null
   private dropHandled = false
   private renderedAddressTabId: string | null = null
@@ -41,7 +40,6 @@ export class BrowserShell {
 
     this.splitter = required<HTMLElement>("#sep_slider")
     this.rightPanel = required<HTMLElement>("#right_panel")
-    this.targetUrl = required<HTMLElement>("#url_target")
 
     this.dropzone = required<HTMLElement>("#tab_dropzone")
     this.tabStrip = required<HTMLElement>("#electron_tabs")
@@ -182,10 +180,6 @@ export class BrowserShell {
   }
 
   private bindWindowState(): void {
-    this.bridge.window.onTargetUrlChanged((url) => {
-      this.targetUrl.textContent = url.length > 160 ? `${url.slice(0, 157)}...` : url
-      this.targetUrl.classList.toggle("visible", Boolean(url))
-    })
     this.bridge.window.onFullscreenChanged((fullscreen) => {
       document.body.classList.toggle("electron-fullscreen", fullscreen)
       this.reportBounds()

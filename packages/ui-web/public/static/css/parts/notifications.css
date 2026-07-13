@@ -4,44 +4,51 @@
   pointer-events: none;
 }
 
+#status_surfaces {
+  bottom: 12px;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 6px;
+  left: 0;
+  max-width: min(430px, calc(100% - 24px));
+  pointer-events: none;
+  position: absolute;
+  z-index: 20;
+}
+
+#status_bar,
+.status_issue_bubble {
+  background: var(--main-bg-color);
+  border: 1px solid var(--border-high-color);
+  border-left: 0;
+  border-radius: 0 14px 14px 0;
+  box-shadow: 0 2px 7px rgb(0 0 0 / 18%);
+  box-sizing: border-box;
+  color: var(--text-color);
+  min-height: 29px;
+  pointer-events: auto;
+}
+
 #status_bar {
   align-items: center;
-  background: var(--main-bg-color);
-  border-top: thin solid var(--border-high-color);
-  box-sizing: border-box;
   display: flex;
-  flex: 0 0 27px;
   font-size: 11px;
-  gap: 4px;
   line-height: 1.35;
-  margin-top: auto;
-  min-height: 27px;
   overflow: hidden;
-  padding: 2px 6px 3px;
-  width: 100%;
+  padding: 5px 10px 5px 7px;
+  width: fit-content;
+}
+
+#status_bar[hidden] {
+  display: none;
 }
 
 #status_bar_message {
   align-items: center;
   display: flex;
-  flex: 1 1 auto;
-  gap: 5px;
+  gap: 6px;
   min-width: 0;
-  opacity: 0;
-  overflow: hidden;
-  transition: opacity 0.25s ease-in-out;
-}
-
-#status_bar_message.visible {
-  opacity: 0.78;
-}
-
-#status_bar_message.clickable {
-  cursor: pointer;
-}
-
-#status_bar_message.clickable:hover {
-  opacity: 1;
+  opacity: 0.82;
 }
 
 #status_bar_text {
@@ -51,93 +58,204 @@
   white-space: nowrap;
 }
 
-#status_bar_activity {
-  border: 1px solid var(--text-color);
+#status_bar_activity,
+.status_indicator.activity .status_indicator_icon {
+  border: 1px solid currentColor;
   border-radius: 50%;
   box-sizing: border-box;
-  display: none;
-  flex: 0 0 9px;
-  height: 9px;
-  width: 9px;
+  display: block;
+  flex: 0 0 10px;
+  height: 10px;
+  width: 10px;
 }
 
-#status_bar_activity.spinning {
+#status_bar_activity.spinning,
+.status_indicator.activity.spinning .status_indicator_icon {
   animation: status-spin 0.8s linear infinite;
   border-right-color: transparent;
-  display: block;
 }
 
-#status_bar_indicators {
+#status_dock {
   align-items: center;
   display: flex;
   flex: 0 0 auto;
   gap: 2px;
+  justify-content: center;
+  margin-top: auto;
+  padding: 5px 2px 18px;
 }
 
-.status_issue {
+#menu.collapse #status_dock {
+  flex-direction: column;
+}
+
+.status_indicator {
   align-items: center;
   background: transparent;
   border: 0;
+  border-radius: 6px;
+  color: var(--text-color);
   cursor: pointer;
   display: inline-flex;
   font: inherit;
-  gap: 1px;
-  height: 20px;
+  gap: 2px;
+  height: 24px;
   justify-content: center;
   line-height: 1;
-  min-width: 16px;
-  opacity: 0.8;
-  padding: 0 2px;
+  min-width: 18px;
+  padding: 2px;
 }
 
-.status_issue[hidden] {
+.status_indicator[hidden] {
   display: none;
 }
 
-.status_issue:hover,
-.status_issue:focus-visible {
-  opacity: 1;
+.status_indicator:hover,
+.status_indicator:focus-visible {
+  background: var(--highlight-bg-color);
+  color: var(--text-high-color);
 }
 
-.status_issue.warning {
+.status_indicator.collapsed {
+  opacity: 0.55;
+}
+
+.status_indicator.warning,
+.status_issue_bubble.warning {
   color: #e58b16;
 }
 
-.status_issue.error {
+.status_indicator.error,
+.status_issue_bubble.error {
   color: #e05252;
 }
 
-.status_issue_icon {
-  font-size: 14px;
+.status_indicator_icon {
+  align-items: center;
+  display: inline-flex;
+  font-size: 16px;
   font-weight: bold;
+  justify-content: center;
 }
 
-.status_issue.error .status_issue_icon {
-  align-items: center;
+.status_indicator.error .status_indicator_icon {
   border: 1px solid currentColor;
   border-radius: 50%;
   box-sizing: border-box;
-  display: inline-flex;
   font-size: 10px;
-  height: 13px;
+  height: 16px;
+  width: 16px;
+}
+
+.status_indicator_count {
+  font-size: 10px;
+}
+
+.status_issue_bubble {
+  align-items: stretch;
+  display: flex;
+  font-size: 11px;
+  line-height: 1.3;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.status_issue_content {
+  align-items: flex-start;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  font: inherit;
+  min-width: 0;
+  padding: 6px 7px 6px 9px;
+  text-align: left;
+}
+
+.status_issue_content:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.status_issue_content:not(:disabled):hover,
+.status_issue_content:not(:disabled):focus-visible {
+  background: var(--highlight-bg-color);
+}
+
+.status_issue_title,
+.status_issue_source {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status_issue_title {
+  color: currentColor;
+  font-weight: bold;
+}
+
+.status_issue_source {
+  color: var(--text-color);
+  opacity: 0.72;
+}
+
+.status_issue_close {
+  align-items: center;
+  align-self: stretch;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  font-size: 16px;
   justify-content: center;
-  width: 13px;
+  min-width: 27px;
+  padding: 0 7px 0 4px;
 }
 
-.status_issue_count {
-  font-size: 10px;
+.status_issue_close:hover,
+.status_issue_close:focus-visible {
+  background: var(--highlight-bg-color);
 }
 
-#status_bar[data-kind="warning"] #status_bar_message {
-  color: #e58b16;
+#hover_url {
+  background: var(--main-bg-color);
+  border: 1px solid var(--border-high-color);
+  border-radius: 8px;
+  bottom: 12px;
+  box-shadow: 0 2px 7px rgb(0 0 0 / 18%);
+  box-sizing: border-box;
+  color: var(--text-color);
+  font-size: 11px;
+  line-height: 1.35;
+  max-width: calc(100% - 24px);
+  opacity: 0;
+  overflow: hidden;
+  padding: 5px 8px;
+  pointer-events: none;
+  position: absolute;
+  right: 12px;
+  text-overflow: ellipsis;
+  transform: translateY(4px);
+  transition: opacity 0.18s ease-out, transform 0.18s ease-out;
+  white-space: nowrap;
+  z-index: 21;
 }
 
-#status_bar[data-kind="error"] #status_bar_message {
-  color: #e05252;
+#hover_url.visible {
+  opacity: 0.78;
+  transform: translateY(0);
 }
 
-#status_bar[data-kind="link"] #status_bar_message {
-  opacity: 0.7;
+#hover_url_text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 @keyframes status-spin {
@@ -147,21 +265,23 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #status_bar_message {
+  #hover_url {
     transition: none;
   }
 
-  #status_bar_activity.spinning {
+  #status_bar_activity.spinning,
+  .status_indicator.activity.spinning .status_indicator_icon {
     animation: none;
-    border-right-color: var(--text-color);
+    border-right-color: currentColor;
   }
 }
 
-body[animated="false"] #status_bar_message {
+body[animated="false"] #hover_url {
   transition: none;
 }
 
-body[animated="false"] #status_bar_activity.spinning {
+body[animated="false"] #status_bar_activity.spinning,
+body[animated="false"] .status_indicator.activity.spinning .status_indicator_icon {
   animation: none;
-  border-right-color: var(--text-color);
+  border-right-color: currentColor;
 }

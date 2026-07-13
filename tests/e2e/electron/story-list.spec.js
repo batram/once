@@ -94,6 +94,40 @@ test("opens stories via title click, middle click, and comment links", async () 
     const alpha = storyItem(window, urls.alpha)
     const beta = storyItem(window, urls.beta)
 
+    await alpha.locator("a.title").hover()
+    const hoverUrl = window.locator("#hover_url")
+    await expect(hoverUrl).toHaveText(urls.alpha)
+    await expect(hoverUrl).toHaveClass(/\bvisible\b/)
+    await expect(window.locator("#status_bar_text")).not.toHaveText(urls.alpha)
+    await expect.poll(() => window.evaluate(() => {
+      const panel = document.querySelector("#stories_panel").getBoundingClientRect()
+      const hover = document.querySelector("#hover_url").getBoundingClientRect()
+      return {
+        bottom: Math.round(panel.bottom - hover.bottom),
+        right: Math.round(panel.right - hover.right)
+      }
+    })).toEqual({ bottom: 12, right: 12 })
+
+    await window.locator("#searchfield").hover()
+    await window.waitForTimeout(500)
+    await expect(hoverUrl).toHaveClass(/\bvisible\b/)
+    await expect.poll(() => hoverUrl.getAttribute("class"), {
+      timeout: 1_500
+    }).not.toMatch(/\bvisible\b/)
+
+    await alpha.locator("a.title").hover()
+    await expect(hoverUrl).toHaveClass(/\bvisible\b/)
+
+    const surfaceGeometry = await window.evaluate(() => {
+      const root = document.querySelector("#left_main").getBoundingClientRect()
+      const surfaces = document.querySelector("#status_surfaces").getBoundingClientRect()
+      return {
+        bottom: Math.round(root.bottom - surfaces.bottom),
+        left: Math.round(surfaces.left - root.left)
+      }
+    })
+    expect(surfaceGeometry).toEqual({ bottom: 12, left: 0 })
+
     await alpha.locator("a.title").click()
     await expect(address).toHaveValue(urls.alpha)
     await expect(alpha).toHaveClass(/\bread\b/)
@@ -113,6 +147,72 @@ test("opens stories via title click, middle click, and comment links", async () 
     await expect(address).toHaveValue(urls.betaComments)
     await commentLinks.nth(1).click()
     await expect(address).toHaveValue(urls.betaSubstoryComments)
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
+test("stacks, dismisses, restores, and opens source issues", async () => {
+  const { electronApp, userData, window } = await launchApp(STORY_ENV)
+  try {
+    const warningOne = "https://invalid-one.example/unknown"
+    const warningTwo = "https://invalid-two.example/unknown"
+    const failingSource = `${origin}/failure.rss`
+    const sourceLines = [warningOne, warningTwo, failingSource].join("\n")
+
+    await openPanel(window, "settings")
+    await window.locator("#anim_checkbox").uncheck()
+    const sources = window.getByTestId("sources")
+    await sources.evaluate((textarea, value) => {
+      textarea.value = value
+    }, sourceLines)
+    await window.getByTestId("save-sources").evaluate((button) => button.click())
+
+    const warnings = window.locator("#status_bar_warnings")
+    const errors = window.locator("#status_bar_errors")
+    await expect(warnings.locator(".status_indicator_count")).toHaveText("2")
+    await expect(errors.locator(".status_indicator_count")).toHaveText("1")
+    await expect(warnings).toHaveCSS("border-top-width", "0px")
+    await expect.poll(() => window.evaluate(() => {
+      const menu = document.querySelector("#menu").getBoundingClientRect()
+      const indicator = document
+        .querySelector("#status_bar_warnings")
+        .getBoundingClientRect()
+      return Math.round(menu.bottom - indicator.bottom)
+    })).toBe(18)
+    await expect(window.locator(".status_issue_bubble.warning")).toHaveCount(2)
+    await expect(window.locator(".status_issue_bubble.error")).toHaveCount(1)
+
+    await window.waitForTimeout(5_200)
+    await expect(window.locator(".status_issue_bubble.warning")).toHaveCount(0)
+    await expect(window.locator(".status_issue_bubble.error")).toHaveCount(1)
+    await warnings.click()
+    await expect(window.locator(".status_issue_bubble.warning")).toHaveCount(2)
+
+    await window
+      .locator(".status_issue_bubble.warning .status_issue_close")
+      .first()
+      .click()
+    await expect(window.locator(".status_issue_bubble.warning")).toHaveCount(1)
+    await warnings.click()
+    await expect(window.locator(".status_issue_bubble.warning")).toHaveCount(0)
+    await warnings.click()
+    await expect(window.locator(".status_issue_bubble.warning")).toHaveCount(2)
+
+    await window.locator(".status_issue_bubble.error .status_issue_close").click()
+    await expect(window.locator(".status_issue_bubble.error")).toHaveCount(0)
+    await errors.click()
+    const errorBubble = window.locator(".status_issue_bubble.error")
+    await expect(errorBubble).toHaveCount(1)
+    await errorBubble.locator(".status_issue_content").click()
+    await expect(window.locator("#left_panel")).toHaveAttribute(
+      "active_panel",
+      "settings"
+    )
+    await expect(window.locator("#status_dock")).toBeVisible()
+    await expect.poll(() => sources.evaluate((textarea) =>
+      textarea.value.slice(textarea.selectionStart, textarea.selectionEnd)
+    )).toBe(failingSource)
   } finally {
     await closeApp(electronApp, userData)
   }

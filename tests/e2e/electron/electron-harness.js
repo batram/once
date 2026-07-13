@@ -85,6 +85,11 @@ async function startPageServer(options = {}) {
       response.end()
       return
     }
+    if (request.url === "/failure.rss") {
+      response.writeHead(500, { "content-type": "text/plain; charset=utf-8" })
+      response.end("fixture failure")
+      return
+    }
     if (request.url === "/video") {
       response.writeHead(200, { "content-type": "text/html; charset=utf-8" })
       response.end(`<!doctype html>

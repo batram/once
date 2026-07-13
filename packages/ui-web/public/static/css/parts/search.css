@@ -6,19 +6,6 @@
   display: none;
 }
 
-#url_target {
-  position: absolute;
-  z-index: 16;
-  background: var(--highlight-bg-color);
-  border-bottom: thin solid var(--border-color);
-  bottom: 0;
-  font-size: 12px;
-  padding: 3px;
-  opacity: 0;
-  white-space: nowrap;
-  transition: opacity 0.5s ease-out, z-index 0.5s 0s;
-}
-
 #urlfield {
   padding-left: 8px;
 }

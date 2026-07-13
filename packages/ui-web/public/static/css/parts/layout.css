@@ -61,6 +61,7 @@
   flex: 1 1;
   min-height: 0;
   overflow: hidden;
+  position: relative;
 }
 
 #left_main > .panel {

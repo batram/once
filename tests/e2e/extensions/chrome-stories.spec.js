@@ -149,8 +149,20 @@ test("opens story, comment, substory, and original links", async () => {
     const alpha = storyItem(page, source.urls.alpha)
     const beta = storyItem(page, source.urls.beta)
 
+    const alphaTitle = alpha.locator(storyFixture.SELECTORS.title)
+    await alphaTitle.hover()
+    const hoverUrl = page.locator("#hover_url")
+    await expect(hoverUrl).toHaveText(source.urls.alpha)
+    await expect(hoverUrl).toHaveClass(/\bvisible\b/)
+    await page.locator("#searchfield").hover()
+    await page.waitForTimeout(500)
+    await expect(hoverUrl).toHaveClass(/\bvisible\b/)
+    await expect.poll(() => hoverUrl.getAttribute("class"), {
+      timeout: 1_500
+    }).not.toMatch(/\bvisible\b/)
+
     const alphaPage = await waitForOpenedPage(context, () =>
-      alpha.locator(storyFixture.SELECTORS.title).click()
+      alphaTitle.click()
     )
     await expect(alphaPage).toHaveURL(source.urls.alpha)
     await expect(alpha).toHaveClass(/\bread\b/)

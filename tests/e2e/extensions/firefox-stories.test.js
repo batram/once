@@ -103,13 +103,21 @@ test(
       )
 
       const alphaSelector = storySelector(source.urls.alpha)
+      const alphaTitle = await driver.findElement(
+        By.css(`${alphaSelector} ${storyFixture.SELECTORS.title}`)
+      )
+      await driver.actions().move({ origin: alphaTitle }).perform()
+      assert.equal(
+        await driver.executeScript(
+          "return document.querySelector('#hover_url')"
+        ),
+        null,
+        "Firefox must rely on its native hovered-link display"
+      )
       await openNewTab(
         driver,
         panelHandle,
-        () =>
-          driver
-            .findElement(By.css(`${alphaSelector} ${storyFixture.SELECTORS.title}`))
-            .click(),
+        () => alphaTitle.click(),
         source.urls.alpha
       )
       await waitForClass(driver, alphaSelector, "read")
