@@ -186,6 +186,11 @@ async function launchApp(options = {}) {
     BrowserWindow.getAllWindows().length
   ), { timeout: 10_000 }).toBe(1)
   const window = await electronApp.firstWindow()
+  await expect(window.locator("body")).toHaveAttribute(
+    "data-once-ready",
+    "true",
+    { timeout: 7_000 }
+  )
   await expect.poll(() => window.evaluate(() => window.onceElectron.tabs.getAll()))
     .toMatchObject([{ url: "about:blank", active: true }])
   return { electronApp, userData, window }

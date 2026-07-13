@@ -50,4 +50,5 @@ document.addEventListener("DOMContentLoaded", async () => {
     onMenuCollapsedChanged: (collapsed) =>
       browserShell.setLeftCollapsed(collapsed)
   })
+  document.body.dataset.onceReady = "true"
 })
