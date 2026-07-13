@@ -41,11 +41,11 @@ Firefox add-on or an unpacked Chrome extension.
 
 ## Documentation
 
-- [Development](DEVELOPMENT.md): installation, local workflows, testing, and
+- [Development](docs/DEVELOPMENT.md): installation, local workflows, testing, and
   packaging
-- [Architecture](ARCHITECTURE.md): platform design, package structure, and
+- [Architecture](docs/ARCHITECTURE.md): platform design, package structure, and
   boundaries
-- [Roadmap](ROADMAP.md)
+- [Roadmap](docs/ROADMAP.md)
 
 ## Screenshots
 
