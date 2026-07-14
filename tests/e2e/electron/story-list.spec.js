@@ -167,14 +167,27 @@ test("stacks, dismisses, restores, and opens source issues", async () => {
     const errors = window.locator("#status_bar_errors")
     await expect(warnings.locator(".status_indicator_count")).toHaveText("2")
     await expect(errors.locator(".status_indicator_count")).toHaveText("1")
-    await expect(warnings).toHaveCSS("border-top-width", "0px")
-    await expect.poll(() => window.evaluate(() => {
-      const menu = document.querySelector("#menu").getBoundingClientRect()
-      const indicator = document
-        .querySelector("#status_bar_warnings")
-        .getBoundingClientRect()
-      return Math.round(menu.bottom - indicator.bottom)
-    })).toBe(18)
+    const dock = window.locator("#status_dock")
+    await expect(dock).toHaveCSS("border-right-width", "0px")
+    await expect(dock).toHaveCSS("border-radius", "14px 0px 0px 14px")
+    await expect
+      .poll(() =>
+        window.evaluate(() => {
+          const menu = document.querySelector("#menu").getBoundingClientRect()
+          const dockRect = document
+            .querySelector("#status_dock")
+            .getBoundingClientRect()
+          const menuBorder = Number.parseFloat(
+            getComputedStyle(document.querySelector("#menu")).borderRightWidth
+          )
+          return {
+            bottom: Math.round(menu.bottom - dockRect.bottom),
+            right: Math.round(menu.right - dockRect.right),
+            menuBorder: Math.round(menuBorder)
+          }
+        })
+      )
+      .toEqual({ bottom: 12, right: 2, menuBorder: 2 })
     await expect(window.locator(".status_issue_bubble.warning")).toHaveCount(2)
     await expect(window.locator(".status_issue_bubble.error")).toHaveCount(1)
 

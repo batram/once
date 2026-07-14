@@ -104,6 +104,7 @@ test("status issues stack, dismiss, restore, and reset per reload", (t) => {
         return () => undefined
       }
     })
+    assert.ok(document.querySelector("#status_dock").hidden)
 
     subscriptions.get("loaderChanged")({
       processing: [{ domain: "example.com", parserType: "RSS" }]
@@ -120,6 +121,7 @@ test("status issues stack, dismiss, restore, and reset per reload", (t) => {
       { url: "error:two", title: "Error two", message: "two", type: "error" }
     ]
     subscriptions.get("sourceErrorsChanged")({ errors })
+    assert.ok(!document.querySelector("#status_dock").hidden)
     assert.equal(document.querySelectorAll(".status_issue_bubble").length, 4)
     assert.equal(document.querySelector("#status_bar_warnings .status_indicator_count").textContent, "2")
     assert.equal(document.querySelector("#status_bar_errors .status_indicator_count").textContent, "2")
@@ -148,6 +150,9 @@ test("status issues stack, dismiss, restore, and reset per reload", (t) => {
     assert.equal(document.querySelectorAll(".status_issue_bubble").length, 0)
     assert.ok(document.querySelector("#status_bar_warnings").hidden)
     assert.ok(document.querySelector("#status_bar_errors").hidden)
+    subscriptions.get("loaderChanged")({ processing: [] })
+    LoaderInsights.hide()
+    assert.ok(document.querySelector("#status_dock").hidden)
   } finally {
     if (previousSettingsModule) require.cache[settingsModule] = previousSettingsModule
     else Reflect.deleteProperty(require.cache, settingsModule)

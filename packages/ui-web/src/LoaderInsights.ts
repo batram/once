@@ -18,6 +18,7 @@ export class LoaderInsights {
   private static message: HTMLElement | null = null
   private static messageText: HTMLElement | null = null
   private static activityIcon: HTMLElement | null = null
+  private static dock: HTMLElement | null = null
   private static activityIndicator: HTMLButtonElement | null = null
   private static warningIndicator: HTMLButtonElement | null = null
   private static errorIndicator: HTMLButtonElement | null = null
@@ -81,18 +82,18 @@ export class LoaderInsights {
     this.surfaces.append(this.bar)
     guiRoot.append(this.surfaces)
 
-    const dock = document.createElement("div")
-    dock.id = "status_dock"
-    dock.setAttribute("aria-label", "Application status")
+    this.dock = document.createElement("div")
+    this.dock.id = "status_dock"
+    this.dock.setAttribute("aria-label", "Application status")
     this.activityIndicator = this.createIndicator("activity", "")
     this.warningIndicator = this.createIndicator("warning", "⚠")
     this.errorIndicator = this.createIndicator("error", "!")
-    dock.append(
+    this.dock.append(
       this.activityIndicator,
       this.warningIndicator,
       this.errorIndicator
     )
-    menu.append(dock)
+    menu.append(this.dock)
     this.render()
   }
 
@@ -289,6 +290,13 @@ export class LoaderInsights {
     this.renderIndicator(this.activityIndicator, "activity", hasStatus)
     this.renderIndicator(this.warningIndicator, "warning")
     this.renderIndicator(this.errorIndicator, "error")
+    if (this.dock) {
+      this.dock.hidden = ![
+        this.activityIndicator,
+        this.warningIndicator,
+        this.errorIndicator
+      ].some((indicator) => indicator && !indicator.hidden)
+    }
     this.renderIssues()
   }
 
