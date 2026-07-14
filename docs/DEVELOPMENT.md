@@ -182,6 +182,28 @@ Dev-channel runs also use the dev icon for the window and taskbar. Setting
 Automated tests override the user data directory with a temporary directory so
 they do not touch a developer's normal Once profile.
 
+### Electron updates
+
+Installed release-channel Windows builds check the public `batram/once` GitHub
+Releases feed at startup and once per hour. When an update has downloaded, Once
+offers to restart immediately; choosing **Later** applies it on a subsequent app
+restart. The version row in Electron settings also provides a manual update
+check and reports its current status. Development builds, unpackaged runs,
+Forge's unpacked package output, Squirrel's first launch after an install, and
+Electron tests do not check for updates; their manual check is disabled. Run
+the generated Setup executable to install Squirrel's `Update.exe` and enable
+updates.
+
+Updates use Electron's public `update.electronjs.org` service and native
+Squirrel.Windows updater. Each non-draft, non-prerelease GitHub release must use
+a valid `vX.Y.Z` tag and include the generated `RELEASES`, `*-full.nupkg`, and
+setup `.exe` files. The release workflow uploads these files and
+`verify:release-artifacts` fails if any required update asset is missing.
+
+The current Windows artifacts are not code-signed. Automatic updates work for
+Squirrel.Windows without signing, but production releases should be signed to
+establish publisher identity and improve Windows trust and SmartScreen behavior.
+
 Normal unit, integration, extension, and Electron E2E tests do not contact
 third-party story-source servers. Tests use responses below `tests/fixtures/collectors`, and window/tab E2E
 tests disable initial story loading and the renderer's network-fetch bridge.

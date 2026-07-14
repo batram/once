@@ -28,6 +28,16 @@
 
 #settings_panel .settings_version {
   color: var(--text-color);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+#settings_panel .update_status {
+  flex-basis: 100%;
+  min-height: 1.2em;
+  color: var(--text-color);
 }
 
 /* Textareas are now styled via .input_container */

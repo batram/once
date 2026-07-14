@@ -21,6 +21,23 @@ test("launches a secure browser shell with legacy tab interactions", async () =>
     await expect(window.getByTestId("app-version")).toHaveText(
       await electronApp.evaluate(({ app }) => app.getVersion())
     )
+    await window.getByTestId("settings-menu").click()
+    const updateButton = window.getByTestId("check-for-updates")
+    await expect(updateButton).toBeVisible()
+    await expect(updateButton).toBeDisabled()
+    await expect(updateButton).toHaveAttribute(
+      "title",
+      "Updates are available in installed release builds."
+    )
+    await expect(window.getByTestId("update-status")).toHaveText(
+      "Updates are available in installed release builds."
+    )
+    expect(await window.evaluate(() => window.onceElectron.app.checkForUpdates()))
+      .toEqual({
+        state: "disabled",
+        message: "Updates are available in installed release builds."
+      })
+    await window.getByTestId("stories-menu").click()
 
     await expect(window.locator(".electron-tab")).toHaveCSS("min-width", "140px")
     await expect(window.locator(".electron-tab")).toHaveCSS(

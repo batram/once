@@ -12,6 +12,7 @@ import { StoryListItem } from "./StoryListItem"
 import { ReaderView } from "./reader/ReaderView"
 import { SourcePickerView } from "./picker/SourcePickerView"
 import { bindMenuCollapseControls } from "./MenuCollapse"
+import { AppUpdater, bindAppUpdateControls } from "./AppUpdateControls"
 
 export interface MountOnceUiOptions {
   appVersion: string
@@ -19,6 +20,7 @@ export interface MountOnceUiOptions {
   showHoveredLinks?: boolean
   onMenuCollapsedChanged?: (collapsed: boolean) => void
   initialStoryLoad?: "network" | "cache" | "disabled"
+  updater?: AppUpdater
 }
 
 export async function mountOnceUi(
@@ -40,6 +42,7 @@ export async function mountOnceUi(
   }
 
   bindMenuCollapseControls(options.onMenuCollapsedChanged)
+  bindAppUpdateControls(options.updater)
 
   const settingsPanel = new SettingsPanel(client)
   SourcePickerView.mount(client)

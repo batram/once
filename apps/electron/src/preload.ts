@@ -6,12 +6,24 @@ import {
   ElectronPoint,
   ElectronRect,
   ElectronRedirectRule,
-  ElectronTabState
+  ElectronTabState,
+  ElectronUpdateStatus
 } from "@once/platform-electron/bridge"
 
 const bridge: ElectronBridge = {
   app: {
-    getBuildInfo: () => ipcRenderer.invoke(ELECTRON_IPC.appGetBuildInfo)
+    getBuildInfo: () => ipcRenderer.invoke(ELECTRON_IPC.appGetBuildInfo),
+    getUpdateStatus: () => ipcRenderer.invoke(ELECTRON_IPC.appGetUpdateStatus),
+    checkForUpdates: () => ipcRenderer.invoke(ELECTRON_IPC.appCheckForUpdates),
+    onUpdateStatusChanged(handler: (status: ElectronUpdateStatus) => void) {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        status: ElectronUpdateStatus
+      ) => handler(status)
+      ipcRenderer.on(ELECTRON_IPC.appUpdateStatusChanged, listener)
+      return () =>
+        ipcRenderer.removeListener(ELECTRON_IPC.appUpdateStatusChanged, listener)
+    }
   },
   fetch(request: ElectronFetchRequest) {
     return ipcRenderer.invoke(ELECTRON_IPC.fetch, request)

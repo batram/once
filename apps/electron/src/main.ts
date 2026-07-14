@@ -1,5 +1,6 @@
 import {
   app,
+  autoUpdater,
   BrowserWindow,
   ipcMain,
   IpcMainInvokeEvent,
@@ -8,6 +9,8 @@ import {
   session
 } from "electron"
 import started from "electron-squirrel-startup"
+import { UpdateSourceType, updateElectronApp } from "update-electron-app"
+import { existsSync } from "node:fs"
 import path from "path"
 import {
   ELECTRON_IPC,
@@ -16,7 +19,8 @@ import {
   ElectronFetchResponse,
   ElectronPoint,
   ElectronRect,
-  ElectronRedirectRule
+  ElectronRedirectRule,
+  ElectronUpdateStatus
 } from "@once/platform-electron/bridge"
 import { SecureSettings } from "./SecureSettings"
 import { BrowserCoordinator } from "./TabManager"
@@ -35,6 +39,10 @@ declare const __ONCE_BUILD_CHANNEL__: "release" | "dev"
 
 if (started) app.quit()
 
+if (process.platform === "win32") {
+  app.setAppUserModelId("com.squirrel.once.once")
+}
+
 app.userAgentFallback = app.userAgentFallback.replace(/\sElectron\/[^\s]+/, "") +
   ` (Once/${app.getVersion()})`
 
@@ -49,6 +57,83 @@ const hasLock = app.requestSingleInstanceLock()
 if (!hasLock) app.quit()
 
 let browserCoordinator: BrowserCoordinator | null = null
+let autoUpdatesStarted = false
+let updateStatus: ElectronUpdateStatus = {
+  state: "disabled",
+  message: "Updates are available in installed release builds."
+}
+
+function setUpdateStatus(status: ElectronUpdateStatus): void {
+  updateStatus = status
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) {
+      window.webContents.send(ELECTRON_IPC.appUpdateStatusChanged, status)
+    }
+  }
+}
+
+function trackAutoUpdateStatus(): void {
+  autoUpdater.on("checking-for-update", () => {
+    setUpdateStatus({ state: "checking" })
+  })
+  autoUpdater.on("update-available", () => {
+    setUpdateStatus({ state: "available" })
+  })
+  autoUpdater.on("update-not-available", () => {
+    setUpdateStatus({ state: "current" })
+  })
+  autoUpdater.on("update-downloaded", () => {
+    setUpdateStatus({ state: "downloaded" })
+  })
+  autoUpdater.on("error", (error) => {
+    const message = /squirrel/i.test(error.message)
+      ? "Install Once using the Setup executable to enable updates."
+      : error.message
+    setUpdateStatus({ state: "error", message })
+  })
+}
+
+function updateUnavailableMessage(): string | null {
+  if (process.platform !== "win32") {
+    return "Automatic updates are currently supported on Windows."
+  }
+  if (!app.isPackaged || __ONCE_BUILD_CHANNEL__ !== "release" ||
+    process.env.ONCE_ELECTRON_DISABLE_NETWORK_FETCH === "1") {
+    return "Updates are available in installed release builds."
+  }
+  if (process.argv.includes("--squirrel-firstrun")) {
+    return "Updates will be available after installation finishes."
+  }
+
+  const updateExecutable = path.resolve(
+    path.dirname(process.execPath),
+    "..",
+    "Update.exe"
+  )
+  if (!existsSync(updateExecutable)) {
+    return "Install Once using the Setup executable to enable updates."
+  }
+  return null
+}
+
+function startAutoUpdates(): void {
+  const unavailableMessage = updateUnavailableMessage()
+  if (unavailableMessage) {
+    setUpdateStatus({ state: "disabled", message: unavailableMessage })
+    return
+  }
+
+  autoUpdatesStarted = true
+  setUpdateStatus({ state: "idle" })
+  trackAutoUpdateStatus()
+  updateElectronApp({
+    updateSource: {
+      type: UpdateSourceType.ElectronPublicUpdateService,
+      repo: "batram/once"
+    },
+    updateInterval: "1 hour"
+  })
+}
 
 function assertTrusted(event: IpcMainInvokeEvent): void {
   if (!browserCoordinator) throw new Error("Browser coordinator is unavailable")
@@ -77,6 +162,34 @@ function registerIpc(
       channel: __ONCE_BUILD_CHANNEL__
     }
   })
+  ipcMain.handle(
+    ELECTRON_IPC.appGetUpdateStatus,
+    (event): ElectronUpdateStatus => {
+      assertTrusted(event)
+      return updateStatus
+    }
+  )
+  ipcMain.handle(
+    ELECTRON_IPC.appCheckForUpdates,
+    (event): ElectronUpdateStatus => {
+      assertTrusted(event)
+      if (!autoUpdatesStarted || ["checking", "available", "downloaded"]
+        .includes(updateStatus.state)) {
+        return updateStatus
+      }
+
+      setUpdateStatus({ state: "checking" })
+      try {
+        autoUpdater.checkForUpdates()
+      } catch (error) {
+        setUpdateStatus({
+          state: "error",
+          message: error instanceof Error ? error.message : "Update check failed"
+        })
+      }
+      return updateStatus
+    }
+  )
 
   ipcMain.handle(
     ELECTRON_IPC.fetch,
@@ -304,6 +417,7 @@ app
         ? `${MAIN_WINDOW_WEBPACK_ENTRY}?disableStoryLoading`
         : MAIN_WINDOW_WEBPACK_ENTRY
     )
+    startAutoUpdates()
     registerIpc(new SecureSettings(), browserCoordinator)
     await browserCoordinator.createWindow()
 

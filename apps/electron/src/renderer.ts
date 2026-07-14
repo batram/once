@@ -50,6 +50,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   await mountOnceUi(app.client, {
     appVersion: buildInfo.version,
     buildChannel: buildInfo.channel,
+    updater: {
+      getStatus: () => window.onceElectron.app.getUpdateStatus(),
+      checkForUpdates: () => window.onceElectron.app.checkForUpdates(),
+      onStatusChanged: (handler) =>
+        window.onceElectron.app.onUpdateStatusChanged(handler)
+    },
     showHoveredLinks: true,
     initialStoryLoad: new URL(window.location.href).searchParams.has(
       "disableStoryLoading"

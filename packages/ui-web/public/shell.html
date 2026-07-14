@@ -144,7 +144,19 @@
                 <input type="button" value="cancel" id="cache_time_cancel" />
               </div>
               <div class="settings_block settings_version">
-                Version: <span data-testid="app-version"></span>
+                <span>Version: <span data-testid="app-version"></span></span>
+                <input
+                  type="button"
+                  data-testid="check-for-updates"
+                  value="Check for updates"
+                  hidden
+                />
+                <span
+                  class="update_status"
+                  data-testid="update-status"
+                  role="status"
+                  aria-live="polite"
+                ></span>
               </div>
             </div>
           </div>

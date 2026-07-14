@@ -11,6 +11,12 @@ export * as Menu from "./menu"
 export { setOnceClient, getOnceClient } from "./client"
 export { mountOnceUi, MountOnceUiOptions } from "./mountOnceUi"
 export { bindMenuCollapseControls } from "./MenuCollapse"
+export {
+  AppUpdater,
+  AppUpdateState,
+  AppUpdateStatus,
+  bindAppUpdateControls
+} from "./AppUpdateControls"
 export { ReaderView } from "./reader/ReaderView"
 export { SourcePickerView } from "./picker/SourcePickerView"
 export { extractArticle, ReaderArticle } from "./reader/extractArticle"

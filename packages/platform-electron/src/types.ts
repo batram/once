@@ -51,9 +51,28 @@ export interface ElectronBuildInfo {
   channel: ElectronBuildChannel
 }
 
+export type ElectronUpdateState =
+  | "disabled"
+  | "idle"
+  | "checking"
+  | "available"
+  | "current"
+  | "downloaded"
+  | "error"
+
+export interface ElectronUpdateStatus {
+  state: ElectronUpdateState
+  message?: string
+}
+
 export interface ElectronBridge {
   app: {
     getBuildInfo(): Promise<ElectronBuildInfo>
+    getUpdateStatus(): Promise<ElectronUpdateStatus>
+    checkForUpdates(): Promise<ElectronUpdateStatus>
+    onUpdateStatusChanged(
+      handler: (status: ElectronUpdateStatus) => void
+    ): () => void
   }
   fetch(request: ElectronFetchRequest): Promise<ElectronFetchResponse>
   settings: {
@@ -98,6 +117,9 @@ export interface ElectronBridge {
 
 export const ELECTRON_IPC = {
   appGetBuildInfo: "once:app:get-build-info",
+  appGetUpdateStatus: "once:app:get-update-status",
+  appCheckForUpdates: "once:app:check-for-updates",
+  appUpdateStatusChanged: "once:app:update-status-changed",
   fetch: "once:fetch",
   getSyncUrl: "once:settings:get-sync-url",
   setSyncUrl: "once:settings:set-sync-url",
