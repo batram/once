@@ -37,7 +37,7 @@
     "test:electron:e2e": "npm run package:electron && playwright test --config tests/e2e/electron/playwright.config.js",
     "test:electron:e2e:story-debug": "npm run package:electron && npm run test:electron:e2e:story-debug:run",
     "test:electron:e2e:story-debug:run": "playwright test --config tests/e2e/electron/playwright.debug.config.js",
-    "test:extensions": "npm run build:extensions && node --test tests/e2e/extensions/artifacts.test.js && web-ext lint --source-dir apps/firefox-extension/dist && playwright test --config tests/e2e/extensions/playwright.config.js && node --test tests/e2e/extensions/firefox.test.js tests/e2e/extensions/firefox-stories.test.js",
+    "test:extensions": "npm run build:extensions && node --test tests/e2e/extensions/artifacts.test.js && web-ext lint --source-dir apps/firefox-extension/dist && playwright test --config tests/e2e/extensions/playwright.config.js && node --test tests/e2e/extensions/firefox.test.js tests/e2e/extensions/firefox-stories.test.js tests/e2e/extensions/geny-firefox.test.js",
     "test:live:collectors": "npm run build:packages && node --test tests/live/collectors/*.test.js",
     "fixtures:refresh:collectors": "npm run build:packages && node scripts/refresh-collector-fixture.js",
     "test:ci": "npm run check && npm test",
