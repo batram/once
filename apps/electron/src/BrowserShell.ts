@@ -1,7 +1,4 @@
-import {
-  ElectronBridge,
-  ElectronTabState
-} from "@once/platform-electron/bridge"
+import { ElectronBridge, ElectronTabState } from "@once/platform-electron/bridge"
 import browserShellMarkup from "./browser/browser-shell.html"
 
 const TAB_MIME = "application/x-once-tab"
@@ -76,8 +73,7 @@ export class BrowserShell {
       void this.bridge.tabs.create("about:blank", true)
     }
     this.backButton.onclick = () => this.withActive((tab) => this.bridge.tabs.back(tab.id))
-    this.forwardButton.onclick = () =>
-      this.withActive((tab) => this.bridge.tabs.forward(tab.id))
+    this.forwardButton.onclick = () => this.withActive((tab) => this.bridge.tabs.forward(tab.id))
     this.reloadButton.onclick = () => {
       this.withActive((tab) =>
         tab.loading ? this.bridge.tabs.stop(tab.id) : this.bridge.tabs.reload(tab.id)
@@ -99,8 +95,7 @@ export class BrowserShell {
         this.showReaderError(active.url, error)
       })
     }
-    this.closeButton.onclick = () =>
-      this.withActive((tab) => this.bridge.tabs.close(tab.id))
+    this.closeButton.onclick = () => this.withActive((tab) => this.bridge.tabs.close(tab.id))
 
     this.address.addEventListener("focus", () => this.address.select())
     this.address.addEventListener("input", () => this.setAddressError(""))
@@ -114,30 +109,42 @@ export class BrowserShell {
         this.setAddressError("")
         await this.bridge.tabs.navigate(active.id, url)
       } catch (error) {
-        this.setAddressError(
-          error instanceof Error ? error.message : String(error)
-        )
+        this.setAddressError(error instanceof Error ? error.message : String(error))
       }
     })
   }
 
   private bindTabs(): void {
-    this.tabStrip.addEventListener("wheel", (event) => {
-      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return
-      this.tabStrip.scrollLeft += event.deltaY
-      event.preventDefault()
-    }, { passive: false })
-
-    for (const element of [this.dropzone, this.tabStrip, this.rightPanel]) {
-      element.addEventListener("dragover", (event) => {
-        if (!this.hasSupportedDrop(event.dataTransfer)) return
+    this.tabStrip.addEventListener(
+      "wheel",
+      (event) => {
+        if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return
+        this.tabStrip.scrollLeft += event.deltaY
         event.preventDefault()
-        if (event.dataTransfer) event.dataTransfer.dropEffect = this.hasTabDrop(event.dataTransfer)
-          ? "move"
-          : "link"
-      })
-    }
-    this.dropzone.addEventListener("drop", (event) => {
+      },
+      { passive: false }
+    )
+
+    window.addEventListener("dragenter", (e) => {
+      e.preventDefault()
+      document.body.classList.add("window-is-receiving-drop")
+    })
+
+    window.addEventListener("dragleave", (e) => {
+      // Only reset if exiting the root screen bounds
+      if (e.screenX === 0 && e.screenY === 0) {
+        document.body.classList.remove("window-is-receiving-drop")
+      }
+    })
+
+    document.addEventListener("dragover", (event) => {
+      if (!this.hasSupportedDrop(event.dataTransfer)) return
+      event.preventDefault()
+      if (event.dataTransfer)
+        event.dataTransfer.dropEffect = this.hasTabDrop(event.dataTransfer) ? "move" : "link"
+    })
+    document.addEventListener("drop", (event) => {
+      document.body.classList.remove("window-is-receiving-drop")
       event.preventDefault()
       void this.handleDrop(event)
     })
@@ -253,7 +260,7 @@ export class BrowserShell {
       element.onclick = () => void this.bridge.tabs.activate(tab.id)
       element.onmousedown = (event) => {
         if (event.button === 1) {
-          event.preventDefault() 
+          event.preventDefault()
         }
       }
       element.onauxclick = (event) => {
@@ -279,8 +286,7 @@ export class BrowserShell {
     if (active) {
       const addressUrl = displayBrowserUrl(active.url)
       const navigationChanged =
-        this.renderedAddressTabId !== active.id ||
-        this.renderedAddressUrl !== addressUrl
+        this.renderedAddressTabId !== active.id || this.renderedAddressUrl !== addressUrl
       this.renderedAddressTabId = active.id
       this.renderedAddressUrl = addressUrl
       if (navigationChanged || document.activeElement !== this.address) {
@@ -354,7 +360,9 @@ export class BrowserShell {
       const id = this.draggingTabId
       this.draggingTabId = null
       if (id && !this.dropHandled && event.dataTransfer?.dropEffect === "none") {
-        void this.bridge.tabs.detach(id, { x: event.screenX, y: event.screenY }).catch((): void => undefined)
+        void this.bridge.tabs
+          .detach(id, { x: event.screenX, y: event.screenY })
+          .catch((): void => undefined)
       }
       this.dropHandled = false
     }
@@ -402,7 +410,9 @@ export class BrowserShell {
   private hasSupportedDrop(transfer: DataTransfer | null): boolean {
     if (!transfer) return false
     const types = Array.from(transfer.types)
-    return types.includes(TAB_MIME) || types.includes("text/uri-list") || types.includes("text/plain")
+    return (
+      types.includes(TAB_MIME) || types.includes("text/uri-list") || types.includes("text/plain")
+    )
   }
 
   private activeTab(): ElectronTabState | undefined {

@@ -19,6 +19,12 @@ body #titlebar {
   flex: 0 0 30px;
 }
 
+body.window-is-receiving-drop #titlebar,
+body.window-is-receiving-drop #tab_dropzone,
+body.window-is-receiving-drop {
+  -webkit-app-region: no-drag !important;
+}
+
 body #titlebar-logo {
   width: 16px;
   height: 16px;
