@@ -35,6 +35,9 @@ declare const __ONCE_BUILD_CHANNEL__: "release" | "dev"
 
 if (started) app.quit()
 
+app.userAgentFallback = app.userAgentFallback.replace(/\sElectron\/[^\s]+/, "") +
+  ` (Once/${app.getVersion()})`
+
 registerReaderScheme()
 registerErrorPageScheme()
 
