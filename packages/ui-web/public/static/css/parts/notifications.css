@@ -22,7 +22,6 @@
   border: 1px solid var(--border-high-color);
   border-left: 0;
   border-radius: 0 14px 14px 0;
-  box-shadow: 0 2px 7px rgb(0 0 0 / 18%);
   box-sizing: border-box;
   color: var(--text-color);
   min-height: 29px;
@@ -226,9 +225,10 @@
 #hover_url {
   background: var(--main-bg-color);
   border: 1px solid var(--border-high-color);
-  border-radius: 8px;
-  bottom: 12px;
-  box-shadow: 0 2px 7px rgb(0 0 0 / 18%);
+  border-bottom: 0;
+  border-radius: 3px 0 0;
+  border-right: 0;
+  bottom: 0;
   box-sizing: border-box;
   color: var(--text-color);
   font-size: 11px;
@@ -236,13 +236,15 @@
   max-width: calc(100% - 24px);
   opacity: 0;
   overflow: hidden;
-  padding: 5px 8px;
+  padding: 4px 3px 2px 5px;
   pointer-events: none;
   position: absolute;
-  right: 12px;
+  right: 0;
   text-overflow: ellipsis;
   transform: translateY(4px);
-  transition: opacity 0.18s ease-out, transform 0.18s ease-out;
+  transition:
+    opacity 0.18s ease-out,
+    transform 0.18s ease-out;
   white-space: nowrap;
   z-index: 21;
 }
@@ -281,7 +283,9 @@ body[animated="false"] #hover_url {
 }
 
 body[animated="false"] #status_bar_activity.spinning,
-body[animated="false"] .status_indicator.activity.spinning .status_indicator_icon {
+body[animated="false"]
+  .status_indicator.activity.spinning
+  .status_indicator_icon {
   animation: none;
   border-right-color: currentColor;
 }

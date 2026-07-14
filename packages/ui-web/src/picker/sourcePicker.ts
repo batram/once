@@ -179,7 +179,6 @@ const OVERLAY_STYLES = `
     background: #262a35;
     border: 1px solid #444b5d;
     border-radius: 6px;
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
     padding: 12px;
   }
   #panel h1 {

@@ -1,4 +1,4 @@
-const HIDE_DELAY = 800
+export const HIDE_DELAY = 400
 
 export class HoverUrlIndicator {
   private static instance: HoverUrlIndicator | null = null

@@ -40,7 +40,7 @@ test("hover URL indicator delays, cancels, and completes dismissal", (t) => {
     </section>
   `)
   try {
-    const { HoverUrlIndicator } = require(
+    const { HIDE_DELAY, HoverUrlIndicator } = require(
       "../../../packages/ui-web/dist/HoverUrlIndicator"
     )
     const indicator = HoverUrlIndicator.mount()
@@ -55,7 +55,7 @@ test("hover URL indicator delays, cancels, and completes dismissal", (t) => {
     assert.ok(output.classList.contains("visible"))
 
     dispatch(dom.window, first, "mouseout")
-    t.mock.timers.tick(799)
+    t.mock.timers.tick(HIDE_DELAY - 1)
     assert.ok(output.classList.contains("visible"))
     dispatch(dom.window, second, "mouseover")
     t.mock.timers.tick(1)
@@ -63,14 +63,14 @@ test("hover URL indicator delays, cancels, and completes dismissal", (t) => {
     assert.ok(output.classList.contains("visible"))
 
     dispatch(dom.window, second, "mouseout")
-    t.mock.timers.tick(800)
+    t.mock.timers.tick(HIDE_DELAY)
     assert.ok(!output.classList.contains("visible"))
 
     HoverUrlIndicator.show("https://example.com/web-contents")
     assert.equal(output.textContent, "https://example.com/web-contents")
     assert.ok(output.classList.contains("visible"))
     HoverUrlIndicator.show("")
-    t.mock.timers.tick(799)
+    t.mock.timers.tick(HIDE_DELAY - 1)
     assert.ok(output.classList.contains("visible"))
     t.mock.timers.tick(1)
     assert.ok(!output.classList.contains("visible"))

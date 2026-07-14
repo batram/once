@@ -11,8 +11,10 @@
   background: var(--main-bg-color);
   border: 1px solid var(--border-high-color);
   border-radius: 6px;
-  box-shadow: 0 12px 32px rgb(0 0 0 / 45%);
-  font: 13px/1.4 Verdana, Geneva, sans-serif;
+  font:
+    13px/1.4 Verdana,
+    Geneva,
+    sans-serif;
   transform: translate(-50%, -50%);
 }
 

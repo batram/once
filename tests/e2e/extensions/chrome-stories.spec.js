@@ -2,6 +2,9 @@ const { test, expect, chromium } = require("@playwright/test")
 const fs = require("node:fs/promises")
 const os = require("node:os")
 const path = require("node:path")
+const {
+  HIDE_DELAY
+} = require("../../../packages/ui-web/dist/HoverUrlIndicator")
 const { startStoryFixture } = require("./local-source")
 const storyFixture = require("../shared/story-fixture")
 
@@ -155,10 +158,10 @@ test("opens story, comment, substory, and original links", async () => {
     await expect(hoverUrl).toHaveText(source.urls.alpha)
     await expect(hoverUrl).toHaveClass(/\bvisible\b/)
     await page.locator("#searchfield").hover()
-    await page.waitForTimeout(500)
+    await page.waitForTimeout(HIDE_DELAY / 2)
     await expect(hoverUrl).toHaveClass(/\bvisible\b/)
     await expect.poll(() => hoverUrl.getAttribute("class"), {
-      timeout: 1_500
+      timeout: HIDE_DELAY * 2
     }).not.toMatch(/\bvisible\b/)
 
     const alphaPage = await waitForOpenedPage(context, () =>

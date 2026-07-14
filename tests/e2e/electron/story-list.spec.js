@@ -1,5 +1,8 @@
 const { test, expect } = require("@playwright/test")
 const {
+  HIDE_DELAY
+} = require("../../../packages/ui-web/dist/HoverUrlIndicator")
+const {
   closeApp,
   launchApp,
   openPanel,
@@ -99,20 +102,12 @@ test("opens stories via title click, middle click, and comment links", async () 
     await expect(hoverUrl).toHaveText(urls.alpha)
     await expect(hoverUrl).toHaveClass(/\bvisible\b/)
     await expect(window.locator("#status_bar_text")).not.toHaveText(urls.alpha)
-    await expect.poll(() => window.evaluate(() => {
-      const panel = document.querySelector("#stories_panel").getBoundingClientRect()
-      const hover = document.querySelector("#hover_url").getBoundingClientRect()
-      return {
-        bottom: Math.round(panel.bottom - hover.bottom),
-        right: Math.round(panel.right - hover.right)
-      }
-    })).toEqual({ bottom: 12, right: 12 })
 
     await window.locator("#searchfield").hover()
-    await window.waitForTimeout(500)
+    await window.waitForTimeout(HIDE_DELAY / 2)
     await expect(hoverUrl).toHaveClass(/\bvisible\b/)
     await expect.poll(() => hoverUrl.getAttribute("class"), {
-      timeout: 1_500
+      timeout: HIDE_DELAY * 2
     }).not.toMatch(/\bvisible\b/)
 
     await alpha.locator("a.title").hover()
