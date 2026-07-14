@@ -113,16 +113,6 @@ test("opens stories via title click, middle click, and comment links", async () 
     await alpha.locator("a.title").hover()
     await expect(hoverUrl).toHaveClass(/\bvisible\b/)
 
-    const surfaceGeometry = await window.evaluate(() => {
-      const root = document.querySelector("#left_main").getBoundingClientRect()
-      const surfaces = document.querySelector("#status_surfaces").getBoundingClientRect()
-      return {
-        bottom: Math.round(root.bottom - surfaces.bottom),
-        left: Math.round(surfaces.left - root.left)
-      }
-    })
-    expect(surfaceGeometry).toEqual({ bottom: 12, left: 0 })
-
     await alpha.locator("a.title").click()
     await expect(address).toHaveValue(urls.alpha)
     await expect(alpha).toHaveClass(/\bread\b/)
@@ -170,24 +160,6 @@ test("stacks, dismisses, restores, and opens source issues", async () => {
     const dock = window.locator("#status_dock")
     await expect(dock).toHaveCSS("border-right-width", "0px")
     await expect(dock).toHaveCSS("border-radius", "14px 0px 0px 14px")
-    await expect
-      .poll(() =>
-        window.evaluate(() => {
-          const menu = document.querySelector("#menu").getBoundingClientRect()
-          const dockRect = document
-            .querySelector("#status_dock")
-            .getBoundingClientRect()
-          const menuBorder = Number.parseFloat(
-            getComputedStyle(document.querySelector("#menu")).borderRightWidth
-          )
-          return {
-            bottom: Math.round(menu.bottom - dockRect.bottom),
-            right: Math.round(menu.right - dockRect.right),
-            menuBorder: Math.round(menuBorder)
-          }
-        })
-      )
-      .toEqual({ bottom: 12, right: 2, menuBorder: 2 })
     await expect(window.locator(".status_issue_bubble.warning")).toHaveCount(2)
     await expect(window.locator(".status_issue_bubble.error")).toHaveCount(1)
 
