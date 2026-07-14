@@ -223,7 +223,7 @@ export class BrowserShell {
         media.title = tab.muted ? "Unmute tab" : "Mute tab"
         media.setAttribute("aria-label", media.title)
         const icon = document.createElement("img")
-        icon.src = tab.muted ? "imgs/pause.svg" : "imgs/play.svg"
+        icon.src = tab.muted ? "imgs/volume-mute.svg" : "imgs/volume.svg"
         icon.alt = ""
         media.append(icon)
         media.onclick = (event) => {
