@@ -385,6 +385,12 @@ function createShellWindow(bounds?: Rectangle): BrowserWindow {
     minHeight: 480,
     show: false,
     autoHideMenuBar: true,
+    titleBarStyle: "hidden",
+    titleBarOverlay: process.platform !== "darwin" ? {
+      color: "#726464",      
+      symbolColor: "#ffffff",
+      height: 29            
+    } : false,
     webPreferences: {
       preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
       nodeIntegration: false,

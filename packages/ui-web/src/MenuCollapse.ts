@@ -2,12 +2,14 @@ export function bindMenuCollapseControls(
   onMenuCollapsedChanged?: (collapsed: boolean) => void
 ): void {
   const menu = document.querySelector<HTMLElement>("#menu")
+  
   document.querySelectorAll<HTMLElement>(".collapsebutton").forEach((element) => {
     element.onclick = () => {
       const collapsed = toggleMenu(menu)
       onMenuCollapsedChanged?.(collapsed)
     }
   })
+  
   if (menu) {
     menu.onclick = (event) => {
       if (!menu.classList.contains("collapse")) return
