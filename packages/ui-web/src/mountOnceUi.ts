@@ -11,6 +11,7 @@ import * as StoryList from "./StoryList"
 import { StoryListItem } from "./StoryListItem"
 import { ReaderView } from "./reader/ReaderView"
 import { SourcePickerView } from "./picker/SourcePickerView"
+import { bindMenuCollapseControls } from "./MenuCollapse"
 
 export interface MountOnceUiOptions {
   appVersion: string
@@ -38,6 +39,8 @@ export async function mountOnceUi(
     version.dataset.buildChannel = options.buildChannel
   }
 
+  bindMenuCollapseControls(options.onMenuCollapsedChanged)
+
   const settingsPanel = new SettingsPanel(client)
   SourcePickerView.mount(client)
   new StoryHistory(client)
@@ -60,24 +63,6 @@ export async function mountOnceUi(
   if (initialStoryLoad !== "disabled") {
     await client.reloadStories(initialStoryLoad === "cache")
   }
-
-  document.querySelectorAll<HTMLElement>(".collapsebutton").forEach((element) => {
-    element.onclick = () => {
-      const collapsed = toggleMenu()
-      options.onMenuCollapsedChanged?.(collapsed)
-    }
-  })
-}
-
-function toggleMenu(): boolean {
-  const menu = document.querySelector("#menu")
-  if (!menu) return false
-
-  const collapsed = menu.classList.toggle("collapse")
-  document.querySelectorAll<HTMLElement>(".collapsebutton").forEach((element) => {
-    element.innerText = collapsed ? ">" : "<"
-  })
-  return collapsed
 }
 
 async function updateSelected(client: OnceClient, href: string): Promise<void> {

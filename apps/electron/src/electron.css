@@ -275,13 +275,29 @@ body {
   cursor: ew-resize;
 }
 
-.electron-left-collapsed #left_panel,
-.electron-left-collapsed #sep_slider {
+.electron-left-collapsed #left_panel {
+  flex: 0 0 30px !important;
+  min-width: 30px;
+}
+
+.electron-left-collapsed #left_main {
   display: none;
 }
 
 .electron-left-collapsed #right_panel {
-  min-width: 100%;
+  min-width: 0;
+}
+
+.electron-left-collapsed #sep_slider {
+  cursor: default;
+  pointer-events: none;
+}
+
+#left_panel .bar .collapsebutton {
+  order: 1;
+  margin: 0 -15px 0 3px;
+  border-right: 0;
+  border-radius: 2px 0 0 2px;
 }
 
 .electron-fullscreen #left_panel,

@@ -134,6 +134,48 @@ test("launches a secure browser shell with legacy tab interactions", async () =>
   }
 })
 
+test("keeps the icon rail and restores either sidebar panel", async () => {
+  const { electronApp, userData, window } = await launchApp()
+  try {
+    const collapse = window.locator("#stories_panel .collapsebutton")
+    const dividerGap = await window.evaluate(() => {
+      const button = document
+        .querySelector("#stories_panel .collapsebutton")
+        .getBoundingClientRect()
+      const divider = document.querySelector("#sep_slider").getBoundingClientRect()
+      return Math.round(divider.left - button.right)
+    })
+    expect(dividerGap).toBe(0)
+
+    await collapse.click()
+    await expect(window.locator("#left_panel")).toBeVisible()
+    await expect(window.locator("#left_main")).toBeHidden()
+    await expect(window.locator("#menu")).toBeVisible()
+    await expect(window.locator("#menu")).toHaveClass(/\bcollapse\b/)
+    await expect(window.locator("#left_panel")).toHaveCSS("width", "30px")
+    await expect(window.locator("#browser_sidebar_toggle")).toHaveCount(0)
+
+    await window.getByTestId("settings-menu").click()
+    await expect(window.locator("#left_main")).toBeVisible()
+    await expect(window.locator("#menu")).not.toHaveClass(/\bcollapse\b/)
+    await expect(window.locator("#left_panel")).toHaveAttribute(
+      "active_panel",
+      "settings"
+    )
+
+    await window.locator("#settings_panel .collapsebutton").click()
+    await expect(window.locator("#left_main")).toBeHidden()
+    await window.getByTestId("stories-menu").click()
+    await expect(window.locator("#left_main")).toBeVisible()
+    await expect(window.locator("#left_panel")).toHaveAttribute(
+      "active_panel",
+      "stories"
+    )
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
 test("clears a stale tab title when the next page has no title", async () => {
   const { electronApp, userData, window } = await launchApp()
   try {

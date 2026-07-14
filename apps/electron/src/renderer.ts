@@ -2,6 +2,7 @@ import { createOnceApp } from "@once/app"
 import { createElectronPlatform } from "@once/platform-electron"
 import { ElectronRedirectRule } from "@once/platform-electron/bridge"
 import {
+  bindMenuCollapseControls,
   HoverUrlIndicator,
   mountOnceUi,
   ReaderView,
@@ -25,6 +26,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     window.onceElectron,
     (url) => ReaderView.open(url)
   )
+  const onMenuCollapsedChanged = (collapsed: boolean): void =>
+    browserShell.setLeftCollapsed(collapsed)
+  bindMenuCollapseControls(onMenuCollapsedChanged)
 
   await app.start()
   const updateRedirects = async (
@@ -52,8 +56,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     )
       ? "disabled"
       : "network",
-    onMenuCollapsedChanged: (collapsed) =>
-      browserShell.setLeftCollapsed(collapsed)
+    onMenuCollapsedChanged
   })
   window.onceElectron.window.onTargetUrlChanged((url) => {
     HoverUrlIndicator.show(url)
