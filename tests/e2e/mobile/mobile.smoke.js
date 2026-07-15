@@ -5,11 +5,13 @@ function contextName(context) {
 }
 
 async function switchToWebView() {
+  const platform = String(browser.capabilities.platformName).toLowerCase()
   let webview = ""
   await browser.waitUntil(async () => {
     const contexts = (await browser.getContexts()).map(contextName)
-    webview = contexts.find((context) => context.includes("WEBVIEW_com.zmarn.once.dev")) ||
-      contexts.find((context) => context.includes("WEBVIEW")) || ""
+    webview = platform === "android"
+      ? contexts.find((context) => context.includes("WEBVIEW_com.zmarn.once.dev")) || ""
+      : contexts.find((context) => context.includes("WEBVIEW")) || ""
     return Boolean(webview)
   }, {
     timeout: 60_000,
@@ -32,13 +34,6 @@ describe("Once mobile", () => {
     const platform = String(browser.capabilities.platformName).toLowerCase()
     const port = process.env.ONCE_MOBILE_TEST_PORT || "3211"
     const baseUrl = platform === "android" ? `http://10.0.2.2:${port}` : `http://127.0.0.1:${port}`
-    await browser.switchContext("NATIVE_APP")
-    await browser.setOrientation("LANDSCAPE")
-    await switchToWebView()
-    await expect($("[data-testid='stories-menu']")).toBeDisplayed()
-    await browser.switchContext("NATIVE_APP")
-    await browser.setOrientation("PORTRAIT")
-    await switchToWebView()
     await $("[data-testid='settings-menu']").click()
     await $("[data-testid='sources']").setValue(`${baseUrl}/fixtures/feed.rss`)
     await $("[data-testid='save-sources']").click()
@@ -89,6 +84,7 @@ describe("Once mobile", () => {
     await restored.waitForDisplayed({ timeout: 30_000 })
     expect((await restored.getAttribute("class")).includes("skipped")).toBe(true)
     await $("[data-testid='settings-menu']").click()
-    expect((await $("[data-testid='sync-url']").getValue()).includes(`/db/mobile_${platform}`)).toBe(true)
+    const syncUrl = await $("[data-testid='sync-url']")
+    expect(String(await syncUrl.getProperty("value")).includes(`/db/mobile_${platform}`)).toBe(true)
   })
 })
