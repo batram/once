@@ -1,6 +1,6 @@
-name: Mobile compatibility
+name: Mobile tests
 
-# Compatibility runners are intentionally opt-in.
+# Mobile runners are intentionally opt-in.
 on:
   workflow_dispatch:
 
@@ -8,12 +8,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: mobile-compat-${{ github.ref }}
+  group: mobile-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  android-api-24:
-    name: Android API 24
+  mobile-android:
+    name: Capacitor Android
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -27,6 +27,8 @@ jobs:
           java-version: 21
           cache: gradle
       - run: npm ci
+      - run: npm run test:mobile
+      - run: npm run test:mobile:web
       - run: npm run mobile -- package android --channel dev --e2e
       - name: Android native lint and unit tests
         working-directory: apps/mobile/android
@@ -34,19 +36,22 @@ jobs:
       - run: npm exec --workspace @once/mobile -- appium driver install uiautomator2@8.1.0
       - uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 24
+          api-level: 36
           arch: x86_64
-          profile: pixel_2
+          profile: pixel_6
           script: npm run test:mobile:e2e:android
       - uses: actions/upload-artifact@v7
-        if: failure()
+        if: always()
         with:
-          name: android-api-24-failure-${{ github.run_id }}
-          path: test-results/mobile
-          if-no-files-found: ignore
+          name: mobile-android-${{ github.run_id }}
+          path: |
+            apps/mobile/android/app/build/outputs/apk/development/debug/*.apk
+            apps/mobile/android/app/build/reports
+            test-results/mobile
+          if-no-files-found: warn
 
-  oldest-hosted-ios:
-    name: Oldest hosted iOS simulator (15+)
+  mobile-ios:
+    name: Capacitor iOS
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v7
@@ -55,14 +60,16 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Select oldest installed iOS 15+ simulator
-        run: node apps/mobile/scripts/select-ios-simulator.js >> "$GITHUB_ENV"
       - run: npm run mobile -- package ios --channel dev --e2e
       - run: npm exec --workspace @once/mobile -- appium driver install xcuitest@11.17.7
       - run: npm run test:mobile:e2e:ios
+      - name: Archive simulator app
+        run: ditto -c -k --sequesterRsrc --keepParent "apps/mobile/ios/build/Build/Products/Debug-iphonesimulator/Once Dev.app" apps/mobile/ios/once-dev-simulator.zip
       - uses: actions/upload-artifact@v7
-        if: failure()
+        if: always()
         with:
-          name: oldest-ios-failure-${{ github.run_id }}
-          path: test-results/mobile
-          if-no-files-found: ignore
+          name: mobile-ios-${{ github.run_id }}
+          path: |
+            apps/mobile/ios/once-dev-simulator.zip
+            test-results/mobile
+          if-no-files-found: warn
