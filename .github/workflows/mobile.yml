@@ -68,6 +68,33 @@ jobs:
       - run: npm ci
       - run: npm run mobile -- package ios --channel dev --e2e
       - run: npm exec --workspace @once/mobile -- appium driver install xcuitest@11.17.7
+      # Boot the simulator ourselves and block until it is fully up. Appium's
+      # internal boot monitor gives up after a hard 121s, which the runner's
+      # first cold boot ("Waiting on BackBoard") overruns; simctl bootstatus -b
+      # has no such cap. Pin a specific UDID so Appium attaches to the exact
+      # device we booted (the runner has an "iPhone 17 Pro" per iOS runtime).
+      - name: Boot iOS simulator
+        run: |
+          UDID=$(xcrun simctl list devices available --json | python3 -c '
+          import json, sys
+          runtimes = json.load(sys.stdin)["devices"]
+          best = None
+          for runtime, devices in runtimes.items():
+              if "iOS" not in runtime:
+                  continue
+              version = runtime.rsplit("iOS-", 1)[-1].split("-")
+              key = tuple(int(part) for part in version if part.isdigit())
+              for device in devices:
+                  if device.get("name") == "iPhone 17 Pro" and device.get("isAvailable"):
+                      if best is None or key > best[0]:
+                          best = (key, device["udid"])
+          print(best[1] if best else "")
+          ')
+          if [ -z "$UDID" ]; then echo "No available iPhone 17 Pro simulator found"; exit 1; fi
+          echo "Booting iPhone 17 Pro simulator $UDID"
+          echo "ONCE_IOS_UDID=$UDID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
       - run: npm run test:mobile:e2e:ios
       - name: Archive simulator app
         run: ditto -c -k --sequesterRsrc --keepParent "apps/mobile/ios/build/Build/Products/Debug-iphonesimulator/Once Dev.app" apps/mobile/ios/once-dev-simulator.zip
