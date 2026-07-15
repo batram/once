@@ -17,7 +17,13 @@ function configFor(platform) {
     platformName: platform === "android" ? "Android" : "iOS",
     "appium:app": process.env.ONCE_MOBILE_APP || (platform === "android" ? androidApp : iosApp),
     "appium:automationName": platform === "android" ? "UiAutomator2" : "XCUITest",
-    "appium:fullReset": true,
+    // Android reinstalls the APK cheaply. On iOS, fullReset shuts down and
+    // *erases* the simulator before the session, which discards the runner
+    // pre-boot and forces a fresh-erase reboot that hangs on "Waiting on
+    // BackBoard". Test data isolation comes from the mobile test server's
+    // per-run database reset, not from wiping the simulator, so iOS reuses the
+    // already-booted device and just reinstalls the app (the default reset).
+    "appium:fullReset": platform === "android",
     "appium:newCommandTimeout": 120
   }
   if (platform === "android") {
