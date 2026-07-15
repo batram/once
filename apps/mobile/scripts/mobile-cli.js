@@ -59,9 +59,9 @@ function runNpm(args, env) {
 function javaCommand() {
   const candidates = [
     process.env.ONCE_JAVA_HOME && path.join(process.env.ONCE_JAVA_HOME, "bin", process.platform === "win32" ? "java.exe" : "java"),
+    process.env.JAVA_HOME && path.join(process.env.JAVA_HOME, "bin", process.platform === "win32" ? "java.exe" : "java"),
     process.platform === "win32" && "C:\\Program Files\\OpenJDK\\jdk-21\\bin\\java.exe",
     process.platform === "win32" && "C:\\Program Files\\Android\\Android Studio\\jbr\\bin\\java.exe",
-    process.env.JAVA_HOME && path.join(process.env.JAVA_HOME, "bin", process.platform === "win32" ? "java.exe" : "java"),
     "java"
   ].filter(Boolean)
   return candidates.find(candidate => candidate === "java" || fs.existsSync(candidate))
@@ -90,6 +90,17 @@ function androidEnvironment(channel) {
 
 function platformEnvironment(platform, channel) {
   return platform === "android" ? androidEnvironment(channel).env : environment(channel)
+}
+
+function requireHealthyAdb(env) {
+  const adb = path.join(env.ANDROID_HOME, "platform-tools", process.platform === "win32" ? "adb.exe" : "adb")
+  if (!fs.existsSync(adb)) return
+  const result = spawnSync(adb, ["devices"], { env, encoding: "utf8" })
+  if (result.error || result.status !== 0) return
+  const offline = result.stdout.split(/\r?\n/).map(line => line.trim()).filter(line => /^\S+\s+offline$/.test(line))
+  if (offline.length) {
+    fail(`adb reports offline device(s): ${offline.join(", ")} — cold-boot the emulator or run adb kill-server before retrying`)
+  }
 }
 
 function cap(args, env) {
@@ -179,9 +190,11 @@ if (command === "run" && channel !== "dev") fail("run only supports the dev chan
 
 if (command === "sync") sync(platform, channel)
 else if (command === "run") {
+  const env = platformEnvironment(platform, channel)
+  if (platform === "android") requireHealthyAdb(env)
   sync(platform, channel)
   const target = options.target ? ["--target", options.target] : []
-  cap(["run", platform, "--no-sync", ...target, ...options.passthrough], platformEnvironment(platform, channel))
+  cap(["run", platform, "--no-sync", ...target, ...options.passthrough], env)
 } else if (command === "open") {
   sync(platform, channel)
   cap(["open", platform], platformEnvironment(platform, channel))

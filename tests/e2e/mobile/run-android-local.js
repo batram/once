@@ -42,9 +42,9 @@ function androidEnvironment() {
 
   const javaCandidates = [
     process.env.ONCE_JAVA_HOME,
+    process.env.JAVA_HOME,
     process.platform === "win32" && "C:\\Program Files\\OpenJDK\\jdk-21",
-    process.platform === "win32" && "C:\\Program Files\\Android\\Android Studio\\jbr",
-    process.env.JAVA_HOME
+    process.platform === "win32" && "C:\\Program Files\\Android\\Android Studio\\jbr"
   ].filter(Boolean)
   const javaHome = javaCandidates.find(candidate => fs.existsSync(path.join(candidate, "bin")))
 
