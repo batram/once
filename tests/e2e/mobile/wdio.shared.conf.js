@@ -34,8 +34,23 @@ function configFor(platform) {
       common["appium:platformVersion"] = process.env.ONCE_IOS_VERSION
     }
     if (process.env.ONCE_IOS_UDID) common["appium:udid"] = process.env.ONCE_IOS_UDID
+    // On a cold CI runner the first session builds WebDriverAgent from source
+    // (the slowest part of XCUITest startup) and boots the simulator, which
+    // easily exceeds the WDA-side defaults. Give it room.
+    common["appium:wdaLaunchTimeout"] = 240_000
+    common["appium:wdaStartupRetries"] = 2
+    common["appium:wdaStartupRetryInterval"] = 20_000
   }
+  // Session creation on iOS (WDA build + simulator boot) routinely overruns the
+  // default 120s client timeout. Raise it to 5min, but stay under the ~6min
+  // point where WebdriverIO hits UND_ERR_HEADERS_TIMEOUT (webdriverio#13778).
+  // connectionRetryCount is capped so a genuine failure doesn't retry the whole
+  // slow handshake several times. Android sessions are fast; leave its defaults.
+  const iosTimeouts = platform === "ios"
+    ? { connectionRetryTimeout: 300_000, connectionRetryCount: 1 }
+    : {}
   return {
+    ...iosTimeouts,
     runner: "local",
     specs: [path.join(__dirname, "mobile.smoke.js")],
     maxInstances: 1,
