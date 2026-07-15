@@ -27,7 +27,12 @@ function configFor(platform) {
     common["appium:chromedriverAutodownload"] = true
   } else {
     common["appium:deviceName"] = process.env.ONCE_MOBILE_DEVICE || "iPhone 17 Pro"
-    common["appium:platformVersion"] = process.env.ONCE_IOS_VERSION || "26.0"
+    // Pin the simulator runtime only when explicitly requested. The macos-26
+    // runner ships varying iOS point releases (26.2/26.4/26.5), so let XCUITest
+    // pick a runtime matching the device name unless overridden.
+    if (process.env.ONCE_IOS_VERSION) {
+      common["appium:platformVersion"] = process.env.ONCE_IOS_VERSION
+    }
     if (process.env.ONCE_IOS_UDID) common["appium:udid"] = process.env.ONCE_IOS_UDID
   }
   return {
