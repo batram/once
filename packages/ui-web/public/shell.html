@@ -5,7 +5,7 @@
     <title>once</title>
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' http: https:;"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' http: https:; frame-src 'self' blob:;"
     />
     <link rel="stylesheet" href="css/style.css" />
   </head>
@@ -151,6 +151,7 @@
                     <div class="couch-highlights"></div>
                     <input
                       id="couch_input"
+                      data-testid="sync-url"
                       type="text"
                       spellcheck="false"
                       placeholder="https://cred:entials@couchdb.example.org/once"
@@ -163,12 +164,12 @@
                       👁️
                     </button>
                   </div>
-                  <input type="button" value="save" />
+                  <input type="button" value="save" data-testid="save-sync" />
                   <input type="button" value="cancel" />
                 </div>
                 <div class="settings_block">
                   Theme:
-                  <select id="theme_select">
+                  <select id="theme_select" data-testid="theme">
                     <option value="dark">Dark</option>
                     <option value="light">Light</option>
                     <option value="system">System</option>

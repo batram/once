@@ -14,7 +14,11 @@ export default tseslint.config(
       "test-results/",
       "playwright-report/",
       "apps/electron/out/",
-      "apps/electron/.webpack/"
+      "apps/electron/.webpack/",
+      "apps/mobile/android/**/build/",
+      "apps/mobile/android/app/src/main/assets/",
+      "apps/mobile/ios/build/",
+      "apps/mobile/ios/App/App/public/"
     ]
   },
   js.configs.recommended,

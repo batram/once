@@ -15,10 +15,12 @@
 
 ## Next
 
-- **Mobile app**
-  - Choose the runtime and packaging toolchain
-  - Implement mobile adapters using the shared packages
-  - Add navigation, offline storage, sync, and tests
+- **Mobile deeper integration**
+  - Native and share-driven source creation
+  - Background refresh and notifications
+  - Universal/deep links and incoming share intents
+  - Richer native navigation, accessibility, and physical-device coverage
+  - Store signing and automated TestFlight/Google Play internal delivery
 - **Website**
   - Product landing page with links to available apps
   - Full Once web application using `@once/platform-web`

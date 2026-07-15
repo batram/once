@@ -20,9 +20,10 @@ The implemented targets are:
 - **Electron:** a Windows-first desktop application combining the Once UI with
   isolated browser tabs.
 
-`apps/website` and `apps/mobile` reserve the future composition roots for the
-web and mobile applications. Their platform packages are placeholders and do
-not yet provide complete adapters.
+`apps/website` reserves the future web composition root. `apps/mobile` is the
+Capacitor composition root for Android and iOS; `@once/platform-mobile`
+supplies its PouchDB, native networking, secure settings, system UI, and
+external-browser adapters.
 
 ## Workspace structure and ownership
 
@@ -32,7 +33,7 @@ apps/
   chrome-extension/    Chrome manifest and background entrypoint
   electron/            Electron main, preload, renderer, and packaging
   website/             Future website composition root
-  mobile/              Future mobile composition root
+  mobile/              Capacitor web bundle and committed Android/iOS projects
 packages/
   core/                 Platform-neutral domain models and story logic
   collectors/           Feed collectors, parsers, and collector registry
@@ -43,7 +44,20 @@ packages/
   platform-webext/      Browser-extension implementations of application ports
   platform-electron/    Electron renderer implementations of application ports
   platform-web/         Future website adapters
-  platform-mobile/      Future mobile adapters
+  platform-mobile/      Capacitor implementations of application ports
+
+### Mobile
+
+The Capacitor application embeds the shared Once web UI in WKWebView or Android
+WebView. It stores stories and lists in a target-specific PouchDB database,
+uses Capacitor's native HTTP patch for collector and CouchDB requests, and
+opens ordinary links in the platform browser. Reader documents stay inside a
+sanboxed local reader surface.
+
+The sync URL can contain credentials, so mobile stores it outside the WebView:
+iOS uses Keychain and Android encrypts an app-private preference with an
+Android Keystore key. Development and release installs use separate bundle IDs
+and native flavors/schemes.
 ```
 
 Shared behavior belongs in `packages/*`. Target-specific permissions,

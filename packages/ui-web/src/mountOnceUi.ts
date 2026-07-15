@@ -21,6 +21,7 @@ export interface MountOnceUiOptions {
   onMenuCollapsedChanged?: (collapsed: boolean) => void
   initialStoryLoad?: "network" | "cache" | "disabled"
   updater?: AppUpdater
+  sourcePicker?: boolean
 }
 
 export async function mountOnceUi(
@@ -45,7 +46,14 @@ export async function mountOnceUi(
   bindAppUpdateControls(options.updater)
 
   const settingsPanel = new SettingsPanel(client)
-  SourcePickerView.mount(client)
+  if (options.sourcePicker === false) {
+    const picker = document.querySelector<HTMLElement>("#pick_source_button")
+    if (picker) picker.hidden = true
+    const pickerStatus = document.querySelector<HTMLElement>("#pick_source_status")
+    if (pickerStatus) pickerStatus.hidden = true
+  } else {
+    SourcePickerView.mount(client)
+  }
   new StoryHistory(client)
   StoryList.init(client)
   Menu.init(client)

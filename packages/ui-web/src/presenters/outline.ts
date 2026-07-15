@@ -77,6 +77,7 @@ export function story_elem_button(story: Story): HTMLElement {
     "outline_btn",
     "imgs/article.svg"
   )
+  outline_btn.dataset.testid = "story-reader"
   outline_btn.style.order = "2"
 
   if (story.has_content()) {

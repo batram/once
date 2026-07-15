@@ -18,6 +18,7 @@ export {
   bindAppUpdateControls
 } from "./AppUpdateControls"
 export { ReaderView } from "./reader/ReaderView"
+export { ReaderDocumentHost } from "./ReaderDocumentHost"
 export { SourcePickerView } from "./picker/SourcePickerView"
 export { extractArticle, ReaderArticle } from "./reader/extractArticle"
 export { readerDocument, ReaderTheme } from "./reader/readerDocument"

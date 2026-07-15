@@ -9,6 +9,8 @@ npm workspace; a single root install supplies every app and package.
 - Firefox for Firefox extension testing
 - Chrome 114 or newer for Chrome extension testing
 - Windows for the current Electron packaging and end-to-end test workflows
+- Android Studio 2025.2.1+, Android SDK 36, and JDK 21 for Android
+- macOS with Xcode 26+ for iOS
 
 Install the locked dependency set with:
 
@@ -124,6 +126,65 @@ npm run test:electron
 npm run test:electron:e2e
 ```
 
+## Capacitor mobile apps
+
+The committed native projects live below `apps/mobile/android` and
+`apps/mobile/ios`. Do not recreate them with `cap add`; normal development uses
+the repository wrapper, which builds shared packages and always runs `cap sync`.
+
+```bash
+# Validate one native toolchain
+npm run mobile -- doctor android
+npm run mobile -- doctor ios
+
+# Build only the embedded web bundle
+npm run mobile -- web --channel dev
+npm run mobile -- web --channel release
+
+# Run or open a synchronized development app
+npm run mobile -- run android --channel dev
+npm run mobile -- run ios --channel dev
+npm run mobile -- open android --channel dev
+npm run mobile -- open ios --channel dev
+
+# Webpack live reload on a selected simulator/device
+npm run mobile -- serve android --channel dev
+npm run mobile -- serve ios --channel dev
+
+# Internal QA artifacts (debug APK or unsigned simulator app)
+npm run mobile -- package android --channel dev
+npm run mobile -- package ios --channel dev
+```
+
+Release channel identity is `com.zmarn.once` / “Once”; development and internal
+QA use `com.zmarn.once.dev` / “Once Dev”. Set `ONCE_BUILD_NUMBER` to a positive,
+monotonically increasing integer in CI. Production packaging intentionally
+fails until store signing is implemented.
+
+Run `npm run test:mobile` for adapter checks and `npm run test:mobile:web` for
+the phone-sized browser suite. Native Appium suites use
+`test:mobile:e2e:android` and `test:mobile:e2e:ios`; install the pinned Appium
+driver listed in CI first. The test environment listens on port 3211, serves
+only reviewed fixtures, and exposes its authenticated CouchDB-compatible
+endpoint below `/db`.
+
+With an Android emulator already running, `npm run test:mobile:e2e:android:local`
+configures the local SDK and JDK paths, installs the pinned UiAutomator2 driver
+when needed, builds the E2E APK, and runs the Android Appium suite.
+
+Before either channel is distributed to internal testers, run this checklist on
+at least one physical Android device and one physical iPhone:
+
+- Confirm the development name, icon, version, startup, safe areas, and both
+  portrait and landscape layouts.
+- Configure a fixture/source and authenticated sync URL, restart, and confirm
+  both story state and the secure URL survive without appearing in app-private
+  plaintext files or device logs.
+- Open an original story and return, then open reader mode and close it with the
+  platform Back/Done interaction.
+- Disable connectivity, restart, and confirm cached stories and read/skip state
+  remain usable; reconnect and confirm local and remote mutations converge.
+
 ## Test harness
 
 ```bash
@@ -221,6 +282,8 @@ The following paths are build or test outputs and must not be edited directly:
 - `apps/chrome-extension/dist`
 - `apps/electron/.webpack`
 - `apps/electron/out`
+- `apps/mobile/dist`
+- copied Capacitor web assets and native build directories
 - `test-results`
 - `web-ext-artifacts`
 

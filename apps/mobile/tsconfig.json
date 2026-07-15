@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "rootDir": "."
+  },
+  "include": ["src/**/*", "capacitor.config.ts"]
+}

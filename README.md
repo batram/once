@@ -1,7 +1,8 @@
 # ![icon](https://user-images.githubusercontent.com/1382274/184474910-e0b46b64-8254-4604-a176-1679255c65bb.png?small) Once
 
 Collect stories from different sources (RSS, Hacker News, Lobsters or Reddit, custom), so you can stop scrolling through those sites all day and look at each story once.
-Available as desktop app for Electron and side-panel extensions for Firefox and Chrome.
+Available as desktop app for Electron, side-panel extensions for Firefox and Chrome,
+and Capacitor applications for Android and iOS.
 
 ## Downloads
 
@@ -40,6 +41,11 @@ npm run build:extensions
 npm run start:electron
 npm run test:electron
 npm run make:electron
+
+# Capacitor mobile apps
+npm run run:mobile:android
+npm run run:mobile:ios
+npm run test:mobile
 ```
 
 Browser build outputs are written to `apps/firefox-extension/dist` and

@@ -8,5 +8,9 @@
     "tsBuildInfoFile": "dist/.tsbuildinfo"
   },
   "include": ["src/**/*"],
-  "references": [{ "path": "../app" }]
+  "references": [
+    { "path": "../app" },
+    { "path": "../core" },
+    { "path": "../persistence" }
+  ]
 }

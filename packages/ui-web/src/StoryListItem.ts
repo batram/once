@@ -36,6 +36,7 @@ export class StoryListItem extends HTMLElement {
 
   story_html(add_listeners = true): void {
     this.classList.add("story")
+    this.dataset.testid = "story"
 
     const redirected_url = URLRedirect.redirect_url(this.story.href)
 
@@ -54,6 +55,7 @@ export class StoryListItem extends HTMLElement {
     this.link = document.createElement("a")
     this.link.href = redirected_url
     this.link.classList.add("title")
+    this.link.dataset.testid = "story-title"
     this.link.innerText = this.story.title
     bindLinkBehavior(this.link, {
       onClick: () => {
@@ -71,6 +73,7 @@ export class StoryListItem extends HTMLElement {
     const og_link = document.createElement("a")
     og_link.innerText = " [OG] "
     og_link.classList.add("og_href")
+    og_link.dataset.testid = "story-external"
     og_link.href = this.story.href
     bindLinkBehavior(og_link, {
       onClick: () => {
@@ -548,6 +551,7 @@ export class StoryListItem extends HTMLElement {
 
   add_read_button(): void {
     this.read_btn = StoryListItem.icon_button("", "read_btn")
+    this.read_btn.dataset.testid = "story-read-state"
     this.button_group.appendChild(this.read_btn)
 
     this.update_read()
@@ -591,6 +595,7 @@ export class StoryListItem extends HTMLElement {
     }
 
     this.star_btn = StoryListItem.icon_button("", "star_btn")
+    this.star_btn.dataset.testid = "story-bookmark"
     this.button_group.appendChild(this.star_btn)
     this.update_star()
   }
