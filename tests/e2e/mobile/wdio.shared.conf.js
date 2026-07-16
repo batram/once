@@ -28,6 +28,8 @@ function configFor(platform) {
   }
   if (platform === "android") {
     common["appium:deviceName"] = process.env.ONCE_MOBILE_DEVICE || "Once API 36"
+    const udid = process.env.ONCE_ANDROID_UDID || process.env.ANDROID_SERIAL
+    if (udid) common["appium:udid"] = udid
     common["appium:appPackage"] = "com.zmarn.once.dev"
     common["appium:appActivity"] = "com.zmarn.once.MainActivity"
     common["appium:chromedriverAutodownload"] = true

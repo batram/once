@@ -116,7 +116,8 @@ describe("Once mobile", () => {
 
     const platform = String(browser.capabilities.platformName).toLowerCase()
     const port = process.env.ONCE_MOBILE_TEST_PORT || "3211"
-    const baseUrl = platform === "android" ? `http://10.0.2.2:${port}` : `http://127.0.0.1:${port}`
+    const baseUrl = process.env.ONCE_MOBILE_TEST_URL ||
+      (platform === "android" ? `http://10.0.2.2:${port}` : `http://127.0.0.1:${port}`)
     await clickWeb(await $("[data-testid='settings-menu']"), platform)
     await $("[data-testid='sources']").setValue(`${baseUrl}/fixtures/feed.rss`)
     await clickWeb(await $("[data-testid='save-sources']"), platform)
