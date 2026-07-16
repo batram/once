@@ -170,6 +170,12 @@ test("keeps the icon rail and restores either sidebar panel", async () => {
     await expect(window.locator("#left_panel")).toHaveCSS("width", "30px")
     await expect(window.locator("#browser_sidebar_toggle")).toHaveCount(0)
 
+    if (process.platform === "darwin") {
+      const firstTabLeft = await window.locator(".electron-tab").first()
+        .evaluate((element) => Math.round(element.getBoundingClientRect().left))
+      expect(firstTabLeft).toBeGreaterThanOrEqual(78)
+    }
+
     await window.getByTestId("settings-menu").click()
     await expect(window.locator("#left_main")).toBeVisible()
     await expect(window.locator("#menu")).not.toHaveClass(/\bcollapse\b/)

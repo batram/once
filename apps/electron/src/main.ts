@@ -159,7 +159,8 @@ function registerIpc(
     assertTrusted(event)
     return {
       version: app.getVersion(),
-      channel: __ONCE_BUILD_CHANNEL__
+      channel: __ONCE_BUILD_CHANNEL__,
+      platform: process.platform
     }
   })
   ipcMain.handle(

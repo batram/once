@@ -12,6 +12,9 @@ import { BrowserShell } from "./BrowserShell"
 import "./electron.css"
 
 document.addEventListener("DOMContentLoaded", async () => {
+  const buildInfo = await window.onceElectron.app.getBuildInfo()
+  document.body.classList.add(`electron-platform-${buildInfo.platform}`)
+
   const platform = createElectronPlatform(window.onceElectron)
   const app = createOnceApp(platform)
   ReaderView.mount(
@@ -46,7 +49,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   app.client.subscribe("redirectsChanged", ({ redirects }) => {
     void updateRedirects(redirects)
   })
-  const buildInfo = await window.onceElectron.app.getBuildInfo()
   await mountOnceUi(app.client, {
     appVersion: buildInfo.version,
     buildChannel: buildInfo.channel,

@@ -2,6 +2,10 @@ body {
   min-width: 0;
 }
 
+body.electron-platform-darwin {
+  --macos-window-controls-width: 78px;
+}
+
 body #titlebar {
   display: flex;
   align-items: center;
@@ -17,6 +21,10 @@ body #titlebar {
   -webkit-app-region: drag;
   user-select: none;
   flex: 0 0 30px;
+}
+
+body.electron-platform-darwin #titlebar {
+  padding-left: var(--macos-window-controls-width);
 }
 
 body.window-is-receiving-drop #titlebar,
@@ -336,6 +344,14 @@ body #titlebar-text {
 .electron-left-collapsed #sep_slider {
   cursor: default;
   pointer-events: none;
+}
+
+/* The native macOS controls remain at the window's top-left when the 30px
+ * sidebar rail is collapsed. Continue their safe area in the adjacent tab
+ * strip so tabs cannot slide underneath them. */
+.electron-platform-darwin.electron-left-collapsed #tab_dropzone::before {
+  content: "";
+  flex: 0 0 calc(var(--macos-window-controls-width) - 30px);
 }
 
 #left_panel .bar .collapsebutton {

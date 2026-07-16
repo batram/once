@@ -49,6 +49,7 @@ export type ElectronBuildChannel = "release" | "dev"
 export interface ElectronBuildInfo {
   version: string
   channel: ElectronBuildChannel
+  platform: string
 }
 
 export type ElectronUpdateState =
