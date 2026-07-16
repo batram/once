@@ -10,6 +10,7 @@ export class BrowserShell {
   private readonly rightPanel: HTMLElement
   private readonly dropzone: HTMLElement
   private readonly tabStrip: HTMLElement
+  private readonly newTabButton: HTMLButtonElement
   private readonly tabContent: HTMLElement
   private readonly address: HTMLInputElement
   private readonly backButton: HTMLButtonElement
@@ -21,6 +22,7 @@ export class BrowserShell {
   private readonly splitter: HTMLElement
   private draggingTabId: string | null = null
   private dropHandled = false
+  private activeTabElement: HTMLElement | null = null
   private renderedAddressTabId: string | null = null
   private renderedAddressUrl = ""
 
@@ -40,6 +42,7 @@ export class BrowserShell {
 
     this.dropzone = required<HTMLElement>("#tab_dropzone")
     this.tabStrip = required<HTMLElement>("#electron_tabs")
+    this.newTabButton = required<HTMLButtonElement>("#new_tab_btn")
     this.tabContent = required<HTMLElement>("#tab_content")
     this.address = required<HTMLInputElement>("#urlfield")
     this.addressError = required<HTMLElement>("#url_error")
@@ -69,7 +72,7 @@ export class BrowserShell {
   }
 
   private bindControls(): void {
-    required<HTMLButtonElement>("#new_tab_btn").onclick = () => {
+    this.newTabButton.onclick = () => {
       void this.bridge.tabs.create("about:blank", true)
     }
     this.backButton.onclick = () => this.withActive((tab) => this.bridge.tabs.back(tab.id))
@@ -182,6 +185,11 @@ export class BrowserShell {
 
     const observer = new ResizeObserver(() => this.reportBounds())
     observer.observe(this.tabContent)
+    const tabStripObserver = new ResizeObserver(() => {
+      this.layoutTabs()
+      this.scrollActiveTabIntoView()
+    })
+    tabStripObserver.observe(this.dropzone)
     window.addEventListener("resize", () => this.reportBounds())
     requestAnimationFrame(() => this.reportBounds())
   }
@@ -211,6 +219,7 @@ export class BrowserShell {
   private render(tabs: ElectronTabState[]): void {
     this.tabs = tabs
     this.tabStrip.replaceChildren()
+    this.activeTabElement = null
 
     for (const tab of tabs) {
       const element = document.createElement("div")
@@ -280,7 +289,11 @@ export class BrowserShell {
       }
       this.bindTabDrag(element, tab)
       this.tabStrip.append(element)
+      if (tab.active) this.activeTabElement = element
     }
+
+    this.layoutTabs()
+    this.scrollActiveTabIntoView()
 
     const active = this.activeTab()
     if (active) {
@@ -417,6 +430,33 @@ export class BrowserShell {
 
   private activeTab(): ElectronTabState | undefined {
     return this.tabs.find((tab) => tab.active)
+  }
+
+  private scrollActiveTabIntoView(): void {
+    this.activeTabElement?.scrollIntoView({
+      block: "nearest",
+      inline: "nearest"
+    })
+  }
+
+  private layoutTabs(): void {
+    if (this.tabs.length === 0) return
+
+    const dropzoneStyle = getComputedStyle(this.dropzone)
+    const buttonStyle = getComputedStyle(this.newTabButton)
+    const horizontalChrome =
+      Number.parseFloat(dropzoneStyle.paddingLeft) +
+      Number.parseFloat(dropzoneStyle.paddingRight) +
+      this.newTabButton.offsetWidth +
+      Number.parseFloat(buttonStyle.marginLeft) +
+      Number.parseFloat(buttonStyle.marginRight)
+    const tabMargin = 2
+    const availableWidth = this.dropzone.clientWidth - horizontalChrome
+    const tabWidth = Math.max(
+      140,
+      Math.min(220, Math.floor(availableWidth / this.tabs.length - tabMargin))
+    )
+    this.tabStrip.style.setProperty("--electron-tab-width", `${tabWidth}px`)
   }
 
   private setAddressError(message: string): void {

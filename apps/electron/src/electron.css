@@ -73,7 +73,9 @@ body #titlebar-text {
   display: flex;
   min-width: 0;
   height: 30px;
-  padding: 5px 4px 0;
+  /* titlebar-area-width is the usable area, so derive the controls inset from
+   * the viewport remainder rather than using that width as the inset itself. */
+  padding: 5px calc(4px + 100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw)) 0 4px;
   border-bottom: 1px solid var(--border-high-color);
   overflow: hidden;
   -webkit-app-region: drag;
@@ -83,6 +85,9 @@ body #titlebar-text {
 
 #electron_tabs {
   display: flex;
+  flex: 0 1 auto;
+  width: fit-content;
+  max-width: calc(100% - 28px);
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
@@ -117,13 +122,14 @@ body #titlebar-text {
   position: relative;
   display: flex;
   align-items: center;
-  flex: 0 1 220px;
+  flex: 0 0 var(--electron-tab-width, 220px);
   min-width: 140px;
   max-width: 220px;
   margin-left: 2px;
   padding: 3px 4px;
   font-size: 13px;
   outline: none;
+  margin-top: 3px;
 }
 
 .electron-tab.active {
