@@ -13,6 +13,33 @@ test.afterAll(async () => {
   await pageServer.close()
 })
 
+test("drags the window from the custom title bar", async () => {
+  test.skip(process.platform !== "darwin", "macOS custom title bar behavior")
+
+  const { electronApp, userData, window } = await launchApp()
+  try {
+    const before = await electronApp.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].getBounds()
+    )
+    const titlebar = await window.locator("#titlebar").boundingBox()
+    expect(titlebar).not.toBeNull()
+
+    const startX = titlebar.x + titlebar.width - 20
+    const startY = titlebar.y + titlebar.height / 2
+    await window.mouse.move(startX, startY)
+    await window.mouse.down()
+    await window.mouse.move(startX + 40, startY + 30, { steps: 10 })
+    await window.mouse.up()
+
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => {
+      const bounds = BrowserWindow.getAllWindows()[0].getBounds()
+      return { x: bounds.x, y: bounds.y }
+    })).not.toEqual({ x: before.x, y: before.y })
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
 test("launches a secure browser shell with legacy tab interactions", async () => {
   const { electronApp, userData, window } = await launchApp()
   try {

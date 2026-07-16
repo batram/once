@@ -18,7 +18,7 @@ body #titlebar {
   font-size: 13px;
   color: var(--text-high-color);
   font-weight: 500;
-  -webkit-app-region: drag;
+  app-region: drag;
   user-select: none;
   flex: 0 0 30px;
 }
@@ -30,7 +30,7 @@ body.electron-platform-darwin #titlebar {
 body.window-is-receiving-drop #titlebar,
 body.window-is-receiving-drop #tab_dropzone,
 body.window-is-receiving-drop {
-  -webkit-app-region: no-drag !important;
+  app-region: no-drag !important;
 }
 
 body #titlebar-logo {
@@ -78,7 +78,7 @@ body #titlebar-text {
   padding: 5px calc(4px + 100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw)) 0 4px;
   border-bottom: 1px solid var(--border-high-color);
   overflow: hidden;
-  -webkit-app-region: drag;
+  app-region: drag;
   -webkit-user-select: none;
   background: var(--sep-color);
 }
@@ -115,7 +115,7 @@ body #titlebar-text {
   background: var(--read-bg-color);
   cursor: pointer;
   user-select: none;
-  -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
 
 .electron-tab {

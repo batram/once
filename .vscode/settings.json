@@ -12,6 +12,7 @@
   "git.scanRepositories": [".git"],
   "git.supportCancellation": true,
   "files.eol": "\n",
+  "css.customData": [".vscode/css_custom_data.json"],
   "eslint.options": {
     "extensions": [".ts", ".js"]
   },

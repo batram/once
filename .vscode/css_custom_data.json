@@ -1,0 +1,25 @@
+{
+  "version": 1.1,
+  "properties": [
+    {
+      "name": "app-region",
+      "description": "Electron window drag-region behavior.",
+      "values": [
+        {
+          "name": "drag",
+          "description": "Makes the element part of the draggable window region."
+        },
+        {
+          "name": "no-drag",
+          "description": "Excludes the element from a draggable window region."
+        }
+      ],
+      "references": [
+        {
+          "name": "Electron custom window interactions",
+          "url": "https://www.electronjs.org/docs/latest/tutorial/custom-window-interactions"
+        }
+      ]
+    }
+  ]
+}
