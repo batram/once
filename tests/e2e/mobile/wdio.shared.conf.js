@@ -51,9 +51,18 @@ function configFor(platform) {
     common["appium:wdaLaunchTimeout"] = 240_000
     common["appium:wdaStartupRetries"] = 2
     common["appium:wdaStartupRetryInterval"] = 20_000
-    // On CI, surface WDA's xcodebuild output in the Appium log; otherwise a
-    // WDA build/launch problem is just silent ECONNREFUSED polling.
-    if (process.env.CI) common["appium:showXcodeLog"] = true
+    if (process.env.CI) {
+      // Surface WDA's xcodebuild output in the Appium log; otherwise a WDA
+      // build/launch problem is just silent ECONNREFUSED polling.
+      common["appium:showXcodeLog"] = true
+      // CI boots the simulator headless via simctl before the session. Without
+      // isHeadless, XCUITest sees a booted device with no visible UI and
+      // *restarts* it through Simulator.app, then trips its hard-capped 120s
+      // boot monitor on runners where boot takes minutes. Accept the headless
+      // device as-is, and give any boot the driver still performs more room.
+      common["appium:isHeadless"] = true
+      common["appium:simulatorStartupTimeout"] = 600_000
+    }
   }
   // Session creation on iOS (WDA build + simulator boot) routinely overruns the
   // default 120s client timeout. Raise it to 5min, but stay under the ~6min
