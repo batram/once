@@ -1,8 +1,10 @@
 export class ReaderDocumentHost {
   private readonly root: HTMLElement
   private readonly frame: HTMLIFrameElement
+  private readonly scriptUrl: string | null
 
-  constructor(parent: HTMLElement = document.body) {
+  constructor(parent: HTMLElement = document.body, scriptUrl: string | null = null) {
+    this.scriptUrl = scriptUrl
     this.root = document.createElement("section")
     this.root.className = "once-reader-host"
     this.root.hidden = true
@@ -30,7 +32,12 @@ export class ReaderDocumentHost {
   }
 
   async open(html: string): Promise<void> {
-    this.frame.srcdoc = html
+    this.frame.srcdoc = this.scriptUrl
+      ? html.replace(
+        /<script>[\s\S]*?<\/script>/,
+        `<script src="${escapeHtmlAttribute(this.scriptUrl)}"></script>`
+      )
+      : html
     this.root.hidden = false
     document.body.classList.add("once-reader-open")
   }
@@ -40,4 +47,14 @@ export class ReaderDocumentHost {
     this.frame.removeAttribute("srcdoc")
     document.body.classList.remove("once-reader-open")
   }
+}
+
+function escapeHtmlAttribute(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  })[character] ?? character)
 }

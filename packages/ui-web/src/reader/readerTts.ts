@@ -24,7 +24,16 @@ export function installReaderTts(options: {
     [play, stop, back, forward, voiceSelect, rateInput].forEach((control) => {
       control.disabled = true
     })
-    play.title = "Text to speech is not available in this browser"
+    voiceSettings?.setAttribute("hidden", "")
+    const message = "Text to speech is not available on this device."
+    play.title = message
+    const notice = document.createElement("p")
+    notice.className = "tts-unavailable"
+    notice.dataset.testid = "tts-unavailable"
+    notice.setAttribute("role", "status")
+    notice.textContent = message
+    document.querySelector(".tts-controls")?.append(notice)
+    // TODO: Decide whether to bridge to Android's local TextToSpeech or use an external provider.
     return
   }
 

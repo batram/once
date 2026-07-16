@@ -40,7 +40,12 @@ test("stories persist offline and open in the in-app reader", async ({ page }) =
   await story.click({ delay: 700 })
   await page.getByTestId("sheet-story-reader").click()
   await expect(page.getByTestId("reader-close")).toBeVisible()
-  await expect(page.locator(".once-reader-host-frame").contentFrame().getByRole("heading", { name: "Fixture article" })).toBeVisible()
+  const reader = page.locator(".once-reader-host-frame").contentFrame()
+  await expect(reader.getByRole("heading", { name: "Fixture article" })).toBeVisible()
+  await expect(reader.locator("body")).toHaveCSS("max-width", "700px")
+  await expect(reader.locator(".toolbar")).toHaveCSS("position", "sticky")
+  await expect(reader.locator("html")).toHaveAttribute("data-once-tts-installed", "true")
+  await expect(reader.locator("article .tts-segment")).not.toHaveCount(0)
   await page.getByTestId("reader-close").click()
 
   await story.click({ delay: 700 })

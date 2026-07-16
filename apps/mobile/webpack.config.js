@@ -14,10 +14,13 @@ module.exports = (_env = {}, argv = {}) => {
 
   return {
     mode,
-    entry: path.join(__dirname, "src", "main.ts"),
+    entry: {
+      mobile: path.join(__dirname, "src", "main.ts"),
+      "reader-runtime": path.join(__dirname, "src", "readerRuntime.ts")
+    },
     output: {
       path: path.join(__dirname, "dist"),
-      filename: "mobile.js",
+      filename: "[name].js",
       clean: true,
       globalObject: "globalThis"
     },
@@ -40,6 +43,7 @@ module.exports = (_env = {}, argv = {}) => {
         },
         {
           test: /\.css$/,
+          resourceQuery: { not: [/raw/] },
           use: ["style-loader", "css-loader"]
         }
       ]

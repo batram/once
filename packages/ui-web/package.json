@@ -8,6 +8,7 @@
   "typesVersions": {
     "*": {
       "reader/readerDocument": ["dist/reader/readerDocument.d.ts"],
+      "reader/readerTts": ["dist/reader/readerTts.d.ts"],
       "picker/sourcePicker": ["dist/picker/sourcePicker.d.ts"]
     }
   },
@@ -19,6 +20,10 @@
     "./reader/readerDocument": {
       "types": "./dist/reader/readerDocument.d.ts",
       "default": "./dist/reader/readerDocument.js"
+    },
+    "./reader/readerTts": {
+      "types": "./dist/reader/readerTts.d.ts",
+      "default": "./dist/reader/readerTts.js"
     },
     "./picker/sourcePicker": {
       "types": "./dist/picker/sourcePicker.d.ts",

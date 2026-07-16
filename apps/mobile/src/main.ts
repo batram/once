@@ -18,7 +18,11 @@ async function startMobileApp(): Promise<void> {
   installStoryActionSheet()
   const platform = createMobilePlatform()
   const app = createOnceApp(platform)
-  const reader = new ReaderDocumentHost()
+  const readerRuntime = "reader-runtime.js"
+  const reader = new ReaderDocumentHost(
+    document.body,
+    new URL(readerRuntime, document.baseURI).href
+  )
   ReaderView.mount(app.client, (html) => reader.open(html))
 
   if (Capacitor.getPlatform() === "android") {
