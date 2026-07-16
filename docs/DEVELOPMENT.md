@@ -161,6 +161,11 @@ npm run mobile -- package android --channel dev
 npm run mobile -- package ios --channel dev
 ```
 
+The iOS packaging command resolves the public Capacitor Swift package with
+system Git, disables Git credential helpers and interactive prompts, and tells
+Xcode to use netrc rather than the login Keychain for package authorization.
+The public dependency does not require GitHub credentials.
+
 Release channel identity is `com.zmarn.once` / “Once”; development and internal
 QA use `com.zmarn.once.dev` / “Once Dev”. Set `ONCE_BUILD_NUMBER` to a positive,
 monotonically increasing integer in CI. Production packaging intentionally

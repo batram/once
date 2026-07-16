@@ -41,6 +41,16 @@ function environment(channel) {
   return { ...process.env, ONCE_BUILD_CHANNEL: channel }
 }
 
+function publicPackageEnvironment(channel) {
+  return {
+    ...environment(channel),
+    GIT_CONFIG_COUNT: "1",
+    GIT_CONFIG_KEY_0: "credential.helper",
+    GIT_CONFIG_VALUE_0: "",
+    GIT_TERMINAL_PROMPT: "0"
+  }
+}
+
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: options.cwd || root,
@@ -232,10 +242,11 @@ else if (command === "run") {
       "-scheme", "Once Dev",
       "-configuration", "Debug",
       "-sdk", "iphonesimulator",
+      "-scmProvider", "system",
+      "-packageAuthorizationProvider", "netrc",
       "-derivedDataPath", path.join(appRoot, "ios", "build"),
-      "CODE_SIGNING_ALLOWED=NO",
       `CURRENT_PROJECT_VERSION=${process.env.ONCE_BUILD_NUMBER || "1"}`,
       "build"
-    ], { cwd: path.join(appRoot, "ios"), env: environment(channel) })
+    ], { cwd: path.join(appRoot, "ios"), env: publicPackageEnvironment(channel) })
   }
 } else fail(`unknown command ${command}`)

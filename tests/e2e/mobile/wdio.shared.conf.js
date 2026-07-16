@@ -28,6 +28,11 @@ function configFor(platform) {
   } else {
     common["appium:deviceName"] = process.env.ONCE_MOBILE_DEVICE || "iPhone 17 Pro"
     common["appium:platformVersion"] = process.env.ONCE_IOS_VERSION || "26.0"
+    // iOS 18 exposes Capacitor's inspectable page under the display-name process
+    // while also advertising a generic WebKit process with no pages. Target the
+    // app process so Appium does not retry the empty generic process until timeout.
+    common["appium:additionalWebviewBundleIds"] = ["process-Once Dev"]
+    common["appium:ignoredWebviewBundleIds"] = ["process-com.apple.WebKit.WebContent"]
     if (process.env.ONCE_IOS_UDID) common["appium:udid"] = process.env.ONCE_IOS_UDID
   }
   return {
