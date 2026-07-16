@@ -28,6 +28,56 @@ test("starts from stored stories and persists story changes", async () => {
   assert.equal(changes.at(-1).value, "read")
 })
 
+test("persists rapid changes to one story in interaction order", async () => {
+  const story = new Story("rss", "https://example.com/story", "A story")
+  const fake = createFakePlatform([story])
+  const savedStates = []
+  let releaseFirstSave
+  const firstSaveBlocked = new Promise((resolve) => { releaseFirstSave = resolve })
+  let saveCount = 0
+  fake.ports.storyStore.saveStory = async (savedStory) => {
+    savedStates.push(savedStory.read_state)
+    saveCount += 1
+    if (saveCount === 1) await firstSaveBlocked
+    return savedStory
+  }
+  const app = createOnceApp(fake.ports)
+  await app.start()
+
+  const markRead = app.client.persistStoryChange(story.href, "read_state", "read")
+  const markSkipped = app.client.persistStoryChange(story.href, "read_state", "skipped")
+  //the in-memory story updates optimistically while saves are still queued
+  assert.equal((await app.client.findStoryByUrl(story.href)).read_state, "skipped")
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.deepEqual(savedStates, ["read"])
+
+  releaseFirstSave()
+  await Promise.all([markRead, markSkipped])
+  assert.deepEqual(savedStates, ["read", "skipped"])
+  assert.equal((await app.client.findStoryByUrl(story.href)).read_state, "skipped")
+})
+
+test("ignores stale story echoes from the database changes feed", async () => {
+  const story = new Story("rss", "https://example.com/story", "A story")
+  story.read_state = "skipped"
+  story._rev = "3-current"
+  const fake = createFakePlatform([story])
+  const app = createOnceApp(fake.ports)
+  await app.start()
+
+  fake.emitDatabaseChange({
+    id: `sto_${story.href}`,
+    doc: { ...story.to_obj(), _rev: "2-stale", read_state: "read" }
+  })
+  assert.equal((await app.client.findStoryByUrl(story.href)).read_state, "skipped")
+
+  fake.emitDatabaseChange({
+    id: `sto_${story.href}`,
+    doc: { ...story.to_obj(), _rev: "4-newer", read_state: "read" }
+  })
+  assert.equal((await app.client.findStoryByUrl(story.href)).read_state, "read")
+})
+
 test("rejects empty new stories and does not index empty comment URLs", async () => {
   assert.throws(() => new Story(), /Story is missing required type/)
   assert.throws(() => Story.from_obj({}), /Story is missing required type/)
