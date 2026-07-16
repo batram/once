@@ -61,7 +61,8 @@ export class BrowserCoordinator {
       createWindow: async (url) => { await this.createWindow({ url }) },
       detach: (owner, id) => this.detach(owner, id),
       duplicate: (owner, id) => this.duplicate(owner, id),
-      normalizeUrl: (url) => this.tryNormalizeUrl(url)
+      normalizeUrl: (url) => this.tryNormalizeUrl(url),
+      toggleMuted: (owner, id) => this.toggleMuted(owner, id)
     })
     this.navigationErrors = new NavigationErrors({
       ownerFor: (entry) => this.windows.get(entry.ownerId),
@@ -148,6 +149,7 @@ export class BrowserCoordinator {
         canGoForward:
           !contents.isDestroyed() && contents.navigationHistory.canGoForward(),
         audible: entry.audible,
+        hasPlayedAudio: entry.hasPlayedAudio,
         muted: entry.muted,
         active: id === state.activeId,
         loadError: entry.loadError
@@ -181,6 +183,7 @@ export class BrowserCoordinator {
       title: "New tab",
       loading: false,
       audible: false,
+      hasPlayedAudio: false,
       muted: false,
       displayedUrl: normalized,
       loadError: null,
@@ -446,9 +449,9 @@ export class BrowserCoordinator {
   }
 
   showTabMenu(state: WindowEntry, id: string, point: ElectronPoint): void {
-    this.requireOwnedTab(state, id)
+    const entry = this.requireOwnedTab(state, id)
     this.validatePoint(point)
-    this.menus.showTabMenu(state, id, point)
+    this.menus.showTabMenu(state, id, point, entry.hasPlayedAudio, entry.muted)
   }
 
   private bindWindow(state: WindowEntry): void {

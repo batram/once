@@ -16,22 +16,38 @@ interface NativeMenuActions {
   detach(owner: WindowEntry, id: string): Promise<void>
   duplicate(owner: WindowEntry, id: string): Promise<string>
   normalizeUrl(url: string): string | null
+  toggleMuted(owner: WindowEntry, id: string): void
 }
 
 export class NativeMenus {
   constructor(private readonly actions: NativeMenuActions) {}
 
-  showTabMenu(owner: WindowEntry, id: string, point: ElectronPoint): void {
+  showTabMenu(
+    owner: WindowEntry,
+    id: string,
+    point: ElectronPoint,
+    hasPlayedAudio: boolean,
+    muted: boolean
+  ): void {
     const template: MenuItemConstructorOptions[] = [
       {
         label: "Inspect",
         click: () => this.inspect(owner.window.webContents, point.x, point.y)
       },
-      { type: "separator" },
+      { type: "separator" }
+    ]
+    if (hasPlayedAudio || muted) {
+      template.push({
+        label: muted ? "Unmute Tab" : "Mute Tab",
+        click: () => this.actions.toggleMuted(owner, id)
+      })
+      template.push({ type: "separator" })
+    }
+    template.push(
       { label: "Duplicate Tab", click: () => void this.actions.duplicate(owner, id) },
       { label: "Move Tab to New Window", click: () => void this.actions.detach(owner, id) },
       { label: "Close Tab", click: () => this.actions.close(owner, id) }
-    ]
+    )
     Menu.buildFromTemplate(template).popup({ window: owner.window })
   }
 

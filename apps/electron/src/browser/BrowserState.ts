@@ -17,6 +17,7 @@ export interface TabEntry {
   title: string
   loading: boolean
   audible: boolean
+  hasPlayedAudio: boolean
   muted: boolean
   displayedUrl: string
   loadError: string | null

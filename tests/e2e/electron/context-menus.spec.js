@@ -105,3 +105,59 @@ test("restores native tab and page menus with Inspect in packaged builds", async
     await closeApp(electronApp, userData)
   }
 })
+
+test("keeps tab audio controls until the document navigates", async () => {
+  const { electronApp, userData, window } = await launchApp()
+  try {
+    await window.locator("#urlfield").fill(`${origin}/audio`)
+    await window.locator("#urlfield").press("Enter")
+    await expect(window.locator("#urlfield")).toHaveValue(`${origin}/audio`)
+    await expect.poll(() => electronApp.evaluate(({ webContents }, expectedUrl) =>
+      webContents.getAllWebContents().some((contents) => contents.getURL() === expectedUrl)
+    , `${origin}/audio`)).toBe(true)
+
+    await electronApp.evaluate(({ Menu, webContents }, expectedUrl) => {
+      Menu.buildFromTemplate = (template) => {
+        globalThis.__onceLastMenuTemplate = template
+        return { popup() {} }
+      }
+      const remote = webContents.getAllWebContents()
+        .find((contents) => contents.getURL() === expectedUrl)
+      remote.emit("audio-state-changed", { audible: true })
+      remote.emit("audio-state-changed", { audible: false })
+    }, `${origin}/audio`)
+
+    const media = window.locator(".electron-tab-media")
+    await expect(media).toHaveAttribute("aria-label", "Mute tab")
+
+    await window.locator(".electron-tab").evaluate((tab) => {
+      tab.oncontextmenu?.(new MouseEvent("contextmenu", {
+        bubbles: true,
+        cancelable: true,
+        button: 2,
+        clientX: 8,
+        clientY: 8
+      }))
+    })
+    await expect.poll(() => electronApp.evaluate(() =>
+      globalThis.__onceLastMenuTemplate.map((item) => item.label || item.type)
+    )).toContain("Mute Tab")
+
+    await electronApp.evaluate(() => {
+      globalThis.__onceLastMenuTemplate.find((item) => item.label === "Mute Tab").click()
+    })
+    await expect(media).toHaveAttribute("aria-label", "Unmute tab")
+
+    await window.locator("#urlfield").fill(`${origin}/after-audio`)
+    await window.locator("#urlfield").press("Enter")
+    await expect(window.locator("#urlfield")).toHaveValue(`${origin}/after-audio`)
+    await expect(media).toHaveCount(0)
+    await expect.poll(() => electronApp.evaluate(({ webContents }, expectedUrl) => {
+      const remote = webContents.getAllWebContents()
+        .find((contents) => contents.getURL() === expectedUrl)
+      return remote?.isAudioMuted()
+    }, `${origin}/after-audio`)).toBe(false)
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})

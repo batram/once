@@ -23,6 +23,7 @@ export interface ElectronTabState {
   canGoBack: boolean
   canGoForward: boolean
   audible: boolean
+  hasPlayedAudio: boolean
   muted: boolean
   active: boolean
   loadError: string | null

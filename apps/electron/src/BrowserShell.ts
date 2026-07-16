@@ -232,7 +232,7 @@ export class BrowserShell {
       element.draggable = true
       element.dataset.tabId = tab.id
 
-      if (tab.audible || tab.muted) {
+      if (tab.hasPlayedAudio || tab.muted) {
         const media = document.createElement("button")
         media.className = "electron-tab-media"
         media.type = "button"

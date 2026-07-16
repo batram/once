@@ -47,6 +47,12 @@ export class TabEvents {
         return
       }
       this.resetNavigationState(entry, event.url)
+      entry.audible = false
+      entry.hasPlayedAudio = false
+      if (entry.muted) {
+        contents.setAudioMuted(false)
+        entry.muted = false
+      }
       entry.title = "New tab"
       changed()
     })
@@ -71,6 +77,7 @@ export class TabEvents {
     })
     contents.on("audio-state-changed", (event) => {
       entry.audible = event.audible
+      if (event.audible) entry.hasPlayedAudio = true
       changed()
     })
     contents.on("update-target-url", (_event, url) => {
