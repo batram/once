@@ -91,6 +91,7 @@ export class OnceApp {
       getAnimation: () => this.getAnimation(),
       setAnimation: (animated) => this.setAnimation(animated),
       reloadStories: (tryCache = true) => this.reloadStories(tryCache),
+      getStories: async () => Array.from(this.stories.values()),
       findStoryByUrl: async (url) => this.findStoryByUrl(url),
       settledStoryWrites: () => this.settledStoryWrites(),
       persistStoryChange: (href, path, value) =>
