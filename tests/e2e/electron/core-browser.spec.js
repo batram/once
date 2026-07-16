@@ -23,19 +23,17 @@ test("launches a secure browser shell with legacy tab interactions", async () =>
     )
     await window.getByTestId("settings-menu").click()
     const updateButton = window.getByTestId("check-for-updates")
+    const updateMessage = process.platform === "win32"
+      ? "Updates are available in installed release builds."
+      : "Automatic updates are currently supported on Windows."
     await expect(updateButton).toBeVisible()
     await expect(updateButton).toBeDisabled()
-    await expect(updateButton).toHaveAttribute(
-      "title",
-      "Updates are available in installed release builds."
-    )
-    await expect(window.getByTestId("update-status")).toHaveText(
-      "Updates are available in installed release builds."
-    )
+    await expect(updateButton).toHaveAttribute("title", updateMessage)
+    await expect(window.getByTestId("update-status")).toHaveText(updateMessage)
     expect(await window.evaluate(() => window.onceElectron.app.checkForUpdates()))
       .toEqual({
         state: "disabled",
-        message: "Updates are available in installed release builds."
+        message: updateMessage
       })
     await window.getByTestId("stories-menu").click()
 
@@ -458,17 +456,7 @@ test("goes back past a DNS failure to the previous page", async () => {
       return active?.loadError
     })).toContain("ERR_NAME_NOT_RESOLVED")
 
-    const nativeBackTarget = await electronApp.evaluate(({ webContents }) => {
-      const contents = webContents
-        .getAllWebContents()
-        .find((candidate) => candidate.getURL().startsWith("once-error://"))
-      if (!contents) throw new Error("Missing error page web contents")
-      const history = contents.navigationHistory
-      const target = history.getEntryAtIndex(history.getActiveIndex() - 1)?.url
-      history.goBack()
-      return target
-    })
-    expect(nativeBackTarget).toBe(`${origin}/before-dns-failure`)
+    await window.locator("#browser_back").click()
     await expect(address).toHaveValue(`${origin}/before-dns-failure`)
     await expect(window.locator(".electron-tab-title")).toHaveText("Before-dns-failure")
   } finally {

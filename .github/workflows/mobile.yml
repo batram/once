@@ -28,6 +28,7 @@ jobs:
           cache: gradle
       - run: npm ci
       - run: npm run test:mobile
+      - run: npm run test:setup:ci
       - run: npm run test:mobile:web
       - run: npm run mobile -- package android --channel dev --e2e
       - name: Android native lint and unit tests

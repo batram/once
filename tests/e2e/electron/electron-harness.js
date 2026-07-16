@@ -175,7 +175,10 @@ async function launchApp(options = {}) {
   // Electron 43+ downloads its development binary lazily when the package is required,
   // so do not hard-code node_modules/electron/dist/electron.exe after a clean npm ci.
   const executablePath = require("electron")
-  const appPath = path.resolve(__dirname, "../../../apps/electron/.webpack/x64/main/index.js")
+  const appPath = path.resolve(
+    __dirname,
+    `../../../apps/electron/.webpack/${process.arch}/main/index.js`
+  )
   const electronApp = await electron.launch({
     executablePath,
     args: [appPath],

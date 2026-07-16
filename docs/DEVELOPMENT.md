@@ -18,6 +18,11 @@ Install the locked dependency set with:
 npm ci
 ```
 
+Browser tests install their matching Chromium build automatically when run.
+Linux CI additionally installs Chromium's system libraries through
+`npm run test:setup:ci`. Firefox extension tests use the locally installed
+Firefox application.
+
 Use `npm install` instead when intentionally changing dependencies and
 `package-lock.json`.
 

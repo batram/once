@@ -34,7 +34,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run verify:release-version -- "$RELEASE_TAG"
-      - run: npm exec -- playwright install --with-deps chromium
+      - run: npm run test:setup:ci
       - run: npm run test:extensions
       - run: npm run verify:release-artifacts -- extensions .
       - name: Package extensions
