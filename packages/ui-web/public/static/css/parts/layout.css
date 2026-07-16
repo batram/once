@@ -13,7 +13,7 @@
 }
 
 #window_content {
-  -webkit-app-region: no-drag;
+  app-region: no-drag;
   display: flex;
   flex-direction: row;
   display: flex;
