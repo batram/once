@@ -92,6 +92,7 @@ export class OnceApp {
       setAnimation: (animated) => this.setAnimation(animated),
       reloadStories: (tryCache = true) => this.reloadStories(tryCache),
       findStoryByUrl: async (url) => this.findStoryByUrl(url),
+      settledStoryWrites: () => this.settledStoryWrites(),
       persistStoryChange: (href, path, value) =>
         this.persistStoryChange(href, path, value),
       addFilter: (filter) => this.addFilter(filter),
@@ -549,6 +550,14 @@ export class OnceApp {
       console.error(`Failed to save story ${href}`, error)
     })
     return write
+  }
+
+  // Resolves once every story write queued so far has settled; save failures
+  // are already logged by queueStoryWrite, so they do not reject here.
+  private async settledStoryWrites(): Promise<void> {
+    while (this.storyWrites.size > 0) {
+      await Promise.allSettled(Array.from(this.storyWrites.values()))
+    }
   }
 
   private async addStoryNow(

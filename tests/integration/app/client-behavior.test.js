@@ -52,6 +52,7 @@ test("persists rapid changes to one story in interaction order", async () => {
   assert.deepEqual(savedStates, ["read"])
 
   releaseFirstSave()
+  await app.client.settledStoryWrites()
   await Promise.all([markRead, markSkipped])
   assert.deepEqual(savedStates, ["read", "skipped"])
   assert.equal((await app.client.findStoryByUrl(story.href)).read_state, "skipped")

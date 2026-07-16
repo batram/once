@@ -88,6 +88,7 @@ export interface OnceClient {
   setAnimation(animated: AnimationSetting): Promise<void>
   reloadStories(tryCache?: boolean): Promise<void>
   findStoryByUrl(url: string): Promise<Story | null>
+  settledStoryWrites(): Promise<void>
   persistStoryChange(
     href: string,
     path: string,

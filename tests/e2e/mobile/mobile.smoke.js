@@ -21,6 +21,14 @@ async function switchToWebView() {
   else await browser.switchContext(webview)
 }
 
+// Wait for queued story saves to reach storage (hook set by the e2e build)
+// so state survives an app restart without pausing for an arbitrary time.
+async function settledStoryWrites() {
+  await browser.executeAsync((done) => {
+    window.__onceE2E__.settledStoryWrites().then(done, done)
+  })
+}
+
 async function clickWeb(element, platform) {
   if (platform === "ios") {
     await browser.execute((target) => {
@@ -96,7 +104,6 @@ describe("Once mobile", () => {
       timeout: 10_000,
       timeoutMsg: "Reader mode did not persist the read state"
     })
-    await browser.pause(3_000)
     await clickWeb(await story.$("[data-testid='story-read-state']"), platform)
     await browser.waitUntil(async () => {
       const classes = await story.getAttribute("class")
@@ -105,13 +112,12 @@ describe("Once mobile", () => {
       timeout: 10_000,
       timeoutMsg: "Story did not return to unread state"
     })
-    await browser.pause(3_000)
     await clickWeb(await story.$("[data-testid='story-read-state']"), platform)
     await browser.waitUntil(async () => (await story.getAttribute("class")).includes("skipped"), {
       timeout: 10_000,
       timeoutMsg: "Story did not enter skipped state"
     })
-    await browser.pause(1_000)
+    await settledStoryWrites()
 
     await browser.switchContext("NATIVE_APP")
     await browser.terminateApp("com.zmarn.once.dev")

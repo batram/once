@@ -35,6 +35,12 @@ async function startMobileApp(): Promise<void> {
     sourcePicker: false,
     initialStoryLoad: __ONCE_MOBILE_E2E__ ? "disabled" : "network"
   })
+  if (__ONCE_MOBILE_E2E__) {
+    // Lets the e2e suite await queued story saves instead of pausing blindly.
+    ;(window as { __onceE2E__?: unknown }).__onceE2E__ = {
+      settledStoryWrites: () => app.client.settledStoryWrites()
+    }
+  }
   document.body.dataset.onceStage = "ready"
   document.body.dataset.onceReady = "true"
 }
