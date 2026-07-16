@@ -122,6 +122,9 @@ body[data-platform="mobile"] .story {
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
+  /* keep vertical scrolling native, but deliver horizontal moves to the
+     swipe handlers — Android otherwise cancels the touch to pan */
+  touch-action: pan-y;
 }
 
 body[data-platform="mobile"] .story .data {

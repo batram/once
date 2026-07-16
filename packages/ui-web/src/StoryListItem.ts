@@ -376,7 +376,9 @@ export class StoryListItem extends HTMLElement {
     this.addEventListener("touchmove", () => {
       document.addEventListener("touchmove", touch_swipe)
       document.addEventListener("touchend", end_swipe)
+      document.addEventListener("touchcancel", cancel_swipe)
       document.addEventListener("pointerup", end_swipe)
+      document.addEventListener("pointercancel", cancel_swipe)
       this.parentElement?.addEventListener("scroll", end_swipe)
     })
 
@@ -396,28 +398,26 @@ export class StoryListItem extends HTMLElement {
       document.addEventListener("pointermove", mouse_swipe)
       document.addEventListener("touchmove", touch_swipe)
       document.addEventListener("touchend", end_swipe)
+      document.addEventListener("touchcancel", cancel_swipe)
       document.addEventListener("pointerup", end_swipe)
+      document.addEventListener("pointercancel", cancel_swipe)
       this.parentElement?.addEventListener("scroll", end_swipe)
     })
 
     const end_swipe = (e: Event) => {
       e.preventDefault()
       e.stopPropagation()
-      this.style.display = ""
-      if (this.parentElement) {
-        this.parentElement.style.width = ""
-      }
-      
+
       // Extract shift value from transform
       const transformValue = this.style.transform
       let shift = 0
       if (transformValue && transformValue.includes("translateX")) {
-        const match = transformValue.match(/translateX\((-?\d+)px\)/)
+        const match = transformValue.match(/translateX\((-?[\d.]+)px\)/)
         if (match) {
-          shift = parseInt(match[1])
+          shift = parseFloat(match[1])
         }
       }
-      
+
       if (Math.abs(shift) / this.clientWidth > threshold) {
         if (shift < 0) {
           this.read_btn.classList.add("user_interaction")
@@ -436,6 +436,23 @@ export class StoryListItem extends HTMLElement {
         }
       }
 
+      reset_swipe()
+
+      return false
+    }
+
+    // the browser took over the gesture (e.g. Android starts scrolling):
+    // reset without triggering a read/skip action
+    const cancel_swipe = () => {
+      reset_swipe()
+    }
+
+    const reset_swipe = () => {
+      this.style.display = ""
+      if (this.parentElement) {
+        this.parentElement.style.width = ""
+      }
+
       document.querySelectorAll<HTMLElement>(".bb_slide").forEach((el) => {
         el.outerHTML = ""
       })
@@ -447,9 +464,10 @@ export class StoryListItem extends HTMLElement {
       document.removeEventListener("touchmove", touch_swipe)
       document.removeEventListener("pointermove", mouse_swipe)
       document.removeEventListener("touchend", end_swipe)
+      document.removeEventListener("touchcancel", cancel_swipe)
       document.removeEventListener("pointerup", end_swipe)
-
-      return false
+      document.removeEventListener("pointercancel", cancel_swipe)
+      this.parentElement?.removeEventListener("scroll", end_swipe)
     }
   }
 

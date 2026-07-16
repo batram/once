@@ -59,9 +59,7 @@ async function getTabs(window) {
   return window.evaluate(() => window.onceElectron.tabs.getAll())
 }
 
-// end_swipe() parses `translateX(<integer>px)`, so every pointer position must
-// be an integer, and the drag needs several moves (the first one only anchors
-// the swipe origin).
+// The drag needs several moves (the first one only anchors the swipe origin).
 async function swipeStory(window, story, direction) {
   await expect(story).toBeVisible()
   await story.scrollIntoViewIfNeeded()
@@ -71,19 +69,17 @@ async function swipeStory(window, story, direction) {
     throw new Error("Cannot swipe story: it has no visible bounding box")
   }
 
-  const startX = Math.round(box.x + box.width * 0.45)
-  const y = Math.round(box.y + box.height / 2)
-  const distance =
-    Math.round(box.width * 0.4) * (direction === "left" ? -1 : 1)
+  // Fractional positions on purpose: real touch coordinates (Android
+  // especially) are sub-pixel, and end_swipe must parse those too.
+  const startX = box.x + box.width * 0.45
+  const y = box.y + box.height / 2
+  const distance = box.width * 0.4 * (direction === "left" ? -1 : 1)
 
   await window.mouse.move(startX, y)
   await window.mouse.down()
 
   for (const fraction of [0.25, 0.5, 0.75, 1]) {
-    await window.mouse.move(
-      Math.round(startX + distance * fraction),
-      y
-    )
+    await window.mouse.move(startX + distance * fraction, y)
   }
 
   await window.mouse.up()
