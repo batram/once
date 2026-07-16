@@ -1,7 +1,6 @@
 export class ReaderDocumentHost {
   private readonly root: HTMLElement
   private readonly frame: HTMLIFrameElement
-  private objectUrl: string | null = null
 
   constructor(parent: HTMLElement = document.body) {
     this.root = document.createElement("section")
@@ -31,23 +30,14 @@ export class ReaderDocumentHost {
   }
 
   async open(html: string): Promise<void> {
-    this.releaseObjectUrl()
-    this.objectUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }))
-    this.frame.src = this.objectUrl
+    this.frame.srcdoc = html
     this.root.hidden = false
     document.body.classList.add("once-reader-open")
   }
 
   close(): void {
     this.root.hidden = true
-    this.frame.removeAttribute("src")
+    this.frame.removeAttribute("srcdoc")
     document.body.classList.remove("once-reader-open")
-    this.releaseObjectUrl()
-  }
-
-  private releaseObjectUrl(): void {
-    if (!this.objectUrl) return
-    URL.revokeObjectURL(this.objectUrl)
-    this.objectUrl = null
   }
 }
