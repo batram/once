@@ -89,6 +89,30 @@ describe("Once mobile", () => {
     await story.waitForDisplayed({ timeout: 30_000 })
     await story.scrollIntoView()
     expect((await story.getAttribute("data-title")).includes("Fixture article")).toBe(true)
+
+    await clickWeb(await story.$("[data-testid='story-title']"), platform)
+    await browser.switchContext("NATIVE_APP")
+    if (platform === "android") {
+      await browser.waitUntil(async () => (await browser.getCurrentPackage()) !== "com.zmarn.once.dev", {
+        timeout: 30_000,
+        timeoutMsg: "Story link did not open in an external browser"
+      })
+      await browser.pressKeyCode(4)
+    } else {
+      // SFSafariViewController's dismiss button ("Done" up to iOS 18, "Close"
+      // on iOS 26) swallows XCUITest element clicks because the Safari view
+      // runs out of process; dismiss it with a device-level coordinate tap.
+      const done = await $('-ios predicate string:type == "XCUIElementTypeButton" AND name IN {"Done", "Close"}')
+      await done.waitForDisplayed({ timeout: 30_000 })
+      const rect = await browser.getElementRect(done.elementId)
+      await browser.execute("mobile: tap", {
+        x: Math.round(rect.x + rect.width / 2),
+        y: Math.round(rect.y + rect.height / 2)
+      })
+      await done.waitForDisplayed({ timeout: 10_000, reverse: true })
+    }
+    await switchToWebView()
+
     await clickWeb(await story.$("[data-testid='story-reader']"), platform)
     await $("[data-testid='reader-close']").waitForDisplayed({ timeout: 30_000 })
     if (platform === "android") {
