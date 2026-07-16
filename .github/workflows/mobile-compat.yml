@@ -59,6 +59,17 @@ jobs:
         run: node apps/mobile/scripts/select-ios-simulator.js >> "$GITHUB_ENV"
       - run: npm run mobile -- package ios --channel dev --e2e
       - run: npm exec --workspace @once/mobile -- appium driver install xcuitest@11.17.7
+      # Warm the WDA DerivedData before the session; see mobile.yml for why.
+      - name: Prebuild WebDriverAgent
+        run: |
+          WDA=$(find node_modules -type d -name appium-webdriveragent | head -1)
+          if [ -z "$WDA" ]; then echo "appium-webdriveragent not found under node_modules"; exit 1; fi
+          xcodebuild build-for-testing \
+            -project "$WDA/WebDriverAgent.xcodeproj" \
+            -scheme WebDriverAgentRunner \
+            -destination "id=$ONCE_IOS_UDID" \
+            IPHONEOS_DEPLOYMENT_TARGET="$ONCE_IOS_VERSION" \
+            GCC_TREAT_WARNINGS_AS_ERRORS=0 COMPILER_INDEX_STORE_ENABLE=NO
       - run: npm run test:mobile:e2e:ios
       - uses: actions/upload-artifact@v7
         if: failure()

@@ -76,7 +76,7 @@ jobs:
       # device we booted (the runner has an "iPhone 17 Pro" per iOS runtime).
       - name: Boot iOS simulator
         run: |
-          UDID=$(xcrun simctl list devices available --json | python3 -c '
+          PICK=$(xcrun simctl list devices available --json | python3 -c '
           import json, sys
           runtimes = json.load(sys.stdin)["devices"]
           best = None
@@ -89,13 +89,33 @@ jobs:
                   if device.get("name") == "iPhone 17 Pro" and device.get("isAvailable"):
                       if best is None or key > best[0]:
                           best = (key, device["udid"])
-          print(best[1] if best else "")
+          print(best[1] + " " + ".".join(str(part) for part in best[0]) if best else "")
           ')
-          if [ -z "$UDID" ]; then echo "No available iPhone 17 Pro simulator found"; exit 1; fi
-          echo "Booting iPhone 17 Pro simulator $UDID"
+          if [ -z "$PICK" ]; then echo "No available iPhone 17 Pro simulator found"; exit 1; fi
+          UDID=${PICK% *}
+          VERSION=${PICK#* }
+          echo "Booting iPhone 17 Pro simulator $UDID (iOS $VERSION)"
           echo "ONCE_IOS_UDID=$UDID" >> "$GITHUB_ENV"
+          echo "ONCE_IOS_VERSION=$VERSION" >> "$GITHUB_ENV"
           xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
+      # Build WebDriverAgent before the Appium session asks for it. A cold WDA
+      # source build takes longer than the wdio client's 5min session budget
+      # (which cannot go much past 6min, see wdio.shared.conf.js), so the first
+      # session used to die waiting on xcodebuild. Building here, with the same
+      # project path and IPHONEOS_DEPLOYMENT_TARGET Appium will use, warms the
+      # default DerivedData so the in-session build is an incremental no-op —
+      # and a genuine WDA build failure surfaces with full xcodebuild output.
+      - name: Prebuild WebDriverAgent
+        run: |
+          WDA=$(find node_modules -type d -name appium-webdriveragent | head -1)
+          if [ -z "$WDA" ]; then echo "appium-webdriveragent not found under node_modules"; exit 1; fi
+          xcodebuild build-for-testing \
+            -project "$WDA/WebDriverAgent.xcodeproj" \
+            -scheme WebDriverAgentRunner \
+            -destination "id=$ONCE_IOS_UDID" \
+            IPHONEOS_DEPLOYMENT_TARGET="$ONCE_IOS_VERSION" \
+            GCC_TREAT_WARNINGS_AS_ERRORS=0 COMPILER_INDEX_STORE_ENABLE=NO
       - run: npm run test:mobile:e2e:ios
       - name: Archive simulator app
         run: ditto -c -k --sequesterRsrc --keepParent "apps/mobile/ios/build/Build/Products/Debug-iphonesimulator/Once Dev.app" apps/mobile/ios/once-dev-simulator.zip
