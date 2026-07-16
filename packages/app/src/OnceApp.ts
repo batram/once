@@ -517,25 +517,38 @@ export class OnceApp {
     return Array.from(this.stories.values()).filter((story) => story.stared)
   }
 
-  private async addStory(newStory: Story, bucket = "stories"): Promise<Story> {
-    const previousWrite = this.storyWrites.get(newStory.href)
+  private addStory(newStory: Story, bucket = "stories"): Promise<Story> {
+    return this.queueStoryWrite(newStory.href, () =>
+      this.addStoryNow(newStory, bucket)
+    )
+  }
+
+  // Serialize writes per story URL so saves reach storage in interaction
+  // order; writes for different stories stay concurrent.
+  private queueStoryWrite(
+    href: string,
+    task: () => Promise<Story>
+  ): Promise<Story> {
+    const previousWrite = this.storyWrites.get(href)
     const waitForPrevious = previousWrite
       ? previousWrite.then(
         () => undefined,
         () => undefined
       )
       : Promise.resolve()
-    const write = waitForPrevious.then(() =>
-      this.addStoryNow(newStory, bucket)
-    )
-    this.storyWrites.set(newStory.href, write)
-    try {
-      return await write
-    } finally {
-      if (this.storyWrites.get(newStory.href) === write) {
-        this.storyWrites.delete(newStory.href)
+    const write = waitForPrevious.then(task)
+    this.storyWrites.set(href, write)
+    const settle = () => {
+      if (this.storyWrites.get(href) === write) {
+        this.storyWrites.delete(href)
       }
     }
+    write.then(settle, (error) => {
+      settle()
+      // Many UI callers fire and forget; keep failed saves visible.
+      console.error(`Failed to save story ${href}`, error)
+    })
+    return write
   }
 
   private async addStoryNow(
@@ -634,14 +647,24 @@ export class OnceApp {
     path: string,
     value: Story | string | boolean
   ): Promise<Story | undefined> {
-    let story = this.getStory(href)
-    if (story) {
-      const previousValue = story[path]
-      story[path] = value
-      this.emitDataChange([href, path], value, previousValue, null)
-      story = await this.platform.storyStore.saveStory(story)
-    }
-    return story
+    const story = this.getStory(href)
+    if (!story) return undefined
+
+    const previousValue = story[path]
+    story[path] = value
+    this.emitDataChange([href, path], value, previousValue, null)
+
+    // Save a snapshot so each queued write persists exactly this transition
+    // even if the live story mutates again before the save runs.
+    const snapshot = Story.from_obj(story.to_obj())
+    return this.queueStoryWrite(href, async () => {
+      const saved = await this.platform.storyStore.saveStory(snapshot)
+      if (this.getStory(href) === story) {
+        story._id = saved._id
+        story._rev = saved._rev
+      }
+      return this.getStory(href) ?? saved
+    })
   }
 
   private emitDataChange(
@@ -683,9 +706,17 @@ export class OnceApp {
     if (change.id.startsWith("sto_") && change.doc) {
       const changedStory = Story.from_obj(change.doc)
       const stored = this.getStory(changedStory.href)
-      if (!stored || !stored._rev || stored._rev != change.doc._rev) {
-        this.setStory(changedStory.href, changedStory)
+      if (stored && stored._rev) {
+        if (stored._rev == change.doc._rev) return
+        // The feed can echo an older local write after a newer one already
+        // bumped the in-memory revision; never resurrect the older doc.
+        if (
+          revisionOrdinal(change.doc._rev) < revisionOrdinal(stored._rev)
+        ) {
+          return
+        }
       }
+      this.setStory(changedStory.href, changedStory)
       return
     }
 
@@ -723,6 +754,12 @@ export class OnceApp {
         break
     }
   }
+}
+
+//PouchDB revisions are "<generation>-<hash>"; compare by generation
+function revisionOrdinal(rev: unknown): number {
+  const ordinal = Number.parseInt(String(rev ?? ""), 10)
+  return Number.isFinite(ordinal) ? ordinal : 0
 }
 
 export function createOnceApp(platform: OncePlatformPorts): OnceApp {
