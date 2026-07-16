@@ -20,3 +20,5 @@ npm-debug.log*
 
 # keep agents to ourself for now
 AGENTS.md
+
+.DS_Store
