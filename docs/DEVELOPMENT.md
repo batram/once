@@ -174,9 +174,12 @@ fails until store signing is implemented.
 Run `npm run test:mobile` for adapter checks and `npm run test:mobile:web` for
 the phone-sized browser suite. Native Appium suites use
 `test:mobile:e2e:android` and `test:mobile:e2e:ios`; install the pinned Appium
-driver listed in CI first. The test environment listens on port 3211, serves
-only reviewed fixtures, and exposes its authenticated CouchDB-compatible
-endpoint below `/db`.
+driver listed in CI first. The runner rebuilds the dev app automatically when
+the installed bundle is missing, older than the sources, or was not packaged
+with `--e2e` (tracked via a build stamp in `apps/mobile/dist`); set
+`ONCE_MOBILE_APP` to test a specific prebuilt bundle instead. The test
+environment listens on port 3211, serves only reviewed fixtures, and exposes
+its authenticated CouchDB-compatible endpoint below `/db`.
 
 With an Android emulator already running, `npm run test:mobile:e2e:android:local`
 configures the local SDK and JDK paths, installs the pinned UiAutomator2 driver

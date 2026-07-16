@@ -38,7 +38,8 @@ if (!packagesOnly) {
     path.join(root, "apps", "mobile", "ios", "App", "App", "config.xml"),
     path.join(root, "apps", "mobile", "ios", "capacitor-cordova-ios-plugins"),
     path.join(root, "web-ext-artifacts"),
-    path.join(root, "test-results")
+    path.join(root, "test-results"),
+    path.join(root, "playwright-report")
   )
 }
 

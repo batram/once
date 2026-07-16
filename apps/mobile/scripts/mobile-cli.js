@@ -146,6 +146,20 @@ function sync(platform, channel) {
   cap(["sync", platform], platformEnvironment(platform, channel))
 }
 
+// Record what the last package build produced so the e2e runner can detect
+// stale or mismatched (non-e2e, wrong channel) app bundles and rebuild.
+function writePackageStamp(platform, channel) {
+  fs.mkdirSync(path.join(appRoot, "dist"), { recursive: true })
+  fs.writeFileSync(
+    path.join(appRoot, "dist", `.once-package-${platform}.json`),
+    JSON.stringify({
+      channel,
+      e2e: Boolean(options.e2e),
+      builtAt: Date.now()
+    })
+  )
+}
+
 const { command, platform, options } = parse(process.argv.slice(2))
 if (!command) fail("expected doctor, web, sync, run, serve, open, or package")
 if (options.e2e) process.env.ONCE_MOBILE_E2E = "1"
@@ -249,4 +263,5 @@ else if (command === "run") {
       "build"
     ], { cwd: path.join(appRoot, "ios"), env: publicPackageEnvironment(channel) })
   }
+  writePackageStamp(platform, channel)
 } else fail(`unknown command ${command}`)

@@ -1,7 +1,7 @@
 const path = require("path")
 const fs = require("fs")
 const net = require("net")
-const { spawn } = require("child_process")
+const { spawn, spawnSync } = require("child_process")
 
 const platform = process.argv[2]
 if (platform !== "android" && platform !== "ios") {
@@ -13,6 +13,71 @@ const root = path.resolve(__dirname, "../../..")
 const node = process.execPath
 const npmCli = process.env.npm_execpath
 if (!npmCli) throw new Error("Run mobile E2E through an npm script")
+const appRoot = path.join(root, "apps", "mobile")
+const appBundles = {
+  android: "android/app/build/outputs/apk/development/debug/app-development-debug.apk",
+  ios: "ios/build/Build/Products/Debug-iphonesimulator/Once Dev.app"
+}
+// Generated during builds; changes here must not count as source changes.
+const generatedNames = new Set([
+  "node_modules", "dist", "build", ".gradle", "output", "DerivedData",
+  "xcuserdata", "public", "capacitor.config.json", "capacitor.plugins.json",
+  "config.xml"
+])
+
+function newestSourceTime(target) {
+  const stat = fs.statSync(target, { throwIfNoEntry: false })
+  if (!stat) return 0
+  if (!stat.isDirectory()) return stat.mtimeMs
+  let newest = 0
+  for (const entry of fs.readdirSync(target)) {
+    if (generatedNames.has(entry)) continue
+    newest = Math.max(newest, newestSourceTime(path.join(target, entry)))
+  }
+  return newest
+}
+
+function stalenessReason() {
+  if (process.env.ONCE_MOBILE_APP) return null
+  if (!fs.existsSync(path.join(appRoot, appBundles[platform]))) {
+    return "the app bundle is missing"
+  }
+  let stamp
+  try {
+    stamp = JSON.parse(fs.readFileSync(path.join(appRoot, "dist", `.once-package-${platform}.json`), "utf8"))
+  } catch {
+    return "there is no build stamp from `mobile package`"
+  }
+  if (!stamp.e2e) return "the last build was not an --e2e build"
+  if (stamp.channel !== "dev") return `the last build was for the ${stamp.channel} channel`
+  const sources = [
+    path.join(appRoot, "src"),
+    path.join(appRoot, "webpack.config.js"),
+    path.join(appRoot, "capacitor.config.ts"),
+    path.join(appRoot, platform === "android" ? "android" : "ios"),
+    ...fs.readdirSync(path.join(root, "packages")).map((name) =>
+      path.join(root, "packages", name, "src"))
+  ]
+  if (sources.some((source) => newestSourceTime(source) > stamp.builtAt)) {
+    return "sources changed since the last build"
+  }
+  return null
+}
+
+// Rebuild the app when the installed bundle would not match the sources or
+// was not built for e2e, so tests never run against stale binaries.
+function ensureFreshApp() {
+  const reason = stalenessReason()
+  if (!reason) return
+  console.log(`Rebuilding the ${platform} dev app because ${reason}`)
+  const build = spawnSync(
+    node,
+    [npmCli, "run", "mobile", "--", "package", platform, "--channel", "dev", "--e2e"],
+    { cwd: root, stdio: "inherit" }
+  )
+  if (build.status !== 0) process.exit(build.status || 1)
+}
+
 const results = path.join(root, "test-results", "mobile")
 fs.mkdirSync(results, { recursive: true })
 const serverLog = fs.createWriteStream(path.join(results, `${platform}-test-server.log`))
@@ -60,6 +125,7 @@ async function waitForServer(port) {
 }
 
 async function start() {
+  ensureFreshApp()
   const port = process.env.ONCE_MOBILE_TEST_PORT || String(await availablePort())
   const testEnv = { ...process.env, ONCE_MOBILE_TEST_PORT: port }
   startServer(testEnv)
