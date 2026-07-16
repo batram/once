@@ -17,8 +17,24 @@ async function switchToWebView() {
     timeout: 60_000,
     timeoutMsg: "Capacitor WebView did not become available"
   })
-  if (platform === "ios") await browser.switchContext({ title: "Once Dev" })
-  else await browser.switchContext(webview)
+  if (platform === "ios") {
+    // Right after an app (re)launch the webview is listed before its page is
+    // inspectable (title '', url about:blank), so a one-shot title switch can
+    // lose the race. Retry until the Once Dev page is actually reachable.
+    await browser.waitUntil(async () => {
+      try {
+        await browser.switchContext({ title: "Once Dev" })
+        return true
+      } catch {
+        return false
+      }
+    }, {
+      timeout: 60_000,
+      timeoutMsg: "Capacitor WebView did not expose the Once Dev page"
+    })
+  } else {
+    await browser.switchContext(webview)
+  }
 }
 
 // Wait for queued story saves to reach storage (hook set by the e2e build)
