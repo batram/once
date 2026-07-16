@@ -67,6 +67,10 @@ module.exports = (_env = {}, argv = {}) => {
               return content
                 .toString()
                 .replace("<title>once</title>", `<title>${channel === "dev" ? "Once Dev" : "Once"}</title>`)
+                .replace(
+                  '<meta charset="UTF-8" />',
+                  '<meta charset="UTF-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />'
+                )
                 .replace("</body>", '  <script src="mobile.js"></script>\n  </body>')
             }
           }

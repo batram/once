@@ -36,13 +36,17 @@ test("stories persist offline and open in the in-app reader", async ({ page }) =
 
   const story = page.getByTestId("story").filter({ hasText: "Fixture article" })
   await expect(story).toBeVisible()
-  await story.getByTestId("story-reader").click()
+  // story actions live in a long-press sheet on mobile
+  await story.click({ delay: 700 })
+  await page.getByTestId("sheet-story-reader").click()
   await expect(page.getByTestId("reader-close")).toBeVisible()
   await expect(page.locator(".once-reader-host-frame").contentFrame().getByRole("heading", { name: "Fixture article" })).toBeVisible()
   await page.getByTestId("reader-close").click()
 
-  await story.getByTestId("story-read-state").click()
-  await story.getByTestId("story-read-state").click()
+  await story.click({ delay: 700 })
+  await page.getByTestId("sheet-story-read-state").click()
+  await story.click({ delay: 700 })
+  await page.getByTestId("sheet-story-read-state").click()
   await expect(story).toHaveClass(/skipped/)
   await page.waitForTimeout(500)
   await page.reload()

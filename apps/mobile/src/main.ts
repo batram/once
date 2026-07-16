@@ -3,6 +3,7 @@ import { Capacitor } from "@capacitor/core"
 import { createOnceApp } from "@once/app"
 import { createMobilePlatform } from "@once/platform-mobile"
 import { mountOnceUi, ReaderDocumentHost, ReaderView } from "@once/ui-web"
+import { installStoryActionSheet } from "./actionSheet"
 import "./mobile.css"
 
 declare const __ONCE_APP_VERSION__: string
@@ -14,6 +15,7 @@ async function startMobileApp(): Promise<void> {
   document.body.dataset.buildChannel = __ONCE_BUILD_CHANNEL__
   document.body.dataset.onceStage = "platform"
 
+  installStoryActionSheet()
   const platform = createMobilePlatform()
   const app = createOnceApp(platform)
   const reader = new ReaderDocumentHost()

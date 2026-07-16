@@ -77,9 +77,10 @@ export function createDefaultMobileNativeBridge(): MobileNativeBridge {
       const dark = theme === "dark" || (
         theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches
       )
-      await StatusBar.setStyle({ style: dark ? Style.Light : Style.Dark })
+      // Capacitor Style.Dark = dark background (light text), Style.Light = light background
+      await StatusBar.setStyle({ style: dark ? Style.Dark : Style.Light })
       if (Capacitor.getPlatform() === "android") {
-        await StatusBar.setBackgroundColor({ color: dark ? "#17191c" : "#ffffff" })
+        await StatusBar.setBackgroundColor({ color: dark ? "#282a36" : "#f6f6ef" })
       }
     }
   }
