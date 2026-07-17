@@ -83,6 +83,7 @@ fs.mkdirSync(results, { recursive: true })
 const serverLog = fs.createWriteStream(path.join(results, `${platform}-test-server.log`))
 let server
 let stopping = false
+let androidReverse
 
 function availablePort() {
   return new Promise((resolve, reject) => {
@@ -110,6 +111,37 @@ function startServer(env) {
   }
 }
 
+function configureAndroidReverse(port, env) {
+  if (platform !== "android" || process.env.ONCE_MOBILE_TEST_URL) return
+  const executable = process.platform === "win32" ? "adb.exe" : "adb"
+  const sdk = env.ANDROID_HOME || env.ANDROID_SDK_ROOT
+  const adb = sdk ? path.join(sdk, "platform-tools", executable) : executable
+  const serial = env.ONCE_ANDROID_UDID || env.ANDROID_SERIAL
+  const target = `tcp:${port}`
+  const args = [...(serial ? ["-s", serial] : []), "reverse", target, target]
+  const result = spawnSync(adb, args, { cwd: root, env, encoding: "utf8" })
+  if (result.error) {
+    throw new Error(`Unable to configure ADB reverse for the mobile test server: ${result.error.message}`)
+  }
+  if (result.status !== 0) {
+    const detail = (result.stderr || result.stdout || "unknown adb error").trim()
+    throw new Error(`Unable to configure ADB reverse for the mobile test server: ${detail}`)
+  }
+  androidReverse = { adb, args: [...(serial ? ["-s", serial] : []), "reverse", "--remove", target], env }
+  env.ONCE_MOBILE_TEST_URL = `http://127.0.0.1:${port}`
+  console.log(`Forwarding Android 127.0.0.1:${port} to the host test server with adb reverse`)
+}
+
+function removeAndroidReverse() {
+  if (!androidReverse) return
+  spawnSync(androidReverse.adb, androidReverse.args, {
+    cwd: root,
+    env: androidReverse.env,
+    stdio: "ignore"
+  })
+  androidReverse = undefined
+}
+
 async function waitForServer(port) {
   for (let attempt = 0; attempt < 50; attempt += 1) {
     if (server.exitCode !== null) throw new Error(`Mobile test server exited with ${server.exitCode}`)
@@ -128,8 +160,9 @@ async function start() {
   ensureFreshApp()
   const port = process.env.ONCE_MOBILE_TEST_PORT || String(await availablePort())
   const testEnv = { ...process.env, ONCE_MOBILE_TEST_PORT: port }
-  startServer(testEnv)
   try {
+    configureAndroidReverse(port, testEnv)
+    startServer(testEnv)
     await waitForServer(port)
     if (stopping) return
     const reset = await fetch(`http://127.0.0.1:${port}/test/databases/mobile_${platform}/reset`, {
@@ -140,7 +173,8 @@ async function start() {
     if (!reset.ok) throw new Error(`Unable to reset mobile_${platform} test database`)
   } catch (error) {
     console.error(error)
-    server.kill()
+    server?.kill()
+    removeAndroidReverse()
     serverLog.end()
     process.exit(1)
     return
@@ -160,6 +194,7 @@ async function start() {
   )
   wdio.on("exit", (code) => {
     server.kill()
+    removeAndroidReverse()
     serverLog.end()
     process.exit(code || 0)
   })
@@ -170,6 +205,7 @@ start()
 function stop() {
   stopping = true
   server?.kill()
+  removeAndroidReverse()
 }
 process.on("SIGINT", stop)
 process.on("SIGTERM", stop)

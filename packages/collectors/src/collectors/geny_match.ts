@@ -52,10 +52,10 @@ function selecti(selector: GenySelector, parent_el: HTMLElement): unknown {
   if (ret && selector.component) {
     ret = ret[selector.component as keyof (HTMLElement | HTMLElement[])]
   }
-  if (!ret && selector.fallback) {
+  if (!ret && selector.fallback !== undefined) {
     ret = selector.fallback
   }
-  if (ret && selector.processors) {
+  if (typeof ret === "string" && selector.processors) {
     //TODO: Post process stuff?
     selector.processors.forEach((processor) => {
       const processorFunction = processor_functions[processor]
@@ -112,8 +112,11 @@ export function parse(doc: Document, url: string, og_url: string): Story[] {
     .map((story_el) => {
       const href = selecti(link_sel, story_el) as string
       const title = selecti(title_sel, story_el) as string
-      if (typeof href !== "string" || !href || typeof title !== "string" || !title) {
-        throw new Error("geny_match selectors produced an empty link or title")
+      if (typeof href !== "string" || !href.trim()) {
+        throw new Error("geny_match link selector produced an empty value")
+      }
+      if (typeof title !== "string" || !title.trim()) {
+        throw new Error("geny_match title selector produced an empty value")
       }
       const comment_href = selectors.comment_href
         ? (selecti(selectors.comment_href, story_el) as string)

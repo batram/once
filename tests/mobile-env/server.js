@@ -21,7 +21,7 @@ app.use((request, response, next) => {
 
 app.get("/health", (_request, response) => response.json({ ok: true }))
 app.get("/test/urls", (_request, response) => response.json({
-  android: `http://10.0.2.2:${port}`,
+  android: process.env.ONCE_MOBILE_TEST_URL || `http://10.0.2.2:${port}`,
   ios: `http://127.0.0.1:${port}`
 }))
 app.use("/test/databases", express.json())

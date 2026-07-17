@@ -184,6 +184,10 @@ its authenticated CouchDB-compatible endpoint below `/db`.
 With an Android emulator already running, `npm run test:mobile:e2e:android:local`
 configures the local SDK and JDK paths, installs the pinned UiAutomator2 driver
 when needed, builds the E2E APK, and runs the Android Appium suite.
+The runner also supports physical and network-connected ADB devices: it pins
+Appium to the selected serial and uses `adb reverse` so the app can reach the
+host-only test server at `127.0.0.1`. If more than one device is connected, set
+`ONCE_ANDROID_UDID` to the serial shown by `adb devices`.
 
 Before either channel is distributed to internal testers, run this checklist on
 at least one physical Android device and one physical iPhone:

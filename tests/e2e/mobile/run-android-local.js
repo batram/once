@@ -63,10 +63,20 @@ function requireConnectedDevice(sdk, env) {
   const adb = path.join(sdk, "platform-tools", process.platform === "win32" ? "adb.exe" : "adb")
   if (!fs.existsSync(adb)) fail(`adb not found at ${adb}`)
   const result = run(adb, ["devices"], { env, capture: true })
-  const connected = result.stdout.split(/\r?\n/).some(line => /^\S+\s+device$/.test(line.trim()))
-  if (!connected) {
-    fail("no Android device is ready; start Pixel_7_API_36_AOSP and try again")
+  const connected = result.stdout.split(/\r?\n/)
+    .map(line => /^(\S+)\s+device(?:\s|$)/.exec(line.trim())?.[1])
+    .filter(Boolean)
+  const requested = process.env.ONCE_ANDROID_UDID || process.env.ANDROID_SERIAL
+  if (requested && !connected.includes(requested)) {
+    fail(`Android device ${requested} is not ready; adb reports: ${connected.join(", ") || "none"}`)
   }
+  if (!connected.length) {
+    fail("no Android device is ready; start an emulator or connect a device and try again")
+  }
+  if (!requested && connected.length > 1) {
+    fail(`multiple Android devices are ready (${connected.join(", ")}); set ONCE_ANDROID_UDID`)
+  }
+  return requested || connected[0]
 }
 
 function ensureUiAutomatorDriver(env) {
@@ -84,7 +94,8 @@ function ensureUiAutomatorDriver(env) {
 }
 
 const android = androidEnvironment()
-requireConnectedDevice(android.sdk, android.env)
-ensureUiAutomatorDriver(android.env)
-runNpm(["run", "mobile", "--", "package", "android", "--channel", "dev", "--e2e"], android.env)
-runNpm(["run", "test:mobile:e2e:android"], android.env)
+const serial = requireConnectedDevice(android.sdk, android.env)
+const env = { ...android.env, ONCE_ANDROID_UDID: serial, ANDROID_SERIAL: serial }
+ensureUiAutomatorDriver(env)
+runNpm(["run", "mobile", "--", "package", "android", "--channel", "dev", "--e2e"], env)
+runNpm(["run", "test:mobile:e2e:android"], env)

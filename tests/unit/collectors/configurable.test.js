@@ -32,6 +32,50 @@ test("parses configured HTML selectors and skips invalid configuration", () => {
   assert.deepEqual(collector.parse(doc, "", "geny:bad"), [])
 })
 
+test("applies an empty geny fallback before title processors", () => {
+  const collector = require("../../../packages/collectors/dist/collectors/geny_match")
+  const doc = parseDocument(
+    '<!doctype html><html><body><article><h2><a href="https://example.com/owner/repo">Repo</a></h2></article></body></html>'
+  )
+  const config = {
+    stories: { sel: "article", all: true },
+    link: { sel: "h2 a", component: "href" },
+    title: {
+      sel: "p.missing",
+      component: "innerText",
+      processors: ["trim", "show_path"],
+      fallback: ""
+    }
+  }
+  const source = `geny:${separator}${JSON.stringify(config)}${separator}https://example.com/`
+
+  const stories = collector.parse(doc, "https://example.com/", source)
+
+  assert.equal(stories[0].title, "[owner/repo] ")
+})
+
+test("reports which required geny selector is empty", () => {
+  const collector = require("../../../packages/collectors/dist/collectors/geny_match")
+  const doc = parseDocument(
+    "<!doctype html><html><body><article></article></body></html>"
+  )
+  const source = (link, title) =>
+    `geny:${separator}${JSON.stringify({
+      stories: { sel: "article", all: true },
+      link,
+      title
+    })}${separator}https://example.com/`
+
+  assert.throws(
+    () => collector.parse(doc, "", source({ sel: ".missing" }, { fallback: "title" })),
+    /link selector produced an empty value/
+  )
+  assert.throws(
+    () => collector.parse(doc, "", source({ fallback: "https://example.com" }, { sel: ".missing" })),
+    /title selector produced an empty value/
+  )
+})
+
 test("rejects malformed configurable-source JSON", () => {
   const jsonCollector = require("../../../packages/collectors/dist/collectors/json_select")
   const htmlCollector = require("../../../packages/collectors/dist/collectors/geny_match")
