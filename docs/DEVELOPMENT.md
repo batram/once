@@ -237,6 +237,14 @@ npm run package:electron:dev
 npm run make:electron:dev
 ```
 
+Package and make commands stop a running packaged app from the same channel so
+Windows can replace its output directory. Pass `--nokill` after npm's argument
+separator to preserve it, for example
+`npm run package:electron:dev -- --nokill`; the build will then fail if the
+running app still locks an output file. npm 11 also accepts the shorthand
+`npm run package:electron:dev --nokill`, though npm warns that shorthand will
+stop working in its next major version.
+
 `npm run test:electron` executes the shared app and Electron integration tests
 after a type-check. `npm run test:electron:e2e` packages the application, then launches
 the packaged webpack entry with Playwright. The E2E test currently references
