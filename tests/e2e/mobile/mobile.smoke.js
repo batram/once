@@ -178,8 +178,33 @@ describe("Once mobile", () => {
     }
     await switchToWebView()
 
+    // The reader frame is opaque-origin, so automation cannot reach into it.
+    // Observe the TTS bridge traffic (readerTtsPolyfill -> readerTtsHostBridge)
+    // from the host page instead: the frame must request the native voices.
+    await browser.execute(() => {
+      window.__onceTtsSeen = []
+      window.addEventListener("message", (event) => {
+        const data = event.data
+        if (data && data.channel === "once-reader-tts") {
+          window.__onceTtsSeen.push({
+            type: data.type,
+            fromReader: event.source ===
+              document.querySelector(".once-reader-host-frame")?.contentWindow,
+            hasSource: Boolean(event.source)
+          })
+        }
+      })
+    })
     await storySheetAction(story, "story-reader", platform)
     await $("[data-testid='reader-close']").waitForDisplayed({ timeout: 30_000 })
+    await browser.waitUntil(async () =>
+      (await browser.execute(() => window.__onceTtsSeen)).length > 0, {
+      timeout: 10_000,
+      timeoutMsg: "reader frame sent no TTS bridge request to the host"
+    })
+    const ttsTraffic = await browser.execute(() => window.__onceTtsSeen)
+    expect(ttsTraffic.some((message) => message.type === "voices" && message.fromReader)).toBe(true)
+
     if (platform === "android") {
       await browser.switchContext("NATIVE_APP")
       await browser.pressKeyCode(4)

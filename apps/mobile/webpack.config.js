@@ -1,9 +1,42 @@
+const crypto = require("crypto")
 const path = require("path")
 const CopyPlugin = require("copy-webpack-plugin")
 const webpack = require("webpack")
 
 const root = path.resolve(__dirname, "../..")
 const { version } = require(path.join(root, "package.json"))
+
+// The reader runtime is inlined into the sandboxed reader frame because older
+// WebKit (iOS <= 18) refuses to load external scripts there. The frame
+// inherits the app CSP, so script-src carries the sha256 of the exact inline
+// text: only that script can ever run inline. The escaping applied here must
+// stay identical to ReaderDocumentHost.injectRuntime's.
+class ReaderRuntimeCspPlugin {
+  apply(compiler) {
+    compiler.hooks.thisCompilation.tap("ReaderRuntimeCsp", (compilation) => {
+      compilation.hooks.processAssets.tap(
+        {
+          name: "ReaderRuntimeCsp",
+          stage: compiler.webpack.Compilation.PROCESS_ASSETS_STAGE_SUMMARIZE
+        },
+        (assets) => {
+          const runtime = assets["reader-runtime.js"]
+          const index = assets["index.html"]
+          if (!runtime || !index) {
+            throw new Error("ReaderRuntimeCsp expects reader-runtime.js and index.html assets")
+          }
+          const inlined = runtime.source().toString().replace(/<\/script/gi, "<\\/script")
+          const hash = crypto.createHash("sha256").update(inlined, "utf8").digest("base64")
+          const html = index.source().toString().replace(
+            "script-src 'self'",
+            `script-src 'self' 'sha256-${hash}'`
+          )
+          compilation.updateAsset("index.html", new compiler.webpack.sources.RawSource(html))
+        }
+      )
+    })
+  }
+}
 
 module.exports = (_env = {}, argv = {}) => {
   const mode = argv.mode || "development"
@@ -54,6 +87,7 @@ module.exports = (_env = {}, argv = {}) => {
         __ONCE_BUILD_CHANNEL__: JSON.stringify(channel),
         __ONCE_MOBILE_E2E__: JSON.stringify(process.env.ONCE_MOBILE_E2E === "1")
       }),
+      new ReaderRuntimeCspPlugin(),
       new CopyPlugin({
         patterns: [
           {

@@ -47,6 +47,8 @@ test("stories persist offline and open in the in-app reader", async ({ page }) =
   await expect(reader.locator("html")).toHaveAttribute("data-once-tts-installed", "true")
   await expect(reader.locator("article .tts-segment")).not.toHaveCount(0)
   await page.getByTestId("reader-close").click()
+  // closing must unload the frame so pagehide stops any running speech
+  await expect(reader.getByRole("heading", { name: "Fixture article" })).toHaveCount(0)
 
   await story.click({ delay: 700 })
   await page.getByTestId("sheet-story-read-state").click()
@@ -58,6 +60,36 @@ test("stories persist offline and open in the in-app reader", async ({ page }) =
   await page.getByTestId("stories-menu").click()
   await page.getByTestId("reload-stories").click()
   await expect(page.getByTestId("story").filter({ hasText: "Fixture article" })).toHaveClass(/skipped/)
+})
+
+test("reader TTS bridges through the host when the frame lacks speech synthesis", async ({ page }) => {
+  // Simulate the Android WebView reader frame, which has no Web Speech API.
+  await page.addInitScript(() => {
+    if (window.parent !== window) {
+      Object.defineProperty(window, "speechSynthesis", { configurable: true, value: undefined })
+      Object.defineProperty(window, "SpeechSynthesisUtterance", { configurable: true, value: undefined })
+    }
+  })
+  await page.goto("./")
+  await page.getByTestId("settings-menu").click()
+  await page.getByTestId("sources").fill("http://127.0.0.1:3211/fixtures/feed.rss")
+  await page.getByTestId("save-sources").click()
+  await page.waitForTimeout(500)
+  await page.reload()
+  await page.getByTestId("stories-menu").click()
+  await page.getByTestId("reload-stories").click()
+
+  const story = page.getByTestId("story").filter({ hasText: "Fixture article" })
+  await expect(story).toBeVisible()
+  await story.click({ delay: 700 })
+  await page.getByTestId("sheet-story-reader").click()
+  await expect(page.getByTestId("reader-close")).toBeVisible()
+  const reader = page.locator(".once-reader-host-frame").contentFrame()
+  await expect(reader.locator("html")).toHaveAttribute("data-once-tts-installed", "true")
+  // the polyfill bridges to the host, so TTS stays available instead of disabled
+  await expect(reader.getByTestId("tts-unavailable")).toHaveCount(0)
+  await expect(reader.locator("[data-tts-play]")).toBeEnabled()
+  await expect(reader.locator("article .tts-segment")).not.toHaveCount(0)
 })
 
 test("theme and phone navigation survive orientation changes", async ({ page }) => {

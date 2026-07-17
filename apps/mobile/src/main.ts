@@ -4,6 +4,7 @@ import { createOnceApp } from "@once/app"
 import { createMobilePlatform } from "@once/platform-mobile"
 import { mountOnceUi, ReaderDocumentHost, ReaderView } from "@once/ui-web"
 import { installStoryActionSheet } from "./actionSheet"
+import { installReaderTtsHostBridge } from "./readerTtsHostBridge"
 import "./mobile.css"
 
 declare const __ONCE_APP_VERSION__: string
@@ -18,12 +19,12 @@ async function startMobileApp(): Promise<void> {
   installStoryActionSheet()
   const platform = createMobilePlatform()
   const app = createOnceApp(platform)
-  const readerRuntime = "reader-runtime.js"
   const reader = new ReaderDocumentHost(
     document.body,
-    new URL(readerRuntime, document.baseURI).href
+    new URL("reader-runtime.js", document.baseURI).href
   )
   ReaderView.mount(app.client, (html) => reader.open(html))
+  installReaderTtsHostBridge((source) => reader.isReaderWindow(source))
 
   if (Capacitor.getPlatform() === "android") {
     await App.addListener("backButton", () => {
