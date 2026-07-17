@@ -4,6 +4,10 @@ export interface PouchStoryDatabase {
   allDocs(options: Record<string, unknown>): Promise<{ rows: { doc?: unknown }[] }>
   get(id: string): Promise<Record<string, unknown>>
   put(doc: Record<string, unknown>): Promise<{ rev?: string }>
+  remove(
+    doc: { _id: string; _rev: string },
+    options?: Record<string, unknown>
+  ): Promise<unknown>
 }
 
 export class PouchStoryStore<TStory extends Story> {
@@ -26,7 +30,8 @@ export class PouchStoryStore<TStory extends Story> {
     return response.rows
       .filter((entry) => entry.doc)
       .map((entry) => {
-        return this.fromObj(entry.doc as Record<string, unknown>)
+        const doc = entry.doc as Record<string, unknown>
+        return this.storyFromDocument(doc)
       })
   }
 
@@ -34,7 +39,7 @@ export class PouchStoryStore<TStory extends Story> {
     return this.db
       .get(this.storyId(url))
       .then((doc: unknown) => {
-        return this.fromObj(doc as Record<string, unknown>)
+        return this.storyFromDocument(doc as Record<string, unknown>, url)
       })
       .catch((err) => {
         if ((err as { status?: number }).status === 404) {
@@ -73,5 +78,50 @@ export class PouchStoryStore<TStory extends Story> {
       story._rev = resp.rev
     }
     return story
+  }
+
+  async deleteStory(url: string): Promise<void> {
+    try {
+      const doc = await this.db.get(this.storyId(url))
+      await this.db.remove(doc as { _id: string; _rev: string })
+    } catch (error) {
+      if ((error as { status?: number }).status !== 404) throw error
+    }
+  }
+
+  private storyFromDocument(
+    doc: Record<string, unknown>,
+    fallbackUrl = String(doc._id ?? "").replace(/^sto_/, "")
+  ): TStory {
+    try {
+      return this.fromObj(doc)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      const timestamp =
+        doc.timestamp instanceof Date
+          ? doc.timestamp.getTime()
+          : typeof doc.timestamp === "number"
+            ? doc.timestamp
+            : Date.parse(String(doc.timestamp ?? ""))
+      console.error(`Corrupted story ${doc._id ?? fallbackUrl}: ${message}`)
+      const diagnosticDoc = { ...doc }
+      delete diagnosticDoc._attachments
+      const serializedDoc = JSON.stringify(diagnosticDoc, null, 2)
+      return this.fromObj({
+        ...doc,
+        type: typeof doc.type === "string" && doc.type.trim() ? doc.type : "Corrupted",
+        href: typeof doc.href === "string" && doc.href.trim() ? doc.href : fallbackUrl,
+        title:
+          typeof doc.title === "string" && doc.title.trim()
+            ? doc.title
+            : "[Corrupted story — purge this entry]",
+        timestamp: Number.isFinite(timestamp) ? doc.timestamp : Date.now(),
+        corruption_error: message,
+        corruption_document:
+          serializedDoc.length > 20_000
+            ? `${serializedDoc.slice(0, 20_000)}\n… truncated`
+            : serializedDoc
+      })
+    }
   }
 }

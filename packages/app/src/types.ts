@@ -95,6 +95,7 @@ export interface OnceClient {
     path: string,
     value: Story | string | boolean
   ): Promise<Story | undefined>
+  purgeStory(href: string): Promise<void>
   addFilter(filter: string): Promise<void>
   fetchDocument(url: string): Promise<{ html: string; url: string }>
   openUrl(url: string, target: "_self" | "middle" | "blank" | string): void
@@ -115,6 +116,7 @@ export interface StoryStorePort {
   getStories(): Promise<Story[]>
   getStory(url: string): Promise<Story | null>
   saveStory(story: Story): Promise<Story>
+  deleteStory(url: string): Promise<void>
 }
 
 export interface SyncServicePort {

@@ -186,6 +186,15 @@
                   <input type="button" value="save" id="cache_time_save" />
                   <input type="button" value="cancel" id="cache_time_cancel" />
                 </div>
+                <div class="settings_block settings_error_log">
+                  <div class="settings_error_log_header">
+                    <span>Error log:</span>
+                    <button type="button" id="clear_error_log">Clear</button>
+                  </div>
+                  <div id="error_log" data-testid="error-log">
+                    <p class="error_log_empty">No errors recorded this session.</p>
+                  </div>
+                </div>
                 <div class="settings_block settings_version">
                   <span>Version: <span data-testid="app-version"></span></span>
                   <input

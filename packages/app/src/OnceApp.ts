@@ -96,6 +96,7 @@ export class OnceApp {
       settledStoryWrites: () => this.settledStoryWrites(),
       persistStoryChange: (href, path, value) =>
         this.persistStoryChange(href, path, value),
+      purgeStory: (href) => this.purgeStory(href),
       addFilter: (filter) => this.addFilter(filter),
       fetchDocument: (url) => this.fetchDocument(url),
       openUrl: (url, target) => this.openUrl(url, target),
@@ -677,6 +678,15 @@ export class OnceApp {
     })
   }
 
+  private async purgeStory(href: string): Promise<void> {
+    await this.settledStoryWrites()
+    await this.platform.storyStore.deleteStory(href)
+    this.stories.delete(href)
+    for (const [url, storyHref] of this.comments) {
+      if (storyHref === href) this.comments.delete(url)
+    }
+  }
+
   private emitDataChange(
     path: string[],
     value: unknown,
@@ -713,6 +723,15 @@ export class OnceApp {
   }
 
   private handleDatabaseChange(change: DatabaseChange): void {
+    if (change.id.startsWith("sto_") && change.doc?._deleted) {
+      const href = change.id.substring("sto_".length)
+      this.stories.delete(href)
+      for (const [url, storyHref] of this.comments) {
+        if (storyHref === href) this.comments.delete(url)
+      }
+      return
+    }
+
     if (change.id.startsWith("sto_") && change.doc) {
       const changedStory = Story.from_obj(change.doc)
       const stored = this.getStory(changedStory.href)

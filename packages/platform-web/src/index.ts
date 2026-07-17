@@ -42,6 +42,10 @@ class WebStoryStore {
     )
     return story
   }
+
+  async deleteStory(url: string): Promise<void> {
+    window.localStorage.removeItem(`once:story:${this.storyId(url)}`)
+  }
 }
 
 class WebCacheStore {

@@ -7,6 +7,7 @@ type IssueType = "warning" | "error"
 interface UiIssue extends SourceError {
   id: string
   sourceIssue: boolean
+  logId?: string
 }
 
 const INFO_FADE_DELAY = 2500
@@ -36,9 +37,18 @@ export class LoaderInsights {
   private static infoTimeout: ReturnType<typeof setTimeout> | null = null
   private static commsRegistered = false
   private static genericIssueId = 0
+  private static errorLogId = 0
+  private static sourceErrorLogIds = new Map<string, string>()
 
   static init(client?: OnceClient): void {
     this.ensureUi()
+
+    document.querySelector("#clear_error_log")?.addEventListener("click", () => {
+      document.querySelector("#error_log")?.replaceChildren()
+      this.renderEmptyErrorLog()
+      this.updateSourceErrors([])
+      SettingsPanel.instance?.clearSourceErrors()
+    })
 
     if (this.commsRegistered) return
     this.commsRegistered = true
@@ -154,6 +164,7 @@ export class LoaderInsights {
     if (errors.length === 0) {
       this.sourceErrors = []
       this.genericErrors = []
+      this.sourceErrorLogIds.clear()
       this.dismissedIssues.clear()
       this.clearWarningTimeouts()
       this.render()
@@ -176,6 +187,14 @@ export class LoaderInsights {
       if (!previousIds.has(id)) {
         this.dismissedIssues.delete(id)
         if (error.type === "warning") this.scheduleWarningDismiss(id)
+        this.sourceErrorLogIds.set(
+          id,
+          this.recordError(
+            error.title,
+            `${error.message}\n\nSource: ${error.url}`,
+            error.url
+          )
+        )
       }
     }
     this.render()
@@ -186,7 +205,8 @@ export class LoaderInsights {
       ...this.sourceErrors.map((error) => ({
         ...error,
         id: this.issueId(error),
-        sourceIssue: true
+        sourceIssue: true,
+        logId: this.sourceErrorLogIds.get(this.issueId(error))
       })),
       ...this.genericErrors
     ]
@@ -223,14 +243,16 @@ export class LoaderInsights {
     this.render()
   }
 
-  static showErrorMessage(message: string): void {
+  static showErrorMessage(message: string, details = message): void {
+    const logId = this.recordError(message, details)
     const issue: UiIssue = {
       id: `generic:error:${++this.genericIssueId}`,
       url: "",
       title: message,
       message,
       type: "error",
-      sourceIssue: false
+      sourceIssue: false,
+      logId
     }
     this.genericErrors.push(issue)
     this.dismissedIssues.delete(issue.id)
@@ -244,6 +266,50 @@ export class LoaderInsights {
   static showError(error: SourceError): void {
     const remaining = this.sourceErrors.filter((item) => item.url !== error.url)
     this.updateSourceErrors([...remaining, error])
+  }
+
+  private static recordError(
+    title: string,
+    details: string,
+    sourceUrl?: string
+  ): string {
+    const logId = `error-log-${++this.errorLogId}`
+    const log = document.querySelector<HTMLElement>("#error_log")
+    if (!log) return logId
+
+    log.querySelector(".error_log_empty")?.remove()
+    const entry = document.createElement("details")
+    entry.id = logId
+    entry.classList.add("error_log_entry")
+    if (sourceUrl) entry.dataset.sourceUrl = sourceUrl
+    entry.tabIndex = -1
+
+    const summary = document.createElement("summary")
+    summary.textContent = title
+    const body = document.createElement("pre")
+    body.textContent = `${new Date().toLocaleString()}\n${details}`
+    entry.append(summary, body)
+    if (sourceUrl) {
+      const showSource = document.createElement("button")
+      showSource.type = "button"
+      showSource.classList.add("error_log_show_source")
+      showSource.textContent = "Show source"
+      showSource.addEventListener("click", () => {
+        SettingsPanel.instance?.highlightSource(sourceUrl)
+      })
+      entry.append(showSource)
+    }
+    log.append(entry)
+    return logId
+  }
+
+  private static renderEmptyErrorLog(): void {
+    const log = document.querySelector<HTMLElement>("#error_log")
+    if (!log || log.childElementCount > 0) return
+    const empty = document.createElement("p")
+    empty.classList.add("error_log_empty")
+    empty.textContent = "No errors recorded this session."
+    log.append(empty)
   }
 
   static hide(): void {
@@ -362,7 +428,7 @@ export class LoaderInsights {
       const content = document.createElement("button")
       content.type = "button"
       content.classList.add("status_issue_content")
-      content.disabled = !issue.sourceIssue
+      content.disabled = !issue.sourceIssue && !issue.logId
       content.title = issue.sourceIssue
         ? `${issue.message}\n${issue.url}`
         : issue.message
@@ -379,7 +445,11 @@ export class LoaderInsights {
         content.append(source)
       }
 
-      if (issue.sourceIssue) {
+      if (issue.logId) {
+        content.addEventListener("click", () => {
+          SettingsPanel.instance?.showErrorLog(issue.logId as string)
+        })
+      } else if (issue.sourceIssue) {
         content.addEventListener("click", () => {
           SettingsPanel.instance?.highlightSource(issue.url)
         })
