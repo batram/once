@@ -362,6 +362,11 @@ export class SettingsPanel {
     this.setSourceErrors([])
   }
 
+  showStory(storyUrl: string): void {
+    menu.open_panel("stories")
+    void this.client.selectUrl(storyUrl)
+  }
+
   async reset_couch_settings(): Promise<void> {
     const couch_input =
       requireElement<HTMLInputElement>("#couch_input")

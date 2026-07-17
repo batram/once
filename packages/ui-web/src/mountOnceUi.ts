@@ -44,7 +44,9 @@ export async function mountOnceUi(
   }
 
   bindMenuCollapseControls(options.onMenuCollapsedChanged)
-  bindAppUpdateControls(options.updater)
+  bindAppUpdateControls(options.updater, (message, details) =>
+    LoaderInsights.showErrorMessage(message, details)
+  )
 
   const settingsPanel = new SettingsPanel(client)
   if (options.sourcePicker === false) {

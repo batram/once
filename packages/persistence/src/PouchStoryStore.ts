@@ -11,10 +11,33 @@ export interface PouchStoryDatabase {
 }
 
 export class PouchStoryStore<TStory extends Story> {
+  private diagnosticHandlers = new Set<(error: {
+    severity: "warning" | "error"
+    operation: string
+    message: string
+    details?: string
+    storyUrl?: string
+    sourceUrl?: string
+    documentId?: string
+  }) => void>()
+
   constructor(
     private db: PouchStoryDatabase,
     private fromObj: (story: Record<string, unknown>) => TStory
   ) {}
+
+  onDiagnostic(handler: (error: {
+    severity: "warning" | "error"
+    operation: string
+    message: string
+    details?: string
+    storyUrl?: string
+    sourceUrl?: string
+    documentId?: string
+  }) => void): () => void {
+    this.diagnosticHandlers.add(handler)
+    return () => this.diagnosticHandlers.delete(handler)
+  }
 
   storyId(url: string): string {
     return "sto_" + url
@@ -107,6 +130,20 @@ export class PouchStoryStore<TStory extends Story> {
       const diagnosticDoc = { ...doc }
       delete diagnosticDoc._attachments
       const serializedDoc = JSON.stringify(diagnosticDoc, null, 2)
+      const documentDetails =
+        serializedDoc.length > 20_000
+          ? `${serializedDoc.slice(0, 20_000)}\n… truncated`
+          : serializedDoc
+      this.diagnosticHandlers.forEach((handler) =>
+        handler({
+          severity: "error",
+          operation: "story.load",
+          message: `Corrupted story: ${message}`,
+          details: `Validation error: ${message}\n\nStored document:\n${documentDetails}`,
+          storyUrl: fallbackUrl,
+          documentId: String(doc._id ?? "")
+        })
+      )
       return this.fromObj({
         ...doc,
         type: typeof doc.type === "string" && doc.type.trim() ? doc.type : "Corrupted",
@@ -115,12 +152,7 @@ export class PouchStoryStore<TStory extends Story> {
           typeof doc.title === "string" && doc.title.trim()
             ? doc.title
             : "[Corrupted story — purge this entry]",
-        timestamp: Number.isFinite(timestamp) ? doc.timestamp : Date.now(),
-        corruption_error: message,
-        corruption_document:
-          serializedDoc.length > 20_000
-            ? `${serializedDoc.slice(0, 20_000)}\n… truncated`
-            : serializedDoc
+        timestamp: Number.isFinite(timestamp) ? doc.timestamp : Date.now()
       })
     }
   }

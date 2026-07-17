@@ -1,4 +1,9 @@
-import { OnceClient, ProcessingSource, SourceError } from "@once/app"
+import {
+  DiagnosticError,
+  OnceClient,
+  ProcessingSource,
+  SourceError
+} from "@once/app"
 import { SettingsPanel } from "./SettingsPanel"
 import { requireElement } from "./dom"
 
@@ -50,6 +55,8 @@ export class LoaderInsights {
       SettingsPanel.instance?.clearSourceErrors()
     })
 
+    client?.getDiagnostics?.().forEach((error) => this.showDiagnostic(error))
+
     if (this.commsRegistered) return
     this.commsRegistered = true
     client?.subscribe("loaderChanged", ({ processing }) => {
@@ -57,6 +64,9 @@ export class LoaderInsights {
     })
     client?.subscribe("sourceErrorsChanged", ({ errors }) => {
       this.updateSourceErrors(errors)
+    })
+    client?.subscribe("diagnosticError", (error) => {
+      this.showDiagnostic(error)
     })
   }
 
@@ -191,7 +201,7 @@ export class LoaderInsights {
           id,
           this.recordError(
             error.title,
-            `${error.message}\n\nSource: ${error.url}`,
+            `${error.details || error.message}\n\nSource: ${error.url}`,
             error.url
           )
         )
@@ -259,6 +269,39 @@ export class LoaderInsights {
     this.render()
   }
 
+  private static showDiagnostic(error: DiagnosticError): void {
+    const context = [
+      error.sourceUrl ? `Source: ${error.sourceUrl}` : "",
+      error.storyUrl ? `Story: ${error.storyUrl}` : "",
+      error.documentId ? `Document: ${error.documentId}` : ""
+    ].filter(Boolean)
+    const details = [
+      `Operation: ${error.operation}`,
+      ...context,
+      "",
+      error.details || error.message
+    ].join("\n")
+    const logId = this.recordError(
+      `[${error.operation}] ${error.message}`,
+      details,
+      error.sourceUrl,
+      error.storyUrl
+    )
+    const id = `generic:${error.severity}:${++this.genericIssueId}`
+    this.genericErrors.push({
+      id,
+      url: error.sourceUrl || error.storyUrl || "",
+      title: error.message,
+      message: error.message,
+      type: error.severity,
+      sourceIssue: false,
+      logId
+    })
+    this.dismissedIssues.delete(id)
+    if (error.severity === "warning") this.scheduleWarningDismiss(id)
+    this.render()
+  }
+
   static showProcessing(items: ProcessingSource[]): void {
     this.updateProcessing(items)
   }
@@ -271,7 +314,8 @@ export class LoaderInsights {
   private static recordError(
     title: string,
     details: string,
-    sourceUrl?: string
+    sourceUrl?: string,
+    storyUrl?: string
   ): string {
     const logId = `error-log-${++this.errorLogId}`
     const log = document.querySelector<HTMLElement>("#error_log")
@@ -282,6 +326,7 @@ export class LoaderInsights {
     entry.id = logId
     entry.classList.add("error_log_entry")
     if (sourceUrl) entry.dataset.sourceUrl = sourceUrl
+    if (storyUrl) entry.dataset.storyUrl = storyUrl
     entry.tabIndex = -1
 
     const summary = document.createElement("summary")
@@ -298,6 +343,16 @@ export class LoaderInsights {
         SettingsPanel.instance?.highlightSource(sourceUrl)
       })
       entry.append(showSource)
+    }
+    if (storyUrl) {
+      const showStory = document.createElement("button")
+      showStory.type = "button"
+      showStory.classList.add("error_log_show_story")
+      showStory.textContent = "Show story"
+      showStory.addEventListener("click", () => {
+        SettingsPanel.instance?.showStory(storyUrl)
+      })
+      entry.append(showStory)
     }
     log.append(entry)
     return logId

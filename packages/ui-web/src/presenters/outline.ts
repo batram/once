@@ -117,7 +117,7 @@ export function story_elem_button(story: Story): HTMLElement {
         "read"
       )
     } catch (error) {
-      showReaderError(error)
+      showReaderError(error, story.href)
     }
   })
 
@@ -199,12 +199,17 @@ export async function present(url: string): Promise<void> {
   try {
     await ReaderView.open(url)
   } catch (error) {
-    showReaderError(error)
+    showReaderError(error, url)
   }
 }
 
-function showReaderError(error: unknown): void {
+function showReaderError(error: unknown, url: string): void {
   const detail = error instanceof Error ? error.message : String(error)
   console.error("Reader mode failed", error)
-  LoaderInsights.showErrorMessage(`Reader mode failed: ${detail}`)
+  LoaderInsights.showErrorMessage(
+    `Reader mode failed: ${detail}`,
+    `Operation: reader.open\nStory: ${url}\n\n${
+      error instanceof Error ? error.stack || error.message : String(error)
+    }`
+  )
 }

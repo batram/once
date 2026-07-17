@@ -26,7 +26,10 @@ const DEFAULT_MESSAGES: Partial<Record<AppUpdateState, string>> = {
   error: "Update check failed"
 }
 
-export function bindAppUpdateControls(updater?: AppUpdater): void {
+export function bindAppUpdateControls(
+  updater?: AppUpdater,
+  reportError?: (message: string, details: string) => void
+): void {
   const button = document.querySelector<HTMLInputElement>(
     "[data-testid='check-for-updates']"
   )
@@ -55,18 +58,32 @@ export function bindAppUpdateControls(updater?: AppUpdater): void {
     try {
       render(await updater.checkForUpdates())
     } catch (error) {
+      const detail = error instanceof Error ? error.message : "Update check failed"
       render({
         state: "error",
-        message: error instanceof Error ? error.message : "Update check failed"
+        message: detail
       })
+      reportError?.(
+        `Update check failed: ${detail}`,
+        `Operation: updater.check\n\n${
+          error instanceof Error ? error.stack || error.message : String(error)
+        }`
+      )
     }
   })
 
   updater.onStatusChanged(render)
   void updater.getStatus().then(render).catch((error) => {
+    const detail = error instanceof Error ? error.message : "Update status unavailable"
     render({
       state: "error",
-      message: error instanceof Error ? error.message : "Update status unavailable"
+      message: detail
     })
+    reportError?.(
+      `Update status unavailable: ${detail}`,
+      `Operation: updater.status\n\n${
+        error instanceof Error ? error.stack || error.message : String(error)
+      }`
+    )
   })
 }

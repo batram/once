@@ -560,7 +560,12 @@ async function source_youtube(
   } catch (error) {
     console.error("YouTube video extraction failed", error)
     const detail = error instanceof Error ? error.message : String(error)
-    LoaderInsights.showErrorMessage(`Could not load YouTube video: ${detail}`)
+    LoaderInsights.showErrorMessage(
+      `Could not load YouTube video: ${detail}`,
+      `Operation: video.youtube.extract\nVideo: ${url}\nVideo ID: ${id}\n\n${
+        error instanceof Error ? error.stack || error.message : String(error)
+      }`
+    )
     return undefined
   }
 }

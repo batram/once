@@ -79,8 +79,13 @@
   white-space: pre-wrap;
 }
 
-.error_log_show_source {
+.error_log_show_source,
+.error_log_show_story {
   margin-top: 8px;
+}
+
+.error_log_show_story {
+  margin-left: 6px;
 }
 
 .error_log_empty {
