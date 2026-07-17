@@ -1,9 +1,4 @@
-import {
-  DiagnosticError,
-  OnceClient,
-  ProcessingSource,
-  SourceError
-} from "@once/app"
+import { DiagnosticError, OnceClient, ProcessingSource, SourceError } from "@once/app"
 import { SettingsPanel } from "./SettingsPanel"
 import { requireElement } from "./dom"
 
@@ -32,10 +27,7 @@ export class LoaderInsights {
   private static sourceErrors: SourceError[] = []
   private static genericErrors: UiIssue[] = []
   private static dismissedIssues = new Set<string>()
-  private static warningTimeouts = new Map<
-    string,
-    ReturnType<typeof setTimeout>
-  >()
+  private static warningTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
   private static infoMessage = ""
   private static wasProcessing = false
   private static statusCollapsed = false
@@ -108,22 +100,14 @@ export class LoaderInsights {
     this.activityIndicator = this.createIndicator("activity", "")
     this.warningIndicator = this.createIndicator("warning", "⚠")
     this.errorIndicator = this.createIndicator("error", "!")
-    this.dock.append(
-      this.activityIndicator,
-      this.warningIndicator,
-      this.errorIndicator
-    )
+    this.dock.append(this.activityIndicator, this.warningIndicator, this.errorIndicator)
     menu.append(this.dock)
     this.render()
   }
 
-  private static createIndicator(
-    type: "activity" | IssueType,
-    symbol: string
-  ): HTMLButtonElement {
+  private static createIndicator(type: "activity" | IssueType, symbol: string): HTMLButtonElement {
     const indicator = document.createElement("button")
-    indicator.id =
-      type === "activity" ? "status_bar_state" : `status_bar_${type}s`
+    indicator.id = type === "activity" ? "status_bar_state" : `status_bar_${type}s`
     indicator.classList.add("status_indicator", type)
     indicator.type = "button"
     indicator.hidden = true
@@ -201,7 +185,7 @@ export class LoaderInsights {
           id,
           this.recordError(
             error.title,
-            `${error.details || error.message}\n\nSource: ${error.url}`,
+            `${error.details || error.message}\n\nStory source: ${error.url}`,
             error.url
           )
         )
@@ -228,9 +212,7 @@ export class LoaderInsights {
 
   private static toggleIssues(type: IssueType): void {
     const issues = this.issues().filter((issue) => issue.type === type)
-    const hasVisible = issues.some(
-      (issue) => !this.dismissedIssues.has(issue.id)
-    )
+    const hasVisible = issues.some((issue) => !this.dismissedIssues.has(issue.id))
 
     if (hasVisible) {
       for (const issue of issues) {
@@ -271,7 +253,7 @@ export class LoaderInsights {
 
   private static showDiagnostic(error: DiagnosticError): void {
     const context = [
-      error.sourceUrl ? `Source: ${error.sourceUrl}` : "",
+      error.sourceUrl ? `Story source: ${error.sourceUrl}` : "",
       error.storyUrl ? `Story: ${error.storyUrl}` : "",
       error.documentId ? `Document: ${error.documentId}` : ""
     ].filter(Boolean)
@@ -338,7 +320,7 @@ export class LoaderInsights {
       const showSource = document.createElement("button")
       showSource.type = "button"
       showSource.classList.add("error_log_show_source")
-      showSource.textContent = "Show source"
+      showSource.textContent = "Show story source"
       showSource.addEventListener("click", () => {
         SettingsPanel.instance?.highlightSource(sourceUrl)
       })
@@ -378,13 +360,7 @@ export class LoaderInsights {
   }
 
   private static render(): void {
-    if (
-      !this.surfaces ||
-      !this.bar ||
-      !this.message ||
-      !this.messageText ||
-      !this.activityIcon
-    ) {
+    if (!this.surfaces || !this.bar || !this.message || !this.messageText || !this.activityIcon) {
       return
     }
 
@@ -396,9 +372,7 @@ export class LoaderInsights {
       const domains = this.processing.map((item) => item.domain)
       text = `Loading ${count} ${count === 1 ? "source" : "sources"}`
       if (domains.length > 0) text += ` · ${domains.join(", ")}`
-      title = this.processing
-        .map((item) => `${item.domain} [${item.parserType}]`)
-        .join("\n")
+      title = this.processing.map((item) => `${item.domain} [${item.parserType}]`).join("\n")
     }
 
     const hasStatus = text.length > 0
@@ -412,11 +386,9 @@ export class LoaderInsights {
     this.renderIndicator(this.warningIndicator, "warning")
     this.renderIndicator(this.errorIndicator, "error")
     if (this.dock) {
-      this.dock.hidden = ![
-        this.activityIndicator,
-        this.warningIndicator,
-        this.errorIndicator
-      ].some((indicator) => indicator && !indicator.hidden)
+      this.dock.hidden = ![this.activityIndicator, this.warningIndicator, this.errorIndicator].some(
+        (indicator) => indicator && !indicator.hidden
+      )
     }
     this.renderIssues()
   }
@@ -440,21 +412,15 @@ export class LoaderInsights {
 
     const count = this.issues().filter((issue) => issue.type === type).length
     indicator.hidden = count === 0
-    const countEl = requireElement<HTMLElement>(
-      ".status_indicator_count",
-      indicator
-    )
+    const countEl = requireElement<HTMLElement>(".status_indicator_count", indicator)
     countEl.textContent = count.toString()
     const visible = this.issues().some(
-      (issue) =>
-        issue.type === type && !this.dismissedIssues.has(issue.id)
+      (issue) => issue.type === type && !this.dismissedIssues.has(issue.id)
     )
     indicator.classList.toggle("collapsed", !visible)
     indicator.setAttribute(
       "aria-label",
-      `${count} ${count === 1 ? type : `${type}s`}. ${
-        visible ? "Hide" : "Show"
-      } details.`
+      `${count} ${count === 1 ? type : `${type}s`}. ${visible ? "Hide" : "Show"} details.`
     )
     indicator.setAttribute("aria-expanded", String(visible))
     indicator.title = indicator.getAttribute("aria-label") || ""
@@ -462,9 +428,7 @@ export class LoaderInsights {
 
   private static renderIssues(): void {
     if (!this.surfaces) return
-    this.surfaces
-      .querySelectorAll(".status_issue_bubble")
-      .forEach((element) => element.remove())
+    this.surfaces.querySelectorAll(".status_issue_bubble").forEach((element) => element.remove())
 
     const allIssues = this.issues()
     const issues = allIssues
@@ -484,9 +448,7 @@ export class LoaderInsights {
       content.type = "button"
       content.classList.add("status_issue_content")
       content.disabled = !issue.sourceIssue && !issue.logId
-      content.title = issue.sourceIssue
-        ? `${issue.message}\n${issue.url}`
-        : issue.message
+      content.title = issue.sourceIssue ? `${issue.message}\n${issue.url}` : issue.message
 
       const title = document.createElement("span")
       title.classList.add("status_issue_title")
