@@ -13,6 +13,17 @@ export interface SourceError {
   title: string
   message: string
   type: "warning" | "error"
+  details?: string
+}
+
+export interface DiagnosticError {
+  severity: "warning" | "error"
+  operation: string
+  message: string
+  details?: string
+  sourceUrl?: string
+  storyUrl?: string
+  documentId?: string
 }
 
 export interface StoryChangeDetail {
@@ -25,6 +36,7 @@ export interface StoryChangeDetail {
 }
 
 export interface OnceAppEvents {
+  diagnosticError: DiagnosticError
   loaderChanged: {
     processing: ProcessingSource[]
     visible: boolean
@@ -72,6 +84,7 @@ export type OnceEventHandler<T extends OnceEventName> = (
 ) => void
 
 export interface OnceClient {
+  getDiagnostics(): DiagnosticError[]
   getStorySources(): Promise<string[]>
   saveStorySources(storySources: string[]): Promise<void>
   getFilterList(): Promise<string[]>
@@ -95,6 +108,7 @@ export interface OnceClient {
     path: string,
     value: Story | string | boolean
   ): Promise<Story | undefined>
+  purgeStory(href: string): Promise<void>
   addFilter(filter: string): Promise<void>
   fetchDocument(url: string): Promise<{ html: string; url: string }>
   openUrl(url: string, target: "_self" | "middle" | "blank" | string): void
@@ -115,10 +129,13 @@ export interface StoryStorePort {
   getStories(): Promise<Story[]>
   getStory(url: string): Promise<Story | null>
   saveStory(story: Story): Promise<Story>
+  deleteStory(url: string): Promise<void>
+  onDiagnostic?(handler: (error: DiagnosticError) => void): () => void
 }
 
 export interface SyncServicePort {
   syncFrom(couchdbUrl: string): void
+  onDiagnostic?(handler: (error: DiagnosticError) => void): () => void
 }
 
 export interface CacheStorePort {

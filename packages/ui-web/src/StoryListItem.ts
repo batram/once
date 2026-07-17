@@ -8,8 +8,10 @@ import { StoryHistory } from "./StoryHistory"
 import { SettingsPanel } from "./SettingsPanel"
 import { getOnceClient } from "./client"
 import * as Search from "./search"
+import { showConfirmDialog } from "./ConfirmDialog"
 
 export class StoryListItem extends HTMLElement {
+  static devToolsEnabled = false
   story: Story
   animated = false
   // assigned in story_html(), which the constructor always calls
@@ -32,6 +34,7 @@ export class StoryListItem extends HTMLElement {
     }
 
     this.story_html()
+
   }
 
   story_html(add_listeners = true): void {
@@ -147,6 +150,29 @@ export class StoryListItem extends HTMLElement {
       this.filter_btn.style.borderColor = "red"
     }
     this.button_group.appendChild(this.filter_btn)
+
+    if (StoryListItem.devToolsEnabled) {
+      const purgeButton = StoryListItem.icon_button("purge story", "purge_btn")
+      purgeButton.dataset.testid = "purge-story"
+      purgeButton.textContent = "×"
+      purgeButton.addEventListener("click", () => {
+        void showConfirmDialog({
+          message: "Delete this story from the local and synced remote database?",
+          confirmLabel: "Purge",
+          positionWithin:
+            this.closest<HTMLElement>("#stories_panel") ?? undefined
+        }).then(async (confirmed) => {
+          if (!confirmed) return
+          await getOnceClient().purgeStory(this.story.href)
+          document
+            .querySelectorAll<StoryListItem>(
+              `.story[data-href="${CSS.escape(this.story.href)}"]`
+            )
+            .forEach((element) => element.remove())
+        })
+      })
+      this.button_group.appendChild(purgeButton)
+    }
 
     presenters.add_story_elem_buttons(this, this.story)
     this.button_events()

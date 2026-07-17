@@ -37,6 +37,7 @@ export class PouchListStore {
           await tryUpdate(retryCount + 1)
         } else {
           console.error("pouch_set error:", err)
+          throw err
         }
       }
     }

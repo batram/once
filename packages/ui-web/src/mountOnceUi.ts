@@ -29,6 +29,7 @@ export async function mountOnceUi(
   options: MountOnceUiOptions
 ): Promise<void> {
   setOnceClient(client)
+  StoryListItem.devToolsEnabled = options.buildChannel === "dev"
   ReaderView.mount(client)
 
   const version = document.querySelector<HTMLElement>(
@@ -43,7 +44,9 @@ export async function mountOnceUi(
   }
 
   bindMenuCollapseControls(options.onMenuCollapsedChanged)
-  bindAppUpdateControls(options.updater)
+  bindAppUpdateControls(options.updater, (message, details) =>
+    LoaderInsights.showErrorMessage(message, details)
+  )
 
   const settingsPanel = new SettingsPanel(client)
   if (options.sourcePicker === false) {

@@ -1,4 +1,4 @@
-import { OnceClient, ProcessingSource, SourceError } from "@once/app"
+import { DiagnosticError, OnceClient, ProcessingSource, SourceError } from "@once/app"
 import { SettingsPanel } from "./SettingsPanel"
 import { requireElement } from "./dom"
 
@@ -7,6 +7,7 @@ type IssueType = "warning" | "error"
 interface UiIssue extends SourceError {
   id: string
   sourceIssue: boolean
+  logId?: string
 }
 
 const INFO_FADE_DELAY = 2500
@@ -26,19 +27,27 @@ export class LoaderInsights {
   private static sourceErrors: SourceError[] = []
   private static genericErrors: UiIssue[] = []
   private static dismissedIssues = new Set<string>()
-  private static warningTimeouts = new Map<
-    string,
-    ReturnType<typeof setTimeout>
-  >()
+  private static warningTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
   private static infoMessage = ""
   private static wasProcessing = false
   private static statusCollapsed = false
   private static infoTimeout: ReturnType<typeof setTimeout> | null = null
   private static commsRegistered = false
   private static genericIssueId = 0
+  private static errorLogId = 0
+  private static sourceErrorLogIds = new Map<string, string>()
 
   static init(client?: OnceClient): void {
     this.ensureUi()
+
+    document.querySelector("#clear_error_log")?.addEventListener("click", () => {
+      document.querySelector("#error_log")?.replaceChildren()
+      this.renderEmptyErrorLog()
+      this.updateSourceErrors([])
+      SettingsPanel.instance?.clearSourceErrors()
+    })
+
+    client?.getDiagnostics?.().forEach((error) => this.showDiagnostic(error))
 
     if (this.commsRegistered) return
     this.commsRegistered = true
@@ -47,6 +56,9 @@ export class LoaderInsights {
     })
     client?.subscribe("sourceErrorsChanged", ({ errors }) => {
       this.updateSourceErrors(errors)
+    })
+    client?.subscribe("diagnosticError", (error) => {
+      this.showDiagnostic(error)
     })
   }
 
@@ -88,22 +100,14 @@ export class LoaderInsights {
     this.activityIndicator = this.createIndicator("activity", "")
     this.warningIndicator = this.createIndicator("warning", "⚠")
     this.errorIndicator = this.createIndicator("error", "!")
-    this.dock.append(
-      this.activityIndicator,
-      this.warningIndicator,
-      this.errorIndicator
-    )
+    this.dock.append(this.activityIndicator, this.warningIndicator, this.errorIndicator)
     menu.append(this.dock)
     this.render()
   }
 
-  private static createIndicator(
-    type: "activity" | IssueType,
-    symbol: string
-  ): HTMLButtonElement {
+  private static createIndicator(type: "activity" | IssueType, symbol: string): HTMLButtonElement {
     const indicator = document.createElement("button")
-    indicator.id =
-      type === "activity" ? "status_bar_state" : `status_bar_${type}s`
+    indicator.id = type === "activity" ? "status_bar_state" : `status_bar_${type}s`
     indicator.classList.add("status_indicator", type)
     indicator.type = "button"
     indicator.hidden = true
@@ -154,6 +158,7 @@ export class LoaderInsights {
     if (errors.length === 0) {
       this.sourceErrors = []
       this.genericErrors = []
+      this.sourceErrorLogIds.clear()
       this.dismissedIssues.clear()
       this.clearWarningTimeouts()
       this.render()
@@ -176,6 +181,14 @@ export class LoaderInsights {
       if (!previousIds.has(id)) {
         this.dismissedIssues.delete(id)
         if (error.type === "warning") this.scheduleWarningDismiss(id)
+        this.sourceErrorLogIds.set(
+          id,
+          this.recordError(
+            error.title,
+            `${error.details || error.message}\n\nStory source: ${error.url}`,
+            error.url
+          )
+        )
       }
     }
     this.render()
@@ -186,7 +199,8 @@ export class LoaderInsights {
       ...this.sourceErrors.map((error) => ({
         ...error,
         id: this.issueId(error),
-        sourceIssue: true
+        sourceIssue: true,
+        logId: this.sourceErrorLogIds.get(this.issueId(error))
       })),
       ...this.genericErrors
     ]
@@ -198,9 +212,7 @@ export class LoaderInsights {
 
   private static toggleIssues(type: IssueType): void {
     const issues = this.issues().filter((issue) => issue.type === type)
-    const hasVisible = issues.some(
-      (issue) => !this.dismissedIssues.has(issue.id)
-    )
+    const hasVisible = issues.some((issue) => !this.dismissedIssues.has(issue.id))
 
     if (hasVisible) {
       for (const issue of issues) {
@@ -223,17 +235,52 @@ export class LoaderInsights {
     this.render()
   }
 
-  static showErrorMessage(message: string): void {
+  static showErrorMessage(message: string, details = message): void {
+    const logId = this.recordError(message, details)
     const issue: UiIssue = {
       id: `generic:error:${++this.genericIssueId}`,
       url: "",
       title: message,
       message,
       type: "error",
-      sourceIssue: false
+      sourceIssue: false,
+      logId
     }
     this.genericErrors.push(issue)
     this.dismissedIssues.delete(issue.id)
+    this.render()
+  }
+
+  private static showDiagnostic(error: DiagnosticError): void {
+    const context = [
+      error.sourceUrl ? `Story source: ${error.sourceUrl}` : "",
+      error.storyUrl ? `Story: ${error.storyUrl}` : "",
+      error.documentId ? `Document: ${error.documentId}` : ""
+    ].filter(Boolean)
+    const details = [
+      `Operation: ${error.operation}`,
+      ...context,
+      "",
+      error.details || error.message
+    ].join("\n")
+    const logId = this.recordError(
+      `[${error.operation}] ${error.message}`,
+      details,
+      error.sourceUrl,
+      error.storyUrl
+    )
+    const id = `generic:${error.severity}:${++this.genericIssueId}`
+    this.genericErrors.push({
+      id,
+      url: error.sourceUrl || error.storyUrl || "",
+      title: error.message,
+      message: error.message,
+      type: error.severity,
+      sourceIssue: false,
+      logId
+    })
+    this.dismissedIssues.delete(id)
+    if (error.severity === "warning") this.scheduleWarningDismiss(id)
     this.render()
   }
 
@@ -244,6 +291,62 @@ export class LoaderInsights {
   static showError(error: SourceError): void {
     const remaining = this.sourceErrors.filter((item) => item.url !== error.url)
     this.updateSourceErrors([...remaining, error])
+  }
+
+  private static recordError(
+    title: string,
+    details: string,
+    sourceUrl?: string,
+    storyUrl?: string
+  ): string {
+    const logId = `error-log-${++this.errorLogId}`
+    const log = document.querySelector<HTMLElement>("#error_log")
+    if (!log) return logId
+
+    log.querySelector(".error_log_empty")?.remove()
+    const entry = document.createElement("details")
+    entry.id = logId
+    entry.classList.add("error_log_entry")
+    if (sourceUrl) entry.dataset.sourceUrl = sourceUrl
+    if (storyUrl) entry.dataset.storyUrl = storyUrl
+    entry.tabIndex = -1
+
+    const summary = document.createElement("summary")
+    summary.textContent = title
+    const body = document.createElement("pre")
+    body.textContent = `${new Date().toLocaleString()}\n${details}`
+    entry.append(summary, body)
+    if (sourceUrl) {
+      const showSource = document.createElement("button")
+      showSource.type = "button"
+      showSource.classList.add("error_log_show_source")
+      showSource.textContent = "Show story source"
+      showSource.addEventListener("click", () => {
+        SettingsPanel.instance?.highlightSource(sourceUrl)
+      })
+      entry.append(showSource)
+    }
+    if (storyUrl) {
+      const showStory = document.createElement("button")
+      showStory.type = "button"
+      showStory.classList.add("error_log_show_story")
+      showStory.textContent = "Show story"
+      showStory.addEventListener("click", () => {
+        SettingsPanel.instance?.showStory(storyUrl)
+      })
+      entry.append(showStory)
+    }
+    log.append(entry)
+    return logId
+  }
+
+  private static renderEmptyErrorLog(): void {
+    const log = document.querySelector<HTMLElement>("#error_log")
+    if (!log || log.childElementCount > 0) return
+    const empty = document.createElement("p")
+    empty.classList.add("error_log_empty")
+    empty.textContent = "No errors recorded this session."
+    log.append(empty)
   }
 
   static hide(): void {
@@ -257,13 +360,7 @@ export class LoaderInsights {
   }
 
   private static render(): void {
-    if (
-      !this.surfaces ||
-      !this.bar ||
-      !this.message ||
-      !this.messageText ||
-      !this.activityIcon
-    ) {
+    if (!this.surfaces || !this.bar || !this.message || !this.messageText || !this.activityIcon) {
       return
     }
 
@@ -275,9 +372,7 @@ export class LoaderInsights {
       const domains = this.processing.map((item) => item.domain)
       text = `Loading ${count} ${count === 1 ? "source" : "sources"}`
       if (domains.length > 0) text += ` · ${domains.join(", ")}`
-      title = this.processing
-        .map((item) => `${item.domain} [${item.parserType}]`)
-        .join("\n")
+      title = this.processing.map((item) => `${item.domain} [${item.parserType}]`).join("\n")
     }
 
     const hasStatus = text.length > 0
@@ -291,11 +386,9 @@ export class LoaderInsights {
     this.renderIndicator(this.warningIndicator, "warning")
     this.renderIndicator(this.errorIndicator, "error")
     if (this.dock) {
-      this.dock.hidden = ![
-        this.activityIndicator,
-        this.warningIndicator,
-        this.errorIndicator
-      ].some((indicator) => indicator && !indicator.hidden)
+      this.dock.hidden = ![this.activityIndicator, this.warningIndicator, this.errorIndicator].some(
+        (indicator) => indicator && !indicator.hidden
+      )
     }
     this.renderIssues()
   }
@@ -319,21 +412,15 @@ export class LoaderInsights {
 
     const count = this.issues().filter((issue) => issue.type === type).length
     indicator.hidden = count === 0
-    const countEl = requireElement<HTMLElement>(
-      ".status_indicator_count",
-      indicator
-    )
+    const countEl = requireElement<HTMLElement>(".status_indicator_count", indicator)
     countEl.textContent = count.toString()
     const visible = this.issues().some(
-      (issue) =>
-        issue.type === type && !this.dismissedIssues.has(issue.id)
+      (issue) => issue.type === type && !this.dismissedIssues.has(issue.id)
     )
     indicator.classList.toggle("collapsed", !visible)
     indicator.setAttribute(
       "aria-label",
-      `${count} ${count === 1 ? type : `${type}s`}. ${
-        visible ? "Hide" : "Show"
-      } details.`
+      `${count} ${count === 1 ? type : `${type}s`}. ${visible ? "Hide" : "Show"} details.`
     )
     indicator.setAttribute("aria-expanded", String(visible))
     indicator.title = indicator.getAttribute("aria-label") || ""
@@ -341,9 +428,7 @@ export class LoaderInsights {
 
   private static renderIssues(): void {
     if (!this.surfaces) return
-    this.surfaces
-      .querySelectorAll(".status_issue_bubble")
-      .forEach((element) => element.remove())
+    this.surfaces.querySelectorAll(".status_issue_bubble").forEach((element) => element.remove())
 
     const allIssues = this.issues()
     const issues = allIssues
@@ -362,10 +447,8 @@ export class LoaderInsights {
       const content = document.createElement("button")
       content.type = "button"
       content.classList.add("status_issue_content")
-      content.disabled = !issue.sourceIssue
-      content.title = issue.sourceIssue
-        ? `${issue.message}\n${issue.url}`
-        : issue.message
+      content.disabled = !issue.sourceIssue && !issue.logId
+      content.title = issue.sourceIssue ? `${issue.message}\n${issue.url}` : issue.message
 
       const title = document.createElement("span")
       title.classList.add("status_issue_title")
@@ -379,7 +462,11 @@ export class LoaderInsights {
         content.append(source)
       }
 
-      if (issue.sourceIssue) {
+      if (issue.logId) {
+        content.addEventListener("click", () => {
+          SettingsPanel.instance?.showErrorLog(issue.logId as string)
+        })
+      } else if (issue.sourceIssue) {
         content.addEventListener("click", () => {
           SettingsPanel.instance?.highlightSource(issue.url)
         })

@@ -16,6 +16,15 @@ export interface PouchSyncDatabase {
 export class PouchSyncService {
   private syncHandler?: PouchEventChain
   private initialReplication?: PouchEventChain
+  private diagnosticHandlers = new Set<(error: {
+    severity: "warning" | "error"
+    operation: string
+    message: string
+    details?: string
+    sourceUrl?: string
+    storyUrl?: string
+    documentId?: string
+  }) => void>()
 
   constructor(
     private db: PouchSyncDatabase,
@@ -23,6 +32,35 @@ export class PouchSyncService {
     private createRemote: (url: string) => string | PouchSyncDatabase = (url) =>
       url
   ) {}
+
+  onDiagnostic(handler: (error: {
+    severity: "warning" | "error"
+    operation: string
+    message: string
+    details?: string
+    sourceUrl?: string
+    storyUrl?: string
+    documentId?: string
+  }) => void): () => void {
+    this.diagnosticHandlers.add(handler)
+    return () => this.diagnosticHandlers.delete(handler)
+  }
+
+  private report(operation: string, message: string, error: unknown): void {
+    let detail: string
+    if (error instanceof Error) {
+      detail = `${error.name}: ${error.message}${error.stack ? `\n${error.stack}` : ""}`
+    } else {
+      try {
+        detail = JSON.stringify(error, null, 2) || String(error)
+      } catch {
+        detail = String(error)
+      }
+    }
+    this.diagnosticHandlers.forEach((handler) =>
+      handler({ severity: "error", operation, message, details: detail })
+    )
+  }
 
   syncFrom(couchdbUrl: string): void {
     const syncOps = {
@@ -35,8 +73,15 @@ export class PouchSyncService {
     this.syncHandler?.cancel?.()
     this.syncHandler = undefined
 
-    const remote = this.createRemote(couchdbUrl)
-    const initialReplication = this.db.replicate.from(remote)
+    let remote: string | PouchSyncDatabase
+    let initialReplication: PouchEventChain
+    try {
+      remote = this.createRemote(couchdbUrl)
+      initialReplication = this.db.replicate.from(remote)
+    } catch (error) {
+      this.report("sync.configure", "Database synchronization could not start", error)
+      return
+    }
     this.initialReplication = initialReplication
 
     initialReplication
@@ -54,9 +99,15 @@ export class PouchSyncService {
           })
           .on("error", (err: unknown) => {
             console.error("pouch err", err)
+            this.report("sync.live", "Database synchronization failed", err)
           })
           .on("denied", (err: unknown) => {
             console.error("pouch denied", err)
+            this.report(
+              "sync.denied",
+              "The remote database denied a synchronized change",
+              err
+            )
           })
           .on("paused", () => {
             console.info("pouch paused")
@@ -67,6 +118,7 @@ export class PouchSyncService {
           this.initialReplication = undefined
         }
         console.error("pouch sync error", e)
+        this.report("sync.initial", "Initial database synchronization failed", e)
       })
   }
 }

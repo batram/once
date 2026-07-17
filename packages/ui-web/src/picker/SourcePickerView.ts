@@ -1,6 +1,7 @@
 import { OnceClient } from "@once/app"
 import { build_source, sanitize_selector_conf } from "@once/collectors/geny"
 import { SettingsPanel } from "../SettingsPanel"
+import { LoaderInsights } from "../LoaderInsights"
 
 declare const browser: {
   runtime?: {
@@ -119,6 +120,12 @@ export class SourcePickerView {
   private static showError(error: unknown): void {
     const detail = error instanceof Error ? error.message : String(error)
     SourcePickerView.setStatus(`Source picking failed: ${detail}`)
+    LoaderInsights.showErrorMessage(
+      `Source picking failed: ${detail}`,
+      `Operation: source-picker\n\n${
+        error instanceof Error ? error.stack || error.message : String(error)
+      }`
+    )
   }
 
   private static setStatus(text: string): void {

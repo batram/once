@@ -13,6 +13,7 @@ import * as StoryParser from "@once/collectors"
 import {
   AnimationSetting,
   DatabaseChange,
+  DiagnosticError,
   OnceClient,
   OnceEventHandler,
   OnceEventName,
@@ -30,6 +31,8 @@ export class OnceApp {
   private readonly stories = new Map<string, Story>()
   private readonly comments = new Map<string, string>()
   private readonly sourceErrors = new Map<string, SourceError>()
+  private readonly diagnostics: DiagnosticError[] = []
+  private readonly diagnosticKeys = new Set<string>()
   private readonly menuGroups = new Set<string>()
   private readonly menuTypes = new Set<string>([
     "ALL",
@@ -48,21 +51,48 @@ export class OnceApp {
   }
 
   async start(): Promise<void> {
+    this.platform.storyStore.onDiagnostic?.((error) => this.reportDiagnostic(error))
+    this.platform.syncService?.onDiagnostic?.((error) =>
+      this.reportDiagnostic(error)
+    )
     this.platform.onDatabaseChange?.((change) => {
       this.handleDatabaseChange(change)
     })
 
-    const storedStories = await this.platform.storyStore.getStories()
+    let storedStories: Story[] = []
+    try {
+      storedStories = await this.platform.storyStore.getStories()
+    } catch (error) {
+      this.reportDiagnostic({
+        severity: "error",
+        operation: "story.load-all",
+        message: "Stored stories could not be loaded",
+        details: errorDetails(error)
+      })
+    }
     storedStories.forEach((story) => this.setStory(story.href, story, true))
     this.internalMapReady = true
 
-    this.animated = await this.getAnimation()
-    this.platform.theme.setTheme(await this.getTheme())
-    await this.refreshRedirects()
-
-    const syncUrl = await this.getSyncUrl()
-    if (syncUrl) {
-      this.platform.syncService?.syncFrom(syncUrl)
+    try {
+      this.animated = await this.getAnimation()
+    } catch (error) {
+      this.reportStartupSettingError("animation", error)
+    }
+    try {
+      this.platform.theme.setTheme(await this.getTheme())
+    } catch (error) {
+      this.reportStartupSettingError("theme", error)
+    }
+    try {
+      await this.refreshRedirects()
+    } catch (error) {
+      this.reportStartupSettingError("redirects", error)
+    }
+    try {
+      const syncUrl = await this.getSyncUrl()
+      if (syncUrl) this.platform.syncService?.syncFrom(syncUrl)
+    } catch (error) {
+      this.reportStartupSettingError("sync", error)
     }
 
     this.platform.activeTab?.onSelectedUrlChanged((url) => {
@@ -76,6 +106,7 @@ export class OnceApp {
 
   private createClient(): OnceClient {
     return {
+      getDiagnostics: () => [...this.diagnostics],
       getStorySources: () => this.getStorySources(),
       saveStorySources: (storySources) => this.saveStorySources(storySources),
       getFilterList: () => this.getFilterList(),
@@ -96,6 +127,7 @@ export class OnceApp {
       settledStoryWrites: () => this.settledStoryWrites(),
       persistStoryChange: (href, path, value) =>
         this.persistStoryChange(href, path, value),
+      purgeStory: (href) => this.purgeStory(href),
       addFilter: (filter) => this.addFilter(filter),
       fetchDocument: (url) => this.fetchDocument(url),
       openUrl: (url, target) => this.openUrl(url, target),
@@ -136,7 +168,7 @@ export class OnceApp {
   }
 
   private async getStorySources(): Promise<string[]> {
-    return this.platform.listStore.get("story_sources", defaultSources)
+    return this.getListSetting("story_sources", defaultSources)
   }
 
   private async saveStorySources(storySources: string[]): Promise<void> {
@@ -146,7 +178,7 @@ export class OnceApp {
   }
 
   private async getFilterList(): Promise<string[]> {
-    return this.platform.listStore.get("filter_list", defaultFilterList)
+    return this.getListSetting("filter_list", defaultFilterList)
   }
 
   private async saveFilterList(filterList: string[]): Promise<void> {
@@ -156,7 +188,7 @@ export class OnceApp {
   }
 
   private async getRedirectList(): Promise<Redirect[]> {
-    return this.platform.listStore.get("redirect_list", defaultRedirectList)
+    return this.getListSetting("redirect_list", defaultRedirectList)
   }
 
   private async saveRedirectList(redirectList: Redirect[]): Promise<void> {
@@ -174,25 +206,60 @@ export class OnceApp {
       if (this.pendingSettingWrites.get(id) === serialized) {
         this.pendingSettingWrites.delete(id)
       }
+      this.reportDiagnostic({
+        severity: "error",
+        operation: `settings.save.${id}`,
+        message: `Failed to save ${id.replaceAll("_", " ")}`,
+        details: errorDetails(error)
+      })
       throw error
     }
   }
 
-  private getSyncUrl(): Promise<string> {
-    return this.platform.syncSettingsStore.getSyncUrl()
+  private async getListSetting<T>(id: string, fallback: T): Promise<T> {
+    try {
+      return await this.platform.listStore.get(id, fallback)
+    } catch (error) {
+      this.reportStartupSettingError(id, error)
+      return fallback
+    }
+  }
+
+  private async getSyncUrl(): Promise<string> {
+    try {
+      return await this.platform.syncSettingsStore.getSyncUrl()
+    } catch (error) {
+      this.reportStartupSettingError("sync", error)
+      return ""
+    }
   }
 
   private async setSyncUrl(syncUrl: string): Promise<void> {
     const oldUrl = await this.getSyncUrl()
     if (syncUrl !== oldUrl) {
-      await this.platform.syncSettingsStore.setSyncUrl(syncUrl)
+      try {
+        await this.platform.syncSettingsStore.setSyncUrl(syncUrl)
+      } catch (error) {
+        this.reportDiagnostic({
+          severity: "error",
+          operation: "settings.save.sync",
+          message: "The sync setting could not be saved",
+          details: errorDetails(error)
+        })
+        throw error
+      }
       this.platform.syncService?.syncFrom(syncUrl)
     }
     this.events.publish("settingsChanged", { section: "sync" })
   }
 
-  private getCacheTime(): Promise<number> {
-    return this.platform.syncSettingsStore.getCacheTime()
+  private async getCacheTime(): Promise<number> {
+    try {
+      return await this.platform.syncSettingsStore.getCacheTime()
+    } catch (error) {
+      this.reportStartupSettingError("cache", error)
+      return 120
+    }
   }
 
   private async setCacheTime(cacheTime: string): Promise<void> {
@@ -201,12 +268,22 @@ export class OnceApp {
       this.events.publish("settingsChanged", { section: "cache" })
       return
     }
-    await this.platform.syncSettingsStore.setCacheTime(cacheTime)
+    try {
+      await this.platform.syncSettingsStore.setCacheTime(cacheTime)
+    } catch (error) {
+      this.reportDiagnostic({
+        severity: "error",
+        operation: "settings.save.cache",
+        message: "The cache setting could not be saved",
+        details: errorDetails(error)
+      })
+      throw error
+    }
     this.events.publish("settingsChanged", { section: "cache" })
   }
 
   private getTheme(): Promise<ThemeName> {
-    return this.platform.listStore.get("theme", "dark" as ThemeName)
+    return this.getListSetting("theme", "dark" as ThemeName)
   }
 
   private async setTheme(theme: ThemeName): Promise<void> {
@@ -221,7 +298,7 @@ export class OnceApp {
   }
 
   private getAnimation(): Promise<AnimationSetting> {
-    return this.platform.listStore.get("animation", true)
+    return this.getListSetting("animation", true)
   }
 
   private async setAnimation(animated: AnimationSetting): Promise<void> {
@@ -454,7 +531,8 @@ export class OnceApp {
       url: sourceUrl,
       title,
       message: errorDetail,
-      type: "error"
+      type: "error",
+      details: errorDetails(error)
     })
   }
 
@@ -549,6 +627,13 @@ export class OnceApp {
       settle()
       // Many UI callers fire and forget; keep failed saves visible.
       console.error(`Failed to save story ${href}`, error)
+      this.reportDiagnostic({
+        severity: "error",
+        operation: "story.save",
+        message: "A story change could not be saved",
+        storyUrl: href,
+        details: errorDetails(error)
+      })
     })
     return write
   }
@@ -677,6 +762,26 @@ export class OnceApp {
     })
   }
 
+  private async purgeStory(href: string): Promise<void> {
+    await this.settledStoryWrites()
+    try {
+      await this.platform.storyStore.deleteStory(href)
+    } catch (error) {
+      this.reportDiagnostic({
+        severity: "error",
+        operation: "story.delete",
+        message: "The story could not be purged",
+        storyUrl: href,
+        details: errorDetails(error)
+      })
+      throw error
+    }
+    this.stories.delete(href)
+    for (const [url, storyHref] of this.comments) {
+      if (storyHref === href) this.comments.delete(url)
+    }
+  }
+
   private emitDataChange(
     path: string[],
     value: unknown,
@@ -697,6 +802,23 @@ export class OnceApp {
     this.events.publish("storyChanged", detail)
   }
 
+  private reportDiagnostic(error: DiagnosticError): void {
+    const key = JSON.stringify(error)
+    if (this.diagnosticKeys.has(key)) return
+    this.diagnosticKeys.add(key)
+    this.diagnostics.push(error)
+    this.events.publish("diagnosticError", error)
+  }
+
+  private reportStartupSettingError(setting: string, error: unknown): void {
+    this.reportDiagnostic({
+      severity: "error",
+      operation: `settings.load.${setting}`,
+      message: `The ${setting} setting could not be loaded; using defaults`,
+      details: errorDetails(error)
+    })
+  }
+
   private async selectUrl(url: string): Promise<void> {
     this.events.publish("selectedUrlChanged", { url })
   }
@@ -713,6 +835,15 @@ export class OnceApp {
   }
 
   private handleDatabaseChange(change: DatabaseChange): void {
+    if (change.id.startsWith("sto_") && change.doc?._deleted) {
+      const href = change.id.substring("sto_".length)
+      this.stories.delete(href)
+      for (const [url, storyHref] of this.comments) {
+        if (storyHref === href) this.comments.delete(url)
+      }
+      return
+    }
+
     if (change.id.startsWith("sto_") && change.doc) {
       const changedStory = Story.from_obj(change.doc)
       const stored = this.getStory(changedStory.href)
@@ -770,6 +901,13 @@ export class OnceApp {
 function revisionOrdinal(rev: unknown): number {
   const ordinal = Number.parseInt(String(rev ?? ""), 10)
   return Number.isFinite(ordinal) ? ordinal : 0
+}
+
+function errorDetails(error: unknown): string {
+  if (!(error instanceof Error)) return String(error)
+  return [error.name + ": " + error.message, error.stack]
+    .filter(Boolean)
+    .join("\n")
 }
 
 export function createOnceApp(platform: OncePlatformPorts): OnceApp {

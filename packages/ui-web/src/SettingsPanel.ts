@@ -2,7 +2,6 @@ import { OnceClient, SourceError, ThemeName } from "@once/app"
 import { parseRedirectList, presentRedirectList } from "@once/core"
 import { requireClosestElement, requireElement } from "./dom"
 import * as menu from "./menu"
-import { showConfirmDialog } from "./ConfirmDialog"
 
 export class SettingsPanel {
   static instance: SettingsPanel
@@ -212,13 +211,7 @@ export class SettingsPanel {
           icon.style.pointerEvents = "auto"
           icon.style.cursor = "pointer"
           icon.onclick = () => {
-            void showConfirmDialog({
-              message: `${
-                isWarning ? "Warning" : "Error"
-              } loading source:\n${sourceError.message}`,
-              cancelLabel: null,
-              positionWithin: requireElement<HTMLElement>("#settings_panel")
-            })
+            this.showSourceErrorLog(sourceError.url)
           }
           lineContainer.appendChild(icon)
 
@@ -334,6 +327,44 @@ export class SettingsPanel {
         this.save_cache_settings()
       }
     })
+  }
+
+  showErrorLog(logId: string): void {
+    menu.open_panel("settings")
+    requestAnimationFrame(() => {
+      const entry = document.querySelector<HTMLDetailsElement>(`#${logId}`)
+      if (!entry) return
+      entry.open = true
+      entry.scrollIntoView({ block: "center" })
+      entry.focus()
+    })
+  }
+
+  showSourceErrorLog(sourceUrl: string): void {
+    menu.open_panel("settings")
+    requestAnimationFrame(() => {
+      const entries = Array.from(
+        document.querySelectorAll<HTMLDetailsElement>(
+          "#error_log .error_log_entry[data-source-url]"
+        )
+      ).filter((entry) => entry.dataset.sourceUrl === sourceUrl)
+      const latest = entries[entries.length - 1]
+      if (!latest) return
+      entries.forEach((entry) => {
+        entry.open = true
+      })
+      latest.scrollIntoView({ block: "center" })
+      latest.focus()
+    })
+  }
+
+  clearSourceErrors(): void {
+    this.setSourceErrors([])
+  }
+
+  showStory(storyUrl: string): void {
+    menu.open_panel("stories")
+    void this.client.selectUrl(storyUrl)
   }
 
   async reset_couch_settings(): Promise<void> {

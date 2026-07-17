@@ -133,7 +133,7 @@ test("opens stories via title click, middle click, and comment links", async () 
   }
 })
 
-test("stacks, dismisses, restores, and opens source issues", async () => {
+test("stacks, dismisses, restores, and opens source issues through the error log", async () => {
   const { electronApp, userData, window } = await launchApp(STORY_ENV)
   try {
     const warningOne = "https://invalid-one.example/unknown"
@@ -186,6 +186,12 @@ test("stacks, dismisses, restores, and opens source issues", async () => {
       "settings"
     )
     await expect(window.locator("#status_dock")).toBeVisible()
+    const logEntry = window
+      .locator("#error_log .error_log_entry")
+      .filter({ hasText: failingSource })
+    await expect(logEntry).toBeVisible()
+    await expect(logEntry).toHaveAttribute("open", "")
+    await logEntry.locator(".error_log_show_source").click()
     await expect.poll(() => sources.evaluate((textarea) =>
       textarea.value.slice(textarea.selectionStart, textarea.selectionEnd)
     )).toBe(failingSource)

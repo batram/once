@@ -141,4 +141,10 @@ test("publishes story persistence failures as source errors", async () => {
   const error = sourceErrors.at(-1)[0]
   assert.equal(error.title, "Failed")
   assert.match(error.message, /disk full/)
+  const diagnostic = app.client
+    .getDiagnostics()
+    .find((entry) => entry.operation === "story.save")
+  assert.ok(diagnostic)
+  assert.equal(diagnostic.storyUrl, "https://example.com/reddit")
+  assert.match(diagnostic.details, /disk full/)
 })

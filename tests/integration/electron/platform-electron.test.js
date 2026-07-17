@@ -100,6 +100,8 @@ test("cancels old CouchDB work when the sync URL changes", () => {
     (change) => changes.push(change),
     (url) => ({ remote: url })
   )
+  const diagnostics = []
+  service.onDiagnostic((error) => diagnostics.push(error))
 
   service.syncFrom("https://one.example/db")
   service.syncFrom("https://two.example/db")
@@ -113,6 +115,9 @@ test("cancels old CouchDB work when the sync URL changes", () => {
 
   syncs[0].chain.emit("change", { ok: true })
   assert.deepEqual(changes, [{ ok: true }])
+  syncs[0].chain.emit("denied", { status: 403, message: "forbidden" })
+  assert.equal(diagnostics[0].operation, "sync.denied")
+  assert.match(diagnostics[0].details, /forbidden/)
   service.syncFrom("https://three.example/db")
   assert.equal(syncs[0].chain.cancelled, true)
 })

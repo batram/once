@@ -40,6 +40,60 @@
   color: var(--text-color);
 }
 
+.settings_error_log_header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+#error_log {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 6px;
+}
+
+.error_log_entry {
+  background: var(--input-bg-color);
+  border: 1px solid var(--border-color);
+  border-left: 3px solid #e05252;
+  padding: 8px;
+}
+
+.error_log_entry:focus {
+  border-color: var(--text-high-color);
+  outline: none;
+}
+
+.error_log_entry summary {
+  cursor: pointer;
+  font-weight: bold;
+  overflow-wrap: anywhere;
+}
+
+.error_log_entry pre {
+  font: 11px/1.4 "Courier New", monospace;
+  margin: 8px 0 0;
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.error_log_show_source,
+.error_log_show_story {
+  margin-top: 8px;
+}
+
+.error_log_show_story {
+  margin-left: 6px;
+}
+
+.error_log_empty {
+  color: var(--text-color);
+  margin: 0;
+  opacity: 0.7;
+}
+
 /* Textareas are now styled via .input_container */
 
 /* Highlightable Textarea Styles */
