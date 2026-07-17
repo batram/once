@@ -249,6 +249,14 @@ Release output is written below `apps/electron/out` and dev-channel output
 below `apps/electron/out/dev`, so the two channels never mix make artifacts;
 neither variant signs the resulting application.
 
+Each unpacked or ZIP distribution has a profile keyed to its containing
+directory. Copies extracted to different directories can run at the same time
+without sharing Chromium state or the Once database. Launching the executable
+from the same directory again retains the usual single-instance behavior and
+opens a window in the running process. Moving a portable distribution gives it
+a new profile. Squirrel-installed builds keep the channel's historical profile
+path so application updates do not move or reset user data.
+
 The Electron build channel is fixed at build time: `npm run start:electron`
 runs as dev-channel, `package:electron`/`make:electron` produce release-channel
 output, and the `:dev` variants produce a dev-channel bundle. A dev bundle is

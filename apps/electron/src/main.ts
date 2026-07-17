@@ -32,16 +32,16 @@ import {
   configureErrorPageProtocol,
   registerErrorPageScheme
 } from "./browser/ErrorPageProtocol"
+import {
+  installedAppUserModelId,
+  windowsInstanceIdentity
+} from "./WindowsInstanceIdentity"
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string
 declare const __ONCE_BUILD_CHANNEL__: "release" | "dev"
 
 if (started) app.quit()
-
-if (process.platform === "win32") {
-  app.setAppUserModelId("com.squirrel.once.once")
-}
 
 app.userAgentFallback = app.userAgentFallback.replace(/\sElectron\/[^\s]+/, "") +
   ` (Once/${app.getVersion()})`
@@ -51,6 +51,32 @@ registerErrorPageScheme()
 
 if (process.env.ONCE_ELECTRON_TEST_USER_DATA) {
   app.setPath("userData", process.env.ONCE_ELECTRON_TEST_USER_DATA)
+}
+
+if (process.platform === "win32") {
+  const updateExecutable = path.resolve(
+    path.dirname(process.execPath),
+    "..",
+    "Update.exe"
+  )
+  const instanceIdentity = process.env.ONCE_ELECTRON_TEST_USER_DATA
+    ? null
+    : windowsInstanceIdentity({
+      buildChannel: __ONCE_BUILD_CHANNEL__,
+      executablePath: process.execPath,
+      isPackaged: app.isPackaged,
+      platform: process.platform,
+      squirrelUpdateExists: existsSync(updateExecutable),
+      userDataPath: app.getPath("userData")
+    })
+
+  if (instanceIdentity) {
+    app.setPath("userData", instanceIdentity.userDataPath)
+  }
+  app.setAppUserModelId(
+    instanceIdentity?.appUserModelId ??
+      installedAppUserModelId(__ONCE_BUILD_CHANNEL__)
+  )
 }
 
 const hasLock = app.requestSingleInstanceLock()
