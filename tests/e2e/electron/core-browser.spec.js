@@ -13,28 +13,51 @@ test.afterAll(async () => {
   await pageServer.close()
 })
 
-test("drags the window from the custom title bar", async () => {
-  test.skip(process.platform !== "darwin", "macOS custom title bar behavior")
-
+test("keeps the title bar draggable and interactive controls no-drag", async () => {
   const { electronApp, userData, window } = await launchApp()
   try {
-    const before = await electronApp.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows()[0].getBounds()
-    )
+    // The OS handles app-region dragging natively, so synthetic mouse events
+    // cannot move the window. Assert the effective region at the points a
+    // user would grab instead: the topmost element wins, so this also fails
+    // if a no-drag element ever covers the drag area.
+    const regionAt = (point) =>
+      window.evaluate(({ x, y }) => {
+        for (
+          let node = document.elementFromPoint(x, y);
+          node;
+          node = node.parentElement
+        ) {
+          const region = getComputedStyle(node).getPropertyValue("app-region")
+          if (region && region !== "none") return region
+        }
+        return "none"
+      }, point)
+
+    expect(await electronApp.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].isMovable()
+    )).toBe(true)
+
     const titlebar = await window.locator("#titlebar").boundingBox()
     expect(titlebar).not.toBeNull()
+    await expect.poll(() => regionAt({
+      x: titlebar.x + titlebar.width - 20,
+      y: titlebar.y + titlebar.height / 2
+    })).toBe("drag")
 
-    const startX = titlebar.x + titlebar.width - 20
-    const startY = titlebar.y + titlebar.height / 2
-    await window.mouse.move(startX, startY)
-    await window.mouse.down()
-    await window.mouse.move(startX + 40, startY + 30, { steps: 10 })
-    await window.mouse.up()
-
-    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => {
-      const bounds = BrowserWindow.getAllWindows()[0].getBounds()
-      return { x: bounds.x, y: bounds.y }
-    })).not.toEqual({ x: before.x, y: before.y })
+    const newTabButton = await window.locator("#new_tab_btn").boundingBox()
+    const tab = await window.locator(".electron-tab").boundingBox()
+    await expect.poll(() => regionAt({
+      x: newTabButton.x + newTabButton.width + 20,
+      y: newTabButton.y + newTabButton.height / 2
+    })).toBe("drag")
+    await expect.poll(() => regionAt({
+      x: newTabButton.x + newTabButton.width / 2,
+      y: newTabButton.y + newTabButton.height / 2
+    })).toBe("no-drag")
+    await expect.poll(() => regionAt({
+      x: tab.x + tab.width / 2,
+      y: tab.y + tab.height / 2
+    })).toBe("no-drag")
   } finally {
     await closeApp(electronApp, userData)
   }
