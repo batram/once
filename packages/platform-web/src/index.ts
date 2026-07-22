@@ -21,12 +21,22 @@ class WebStoryStore {
     return "sto_" + url
   }
 
-  async getStories(): Promise<Story[]> {
-    return Object.keys(window.localStorage)
+  async getStories(limit?: number): Promise<Story[]> {
+    const stories = Object.keys(window.localStorage)
       .filter((key) => key.startsWith("once:story:"))
       .map((key) => window.localStorage.getItem(key))
       .filter((stored): stored is string => stored !== null)
       .map((stored) => Story.from_obj(JSON.parse(stored)))
+    return limit === undefined ? stories : stories.slice(0, limit)
+  }
+
+  async getStoriesByUrls(urls: string[]): Promise<Map<string, Story>> {
+    const entries = await Promise.all(
+      urls.map(async (url) => [url, await this.getStory(url)] as const)
+    )
+    return new Map(
+      entries.filter((entry): entry is readonly [string, Story] => entry[1] !== null)
+    )
   }
 
   async getStory(url: string): Promise<Story | null> {

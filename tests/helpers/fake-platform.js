@@ -26,7 +26,13 @@ function createFakePlatform(stories = [], options = {}) {
       },
       storyStore: {
         storyId: (url) => `sto_${url}`,
-        async getStories() { return Array.from(savedStories.values()) },
+        async getStories(limit) {
+          const stories = Array.from(savedStories.values())
+          return limit === undefined ? stories : stories.slice(0, limit)
+        },
+        async getStoriesByUrls(urls) {
+          return new Map(urls.flatMap((url) => savedStories.has(url) ? [[url, savedStories.get(url)]] : []))
+        },
         async getStory(url) { return savedStories.get(url) || null },
         async saveStory(story) {
           savedStories.set(story.href, story)

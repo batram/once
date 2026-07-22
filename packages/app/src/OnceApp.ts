@@ -43,7 +43,6 @@ export class OnceApp {
   // Suppress local PouchDB echoes already applied by save methods.
   private readonly pendingSettingWrites = new Map<string, string>()
   private readonly storyWrites = new Map<string, Promise<Story>>()
-  private internalMapReady = false
   private animated = true
 
   constructor(private platform: OncePlatformPorts) {
@@ -58,20 +57,6 @@ export class OnceApp {
     this.platform.onDatabaseChange?.((change) => {
       this.handleDatabaseChange(change)
     })
-
-    let storedStories: Story[] = []
-    try {
-      storedStories = await this.platform.storyStore.getStories()
-    } catch (error) {
-      this.reportDiagnostic({
-        severity: "error",
-        operation: "story.load-all",
-        message: "Stored stories could not be loaded",
-        details: errorDetails(error)
-      })
-    }
-    storedStories.forEach((story) => this.setStory(story.href, story, true))
-    this.internalMapReady = true
 
     try {
       this.animated = await this.getAnimation()
@@ -122,7 +107,7 @@ export class OnceApp {
       getAnimation: () => this.getAnimation(),
       setAnimation: (animated) => this.setAnimation(animated),
       reloadStories: (tryCache = true) => this.reloadStories(tryCache),
-      getStories: async () => Array.from(this.stories.values()),
+      getStories: () => this.getWorkingStories(),
       findStoryByUrl: async (url) => this.findStoryByUrl(url),
       settledStoryWrites: () => this.settledStoryWrites(),
       persistStoryChange: (href, path, value) =>
@@ -590,16 +575,25 @@ export class OnceApp {
   }
 
   private async addStories(stories: Story[]): Promise<Story[]> {
-    return Promise.all(stories.map((story) => this.addStory(story)))
+    const stored = await this.platform.storyStore.getStoriesByUrls(
+      stories.map((story) => story.href)
+    )
+    return Promise.all(
+      stories.map((story) => this.addStory(story, "stories", stored.get(story.href)))
+    )
   }
 
   private getAllStared(): Story[] {
     return Array.from(this.stories.values()).filter((story) => story.stared)
   }
 
-  private addStory(newStory: Story, bucket = "stories"): Promise<Story> {
+  private addStory(
+    newStory: Story,
+    bucket = "stories",
+    storedStory?: Story
+  ): Promise<Story> {
     return this.queueStoryWrite(newStory.href, () =>
-      this.addStoryNow(newStory, bucket)
+      this.addStoryNow(newStory, bucket, storedStory)
     )
   }
 
@@ -648,7 +642,8 @@ export class OnceApp {
 
   private async addStoryNow(
     newStory: Story,
-    bucket = "stories"
+    bucket = "stories",
+    storedStory?: Story
   ): Promise<Story> {
     if (!(newStory instanceof Story)) {
       throw new Error("Please, only add Story instances")
@@ -656,13 +651,8 @@ export class OnceApp {
     Story.assertIngestible(newStory)
 
     newStory.bucket = bucket
-    let oldStory: Story | null | undefined
-
-    if (this.internalMapReady) {
-      oldStory = this.getStory(newStory.href)
-    } else {
-      oldStory = await this.platform.storyStore.getStory(newStory.href)
-    }
+    let oldStory: Story | null | undefined =
+      this.getStory(newStory.href) ?? storedStory
 
     if (!oldStory) {
       newStory = this.setStory(newStory.href.toString(), newStory)
@@ -712,7 +702,15 @@ export class OnceApp {
     return oldStory
   }
 
-  private findStoryByUrl(url: string): Story | null {
+  private async getWorkingStories(): Promise<Story[]> {
+    if (this.stories.size === 0) {
+      const stored = await this.platform.storyStore.getStories(500)
+      stored.forEach((story) => this.setStory(story.href, story, true))
+    }
+    return Array.from(this.stories.values())
+  }
+
+  private async findStoryByUrl(url: string): Promise<Story | null> {
     const story = this.lookupStory(url)
     if (story) {
       return story
@@ -720,9 +718,13 @@ export class OnceApp {
     //the url might be the rewritten form of a story href
     const original = URLRedirect.original_url(url)
     if (original !== url) {
-      return this.lookupStory(original)
+      const rewritten = this.lookupStory(original)
+      if (rewritten) return rewritten
     }
-    return null
+    const stored = await this.platform.storyStore.getStory(original)
+    if (stored) return this.setStory(stored.href, stored, true)
+    await this.getWorkingStories()
+    return this.lookupStory(url) ?? this.lookupStory(URLRedirect.original_url(url))
   }
 
   private lookupStory(url: string): Story | null {
@@ -742,7 +744,11 @@ export class OnceApp {
     path: string,
     value: Story | string | boolean
   ): Promise<Story | undefined> {
-    const story = this.getStory(href)
+    let story = this.getStory(href)
+    if (!story) {
+      const stored = await this.platform.storyStore.getStory(href)
+      if (stored) story = this.setStory(stored.href, stored, true)
+    }
     if (!story) return undefined
 
     const previousValue = story[path]
@@ -847,6 +853,7 @@ export class OnceApp {
     if (change.id.startsWith("sto_") && change.doc) {
       const changedStory = Story.from_obj(change.doc)
       const stored = this.getStory(changedStory.href)
+      if (!stored) return
       if (stored && stored._rev) {
         if (stored._rev == change.doc._rev) return
         // The feed can echo an older local write after a newer one already

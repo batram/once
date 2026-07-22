@@ -43,11 +43,12 @@ export class PouchStoryStore<TStory extends Story> {
     return "sto_" + url
   }
 
-  async getStories(): Promise<TStory[]> {
+  async getStories(limit?: number): Promise<TStory[]> {
     const response = await this.db.allDocs({
       include_docs: true,
       startkey: this.storyId("h"),
-      endkey: this.storyId("i")
+      endkey: this.storyId("i"),
+      ...(limit === undefined ? {} : { limit })
     })
 
     return response.rows
@@ -56,6 +57,21 @@ export class PouchStoryStore<TStory extends Story> {
         const doc = entry.doc as Record<string, unknown>
         return this.storyFromDocument(doc)
       })
+  }
+
+  async getStoriesByUrls(urls: string[]): Promise<Map<string, TStory>> {
+    if (urls.length === 0) return new Map()
+    const response = await this.db.allDocs({
+      include_docs: true,
+      keys: urls.map((url) => this.storyId(url))
+    })
+    const stories = new Map<string, TStory>()
+    response.rows.forEach((entry) => {
+      if (!entry.doc) return
+      const story = this.storyFromDocument(entry.doc as Record<string, unknown>)
+      stories.set(story.href, story)
+    })
+    return stories
   }
 
   async getStory(url: string): Promise<TStory | null> {
