@@ -7,7 +7,7 @@ const {
   STORY_TITLE,
   startGenyFixture
 } = require("../shared/geny-fixture")
-const { openExtensionPanel } = require("./firefox-panel")
+const { openExtensionPanel, systemAccessService } = require("./firefox-panel")
 
 test(
   "Firefox genymatch extracts innerText from fetched HTML",
@@ -17,7 +17,6 @@ test(
     const extensionUuid = "00000000-0000-4000-8000-000000000001"
     const options = new firefox.Options()
       .addArguments("-no-remote")
-      .addArguments("-remote-allow-system-access")
       .setPreference(
         "extensions.webextensions.uuids",
         JSON.stringify({ [expectedAddonId]: extensionUuid })
@@ -28,6 +27,7 @@ test(
     const driver = await new Builder()
       .forBrowser("firefox")
       .setFirefoxOptions(options)
+      .setFirefoxService(systemAccessService())
       .build()
     const fixture = await startGenyFixture()
     try {

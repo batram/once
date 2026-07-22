@@ -237,10 +237,15 @@ because the revamped sidebar hosts it in a nested browsing context that
 WebDriver/BiDi cannot address as a first-class target. Instead the helper
 switches to the privileged chrome context and lets the browser itself open the
 panel URL with the system principal (a navigation Firefox still permits), then
-drives that normal content tab. This requires launching Firefox with
-`-remote-allow-system-access`. The helper also hides the sidebar that auto-opens
-on install, and "reloads" by closing and reopening the tab, because WebDriver
-refresh is likewise rejected for `moz-extension://` pages.
+drives that normal content tab. This requires granting system access to the
+geckodriver process via its `--allow-system-access` flag (wired up by the
+helper's `systemAccessService()` and `Builder.setFirefoxService`). Note it must
+be given to geckodriver, not to Firefox: geckodriver 0.36+ owns that flag and
+rejects the Firefox arg `-remote-allow-system-access` when passed through
+capabilities ("can't be set via capabilities"), which is why the older
+capabilities form failed on macOS/Linux CI. The helper also hides the sidebar
+that auto-opens on install, and "reloads" by closing and reopening the tab,
+because WebDriver refresh is likewise rejected for `moz-extension://` pages.
 
 ```bash
 # Windows outputs
