@@ -1,5 +1,3 @@
-/* Mobile design language — see docs/MOBILE_DESIGN.md */
-
 body[data-platform="mobile"] {
   /* spacing scale (4pt grid) */
   --m-sp-1: 4px;
@@ -87,7 +85,8 @@ body[data-platform="mobile"] select {
   background: var(--input-bg-color);
   font-family: var(--m-sans);
   /* caret to replace the native dropdown arrow */
-  background-image: linear-gradient(45deg, transparent 50%, var(--m-ink) 50%),
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--m-ink) 50%),
     linear-gradient(135deg, var(--m-ink) 50%, transparent 50%);
   background-position:
     calc(100% - 14px) 50%,
@@ -252,7 +251,8 @@ body[data-platform="mobile"] #search_scope {
   background: var(--input-bg-color);
   font-family: var(--m-sans);
   padding: 0 var(--m-sp-4) 0 var(--m-sp-2);
-  background-image: linear-gradient(45deg, transparent 50%, var(--m-ink) 50%),
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--m-ink) 50%),
     linear-gradient(135deg, var(--m-ink) 50%, transparent 50%);
   background-position:
     calc(100% - 10px) 50%,
@@ -364,10 +364,7 @@ body[data-platform="mobile"] #menu .heading p {
   font-weight: 500;
 }
 
-body[data-platform="mobile"]
-  #left_panel[active_panel="stories"]
-  #menu
-  .sub[data-panel="stories"],
+body[data-platform="mobile"] #left_panel[active_panel="stories"] #menu .sub[data-panel="stories"],
 body[data-platform="mobile"]
   #left_panel[active_panel="settings"]
   #menu
@@ -461,8 +458,8 @@ body[data-platform="mobile"] #couch_toggle:active {
   inset: 0;
   display: flex;
   flex-direction: column;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right)
-    env(safe-area-inset-bottom) env(safe-area-inset-left);
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
   background: var(--main-bg-color);
 }
 
