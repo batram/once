@@ -5,6 +5,7 @@ const { Builder, By, until } = require("selenium-webdriver")
 const firefox = require("selenium-webdriver/firefox")
 const { startStoryFixture } = require("./local-source")
 const storyFixture = require("../shared/story-fixture")
+const { openExtensionPanel, reopenExtensionPanel } = require("./firefox-panel")
 
 function storySelector(href) {
   return `#stories story-item[data-href="${href}"]`
@@ -39,6 +40,7 @@ test(
     const extensionUuid = "00000000-0000-4000-8000-000000000001"
     const options = new firefox.Options()
       .addArguments("-no-remote")
+      .addArguments("-remote-allow-system-access")
       .setPreference(
         "extensions.webextensions.uuids",
         JSON.stringify({ [expectedAddonId]: extensionUuid })
@@ -63,22 +65,7 @@ test(
       })
       assert.equal(installResult.result.extension, expectedAddonId)
 
-      const contextResult = await bidi.send({
-        method: "browsingContext.create",
-        params: { type: "tab" }
-      })
-      const panelHandle = contextResult.result?.context
-      assert.ok(panelHandle, JSON.stringify(contextResult))
-      await driver.switchTo().window(panelHandle)
-      await driver.get(
-        `moz-extension://${extensionUuid}/static/sidepanel.html?once-e2e=1`
-      )
-      await driver.wait(async () => {
-        const ready = await driver
-          .findElement(By.css("body"))
-          .getAttribute("data-once-ready")
-        return ready === "true"
-      }, 15_000)
+      let panelHandle = await openExtensionPanel(driver, extensionUuid)
 
       await driver
         .findElement(By.css('[data-testid="settings-menu"]'))
@@ -140,7 +127,7 @@ test(
         .click()
       await waitForClass(driver, deltaSelector, "stared")
 
-      await driver.navigate().refresh()
+      panelHandle = await reopenExtensionPanel(driver, extensionUuid)
       await driver.wait(
         until.elementLocated(
           By.css('[data-testid="stories-menu"] > .heading')

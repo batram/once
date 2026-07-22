@@ -4,12 +4,14 @@ const path = require("node:path")
 const { Builder, By, until } = require("selenium-webdriver")
 const firefox = require("selenium-webdriver/firefox")
 const { startLocalSource } = require("./local-source")
+const { openExtensionPanel, reopenExtensionPanel } = require("./firefox-panel")
 
 test("installed Firefox extension loads, collects, persists settings, and opens a story", { timeout: 90_000 }, async () => {
   const expectedAddonId = "once_sidepanel_f@zmarn.com"
   const extensionUuid = "00000000-0000-4000-8000-000000000001"
   const options = new firefox.Options()
     .addArguments("-no-remote")
+    .addArguments("-remote-allow-system-access")
     .setPreference("extensions.webextensions.uuids", JSON.stringify({ [expectedAddonId]: extensionUuid }))
     .enableBidi()
   if (process.platform !== "win32") options.addArguments("-headless")
@@ -24,15 +26,7 @@ test("installed Firefox extension loads, collects, persists settings, and opens 
     })
     assert.equal(installResult.result.extension, expectedAddonId)
 
-    const extensionOrigin = `moz-extension://${extensionUuid}`
-    const contextResult = await bidi.send({
-      method: "browsingContext.create",
-      params: { type: "tab" }
-    })
-    assert.ok(contextResult.result?.context, JSON.stringify(contextResult))
-    await driver.switchTo().window(contextResult.result.context)
-    await driver.get(`${extensionOrigin}/static/sidepanel.html?once-e2e=1`)
-    await driver.wait(async () => (await driver.findElement(By.css("body")).getAttribute("data-once-ready")) === "true", 15_000)
+    await openExtensionPanel(driver, extensionUuid)
     const settings = await driver.wait(until.elementLocated(By.css('[data-testid="settings-menu"]')), 15_000)
     await settings.click()
     const sources = await driver.findElement(By.css('[data-testid="sources"]'))
@@ -48,7 +42,7 @@ test("installed Firefox extension loads, collects, persists settings, and opens 
       error.message += `\nLocal requests: ${JSON.stringify(source.requests)}\nPage text: ${bodyText}`
       throw error
     }
-    await driver.navigate().refresh()
+    await reopenExtensionPanel(driver, extensionUuid)
     await driver.wait(until.elementLocated(By.css('[data-testid="settings-menu"]')), 15_000).then((element) => element.click())
     assert.equal(await driver.findElement(By.css('[data-testid="sources"]')).getAttribute("value"), source.source)
     await driver.findElement(By.css('[data-testid="stories-menu"] > .heading')).click()

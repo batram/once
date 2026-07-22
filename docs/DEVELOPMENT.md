@@ -227,6 +227,21 @@ sessions can discard their initial browsing context. The test uses a temporary
 profile, `-no-remote`, a test-owned internal extension UUID, and WebDriver BiDi;
 it does not reuse or close a developer's normal Firefox session.
 
+The Firefox tests drive the panel as an ordinary browser tab, opened through a
+helper (`tests/e2e/extensions/firefox-panel.js`). This is a deliberate
+workaround for Firefox 153+: WebDriver may no longer navigate to
+`moz-extension://` URLs — the classic `driver.get()` is rejected as "not allowed
+in this context" and a BiDi `browsingContext.navigate` silently lands on
+about:blank — and the panel's real `sidebar_action` surface is not automatable
+because the revamped sidebar hosts it in a nested browsing context that
+WebDriver/BiDi cannot address as a first-class target. Instead the helper
+switches to the privileged chrome context and lets the browser itself open the
+panel URL with the system principal (a navigation Firefox still permits), then
+drives that normal content tab. This requires launching Firefox with
+`-remote-allow-system-access`. The helper also hides the sidebar that auto-opens
+on install, and "reloads" by closing and reopening the tab, because WebDriver
+refresh is likewise rejected for `moz-extension://` pages.
+
 ```bash
 # Windows outputs
 npm run package:electron

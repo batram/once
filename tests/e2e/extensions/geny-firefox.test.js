@@ -7,6 +7,7 @@ const {
   STORY_TITLE,
   startGenyFixture
 } = require("../shared/geny-fixture")
+const { openExtensionPanel } = require("./firefox-panel")
 
 test(
   "Firefox genymatch extracts innerText from fetched HTML",
@@ -16,6 +17,7 @@ test(
     const extensionUuid = "00000000-0000-4000-8000-000000000001"
     const options = new firefox.Options()
       .addArguments("-no-remote")
+      .addArguments("-remote-allow-system-access")
       .setPreference(
         "extensions.webextensions.uuids",
         JSON.stringify({ [expectedAddonId]: extensionUuid })
@@ -40,20 +42,7 @@ test(
       })
       assert.equal(installResult.result.extension, expectedAddonId)
 
-      const contextResult = await bidi.send({
-        method: "browsingContext.create",
-        params: { type: "tab" }
-      })
-      const panelHandle = contextResult.result?.context
-      assert.ok(panelHandle, JSON.stringify(contextResult))
-      await driver.switchTo().window(panelHandle)
-      await driver.get(
-        `moz-extension://${extensionUuid}/static/sidepanel.html?once-e2e=1`
-      )
-      await driver.wait(async () => {
-        const body = await driver.findElement(By.css("body"))
-        return (await body.getAttribute("data-once-ready")) === "true"
-      }, 15_000)
+      await openExtensionPanel(driver, extensionUuid)
 
       await driver.findElement(By.css('[data-testid="settings-menu"]')).click()
       const sources = await driver.findElement(
