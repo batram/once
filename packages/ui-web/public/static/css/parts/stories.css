@@ -1,6 +1,8 @@
 .stories_container {
   overflow-y: auto;
   overflow-x: hidden;
+  /* keep pull-to-refresh from chaining into the browser's own overscroll */
+  overscroll-behavior-y: contain;
   text-decoration-line: none;
   padding: 0;
   flex-direction: column;
@@ -9,6 +11,43 @@
 #stories {
   flex: 1 1 auto;
   min-height: 0;
+}
+
+/* Pull-to-refresh indicator: a flow sibling above #stories, so growing its
+   height slides the list down. The icon rotates with the pull, then spins
+   (.rotating) while the reload runs. Height + icon transform are driven by
+   PullToRefresh.ts. */
+.ptr-indicator {
+  flex: 0 0 auto;
+  height: 0;
+  overflow: hidden;
+  display: flex;
+  /* pin the icon at the very top (just under the search bar) so it stays put
+     while the list slides down beneath it, and spins in place while reloading */
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 6px;
+  box-sizing: border-box;
+  will-change: height;
+}
+
+.ptr-indicator .ptr-icon {
+  width: 20px;
+  height: 20px;
+  opacity: 0;
+}
+
+/* Recolor the refresh glyphs (top-bar reload button + pull-to-refresh icon) to
+   the mobile ink so they match the surrounding chrome instead of rendering as a
+   raw dark SVG. The <img> is blanked with content:"" and repainted via a mask in
+   the ink colour, which tracks light/dark through --m-ink. Chromium-only, which
+   is all the mobile WebView is. */
+body[data-platform="mobile"] #reload_stories_btn img,
+body[data-platform="mobile"] .ptr-icon {
+  content: "";
+  background-color: var(--m-ink);
+  -webkit-mask: url("../../imgs/reload.svg") center / contain no-repeat;
+  mask: url("../../imgs/reload.svg") center / contain no-repeat;
 }
 
 #selected_container {

@@ -5,6 +5,7 @@ import { StoryChangeDetail, OnceClient } from "@once/app"
 import * as Search from "./search"
 import { URLRedirect } from "@once/core"
 import { requireElement } from "./dom"
+import { attachPullToRefresh } from "./PullToRefresh"
 
 export class DataChangeEvent extends Event {
   detail: StoryChangeDetail
@@ -46,6 +47,18 @@ export function init(client: OnceClient): void {
   }
 
   subscribeToStoryChanges(client)
+
+  // Pull down past the top of the story list to reload (touch only — inert for
+  // pointer users, who still have the reload button above).
+  const stories_el = document.querySelector<HTMLElement>("#stories")
+  if (stories_el) {
+    const reload_icon = document.querySelector<HTMLImageElement>(
+      "#reload_stories_btn img"
+    )
+    attachPullToRefresh(stories_el, () => reload(true), {
+      iconSrc: reload_icon?.getAttribute("src") ?? undefined
+    })
+  }
 }
 
 function subscribeToStoryChanges(client: OnceClient): void {
