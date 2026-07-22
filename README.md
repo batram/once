@@ -60,6 +60,8 @@ Firefox add-on or an unpacked Chrome extension.
   boundaries
 - [Collectors](docs/COLLECTORS.md): source loading, built-in collectors, and
   Geny Match selector configuration
+- [Releasing](docs/RELEASING.md): versioning, cutting a tagged release, and CI
+  publishing
 - [Roadmap](docs/ROADMAP.md)
 
 ## Screenshots
