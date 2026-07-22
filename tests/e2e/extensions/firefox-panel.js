@@ -13,7 +13,7 @@ const firefox = require("selenium-webdriver/firefox")
 // So we let the *browser itself* open the page: from the privileged chrome
 // context we add a tab with the system principal, which Firefox permits, and
 // then drive that ordinary content tab with normal WebDriver. This requires
-// launching Firefox with `-remote-allow-system-access`. See docs/DEVELOPMENT.md.
+// enabling system access via `systemAccessService()`. See docs/DEVELOPMENT.md.
 const OPEN_TAB = `const url = arguments[0]
   const win = Services.wm.getMostRecentWindow("navigator:browser") || window
   // The sidebar auto-opens the panel on install; hide it so only our driven
@@ -61,4 +61,22 @@ async function reopenExtensionPanel(driver, extensionUuid) {
   return openExtensionPanel(driver, extensionUuid)
 }
 
-module.exports = { openExtensionPanel, reopenExtensionPanel }
+// Build the geckodriver service that lets `openExtensionPanel` run privileged
+// (system-principal) script in the chrome context.
+//
+// The privilege must be granted to the *geckodriver process*, not to Firefox via
+// capabilities: geckodriver 0.36+ owns the `--allow-system-access` flag and
+// rejects the Firefox arg `-remote-allow-system-access` when it is passed through
+// `moz:firefoxOptions.args` ("Argument --remote-allow-system-access can't be set
+// via capabilities"). The old capabilities form only appeared to work where an
+// older geckodriver (<0.36) was on PATH; the pinned 0.37.x used on macOS/Linux CI
+// rejects it. Passing it to the service works on every platform.
+function systemAccessService() {
+  return new firefox.ServiceBuilder().addArguments("--allow-system-access")
+}
+
+module.exports = {
+  openExtensionPanel,
+  reopenExtensionPanel,
+  systemAccessService
+}

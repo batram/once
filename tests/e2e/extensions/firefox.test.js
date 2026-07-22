@@ -4,18 +4,25 @@ const path = require("node:path")
 const { Builder, By, until } = require("selenium-webdriver")
 const firefox = require("selenium-webdriver/firefox")
 const { startLocalSource } = require("./local-source")
-const { openExtensionPanel, reopenExtensionPanel } = require("./firefox-panel")
+const {
+  openExtensionPanel,
+  reopenExtensionPanel,
+  systemAccessService
+} = require("./firefox-panel")
 
 test("installed Firefox extension loads, collects, persists settings, and opens a story", { timeout: 90_000 }, async () => {
   const expectedAddonId = "once_sidepanel_f@zmarn.com"
   const extensionUuid = "00000000-0000-4000-8000-000000000001"
   const options = new firefox.Options()
     .addArguments("-no-remote")
-    .addArguments("-remote-allow-system-access")
     .setPreference("extensions.webextensions.uuids", JSON.stringify({ [expectedAddonId]: extensionUuid }))
     .enableBidi()
   if (process.platform !== "win32") options.addArguments("-headless")
-  const driver = await new Builder().forBrowser("firefox").setFirefoxOptions(options).build()
+  const driver = await new Builder()
+    .forBrowser("firefox")
+    .setFirefoxOptions(options)
+    .setFirefoxService(systemAccessService())
+    .build()
   const source = await startLocalSource()
   try {
     const extensionPath = path.resolve(__dirname, "../../../apps/firefox-extension/dist")

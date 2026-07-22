@@ -5,7 +5,11 @@ const { Builder, By, until } = require("selenium-webdriver")
 const firefox = require("selenium-webdriver/firefox")
 const { startStoryFixture } = require("./local-source")
 const storyFixture = require("../shared/story-fixture")
-const { openExtensionPanel, reopenExtensionPanel } = require("./firefox-panel")
+const {
+  openExtensionPanel,
+  reopenExtensionPanel,
+  systemAccessService
+} = require("./firefox-panel")
 
 function storySelector(href) {
   return `#stories story-item[data-href="${href}"]`
@@ -40,7 +44,6 @@ test(
     const extensionUuid = "00000000-0000-4000-8000-000000000001"
     const options = new firefox.Options()
       .addArguments("-no-remote")
-      .addArguments("-remote-allow-system-access")
       .setPreference(
         "extensions.webextensions.uuids",
         JSON.stringify({ [expectedAddonId]: extensionUuid })
@@ -51,6 +54,7 @@ test(
     const driver = await new Builder()
       .forBrowser("firefox")
       .setFirefoxOptions(options)
+      .setFirefoxService(systemAccessService())
       .build()
     const source = await startStoryFixture()
     try {
