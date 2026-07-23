@@ -63,6 +63,9 @@ export interface OnceAppEvents {
     replace?: boolean
   }
   storyChanged: StoryChangeDetail
+  storyRemoved: {
+    href: string
+  }
   settingsChanged: {
     section:
       | "sources"
@@ -115,6 +118,7 @@ export interface OnceClient {
   setAnimation(animated: AnimationSetting): Promise<void>
   reloadStories(tryCache?: boolean): Promise<void>
   getStories(): Promise<Story[]>
+  getStorySnapshot(): Story[]
   findStoryByUrl(url: string): Promise<Story | null>
   settledStoryWrites(): Promise<void>
   persistStoryChange(
@@ -179,6 +183,7 @@ export interface ActiveTabPort {
 export interface DatabaseChange {
   id: string
   doc?: Record<string, unknown>
+  presentation?: "foreground" | "background"
 }
 
 export interface OncePlatformPorts {

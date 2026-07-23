@@ -43,7 +43,7 @@ export class OnceApp {
   ])
   // Suppress local PouchDB echoes already applied by save methods.
   private readonly pendingSettingWrites = new Map<string, string>()
-  private readonly storyWrites = new Map<string, Promise<Story>>()
+  private readonly storyWrites = new Map<string, Promise<unknown>>()
   private animated = true
   private syncStatus: SyncStatus = {
     state: "disabled",
@@ -64,10 +64,36 @@ export class OnceApp {
       this.events.publish("syncStatusChanged", status)
     })
     this.platform.syncService?.onRemoteChange?.((change) => {
-      void this.handleRemoteDatabaseChange(change).catch(() => undefined)
+      const href =
+        typeof change.doc?.href === "string"
+          ? change.doc.href
+          : change.id.replace(/^sto_/, "")
+      void this.queueStoryWrite(
+        href,
+        () => this.handleRemoteDatabaseChange(change),
+        {
+          operation: "story.sync",
+          message: "A synchronized story change could not be applied"
+        }
+      ).catch(() => undefined)
     })
     this.platform.onDatabaseChange?.((change) => {
-      this.handleDatabaseChange(change)
+      if (!change.id.startsWith("sto_")) {
+        this.handleDatabaseChange(change)
+        return
+      }
+      const href =
+        typeof change.doc?.href === "string"
+          ? change.doc.href
+          : change.id.replace(/^sto_/, "")
+      void this.queueStoryWrite(
+        href,
+        () => this.handleObservedStoryChange(change),
+        {
+          operation: "story.observe",
+          message: "A local database story change could not be reconciled"
+        }
+      ).catch(() => undefined)
     })
 
     try {
@@ -121,6 +147,7 @@ export class OnceApp {
       setAnimation: (animated) => this.setAnimation(animated),
       reloadStories: (tryCache = true) => this.reloadStories(tryCache),
       getStories: () => this.getWorkingStories(),
+      getStorySnapshot: () => Array.from(this.stories.values()),
       findStoryByUrl: async (url) => this.findStoryByUrl(url),
       settledStoryWrites: () => this.settledStoryWrites(),
       persistStoryChange: (href, path, value) =>
@@ -583,6 +610,24 @@ export class OnceApp {
     return story
   }
 
+  private addStoryToWorkingSet(story: Story): void {
+    this.setStory(story.href, story, true)
+    this.events.publish("storiesChanged", {
+      stories: [story],
+      bucket: typeof story.bucket === "string" ? story.bucket : "stories"
+    })
+  }
+
+  private removeStoryFromWorkingSet(href: string): void {
+    const removed = this.stories.delete(href)
+    for (const [url, storyHref] of this.comments) {
+      if (storyHref === href) this.comments.delete(url)
+    }
+    if (removed) {
+      this.events.publish("storyRemoved", { href })
+    }
+  }
+
   private getStory(href: string): Story | undefined {
     return this.stories.get(href)
   }
@@ -612,10 +657,14 @@ export class OnceApp {
 
   // Serialize writes per story URL so saves reach storage in interaction
   // order; writes for different stories stay concurrent.
-  private queueStoryWrite(
+  private queueStoryWrite<T>(
     href: string,
-    task: () => Promise<Story>
-  ): Promise<Story> {
+    task: () => Promise<T>,
+    failure: Pick<DiagnosticError, "operation" | "message"> = {
+      operation: "story.save",
+      message: "A story change could not be saved"
+    }
+  ): Promise<T> {
     const previousWrite = this.storyWrites.get(href)
     const waitForPrevious = previousWrite
       ? previousWrite.then(
@@ -633,11 +682,11 @@ export class OnceApp {
     write.then(settle, (error) => {
       settle()
       // Many UI callers fire and forget; keep failed saves visible.
-      console.error(`Failed to save story ${href}`, error)
+      console.error(`${failure.message}: ${href}`, error)
       this.reportDiagnostic({
         severity: "error",
-        operation: "story.save",
-        message: "A story change could not be saved",
+        operation: failure.operation,
+        message: failure.message,
         storyUrl: href,
         details: errorDetails(error)
       })
@@ -664,12 +713,21 @@ export class OnceApp {
     Story.assertIngestible(newStory)
 
     newStory.bucket = bucket
-    let oldStory: Story | null | undefined =
-      this.getStory(newStory.href) ?? storedStory
+    const workingStory = this.getStory(newStory.href)
+    let oldStory: Story | null | undefined = workingStory ?? storedStory
 
     if (!oldStory) {
       newStory = this.setStory(newStory.href.toString(), newStory)
       return this.platform.storyStore.saveStory(newStory)
+    }
+
+    // A story returned to a caller for presentation must also be present in
+    // the authoritative working set. Previously a stored story could be
+    // returned to StoryList without being registered here. A later sync then
+    // looked like a new insertion, which StoryList deduplicated against its
+    // stale row instead of updating it.
+    if (!workingStory) {
+      oldStory = this.setStory(oldStory.href, oldStory, true)
     }
 
     if (
@@ -778,9 +836,17 @@ export class OnceApp {
     const snapshot = Story.from_obj(story.to_obj())
     return this.queueStoryWrite(href, async () => {
       const saved = await this.platform.storyStore.saveStory(snapshot)
-      if (this.getStory(href) === story) {
+      const current = this.getStory(href)
+      if (current === story) {
         story._id = saved._id
         story._rev = saved._rev
+      } else if (current) {
+        const reconciled = mergeStorySyncState(current, saved)
+        reconciled._id = saved._id
+        reconciled._rev = saved._rev
+        this.setStory(href, reconciled)
+      } else {
+        this.setStory(href, saved)
       }
       return this.getStory(href) ?? saved
     })
@@ -800,10 +866,7 @@ export class OnceApp {
       })
       throw error
     }
-    this.stories.delete(href)
-    for (const [url, storyHref] of this.comments) {
-      if (storyHref === href) this.comments.delete(url)
-    }
+    this.removeStoryFromWorkingSet(href)
   }
 
   private emitDataChange(
@@ -859,33 +922,6 @@ export class OnceApp {
   }
 
   private handleDatabaseChange(change: DatabaseChange): void {
-    if (change.id.startsWith("sto_") && change.doc?._deleted) {
-      const href = change.id.substring("sto_".length)
-      this.stories.delete(href)
-      for (const [url, storyHref] of this.comments) {
-        if (storyHref === href) this.comments.delete(url)
-      }
-      return
-    }
-
-    if (change.id.startsWith("sto_") && change.doc) {
-      const changedStory = Story.from_obj(change.doc)
-      const stored = this.getStory(changedStory.href)
-      if (!stored) return
-      if (stored && stored._rev) {
-        if (stored._rev == change.doc._rev) return
-        // The feed can echo an older local write after a newer one already
-        // bumped the in-memory revision; never resurrect the older doc.
-        if (
-          revisionOrdinal(change.doc._rev) < revisionOrdinal(stored._rev)
-        ) {
-          return
-        }
-      }
-      this.setStory(changedStory.href, changedStory)
-      return
-    }
-
     const pendingValue = this.pendingSettingWrites.get(change.id)
     if (
       pendingValue !== undefined &&
@@ -921,34 +957,74 @@ export class OnceApp {
     }
   }
 
+  private async handleObservedStoryChange(
+    change: DatabaseChange
+  ): Promise<void> {
+    if (change.doc?._deleted) {
+      this.removeStoryFromWorkingSet(change.id.substring("sto_".length))
+      return
+    }
+    if (!change.doc) return
+
+    const changedStory = Story.from_obj(change.doc)
+    const currentStory = this.getStory(changedStory.href)
+    if (!currentStory) return
+
+    const storedStory = await this.platform.storyStore.getStory(
+      changedStory.href
+    )
+    if (!storedStory) {
+      this.removeStoryFromWorkingSet(changedStory.href)
+      return
+    }
+
+    const reconciled = mergeStorySyncState(storedStory, currentStory)
+    let effectiveStory = storedStory
+    if (!sameStorySyncState(reconciled, storedStory)) {
+      effectiveStory = await this.platform.storyStore.saveStory(reconciled)
+    }
+    if (
+      currentStory._rev !== effectiveStory._rev ||
+      !sameStorySyncState(currentStory, effectiveStory)
+    ) {
+      this.setStory(effectiveStory.href, effectiveStory)
+    }
+  }
+
   private async handleRemoteDatabaseChange(
     change: DatabaseChange
   ): Promise<void> {
-    if (!change.id.startsWith("sto_") || !change.doc || change.doc._deleted) {
+    if (!change.id.startsWith("sto_") || !change.doc) return
+
+    if (change.doc._deleted) {
+      this.removeStoryFromWorkingSet(change.id.substring("sto_".length))
       return
     }
 
     const remoteStory = Story.from_obj(change.doc)
     const currentStory = this.getStory(remoteStory.href)
     const localStory = await this.platform.storyStore.getStory(remoteStory.href)
-    if (!localStory) {
-      this.handleDatabaseChange(change)
-      return
+    const mergeBase = currentStory ?? localStory ?? remoteStory
+    const merged = mergeStorySyncState(mergeBase, remoteStory)
+    let effectiveStory = localStory ?? remoteStory
+
+    if (!sameStorySyncState(merged, effectiveStory)) {
+      effectiveStory = await this.platform.storyStore.saveStory(merged)
     }
 
-    const mergeBase = currentStory ?? localStory
-    const merged = mergeStorySyncState(mergeBase, remoteStory)
-    if (sameStorySyncState(merged, localStory)) {
-      if (currentStory && !sameStorySyncState(currentStory, localStory)) {
-        this.setStory(localStory.href, localStory)
+    if (currentStory) {
+      if (
+        currentStory._rev !== effectiveStory._rev ||
+        !sameStorySyncState(currentStory, effectiveStory)
+      ) {
+        this.setStory(effectiveStory.href, effectiveStory)
       }
       return
     }
 
-    const saved = await this.queueStoryWrite(merged.href, () =>
-      this.platform.storyStore.saveStory(merged)
-    )
-    this.setStory(saved.href, saved)
+    if (change.presentation !== "background") {
+      this.addStoryToWorkingSet(effectiveStory)
+    }
   }
 }
 
@@ -1001,12 +1077,6 @@ function sameStorySyncState(a: Story, b: Story): boolean {
   return Array.from(updateFields).every(
     (field) => aUpdates[field] === bUpdates[field]
   )
-}
-
-//PouchDB revisions are "<generation>-<hash>"; compare by generation
-function revisionOrdinal(rev: unknown): number {
-  const ordinal = Number.parseInt(String(rev ?? ""), 10)
-  return Number.isFinite(ordinal) ? ordinal : 0
 }
 
 function errorDetails(error: unknown): string {

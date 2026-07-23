@@ -161,7 +161,8 @@ test("cancels old CouchDB work when the sync URL changes", async () => {
   })
   assert.deepEqual(remoteChanges, [{
     id: "sto_one",
-    doc: { _id: "sto_one", id: "one" }
+    doc: { _id: "sto_one", id: "one" },
+    presentation: "foreground"
   }])
 })
 
@@ -193,8 +194,10 @@ test("syncs settings, newest stories, backlog, then starts live sync", async () 
     }
   }
   const statuses = []
+  const remoteChanges = []
   const service = new PouchSyncService(db, () => {}, () => remote)
   service.onStatus((status) => statuses.push(status))
+  service.onRemoteChange((change) => remoteChanges.push(change))
 
   service.syncFrom("https://example.test/once")
   assert.deepEqual(replications[0].options.doc_ids, [
@@ -213,18 +216,33 @@ test("syncs settings, newest stories, backlog, then starts live sync", async () 
   ])
   assert.match(statuses.at(-1).message, /newest stories/)
 
-  replications[1].chain.emit("change", { docs: [{}, {}] })
+  replications[1].chain.emit("change", {
+    docs: [
+      { _id: "sto_newest", href: "newest" },
+      { _id: "sto_next", href: "next" }
+    ]
+  })
   assert.equal(statuses.at(-1).message, "Loading newest stories (2/2)…")
   replications[1].chain.emit("complete", {})
   await nextTurn()
   assert.equal(replications[2].options, undefined)
   assert.equal(statuses.at(-1).message, "Loading older stories…")
 
-  replications[2].chain.emit("change", { docs: [{}] })
+  replications[2].chain.emit("change", {
+    docs: [{ _id: "sto_older", href: "older" }]
+  })
   replications[2].chain.emit("complete", {})
   await nextTurn()
   assert.equal(syncs.length, 1)
   assert.equal(syncs[0].target, remote)
   assert.equal(statuses.at(-1).state, "up-to-date")
   assert.equal(statuses.at(-1).changes, 3)
+  assert.deepEqual(
+    remoteChanges.map(({ id, presentation }) => ({ id, presentation })),
+    [
+      { id: "sto_newest", presentation: "foreground" },
+      { id: "sto_next", presentation: "foreground" },
+      { id: "sto_older", presentation: "background" }
+    ]
+  )
 })

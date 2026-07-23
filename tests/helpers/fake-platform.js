@@ -10,6 +10,8 @@ function createFakePlatform(stories = [], options = {}) {
 
   return {
     opened,
+    setStoredStory(story) { savedStories.set(story.href, story) },
+    deleteStoredStory(href) { savedStories.delete(href) },
     emitDatabaseChange(change) { databaseHandler?.(change) },
     emitRemoteDatabaseChange(change) { remoteDatabaseHandler?.(change) },
     emitHistory(action) { historyHandler?.(action) },

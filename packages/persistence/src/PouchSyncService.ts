@@ -35,6 +35,7 @@ export interface PouchSyncStatus {
 export interface PouchRemoteChange {
   id: string
   doc: Record<string, unknown>
+  presentation: "foreground" | "background"
 }
 
 export class PouchSyncService {
@@ -186,7 +187,8 @@ export class PouchSyncService {
     let changes = 0
     const replicateStage = async (
       message: string | ((stageChanges: number) => string),
-      options?: Record<string, unknown>
+      options?: Record<string, unknown>,
+      presentation: "foreground" | "background" = "background"
     ): Promise<void> => {
       if (this.generation !== generation) return
       let stageChanges = 0
@@ -197,15 +199,21 @@ export class PouchSyncService {
         message: currentMessage(),
         changes
       })
-      await this.replicateOnce(remote, options, generation, (count) => {
-        stageChanges += count
-        changes += count
-        this.updateStatus({
-          state: "syncing",
-          message: currentMessage(),
-          changes
-        })
-      })
+      await this.replicateOnce(
+        remote,
+        options,
+        generation,
+        presentation,
+        (count) => {
+          stageChanges += count
+          changes += count
+          this.updateStatus({
+            state: "syncing",
+            message: currentMessage(),
+            changes
+          })
+        }
+      )
     }
 
     await replicateStage("Syncing settings…", {
@@ -217,7 +225,8 @@ export class PouchSyncService {
       await replicateStage(
         (stageChanges) =>
           `Loading newest stories (${Math.min(stageChanges, newestIds.length)}/${newestIds.length})…`,
-        { doc_ids: newestIds }
+        { doc_ids: newestIds },
+        "foreground"
       )
     }
 
@@ -229,6 +238,7 @@ export class PouchSyncService {
     remote: string | PouchSyncDatabase,
     options: Record<string, unknown> | undefined,
     generation: number,
+    presentation: "foreground" | "background",
     onChange: (count: number) => void
   ): Promise<number> {
     return new Promise((resolve, reject) => {
@@ -246,7 +256,7 @@ export class PouchSyncService {
           const count = this.changeCount(info)
           stageChanges += count
           onChange(count)
-          this.notifyRemoteChanges(info)
+          this.notifyRemoteChanges(info, false, presentation)
         })
         .on("complete", (info: unknown) => {
           console.log("complete info replicate", info)
@@ -317,7 +327,7 @@ export class PouchSyncService {
     this.syncHandler
       .on("change", (event: unknown) => {
         this.onChange(event)
-        this.notifyRemoteChanges(event, true)
+        this.notifyRemoteChanges(event, true, "foreground")
         const changes = this.changeCount(event)
         this.updateStatus({
           state: "syncing",
@@ -364,7 +374,11 @@ export class PouchSyncService {
       })
   }
 
-  private notifyRemoteChanges(event: unknown, requirePull = false): void {
+  private notifyRemoteChanges(
+    event: unknown,
+    requirePull = false,
+    presentation: "foreground" | "background" = "background"
+  ): void {
     if (!event || typeof event !== "object") return
     const record = event as {
       direction?: string
@@ -375,7 +389,7 @@ export class PouchSyncService {
     const docs = record.docs ?? record.change?.docs ?? []
     docs.forEach((doc) => {
       if (typeof doc._id !== "string" || !doc._id.startsWith("sto_")) return
-      const change = { id: doc._id, doc }
+      const change = { id: doc._id, doc, presentation }
       this.remoteChangeHandlers.forEach((handler) => handler(change))
     })
   }

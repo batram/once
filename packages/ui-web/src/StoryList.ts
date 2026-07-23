@@ -6,6 +6,7 @@ import * as Search from "./search"
 import { URLRedirect } from "@once/core"
 import { requireElement } from "./dom"
 import { attachPullToRefresh } from "./PullToRefresh"
+import { connectStoryListSync } from "./StoryListSync"
 
 export class DataChangeEvent extends Event {
   detail: StoryChangeDetail
@@ -46,7 +47,31 @@ export function init(client: OnceClient): void {
     }
   }
 
-  subscribeToStoryChanges(client)
+  connectStoryListSync(client, {
+    addStories(stories, bucket, replace) {
+      if (replace) {
+        document.querySelectorAll(`#${bucket} .story`).forEach((story) => {
+          story.remove()
+        })
+      }
+      add_stories(stories, bucket)
+    },
+    updateStory(details) {
+      if (!details.path || details.path.length === 0) return
+      storyElementsForHref(details.path[0]).forEach((story) => {
+        story.dispatchEvent(new DataChangeEvent("data_change", details))
+      })
+    },
+    removeStory(href) {
+      storyElementsForHref(href).forEach((story) => story.remove())
+    },
+    settingsChanged(section) {
+      if (section === "filters") refilter()
+    },
+    redirectsChanged() {
+      update_redirects()
+    }
+  })
 
   // Pull down past the top of the story list to reload (touch only — inert for
   // pointer users, who still have the reload button above).
@@ -59,38 +84,6 @@ export function init(client: OnceClient): void {
       iconSrc: reload_icon?.getAttribute("src") ?? undefined
     })
   }
-}
-
-function subscribeToStoryChanges(client: OnceClient): void {
-  client.subscribe("storyChanged", (details) => {
-    if (details.story && !(details.story instanceof Story)) {
-      details.story = Story.from_obj(details.story)
-    }
-    if (details.path && details.path.length != 0) {
-      const story_els = document.querySelectorAll(
-        `.story[data-href="${details.path[0]}"]`
-      )
-      story_els.forEach((story_el) => {
-        story_el.dispatchEvent(new DataChangeEvent("data_change", details))
-      })
-    }
-  })
-  client.subscribe("storiesChanged", ({ stories, bucket, replace }) => {
-    if (replace) {
-      document.querySelectorAll(`#${bucket} .story`).forEach((x) => {
-        x.outerHTML = ""
-      })
-    }
-    add_stories(stories, bucket)
-  })
-  client.subscribe("settingsChanged", ({ section }) => {
-    if (section === "filters") {
-      refilter()
-    }
-  })
-  client.subscribe("redirectsChanged", () => {
-    update_redirects()
-  })
 }
 
 // Startup source loads need the network and can fail (offline, flaky mobile
@@ -122,8 +115,23 @@ function add(story: Story, bucket = "stories"): void {
   if (!(story instanceof Story)) {
     throw new TypeError("Only Story instances can be added to the story list")
   }
-  if (document.querySelector(`.story[data-href="${story.href}"]`)) {
-    //console.debug("deduped story ins storylist: ", story.href, story.title)
+
+  const existingStories = storyElementsForHref(story.href)
+  if (existingStories.length > 0) {
+    // storiesChanged is an upsert, not an insert-only hint. This also repairs
+    // a stale row if presentation and the app working set ever diverge.
+    existingStories.forEach((existing) => {
+      existing.dispatchEvent(
+        new DataChangeEvent("data_change", {
+          story,
+          path: [story.href],
+          value: story,
+          previousValue: existing.story,
+          name: null,
+          animated: false
+        })
+      )
+    })
     return
   }
 
@@ -142,6 +150,12 @@ function add(story: Story, bucket = "stories"): void {
   }
 
   stories_container.appendChild(new_story_el)
+}
+
+function storyElementsForHref(href: string): StoryListItem[] {
+  return Array.from(
+    document.querySelectorAll<StoryListItem>(".story[data-href]")
+  ).filter((story) => story.dataset.href === href)
 }
 
 function sortable_story(elem: StoryListItem): SortableStory<StoryListItem> {

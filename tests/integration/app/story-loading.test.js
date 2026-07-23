@@ -1,6 +1,7 @@
 const test = require("node:test")
 const assert = require("node:assert/strict")
 const { createOnceApp } = require("../../../packages/app/dist")
+const { Story } = require("../../../packages/core/dist")
 const { createFakePlatform } = require("../../helpers/fake-platform")
 const { installDomGlobals } = require("../../helpers/dom")
 const storyFixture = require("../../e2e/shared/story-fixture")
@@ -29,6 +30,48 @@ test("loads a faked story source once and reuses its cached response", async () 
 
   assert.equal(requests, 1)
   assert.equal(loaded.at(-1)[0].title, "Accepted Reddit story")
+})
+
+test("registers stored source stories before synchronized updates arrive", async () => {
+  const sourceUrl = "https://old.reddit.com/r/netsec/.json"
+  const stored = new Story(
+    "reddit",
+    "https://example.com/reddit",
+    "Previously stored story"
+  )
+  stored._rev = "6-stored"
+  const fake = createFakePlatform([stored], {
+    storySources: [sourceUrl],
+    fetch: async () =>
+      new Response(JSON.stringify(cachedRedditSource), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      })
+  })
+  const app = createOnceApp(fake.ports)
+  const changes = []
+  app.client.subscribe("storyChanged", (change) => changes.push(change))
+
+  await app.start()
+  await app.client.reloadStories(false)
+
+  assert.equal(app.client.getStorySnapshot()[0]._rev, "6-stored")
+
+  fake.emitRemoteDatabaseChange({
+    id: `sto_${stored.href}`,
+    doc: {
+      ...stored.to_obj(),
+      _rev: "7-remote",
+      read_state: "skipped",
+      sync_updated_at: { read_state: 200 }
+    },
+    presentation: "foreground"
+  })
+  await app.client.settledStoryWrites()
+
+  assert.equal(app.client.getStorySnapshot()[0].read_state, "skipped")
+  assert.equal(changes.at(-1).story.read_state, "skipped")
+  assert.deepEqual(changes.at(-1).path, [stored.href])
 })
 
 test("loads a saved source once when PouchDB echoes the local setting change", async () => {
