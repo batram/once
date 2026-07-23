@@ -6,7 +6,8 @@ import {
   IpcMainInvokeEvent,
   net,
   Rectangle,
-  session
+  session,
+  shell
 } from "electron"
 import started from "electron-squirrel-startup"
 import { UpdateSourceType, updateElectronApp } from "update-electron-app"
@@ -20,6 +21,7 @@ import {
   ElectronPoint,
   ElectronRect,
   ElectronRedirectRule,
+  ElectronStoryMenuItem,
   ElectronUpdateStatus
 } from "@once/platform-electron/bridge"
 import { SecureSettings } from "./SecureSettings"
@@ -164,6 +166,14 @@ function startAutoUpdates(): void {
 function assertTrusted(event: IpcMainInvokeEvent): void {
   if (!browserCoordinator) throw new Error("Browser coordinator is unavailable")
   browserCoordinator.requireWindow(event)
+}
+
+function requireExternalUrl(value: string): string {
+  const url = new URL(value)
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error("Only HTTP and HTTPS URLs are allowed")
+  }
+  return url.toString()
 }
 
 function browser(event: IpcMainInvokeEvent): {
@@ -373,6 +383,23 @@ function registerIpc(
   ipcMain.handle(ELECTRON_IPC.tabsSetBounds, (event, bounds: ElectronRect) => {
     const current = browser(event)
     return current.coordinator.setBounds(current.window, bounds)
+  })
+  ipcMain.handle(
+    ELECTRON_IPC.storyMenuShow,
+    (event, items: ElectronStoryMenuItem[], point: ElectronPoint) => {
+      const current = browser(event)
+      return current.coordinator.showStoryMenu(current.window, items, point)
+    }
+  )
+  ipcMain.handle(ELECTRON_IPC.storyMenuOpenExternal, (event, url: string) => {
+    assertTrusted(event)
+    return shell.openExternal(requireExternalUrl(url))
+  })
+  ipcMain.handle(ELECTRON_IPC.storyMenuOpenWindow, (event, url: string) => {
+    assertTrusted(event)
+    return coordinator
+      .createWindow({ url: requireExternalUrl(url) })
+      .then(() => undefined)
   })
   ipcMain.handle(
     ELECTRON_IPC.windowSetFullscreen,

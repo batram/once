@@ -7,6 +7,7 @@ import {
   WebContents
 } from "electron"
 import { ElectronPoint } from "@once/platform-electron/bridge"
+import { ElectronStoryMenuItem } from "@once/platform-electron/bridge"
 import { WindowEntry } from "./BrowserState"
 
 interface NativeMenuActions {
@@ -98,6 +99,39 @@ export class NativeMenus {
     }
 
     Menu.buildFromTemplate(template).popup({ window: owner.window })
+  }
+
+  showStoryMenu(
+    owner: WindowEntry,
+    items: ElectronStoryMenuItem[],
+    point: ElectronPoint
+  ): Promise<string | null> {
+    return new Promise((resolve) => {
+      const template: MenuItemConstructorOptions[] = []
+      let lastGroup = ""
+      for (const item of items.filter((entry) => entry.visible)) {
+        if (lastGroup && item.group !== lastGroup) {
+          template.push({ type: "separator" })
+        }
+        lastGroup = item.group
+        template.push({
+          label: item.label,
+          enabled: item.enabled,
+          click: () => {
+            if (item.id === "inspect") {
+              this.inspect(owner.window.webContents, point.x, point.y)
+              resolve(null)
+            } else {
+              resolve(item.id)
+            }
+          }
+        })
+      }
+      Menu.buildFromTemplate(template).popup({
+        window: owner.window,
+        callback: () => resolve(null)
+      })
+    })
   }
 
   private inspect(contents: WebContents, x: number, y: number): void {

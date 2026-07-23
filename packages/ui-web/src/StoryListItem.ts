@@ -156,20 +156,7 @@ export class StoryListItem extends HTMLElement {
       purgeButton.dataset.testid = "purge-story"
       purgeButton.textContent = "×"
       purgeButton.addEventListener("click", () => {
-        void showConfirmDialog({
-          message: "Delete this story from the local and synced remote database?",
-          confirmLabel: "Purge",
-          positionWithin:
-            this.closest<HTMLElement>("#stories_panel") ?? undefined
-        }).then(async (confirmed) => {
-          if (!confirmed) return
-          await getOnceClient().purgeStory(this.story.href)
-          document
-            .querySelectorAll<StoryListItem>(
-              `.story[data-href="${CSS.escape(this.story.href)}"]`
-            )
-            .forEach((element) => element.remove())
-        })
+        void this.confirmPurge()
       })
       this.button_group.appendChild(purgeButton)
     }
@@ -260,34 +247,11 @@ export class StoryListItem extends HTMLElement {
 
   button_events(): void {
     this.filter_btn.onclick = (event) => {
-      if (this.classList.contains("filtered")) {
-        if (SettingsPanel.instance) {
-          SettingsPanel.instance.highlight_filter(this.story.filter, true)
-        }
-      } else {
-        StoryFilterView.show_filter_dialog(
-          event,
-          this.filter_btn,
-          this.story,
-          (filter) => {
-            getOnceClient().addFilter(filter)
-          }
-        )
-      }
+      this.showFilterAction(event)
     }
 
     this.read_btn.addEventListener("click", () => {
-      this.read_btn.classList.add("user_interaction")
-      const old_state = this.story.read_state
-      const new_state = this.story.read_state == "unread" ? "skipped" : "unread"
-      if (StoryHistory.instance) {
-        StoryHistory.instance.story_change(this.story, new_state, old_state)
-      }
-      getOnceClient().persistStoryChange(
-        this.story.href,
-        "read_state",
-        new_state
-      )
+      this.toggleReadState()
     })
 
     //open story with middle click on "skip reading"
@@ -313,12 +277,80 @@ export class StoryListItem extends HTMLElement {
       this.star_btn.classList.remove("user_interaction")
     })
     this.star_btn.addEventListener("click", () => {
-      this.star_btn.classList.add("user_interaction")
-      const value = !this.story.stared
-      this.story.stared = value
-      console.debug("click start value", this.story.stared, "setting", value)
-      getOnceClient().persistStoryChange(this.story.href, "stared", value)
+      this.toggleBookmark()
     })
+  }
+
+  readActionLabel(): string {
+    if (this.story.read_state === "unread") return "Skip reading"
+    if (this.story.read_state === "read") return "Mark as unread"
+    return "Unskip"
+  }
+
+  bookmarkActionLabel(): string {
+    return this.story.stared ? "Remove bookmark" : "Bookmark"
+  }
+
+  filterActionLabel(): string {
+    return this.story.filter ? "Edit filter" : "Filter source"
+  }
+
+  openStory(target: "_self" | "middle" | "blank"): void {
+    this.read_btn.classList.add("user_interaction")
+    open_story(this.story.href, target)
+  }
+
+  openOriginal(): void {
+    this.read_btn.classList.add("user_interaction")
+    openStoryUrl(this.story.href, "_self", false)
+  }
+
+  toggleReadState(): void {
+    this.read_btn.classList.add("user_interaction")
+    const oldState = this.story.read_state
+    const newState = oldState === "unread" ? "skipped" : "unread"
+    StoryHistory.instance?.story_change(this.story, newState, oldState)
+    void getOnceClient().persistStoryChange(
+      this.story.href,
+      "read_state",
+      newState
+    )
+  }
+
+  toggleBookmark(): void {
+    this.star_btn.classList.add("user_interaction")
+    const value = !this.story.stared
+    this.story.stared = value
+    void getOnceClient().persistStoryChange(this.story.href, "stared", value)
+  }
+
+  showFilterAction(event?: MouseEvent): void {
+    if (this.classList.contains("filtered")) {
+      SettingsPanel.instance?.highlight_filter(this.story.filter, true)
+      return
+    }
+    StoryFilterView.show_filter_dialog(
+      event ?? new MouseEvent("click"),
+      this.filter_btn,
+      this.story,
+      (filter) => getOnceClient().addFilter(filter)
+    )
+  }
+
+  async confirmPurge(): Promise<void> {
+    const confirmed = await showConfirmDialog({
+      message: "Delete this story from the local and synced remote database?",
+      confirmLabel: "Purge",
+      positionWithin:
+        this.closest<HTMLElement>("#stories_panel") ?? undefined
+    })
+    if (!confirmed) return
+    await getOnceClient().purgeStory(this.story.href)
+    document
+      .querySelectorAll<StoryListItem>(
+        `.story[data-href="${CSS.escape(this.story.href)}"]`
+      )
+      .forEach((element) => element.remove())
   }
 
   swipeable = (): void => {

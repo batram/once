@@ -1,6 +1,7 @@
 export { StoryListItem } from "./StoryListItem"
 export * as StoryList from "./StoryList"
 export { StoryHistory } from "./StoryHistory"
+export * from "./StoryContextMenu"
 export { SettingsPanel } from "./SettingsPanel"
 export { LoaderInsights } from "./LoaderInsights"
 export { HoverUrlIndicator } from "./HoverUrlIndicator"

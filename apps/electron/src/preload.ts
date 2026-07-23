@@ -84,6 +84,14 @@ const bridge: ElectronBridge = {
         ipcRenderer.removeListener(ELECTRON_IPC.tabsRegenerateReader, listener)
     }
   },
+  storyMenu: {
+    show: (items, point) =>
+      ipcRenderer.invoke(ELECTRON_IPC.storyMenuShow, items, point),
+    openExternal: (url) =>
+      ipcRenderer.invoke(ELECTRON_IPC.storyMenuOpenExternal, url),
+    openWindow: (url) =>
+      ipcRenderer.invoke(ELECTRON_IPC.storyMenuOpenWindow, url)
+  },
   window: {
     setFullscreen: (fullscreen) =>
       ipcRenderer.invoke(ELECTRON_IPC.windowSetFullscreen, fullscreen),

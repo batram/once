@@ -1,7 +1,14 @@
 import browser = require("webextension-polyfill")
 
 import { createOnceApp } from "@once/app"
-import { mountOnceUi } from "@once/ui-web"
+import {
+  describeStoryMenu,
+  executeStoryMenuAction,
+  mountOnceUi,
+  storyFromTarget,
+  StoryListItem,
+  StoryMenuActionId
+} from "@once/ui-web"
 import { createWebExtPlatform } from "@once/platform-webext"
 
 declare const __ONCE_WEBEXT_TARGET__: "chrome" | "firefox"
@@ -26,6 +33,49 @@ document.addEventListener("DOMContentLoaded", async () => {
     buildChannel: __ONCE_BUILD_CHANNEL__,
     showHoveredLinks: __ONCE_WEBEXT_TARGET__ === "chrome",
     initialStoryLoad: testMode ? "disabled" : "network"
+  })
+  let lastStory: StoryListItem | undefined
+  let lastContextAt = 0
+  document.addEventListener("contextmenu", (event) => {
+    const story = storyFromTarget(event.target)
+    const onStoryList = Boolean(
+      story || (event.target as Element | null)?.closest(".stories_container")
+    )
+    if (!onStoryList) return
+    lastStory = story
+    lastContextAt = Date.now()
+    const items = describeStoryMenu({
+      platform: __ONCE_WEBEXT_TARGET__,
+      buildChannel: __ONCE_BUILD_CHANNEL__,
+      story
+    })
+    void browser.runtime.sendMessage({
+      onceCommand: "story-menu-context",
+      items
+    })
+    if (__ONCE_WEBEXT_TARGET__ === "firefox") {
+      const menus = browser.menus as unknown as {
+        overrideContext(options: { showDefaults: boolean }): void
+      }
+      menus.overrideContext({ showDefaults: false })
+    }
+  }, true)
+
+  browser.runtime.onMessage.addListener((message: {
+    onceCommand?: string
+    action?: StoryMenuActionId
+    targetElementId?: number
+  }) => {
+    if (message.onceCommand !== "story-menu-action" || !message.action) return
+    const menus = browser.menus as unknown as {
+      getTargetElement?(id: number): Element | null
+    }
+    const target = message.targetElementId === undefined
+      ? null
+      : menus.getTargetElement?.(message.targetElementId)
+    const story = storyFromTarget(target ?? null) ||
+      (Date.now() - lastContextAt < 10_000 ? lastStory : undefined)
+    void executeStoryMenuAction(message.action, story)
   })
   document.body.dataset.onceReady = "true"
 })

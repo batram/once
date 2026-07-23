@@ -13,6 +13,8 @@
     "sidePanel",
     "storage",
     "history",
+    "contextMenus",
+    "clipboardWrite",
     "unlimitedStorage",
     "tabs"
   ],

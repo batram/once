@@ -10,6 +10,14 @@ export interface ElectronPoint {
   y: number
 }
 
+export interface ElectronStoryMenuItem {
+  id: string
+  label: string
+  group: string
+  enabled: boolean
+  visible: boolean
+}
+
 export interface ElectronRedirectRule {
   match_url: string
   replace_url: string
@@ -108,6 +116,14 @@ export interface ElectronBridge {
     onChanged(handler: (tabs: ElectronTabState[]) => void): () => void
     onRegenerateReader(handler: (sourceUrl: string) => void): () => void
   }
+  storyMenu: {
+    show(
+      items: ElectronStoryMenuItem[],
+      point: ElectronPoint
+    ): Promise<string | null>
+    openExternal(url: string): Promise<void>
+    openWindow(url: string): Promise<void>
+  }
   window: {
     setFullscreen(fullscreen: boolean): Promise<void>
     setRedirects(redirects: ElectronRedirectRule[]): Promise<void>
@@ -150,6 +166,9 @@ export const ELECTRON_IPC = {
   tabsSetBounds: "once:tabs:set-bounds",
   tabsChanged: "once:tabs:changed",
   tabsRegenerateReader: "once:tabs:regenerate-reader",
+  storyMenuShow: "once:story-menu:show",
+  storyMenuOpenExternal: "once:story-menu:open-external",
+  storyMenuOpenWindow: "once:story-menu:open-window",
   windowSetFullscreen: "once:window:set-fullscreen",
   windowSetRedirects: "once:window:set-redirects",
   windowSetBackgroundColor: "once:window:set-background-color",

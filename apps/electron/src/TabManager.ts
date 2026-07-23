@@ -221,6 +221,14 @@ export class BrowserCoordinator {
     }
   }
 
+  showStoryMenu(
+    state: WindowEntry,
+    items: import("@once/platform-electron/bridge").ElectronStoryMenuItem[],
+    point: ElectronPoint
+  ): Promise<string | null> {
+    return this.menus.showStoryMenu(state, items, point)
+  }
+
   setBackgroundColor(state: WindowEntry, color: string): void {
     if (typeof color !== "string" || color.length === 0 || color.length > 100) {
       throw new Error("Invalid background color")

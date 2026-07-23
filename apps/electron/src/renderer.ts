@@ -6,7 +6,11 @@ import {
   HoverUrlIndicator,
   mountOnceUi,
   ReaderView,
-  SourcePickerView
+  SourcePickerView,
+  describeStoryMenu,
+  executeStoryMenuAction,
+  storyFromTarget,
+  StoryMenuActionId
 } from "@once/ui-web"
 import { BrowserShell } from "./BrowserShell"
 import "./electron.css"
@@ -66,6 +70,37 @@ document.addEventListener("DOMContentLoaded", async () => {
       : "network",
     onMenuCollapsedChanged
   })
+  document.addEventListener("contextmenu", (event) => {
+    const story = storyFromTarget(event.target)
+    const onStoryList = Boolean(
+      story || (event.target as Element | null)?.closest(".stories_container")
+    )
+    if (!onStoryList) return
+    event.preventDefault()
+    const items = describeStoryMenu({
+      platform: "electron",
+      buildChannel: buildInfo.channel,
+      story
+    })
+    void window.onceElectron.storyMenu
+      .show(items, { x: event.clientX, y: event.clientY })
+      .then(async (selected) => {
+        if (!selected) return
+        const action = selected as StoryMenuActionId
+        const url = story?.dataset.redirected_url || story?.story.href
+        if (action === "open-new-window" && url && story) {
+          await app.client.persistStoryChange(story.story.href, "read_state", "read")
+          await window.onceElectron.storyMenu.openWindow(url)
+          return
+        }
+        if (action === "open-external" && url && story) {
+          await app.client.persistStoryChange(story.story.href, "read_state", "read")
+          await window.onceElectron.storyMenu.openExternal(url)
+          return
+        }
+        await executeStoryMenuAction(action, story)
+      })
+  }, true)
   window.onceElectron.window.onTargetUrlChanged((url) => {
     HoverUrlIndicator.show(url)
   })

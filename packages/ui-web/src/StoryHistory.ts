@@ -14,6 +14,7 @@ export class StoryHistory {
     old_state: "unread" | "read" | "skipped"
   }[]
   static instance: StoryHistory
+  private stateListeners = new Set<() => void>()
 
   constructor(client: OnceClient = getOnceClient()) {
     StoryHistory.instance = this
@@ -60,6 +61,21 @@ export class StoryHistory {
   ): void {
     console.log("history story_change", story.href, new_state, old_state)
     this.undo_history.push({ story, new_state, old_state })
+    this.redo_history = []
+    this.notifyStateChanged()
+  }
+
+  get canUndo(): boolean {
+    return this.undo_history.length > 0
+  }
+
+  get canRedo(): boolean {
+    return this.redo_history.length > 0
+  }
+
+  onStateChanged(listener: () => void): () => void {
+    this.stateListeners.add(listener)
+    return () => this.stateListeners.delete(listener)
   }
 
   undo(): void {
@@ -78,6 +94,7 @@ export class StoryHistory {
         new_state: hstate.old_state,
         old_state: hstate.new_state
       })
+      this.notifyStateChanged()
     }
   }
 
@@ -97,6 +114,11 @@ export class StoryHistory {
         new_state: hstate.old_state,
         old_state: hstate.new_state
       })
+      this.notifyStateChanged()
     }
+  }
+
+  private notifyStateChanged(): void {
+    this.stateListeners.forEach((listener) => listener())
   }
 }
