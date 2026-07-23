@@ -108,7 +108,7 @@ Build Firefox first, then create an unsigned archive in `web-ext-artifacts/`:
 
 ```bash
 npm run build:firefox
-npm run webex
+npm run package:firefox
 ```
 
 For an unlisted signed build, obtain AMO API credentials and run:
@@ -159,6 +159,10 @@ npm run mobile -- serve ios --channel dev
 # Internal QA artifacts (debug APK or unsigned simulator app)
 npm run mobile -- package android --channel dev
 npm run mobile -- package ios --channel dev
+
+# Unsigned production artifacts for store-signing workflows
+npm run package:mobile:android
+npm run package:mobile:ios
 ```
 
 The iOS packaging command resolves the public Capacitor Swift package with
@@ -168,8 +172,14 @@ The public dependency does not require GitHub credentials.
 
 Release channel identity is `com.zmarn.once` / “Once”; development and internal
 QA use `com.zmarn.once.dev` / “Once Dev”. Set `ONCE_BUILD_NUMBER` to a positive,
-monotonically increasing integer in CI. Production packaging intentionally
-fails until store signing is implemented.
+monotonically increasing integer in CI. Android release packaging produces an
+unsigned production AAB at
+`apps/mobile/android/app/build/outputs/bundle/productionRelease/app-production-release.aab`.
+iOS release packaging requires macOS with Xcode and produces an unsigned device
+archive at `apps/mobile/ios/build/Once.xcarchive`. These artifacts deliberately
+stop before store signing/export: supply the Android keystore or use
+`xcodebuild -exportArchive` with the appropriate Apple team and provisioning
+profile in the secure release environment.
 
 Run `npm run test:mobile` for adapter checks and `npm run test:mobile:web` for
 the phone-sized browser suite. Native Appium suites use
@@ -218,7 +228,7 @@ npm run test:extensions
 npm run test:live:collectors
 
 # Refresh exactly one named live capture for review
-npm run fixtures:refresh:collectors -- reddit_json
+npm run refresh:fixtures:collectors -- reddit_json
 ```
 
 On Linux, the Firefox extension smoke runs headlessly. On Windows it opens a
@@ -322,7 +332,7 @@ Normal unit, integration, extension, and Electron E2E tests do not contact
 third-party story-source servers. Tests use responses below `tests/fixtures/collectors`, and window/tab E2E
 tests disable initial story loading and the renderer's network-fetch bridge.
 `test:live:collectors` is opt-in and makes one allowlisted request per source
-with a timeout and response-size cap. `fixtures:refresh:collectors` requires one
+with a timeout and response-size cap. `refresh:fixtures:collectors` requires one
 source name and writes only that reviewed capture. Live checks are never part
 of pull-request CI.
 

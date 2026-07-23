@@ -233,7 +233,7 @@ npm run test:collectors
 npm run test:live:collectors
 
 # Refresh one reviewed live fixture
-npm run fixtures:refresh:collectors -- reddit_json
+npm run refresh:fixtures:collectors -- reddit_json
 ```
 
 Deterministic tests and fixtures live under `tests/unit/collectors` and
