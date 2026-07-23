@@ -30,7 +30,8 @@ export function createWebExtPlatform(
     onceDb as unknown as PouchSyncService["db"],
     (event) => {
       console.log("change db", event)
-    }
+    },
+    (url) => new PouchDB(url) as unknown as PouchSyncService["db"]
   )
   const syncSettingsStore = new WebExtSyncStorage(browserApi)
 

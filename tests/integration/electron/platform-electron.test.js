@@ -77,15 +77,17 @@ test("serializes fetch requests through the preload bridge", async () => {
   assert.deepEqual(await response.json(), { ok: true })
 })
 
-test("cancels old CouchDB work when the sync URL changes", () => {
+const nextTurn = () => new Promise((resolve) => setImmediate(resolve))
+
+test("cancels old CouchDB work when the sync URL changes", async () => {
   const replications = []
   const syncs = []
   const changes = []
   const db = {
     replicate: {
-      from(target) {
+      from(target, options) {
         const chain = eventChain()
-        replications.push({ target, chain })
+        replications.push({ target, options, chain })
         return chain
       }
     },
@@ -106,7 +108,7 @@ test("cancels old CouchDB work when the sync URL changes", () => {
   service.onStatus((status) => statuses.push(status))
 
   service.syncFrom("https://one.example/db")
-  assert.equal(statuses.at(-1).state, "connecting")
+  assert.equal(statuses.at(-1).message, "Syncing settings…")
   service.syncFrom("https://two.example/db")
   assert.equal(replications[0].chain.cancelled, true)
 
@@ -115,10 +117,14 @@ test("cancels old CouchDB work when the sync URL changes", () => {
   replications[1].chain.emit("change", { docs: [{}, {}] })
   assert.deepEqual(statuses.at(-1), {
     state: "syncing",
-    message: "Downloading remote changes (2)…",
+    message: "Syncing settings…",
     changes: 2
   })
   replications[1].chain.emit("complete", {})
+  await nextTurn()
+  assert.deepEqual(replications[2].options, undefined)
+  replications[2].chain.emit("complete", {})
+  await nextTurn()
   assert.equal(syncs.length, 1)
   assert.deepEqual(syncs[0].target, { remote: "https://two.example/db" })
   assert.equal(statuses.at(-1).state, "up-to-date")
@@ -136,9 +142,73 @@ test("cancels old CouchDB work when the sync URL changes", () => {
   assert.equal(syncs[0].chain.cancelled, true)
 
   service.syncFrom("")
-  assert.equal(replications[2].chain.cancelled, true)
+  assert.equal(replications[3].chain.cancelled, true)
   assert.deepEqual(statuses.at(-1), {
     state: "disabled",
     message: "Sync is not configured"
   })
+})
+
+test("syncs settings, newest stories, backlog, then starts live sync", async () => {
+  const replications = []
+  const syncs = []
+  const remote = {
+    async createIndex(options) {
+      assert.deepEqual(options.index.fields, ["ingested_at"])
+    },
+    async find(options) {
+      assert.equal(options.limit, 50)
+      assert.deepEqual(options.sort, [{ ingested_at: "desc" }])
+      return { docs: [{ _id: "sto_newest" }, { _id: "sto_next" }] }
+    }
+  }
+  const db = {
+    replicate: {
+      from(target, options) {
+        const chain = eventChain()
+        replications.push({ target, options, chain })
+        return chain
+      }
+    },
+    sync(target, options) {
+      const chain = eventChain()
+      syncs.push({ target, options, chain })
+      return chain
+    }
+  }
+  const statuses = []
+  const service = new PouchSyncService(db, () => {}, () => remote)
+  service.onStatus((status) => statuses.push(status))
+
+  service.syncFrom("https://example.test/once")
+  assert.deepEqual(replications[0].options.doc_ids, [
+    "story_sources",
+    "filter_list",
+    "redirect_list",
+    "theme",
+    "animation"
+  ])
+
+  replications[0].chain.emit("complete", {})
+  await nextTurn()
+  assert.deepEqual(replications[1].options.doc_ids, [
+    "sto_newest",
+    "sto_next"
+  ])
+  assert.match(statuses.at(-1).message, /newest stories/)
+
+  replications[1].chain.emit("change", { docs: [{}, {}] })
+  assert.equal(statuses.at(-1).message, "Loading newest stories (2/2)…")
+  replications[1].chain.emit("complete", {})
+  await nextTurn()
+  assert.equal(replications[2].options, undefined)
+  assert.equal(statuses.at(-1).message, "Loading older stories…")
+
+  replications[2].chain.emit("change", { docs: [{}] })
+  replications[2].chain.emit("complete", {})
+  await nextTurn()
+  assert.equal(syncs.length, 1)
+  assert.equal(syncs[0].target, remote)
+  assert.equal(statuses.at(-1).state, "up-to-date")
+  assert.equal(statuses.at(-1).changes, 3)
 })
