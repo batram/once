@@ -35,7 +35,27 @@ module.exports = (env = {}, argv = {}) => {
     },
     devtool: mode === "development" ? "inline-source-map" : false,
     optimization: {
-      minimize: mode === "production"
+      minimize: mode === "production",
+      splitChunks: {
+        cacheGroups: {
+          pouchdb: {
+            test: /[\\/]node_modules[\\/]pouchdb-browser[\\/]/,
+            name: "vendor-pouchdb",
+            chunks: (chunk) => chunk.name === "sidepanel",
+            enforce: true
+          },
+          readability: {
+            test: /[\\/]node_modules[\\/]@mozilla[\\/]readability[\\/]/,
+            name: "vendor-readability",
+            chunks: (chunk) => chunk.name === "sidepanel",
+            enforce: true
+          }
+        }
+      }
+    },
+    performance: {
+      maxAssetSize: 350 * 1024,
+      maxEntrypointSize: 350 * 1024
     },
     resolve: {
       extensions: [".ts", ".js"],
@@ -66,7 +86,10 @@ module.exports = (env = {}, argv = {}) => {
         patterns: [
           {
             from: path.join(root, "packages", "ui-web", "public", "static"),
-            to: "static"
+            to: "static",
+            globOptions: {
+              ignore: ["**/*.ico"]
+            }
           },
           {
             from: path.join(root, "packages", "ui-web", "src", "reader", "readerDocument.css"),
@@ -78,7 +101,15 @@ module.exports = (env = {}, argv = {}) => {
             transform(content) {
               return content
                 .toString()
-                .replace("</body>", '  <script src="../sidepanel.js"></script>\n  </body>')
+                .replace(
+                  "</body>",
+                  [
+                    '  <script src="../vendor-pouchdb.js"></script>',
+                    '  <script src="../vendor-readability.js"></script>',
+                    '  <script src="../sidepanel.js"></script>',
+                    "  </body>"
+                  ].join("\n")
+                )
             }
           },
           {

@@ -12,11 +12,25 @@ for (const target of ["chrome", "firefox"]) {
     const manifest = JSON.parse(fs.readFileSync(path.join(dist, "manifest.json"), "utf8"))
     assert.equal(manifest.manifest_version, 3)
     assert.equal(manifest.version, version)
-    for (const file of ["background.js", "sidepanel.js", "reader-content.js", "static/sidepanel.html"]) {
+    for (const file of [
+      "background.js",
+      "sidepanel.js",
+      "vendor-pouchdb.js",
+      "vendor-readability.js",
+      "reader-content.js",
+      "static/sidepanel.html"
+    ]) {
       assert.ok(fs.statSync(path.join(dist, file)).size > 0, `${file} must exist`)
     }
     const html = fs.readFileSync(path.join(dist, "static/sidepanel.html"), "utf8")
+    assert.match(html, /\.\.\/vendor-pouchdb\.js/)
+    assert.match(html, /\.\.\/vendor-readability\.js/)
     assert.match(html, /\.\.\/sidepanel\.js/)
+    assert.equal(
+      fs.readdirSync(path.join(dist, "static"), { recursive: true })
+        .some((file) => file.endsWith(".ico")),
+      false
+    )
     if (target === "chrome") {
       assert.equal(manifest.background.service_worker, "background.js")
       assert.equal(manifest.side_panel.default_path, "static/sidepanel.html")
