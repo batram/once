@@ -15,6 +15,7 @@
     "build:chrome": "npm run build:packages && webpack --config scripts/webpack.webext.config.js --env target=chrome --mode production",
     "build:chrome:dev": "npm run build:packages && webpack --config scripts/webpack.webext.config.js --env target=chrome --mode development",
     "build:electron": "npm run build:packages && npm run typecheck --workspace @once/electron",
+    "build:electron:dev": "npm run package:electron:dev",
     "build:extensions": "npm run build:packages && webpack --config scripts/webpack.webext.config.js --env target=firefox --mode production && webpack --config scripts/webpack.webext.config.js --env target=chrome --mode production",
     "build:extensions:dev": "npm run build:packages && webpack --config scripts/webpack.webext.config.js --env target=firefox --mode development && webpack --config scripts/webpack.webext.config.js --env target=chrome --mode development",
     "build:firefox": "npm run build:packages && webpack --config scripts/webpack.webext.config.js --env target=firefox --mode production",
