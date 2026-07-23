@@ -63,6 +63,7 @@ test("native secure settings implementations use Keychain and Android Keystore",
 })
 
 test("mobile build channels select stable names, identifiers, schemes, and flavors", () => {
+  const root = path.resolve(__dirname, "../../..")
   const source = fs.readFileSync(path.resolve(__dirname, "../../../apps/mobile/capacitor.config.ts"), "utf8")
   const compiled = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
@@ -85,6 +86,18 @@ test("mobile build channels select stable names, identifiers, schemes, and flavo
   assert.equal(dev.android.allowMixedContent, true)
   assert.equal(release.android.allowMixedContent, false)
   assert.throws(() => mobileBuildChannel("preview"), /must be dev or release/)
+
+  const androidDevManifest = fs.readFileSync(
+    path.join(root, "apps/mobile/android/app/src/development/AndroidManifest.xml"),
+    "utf8"
+  )
+  assert.match(androidDevManifest, /android:icon="@mipmap\/ic_launcher_dev"/)
+  assert.match(androidDevManifest, /android:roundIcon="@mipmap\/ic_launcher_dev"/)
+  assert.match(androidDevManifest, /tools:replace="android:icon,android:roundIcon"/)
+  assert.ok(fs.existsSync(path.join(
+    root,
+    "apps/mobile/android/app/src/development/res/mipmap-mdpi/ic_launcher_dev.png"
+  )))
 })
 
 test("mobile release package commands select production native artifacts", () => {
