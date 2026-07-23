@@ -79,7 +79,9 @@ test("serializes fetch requests through the preload bridge", async () => {
 
 const nextTurn = () => new Promise((resolve) => setImmediate(resolve))
 
-test("cancels old CouchDB work when the sync URL changes", async () => {
+test("cancels old CouchDB work when the sync URL changes", async (t) => {
+  t.mock.method(console, "error", () => {})
+
   const replications = []
   const syncs = []
   const changes = []

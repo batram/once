@@ -141,7 +141,9 @@ test("serializes duplicate story writes while preserving substories", async () =
   assert.equal(beta.substories[0].comment_url, storyFixture.storyUrls(origin).betaSubstoryComments)
 })
 
-test("publishes configurable parser failures as source errors", async () => {
+test("publishes configurable parser failures as source errors", async (t) => {
+  t.mock.method(console, "error", () => {})
+
   const { separator } = require("../../../packages/collectors/dist/collectors/geny_match").options
   const sourceUrl = `geny:${separator}{bad${separator}https://example.com/`
   const fake = createFakePlatform([], {
@@ -162,7 +164,9 @@ test("publishes configurable parser failures as source errors", async () => {
   assert.match(error.message, /geny_match config is invalid JSON/)
 })
 
-test("publishes story persistence failures as source errors", async () => {
+test("publishes story persistence failures as source errors", async (t) => {
+  t.mock.method(console, "error", () => {})
+
   const sourceUrl = "https://old.reddit.com/r/netsec/.json"
   const fake = createFakePlatform([], {
     storySources: [sourceUrl],

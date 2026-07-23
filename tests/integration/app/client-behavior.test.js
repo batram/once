@@ -259,7 +259,9 @@ test("removes remotely deleted stories from working state", async () => {
   assert.deepEqual(removals, [{ href: story.href }])
 })
 
-test("surfaces remote reconciliation failures as diagnostics", async () => {
+test("surfaces remote reconciliation failures as diagnostics", async (t) => {
+  t.mock.method(console, "error", () => {})
+
   const fake = createFakePlatform()
   const app = createOnceApp(fake.ports)
   await app.start()

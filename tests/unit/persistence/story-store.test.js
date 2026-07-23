@@ -30,7 +30,9 @@ test("rejects PouchDB save failures instead of reporting success", async () => {
   await assert.rejects(store.saveStory(story), /disk full/)
 })
 
-test("recovers a corrupted story and reports its stored document", async () => {
+test("recovers a corrupted story and reports its stored document", async (t) => {
+  t.mock.method(console, "error", () => {})
+
   const doc = {
     _id: "sto_https://example.com/corrupt",
     _rev: "1-test",

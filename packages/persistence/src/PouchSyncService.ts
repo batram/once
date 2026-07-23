@@ -258,8 +258,7 @@ export class PouchSyncService {
           onChange(count)
           this.notifyRemoteChanges(info, false, presentation)
         })
-        .on("complete", (info: unknown) => {
-          console.log("complete info replicate", info)
+        .on("complete", () => {
           if (
             this.generation !== generation ||
             this.initialReplication !== replication
@@ -335,9 +334,6 @@ export class PouchSyncService {
           changes
         })
       })
-      .on("complete", (info: unknown) => {
-        console.debug("pouch sync stopped", info)
-      })
       .on("error", (err: unknown) => {
         console.error("pouch err", err)
         this.updateStatus({
@@ -362,7 +358,6 @@ export class PouchSyncService {
         this.updateStatus({ state: "syncing", message: "Syncing changes…" })
       })
       .on("paused", (error: unknown) => {
-        console.info("pouch paused")
         this.updateStatus(
           error
             ? {

@@ -65,7 +65,6 @@ export async function parse_response(
   if (parser.options.collects == "json") {
     try {
       const json_content = await resp.json()
-      console.log("got json for ", url, parser, json_content)
       await cache_result(options, url, [Date.now(), json_content])
       return parser.parse(json_content, url, og_url)
     } catch (parseError) {
@@ -132,8 +131,6 @@ export function parse_dom(val: string, url: string): Document {
     const base = doc.createElement("base")
     base.href = url
     doc.head.append(base)
-  } else {
-    console.log("base already there", doc.querySelector("base"))
   }
 
   return doc

@@ -37,7 +37,9 @@ test("rewrites urls, remembers the original, and resets on rule changes", () => 
   )
 })
 
-test("skips invalid redirect rules and applies rules in sequence", () => {
+test("skips invalid redirect rules and applies rules in sequence", (t) => {
+  t.mock.method(console, "warn", () => {})
+
   URLRedirect.setRedirects([
     { match_url: "([", replace_url: "broken" },
     { match_url: "^http:", replace_url: "https:" },

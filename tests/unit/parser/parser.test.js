@@ -27,7 +27,9 @@ test("reports the selected parser and leaves unsupported URLs unmatched", () => 
   assert.equal(get_parser_for_url("https://unsupported.example/"), undefined)
 })
 
-test("parses and caches JSON responses while cache failures stay non-fatal", async () => {
+test("parses and caches JSON responses while cache failures stay non-fatal", async (t) => {
+  t.mock.method(console, "log", () => {})
+
   const fixture = require("../../fixtures/collectors/reddit.json")
   const cached = []
   const stories = await parse_response(
