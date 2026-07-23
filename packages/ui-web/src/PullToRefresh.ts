@@ -22,8 +22,6 @@ export interface PullToRefreshOptions {
   threshold?: number
   // Upper bound of the (damped) travel — the list can be pulled this far.
   maxPull?: number
-  // Source for the indicator icon; typically the reload button's icon.
-  iconSrc?: string
 }
 
 export function attachPullToRefresh(
@@ -42,13 +40,13 @@ export function attachPullToRefresh(
   indicator.className = "ptr-indicator"
   indicator.setAttribute("aria-hidden", "true")
 
-  const icon = document.createElement("img")
+  const surface = document.createElement("div")
+  surface.className = "ptr-surface"
+
+  const icon = document.createElement("span")
   icon.className = "ptr-icon"
-  icon.alt = ""
-  if (options.iconSrc) {
-    icon.src = options.iconSrc
-  }
-  indicator.append(icon)
+  surface.append(icon)
+  indicator.append(surface)
   scroller.before(indicator)
 
   let startY = 0
@@ -64,6 +62,9 @@ export function attachPullToRefresh(
 
   const render = (px: number, spinning: boolean): void => {
     indicator.style.height = `${px}px`
+    const progress = Math.min(px / threshold, 1)
+    surface.style.opacity = `${progress}`
+    surface.style.transform = `translateY(${Math.max(0, 8 - px / 8)}px) scale(${0.75 + progress * 0.25})`
     if (spinning) {
       icon.classList.add("rotating")
       icon.style.transform = ""
@@ -83,6 +84,8 @@ export function attachPullToRefresh(
       icon.classList.remove("rotating")
       icon.style.transform = ""
       icon.style.opacity = "0"
+      surface.style.opacity = "0"
+      surface.style.transform = ""
       indicator.removeEventListener("transitionend", done)
     }
     indicator.addEventListener("transitionend", done)

@@ -11,6 +11,60 @@ test("mobile shell is responsive and hides unavailable capabilities", async ({ p
   expect(await page.locator("#left_panel").evaluate((element) => element.scrollWidth <= window.innerWidth)).toBe(true)
 })
 
+test("mobile refresh controls stay separated and theme-aware", async ({ page }) => {
+  await page.goto("./")
+
+  const gap = await page.locator("#searchfield").evaluate((search) => {
+    const reload = document.querySelector("#reload_stories_btn")
+    return reload.getBoundingClientRect().left - search.getBoundingClientRect().right
+  })
+  expect(gap).toBeGreaterThanOrEqual(12)
+
+  await page.locator("#stories").evaluate((stories) => {
+    const touch = new Touch({
+      identifier: 1,
+      target: stories,
+      clientX: 200,
+      clientY: 100
+    })
+    stories.dispatchEvent(new TouchEvent("touchstart", {
+      bubbles: true,
+      cancelable: true,
+      touches: [touch]
+    }))
+    const moved = new Touch({
+      identifier: 1,
+      target: stories,
+      clientX: 200,
+      clientY: 150
+    })
+    stories.dispatchEvent(new TouchEvent("touchmove", {
+      bubbles: true,
+      cancelable: true,
+      touches: [moved]
+    }))
+  })
+
+  for (const theme of ["light", "dark"]) {
+    await page.locator("body").evaluate((body, value) => {
+      body.dataset.theme = value
+    }, theme)
+    const colors = await page.locator(".ptr-surface").evaluate((surface) => {
+      const body = document.body
+      const icon = surface.querySelector(".ptr-icon")
+      const reload = document.querySelector("#reload_stories_btn")
+      return {
+        surface: getComputedStyle(surface).backgroundColor,
+        body: getComputedStyle(body).backgroundColor,
+        icon: getComputedStyle(icon).backgroundColor,
+        reload: getComputedStyle(reload).color
+      }
+    })
+    expect(colors.surface).not.toBe(colors.body)
+    expect(colors.icon).toBe(colors.reload)
+  }
+})
+
 test("mobile settings persist without contacting external sources", async ({ page }) => {
   await page.goto("./")
   await page.getByTestId("settings-menu").click()

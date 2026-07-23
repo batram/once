@@ -291,13 +291,14 @@ body[data-platform="mobile"] #reload_stories_btn {
   box-sizing: border-box;
   width: var(--m-touch);
   height: var(--m-touch);
-  margin: 0;
+  margin: 0 0 0 var(--m-sp-2);
   padding: 0;
   display: grid;
   place-items: center;
   border: var(--m-bw) solid var(--m-ink);
   border-radius: var(--m-radius);
   background: var(--main-bg-color);
+  color: var(--text-high-color);
 }
 
 body[data-platform="mobile"] #reload_stories_btn:active {
@@ -305,9 +306,22 @@ body[data-platform="mobile"] #reload_stories_btn:active {
 }
 
 body[data-platform="mobile"] #reload_stories_btn img {
+  width: 0;
+  height: 0;
+  margin: 0;
+  visibility: hidden;
+  margin-top: 8px;
+}
+
+body[data-platform="mobile"] #reload_stories_btn::before {
+  content: "";
   width: 20px;
   height: 20px;
-  margin: 0;
+  display: block;
+  background: currentColor;
+  -webkit-mask: url("../../../packages/ui-web/public/static/imgs/reload.svg") center / contain
+    no-repeat;
+  mask: url("../../../packages/ui-web/public/static/imgs/reload.svg") center / contain no-repeat;
 }
 
 /* ---------- Bottom tab bar ---------- */

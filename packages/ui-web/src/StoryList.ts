@@ -77,12 +77,7 @@ export function init(client: OnceClient): void {
   // pointer users, who still have the reload button above).
   const stories_el = document.querySelector<HTMLElement>("#stories")
   if (stories_el) {
-    const reload_icon = document.querySelector<HTMLImageElement>(
-      "#reload_stories_btn img"
-    )
-    attachPullToRefresh(stories_el, () => reload(true), {
-      iconSrc: reload_icon?.getAttribute("src") ?? undefined
-    })
+    attachPullToRefresh(stories_el, () => reload(true))
   }
 }
 
