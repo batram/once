@@ -15,6 +15,26 @@ function fail(message) {
   process.exit(1)
 }
 
+function loadAndroidLocalEnvironment() {
+  const envPath = path.join(root, ".env.android.local")
+  if (!fs.existsSync(envPath)) {
+    fail("missing .env.android.local; copy .env.android.example and set ONCE_ANDROID_WIRELESS_ADDRESS")
+  }
+  for (const rawLine of fs.readFileSync(envPath, "utf8").split(/\r?\n/)) {
+    const line = rawLine.trim()
+    if (!line || line.startsWith("#")) continue
+    const separator = line.indexOf("=")
+    if (separator < 1) fail(`invalid line in .env.android.local: ${rawLine}`)
+    const name = line.slice(0, separator).trim()
+    let value = line.slice(separator + 1).trim()
+    if ((value.startsWith("\"") && value.endsWith("\"")) ||
+        (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1)
+    }
+    if (!(name in process.env)) process.env[name] = value
+  }
+}
+
 function parse(argv) {
   const positional = []
   const options = { passthrough: [] }
@@ -98,6 +118,16 @@ function androidEnvironment(channel) {
   }
 }
 
+function adbCommand(env) {
+  const command = path.join(
+    env.ANDROID_HOME,
+    "platform-tools",
+    process.platform === "win32" ? "adb.exe" : "adb"
+  )
+  if (!fs.existsSync(command)) fail(`adb not found at ${command}`)
+  return command
+}
+
 function platformEnvironment(platform, channel) {
   return platform === "android" ? androidEnvironment(channel).env : environment(channel)
 }
@@ -158,7 +188,7 @@ function writePackageStamp(platform, channel) {
 }
 
 const { command, platform, options } = parse(process.argv.slice(2))
-if (!command) fail("expected doctor, web, sync, run, serve, open, or package")
+if (!command) fail("expected doctor, web, sync, run, serve, open, package, or deploy")
 if (options.e2e) process.env.ONCE_MOBILE_E2E = "1"
 
 if (command === "doctor") {
@@ -233,6 +263,41 @@ else if (command === "run") {
   process.on("SIGTERM", stop)
   cap(["run", platform, "--live-reload", "--port", "5173", ...options.passthrough], platformEnvironment(platform, channel))
   stop()
+} else if (command === "deploy") {
+  if (platform !== "android") fail("deploy only supports android")
+  if (channel !== "release") fail("deploy only supports the release channel")
+  loadAndroidLocalEnvironment()
+  const address = process.env.ONCE_ANDROID_WIRELESS_ADDRESS
+  if (!address || !/^[^:\s]+:\d+$/.test(address)) {
+    fail("ONCE_ANDROID_WIRELESS_ADDRESS must be an IP or hostname followed by :port")
+  }
+  sync(platform, channel)
+  const android = androidEnvironment(channel)
+  run(android.command, [
+    "-classpath",
+    path.join(appRoot, "android", "gradle", "wrapper", "gradle-wrapper.jar"),
+    "org.gradle.wrapper.GradleWrapperMain",
+    "assembleProductionDebug",
+    "--no-daemon"
+  ], {
+    cwd: path.join(appRoot, "android"),
+    env: android.env
+  })
+  const apk = path.join(
+    appRoot,
+    "android",
+    "app",
+    "build",
+    "outputs",
+    "apk",
+    "production",
+    "debug",
+    "app-production-debug.apk"
+  )
+  if (!fs.existsSync(apk)) fail(`built APK not found at ${apk}`)
+  const adb = adbCommand(android.env)
+  run(adb, ["connect", address], { env: android.env })
+  run(adb, ["-s", address, "install", "-r", apk], { env: android.env })
 } else if (command === "package") {
   sync(platform, channel)
   if (platform === "android") {

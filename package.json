@@ -28,6 +28,7 @@
     "check:types": "npm run build:packages && tsc --noEmit",
     "clean": "node scripts/clean-build-outputs.js",
     "clean:packages": "node scripts/clean-build-outputs.js --packages",
+    "deploy:mobile:android": "npm run mobile -- deploy android --channel release",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "make:electron": "npm run build:packages && node apps/electron/scripts/run-forge.js make",

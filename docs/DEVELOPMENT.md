@@ -163,6 +163,11 @@ npm run mobile -- package ios --channel dev
 # Unsigned production artifacts for store-signing workflows
 npm run package:mobile:android
 npm run package:mobile:ios
+
+# Install release-channel Android content on a paired wireless device
+copy .env.android.example .env.android.local
+# Edit ONCE_ANDROID_WIRELESS_ADDRESS, then:
+npm run deploy:mobile:android
 ```
 
 The iOS packaging command resolves the public Capacitor Swift package with
@@ -180,6 +185,14 @@ archive at `apps/mobile/ios/build/Once.xcarchive`. These artifacts deliberately
 stop before store signing/export: supply the Android keystore or use
 `xcodebuild -exportArchive` with the appropriate Apple team and provisioning
 profile in the secure release environment.
+
+`deploy:mobile:android` is a local convenience command for a phone already
+paired through Android's Wireless debugging screen. It builds the production
+flavor with release-channel web content and Android's local debug signature,
+connects to the address in the git-ignored `.env.android.local`, and replaces
+the installed `com.zmarn.once` app with `adb install -r`. The debug signature
+makes this APK locally installable; it is not a store release artifact and
+cannot replace an app signed with a different key.
 
 Run `npm run test:mobile` for adapter checks and `npm run test:mobile:web` for
 the phone-sized browser suite. Native Appium suites use
