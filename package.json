@@ -41,6 +41,7 @@
     "package:mobile:ios": "npm run mobile -- package ios --channel release",
     "pretest:extensions": "npm run test:setup",
     "pretest:mobile:web": "npm run test:setup",
+    "rebuild:packages": "npm run clean:packages && npm run build:packages",
     "refresh:fixtures:collectors": "npm run build:packages && node scripts/refresh-collector-fixture.js",
     "run:mobile:android": "npm run mobile -- run android --channel dev",
     "run:mobile:android:emulator": "npm run mobile -- run android --channel dev --target Pixel_7_API_36_AOSP",
