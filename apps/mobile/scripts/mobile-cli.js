@@ -129,9 +129,6 @@ function channelFor(command, value) {
   const channel = value || (command === "package" ? undefined : "dev")
   if (!channel) fail("package requires --channel dev or --channel release")
   if (channel !== "dev" && channel !== "release") fail("channel must be dev or release")
-  if (command === "package" && channel === "release") {
-    fail("release packaging is reserved until store signing is configured")
-  }
   return channel
 }
 
@@ -240,27 +237,37 @@ else if (command === "run") {
   sync(platform, channel)
   if (platform === "android") {
     const android = androidEnvironment(channel)
+    const gradleTask = channel === "release"
+      ? "bundleProductionRelease"
+      : "assembleDevelopmentDebug"
     run(android.command, [
       "-classpath",
       path.join(appRoot, "android", "gradle", "wrapper", "gradle-wrapper.jar"),
       "org.gradle.wrapper.GradleWrapperMain",
-      "assembleDevelopmentDebug",
+      gradleTask,
       "--no-daemon"
     ], {
       cwd: path.join(appRoot, "android"),
       env: android.env
     })
   } else {
+    const release = channel === "release"
+    const buildPath = path.join(appRoot, "ios", "build")
     run("xcodebuild", [
       "-project", "App/App.xcodeproj",
-      "-scheme", "Once Dev",
-      "-configuration", "Debug",
-      "-sdk", "iphonesimulator",
+      "-scheme", release ? "Once" : "Once Dev",
+      "-configuration", release ? "Release" : "Debug",
+      ...(release
+        ? [
+          "-destination", "generic/platform=iOS",
+          "-archivePath", path.join(buildPath, "Once.xcarchive")
+        ]
+        : ["-sdk", "iphonesimulator"]),
       "-scmProvider", "system",
       "-packageAuthorizationProvider", "netrc",
-      "-derivedDataPath", path.join(appRoot, "ios", "build"),
+      "-derivedDataPath", buildPath,
       `CURRENT_PROJECT_VERSION=${process.env.ONCE_BUILD_NUMBER || "1"}`,
-      "build"
+      ...(release ? ["CODE_SIGNING_ALLOWED=NO", "archive"] : ["build"])
     ], { cwd: path.join(appRoot, "ios"), env: publicPackageEnvironment(channel) })
   }
   writePackageStamp(platform, channel)

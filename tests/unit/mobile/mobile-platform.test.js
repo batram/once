@@ -86,3 +86,22 @@ test("mobile build channels select stable names, identifiers, schemes, and flavo
   assert.equal(release.android.allowMixedContent, false)
   assert.throws(() => mobileBuildChannel("preview"), /must be dev or release/)
 })
+
+test("mobile release package commands select production native artifacts", () => {
+  const root = path.resolve(__dirname, "../../..")
+  const rootPackage = require(path.join(root, "package.json"))
+  const mobileCli = fs.readFileSync(path.join(root, "apps/mobile/scripts/mobile-cli.js"), "utf8")
+
+  assert.equal(
+    rootPackage.scripts["package:mobile:android"],
+    "npm run mobile -- package android --channel release"
+  )
+  assert.equal(
+    rootPackage.scripts["package:mobile:ios"],
+    "npm run mobile -- package ios --channel release"
+  )
+  assert.match(mobileCli, /"bundleProductionRelease"/)
+  assert.match(mobileCli, /"-scheme", release \? "Once" : "Once Dev"/)
+  assert.match(mobileCli, /"-destination", "generic\/platform=iOS"/)
+  assert.match(mobileCli, /"CODE_SIGNING_ALLOWED=NO", "archive"/)
+})
