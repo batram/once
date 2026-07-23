@@ -1,6 +1,7 @@
 const path = require("path")
 const CopyPlugin = require("copy-webpack-plugin")
 const webpack = require("webpack")
+const { devBuildIdentifier } = require("./build-identifier")
 
 const root = path.resolve(__dirname, "..")
 const { version } = require(path.join(root, "package.json"))
@@ -80,7 +81,8 @@ module.exports = (env = {}, argv = {}) => {
     plugins: [
       new webpack.DefinePlugin({
         __ONCE_WEBEXT_TARGET__: JSON.stringify(target),
-        __ONCE_BUILD_CHANNEL__: JSON.stringify(buildChannel)
+        __ONCE_BUILD_CHANNEL__: JSON.stringify(buildChannel),
+        __ONCE_BUILD_IDENTIFIER__: JSON.stringify(devBuildIdentifier())
       }),
       new CopyPlugin({
         patterns: [

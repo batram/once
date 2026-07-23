@@ -56,6 +56,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   await mountOnceUi(app.client, {
     appVersion: buildInfo.version,
     buildChannel: buildInfo.channel,
+    buildIdentifier: buildInfo.buildIdentifier,
     updater: {
       getStatus: () => window.onceElectron.app.getUpdateStatus(),
       checkForUpdates: () => window.onceElectron.app.checkForUpdates(),

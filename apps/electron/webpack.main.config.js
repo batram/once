@@ -1,5 +1,6 @@
 const webpack = require("webpack")
 const rules = require("./webpack.rules")
+const { devBuildIdentifier } = require("../../scripts/build-identifier")
 
 module.exports = {
   entry: {
@@ -31,7 +32,8 @@ module.exports = {
     new webpack.DefinePlugin({
       __ONCE_BUILD_CHANNEL__: JSON.stringify(
         process.env.ONCE_BUILD_CHANNEL === "dev" ? "dev" : "release"
-      )
+      ),
+      __ONCE_BUILD_IDENTIFIER__: JSON.stringify(devBuildIdentifier())
     })
   ],
   devtool: "source-map"

@@ -2,6 +2,7 @@ const crypto = require("crypto")
 const path = require("path")
 const CopyPlugin = require("copy-webpack-plugin")
 const webpack = require("webpack")
+const { devBuildIdentifier } = require("../../scripts/build-identifier")
 
 const root = path.resolve(__dirname, "../..")
 const { version } = require(path.join(root, "package.json"))
@@ -85,6 +86,7 @@ module.exports = (_env = {}, argv = {}) => {
       new webpack.DefinePlugin({
         __ONCE_APP_VERSION__: JSON.stringify(version),
         __ONCE_BUILD_CHANNEL__: JSON.stringify(channel),
+        __ONCE_BUILD_IDENTIFIER__: JSON.stringify(devBuildIdentifier()),
         __ONCE_MOBILE_E2E__: JSON.stringify(process.env.ONCE_MOBILE_E2E === "1")
       }),
       new ReaderRuntimeCspPlugin(),

@@ -42,6 +42,7 @@ import {
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string
 declare const __ONCE_BUILD_CHANNEL__: "release" | "dev"
+declare const __ONCE_BUILD_IDENTIFIER__: string
 
 if (started) app.quit()
 
@@ -196,6 +197,7 @@ function registerIpc(
     return {
       version: app.getVersion(),
       channel: __ONCE_BUILD_CHANNEL__,
+      buildIdentifier: __ONCE_BUILD_IDENTIFIER__,
       platform: process.platform
     }
   })

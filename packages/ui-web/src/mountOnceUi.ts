@@ -17,6 +17,7 @@ import { AppUpdater, bindAppUpdateControls } from "./AppUpdateControls"
 export interface MountOnceUiOptions {
   appVersion: string
   buildChannel: "release" | "dev"
+  buildIdentifier?: string
   showHoveredLinks?: boolean
   onMenuCollapsedChanged?: (collapsed: boolean) => void
   initialStoryLoad?: "network" | "cache" | "disabled"
@@ -38,7 +39,9 @@ export async function mountOnceUi(
   if (version) {
     version.textContent =
       options.buildChannel === "dev"
-        ? `${options.appVersion} (dev)`
+        ? `${options.appVersion} (dev${options.buildIdentifier
+          ? ` ${options.buildIdentifier}`
+          : ""})`
         : options.appVersion
     version.dataset.buildChannel = options.buildChannel
   }

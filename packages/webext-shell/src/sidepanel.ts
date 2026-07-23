@@ -13,6 +13,7 @@ import { createWebExtPlatform } from "@once/platform-webext"
 
 declare const __ONCE_WEBEXT_TARGET__: "chrome" | "firefox"
 declare const __ONCE_BUILD_CHANNEL__: "release" | "dev"
+declare const __ONCE_BUILD_IDENTIFIER__: string
 
 document.addEventListener("DOMContentLoaded", async () => {
   const platform = createWebExtPlatform(browser)
@@ -31,6 +32,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   await mountOnceUi(client, {
     appVersion: browser.runtime.getManifest().version,
     buildChannel: __ONCE_BUILD_CHANNEL__,
+    buildIdentifier: __ONCE_BUILD_IDENTIFIER__,
     showHoveredLinks: __ONCE_WEBEXT_TARGET__ === "chrome",
     initialStoryLoad: testMode ? "disabled" : "network"
   })

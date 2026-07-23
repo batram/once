@@ -9,6 +9,7 @@ import "./mobile.css"
 
 declare const __ONCE_APP_VERSION__: string
 declare const __ONCE_BUILD_CHANNEL__: "release" | "dev"
+declare const __ONCE_BUILD_IDENTIFIER__: string
 declare const __ONCE_MOBILE_E2E__: boolean
 
 async function startMobileApp(): Promise<void> {
@@ -39,6 +40,7 @@ async function startMobileApp(): Promise<void> {
   await mountOnceUi(app.client, {
     appVersion: __ONCE_APP_VERSION__,
     buildChannel: __ONCE_BUILD_CHANNEL__,
+    buildIdentifier: __ONCE_BUILD_IDENTIFIER__,
     sourcePicker: false,
     initialStoryLoad: __ONCE_MOBILE_E2E__ ? "disabled" : "network"
   })
