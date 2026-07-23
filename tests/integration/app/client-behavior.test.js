@@ -24,6 +24,7 @@ test("starts from stored stories and persists story changes", async () => {
   await app.start()
   const saved = await app.client.persistStoryChange(story.href, "read_state", "read")
   assert.equal(saved.read_state, "read")
+  assert.equal(typeof saved.sync_updated_at.read_state, "number")
   assert.equal(changes.at(-1).path[1], "read_state")
   assert.equal(changes.at(-1).value, "read")
 })
@@ -76,6 +77,79 @@ test("ignores stale story echoes from the database changes feed", async () => {
     id: `sto_${story.href}`,
     doc: { ...story.to_obj(), _rev: "4-newer", read_state: "read" }
   })
+  assert.equal((await app.client.findStoryByUrl(story.href)).read_state, "read")
+})
+
+test("applies a pulled conflicting story state on top of the local winner", async () => {
+  const story = new Story("rss", "https://example.com/story", "A story")
+  story.read_state = "unread"
+  story._rev = "5-local"
+  const fake = createFakePlatform([story])
+  const savedStates = []
+  const saveStory = fake.ports.storyStore.saveStory
+  fake.ports.storyStore.saveStory = async (remoteStory) => {
+    savedStates.push(remoteStory.read_state)
+    remoteStory._rev = "6-merged"
+    return saveStory(remoteStory)
+  }
+  const app = createOnceApp(fake.ports)
+  const changes = []
+  app.client.subscribe("storyChanged", (change) => changes.push(change))
+  await app.start()
+
+  fake.emitRemoteDatabaseChange({
+    id: `sto_${story.href}`,
+    doc: { ...story.to_obj(), _rev: "3-remote", read_state: "skipped" }
+  })
+  await new Promise((resolve) => setImmediate(resolve))
+  await app.client.settledStoryWrites()
+
+  assert.deepEqual(savedStates, ["skipped"])
+  assert.equal((await app.client.findStoryByUrl(story.href)).read_state, "skipped")
+  assert.equal(changes.at(-1).story.read_state, "skipped")
+  assert.equal(changes.at(-1).story._rev, "6-merged")
+
+  fake.emitRemoteDatabaseChange({
+    id: `sto_${story.href}`,
+    doc: { ...story.to_obj(), _rev: "7-stale", read_state: "unread" }
+  })
+  await new Promise((resolve) => setImmediate(resolve))
+  await app.client.settledStoryWrites()
+
+  assert.deepEqual(savedStates, ["skipped"])
+  assert.equal((await app.client.findStoryByUrl(story.href)).read_state, "skipped")
+})
+
+test("uses field timestamps to converge story state without repeated writes", async () => {
+  const story = new Story("rss", "https://example.com/story", "A story")
+  story.read_state = "read"
+  story.sync_updated_at = { read_state: 200 }
+  story._rev = "5-local"
+  const fake = createFakePlatform([story])
+  const savedStates = []
+  const saveStory = fake.ports.storyStore.saveStory
+  fake.ports.storyStore.saveStory = async (mergedStory) => {
+    savedStates.push(mergedStory.read_state)
+    mergedStory._rev = "6-merged"
+    return saveStory(mergedStory)
+  }
+  const app = createOnceApp(fake.ports)
+  await app.start()
+
+  const remote = {
+    ...story.to_obj(),
+    _rev: "4-remote",
+    read_state: "unread",
+    sync_updated_at: { read_state: 100 }
+  }
+  fake.emitRemoteDatabaseChange({ id: `sto_${story.href}`, doc: remote })
+  await new Promise((resolve) => setImmediate(resolve))
+  await app.client.settledStoryWrites()
+  fake.emitRemoteDatabaseChange({ id: `sto_${story.href}`, doc: remote })
+  await new Promise((resolve) => setImmediate(resolve))
+  await app.client.settledStoryWrites()
+
+  assert.deepEqual(savedStates, [])
   assert.equal((await app.client.findStoryByUrl(story.href)).read_state, "read")
 })
 

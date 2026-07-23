@@ -4,12 +4,14 @@ function createFakePlatform(stories = [], options = {}) {
   const savedStories = new Map(stories.map((story) => [story.href, story]))
   const cachedResponses = new Map(options.cachedResponses || [])
   let databaseHandler
+  let remoteDatabaseHandler
   let historyHandler
   const opened = []
 
   return {
     opened,
     emitDatabaseChange(change) { databaseHandler?.(change) },
+    emitRemoteDatabaseChange(change) { remoteDatabaseHandler?.(change) },
     emitHistory(action) { historyHandler?.(action) },
     ports: {
       listStore: {
@@ -44,6 +46,13 @@ function createFakePlatform(stories = [], options = {}) {
         async setSyncUrl() {},
         async getCacheTime() { return 120 },
         async setCacheTime() {}
+      },
+      syncService: {
+        syncFrom() {},
+        onRemoteChange(handler) {
+          remoteDatabaseHandler = handler
+          return () => { remoteDatabaseHandler = undefined }
+        }
       },
       theme: { setTheme() {} },
       activeTab: {

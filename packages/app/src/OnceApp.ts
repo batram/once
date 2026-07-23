@@ -63,6 +63,9 @@ export class OnceApp {
       this.syncStatus = status
       this.events.publish("syncStatusChanged", status)
     })
+    this.platform.syncService?.onRemoteChange?.((change) => {
+      void this.handleRemoteDatabaseChange(change).catch(() => undefined)
+    })
     this.platform.onDatabaseChange?.((change) => {
       this.handleDatabaseChange(change)
     })
@@ -763,6 +766,11 @@ export class OnceApp {
 
     const previousValue = story[path]
     story[path] = value
+    const previousUpdate = story.sync_updated_at?.[path] ?? 0
+    story.sync_updated_at = {
+      ...story.sync_updated_at,
+      [path]: Math.max(Date.now(), previousUpdate + 1)
+    }
     this.emitDataChange([href, path], value, previousValue, null)
 
     // Save a snapshot so each queued write persists exactly this transition
@@ -912,6 +920,87 @@ export class OnceApp {
         break
     }
   }
+
+  private async handleRemoteDatabaseChange(
+    change: DatabaseChange
+  ): Promise<void> {
+    if (!change.id.startsWith("sto_") || !change.doc || change.doc._deleted) {
+      return
+    }
+
+    const remoteStory = Story.from_obj(change.doc)
+    const currentStory = this.getStory(remoteStory.href)
+    const localStory = await this.platform.storyStore.getStory(remoteStory.href)
+    if (!localStory) {
+      this.handleDatabaseChange(change)
+      return
+    }
+
+    const mergeBase = currentStory ?? localStory
+    const merged = mergeStorySyncState(mergeBase, remoteStory)
+    if (sameStorySyncState(merged, localStory)) {
+      if (currentStory && !sameStorySyncState(currentStory, localStory)) {
+        this.setStory(localStory.href, localStory)
+      }
+      return
+    }
+
+    const saved = await this.queueStoryWrite(merged.href, () =>
+      this.platform.storyStore.saveStory(merged)
+    )
+    this.setStory(saved.href, saved)
+  }
+}
+
+const syncedStoryFields = ["read_state", "stared", "filter"] as const
+
+function mergeStorySyncState(local: Story, remote: Story): Story {
+  const merged = Story.from_obj(local.to_obj())
+  const timestamps = { ...local.sync_updated_at }
+
+  syncedStoryFields.forEach((field) => {
+    const localTime = local.sync_updated_at?.[field] ?? 0
+    const remoteTime = remote.sync_updated_at?.[field] ?? 0
+    const useRemote =
+      remoteTime > localTime ||
+      (remoteTime === localTime &&
+        legacyStoryFieldRank(field, remote[field]) >
+          legacyStoryFieldRank(field, local[field]))
+    if (useRemote) merged[field] = remote[field] as never
+    const latest = Math.max(localTime, remoteTime)
+    if (latest > 0) timestamps[field] = latest
+  })
+
+  if (Object.keys(timestamps).length > 0) {
+    merged.sync_updated_at = timestamps
+  }
+  return merged
+}
+
+function legacyStoryFieldRank(
+  field: typeof syncedStoryFields[number],
+  value: unknown
+): number {
+  if (field === "read_state") {
+    if (value === "skipped") return 2
+    if (value === "read") return 1
+    return 0
+  }
+  if (field === "stared") return value === true ? 1 : 0
+  return typeof value === "string" && value ? 1 : 0
+}
+
+function sameStorySyncState(a: Story, b: Story): boolean {
+  if (!syncedStoryFields.every((field) => a[field] === b[field])) return false
+  const aUpdates = a.sync_updated_at ?? {}
+  const bUpdates = b.sync_updated_at ?? {}
+  const updateFields = new Set([
+    ...Object.keys(aUpdates),
+    ...Object.keys(bUpdates)
+  ])
+  return Array.from(updateFields).every(
+    (field) => aUpdates[field] === bUpdates[field]
+  )
 }
 
 //PouchDB revisions are "<generation>-<hash>"; compare by generation

@@ -32,6 +32,11 @@ export interface PouchSyncStatus {
   changes?: number
 }
 
+export interface PouchRemoteChange {
+  id: string
+  doc: Record<string, unknown>
+}
+
 export class PouchSyncService {
   private static readonly INITIAL_STORY_LIMIT = 50
   private static readonly SETTINGS_DOCUMENT_IDS = [
@@ -54,6 +59,9 @@ export class PouchSyncService {
     documentId?: string
   }) => void>()
   private statusHandlers = new Set<(status: PouchSyncStatus) => void>()
+  private remoteChangeHandlers = new Set<
+    (change: PouchRemoteChange) => void
+  >()
   private status: PouchSyncStatus = {
     state: "disabled",
     message: "Sync is not configured"
@@ -83,6 +91,11 @@ export class PouchSyncService {
     this.statusHandlers.add(handler)
     handler(this.status)
     return () => this.statusHandlers.delete(handler)
+  }
+
+  onRemoteChange(handler: (change: PouchRemoteChange) => void): () => void {
+    this.remoteChangeHandlers.add(handler)
+    return () => this.remoteChangeHandlers.delete(handler)
   }
 
   private updateStatus(status: PouchSyncStatus): void {
@@ -233,6 +246,7 @@ export class PouchSyncService {
           const count = this.changeCount(info)
           stageChanges += count
           onChange(count)
+          this.notifyRemoteChanges(info)
         })
         .on("complete", (info: unknown) => {
           console.log("complete info replicate", info)
@@ -303,6 +317,7 @@ export class PouchSyncService {
     this.syncHandler
       .on("change", (event: unknown) => {
         this.onChange(event)
+        this.notifyRemoteChanges(event, true)
         const changes = this.changeCount(event)
         this.updateStatus({
           state: "syncing",
@@ -347,6 +362,22 @@ export class PouchSyncService {
             : { state: "up-to-date", message: "Up to date" }
         )
       })
+  }
+
+  private notifyRemoteChanges(event: unknown, requirePull = false): void {
+    if (!event || typeof event !== "object") return
+    const record = event as {
+      direction?: string
+      docs?: Array<Record<string, unknown>>
+      change?: { docs?: Array<Record<string, unknown>> }
+    }
+    if (requirePull && record.direction !== "pull") return
+    const docs = record.docs ?? record.change?.docs ?? []
+    docs.forEach((doc) => {
+      if (typeof doc._id !== "string" || !doc._id.startsWith("sto_")) return
+      const change = { id: doc._id, doc }
+      this.remoteChangeHandlers.forEach((handler) => handler(change))
+    })
   }
 
   private changeCount(info: unknown): number {

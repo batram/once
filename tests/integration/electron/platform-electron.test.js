@@ -104,8 +104,10 @@ test("cancels old CouchDB work when the sync URL changes", async () => {
   )
   const diagnostics = []
   const statuses = []
+  const remoteChanges = []
   service.onDiagnostic((error) => diagnostics.push(error))
   service.onStatus((status) => statuses.push(status))
+  service.onRemoteChange((change) => remoteChanges.push(change))
 
   service.syncFrom("https://one.example/db")
   assert.equal(statuses.at(-1).message, "Syncing settings…")
@@ -129,9 +131,19 @@ test("cancels old CouchDB work when the sync URL changes", async () => {
   assert.deepEqual(syncs[0].target, { remote: "https://two.example/db" })
   assert.equal(statuses.at(-1).state, "up-to-date")
 
-  syncs[0].chain.emit("change", { change: { docs: [{ id: "one" }] } })
-  assert.deepEqual(changes, [{ change: { docs: [{ id: "one" }] } }])
+  syncs[0].chain.emit("change", {
+    direction: "pull",
+    change: { docs: [{ _id: "sto_one", id: "one" }] }
+  })
+  assert.deepEqual(changes, [{
+    direction: "pull",
+    change: { docs: [{ _id: "sto_one", id: "one" }] }
+  }])
   assert.equal(statuses.at(-1).message, "Syncing 1 change…")
+  syncs[0].chain.emit("change", {
+    direction: "push",
+    change: { docs: [{ _id: "sto_local", id: "local" }] }
+  })
   syncs[0].chain.emit("paused")
   assert.equal(statuses.at(-1).state, "up-to-date")
   syncs[0].chain.emit("denied", { status: 403, message: "forbidden" })
@@ -147,6 +159,10 @@ test("cancels old CouchDB work when the sync URL changes", async () => {
     state: "disabled",
     message: "Sync is not configured"
   })
+  assert.deepEqual(remoteChanges, [{
+    id: "sto_one",
+    doc: { _id: "sto_one", id: "one" }
+  }])
 })
 
 test("syncs settings, newest stories, backlog, then starts live sync", async () => {

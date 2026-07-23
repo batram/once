@@ -13,6 +13,7 @@ export class Story {
   substories: SubStory[]
   read_state: "unread" | "read" | "skipped"
   stared: boolean
+  sync_updated_at?: Record<string, number>
   tags: StoryTag[]
 
   _attachments?: StoryAttachment

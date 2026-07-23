@@ -152,6 +152,7 @@ export interface SyncServicePort {
   syncFrom(couchdbUrl: string): void
   onDiagnostic?(handler: (error: DiagnosticError) => void): () => void
   onStatus?(handler: (status: SyncStatus) => void): () => void
+  onRemoteChange?(handler: (change: DatabaseChange) => void): () => void
 }
 
 export interface CacheStorePort {
