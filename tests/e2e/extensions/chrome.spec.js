@@ -5,7 +5,7 @@ const path = require("node:path")
 const { startLocalSource } = require("./local-source")
 
 test("installed Chrome extension loads, collects, persists settings, and opens a story", async () => {
-  const extensionPath = path.resolve(__dirname, "../../../apps/chrome-extension/dist")
+  const extensionPath = path.resolve(__dirname, "../../../apps/chrome-extension/dist/release")
   const userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "once-chrome-e2e-"))
   const source = await startLocalSource()
   const pageErrors = []

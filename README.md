@@ -48,9 +48,10 @@ npm run run:mobile:ios
 npm run test:mobile
 ```
 
-Browser build outputs are written to `apps/firefox-extension/dist` and
-`apps/chrome-extension/dist`. Load the relevant directory as a temporary
-Firefox add-on or an unpacked Chrome extension.
+Browser build outputs are written below `apps/firefox-extension/dist` and
+`apps/chrome-extension/dist`, separated into `dev` and `release` directories.
+Load the relevant channel directory as a temporary Firefox add-on or an
+unpacked Chrome extension.
 
 ## Documentation
 

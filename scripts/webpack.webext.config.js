@@ -25,7 +25,7 @@ module.exports = (env = {}, argv = {}) => {
       "picker-content": path.join(root, "packages", "ui-web", "dist", "picker", "contentScript.js")
     },
     output: {
-      path: path.join(appRoot, "dist"),
+      path: path.join(appRoot, "dist", buildChannel),
       filename: "[name].js",
       clean: true,
       globalObject: "globalThis",

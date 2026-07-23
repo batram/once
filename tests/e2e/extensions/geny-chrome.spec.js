@@ -10,7 +10,7 @@ const {
 test("Chrome genymatch extracts innerText from fetched HTML", async () => {
   const extensionPath = path.resolve(
     __dirname,
-    "../../../apps/chrome-extension/dist"
+    "../../../apps/chrome-extension/dist/release"
   )
   const userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "once-chrome-geny-"))
   const fixture = await startGenyFixture()

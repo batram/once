@@ -60,7 +60,7 @@ test(
     try {
       const extensionPath = path.resolve(
         __dirname,
-        "../../../apps/firefox-extension/dist"
+        "../../../apps/firefox-extension/dist/release"
       )
       const bidi = await driver.getBidi()
       const installResult = await bidi.send({

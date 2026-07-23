@@ -24,7 +24,7 @@ if (!fs.existsSync(root)) {
 
 if (target === "extensions") {
   for (const browser of ["firefox", "chrome"]) {
-    const manifestPath = path.join(root, `apps/${browser}-extension/dist/manifest.json`)
+    const manifestPath = path.join(root, `apps/${browser}-extension/dist/release/manifest.json`)
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"))
     if (manifest.version !== version) {
       throw new Error(`${browser} manifest version ${manifest.version} does not match ${version}`)

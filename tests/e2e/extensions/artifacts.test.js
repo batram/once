@@ -8,7 +8,7 @@ const version = require(path.join(root, "package.json")).version
 
 for (const target of ["chrome", "firefox"]) {
   test(`${target} production artifact is complete and target-correct`, () => {
-    const dist = path.join(root, "apps", `${target}-extension`, "dist")
+    const dist = path.join(root, "apps", `${target}-extension`, "dist", "release")
     const manifest = JSON.parse(fs.readFileSync(path.join(dist, "manifest.json"), "utf8"))
     assert.equal(manifest.manifest_version, 3)
     assert.equal(manifest.version, version)

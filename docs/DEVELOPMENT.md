@@ -61,12 +61,12 @@ npm run build:extensions:dev
 
 Outputs are written to:
 
-- `apps/firefox-extension/dist`
-- `apps/chrome-extension/dist`
+- `apps/firefox-extension/dist/{dev,release}`
+- `apps/chrome-extension/dist/{dev,release}`
 
-Webpack cleans the selected target's `dist` directory on each extension build.
-Production builds are minified and omit source maps; development builds include
-inline source maps.
+Webpack cleans only the selected target and channel directory on each extension
+build, so dev and release artifacts can coexist. Production builds are minified
+and omit source maps; development builds include inline source maps.
 
 Every build carries a build channel (`release` or `dev`) that is shown next to
 the version in the settings panel, as `x.y.z (dev)` on dev builds. Production
@@ -82,13 +82,13 @@ the exported `ic_launcher*` files under `mipmap-mdpi/`).
 ### Firefox
 
 Open `about:debugging`, choose **This Firefox**, select **Load Temporary
-Add-on**, and open `apps/firefox-extension/dist/manifest.json`.
+Add-on**, and open `apps/firefox-extension/dist/dev/manifest.json`.
 
 For automatic reloads:
 
 ```bash
 npm run build:firefox:dev
-npx web-ext run --source-dir ./apps/firefox-extension/dist
+npx web-ext run --source-dir ./apps/firefox-extension/dist/dev
 ```
 
 Rebuild after source changes; the documented webpack commands are one-shot
@@ -97,7 +97,7 @@ builds and do not run in watch mode.
 ### Chrome
 
 Open `chrome://extensions`, enable **Developer mode**, choose **Load
-unpacked**, and select `apps/chrome-extension/dist`.
+unpacked**, and select `apps/chrome-extension/dist/dev`.
 
 The Chrome build requires Chrome 114 or newer because it uses the Side Panel
 API.
@@ -114,7 +114,7 @@ npm run package:firefox
 For an unlisted signed build, obtain AMO API credentials and run:
 
 ```bash
-npx web-ext sign --source-dir ./apps/firefox-extension/dist --channel unlisted --api-key "your_jwt_issuer_key" --api-secret "your_jwt_secret"
+npx web-ext sign --source-dir ./apps/firefox-extension/dist/release --channel unlisted --api-key "your_jwt_issuer_key" --api-secret "your_jwt_secret"
 ```
 
 ## Electron

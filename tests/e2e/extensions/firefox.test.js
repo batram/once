@@ -25,7 +25,7 @@ test("installed Firefox extension loads, collects, persists settings, and opens 
     .build()
   const source = await startLocalSource()
   try {
-    const extensionPath = path.resolve(__dirname, "../../../apps/firefox-extension/dist")
+    const extensionPath = path.resolve(__dirname, "../../../apps/firefox-extension/dist/release")
     const bidi = await driver.getBidi()
     const installResult = await bidi.send({
       method: "webExtension.install",
