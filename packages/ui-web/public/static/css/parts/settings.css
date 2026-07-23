@@ -255,3 +255,29 @@
 #couch_toggle:hover {
   opacity: 1;
 }
+
+.couch-status {
+  margin-top: 7px;
+  font-size: 0.85em;
+  color: var(--subtle-text-color, #777);
+}
+
+.couch-status::before {
+  content: "●";
+  margin-right: 6px;
+  color: #888;
+}
+
+.couch-status[data-state="connecting"]::before,
+.couch-status[data-state="syncing"]::before,
+.couch-status[data-state="retrying"]::before {
+  color: #d99a00;
+}
+
+.couch-status[data-state="up-to-date"]::before {
+  color: #2f9e44;
+}
+
+.couch-status[data-state="error"]::before {
+  color: #d64545;
+}

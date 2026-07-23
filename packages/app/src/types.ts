@@ -26,6 +26,18 @@ export interface DiagnosticError {
   documentId?: string
 }
 
+export interface SyncStatus {
+  state:
+    | "disabled"
+    | "connecting"
+    | "syncing"
+    | "up-to-date"
+    | "retrying"
+    | "error"
+  message: string
+  changes?: number
+}
+
 export interface StoryChangeDetail {
   story: Story
   path: string[] | string
@@ -37,6 +49,7 @@ export interface StoryChangeDetail {
 
 export interface OnceAppEvents {
   diagnosticError: DiagnosticError
+  syncStatusChanged: SyncStatus
   loaderChanged: {
     processing: ProcessingSource[]
     visible: boolean
@@ -85,6 +98,7 @@ export type OnceEventHandler<T extends OnceEventName> = (
 
 export interface OnceClient {
   getDiagnostics(): DiagnosticError[]
+  getSyncStatus(): SyncStatus
   getStorySources(): Promise<string[]>
   saveStorySources(storySources: string[]): Promise<void>
   getFilterList(): Promise<string[]>
@@ -137,6 +151,7 @@ export interface StoryStorePort {
 export interface SyncServicePort {
   syncFrom(couchdbUrl: string): void
   onDiagnostic?(handler: (error: DiagnosticError) => void): () => void
+  onStatus?(handler: (status: SyncStatus) => void): () => void
 }
 
 export interface CacheStorePort {

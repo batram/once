@@ -21,6 +21,7 @@ import {
   ProcessingSource,
   SourceError,
   StoryChangeDetail,
+  SyncStatus,
   ThemeName
 } from "./types"
 import { LocalEventBus } from "./EventBus"
@@ -44,6 +45,10 @@ export class OnceApp {
   private readonly pendingSettingWrites = new Map<string, string>()
   private readonly storyWrites = new Map<string, Promise<Story>>()
   private animated = true
+  private syncStatus: SyncStatus = {
+    state: "disabled",
+    message: "Sync is not configured"
+  }
 
   constructor(private platform: OncePlatformPorts) {
     this.client = this.createClient()
@@ -54,6 +59,10 @@ export class OnceApp {
     this.platform.syncService?.onDiagnostic?.((error) =>
       this.reportDiagnostic(error)
     )
+    this.platform.syncService?.onStatus?.((status) => {
+      this.syncStatus = status
+      this.events.publish("syncStatusChanged", status)
+    })
     this.platform.onDatabaseChange?.((change) => {
       this.handleDatabaseChange(change)
     })
@@ -75,7 +84,7 @@ export class OnceApp {
     }
     try {
       const syncUrl = await this.getSyncUrl()
-      if (syncUrl) this.platform.syncService?.syncFrom(syncUrl)
+      this.platform.syncService?.syncFrom(syncUrl)
     } catch (error) {
       this.reportStartupSettingError("sync", error)
     }
@@ -92,6 +101,7 @@ export class OnceApp {
   private createClient(): OnceClient {
     return {
       getDiagnostics: () => [...this.diagnostics],
+      getSyncStatus: () => this.syncStatus,
       getStorySources: () => this.getStorySources(),
       saveStorySources: (storySources) => this.saveStorySources(storySources),
       getFilterList: () => this.getFilterList(),

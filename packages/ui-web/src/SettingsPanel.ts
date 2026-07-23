@@ -37,6 +37,13 @@ export class SettingsPanel {
     client.subscribe("sourceErrorsChanged", ({ errors }) => {
       this.setSourceErrors(errors)
     })
+    const setSyncStatus = (status: ReturnType<OnceClient["getSyncStatus"]>) => {
+      const element = requireElement<HTMLElement>("#couch_status")
+      element.dataset.state = status.state
+      element.textContent = status.message
+    }
+    client.subscribe("syncStatusChanged", setSyncStatus)
+    setSyncStatus(client.getSyncStatus())
 
     window
       .matchMedia("(prefers-color-scheme: dark)")
@@ -378,10 +385,22 @@ export class SettingsPanel {
   save_couch_settings(): void {
     const couch_input =
       requireElement<HTMLInputElement>("#couch_input")
+    const status = requireElement<HTMLElement>("#couch_status")
+    status.dataset.state = couch_input.value.trim() ? "connecting" : "disabled"
+    status.textContent = couch_input.value.trim()
+      ? "Saving and connecting…"
+      : "Turning sync off…"
     this.client.setSyncUrl(couch_input.value).then(
       () => {
         // Trigger password highlighting update using existing input event listener
         couch_input.dispatchEvent(new Event("input"))
+        const current = this.client.getSyncStatus()
+        status.dataset.state = current.state
+        status.textContent = current.message
+      },
+      () => {
+        status.dataset.state = "error"
+        status.textContent = "The sync setting could not be saved"
       }
     )
   }
