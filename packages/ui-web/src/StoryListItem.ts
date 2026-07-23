@@ -9,6 +9,7 @@ import { SettingsPanel } from "./SettingsPanel"
 import { getOnceClient } from "./client"
 import * as Search from "./search"
 import { showConfirmDialog } from "./ConfirmDialog"
+import { getTouchGestureAxis } from "./TouchGestureLock"
 
 export class StoryListItem extends HTMLElement {
   static devToolsEnabled = false
@@ -396,7 +397,15 @@ export class StoryListItem extends HTMLElement {
     }
 
     const touch_swipe = (event: TouchEvent) => {
+      const scroller = this.closest<HTMLElement>("#stories")
+      if (!scroller || getTouchGestureAxis(scroller) !== "horizontal") {
+        return
+      }
       const one_touch = event.touches[0]
+      if (!one_touch) {
+        return
+      }
+      event.preventDefault()
       if (start_offset == -1) {
         start_offset = one_touch.clientX
         add_background_element()
@@ -441,6 +450,11 @@ export class StoryListItem extends HTMLElement {
     })
 
     this.addEventListener("pointerdown", (e) => {
+      // Touch has its own axis-locked path below. Running both pointer and
+      // touch handlers lets a vertical scroll/pull move the story as well.
+      if (e.pointerType === "touch") {
+        return
+      }
       if (
         e.button != 0 ||
         (e.target as HTMLElement).getAttribute("draggable") == "false"

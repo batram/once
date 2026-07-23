@@ -106,3 +106,41 @@ test("a horizontal-dominant move is left for the row swipe handlers", () => {
     assert.equal(prevented, false, "does not hijack a horizontal swipe")
   })
 })
+
+test("a vertical gesture stays pull-to-refresh when it later drifts sideways", () => {
+  withDom((window, attachPullToRefresh) => {
+    const stories = document.querySelector("#stories")
+    let refreshes = 0
+    attachPullToRefresh(stories, () => {
+      refreshes++
+    })
+
+    stories.dispatchEvent(touch(window, "touchstart", 100, 100))
+    stories.dispatchEvent(touch(window, "touchmove", 102, 120))
+    const drift = touch(window, "touchmove", 300, 300)
+    stories.dispatchEvent(drift)
+    stories.dispatchEvent(touch(window, "touchend", 300, 300))
+
+    assert.equal(drift.defaultPrevented, true, "vertical axis remains locked")
+    assert.equal(refreshes, 1)
+  })
+})
+
+test("a horizontal gesture cannot turn into pull-to-refresh", () => {
+  withDom((window, attachPullToRefresh) => {
+    const stories = document.querySelector("#stories")
+    let refreshes = 0
+    attachPullToRefresh(stories, () => {
+      refreshes++
+    })
+
+    stories.dispatchEvent(touch(window, "touchstart", 100, 100))
+    stories.dispatchEvent(touch(window, "touchmove", 120, 102))
+    const drift = touch(window, "touchmove", 300, 300)
+    stories.dispatchEvent(drift)
+    stories.dispatchEvent(touch(window, "touchend", 300, 300))
+
+    assert.equal(drift.defaultPrevented, false, "horizontal axis remains locked")
+    assert.equal(refreshes, 0)
+  })
+})

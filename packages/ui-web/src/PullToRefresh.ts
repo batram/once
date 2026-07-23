@@ -10,6 +10,12 @@
 // avoids overflow/transform hacks and never interferes with the horizontal
 // `.story` swipe handlers living inside the scroller.
 
+import {
+  beginTouchGesture,
+  endTouchGesture,
+  updateTouchGesture
+} from "./TouchGestureLock"
+
 export interface PullToRefreshOptions {
   // Pull distance (px) required to trigger a refresh, and the resting height of
   // the spinner strip while refreshing.
@@ -27,8 +33,6 @@ export function attachPullToRefresh(
 ): () => void {
   const threshold = options.threshold ?? 64
   const maxPull = options.maxPull ?? 96
-  const startSlop = 6
-
   if (!scroller.parentElement || scroller.dataset.ptrAttached === "true") {
     return () => {}
   }
@@ -105,13 +109,14 @@ export function attachPullToRefresh(
     }
     startY = touch.clientY
     startX = touch.clientX
+    beginTouchGesture(scroller, startX, startY)
     armed = scroller.scrollTop <= 0
     pulling = false
     pull = 0
   }
 
   const onMove = (event: TouchEvent): void => {
-    if (refreshing || !armed) {
+    if (refreshing) {
       return
     }
     const touch = event.touches[0]
@@ -119,16 +124,20 @@ export function attachPullToRefresh(
       return
     }
     const dy = touch.clientY - startY
-    const dx = touch.clientX - startX
+    const axis = updateTouchGesture(
+      scroller,
+      touch.clientX,
+      touch.clientY
+    )
 
     if (!pulling) {
-      // Hand the gesture back to native scroll (upward) or the row swipe
-      // handlers (horizontal-dominant) instead of hijacking it.
-      if (dy <= 0 || Math.abs(dx) > dy) {
-        armed = false
+      if (axis === "pending") {
         return
       }
-      if (dy < startSlop) {
+      // The axis stays locked until release, so a scroll/pull cannot turn into
+      // a story swipe (or vice versa) after the gesture has started.
+      if (axis === "horizontal" || !armed || dy <= 0) {
+        armed = false
         return
       }
       if (scroller.scrollTop > 0) {
@@ -146,6 +155,7 @@ export function attachPullToRefresh(
   }
 
   const onEnd = (): void => {
+    endTouchGesture(scroller)
     if (!pulling) {
       armed = false
       return
