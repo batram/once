@@ -1,5 +1,13 @@
 const { test, expect } = require("@playwright/test")
 
+async function openStorySheet(page, story) {
+  await story.click({ delay: 700 })
+  await expect(page.getByTestId("sheet-cancel")).toBeVisible()
+  // The app suppresses the synthetic release click from a long-press for up
+  // to 250ms. Do not let the harness's next intentional tap get swallowed.
+  await page.waitForTimeout(300)
+}
+
 test("mobile shell is responsive and hides unavailable capabilities", async ({ page }) => {
   await page.goto("./")
   await expect(page.locator("body")).toHaveAttribute("data-platform", "mobile")
@@ -9,6 +17,15 @@ test("mobile shell is responsive and hides unavailable capabilities", async ({ p
   await expect(page.getByTestId("settings-menu")).toBeVisible()
   await expect(page.getByTestId("stories-menu")).toBeVisible()
   expect(await page.locator("#left_panel").evaluate((element) => element.scrollWidth <= window.innerWidth)).toBe(true)
+  expect(await page.locator("#stories").evaluate((stories) => {
+    const finalStory = document.createElement("article")
+    finalStory.style.cssText = "display:block;flex:0 0 1200px;height:1200px"
+    stories.replaceChildren(finalStory)
+    stories.scrollTop = stories.scrollHeight
+    const menu = document.querySelector("#menu")
+    return finalStory.getBoundingClientRect().bottom <=
+      menu.getBoundingClientRect().top
+  })).toBe(true)
 })
 
 test("mobile refresh controls stay separated and theme-aware", async ({ page }) => {
@@ -91,7 +108,7 @@ test("stories persist offline and open in the in-app reader", async ({ page }) =
   const story = page.getByTestId("story").filter({ hasText: "Fixture article" })
   await expect(story).toBeVisible()
   // story actions live in a long-press sheet on mobile
-  await story.click({ delay: 700 })
+  await openStorySheet(page, story)
   await page.getByTestId("sheet-story-reader").click()
   await expect(page.getByTestId("reader-close")).toBeVisible()
   const reader = page.locator(".once-reader-host-frame").contentFrame()
@@ -104,9 +121,9 @@ test("stories persist offline and open in the in-app reader", async ({ page }) =
   // closing must unload the frame so pagehide stops any running speech
   await expect(reader.getByRole("heading", { name: "Fixture article" })).toHaveCount(0)
 
-  await story.click({ delay: 700 })
+  await openStorySheet(page, story)
   await page.getByTestId("sheet-story-read-state").click()
-  await story.click({ delay: 700 })
+  await openStorySheet(page, story)
   await page.getByTestId("sheet-story-read-state").click()
   await expect(story).toHaveClass(/skipped/)
   await page.waitForTimeout(500)
@@ -135,7 +152,7 @@ test("reader TTS bridges through the host when the frame lacks speech synthesis"
 
   const story = page.getByTestId("story").filter({ hasText: "Fixture article" })
   await expect(story).toBeVisible()
-  await story.click({ delay: 700 })
+  await openStorySheet(page, story)
   await page.getByTestId("sheet-story-reader").click()
   await expect(page.getByTestId("reader-close")).toBeVisible()
   const reader = page.locator(".once-reader-host-frame").contentFrame()

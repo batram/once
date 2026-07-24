@@ -194,6 +194,61 @@ the installed `com.zmarn.once` app with `adb install -r`. The debug signature
 makes this APK locally installable; it is not a store release artifact and
 cannot replace an app signed with a different key.
 
+### Inspect the Android WebView with Chrome DevTools
+
+Both `run android --channel dev` (`com.zmarn.once.dev`) and the locally deployed
+`productionDebug` APK (`com.zmarn.once`) are debuggable builds. With the app
+open on a USB- or wireless-ADB device:
+
+1. Run `adb devices -l` and note the device serial. If the same phone appears
+   through more than one transport, use one explicit serial for every command.
+2. Open `chrome://inspect/#devices` in desktop Chrome and enable **Discover USB
+   devices**.
+3. Find the WebView named **Once** or **Once Dev**, then select **inspect**.
+
+The WebView is exposed only while the app process is running. If it does not
+appear, bring the app to the foreground, refresh `chrome://inspect`, and confirm
+that the installed package is debuggable:
+
+```powershell
+adb -s <serial> shell dumpsys package com.zmarn.once |
+  Select-String DEBUGGABLE
+
+# Use com.zmarn.once.dev for the development-channel app.
+```
+
+Chrome normally discovers the WebView directly through ADB. For a CDP client
+that needs a local TCP endpoint, first discover the current process-specific
+socket:
+
+```powershell
+adb -s <serial> shell cat /proc/net/unix |
+  Select-String webview_devtools_remote
+```
+
+Forward an unused local port to the listening socket shown in that output, then
+verify the target:
+
+```powershell
+adb -s <serial> forward tcp:9223 localabstract:webview_devtools_remote_<pid>
+curl.exe http://127.0.0.1:9223/json/list
+```
+
+The response contains the page's `webSocketDebuggerUrl` for CDP clients. The
+socket PID changes whenever Android restarts the app, so rediscover it instead
+of saving it in configuration. If a forwarded port accepts a connection but
+does not return discovery data, inspect `adb -s <serial> forward --list` and
+retry with another unused local port.
+
+Remove a manual forward when finished:
+
+```powershell
+adb -s <serial> forward --remove tcp:9223
+```
+
+Do not enable WebView debugging in a store-signed release build. A connected
+debugger can inspect and modify the live WebView state.
+
 Run `npm run test:mobile` for adapter checks and `npm run test:mobile:web` for
 the phone-sized browser suite. Native Appium suites use
 `test:mobile:e2e:android` and `test:mobile:e2e:ios`; install the pinned Appium
