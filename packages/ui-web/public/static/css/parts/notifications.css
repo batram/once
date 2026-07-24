@@ -297,9 +297,7 @@ body[animated="false"] #hover_url {
 }
 
 body[animated="false"] #status_bar_activity.spinning,
-body[animated="false"]
-  .status_indicator.activity.spinning
-  .status_indicator_icon {
+body[animated="false"] .status_indicator.activity.spinning .status_indicator_icon {
   animation: none;
   border-right-color: currentColor;
 }

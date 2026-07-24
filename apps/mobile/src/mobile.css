@@ -51,7 +51,13 @@ body[data-platform="mobile"] #left_panel_content {
 
 body[data-platform="mobile"] #left_main {
   height: 100%;
+  box-sizing: border-box;
   padding-bottom: var(--m-tabbar-h);
+}
+
+body[data-platform="mobile"] #stories {
+  box-sizing: border-box;
+  padding-bottom: calc(var(--m-tabbar-h) + var(--m-sp-3));
 }
 
 body[data-platform="mobile"] #menu #types,
@@ -318,6 +324,7 @@ body[data-platform="mobile"] #reload_stories_btn::before {
   width: 20px;
   height: 20px;
   display: block;
+  margin-top: 12px;
   background: currentColor;
   -webkit-mask: url("../../../packages/ui-web/public/static/imgs/reload.svg") center / contain
     no-repeat;
@@ -522,4 +529,12 @@ body.once-reader-open {
     max-width: 700px;
     margin-inline: auto;
   }
+}
+
+body[data-platform="mobile"] #status_surfaces {
+  bottom: 55px;
+}
+
+body[data-platform="mobile"] #status_surfaces {
+  border: none;
 }
