@@ -134,7 +134,15 @@ async function saveFilters(page, text) {
 // mid-plateau rather than on a boundary.
 const SWIPE_STAGE_DISTANCE = { 1: 110, 2: 260 }
 
-async function swipeStory(page, story, direction, stage = 1) {
+// `moves` are the fractions of the distance the pointer is reported at. A
+// fast drag is coalesced into very few moves, so `[1]` is the realistic worst
+// case: the gesture has to be measured from the press, not from the first move.
+async function swipeStory(
+  page,
+  story,
+  direction,
+  { stage = 1, moves = [0.25, 0.5, 0.75, 1] } = {}
+) {
   await expect(story).toBeVisible()
   await story.scrollIntoViewIfNeeded()
   const box = await story.boundingBox()
@@ -146,7 +154,7 @@ async function swipeStory(page, story, direction, stage = 1) {
     SWIPE_STAGE_DISTANCE[stage] * (direction === "left" ? -1 : 1)
   await page.mouse.move(startX, y)
   await page.mouse.down()
-  for (const fraction of [0.25, 0.5, 0.75, 1]) {
+  for (const fraction of moves) {
     await page.mouse.move(Math.round(startX + distance * fraction), y)
   }
   await page.mouse.up()
@@ -242,6 +250,34 @@ test("opens the reader and marks the story read", async () => {
       "The reader pipeline extracts long-form content"
     )
     await expect(alpha).toHaveClass(/\bread\b/)
+    expectCleanHarness(harness)
+  } finally {
+    await closeStoryExtension(harness)
+  }
+})
+
+test("a fast drag reported as a single move still commits stage 1", async () => {
+  const harness = await launchStoryExtension()
+  const { page, source } = harness
+  try {
+    const gamma = storyItem(page, source.urls.gamma)
+    await swipeStory(page, gamma, "left", { moves: [1] })
+    await expect(gamma).toHaveClass(/skipped/)
+    expectCleanHarness(harness)
+  } finally {
+    await closeStoryExtension(harness)
+  }
+})
+
+test("a full swipe left keeps the filter editor open after release", async () => {
+  const harness = await launchStoryExtension()
+  const { page, source } = harness
+  try {
+    const delta = storyItem(page, source.urls.delta)
+    await swipeStory(page, delta, "left", { stage: 2 })
+    await expect(
+      delta.locator(`${storyFixture.SELECTORS.filterBtn} input`)
+    ).toHaveValue("127.0.0.1")
     expectCleanHarness(harness)
   } finally {
     await closeStoryExtension(harness)

@@ -65,7 +65,8 @@ async function getTabs(window) {
 // mid-plateau rather than on a boundary.
 const SWIPE_STAGE_DISTANCE = { 1: 110, 2: 260 }
 
-// The drag needs several moves (the first one only anchors the swipe origin).
+// Several moves rather than one jump, so the drag passes through the detents
+// the way a real one does. The origin is the press, so the full distance counts.
 async function swipeStory(window, story, direction, stage = 1) {
   await expect(story).toBeVisible()
   await story.scrollIntoViewIfNeeded()
@@ -265,6 +266,19 @@ test("swipe left skips a story without navigating", async () => {
     await swipeStory(window, gamma, "left")
     await expect(gamma).toHaveClass(/skipped/)
     await expect(address).toHaveValue(initialAddress)
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
+test("a full swipe left keeps the filter editor open after release", async () => {
+  const { electronApp, userData, window } = await launchApp(STORY_ENV)
+  try {
+    await seedLocalSource(window, storyFixture.sourceLine(origin), urls.alpha)
+    const delta = storyItem(window, urls.delta)
+
+    await swipeStory(window, delta, "left", 2)
+    await expect(delta.locator(".filter_btn input")).toHaveValue("127.0.0.1")
   } finally {
     await closeApp(electronApp, userData)
   }

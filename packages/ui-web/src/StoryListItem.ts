@@ -15,7 +15,10 @@ import { SettingsPanel } from "./SettingsPanel"
 import { getOnceClient } from "./client"
 import * as Search from "./search"
 import { showConfirmDialog } from "./ConfirmDialog"
-import { getTouchGestureAxis } from "./TouchGestureLock"
+import {
+  getTouchGestureAxis,
+  getTouchGestureStart
+} from "./TouchGestureLock"
 import {
   executeStoryMenuAction,
   StoryMenuRequestEvent
@@ -40,6 +43,13 @@ export interface SwipeGeometry {
   stage(offset: number): SwipeStage
   plateau(offset: number): number
   actionFor(offset: number): SwipeActionId
+  /**
+   * What an engaged stage commits, for a drag in `direction` (-1 left,
+   * 1 right). Committing works off the stage the drag reached, never off the
+   * plateau it is resting on: the two only agree while every stage's resting
+   * offset happens to sit past its own threshold.
+   */
+  actionAt(stage: SwipeStage, direction: number): SwipeActionId
 }
 
 /**
@@ -67,10 +77,13 @@ export function createSwipeGeometry(
     },
 
     actionFor(offset) {
-      const stage = geometry.stage(offset)
+      return geometry.actionAt(geometry.stage(offset), Math.sign(offset))
+    },
+
+    actionAt(stage, direction) {
       if (stage === 0) return "none"
       const settings = read()
-      const actions = offset > 0 ? settings.right : settings.left
+      const actions = direction < 0 ? settings.left : settings.right
       return actions[stage === 1 ? 0 : 1]
     }
   }
@@ -467,6 +480,12 @@ export class StoryListItem extends HTMLElement {
     let start_offset = -1
     // where the row currently rests, always 0 or one of the stage offsets
     let plateau = 0
+    // how far the pointer has travelled from where the press started, and the
+    // stage that distance engages. The commit reads these, not the plateau:
+    // thresholds and resting offsets are configured independently, so a stage
+    // can rest short of its own threshold without becoming uncommittable.
+    let drag_offset = 0
+    let stage: SwipeStage = 0
     // Read per gesture rather than captured: a preview row is configured
     // after story_html() has already installed the handlers.
     const geometry = (): SwipeGeometry => this.swipePreview?.geometry ?? SwipeConfig
@@ -496,7 +515,7 @@ export class StoryListItem extends HTMLElement {
         this.before(bb_slide_el)
       }
       position_background()
-      update_reveal(plateau)
+      update_reveal(drag_offset)
     }
 
     // offsetTop/offsetHeight are layout positions, unaffected by the row's own
@@ -529,8 +548,7 @@ export class StoryListItem extends HTMLElement {
     }
 
     const mouse_swipe = (event: MouseEvent) => {
-      if (start_offset == -1) {
-        start_offset = event.pageX
+      if (!this.bb_slide) {
         add_background_element()
       }
       swipe(event.pageX)
@@ -548,17 +566,26 @@ export class StoryListItem extends HTMLElement {
       }
       event.preventDefault()
       if (start_offset == -1) {
-        start_offset = one_touch.clientX
+        // Measure from the touchstart, not from here: this handler first runs
+        // once the axis lock has resolved, several moves into the gesture, and
+        // a flick can cover most of its distance by then. Anchoring here threw
+        // that travel away, so a swipe that visibly passed stage 1 could
+        // release having registered almost nothing.
+        start_offset =
+          getTouchGestureStart(scroller)?.x ?? one_touch.clientX
         add_background_element()
       }
       swipe(one_touch.clientX)
     }
 
     const swipe = (x: number) => {
-      const next = geometry().plateau(x - start_offset)
-      if (next === plateau) return
+      drag_offset = x - start_offset
+      const next = geometry().plateau(drag_offset)
+      const next_stage = geometry().stage(drag_offset)
+      if (next === plateau && next_stage === stage) return
       plateau = next
-      update_reveal(plateau)
+      stage = next_stage
+      update_reveal(drag_offset)
       this.style.transition = SWIPE_SNAP_TRANSITION
       this.style.transform = `translateX(${plateau}px)`
     }
@@ -586,6 +613,11 @@ export class StoryListItem extends HTMLElement {
         return
       }
       e.preventDefault()
+      // The press is the origin of the drag. Taking it from the first
+      // pointermove instead dropped however far the pointer had already
+      // travelled — with coalesced moves that is easily past stage 1, which
+      // left mid-length drags resting on a plateau but committing nothing.
+      start_offset = e.pageX
       document.body.style.cursor = "w-resize"
       document.addEventListener("pointermove", mouse_swipe)
       document.addEventListener("touchmove", touch_swipe)
@@ -602,18 +634,19 @@ export class StoryListItem extends HTMLElement {
       e.preventDefault()
       e.stopPropagation()
 
-      const committed = plateau
+      const committed = stage
+      const direction = Math.sign(drag_offset)
       reset_swipe()
-      commit_swipe(committed)
+      commit_swipe(committed, direction)
 
       return false
     }
 
-    const commit_swipe = (offset: number) => {
-      const action = geometry().actionFor(offset)
+    const commit_swipe = (committed: SwipeStage, direction: number) => {
+      const action = geometry().actionAt(committed, direction)
       if (this.swipePreview) {
         // A sample row: say what would have happened, change nothing.
-        this.swipePreview.onAction(action, geometry().stage(offset))
+        this.swipePreview.onAction(action, committed)
         return
       }
       switch (action) {
@@ -667,6 +700,8 @@ export class StoryListItem extends HTMLElement {
 
       start_offset = -1
       plateau = 0
+      drag_offset = 0
+      stage = 0
       // spring back rather than snapping, so the release reads as a release
       this.style.transition = SWIPE_RELEASE_TRANSITION
       this.style.transform = ""

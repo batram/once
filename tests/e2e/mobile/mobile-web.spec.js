@@ -293,7 +293,13 @@ async function seedFixtureStories(page) {
 }
 
 // Drives the touch path (not the mouse path) so the axis lock is exercised too.
-async function dragStory(story, distance, { release = true } = {}) {
+// `moves` are the fractions of `distance` the finger is sampled at — a real
+// flick reports far fewer, coarser moves than a slow drag.
+async function dragStory(
+  story,
+  distance,
+  { release = true, moves = [0.2, 0.5, 0.8, 1] } = {}
+) {
   return story.evaluate(
     async (row, options) => {
       const rect = row.getBoundingClientRect()
@@ -312,7 +318,7 @@ async function dragStory(story, distance, { release = true } = {}) {
         )
       }
       fire("touchstart", startX)
-      for (const fraction of [0.2, 0.5, 0.8, 1]) {
+      for (const fraction of options.moves) {
         fire("touchmove", startX + options.distance * fraction)
         await new Promise((resolve) => setTimeout(resolve, 10))
       }
@@ -333,7 +339,7 @@ async function dragStory(story, distance, { release = true } = {}) {
       }
       return state
     },
-    { distance, release }
+    { distance, release, moves }
   )
 }
 
@@ -359,6 +365,44 @@ test("swipe rests on detents and commits the stage it was released on", async ({
   expect(stage1Left.labelRight).toBe("Skip")
   expect(stage1Left.action).toBe("skip")
   await page.locator("story-item").first().evaluate(() => {
+    document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }))
+  })
+  await expect(story).toHaveClass(/skipped/)
+})
+
+// The gesture is measured from where the finger went down, not from the first
+// move the swipe handler happens to see — that one arrives only after the axis
+// lock resolves, and a flick has covered most of its distance by then.
+test("a flick that clears stage 1 in one move still commits stage 1", async ({ page }) => {
+  const story = await seedFixtureStories(page)
+
+  const flick = await dragStory(story, -110, { release: false, moves: [1] })
+  expect(translateX(flick.transform)).toBe(-96)
+  expect(flick.action).toBe("skip")
+
+  await story.evaluate(() => {
+    document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }))
+  })
+  await expect(story).toHaveClass(/skipped/)
+})
+
+// Thresholds and resting offsets are configured independently, so a stage can
+// legitimately rest short of the distance that engages it.
+test("a stage resting below its own threshold still commits", async ({ page }) => {
+  const story = await seedFixtureStories(page)
+
+  await openSettingsSection(page, "swipe")
+  await page.getByTestId("swipe-threshold-1").fill("100")
+  await page.getByTestId("swipe-offset-1").fill("40")
+  await page.getByTestId("save-swipe").click()
+  await page.waitForTimeout(300)
+  await page.getByTestId("stories-menu").click()
+
+  const shallow = await dragStory(story, -130, { release: false })
+  expect(translateX(shallow.transform)).toBe(-40)
+  expect(shallow.action).toBe("skip")
+
+  await story.evaluate(() => {
     document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }))
   })
   await expect(story).toHaveClass(/skipped/)

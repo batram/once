@@ -37,6 +37,18 @@ export function updateTouchGesture(
   return gesture.axis
 }
 
+/**
+ * Where the gesture started. Handlers that only run once the axis has locked
+ * (the story swipe) measure from here, so the travel spent resolving the
+ * direction still counts towards the gesture.
+ */
+export function getTouchGestureStart(
+  scroller: HTMLElement
+): { x: number, y: number } | undefined {
+  const gesture = gestures.get(scroller)
+  return gesture ? { x: gesture.startX, y: gesture.startY } : undefined
+}
+
 export function getTouchGestureAxis(
   scroller: HTMLElement
 ): TouchGestureAxis {
