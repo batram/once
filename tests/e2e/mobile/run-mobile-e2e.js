@@ -57,6 +57,39 @@ function ensureFreshApp() {
   if (build.status !== 0) process.exit(build.status || 1)
 }
 
+function installVisualApp() {
+  if (!visual) return
+  const app = path.join(appRoot, appBundles[platform])
+  let command
+  let args
+  if (platform === "android") {
+    const executable = process.platform === "win32" ? "adb.exe" : "adb"
+    const sdk = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT
+    command = sdk ? path.join(sdk, "platform-tools", executable) : executable
+    const serial = process.env.ONCE_ANDROID_UDID || process.env.ANDROID_SERIAL
+    args = [...(serial ? ["-s", serial] : []), "install", "-r", app]
+  } else {
+    command = "xcrun"
+    args = [
+      "simctl",
+      "install",
+      process.env.ONCE_IOS_UDID || "booted",
+      app
+    ]
+  }
+  const install = spawnSync(command, args, {
+    cwd: root,
+    env: process.env,
+    stdio: "inherit"
+  })
+  if (install.error) {
+    throw new Error(`Unable to install the visual-inspection app: ${install.error.message}`)
+  }
+  if (install.status !== 0) {
+    throw new Error(`Unable to install the visual-inspection app (exit ${install.status})`)
+  }
+}
+
 const results = path.join(root, "test-results", "mobile")
 fs.mkdirSync(results, { recursive: true })
 const serverLog = fs.createWriteStream(path.join(results, `${platform}-test-server.log`))
@@ -98,6 +131,7 @@ function removeAndroidReverse() {
 
 async function start() {
   ensureFreshApp()
+  installVisualApp()
   let testEnv
   let port
   try {

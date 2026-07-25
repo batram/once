@@ -94,8 +94,11 @@ export class MobileReadingController {
       const event = rawEvent as ReadingRequestEvent
       event.preventDefault()
       this.session.setVisibleStories(StoryList.visibleStories())
-      this.session.open(event.story, event.mode)
+      // Panel selection is synchronous: expose and lay out #reading_content
+      // before session.open publishes the state that measures its bounds.
+      this.activePanel = "reading"
       Menu.open_panel("reading")
+      this.session.open(event.story, event.mode)
     })
     document.addEventListener("once-panel-changed", (rawEvent) => {
       const event = rawEvent as CustomEvent<{ panel: string }>

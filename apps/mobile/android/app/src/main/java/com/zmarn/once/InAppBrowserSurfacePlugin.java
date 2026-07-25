@@ -99,7 +99,6 @@ public class InAppBrowserSurfacePlugin extends Plugin {
                 surface.destroy();
                 surface = null;
             }
-            getBridge().getWebView().setBackgroundColor(Color.TRANSPARENT);
             call.resolve();
         });
     }
@@ -164,8 +163,7 @@ public class InAppBrowserSurfacePlugin extends Plugin {
         WebView shell = getBridge().getWebView();
         ViewGroup parent = (ViewGroup) shell.getParent();
         int shellIndex = parent.indexOfChild(shell);
-        parent.addView(surface, Math.max(0, shellIndex), new ViewGroup.LayoutParams(1, 1));
-        shell.setBackgroundColor(Color.TRANSPARENT);
+        parent.addView(surface, shellIndex + 1, new ViewGroup.LayoutParams(1, 1));
     }
 
     private void applyBounds(JSObject bounds) {

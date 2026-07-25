@@ -653,20 +653,6 @@ body[data-platform="mobile"] #reading_content {
   background: var(--main-bg-color);
 }
 
-body[data-platform="mobile"].once-native-reading-surface,
-body[data-platform="mobile"].once-native-reading-surface #window_content,
-body[data-platform="mobile"].once-native-reading-surface #left_panel,
-body[data-platform="mobile"].once-native-reading-surface #left_panel_content,
-body[data-platform="mobile"].once-native-reading-surface #left_main,
-body[data-platform="mobile"].once-native-reading-surface #reading_panel,
-body[data-platform="mobile"].once-native-reading-surface #reading_content {
-  background: transparent;
-}
-
-body[data-platform="mobile"].once-native-reading-surface #reading_content {
-  pointer-events: none;
-}
-
 body[data-platform="mobile"] #reading_content .once-reader-host {
   position: absolute;
   z-index: 1;

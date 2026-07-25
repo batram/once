@@ -94,9 +94,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         let view = WKWebView(frame: .zero, configuration: configuration)
         view.navigationDelegate = self
         view.uiDelegate = self
-        parent.insertSubview(view, belowSubview: shell)
-        shell.isOpaque = false
-        shell.backgroundColor = .clear
+        parent.insertSubview(view, aboveSubview: shell)
         surface = view
         return view
     }
