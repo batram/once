@@ -164,11 +164,17 @@ npm run mobile -- package ios --channel dev
 npm run package:mobile:android
 npm run package:mobile:ios
 
-# Install release-channel Android content on a paired wireless device
-copy .env.android.example .env.android.local
-# Edit ONCE_ANDROID_WIRELESS_ADDRESS, then:
+# Install release-channel Android content on a paired wireless device.
+# The address is discovered with `adb mdns services`; no configuration is
+# needed when exactly one paired device is advertising.
 npm run deploy:mobile:android
 ```
+
+Deploy resolves the wireless address in this order: an exported
+`ONCE_ANDROID_WIRELESS_ADDRESS`, then `adb mdns services`, then
+`.env.android.local`. Export the variable or copy `.env.android.example` to
+`.env.android.local` when discovery finds nothing, or set it to choose between
+several advertised devices.
 
 The iOS packaging command resolves the public Capacitor Swift package with
 system Git, disables Git credential helpers and interactive prompts, and tells
