@@ -6,6 +6,7 @@ const firefox = require("selenium-webdriver/firefox")
 const { startLocalSource } = require("./local-source")
 const {
   openExtensionPanel,
+  openSettingsSection,
   reopenExtensionPanel,
   systemAccessService
 } = require("./firefox-panel")
@@ -34,9 +35,11 @@ test("installed Firefox extension loads, collects, persists settings, and opens 
     assert.equal(installResult.result.extension, expectedAddonId)
 
     await openExtensionPanel(driver, extensionUuid)
-    const settings = await driver.wait(until.elementLocated(By.css('[data-testid="settings-menu"]')), 15_000)
-    await settings.click()
-    const sources = await driver.findElement(By.css('[data-testid="sources"]'))
+    let sources = await openSettingsSection(
+      driver,
+      "sources",
+      '[data-testid="sources"]'
+    )
     await sources.clear()
     await sources.sendKeys(source.source)
     await driver.findElement(By.css('[data-testid="save-sources"]')).click()
@@ -50,8 +53,12 @@ test("installed Firefox extension loads, collects, persists settings, and opens 
       throw error
     }
     await reopenExtensionPanel(driver, extensionUuid)
-    await driver.wait(until.elementLocated(By.css('[data-testid="settings-menu"]')), 15_000).then((element) => element.click())
-    assert.equal(await driver.findElement(By.css('[data-testid="sources"]')).getAttribute("value"), source.source)
+    sources = await openSettingsSection(
+      driver,
+      "sources",
+      '[data-testid="sources"]'
+    )
+    assert.equal(await sources.getAttribute("value"), source.source)
     await driver.findElement(By.css('[data-testid="stories-menu"] > .heading')).click()
     await driver.findElement(By.css("#searchfield")).clear()
     await driver.findElement(By.css('[data-testid="reload-stories"]')).click()
