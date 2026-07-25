@@ -24,6 +24,11 @@ import {
   SyncStatus,
   ThemeName
 } from "./types"
+import {
+  DEFAULT_SWIPE_SETTINGS,
+  normalizeSwipeSettings,
+  SwipeSettings
+} from "./swipeSettings"
 import { LocalEventBus } from "./EventBus"
 
 export class OnceApp {
@@ -145,6 +150,8 @@ export class OnceApp {
       setTheme: (theme) => this.setTheme(theme),
       getAnimation: () => this.getAnimation(),
       setAnimation: (animated) => this.setAnimation(animated),
+      getSwipeSettings: () => this.getSwipeSettings(),
+      setSwipeSettings: (settings) => this.setSwipeSettings(settings),
       reloadStories: (tryCache = true) => this.reloadStories(tryCache),
       getStories: () => this.getWorkingStories(),
       getStorySnapshot: () => Array.from(this.stories.values()),
@@ -335,6 +342,19 @@ export class OnceApp {
     await this.setListSetting("animation", animated)
     this.animated = animated
     this.events.publish("settingsChanged", { section: "animation" })
+  }
+
+  private async getSwipeSettings(): Promise<SwipeSettings> {
+    // Normalized on read as well as write: the stored document is synced, so
+    // it may have been written by a different version of the app.
+    return normalizeSwipeSettings(
+      await this.getListSetting<unknown>("swipe", DEFAULT_SWIPE_SETTINGS)
+    )
+  }
+
+  private async setSwipeSettings(settings: SwipeSettings): Promise<void> {
+    await this.setListSetting("swipe", normalizeSwipeSettings(settings))
+    this.events.publish("settingsChanged", { section: "swipe" })
   }
 
   private async addFilter(filter: string): Promise<void> {

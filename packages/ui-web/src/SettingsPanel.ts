@@ -1,4 +1,12 @@
-import { OnceClient, SourceError, ThemeName } from "@once/app"
+import {
+  DEFAULT_SWIPE_SETTINGS,
+  OnceClient,
+  SourceError,
+  SWIPE_ACTION_LABELS,
+  SwipeActionId,
+  SwipeSettings,
+  ThemeName
+} from "@once/app"
 import { parseRedirectList, presentRedirectList } from "@once/core"
 import { requireClosestElement, requireElement } from "./dom"
 import * as menu from "./menu"
@@ -31,6 +39,9 @@ export class SettingsPanel {
           break
         case "sync":
           this.reset_couch_settings()
+          break
+        case "swipe":
+          this.restore_swipe_settings()
           break
       }
     })
@@ -307,6 +318,31 @@ export class SettingsPanel {
         this.save_redirect_settings()
       }
     })
+
+    // Swipe action settings
+    this.build_swipe_controls()
+    void this.restore_swipe_settings()
+    const swipe_block = requireClosestElement<HTMLElement>(
+      requireElement<HTMLElement>("#swipe_stages"),
+      ".settings_block"
+    )
+    requireElement<HTMLInputElement>('input[value="save"]', swipe_block)
+      .addEventListener("click", () => {
+        void this.save_swipe_settings()
+      })
+    requireElement<HTMLInputElement>('input[value="cancel"]', swipe_block)
+      .addEventListener("click", () => {
+        void this.restore_swipe_settings()
+      })
+    requireElement<HTMLInputElement>("#swipe_reset", swipe_block)
+      .addEventListener("click", () => {
+        this.apply_swipe_settings(DEFAULT_SWIPE_SETTINGS)
+        void this.save_swipe_settings()
+      })
+    requireElement<HTMLInputElement>("#swipe_two_stage")
+      .addEventListener("change", () => {
+        this.update_swipe_disabled_state()
+      })
 
     // Cache timing settings
     this.restore_cache_settings()
@@ -633,6 +669,145 @@ export class SettingsPanel {
 
   public highlightSource(sourceUrl: string): void {
     this.highlight_textarea_content("sources_area", sourceUrl, true, true)
+  }
+
+  /**
+   * One row per stage: how far the drag must travel, where the row rests
+   * while it is engaged, and what each direction does when released there.
+   * Generated rather than hand-written so the control count stays tied to
+   * the number of stages in SwipeSettings.
+   */
+  private build_swipe_controls(): void {
+    const container = requireElement<HTMLElement>("#swipe_stages")
+    container.textContent = ""
+
+    const header = document.createElement("div")
+    header.classList.add("swipe_row", "swipe_head")
+    for (const label of ["", "engages at", "rests at", "swipe right", "swipe left"]) {
+      const cell = document.createElement("span")
+      cell.textContent = label
+      header.append(cell)
+    }
+    container.append(header)
+
+    for (const stage of [0, 1] as const) {
+      const row = document.createElement("div")
+      row.classList.add("swipe_row")
+      row.dataset.stage = String(stage + 1)
+
+      const name = document.createElement("span")
+      name.textContent = `Stage ${stage + 1}`
+      row.append(name)
+
+      for (const field of ["threshold", "offset"] as const) {
+        const input = document.createElement("input")
+        input.type = "number"
+        input.min = "16"
+        input.max = "1000"
+        input.step = "1"
+        input.dataset.swipe = `${field}-${stage}`
+        input.dataset.testid = `swipe-${field}-${stage + 1}`
+        input.setAttribute(
+          "aria-label",
+          `Stage ${stage + 1} ${field === "threshold" ? "threshold" : "resting offset"} in pixels`
+        )
+        row.append(input)
+      }
+
+      for (const direction of ["right", "left"] as const) {
+        const select = document.createElement("select")
+        select.dataset.swipe = `${direction}-${stage}`
+        select.dataset.testid = `swipe-${direction}-${stage + 1}`
+        select.setAttribute(
+          "aria-label",
+          `Stage ${stage + 1} swipe ${direction} action`
+        )
+        for (const [id, label] of Object.entries(SWIPE_ACTION_LABELS)) {
+          const option = document.createElement("option")
+          option.value = id
+          option.textContent = label
+          select.append(option)
+        }
+        row.append(select)
+      }
+
+      container.append(row)
+    }
+  }
+
+  private swipeControl<T extends HTMLElement>(key: string): T {
+    return requireElement<T>(`[data-swipe="${key}"]`, requireElement("#swipe_stages"))
+  }
+
+  private apply_swipe_settings(settings: SwipeSettings): void {
+    requireElement<HTMLInputElement>("#swipe_two_stage").checked =
+      settings.twoStage
+    for (const stage of [0, 1] as const) {
+      this.swipeControl<HTMLInputElement>(`threshold-${stage}`).value =
+        String(settings.stages[stage].threshold)
+      this.swipeControl<HTMLInputElement>(`offset-${stage}`).value =
+        String(settings.stages[stage].offset)
+      this.swipeControl<HTMLSelectElement>(`right-${stage}`).value =
+        settings.right[stage]
+      this.swipeControl<HTMLSelectElement>(`left-${stage}`).value =
+        settings.left[stage]
+    }
+    this.update_swipe_disabled_state()
+  }
+
+  /** Stage 2 controls are inert while the gesture is single-stage. */
+  private update_swipe_disabled_state(): void {
+    const twoStage = requireElement<HTMLInputElement>("#swipe_two_stage").checked
+    const row = requireElement<HTMLElement>(
+      '.swipe_row[data-stage="2"]',
+      requireElement("#swipe_stages")
+    )
+    row.classList.toggle("disabled", !twoStage)
+    row
+      .querySelectorAll<HTMLInputElement | HTMLSelectElement>("input, select")
+      .forEach((control) => {
+        control.disabled = !twoStage
+      })
+  }
+
+  private read_swipe_settings(): SwipeSettings {
+    const number = (key: string, fallback: number): number => {
+      const parsed = Number.parseInt(
+        this.swipeControl<HTMLInputElement>(key).value,
+        10
+      )
+      return Number.isFinite(parsed) ? parsed : fallback
+    }
+    const action = (key: string): SwipeActionId =>
+      this.swipeControl<HTMLSelectElement>(key).value as SwipeActionId
+
+    // Values are re-validated by normalizeSwipeSettings before they are
+    // stored, so out-of-order thresholds typed here cannot be persisted.
+    return {
+      twoStage: requireElement<HTMLInputElement>("#swipe_two_stage").checked,
+      stages: [
+        {
+          threshold: number("threshold-0", DEFAULT_SWIPE_SETTINGS.stages[0].threshold),
+          offset: number("offset-0", DEFAULT_SWIPE_SETTINGS.stages[0].offset)
+        },
+        {
+          threshold: number("threshold-1", DEFAULT_SWIPE_SETTINGS.stages[1].threshold),
+          offset: number("offset-1", DEFAULT_SWIPE_SETTINGS.stages[1].offset)
+        }
+      ],
+      right: [action("right-0"), action("right-1")],
+      left: [action("left-0"), action("left-1")]
+    }
+  }
+
+  async restore_swipe_settings(): Promise<void> {
+    this.apply_swipe_settings(await this.client.getSwipeSettings())
+  }
+
+  async save_swipe_settings(): Promise<void> {
+    await this.client.setSwipeSettings(this.read_swipe_settings())
+    // Reflect whatever normalization the app applied.
+    await this.restore_swipe_settings()
   }
 
   async restore_cache_settings(): Promise<void> {

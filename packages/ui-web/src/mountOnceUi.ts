@@ -8,7 +8,7 @@ import { setOnceClient } from "./client"
 import { SettingsPanel } from "./SettingsPanel"
 import { StoryHistory } from "./StoryHistory"
 import * as StoryList from "./StoryList"
-import { StoryListItem } from "./StoryListItem"
+import { StoryListItem, SwipeConfig } from "./StoryListItem"
 import { ReaderView } from "./reader/ReaderView"
 import { SourcePickerView } from "./picker/SourcePickerView"
 import { bindMenuCollapseControls } from "./MenuCollapse"
@@ -50,6 +50,16 @@ export async function mountOnceUi(
   bindAppUpdateControls(options.updater, (message, details) =>
     LoaderInsights.showErrorMessage(message, details)
   )
+
+  // Rows read the swipe config at gesture time, so it has to be current
+  // before the first row can be dragged — and after any settings change.
+  SwipeConfig.current = await client.getSwipeSettings()
+  client.subscribe("settingsChanged", ({ section }) => {
+    if (section !== "swipe") return
+    void client.getSwipeSettings().then((settings) => {
+      SwipeConfig.current = settings
+    })
+  })
 
   const settingsPanel = new SettingsPanel(client)
   if (options.sourcePicker === false) {

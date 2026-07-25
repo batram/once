@@ -59,8 +59,13 @@ async function getTabs(window) {
   return window.evaluate(() => window.onceElectron.tabs.getAll())
 }
 
+// The swipe is detented: distance selects a stage, not a proportion of the
+// row. Defaults are stage 1 from 56px and stage 2 from 200px, so these land
+// mid-plateau rather than on a boundary.
+const SWIPE_STAGE_DISTANCE = { 1: 110, 2: 260 }
+
 // The drag needs several moves (the first one only anchors the swipe origin).
-async function swipeStory(window, story, direction) {
+async function swipeStory(window, story, direction, stage = 1) {
   await expect(story).toBeVisible()
   await story.scrollIntoViewIfNeeded()
 
@@ -70,10 +75,11 @@ async function swipeStory(window, story, direction) {
   }
 
   // Fractional positions on purpose: real touch coordinates (Android
-  // especially) are sub-pixel, and end_swipe must parse those too.
+  // especially) are sub-pixel, and the drag maths must handle those too.
   const startX = box.x + box.width * 0.45
   const y = box.y + box.height / 2
-  const distance = box.width * 0.4 * (direction === "left" ? -1 : 1)
+  const distance =
+    SWIPE_STAGE_DISTANCE[stage] * (direction === "left" ? -1 : 1)
 
   await window.mouse.move(startX, y)
   await window.mouse.down()

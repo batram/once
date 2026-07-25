@@ -132,14 +132,37 @@ body[data-platform="mobile"] .story {
   touch-action: pan-y;
 }
 
+/* basis 0, not 100% or auto: the row wraps, so any basis wider than the free
+   space pushes the ⋮ button onto a line of its own instead of beside the text */
 body[data-platform="mobile"] .story .data {
-  flex: 1 1 100%;
+  flex: 1 1 0;
+  min-width: 0;
   font-size: var(--m-fs-meta);
 }
 
+/* Slot 1+2: (domain) is pulled onto its own line above the title. Reordering
+   here rather than in story_html() keeps the Electron/extension row intact. */
+body[data-platform="mobile"] .story .title_line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  min-width: 0;
+  column-gap: var(--m-sp-1);
+}
+
+body[data-platform="mobile"] .story .hostname {
+  order: -1;
+  flex: 0 1 100%;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 body[data-platform="mobile"] .story .title {
+  flex: 1 1 100%;
   font-size: var(--m-fs-title);
-  line-height: 1.35;
+  line-height: 1.3;
 }
 
 body[data-platform="mobile"] .story .hostname,
@@ -149,6 +172,7 @@ body[data-platform="mobile"] .story .comment_url {
   font-family: var(--m-mono);
 }
 
+/* Slot 3: type badge, [comments], time, star. Must wrap, or slot 4 collides. */
 body[data-platform="mobile"] .story .info {
   display: flex;
   align-items: center;
@@ -158,61 +182,134 @@ body[data-platform="mobile"] .story .info {
   font-size: var(--m-fs-meta);
 }
 
+/* Without both declarations "36 mins / ago" splits across lines and overlaps
+   the tags — stories.css gives .time a 65px min-width that must not win here. */
 body[data-platform="mobile"] .info .time {
+  flex: 0 0 auto;
   min-width: 0;
+  white-space: nowrap;
   font-family: var(--m-mono);
 }
 
-/* actions live in the long-press sheet instead */
+/* Bookmark indicator: the real toggle lives in the row menu, this is a glyph.
+   Only the first substory carries it — the flag is per story, not per source. */
+body[data-platform="mobile"] .story.stared .substories .info:first-child::after {
+  content: "";
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  background: var(--text-high-color);
+  -webkit-mask: url("../../../packages/ui-web/public/static/imgs/star_fill.svg") center / contain
+    no-repeat;
+  mask: url("../../../packages/ui-web/public/static/imgs/star_fill.svg") center / contain no-repeat;
+  opacity: 0.7;
+  /* the pseudo is the last DOM child; order pulls it back onto the meta line */
+  order: 0;
+}
+
+/* Slot 4: tags always own their line, and reserve it even when empty so rows
+   without tags stay the same height as rows with them. */
+body[data-platform="mobile"] .story .tags_container {
+  order: 1;
+  flex: 1 1 100%;
+  /* one .tag box: its line box, plus 1px padding + 1px border + 2px margin
+     on each side. Keeps a tagless row exactly as tall as a tagged one. */
+  min-height: calc(var(--m-fs-meta) * 1.25 + 8px);
+  align-content: flex-start;
+  margin: 0;
+}
+
+/* actions live in the ⋮ menu instead */
 body[data-platform="mobile"] .story .button_group {
   display: none;
 }
 
-/* ---------- Long-press action sheet ---------- */
+/* ---------- Row ⋮ button ---------- */
 
-body[data-platform="mobile"] .once-sheet {
+body[data-platform="mobile"] .story .menu_btn {
+  display: grid;
+  place-items: center;
+  align-self: stretch;
+  box-sizing: border-box;
+  flex: 0 0 38px;
+  height: auto;
+  /* cancel the row's own padding so the target spans the full row height */
+  margin: calc(-1 * var(--m-sp-3)) calc(-1 * var(--m-sp-4)) calc(-1 * var(--m-sp-3))
+    var(--m-sp-1);
+  border-left: var(--m-bw) solid var(--border-color);
+  color: var(--text-color);
+  font-size: 18px;
+  line-height: 1;
+}
+
+body[data-platform="mobile"] .story .menu_btn:active,
+body[data-platform="mobile"] .story.menu_open .menu_btn {
+  background: var(--m-accent-bg);
+  color: var(--text-high-color);
+}
+
+/* ---------- Long-press progress ---------- */
+
+body[data-platform="mobile"] .story {
+  position: relative;
+}
+
+/* Tells the user a long-press is building before the menu appears. Not gated
+   on [animated] — it is feedback for a gesture, not decoration. */
+body[data-platform="mobile"] .story.press_building::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--m-accent-bg);
+  animation: once-press-progress 500ms linear forwards;
+  pointer-events: none;
+}
+
+@keyframes once-press-progress {
+  from {
+    width: 0;
+  }
+
+  to {
+    width: 100%;
+  }
+}
+
+/* ---------- Anchored story menu ---------- */
+
+body[data-platform="mobile"] .once-anchored-menu {
   position: fixed;
   z-index: 900;
   inset: 0;
 }
 
-body[data-platform="mobile"] .once-sheet[hidden] {
+body[data-platform="mobile"] .once-anchored-menu[hidden] {
   display: none;
 }
 
-body[data-platform="mobile"] .once-sheet-backdrop {
+body[data-platform="mobile"] .once-anchored-menu-backdrop {
   position: absolute;
   inset: 0;
-  background: rgb(0 0 0 / 40%);
+  background: rgb(0 0 0 / 25%);
 }
 
-body[data-platform="mobile"] .once-sheet-panel {
+body[data-platform="mobile"] .once-anchored-menu-panel {
   position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  padding: 0 0 env(safe-area-inset-bottom);
-  border-top: var(--m-bw) solid var(--m-ink);
-  border-radius: 14px 14px 0 0;
+  min-width: 220px;
+  max-width: min(320px, calc(100vw - 16px));
+  padding: 0;
+  border: var(--m-bw) solid var(--m-ink);
+  border-radius: var(--m-radius);
   background: var(--main-bg-color);
   overflow: hidden;
 }
 
-body[data-platform="mobile"] .once-sheet-title {
-  padding: var(--m-sp-3) var(--m-sp-4);
-  border-bottom: var(--m-bw) solid var(--border-high-color);
-  color: var(--text-color);
-  font-family: var(--m-sans);
-  font-size: var(--m-fs-meta);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-body[data-platform="mobile"] .once-sheet-action {
+body[data-platform="mobile"] .once-anchored-menu-item {
   display: block;
   width: 100%;
-  min-height: 52px;
+  min-height: var(--m-touch);
   margin: 0;
   padding: 0 var(--m-sp-4);
   border: 0;
@@ -221,21 +318,23 @@ body[data-platform="mobile"] .once-sheet-action {
   background: var(--main-bg-color);
   color: var(--text-high-color);
   font-family: var(--m-sans);
-  font-size: var(--m-fs-title);
+  font-size: var(--m-fs-body);
   text-align: left;
 }
 
-body[data-platform="mobile"] .once-sheet-action:active {
+body[data-platform="mobile"] .once-anchored-menu-item:last-child {
+  border-bottom: 0;
+}
+
+body[data-platform="mobile"] .once-anchored-menu-item:active {
   background: var(--m-pressed-bg);
 }
 
-body[data-platform="mobile"] .once-sheet-cancel {
-  border-bottom: 0;
+body[data-platform="mobile"] .once-anchored-menu-item:disabled {
   color: var(--text-color);
-  text-align: center;
 }
 
-body.once-sheet-open {
+body.once-anchored-menu-open {
   overflow: hidden;
 }
 

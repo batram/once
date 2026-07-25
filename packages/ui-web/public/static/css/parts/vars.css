@@ -14,6 +14,16 @@
   --read-bg-color: light-dark(#ccc, #282a36);
   --text-high-color: light-dark(black, #bcc2cd);
   --text-color: light-dark(#828282, #828282);
+  /* Swipe reveal colours, keyed by action rather than by stage so a
+     reconfigured swipe keeps the same colour meaning. Affirmative actions run
+     green→blue, destructive ones red→dark red. */
+  --swipe-open-color: light-dark(rgb(0 128 0 / 72%), rgb(38 160 38 / 72%));
+  --swipe-open-reader-color: light-dark(#4050ac, #5a68c8);
+  --swipe-skip-color: light-dark(rgb(200 0 0 / 66%), rgb(215 60 60 / 66%));
+  --swipe-filter-color: light-dark(#8f0000, #b02020);
+  --swipe-toggle-read-color: light-dark(rgb(0 128 0 / 72%), rgb(38 160 38 / 72%));
+  --swipe-toggle-bookmark-color: light-dark(#b8860b, #d4a017);
+  --swipe-label-color: white;
 }
 
 /* Default color scheme */

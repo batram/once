@@ -46,11 +46,12 @@ async function settledStoryWrites() {
 }
 
 // The per-story action buttons are hidden on mobile; a long-press on the
-// story opens the action sheet that proxies them. The long-press detector
-// listens for pointer events in the page, so drive it with synthesized
-// PointerEvents (a real webdriver long-press would trigger the OS context
-// menu / text selection instead on some platforms).
-async function storySheetAction(story, testid, platform) {
+// story opens the anchored menu built from describeStoryMenu. The long-press
+// detector listens for pointer events in the page, so drive it with
+// synthesized PointerEvents (a real webdriver long-press would trigger the OS
+// context menu / text selection instead on some platforms).
+// `action` is a StoryMenuActionId, e.g. "open-reader" or "toggle-read".
+async function storyMenuAction(story, action, platform) {
   // State changes re-render the story row, staling old element handles, and
   // browser.execute does not re-fetch stale references — re-resolve first.
   const target = await $(story.selector)
@@ -68,16 +69,19 @@ async function storySheetAction(story, testid, platform) {
       pointerId: 1, pointerType: "touch", button: 0
     }))
   }, target)
-  const action = await $(`[data-testid='sheet-${testid}']`)
-  await action.waitForDisplayed({ timeout: 10_000 })
-  // the sheet suppresses taps for ~250ms after the finger lifts (so the
+  const row = await $(`[data-testid='story-menu-${action}']`)
+  await row.waitForDisplayed({ timeout: 10_000 })
+  // the menu suppresses taps for ~250ms after the finger lifts (so the
   // release of the long-press doesn't phantom-tap a row); wait it out
   await browser.pause(500)
-  await clickWeb(action, platform)
-  await browser.waitUntil(async () => !(await $(".once-sheet").isDisplayed()), {
-    timeout: 5_000,
-    timeoutMsg: "Action sheet did not close after tapping a row"
-  })
+  await clickWeb(row, platform)
+  await browser.waitUntil(
+    async () => !(await $(".once-anchored-menu").isDisplayed()),
+    {
+      timeout: 5_000,
+      timeoutMsg: "Story menu did not close after tapping a row"
+    }
+  )
 }
 
 async function clickWeb(element, platform) {
@@ -196,7 +200,7 @@ describe("Once mobile", () => {
         }
       })
     })
-    await storySheetAction(story, "story-reader", platform)
+    await storyMenuAction(story, "open-reader", platform)
     await $("[data-testid='reader-close']").waitForDisplayed({ timeout: 30_000 })
     await browser.waitUntil(async () =>
       (await browser.execute(() => window.__onceTtsSeen)).length > 0, {
@@ -219,7 +223,7 @@ describe("Once mobile", () => {
       timeout: 10_000,
       timeoutMsg: "Reader mode did not persist the read state"
     })
-    await storySheetAction(story, "story-read-state", platform)
+    await storyMenuAction(story, "toggle-read", platform)
     await browser.waitUntil(async () => {
       const classes = await story.getAttribute("class")
       return !classes.includes("read") && !classes.includes("skipped")
@@ -227,7 +231,7 @@ describe("Once mobile", () => {
       timeout: 10_000,
       timeoutMsg: "Story did not return to unread state"
     })
-    await storySheetAction(story, "story-read-state", platform)
+    await storyMenuAction(story, "toggle-read", platform)
     await browser.waitUntil(async () => (await story.getAttribute("class")).includes("skipped"), {
       timeout: 10_000,
       timeoutMsg: "Story did not enter skipped state"

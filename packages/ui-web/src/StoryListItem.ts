@@ -1,3 +1,9 @@
+import {
+  DEFAULT_SWIPE_SETTINGS,
+  SWIPE_ACTION_LABELS,
+  SwipeActionId,
+  SwipeSettings
+} from "@once/app"
 import { humanTime } from "@once/core"
 import * as StoryFilterView from "./StoryFilterView"
 import { Story, SubStory } from "@once/core"
@@ -10,6 +16,55 @@ import { getOnceClient } from "./client"
 import * as Search from "./search"
 import { showConfirmDialog } from "./ConfirmDialog"
 import { getTouchGestureAxis } from "./TouchGestureLock"
+import {
+  executeStoryMenuAction,
+  StoryMenuRequestEvent
+} from "./StoryContextMenu"
+
+/**
+ * Two-stage detented swipe.
+ *
+ * The row rests on a plateau instead of tracking the finger, so the committed
+ * action is unambiguous at the moment of release — classic mail-app behaviour.
+ * Distances and actions are user-configurable; see swipeSettings.ts.
+ */
+/** Snapping between plateaus, and springing back after a release. */
+const SWIPE_SNAP_TRANSITION = "transform 90ms ease-out"
+const SWIPE_RELEASE_TRANSITION = "transform 200ms cubic-bezier(.2, .8, .2, 1)"
+
+type SwipeStage = 0 | 1 | 2
+
+/**
+ * Live swipe configuration, shared by every row. Rows are created and
+ * destroyed constantly, so the settings live here rather than per instance;
+ * mountOnceUi seeds it and keeps it current.
+ */
+export const SwipeConfig = {
+  current: DEFAULT_SWIPE_SETTINGS as SwipeSettings,
+
+  stage(offset: number): SwipeStage {
+    const distance = Math.abs(offset)
+    const [first, second] = this.current.stages
+    if (distance < first.threshold) return 0
+    if (!this.current.twoStage || distance < second.threshold) return 1
+    return 2
+  },
+
+  plateau(offset: number): number {
+    const stage = this.stage(offset)
+    if (stage === 0) return 0
+    return (
+      Math.sign(offset) * this.current.stages[stage === 1 ? 0 : 1].offset
+    )
+  },
+
+  actionFor(offset: number): SwipeActionId {
+    const stage = this.stage(offset)
+    if (stage === 0) return "none"
+    const actions = offset > 0 ? this.current.right : this.current.left
+    return actions[stage === 1 ? 0 : 1]
+  }
+}
 
 export class StoryListItem extends HTMLElement {
   static devToolsEnabled = false
@@ -24,6 +79,8 @@ export class StoryListItem extends HTMLElement {
   substories_el!: HTMLElement
   sw_left!: HTMLElement
   sw_right!: HTMLElement
+  bb_slide?: HTMLElement
+  menu_btn!: HTMLElement
 
   constructor(story: Story) {
     super()
@@ -163,6 +220,7 @@ export class StoryListItem extends HTMLElement {
     }
 
     presenters.add_story_elem_buttons(this, this.story)
+    this.add_menu_button()
     this.button_events()
 
     if (add_listeners) {
@@ -356,36 +414,64 @@ export class StoryListItem extends HTMLElement {
 
   swipeable = (): void => {
     let start_offset = -1
-    const threshold = 0.1
+    // where the row currently rests, always one of 0, ±96, ±216
+    let plateau = 0
 
+    // The reveal is absolutely positioned over the row's own box, inside the
+    // scroll container. It must not participate in layout: an in-flow sibling
+    // (even one cancelled out with a negative margin) reflows the list, and
+    // the rows above it visibly jump the moment a drag begins.
     const add_background_element = () => {
-      this.style.display = "inline-flex"
-
-      if (!this.querySelector(".bb_slide")) {
+      if (!this.bb_slide?.isConnected) {
         const bb_slide_el = document.createElement("div")
-        bb_slide_el.style.height = this.clientHeight + "px"
-        bb_slide_el.style.marginBottom = -this.clientHeight + "px"
-        bb_slide_el.style.lineHeight = this.clientHeight + "px"
         bb_slide_el.classList.add("bb_slide")
 
         const bb_slide_left = document.createElement("div")
-        bb_slide_left.innerText = "read"
         bb_slide_left.classList.add("swipe_left")
-        bb_slide_left.style.backgroundImage =
-          "linear-gradient(45deg, rgba(0, 128, 0, 0.5), transparent 50%)"
         bb_slide_el.append(bb_slide_left)
         this.sw_left = bb_slide_left
 
         const bb_slide_right = document.createElement("div")
-        bb_slide_right.innerText = "skip"
         bb_slide_right.classList.add("swipe_right")
-        bb_slide_right.style.backgroundImage =
-          "linear-gradient(45deg, transparent 50%, rgba(200, 0, 0, 0.5))"
         bb_slide_el.append(bb_slide_right)
         this.sw_right = bb_slide_right
 
+        this.bb_slide = bb_slide_el
+        // Before the row in DOM order so the row paints over it. Both sit in
+        // the positioned layer — the row because of its transform.
         this.before(bb_slide_el)
       }
+      position_background()
+      update_reveal(plateau)
+    }
+
+    // offsetTop/offsetHeight are layout positions, unaffected by the row's own
+    // transform, so the reveal stays put while the row slides across it.
+    const position_background = () => {
+      if (!this.bb_slide) return
+      this.bb_slide.style.top = this.offsetTop + "px"
+      this.bb_slide.style.height = this.offsetHeight + "px"
+      this.bb_slide.style.lineHeight = this.offsetHeight + "px"
+    }
+
+    // The revealed side names the action in words and recolors per stage, so
+    // the escalation from stage 1 to stage 2 is legible mid-gesture.
+    const update_reveal = (offset: number) => {
+      if (!this.sw_left || !this.sw_right) return
+      const stage = SwipeConfig.stage(offset)
+      const revealed = offset > 0 ? this.sw_left : this.sw_right
+      const hidden = offset > 0 ? this.sw_right : this.sw_left
+
+      hidden.innerText = ""
+      hidden.dataset.stage = "0"
+      hidden.dataset.action = "none"
+
+      const action = SwipeConfig.actionFor(offset)
+      revealed.innerText = stage === 0 ? "" : SWIPE_ACTION_LABELS[action]
+      revealed.dataset.stage = String(stage)
+      // CSS picks the reveal colour off the action, so a reconfigured swipe
+      // keeps its colour meaning instead of colouring by stage number.
+      revealed.dataset.action = stage === 0 ? "none" : action
     }
 
     const mouse_swipe = (event: MouseEvent) => {
@@ -412,32 +498,14 @@ export class StoryListItem extends HTMLElement {
       }
       swipe(one_touch.clientX)
     }
-    
+
     const swipe = (x: number) => {
-      //check that slide_bb is infront of our story element
-      if (!this.previousElementSibling?.classList.contains("bb_slide")) {
-        //find and place in front of story element
-        const bb_slide_el = document.querySelector(".bb_slide")
-        if (bb_slide_el) {
-          this.before(bb_slide_el)
-        }
-      }
-      this.style.transition = "none"
-      const shift = x - start_offset
-      const shift_percent = Math.abs(shift) / this.clientWidth
-
-
-      if (this.sw_left && this.sw_right) {
-        if (shift_percent > threshold) {
-          this.sw_left.style.fontWeight = "bold"
-          this.sw_right.style.fontWeight = "bold"
-        } else {
-          this.sw_left.style.fontWeight = ""
-          this.sw_right.style.fontWeight = ""
-        }
-      }
-
-      this.style.transform = `translateX(${shift}px)`
+      const next = SwipeConfig.plateau(x - start_offset)
+      if (next === plateau) return
+      plateau = next
+      update_reveal(plateau)
+      this.style.transition = SWIPE_SNAP_TRANSITION
+      this.style.transform = `translateX(${plateau}px)`
     }
 
     this.addEventListener("touchmove", () => {
@@ -462,9 +530,6 @@ export class StoryListItem extends HTMLElement {
         e.stopPropagation()
         return
       }
-      if (this.parentElement) {
-        this.parentElement.style.width = this.parentElement.offsetWidth + "px"
-      }
       e.preventDefault()
       document.body.style.cursor = "w-resize"
       document.addEventListener("pointermove", mouse_swipe)
@@ -476,41 +541,55 @@ export class StoryListItem extends HTMLElement {
       this.parentElement?.addEventListener("scroll", end_swipe)
     })
 
+    // Releasing ON a plateau fires that stage; releasing below stage 1 fires
+    // nothing, which is what makes an abandoned drag safe.
     const end_swipe = (e: Event) => {
       e.preventDefault()
       e.stopPropagation()
 
-      // Extract shift value from transform
-      const transformValue = this.style.transform
-      let shift = 0
-      if (transformValue && transformValue.includes("translateX")) {
-        const match = transformValue.match(/translateX\((-?[\d.]+)px\)/)
-        if (match) {
-          shift = parseFloat(match[1])
-        }
-      }
+      const committed = plateau
+      reset_swipe()
+      commit_swipe(committed)
 
-      if (Math.abs(shift) / this.clientWidth > threshold) {
-        if (shift < 0) {
+      return false
+    }
+
+    const commit_swipe = (offset: number) => {
+      switch (SwipeConfig.actionFor(offset)) {
+        case "none":
+          return
+        case "open":
+          this.read_btn.classList.add("user_interaction")
+          open_story(this.story.href, "_self")
+          return
+        case "skip":
+          // Unconditional, unlike toggle-read: a swipe to skip should skip.
           this.read_btn.classList.add("user_interaction")
           StoryHistory.instance.story_change(
             this.story,
             "skipped",
             this.story.read_state
           )
-          getOnceClient().persistStoryChange(
+          void getOnceClient().persistStoryChange(
             this.story.href,
             "read_state",
             "skipped"
           )
-        } else {
-          open_story(this.story.href, "_self")
-        }
+          return
+        // The rest already exist as menu actions; routing through them keeps
+        // reader persistence and the filter dialog in one place.
+        case "open-reader":
+          void executeStoryMenuAction("open-reader", this)
+          return
+        case "toggle-read":
+          void executeStoryMenuAction("toggle-read", this)
+          return
+        case "toggle-bookmark":
+          void executeStoryMenuAction("toggle-bookmark", this)
+          return
+        case "filter":
+          void executeStoryMenuAction("filter", this)
       }
-
-      reset_swipe()
-
-      return false
     }
 
     // the browser took over the gesture (e.g. Android starts scrolling):
@@ -520,17 +599,15 @@ export class StoryListItem extends HTMLElement {
     }
 
     const reset_swipe = () => {
-      this.style.display = ""
-      if (this.parentElement) {
-        this.parentElement.style.width = ""
-      }
-
       document.querySelectorAll<HTMLElement>(".bb_slide").forEach((el) => {
-        el.outerHTML = ""
+        el.remove()
       })
+      this.bb_slide = undefined
 
       start_offset = -1
-      this.style.transition = ""
+      plateau = 0
+      // spring back rather than snapping, so the release reads as a release
+      this.style.transition = SWIPE_RELEASE_TRANSITION
       this.style.transform = ""
       document.body.style.cursor = ""
       document.removeEventListener("touchmove", touch_swipe)
@@ -637,6 +714,34 @@ export class StoryListItem extends HTMLElement {
     }
     btn.title = title
     return btn
+  }
+
+  /**
+   * The ⋮ affordance. Hidden by default (Electron and the extensions use their
+   * native context menus) and revealed by the touch platforms, which have no
+   * such API.
+   */
+  add_menu_button(): void {
+    this.menu_btn = StoryListItem.icon_button("story actions", "menu_btn")
+    this.menu_btn.dataset.testid = "story-menu-button"
+    this.menu_btn.textContent = "⋮"
+    this.menu_btn.setAttribute("aria-haspopup", "menu")
+    this.menu_btn.setAttribute("aria-label", "Story actions")
+    // Claiming the press keeps swipeable() and the long-press detector from
+    // arming, so the button opens the menu on TAP and nothing else fires.
+    this.menu_btn.addEventListener("pointerdown", (event) => {
+      event.stopPropagation()
+    })
+    this.menu_btn.addEventListener("click", (event) => {
+      event.stopPropagation()
+      this.requestMenu()
+    })
+    this.appendChild(this.menu_btn)
+  }
+
+  /** Anchors on the whole row by default so ⋮ and long-press agree. */
+  requestMenu(anchor: HTMLElement = this): void {
+    this.dispatchEvent(new StoryMenuRequestEvent(this, anchor))
   }
 
   add_read_button(): void {

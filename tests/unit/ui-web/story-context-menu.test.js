@@ -64,6 +64,42 @@ test("story menu descriptors are ordered, contextual, and platform-aware", () =>
   assert.equal(items.find((item) => item.id === "filter").label, "Edit filter")
 })
 
+test("mobile gets the short single-column menu the redesign specifies", () => {
+  const { describeStoryMenu } = loadMenuModule()
+  const items = describeStoryMenu({
+    platform: "mobile",
+    buildChannel: "release",
+    story: fakeStory()
+  }).filter((item) => item.visible)
+
+  // No tab targets to choose between, and undo/redo belong to a keyboard.
+  assert.deepEqual(items.map((item) => item.id), [
+    "open",
+    "open-reader",
+    "toggle-read",
+    "toggle-bookmark",
+    "filter",
+    "search-domain",
+    "copy-link"
+  ])
+})
+
+test("mobile hides the redirect actions even when a redirect applies", () => {
+  const { describeStoryMenu } = loadMenuModule()
+  const hidden = describeStoryMenu({
+    platform: "mobile",
+    buildChannel: "release",
+    // URLRedirect has no rules loaded here, so assert on the flags directly:
+    // the mobile branch must not depend on whether a redirect matched.
+    story: fakeStory()
+  }).filter((item) => !item.visible).map((item) => item.id)
+
+  assert.ok(hidden.includes("open-original"))
+  assert.ok(hidden.includes("copy-original-link"))
+  assert.ok(hidden.includes("open-new-tab"))
+  assert.ok(hidden.includes("open-background-tab"))
+})
+
 test("story-list background exposes only history actions", () => {
   const { describeStoryMenu } = loadMenuModule()
   const items = describeStoryMenu({

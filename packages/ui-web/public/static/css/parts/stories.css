@@ -1,4 +1,6 @@
 .stories_container {
+  /* positioning context for .bb_slide, which is laid over the dragged row */
+  position: relative;
   overflow-y: auto;
   overflow-x: hidden;
   /* keep pull-to-refresh from chaining into the browser's own overscroll */
@@ -80,22 +82,77 @@
   transform: translateX(0);
 }
 
+/* Out of flow on purpose: an in-flow reveal reflows the whole list the moment
+   a drag starts. top/height are set from the row's own box by swipeable(). */
 .bb_slide {
+  position: absolute;
+  left: 0;
   width: 100%;
   display: flex;
+  pointer-events: none;
 }
 
-.bb_slide .swipe_left {
-  height: 100%;
-  width: 100%;
-  padding-left: 5px;
-}
-
+.bb_slide .swipe_left,
 .bb_slide .swipe_right {
   height: 100%;
   width: 100%;
-  padding-right: 5px;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--swipe-label-color);
+  font-weight: 600;
+  /* The diagonal wash the row has always had, densest at the outer corner the
+     finger is heading for. Stage 2 spreads it the whole way across, so the
+     escalation reads as more ink and not only as a different hue. */
+  --swipe-reveal-color: transparent;
+  --swipe-reveal-spread: 55%;
+}
+
+.bb_slide [data-stage="2"] {
+  --swipe-reveal-spread: 100%;
+}
+
+.bb_slide .swipe_left {
+  padding-left: 15px;
+  background-image: linear-gradient(
+    45deg,
+    var(--swipe-reveal-color),
+    transparent var(--swipe-reveal-spread)
+  );
+}
+
+.bb_slide .swipe_right {
+  padding-right: 15px;
   text-align: right;
+  background-image: linear-gradient(
+    45deg,
+    transparent calc(100% - var(--swipe-reveal-spread)),
+    var(--swipe-reveal-color)
+  );
+}
+
+/* Colour follows the configured action, set by StoryListItem.update_reveal */
+.bb_slide [data-action="open"] {
+  --swipe-reveal-color: var(--swipe-open-color);
+}
+
+.bb_slide [data-action="open-reader"] {
+  --swipe-reveal-color: var(--swipe-open-reader-color);
+}
+
+.bb_slide [data-action="skip"] {
+  --swipe-reveal-color: var(--swipe-skip-color);
+}
+
+.bb_slide [data-action="filter"] {
+  --swipe-reveal-color: var(--swipe-filter-color);
+}
+
+.bb_slide [data-action="toggle-read"] {
+  --swipe-reveal-color: var(--swipe-toggle-read-color);
+}
+
+.bb_slide [data-action="toggle-bookmark"] {
+  --swipe-reveal-color: var(--swipe-toggle-bookmark-color);
 }
 
 .read_btn::after {
@@ -169,6 +226,12 @@
 
 .story .button_group {
   display: inline-flex;
+}
+
+/* Touch-only affordance: Electron and the extensions open story actions from
+   their native context menus, so the row keeps its inline button group. */
+.story .menu_btn {
+  display: none;
 }
 
 .info .time {

@@ -119,7 +119,12 @@ async function saveFilters(page, text) {
   await openStories(page)
 }
 
-async function swipeStory(page, story, direction) {
+// The swipe is detented: distance selects a stage, not a proportion of the
+// row. Defaults are stage 1 from 56px and stage 2 from 200px, so these land
+// mid-plateau rather than on a boundary.
+const SWIPE_STAGE_DISTANCE = { 1: 110, 2: 260 }
+
+async function swipeStory(page, story, direction, stage = 1) {
   await expect(story).toBeVisible()
   await story.scrollIntoViewIfNeeded()
   const box = await story.boundingBox()
@@ -128,7 +133,7 @@ async function swipeStory(page, story, direction) {
   const startX = Math.round(box.x + box.width * 0.45)
   const y = Math.round(box.y + box.height / 2)
   const distance =
-    Math.round(box.width * 0.4) * (direction === "left" ? -1 : 1)
+    SWIPE_STAGE_DISTANCE[stage] * (direction === "left" ? -1 : 1)
   await page.mouse.move(startX, y)
   await page.mouse.down()
   for (const fraction of [0.25, 0.5, 0.75, 1]) {

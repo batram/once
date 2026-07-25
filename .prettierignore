@@ -3,6 +3,7 @@ node_modules/
 **/*.min.js
 web-ext-artifacts/
 test-results/
+docs/Mobile app redesign with swipe/
 apps/electron/out/
 apps/electron/.webpack/
 package-lock.json

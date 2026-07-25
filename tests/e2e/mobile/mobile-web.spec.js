@@ -1,8 +1,9 @@
 const { test, expect } = require("@playwright/test")
 
-async function openStorySheet(page, story) {
+// Long-press anywhere on the row; ⋮ opens the same menu at the same anchor.
+async function openStoryMenu(page, story) {
   await story.click({ delay: 700 })
-  await expect(page.getByTestId("sheet-cancel")).toBeVisible()
+  await expect(page.getByTestId("story-menu")).toBeVisible()
   // The app suppresses the synthetic release click from a long-press for up
   // to 250ms. Do not let the harness's next intentional tap get swallowed.
   await page.waitForTimeout(300)
@@ -107,9 +108,9 @@ test("stories persist offline and open in the in-app reader", async ({ page }) =
 
   const story = page.getByTestId("story").filter({ hasText: "Fixture article" })
   await expect(story).toBeVisible()
-  // story actions live in a long-press sheet on mobile
-  await openStorySheet(page, story)
-  await page.getByTestId("sheet-story-reader").click()
+  // story actions live in the anchored ⋮ menu on mobile
+  await openStoryMenu(page, story)
+  await page.getByTestId("story-menu-open-reader").click()
   await expect(page.getByTestId("reader-close")).toBeVisible()
   const reader = page.locator(".once-reader-host-frame").contentFrame()
   await expect(reader.getByRole("heading", { name: "Fixture article" })).toBeVisible()
@@ -121,16 +122,290 @@ test("stories persist offline and open in the in-app reader", async ({ page }) =
   // closing must unload the frame so pagehide stops any running speech
   await expect(reader.getByRole("heading", { name: "Fixture article" })).toHaveCount(0)
 
-  await openStorySheet(page, story)
-  await page.getByTestId("sheet-story-read-state").click()
-  await openStorySheet(page, story)
-  await page.getByTestId("sheet-story-read-state").click()
+  await openStoryMenu(page, story)
+  await page.getByTestId("story-menu-toggle-read").click()
+  await openStoryMenu(page, story)
+  await page.getByTestId("story-menu-toggle-read").click()
   await expect(story).toHaveClass(/skipped/)
   await page.waitForTimeout(500)
   await page.reload()
   await page.getByTestId("stories-menu").click()
   await page.getByTestId("reload-stories").click()
   await expect(page.getByTestId("story").filter({ hasText: "Fixture article" })).toHaveClass(/skipped/)
+})
+
+test("the ⋮ button opens the story menu anchored above the tab bar", async ({ page }) => {
+  await page.goto("./")
+  await page.getByTestId("settings-menu").click()
+  await page.getByTestId("sources").fill("http://127.0.0.1:3211/fixtures/feed.rss")
+  await page.getByTestId("save-sources").click()
+  await page.waitForTimeout(500)
+  await page.reload()
+  await page.getByTestId("stories-menu").click()
+  await page.getByTestId("reload-stories").click()
+
+  const story = page.getByTestId("story").filter({ hasText: "Fixture article" })
+  await expect(story).toBeVisible()
+
+  // A tap on ⋮ opens the menu directly — no long-press, no swipe armed.
+  await story.getByTestId("story-menu-button").click()
+  const menu = page.getByTestId("story-menu")
+  await expect(menu).toBeVisible()
+  await expect(page.getByTestId("story-menu-open-reader")).toBeVisible()
+  // Tab-target actions belong to desktop only.
+  await expect(page.getByTestId("story-menu-open-new-tab")).toHaveCount(0)
+
+  const geometry = await menu.evaluate((panel) => {
+    const rect = panel.getBoundingClientRect()
+    const rowEl = document.querySelector("story-item")
+    const row = rowEl.getBoundingClientRect()
+    const tabs = document.querySelector("#menu").getBoundingClientRect()
+    const button = document
+      .querySelector("story-item .menu_btn")
+      .getBoundingClientRect()
+    return {
+      // right-aligned to the row it belongs to
+      rightGap: Math.abs(rect.right - row.right),
+      // never reaches behind the fixed tab bar
+      clearsTabBar: rect.bottom <= tabs.top,
+      // clientHeight: the row's own borders are not part of the tap target
+      rowInnerHeight: rowEl.clientHeight,
+      buttonHeight: Math.round(button.height),
+      buttonWidth: Math.round(button.width),
+      buttonRightGap: Math.round(row.right - button.right)
+    }
+  })
+  expect(geometry.rightGap).toBeLessThanOrEqual(8)
+  expect(geometry.clearsTabBar).toBe(true)
+  // "full row height, ~38px wide, at the row's right edge"
+  expect(geometry.buttonHeight).toBe(geometry.rowInnerHeight)
+  expect(geometry.buttonWidth).toBe(38)
+  expect(geometry.buttonRightGap).toBeLessThanOrEqual(1)
+
+  // Tapping the backdrop dismisses without running an action.
+  await page.getByTestId("story-menu-backdrop").click({ position: { x: 5, y: 5 } })
+  await expect(menu).toBeHidden()
+  await expect(story).not.toHaveClass(/read/)
+
+  // A row low on the screen flips the menu above itself rather than letting it
+  // slide behind the tab bar.
+  await page.locator("#stories").evaluate((stories) => {
+    stories.style.paddingTop = "600px"
+  })
+  await story.getByTestId("story-menu-button").click()
+  await expect(menu).toBeVisible()
+  const flipped = await menu.evaluate((panel) => {
+    const rect = panel.getBoundingClientRect()
+    const row = document.querySelector("story-item").getBoundingClientRect()
+    const tabs = document.querySelector("#menu").getBoundingClientRect()
+    return {
+      above: rect.bottom <= row.top,
+      gap: Math.round(row.top - rect.bottom),
+      clearsTabBar: rect.bottom <= tabs.top
+    }
+  })
+  expect(flipped.above).toBe(true)
+  expect(flipped.gap).toBe(4)
+  expect(flipped.clearsTabBar).toBe(true)
+})
+
+test("a long-press that becomes a drag shows progress and opens nothing", async ({ page }) => {
+  await page.goto("./")
+  await page.getByTestId("settings-menu").click()
+  await page.getByTestId("sources").fill("http://127.0.0.1:3211/fixtures/feed.rss")
+  await page.getByTestId("save-sources").click()
+  await page.waitForTimeout(500)
+  await page.reload()
+  await page.getByTestId("stories-menu").click()
+  await page.getByTestId("reload-stories").click()
+
+  const story = page.getByTestId("story").filter({ hasText: "Fixture article" })
+  await expect(story).toBeVisible()
+
+  const result = await story.evaluate(async (row) => {
+    const rect = row.getBoundingClientRect()
+    const press = (type, x, target) => {
+      const event = new PointerEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        isPrimary: true,
+        pointerId: 7,
+        pointerType: "touch",
+        button: 0,
+        clientX: x,
+        clientY: rect.top + 20
+      })
+      target.dispatchEvent(event)
+    }
+    press("pointerdown", rect.left + 40, row)
+    await new Promise((resolve) => setTimeout(resolve, 120))
+    const building = getComputedStyle(row, "::after")
+    const started = {
+      marked: row.classList.contains("press_building"),
+      animation: building.animationName,
+      duration: building.animationDuration,
+      height: building.height
+    }
+    // past MOVE_TOLERANCE_PX — the swipe handler owns the gesture now
+    press("pointermove", rect.left + 140, document)
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    const cancelled = row.classList.contains("press_building")
+    press("pointerup", rect.left + 140, document)
+    // outlast the 500ms long-press threshold
+    await new Promise((resolve) => setTimeout(resolve, 600))
+    return { started, cancelled }
+  })
+
+  expect(result.started.marked).toBe(true)
+  expect(result.started.animation).toBe("once-press-progress")
+  expect(result.started.duration).toBe("0.5s")
+  expect(result.started.height).toBe("2px")
+  expect(result.cancelled).toBe(false)
+  await expect(page.getByTestId("story-menu")).toBeHidden()
+})
+
+async function seedFixtureStories(page) {
+  await page.goto("./")
+  await page.getByTestId("settings-menu").click()
+  await page.getByTestId("sources").fill("http://127.0.0.1:3211/fixtures/feed.rss")
+  await page.getByTestId("save-sources").click()
+  await page.waitForTimeout(500)
+  await page.reload()
+  await page.getByTestId("stories-menu").click()
+  await page.getByTestId("reload-stories").click()
+  const story = page.getByTestId("story").filter({ hasText: "Fixture article" })
+  await expect(story).toBeVisible()
+  return story
+}
+
+// Drives the touch path (not the mouse path) so the axis lock is exercised too.
+async function dragStory(story, distance, { release = true } = {}) {
+  return story.evaluate(
+    async (row, options) => {
+      const rect = row.getBoundingClientRect()
+      const y = rect.top + rect.height / 2
+      const startX = rect.left + 40
+      const touch = (x) =>
+        new Touch({ identifier: 3, target: row, clientX: x, clientY: y })
+      const fire = (type, x) => {
+        row.dispatchEvent(
+          new TouchEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            touches: type === "touchend" ? [] : [touch(x)],
+            changedTouches: [touch(x)]
+          })
+        )
+      }
+      fire("touchstart", startX)
+      for (const fraction of [0.2, 0.5, 0.8, 1]) {
+        fire("touchmove", startX + options.distance * fraction)
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+      // The row snaps over 90ms; sampling earlier reads a mid-transition
+      // transform rather than the plateau it is heading for.
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      const state = {
+        transform: getComputedStyle(row).transform,
+        label: document.querySelector(".bb_slide .swipe_left")?.innerText || "",
+        labelRight:
+          document.querySelector(".bb_slide .swipe_right")?.innerText || "",
+        action:
+          document.querySelector('.bb_slide [data-stage="1"], .bb_slide [data-stage="2"]')
+            ?.dataset.action || "none"
+      }
+      if (options.release) {
+        document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }))
+      }
+      return state
+    },
+    { distance, release }
+  )
+}
+
+function translateX(transform) {
+  if (!transform || transform === "none") return 0
+  // computed transforms come back as a matrix; tx is the 5th component
+  const parts = transform.match(/matrix\(([^)]+)\)/)
+  return parts ? Math.round(Number(parts[1].split(",")[4])) : 0
+}
+
+test("swipe rests on detents and commits the stage it was released on", async ({ page }) => {
+  const story = await seedFixtureStories(page)
+
+  // Below stage 1: the row does not move off zero and nothing fires.
+  const belowStage1 = await dragStory(story, 40)
+  expect(translateX(belowStage1.transform)).toBe(0)
+  expect(belowStage1.action).toBe("none")
+  await expect(story).not.toHaveClass(/\bread\b/)
+
+  // Stage 1 left: snaps to -96 and names the action, then skips on release.
+  const stage1Left = await dragStory(story, -110, { release: false })
+  expect(translateX(stage1Left.transform)).toBe(-96)
+  expect(stage1Left.labelRight).toBe("Skip")
+  expect(stage1Left.action).toBe("skip")
+  await page.locator("story-item").first().evaluate(() => {
+    document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }))
+  })
+  await expect(story).toHaveClass(/skipped/)
+})
+
+test("swipe escalates to stage two and stops at the plateau", async ({ page }) => {
+  const story = await seedFixtureStories(page)
+
+  // Stage 2 right rests at +216 regardless of how much further the finger goes.
+  const stage2 = await dragStory(story, 400, { release: false })
+  expect(translateX(stage2.transform)).toBe(216)
+  expect(stage2.label).toBe("Open in reader")
+  expect(stage2.action).toBe("open-reader")
+
+  await story.evaluate(() => {
+    document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }))
+  })
+  await expect(page.getByTestId("reader-close")).toBeVisible()
+})
+
+test("swipe settings retune the detents without a reload", async ({ page }) => {
+  const story = await seedFixtureStories(page)
+
+  await page.getByTestId("settings-menu").click()
+  await page.getByTestId("swipe-threshold-1").fill("30")
+  await page.getByTestId("swipe-offset-1").fill("60")
+  await page.getByTestId("swipe-right-1").selectOption("toggle-bookmark")
+  await page.getByTestId("save-swipe").click()
+  await page.waitForTimeout(300)
+  await page.getByTestId("stories-menu").click()
+
+  // 40px used to be below stage 1; with a 30px threshold it now engages, and
+  // the row rests at the newly configured 60px offset.
+  const retuned = await dragStory(story, 40, { release: false })
+  expect(translateX(retuned.transform)).toBe(60)
+  expect(retuned.label).toBe("Toggle bookmark")
+
+  await story.evaluate(() => {
+    document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }))
+  })
+  await expect(story).toHaveClass(/stared/)
+})
+
+test("turning off two-stage swipe keeps the gesture on stage one", async ({ page }) => {
+  const story = await seedFixtureStories(page)
+
+  await page.getByTestId("settings-menu").click()
+  await page.locator("#swipe_two_stage").uncheck()
+  await expect(page.getByTestId("swipe-threshold-2")).toBeDisabled()
+  await page.getByTestId("save-swipe").click()
+  await page.waitForTimeout(300)
+  await page.getByTestId("stories-menu").click()
+
+  // A drag well past the old stage-2 threshold stays on stage 1.
+  const long = await dragStory(story, 400, { release: false })
+  expect(translateX(long.transform)).toBe(96)
+  expect(long.action).toBe("open")
+
+  await story.evaluate(() => {
+    document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }))
+  })
 })
 
 test("reader TTS bridges through the host when the frame lacks speech synthesis", async ({ page }) => {
@@ -152,8 +427,8 @@ test("reader TTS bridges through the host when the frame lacks speech synthesis"
 
   const story = page.getByTestId("story").filter({ hasText: "Fixture article" })
   await expect(story).toBeVisible()
-  await openStorySheet(page, story)
-  await page.getByTestId("sheet-story-reader").click()
+  await openStoryMenu(page, story)
+  await page.getByTestId("story-menu-open-reader").click()
   await expect(page.getByTestId("reader-close")).toBeVisible()
   const reader = page.locator(".once-reader-host-frame").contentFrame()
   await expect(reader.locator("html")).toHaveAttribute("data-once-tts-installed", "true")
