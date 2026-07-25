@@ -107,6 +107,13 @@ describe("Once mobile visual inspection", () => {
           timeoutMsg: "Visual inspection story did not finish loading"
         }
       )
+      if (process.env.ONCE_MOBILE_VISUAL_READER === "1") {
+        await clickWeb(await $("#reading_reader_toggle"), platform)
+        await $(".once-reader-host").waitForDisplayed({
+          timeout: 30_000,
+          timeoutMsg: "Visual inspection reader did not become visible"
+        })
+      }
       return
     }
 
