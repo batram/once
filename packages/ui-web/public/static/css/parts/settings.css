@@ -15,6 +15,7 @@
 }
 
 .settings_container {
+  display: flex;
   height: 100%;
   overflow: scroll;
 }
@@ -24,6 +25,50 @@
   padding: 15px;
   margin: 5px;
   border-bottom: thin solid var(--border-color);
+}
+
+#settings_index {
+  flex: 0 0 240px;
+  padding: 8px;
+  border-right: 1px solid var(--sep-color);
+}
+
+#settings_search {
+  box-sizing: border-box;
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+#settings_sections {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings_section_row {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: space-between;
+  border: 0;
+  border-bottom: 1px solid var(--sep-color);
+  color: inherit;
+  background: transparent;
+  text-align: left;
+}
+
+.settings_section {
+  display: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: auto;
+}
+
+.settings_section.active {
+  display: block;
+}
+
+#settings_section_back {
+  margin-left: auto;
 }
 
 #settings_panel .settings_version {

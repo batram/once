@@ -139,7 +139,38 @@ test("force replaces a present-but-broken Web Speech implementation", async () =
   installReaderTtsPolyfill(frameWindow, { force: true })
   assert.notEqual(frameWindow.speechSynthesis, native, "force installs the bridge over Web Speech")
   assert.equal(typeof frameWindow.speechSynthesis.speak, "function")
-  assert.deepEqual(posts, [{ channel: "once-reader-tts", type: "voices" }])
+  assert.equal(posts.length, 1)
+  assert.equal(posts[0].channel, "once-reader-tts")
+  assert.equal(posts[0].version, 1)
+  assert.match(posts[0].sessionId, /^reader-/)
+  assert.equal(posts[0].type, "voices")
+})
+
+test("versioned protocol rejects malformed and unscoped messages", () => {
+  const protocol = loadModule("apps/mobile/src/readerTtsProtocol.ts")
+  assert.equal(protocol.isReaderTtsRequest({
+    channel: "once-reader-tts",
+    version: 1,
+    sessionId: "reader-test",
+    type: "speak",
+    id: 1,
+    text: "Hello",
+    rate: 1
+  }), true)
+  assert.equal(protocol.isReaderTtsRequest({
+    channel: "once-reader-tts",
+    version: 1,
+    sessionId: "reader-test",
+    type: "speak",
+    text: "Missing id",
+    rate: 1
+  }), false)
+  assert.equal(protocol.isReaderTtsRequest({
+    channel: "once-reader-tts",
+    version: 2,
+    sessionId: "reader-test",
+    type: "cancel"
+  }), false)
 })
 
 test("queued utterances speak natively in order with start/end callbacks", async () => {

@@ -20,6 +20,7 @@ import {
   executeStoryMenuAction,
   StoryMenuRequestEvent
 } from "./StoryContextMenu"
+import { requestReading } from "./ReadingSession"
 
 /**
  * Two-stage detented swipe.
@@ -155,7 +156,15 @@ export class StoryListItem extends HTMLElement {
     bindLinkBehavior(this.link, {
       onClick: () => {
         this.read_btn.classList.add("user_interaction")
-        open_story(this.story.href, "_self")
+        if (!requestReading(this.story, "browser")) {
+          open_story(this.story.href, "_self")
+        } else {
+          void getOnceClient().persistStoryChange(
+            this.story.href,
+            "read_state",
+            "read"
+          )
+        }
       },
       onMiddleClick: () => {
         this.read_btn.classList.add("user_interaction")
@@ -390,6 +399,14 @@ export class StoryListItem extends HTMLElement {
 
   openStory(target: "_self" | "middle" | "blank"): void {
     this.read_btn.classList.add("user_interaction")
+    if (target === "_self" && requestReading(this.story, "browser")) {
+      void getOnceClient().persistStoryChange(
+        this.story.href,
+        "read_state",
+        "read"
+      )
+      return
+    }
     open_story(this.story.href, target)
   }
 
@@ -684,7 +701,9 @@ export class StoryListItem extends HTMLElement {
     bindLinkBehavior(comments_link, {
       onClick: () => {
         this.read_btn.classList.add("user_interaction")
-        openStoryUrl(commentsUrl, "_self", false)
+        if (!requestReading(this.story, "comments")) {
+          openStoryUrl(commentsUrl, "_self", false)
+        }
       },
       onMiddleClick: () => {
         this.read_btn.classList.add("user_interaction")

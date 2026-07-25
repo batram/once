@@ -165,6 +165,15 @@ export async function executeStoryMenuAction(
     case "open-original":
       return story.openOriginal()
     case "open-reader": {
+      const { requestReading } = await import("./ReadingSession.js")
+      if (requestReading(story.story, "reader")) {
+        await getOnceClient().persistStoryChange(
+          story.story.href,
+          "read_state",
+          "read"
+        )
+        return
+      }
       const { ReaderView } = await import("./reader/ReaderView.js")
       await ReaderView.open(story.story.href)
       await getOnceClient().persistStoryChange(

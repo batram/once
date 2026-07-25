@@ -378,10 +378,94 @@ export class SettingsPanel {
         this.save_cache_settings()
       }
     })
+
+    this.installSettingsNavigation()
+  }
+
+  private activeSettingsSection: string | null = null
+  private settingsSectionButtons = new Map<string, HTMLButtonElement>()
+
+  private installSettingsNavigation(): void {
+    const definitions = [
+      ["sources", "Story sources", "#sources_area"],
+      ["filters", "Filters", "#filter_area"],
+      ["redirects", "Redirects", "#redirect_area"],
+      ["sync", "CouchDB Sync", "#couch_input"],
+      ["theme", "Theme & animations", "#theme_select"],
+      ["swipe", "Swipe actions", "#swipe_stages"],
+      ["cache", "Cache timing", "#cache_time_input"],
+      ["errors", "Error log", "#error_log"],
+      ["about", "About Once", "[data-testid='app-version']"]
+    ] as const
+    const index = requireElement<HTMLElement>("#settings_sections")
+    const search = requireElement<HTMLInputElement>("#settings_search")
+    const back = requireElement<HTMLButtonElement>("#settings_section_back")
+
+    for (const [key, label, selector] of definitions) {
+      const control = requireElement<HTMLElement>(selector)
+      const block = requireClosestElement<HTMLElement>(control, ".settings_block")
+      const section = document.createElement("section")
+      section.className = "settings_section"
+      section.dataset.settingsSection = key
+      section.setAttribute("aria-label", label)
+      block.parentElement?.insertBefore(section, block)
+      section.append(block)
+
+      const button = document.createElement("button")
+      button.type = "button"
+      button.className = "settings_section_row"
+      button.dataset.settingsTarget = key
+      button.innerHTML = `<span>${label}</span><span aria-hidden="true">›</span>`
+      button.onclick = () => this.openSettingsSection(key)
+      index.append(button)
+      this.settingsSectionButtons.set(key, button)
+    }
+
+    search.addEventListener("input", () => {
+      const query = search.value.trim().toLocaleLowerCase()
+      this.settingsSectionButtons.forEach((button) => {
+        button.hidden = query !== "" &&
+          !button.textContent?.toLocaleLowerCase().includes(query)
+      })
+    })
+    back.onclick = () => this.closeSettingsSection()
+    if (document.body.dataset.platform !== "mobile") {
+      this.openSettingsSection("sources")
+    }
+  }
+
+  private openSettingsSection(key: string): void {
+    this.activeSettingsSection = key
+    document.querySelectorAll<HTMLElement>(".settings_section").forEach((section) => {
+      section.classList.toggle("active", section.dataset.settingsSection === key)
+    })
+    requireElement("#settings_panel").classList.add("settings_detail_open")
+    const back = requireElement<HTMLButtonElement>("#settings_section_back")
+    back.hidden = false
+    const label = this.settingsSectionButtons.get(key)?.textContent?.replace("›", "").trim()
+    requireElement("#settings_panel .settings_title").textContent = label || "Settings"
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>(
+        `.settings_section[data-settings-section="${key}"] input, ` +
+        `.settings_section[data-settings-section="${key}"] select, ` +
+        `.settings_section[data-settings-section="${key}"] textarea, ` +
+        `.settings_section[data-settings-section="${key}"] button`
+      )?.focus()
+    })
+  }
+
+  private closeSettingsSection(): void {
+    const previous = this.activeSettingsSection
+    this.activeSettingsSection = null
+    requireElement("#settings_panel").classList.remove("settings_detail_open")
+    requireElement<HTMLButtonElement>("#settings_section_back").hidden = true
+    requireElement("#settings_panel .settings_title").textContent = "Settings"
+    if (previous) this.settingsSectionButtons.get(previous)?.focus()
   }
 
   showErrorLog(logId: string): void {
     menu.open_panel("settings")
+    this.openSettingsSection("errors")
     requestAnimationFrame(() => {
       const entry = document.querySelector<HTMLDetailsElement>(`#${logId}`)
       if (!entry) return
@@ -393,6 +477,7 @@ export class SettingsPanel {
 
   showSourceErrorLog(sourceUrl: string): void {
     menu.open_panel("settings")
+    this.openSettingsSection("errors")
     requestAnimationFrame(() => {
       const entries = Array.from(
         document.querySelectorAll<HTMLDetailsElement>(
@@ -667,6 +752,7 @@ export class SettingsPanel {
 
   public highlight_filter(filter: string, shouldOpenPanel = true): void {
     console.log("SettingsPanel: highlighting filter", filter)
+    if (shouldOpenPanel) this.openSettingsSection("filters")
     this.highlight_textarea_content(
       "filter_area",
       filter,
@@ -676,6 +762,7 @@ export class SettingsPanel {
   }
 
   public highlightSource(sourceUrl: string): void {
+    this.openSettingsSection("sources")
     this.highlight_textarea_content("sources_area", sourceUrl, true, true)
   }
 

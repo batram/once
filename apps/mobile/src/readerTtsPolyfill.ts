@@ -1,5 +1,7 @@
 import {
   READER_TTS_CHANNEL,
+  READER_TTS_VERSION,
+  isReaderTtsEvent,
   ReaderTtsEvent,
   ReaderTtsRequest,
   ReaderTtsVoice
@@ -47,6 +49,7 @@ export function installReaderTtsPolyfill(
   if (target.speechSynthesis && !options.force) return
   if (target.parent === target || !target.parent) return
 
+  const sessionId = `reader-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
   const post = (request: ReaderTtsRequest): void => {
     ;(target.parent as { postMessage(message: unknown, targetOrigin: string): void })
       .postMessage(request, "*")
@@ -85,10 +88,15 @@ export function installReaderTtsPolyfill(
       target.addEventListener("message", (event) => {
         if (event.source !== target.parent) return
         const message = event.data as ReaderTtsEvent | undefined
-        if (!message || message.channel !== READER_TTS_CHANNEL) return
+        if (!isReaderTtsEvent(message) || message.sessionId !== sessionId) return
         this.receive(message)
       })
-      post({ channel: READER_TTS_CHANNEL, type: "voices" })
+      post({
+        channel: READER_TTS_CHANNEL,
+        version: READER_TTS_VERSION,
+        sessionId,
+        type: "voices"
+      })
     }
 
     getVoices(): ReaderTtsVoice[] {
@@ -106,13 +114,23 @@ export function installReaderTtsPolyfill(
       this.queue = []
       this.paused = false
       this.speaking = false
-      post({ channel: READER_TTS_CHANNEL, type: "cancel" })
+      post({
+        channel: READER_TTS_CHANNEL,
+        version: READER_TTS_VERSION,
+        sessionId,
+        type: "cancel"
+      })
     }
 
     pause(): void {
       if (this.paused || this.queue.length === 0) return
       this.paused = true
-      post({ channel: READER_TTS_CHANNEL, type: "cancel" })
+      post({
+        channel: READER_TTS_CHANNEL,
+        version: READER_TTS_VERSION,
+        sessionId,
+        type: "cancel"
+      })
     }
 
     resume(): void {
@@ -127,6 +145,12 @@ export function installReaderTtsPolyfill(
         this.dispatchEvent(new Event("voiceschanged"))
         return
       }
+      if (message.type === "state") return
+      if (
+        message.type !== "start" &&
+        message.type !== "end" &&
+        message.type !== "error"
+      ) return
       const index = this.queue.findIndex((entry) => entry.id === message.id)
       if (index < 0) return
       const entry = this.queue[index]
@@ -160,6 +184,8 @@ export function installReaderTtsPolyfill(
         || ""
       return {
         channel: READER_TTS_CHANNEL,
+        version: READER_TTS_VERSION,
+        sessionId,
         type: "speak",
         id: entry.id,
         text: String(utterance.text ?? ""),

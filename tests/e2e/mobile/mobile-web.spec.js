@@ -9,6 +9,16 @@ async function openStoryMenu(page, story) {
   await page.waitForTimeout(300)
 }
 
+async function openSettingsSection(page, section) {
+  await page.getByTestId("settings-menu").click()
+  const row = page.locator(`[data-settings-target="${section}"]`)
+  if (await row.isVisible()) await row.click()
+}
+
+async function testServerUrl(page, path) {
+  return new URL(path, page.url()).href
+}
+
 test("mobile shell is responsive and hides unavailable capabilities", async ({ page }) => {
   await page.goto("./")
   await expect(page.locator("body")).toHaveAttribute("data-platform", "mobile")
@@ -85,23 +95,23 @@ test("mobile refresh controls stay separated and theme-aware", async ({ page }) 
 
 test("mobile settings persist without contacting external sources", async ({ page }) => {
   await page.goto("./")
-  await page.getByTestId("settings-menu").click()
-  await page.getByTestId("sources").fill("http://127.0.0.1:3211/fixtures/feed.rss")
+  await openSettingsSection(page, "sources")
+  await page.getByTestId("sources").fill(await testServerUrl(page, "/fixtures/feed.rss"))
   await page.getByTestId("save-sources").click()
   await page.waitForTimeout(500)
   await page.reload()
-  await page.getByTestId("settings-menu").click()
+  await openSettingsSection(page, "sources")
   await expect(page.getByTestId("sources")).toHaveValue(/\/fixtures\/feed\.rss/)
 })
 
 test("stories persist offline and open in the in-app reader", async ({ page }) => {
   await page.goto("./")
-  await page.getByTestId("settings-menu").click()
-  await page.getByTestId("sources").fill("http://127.0.0.1:3211/fixtures/feed.rss")
+  await openSettingsSection(page, "sources")
+  await page.getByTestId("sources").fill(await testServerUrl(page, "/fixtures/feed.rss"))
   await page.getByTestId("save-sources").click()
   await page.waitForTimeout(500)
   await page.reload()
-  await page.getByTestId("settings-menu").click()
+  await openSettingsSection(page, "sources")
   await expect(page.getByTestId("sources")).toHaveValue(/\/fixtures\/feed\.rss/)
   await page.getByTestId("stories-menu").click()
   await page.getByTestId("reload-stories").click()
@@ -136,8 +146,8 @@ test("stories persist offline and open in the in-app reader", async ({ page }) =
 
 test("the ⋮ button opens the story menu anchored above the tab bar", async ({ page }) => {
   await page.goto("./")
-  await page.getByTestId("settings-menu").click()
-  await page.getByTestId("sources").fill("http://127.0.0.1:3211/fixtures/feed.rss")
+  await openSettingsSection(page, "sources")
+  await page.getByTestId("sources").fill(await testServerUrl(page, "/fixtures/feed.rss"))
   await page.getByTestId("save-sources").click()
   await page.waitForTimeout(500)
   await page.reload()
@@ -211,8 +221,8 @@ test("the ⋮ button opens the story menu anchored above the tab bar", async ({ 
 
 test("a long-press that becomes a drag shows progress and opens nothing", async ({ page }) => {
   await page.goto("./")
-  await page.getByTestId("settings-menu").click()
-  await page.getByTestId("sources").fill("http://127.0.0.1:3211/fixtures/feed.rss")
+  await openSettingsSection(page, "sources")
+  await page.getByTestId("sources").fill(await testServerUrl(page, "/fixtures/feed.rss"))
   await page.getByTestId("save-sources").click()
   await page.waitForTimeout(500)
   await page.reload()
@@ -266,8 +276,8 @@ test("a long-press that becomes a drag shows progress and opens nothing", async 
 
 async function seedFixtureStories(page) {
   await page.goto("./")
-  await page.getByTestId("settings-menu").click()
-  await page.getByTestId("sources").fill("http://127.0.0.1:3211/fixtures/feed.rss")
+  await openSettingsSection(page, "sources")
+  await page.getByTestId("sources").fill(await testServerUrl(page, "/fixtures/feed.rss"))
   await page.getByTestId("save-sources").click()
   await page.waitForTimeout(500)
   await page.reload()
@@ -368,7 +378,7 @@ test("swipe escalates to stage two and stops at the plateau", async ({ page }) =
 test("swipe settings retune the detents without a reload", async ({ page }) => {
   const story = await seedFixtureStories(page)
 
-  await page.getByTestId("settings-menu").click()
+  await openSettingsSection(page, "swipe")
   await page.getByTestId("swipe-threshold-1").fill("30")
   await page.getByTestId("swipe-offset-1").fill("60")
   await page.getByTestId("swipe-right-1").selectOption("toggle-bookmark")
@@ -390,7 +400,7 @@ test("swipe settings retune the detents without a reload", async ({ page }) => {
 
 test("the swipe settings sample row tries unsaved values and commits nothing", async ({ page }) => {
   const story = await seedFixtureStories(page)
-  await page.getByTestId("settings-menu").click()
+  await openSettingsSection(page, "swipe")
 
   // Edited but deliberately NOT saved: the sample row reads the form.
   await page.getByTestId("swipe-threshold-1").fill("30")
@@ -420,7 +430,7 @@ test("the swipe settings sample row tries unsaved values and commits nothing", a
 test("turning off two-stage swipe keeps the gesture on stage one", async ({ page }) => {
   const story = await seedFixtureStories(page)
 
-  await page.getByTestId("settings-menu").click()
+  await openSettingsSection(page, "swipe")
   await page.locator("#swipe_two_stage").uncheck()
   await expect(page.getByTestId("swipe-threshold-2")).toBeDisabled()
   await page.getByTestId("save-swipe").click()
@@ -446,8 +456,8 @@ test("reader TTS bridges through the host when the frame lacks speech synthesis"
     }
   })
   await page.goto("./")
-  await page.getByTestId("settings-menu").click()
-  await page.getByTestId("sources").fill("http://127.0.0.1:3211/fixtures/feed.rss")
+  await openSettingsSection(page, "sources")
+  await page.getByTestId("sources").fill(await testServerUrl(page, "/fixtures/feed.rss"))
   await page.getByTestId("save-sources").click()
   await page.waitForTimeout(500)
   await page.reload()
@@ -469,7 +479,7 @@ test("reader TTS bridges through the host when the frame lacks speech synthesis"
 
 test("theme and phone navigation survive orientation changes", async ({ page }) => {
   await page.goto("./")
-  await page.getByTestId("settings-menu").click()
+  await openSettingsSection(page, "theme")
   await page.getByTestId("theme").selectOption("light")
   await expect(page.locator("body")).toHaveAttribute("data-theme", "light")
   await page.setViewportSize({ width: 915, height: 412 })
@@ -479,20 +489,22 @@ test("theme and phone navigation survive orientation changes", async ({ page }) 
 
 test("authenticated PouchDB sync pulls and pushes deterministic settings", async ({ page, request }) => {
   const database = "web_sync"
-  await request.post(`http://127.0.0.1:3211/test/databases/${database}/reset`, {
+  await page.goto("./")
+  const server = new URL(page.url()).origin
+  await request.post(`${server}/test/databases/${database}/reset`, {
     data: { docs: [{ _id: "theme", list: "light" }] }
   })
-  await page.goto("./")
-  await page.getByTestId("settings-menu").click()
+  await openSettingsSection(page, "sync")
   await page.getByTestId("sync-url").fill(
-    `http://once-test:once-test@127.0.0.1:3211/db/${database}`
+    `${server.replace("http://", "http://once-test:once-test@")}/db/${database}`
   )
   await page.getByTestId("save-sync").click()
   await expect(page.locator("body")).toHaveAttribute("data-theme", "light", { timeout: 15_000 })
 
+  await openSettingsSection(page, "theme")
   await page.getByTestId("theme").selectOption("dark")
   await expect.poll(async () => {
-    const response = await request.get(`http://127.0.0.1:3211/db/${database}/theme`, {
+    const response = await request.get(`${server}/db/${database}/theme`, {
       headers: { Authorization: `Basic ${Buffer.from("once-test:once-test").toString("base64")}` }
     })
     return response.ok() ? (await response.json()).list : "pending"

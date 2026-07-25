@@ -31,6 +31,17 @@
             </div>
             <div
               class="sub"
+              id="reading_menu_btn"
+              data-panel="reading"
+              data-testid="reading-menu"
+            >
+              <div class="heading">
+                <img src="imgs/article.svg" title="Reading" />
+                <p>Reading</p>
+              </div>
+            </div>
+            <div
+              class="sub"
               id="stories_menu_btn"
               data-panel="stories"
               data-testid="stories-menu"
@@ -70,6 +81,7 @@
                   <img src="imgs/reload.svg" />
                 </div>
               </div>
+              <div id="mobile_filter_chips" aria-label="Story filters"></div>
               <div class="stories_container" id="selected_container"></div>
               <div
                 class="stories_container"
@@ -85,8 +97,18 @@
                   &lt;
                 </div>
                 <div class="settings_title">Settings</div>
+                <button type="button" id="settings_section_back" hidden>‹ Settings</button>
               </div>
               <div class="settings_container">
+                <div id="settings_index">
+                  <input
+                    type="search"
+                    id="settings_search"
+                    placeholder="Search settings"
+                    aria-label="Search settings"
+                  />
+                  <nav id="settings_sections" aria-label="Settings sections"></nav>
+                </div>
                 <div class="settings_block">
                   Story sources:
                   <div class="input_container">
@@ -241,6 +263,46 @@
                     aria-live="polite"
                   ></span>
                 </div>
+              </div>
+            </div>
+            <div id="reading_panel" class="panel" data-panel="reading">
+              <header id="reading_story_header">
+                <div class="reading_header_row">
+                  <button type="button" id="reading_back" data-testid="reader-close" aria-label="Back to stories">‹</button>
+                  <strong id="reading_title">Reading</strong>
+                  <button type="button" id="reading_previous" aria-label="Previous story">‹</button>
+                  <button type="button" id="reading_next" aria-label="Next story">›</button>
+                  <button type="button" id="reading_story_menu" aria-label="Story actions">⋮</button>
+                </div>
+                <div class="reading_meta_row">
+                  <span id="reading_type"></span>
+                  <button type="button" id="reading_comments">[comments]</button>
+                  <span id="reading_domain"></span>
+                </div>
+              </header>
+              <div id="reading_url_strip">
+                <button type="button" id="reading_tts_start" aria-label="Start speech">▶</button>
+                <div id="reading_url_pill">
+                  <span id="reading_url"></span>
+                  <button type="button" id="reading_reader_toggle" aria-label="Toggle reader mode">A</button>
+                </div>
+                <button type="button" id="reading_reload" aria-label="Reload">↻</button>
+              </div>
+              <div id="reading_error" role="status" aria-live="polite" hidden></div>
+              <div id="reading_content" aria-label="Reading content"></div>
+              <div id="reader_tts_pill" role="group" aria-label="Text to speech" hidden>
+                <button type="button" data-host-tts="prev" aria-label="Previous segment">‹</button>
+                <button type="button" data-host-tts="play" aria-label="Play article">▶</button>
+                <button type="button" data-host-tts="next" aria-label="Next segment">›</button>
+                <details id="reader_tts_settings">
+                  <summary><span id="reader_tts_rate_label">1.0×</span></summary>
+                  <label>
+                    Voice
+                    <select id="reader_tts_voice"><option value="">Default voice</option></select>
+                  </label>
+                  <div id="reader_tts_rates" aria-label="Speech rate"></div>
+                </details>
+                <button type="button" data-host-tts="close" aria-label="Dismiss speech controls">×</button>
               </div>
             </div>
           </div>

@@ -17,6 +17,17 @@ Intended outcome: a mobile app whose story list keeps the Electron/extension cha
 but is driven by thumb-reachable, detented gestures, with reading — reader mode, live
 web, and comment threads — happening *inside* the app rather than as an exit.
 
+## Progress (2026-07-25)
+
+- Stages 1–3 are implemented and device-reviewed.
+- Stages 4–9 have their core technical implementation on
+  `mobile-redesign-swipe`: native browser contracts and platform implementations,
+  Reading state/navigation, host TTS controls, filter/status presentation,
+  list/detail settings navigation, and accessibility/theme polish.
+- Repository checks, unit tests and Android Java compilation pass. Native device
+  acceptance, iOS Xcode verification, cross-product Playwright completion and the
+  user-led final visual pass remain open; see `docs/MOBILE_REDESIGN_HANDOFF.md`.
+
 ### Decisions taken up front
 
 - **In-app browser**: a custom Capacitor plugin hosting a native `WebView`/`WKWebView`
@@ -138,7 +149,8 @@ visibility cases. Manual: tap ⋮ near the bottom of the list and confirm the fl
 Replace the free-tracking transform + single `threshold = 0.1` with detents:
 
 - Plateaus at `0`, `±96`, `±216` px. Stage from raw drag distance: `<56 → 0`,
-  `56–160 → 1`, `>160 → 2`. While dragging the row **snaps** to the plateau with a short
+  `56–199 → 1`, `≥200 → 2`. The 200px second-stage threshold is the
+  device-tested setting. While dragging the row **snaps** to the plateau with a short
   transition (`transform 90ms ease-out` dragging, `200ms cubic-bezier(.2,.8,.2,1)`
   springing back) rather than following the finger 1:1.
 - Right: stage 1 = read / open, stage 2 = open in reader.

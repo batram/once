@@ -1,9 +1,36 @@
+export type ReaderTtsControl =
+  | { type: "play-toggle" }
+  | { type: "stop" }
+  | { type: "prev" }
+  | { type: "next" }
+  | { type: "set-rate"; rate: number }
+  | { type: "set-voice"; voice: string }
+
+export interface ReaderTtsState {
+  playing: boolean
+  paused: boolean
+  rate: number
+  segment: number
+  voices: Array<{
+    voiceURI: string
+    name: string
+    lang: string
+    default: boolean
+    localService: boolean
+  }>
+  voice: string
+}
+
 export function installReaderTts(options: {
   initialRate?: number
   onRateChange?: (rate: number) => void
   claimOwnership?: () => void
   releaseOwnership?: () => void
   subscribeToStop?: (handler: () => void) => (() => void) | undefined
+  subscribeToControl?: (
+    handler: (control: ReaderTtsControl) => void
+  ) => (() => void) | undefined
+  onStateChange?: (state: ReaderTtsState) => void
 } = {}): void {
   if (document.documentElement.dataset.onceTtsInstalled === "true") return
   document.documentElement.dataset.onceTtsInstalled = "true"
@@ -105,6 +132,20 @@ export function installReaderTts(options: {
     back.disabled = !active || currentIndex <= 0
     forward.disabled = !active || currentIndex >= segments.length - 1
     rateValue.textContent = `${Number(rateInput.value).toFixed(1)}×`
+    options.onStateChange?.({
+      playing: active,
+      paused,
+      rate: Number(rateInput.value),
+      segment: currentIndex,
+      voices: voices().map((voice) => ({
+        voiceURI: voice.voiceURI,
+        name: voice.name,
+        lang: voice.lang,
+        default: voice.default,
+        localService: voice.localService
+      })),
+      voice: voiceSelect.value
+    })
   }
 
   const clearHighlight = (): void => {
@@ -234,8 +275,35 @@ export function installReaderTts(options: {
   })
 
   populateVoices()
-  synth.addEventListener?.("voiceschanged", populateVoices)
+  synth.addEventListener?.("voiceschanged", () => {
+    populateVoices()
+    updateControls()
+  })
   const unsubscribeStop = options.subscribeToStop?.(yieldPlayback)
+  const unsubscribeControl = options.subscribeToControl?.((control) => {
+    switch (control.type) {
+      case "play-toggle":
+        play.click()
+        break
+      case "stop":
+        stop.click()
+        break
+      case "prev":
+        back.click()
+        break
+      case "next":
+        forward.click()
+        break
+      case "set-rate":
+        rateInput.value = String(Math.min(6, Math.max(0.5, control.rate)))
+        rateInput.dispatchEvent(new Event("change"))
+        break
+      case "set-voice":
+        voiceSelect.value = control.voice
+        voiceSelect.dispatchEvent(new Event("change"))
+        break
+    }
+  })
   if (!options.claimOwnership && typeof BroadcastChannel !== "undefined") {
     try {
       ownershipChannel = new BroadcastChannel("once-reader-tts")
@@ -251,6 +319,7 @@ export function installReaderTts(options: {
   window.addEventListener("pagehide", () => {
     stopPlayback()
     if (typeof unsubscribeStop === "function") unsubscribeStop()
+    if (typeof unsubscribeControl === "function") unsubscribeControl()
     ownershipChannel?.close()
   }, { once: true })
   updateControls()

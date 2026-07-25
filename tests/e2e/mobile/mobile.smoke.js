@@ -123,10 +123,15 @@ describe("Once mobile", () => {
     const baseUrl = process.env.ONCE_MOBILE_TEST_URL ||
       (platform === "android" ? `http://10.0.2.2:${port}` : `http://127.0.0.1:${port}`)
     await clickWeb(await $("[data-testid='settings-menu']"), platform)
+    await clickWeb(await $("[data-settings-target='sources']"), platform)
     await $("[data-testid='sources']").setValue(`${baseUrl}/fixtures/feed.rss`)
     await clickWeb(await $("[data-testid='save-sources']"), platform)
+    await clickWeb(await $("#settings_section_back"), platform)
+    await clickWeb(await $("[data-settings-target='sync']"), platform)
     await $("[data-testid='sync-url']").setValue(`http://once-test:once-test@${new URL(baseUrl).host}/db/mobile_${platform}`)
     await clickWeb(await $("[data-testid='save-sync']"), platform)
+    await clickWeb(await $("#settings_section_back"), platform)
+    await clickWeb(await $("[data-settings-target='theme']"), platform)
     if (platform === "ios") {
       await browser.execute(() => {
         if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
@@ -253,8 +258,11 @@ describe("Once mobile", () => {
     expect((await restored.getAttribute("data-title")).includes("Fixture article")).toBe(true)
     await expect($("body")).toHaveAttribute("data-theme", "light")
     await clickWeb(await $("[data-testid='settings-menu']"), platform)
+    await clickWeb(await $("[data-settings-target='sources']"), platform)
     const sources = await $("[data-testid='sources']")
     expect(String(await sources.getProperty("value")).includes("/fixtures/feed.rss")).toBe(true)
+    await clickWeb(await $("#settings_section_back"), platform)
+    await clickWeb(await $("[data-settings-target='sync']"), platform)
     const syncUrl = await $("[data-testid='sync-url']")
     expect(String(await syncUrl.getProperty("value")).includes(`/db/mobile_${platform}`)).toBe(true)
   })

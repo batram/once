@@ -72,7 +72,7 @@ primary tap targets in the row.
 Replace the current free-tracking transform + single 10% threshold with detents:
 
 - Plateaus at 0, ±96px, ±216px. While dragging, the row SNAPS to the nearest plateau
-  (`<56px → 0`, `56–160px → stage 1`, `>160px → stage 2`) with a short transition,
+  (`<56px → 0`, `56–199px → stage 1`, `≥200px → stage 2`) with a short transition,
   instead of following the finger 1:1.
 - Right: stage 1 = read / open, stage 2 = open in reader.
 - Left: stage 1 = skip, stage 2 = filter source (opens the filter action).

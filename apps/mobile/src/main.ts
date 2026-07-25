@@ -1,10 +1,16 @@
 import { App } from "@capacitor/app"
 import { Capacitor } from "@capacitor/core"
 import { createOnceApp } from "@once/app"
-import { createMobilePlatform } from "@once/platform-mobile"
+import {
+  createDefaultMobileNativeBridge,
+  createInAppBrowserSurface,
+  createMobilePlatform
+} from "@once/platform-mobile"
 import { mountOnceUi, ReaderDocumentHost, ReaderView } from "@once/ui-web"
 import { installStoryMenu } from "./storyMenu"
 import { installReaderTtsHostBridge } from "./readerTtsHostBridge"
+import { installReaderTtsControls } from "./readerTtsControls"
+import { MobileReadingController } from "./readingController"
 import "./mobile.css"
 
 declare const __ONCE_APP_VERSION__: string
@@ -18,19 +24,29 @@ async function startMobileApp(): Promise<void> {
   document.body.dataset.onceStage = "platform"
 
   installStoryMenu()
-  const platform = createMobilePlatform()
+  const nativeBridge = createDefaultMobileNativeBridge()
+  const platform = createMobilePlatform(nativeBridge)
   const app = createOnceApp(platform)
+  const browserSurface = createInAppBrowserSurface((url) =>
+    nativeBridge.openExternal(url)
+  )
   const reader = new ReaderDocumentHost(
-    document.body,
+    document.querySelector<HTMLElement>("#reading_content") ?? document.body,
     new URL("reader-runtime.js", document.baseURI).href
   )
-  ReaderView.mount(app.client, (html) => reader.open(html))
-  installReaderTtsHostBridge((source) => reader.isReaderWindow(source))
+  const reading = new MobileReadingController(browserSurface, reader)
+  await reading.install()
+  ReaderView.mount(app.client, (html, sourceUrl) =>
+    reading.openReaderDocument(html, sourceUrl)
+  )
+  const tts = installReaderTtsHostBridge((source) => reader.isReaderWindow(source))
+  installReaderTtsControls(tts)
 
   if (Capacitor.getPlatform() === "android") {
     await App.addListener("backButton", () => {
-      if (reader.isOpen()) reader.close()
-      else void App.exitApp()
+      void reading.handleBack().then((handled) => {
+        if (!handled) void App.exitApp()
+      })
     })
   }
 

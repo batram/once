@@ -29,6 +29,21 @@ function ensureFreshBundle(root) {
 
 module.exports = async function globalSetup() {
   const root = path.resolve(__dirname, "../../..")
+  const port = Number.parseInt(process.env.ONCE_MOBILE_TEST_PORT || "3211", 10)
+  const healthUrl = `http://127.0.0.1:${port}/health`
+  try {
+    const occupied = await fetch(healthUrl, { signal: AbortSignal.timeout(500) })
+    if (occupied.ok) {
+      throw new Error(
+        `Mobile test port ${port} is already serving another process; ` +
+        "stop its tests or set ONCE_MOBILE_TEST_PORT to a free port"
+      )
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("Mobile test port")) {
+      throw error
+    }
+  }
   ensureFreshBundle(root)
   const server = spawn(process.execPath, ["tests/mobile-env/server.js"], {
     cwd: root,
@@ -38,7 +53,7 @@ module.exports = async function globalSetup() {
   for (let attempt = 0; attempt < 50; attempt += 1) {
     if (server.exitCode !== null) throw new Error(`Mobile test server exited with ${server.exitCode}`)
     try {
-      const response = await fetch("http://127.0.0.1:3211/health")
+      const response = await fetch(healthUrl, { signal: AbortSignal.timeout(500) })
       if (response.ok) {
         return async () => {
           server.kill()

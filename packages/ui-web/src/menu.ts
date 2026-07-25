@@ -13,6 +13,9 @@ function panelFor(button: HTMLElement): string {
 export function open_panel(panel: string): void {
   const left_panel = requireElement<HTMLElement>("#left_panel")
   left_panel.setAttribute("active_panel", panel)
+  document.dispatchEvent(new CustomEvent("once-panel-changed", {
+    detail: { panel }
+  }))
 }
 
 function highlight_panel(panel: string) {
@@ -61,7 +64,25 @@ export function add_entry(
     }
     active_flash_panel(type_el)
     requireElement("#menu #" + container_id).appendChild(type_el)
+    syncMobileFilterChips()
   }
+}
+
+function syncMobileFilterChips(): void {
+  const host = document.querySelector<HTMLElement>("#mobile_filter_chips")
+  if (!host) return
+  host.replaceChildren()
+  document.querySelectorAll<HTMLElement>("#menu #types > .btn, #menu #groups > .btn")
+    .forEach((entry) => {
+      const chip = document.createElement("button")
+      chip.type = "button"
+      chip.className = entry.className
+      chip.classList.add("mobile_filter_chip")
+      chip.textContent = entry.textContent
+      chip.dataset.type = entry.dataset.type
+      chip.onclick = () => entry.click()
+      host.append(chip)
+    })
 }
 
 function active_flash_panel(btn: HTMLElement) {

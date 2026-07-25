@@ -56,16 +56,40 @@ surfaces.
 
 ## Open items
 
-1. **Stages 4–9 not started.** Stage 4 (native in-app WebView Capacitor plugin) is the
-   biggest piece, needs Java and Swift, and is the first thing in this project that
-   **cannot be verified in the browser harness** — it needs a device or emulator. Stage 5
-   depends on it.
+Stages 4–9 now have their core technical implementation:
+
+- typed Android/iOS secondary WebView surface with browser fallback and explicit
+  URL, popup, download, TLS, bounds and lifecycle handling;
+- shared Reading session and rendered-order traversal, plus the mobile Reading tab;
+- reader/browser/comments modes and Android back priority;
+- versioned, session-scoped TTS bridge with host controls;
+- mobile filter chips and issue presentation;
+- searchable list/detail settings navigation shared by all products;
+- safe-area, focus-visible and reduced-motion polish.
+
+Verification completed: `npm run check`, 88/88 unit tests, 13/13 mobile unit tests,
+Android `compileDevelopmentDebugJavaWithJavac`, mobile/extension E2E syntax checks,
+and Playwright discovery of all 14 mobile tests.
+
+Still required:
+
+1. Run mobile web, Electron and extension Playwright after the older live
+   Playwright processes release their workers. The production extension builds,
+   artifact checks and Firefox lint pass, but that command stalled when it reached
+   Playwright.
+2. Run the Android native acceptance matrix on a device/emulator: embedded HN,
+   redirects/history, rotation, keyboard, background/resume, process recreation,
+   offline/TLS failure, external schemes, downloads, tab switching and back order.
+3. Build and run the iOS counterpart with Xcode on macOS; Windows compilation does
+   not establish Swift/WKWebView parity.
+4. Ask the user for the planned visual pass in light and dark themes after the
+   executable gates are green.
 
 ## Traps worth knowing
 
-**Leftover test server blocks the suite.** `tests/mobile-env/server.js` on port 3211 makes
-Playwright's `globalSetup` hang rather than fail cleanly. Check the port before blaming
-the tests.
+**Leftover test server blocks the suite.** The harness now accepts
+`ONCE_MOBILE_TEST_PORT` and bounds its health probes, so an occupied or unreachable
+port reports clearly. Do not terminate an existing server without confirming ownership.
 
 **Do not read computed styles without letting transitions settle.** This cost three false
 diagnoses during stage 3 — the swipe `transform` mid-snap (90ms), the reveal

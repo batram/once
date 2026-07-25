@@ -57,15 +57,20 @@ export const DEFAULT_SWIPE_SETTINGS: SwipeSettings = {
 /** Smallest sane plateau; below this a stage is indistinguishable from a tap. */
 const MIN_THRESHOLD = 16
 const MAX_THRESHOLD = 1000
+const MAX_FIRST_STAGE = MAX_THRESHOLD - 1
 
 export function isSwipeActionId(value: unknown): value is SwipeActionId {
   return typeof value === "string" && value in SWIPE_ACTION_LABELS
 }
 
-function clamp(value: unknown, fallback: number): number {
+function clamp(
+  value: unknown,
+  fallback: number,
+  maximum = MAX_THRESHOLD
+): number {
   const parsed = typeof value === "number" ? value : Number(value)
   if (!Number.isFinite(parsed)) return fallback
-  return Math.round(Math.min(MAX_THRESHOLD, Math.max(MIN_THRESHOLD, parsed)))
+  return Math.round(Math.min(maximum, Math.max(MIN_THRESHOLD, parsed)))
 }
 
 /**
@@ -79,9 +84,14 @@ export function normalizeSwipeSettings(value: unknown): SwipeSettings {
 
   const stage = (index: 0 | 1): SwipeStageSetting => {
     const raw = source.stages?.[index] ?? defaults.stages[index]
+    const maximum = index === 0 ? MAX_FIRST_STAGE : MAX_THRESHOLD
     return {
-      threshold: clamp(raw?.threshold, defaults.stages[index].threshold),
-      offset: clamp(raw?.offset, defaults.stages[index].offset)
+      threshold: clamp(
+        raw?.threshold,
+        defaults.stages[index].threshold,
+        maximum
+      ),
+      offset: clamp(raw?.offset, defaults.stages[index].offset, maximum)
     }
   }
 

@@ -1,6 +1,7 @@
 import UIKit
 import Capacitor
 import Security
+import WebKit
 
 @objc(SecureSettingsPlugin)
 public class SecureSettingsPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -60,9 +61,209 @@ public class SecureSettingsPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 }
 
+@objc(InAppBrowserSurfacePlugin)
+public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigationDelegate, WKUIDelegate {
+    public let identifier = "InAppBrowserSurfacePlugin"
+    public let jsName = "InAppBrowserSurface"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "open", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "navigate", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "reload", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "goBack", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setBounds", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setVisible", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "close", returnType: CAPPluginReturnPromise)
+    ]
+
+    private var surface: WKWebView?
+    private var navigationSequence = 0
+    private var activeNavigation = 0
+
+    private func embeddable(_ raw: String?) -> URL? {
+        guard let raw, let url = URL(string: raw),
+              url.scheme?.lowercased() == "http" || url.scheme?.lowercased() == "https"
+        else { return nil }
+        return url
+    }
+
+    private func ensureSurface() -> WKWebView? {
+        if let surface { return surface }
+        guard let shell = bridge?.webView, let parent = shell.superview else { return nil }
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = .default()
+        let view = WKWebView(frame: .zero, configuration: configuration)
+        view.navigationDelegate = self
+        view.uiDelegate = self
+        parent.insertSubview(view, belowSubview: shell)
+        shell.isOpaque = false
+        shell.backgroundColor = .clear
+        surface = view
+        return view
+    }
+
+    private func applyBounds(_ object: JSObject) {
+        guard let surface else { return }
+        // CSS viewport pixels and UIKit points share the same logical scale.
+        surface.frame = CGRect(
+            x: max(0, object["x"] as? Double ?? 0),
+            y: max(0, object["y"] as? Double ?? 0),
+            width: max(0, object["width"] as? Double ?? 0),
+            height: max(0, object["height"] as? Double ?? 0)
+        )
+    }
+
+    @objc func open(_ call: CAPPluginCall) {
+        guard let url = embeddable(call.getString("url")) else {
+            call.reject("Embedded browsing only supports http and https URLs")
+            return
+        }
+        DispatchQueue.main.async {
+            guard let view = self.ensureSurface() else {
+                call.reject("Unable to create the embedded browser surface")
+                return
+            }
+            self.applyBounds(call.getObject("bounds") ?? [:])
+            view.isHidden = !(call.getBool("visible") ?? true)
+            view.load(URLRequest(url: url))
+            call.resolve()
+        }
+    }
+
+    @objc func navigate(_ call: CAPPluginCall) {
+        guard let url = embeddable(call.getString("url")) else {
+            call.reject("Embedded browsing only supports http and https URLs")
+            return
+        }
+        DispatchQueue.main.async {
+            guard let view = self.ensureSurface() else {
+                call.reject("Unable to create the embedded browser surface")
+                return
+            }
+            view.load(URLRequest(url: url))
+            call.resolve()
+        }
+    }
+
+    @objc func reload(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { self.surface?.reload(); call.resolve() }
+    }
+
+    @objc func goBack(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            if self.surface?.canGoBack == true { self.surface?.goBack() }
+            call.resolve()
+        }
+    }
+
+    @objc func setBounds(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { self.applyBounds(call.getData()); call.resolve() }
+    }
+
+    @objc func setVisible(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            self.surface?.isHidden = !(call.getBool("visible") ?? false)
+            call.resolve()
+        }
+    }
+
+    @objc func close(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            self.surface?.stopLoading()
+            self.surface?.navigationDelegate = nil
+            self.surface?.uiDelegate = nil
+            self.surface?.removeFromSuperview()
+            self.surface = nil
+            call.resolve()
+        }
+    }
+
+    private func payload(_ url: URL?) -> JSObject {
+        ["navigationId": activeNavigation, "url": url?.absoluteString ?? ""]
+    }
+
+    private func history(_ view: WKWebView) {
+        var value = payload(view.url)
+        value["canGoBack"] = view.canGoBack
+        notifyListeners("historyChanged", data: value)
+    }
+
+    public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        navigationSequence += 1
+        activeNavigation = navigationSequence
+        notifyListeners("navigationStarted", data: payload(webView.url))
+    }
+
+    public func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        notifyListeners("navigationCommitted", data: payload(webView.url))
+        history(webView)
+    }
+
+    public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        notifyListeners("navigationFinished", data: payload(webView.url))
+        history(webView)
+    }
+
+    public func webView(
+        _ webView: WKWebView,
+        didFailProvisionalNavigation navigation: WKNavigation!,
+        withError error: Error
+    ) {
+        var value = payload(webView.url)
+        value["code"] = (error as NSError).code
+        value["message"] = error.localizedDescription
+        notifyListeners("navigationFailed", data: value)
+    }
+
+    public func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationAction: WKNavigationAction,
+        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+    ) {
+        guard let url = navigationAction.request.url else {
+            decisionHandler(.cancel)
+            return
+        }
+        if embeddable(url.absoluteString) != nil, navigationAction.targetFrame != nil {
+            decisionHandler(.allow)
+        } else {
+            UIApplication.shared.open(url)
+            decisionHandler(.cancel)
+        }
+    }
+
+    public func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationResponse: WKNavigationResponse,
+        decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void
+    ) {
+        if !navigationResponse.canShowMIMEType,
+           let url = navigationResponse.response.url {
+            UIApplication.shared.open(url)
+            decisionHandler(.cancel)
+            return
+        }
+        decisionHandler(.allow)
+    }
+
+    public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        webView.reload()
+    }
+
+    public func webView(
+        _ webView: WKWebView,
+        createWebViewWith configuration: WKWebViewConfiguration,
+        for navigationAction: WKNavigationAction,
+        windowFeatures: WKWindowFeatures
+    ) -> WKWebView? {
+        if let url = navigationAction.request.url { UIApplication.shared.open(url) }
+        return nil
+    }
+}
+
 class ViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(SecureSettingsPlugin())
+        bridge?.registerPluginInstance(InAppBrowserSurfacePlugin())
     }
 }
 
