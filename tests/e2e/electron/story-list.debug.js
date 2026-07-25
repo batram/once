@@ -5,6 +5,7 @@ const path = require("node:path")
 const {
   closeApp,
   launchApp,
+  openSettingsSection,
   startPageServer
 } = require("./electron-harness")
 const storyFixture = require("../shared/story-fixture")
@@ -441,23 +442,25 @@ test("diagnoses Electron story loading and interactions", async ({
     const { captureTarget, runStep } = helpers
     await captureCheckpoint("01-after-launch")
 
-    await runStep("02-open-settings", () =>
-      window.getByTestId("settings-menu").click({ timeout: OPERATION_TIMEOUT })
+    const animation = await runStep("02-open-theme-settings", () =>
+      openSettingsSection(window, "theme", "#anim_checkbox")
     )
     await runStep("03-disable-animations", () =>
-      window.locator("#anim_checkbox").uncheck({ timeout: OPERATION_TIMEOUT })
+      animation.uncheck({ timeout: OPERATION_TIMEOUT })
     )
 
-    const sources = window.getByTestId("sources")
-    await runStep("04-inject-source", () =>
+    const sources = await runStep("04-open-source-settings", () =>
+      openSettingsSection(window, "sources", '[data-testid="sources"]')
+    )
+    await runStep("05-inject-source", () =>
       sources.evaluate((textarea, value) => {
         textarea.value = value
       }, sourceLine)
     )
-    await runStep("05-verify-source", () =>
+    await runStep("06-verify-source", () =>
       expect(sources).toHaveValue(sourceLine, { timeout: OPERATION_TIMEOUT })
     )
-    await runStep("06-save-source", () =>
+    await runStep("07-save-source", () =>
       window
         .getByTestId("save-sources")
         .evaluate((button) => button.click())
@@ -467,16 +470,16 @@ test("diagnoses Electron story loading and interactions", async ({
     for (const targetMs of [0, 250, 1_000, 5_000, 10_000]) {
       const remaining = targetMs - (Date.now() - sampleStartedAt)
       if (remaining > 0) await delay(remaining)
-      await captureCheckpoint(`07-story-sample-${targetMs}ms`)
+      await captureCheckpoint(`08-story-sample-${targetMs}ms`)
     }
 
-    await runStep("08-open-stories", () =>
+    await runStep("09-open-stories", () =>
       window
         .getByTestId("stories-menu")
         .locator(":scope > .heading")
         .click({ timeout: OPERATION_TIMEOUT })
     )
-    await runStep("09-clear-search", () =>
+    await runStep("10-clear-search", () =>
       window.locator("#searchfield").fill("", {
         timeout: OPERATION_TIMEOUT
       })

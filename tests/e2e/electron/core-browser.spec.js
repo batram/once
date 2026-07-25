@@ -1,5 +1,10 @@
 const { test, expect } = require("@playwright/test")
-const { closeApp, launchApp, startPageServer } = require("./electron-harness")
+const {
+  closeApp,
+  launchApp,
+  openSettingsSection,
+  startPageServer
+} = require("./electron-harness")
 
 let pageServer
 let origin
@@ -71,8 +76,11 @@ test("launches a secure browser shell with legacy tab interactions", async () =>
     await expect(window.getByTestId("app-version")).toHaveText(
       await electronApp.evaluate(({ app }) => app.getVersion())
     )
-    await window.getByTestId("settings-menu").click()
-    const updateButton = window.getByTestId("check-for-updates")
+    const updateButton = await openSettingsSection(
+      window,
+      "about",
+      '[data-testid="check-for-updates"]'
+    )
     const updateMessage = process.platform === "win32"
       ? "Updates are available in installed release builds."
       : "Automatic updates are currently supported on Windows."

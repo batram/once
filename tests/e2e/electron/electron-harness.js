@@ -224,6 +224,26 @@ async function openPanel(window, panel) {
   await expect(window.locator(`#${panel}_panel`)).toBeVisible()
 }
 
+async function openSettingsSection(window, target, controlSelector) {
+  await openPanel(window, "settings")
+  await window.locator(`[data-settings-target="${target}"]`).click({
+    timeout: 5_000
+  })
+  const section = window.locator(
+    `.settings_section[data-settings-section="${target}"]`
+  )
+  await expect(section, `${target} settings section did not open`).toBeVisible({
+    timeout: 5_000
+  })
+  if (!controlSelector) return section
+  const control = section.locator(controlSelector)
+  await expect(
+    control,
+    `${target} settings control ${controlSelector} was not visible`
+  ).toBeVisible({ timeout: 5_000 })
+  return control
+}
+
 async function showAllStories(window) {
   await openPanel(window, "stories")
   const search = window.locator("#searchfield")
@@ -239,10 +259,18 @@ async function seedLocalSource(window, sourceLine, expectedStoryHref) {
   if (!expectedStoryHref) {
     throw new Error("seedLocalSource requires an expected fixture story URL")
   }
-  await openPanel(window, "settings")
-  await window.locator("#anim_checkbox").uncheck()
+  const animation = await openSettingsSection(
+    window,
+    "theme",
+    "#anim_checkbox"
+  )
+  await animation.uncheck()
   await expect(window.locator("body")).toHaveAttribute("animated", "false")
-  const sources = window.getByTestId("sources")
+  const sources = await openSettingsSection(
+    window,
+    "sources",
+    '[data-testid="sources"]'
+  )
   // This is fixture setup, not an editor interaction under test. Setting the
   // value directly avoids Electron text-focus/input handling, which can hang
   // in the non-interactive Windows session used by GitHub-hosted runners.
@@ -258,15 +286,23 @@ async function seedLocalSource(window, sourceLine, expectedStoryHref) {
 }
 
 async function saveFilters(window, text) {
-  await openPanel(window, "settings")
-  await window.getByTestId("filters").fill(text)
+  const filters = await openSettingsSection(
+    window,
+    "filters",
+    '[data-testid="filters"]'
+  )
+  await filters.fill(text)
   await window.getByTestId("save-filters").click()
   await showAllStories(window)
 }
 
 async function saveRedirects(window, text) {
-  await openPanel(window, "settings")
-  await window.getByTestId("redirects").fill(text)
+  const redirects = await openSettingsSection(
+    window,
+    "redirects",
+    '[data-testid="redirects"]'
+  )
+  await redirects.fill(text)
   await window.getByTestId("save-redirects").click()
   await showAllStories(window)
 }
@@ -328,6 +364,7 @@ module.exports = {
   launchApp,
   markLiveContents,
   openPanel,
+  openSettingsSection,
   saveFilters,
   saveRedirects,
   seedLocalSource,

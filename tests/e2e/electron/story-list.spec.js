@@ -6,6 +6,7 @@ const {
   closeApp,
   launchApp,
   openPanel,
+  openSettingsSection,
   saveFilters,
   saveRedirects,
   seedLocalSource,
@@ -147,9 +148,17 @@ test("stacks, dismisses, restores, and opens source issues through the error log
     const failingSource = `${origin}/failure.rss`
     const sourceLines = [warningOne, warningTwo, failingSource].join("\n")
 
-    await openPanel(window, "settings")
-    await window.locator("#anim_checkbox").uncheck()
-    const sources = window.getByTestId("sources")
+    const animation = await openSettingsSection(
+      window,
+      "theme",
+      "#anim_checkbox"
+    )
+    await animation.uncheck()
+    const sources = await openSettingsSection(
+      window,
+      "sources",
+      '[data-testid="sources"]'
+    )
     await sources.evaluate((textarea, value) => {
       textarea.value = value
     }, sourceLines)
