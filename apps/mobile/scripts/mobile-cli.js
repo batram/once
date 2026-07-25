@@ -166,6 +166,23 @@ function buildWeb(channel) {
   const env = environment(channel)
   runNpm(["run", "build:packages"], env)
   runNpm(["run", channel === "dev" ? "build:dev" : "build", "--workspace", "@once/mobile"], env)
+  writeWebStamp(channel)
+}
+
+// Record what the web bundle in dist was built from. `npm run check` runs a
+// plain `build:mobile:dev`, which overwrites an --e2e bundle with one that
+// loads stories from the network at startup; the mobile web suite reads this
+// stamp so it rebuilds instead of failing in ways that look like gesture bugs.
+function writeWebStamp(channel) {
+  fs.mkdirSync(path.join(appRoot, "dist"), { recursive: true })
+  fs.writeFileSync(
+    path.join(appRoot, "dist", ".once-web-build.json"),
+    JSON.stringify({
+      channel,
+      e2e: Boolean(options.e2e),
+      builtAt: Date.now()
+    })
+  )
 }
 
 function sync(platform, channel) {

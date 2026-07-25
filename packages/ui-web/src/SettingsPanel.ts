@@ -1,5 +1,6 @@
 import {
   DEFAULT_SWIPE_SETTINGS,
+  normalizeSwipeSettings,
   OnceClient,
   SourceError,
   SWIPE_ACTION_LABELS,
@@ -10,6 +11,7 @@ import {
 import { parseRedirectList, presentRedirectList } from "@once/core"
 import { requireClosestElement, requireElement } from "./dom"
 import * as menu from "./menu"
+import { installSwipePreview } from "./SwipePreviewRow"
 
 export class SettingsPanel {
   static instance: SettingsPanel
@@ -322,6 +324,12 @@ export class SettingsPanel {
     // Swipe action settings
     this.build_swipe_controls()
     void this.restore_swipe_settings()
+    // Reads the form, not the stored settings, so edits can be tried out
+    // before they are saved.
+    installSwipePreview(
+      requireElement<HTMLElement>("#swipe_preview"),
+      () => normalizeSwipeSettings(this.read_swipe_settings())
+    )
     const swipe_block = requireClosestElement<HTMLElement>(
       requireElement<HTMLElement>("#swipe_stages"),
       ".settings_block"

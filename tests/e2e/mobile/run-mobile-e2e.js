@@ -18,36 +18,15 @@ const appBundles = {
   android: "android/app/build/outputs/apk/development/debug/app-development-debug.apk",
   ios: "ios/build/Build/Products/Debug-iphonesimulator/Once Dev.app"
 }
-// Generated during builds; changes here must not count as source changes.
-const generatedNames = new Set([
-  "node_modules", "dist", "build", ".gradle", "output", "DerivedData",
-  "xcuserdata", "public", "capacitor.config.json", "capacitor.plugins.json",
-  "config.xml"
-])
-
-function newestSourceTime(target) {
-  const stat = fs.statSync(target, { throwIfNoEntry: false })
-  if (!stat) return 0
-  if (!stat.isDirectory()) return stat.mtimeMs
-  let newest = 0
-  for (const entry of fs.readdirSync(target)) {
-    if (generatedNames.has(entry)) continue
-    newest = Math.max(newest, newestSourceTime(path.join(target, entry)))
-  }
-  return newest
-}
+const { newestSourceTime, packageSources, readStamp } = require("./build-freshness")
 
 function stalenessReason() {
   if (process.env.ONCE_MOBILE_APP) return null
   if (!fs.existsSync(path.join(appRoot, appBundles[platform]))) {
     return "the app bundle is missing"
   }
-  let stamp
-  try {
-    stamp = JSON.parse(fs.readFileSync(path.join(appRoot, "dist", `.once-package-${platform}.json`), "utf8"))
-  } catch {
-    return "there is no build stamp from `mobile package`"
-  }
+  const stamp = readStamp(`.once-package-${platform}.json`)
+  if (!stamp) return "there is no build stamp from `mobile package`"
   if (!stamp.e2e) return "the last build was not an --e2e build"
   if (stamp.channel !== "dev") return `the last build was for the ${stamp.channel} channel`
   const sources = [
@@ -55,8 +34,7 @@ function stalenessReason() {
     path.join(appRoot, "webpack.config.js"),
     path.join(appRoot, "capacitor.config.ts"),
     path.join(appRoot, platform === "android" ? "android" : "ios"),
-    ...fs.readdirSync(path.join(root, "packages")).map((name) =>
-      path.join(root, "packages", name, "src"))
+    ...packageSources()
   ]
   if (sources.some((source) => newestSourceTime(source) > stamp.builtAt)) {
     return "sources changed since the last build"

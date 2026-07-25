@@ -32,38 +32,70 @@ import {
 const SWIPE_SNAP_TRANSITION = "transform 90ms ease-out"
 const SWIPE_RELEASE_TRANSITION = "transform 200ms cubic-bezier(.2, .8, .2, 1)"
 
-type SwipeStage = 0 | 1 | 2
+export type SwipeStage = 0 | 1 | 2
+
+/** Where a drag rests and what it commits, for one set of settings. */
+export interface SwipeGeometry {
+  stage(offset: number): SwipeStage
+  plateau(offset: number): number
+  actionFor(offset: number): SwipeActionId
+}
+
+/**
+ * The geometry reads its settings through `read` on every call, so a caller
+ * can drive a row from settings that are still being edited (the swipe
+ * settings preview row) without touching the live configuration.
+ */
+export function createSwipeGeometry(
+  read: () => SwipeSettings
+): SwipeGeometry {
+  const geometry: SwipeGeometry = {
+    stage(offset) {
+      const distance = Math.abs(offset)
+      const settings = read()
+      const [first, second] = settings.stages
+      if (distance < first.threshold) return 0
+      if (!settings.twoStage || distance < second.threshold) return 1
+      return 2
+    },
+
+    plateau(offset) {
+      const stage = geometry.stage(offset)
+      if (stage === 0) return 0
+      return Math.sign(offset) * read().stages[stage === 1 ? 0 : 1].offset
+    },
+
+    actionFor(offset) {
+      const stage = geometry.stage(offset)
+      if (stage === 0) return "none"
+      const settings = read()
+      const actions = offset > 0 ? settings.right : settings.left
+      return actions[stage === 1 ? 0 : 1]
+    }
+  }
+  return geometry
+}
 
 /**
  * Live swipe configuration, shared by every row. Rows are created and
  * destroyed constantly, so the settings live here rather than per instance;
  * mountOnceUi seeds it and keeps it current.
  */
-export const SwipeConfig = {
-  current: DEFAULT_SWIPE_SETTINGS as SwipeSettings,
+export const SwipeConfig: SwipeGeometry & { current: SwipeSettings } = {
+  current: DEFAULT_SWIPE_SETTINGS,
+  ...createSwipeGeometry(() => SwipeConfig.current)
+}
 
-  stage(offset: number): SwipeStage {
-    const distance = Math.abs(offset)
-    const [first, second] = this.current.stages
-    if (distance < first.threshold) return 0
-    if (!this.current.twoStage || distance < second.threshold) return 1
-    return 2
-  },
-
-  plateau(offset: number): number {
-    const stage = this.stage(offset)
-    if (stage === 0) return 0
-    return (
-      Math.sign(offset) * this.current.stages[stage === 1 ? 0 : 1].offset
-    )
-  },
-
-  actionFor(offset: number): SwipeActionId {
-    const stage = this.stage(offset)
-    if (stage === 0) return "none"
-    const actions = offset > 0 ? this.current.right : this.current.left
-    return actions[stage === 1 ? 0 : 1]
-  }
+/**
+ * Turns a row into a sample the user can drag without consequences: the
+ * gesture uses `geometry` instead of the live settings, and a release reports
+ * the action it would have run instead of running it.
+ */
+export interface SwipePreview {
+  geometry: SwipeGeometry
+  /** Element the touch axis lock is keyed to, in place of #stories. */
+  scroller: HTMLElement
+  onAction(action: SwipeActionId, stage: SwipeStage): void
 }
 
 export class StoryListItem extends HTMLElement {
@@ -81,6 +113,8 @@ export class StoryListItem extends HTMLElement {
   sw_right!: HTMLElement
   bb_slide?: HTMLElement
   menu_btn!: HTMLElement
+  /** Set only on the swipe settings sample row; see SwipePreview. */
+  swipePreview?: SwipePreview
 
   constructor(story: Story) {
     super()
@@ -414,8 +448,11 @@ export class StoryListItem extends HTMLElement {
 
   swipeable = (): void => {
     let start_offset = -1
-    // where the row currently rests, always one of 0, ±96, ±216
+    // where the row currently rests, always 0 or one of the stage offsets
     let plateau = 0
+    // Read per gesture rather than captured: a preview row is configured
+    // after story_html() has already installed the handlers.
+    const geometry = (): SwipeGeometry => this.swipePreview?.geometry ?? SwipeConfig
 
     // The reveal is absolutely positioned over the row's own box, inside the
     // scroll container. It must not participate in layout: an in-flow sibling
@@ -458,7 +495,7 @@ export class StoryListItem extends HTMLElement {
     // the escalation from stage 1 to stage 2 is legible mid-gesture.
     const update_reveal = (offset: number) => {
       if (!this.sw_left || !this.sw_right) return
-      const stage = SwipeConfig.stage(offset)
+      const stage = geometry().stage(offset)
       const revealed = offset > 0 ? this.sw_left : this.sw_right
       const hidden = offset > 0 ? this.sw_right : this.sw_left
 
@@ -466,7 +503,7 @@ export class StoryListItem extends HTMLElement {
       hidden.dataset.stage = "0"
       hidden.dataset.action = "none"
 
-      const action = SwipeConfig.actionFor(offset)
+      const action = geometry().actionFor(offset)
       revealed.innerText = stage === 0 ? "" : SWIPE_ACTION_LABELS[action]
       revealed.dataset.stage = String(stage)
       // CSS picks the reveal colour off the action, so a reconfigured swipe
@@ -483,7 +520,8 @@ export class StoryListItem extends HTMLElement {
     }
 
     const touch_swipe = (event: TouchEvent) => {
-      const scroller = this.closest<HTMLElement>("#stories")
+      const scroller =
+        this.swipePreview?.scroller ?? this.closest<HTMLElement>("#stories")
       if (!scroller || getTouchGestureAxis(scroller) !== "horizontal") {
         return
       }
@@ -500,7 +538,7 @@ export class StoryListItem extends HTMLElement {
     }
 
     const swipe = (x: number) => {
-      const next = SwipeConfig.plateau(x - start_offset)
+      const next = geometry().plateau(x - start_offset)
       if (next === plateau) return
       plateau = next
       update_reveal(plateau)
@@ -555,7 +593,13 @@ export class StoryListItem extends HTMLElement {
     }
 
     const commit_swipe = (offset: number) => {
-      switch (SwipeConfig.actionFor(offset)) {
+      const action = geometry().actionFor(offset)
+      if (this.swipePreview) {
+        // A sample row: say what would have happened, change nothing.
+        this.swipePreview.onAction(action, geometry().stage(offset))
+        return
+      }
+      switch (action) {
         case "none":
           return
         case "open":

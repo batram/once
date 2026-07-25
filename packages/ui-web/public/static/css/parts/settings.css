@@ -307,3 +307,28 @@
 .settings_swipe .swipe_row.disabled {
   opacity: 0.5;
 }
+
+/* The sample row travels the same distances a real row does, so the stage is
+   the positioning context for its reveal and clips the overhang. */
+#swipe_preview .swipe_preview_stage {
+  position: relative;
+  overflow: hidden;
+  margin: 8px 0 4px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background-color: var(--unread-bg-color);
+}
+
+/* No collector emits [EX], so addCollectorColorStyles never styles this badge. */
+#swipe_preview .info[data-type="[EX]"] .type {
+  background-color: var(--sample-badge-bg);
+  border-color: var(--sample-badge-ink);
+  color: var(--sample-badge-ink);
+}
+
+#swipe_preview .swipe_preview_status {
+  margin: 0 0 6px;
+  font-size: 0.8em;
+  color: var(--text-color);
+  min-height: 1.2em;
+}

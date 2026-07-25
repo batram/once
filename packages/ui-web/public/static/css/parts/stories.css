@@ -88,14 +88,18 @@
   position: absolute;
   left: 0;
   width: 100%;
-  display: flex;
   pointer-events: none;
 }
 
+/* Both sides span the whole row and are stacked, rather than sharing the width
+   as flex halves: a stage-2 drag uncovers more than half the row, and a
+   half-width reveal left a gap between the row's trailing edge and the colour.
+   Only one side is ever coloured (the other is cleared to a transparent
+   gradient and empty text by update_reveal), so the overlap is invisible. */
 .bb_slide .swipe_left,
 .bb_slide .swipe_right {
-  height: 100%;
-  width: 100%;
+  position: absolute;
+  inset: 0;
   overflow: hidden;
   white-space: nowrap;
   color: var(--swipe-label-color);

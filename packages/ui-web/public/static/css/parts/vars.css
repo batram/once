@@ -24,6 +24,10 @@
   --swipe-toggle-read-color: light-dark(rgb(0 128 0 / 72%), rgb(38 160 38 / 72%));
   --swipe-toggle-bookmark-color: light-dark(#b8860b, #d4a017);
   --swipe-label-color: white;
+  /* Badge for the swipe settings sample row. Deliberately unlike any
+     collector's palette — teal, which none of them use. */
+  --sample-badge-bg: light-dark(#cfe9e4, #1f4b46);
+  --sample-badge-ink: light-dark(#1f6b60, #7fd0c4);
 }
 
 /* Default color scheme */

@@ -388,6 +388,35 @@ test("swipe settings retune the detents without a reload", async ({ page }) => {
   await expect(story).toHaveClass(/stared/)
 })
 
+test("the swipe settings sample row tries unsaved values and commits nothing", async ({ page }) => {
+  const story = await seedFixtureStories(page)
+  await page.getByTestId("settings-menu").click()
+
+  // Edited but deliberately NOT saved: the sample row reads the form.
+  await page.getByTestId("swipe-threshold-1").fill("30")
+  await page.getByTestId("swipe-offset-1").fill("60")
+  await page.getByTestId("swipe-right-1").selectOption("toggle-bookmark")
+
+  const preview = page.getByTestId("swipe-preview-row")
+  const dragged = await dragStory(preview, 40, { release: false })
+  expect(translateX(dragged.transform)).toBe(60)
+  expect(dragged.label).toBe("Toggle bookmark")
+
+  await preview.evaluate(() => {
+    document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }))
+  })
+  await expect(page.getByTestId("swipe-preview-status"))
+    .toHaveText("Stage 1 → Toggle bookmark")
+
+  // The unsaved edit reached the sample only: real rows still use the stored
+  // thresholds, where 40px is below stage 1.
+  await page.getByTestId("stories-menu").click()
+  const real = await dragStory(story, 40)
+  expect(translateX(real.transform)).toBe(0)
+  expect(real.action).toBe("none")
+  await expect(story).not.toHaveClass(/stared/)
+})
+
 test("turning off two-stage swipe keeps the gesture on stage one", async ({ page }) => {
   const story = await seedFixtureStories(page)
 

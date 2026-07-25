@@ -55,6 +55,11 @@ export function installStoryMenu(): void {
   })
 }
 
+/** The swipe settings sample row has no real story behind it: no menu. */
+function isPreviewRow(story: StoryListItem): boolean {
+  return story.dataset.swipePreview === "true"
+}
+
 function installLongPress(): void {
   let timer: ReturnType<typeof setTimeout> | undefined
   let startX = 0
@@ -118,7 +123,7 @@ function installLongPress(): void {
     const story = (event.target as Element | null)?.closest<StoryListItem>(
       "story-item"
     )
-    if (!story || !event.isPrimary) return
+    if (!story || !event.isPrimary || isPreviewRow(story)) return
     cancelPress()
     pointerId = event.pointerId
     startX = event.clientX

@@ -6,6 +6,7 @@ Branch: `mobile-redesign-swipe` (branched from `main` at `b353af0`, not pushed)
 - `9f23f6b` — stages 1–3 implemented
 
 Read alongside:
+
 - `docs/Mobile app redesign with swipe/MOBILE_REDESIGN_BRIEF.md` — what to build
 - `docs/MOBILE_REDESIGN_PLAN.md` — the staged plan, stages 4–9 still pending
 
@@ -23,38 +24,44 @@ construction.
 **Stage 3 — detented swipe, configurable** (§3). `StoryListItem.swipeable()` rewritten;
 settings model in `packages/app/src/swipeSettings.ts`; new "Swipe actions" settings block.
 
-Test status at handoff: mobile web e2e 13/13, unit 82/82, Electron e2e 26 passed, Chrome
-extension e2e 7/7, `npm run check` green, lint clean.
+**Web e2e bundle can no longer be silently clobbered.** `mobile web` now writes
+`apps/mobile/dist/.once-web-build.json` (channel + `e2e` + `builtAt`), and the mobile
+Playwright `globalSetup` rebuilds with `--e2e` when that stamp is missing, non-e2e, wrong
+channel, or older than `apps/mobile/src`, `webpack.config.js` or any `packages/*/src`.
+`npx playwright test` straight after `npm run check` therefore rebuilds instead of failing
+in ways that look like gesture regressions. The freshness helpers are shared with the
+Android runner in `tests/e2e/mobile/build-freshness.js`.
+
+**Swipe settings sample row.** `packages/ui-web/src/SwipePreviewRow.ts` puts a real
+`StoryListItem` in the "Swipe actions" block. `SwipeConfig` was split into
+`createSwipeGeometry(read)` plus the live instance, so the sample is driven by the values
+currently *in the form* — an edit can be tried before it is saved — and
+`StoryListItem.swipePreview` diverts the release: it reports the action it would have run
+in a status line and touches no stored state. Links and buttons on that row are
+neutralised at the capture phase, the mobile long-press skips
+`[data-swipe-preview]` rows, and the row keeps its own touch axis lock (there is no
+`attachPullToRefresh` in settings to drive one). Type `EX`, coloured from two new
+`--sample-badge-*` variables since no collector emits that type.
+
+**Reveal alignment fix.** `.bb_slide`'s two sides were flex children at `width: 100%`, so
+each shrank to half the row: a stage-2 drag uncovers more than half, leaving a gap between
+the row's trailing edge and the colour. They are now stacked at `inset: 0` — only one side
+is ever coloured, so the overlap is invisible. Confirmed on device.
+
+Test status: mobile web e2e 14/14, unit 82/82, `npm run check:types`, lint and boundaries
+clean. **Electron and extension e2e were not re-run** after the shared `stories.css`
+change — packaging hit `EBUSY` on `apps/electron/out` and re-running was deferred. Run
+`npm run test:electron:e2e` and `npm run test:extensions` before trusting the desktop
+surfaces.
 
 ## Open items
 
-1. **The reveal gradient is unverified visually.** The original row had a diagonal wash
-   (`linear-gradient(45deg, colour, transparent 50%)`); I replaced it with a flat colour,
-   the user asked for it back, and I reinstated it as a gradient whose *spread* carries
-   the escalation — stage 1 fades out at 55%, stage 2 runs the full width
-   (`--swipe-reveal-spread` in `stories.css`). The gradient strings resolve correctly and
-   all tests pass, but **nobody has looked at it**. In particular the white bold label
-   sits over a partly transparent gradient; contrast in light theme is unconfirmed. I was
-   part-way through measuring it when work stopped. Look at it before trusting it.
-
-2. **Stage-2 threshold was just raised 160 → 200px** at the user's request ("a bit
-   stickier"). The plateau stays at 216, so you now drag almost all the way to the
-   resting position before stage 2 engages. Tests and helper comments updated. If it is
-   still not sticky enough, the next lever is hysteresis — require extra travel to enter a
-   stage but less to fall back out — which is not implemented.
-
-3. **Stages 4–9 not started.** Stage 4 (native in-app WebView Capacitor plugin) is the
+1. **Stages 4–9 not started.** Stage 4 (native in-app WebView Capacitor plugin) is the
    biggest piece, needs Java and Swift, and is the first thing in this project that
    **cannot be verified in the browser harness** — it needs a device or emulator. Stage 5
    depends on it.
 
 ## Traps worth knowing
-
-**`npm run check` breaks the mobile e2e suite.** It runs `build:mobile:dev` *without*
-`--e2e`, overwriting `apps/mobile/dist` with a bundle that live-loads sources at startup.
-Running `npx playwright test` afterwards gives failures that look like gesture
-regressions but are really rows being replaced mid-press by a background reload. Always
-re-run `npm run test:mobile:web` (which rebuilds correctly) rather than Playwright alone.
 
 **Leftover test server blocks the suite.** `tests/mobile-env/server.js` on port 3211 makes
 Playwright's `globalSetup` hang rather than fail cleanly. Check the port before blaming
@@ -79,3 +86,5 @@ the browser pane.
   existing `.settings_block` markup behind a back arrow. **Nothing invented** — the brief
   says to ask before designing the rest.
 - The detented swipe is **shared by every platform**, and user-configurable.
+- Visual confirmation is **the user's call**: stop and ask them to look rather than driving
+  the browser pane or a device to judge appearance.
