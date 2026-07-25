@@ -274,6 +274,26 @@ Appium to the selected serial and uses `adb reverse` so the app can reach the
 host-only test server at `127.0.0.1`. If more than one device is connected, set
 `ONCE_ANDROID_UDID` to the serial shown by `adb devices`.
 
+For a repeatable manual visual pass, use:
+
+```bash
+npm run inspect:mobile:android
+npm run inspect:mobile:ios
+```
+
+Each command builds and installs the current development app, replaces its
+sources with a deterministic visual-inspection feed, loads eight stories with
+varied title lengths and dates, scrolls to the top of the Stories panel, and
+then releases automation while leaving the app and emulator/simulator open.
+The command intentionally keeps running because the story and reader fixtures
+are served from its isolated temporary server; interact with the app normally
+and press Ctrl-C in the terminal when the visual pass is finished. Ctrl-C stops
+the fixture server and removes Android reverse-port forwarding without shutting
+down or erasing the device. Android requires one already-running emulator or
+connected device and follows the same `ONCE_ANDROID_UDID` selection rule as the
+local native test. iOS uses the configured `ONCE_MOBILE_DEVICE`,
+`ONCE_IOS_VERSION`, or `ONCE_IOS_UDID` when supplied.
+
 Before either channel is distributed to internal testers, run this checklist on
 at least one physical Android device and one physical iPhone:
 

@@ -4,6 +4,7 @@ const { spawn, spawnSync } = require("child_process")
 const { startTestServer } = require("./test-server-process")
 
 const platform = process.argv[2]
+const visual = process.argv.includes("--visual")
 if (platform !== "android" && platform !== "ios") {
   console.error("Expected android or ios")
   process.exit(1)
@@ -116,12 +117,13 @@ async function start() {
     testEnv = started.env
     configureAndroidReverse(port, testEnv)
     if (stopping) return
-    const reset = await fetch(`http://127.0.0.1:${port}/test/databases/mobile_${platform}/reset`, {
+    const database = visual ? `visual_${platform}` : `mobile_${platform}`
+    const reset = await fetch(`http://127.0.0.1:${port}/test/databases/${database}/reset`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ docs: [] })
     })
-    if (!reset.ok) throw new Error(`Unable to reset mobile_${platform} test database`)
+    if (!reset.ok) throw new Error(`Unable to reset ${database} test database`)
   } catch (error) {
     console.error(error)
     await testServer?.stop()
@@ -141,9 +143,23 @@ async function start() {
       "wdio",
       path.join(root, `tests/e2e/mobile/wdio.${platform}.conf.js`)
     ],
-    { cwd: root, stdio: "inherit", env: testEnv }
+    {
+      cwd: root,
+      stdio: "inherit",
+      env: {
+        ...testEnv,
+        ...(visual ? { ONCE_MOBILE_VISUAL_INSPECTION: "1" } : {})
+      }
+    }
   )
   wdio.on("exit", async (code, signal) => {
+    if (visual && !signal && code === 0) {
+      console.log("")
+      console.log(`${platform === "android" ? "Android emulator" : "iOS Simulator"} is ready for visual inspection.`)
+      console.log("The fixture server will remain available while this command is running.")
+      console.log("Press Ctrl-C when finished to remove forwarding and stop the fixture server.")
+      return
+    }
     await testServer.stop()
     removeAndroidReverse()
     serverLog.end()

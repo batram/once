@@ -72,13 +72,46 @@ app.get("/fixtures/feed.rss", (request, response) => {
     <guid>${baseUrl}/fixtures/article.html</guid><pubDate>Mon, 15 Jul 2030 10:00:00 GMT</pubDate></item>
     </channel></rss>`)
 })
-app.get("/fixtures/article.html", (_request, response) => {
+app.get("/fixtures/visual-feed.rss", (request, response) => {
+  const baseUrl = `${request.protocol}://${request.get("host")}`
+  const stories = [
+    ["A careful look at native reading surfaces", "native-reading", "Mon, 15 Jul 2030 10:00:00 GMT"],
+    ["Designing a calmer story list", "calmer-list", "Mon, 15 Jul 2030 09:00:00 GMT"],
+    ["Why deterministic tests improve product work", "deterministic-tests", "Mon, 15 Jul 2030 08:00:00 GMT"],
+    ["Small details in mobile typography", "typography", "Sun, 14 Jul 2030 18:00:00 GMT"],
+    ["An unusually long headline for checking wrapping across narrow phone layouts", "long-headline", "Sun, 14 Jul 2030 15:00:00 GMT"],
+    ["Offline-first interfaces in practice", "offline-first", "Sun, 14 Jul 2030 12:00:00 GMT"],
+    ["Reader mode without the browser chrome", "reader-mode", "Sat, 13 Jul 2030 17:00:00 GMT"],
+    ["A short title", "short-title", "Sat, 13 Jul 2030 11:00:00 GMT"]
+  ]
+  const items = stories.map(([title, slug, published]) => {
+    const url = `${baseUrl}/fixtures/articles/${slug}.html`
+    return `<item><title>${title}</title><link>${url}</link>` +
+      `<guid>${url}</guid><pubDate>${published}</pubDate></item>`
+  }).join("")
+  response.type("application/rss+xml")
+  response.send(`<?xml version="1.0" encoding="UTF-8" ?>
+    <rss version="2.0"><channel><title>Once visual inspection</title>
+    <link>${baseUrl}/fixtures/</link>
+    <description>Varied deterministic stories for mobile visual inspection</description>
+    ${items}</channel></rss>`)
+})
+app.get([
+  "/fixtures/article.html",
+  "/fixtures/articles/:slug.html"
+], (request, response) => {
+  const slug = request.params.slug || "fixture-article"
+  const title = request.params.slug
+    ? slug.split("-")
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ")
+    : "Fixture article"
   const paragraph =
     "Once mobile reader fixture content is intentionally detailed, deterministic, and long enough for article extraction. " +
     "It verifies that the sanitized in-app reader can preserve useful prose while discarding page chrome and scripts. "
   response.type("text/html").send(
-    "<!doctype html><html><head><title>Fixture article</title></head><body>" +
-    `<article><h1>Fixture article</h1><p>${paragraph.repeat(8)}</p></article></body></html>`
+    `<!doctype html><html><head><title>${title}</title></head><body>` +
+    `<article><h1>${title}</h1><p>${paragraph.repeat(8)}</p></article></body></html>`
   )
 })
 

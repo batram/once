@@ -5,6 +5,7 @@ const { spawnSync } = require("child_process")
 const root = path.resolve(__dirname, "../../..")
 const npmCli = process.env.npm_execpath
 if (!npmCli) throw new Error("Run mobile E2E through an npm script")
+const visual = process.argv.includes("--visual")
 
 function fail(message) {
   console.error(`mobile-e2e: ${message}`)
@@ -98,4 +99,7 @@ const serial = requireConnectedDevice(android.sdk, android.env)
 const env = { ...android.env, ONCE_ANDROID_UDID: serial, ANDROID_SERIAL: serial }
 ensureUiAutomatorDriver(env)
 runNpm(["run", "mobile", "--", "package", "android", "--channel", "dev", "--e2e"], env)
-runNpm(["run", "test:mobile:e2e:android"], env)
+runNpm([
+  "run",
+  visual ? "inspect:mobile:android:run" : "test:mobile:e2e:android"
+], env)
