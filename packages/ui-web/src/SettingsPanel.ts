@@ -11,6 +11,10 @@ import {
 import { parseRedirectList, presentRedirectList } from "@once/core"
 import { requireClosestElement, requireElement } from "./dom"
 import * as menu from "./menu"
+import {
+  matchSettingsSection,
+  SettingsSearchMatch
+} from "./SettingsSearch"
 import { installSwipePreview } from "./SwipePreviewRow"
 
 export class SettingsPanel {
@@ -384,6 +388,9 @@ export class SettingsPanel {
 
   private activeSettingsSection: string | null = null
   private settingsSectionButtons = new Map<string, HTMLButtonElement>()
+  private settingsSections = new Map<string, HTMLElement>()
+  private settingsSectionResults = new Map<string, HTMLElement>()
+  private settingsSectionMatches = new Map<string, HTMLElement>()
 
   private installSettingsNavigation(): void {
     const definitions = [
@@ -400,6 +407,12 @@ export class SettingsPanel {
     const index = requireElement<HTMLElement>("#settings_sections")
     const search = requireElement<HTMLInputElement>("#settings_search")
     const back = requireElement<HTMLButtonElement>("#settings_section_back")
+    const noResults = document.createElement("p")
+    noResults.id = "settings_search_empty"
+    noResults.textContent = "No settings found"
+    noResults.setAttribute("role", "status")
+    noResults.setAttribute("aria-live", "polite")
+    noResults.hidden = true
 
     for (const [key, label, selector] of definitions) {
       const control = requireElement<HTMLElement>(selector)
@@ -411,27 +424,145 @@ export class SettingsPanel {
       block.parentElement?.insertBefore(section, block)
       section.append(block)
 
+      const result = document.createElement("div")
+      result.className = "settings_section_result"
       const button = document.createElement("button")
       button.type = "button"
       button.className = "settings_section_row"
       button.dataset.settingsTarget = key
-      button.innerHTML = `<span>${label}</span><span aria-hidden="true">›</span>`
+      button.dataset.settingsLabel = label
+      const text = document.createElement("span")
+      text.className = "settings_section_row_text"
+      const title = document.createElement("span")
+      title.textContent = label
+      text.append(title)
+      const arrow = document.createElement("span")
+      arrow.setAttribute("aria-hidden", "true")
+      arrow.textContent = "›"
+      button.append(text, arrow)
       button.onclick = () => this.openSettingsSection(key)
-      index.append(button)
+      const matches = document.createElement("div")
+      matches.className = "settings_section_matches"
+      matches.hidden = true
+      result.append(button, matches)
+      index.append(result)
       this.settingsSectionButtons.set(key, button)
+      this.settingsSections.set(key, section)
+      this.settingsSectionResults.set(key, result)
+      this.settingsSectionMatches.set(key, matches)
     }
+    index.append(noResults)
 
     search.addEventListener("input", () => {
-      const query = search.value.trim().toLocaleLowerCase()
-      this.settingsSectionButtons.forEach((button) => {
-        button.hidden = query !== "" &&
-          !button.textContent?.toLocaleLowerCase().includes(query)
-      })
+      this.filterSettingsSections(search.value)
+    })
+    requireElement<HTMLElement>(".settings_container").addEventListener("input", (event) => {
+      if (event.target !== search) this.filterSettingsSections(search.value)
+    })
+    requireElement<HTMLElement>(".settings_container").addEventListener("change", () => {
+      this.filterSettingsSections(search.value)
+    })
+    new MutationObserver(() => {
+      this.filterSettingsSections(search.value)
+    }).observe(requireElement<HTMLElement>("#error_log"), {
+      childList: true,
+      subtree: true,
+      characterData: true
     })
     back.onclick = () => this.closeSettingsSection()
     if (document.body.dataset.platform !== "mobile") {
       this.openSettingsSection("sources")
     }
+  }
+
+  private filterSettingsSections(query: string): void {
+    let matchCount = 0
+    this.settingsSectionButtons.forEach((button, key) => {
+      const section = this.settingsSections.get(key)
+      const result = this.settingsSectionResults.get(key)
+      const matches = this.settingsSectionMatches.get(key)
+      const label = button.dataset.settingsLabel || ""
+      const match = section ? matchSettingsSection(section, label, query) : null
+      if (result) result.hidden = match === null
+      if (match !== null) matchCount++
+      if (matches) {
+        matches.textContent = ""
+        for (const item of match?.matches || []) {
+          const matchButton = document.createElement("button")
+          matchButton.type = "button"
+          matchButton.className = "settings_section_match"
+          matchButton.textContent = item.text
+          matchButton.title = `Open ${label}: ${item.text}`
+          matchButton.onmousedown = (event) => {
+            event.preventDefault()
+          }
+          matchButton.onclick = () => {
+            this.openSettingsSearchMatch(key, item)
+          }
+          matches.append(matchButton)
+        }
+        const hiddenMatchCount =
+          match ? match.totalMatches - match.matches.length : 0
+        if (hiddenMatchCount > 0) {
+          const more = document.createElement("small")
+          more.className = "settings_section_more"
+          more.textContent = `${hiddenMatchCount} more matches`
+          matches.append(more)
+        }
+        matches.hidden = matches.childElementCount === 0
+      }
+    })
+    requireElement<HTMLElement>("#settings_search_empty").hidden =
+      matchCount !== 0
+  }
+
+  private refreshSettingsSearch(): void {
+    if (this.settingsSectionButtons.size === 0) return
+    const search = document.querySelector<HTMLInputElement>("#settings_search")
+    if (search) this.filterSettingsSections(search.value)
+  }
+
+  private openSettingsSearchMatch(
+    key: string,
+    match: SettingsSearchMatch
+  ): void {
+    this.openSettingsSection(key)
+    if (!match.controlId && !match.targetId) return
+    const controlId = match.controlId
+    const targetId = match.targetId
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (targetId) {
+          const target = document.getElementById(targetId)
+          if (!target) return
+          if (target instanceof HTMLDetailsElement) target.open = true
+          target.focus({ preventScroll: true })
+          target.scrollIntoView({ block: "center" })
+          return
+        }
+        if (!controlId) return
+        const control = document.getElementById(controlId)
+        if (!(control instanceof HTMLInputElement ||
+              control instanceof HTMLTextAreaElement ||
+              control instanceof HTMLSelectElement)) {
+          return
+        }
+        control.focus({ preventScroll: true })
+        if ((control instanceof HTMLInputElement ||
+             control instanceof HTMLTextAreaElement) &&
+            match.startIndex !== undefined) {
+          control.setSelectionRange(
+            match.startIndex,
+            match.endIndex ?? match.startIndex
+          )
+          if (control instanceof HTMLTextAreaElement) {
+            this.scrollTextareaSelectionIntoView(control, match.startIndex)
+            return
+          }
+        }
+        control.scrollIntoView({ block: "center" })
+      })
+    })
   }
 
   private openSettingsSection(key: string): void {
@@ -442,7 +573,7 @@ export class SettingsPanel {
     requireElement("#settings_panel").classList.add("settings_detail_open")
     const back = requireElement<HTMLButtonElement>("#settings_section_back")
     back.hidden = false
-    const label = this.settingsSectionButtons.get(key)?.textContent?.replace("›", "").trim()
+    const label = this.settingsSectionButtons.get(key)?.dataset.settingsLabel
     requireElement("#settings_panel .settings_title").textContent = label || "Settings"
     requestAnimationFrame(() => {
       document.querySelector<HTMLElement>(
@@ -541,6 +672,7 @@ export class SettingsPanel {
       requireElement<HTMLSelectElement>("#theme_select")
     theme_select.value = theme_value
     this.set_theme(theme_value)
+    this.refreshSettingsSearch()
   }
 
   save_theme(name: string): void {
@@ -555,6 +687,7 @@ export class SettingsPanel {
       requireElement<HTMLInputElement>("#anim_checkbox")
     anim_checkbox.checked = checked
     this.set_animation(checked)
+    this.refreshSettingsSearch()
   }
 
   save_animation(checked: boolean): void {
@@ -593,6 +726,7 @@ export class SettingsPanel {
     sources_area.value = story_sources.join("\n")
     // Trigger input event to update highlights
     sources_area.dispatchEvent(new Event("input"))
+    this.refreshSettingsSearch()
   }
 
   async save_sources_settings(): Promise<void> {
@@ -610,6 +744,7 @@ export class SettingsPanel {
       requireElement<HTMLInputElement>("#filter_area")
     const filter_list = await this.client.getFilterList()
     filter_area.value = filter_list.join("\n")
+    this.refreshSettingsSearch()
   }
 
   save_filter_settings(): void {
@@ -626,6 +761,7 @@ export class SettingsPanel {
       requireElement<HTMLInputElement>("#redirect_area")
     const redirect_list = await this.client.getRedirectList()
     redirect_area.value = presentRedirectList(redirect_list)
+    this.refreshSettingsSearch()
   }
 
   save_redirect_settings(): void {
@@ -848,6 +984,7 @@ export class SettingsPanel {
         settings.left[stage]
     }
     this.update_swipe_disabled_state()
+    this.refreshSettingsSearch()
   }
 
   /** Stage 2 controls are inert while the gesture is single-stage. */
@@ -910,6 +1047,7 @@ export class SettingsPanel {
       requireElement<HTMLInputElement>("#cache_time_input")
     const cache_time = await this.client.getCacheTime()
     cache_time_input.value = cache_time.toString()
+    this.refreshSettingsSearch()
   }
 
   async save_cache_settings(): Promise<void> {

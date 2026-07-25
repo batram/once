@@ -60,6 +60,54 @@
   display: none;
 }
 
+.settings_section_row_text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.settings_section_result[hidden],
+.settings_section_matches[hidden],
+#settings_search_empty[hidden] {
+  display: none;
+}
+
+.settings_section_matches {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0 6px 8px;
+}
+
+.settings_section_match {
+  overflow: hidden;
+  padding: 3px 5px;
+  border: 0;
+  color: var(--text-color);
+  background: transparent;
+  font-size: 11px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings_section_match:hover,
+.settings_section_match:focus-visible {
+  color: var(--text-high-color);
+  background: var(--highlight-bg-color);
+}
+
+.settings_section_more {
+  padding: 2px 5px;
+  color: var(--text-color);
+  opacity: 0.75;
+}
+
+#settings_search_empty {
+  color: var(--text-color);
+  opacity: 0.75;
+}
+
 .settings_section {
   display: none;
   flex: 1 1 auto;
