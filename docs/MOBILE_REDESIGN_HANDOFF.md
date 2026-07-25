@@ -69,14 +69,17 @@ Stages 4–9 now have their core technical implementation:
 
 Verification completed: `npm run check`, 88/88 unit tests, 13/13 mobile unit tests,
 Android `compileDevelopmentDebugJavaWithJavac`, mobile/extension E2E syntax checks,
-and Playwright discovery of all 14 mobile tests.
+and an isolated mobile Playwright run with 13/14 tests passing. The sole failing
+scenario exposed a settings test-helper navigation omission; that helper is corrected,
+but the rerun remains pending because the older live Playwright process stalls new
+Playwright invocations before test discovery.
 
 Still required:
 
-1. Run mobile web, Electron and extension Playwright after the older live
-   Playwright processes release their workers. The production extension builds,
-   artifact checks and Firefox lint pass, but that command stalled when it reached
-   Playwright.
+1. Rerun the corrected authenticated-sync scenario and the full mobile web suite,
+   then run Electron and extension Playwright after the older live Playwright
+   processes release their workers. The production extension builds, artifact
+   checks and Firefox lint pass, but that command stalled when it reached Playwright.
 2. Run the Android native acceptance matrix on a device/emulator: embedded HN,
    redirects/history, rotation, keyboard, background/resume, process recreation,
    offline/TLS failure, external schemes, downloads, tab switching and back order.
@@ -89,7 +92,9 @@ Still required:
 
 **Leftover test server blocks the suite.** The harness now accepts
 `ONCE_MOBILE_TEST_PORT` and bounds its health probes, so an occupied or unreachable
-port reports clearly. Do not terminate an existing server without confirming ownership.
+port reports clearly. Alternate ports also use port-specific PouchDB roots (or
+`ONCE_MOBILE_TEST_DATA_DIR`) so an isolated suite cannot contend for the default
+LevelDB lock. Do not terminate an existing server without confirming ownership.
 
 **Do not read computed styles without letting transitions settle.** This cost three false
 diagnoses during stage 3 — the swipe `transform` mid-snap (90ms), the reveal

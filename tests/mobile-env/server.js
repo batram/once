@@ -6,7 +6,9 @@ const PouchDB = require("pouchdb")
 
 const port = Number.parseInt(process.env.ONCE_MOBILE_TEST_PORT || "3211", 10)
 const root = path.resolve(__dirname, "../..")
-const databaseRoot = path.join(root, "test-results", "mobile", "pouchdb")
+const resultDirectory = process.env.ONCE_MOBILE_TEST_DATA_DIR ||
+  (port === 3211 ? "mobile" : `mobile-${port}`)
+const databaseRoot = path.join(root, "test-results", resultDirectory, "pouchdb")
 fs.mkdirSync(databaseRoot, { recursive: true })
 const TestPouchDB = PouchDB.defaults({ prefix: `${databaseRoot}${path.sep}` })
 const app = express()

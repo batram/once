@@ -12,7 +12,11 @@ async function openStoryMenu(page, story) {
 async function openSettingsSection(page, section) {
   await page.getByTestId("settings-menu").click()
   const row = page.locator(`[data-settings-target="${section}"]`)
-  if (await row.isVisible()) await row.click()
+  if (!(await row.isVisible())) {
+    const back = page.locator("#settings_section_back")
+    if (await back.isVisible()) await back.click()
+  }
+  await row.click()
 }
 
 async function testServerUrl(page, path) {
@@ -487,13 +491,17 @@ test("theme and phone navigation survive orientation changes", async ({ page }) 
   await expect(page.locator("#left_panel")).toHaveCSS("min-width", "0px")
 })
 
-test("authenticated PouchDB sync pulls and pushes deterministic settings", async ({ page, request }) => {
+test("authenticated PouchDB sync pulls and pushes deterministic settings", async ({
+  page,
+  request,
+  baseURL
+}) => {
   const database = "web_sync"
-  await page.goto("./")
-  const server = new URL(page.url()).origin
+  const server = new URL(baseURL).origin
   await request.post(`${server}/test/databases/${database}/reset`, {
     data: { docs: [{ _id: "theme", list: "light" }] }
   })
+  await page.goto("./")
   await openSettingsSection(page, "sync")
   await page.getByTestId("sync-url").fill(
     `${server.replace("http://", "http://once-test:once-test@")}/db/${database}`
