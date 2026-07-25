@@ -48,11 +48,15 @@ each shrank to half the row: a stage-2 drag uncovers more than half, leaving a g
 the row's trailing edge and the colour. They are now stacked at `inset: 0` — only one side
 is ever coloured, so the overlap is invisible. Confirmed on device.
 
-Test status: mobile web e2e 14/14, unit 82/82, `npm run check:types`, lint and boundaries
-clean. **Electron and extension e2e were not re-run** after the shared `stories.css`
-change — packaging hit `EBUSY` on `apps/electron/out` and re-running was deferred. Run
-`npm run test:electron:e2e` and `npm run test:extensions` before trusting the desktop
-surfaces.
+Test status: mobile web e2e 14/14, unit 82/82, `npm run check:types`, lint and
+boundaries clean. The previously deferred desktop verification is now complete:
+`npm run test:electron:e2e` passes all 27 Electron Playwright scenarios and
+`npm run test:extensions` passes its production builds, artifact checks, Firefox
+lint, all 7 Chrome Playwright scenarios, and the installed Firefox smoke, story,
+and genymatch tests. The Chrome, Firefox, and Electron harnesses explicitly
+navigate the redesigned settings sections and use bounded action/navigation
+waits, so a hidden control reports its section instead of consuming the complete
+test timeout.
 
 **Mobile E2E harness hardened and verified.** Web and native runners now let the
 server atomically bind an OS-assigned port, identify it with a per-run ownership
@@ -82,24 +86,23 @@ Verification completed before the harness hardening: `npm run check`, 88/88 unit
 tests, Android `compileDevelopmentDebugJavaWithJavac`, and mobile/extension E2E
 syntax checks. After hardening, the complete mobile unit suite passes 18/18 and
 the complete mobile Playwright suite passes 14/14, including the corrected
-authenticated-sync scenario.
+authenticated-sync scenario. Full top-level desktop verification is also green:
+`npm run test:electron:e2e` passes 27/27 and `npm run test:extensions` completes
+all build, artifact, lint, Chrome Playwright, and installed Firefox stages.
 
 Still required:
 
-1. Run Electron and extension Playwright after the shared `stories.css` change.
-   The production extension builds, artifact checks and Firefox lint passed in
-   the earlier attempt, but the E2E results still need a clean completed run.
-2. Diagnose the shared native smoke-test failure at the story-title interaction:
+1. Diagnose the shared native smoke-test failure at the story-title interaction:
    Android reports that the external browser package did not open and iOS reports
    that `SFSafariViewController` did not appear. Determine whether the redesign
    changed the intended routing contract or introduced an application regression
    before changing either the application or the assertion.
-3. Run the Android native acceptance matrix on a device/emulator: embedded HN,
+2. Run the Android native acceptance matrix on a device/emulator: embedded HN,
    redirects/history, rotation, keyboard, background/resume, process recreation,
    offline/TLS failure, external schemes, downloads, tab switching and back order.
-4. Build and run the iOS counterpart with Xcode on macOS; Windows compilation does
+3. Build and run the iOS counterpart with Xcode on macOS; Windows compilation does
    not establish Swift/WKWebView parity.
-5. Ask the user for the planned visual pass in light and dark themes after the
+4. Ask the user for the planned visual pass in light and dark themes after the
    executable gates are green.
 
 ## Traps worth knowing
