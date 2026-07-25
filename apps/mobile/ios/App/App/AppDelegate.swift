@@ -156,7 +156,10 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     }
 
     @objc func setBounds(_ call: CAPPluginCall) {
-        DispatchQueue.main.async { self.applyBounds(call.getData()); call.resolve() }
+        DispatchQueue.main.async {
+            self.applyBounds(call.jsObjectRepresentation)
+            call.resolve()
+        }
     }
 
     @objc func setVisible(_ call: CAPPluginCall) {
