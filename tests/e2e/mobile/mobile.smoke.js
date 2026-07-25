@@ -152,41 +152,19 @@ describe("Once mobile", () => {
     expect((await story.getAttribute("data-title")).includes("Fixture article")).toBe(true)
 
     await clickWeb(await story.$("[data-testid='story-title']"), platform)
-    await browser.switchContext("NATIVE_APP")
-    if (platform === "android") {
-      await browser.waitUntil(async () => (await browser.getCurrentPackage()) !== "com.zmarn.once.dev", {
-        timeout: 30_000,
-        timeoutMsg: "Story link did not open in an external browser"
-      })
-      await browser.pressKeyCode(4)
-    } else {
-      // SFSafariViewController's dismiss button ("Done" up to iOS 18, "Close"
-      // on iOS 26) swallows XCUITest element clicks because the Safari view
-      // runs out of process; dismiss it with a device-level coordinate tap.
-      const dismissButton = '-ios predicate string:type == "XCUIElementTypeButton" AND name IN {"Done", "Close"}'
-      let done = await $(dismissButton)
-      // Presenting the Safari view can silently no-op when the view
-      // controller is still busy (seen on CI), so re-click until it is up.
-      await browser.waitUntil(async () => {
-        done = await $(dismissButton)
-        if (await done.isDisplayed().catch(() => false)) return true
-        await switchToWebView()
-        await clickWeb(await story.$("[data-testid='story-title']"), platform)
-        await browser.switchContext("NATIVE_APP")
-        done = await $(dismissButton)
-        return done.waitForDisplayed({ timeout: 5_000 }).then(() => true, () => false)
-      }, {
-        timeout: 60_000,
-        timeoutMsg: "Story link did not open SFSafariViewController"
-      })
-      const rect = await browser.getElementRect(done.elementId)
-      await browser.execute("mobile: tap", {
-        x: Math.round(rect.x + rect.width / 2),
-        y: Math.round(rect.y + rect.height / 2)
-      })
-      await done.waitForDisplayed({ timeout: 10_000, reverse: true })
-    }
-    await switchToWebView()
+    const readingContent = await $("#reading_content")
+    await readingContent.waitForDisplayed({ timeout: 10_000 })
+    await browser.waitUntil(async () =>
+      (await readingContent.getAttribute("data-mode")) === "browser" &&
+      (await readingContent.getAttribute("data-load-state")) === "ready", {
+      timeout: 30_000,
+      timeoutMsg: "Story title did not finish loading in the embedded browser"
+    })
+    expect(await $("#reading_url").getText()).toBe(
+      `${baseUrl}/fixtures/article.html`
+    )
+    await clickWeb(await $("#reading_back"), platform)
+    await readingContent.waitForDisplayed({ timeout: 10_000, reverse: true })
 
     // The reader frame is opaque-origin, so automation cannot reach into it.
     // Observe the TTS bridge traffic (readerTtsPolyfill -> readerTtsHostBridge)

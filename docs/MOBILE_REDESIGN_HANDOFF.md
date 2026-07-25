@@ -90,19 +90,27 @@ authenticated-sync scenario. Full top-level desktop verification is also green:
 `npm run test:electron:e2e` passes 27/27 and `npm run test:extensions` completes
 all build, artifact, lint, Chrome Playwright, and installed Firefox stages.
 
+The shared native story-title failure was a stale acceptance assertion, not an
+application routing regression. Story titles now intentionally dispatch a mobile
+Reading request and open the custom secondary WebView in the Reading tab; the smoke
+test was still waiting for an external Android browser or iOS
+`SFSafariViewController`. The native test now waits for the Reading controller's
+`browser` mode and `ready` load state (which is published only after the native
+surface emits `navigationFinished`), verifies the exact fixture URL, and closes the
+Reading tab through the app UI. This keeps the test aligned with the embedded-browser
+decision and verifies completed native navigation rather than presentation of an
+unrelated external application.
+
+The complete native smoke is green with this contract on both platforms:
+Android passes 1/1 on the local emulator and iOS passes 1/1 after a successful
+Xcode simulator build.
+
 Still required:
 
-1. Diagnose the shared native smoke-test failure at the story-title interaction:
-   Android reports that the external browser package did not open and iOS reports
-   that `SFSafariViewController` did not appear. Determine whether the redesign
-   changed the intended routing contract or introduced an application regression
-   before changing either the application or the assertion.
-2. Run the Android native acceptance matrix on a device/emulator: embedded HN,
+1. Run the broader native acceptance matrix on Android and iOS: embedded HN,
    redirects/history, rotation, keyboard, background/resume, process recreation,
    offline/TLS failure, external schemes, downloads, tab switching and back order.
-3. Build and run the iOS counterpart with Xcode on macOS; Windows compilation does
-   not establish Swift/WKWebView parity.
-4. Ask the user for the planned visual pass in light and dark themes after the
+2. Ask the user for the planned visual pass in light and dark themes after the
    executable gates are green.
 
 ## Traps worth knowing

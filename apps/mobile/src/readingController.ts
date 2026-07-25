@@ -199,6 +199,13 @@ export class MobileReadingController {
 
   private render(state: Readonly<ReadingSessionState>): void {
     const story = state.story
+    // Keep the native navigation state observable from the Capacitor shell.
+    // Besides driving styling/debugging, this gives native acceptance tests a
+    // stable contract that only becomes "ready" after the secondary WebView
+    // reports navigationFinished.
+    this.content.dataset.mode = state.mode
+    this.content.dataset.loadState = state.loadState
+    this.content.dataset.navigationId = String(state.navigationId)
     required("#reading_title").textContent = story?.title ?? "Reading"
     required("#reading_type").textContent = story ? `[${story.type}]` : ""
     required("#reading_domain").textContent = story
