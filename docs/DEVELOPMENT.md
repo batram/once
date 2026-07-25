@@ -256,8 +256,15 @@ driver listed in CI first. The runner rebuilds the dev app automatically when
 the installed bundle is missing, older than the sources, or was not packaged
 with `--e2e` (tracked via a build stamp in `apps/mobile/dist`); set
 `ONCE_MOBILE_APP` to test a specific prebuilt bundle instead. The test
-environment listens on port 3211, serves only reviewed fixtures, and exposes
-its authenticated CouchDB-compatible endpoint below `/db`.
+environment serves only reviewed fixtures and exposes its authenticated
+CouchDB-compatible endpoint below `/db`. Standard web and native runs ask the
+OS for a free port, identify the server with a per-run ownership token, and
+keep PouchDB state in a private temporary directory that is removed after the
+server exits. This avoids port-selection races, Playwright artifact cleanup,
+and cross-run LevelDB locks. Set `ONCE_MOBILE_TEST_PORT` only when a stable
+explicit port is required; an occupied explicit port fails without terminating
+its owner. Set `ONCE_MOBILE_TEST_DATA_DIR` only when database files need to be
+retained for debugging.
 
 With an Android emulator already running, `npm run test:mobile:e2e:android:local`
 configures the local SDK and JDK paths, installs the pinned UiAutomator2 driver

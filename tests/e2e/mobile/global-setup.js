@@ -1,7 +1,7 @@
 const path = require("path")
-const { spawn, spawnSync } = require("child_process")
-const { once } = require("events")
+const { spawnSync } = require("child_process")
 const { appRoot, packageSources, webBundleStaleness } = require("./build-freshness")
+const { readHealth, startTestServer } = require("./test-server-process")
 
 // Rebuild the served bundle when it was not produced by `mobile web --e2e`, so
 // running Playwright directly (after `npm run check`, say) tests the same
@@ -30,46 +30,30 @@ function ensureFreshBundle(root) {
 module.exports = async function globalSetup() {
   const root = path.resolve(__dirname, "../../..")
   const port = Number.parseInt(process.env.ONCE_MOBILE_TEST_PORT || "3211", 10)
-  const healthUrl = `http://127.0.0.1:${port}/health`
+  const expectedOwner = process.env.ONCE_MOBILE_TEST_OWNER || ""
   try {
-    const occupied = await fetch(healthUrl, { signal: AbortSignal.timeout(500) })
-    if (occupied.ok) {
-      throw new Error(
-        `Mobile test port ${port} is already serving another process; ` +
-        "stop its tests or set ONCE_MOBILE_TEST_PORT to a free port"
-      )
+    const health = await readHealth(port)
+    if (process.env.ONCE_MOBILE_TEST_SERVER_EXTERNAL === "1" &&
+        expectedOwner && health.owner === expectedOwner) {
+      ensureFreshBundle(root)
+      return
     }
+    throw new Error(
+      `Mobile test port ${port} is owned by another process ` +
+      `(pid ${health.pid || "unknown"}, owner ${health.owner || "unidentified"}); ` +
+      "stop its tests or choose another port"
+    )
   } catch (error) {
     if (error instanceof Error && error.message.startsWith("Mobile test port")) {
       throw error
     }
   }
   ensureFreshBundle(root)
-  const server = spawn(process.execPath, ["tests/mobile-env/server.js"], {
-    cwd: root,
-    stdio: "inherit"
-  })
-
-  for (let attempt = 0; attempt < 50; attempt += 1) {
-    if (server.exitCode !== null) throw new Error(`Mobile test server exited with ${server.exitCode}`)
-    try {
-      const response = await fetch(healthUrl, { signal: AbortSignal.timeout(500) })
-      if (response.ok) {
-        return async () => {
-          server.kill()
-          await Promise.race([
-            once(server, "exit"),
-            new Promise(resolve => setTimeout(resolve, 1_000))
-          ])
-          if (server.exitCode === null) server.kill("SIGKILL")
-        }
-      }
-    } catch {
-      // Server is still starting.
-    }
-    await new Promise(resolve => setTimeout(resolve, 100))
+  const testServer = startTestServer({ port })
+  const started = await testServer.ready
+  if (started.port !== port) {
+    await testServer.stop()
+    throw new Error(`Mobile test server requested port ${port} but bound port ${started.port}`)
   }
-
-  server.kill()
-  throw new Error("Mobile test server did not become ready on port 3211")
+  return () => testServer.stop()
 }

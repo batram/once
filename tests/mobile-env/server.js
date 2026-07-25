@@ -5,10 +5,15 @@ const path = require("path")
 const PouchDB = require("pouchdb")
 
 const port = Number.parseInt(process.env.ONCE_MOBILE_TEST_PORT || "3211", 10)
+const owner = process.env.ONCE_MOBILE_TEST_OWNER || ""
 const root = path.resolve(__dirname, "../..")
-const resultDirectory = process.env.ONCE_MOBILE_TEST_DATA_DIR ||
-  (port === 3211 ? "mobile" : `mobile-${port}`)
-const databaseRoot = path.join(root, "test-results", resultDirectory, "pouchdb")
+const runIdentity = (owner || `pid-${process.pid}`).replace(/[^a-zA-Z0-9_-]/g, "_")
+const configuredDataDirectory = process.env.ONCE_MOBILE_TEST_DATA_DIR
+const resultDirectory = port === 3211 ? "mobile" :
+  port === 0 ? `mobile-run-${runIdentity}` : `mobile-${port}`
+const databaseRoot = configuredDataDirectory
+  ? path.resolve(configuredDataDirectory)
+  : path.join(root, "test-results", resultDirectory, "pouchdb")
 fs.mkdirSync(databaseRoot, { recursive: true })
 const TestPouchDB = PouchDB.defaults({ prefix: `${databaseRoot}${path.sep}` })
 const app = express()
@@ -21,7 +26,12 @@ app.use((request, response, next) => {
   next()
 })
 
-app.get("/health", (_request, response) => response.json({ ok: true }))
+app.get("/health", (_request, response) => response.json({
+  ok: true,
+  owner,
+  pid: process.pid,
+  port: response.socket.localPort
+}))
 app.get("/test/urls", (_request, response) => response.json({
   android: process.env.ONCE_MOBILE_TEST_URL || `http://10.0.2.2:${port}`,
   ios: `http://127.0.0.1:${port}`
@@ -34,13 +44,18 @@ app.post("/test/databases/:name/reset", async (request, response, next) => {
     return
   }
   try {
-    try {
-      await new TestPouchDB(name).destroy()
-    } catch (error) {
-      if (error.status !== 404) throw error
+    const database = new TestPouchDB(name)
+    const existing = await database.allDocs({ include_docs: true })
+    const deletions = existing.rows
+      .map(row => row.doc)
+      .filter(Boolean)
+      .map(doc => ({ _id: doc._id, _rev: doc._rev, _deleted: true }))
+    if (deletions.length) {
+      await database.bulkDocs(deletions)
     }
     const docs = Array.isArray(request.body?.docs) ? request.body.docs : []
-    if (docs.length) await new TestPouchDB(name).bulkDocs(docs)
+    if (docs.length) await database.bulkDocs(docs)
+    await database.close()
     response.json({ ok: true, database: name, seeded: docs.length })
   } catch (error) {
     next(error)
@@ -78,6 +93,19 @@ app.use("/db", (request, response, next) => {
 })
 app.use("/db", expressPouchDB(TestPouchDB, { mode: "minimumForPouchDB" }))
 
-app.listen(port, "0.0.0.0", () => {
-  console.log(`Once mobile test environment listening on ${port}`)
+const server = app.listen(port, "0.0.0.0", () => {
+  const address = server.address()
+  const listeningPort = typeof address === "object" && address ? address.port : port
+  console.log(`Once mobile test environment listening on ${listeningPort}`)
+  process.send?.({ type: "once-mobile-test-server-ready", port: listeningPort, owner })
 })
+
+let closing = false
+function close() {
+  if (closing) return
+  closing = true
+  server.close(() => process.exit(0))
+  setTimeout(() => process.exit(1), 2_000).unref()
+}
+process.on("SIGINT", close)
+process.on("SIGTERM", close)

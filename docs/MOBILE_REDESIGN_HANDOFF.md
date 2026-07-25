@@ -54,6 +54,17 @@ change — packaging hit `EBUSY` on `apps/electron/out` and re-running was defer
 `npm run test:electron:e2e` and `npm run test:extensions` before trusting the desktop
 surfaces.
 
+**Mobile E2E harness hardened and verified.** Web and native runners now let the
+server atomically bind an OS-assigned port, identify it with a per-run ownership
+token, and keep PouchDB state in private temporary directories outside
+Playwright's artifact tree. Database reset clears documents in place instead of
+destroying and immediately recreating LevelDB directories. Cleanup requests a
+cooperative shutdown, force-terminates after a bounded wait, and removes only
+the owning run's temporary data. Regression tests cover dynamic and occupied
+ports, parallel database isolation, ownership, repeated seeded resets, shutdown,
+and temporary-directory removal. Verification passes `npm run test:mobile`
+(18/18) and `npm run test:mobile:web` (14/14), including authenticated sync.
+
 ## Open items
 
 Stages 4–9 now have their core technical implementation:
@@ -67,34 +78,31 @@ Stages 4–9 now have their core technical implementation:
 - searchable list/detail settings navigation shared by all products;
 - safe-area, focus-visible and reduced-motion polish.
 
-Verification completed: `npm run check`, 88/88 unit tests, 13/13 mobile unit tests,
-Android `compileDevelopmentDebugJavaWithJavac`, mobile/extension E2E syntax checks,
-and an isolated mobile Playwright run with 13/14 tests passing. The sole failing
-scenario exposed a settings test-helper navigation omission; that helper is corrected,
-but the rerun remains pending because the older live Playwright process stalls new
-Playwright invocations before test discovery.
+Verification completed before the harness hardening: `npm run check`, 88/88 unit
+tests, Android `compileDevelopmentDebugJavaWithJavac`, and mobile/extension E2E
+syntax checks. After hardening, the complete mobile unit suite passes 18/18 and
+the complete mobile Playwright suite passes 14/14, including the corrected
+authenticated-sync scenario.
 
 Still required:
 
-1. Rerun the corrected authenticated-sync scenario and the full mobile web suite,
-   then run Electron and extension Playwright after the older live Playwright
-   processes release their workers. The production extension builds, artifact
-   checks and Firefox lint pass, but that command stalled when it reached Playwright.
-2. Run the Android native acceptance matrix on a device/emulator: embedded HN,
+1. Run Electron and extension Playwright after the shared `stories.css` change.
+   The production extension builds, artifact checks and Firefox lint passed in
+   the earlier attempt, but the E2E results still need a clean completed run.
+2. Diagnose the shared native smoke-test failure at the story-title interaction:
+   Android reports that the external browser package did not open and iOS reports
+   that `SFSafariViewController` did not appear. Determine whether the redesign
+   changed the intended routing contract or introduced an application regression
+   before changing either the application or the assertion.
+3. Run the Android native acceptance matrix on a device/emulator: embedded HN,
    redirects/history, rotation, keyboard, background/resume, process recreation,
    offline/TLS failure, external schemes, downloads, tab switching and back order.
-3. Build and run the iOS counterpart with Xcode on macOS; Windows compilation does
+4. Build and run the iOS counterpart with Xcode on macOS; Windows compilation does
    not establish Swift/WKWebView parity.
-4. Ask the user for the planned visual pass in light and dark themes after the
+5. Ask the user for the planned visual pass in light and dark themes after the
    executable gates are green.
 
 ## Traps worth knowing
-
-**Leftover test server blocks the suite.** The harness now accepts
-`ONCE_MOBILE_TEST_PORT` and bounds its health probes, so an occupied or unreachable
-port reports clearly. Alternate ports also use port-specific PouchDB roots (or
-`ONCE_MOBILE_TEST_DATA_DIR`) so an isolated suite cannot contend for the default
-LevelDB lock. Do not terminate an existing server without confirming ownership.
 
 **Do not read computed styles without letting transitions settle.** This cost three false
 diagnoses during stage 3 — the swipe `transform` mid-snap (90ms), the reveal
