@@ -181,6 +181,74 @@ test("keeps the title bar draggable and interactive controls no-drag", async () 
   }
 })
 
+test("keeps browser contents within the window after restoring from maximized", async () => {
+  test.skip(process.platform !== "win32", "Windows maximize/restore regression")
+  const { electronApp, userData, window } = await launchApp()
+  try {
+    const normalBounds = await electronApp.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].getBounds()
+    )
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      const target = BrowserWindow.getAllWindows()[0]
+      target.show()
+      target.focus()
+      target.maximize()
+    })
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].isMaximized()
+    ), { timeout: 10_000 }).toBe(true)
+
+    const viewportWidth = await window.evaluate(() => window.innerWidth)
+    const splitter = await window.locator("#sep_slider").boundingBox()
+    expect(splitter).not.toBeNull()
+    await window.mouse.move(splitter.x + splitter.width / 2, splitter.y + 100)
+    await window.mouse.down()
+    await window.mouse.move(Math.floor(viewportWidth * 0.8), splitter.y + 100)
+    await window.mouse.up()
+
+    await electronApp.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].unmaximize()
+    )
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].isMaximized()
+    )).toBe(false)
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].getBounds()
+    )).toEqual(normalBounds)
+
+    await expect.poll(() => window.evaluate(() => {
+      const right = document.querySelector("#right_panel").getBoundingClientRect()
+      const content = document.querySelector("#tab_content").getBoundingClientRect()
+      return {
+        fillsViewport: Math.round(right.right) === window.innerWidth,
+        content: {
+          x: Math.round(content.x),
+          y: Math.round(content.y),
+          width: Math.round(content.width),
+          height: Math.round(content.height)
+        }
+      }
+    })).toMatchObject({
+      fillsViewport: true
+    })
+
+    const contentBounds = await window.locator("#tab_content").evaluate((element) => {
+      const rect = element.getBoundingClientRect()
+      return {
+        x: Math.round(rect.x),
+        y: Math.round(rect.y),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height)
+      }
+    })
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0]?.contentView.children[0]?.getBounds()
+    )).toEqual(contentBounds)
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
 test("launches a secure browser shell with legacy tab interactions", async () => {
   const { electronApp, userData, window } = await launchApp()
   try {
