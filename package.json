@@ -64,7 +64,7 @@
     "test:mobile:e2e:android:local": "node tests/e2e/mobile/run-android-local.js",
     "test:mobile:e2e:ios": "node tests/e2e/mobile/run-mobile-e2e.js ios",
     "test:mobile:web": "npm run mobile -- web --channel dev --e2e && node tests/e2e/mobile/run-mobile-web-e2e.js",
-    "test:setup": "playwright install chromium",
+    "test:setup": "node scripts/ensure-playwright-browser.js",
     "test:setup:ci": "playwright install --with-deps chromium",
     "test:unit": "npm run build:packages && node --test tests/unit/**/*.test.js",
     "verify:release-artifacts": "node scripts/verify-release-artifacts.js",

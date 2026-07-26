@@ -82,10 +82,29 @@ export class ReadingSession {
     this.publish()
   }
 
-  setMode(mode: ReadingMode): void {
+  setMode(mode: ReadingMode, browserAlreadyReady = false): void {
     const story = this.state.story
-    if (!story) return
-    this.open(story, mode)
+    if (mode === "comments") {
+      if (!story) return
+      this.open(story, mode)
+      return
+    }
+    if (!this.state.currentUrl) return
+    this.patch({
+      mode,
+      loadState: mode === "reader" || browserAlreadyReady ? "ready" : "loading",
+      canGoBack: mode === "browser" ? this.state.canGoBack : false,
+      error: null
+    })
+  }
+
+  navigate(url: string): void {
+    this.patch({
+      mode: "browser",
+      currentUrl: url,
+      loadState: "loading",
+      error: null
+    })
   }
 
   move(delta: -1 | 1): Story | null {
@@ -99,6 +118,7 @@ export class ReadingSession {
   }
 
   navigationStarted(navigationId: number, url: string): void {
+    if (!this.state.story && !this.state.currentUrl) return
     if (navigationId < this.state.navigationId) return
     this.patch({
       navigationId,
@@ -113,11 +133,17 @@ export class ReadingSession {
     url: string,
     canGoBack = this.state.canGoBack
   ): void {
+    if (!this.state.story && !this.state.currentUrl) return
     if (navigationId < this.state.navigationId) return
-    this.patch({ navigationId, currentUrl: url, canGoBack })
+    this.patch({
+      navigationId,
+      currentUrl: url,
+      canGoBack
+    })
   }
 
   navigationFinished(navigationId: number, url: string): void {
+    if (!this.state.story && !this.state.currentUrl) return
     if (navigationId < this.state.navigationId) return
     this.patch({
       navigationId,
@@ -128,6 +154,7 @@ export class ReadingSession {
   }
 
   navigationFailed(navigationId: number, url: string, message: string): void {
+    if (!this.state.story && !this.state.currentUrl) return
     if (navigationId < this.state.navigationId) return
     this.patch({
       navigationId,
@@ -137,9 +164,18 @@ export class ReadingSession {
     })
   }
 
-  historyChanged(navigationId: number, url: string, canGoBack: boolean): void {
+  historyChanged(
+    navigationId: number,
+    url: string,
+    canGoBack: boolean
+  ): void {
+    if (!this.state.story && !this.state.currentUrl) return
     if (navigationId < this.state.navigationId) return
-    this.patch({ navigationId, currentUrl: url, canGoBack })
+    this.patch({
+      navigationId,
+      currentUrl: url,
+      canGoBack
+    })
   }
 
   close(): void {

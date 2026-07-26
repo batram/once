@@ -12,6 +12,7 @@ import {
   PouchSyncService
 } from "@once/persistence"
 export * from "./InAppBrowserSurface"
+export * from "./ReadingUrl"
 
 interface SecureSettingsPlugin {
   getSyncUrl(): Promise<{ value: string }>

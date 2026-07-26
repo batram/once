@@ -34,13 +34,13 @@ async function startMobileApp(): Promise<void> {
     document.querySelector<HTMLElement>("#reading_content") ?? document.body,
     new URL("reader-runtime.js", document.baseURI).href
   )
-  const reading = new MobileReadingController(browserSurface, reader)
+  const tts = installReaderTtsHostBridge((source) => reader.isReaderWindow(source))
+  const ttsControls = installReaderTtsControls(tts)
+  const reading = new MobileReadingController(browserSurface, reader, ttsControls)
   await reading.install()
   ReaderView.mount(app.client, (html, sourceUrl) =>
     reading.openReaderDocument(html, sourceUrl)
   )
-  const tts = installReaderTtsHostBridge((source) => reader.isReaderWindow(source))
-  installReaderTtsControls(tts)
 
   if (Capacitor.getPlatform() === "android") {
     await App.addListener("backButton", () => {

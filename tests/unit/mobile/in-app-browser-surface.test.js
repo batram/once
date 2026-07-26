@@ -7,6 +7,9 @@ const {
   createFallbackInAppBrowserSurface,
   isEmbeddableUrl
 } = require("../../../packages/platform-mobile/dist/InAppBrowserSurface")
+const {
+  normalizeReadingUrl
+} = require("../../../packages/platform-mobile/dist/ReadingUrl")
 
 test("embedded browser URL policy only accepts http and https", () => {
   assert.equal(isEmbeddableUrl("https://example.test/story"), true)
@@ -14,6 +17,20 @@ test("embedded browser URL policy only accepts http and https", () => {
   assert.equal(isEmbeddableUrl("javascript:alert(1)"), false)
   assert.equal(isEmbeddableUrl("mailto:test@example.test"), false)
   assert.equal(isEmbeddableUrl("not a URL"), false)
+})
+
+test("reading address normalization accepts only HTTP and HTTPS URLs", () => {
+  assert.deepEqual(
+    normalizeReadingUrl(" example.test/story "),
+    { ok: true, url: "https://example.test/story" }
+  )
+  assert.deepEqual(
+    normalizeReadingUrl("http://example.test/story"),
+    { ok: true, url: "http://example.test/story" }
+  )
+  assert.equal(normalizeReadingUrl("").ok, false)
+  assert.equal(normalizeReadingUrl("file:///tmp/story").ok, false)
+  assert.equal(normalizeReadingUrl("not a url").ok, false)
 })
 
 test("browser fallback preserves event order while opening externally", async () => {

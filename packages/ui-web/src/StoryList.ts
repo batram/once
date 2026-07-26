@@ -250,7 +250,9 @@ export function visibleStories(bucket = "stories"): Story[] {
 
 function refilter(): void {
   document
-    .querySelectorAll<StoryListItem>(".story")
+    .querySelectorAll<StoryListItem>(
+      ".stories_container > story-item.story"
+    )
     .forEach(async (story_el) => {
       const story = story_el.story
       const og_filter = story.filter

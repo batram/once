@@ -1,8 +1,13 @@
 import { ReaderTtsHostController } from "./readerTtsHostBridge"
 
+export interface ReaderTtsUiControls {
+  setReaderMode(active: boolean): void
+  dismiss(): void
+}
+
 export function installReaderTtsControls(
   controller: ReaderTtsHostController
-): void {
+): ReaderTtsUiControls {
   const pill = required("#reader_tts_pill")
   const play = required<HTMLButtonElement>('[data-host-tts="play"]')
   const voice = required<HTMLSelectElement>("#reader_tts_voice")
@@ -10,6 +15,7 @@ export function installReaderTtsControls(
 
   const showAndPlay = (): void => {
     pill.hidden = false
+    required<HTMLButtonElement>("#reading_tts_start").hidden = true
     controller.send({ type: "ui-play-toggle" })
   }
   required<HTMLButtonElement>("#reading_tts_start").onclick = showAndPlay
@@ -18,9 +24,14 @@ export function installReaderTtsControls(
     controller.send({ type: "ui-prev" })
   required<HTMLButtonElement>('[data-host-tts="next"]').onclick = () =>
     controller.send({ type: "ui-next" })
-  required<HTMLButtonElement>('[data-host-tts="close"]').onclick = () => {
+  const dismiss = (): void => {
     controller.send({ type: "ui-stop" })
     pill.hidden = true
+    required<HTMLDetailsElement>("#reader_tts_settings").open = false
+  }
+  required<HTMLButtonElement>('[data-host-tts="close"]').onclick = () => {
+    dismiss()
+    required<HTMLButtonElement>("#reading_tts_start").hidden = false
   }
   voice.onchange = () =>
     controller.send({ type: "ui-set-voice", voice: voice.value })
@@ -50,6 +61,21 @@ export function installReaderTtsControls(
     }
     voice.value = state.voice || selected
   })
+
+  let readerMode = false
+  return {
+    setReaderMode(active) {
+      if (readerMode && !active) dismiss()
+      readerMode = active
+      required<HTMLButtonElement>("#reading_tts_start").hidden =
+        !active || !pill.hidden
+    },
+    dismiss() {
+      readerMode = false
+      dismiss()
+      required<HTMLButtonElement>("#reading_tts_start").hidden = true
+    }
+  }
 }
 
 function required<T extends HTMLElement = HTMLElement>(selector: string): T {

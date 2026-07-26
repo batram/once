@@ -1,6 +1,9 @@
 import {
-  InAppBrowserSurface
+  InAppBrowserSurface,
+  normalizeReadingUrl
 } from "@once/platform-mobile"
+import { humanTime } from "@once/core"
+import { ReaderTtsUiControls } from "./readerTtsControls"
 import {
   Menu,
   READING_REQUEST,
@@ -17,65 +20,99 @@ export class MobileReadingController {
   private readonly content: HTMLElement
   private activePanel = "stories"
   private removers: Array<() => void> = []
-  private contentKey = ""
+  private browserOpened = false
+  private browserUrl = ""
+  private browserReady = false
+  private editingAddress = false
+  private surfaceGeneration = 0
+  private surfaceQueue: Promise<void> = Promise.resolve()
 
   constructor(
     private readonly surface: InAppBrowserSurface,
-    private readonly reader: ReaderDocumentHost
+    private readonly reader: ReaderDocumentHost,
+    private readonly ttsControls: ReaderTtsUiControls
   ) {
     this.content = required("#reading_content")
     this.bindControls()
     this.bindEvents()
     this.session.subscribe((state) => {
       this.render(state)
-      void this.syncSurface(state)
+      const generation = ++this.surfaceGeneration
+      void this.enqueueSurface(() => this.syncSurface(state, generation))
     })
   }
 
   async install(): Promise<void> {
     const started = await this.surface.addListener(
       "navigationStarted",
-      (event) => this.session.navigationStarted(event.navigationId, event.url)
+      (event) => {
+        if (!this.acceptsNavigation(event.navigationId)) return
+        this.browserUrl = event.url
+        this.browserReady = false
+        this.session.navigationStarted(event.navigationId, event.url)
+      }
     )
     const committed = await this.surface.addListener(
       "navigationCommitted",
-      (event) => this.session.navigationCommitted(event.navigationId, event.url)
+      (event) => {
+        if (!this.acceptsNavigation(event.navigationId)) return
+        this.browserUrl = event.url
+        this.session.navigationCommitted(event.navigationId, event.url)
+      }
     )
     const finished = await this.surface.addListener(
       "navigationFinished",
-      (event) => this.session.navigationFinished(event.navigationId, event.url)
+      (event) => {
+        if (!this.acceptsNavigation(event.navigationId)) return
+        this.browserUrl = event.url
+        this.browserReady = true
+        this.session.navigationFinished(event.navigationId, event.url)
+      }
     )
     const failed = await this.surface.addListener(
       "navigationFailed",
-      (event) => this.session.navigationFailed(
-        event.navigationId,
-        event.url,
-        event.message
-      )
+      (event) => {
+        if (!this.acceptsNavigation(event.navigationId)) return
+        this.browserReady = false
+        this.session.navigationFailed(
+          event.navigationId,
+          event.url,
+          event.message
+        )
+      }
     )
     const history = await this.surface.addListener(
       "historyChanged",
-      (event) => this.session.historyChanged(
-        event.navigationId,
-        event.url,
-        event.canGoBack
-      )
+      (event) => {
+        if (!this.acceptsNavigation(event.navigationId)) return
+        this.browserUrl = event.url
+        this.session.historyChanged(
+          event.navigationId,
+          event.url,
+          event.canGoBack
+        )
+      }
     )
     this.removers.push(started, committed, finished, failed, history)
   }
 
   async openReaderDocument(html: string, sourceUrl: string): Promise<void> {
     const state = this.session.snapshot()
-    if (state.mode !== "reader" || state.story?.href !== sourceUrl) return
-    await this.surface.setVisible(false)
+    if (state.mode !== "reader" || state.currentUrl !== sourceUrl) return
+    const generation = this.surfaceGeneration
+    await this.enqueueSurface(() => this.surface.setVisible(false))
+    const latest = this.session.snapshot()
+    if (generation !== this.surfaceGeneration ||
+        latest.mode !== "reader" ||
+        latest.currentUrl !== sourceUrl) return
     await this.reader.open(html)
   }
 
   async handleBack(): Promise<boolean> {
     const state = this.session.snapshot()
-    if (!state.story) return false
+    if (!state.story && !state.currentUrl) return false
     if (state.mode !== "reader" && state.canGoBack) {
-      await this.surface.goBack()
+      await this.enqueueSurface(() => this.surface.goBack())
       return true
     }
     this.close()
@@ -83,10 +120,14 @@ export class MobileReadingController {
   }
 
   close(): void {
+    this.clearReading()
+    Menu.open_panel("stories")
+  }
+
+  private clearReading(): void {
+    this.ttsControls.dismiss()
     this.reader.close()
     this.session.close()
-    Menu.open_panel("stories")
-    void this.surface.setVisible(false)
   }
 
   private bindEvents(): void {
@@ -103,6 +144,12 @@ export class MobileReadingController {
     document.addEventListener("once-panel-changed", (rawEvent) => {
       const event = rawEvent as CustomEvent<{ panel: string }>
       this.activePanel = event.detail.panel
+      const state = this.session.snapshot()
+      this.ttsControls.setReaderMode(
+        this.activePanel === "reading" &&
+        state.mode === "reader" &&
+        Boolean(state.currentUrl)
+      )
       void this.updateVisibility()
     })
     window.addEventListener("resize", () => void this.updateBounds())
@@ -110,35 +157,63 @@ export class MobileReadingController {
       "resize",
       () => void this.updateBounds()
     )
+    // The native browser is a sibling view, so it does not follow DOM flex
+    // layout automatically. Keep its rectangle synchronized when the current
+    // story row appears or collapses.
+    new ResizeObserver(() => void this.updateBounds()).observe(this.content)
   }
 
   private bindControls(): void {
-    required<HTMLButtonElement>("#reading_back").onclick = () => this.close()
-    required<HTMLButtonElement>("#reading_previous").onclick = () => {
-      this.session.setVisibleStories(StoryList.visibleStories())
-      this.session.move(-1)
+    const address = required<HTMLInputElement>("#reading_url")
+    const form = required<HTMLFormElement>("#reading_url_form")
+    required<HTMLAnchorElement>("#reading_title").onclick = (event) => {
+      event.preventDefault()
+      void this.openStoryContent()
     }
-    required<HTMLButtonElement>("#reading_next").onclick = () => {
-      this.session.setVisibleStories(StoryList.visibleStories())
-      this.session.move(1)
+    required<HTMLButtonElement>("#reading_comments").onclick = () => {
+      void this.openComments()
     }
-    required<HTMLButtonElement>("#reading_comments").onclick = () =>
-      this.session.setMode("comments")
-    required<HTMLButtonElement>("#reading_reader_toggle").onclick = () =>
+    required<HTMLButtonElement>("#reading_reader_toggle").onclick = () => {
+      this.editingAddress = false
+      address.value = this.session.snapshot().currentUrl
       this.session.setMode(
-        this.session.snapshot().mode === "reader" ? "browser" : "reader"
+        this.session.snapshot().mode === "reader" ? "browser" : "reader",
+        this.browserReady
       )
-    required<HTMLButtonElement>("#reading_reload").onclick = () => {
-      if (this.session.snapshot().mode === "reader") {
-        this.session.setMode("reader")
-      } else {
-        void this.surface.reload()
-      }
     }
-    required<HTMLButtonElement>("#reading_story_menu").onclick = (event) => {
+    address.addEventListener("focus", () => {
+      this.editingAddress = true
+      this.renderAddressAction()
+    })
+    address.addEventListener("input", () => {
+      this.clearValidation()
+      this.renderAddressAction()
+    })
+    address.addEventListener("blur", (event) => {
+      if (form.contains(event.relatedTarget as Node | null)) return
+      this.editingAddress = false
+      address.value = this.session.snapshot().currentUrl
+      this.renderAddressAction()
+    })
+    address.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return
+      address.value = this.session.snapshot().currentUrl
+      address.blur()
+    })
+    form.addEventListener("submit", (event) => {
+      event.preventDefault()
+      void this.submitAddress()
+    })
+    required<HTMLButtonElement>("#reading_story_menu").onclick = async (event) => {
       const story = this.storyElement()
-      if (story) story.requestMenu(event.currentTarget as HTMLElement)
+      if (!story) return
+      const anchor = event.currentTarget as HTMLElement
+      await this.enqueueSurface(() => this.surface.setVisible(false))
+      story.requestMenu(anchor)
     }
+    document.addEventListener("once-story-menu-closed", () => {
+      void this.updateVisibility()
+    })
   }
 
   private storyElement(): StoryListItem | null {
@@ -148,33 +223,56 @@ export class MobileReadingController {
       .find((row) => row.story.href === href) ?? null
   }
 
-  private async syncSurface(state: Readonly<ReadingSessionState>): Promise<void> {
-    if (!state.story) {
-      this.contentKey = ""
-      await this.surface.setVisible(false)
+  private async syncSurface(
+    state: Readonly<ReadingSessionState>,
+    generation: number
+  ): Promise<void> {
+    if (generation !== this.surfaceGeneration) return
+    if (!state.currentUrl) {
+      this.reader.close()
+      if (this.browserOpened) {
+        await this.surface.close()
+        this.browserOpened = false
+        this.browserUrl = ""
+        this.browserReady = false
+      }
       return
     }
-    const nextContentKey = `${state.story.href}\n${state.mode}`
-    if (nextContentKey === this.contentKey) {
-      await this.updateVisibility()
-      return
-    }
-    this.contentKey = nextContentKey
     if (state.mode === "reader") {
       await this.surface.setVisible(false)
+      if (generation !== this.surfaceGeneration) return
       this.reader.close()
       // ReaderView owns fetching/extraction and calls openReaderDocument.
-      const { ReaderView } = await import("@once/ui-web")
-      await ReaderView.open(state.story.href)
+      void import("@once/ui-web").then(({ ReaderView }) =>
+        ReaderView.open(state.currentUrl)
+      ).catch((error) => {
+        console.error("Failed to open Reader mode", error)
+      })
       return
     }
     this.reader.close()
     const bounds = this.bounds()
-    await this.surface.open({
-      url: state.currentUrl,
-      bounds,
-      visible: this.activePanel === "reading"
-    })
+    if (!this.browserOpened) {
+      await this.surface.open({
+        url: state.currentUrl,
+        bounds,
+        // Never let an older open cover a newer Reader transition.
+        visible: false
+      })
+      this.browserOpened = true
+      this.browserUrl = state.currentUrl
+      this.browserReady = false
+    } else {
+      await this.surface.setBounds(bounds)
+      if (generation !== this.surfaceGeneration) return
+      if (this.browserUrl !== state.currentUrl) {
+        this.browserUrl = state.currentUrl
+        this.browserReady = false
+        await this.surface.navigate(state.currentUrl)
+      }
+    }
+    if (generation !== this.surfaceGeneration) return
+    await this.surface.setVisible(this.activePanel === "reading")
     document.body.classList.toggle(
       "once-native-reading-surface",
       this.surface.available
@@ -182,17 +280,20 @@ export class MobileReadingController {
   }
 
   private async updateBounds(): Promise<void> {
-    if (!this.session.snapshot().story) return
-    await this.surface.setBounds(this.bounds())
+    if (!this.session.snapshot().currentUrl || !this.browserOpened) return
+    const bounds = this.bounds()
+    await this.enqueueSurface(() => this.surface.setBounds(bounds))
   }
 
   private async updateVisibility(): Promise<void> {
     const state = this.session.snapshot()
-    await this.surface.setVisible(
-      this.activePanel === "reading" &&
-      state.story != null &&
+    const visible = this.activePanel === "reading" &&
+      Boolean(state.currentUrl) &&
       state.mode !== "reader"
-    )
+    await this.enqueueSurface(async () => {
+      if (!this.browserOpened) return
+      await this.surface.setVisible(visible)
+    })
   }
 
   private bounds() {
@@ -209,26 +310,147 @@ export class MobileReadingController {
     this.content.dataset.mode = state.mode
     this.content.dataset.loadState = state.loadState
     this.content.dataset.navigationId = String(state.navigationId)
-    required("#reading_title").textContent = story?.title ?? "Reading"
-    required("#reading_type").textContent = story ? `[${story.type}]` : ""
-    required("#reading_domain").textContent = story
-      ? `(${new URL(story.href).hostname})`
-      : ""
-    required("#reading_url").textContent = state.currentUrl
-    required<HTMLButtonElement>("#reading_previous").disabled =
-      state.visibleStoryIndex <= 0
-    required<HTMLButtonElement>("#reading_next").disabled =
-      state.visibleStoryIndex < 0 ||
-      state.visibleStoryIndex >= StoryList.visibleStories().length - 1
+    const isStoryPage = story != null &&
+      (state.currentUrl === story.href || state.currentUrl === story.comment_url)
+    const matchingStory = isStoryPage ? this.storyElement() : null
+    const currentCard = required("#reading_current_card")
+    currentCard.hidden = matchingStory == null
+    const title = required<HTMLAnchorElement>("#reading_title")
+    title.textContent = story?.title ?? "Reading"
+    title.href = story?.href ?? ""
+    required("#reading_type").textContent = story?.type ?? ""
+    required("#reading_story_time").textContent =
+      story ? humanTime(story.timestamp) : ""
+    required("#reading_story_meta").dataset.type =
+      story ? `[${story.type}]` : ""
+    required("#reading_story_menu").dataset.type =
+      story ? `[${story.type}]` : ""
+    this.renderStoryTags(story?.tags ?? [])
+    const address = required<HTMLInputElement>("#reading_url")
+    if (!this.editingAddress) address.value = state.currentUrl
     required("#reading_reader_toggle").classList.toggle(
       "active",
       state.mode === "reader"
     )
+    required<HTMLButtonElement>("#reading_comments").hidden =
+      matchingStory == null || !story?.comment_url
+    required<HTMLButtonElement>("#reading_tts_start").hidden =
+      state.mode !== "reader" ||
+      !required<HTMLDivElement>("#reader_tts_pill").hidden
+    this.ttsControls.setReaderMode(
+      this.activePanel === "reading" &&
+      state.mode === "reader" &&
+      Boolean(state.currentUrl)
+    )
+    this.renderAddressAction()
     const error = required("#reading_error")
     error.hidden = state.error == null
     error.textContent = state.error ?? ""
   }
+
+  private renderStoryTags(tags: Array<{
+    class: string
+    text: string
+    href?: string
+    icon?: string
+  }>): void {
+    const container = required("#reading_story_tags")
+    container.replaceChildren()
+    for (const tag of tags) {
+      const element = document.createElement("span")
+      element.classList.add("tag", `tag_${tag.class}`)
+      element.textContent = tag.text
+      if (tag.icon) {
+        element.style.background = `url(${tag.icon}) left top / 13px no-repeat`
+        element.style.paddingLeft = "17px"
+      }
+      container.append(element)
+    }
+  }
+
+  private async submitAddress(): Promise<void> {
+    const state = this.session.snapshot()
+    const input = required<HTMLInputElement>("#reading_url")
+    const normalized = normalizeReadingUrl(input.value)
+    if (!normalized.ok) {
+      const validation = required("#reading_url_validation")
+      validation.textContent = normalized.error
+      validation.hidden = false
+      input.focus()
+      return
+    }
+    this.clearValidation()
+    if (normalized.url === state.currentUrl && state.mode !== "reader") {
+      if (state.loadState !== "loading") {
+        await this.enqueueSurface(() => this.surface.reload())
+      }
+      return
+    }
+    input.value = normalized.url
+    this.editingAddress = false
+    this.session.navigate(normalized.url)
+    input.blur()
+  }
+
+  private async openComments(): Promise<void> {
+    const state = this.session.snapshot()
+    const commentsUrl = state.story?.comment_url
+    if (!commentsUrl) return
+    if (state.mode === "comments" && state.currentUrl === commentsUrl) {
+      if (this.browserOpened && state.loadState !== "loading") {
+        await this.enqueueSurface(() => this.surface.reload())
+      }
+      return
+    }
+
+    this.session.setMode("comments")
+  }
+
+  private async openStoryContent(): Promise<void> {
+    const state = this.session.snapshot()
+    const storyUrl = state.story?.href
+    if (!storyUrl) return
+    if (state.mode === "browser" && state.currentUrl === storyUrl) {
+      if (this.browserOpened && state.loadState !== "loading") {
+        await this.enqueueSurface(() => this.surface.reload())
+      }
+      return
+    }
+
+    this.session.navigate(storyUrl)
+  }
+
+  private clearValidation(): void {
+    const validation = required("#reading_url_validation")
+    validation.textContent = ""
+    validation.hidden = true
+  }
+
+  private renderAddressAction(): void {
+    const state = this.session.snapshot()
+    const input = required<HTMLInputElement>("#reading_url")
+    const action = required<HTMLButtonElement>("#reading_navigate")
+    const changed = input.value.trim() !== state.currentUrl
+    action.textContent = changed ? "Go" : "↻"
+    action.setAttribute("aria-label", changed ? "Go to address" : "Reload")
+    action.disabled = state.loadState === "loading" && !changed
+  }
+
+  private enqueueSurface(operation: () => Promise<void>): Promise<void> {
+    const queued = this.surfaceQueue.then(operation).catch((error) => {
+      console.error("Reading browser surface operation failed", error)
+    })
+    this.surfaceQueue = queued
+    return queued
+  }
+
+  private acceptsNavigation(navigationId: number): boolean {
+    const state = this.session.snapshot()
+    return Boolean(state.story || state.currentUrl) &&
+      navigationId >= state.navigationId
+  }
 }
+
 
 function required<T extends HTMLElement = HTMLElement>(selector: string): T {
   const element = document.querySelector<T>(selector)

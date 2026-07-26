@@ -266,30 +266,42 @@
               </div>
             </div>
             <div id="reading_panel" class="panel" data-panel="reading">
-              <header id="reading_story_header">
-                <div class="reading_header_row">
-                  <button type="button" id="reading_back" data-testid="reader-close" aria-label="Back to stories">‹</button>
-                  <strong id="reading_title">Reading</strong>
-                  <button type="button" id="reading_previous" aria-label="Previous story">‹</button>
-                  <button type="button" id="reading_next" aria-label="Next story">›</button>
-                  <button type="button" id="reading_story_menu" aria-label="Story actions">⋮</button>
+              <form id="reading_url_form" data-testid="reading-url-form" novalidate>
+                <div id="reading_url_group">
+                  <input id="reading_url" data-testid="reading-url-input" type="url"
+                    inputmode="url" enterkeyhint="go" autocomplete="url"
+                    autocapitalize="none" spellcheck="false" aria-label="Address" />
+                  <button type="button" id="reading_reader_toggle" aria-label="Toggle reader mode">
+                    <img src="imgs/article.svg" alt="" />
+                  </button>
                 </div>
-                <div class="reading_meta_row">
-                  <span id="reading_type"></span>
-                  <button type="button" id="reading_comments">[comments]</button>
-                  <span id="reading_domain"></span>
+                <button type="submit" id="reading_navigate" data-testid="reading-url-action"
+                  aria-label="Reload">↻</button>
+              </form>
+              <div id="reading_url_validation" data-testid="reading-url-validation"
+                role="status" aria-live="polite" hidden></div>
+              <section id="reading_current_card" class="story" data-testid="reading-current-card"
+                aria-label="Current page">
+                <div class="data">
+                  <div class="title_line">
+                    <a id="reading_title" class="title" href="">Reading</a>
+                  </div>
+                  <div class="substories">
+                    <div id="reading_story_meta" class="info">
+                      <p id="reading_type" class="type"></p>
+                      <button type="button" id="reading_comments" class="comment_url">[comments]</button>
+                      <div id="reading_story_time" class="time"></div>
+                      <div id="reading_story_tags" class="tags_container"></div>
+                    </div>
+                  </div>
                 </div>
-              </header>
-              <div id="reading_url_strip">
-                <button type="button" id="reading_tts_start" aria-label="Start speech">▶</button>
-                <div id="reading_url_pill">
-                  <span id="reading_url"></span>
-                  <button type="button" id="reading_reader_toggle" aria-label="Toggle reader mode">A</button>
-                </div>
-                <button type="button" id="reading_reload" aria-label="Reload">↻</button>
-              </div>
+                <button type="button" id="reading_story_menu" class="menu_btn"
+                  aria-label="Story actions">⋮</button>
+              </section>
               <div id="reading_error" role="status" aria-live="polite" hidden></div>
               <div id="reading_content" aria-label="Reading content"></div>
+              <button type="button" id="reading_tts_start" data-testid="reading-tts-start"
+                aria-label="Read aloud" hidden>▶ <span>Read aloud</span></button>
               <div id="reader_tts_pill" role="group" aria-label="Text to speech" hidden>
                 <button type="button" data-host-tts="prev" aria-label="Previous segment">‹</button>
                 <button type="button" data-host-tts="play" aria-label="Play article">▶</button>

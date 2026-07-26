@@ -41,7 +41,10 @@ export function installStoryMenu(): void {
         platform: "mobile",
         buildChannel: buildChannel(),
         story: request.story
-      }
+      },
+      onClose: () => document.dispatchEvent(
+        new CustomEvent("once-story-menu-closed")
+      )
     })
   })
 

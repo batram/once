@@ -160,10 +160,10 @@ describe("Once mobile", () => {
       timeout: 30_000,
       timeoutMsg: "Story title did not finish loading in the embedded browser"
     })
-    expect(await $("#reading_url").getText()).toBe(
+    expect(await $("#reading_url").getProperty("value")).toBe(
       `${baseUrl}/fixtures/article.html`
     )
-    await clickWeb(await $("#reading_back"), platform)
+    await clickWeb(await $("[data-testid='stories-menu']"), platform)
     await readingContent.waitForDisplayed({ timeout: 10_000, reverse: true })
 
     // The reader frame is opaque-origin, so automation cannot reach into it.
@@ -184,7 +184,7 @@ describe("Once mobile", () => {
       })
     })
     await storyMenuAction(story, "open-reader", platform)
-    await $("[data-testid='reader-close']").waitForDisplayed({ timeout: 30_000 })
+    await $("#reading_content").waitForDisplayed({ timeout: 30_000 })
     await browser.waitUntil(async () =>
       (await browser.execute(() => window.__onceTtsSeen)).length > 0, {
       timeout: 10_000,
@@ -197,9 +197,9 @@ describe("Once mobile", () => {
       await browser.switchContext("NATIVE_APP")
       await browser.pressKeyCode(4)
       await switchToWebView()
-      await expect($("[data-testid='reader-close']")).not.toBeDisplayed()
+      await expect($("#reading_content")).not.toBeDisplayed()
     } else {
-      await clickWeb(await $("[data-testid='reader-close']"), platform)
+      await clickWeb(await $("[data-testid='stories-menu']"), platform)
     }
 
     await browser.waitUntil(async () => (await story.getAttribute("class")).includes("read"), {

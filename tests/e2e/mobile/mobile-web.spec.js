@@ -125,16 +125,20 @@ test("stories persist offline and open in the in-app reader", async ({ page }) =
   // story actions live in the anchored ⋮ menu on mobile
   await openStoryMenu(page, story)
   await page.getByTestId("story-menu-open-reader").click()
-  await expect(page.getByTestId("reader-close")).toBeVisible()
+  await expect(page.locator("#reading_content")).toHaveAttribute("data-mode", "reader")
   const reader = page.locator(".once-reader-host-frame").contentFrame()
   await expect(reader.getByRole("heading", { name: "Fixture article" })).toBeVisible()
   await expect(reader.locator("body")).toHaveCSS("max-width", "700px")
   await expect(reader.locator(".toolbar")).toHaveCSS("position", "sticky")
   await expect(reader.locator("html")).toHaveAttribute("data-once-tts-installed", "true")
   await expect(reader.locator("article .tts-segment")).not.toHaveCount(0)
-  await page.getByTestId("reader-close").click()
-  // closing must unload the frame so pagehide stops any running speech
-  await expect(reader.getByRole("heading", { name: "Fixture article" })).toHaveCount(0)
+  await page.getByTestId("stories-menu").click()
+  // Switching tabs hides Reading but preserves it as a persistent workspace.
+  await expect(page.locator(".once-reader-host-frame")).toBeAttached()
+  await page.getByTestId("reading-menu").click()
+  await expect(reader.getByRole("heading", { name: "Fixture article" })).toBeVisible()
+  await expect(page.locator("#reading_content")).toHaveAttribute("data-mode", "reader")
+  await page.getByTestId("stories-menu").click()
 
   await openStoryMenu(page, story)
   await page.getByTestId("story-menu-toggle-read").click()
@@ -420,7 +424,7 @@ test("swipe escalates to stage two and stops at the plateau", async ({ page }) =
   await story.evaluate(() => {
     document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }))
   })
-  await expect(page.getByTestId("reader-close")).toBeVisible()
+  await expect(page.locator("#reading_content")).toHaveAttribute("data-mode", "reader")
 })
 
 test("swipe settings retune the detents without a reload", async ({ page }) => {
@@ -516,7 +520,7 @@ test("reader TTS bridges through the host when the frame lacks speech synthesis"
   await expect(story).toBeVisible()
   await openStoryMenu(page, story)
   await page.getByTestId("story-menu-open-reader").click()
-  await expect(page.getByTestId("reader-close")).toBeVisible()
+  await expect(page.locator("#reading_content")).toHaveAttribute("data-mode", "reader")
   const reader = page.locator(".once-reader-host-frame").contentFrame()
   await expect(reader.locator("html")).toHaveAttribute("data-once-tts-installed", "true")
   // the polyfill bridges to the host, so TTS stays available instead of disabled

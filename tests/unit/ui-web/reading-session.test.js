@@ -42,3 +42,50 @@ test("ReadingSession ignores stale native events and closes a vanished story", (
   assert.equal(session.snapshot().story, null)
   assert.equal(session.snapshot().loadState, "idle")
 })
+
+test("ReadingSession keeps its story anchor during typed navigation", () => {
+  const stories = [story("one"), story("two")]
+  const session = new ReadingSession()
+  session.setVisibleStories(stories)
+  session.open(stories[0], "browser")
+
+  session.navigate("https://elsewhere.test/page")
+  assert.equal(session.snapshot().story, stories[0])
+  session.navigationFinished(2, "https://elsewhere.test/page")
+
+  session.setMode("reader")
+  assert.equal(session.snapshot().currentUrl, "https://elsewhere.test/page")
+  assert.equal(session.move(1), stories[1])
+  assert.equal(session.snapshot().currentUrl, stories[1].href)
+})
+
+test("ReadingSession supports standalone URLs without a saved story", () => {
+  const session = new ReadingSession()
+  session.navigate("https://standalone.test/page")
+
+  assert.equal(session.snapshot().story, null)
+  assert.equal(session.snapshot().currentUrl, "https://standalone.test/page")
+  assert.equal(session.snapshot().mode, "browser")
+  assert.equal(session.snapshot().loadState, "loading")
+
+  session.setMode("reader")
+  assert.equal(session.snapshot().mode, "reader")
+  assert.equal(session.snapshot().currentUrl, "https://standalone.test/page")
+
+  session.close()
+  session.navigationFinished(9, "https://late.test/")
+  assert.equal(session.snapshot().currentUrl, "")
+})
+
+test("ReadingSession can restore an already-loaded browser from Reader mode", () => {
+  const active = story("ready")
+  const session = new ReadingSession()
+  session.open(active, "browser")
+  session.navigationFinished(1, active.href)
+  session.setMode("reader")
+  session.setMode("browser", true)
+
+  assert.equal(session.snapshot().mode, "browser")
+  assert.equal(session.snapshot().loadState, "ready")
+  assert.equal(session.snapshot().currentUrl, active.href)
+})
