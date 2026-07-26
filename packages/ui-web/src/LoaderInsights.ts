@@ -101,7 +101,12 @@ export class LoaderInsights {
     this.warningIndicator = this.createIndicator("warning", "⚠")
     this.errorIndicator = this.createIndicator("error", "!")
     this.dock.append(this.activityIndicator, this.warningIndicator, this.errorIndicator)
-    menu.append(this.dock)
+    const mobileSettingsHeading =
+      document.body.dataset.platform === "mobile"
+        ? document.querySelector<HTMLElement>("#settings_menu_btn .heading")
+        : null
+    const dockHost = mobileSettingsHeading ?? menu
+    dockHost.append(this.dock)
     this.render()
   }
 
@@ -125,6 +130,12 @@ export class LoaderInsights {
     }
 
     indicator.addEventListener("click", () => {
+      if (document.body.dataset.platform === "mobile" && type !== "activity") {
+        document.querySelector<HTMLElement>("#settings_menu_btn")?.click()
+        document.querySelector<HTMLButtonElement>('[data-settings-target="errors"]')?.click()
+        return
+      }
+
       if (type === "activity") {
         this.statusCollapsed = !this.statusCollapsed
       } else {
@@ -385,12 +396,63 @@ export class LoaderInsights {
     this.renderIndicator(this.activityIndicator, "activity", hasStatus)
     this.renderIndicator(this.warningIndicator, "warning")
     this.renderIndicator(this.errorIndicator, "error")
+    this.renderSettingsIssueState()
     if (this.dock) {
       this.dock.hidden = ![this.activityIndicator, this.warningIndicator, this.errorIndicator].some(
         (indicator) => indicator && !indicator.hidden
       )
     }
     this.renderIssues()
+  }
+
+  private static renderSettingsIssueState(): void {
+    const settingsButton = document.querySelector<HTMLElement>("#settings_menu_btn")
+    const errorRow = document.querySelector<HTMLButtonElement>(
+      '[data-settings-target="errors"]'
+    )
+    if (!settingsButton || !errorRow) return
+
+    const warningCount = this.issues().filter((issue) => issue.type === "warning").length
+    const errorCount = this.issues().filter((issue) => issue.type === "error").length
+    const updateState = (element: HTMLElement): void => {
+      element.classList.toggle("has-warnings", warningCount > 0)
+      element.classList.toggle("has-errors", errorCount > 0)
+    }
+    updateState(settingsButton)
+    updateState(errorRow)
+
+    let badges = errorRow.querySelector<HTMLElement>(".settings_issue_badges")
+    if (!badges) {
+      badges = document.createElement("span")
+      badges.className = "settings_issue_badges"
+      badges.setAttribute("aria-hidden", "true")
+      errorRow.querySelector(".settings_section_row_text")?.after(badges)
+    }
+    badges.replaceChildren()
+
+    if (warningCount > 0) {
+      const warning = document.createElement("span")
+      warning.className = "settings_issue_badge warning"
+      warning.textContent = `⚠ ${warningCount}`
+      badges.append(warning)
+    }
+    if (errorCount > 0) {
+      const error = document.createElement("span")
+      error.className = "settings_issue_badge error"
+      error.textContent = `! ${errorCount}`
+      badges.append(error)
+    }
+
+    const issueSummary = [
+      warningCount > 0 ? `${warningCount} ${warningCount === 1 ? "warning" : "warnings"}` : "",
+      errorCount > 0 ? `${errorCount} ${errorCount === 1 ? "error" : "errors"}` : ""
+    ]
+      .filter(Boolean)
+      .join(", ")
+    errorRow.setAttribute(
+      "aria-label",
+      issueSummary ? `Error log, ${issueSummary}` : "Error log"
+    )
   }
 
   private static renderIndicator(

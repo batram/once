@@ -66,6 +66,10 @@
   min-width: 0;
 }
 
+.settings_issue_badges {
+  display: none;
+}
+
 .settings_section_result[hidden],
 .settings_section_matches[hidden],
 #settings_search_empty[hidden] {

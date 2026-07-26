@@ -21,6 +21,8 @@ body[data-platform="mobile"] {
   --m-pressed-bg: var(--second-bg-color);
   --m-accent-bg: var(--highlight-bg-color);
   --m-card-bg: var(--unread-bg-color);
+  --m-warning: light-dark(#b96500, #ffb84d);
+  --m-error: light-dark(#c83d3d, #ff6b6b);
   --m-tabbar-h: calc(48px + env(safe-area-inset-bottom));
 
   min-width: 0;
@@ -256,8 +258,7 @@ body[data-platform="mobile"] .story .menu_btn {
   flex: 0 0 38px;
   height: auto;
   /* cancel the row's own padding so the target spans the full row height */
-  margin: calc(-1 * var(--m-sp-3)) calc(-1 * var(--m-sp-4)) calc(-1 * var(--m-sp-3))
-    var(--m-sp-1);
+  margin: calc(-1 * var(--m-sp-3)) calc(-1 * var(--m-sp-4)) calc(-1 * var(--m-sp-3)) var(--m-sp-1);
   border-left: var(--m-bw) solid var(--border-color);
   color: var(--text-color);
   font-size: 18px;
@@ -496,7 +497,13 @@ body[data-platform="mobile"] #settings_menu_btn {
   order: 3;
 }
 
+body[data-platform="mobile"] #settings_menu_btn.has-warnings,
+body[data-platform="mobile"] #settings_menu_btn.has-errors {
+  opacity: 1;
+}
+
 body[data-platform="mobile"] #menu .heading {
+  position: relative;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -627,16 +634,12 @@ body[data-platform="mobile"] #reading_reader_toggle.active img {
 }
 
 @media (prefers-color-scheme: dark) {
-  body[data-platform="mobile"]:not([data-theme="light"])
-    #reading_reader_toggle:not(.active)
-    img {
+  body[data-platform="mobile"]:not([data-theme="light"]) #reading_reader_toggle:not(.active) img {
     filter: contrast(0%);
   }
 }
 
-body[data-platform="mobile"][data-theme="dark"]
-  #reading_reader_toggle:not(.active)
-  img {
+body[data-platform="mobile"][data-theme="dark"] #reading_reader_toggle:not(.active) img {
   filter: contrast(0%);
 }
 
@@ -814,6 +817,39 @@ body[data-platform="mobile"] .settings_section_row {
   border-radius: 0;
 }
 
+body[data-platform="mobile"] .settings_section_row[data-settings-target="errors"].has-warnings {
+  color: var(--m-warning);
+  background: color-mix(in srgb, var(--m-warning) 10%, transparent);
+}
+
+body[data-platform="mobile"] .settings_section_row[data-settings-target="errors"].has-errors {
+  color: var(--m-error);
+  background: color-mix(in srgb, var(--m-error) 10%, transparent);
+}
+
+body[data-platform="mobile"] .settings_issue_badges {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--m-sp-2);
+  margin-left: auto;
+  padding-left: var(--m-sp-2);
+}
+
+body[data-platform="mobile"] .settings_issue_badge {
+  font-size: var(--m-fs-label);
+  font-weight: 700;
+  line-height: 1;
+}
+
+body[data-platform="mobile"] .settings_issue_badge.warning {
+  color: var(--m-warning);
+}
+
+body[data-platform="mobile"] .settings_issue_badge.error {
+  color: var(--m-error);
+}
+
 body[data-platform="mobile"] .settings_section_match {
   width: 100%;
   min-height: var(--m-touch);
@@ -943,26 +979,61 @@ body.once-reader-open {
 }
 
 body[data-platform="mobile"] #status_surfaces {
-  right: env(safe-area-inset-right);
-  bottom: var(--m-tabbar-h);
-  left: env(safe-area-inset-left);
-  max-width: none;
-  padding: var(--m-sp-2);
-  background: color-mix(in srgb, var(--main-bg-color) 94%, transparent);
-}
-
-body[data-platform="mobile"] #status_surfaces {
-  border: none;
+  display: none;
 }
 
 body[data-platform="mobile"] #status_dock {
-  position: fixed;
-  z-index: 30;
-  top: calc(env(safe-area-inset-top) + var(--m-sp-2));
-  right: calc(env(safe-area-inset-right) + var(--m-sp-2));
+  position: absolute;
+  z-index: 1;
+  top: -18px;
+  left: calc(50% - 21px);
+  min-height: 0;
+  padding: 0;
   margin: 0;
-  border: var(--m-bw) solid var(--error-color);
-  border-radius: 999px;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+body[data-platform="mobile"] #status_bar_state {
+  display: none;
+}
+
+body[data-platform="mobile"] #status_dock .status_indicator {
+  width: 11px;
+  min-width: 11px;
+  height: 11px;
+  padding: 0;
+  margin-right: 19px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+body[data-platform="mobile"] #status_dock .warning .status_indicator_icon {
+  font-size: 13px;
+}
+
+body[data-platform="mobile"] #status_dock .status_indicator_icon {
+  width: auto;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  font-size: 9px;
+  line-height: 1;
+}
+
+body[data-platform="mobile"] #status_dock .status_indicator.error .status_indicator_icon {
+  width: 11px;
+  height: 11px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 7px;
+}
+
+body[data-platform="mobile"] #status_dock .status_indicator_count {
+  display: none;
 }
 
 body[data-platform="mobile"] .status_issue_bubble {
