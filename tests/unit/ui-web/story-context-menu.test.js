@@ -75,6 +75,7 @@ test("mobile gets the short single-column menu the redesign specifies", () => {
   // No tab targets to choose between, and undo/redo belong to a keyboard.
   assert.deepEqual(items.map((item) => item.id), [
     "open",
+    "open-browser",
     "open-reader",
     "toggle-read",
     "toggle-bookmark",

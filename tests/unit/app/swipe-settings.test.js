@@ -34,6 +34,7 @@ test("unknown action ids are replaced rather than stored", () => {
   assert.deepEqual(settings.right, ["open", "open"])
   assert.deepEqual(settings.left, ["toggle-bookmark", "filter"])
   assert.equal(isSwipeActionId("purge-everything"), false)
+  assert.equal(isSwipeActionId("open-browser"), true)
   assert.equal(isSwipeActionId("toggle-bookmark"), true)
 })
 

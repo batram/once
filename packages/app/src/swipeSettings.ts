@@ -10,6 +10,7 @@
 export type SwipeActionId =
   | "none"
   | "open"
+  | "open-browser"
   | "open-reader"
   | "skip"
   | "toggle-read"
@@ -19,6 +20,7 @@ export type SwipeActionId =
 export const SWIPE_ACTION_LABELS: Record<SwipeActionId, string> = {
   "none": "Nothing",
   "open": "Read · open",
+  "open-browser": "Open in browser",
   "open-reader": "Open in reader",
   "skip": "Skip",
   "toggle-read": "Toggle read state",

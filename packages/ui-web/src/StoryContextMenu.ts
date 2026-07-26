@@ -5,6 +5,7 @@ import { getOnceClient } from "./client"
 
 export type StoryMenuActionId =
   | "open"
+  | "open-browser"
   | "open-new-tab"
   | "open-background-tab"
   | "open-new-window"
@@ -76,6 +77,13 @@ export function describeStoryMenu(
     const redirected = URLRedirect.redirect_url(story.story.href)
     items.push(
       item("open", "Open story", "navigation"),
+      item(
+        "open-browser",
+        "Open in browser",
+        "navigation",
+        true,
+        touch
+      ),
       item("open-new-tab", "Open in new tab", "navigation", true, !touch),
       item(
         "open-background-tab",
@@ -158,6 +166,8 @@ export async function executeStoryMenuAction(
   switch (id) {
     case "open":
       return story.openStory("_self")
+    case "open-browser":
+      return story.openStory("blank")
     case "open-new-tab":
       return story.openStory("blank")
     case "open-background-tab":

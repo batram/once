@@ -169,6 +169,7 @@ test("the ⋮ button opens the story menu anchored above the tab bar", async ({ 
   await story.getByTestId("story-menu-button").click()
   const menu = page.getByTestId("story-menu")
   await expect(menu).toBeVisible()
+  await expect(page.getByTestId("story-menu-open-browser")).toBeVisible()
   await expect(page.getByTestId("story-menu-open-reader")).toBeVisible()
   // Tab-target actions belong to desktop only.
   await expect(page.getByTestId("story-menu-open-new-tab")).toHaveCount(0)
@@ -372,6 +373,27 @@ test("swipe rests on detents and commits the stage it was released on", async ({
     document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }))
   })
   await expect(story).toHaveClass(/skipped/)
+})
+
+test("the default open swipe uses the in-app reading view", async ({ page }) => {
+  const story = await seedFixtureStories(page)
+
+  const stage1Right = await dragStory(story, 110, { release: false })
+  expect(translateX(stage1Right.transform)).toBe(96)
+  expect(stage1Right.label).toBe("Read · open")
+  expect(stage1Right.action).toBe("open")
+  await story.evaluate(() => {
+    document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }))
+  })
+
+  await expect(page.locator("#reading_content")).toHaveAttribute(
+    "data-mode",
+    "browser"
+  )
+  await expect(page.locator("#left_panel")).toHaveAttribute(
+    "active_panel",
+    "reading"
+  )
 })
 
 // The gesture is measured from where the finger went down, not from the first

@@ -656,7 +656,10 @@ export class StoryListItem extends HTMLElement {
           return
         case "open":
           this.read_btn.classList.add("user_interaction")
-          open_story(this.story.href, "_self")
+          this.openStory("_self")
+          return
+        case "open-browser":
+          void executeStoryMenuAction("open-browser", this)
           return
         case "skip":
           // Unconditional, unlike toggle-read: a swipe to skip should skip.

@@ -139,6 +139,10 @@
   --swipe-reveal-color: var(--swipe-open-color);
 }
 
+.bb_slide [data-action="open-browser"] {
+  --swipe-reveal-color: var(--swipe-open-color);
+}
+
 .bb_slide [data-action="open-reader"] {
   --swipe-reveal-color: var(--swipe-open-reader-color);
 }
