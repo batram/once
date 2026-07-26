@@ -28,6 +28,17 @@
   white-space: pre-line;
 }
 
+.once-confirm-dialog__input {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0 0 16px;
+  padding: 7px 9px;
+  color: var(--text-high-color);
+  background: var(--main-bg-color);
+  border: 1px solid var(--border-high-color);
+  border-radius: 3px;
+}
+
 .once-confirm-dialog__actions {
   display: flex;
   flex-wrap: wrap;

@@ -1,7 +1,7 @@
 import * as menu from "./menu"
 import { Story } from "@once/core"
 import { requireElement } from "./dom"
-import { showConfirmDialog } from "./ConfirmDialog"
+import { showConfirmDialog, showTextInputDialog } from "./ConfirmDialog"
 
 export function show_filter_dialog(
   event: MouseEvent,
@@ -64,6 +64,22 @@ export function show_filter_dialog(
       //ENTER
       confirm_add_story(inp, callback)
     }
+  })
+}
+
+export function show_mobile_filter_dialog(
+  story: Story,
+  callback: (filter: string) => unknown
+): void {
+  const storiesPanel = requireElement<HTMLElement>("#stories_panel")
+  void showTextInputDialog({
+    message: "Filter stories matching:",
+    value: new URL(story.href).hostname,
+    confirmLabel: "Add filter",
+    positionWithin: storiesPanel
+  }).then((value) => {
+    if (value === null) return
+    callback(value)
   })
 }
 

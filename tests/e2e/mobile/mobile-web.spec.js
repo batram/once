@@ -228,6 +228,37 @@ test("the ⋮ button opens the story menu anchored above the tab bar", async ({ 
   expect(flipped.clearsTabBar).toBe(true)
 })
 
+test("filter actions open a visible editor from the menu and a swipe", async ({ page }) => {
+  const story = await seedFixtureStories(page)
+
+  await openStoryMenu(page, story)
+  await page.getByTestId("story-menu-filter").click()
+  const dialog = page.getByTestId("text-input-dialog")
+  await expect(dialog).toBeVisible()
+  await expect(page.getByTestId("text-input-value")).toHaveValue("127.0.0.1")
+  await page.getByTestId("text-input-cancel").click()
+  await expect(dialog).toBeHidden()
+
+  await openSettingsSection(page, "swipe")
+  await page.getByTestId("swipe-left-1").selectOption("filter")
+  await page.getByTestId("save-swipe").click()
+  await page.waitForTimeout(300)
+  await page.getByTestId("stories-menu").click()
+
+  const swipe = await dragStory(story, -110, { release: false })
+  expect(swipe.action).toBe("filter")
+  await story.evaluate(() => {
+    document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }))
+  })
+  await expect(dialog).toBeVisible()
+  await page.getByTestId("text-input-value").fill("fixture-filter.example")
+  await page.getByTestId("text-input-accept").click()
+  await expect(dialog).toBeHidden()
+
+  await openSettingsSection(page, "filters")
+  await expect(page.locator("#filter_area")).toHaveValue(/fixture-filter\.example/)
+})
+
 test("a long-press that becomes a drag shows progress and opens nothing", async ({ page }) => {
   await page.goto("./")
   await openSettingsSection(page, "sources")

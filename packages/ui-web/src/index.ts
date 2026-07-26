@@ -12,7 +12,12 @@ export { SettingsPanel } from "./SettingsPanel"
 export { LoaderInsights } from "./LoaderInsights"
 export { HoverUrlIndicator } from "./HoverUrlIndicator"
 export { addCollectorColorStyles } from "./CollectorStyles"
-export { showConfirmDialog, ConfirmDialogOptions } from "./ConfirmDialog"
+export {
+  showConfirmDialog,
+  showTextInputDialog,
+  ConfirmDialogOptions,
+  TextInputDialogOptions
+} from "./ConfirmDialog"
 export * as Search from "./search"
 export * as Menu from "./menu"
 export { setOnceClient, getOnceClient } from "./client"

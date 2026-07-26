@@ -454,6 +454,13 @@ export class StoryListItem extends HTMLElement {
       SettingsPanel.instance?.highlight_filter(this.story.filter, true)
       return
     }
+    if (document.body.dataset.platform === "mobile") {
+      StoryFilterView.show_mobile_filter_dialog(
+        this.story,
+        (filter) => getOnceClient().addFilter(filter)
+      )
+      return
+    }
     StoryFilterView.show_filter_dialog(
       event ?? new MouseEvent("click"),
       this.filter_btn,
