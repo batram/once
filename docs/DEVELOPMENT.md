@@ -68,14 +68,16 @@ Webpack cleans only the selected target and channel directory on each extension
 build, so dev and release artifacts can coexist. Production builds are minified
 and omit source maps; development builds include inline source maps.
 
-Every build carries a build channel (`release` or `dev`) that is shown next to
-the version in the settings panel, as `x.y.z (dev)` on dev builds. Production
-extension builds are release-channel; development builds are dev-channel and
-additionally rename the extension to "Once Sidepanel (dev)" and switch the
-manifest icons to `ic_launcher_dev.png`, so a dev install is distinguishable
-from a store install in the toolbar and extension list. The icon sources live
-in `packages/ui-web/public/static/imgs/icons/` (`icon.svg`/`icon_dev.svg` plus
-the exported `ic_launcher*` files under `mipmap-mdpi/`).
+Every build carries a build channel (`release` or `dev`). The settings panel
+shows a compact build identifier beside the version: `x.y.z (dev ID)` for dev
+builds and `x.y.z (ID)` for non-dev builds. Published releases omit this blip
+and show only `x.y.z`. Production extension builds are release-channel;
+development builds are dev-channel and additionally rename the extension to
+"Once Sidepanel (dev)" and switch the manifest icons to
+`ic_launcher_dev.png`, so a dev install is distinguishable from a store install
+in the toolbar and extension list. The icon sources live in
+`packages/ui-web/public/static/imgs/icons/` (`icon.svg`/`icon_dev.svg` plus the
+exported `ic_launcher*` files under `mipmap-mdpi/`).
 
 ## Load locally
 

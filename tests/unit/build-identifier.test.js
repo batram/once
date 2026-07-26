@@ -16,3 +16,13 @@ test("uses an explicitly assigned build identifier", () => {
     "4815"
   )
 })
+
+test("omits the build identifier from published releases", () => {
+  assert.equal(
+    devBuildIdentifier({
+      ONCE_BUILD_ID: "4815",
+      ONCE_RELEASE_BUILD: "1"
+    }),
+    ""
+  )
+})

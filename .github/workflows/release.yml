@@ -24,6 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      ONCE_RELEASE_BUILD: "1"
     steps:
       - uses: actions/checkout@v7
         with:
@@ -70,6 +71,7 @@ jobs:
     runs-on: windows-latest
     env:
       RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      ONCE_RELEASE_BUILD: "1"
     steps:
       - uses: actions/checkout@v7
         with:

@@ -37,12 +37,12 @@ export async function mountOnceUi(
     "[data-testid='app-version']"
   )
   if (version) {
-    version.textContent =
-      options.buildChannel === "dev"
-        ? `${options.appVersion} (dev${options.buildIdentifier
-          ? ` ${options.buildIdentifier}`
-          : ""})`
-        : options.appVersion
+    const buildBlip = options.buildChannel === "dev"
+      ? `dev${options.buildIdentifier ? ` ${options.buildIdentifier}` : ""}`
+      : options.buildIdentifier
+    version.textContent = buildBlip
+      ? `${options.appVersion} (${buildBlip})`
+      : options.appVersion
     version.dataset.buildChannel = options.buildChannel
   }
 

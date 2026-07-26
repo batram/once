@@ -254,8 +254,11 @@ test("launches a secure browser shell with legacy tab interactions", async () =>
   try {
     await expect(window.locator("#right_panel")).toBeVisible()
     await expect(window.locator(".electron-tab")).toHaveCount(1)
+    const buildInfo = await window.evaluate(() =>
+      window.onceElectron.app.getBuildInfo()
+    )
     await expect(window.getByTestId("app-version")).toHaveText(
-      await electronApp.evaluate(({ app }) => app.getVersion())
+      `${buildInfo.version} (${buildInfo.buildIdentifier})`
     )
     const updateButton = await openSettingsSection(
       window,
