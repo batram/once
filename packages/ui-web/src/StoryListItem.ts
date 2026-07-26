@@ -24,6 +24,7 @@ import {
   StoryMenuRequestEvent
 } from "./StoryContextMenu"
 import { requestReading } from "./ReadingSession"
+import { finishStoryExitTransition } from "./StoryExitTransition"
 
 /**
  * Two-stage detented swipe.
@@ -127,6 +128,7 @@ export class StoryListItem extends HTMLElement {
   sw_right!: HTMLElement
   bb_slide?: HTMLElement
   menu_btn!: HTMLElement
+  private cancelReadAnimation?: () => void
   /** Set only on the swipe settings sample row; see SwipePreview. */
   swipePreview?: SwipePreview
 
@@ -292,6 +294,9 @@ export class StoryListItem extends HTMLElement {
   }
 
   animate_read(): void {
+    this.cancelReadAnimation?.()
+    this.cancelReadAnimation = undefined
+
     if (!this.parentElement) {
       //not attached to dom, no need to sort or animate anything, no on will see
       return
@@ -306,13 +311,10 @@ export class StoryListItem extends HTMLElement {
         //consume user interaction
         this.read_btn.classList.remove("user_interaction")
         this.classList.add(anmim_class)
-        this.addEventListener(
-          "transitionend",
-          () => {
-            resort()
-          },
-          false
-        )
+        this.cancelReadAnimation = finishStoryExitTransition(this, () => {
+          this.cancelReadAnimation = undefined
+          resort()
+        })
       } else {
         resort()
       }
