@@ -140,6 +140,15 @@ async function clickWeb(element, platform) {
   }
 }
 
+async function setWebValue(element, value) {
+  await element.waitForDisplayed({ timeout: 10_000 })
+  await browser.execute((target, nextValue) => {
+    target.value = nextValue
+    target.dispatchEvent(new Event("input", { bubbles: true }))
+    target.dispatchEvent(new Event("change", { bubbles: true }))
+  }, element, value)
+}
+
 describe("Once mobile", () => {
   it("launches, loads fixtures, uses the reader, and persists state", async () => {
     await switchToWebView()
@@ -168,11 +177,18 @@ describe("Once mobile", () => {
       (platform === "android" ? `http://10.0.2.2:${port}` : `http://127.0.0.1:${port}`)
     await clickWeb(await $("[data-testid='settings-menu']"), platform)
     await clickWeb(await $("[data-settings-target='sources']"), platform)
-    await $("[data-testid='sources']").setValue(`${baseUrl}/fixtures/feed.rss`)
+    const sourcesInput = await $("[data-testid='sources']")
+    if (!(await sourcesInput.isDisplayed())) {
+      await clickWeb(await $("[data-testid='sources-mode-toggle']"), platform)
+    }
+    await setWebValue(sourcesInput, `${baseUrl}/fixtures/feed.rss`)
     await clickWeb(await $("[data-testid='save-sources']"), platform)
     await clickWeb(await $("#settings_section_back"), platform)
     await clickWeb(await $("[data-settings-target='sync']"), platform)
-    await $("[data-testid='sync-url']").setValue(`http://once-test:once-test@${new URL(baseUrl).host}/db/mobile_${platform}`)
+    await setWebValue(
+      await $("[data-testid='sync-url']"),
+      `http://once-test:once-test@${new URL(baseUrl).host}/db/mobile_${platform}`
+    )
     await clickWeb(await $("[data-testid='save-sync']"), platform)
     await clickWeb(await $("#settings_section_back"), platform)
     await clickWeb(await $("[data-settings-target='theme']"), platform)
