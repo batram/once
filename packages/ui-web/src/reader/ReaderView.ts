@@ -18,7 +18,7 @@ export class ReaderView {
     openDocument?: (html: string, sourceUrl: string, target: "_self" | "middle") => Promise<void>
   ): void {
     ReaderView.client = client
-    ReaderView.openDocument = openDocument ?? null
+    if (openDocument) ReaderView.openDocument = openDocument
   }
 
   static async open(url: string, target: "_self" | "middle" = "_self"): Promise<void> {
