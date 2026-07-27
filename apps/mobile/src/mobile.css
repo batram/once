@@ -704,6 +704,19 @@ body[data-platform="mobile"] #reading_content {
   background: var(--main-bg-color);
 }
 
+body[data-platform="mobile"] #reading_empty {
+  margin: 0;
+  padding: var(--m-sp-5) var(--m-sp-4);
+  color: var(--text-color);
+  font-family: var(--m-sans);
+  font-size: var(--m-fs-body);
+  text-align: center;
+}
+
+body[data-platform="mobile"] #reading_empty[hidden] {
+  display: none;
+}
+
 body[data-platform="mobile"] #reading_content .once-reader-host {
   position: absolute;
   z-index: 1;

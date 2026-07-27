@@ -368,6 +368,7 @@ export class MobileReadingController {
     this.content.dataset.mode = state.mode
     this.content.dataset.loadState = state.loadState
     this.content.dataset.navigationId = String(state.navigationId)
+    required("#reading_empty").hidden = state.currentUrl !== ""
     const isStoryPage = story != null &&
       (state.currentUrl === story.href || state.currentUrl === story.comment_url)
     const matchingStory = isStoryPage ? this.storyElement() : null

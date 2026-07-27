@@ -145,6 +145,11 @@ test("mobile back returns an empty Reading tab to Stories", async ({ page }) => 
   )
 
   const address = page.locator("#reading_url")
+  await expect(address).toHaveAttribute("placeholder", "Enter a URL")
+  await expect(page.getByTestId("reading-empty")).toHaveText(
+    "Open a story or enter a URL above to start reading."
+  )
+  await expect(page.getByTestId("reading-empty")).toBeVisible()
   await address.focus()
   expect(await triggerMobileBack(page)).toBe(true)
   await expect(address).not.toBeFocused()
@@ -271,6 +276,7 @@ test("stories persist offline and open in the in-app reader", async ({ page }) =
   await openStoryMenu(page, story)
   await page.getByTestId("story-menu-open-reader").click()
   await expect(page.locator("#reading_content")).toHaveAttribute("data-mode", "reader")
+  await expect(page.getByTestId("reading-empty")).toBeHidden()
   const reader = page.locator(".once-reader-host-frame").contentFrame()
   await expect(reader.getByRole("heading", { name: "Fixture article" })).toBeVisible()
   await expect(reader.locator("body")).toHaveCSS("max-width", "700px")
