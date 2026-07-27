@@ -30,6 +30,10 @@
   border-bottom: thin solid var(--border-color);
 }
 
+.settings_actions {
+  display: contents;
+}
+
 #settings_index {
   flex: 0 0 240px;
   padding: 8px;

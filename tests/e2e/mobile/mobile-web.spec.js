@@ -90,6 +90,95 @@ test("mobile back unwinds settings before restoring its previous panel", async (
   await expect(leftPanel).toHaveAttribute("active_panel", "reading")
 })
 
+test("mobile back dismisses transient story interactions before exiting", async ({ page }) => {
+  const story = await seedFixtureStories(page)
+  const searchfield = page.locator("#searchfield")
+
+  await story.locator(".hostname").click()
+  await expect(searchfield).toHaveValue(/^domain:/)
+  await expect(page.locator("#stories")).toBeHidden()
+
+  expect(await triggerMobileBack(page)).toBe(true)
+  await expect(searchfield).toHaveValue("")
+  await expect(page.locator("#stories")).toBeVisible()
+  await expect(story).toBeVisible()
+
+  await story.getByTestId("story-menu-button").click()
+  await expect(page.getByTestId("story-menu")).toBeVisible()
+  expect(await triggerMobileBack(page)).toBe(true)
+  await expect(page.getByTestId("story-menu")).toBeHidden()
+
+  await openStoryMenu(page, story)
+  await page.getByTestId("story-menu-filter").click()
+  await expect(page.getByTestId("text-input-dialog")).toBeVisible()
+  expect(await triggerMobileBack(page)).toBe(true)
+  await expect(page.getByTestId("text-input-dialog")).toBeHidden()
+
+  await searchfield.focus()
+  expect(await triggerMobileBack(page)).toBe(true)
+  await expect(searchfield).not.toBeFocused()
+
+  expect(await triggerMobileBack(page)).toBe(false)
+})
+
+test("mobile back returns an empty Reading tab to Stories", async ({ page }) => {
+  await page.goto("./")
+  await page.getByTestId("reading-menu").click()
+  await expect(page.locator("#left_panel")).toHaveAttribute(
+    "active_panel",
+    "reading"
+  )
+
+  const address = page.locator("#reading_url")
+  await address.focus()
+  expect(await triggerMobileBack(page)).toBe(true)
+  await expect(address).not.toBeFocused()
+  await expect(page.locator("#left_panel")).toHaveAttribute(
+    "active_panel",
+    "reading"
+  )
+
+  expect(await triggerMobileBack(page)).toBe(true)
+  await expect(page.locator("#left_panel")).toHaveAttribute(
+    "active_panel",
+    "stories"
+  )
+})
+
+test("mobile text settings use the detail panel as an editor workspace", async ({ page }) => {
+  await page.goto("./")
+  await openSettingsSection(page, "filters")
+
+  const layout = await page.locator(
+    '.settings_section[data-settings-section="filters"]'
+  ).evaluate((section) => {
+    const block = section.querySelector(".settings_editor_block")
+    const editor = section.querySelector(".input_container")
+    const actions = section.querySelector(".settings_actions")
+    const sectionBounds = section.getBoundingClientRect()
+    const blockBounds = block.getBoundingClientRect()
+    const editorBounds = editor.getBoundingClientRect()
+    const actionBounds = actions.getBoundingClientRect()
+    const blockStyle = getComputedStyle(block)
+    return {
+      sectionHeight: sectionBounds.height,
+      blockWidth: blockBounds.width,
+      editorWidth: editorBounds.width,
+      editorHeight: editorBounds.height,
+      actionsBottom: actionBounds.bottom,
+      sectionBottom: sectionBounds.bottom,
+      blockBorder: blockStyle.borderTopWidth,
+      blockMargin: blockStyle.marginTop
+    }
+  })
+
+  expect(layout.blockBorder).toBe("0px")
+  expect(layout.blockMargin).toBe("0px")
+  expect(layout.editorWidth).toBeGreaterThan(layout.blockWidth - 32)
+  expect(layout.editorHeight).toBeGreaterThan(layout.sectionHeight * 0.65)
+  expect(layout.actionsBottom).toBeLessThanOrEqual(layout.sectionBottom)
+})
+
 test("mobile refresh controls stay separated and theme-aware", async ({ page }) => {
   await page.goto("./")
 

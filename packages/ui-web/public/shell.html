@@ -111,8 +111,8 @@
                   />
                   <nav id="settings_sections" aria-label="Settings sections"></nav>
                 </div>
-                <div class="settings_block">
-                  Story sources:
+                <div class="settings_block settings_editor_block">
+                  <div class="settings_block_label">Story sources:</div>
                   <div class="input_container">
                     <div class="backdrop"></div>
                     <textarea
@@ -122,23 +122,25 @@
                     ></textarea>
                     <div class="highlights"></div>
                   </div>
-                  <input
-                    type="button"
-                    value="save"
-                    data-testid="save-sources"
-                  />
-                  <input type="button" value="cancel" />
-                  <input
-                    type="button"
-                    id="pick_source_button"
-                    value="pick from page"
-                    title="Build a source by picking story elements on the current page"
-                    data-testid="pick-source"
-                  />
-                  <span id="pick_source_status" role="status"></span>
+                  <div class="settings_actions">
+                    <input
+                      type="button"
+                      value="save"
+                      data-testid="save-sources"
+                    />
+                    <input type="button" value="cancel" />
+                    <input
+                      type="button"
+                      id="pick_source_button"
+                      value="pick from page"
+                      title="Build a source by picking story elements on the current page"
+                      data-testid="pick-source"
+                    />
+                    <span id="pick_source_status" role="status"></span>
+                  </div>
                 </div>
-                <div class="settings_block">
-                  Filters:
+                <div class="settings_block settings_editor_block">
+                  <div class="settings_block_label">Filters:</div>
                   <div class="input_container">
                     <textarea
                       id="filter_area"
@@ -146,15 +148,17 @@
                       data-testid="filters"
                     ></textarea>
                   </div>
-                  <input
-                    type="button"
-                    value="save"
-                    data-testid="save-filters"
-                  />
-                  <input type="button" value="cancel" />
+                  <div class="settings_actions">
+                    <input
+                      type="button"
+                      value="save"
+                      data-testid="save-filters"
+                    />
+                    <input type="button" value="cancel" />
+                  </div>
                 </div>
-                <div class="settings_block">
-                  Redirects:
+                <div class="settings_block settings_editor_block">
+                  <div class="settings_block_label">Redirects:</div>
                   <div class="input_container">
                     <textarea
                       id="redirect_area"
@@ -162,12 +166,14 @@
                       data-testid="redirects"
                     ></textarea>
                   </div>
-                  <input
-                    type="button"
-                    value="save"
-                    data-testid="save-redirects"
-                  />
-                  <input type="button" value="cancel" />
+                  <div class="settings_actions">
+                    <input
+                      type="button"
+                      value="save"
+                      data-testid="save-redirects"
+                    />
+                    <input type="button" value="cancel" />
+                  </div>
                 </div>
                 <div class="settings_block">
                   CouchDB Sync:

@@ -770,9 +770,12 @@ body[data-platform="mobile"] #reader_tts_rates {
 /* ---------- Settings panel ---------- */
 
 body[data-platform="mobile"] #settings_panel .bar {
+  flex: 0 0 auto;
   align-items: center;
   min-height: var(--m-touch);
   height: auto;
+  box-sizing: border-box;
+  padding: var(--m-sp-1) var(--m-sp-2);
 }
 
 body[data-platform="mobile"] #settings_panel .settings_title {
@@ -794,6 +797,19 @@ body[data-platform="mobile"] #settings_panel .settings_block {
 
 body[data-platform="mobile"] #settings_panel .settings_container {
   display: block;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  overflow: auto;
+}
+
+body[data-platform="mobile"] #settings_panel.settings_detail_open {
+  overflow: hidden;
+}
+
+body[data-platform="mobile"] #settings_panel.settings_detail_open .settings_container {
+  display: flex;
+  overflow: hidden;
 }
 
 body[data-platform="mobile"] #settings_index {
@@ -862,7 +878,7 @@ body[data-platform="mobile"] .settings_section_match {
 
 body[data-platform="mobile"] .settings_section {
   display: none;
-  height: 100%;
+  min-height: 0;
   overflow: auto;
 }
 
@@ -871,13 +887,33 @@ body[data-platform="mobile"] #settings_panel.settings_detail_open #settings_inde
 }
 
 body[data-platform="mobile"] #settings_panel.settings_detail_open .settings_section.active {
-  display: block;
+  display: flex;
+  flex: 1 1 auto;
+}
+
+body[data-platform="mobile"] #settings_panel.settings_detail_open .settings_section.active > .settings_block {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  padding: var(--m-sp-3);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 body[data-platform="mobile"] #settings_section_back {
   order: -1;
   margin: 0 var(--m-sp-2) 0 0;
+  padding: 0 var(--m-sp-2);
   border: 0;
+  font-size: 0;
+}
+
+body[data-platform="mobile"] #settings_section_back::before {
+  content: "‹ Settings";
+  font-family: var(--m-sans);
+  font-size: var(--m-fs-body);
 }
 
 body[data-platform="mobile"] #settings_panel.settings_detail_open #settings_section_back {
@@ -889,6 +925,38 @@ body[data-platform="mobile"] .input_container {
   border-width: var(--m-bw);
   border-color: var(--m-ink);
   border-radius: var(--m-radius);
+}
+
+body[data-platform="mobile"] .settings_editor_block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--m-sp-2);
+  overflow: hidden;
+}
+
+body[data-platform="mobile"] .settings_editor_block .settings_block_label {
+  flex: 0 0 auto;
+}
+
+body[data-platform="mobile"] .settings_editor_block .input_container {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  margin: 0;
+}
+
+body[data-platform="mobile"] .settings_editor_block .settings_actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--m-sp-2);
+  min-height: var(--m-touch);
+}
+
+body[data-platform="mobile"] .settings_editor_block .settings_actions input {
+  min-width: 88px;
+  margin: 0;
+  padding: 0 var(--m-sp-3);
 }
 
 /* textarea + backdrop + highlights must share metrics or error

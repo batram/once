@@ -458,6 +458,41 @@ test("keeps the icon rail and restores either sidebar panel", async () => {
       "settings"
     )
 
+    const settingsHeader = await window.evaluate(() => {
+      const title = document.querySelector("#settings_panel .settings_title")
+        .getBoundingClientRect()
+      const collapse = document.querySelector(
+        "#settings_panel .collapsebutton"
+      ).getBoundingClientRect()
+      const divider = document.querySelector("#sep_slider").getBoundingClientRect()
+      return {
+        titleRight: Math.round(title.right),
+        collapseLeft: Math.round(collapse.left),
+        dividerGap: Math.round(divider.left - collapse.right)
+      }
+    })
+    expect(settingsHeader.titleRight).toBeLessThan(settingsHeader.collapseLeft)
+    expect(settingsHeader.dividerGap).toBe(0)
+
+    await window.locator('[data-settings-target="filters"]').click()
+    const detailHeader = await window.evaluate(() => {
+      const back = document.querySelector("#settings_section_back")
+        .getBoundingClientRect()
+      const title = document.querySelector("#settings_panel .settings_title")
+        .getBoundingClientRect()
+      const collapse = document.querySelector(
+        "#settings_panel .collapsebutton"
+      ).getBoundingClientRect()
+      return {
+        backRight: Math.round(back.right),
+        titleLeft: Math.round(title.left),
+        titleRight: Math.round(title.right),
+        collapseLeft: Math.round(collapse.left)
+      }
+    })
+    expect(detailHeader.backRight).toBeLessThanOrEqual(detailHeader.titleLeft)
+    expect(detailHeader.titleRight).toBeLessThan(detailHeader.collapseLeft)
+
     await window.locator("#settings_panel .collapsebutton").click()
     await expect(window.locator("#left_main")).toBeHidden()
     await window.getByTestId("stories-menu").click()

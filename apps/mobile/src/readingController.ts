@@ -11,8 +11,11 @@ import {
   ReadingRequestEvent,
   ReadingSession,
   ReadingSessionState,
+  Search,
   StoryList,
-  StoryListItem
+  StoryListItem,
+  closeStoryAnchoredMenu,
+  isStoryAnchoredMenuOpen
 } from "@once/ui-web"
 
 export class MobileReadingController {
@@ -110,6 +113,17 @@ export class MobileReadingController {
   }
 
   async handleBack(): Promise<boolean> {
+    const dialog = document.querySelector<HTMLDialogElement>("dialog[open]")
+    if (dialog) {
+      dialog.close()
+      return true
+    }
+
+    if (isStoryAnchoredMenuOpen()) {
+      closeStoryAnchoredMenu()
+      return true
+    }
+
     if (this.activePanel === "settings") {
       const settingsPanel = document.querySelector<HTMLElement>("#settings_panel")
       if (settingsPanel?.classList.contains("settings_detail_open")) {
@@ -120,8 +134,35 @@ export class MobileReadingController {
       return true
     }
 
+    if (this.activePanel === "stories") {
+      const searchfield = required<HTMLInputElement>("#searchfield")
+      if (searchfield.value !== "") {
+        await Search.searchStories("")
+        searchfield.blur()
+        return true
+      }
+      if (document.activeElement === searchfield) {
+        searchfield.blur()
+        return true
+      }
+      return false
+    }
+
+    if (this.editingAddress) {
+      const address = required<HTMLInputElement>("#reading_url")
+      this.editingAddress = false
+      address.value = this.session.snapshot().currentUrl
+      address.blur()
+      this.clearValidation()
+      this.renderAddressAction()
+      return true
+    }
+
     const state = this.session.snapshot()
-    if (!state.story && !state.currentUrl) return false
+    if (!state.story && !state.currentUrl) {
+      Menu.open_panel("stories")
+      return true
+    }
     if (state.mode !== "reader" && state.canGoBack) {
       await this.enqueueSurface(() => this.surface.goBack())
       return true
