@@ -101,10 +101,29 @@ test("native embedded browsers use a bounded foreground sibling", () => {
     "apps/mobile/ios/App/App/AppDelegate.swift"
   ), "utf8")
 
-  assert.match(android, /parent\.addView\(surface, shellIndex \+ 1,/)
+  assert.match(android, /parent\.addView\(\s*refreshSurface,\s*shellIndex \+ 1,/)
   assert.doesNotMatch(android, /shell\.setBackgroundColor\(Color\.TRANSPARENT\)/)
   assert.match(ios, /insertSubview\(view, aboveSubview: shell\)/)
   assert.doesNotMatch(ios, /insertSubview\(view, belowSubview: shell\)/)
+})
+
+test("native embedded browsers support pull-to-refresh", () => {
+  const root = path.resolve(__dirname, "../../..")
+  const android = fs.readFileSync(path.join(
+    root,
+    "apps/mobile/android/app/src/main/java/com/zmarn/once/InAppBrowserSurfacePlugin.java"
+  ), "utf8")
+  const ios = fs.readFileSync(path.join(
+    root,
+    "apps/mobile/ios/App/App/AppDelegate.swift"
+  ), "utf8")
+
+  assert.match(android, /new SwipeRefreshLayout/)
+  assert.match(android, /setOnRefreshListener\(surface::reload\)/)
+  assert.match(android, /refreshSurface\.setRefreshing\(false\)/)
+  assert.match(ios, /view\.scrollView\.refreshControl = refreshControl/)
+  assert.match(ios, /@objc private func refreshBrowser/)
+  assert.match(ios, /refreshControl\?\.endRefreshing\(\)/)
 })
 
 test("visual inspection installs the current app before preserving its state", () => {

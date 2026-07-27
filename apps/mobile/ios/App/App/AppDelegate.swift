@@ -76,6 +76,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     ]
 
     private var surface: WKWebView?
+    private var refreshControl: UIRefreshControl?
     private var navigationSequence = 0
     private var activeNavigation = 0
 
@@ -94,9 +95,29 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         let view = WKWebView(frame: .zero, configuration: configuration)
         view.navigationDelegate = self
         view.uiDelegate = self
+        let refreshControl = UIRefreshControl()
+        refreshControl.addTarget(
+            self,
+            action: #selector(refreshBrowser(_:)),
+            for: .valueChanged
+        )
+        view.scrollView.refreshControl = refreshControl
         parent.insertSubview(view, aboveSubview: shell)
+        self.refreshControl = refreshControl
         surface = view
         return view
+    }
+
+    @objc private func refreshBrowser(_ sender: UIRefreshControl) {
+        guard let surface else {
+            sender.endRefreshing()
+            return
+        }
+        surface.reload()
+    }
+
+    private func finishRefresh() {
+        refreshControl?.endRefreshing()
     }
 
     private func applyBounds(_ object: JSObject) {
@@ -174,6 +195,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             self.surface?.uiDelegate = nil
             self.surface?.removeFromSuperview()
             self.surface = nil
+            self.refreshControl = nil
             call.resolve()
         }
     }
@@ -200,6 +222,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     }
 
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        finishRefresh()
         notifyListeners("navigationFinished", data: payload(webView.url))
         history(webView)
     }
@@ -209,6 +232,19 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         didFailProvisionalNavigation navigation: WKNavigation!,
         withError error: Error
     ) {
+        navigationFailed(webView, error: error)
+    }
+
+    public func webView(
+        _ webView: WKWebView,
+        didFail navigation: WKNavigation!,
+        withError error: Error
+    ) {
+        navigationFailed(webView, error: error)
+    }
+
+    private func navigationFailed(_ webView: WKWebView, error: Error) {
+        finishRefresh()
         var value = payload(webView.url)
         value["code"] = (error as NSError).code
         value["message"] = error.localizedDescription

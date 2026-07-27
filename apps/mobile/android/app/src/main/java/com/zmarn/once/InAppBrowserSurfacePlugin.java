@@ -14,6 +14,7 @@ import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -24,6 +25,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @CapacitorPlugin(name = "InAppBrowserSurface")
 public class InAppBrowserSurfacePlugin extends Plugin {
     private WebView surface;
+    private SwipeRefreshLayout refreshSurface;
     private final AtomicLong navigationSequence = new AtomicLong();
     private long activeNavigation;
 
@@ -93,11 +95,12 @@ public class InAppBrowserSurfacePlugin extends Plugin {
     public void close(PluginCall call) {
         getActivity().runOnUiThread(() -> {
             if (surface != null) {
-                ViewGroup parent = (ViewGroup) surface.getParent();
-                if (parent != null) parent.removeView(surface);
+                ViewGroup parent = (ViewGroup) refreshSurface.getParent();
+                if (parent != null) parent.removeView(refreshSurface);
                 surface.stopLoading();
                 surface.destroy();
                 surface = null;
+                refreshSurface = null;
             }
             call.resolve();
         });
@@ -118,6 +121,7 @@ public class InAppBrowserSurfacePlugin extends Plugin {
         if (surface != null) {
             surface.destroy();
             surface = null;
+            refreshSurface = null;
         }
     }
 
@@ -160,29 +164,46 @@ public class InAppBrowserSurfacePlugin extends Plugin {
         );
         surface.setWebViewClient(new SurfaceClient());
 
+        refreshSurface = new SwipeRefreshLayout(getContext());
+        refreshSurface.addView(surface, new ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        refreshSurface.setOnRefreshListener(surface::reload);
+
         WebView shell = getBridge().getWebView();
         ViewGroup parent = (ViewGroup) shell.getParent();
         int shellIndex = parent.indexOfChild(shell);
-        parent.addView(surface, shellIndex + 1, new ViewGroup.LayoutParams(1, 1));
+        parent.addView(
+            refreshSurface,
+            shellIndex + 1,
+            new ViewGroup.LayoutParams(1, 1)
+        );
     }
 
     private void applyBounds(JSObject bounds) {
-        if (surface == null) return;
+        if (refreshSurface == null) return;
         float density = getContext().getResources().getDisplayMetrics().density;
         int x = Math.round((float) Math.max(0, bounds.optDouble("x", 0)) * density);
         int y = Math.round((float) Math.max(0, bounds.optDouble("y", 0)) * density);
         int width = Math.round((float) Math.max(0, bounds.optDouble("width", 0)) * density);
         int height = Math.round((float) Math.max(0, bounds.optDouble("height", 0)) * density);
-        ViewGroup.LayoutParams params = surface.getLayoutParams();
+        ViewGroup.LayoutParams params = refreshSurface.getLayoutParams();
         params.width = width;
         params.height = height;
-        surface.setLayoutParams(params);
-        surface.setX(x);
-        surface.setY(y);
+        refreshSurface.setLayoutParams(params);
+        refreshSurface.setX(x);
+        refreshSurface.setY(y);
     }
 
     private void setSurfaceVisible(boolean visible) {
-        if (surface != null) surface.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
+        if (refreshSurface != null) {
+            refreshSurface.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
+        }
+    }
+
+    private void finishRefresh() {
+        if (refreshSurface != null) refreshSurface.setRefreshing(false);
     }
 
     private boolean isEmbeddable(String value) {
@@ -239,6 +260,7 @@ public class InAppBrowserSurfacePlugin extends Plugin {
 
         @Override
         public void onPageFinished(WebView view, String url) {
+            finishRefresh();
             event("navigationFinished", activeNavigation, url);
             history(activeNavigation, view);
         }
@@ -250,6 +272,7 @@ public class InAppBrowserSurfacePlugin extends Plugin {
             WebResourceError error
         ) {
             if (!request.isForMainFrame()) return;
+            finishRefresh();
             JSObject payload = new JSObject();
             payload.put("navigationId", activeNavigation);
             payload.put("url", request.getUrl().toString());
@@ -261,6 +284,7 @@ public class InAppBrowserSurfacePlugin extends Plugin {
         @Override
         public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
             handler.cancel();
+            finishRefresh();
             JSObject payload = new JSObject();
             payload.put("navigationId", activeNavigation);
             payload.put("url", error.getUrl());
