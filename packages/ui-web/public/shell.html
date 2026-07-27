@@ -278,7 +278,8 @@
                 <div id="reading_url_group">
                   <input id="reading_url" data-testid="reading-url-input" type="url"
                     inputmode="url" enterkeyhint="go" autocomplete="url"
-                    autocapitalize="none" spellcheck="false" aria-label="Address" />
+                    autocapitalize="none" spellcheck="false" aria-label="Address"
+                    placeholder="Enter a URL" />
                   <button type="button" id="reading_reader_toggle" aria-label="Toggle reader mode">
                     <img src="imgs/article.svg" alt="" />
                   </button>
@@ -307,7 +308,11 @@
                   aria-label="Story actions">⋮</button>
               </section>
               <div id="reading_error" role="status" aria-live="polite" hidden></div>
-              <div id="reading_content" aria-label="Reading content"></div>
+              <div id="reading_content" aria-label="Reading content">
+                <p id="reading_empty" data-testid="reading-empty">
+                  Open a story or enter a URL above to start reading.
+                </p>
+              </div>
               <button type="button" id="reading_tts_start" data-testid="reading-tts-start"
                 aria-label="Read aloud" hidden>▶ <span>Read aloud</span></button>
               <div id="reader_tts_pill" role="group" aria-label="Text to speech" hidden>

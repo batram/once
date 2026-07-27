@@ -145,6 +145,11 @@ test("mobile back returns an empty Reading tab to Stories", async ({ page }) => 
   )
 
   const address = page.locator("#reading_url")
+  await expect(address).toHaveAttribute("placeholder", "Enter a URL")
+  await expect(page.getByTestId("reading-empty")).toHaveText(
+    "Open a story or enter a URL above to start reading."
+  )
+  await expect(page.getByTestId("reading-empty")).toBeVisible()
   await address.focus()
   expect(await triggerMobileBack(page)).toBe(true)
   await expect(address).not.toBeFocused()
@@ -271,6 +276,7 @@ test("stories persist offline and open in the in-app reader", async ({ page }) =
   await openStoryMenu(page, story)
   await page.getByTestId("story-menu-open-reader").click()
   await expect(page.locator("#reading_content")).toHaveAttribute("data-mode", "reader")
+  await expect(page.getByTestId("reading-empty")).toBeHidden()
   const reader = page.locator(".once-reader-host-frame").contentFrame()
   await expect(reader.getByRole("heading", { name: "Fixture article" })).toBeVisible()
   await expect(reader.locator("body")).toHaveCSS("max-width", "700px")
@@ -327,24 +333,29 @@ test("the ⋮ button opens the story menu anchored above the tab bar", async ({ 
     const button = document
       .querySelector("story-item .menu_btn")
       .getBoundingClientRect()
+    const data = rowEl.querySelector(".data").getBoundingClientRect()
+    const title = rowEl.querySelector(".title").getBoundingClientRect()
     return {
       // right-aligned to the row it belongs to
       rightGap: Math.abs(rect.right - row.right),
       // never reaches behind the fixed tab bar
       clearsTabBar: rect.bottom <= tabs.top,
-      // clientHeight: the row's own borders are not part of the tap target
-      rowInnerHeight: rowEl.clientHeight,
       buttonHeight: Math.round(button.height),
       buttonWidth: Math.round(button.width),
-      buttonRightGap: Math.round(row.right - button.right)
+      buttonRightGap: Math.round(row.right - button.right),
+      buttonBottomGap: Math.round(row.bottom - button.bottom),
+      // The button no longer consumes a full-height column beside the title.
+      titleRightGap: Math.round(data.right - title.right)
     }
   })
   expect(geometry.rightGap).toBeLessThanOrEqual(8)
   expect(geometry.clearsTabBar).toBe(true)
-  // "full row height, ~38px wide, at the row's right edge"
-  expect(geometry.buttonHeight).toBe(geometry.rowInnerHeight)
-  expect(geometry.buttonWidth).toBe(38)
-  expect(geometry.buttonRightGap).toBeLessThanOrEqual(1)
+  // Compact, bottom-right, while the title keeps the row's full text width.
+  expect(geometry.buttonHeight).toBe(28)
+  expect(geometry.buttonWidth).toBe(28)
+  expect(geometry.buttonRightGap).toBe(4)
+  expect(geometry.buttonBottomGap).toBeLessThanOrEqual(5)
+  expect(geometry.titleRightGap).toBeLessThanOrEqual(1)
 
   // Tapping the backdrop dismisses without running an action.
   await page.getByTestId("story-menu-backdrop").click({ position: { x: 5, y: 5 } })
@@ -439,6 +450,7 @@ test("a long-press that becomes a drag shows progress and opens nothing", async 
       marked: row.classList.contains("press_building"),
       animation: building.animationName,
       duration: building.animationDuration,
+      delay: building.animationDelay,
       height: building.height
     }
     // past MOVE_TOLERANCE_PX — the swipe handler owns the gesture now
@@ -453,7 +465,8 @@ test("a long-press that becomes a drag shows progress and opens nothing", async 
 
   expect(result.started.marked).toBe(true)
   expect(result.started.animation).toBe("once-press-progress")
-  expect(result.started.duration).toBe("0.5s")
+  expect(result.started.duration).toBe("0.4s")
+  expect(result.started.delay).toBe("0.1s")
   expect(result.started.height).toBe("2px")
   expect(result.cancelled).toBe(false)
   await expect(page.getByTestId("story-menu")).toBeHidden()
