@@ -572,6 +572,22 @@ test("the default open swipe uses the in-app reading view", async ({ page }) => 
   )
 })
 
+test("the current Reading story reflects bookmark changes", async ({ page }) => {
+  const story = await seedFixtureStories(page)
+  await openStoryMenu(page, story)
+  await page.getByTestId("story-menu-open").click()
+
+  const currentCard = page.getByTestId("reading-current-card")
+  await expect(currentCard).toBeVisible()
+  await page.locator("#reading_story_menu").click()
+  await page.getByTestId("story-menu-toggle-bookmark").click()
+
+  await expect(currentCard).toHaveClass(/\bstared\b/)
+  await page.locator("#reading_story_menu").click()
+  await expect(page.getByTestId("story-menu-toggle-bookmark"))
+    .toHaveText("Remove bookmark")
+})
+
 // The gesture is measured from where the finger went down, not from the first
 // move the swipe handler happens to see — that one arrives only after the axis
 // lock resolves, and a flick has covered most of its distance by then.

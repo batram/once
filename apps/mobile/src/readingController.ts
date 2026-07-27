@@ -30,6 +30,7 @@ export class MobileReadingController {
   private editingAddress = false
   private surfaceGeneration = 0
   private surfaceQueue: Promise<void> = Promise.resolve()
+  private currentStoryRow: StoryListItem | null = null
 
   constructor(
     private readonly surface: InAppBrowserSurface,
@@ -270,6 +271,9 @@ export class MobileReadingController {
       story.requestMenu(anchor)
     }
     document.addEventListener("once-story-menu-closed", () => {
+      // The anchored menu closes before it executes its action. Refresh on the
+      // next microtask so synchronous changes such as bookmarking are visible.
+      queueMicrotask(() => this.render(this.session.snapshot()))
       void this.updateVisibility()
     })
   }
@@ -279,6 +283,21 @@ export class MobileReadingController {
     if (!href) return null
     return Array.from(document.querySelectorAll<StoryListItem>("story-item"))
       .find((row) => row.story.href === href) ?? null
+  }
+
+  private observeCurrentStory(row: StoryListItem | null): void {
+    if (this.currentStoryRow === row) return
+    this.currentStoryRow?.removeEventListener(
+      "data_change",
+      this.handleCurrentStoryChange
+    )
+    this.currentStoryRow = row
+    row?.addEventListener("data_change", this.handleCurrentStoryChange)
+  }
+
+  private readonly handleCurrentStoryChange = (): void => {
+    // StoryListItem updates its story reference from the same event.
+    queueMicrotask(() => this.render(this.session.snapshot()))
   }
 
   private async syncSurface(
@@ -371,19 +390,22 @@ export class MobileReadingController {
     const isStoryPage = story != null &&
       (state.currentUrl === story.href || state.currentUrl === story.comment_url)
     const matchingStory = isStoryPage ? this.storyElement() : null
+    this.observeCurrentStory(matchingStory)
+    const displayedStory = matchingStory?.story ?? story
     const currentCard = required("#reading_current_card")
     currentCard.hidden = matchingStory == null
+    currentCard.classList.toggle("stared", Boolean(displayedStory?.stared))
     const title = required<HTMLAnchorElement>("#reading_title")
-    title.textContent = story?.title ?? "Reading"
-    title.href = story?.href ?? ""
-    required("#reading_type").textContent = story?.type ?? ""
+    title.textContent = displayedStory?.title ?? "Reading"
+    title.href = displayedStory?.href ?? ""
+    required("#reading_type").textContent = displayedStory?.type ?? ""
     required("#reading_story_time").textContent =
-      story ? humanTime(story.timestamp) : ""
+      displayedStory ? humanTime(displayedStory.timestamp) : ""
     required("#reading_story_meta").dataset.type =
-      story ? `[${story.type}]` : ""
+      displayedStory ? `[${displayedStory.type}]` : ""
     required("#reading_story_menu").dataset.type =
-      story ? `[${story.type}]` : ""
-    this.renderStoryTags(story?.tags ?? [])
+      displayedStory ? `[${displayedStory.type}]` : ""
+    this.renderStoryTags(displayedStory?.tags ?? [])
     const address = required<HTMLInputElement>("#reading_url")
     if (!this.editingAddress) address.value = state.currentUrl
     required("#reading_reader_toggle").classList.toggle(
@@ -391,7 +413,7 @@ export class MobileReadingController {
       state.mode === "reader"
     )
     required<HTMLButtonElement>("#reading_comments").hidden =
-      matchingStory == null || !story?.comment_url
+      matchingStory == null || !displayedStory?.comment_url
     required<HTMLButtonElement>("#reading_tts_start").hidden =
       state.mode !== "reader" ||
       !required<HTMLDivElement>("#reader_tts_pill").hidden
