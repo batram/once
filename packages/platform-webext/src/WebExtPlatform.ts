@@ -1,4 +1,5 @@
 import PouchDB from "pouchdb-browser"
+import PouchDBFind from "pouchdb-find"
 import { Story } from "@once/core"
 import {
   DatabaseChange,
@@ -17,6 +18,8 @@ import {
   createWebExtActiveTab,
   createWebExtHistorySubscription
 } from "./webextPorts"
+
+PouchDB.plugin(PouchDBFind)
 
 export function createWebExtPlatform(
   browserApi: typeof browser = browser

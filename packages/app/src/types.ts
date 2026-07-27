@@ -149,6 +149,7 @@ export interface ListStorePort {
 export interface StoryStorePort {
   storyId(url: string): string
   getStories(limit?: number): Promise<Story[]>
+  getStaredStories(): Promise<Story[]>
   getStoriesByUrls(urls: string[]): Promise<Map<string, Story>>
   getStory(url: string): Promise<Story | null>
   saveStory(story: Story): Promise<Story>

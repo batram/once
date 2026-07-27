@@ -156,6 +156,12 @@ test(
       await waitForClass(driver, deltaSelector, "stared")
 
       const betaSelector = storySelector(source.urls.beta)
+      await driver.wait(
+        until.elementLocated(
+          By.css(`${betaSelector} .info a.comment_url`)
+        ),
+        15_000
+      )
       await openNewTab(
         driver,
         panelHandle,

@@ -74,6 +74,49 @@ test("registers stored source stories before synchronized updates arrive", async
   assert.deepEqual(changes.at(-1).path, [stored.href])
 })
 
+test("includes stared stories outside the bounded working set", async () => {
+  const stored = Array.from({ length: 501 }, (_, index) =>
+    new Story("rss", `https://example.com/${index}`, `Story ${index}`)
+  )
+  stored[500].stared = true
+  const app = createOnceApp(createFakePlatform(stored).ports)
+
+  await app.start()
+  const stories = await app.client.getStories()
+
+  assert.equal(stories.length, 501)
+  assert.equal(stories.some((story) => story.href === stored[500].href), true)
+})
+
+test("includes stored stared stories when a source fills the visible list", async () => {
+  const sourceUrl = "https://old.reddit.com/r/netsec/.json"
+  const stared = new Story(
+    "rss",
+    "https://example.com/old-stared",
+    "Old stared story"
+  )
+  stared.stared = true
+  const fake = createFakePlatform([stared], {
+    storySources: [sourceUrl],
+    fetch: async () =>
+      new Response(JSON.stringify(cachedRedditSource), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      })
+  })
+  const app = createOnceApp(fake.ports)
+  const batches = []
+  app.client.subscribe("storiesChanged", ({ stories }) => batches.push(stories))
+
+  await app.start()
+  await app.client.reloadStories(false)
+
+  assert.equal(
+    batches.at(-1).some((story) => story.href === stared.href),
+    true
+  )
+})
+
 test("loads a saved source once when PouchDB echoes the local setting change", async () => {
   const sourceUrl = "https://old.reddit.com/r/netsec/.json"
   let requests = 0

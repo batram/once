@@ -102,6 +102,18 @@ export class OnceApp {
     })
 
     try {
+      const staredStories = await this.platform.storyStore.getStaredStories()
+      staredStories.forEach((story) => this.setStory(story.href, story, true))
+    } catch (error) {
+      this.reportDiagnostic({
+        severity: "error",
+        operation: "story.load-stared",
+        message: "Stared stories could not be loaded",
+        details: errorDetails(error)
+      })
+    }
+
+    try {
       this.animated = await this.getAnimation()
     } catch (error) {
       this.reportStartupSettingError("animation", error)
@@ -794,10 +806,13 @@ export class OnceApp {
   }
 
   private async getWorkingStories(): Promise<Story[]> {
-    if (this.stories.size === 0) {
-      const stored = await this.platform.storyStore.getStories(500)
-      stored.forEach((story) => this.setStory(story.href, story, true))
-    }
+    const [stored, stared] = await Promise.all([
+      this.platform.storyStore.getStories(500),
+      this.platform.storyStore.getStaredStories()
+    ])
+    stored
+      .concat(stared)
+      .forEach((story) => this.setStory(story.href, story, true))
     return Array.from(this.stories.values())
   }
 
