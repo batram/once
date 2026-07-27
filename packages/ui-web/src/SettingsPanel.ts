@@ -185,13 +185,18 @@ export class SettingsPanel {
       sources_area,
       ".settings_block"
     )
-    requireElement<HTMLInputElement>(
+    const saveSourcesButton = requireElement<HTMLInputElement>(
       'input[value="save"]',
       sources_block
     )
-      .addEventListener("click", () => {
-        this.save_sources_settings()
-      })
+    saveSourcesButton.addEventListener("click", async () => {
+      saveSourcesButton.disabled = true
+      try {
+        await this.save_sources_settings()
+      } finally {
+        saveSourcesButton.disabled = false
+      }
+    })
     requireElement<HTMLInputElement>(
       'input[value="cancel"]',
       sources_block
@@ -765,7 +770,7 @@ export class SettingsPanel {
       return x.trim() != ""
     })
 
-    this.client.saveStorySources(story_sources)
+    await this.client.saveStorySources(story_sources)
   }
 
   async set_filter_area(): Promise<void> {

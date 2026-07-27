@@ -59,7 +59,7 @@ test("list settings are the default and expose structured add actions", async ({
     Array.from({ length: 18 }, (_, index) =>
       `https://example.test/source-${index}`).join("\n")
   )
-  await page.getByTestId("save-sources").click()
+  await saveSourcesAndWait(page)
   await expect(page.getByTestId("sources-mode-toggle")).toHaveText("Edit as list")
   await page.getByTestId("sources-mode-toggle").click()
   const sourceList = page.getByTestId("sources-structured-list")
@@ -167,6 +167,12 @@ test("filters edit inline and expose a row remove button", async ({ page }) => {
 
 async function testServerUrl(page, path) {
   return new URL(path, page.url()).href
+}
+
+async function saveSourcesAndWait(page) {
+  const save = page.getByTestId("save-sources")
+  await save.click()
+  await expect(save).toBeEnabled()
 }
 
 async function triggerMobileBack(page) {
@@ -434,8 +440,7 @@ test("mobile settings persist without contacting external sources", async ({ pag
   await page.goto("./")
   await openSettingsSection(page, "sources")
   await page.getByTestId("sources").fill(await testServerUrl(page, "/fixtures/feed.rss"))
-  await page.getByTestId("save-sources").click()
-  await page.waitForTimeout(500)
+  await saveSourcesAndWait(page)
   await page.reload()
   await openSettingsSection(page, "sources")
   await expect(page.getByTestId("sources")).toHaveValue(/\/fixtures\/feed\.rss/)
@@ -445,8 +450,7 @@ test("stories persist offline and open in the in-app reader", async ({ page }) =
   await page.goto("./")
   await openSettingsSection(page, "sources")
   await page.getByTestId("sources").fill(await testServerUrl(page, "/fixtures/feed.rss"))
-  await page.getByTestId("save-sources").click()
-  await page.waitForTimeout(500)
+  await saveSourcesAndWait(page)
   await page.reload()
   await openSettingsSection(page, "sources")
   await expect(page.getByTestId("sources")).toHaveValue(/\/fixtures\/feed\.rss/)
@@ -492,8 +496,7 @@ test("the ⋮ button opens the story menu anchored above the tab bar", async ({ 
   await page.goto("./")
   await openSettingsSection(page, "sources")
   await page.getByTestId("sources").fill(await testServerUrl(page, "/fixtures/feed.rss"))
-  await page.getByTestId("save-sources").click()
-  await page.waitForTimeout(500)
+  await saveSourcesAndWait(page)
   await page.reload()
   await page.getByTestId("stories-menu").click()
   await page.getByTestId("reload-stories").click()
@@ -606,8 +609,7 @@ test("a long-press that becomes a drag shows progress and opens nothing", async 
   await page.goto("./")
   await openSettingsSection(page, "sources")
   await page.getByTestId("sources").fill(await testServerUrl(page, "/fixtures/feed.rss"))
-  await page.getByTestId("save-sources").click()
-  await page.waitForTimeout(500)
+  await saveSourcesAndWait(page)
   await page.reload()
   await page.getByTestId("stories-menu").click()
   await page.getByTestId("reload-stories").click()
@@ -663,8 +665,7 @@ async function seedFixtureStories(page) {
   await page.goto("./")
   await openSettingsSection(page, "sources")
   await page.getByTestId("sources").fill(await testServerUrl(page, "/fixtures/feed.rss"))
-  await page.getByTestId("save-sources").click()
-  await page.waitForTimeout(500)
+  await saveSourcesAndWait(page)
   await page.reload()
   await page.getByTestId("stories-menu").click()
   await page.getByTestId("reload-stories").click()
@@ -703,9 +704,25 @@ async function dragStory(
         fire("touchmove", startX + options.distance * fraction)
         await new Promise((resolve) => setTimeout(resolve, 10))
       }
-      // The row snaps over 90ms; sampling earlier reads a mid-transition
-      // transform rather than the plateau it is heading for.
-      await new Promise((resolve) => setTimeout(resolve, 200))
+      // Sample only after the transform has stopped changing. Waiting on the
+      // rendered state avoids assuming the 90ms snap transition will finish
+      // within a fixed wall-clock delay on a loaded CI worker.
+      await new Promise((resolve) => {
+        const deadline = performance.now() + 750
+        let previous = getComputedStyle(row).transform
+        let stableFrames = 0
+        const sample = () => {
+          const current = getComputedStyle(row).transform
+          stableFrames = current === previous ? stableFrames + 1 : 0
+          previous = current
+          if (stableFrames >= 3 || performance.now() >= deadline) {
+            resolve()
+            return
+          }
+          requestAnimationFrame(sample)
+        }
+        requestAnimationFrame(sample)
+      })
       const state = {
         transform: getComputedStyle(row).transform,
         label: document.querySelector(".bb_slide .swipe_left")?.innerText || "",
@@ -1022,8 +1039,7 @@ test("reader TTS bridges through the host when the frame lacks speech synthesis"
   await page.goto("./")
   await openSettingsSection(page, "sources")
   await page.getByTestId("sources").fill(await testServerUrl(page, "/fixtures/feed.rss"))
-  await page.getByTestId("save-sources").click()
-  await page.waitForTimeout(500)
+  await saveSourcesAndWait(page)
   await page.reload()
   await page.getByTestId("stories-menu").click()
   await page.getByTestId("reload-stories").click()
