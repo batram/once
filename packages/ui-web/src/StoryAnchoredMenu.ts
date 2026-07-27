@@ -155,9 +155,14 @@ function position(
   bottomInset: number
 ): void {
   const rect = anchor.getBoundingClientRect()
+  const available = window.innerHeight - bottomInset
+  panel.style.maxHeight = `${Math.max(
+    0,
+    available - EDGE_GAP_PX * 2
+  )}px`
+  panel.style.overflowY = "auto"
   const height = panel.offsetHeight
   const width = panel.offsetWidth
-  const available = window.innerHeight - bottomInset
 
   let top = rect.bottom + ANCHOR_GAP_PX
   if (top + height > available - EDGE_GAP_PX) {

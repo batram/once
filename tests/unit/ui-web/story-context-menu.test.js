@@ -16,6 +16,7 @@ function loadMenuModule() {
 function fakeStory(overrides = {}) {
   const story = {
     href: "https://example.com/story",
+    comment_url: "https://example.com/comments",
     read_state: "unread",
     stared: false,
     filter: "",
@@ -30,7 +31,8 @@ function fakeStory(overrides = {}) {
           ? "Mark as unread"
           : "Unskip",
     bookmarkActionLabel: () => story.stared ? "Remove bookmark" : "Bookmark",
-    filterActionLabel: () => story.filter ? "Edit filter" : "Filter source"
+    filterActionLabel: () => story.filter ? "Edit filter" : "Filter source",
+    openComments: () => {}
   }
 }
 
@@ -44,6 +46,7 @@ test("story menu descriptors are ordered, contextual, and platform-aware", () =>
 
   assert.deepEqual(items.map((item) => item.id), [
     "open",
+    "open-comments",
     "open-new-tab",
     "open-background-tab",
     "open-new-window",
@@ -75,6 +78,7 @@ test("mobile gets the short single-column menu the redesign specifies", () => {
   // No tab targets to choose between, and undo/redo belong to a keyboard.
   assert.deepEqual(items.map((item) => item.id), [
     "open",
+    "open-comments",
     "open-browser",
     "open-reader",
     "toggle-read",
@@ -83,6 +87,20 @@ test("mobile gets the short single-column menu the redesign specifies", () => {
     "search-domain",
     "copy-link"
   ])
+})
+
+test("open comments is hidden without a primary comments URL", () => {
+  const { describeStoryMenu } = loadMenuModule()
+  const items = describeStoryMenu({
+    platform: "chrome",
+    buildChannel: "release",
+    story: fakeStory({ comment_url: "" })
+  })
+
+  assert.equal(
+    items.find((item) => item.id === "open-comments").visible,
+    false
+  )
 })
 
 test("mobile hides the redirect actions even when a redirect applies", () => {

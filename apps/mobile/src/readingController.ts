@@ -31,6 +31,9 @@ export class MobileReadingController {
   private surfaceGeneration = 0
   private surfaceQueue: Promise<void> = Promise.resolve()
   private currentStoryRow: StoryListItem | null = null
+  private currentCardStoryHref = ""
+  private currentStoryCollapsed = false
+  private storyMenuOpen = false
 
   constructor(
     private readonly surface: InAppBrowserSurface,
@@ -225,6 +228,7 @@ export class MobileReadingController {
   private bindControls(): void {
     const address = required<HTMLInputElement>("#reading_url")
     const form = required<HTMLFormElement>("#reading_url_form")
+    const currentCard = required("#reading_current_card")
     required<HTMLAnchorElement>("#reading_title").onclick = (event) => {
       event.preventDefault()
       void this.openStoryContent()
@@ -232,6 +236,10 @@ export class MobileReadingController {
     required<HTMLButtonElement>("#reading_comments").onclick = () => {
       void this.openComments()
     }
+    required<HTMLButtonElement>("#reading_story_collapse").onclick = () => {
+      this.setCurrentStoryCollapsed(!this.currentStoryCollapsed)
+    }
+    this.bindCurrentStorySwipe(currentCard)
     required<HTMLButtonElement>("#reading_reader_toggle").onclick = () => {
       this.editingAddress = false
       address.value = this.session.snapshot().currentUrl
@@ -263,14 +271,16 @@ export class MobileReadingController {
       event.preventDefault()
       void this.submitAddress()
     })
-    required<HTMLButtonElement>("#reading_story_menu").onclick = async (event) => {
+    required<HTMLButtonElement>("#reading_story_menu").onclick = (event) => {
       const story = this.storyElement()
       if (!story) return
       const anchor = event.currentTarget as HTMLElement
-      await this.enqueueSurface(() => this.surface.setVisible(false))
+      this.storyMenuOpen = true
+      void this.enqueueSurface(() => this.surface.setVisible(false))
       story.requestMenu(anchor)
     }
     document.addEventListener("once-story-menu-closed", () => {
+      this.storyMenuOpen = false
       // The anchored menu closes before it executes its action. Refresh on the
       // next microtask so synchronous changes such as bookmarking are visible.
       queueMicrotask(() => this.render(this.session.snapshot()))
@@ -283,6 +293,107 @@ export class MobileReadingController {
     if (!href) return null
     return Array.from(document.querySelectorAll<StoryListItem>("story-item"))
       .find((row) => row.story.href === href) ?? null
+  }
+
+  private bindCurrentStorySwipe(card: HTMLElement): void {
+    let pointerId: number | null = null
+    let startX = 0
+    let startY = 0
+    let vertical = false
+    let suppressClick = false
+
+    const finish = (event: PointerEvent): void => {
+      if (event.pointerId !== pointerId) return
+      const distance = event.clientY - startY
+      pointerId = null
+      card.classList.remove("reading_story_dragging")
+      card.style.removeProperty("--reading-story-drag")
+      if (!vertical) return
+      suppressClick = Math.abs(distance) > 12
+      if (distance <= -32) this.setCurrentStoryCollapsed(true)
+      if (distance >= 32) this.setCurrentStoryCollapsed(false)
+    }
+
+    card.addEventListener("pointerdown", (event) => {
+      if (!event.isPrimary || event.button !== 0) return
+      if ((event.target as Element | null)?.closest(
+        "a, button, input, select, textarea"
+      )) return
+      pointerId = event.pointerId
+      startX = event.clientX
+      startY = event.clientY
+      vertical = false
+      card.setPointerCapture(event.pointerId)
+    })
+    card.addEventListener("pointermove", (event) => {
+      if (event.pointerId !== pointerId) return
+      const distanceX = event.clientX - startX
+      const distanceY = event.clientY - startY
+      if (!vertical && Math.max(Math.abs(distanceX), Math.abs(distanceY)) < 8) {
+        return
+      }
+      if (!vertical && Math.abs(distanceX) >= Math.abs(distanceY)) {
+        pointerId = null
+        return
+      }
+      vertical = true
+      event.preventDefault()
+      const drag = Math.max(-40, Math.min(40, distanceY))
+      card.classList.add("reading_story_dragging")
+      card.style.setProperty("--reading-story-drag", `${drag}px`)
+    })
+    card.addEventListener("pointerup", finish)
+    card.addEventListener("pointercancel", finish)
+    card.addEventListener("click", (event) => {
+      if (!suppressClick) return
+      suppressClick = false
+      event.preventDefault()
+      event.stopPropagation()
+    }, true)
+  }
+
+  private setCurrentStoryCollapsed(collapsed: boolean): void {
+    if (this.currentStoryCollapsed === collapsed) return
+    const card = required("#reading_current_card")
+    const startHeight = card.getBoundingClientRect().height
+    this.currentStoryCollapsed = collapsed
+    this.renderCurrentStoryCollapse()
+    const endHeight = card.getBoundingClientRect().height
+    if (startHeight === endHeight ||
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      void this.updateBounds()
+      return
+    }
+
+    card.style.height = `${startHeight}px`
+    card.classList.add("reading_story_resizing")
+    void card.offsetHeight
+    requestAnimationFrame(() => {
+      card.style.height = `${endHeight}px`
+    })
+    card.addEventListener("transitionend", (event) => {
+      if (event.propertyName !== "height") return
+      card.classList.remove("reading_story_resizing")
+      card.style.removeProperty("height")
+      void this.updateBounds()
+    }, { once: true })
+  }
+
+  private renderCurrentStoryCollapse(): void {
+    const card = required("#reading_current_card")
+    const button = required<HTMLButtonElement>("#reading_story_collapse")
+    card.classList.toggle(
+      "reading_story_collapsed",
+      this.currentStoryCollapsed
+    )
+    button.textContent = this.currentStoryCollapsed ? "⌄" : "⌃"
+    button.setAttribute("aria-expanded", String(!this.currentStoryCollapsed))
+    button.setAttribute(
+      "aria-label",
+      this.currentStoryCollapsed
+        ? "Expand current story"
+        : "Collapse current story"
+    )
   }
 
   private observeCurrentStory(row: StoryListItem | null): void {
@@ -349,7 +460,9 @@ export class MobileReadingController {
       }
     }
     if (generation !== this.surfaceGeneration) return
-    await this.surface.setVisible(this.activePanel === "reading")
+    await this.surface.setVisible(
+      this.activePanel === "reading" && !this.storyMenuOpen
+    )
     document.body.classList.toggle(
       "once-native-reading-surface",
       this.surface.available
@@ -366,7 +479,8 @@ export class MobileReadingController {
     const state = this.session.snapshot()
     const visible = this.activePanel === "reading" &&
       Boolean(state.currentUrl) &&
-      state.mode !== "reader"
+      state.mode !== "reader" &&
+      !this.storyMenuOpen
     await this.enqueueSurface(async () => {
       if (!this.browserOpened) return
       await this.surface.setVisible(visible)
@@ -394,8 +508,14 @@ export class MobileReadingController {
     this.observeCurrentStory(matchingStory)
     const displayedStory = matchingStory?.story ?? story
     const currentCard = required("#reading_current_card")
+    const storyHref = displayedStory?.href ?? ""
+    if (storyHref !== this.currentCardStoryHref) {
+      this.currentCardStoryHref = storyHref
+      this.currentStoryCollapsed = false
+    }
     currentCard.hidden = matchingStory == null
     currentCard.classList.toggle("stared", Boolean(displayedStory?.stared))
+    this.renderCurrentStoryCollapse()
     const title = required<HTMLAnchorElement>("#reading_title")
     title.textContent = displayedStory?.title ?? "Reading"
     title.href = displayedStory?.href ?? ""

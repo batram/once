@@ -430,6 +430,15 @@ export class StoryListItem extends HTMLElement {
     openStoryUrl(this.story.href, "_self", false)
   }
 
+  openComments(): void {
+    const commentsUrl = this.story.comment_url
+    if (!commentsUrl) return
+    this.read_btn.classList.add("user_interaction")
+    if (!requestReading(this.story, "comments")) {
+      openStoryUrl(commentsUrl, "_self", false)
+    }
+  }
+
   toggleReadState(): void {
     this.read_btn.classList.add("user_interaction")
     const oldState = this.story.read_state
@@ -747,8 +756,10 @@ export class StoryListItem extends HTMLElement {
     const commentsUrl = sub_story_ob.comment_url || this.story.href
     bindLinkBehavior(comments_link, {
       onClick: () => {
-        this.read_btn.classList.add("user_interaction")
-        if (!requestReading(this.story, "comments")) {
+        if (commentsUrl === this.story.comment_url) {
+          this.openComments()
+        } else {
+          this.read_btn.classList.add("user_interaction")
           openStoryUrl(commentsUrl, "_self", false)
         }
       },

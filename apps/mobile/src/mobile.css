@@ -261,7 +261,10 @@ body[data-platform="mobile"] .story .menu_btn {
   box-sizing: border-box;
   width: 28px;
   height: 28px;
+  min-width: 0;
+  min-height: 0;
   margin: 0;
+  padding: 0;
   border: var(--m-bw) solid var(--border-color);
   border-radius: var(--m-radius);
   color: var(--text-color);
@@ -665,6 +668,63 @@ body[data-platform="mobile"] #reading_error {
 body[data-platform="mobile"] #reading_current_card {
   flex: 0 0 auto;
   margin-top: 0;
+  touch-action: none;
+  transform: translateY(var(--reading-story-drag, 0));
+}
+
+body[data-platform="mobile"] #reading_current_card.reading_story_dragging {
+  transition: none;
+}
+
+body[data-platform="mobile"] #reading_current_card.reading_story_resizing {
+  box-sizing: border-box;
+  overflow: hidden;
+  transition: height 160ms ease;
+}
+
+body[data-platform="mobile"] #reading_current_card .reading_story_control {
+  display: grid;
+  place-items: center;
+  position: absolute;
+  right: 36px;
+  bottom: var(--m-sp-1);
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: var(--m-bw) solid var(--border-color);
+  border-radius: var(--m-radius);
+  color: var(--text-color);
+  background: var(--main-bg-color);
+  font-size: 18px;
+  line-height: 1;
+}
+
+body[data-platform="mobile"] #reading_current_card #reading_story_meta,
+body[data-platform="mobile"] #reading_current_card .tags_container {
+  padding-right: 68px;
+}
+
+body[data-platform="mobile"]
+  #reading_current_card.reading_story_collapsed
+  #reading_type,
+body[data-platform="mobile"]
+  #reading_current_card.reading_story_collapsed
+  #reading_story_time,
+body[data-platform="mobile"]
+  #reading_current_card.reading_story_collapsed
+  #reading_story_tags {
+  display: none;
+}
+
+body[data-platform="mobile"]
+  #reading_current_card.reading_story_collapsed
+  #reading_story_meta {
+  min-height: 28px;
+  margin-top: var(--m-sp-1);
 }
 
 /* `.story` sets display:flex, which otherwise overrides the HTML hidden

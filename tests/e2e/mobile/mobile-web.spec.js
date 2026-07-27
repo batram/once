@@ -322,6 +322,7 @@ test("the ⋮ button opens the story menu anchored above the tab bar", async ({ 
   await story.getByTestId("story-menu-button").click()
   const menu = page.getByTestId("story-menu")
   await expect(menu).toBeVisible()
+  await expect(page.getByTestId("story-menu-open-comments")).toBeVisible()
   await expect(page.getByTestId("story-menu-open-browser")).toBeVisible()
   await expect(page.getByTestId("story-menu-open-reader")).toBeVisible()
   // Tab-target actions belong to desktop only.
@@ -588,19 +589,67 @@ test("the default open swipe uses the in-app reading view", async ({ page }) => 
 })
 
 test("the current Reading story reflects bookmark changes", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 720 })
   const story = await seedFixtureStories(page)
   await openStoryMenu(page, story)
   await page.getByTestId("story-menu-open").click()
 
   const currentCard = page.getByTestId("reading-current-card")
+  const collapse = page.getByTestId("reading-story-collapse")
   await expect(currentCard).toBeVisible()
   await page.locator("#reading_story_menu").click()
+  await expect(page.getByTestId("story-menu")).toBeVisible()
   await page.getByTestId("story-menu-toggle-bookmark").click()
 
   await expect(currentCard).toHaveClass(/\bstared\b/)
   await page.locator("#reading_story_menu").click()
   await expect(page.getByTestId("story-menu-toggle-bookmark"))
     .toHaveText("Remove bookmark")
+  await page.getByTestId("story-menu-backdrop").click({ position: { x: 5, y: 5 } })
+
+  await expect(collapse).toHaveAttribute("aria-expanded", "true")
+  await collapse.click()
+  await expect(currentCard).toHaveClass(/\breading_story_collapsed\b/)
+  await expect(collapse).toHaveAttribute("aria-expanded", "false")
+  await expect(page.locator("#reading_comments")).toBeVisible()
+  await expect(page.locator("#reading_type")).toBeHidden()
+  await expect(page.locator("#reading_story_time")).toBeHidden()
+  await expect(page.locator("#reading_story_tags")).toBeHidden()
+
+  const geometry = await currentCard.evaluate((card) => {
+    const collapseButton = card.querySelector("#reading_story_collapse")
+      .getBoundingClientRect()
+    const menuButton = card.querySelector("#reading_story_menu")
+      .getBoundingClientRect()
+    const comments = card.querySelector("#reading_comments")
+      .getBoundingClientRect()
+    return {
+      collapseSize: [collapseButton.width, collapseButton.height],
+      menuSize: [menuButton.width, menuButton.height],
+      controlsGap: menuButton.left - collapseButton.right,
+      commentsClearControls: comments.right <= collapseButton.left
+    }
+  })
+  expect(geometry.collapseSize).toEqual([28, 28])
+  expect(geometry.menuSize).toEqual([28, 28])
+  expect(geometry.controlsGap).toBe(4)
+  expect(geometry.commentsClearControls).toBe(true)
+
+  await page.locator("#reading_comments").click()
+  await expect(page.locator("#reading_content")).toHaveAttribute(
+    "data-mode",
+    "comments"
+  )
+  await expect(currentCard).toHaveClass(/\breading_story_collapsed\b/)
+
+  await collapse.click()
+  await expect(currentCard).not.toHaveClass(/\breading_story_collapsed\b/)
+  const box = await currentCard.boundingBox()
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width / 2, box.y + 4, { steps: 4 })
+  await page.mouse.up()
+  await expect(currentCard).toHaveClass(/\breading_story_collapsed\b/)
 })
 
 // The gesture is measured from where the finger went down, not from the first

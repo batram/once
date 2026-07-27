@@ -47,6 +47,7 @@ test("installs with Firefox's menus namespace when contextMenus is absent", asyn
   await new Promise((resolve) => setImmediate(resolve))
 
   assert.equal(removeAllCalls, 1)
+  assert.ok(created.some((item) => item.id === "once_story_open-comments"))
   assert.ok(created.some((item) => item.id === "once_story_undo"))
   assert.ok(created.every((item) =>
     item.documentUrlPatterns[0].startsWith("moz-extension://once/")
