@@ -313,21 +313,29 @@
                   Open a story or enter a URL above to start reading.
                 </p>
               </div>
-              <button type="button" id="reading_tts_start" data-testid="reading-tts-start"
-                aria-label="Read aloud" hidden>▶ <span>Read aloud</span></button>
-              <div id="reader_tts_pill" role="group" aria-label="Text to speech" hidden>
-                <button type="button" data-host-tts="prev" aria-label="Previous segment">‹</button>
-                <button type="button" data-host-tts="play" aria-label="Play article">▶</button>
-                <button type="button" data-host-tts="next" aria-label="Next segment">›</button>
+              <div id="reader_tts_pill" data-testid="reader-tts-bar"
+                role="group" aria-label="Text to speech" hidden>
+                <button type="button" data-host-tts="prev"
+                  aria-label="Previous segment">|◀</button>
+                <button type="button" class="reader_tts_play" data-host-tts="play"
+                  aria-label="Play article">▶</button>
+                <button type="button" data-host-tts="next"
+                  aria-label="Next segment">▶|</button>
+                <button type="button" data-host-tts="stop"
+                  aria-label="Stop reading">■</button>
                 <details id="reader_tts_settings">
                   <summary><span id="reader_tts_rate_label">1.0×</span></summary>
-                  <label>
-                    Voice
-                    <select id="reader_tts_voice"><option value="">Default voice</option></select>
-                  </label>
-                  <div id="reader_tts_rates" aria-label="Speech rate"></div>
+                  <div class="reader_tts_settings_menu">
+                    <label>
+                      Voice
+                      <select id="reader_tts_voice"><option value="">Default voice</option></select>
+                    </label>
+                    <div class="reader_tts_rate_setting">
+                      <span>Speed</span>
+                      <div id="reader_tts_rates" aria-label="Speech rate"></div>
+                    </div>
+                  </div>
                 </details>
-                <button type="button" data-host-tts="close" aria-label="Dismiss speech controls">×</button>
               </div>
             </div>
           </div>

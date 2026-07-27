@@ -29,14 +29,13 @@ function loadControls(document) {
   return moduleObject.exports.installReaderTtsControls
 }
 
-test("host TTS controls reset completely when Reader mode ends", () => {
+test("host TTS bar is the single control surface in Reader mode", () => {
   const { document } = parseHTML(`
-    <button id="reading_tts_start" hidden></button>
     <div id="reader_tts_pill" hidden>
       <button data-host-tts="prev"></button>
       <button data-host-tts="play"></button>
       <button data-host-tts="next"></button>
-      <button data-host-tts="close"></button>
+      <button data-host-tts="stop"></button>
       <details id="reader_tts_settings" open></details>
       <span id="reader_tts_rate_label"></span>
       <select id="reader_tts_voice"></select>
@@ -49,19 +48,20 @@ test("host TTS controls reset completely when Reader mode ends", () => {
     subscribe: () => () => undefined
   }
   const controls = loadControls(document)(controller)
-  const start = document.querySelector("#reading_tts_start")
   const pill = document.querySelector("#reader_tts_pill")
   const settings = document.querySelector("#reader_tts_settings")
 
   controls.setReaderMode(true)
-  assert.equal(start.hidden, false)
-  start.click()
-  assert.equal(start.hidden, true)
   assert.equal(pill.hidden, false)
+  document.querySelector('[data-host-tts="play"]').click()
+  document.querySelector('[data-host-tts="stop"]').click()
+  assert.deepEqual(sent.slice(-2), [
+    { type: "ui-play-toggle" },
+    { type: "ui-stop" }
+  ])
 
   controls.setReaderMode(false)
   assert.equal(pill.hidden, true)
-  assert.equal(start.hidden, true)
   assert.equal(settings.open, false)
   assert.deepEqual(sent.at(-1), { type: "ui-stop" })
 })

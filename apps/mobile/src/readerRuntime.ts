@@ -18,7 +18,10 @@ window.addEventListener("message", (event) => {
   ) return
   controlListeners.forEach((listener) => listener(event.data))
 })
-document.querySelector<HTMLElement>(".tts-controls")?.setAttribute("hidden", "")
+// Mobile owns navigation and speech controls outside the sandboxed document.
+// Hide the legacy reader header as a unit so its duplicate TTS controls and
+// Original link do not consume article space.
+document.querySelector<HTMLElement>(".toolbar")?.setAttribute("hidden", "")
 installReaderTts({
   onStateChange(state) {
     window.parent.postMessage({

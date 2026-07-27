@@ -683,20 +683,6 @@ body[data-platform="mobile"] #reading_comments {
   color: inherit;
 }
 
-body[data-platform="mobile"] #reading_tts_start {
-  position: absolute;
-  z-index: 4;
-  right: var(--m-sp-4);
-  bottom: var(--m-sp-4);
-  min-height: var(--m-touch);
-  margin: 0;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 18%);
-}
-
-body[data-platform="mobile"] #reading_tts_start[hidden] {
-  display: none;
-}
-
 body[data-platform="mobile"] #reading_content {
   position: relative;
   flex: 1 1 auto;
@@ -730,20 +716,20 @@ body[data-platform="mobile"] #reading_content .once-reader-host-close {
 }
 
 body[data-platform="mobile"] #reader_tts_pill {
-  position: absolute;
-  z-index: 4;
-  right: var(--m-sp-3);
-  bottom: var(--m-sp-3);
-  left: var(--m-sp-3);
+  position: relative;
+  z-index: 2;
   display: flex;
+  flex: 0 0 auto;
   min-height: var(--m-touch);
   align-items: center;
   justify-content: center;
-  gap: var(--m-sp-1);
-  padding: var(--m-sp-1);
-  border: var(--m-bw) solid var(--m-ink);
-  border-radius: 999px;
-  background: var(--main-bg-color);
+  gap: var(--m-sp-2);
+  box-sizing: border-box;
+  padding: var(--m-sp-1) var(--m-sp-2);
+  border: 0;
+  border-top: var(--m-bw) solid var(--m-ink);
+  background: var(--m-card-bg);
+  box-shadow: 0 -2px 8px rgb(0 0 0 / 10%);
 }
 
 body[data-platform="mobile"] #reader_tts_pill[hidden] {
@@ -752,37 +738,86 @@ body[data-platform="mobile"] #reader_tts_pill[hidden] {
 
 body[data-platform="mobile"] #reader_tts_pill > button,
 body[data-platform="mobile"] #reader_tts_pill summary {
-  min-width: var(--m-touch);
-  min-height: var(--m-touch);
-  margin: 0;
-  padding: 0 var(--m-sp-2);
-  border: 0;
-  background: transparent;
   display: grid;
   place-items: center;
+  min-width: 40px;
+  min-height: var(--m-touch);
+  margin: 0;
+  padding: 0 var(--m-sp-1);
+  border: 0;
+  border-radius: var(--m-radius);
+  background: transparent;
+  font-family: var(--m-sans);
+  font-size: var(--m-fs-body);
+}
+
+body[data-platform="mobile"] #reader_tts_pill > button:active,
+body[data-platform="mobile"] #reader_tts_pill summary:active {
+  background: var(--m-pressed-bg);
+}
+
+body[data-platform="mobile"] #reader_tts_pill .reader_tts_play {
+  border-radius: 50%;
+  color: var(--text-high-color);
+  background: var(--m-accent-bg);
 }
 
 body[data-platform="mobile"] #reader_tts_settings {
   position: relative;
 }
 
-body[data-platform="mobile"] #reader_tts_settings > div,
-body[data-platform="mobile"] #reader_tts_settings > label {
+body[data-platform="mobile"] #reader_tts_settings summary {
+  list-style: none;
+  font-variant-numeric: tabular-nums;
+}
+
+body[data-platform="mobile"] #reader_tts_settings summary::-webkit-details-marker {
+  display: none;
+}
+
+body[data-platform="mobile"] .reader_tts_settings_menu {
   position: fixed;
   z-index: 5;
   right: var(--m-sp-4);
-  bottom: calc(var(--m-tabbar-h) + 72px);
+  bottom: calc(var(--m-tabbar-h) + 60px);
   left: var(--m-sp-4);
   box-sizing: border-box;
+  display: grid;
+  gap: var(--m-sp-3);
   padding: var(--m-sp-3);
   border: var(--m-bw) solid var(--m-ink);
+  border-radius: var(--m-radius);
   background: var(--main-bg-color);
+  box-shadow: 0 4px 18px rgb(0 0 0 / 24%);
+  font-family: var(--m-sans);
+  font-size: var(--m-fs-body);
+}
+
+body[data-platform="mobile"] .reader_tts_settings_menu label {
+  display: grid;
+  gap: var(--m-sp-1);
+}
+
+body[data-platform="mobile"] #reader_tts_voice {
+  width: 100%;
 }
 
 body[data-platform="mobile"] #reader_tts_rates {
   display: flex;
-  bottom: calc(var(--m-tabbar-h) + 132px);
   gap: var(--m-sp-1);
+}
+
+body[data-platform="mobile"] .reader_tts_rate_setting {
+  display: grid;
+  gap: var(--m-sp-1);
+}
+
+body[data-platform="mobile"] #reader_tts_rates button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 36px;
+  margin: 0;
+  padding: 0 var(--m-sp-1);
 }
 
 /* ---------- Settings panel ---------- */

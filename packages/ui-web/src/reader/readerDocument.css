@@ -71,6 +71,7 @@ ul { margin: 5px; padding: 0 25px; }
   background: color-mix(in srgb, var(--reader-bg) 94%, var(--reader-text));
   border-bottom: 1px solid var(--reader-border);
 }
+.toolbar[hidden] { display: none; }
 .reader-original {
   flex: 0 0 auto;
   padding: 4px 10px;

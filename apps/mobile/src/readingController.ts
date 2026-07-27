@@ -415,9 +415,6 @@ export class MobileReadingController {
     )
     required<HTMLButtonElement>("#reading_comments").hidden =
       matchingStory == null || !displayedStory?.comment_url
-    required<HTMLButtonElement>("#reading_tts_start").hidden =
-      state.mode !== "reader" ||
-      !required<HTMLDivElement>("#reader_tts_pill").hidden
     this.ttsControls.setReaderMode(
       this.activePanel === "reading" &&
       state.mode === "reader" &&

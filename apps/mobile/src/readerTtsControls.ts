@@ -13,26 +13,15 @@ export function installReaderTtsControls(
   const voice = required<HTMLSelectElement>("#reader_tts_voice")
   const rates = required("#reader_tts_rates")
 
-  const showAndPlay = (): void => {
-    pill.hidden = false
-    required<HTMLButtonElement>("#reading_tts_start").hidden = true
+  play.onclick = (): void => {
     controller.send({ type: "ui-play-toggle" })
   }
-  required<HTMLButtonElement>("#reading_tts_start").onclick = showAndPlay
-  play.onclick = showAndPlay
   required<HTMLButtonElement>('[data-host-tts="prev"]').onclick = () =>
     controller.send({ type: "ui-prev" })
   required<HTMLButtonElement>('[data-host-tts="next"]').onclick = () =>
     controller.send({ type: "ui-next" })
-  const dismiss = (): void => {
+  required<HTMLButtonElement>('[data-host-tts="stop"]').onclick = () =>
     controller.send({ type: "ui-stop" })
-    pill.hidden = true
-    required<HTMLDetailsElement>("#reader_tts_settings").open = false
-  }
-  required<HTMLButtonElement>('[data-host-tts="close"]').onclick = () => {
-    dismiss()
-    required<HTMLButtonElement>("#reading_tts_start").hidden = false
-  }
   voice.onchange = () =>
     controller.send({ type: "ui-set-voice", voice: voice.value })
 
@@ -63,17 +52,20 @@ export function installReaderTtsControls(
   })
 
   let readerMode = false
+  const leaveReaderMode = (): void => {
+    controller.send({ type: "ui-stop" })
+    pill.hidden = true
+    required<HTMLDetailsElement>("#reader_tts_settings").open = false
+  }
   return {
     setReaderMode(active) {
-      if (readerMode && !active) dismiss()
+      if (readerMode && !active) leaveReaderMode()
       readerMode = active
-      required<HTMLButtonElement>("#reading_tts_start").hidden =
-        !active || !pill.hidden
+      pill.hidden = !active
     },
     dismiss() {
       readerMode = false
-      dismiss()
-      required<HTMLButtonElement>("#reading_tts_start").hidden = true
+      leaveReaderMode()
     }
   }
 }
