@@ -1,7 +1,7 @@
 export const options = {
   type: "re",
   description:
-    "Collect stories from HackerNews (https://old.reddit.com/) by parsing json of subreddits",
+    "Collect stories from Reddit (https://old.reddit.com/) by parsing JSON from subreddits",
   pattern: "https://old.reddit.com/*.json",
   collects: "json",
   colors: ["#cee3f8", "black"],
