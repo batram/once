@@ -63,7 +63,8 @@ async function startMobileApp(): Promise<void> {
   if (__ONCE_MOBILE_E2E__) {
     // Lets the e2e suite await queued story saves instead of pausing blindly.
     ;(window as { __onceE2E__?: unknown }).__onceE2E__ = {
-      settledStoryWrites: () => app.client.settledStoryWrites()
+      settledStoryWrites: () => app.client.settledStoryWrites(),
+      handleBack: () => reading.handleBack()
     }
   }
   document.body.dataset.onceStage = "ready"

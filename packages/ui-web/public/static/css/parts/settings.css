@@ -4,14 +4,17 @@
   overflow-x: hidden;
   flex-direction: column;
   display: none;
+  container-name: settings-panel;
+  container-type: inline-size;
 }
 
 #settings_panel .bar {
   height: 28px;
+  align-items: center;
+  justify-content: flex-start;
 }
 #settings_panel .settings_title {
   font-size: 13px;
-  margin-top: 7px;
 }
 
 .settings_container {
@@ -46,13 +49,20 @@
 
 .settings_section_row {
   display: flex;
+  box-sizing: border-box;
+  width: 100%;
   min-height: 40px;
+  margin: 0;
+  padding: 6px;
   align-items: center;
   justify-content: space-between;
   border: 0;
   border-bottom: 1px solid var(--sep-color);
+  border-radius: 0;
   color: inherit;
   background: transparent;
+  cursor: pointer;
+  font: inherit;
   text-align: left;
 }
 
@@ -124,7 +134,18 @@
 }
 
 #settings_section_back {
+  display: none;
   margin-left: auto;
+}
+
+@container settings-panel (max-width: 760px) {
+  #settings_panel.settings_detail_open #settings_index {
+    display: none;
+  }
+
+  #settings_panel.settings_detail_open #settings_section_back {
+    display: inline-block;
+  }
 }
 
 #settings_panel .settings_version {

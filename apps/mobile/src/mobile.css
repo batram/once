@@ -880,6 +880,10 @@ body[data-platform="mobile"] #settings_section_back {
   border: 0;
 }
 
+body[data-platform="mobile"] #settings_panel.settings_detail_open #settings_section_back {
+  display: inline-block;
+}
+
 body[data-platform="mobile"] .input_container {
   width: 100%;
   border-width: var(--m-bw);

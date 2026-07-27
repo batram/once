@@ -21,7 +21,15 @@ test.afterAll(async () => {
 test("searches settings content without changing the open detail", async () => {
   const { electronApp, userData, window } = await launchApp()
   try {
+    await window.locator("#left_panel").evaluate((panel) => {
+      panel.style.flex = "0 0 900px"
+    })
+    await expect.poll(() => window.locator("#left_main").evaluate(
+      (panel) => panel.getBoundingClientRect().width
+    )).toBeGreaterThan(760)
+
     await window.getByTestId("settings-menu").click()
+    await window.locator('[data-settings-target="sources"]').click()
     const search = window.locator("#settings_search")
     const sources = window.locator("#sources_area")
     const rows = window.locator(".settings_section_row")
@@ -126,6 +134,30 @@ test("searches settings content without changing the open detail", async () => {
     await expect(window.locator("#couch_input")).toHaveValue(
       "https://user:settings-search-secret@example.test/db"
     )
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
+test("settings menu always resets to a clean section index", async () => {
+  const { electronApp, userData, window } = await launchApp()
+  try {
+    await window.getByTestId("settings-menu").click()
+    await window.locator("#settings_search").fill("two-stage")
+    await window.locator('[data-settings-target="swipe"]').click()
+    await window.getByTestId("stories-menu").click()
+
+    await window.getByTestId("settings-menu").click()
+
+    await expect(window.locator("#settings_panel")).not.toHaveClass(
+      /\bsettings_detail_open\b/
+    )
+    await expect(window.locator(".settings_section.active")).toHaveCount(0)
+    await expect(window.locator("#settings_search")).toHaveValue("")
+    await expect(window.locator(".settings_section_row")).toHaveCount(9)
+    await expect(window.locator(".settings_section_row").filter({
+      visible: true
+    })).toHaveCount(9)
   } finally {
     await closeApp(electronApp, userData)
   }

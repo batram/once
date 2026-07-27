@@ -19,6 +19,7 @@ export class MobileReadingController {
   readonly session = new ReadingSession()
   private readonly content: HTMLElement
   private activePanel = "stories"
+  private settingsReturnPanel: "stories" | "reading" = "stories"
   private removers: Array<() => void> = []
   private browserOpened = false
   private browserUrl = ""
@@ -109,6 +110,16 @@ export class MobileReadingController {
   }
 
   async handleBack(): Promise<boolean> {
+    if (this.activePanel === "settings") {
+      const settingsPanel = document.querySelector<HTMLElement>("#settings_panel")
+      if (settingsPanel?.classList.contains("settings_detail_open")) {
+        document.querySelector<HTMLButtonElement>("#settings_section_back")?.click()
+        return true
+      }
+      Menu.open_panel(this.settingsReturnPanel)
+      return true
+    }
+
     const state = this.session.snapshot()
     if (!state.story && !state.currentUrl) return false
     if (state.mode !== "reader" && state.canGoBack) {
@@ -143,7 +154,13 @@ export class MobileReadingController {
     })
     document.addEventListener("once-panel-changed", (rawEvent) => {
       const event = rawEvent as CustomEvent<{ panel: string }>
-      this.activePanel = event.detail.panel
+      const nextPanel = event.detail.panel
+      if (nextPanel === "settings" && this.activePanel !== "settings") {
+        this.settingsReturnPanel = this.activePanel === "reading"
+          ? "reading"
+          : "stories"
+      }
+      this.activePanel = nextPanel
       const state = this.session.snapshot()
       this.ttsControls.setReaderMode(
         this.activePanel === "reading" &&

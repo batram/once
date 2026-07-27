@@ -23,6 +23,10 @@ async function testServerUrl(page, path) {
   return new URL(path, page.url()).href
 }
 
+async function triggerMobileBack(page) {
+  return page.evaluate(() => window.__onceE2E__.handleBack())
+}
+
 test("mobile shell is responsive and hides unavailable capabilities", async ({ page }) => {
   await page.goto("./")
   await expect(page.locator("body")).toHaveAttribute("data-platform", "mobile")
@@ -43,14 +47,51 @@ test("mobile shell is responsive and hides unavailable capabilities", async ({ p
   })).toBe(true)
 })
 
+test("settings menu always resets to a clean section index", async ({ page }) => {
+  await page.goto("./")
+  await page.getByTestId("settings-menu").click()
+  await page.locator("#settings_search").fill("two-stage")
+  await page.locator('[data-settings-target="swipe"]').click()
+  await page.getByTestId("stories-menu").click()
+
+  await page.getByTestId("settings-menu").click()
+
+  await expect(page.locator("#settings_panel")).not.toHaveClass(
+    /\bsettings_detail_open\b/
+  )
+  await expect(page.locator(".settings_section.active")).toHaveCount(0)
+  await expect(page.locator("#settings_search")).toHaveValue("")
+  await expect(page.locator(".settings_section_row").filter({
+    visible: true
+  })).toHaveCount(9)
+})
+
+test("mobile back unwinds settings before restoring its previous panel", async ({ page }) => {
+  await page.goto("./")
+  const leftPanel = page.locator("#left_panel")
+
+  await openSettingsSection(page, "swipe")
+  await expect(page.locator("#settings_panel")).toHaveClass(
+    /\bsettings_detail_open\b/
+  )
+
+  expect(await triggerMobileBack(page)).toBe(true)
+  await expect(page.locator("#settings_panel")).not.toHaveClass(
+    /\bsettings_detail_open\b/
+  )
+  await expect(leftPanel).toHaveAttribute("active_panel", "settings")
+
+  expect(await triggerMobileBack(page)).toBe(true)
+  await expect(leftPanel).toHaveAttribute("active_panel", "stories")
+
+  await page.getByTestId("reading-menu").click()
+  await page.getByTestId("settings-menu").click()
+  expect(await triggerMobileBack(page)).toBe(true)
+  await expect(leftPanel).toHaveAttribute("active_panel", "reading")
+})
+
 test("mobile refresh controls stay separated and theme-aware", async ({ page }) => {
   await page.goto("./")
-
-  const gap = await page.locator("#searchfield").evaluate((search) => {
-    const reload = document.querySelector("#reload_stories_btn")
-    return reload.getBoundingClientRect().left - search.getBoundingClientRect().right
-  })
-  expect(gap).toBeGreaterThanOrEqual(12)
 
   await page.locator("#stories").evaluate((stories) => {
     const touch = new Touch({

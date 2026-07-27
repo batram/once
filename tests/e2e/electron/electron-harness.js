@@ -226,7 +226,16 @@ async function openPanel(window, panel) {
 
 async function openSettingsSection(window, target, controlSelector) {
   await openPanel(window, "settings")
-  await window.locator(`[data-settings-target="${target}"]`).click({
+  const row = window.locator(`[data-settings-target="${target}"]`)
+  if (!(await row.isVisible())) {
+    const back = window.locator("#settings_section_back")
+    await expect(
+      back,
+      "settings index was hidden but its back button was not visible"
+    ).toBeVisible({ timeout: 5_000 })
+    await back.click()
+  }
+  await row.click({
     timeout: 5_000
   })
   const section = window.locator(

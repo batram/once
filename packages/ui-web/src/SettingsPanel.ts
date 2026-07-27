@@ -470,6 +470,9 @@ export class SettingsPanel {
       characterData: true
     })
     back.onclick = () => this.closeSettingsSection()
+    document.addEventListener("once-settings-index-requested", () => {
+      this.showSettingsIndex()
+    })
     if (document.body.dataset.platform !== "mobile") {
       this.openSettingsSection("sources")
     }
@@ -588,10 +591,21 @@ export class SettingsPanel {
   private closeSettingsSection(): void {
     const previous = this.activeSettingsSection
     this.activeSettingsSection = null
+    document.querySelectorAll<HTMLElement>(".settings_section").forEach((section) => {
+      section.classList.remove("active")
+    })
     requireElement("#settings_panel").classList.remove("settings_detail_open")
     requireElement<HTMLButtonElement>("#settings_section_back").hidden = true
     requireElement("#settings_panel .settings_title").textContent = "Settings"
     if (previous) this.settingsSectionButtons.get(previous)?.focus()
+  }
+
+  private showSettingsIndex(): void {
+    this.closeSettingsSection()
+    const search = requireElement<HTMLInputElement>("#settings_search")
+    search.value = ""
+    this.filterSettingsSections("")
+    requireElement<HTMLElement>("#settings_index").scrollTop = 0
   }
 
   showErrorLog(logId: string): void {

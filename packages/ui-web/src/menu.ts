@@ -107,8 +107,14 @@ export function init(client?: OnceClient): void {
   }
 
   document.querySelectorAll<HTMLElement>("#menu .sub").forEach((sub_menu) => {
-    sub_menu.onclick = () => {
-      open_panel(panelFor(sub_menu))
+    sub_menu.onclick = (event) => {
+      const panel = panelFor(sub_menu)
+      const clickedStatus = event.target instanceof Element &&
+        event.target.closest("#status_dock")
+      if (panel === "settings" && !clickedStatus) {
+        document.dispatchEvent(new CustomEvent("once-settings-index-requested"))
+      }
+      open_panel(panel)
     }
     sub_menu.querySelectorAll("img").forEach((x) => {
       x.setAttribute("draggable", "false")
