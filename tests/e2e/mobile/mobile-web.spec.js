@@ -588,6 +588,28 @@ test("the default open swipe uses the in-app reading view", async ({ page }) => 
   )
 })
 
+test("a redirected story remains matched in the Reading view", async ({ page }) => {
+  const story = await seedFixtureStories(page)
+  const redirectedUrl = await testServerUrl(
+    page,
+    "/fixtures/articles/redirected.html"
+  )
+
+  await openSettingsSection(page, "redirects")
+  await page.getByTestId("redirects").fill(
+    `${await testServerUrl(page, "/fixtures/article.html")} => ${redirectedUrl}`
+  )
+  await page.getByTestId("save-redirects").click()
+  await page.getByTestId("stories-menu").click()
+
+  const title = story.getByTestId("story-title")
+  await expect(title).toHaveAttribute("href", redirectedUrl)
+  await title.click()
+
+  await expect(page.locator("#reading_url")).toHaveValue(redirectedUrl)
+  await expect(page.getByTestId("reading-current-card")).toBeVisible()
+})
+
 test("the current Reading story reflects bookmark changes", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 720 })
   const story = await seedFixtureStories(page)

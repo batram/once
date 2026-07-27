@@ -489,8 +489,14 @@ export class MobileReadingController {
     this.content.dataset.loadState = state.loadState
     this.content.dataset.navigationId = String(state.navigationId)
     required("#reading_empty").hidden = state.currentUrl !== ""
+    const redirectedStoryUrl = story
+      ? URLRedirect.redirect_url(story.href)
+      : ""
     const isStoryPage = story != null &&
-      (state.currentUrl === story.href || state.currentUrl === story.comment_url)
+      (
+        state.currentUrl === redirectedStoryUrl ||
+        state.currentUrl === story.comment_url
+      )
     const matchingStory = isStoryPage ? this.storyElement() : null
     this.observeCurrentStory(matchingStory)
     const displayedStory = matchingStory?.story ?? story
