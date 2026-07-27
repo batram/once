@@ -45,9 +45,10 @@ async function settledStoryWrites() {
   })
 }
 
-// The per-story action buttons are hidden on mobile; a long-press on the
-// story opens the anchored menu built from describeStoryMenu. The long-press
-// detector listens for pointer events in the page, so drive it with
+// The per-story action buttons are hidden on mobile; a long-press on the story
+// opens the menu built from describeStoryMenu. Installed apps present it
+// natively, while the web harness retains the DOM anchored-menu fallback. The
+// long-press detector listens for pointer events in the page, so drive it with
 // synthesized PointerEvents (a real webdriver long-press would trigger the OS
 // context menu / text selection instead on some platforms).
 // `action` is a StoryMenuActionId, e.g. "open-reader" or "toggle-read".
@@ -69,6 +70,13 @@ async function storyMenuAction(story, action, platform) {
       pointerId: 1, pointerType: "touch", button: 0
     }))
   }, target)
+
+  if (platform === "ios" || platform === "android") {
+    await selectNativeStoryMenuAction(action, platform)
+    await switchToWebView()
+    return
+  }
+
   const row = await $(`[data-testid='story-menu-${action}']`)
   await row.waitForDisplayed({ timeout: 10_000 })
   // the menu suppresses taps for ~250ms after the finger lifts (so the
@@ -82,6 +90,42 @@ async function storyMenuAction(story, action, platform) {
       timeoutMsg: "Story menu did not close after tapping a row"
     }
   )
+}
+
+const nativeStoryMenuLabels = {
+  "open": ["Open story"],
+  "open-comments": ["Open comments"],
+  "open-browser": ["Open in browser"],
+  "open-reader": ["Open in reader"],
+  "toggle-read": ["Skip reading", "Mark as unread", "Unskip"],
+  "toggle-bookmark": ["Bookmark", "Remove bookmark"],
+  "filter": ["Filter source", "Edit filter"],
+  "search-domain": ["Search this domain"],
+  "copy-link": ["Copy link address"]
+}
+
+async function selectNativeStoryMenuAction(action, platform) {
+  const labels = nativeStoryMenuLabels[action]
+  if (!labels) throw new Error(`No native story-menu label for ${action}`)
+  await browser.switchContext("NATIVE_APP")
+  let row
+  await browser.waitUntil(async () => {
+    for (const label of labels) {
+      const selector = platform === "ios"
+        ? `-ios predicate string:name == "${label}"`
+        : `android=new UiSelector().text("${label}")`
+      const candidate = await $(selector)
+      if (await candidate.isDisplayed()) {
+        row = candidate
+        return true
+      }
+    }
+    return false
+  }, {
+    timeout: 10_000,
+    timeoutMsg: `Native story-menu action ${action} did not appear`
+  })
+  await row.click()
 }
 
 async function clickWeb(element, platform) {

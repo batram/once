@@ -282,8 +282,10 @@ export class MobileReadingController {
       const story = this.storyElement()
       if (!story) return
       const anchor = event.currentTarget as HTMLElement
-      this.storyMenuOpen = true
-      void this.enqueueSurface(() => this.surface.setVisible(false))
+      if (!this.surface.available) {
+        this.storyMenuOpen = true
+        void this.enqueueSurface(() => this.surface.setVisible(false))
+      }
       story.requestMenu(anchor)
     }
     document.addEventListener("once-story-menu-closed", () => {

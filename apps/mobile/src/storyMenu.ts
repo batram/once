@@ -3,15 +3,20 @@
  *
  * Two gestures reach the same menu at the same anchor: a tap on the row's ⋮
  * button, and a long-press anywhere else on the row. Both raise
- * StoryMenuRequestEvent from the row, and this module answers it by opening the
- * shared anchored menu, so all persistence stays in @once/ui-web.
+ * StoryMenuRequestEvent from the row, and this module answers it with the
+ * platform-native menu when available or the shared DOM menu in a web harness.
  */
 
+import type { InAppBrowserSurface } from "@once/platform-mobile"
 import {
+  describeStoryMenu,
+  executeStoryMenuAction,
+  getOnceClient,
   isStoryAnchoredMenuOpen,
   openStoryAnchoredMenu,
   STORY_MENU_REQUEST,
   StoryListItem,
+  StoryMenuActionId,
   StoryMenuRequestEvent
 } from "@once/ui-web"
 
@@ -19,6 +24,7 @@ const LONG_PRESS_MS = 500
 const MOVE_TOLERANCE_PX = 10
 /** Marks the row while the long-press builds; drives the progress line. */
 const PRESS_CLASS = "press_building"
+let nativeMenuOpen = false
 
 /** The tab bar is fixed to the bottom; the menu must never hide behind it. */
 function tabBarHeight(): number {
@@ -31,31 +37,104 @@ function buildChannel(): "release" | "dev" {
   return document.body.dataset.buildChannel === "dev" ? "dev" : "release"
 }
 
-export function installStoryMenu(): void {
+export function installStoryMenu(surface?: InAppBrowserSurface): void {
   document.addEventListener(STORY_MENU_REQUEST, (event) => {
     const request = event as StoryMenuRequestEvent
-    openStoryAnchoredMenu({
-      anchor: request.anchor,
-      bottomInset: tabBarHeight(),
-      context: {
-        platform: "mobile",
-        buildChannel: buildChannel(),
-        story: request.story
-      },
-      onClose: () => document.dispatchEvent(
-        new CustomEvent("once-story-menu-closed")
-      )
-    })
+    if (surface?.available) {
+      if (nativeMenuOpen) return
+      void openNativeStoryMenu(surface, request)
+      return
+    }
+    openDomStoryMenu(request)
   })
 
   installLongPress()
 
-  // Android fires contextmenu on long-press; the anchored menu replaces it.
+  // Android fires contextmenu on long-press; Once supplies the menu itself.
   document.addEventListener("contextmenu", (event) => {
     if ((event.target as Element | null)?.closest("story-item")) {
       event.preventDefault()
     }
   })
+}
+
+function openDomStoryMenu(request: StoryMenuRequestEvent): void {
+  openStoryAnchoredMenu({
+    anchor: request.anchor,
+    bottomInset: tabBarHeight(),
+    context: {
+      platform: "mobile",
+      buildChannel: buildChannel(),
+      story: request.story
+    },
+    onClose: notifyMenuClosed
+  })
+}
+
+async function openNativeStoryMenu(
+  surface: InAppBrowserSurface,
+  request: StoryMenuRequestEvent
+): Promise<void> {
+  nativeMenuOpen = true
+  let usingDomFallback = false
+  const rect = request.anchor.getBoundingClientRect()
+  const descriptors = describeStoryMenu({
+    platform: "mobile",
+    buildChannel: buildChannel(),
+    story: request.story
+  }).filter((item) => item.visible)
+  try {
+    const selected = await surface.showMenu({
+      title: "Story actions",
+      anchor: {
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height
+      },
+      items: descriptors.map(({ id, label, enabled }) => ({
+        id,
+        label,
+        enabled
+      }))
+    }) as StoryMenuActionId | null
+    if (!selected) return
+    if (
+      selected === "filter" &&
+      !request.story.classList.contains("filtered")
+    ) {
+      await showNativeFilterPrompt(surface, request.story)
+      return
+    }
+    await executeStoryMenuAction(selected, request.story)
+  } catch (error) {
+    console.error("Unable to show the native story menu", error)
+    usingDomFallback = true
+    await surface.setVisible(false)
+    openDomStoryMenu(request)
+  } finally {
+    nativeMenuOpen = false
+    if (!usingDomFallback) notifyMenuClosed()
+  }
+}
+
+async function showNativeFilterPrompt(
+  surface: InAppBrowserSurface,
+  story: StoryListItem
+): Promise<void> {
+  const value = await surface.showPrompt({
+    title: "Filter source",
+    message: "Filter stories matching:",
+    value: new URL(story.story.href).hostname,
+    confirmLabel: "Add filter",
+    cancelLabel: "Cancel"
+  })
+  if (value === null) return
+  await getOnceClient().addFilter(value)
+}
+
+function notifyMenuClosed(): void {
+  document.dispatchEvent(new CustomEvent("once-story-menu-closed"))
 }
 
 /** The swipe settings sample row has no real story behind it: no menu. */
@@ -122,7 +201,7 @@ function installLongPress(): void {
   }
 
   document.addEventListener("pointerdown", (event) => {
-    if (isStoryAnchoredMenuOpen()) return
+    if (nativeMenuOpen || isStoryAnchoredMenuOpen()) return
     const story = (event.target as Element | null)?.closest<StoryListItem>(
       "story-item"
     )

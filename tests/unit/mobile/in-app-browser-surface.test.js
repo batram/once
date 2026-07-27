@@ -61,6 +61,19 @@ test("browser fallback preserves event order while opening externally", async ()
   ])
   assert.ok(events.every(([, payload]) => payload.navigationId === 1))
   assert.equal(surface.available, false)
+  assert.equal(
+    await surface.showMenu({
+      items: [{ id: "filter", label: "Filter source", enabled: true }]
+    }),
+    null
+  )
+  assert.equal(
+    await surface.showPrompt({
+      message: "Filter stories matching:",
+      value: "example.test"
+    }),
+    null
+  )
   await assert.rejects(
     surface.navigate("file:///private/story"),
     /only supports http and https/
@@ -124,6 +137,37 @@ test("native embedded browsers support pull-to-refresh", () => {
   assert.match(ios, /view\.scrollView\.refreshControl = refreshControl/)
   assert.match(ios, /@objc private func refreshBrowser/)
   assert.match(ios, /refreshControl\?\.endRefreshing\(\)/)
+})
+
+test("native embedded browsers present menus and prompts above web content", () => {
+  const root = path.resolve(__dirname, "../../..")
+  const android = fs.readFileSync(path.join(
+    root,
+    "apps/mobile/android/app/src/main/java/com/zmarn/once/InAppBrowserSurfacePlugin.java"
+  ), "utf8")
+  const ios = fs.readFileSync(path.join(
+    root,
+    "apps/mobile/ios/App/App/AppDelegate.swift"
+  ), "utf8")
+  const storyMenu = fs.readFileSync(path.join(
+    root,
+    "apps/mobile/src/storyMenu.ts"
+  ), "utf8")
+
+  assert.match(android, /public void showMenu\(PluginCall call\)/)
+  assert.match(
+    android,
+    /new PopupMenu\(getActivity\(\), anchor, Gravity\.END\)/
+  )
+  assert.match(android, /anchor\.post\(popup::show\)/)
+  assert.match(android, /public void showPrompt\(PluginCall call\)/)
+  assert.match(ios, /@objc func showMenu\(_ call: CAPPluginCall\)/)
+  assert.match(ios, /preferredStyle: \.actionSheet/)
+  assert.match(ios, /@objc func showPrompt\(_ call: CAPPluginCall\)/)
+  assert.match(ios, /preferredStyle: \.alert/)
+  assert.match(storyMenu, /await surface\.showMenu\(/)
+  assert.match(storyMenu, /await surface\.showPrompt\(/)
+  assert.match(storyMenu, /installStoryMenu\(surface\?: InAppBrowserSurface\)/)
 })
 
 test("visual inspection installs the current app before preserving its state", () => {

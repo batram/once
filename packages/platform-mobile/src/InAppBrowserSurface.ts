@@ -14,6 +14,28 @@ export interface BrowserSurfaceOpenOptions {
   visible: boolean
 }
 
+export type NativeOverlayAnchor = BrowserSurfaceBounds
+
+export interface NativeOverlayMenuItem {
+  id: string
+  label: string
+  enabled: boolean
+}
+
+export interface NativeOverlayMenuOptions {
+  title?: string
+  items: NativeOverlayMenuItem[]
+  anchor?: NativeOverlayAnchor
+}
+
+export interface NativeOverlayPromptOptions {
+  title?: string
+  message: string
+  value?: string
+  confirmLabel?: string
+  cancelLabel?: string
+}
+
 export interface BrowserNavigationEvent {
   navigationId: number
   url: string
@@ -46,6 +68,8 @@ export interface InAppBrowserSurface {
   goBack(): Promise<void>
   setBounds(bounds: BrowserSurfaceBounds): Promise<void>
   setVisible(visible: boolean): Promise<void>
+  showMenu(options: NativeOverlayMenuOptions): Promise<string | null>
+  showPrompt(options: NativeOverlayPromptOptions): Promise<string | null>
   close(): Promise<void>
   addListener<K extends BrowserSurfaceEventName>(
     event: K,
@@ -60,6 +84,10 @@ interface NativeInAppBrowserPlugin {
   goBack(): Promise<void>
   setBounds(options: BrowserSurfaceBounds): Promise<void>
   setVisible(options: { visible: boolean }): Promise<void>
+  showMenu(options: NativeOverlayMenuOptions): Promise<{ id?: string }>
+  showPrompt(
+    options: NativeOverlayPromptOptions
+  ): Promise<{ value?: string }>
   close(): Promise<void>
   addListener(
     event: BrowserSurfaceEventName,
@@ -115,6 +143,17 @@ export function createNativeInAppBrowserSurface(): InAppBrowserSurface {
     goBack: () => NativeInAppBrowser.goBack(),
     setBounds: (bounds) => NativeInAppBrowser.setBounds(normalizeBounds(bounds)),
     setVisible: (visible) => NativeInAppBrowser.setVisible({ visible }),
+    async showMenu(options) {
+      const result = await NativeInAppBrowser.showMenu({
+        ...options,
+        anchor: options.anchor ? normalizeBounds(options.anchor) : undefined
+      })
+      return result?.id ?? null
+    },
+    async showPrompt(options) {
+      const result = await NativeInAppBrowser.showPrompt(options)
+      return result?.value ?? null
+    },
     close: () => NativeInAppBrowser.close(),
     async addListener(event, listener) {
       const handle = await NativeInAppBrowser.addListener(
@@ -165,6 +204,8 @@ export function createFallbackInAppBrowserSurface(
     goBack: async () => undefined,
     setBounds: async () => undefined,
     setVisible: async () => undefined,
+    showMenu: async () => null,
+    showPrompt: async () => null,
     close: async () => {
       currentUrl = ""
     },

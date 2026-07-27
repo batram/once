@@ -72,6 +72,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         CAPPluginMethod(name: "goBack", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setBounds", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setVisible", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "showMenu", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "showPrompt", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "close", returnType: CAPPluginReturnPromise)
     ]
 
@@ -185,6 +187,84 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         DispatchQueue.main.async {
             self.surface?.isHidden = !(call.getBool("visible") ?? false)
             call.resolve()
+        }
+    }
+
+    private func presenter() -> UIViewController? {
+        var current = bridge?.viewController
+        while let presented = current?.presentedViewController {
+            current = presented
+        }
+        return current
+    }
+
+    @objc func showMenu(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard let presenter = self.presenter() else {
+                call.reject("Unable to present the native menu")
+                return
+            }
+            let alert = UIAlertController(
+                title: call.getString("title"),
+                message: nil,
+                preferredStyle: .actionSheet
+            )
+            let items = call.getArray("items", JSObject.self) ?? []
+            for item in items {
+                guard let id = item["id"] as? String,
+                      let label = item["label"] as? String else { continue }
+                let action = UIAlertAction(title: label, style: .default) {
+                    _ in call.resolve(["id": id])
+                }
+                action.isEnabled = item["enabled"] as? Bool ?? true
+                alert.addAction(action)
+            }
+            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) {
+                _ in call.resolve()
+            })
+            if let popover = alert.popoverPresentationController {
+                let anchor = call.getObject("anchor") ?? [:]
+                popover.sourceView = presenter.view
+                popover.sourceRect = CGRect(
+                    x: anchor["x"] as? Double ?? presenter.view.bounds.midX,
+                    y: anchor["y"] as? Double ?? presenter.view.bounds.midY,
+                    width: max(1, anchor["width"] as? Double ?? 1),
+                    height: max(1, anchor["height"] as? Double ?? 1)
+                )
+            }
+            presenter.present(alert, animated: true)
+        }
+    }
+
+    @objc func showPrompt(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard let presenter = self.presenter() else {
+                call.reject("Unable to present the native prompt")
+                return
+            }
+            let alert = UIAlertController(
+                title: call.getString("title"),
+                message: call.getString("message"),
+                preferredStyle: .alert
+            )
+            alert.addTextField { field in
+                field.text = call.getString("value") ?? ""
+                field.clearButtonMode = .whileEditing
+                field.autocapitalizationType = .none
+                field.autocorrectionType = .no
+                field.keyboardType = .URL
+            }
+            alert.addAction(UIAlertAction(
+                title: call.getString("cancelLabel") ?? "Cancel",
+                style: .cancel
+            ) { _ in call.resolve() })
+            alert.addAction(UIAlertAction(
+                title: call.getString("confirmLabel") ?? "OK",
+                style: .default
+            ) { _ in
+                call.resolve(["value": alert.textFields?.first?.text ?? ""])
+            })
+            presenter.present(alert, animated: true)
         }
     }
 

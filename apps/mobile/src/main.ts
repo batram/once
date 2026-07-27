@@ -22,13 +22,13 @@ async function startMobileApp(): Promise<void> {
   document.body.dataset.buildChannel = __ONCE_BUILD_CHANNEL__
   document.body.dataset.onceStage = "platform"
 
-  installStoryMenu()
   const nativeBridge = createDefaultMobileNativeBridge()
   const platform = createMobilePlatform(nativeBridge)
   const app = createOnceApp(platform)
   const browserSurface = createInAppBrowserSurface((url) =>
     nativeBridge.openExternal(url)
   )
+  installStoryMenu(browserSurface)
   const reader = new ReaderDocumentHost(
     document.querySelector<HTMLElement>("#reading_content") ?? document.body,
     new URL("reader-runtime.js", document.baseURI).href
