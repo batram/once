@@ -29,6 +29,7 @@ export class MobileReadingController {
   private browserReady = false
   private editingAddress = false
   private surfaceGeneration = 0
+  private readerRequestId = 0
   private surfaceQueue: Promise<void> = Promise.resolve()
   private currentStoryRow: StoryListItem | null = null
   private currentCardStoryHref = ""
@@ -102,18 +103,6 @@ export class MobileReadingController {
       }
     )
     this.removers.push(started, committed, finished, failed, history)
-  }
-
-  async openReaderDocument(html: string, sourceUrl: string): Promise<void> {
-    const state = this.session.snapshot()
-    if (state.mode !== "reader" || state.currentUrl !== sourceUrl) return
-    const generation = this.surfaceGeneration
-    await this.enqueueSurface(() => this.surface.setVisible(false))
-    const latest = this.session.snapshot()
-    if (generation !== this.surfaceGeneration ||
-        latest.mode !== "reader" ||
-        latest.currentUrl !== sourceUrl) return
-    await this.reader.open(html)
   }
 
   async handleBack(): Promise<boolean> {
@@ -210,6 +199,7 @@ export class MobileReadingController {
       this.ttsControls.setReaderMode(
         this.activePanel === "reading" &&
         state.mode === "reader" &&
+        state.loadState === "ready" &&
         Boolean(state.currentUrl)
       )
       void this.updateVisibility()
@@ -254,6 +244,16 @@ export class MobileReadingController {
         this.session.snapshot().mode === "reader" ? "browser" : "reader",
         this.browserReady
       )
+    }
+    required<HTMLButtonElement>("#reading_reader_retry").onclick = () => {
+      const state = this.session.snapshot()
+      if (state.mode !== "reader" || !state.currentUrl) return
+      this.session.retry()
+    }
+    required<HTMLButtonElement>("#reading_reader_open_page").onclick = () => {
+      const state = this.session.snapshot()
+      if (!state.currentUrl) return
+      this.session.setMode("browser", this.browserReady)
     }
     address.addEventListener("focus", () => {
       this.editingAddress = true
@@ -406,6 +406,7 @@ export class MobileReadingController {
   ): Promise<void> {
     if (generation !== this.surfaceGeneration) return
     if (!state.currentUrl) {
+      this.readerRequestId += 1
       this.reader.close()
       if (this.browserOpened) {
         await this.surface.close()
@@ -418,15 +419,16 @@ export class MobileReadingController {
     if (state.mode === "reader") {
       await this.surface.setVisible(false)
       if (generation !== this.surfaceGeneration) return
+      if (state.loadState !== "loading") {
+        if (state.loadState === "error") this.reader.close()
+        return
+      }
       this.reader.close()
-      // ReaderView owns fetching/extraction and calls openReaderDocument.
-      void import("@once/ui-web").then(({ ReaderView }) =>
-        ReaderView.open(state.currentUrl)
-      ).catch((error) => {
-        console.error("Failed to open Reader mode", error)
-      })
+      const requestId = ++this.readerRequestId
+      void this.loadReader(state.currentUrl, requestId)
       return
     }
+    this.readerRequestId += 1
     this.reader.close()
     const bounds = this.bounds()
     if (!this.browserOpened) {
@@ -546,12 +548,26 @@ export class MobileReadingController {
     this.ttsControls.setReaderMode(
       this.activePanel === "reading" &&
       state.mode === "reader" &&
+      state.loadState === "ready" &&
       Boolean(state.currentUrl)
     )
     this.renderAddressAction()
     const error = required("#reading_error")
-    error.hidden = state.error == null
-    error.textContent = state.error ?? ""
+    const browserError = state.mode !== "reader" ? state.error : null
+    error.hidden = browserError == null
+    error.textContent = browserError ?? ""
+    const readerStatus = required("#reading_reader_status")
+    const readerLoading = required("#reading_reader_loading")
+    const readerFailure = required("#reading_reader_failure")
+    const readerError = required("#reading_reader_error_message")
+    const showsReaderStatus = state.mode === "reader" &&
+      (state.loadState === "loading" || state.loadState === "error")
+    readerStatus.hidden = !showsReaderStatus
+    readerLoading.hidden = state.mode !== "reader" ||
+      state.loadState !== "loading"
+    readerFailure.hidden = state.mode !== "reader" ||
+      state.loadState !== "error"
+    readerError.textContent = state.mode === "reader" ? state.error ?? "" : ""
   }
 
   private renderStoryTags(tags: Array<{
@@ -657,6 +673,32 @@ export class MobileReadingController {
     )
     action.setAttribute("aria-label", changed ? "Go to address" : "Reload")
     action.disabled = state.loadState === "loading" && !changed
+  }
+
+  private async loadReader(url: string, requestId: number): Promise<void> {
+    try {
+      const { ReaderView } = await import("@once/ui-web")
+      await ReaderView.openWith(url, "_self", async (html, sourceUrl) => {
+        if (!this.acceptsReaderRequest(requestId, sourceUrl)) return
+        await this.reader.open(html)
+      })
+      if (!this.acceptsReaderRequest(requestId, url)) return
+      this.session.readerFinished(url)
+    } catch (error) {
+      if (!this.acceptsReaderRequest(requestId, url)) return
+      this.reader.close()
+      const message = error instanceof Error
+        ? error.message
+        : "Reader mode could not process this page."
+      this.session.readerFailed(url, message)
+    }
+  }
+
+  private acceptsReaderRequest(requestId: number, url: string): boolean {
+    const state = this.session.snapshot()
+    return requestId === this.readerRequestId &&
+      state.mode === "reader" &&
+      state.currentUrl === url
   }
 
   private enqueueSurface(operation: () => Promise<void>): Promise<void> {

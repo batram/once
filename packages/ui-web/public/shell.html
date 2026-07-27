@@ -316,6 +316,21 @@
                 <p id="reading_empty" data-testid="reading-empty">
                   Open a story or enter a URL above to start reading.
                 </p>
+                <section id="reading_reader_status" data-testid="reading-reader-status"
+                  role="status" aria-live="polite" hidden>
+                  <div id="reading_reader_loading" data-testid="reading-reader-loading" hidden>
+                    <span class="reading_status_spinner" aria-hidden="true"></span>
+                    <p>Preparing Reader mode&hellip;</p>
+                  </div>
+                  <div id="reading_reader_failure" data-testid="reading-reader-error" hidden>
+                    <strong>Reader mode couldn&rsquo;t open this page</strong>
+                    <p id="reading_reader_error_message"></p>
+                    <div class="reading_status_actions">
+                      <button type="button" id="reading_reader_retry">Try again</button>
+                      <button type="button" id="reading_reader_open_page">Open page instead</button>
+                    </div>
+                  </div>
+                </section>
               </div>
               <div id="reader_tts_pill" data-testid="reader-tts-bar"
                 role="group" aria-label="Text to speech" hidden>

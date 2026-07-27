@@ -841,6 +841,75 @@ body[data-platform="mobile"] #reading_empty[hidden] {
   display: none;
 }
 
+body[data-platform="mobile"] #reading_reader_status {
+  display: grid;
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  place-items: center;
+  box-sizing: border-box;
+  padding: var(--m-sp-5) var(--m-sp-4);
+  background: var(--main-bg-color);
+  color: var(--text-color);
+  font-family: var(--m-sans);
+  text-align: center;
+}
+
+body[data-platform="mobile"] #reading_reader_status[hidden],
+body[data-platform="mobile"] #reading_reader_loading[hidden],
+body[data-platform="mobile"] #reading_reader_failure[hidden] {
+  display: none;
+}
+
+body[data-platform="mobile"] #reading_reader_loading,
+body[data-platform="mobile"] #reading_reader_failure {
+  max-width: 32rem;
+}
+
+body[data-platform="mobile"] #reading_reader_loading p,
+body[data-platform="mobile"] #reading_reader_failure p {
+  margin: var(--m-sp-3) 0 0;
+}
+
+body[data-platform="mobile"] .reading_status_spinner {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--border-color);
+  border-top-color: var(--highlight-color);
+  border-radius: 50%;
+  animation: reading-status-spin 800ms linear infinite;
+}
+
+body[data-platform="mobile"] #reading_reader_error_message {
+  color: var(--error-color);
+}
+
+body[data-platform="mobile"] .reading_status_actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--m-sp-2);
+  margin-top: var(--m-sp-4);
+}
+
+body[data-platform="mobile"] .reading_status_actions button {
+  min-height: var(--m-touch);
+}
+
+@keyframes reading-status-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-platform="mobile"] .reading_status_spinner {
+    animation: none;
+    border-top-color: var(--border-color);
+  }
+}
+
 body[data-platform="mobile"] #reading_content .once-reader-host {
   position: absolute;
   z-index: 1;

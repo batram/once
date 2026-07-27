@@ -935,3 +935,63 @@ test("authenticated PouchDB sync pulls and pushes deterministic settings", async
   await page.reload()
   await expect(page.locator("body")).toHaveAttribute("data-theme", "dark")
 })
+
+test("Reader mode explains failures and offers clean recovery", async ({ page }) => {
+  let attempts = 0
+  await page.route("**/fixtures/reader-failure*", async (route) => {
+    attempts += 1
+    if (attempts < 3) {
+      await route.fulfill({
+        status: 503,
+        contentType: "text/plain",
+        body: "temporarily unavailable"
+      })
+      return
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "text/html",
+      body: `<!doctype html><title>Recovered article</title><article>
+        <h1>Recovered article</h1>
+        <p>${"Reader recovery content. ".repeat(80)}</p>
+      </article>`
+    })
+  })
+
+  await page.goto("./")
+  await page.getByTestId("reading-menu").click()
+  const url = await testServerUrl(page, "/fixtures/reader-failure")
+  await page.getByTestId("reading-url-input").fill(url)
+  await page.getByTestId("reading-url-action").click()
+  await page.locator("#reading_reader_toggle").click()
+
+  const status = page.getByTestId("reading-reader-status")
+  await expect(status).toBeVisible()
+  await expect(page.getByTestId("reading-reader-error")).toBeVisible()
+  await expect(page.locator("#reading_reader_error_message"))
+    .toContainText("HTTP 503")
+  await expect(page.getByTestId("reader-tts-bar")).toBeHidden()
+
+  await page.locator("#reading_reader_open_page").click()
+  await expect(page.locator("#reading_content")).toHaveAttribute(
+    "data-mode",
+    "browser"
+  )
+  await expect(status).toBeHidden()
+
+  await page.locator("#reading_reader_toggle").click()
+  await expect(page.getByTestId("reading-reader-error")).toBeVisible()
+  await page.locator("#reading_reader_retry").click()
+  await expect(page.getByTestId("reading-reader-loading")).toBeVisible()
+
+  const reader = page.locator(".once-reader-host-frame").contentFrame()
+  await expect(reader.getByRole("heading", { name: "Recovered article" }))
+    .toBeVisible()
+  await expect(status).toBeHidden()
+  await expect(page.locator("#reading_content")).toHaveAttribute(
+    "data-load-state",
+    "ready"
+  )
+  await expect(page.getByTestId("reader-tts-bar")).toBeVisible()
+  expect(attempts).toBe(3)
+})

@@ -114,3 +114,40 @@ test("ReadingSession can restore an already-loaded browser from Reader mode", ()
   assert.equal(session.snapshot().loadState, "ready")
   assert.equal(session.snapshot().currentUrl, active.href)
 })
+
+test("ReadingSession exposes recoverable Reader loading and failure states", () => {
+  const active = story("reader-state")
+  const session = new ReadingSession()
+  session.open(active, "reader")
+
+  assert.equal(session.snapshot().loadState, "loading")
+  session.readerFailed(active.href, "The reader request failed with HTTP 503")
+  assert.equal(session.snapshot().loadState, "error")
+  assert.equal(
+    session.snapshot().error,
+    "The reader request failed with HTTP 503"
+  )
+
+  session.retry()
+  assert.equal(session.snapshot().loadState, "loading")
+  assert.equal(session.snapshot().error, null)
+  session.readerFinished(active.href)
+  assert.equal(session.snapshot().loadState, "ready")
+})
+
+test("ReadingSession rejects stale Reader completions", () => {
+  const first = story("first-reader")
+  const second = story("second-reader")
+  const session = new ReadingSession()
+  session.open(first, "reader")
+  session.open(second, "reader")
+
+  session.readerFailed(first.href, "stale failure")
+  assert.equal(session.snapshot().loadState, "loading")
+  assert.equal(session.snapshot().error, null)
+  session.readerFinished(first.href)
+  assert.equal(session.snapshot().loadState, "loading")
+
+  session.readerFinished(second.href)
+  assert.equal(session.snapshot().loadState, "ready")
+})

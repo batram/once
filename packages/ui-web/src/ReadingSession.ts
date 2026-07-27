@@ -75,7 +75,7 @@ export class ReadingSession {
       mode,
       currentUrl,
       visibleStoryIndex: this.indexOf(story),
-      loadState: mode === "reader" ? "ready" : "loading",
+      loadState: "loading",
       navigationId: this.state.navigationId,
       canGoBack: false,
       error: null
@@ -93,9 +93,33 @@ export class ReadingSession {
     if (!this.state.currentUrl) return
     this.patch({
       mode,
-      loadState: mode === "reader" || browserAlreadyReady ? "ready" : "loading",
+      loadState: mode !== "reader" && browserAlreadyReady ? "ready" : "loading",
       canGoBack: mode === "browser" ? this.state.canGoBack : false,
       error: null
+    })
+  }
+
+  retry(): void {
+    if (!this.state.currentUrl) return
+    this.patch({
+      loadState: "loading",
+      error: null
+    })
+  }
+
+  readerFinished(url: string): void {
+    if (this.state.mode !== "reader" || this.state.currentUrl !== url) return
+    this.patch({
+      loadState: "ready",
+      error: null
+    })
+  }
+
+  readerFailed(url: string, message: string): void {
+    if (this.state.mode !== "reader" || this.state.currentUrl !== url) return
+    this.patch({
+      loadState: "error",
+      error: message
     })
   }
 

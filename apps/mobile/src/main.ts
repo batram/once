@@ -37,9 +37,7 @@ async function startMobileApp(): Promise<void> {
   const ttsControls = installReaderTtsControls(tts)
   const reading = new MobileReadingController(browserSurface, reader, ttsControls)
   await reading.install()
-  ReaderView.mount(app.client, (html, sourceUrl) =>
-    reading.openReaderDocument(html, sourceUrl)
-  )
+  ReaderView.mount(app.client)
 
   if (Capacitor.getPlatform() === "android") {
     await App.addListener("backButton", () => {
