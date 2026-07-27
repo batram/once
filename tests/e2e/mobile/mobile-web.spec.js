@@ -611,39 +611,67 @@ test("the current Reading story reflects bookmark changes", async ({ page }) => 
   await collapse.click()
   await expect(currentCard).toHaveClass(/\breading_story_collapsed\b/)
   await expect(collapse).toHaveAttribute("aria-expanded", "false")
-  await expect(page.locator("#reading_comments")).toBeVisible()
-  await expect(page.locator("#reading_type")).toBeHidden()
+  await expect(page.locator("#reading_comments")).toBeHidden()
+  await expect(page.locator("#reading_type")).toBeVisible()
+  await expect(page.locator("#reading_type")).not.toHaveText("")
   await expect(page.locator("#reading_story_time")).toBeHidden()
   await expect(page.locator("#reading_story_tags")).toBeHidden()
+  expect(await currentCard.evaluate(
+    (card) => card.getBoundingClientRect().height
+  )).toBeLessThanOrEqual(40)
 
   const geometry = await currentCard.evaluate((card) => {
+    const cardBox = card.getBoundingClientRect()
+    const source = card.querySelector("#reading_type").getBoundingClientRect()
+    const title = card.querySelector("#reading_title").getBoundingClientRect()
     const collapseButton = card.querySelector("#reading_story_collapse")
       .getBoundingClientRect()
     const menuButton = card.querySelector("#reading_story_menu")
-      .getBoundingClientRect()
-    const comments = card.querySelector("#reading_comments")
       .getBoundingClientRect()
     return {
       collapseSize: [collapseButton.width, collapseButton.height],
       menuSize: [menuButton.width, menuButton.height],
       controlsGap: menuButton.left - collapseButton.right,
-      commentsClearControls: comments.right <= collapseButton.left
+      contentClearControls: title.right <= collapseButton.left,
+      oneLine: [source, title].every(
+        (item) => item.top >= cardBox.top && item.bottom <= cardBox.bottom
+      ) && Math.abs(
+        (source.top + source.bottom) / 2 -
+        (title.top + title.bottom) / 2
+      ) < 2,
+      compactHeight: cardBox.height
     }
   })
   expect(geometry.collapseSize).toEqual([28, 28])
   expect(geometry.menuSize).toEqual([28, 28])
   expect(geometry.controlsGap).toBe(4)
-  expect(geometry.commentsClearControls).toBe(true)
+  expect(geometry.contentClearControls).toBe(true)
+  expect(geometry.oneLine).toBe(true)
+  expect(geometry.compactHeight).toBeLessThanOrEqual(40)
 
-  await page.locator("#reading_comments").click()
+  await page.locator("#reading_type").click()
   await expect(page.locator("#reading_content")).toHaveAttribute(
     "data-mode",
     "comments"
   )
   await expect(currentCard).toHaveClass(/\breading_story_collapsed\b/)
+  await expect(page.locator("#reading_title")).toHaveAttribute(
+    "aria-label",
+    "Open story"
+  )
+
+  await page.locator("#reading_title").click()
+  await expect(page.locator("#reading_content")).toHaveAttribute(
+    "data-mode",
+    "browser"
+  )
+  await expect(currentCard).toHaveClass(/\breading_story_collapsed\b/)
 
   await collapse.click()
   await expect(currentCard).not.toHaveClass(/\breading_story_collapsed\b/)
+  expect(await currentCard.evaluate(
+    (card) => card.getBoundingClientRect().height
+  )).toBeGreaterThan(40)
   const box = await currentCard.boundingBox()
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
   await page.mouse.down()

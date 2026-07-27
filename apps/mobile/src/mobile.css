@@ -676,12 +676,6 @@ body[data-platform="mobile"] #reading_current_card.reading_story_dragging {
   transition: none;
 }
 
-body[data-platform="mobile"] #reading_current_card.reading_story_resizing {
-  box-sizing: border-box;
-  overflow: hidden;
-  transition: height 160ms ease;
-}
-
 body[data-platform="mobile"] #reading_current_card .reading_story_control {
   display: grid;
   place-items: center;
@@ -710,9 +704,6 @@ body[data-platform="mobile"] #reading_current_card .tags_container {
 
 body[data-platform="mobile"]
   #reading_current_card.reading_story_collapsed
-  #reading_type,
-body[data-platform="mobile"]
-  #reading_current_card.reading_story_collapsed
   #reading_story_time,
 body[data-platform="mobile"]
   #reading_current_card.reading_story_collapsed
@@ -721,10 +712,67 @@ body[data-platform="mobile"]
 }
 
 body[data-platform="mobile"]
+  #reading_current_card.reading_story_collapsed {
+  min-height: 36px;
+  padding-top: var(--m-sp-1);
+  padding-bottom: var(--m-sp-1);
+}
+
+body[data-platform="mobile"]
+  #reading_current_card.reading_story_collapsed
+  .data {
+  display: flex;
+  align-items: center;
+  gap: var(--m-sp-1);
+  box-sizing: border-box;
+  min-width: 0;
+  padding-right: 68px;
+  overflow: hidden;
+}
+
+body[data-platform="mobile"]
+  #reading_current_card.reading_story_collapsed
+  .title_line,
+body[data-platform="mobile"]
+  #reading_current_card.reading_story_collapsed
+  .substories,
+body[data-platform="mobile"]
   #reading_current_card.reading_story_collapsed
   #reading_story_meta {
-  min-height: 28px;
-  margin-top: var(--m-sp-1);
+  display: contents;
+}
+
+body[data-platform="mobile"]
+  #reading_current_card.reading_story_collapsed
+  #reading_type {
+  order: 1;
+  flex: 0 0 auto;
+}
+
+body[data-platform="mobile"]
+  #reading_current_card.reading_story_collapsed
+  #reading_comments {
+  display: none;
+}
+
+body[data-platform="mobile"]
+  #reading_current_card.reading_story_collapsed
+  #reading_title {
+  order: 2;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--m-fs-meta);
+  line-height: 1.25;
+}
+
+body[data-platform="mobile"]
+  #reading_current_card.reading_story_collapsed.stared
+  .substories
+  .info:first-child::after {
+  display: none;
 }
 
 /* `.story` sets display:flex, which otherwise overrides the HTML hidden

@@ -231,10 +231,17 @@ export class MobileReadingController {
     const currentCard = required("#reading_current_card")
     required<HTMLAnchorElement>("#reading_title").onclick = (event) => {
       event.preventDefault()
-      void this.openStoryContent()
+      void this.toggleStoryAndComments()
     }
     required<HTMLButtonElement>("#reading_comments").onclick = () => {
       void this.openComments()
+    }
+    const sourceTag = required("#reading_type")
+    sourceTag.onclick = () => void this.toggleStoryAndComments()
+    sourceTag.onkeydown = (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return
+      event.preventDefault()
+      void this.toggleStoryAndComments()
     }
     required<HTMLButtonElement>("#reading_story_collapse").onclick = () => {
       this.setCurrentStoryCollapsed(!this.currentStoryCollapsed)
@@ -317,7 +324,7 @@ export class MobileReadingController {
     card.addEventListener("pointerdown", (event) => {
       if (!event.isPrimary || event.button !== 0) return
       if ((event.target as Element | null)?.closest(
-        "a, button, input, select, textarea"
+        'a, button, [role="link"], input, select, textarea'
       )) return
       pointerId = event.pointerId
       startX = event.clientX
@@ -354,29 +361,9 @@ export class MobileReadingController {
 
   private setCurrentStoryCollapsed(collapsed: boolean): void {
     if (this.currentStoryCollapsed === collapsed) return
-    const card = required("#reading_current_card")
-    const startHeight = card.getBoundingClientRect().height
     this.currentStoryCollapsed = collapsed
     this.renderCurrentStoryCollapse()
-    const endHeight = card.getBoundingClientRect().height
-    if (startHeight === endHeight ||
-        window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      void this.updateBounds()
-      return
-    }
-
-    card.style.height = `${startHeight}px`
-    card.classList.add("reading_story_resizing")
-    void card.offsetHeight
-    requestAnimationFrame(() => {
-      card.style.height = `${endHeight}px`
-    })
-    card.addEventListener("transitionend", (event) => {
-      if (event.propertyName !== "height") return
-      card.classList.remove("reading_story_resizing")
-      card.style.removeProperty("height")
-      void this.updateBounds()
-    }, { once: true })
+    void this.updateBounds()
   }
 
   private renderCurrentStoryCollapse(): void {
@@ -518,8 +505,23 @@ export class MobileReadingController {
     this.renderCurrentStoryCollapse()
     const title = required<HTMLAnchorElement>("#reading_title")
     title.textContent = displayedStory?.title ?? "Reading"
-    title.href = displayedStory?.href ?? ""
-    required("#reading_type").textContent = displayedStory?.type ?? ""
+    const comments = required<HTMLButtonElement>("#reading_comments")
+    const sourceTag = required("#reading_type")
+    sourceTag.textContent = displayedStory?.type ?? ""
+    const showingComments = Boolean(
+      displayedStory?.comment_url &&
+      state.mode === "comments"
+    )
+    const toggleUrl = showingComments
+      ? displayedStory?.href
+      : displayedStory?.comment_url ?? displayedStory?.href
+    const toggleLabel = showingComments || !displayedStory?.comment_url
+      ? "Open story"
+      : "Open comments"
+    title.href = toggleUrl ?? ""
+    title.setAttribute("aria-label", toggleLabel)
+    sourceTag.setAttribute("aria-label", toggleLabel)
+    comments.hidden = matchingStory == null || !displayedStory?.comment_url
     required("#reading_story_time").textContent =
       displayedStory ? humanTime(displayedStory.timestamp) : ""
     required("#reading_story_meta").dataset.type =
@@ -533,8 +535,6 @@ export class MobileReadingController {
       "active",
       state.mode === "reader"
     )
-    required<HTMLButtonElement>("#reading_comments").hidden =
-      matchingStory == null || !displayedStory?.comment_url
     this.ttsControls.setReaderMode(
       this.activePanel === "reading" &&
       state.mode === "reader" &&
@@ -602,6 +602,18 @@ export class MobileReadingController {
     }
 
     this.session.setMode("comments")
+  }
+
+  private async toggleStoryAndComments(): Promise<void> {
+    const state = this.session.snapshot()
+    if (
+      state.story?.comment_url &&
+      state.mode !== "comments"
+    ) {
+      await this.openComments()
+      return
+    }
+    await this.openStoryContent()
   }
 
   private async openStoryContent(): Promise<void> {
