@@ -145,8 +145,25 @@ function discoverWirelessAddresses(adb, env) {
   return addresses
 }
 
+// On macOS, Bonjour discovery can intermittently return no services even while
+// the ADB server still has a healthy wireless connection. An IP:port serial in
+// `adb devices` is already connected and is therefore a safe discovery fallback.
+function connectedWirelessAddresses(adb, env) {
+  const result = spawnSync(adb, ["devices"], { env, encoding: "utf8" })
+  if (result.error || result.status !== 0) return []
+  const addresses = []
+  for (const line of (result.stdout || "").split(/\r?\n/)) {
+    const match = line.trim().match(/^(\S+)\s+device(?:\s|$)/)
+    if (match && wirelessAddressPattern.test(match[1])) {
+      addresses.push(match[1])
+    }
+  }
+  return [...new Set(addresses)]
+}
+
 // Precedence: an explicit ONCE_ANDROID_WIRELESS_ADDRESS in the environment,
-// then mDNS discovery, then .env.android.local.
+// then mDNS discovery, an existing ADB wireless connection, then
+// .env.android.local.
 function resolveWirelessAddress(adb, env) {
   const exported = process.env.ONCE_ANDROID_WIRELESS_ADDRESS
   if (exported) {
@@ -165,10 +182,18 @@ function resolveWirelessAddress(adb, env) {
     console.log(`mobile: discovered ${discovered[0].name} at ${discovered[0].address} via adb mdns`)
     return discovered[0].address
   }
+  const connected = connectedWirelessAddresses(adb, env)
+  if (connected.length > 1) {
+    fail(`adb has multiple connected wireless devices: ${connected.join(", ")} — set ONCE_ANDROID_WIRELESS_ADDRESS to pick one`)
+  }
+  if (connected.length === 1) {
+    console.log(`mobile: using connected wireless device ${connected[0]} from adb devices`)
+    return connected[0]
+  }
   loadAndroidLocalEnvironment()
   const address = process.env.ONCE_ANDROID_WIRELESS_ADDRESS
   if (!address) {
-    fail("no wireless device found via adb mdns; enable wireless debugging and pair the device, or copy .env.android.example to .env.android.local and set ONCE_ANDROID_WIRELESS_ADDRESS")
+    fail("no wireless device found via adb mdns or adb devices; enable wireless debugging and pair the device, or copy .env.android.example to .env.android.local and set ONCE_ANDROID_WIRELESS_ADDRESS")
   }
   if (!wirelessAddressPattern.test(address)) {
     fail("ONCE_ANDROID_WIRELESS_ADDRESS must be an IP or hostname followed by :port")
