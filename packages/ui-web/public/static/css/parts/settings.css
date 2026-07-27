@@ -331,11 +331,73 @@
   white-space: nowrap;
 }
 
+.settings_panel_heading {
+  display: none;
+}
+
+#settings_panel .structured_mode_toggle_topbar {
+  box-sizing: border-box;
+  min-width: 38px;
+  min-height: 30px;
+  margin-left: auto;
+  padding: 0 8px;
+  border: thin solid var(--sep-color);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.structured_settings_header.structured_toggle_moved {
+  display: none;
+}
+
 .structured_settings {
   width: 100%;
 }
 
+.structured_search {
+  position: sticky;
+  z-index: 4;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 0;
+  background: var(--background-color, var(--input-bg-color));
+}
+
+.structured_search input {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 36px;
+  padding: 4px 8px;
+}
+
+.structured_search_status {
+  flex: 0 0 auto;
+  opacity: 0.65;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.structured_settings mark {
+  border-radius: 2px;
+  padding: 0;
+  background: var(--highlight-bg-color, #ffe66d);
+  color: var(--highlight-color, #111);
+}
+
 .structured_settings[hidden],
+.structured_group[hidden],
+.structured_row[hidden],
+.structured_empty[hidden],
 .input_container[hidden],
 .settings_actions > [hidden] {
   display: none !important;
@@ -372,12 +434,39 @@
   cursor: pointer;
 }
 
+.structured_group_name[draggable="true"] {
+  cursor: grab;
+}
+
+.structured_group_name[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.structured_group_dragging {
+  opacity: 0.45;
+}
+
+.structured_group_drag_active {
+  overflow-anchor: none;
+}
+
+.structured_group_drag_active .structured_group > .structured_rows {
+  display: none;
+}
+
+.structured_group_drop_before {
+  box-shadow: inset 0 3px Highlight;
+}
+
+.structured_group_drop_after {
+  box-shadow: inset 0 -3px Highlight;
+}
+
 .structured_group > summary strong {
   flex: 1;
 }
 
-.structured_group_actions,
-.structured_move_actions {
+.structured_group_actions {
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -387,27 +476,6 @@
   min-width: 30px;
   min-height: 30px;
   padding: 2px 6px;
-}
-
-.structured_move_actions {
-  flex: 0 0 24px;
-  align-self: stretch;
-  flex-direction: column;
-  justify-content: center;
-  gap: 2px;
-  margin: 0 5px 0 0;
-}
-
-.structured_move_actions button {
-  box-sizing: border-box;
-  width: 24px;
-  min-width: 24px;
-  height: 20px;
-  min-height: 20px;
-  margin: 0;
-  padding: 0;
-  font-size: 11px;
-  line-height: 1;
 }
 
 .structured_row {
@@ -432,6 +500,18 @@
 
 .structured_row_drop_target {
   box-shadow: inset 0 3px Highlight;
+}
+
+.structured_source_group_drop_target {
+  min-height: 44px;
+  outline: 3px solid Highlight;
+  outline-offset: -3px;
+}
+
+.structured_source_group_title_drop_target > summary {
+  outline: 3px solid Highlight;
+  outline-offset: -3px;
+  background: color-mix(in srgb, Highlight 18%, transparent);
 }
 
 .structured_row:last-child {

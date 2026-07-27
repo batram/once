@@ -149,7 +149,8 @@ export class OnceApp {
       getDiagnostics: () => [...this.diagnostics],
       getSyncStatus: () => this.syncStatus,
       getStorySources: () => this.getStorySources(),
-      saveStorySources: (storySources) => this.saveStorySources(storySources),
+      saveStorySources: (storySources, reloadStories) =>
+        this.saveStorySources(storySources, reloadStories),
       getFilterList: () => this.getFilterList(),
       saveFilterList: (filterList) => this.saveFilterList(filterList),
       getRedirectList: () => this.getRedirectList(),
@@ -215,10 +216,13 @@ export class OnceApp {
     return this.getListSetting("story_sources", defaultSources)
   }
 
-  private async saveStorySources(storySources: string[]): Promise<void> {
+  private async saveStorySources(
+    storySources: string[],
+    reloadStories = true
+  ): Promise<void> {
     await this.setListSetting("story_sources", storySources)
     this.events.publish("settingsChanged", { section: "sources" })
-    await this.reloadStories(true)
+    if (reloadStories) await this.reloadStories(true)
   }
 
   private async getFilterList(): Promise<string[]> {

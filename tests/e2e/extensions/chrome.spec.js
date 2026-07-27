@@ -37,6 +37,15 @@ test("installed Chrome extension loads, collects, persists settings, and opens a
     await page.getByTestId("settings-menu").click()
     await expect(page.getByTestId("sources")).toBeHidden()
     await page.locator('[data-settings-target="sources"]').click()
+    const modeToggle = page.getByTestId("sources-mode-toggle")
+    await expect(modeToggle).toHaveText("TXT")
+    await expect(modeToggle).toHaveAttribute("aria-label", "Edit as text")
+    await expect(modeToggle.locator("xpath=..")).toHaveClass(/\bbar\b/)
+    await expect(
+      page.locator(
+        '[data-settings-section="sources"] .settings_panel_heading'
+      )
+    ).toBeHidden()
     await page.getByTestId("sources-mode-toggle").click()
     await page.getByTestId("sources").fill(source.source)
     await page.getByTestId("save-sources").click()

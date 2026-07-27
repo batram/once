@@ -27,6 +27,21 @@ async function openSettingsSection(page, section) {
   }
 }
 
+test("structured settings sections do not autofocus search on mobile", async ({
+  page
+}) => {
+  await page.goto("./")
+  await page.getByTestId("settings-menu").click()
+  const back = page.locator("#settings_section_back")
+
+  for (const section of ["sources", "filters", "redirects"]) {
+    await page.locator(`[data-settings-target="${section}"]`).click()
+    await expect(back).toBeFocused()
+    await expect(page.getByTestId(`${section}-list-search`)).not.toBeFocused()
+    await back.click()
+  }
+})
+
 test("list settings are the default and expose structured add actions", async ({ page }) => {
   await page.goto("./")
   await page.getByTestId("settings-menu").click()
@@ -35,6 +50,18 @@ test("list settings are the default and expose structured add actions", async ({
     await page.locator("#settings_section_back").click()
   }
   await sourcesSection.click()
+  await expect(page.locator("#settings_panel .settings_title")).toHaveText(
+    "Story sources"
+  )
+  await expect(
+    page.locator(
+      '[data-settings-section="sources"] .settings_panel_heading'
+    )
+  ).toBeHidden()
+  const modeToggle = page.getByTestId("sources-mode-toggle")
+  await expect(modeToggle).toHaveText("TXT")
+  await expect(modeToggle).toHaveAttribute("aria-label", "Edit as text")
+  await expect(modeToggle.locator("xpath=..")).toHaveClass(/\bbar\b/)
   await expect(page.getByTestId("sources-structured-list")).toBeVisible()
   await expect(page.getByTestId("sources")).toBeHidden()
   await expect(page.getByTestId("add-source")).toBeVisible()
@@ -60,8 +87,26 @@ test("list settings are the default and expose structured add actions", async ({
       `https://example.test/source-${index}`).join("\n")
   )
   await saveSourcesAndWait(page)
-  await expect(page.getByTestId("sources-mode-toggle")).toHaveText("Edit as list")
+  await expect(page.getByTestId("sources-mode-toggle")).toHaveText("UI")
+  await expect(page.getByTestId("sources-mode-toggle")).toHaveAttribute(
+    "aria-label",
+    "Edit as list"
+  )
   await page.getByTestId("sources-mode-toggle").click()
+  const sourceSearch = page.getByTestId("sources-list-search")
+  await sourceSearch.fill("source-17")
+  await expect(page.locator('[data-testid="source-row"]:visible'))
+    .toHaveCount(1)
+  await expect(page.locator(
+    '[data-structured-section="sources"] .structured_search_status'
+  )).toHaveText("1 result")
+  await expect(page.locator(
+    '[data-testid="source-row"]:visible .structured_row_secondary mark'
+  )).toHaveText("source-17")
+  await sourceSearch.fill("")
+  await expect(page.locator(
+    '[data-testid="source-row"] mark'
+  )).toHaveCount(0)
   const sourceList = page.getByTestId("sources-structured-list")
   const scrollMetrics = await sourceList.evaluate((element) => {
     element.scrollTop = element.scrollHeight
@@ -117,16 +162,16 @@ test("filters edit inline and expose a row remove button", async ({ page }) => {
   await expect(page.getByTestId("filter-row").nth(0)).toHaveText(secondValue)
   await expect(page.getByTestId("filter-row").nth(1)).toHaveText(firstValue)
 
-  const moveSizes = await rows.nth(0)
-    .locator(".structured_move_actions button")
-    .evaluateAll((buttons) => buttons.map((button) => {
-      const bounds = button.getBoundingClientRect()
-      return { width: bounds.width, height: bounds.height }
-    }))
-  expect(moveSizes).toEqual([
-    { width: 26, height: 22 },
-    { width: 26, height: 22 }
-  ])
+  await expect(page.locator(".structured_move_actions")).toHaveCount(0)
+
+  const filterSearch = page.getByTestId("filters-list-search")
+  await filterSearch.fill(secondValue)
+  await expect(page.locator('[data-testid="filter-row"]:visible'))
+    .toHaveCount(1)
+  await expect(page.locator(
+    '[data-structured-section="filters"] .structured_search_status'
+  )).toHaveText("1 result")
+  await filterSearch.fill("")
 
   const list = page.getByTestId("filters-structured-list")
   await list.evaluate((element) => {
@@ -163,6 +208,164 @@ test("filters edit inline and expose a row remove button", async ({ page }) => {
   await list.evaluate((element) => {
     element.dispatchEvent(new DragEvent("drop", { bubbles: true }))
   })
+})
+
+test("redirect list search matches expressions and replacement targets", async ({
+  page
+}) => {
+  await page.goto("./")
+  await openSettingsSection(page, "redirects")
+  await page.getByTestId("redirects").fill(
+    "first.example => destination.example/one\n" +
+    "second.example => destination.example/two"
+  )
+  await page.getByTestId("save-redirects").click()
+  await page.getByTestId("redirects-mode-toggle").click()
+
+  const search = page.getByTestId("redirects-list-search")
+  await search.fill("destination.example/two")
+  const visibleRows = page.locator('[data-testid="redirect-row"]:visible')
+  await expect(visibleRows).toHaveCount(1)
+  await expect(visibleRows).toContainText("second.example")
+  await expect(page.locator(
+    '[data-structured-section="redirects"] .structured_search_status'
+  )).toHaveText("1 result")
+
+  await search.fill("")
+  const redirectRows = page.locator('[data-testid="redirect-row"]:visible')
+  await expect(redirectRows).toHaveCount(2)
+  await redirectRows.nth(0).dragTo(redirectRows.nth(1))
+  await expect(redirectRows.nth(0)).toContainText("second.example")
+  await expect(redirectRows.nth(1)).toContainText("first.example")
+})
+
+test("story source groups collapse while dragging and restore afterward", async ({
+  page
+}) => {
+  await page.goto("./")
+  await openSettingsSection(page, "sources")
+  const fixture = new URL("/fixtures/feed.rss", page.url()).href
+  await page.getByTestId("sources").fill([
+    fixture,
+    "*Alpha",
+    `${fixture}?group=alpha`,
+    "*Beta",
+    `${fixture}?group=beta`
+  ].join("\n"))
+  await saveSourcesAndWait(page)
+  await page.getByTestId("sources-mode-toggle").click()
+
+  const groups = page.locator(".structured_group")
+  await expect(groups).toHaveCount(3)
+  await groups.nth(1).locator(".structured_group_name").click()
+  await expect(groups.nth(1)).not.toHaveAttribute("open", "")
+  await expect(groups.nth(0)).toHaveAttribute("open", "")
+  await expect(groups.nth(2)).toHaveAttribute("open", "")
+
+  const betaName = groups.nth(2).locator(".structured_group_name")
+  await betaName.evaluate((name) => {
+    const transfer = new DataTransfer()
+    name.dispatchEvent(new DragEvent("dragstart", {
+      bubbles: true,
+      cancelable: true,
+      dataTransfer: transfer
+    }))
+  })
+  await expect(page.getByTestId("sources-structured-list"))
+    .toHaveClass(/\bstructured_group_drag_active\b/)
+  await expect(groups.locator(".structured_rows").first()).toBeHidden()
+  await expect(groups.nth(0)).toHaveAttribute("open", "")
+  await expect(groups.nth(1)).not.toHaveAttribute("open", "")
+  await expect(groups.nth(2)).toHaveAttribute("open", "")
+
+  await betaName.evaluate((name) => {
+    name.dispatchEvent(new DragEvent("dragend", {
+      bubbles: true,
+      cancelable: true
+    }))
+  })
+  await expect(groups.nth(0)).toHaveAttribute("open", "")
+  await expect(groups.nth(1)).not.toHaveAttribute("open", "")
+  await expect(groups.nth(2)).toHaveAttribute("open", "")
+
+  const betaBounds = await betaName.boundingBox()
+  expect(betaBounds).not.toBeNull()
+  await page.mouse.move(
+    betaBounds.x + betaBounds.width / 2,
+    betaBounds.y + betaBounds.height / 2
+  )
+  await page.mouse.down()
+  await page.mouse.move(
+    betaBounds.x + betaBounds.width / 2,
+    betaBounds.y + betaBounds.height / 2 + 8,
+    { steps: 4 }
+  )
+  await expect(page.getByTestId("sources-structured-list"))
+    .toHaveClass(/\bstructured_group_drag_active\b/)
+  const alphaBounds = await groups.nth(1).locator("summary").boundingBox()
+  expect(alphaBounds).not.toBeNull()
+  await page.mouse.move(
+    alphaBounds.x + 12,
+    alphaBounds.y + 2,
+    { steps: 8 }
+  )
+  await page.mouse.up()
+
+  await expect(page.locator(".structured_group_name")).toHaveText([
+    "Default",
+    "Beta",
+    "Alpha"
+  ])
+  await expect(page.getByTestId("sources")).toHaveValue([
+    fixture,
+    "*Beta",
+    `${fixture}?group=beta`,
+    "*Alpha",
+    `${fixture}?group=alpha`
+  ].join("\n"))
+  await expect(groups.nth(0)).toHaveAttribute("open", "")
+  await expect(groups.nth(1)).toHaveAttribute("open", "")
+  await expect(groups.nth(2)).not.toHaveAttribute("open", "")
+  await expect.poll(() => page.evaluate(() =>
+    document.activeElement?.querySelector(".structured_group_name")
+      ?.textContent
+  )).toBe("Beta")
+  const revealed = await groups.nth(1).evaluate((group) => {
+    const bounds = group.getBoundingClientRect()
+    const list = group.closest(".structured_settings").getBoundingClientRect()
+    return bounds.top >= list.top && bounds.bottom <= list.bottom
+  })
+  expect(revealed).toBe(true)
+  await page.locator("#settings_section_back").click()
+  await expect(page.locator("#settings_panel"))
+    .not.toHaveClass(/\bsettings_detail_open\b/)
+})
+
+test("story sources can be dragged into empty groups", async ({ page }) => {
+  await page.goto("./")
+  await openSettingsSection(page, "sources")
+  const fixture = new URL("/fixtures/feed.rss", page.url()).href
+  await page.getByTestId("sources").fill([
+    fixture,
+    "*Empty"
+  ].join("\n"))
+  await saveSourcesAndWait(page)
+  await page.getByTestId("sources-mode-toggle").click()
+
+  const groups = page.locator(".structured_group")
+  await expect(groups).toHaveCount(2)
+  const source = groups.nth(0).getByTestId("source-row")
+  const emptyGroup = groups.nth(1)
+  const emptyList = emptyGroup.locator(".structured_rows")
+  await expect(emptyList.locator(".structured_empty")).toHaveText("No sources")
+  await emptyGroup.locator(".structured_group_name").click()
+  await expect(emptyGroup).not.toHaveAttribute("open", "")
+  await source.dragTo(emptyGroup.locator("summary"))
+
+  await expect(groups.nth(0).getByTestId("source-row")).toHaveCount(0)
+  await expect(groups.nth(1).getByTestId("source-row")).toHaveCount(1)
+  await expect(groups.nth(1).getByTestId("source-row")).toContainText(fixture)
+  await expect(groups.nth(1)).not.toHaveAttribute("open", "")
 })
 
 async function testServerUrl(page, path) {

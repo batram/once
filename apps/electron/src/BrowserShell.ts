@@ -118,6 +118,9 @@ export class BrowserShell {
   }
 
   private bindTabs(): void {
+    const clearWindowDropState = () => {
+      document.body.classList.remove("window-is-receiving-drop")
+    }
     this.tabStrip.addEventListener(
       "wheel",
       (event) => {
@@ -140,14 +143,24 @@ export class BrowserShell {
       }
     })
 
+    // Capture cleanup before an internal drop handler can stop propagation.
+    // Otherwise a settings reorder can leave the entire window in no-drag mode.
+    window.addEventListener("drop", clearWindowDropState, { capture: true })
+    window.addEventListener("dragend", clearWindowDropState, { capture: true })
+
     document.addEventListener("dragover", (event) => {
+      // A control inside the shell may already own this drag. In particular,
+      // structured settings rows use text/plain for internal reordering and
+      // set dropEffect to "move"; treating that payload as a dropped URL here
+      // changes it to "link" and prevents native Electron drops from completing.
+      if (event.defaultPrevented) return
       if (!this.hasSupportedDrop(event.dataTransfer)) return
       event.preventDefault()
       if (event.dataTransfer)
         event.dataTransfer.dropEffect = this.hasTabDrop(event.dataTransfer) ? "move" : "link"
     })
     document.addEventListener("drop", (event) => {
-      document.body.classList.remove("window-is-receiving-drop")
+      clearWindowDropState()
       event.preventDefault()
       void this.handleDrop(event)
     })

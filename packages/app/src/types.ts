@@ -105,7 +105,10 @@ export interface OnceClient {
   getDiagnostics(): DiagnosticError[]
   getSyncStatus(): SyncStatus
   getStorySources(): Promise<string[]>
-  saveStorySources(storySources: string[]): Promise<void>
+  saveStorySources(
+    storySources: string[],
+    reloadStories?: boolean
+  ): Promise<void>
   getFilterList(): Promise<string[]>
   saveFilterList(filterList: string[]): Promise<void>
   getRedirectList(): Promise<Redirect[]>

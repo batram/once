@@ -196,6 +196,17 @@ test("stacks, dismisses, restores, and opens source issues through the error log
     await errors.click()
     const errorBubble = window.locator(".status_issue_bubble.error")
     await expect(errorBubble).toHaveCount(1)
+
+    await openSettingsSection(
+      window,
+      "sources",
+      '[data-testid="sources-structured-list"]'
+    )
+    const failingSourceButton = window.locator("[data-source-value]")
+      .filter({ hasText: failingSource })
+    await failingSourceButton.click()
+    await expect(window.getByTestId("structured-item-form")).toBeVisible()
+
     await errorBubble.locator(".status_issue_content").click()
     await expect(window.locator("#left_panel")).toHaveAttribute(
       "active_panel",
@@ -208,9 +219,10 @@ test("stacks, dismisses, restores, and opens source issues through the error log
     await expect(logEntry).toBeVisible()
     await expect(logEntry).toHaveAttribute("open", "")
     await logEntry.locator(".error_log_show_source").click()
-    await expect.poll(() => sources.evaluate((textarea) =>
-      textarea.value.slice(textarea.selectionStart, textarea.selectionEnd)
-    )).toBe(failingSource)
+    await expect(window.getByTestId("structured-item-form")).toBeHidden()
+    await expect(failingSourceButton).toBeVisible()
+    await expect(failingSourceButton).toBeFocused()
+    await expect(failingSourceButton).toHaveClass(/\bstructured_row_target\b/)
   } finally {
     await closeApp(electronApp, userData)
   }

@@ -69,6 +69,31 @@ test("matches section copy and current non-sensitive values", () => {
   })
 })
 
+test("indexes canonical text settings without duplicating structured rows", () => {
+  withDom(`
+    <section>
+      <textarea id="sources"></textarea>
+      <div class="structured_settings">
+        <button aria-label="Edit https://news.example.test/">
+          <span>news.example.test</span>
+          <span>https://news.example.test/</span>
+        </button>
+      </div>
+    </section>
+  `, (section) => {
+    section.querySelector("#sources").value = "https://news.example.test/"
+    const result = matchSettingsSection(section, "Story sources", "news.example")
+    assert.equal(result.matches.length, 1)
+    assert.deepEqual(result.matches[0], {
+      text: "https://news.example.test/",
+      controlId: "sources",
+      startIndex: 0,
+      endIndex: 26,
+      targetId: undefined
+    })
+  })
+})
+
 test("never indexes the CouchDB URL or its masking presentation", () => {
   withDom(`
     <section>

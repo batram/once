@@ -22,6 +22,8 @@ export class SettingsPanel {
   static instance: SettingsPanel
   readonly ready: Promise<void>
   private structuredEditors?: StructuredSettingsEditors
+  private sourcesSaveChain: Promise<void> = Promise.resolve()
+  private sourcesReloadPending = false
 
   constructor(private client: OnceClient) {
     SettingsPanel.instance = this
@@ -391,7 +393,18 @@ export class SettingsPanel {
     })
 
     this.structuredEditors = new StructuredSettingsEditors({
-      saveSources: (values) => this.client.saveStorySources(values),
+      saveSources: (values, reloadStories = true) => {
+        this.sourcesSaveChain = this.sourcesSaveChain
+          .catch((error) => {
+            console.error("Failed to save an earlier story-source change", error)
+          })
+          .then(() => this.client.saveStorySources(values, reloadStories))
+        if (reloadStories) {
+          this.sourcesReloadPending = false
+        } else {
+          this.sourcesReloadPending = true
+        }
+      },
       saveFilters: (values) => this.client.saveFilterList(values),
       saveRedirects: (values) => this.client.saveRedirectList(values),
       showSourceError: (source) => this.showSourceErrorLog(source)
@@ -554,6 +567,13 @@ export class SettingsPanel {
     const targetId = match.targetId
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
+        if (match.startIndex !== undefined &&
+            this.structuredEditors?.openSettingsSearchMatch(
+              key,
+              match.startIndex
+            )) {
+          return
+        }
         if (targetId) {
           const target = document.getElementById(targetId)
           if (!target) return
@@ -597,7 +617,15 @@ export class SettingsPanel {
     back.hidden = false
     const label = this.settingsSectionButtons.get(key)?.dataset.settingsLabel
     requireElement("#settings_panel .settings_title").textContent = label || "Settings"
+    this.structuredEditors?.setActiveSection(key)
     requestAnimationFrame(() => {
+      const isMobileStructuredSection =
+        document.body.dataset.platform === "mobile" &&
+        (key === "sources" || key === "filters" || key === "redirects")
+      if (isMobileStructuredSection) {
+        back.focus({ preventScroll: true })
+        return
+      }
       document.querySelector<HTMLElement>(
         `.settings_section[data-settings-section="${key}"] input, ` +
         `.settings_section[data-settings-section="${key}"] select, ` +
@@ -609,6 +637,13 @@ export class SettingsPanel {
 
   private closeSettingsSection(): void {
     const previous = this.activeSettingsSection
+    if (previous === "sources" && this.sourcesReloadPending) {
+      this.sourcesReloadPending = false
+      const pending = this.sourcesSaveChain
+      void pending.then(() => this.client.reloadStories(true)).catch((error) => {
+        console.error("Failed to save story-source ordering", error)
+      })
+    }
     this.activeSettingsSection = null
     document.querySelectorAll<HTMLElement>(".settings_section").forEach((section) => {
       section.classList.remove("active")
@@ -616,6 +651,7 @@ export class SettingsPanel {
     requireElement("#settings_panel").classList.remove("settings_detail_open")
     requireElement<HTMLButtonElement>("#settings_section_back").hidden = true
     requireElement("#settings_panel .settings_title").textContent = "Settings"
+    this.structuredEditors?.setActiveSection(null)
     if (previous) this.settingsSectionButtons.get(previous)?.focus()
   }
 
@@ -770,6 +806,8 @@ export class SettingsPanel {
       return x.trim() != ""
     })
 
+    await this.sourcesSaveChain
+    this.sourcesReloadPending = false
     await this.client.saveStorySources(story_sources)
   }
 

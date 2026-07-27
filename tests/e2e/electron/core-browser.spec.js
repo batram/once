@@ -30,6 +30,15 @@ test("searches settings content without changing the open detail", async () => {
 
     await window.getByTestId("settings-menu").click()
     await window.locator('[data-settings-target="sources"]').click()
+    const modeToggle = window.getByTestId("sources-mode-toggle")
+    await expect(modeToggle).toHaveText("TXT")
+    await expect(modeToggle).toHaveAttribute("aria-label", "Edit as text")
+    await expect(modeToggle.locator("xpath=..")).toHaveClass(/\bbar\b/)
+    await expect(
+      window.locator(
+        '[data-settings-section="sources"] .settings_panel_heading'
+      )
+    ).toBeHidden()
     await window.getByTestId("sources-mode-toggle").click()
     const search = window.locator("#settings_search")
     const sources = window.locator("#sources_area")
@@ -136,6 +145,183 @@ test("searches settings content without changing the open detail", async () => {
     await expect(window.locator("#couch_input")).toHaveValue(
       "https://user:settings-search-secret@example.test/db"
     )
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
+test("opens structured entries from settings search results", async () => {
+  const { electronApp, userData, window } = await launchApp()
+  try {
+    await window.getByTestId("settings-menu").click()
+    const search = window.locator("#settings_search")
+
+    await search.fill("news?p=2")
+    const sourceMatch = window.locator('[data-settings-target="sources"]')
+      .locator("xpath=..").locator(".settings_section_match")
+    await expect(sourceMatch).toHaveCount(1)
+    await sourceMatch.click()
+    await expect(window.getByTestId("structured-item-form")).toBeVisible()
+    await expect(window.getByTestId("structured-item-form").locator("input").first())
+      .toHaveValue("https://news.ycombinator.com/news?p=2")
+
+    await window.locator("#settings_section_back").click()
+    await window.locator("#settings_section_back").click()
+    await search.fill("foxnews.com")
+    const filterMatch = window.locator('[data-settings-target="filters"]')
+      .locator("xpath=..").locator(".settings_section_match")
+    await filterMatch.click()
+    const filterInput = window.getByTestId("filter-inline-input")
+    await expect(filterInput).toBeVisible()
+    await expect(filterInput).toHaveValue("foxnews.com")
+    await expect(filterInput.locator("xpath=.."))
+      .toHaveClass(/\bstructured_row_target\b/)
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
+test("reorders story source groups with a native Electron drag", async () => {
+  const { electronApp, userData, window } = await launchApp()
+  try {
+    await openSettingsSection(window, "sources")
+    await window.getByTestId("sources-mode-toggle").click()
+    const sources = window.locator("#sources_area")
+    await expect(sources).toBeVisible()
+    await sources.fill([
+      "https://example.test/default.xml",
+      "*Alpha",
+      "https://example.test/alpha.xml",
+      "*Beta",
+      "https://example.test/beta.xml"
+    ].join("\n"))
+    const save = window.getByTestId("save-sources")
+    await save.click()
+    await expect(save).toBeEnabled()
+    await window.getByTestId("sources-mode-toggle").click()
+
+    const groups = window.locator(".structured_group")
+    const names = window.locator(".structured_group_name")
+    await expect(names).toHaveText(["Default", "Alpha", "Beta"])
+
+    const beta = names.nth(2)
+    const betaBounds = await beta.boundingBox()
+    expect(betaBounds).not.toBeNull()
+    await window.mouse.move(
+      betaBounds.x + betaBounds.width / 2,
+      betaBounds.y + betaBounds.height / 2
+    )
+    await window.mouse.down()
+    await window.mouse.move(
+      betaBounds.x + betaBounds.width / 2,
+      betaBounds.y + betaBounds.height / 2 + 8,
+      { steps: 4 }
+    )
+    await expect(window.getByTestId("sources-structured-list"))
+      .toHaveClass(/\bstructured_group_drag_active\b/)
+    const alphaBounds = await groups.nth(1).locator("summary").boundingBox()
+    expect(alphaBounds).not.toBeNull()
+    await window.mouse.move(
+      alphaBounds.x + 12,
+      alphaBounds.y + 2,
+      { steps: 8 }
+    )
+    await window.mouse.up()
+
+    await expect(window.locator("body"))
+      .not.toHaveClass(/\bwindow-is-receiving-drop\b/)
+    await expect.poll(() => window.locator("#titlebar").evaluate((element) =>
+      getComputedStyle(element).getPropertyValue("app-region")
+    )).toBe("drag")
+    await expect(names).toHaveText(["Default", "Beta", "Alpha"])
+    await expect(sources).toHaveValue([
+      "https://example.test/default.xml",
+      "*Beta",
+      "https://example.test/beta.xml",
+      "*Alpha",
+      "https://example.test/alpha.xml"
+    ].join("\n"))
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
+test("scrolls a new filter editor clear of sticky settings controls", async () => {
+  const { electronApp, userData, window } = await launchApp()
+  try {
+    await openSettingsSection(window, "filters")
+    await window.getByTestId("add-filter").click()
+
+    const input = window.getByTestId("filter-inline-input")
+    await expect(input).toBeFocused()
+    await expect.poll(() => input.evaluate((element) => {
+      const bounds = element.getBoundingClientRect()
+      const section = element.closest(".settings_section").getBoundingClientRect()
+      const search = element.closest(".structured_settings")
+        .querySelector(".structured_search").getBoundingClientRect()
+      const actions = element.closest(".settings_editor_block")
+        .querySelector(".settings_actions").getBoundingClientRect()
+      return {
+        belowSearch: bounds.top >= Math.max(section.top, search.bottom),
+        aboveActions: bounds.bottom <= Math.min(section.bottom, actions.top)
+      }
+    })).toEqual({
+      belowSearch: true,
+      aboveActions: true
+    })
+
+    const value = "newly-added-filter.example"
+    await input.fill(value)
+    await window.getByTestId("save-inline-filter").click()
+    const saved = window.locator(`[data-filter-value="${value}"]`)
+    const savedRow = saved.locator("xpath=..")
+    await expect(saved).toBeFocused()
+    await expect.poll(() => savedRow.evaluate((element) => {
+      const bounds = element.getBoundingClientRect()
+      const section = element.closest(".settings_section").getBoundingClientRect()
+      const search = element.closest(".structured_settings")
+        .querySelector(".structured_search").getBoundingClientRect()
+      const actions = element.closest(".settings_editor_block")
+        .querySelector(".settings_actions").getBoundingClientRect()
+      return {
+        belowSearch: bounds.top >= Math.max(section.top, search.bottom),
+        aboveActions: bounds.bottom <= Math.min(section.bottom, actions.top)
+      }
+    })).toEqual({
+      belowSearch: true,
+      aboveActions: true
+    })
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
+test("keeps a broad auto-scroll zone while dragging settings rows", async () => {
+  const { electronApp, userData, window } = await launchApp()
+  try {
+    const section = await openSettingsSection(window, "filters")
+    const rows = window.locator(
+      '[data-structured-section="filters"] .structured_row'
+    )
+    await expect.poll(() => rows.count()).toBeGreaterThan(20)
+    await section.evaluate((element) => {
+      element.scrollTop = element.scrollHeight
+    })
+    const initialScroll = await section.evaluate((element) => element.scrollTop)
+    expect(initialScroll).toBeGreaterThan(0)
+    await window.getByTestId("filters-structured-list").evaluate((root) => {
+      const transfer = new DataTransfer()
+      const search = root.querySelector(".structured_search")
+        .getBoundingClientRect()
+      root.dispatchEvent(new DragEvent("dragover", {
+        bubbles: true,
+        cancelable: true,
+        clientY: search.bottom + 60,
+        dataTransfer: transfer
+      }))
+    })
+    await expect.poll(() => section.evaluate((element) => element.scrollTop))
+      .toBeLessThan(initialScroll)
   } finally {
     await closeApp(electronApp, userData)
   }

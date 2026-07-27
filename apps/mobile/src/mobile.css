@@ -1044,6 +1044,21 @@ body[data-platform="mobile"] #settings_panel .settings_title {
   font-weight: 600;
 }
 
+body[data-platform="mobile"] #settings_panel .structured_mode_toggle_topbar {
+  box-sizing: border-box;
+  min-width: 38px;
+  min-height: 30px;
+  margin: 0 0 0 auto;
+  padding: 0 var(--m-sp-2);
+  border: var(--m-bw) solid var(--m-ink);
+  border-radius: var(--m-radius);
+  background: transparent;
+  font-family: var(--m-mono);
+  font-size: var(--m-fs-meta);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
 body[data-platform="mobile"] #settings_panel .settings_block {
   border: var(--m-bw) solid var(--m-ink);
   border-radius: var(--m-radius);
@@ -1205,6 +1220,17 @@ body[data-platform="mobile"] .settings_editor_block .structured_settings {
   -webkit-overflow-scrolling: touch;
 }
 
+body[data-platform="mobile"] .structured_search {
+  gap: var(--m-sp-2);
+  padding: var(--m-sp-1) 0;
+  background: var(--m-card-bg);
+}
+
+body[data-platform="mobile"] .structured_search input {
+  min-height: var(--m-touch);
+  padding: 0 var(--m-sp-3);
+}
+
 body[data-platform="mobile"] .settings_editor_block .structured_settings_header {
   flex: 0 0 auto;
 }
@@ -1289,14 +1315,6 @@ body[data-platform="mobile"] .collector_badge {
   font-size: var(--m-fs-meta);
 }
 
-body[data-platform="mobile"] .structured_move_actions button {
-  width: 26px;
-  min-width: 26px;
-  height: 22px;
-  min-height: 22px;
-  padding: 0;
-  font-size: 12px;
-}
 
 body[data-platform="mobile"] .structured_remove,
 body[data-platform="mobile"] .structured_inline_action,
