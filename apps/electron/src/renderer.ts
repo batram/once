@@ -26,8 +26,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     (html, sourceUrl, target) =>
       window.onceElectron.tabs.openReader(html, sourceUrl, target)
   )
-  SourcePickerView.mount(app.client, () =>
-    window.onceElectron.tabs.startSourcePicker()
+  SourcePickerView.mount(app.client, (url) =>
+    window.onceElectron.tabs.startSourcePicker(url)
   )
   const browserShell = new BrowserShell(
     window.onceElectron,

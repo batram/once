@@ -17,7 +17,153 @@ async function openSettingsSection(page, section) {
     if (await back.isVisible()) await back.click()
   }
   await row.click()
+  if (["sources", "filters", "redirects"].includes(section)) {
+    const textarea = page.getByTestId(
+      section === "sources" ? "sources" : section
+    )
+    if (!(await textarea.isVisible())) {
+      await page.getByTestId(`${section}-mode-toggle`).click()
+    }
+  }
 }
+
+test("list settings are the default and expose structured add actions", async ({ page }) => {
+  await page.goto("./")
+  await page.getByTestId("settings-menu").click()
+  const sourcesSection = page.locator('[data-settings-target="sources"]')
+  if (!(await sourcesSection.isVisible())) {
+    await page.locator("#settings_section_back").click()
+  }
+  await sourcesSection.click()
+  await expect(page.getByTestId("sources-structured-list")).toBeVisible()
+  await expect(page.getByTestId("sources")).toBeHidden()
+  await expect(page.getByTestId("add-source")).toBeVisible()
+  await expect(page.getByTestId("add-source-group")).toBeVisible()
+  await expect(page.getByTestId("pick-source")).toBeVisible()
+  const pickerBounds = await page.getByTestId("pick-source").evaluate((button) => {
+    const bounds = button.getBoundingClientRect()
+    return {
+      left: bounds.left,
+      right: bounds.right,
+      viewportWidth: window.innerWidth
+    }
+  })
+  expect(pickerBounds.left).toBeGreaterThanOrEqual(0)
+  expect(pickerBounds.right).toBeLessThanOrEqual(pickerBounds.viewportWidth)
+  await page.getByTestId("pick-source").click()
+  await expect(page.getByTestId("text-input-dialog")).toBeVisible()
+  await expect(page.getByTestId("text-input-value")).toHaveValue("https://")
+  await page.getByTestId("text-input-cancel").click()
+  await page.getByTestId("sources-mode-toggle").click()
+  await page.getByTestId("sources").fill(
+    Array.from({ length: 18 }, (_, index) =>
+      `https://example.test/source-${index}`).join("\n")
+  )
+  await page.getByTestId("save-sources").click()
+  await expect(page.getByTestId("sources-mode-toggle")).toHaveText("Edit as list")
+  await page.getByTestId("sources-mode-toggle").click()
+  const sourceList = page.getByTestId("sources-structured-list")
+  const scrollMetrics = await sourceList.evaluate((element) => {
+    element.scrollTop = element.scrollHeight
+    return {
+      top: element.scrollTop,
+      height: element.clientHeight,
+      scrollHeight: element.scrollHeight
+    }
+  })
+  expect(scrollMetrics.scrollHeight).toBeGreaterThan(scrollMetrics.height)
+  expect(scrollMetrics.top).toBeGreaterThan(0)
+
+  await page.getByTestId("add-source").click()
+  await expect(page.getByTestId("structured-item-form")).toBeVisible()
+  await page.locator("#settings_section_back").click()
+  await expect(page.getByTestId("sources-structured-list")).toBeVisible()
+  await expect(page.getByTestId("structured-item-form")).toBeHidden()
+  await expect(page.locator("#settings_panel")).toHaveClass(
+    /\bsettings_detail_open\b/
+  )
+  await page.getByTestId("sources-mode-toggle").click()
+  await expect(page.getByTestId("sources")).toBeVisible()
+})
+
+test("filters edit inline and expose a row remove button", async ({ page }) => {
+  await page.goto("./")
+  await page.getByTestId("settings-menu").click()
+  await page.locator('[data-settings-target="filters"]').click()
+
+  const firstRow = page.getByTestId("filter-row").first()
+  const original = await firstRow.textContent()
+  await firstRow.click()
+  const input = page.getByTestId("filter-inline-input")
+  await expect(input).toBeFocused()
+  await input.fill(`${original}-edited`)
+  await input.press("Enter")
+  await expect(page.getByTestId("filter-row").first()).toHaveText(
+    `${original}-edited`
+  )
+
+  page.once("dialog", (dialog) => dialog.accept())
+  await page.getByTestId("remove-filter").first().click()
+  await expect(page.getByTestId("filter-row").first()).not.toHaveText(
+    `${original}-edited`
+  )
+
+  const rows = page.locator(
+    '[data-structured-section="filters"] .structured_row'
+  )
+  const firstValue = await page.getByTestId("filter-row").nth(0).textContent()
+  const secondValue = await page.getByTestId("filter-row").nth(1).textContent()
+  await rows.nth(0).dragTo(rows.nth(1))
+  await expect(page.getByTestId("filter-row").nth(0)).toHaveText(secondValue)
+  await expect(page.getByTestId("filter-row").nth(1)).toHaveText(firstValue)
+
+  const moveSizes = await rows.nth(0)
+    .locator(".structured_move_actions button")
+    .evaluateAll((buttons) => buttons.map((button) => {
+      const bounds = button.getBoundingClientRect()
+      return { width: bounds.width, height: bounds.height }
+    }))
+  expect(moveSizes).toEqual([
+    { width: 26, height: 22 },
+    { width: 26, height: 22 }
+  ])
+
+  const list = page.getByTestId("filters-structured-list")
+  await list.evaluate((element) => {
+    element.scrollTop = 0
+    const bounds = element.getBoundingClientRect()
+    element.dispatchEvent(new DragEvent("dragover", {
+      bubbles: true,
+      cancelable: true,
+      clientX: bounds.left + bounds.width / 2,
+      clientY: bounds.bottom - 2,
+      dataTransfer: new DataTransfer()
+    }))
+  })
+  await expect
+    .poll(() => list.evaluate((element) => element.scrollTop))
+    .toBeGreaterThan(0)
+
+  const bottomScrollTop = await list.evaluate((element) => {
+    element.scrollTop = element.scrollHeight
+    const start = element.scrollTop
+    const bounds = element.getBoundingClientRect()
+    element.dispatchEvent(new DragEvent("dragover", {
+      bubbles: true,
+      cancelable: true,
+      clientX: bounds.left + bounds.width / 2,
+      clientY: bounds.top + 2,
+      dataTransfer: new DataTransfer()
+    }))
+    return start
+  })
+  await expect
+    .poll(() => list.evaluate((element) => element.scrollTop))
+    .toBeLessThan(bottomScrollTop)
+  await list.evaluate((element) => {
+    element.dispatchEvent(new DragEvent("drop", { bubbles: true }))
+  })
+})
 
 async function testServerUrl(page, path) {
   return new URL(path, page.url()).href

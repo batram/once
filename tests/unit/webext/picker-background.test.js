@@ -41,19 +41,23 @@ test("injects the picker content script into the active HTTP tab", async () => {
   assert.equal(api.runtime.onMessage.listeners.length, 0)
 })
 
-test("refuses to inject into missing or non-HTTP tabs", async () => {
+test("requests a URL instead of injecting into missing or non-HTTP tabs", async () => {
   const missing = fakeBrowser(null)
   installPickerBackground(missing.api)
-  await assert.rejects(
-    missing.api.runtime.onMessage.listeners[0]({ onceCommand: "startSourcePicker" }),
-    /no active tab/
+  assert.deepEqual(
+    await missing.api.runtime.onMessage.listeners[0]({
+      onceCommand: "startSourcePicker"
+    }),
+    { needsUrl: true }
   )
 
   const privileged = fakeBrowser({ id: 3, url: "about:config" })
   installPickerBackground(privileged.api)
-  await assert.rejects(
-    privileged.api.runtime.onMessage.listeners[0]({ onceCommand: "startSourcePicker" }),
-    /HTTP or HTTPS/
+  assert.deepEqual(
+    await privileged.api.runtime.onMessage.listeners[0]({
+      onceCommand: "startSourcePicker"
+    }),
+    { needsUrl: true }
   )
   assert.deepEqual(privileged.executed, [])
 })

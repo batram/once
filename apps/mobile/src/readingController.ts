@@ -36,6 +36,11 @@ export class MobileReadingController {
   private currentStoryCollapsed = false
   private storyMenuOpen = false
 
+  openBrowserUrl(url: string): void {
+    Menu.open_panel("reading")
+    this.session.navigate(url)
+  }
+
   constructor(
     private readonly surface: InAppBrowserSurface,
     private readonly reader: ReaderDocumentHost,

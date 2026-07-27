@@ -16,10 +16,12 @@ import {
   SettingsSearchMatch
 } from "./SettingsSearch"
 import { installSwipePreview } from "./SwipePreviewRow"
+import { StructuredSettingsEditors } from "./StructuredSettingsEditors"
 
 export class SettingsPanel {
   static instance: SettingsPanel
   readonly ready: Promise<void>
+  private structuredEditors?: StructuredSettingsEditors
 
   constructor(private client: OnceClient) {
     SettingsPanel.instance = this
@@ -383,6 +385,15 @@ export class SettingsPanel {
       }
     })
 
+    this.structuredEditors = new StructuredSettingsEditors({
+      saveSources: (values) => this.client.saveStorySources(values),
+      saveFilters: (values) => this.client.saveFilterList(values),
+      saveRedirects: (values) => this.client.saveRedirectList(values),
+      showSourceError: (source) => this.showSourceErrorLog(source)
+    })
+    this.structuredEditors.sync("sources")
+    this.structuredEditors.sync("filters")
+    this.structuredEditors.sync("redirects")
     this.installSettingsNavigation()
   }
 
@@ -469,7 +480,10 @@ export class SettingsPanel {
       subtree: true,
       characterData: true
     })
-    back.onclick = () => this.closeSettingsSection()
+    back.onclick = () => {
+      if (this.structuredEditors?.handleBack(this.activeSettingsSection)) return
+      this.closeSettingsSection()
+    }
     document.addEventListener("once-settings-index-requested", () => {
       this.showSettingsIndex()
     })
@@ -740,6 +754,7 @@ export class SettingsPanel {
     sources_area.value = story_sources.join("\n")
     // Trigger input event to update highlights
     sources_area.dispatchEvent(new Event("input"))
+    this.structuredEditors?.sync("sources")
     this.refreshSettingsSearch()
   }
 
@@ -758,6 +773,7 @@ export class SettingsPanel {
       requireElement<HTMLInputElement>("#filter_area")
     const filter_list = await this.client.getFilterList()
     filter_area.value = filter_list.join("\n")
+    this.structuredEditors?.sync("filters")
     this.refreshSettingsSearch()
   }
 
@@ -775,6 +791,7 @@ export class SettingsPanel {
       requireElement<HTMLInputElement>("#redirect_area")
     const redirect_list = await this.client.getRedirectList()
     redirect_area.value = presentRedirectList(redirect_list)
+    this.structuredEditors?.sync("redirects")
     this.refreshSettingsSearch()
   }
 
@@ -792,6 +809,7 @@ export class SettingsPanel {
       errors.map((error) => [error.url.trim(), error])
     )
     this.updateSourcesDisplay()
+    this.structuredEditors?.setErrors(errors)
   }
 
   private updateSourcesDisplay(): void {
@@ -903,6 +921,7 @@ export class SettingsPanel {
   public highlight_filter(filter: string, shouldOpenPanel = true): void {
     console.log("SettingsPanel: highlighting filter", filter)
     if (shouldOpenPanel) this.openSettingsSection("filters")
+    if (shouldOpenPanel && this.structuredEditors?.focusFilter(filter)) return
     this.highlight_textarea_content(
       "filter_area",
       filter,
@@ -913,6 +932,7 @@ export class SettingsPanel {
 
   public highlightSource(sourceUrl: string): void {
     this.openSettingsSection("sources")
+    if (this.structuredEditors?.focusSource(sourceUrl)) return
     this.highlight_textarea_content("sources_area", sourceUrl, true, true)
   }
 

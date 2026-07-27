@@ -246,6 +246,10 @@ async function openSettingsSection(window, target, controlSelector) {
   })
   if (!controlSelector) return section
   const control = section.locator(controlSelector)
+  if (!(await control.isVisible()) &&
+      ["sources", "filters", "redirects"].includes(target)) {
+    await section.getByTestId(`${target}-mode-toggle`).click()
+  }
   await expect(
     control,
     `${target} settings control ${controlSelector} was not visible`

@@ -70,6 +70,7 @@ export interface InAppBrowserSurface {
   setVisible(visible: boolean): Promise<void>
   showMenu(options: NativeOverlayMenuOptions): Promise<string | null>
   showPrompt(options: NativeOverlayPromptOptions): Promise<string | null>
+  evaluateJavaScript(script: string): Promise<string | null>
   close(): Promise<void>
   addListener<K extends BrowserSurfaceEventName>(
     event: K,
@@ -88,6 +89,7 @@ interface NativeInAppBrowserPlugin {
   showPrompt(
     options: NativeOverlayPromptOptions
   ): Promise<{ value?: string }>
+  evaluateJavaScript(options: { script: string }): Promise<{ value?: string }>
   close(): Promise<void>
   addListener(
     event: BrowserSurfaceEventName,
@@ -154,6 +156,10 @@ export function createNativeInAppBrowserSurface(): InAppBrowserSurface {
       const result = await NativeInAppBrowser.showPrompt(options)
       return result?.value ?? null
     },
+    async evaluateJavaScript(script) {
+      const result = await NativeInAppBrowser.evaluateJavaScript({ script })
+      return result?.value ?? null
+    },
     close: () => NativeInAppBrowser.close(),
     async addListener(event, listener) {
       const handle = await NativeInAppBrowser.addListener(
@@ -206,6 +212,7 @@ export function createFallbackInAppBrowserSurface(
     setVisible: async () => undefined,
     showMenu: async () => null,
     showPrompt: async () => null,
+    evaluateJavaScript: async () => null,
     close: async () => {
       currentUrl = ""
     },

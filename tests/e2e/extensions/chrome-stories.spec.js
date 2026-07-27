@@ -58,6 +58,7 @@ async function launchStoryExtension() {
     await openSettingsSection(page, "theme")
     await page.locator("#anim_checkbox").uncheck()
     await openSettingsSection(page, "sources")
+    await page.getByTestId("sources-mode-toggle").click()
     await page.getByTestId("sources").fill(source.source)
     await page.getByTestId("save-sources").click()
     await openStories(page)
@@ -117,6 +118,9 @@ async function openSettingsSection(page, target) {
 
 async function saveRedirects(page, text) {
   await openSettingsSection(page, "redirects")
+  if (!(await page.getByTestId("redirects").isVisible())) {
+    await page.getByTestId("redirects-mode-toggle").click()
+  }
   await page.getByTestId("redirects").fill(text)
   await page.getByTestId("save-redirects").click()
   await openStories(page)
@@ -124,6 +128,9 @@ async function saveRedirects(page, text) {
 
 async function saveFilters(page, text) {
   await openSettingsSection(page, "filters")
+  if (!(await page.getByTestId("filters").isVisible())) {
+    await page.getByTestId("filters-mode-toggle").click()
+  }
   await page.getByTestId("filters").fill(text)
   await page.getByTestId("save-filters").click()
   await openStories(page)
@@ -366,6 +373,9 @@ test("adds and removes a story filter", async () => {
     await expect(delta).toBeHidden()
 
     await openSettingsSection(page, "filters")
+    if (!(await page.getByTestId("filters").isVisible())) {
+      await page.getByTestId("filters-mode-toggle").click()
+    }
     const filterArea = page.getByTestId("filters")
     await expect(filterArea).toHaveValue(
       new RegExp(storyFixture.FILTER_TOKEN)

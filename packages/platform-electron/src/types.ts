@@ -111,7 +111,7 @@ export interface ElectronBridge {
     detach(id: string, point?: ElectronPoint): Promise<void>
     toggleMuted(id: string): Promise<void>
     openDroppedUrls(urls: string[]): Promise<void>
-    startSourcePicker(): Promise<string | null>
+    startSourcePicker(url?: string): Promise<string | null>
     showMenu(id: string, point: ElectronPoint): Promise<void>
     setBounds(bounds: ElectronRect): Promise<void>
     onChanged(handler: (tabs: ElectronTabState[]) => void): () => void

@@ -192,6 +192,26 @@ public class InAppBrowserSurfacePlugin extends Plugin {
     }
 
     @PluginMethod
+    public void evaluateJavaScript(PluginCall call) {
+        String script = call.getString("script");
+        if (script == null || script.isEmpty()) {
+            call.reject("JavaScript source is required");
+            return;
+        }
+        getActivity().runOnUiThread(() -> {
+            if (surface == null) {
+                call.reject("There is no open page");
+                return;
+            }
+            surface.evaluateJavascript(script, value -> {
+                JSObject result = new JSObject();
+                result.put("value", value);
+                call.resolve(result);
+            });
+        });
+    }
+
+    @PluginMethod
     public void close(PluginCall call) {
         getActivity().runOnUiThread(() -> {
             if (surface != null) {

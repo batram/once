@@ -30,6 +30,7 @@ test("searches settings content without changing the open detail", async () => {
 
     await window.getByTestId("settings-menu").click()
     await window.locator('[data-settings-target="sources"]').click()
+    await window.getByTestId("sources-mode-toggle").click()
     const search = window.locator("#settings_search")
     const sources = window.locator("#sources_area")
     const rows = window.locator(".settings_section_row")
@@ -66,6 +67,7 @@ test("searches settings content without changing the open detail", async () => {
       await search.fill("")
       const row = window.locator(`[data-settings-target="${target}"]`)
       await row.click()
+      await window.getByTestId(`${target}-mode-toggle`).click()
       activeTextarea = window.locator(selector)
       activeValue = `first ${marker}-${target}\nsecond ${marker}-${target}`
       await activeTextarea.fill(activeValue)

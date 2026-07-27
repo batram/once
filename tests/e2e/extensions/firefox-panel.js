@@ -82,6 +82,12 @@ async function openSettingsSection(driver, target, controlSelector) {
     5_000,
     `${label} settings control ${controlSelector} did not appear within 5s`
   )
+  const displayed = await control.isDisplayed()
+  if (!displayed && ["sources", "filters", "redirects"].includes(target)) {
+    await driver.findElement(
+      By.css(`[data-testid="${target}-mode-toggle"]`)
+    ).click()
+  }
   await driver.wait(
     until.elementIsVisible(control),
     5_000,

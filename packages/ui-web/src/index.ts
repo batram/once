@@ -9,6 +9,13 @@ export {
   StoryAnchoredMenuOptions
 } from "./StoryAnchoredMenu"
 export { SettingsPanel } from "./SettingsPanel"
+export {
+  parseSourceGroups,
+  serializeSourceGroups,
+  parseFilterRows,
+  parseRedirectRows,
+  serializeRedirectRows
+} from "./StructuredSettingsEditors"
 export { LoaderInsights } from "./LoaderInsights"
 export { HoverUrlIndicator } from "./HoverUrlIndicator"
 export { addCollectorColorStyles } from "./CollectorStyles"

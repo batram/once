@@ -1196,6 +1196,19 @@ body[data-platform="mobile"] .settings_editor_block {
   overflow: hidden;
 }
 
+body[data-platform="mobile"] .settings_editor_block .structured_settings {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+body[data-platform="mobile"] .settings_editor_block .structured_settings_header {
+  flex: 0 0 auto;
+}
+
 body[data-platform="mobile"] .settings_editor_block .settings_block_label {
   flex: 0 0 auto;
 }
@@ -1219,6 +1232,80 @@ body[data-platform="mobile"] .settings_editor_block .settings_actions input {
   min-width: 88px;
   margin: 0;
   padding: 0 var(--m-sp-3);
+}
+
+body[data-platform="mobile"] .structured_settings_header {
+  min-height: var(--m-touch);
+}
+
+body[data-platform="mobile"] .structured_mode_toggle,
+body[data-platform="mobile"] .structured_list_actions button,
+body[data-platform="mobile"] .structured_form_actions button {
+  min-height: var(--m-touch);
+  padding: 0 var(--m-sp-3);
+}
+
+body[data-platform="mobile"] .settings_editor_block .settings_actions {
+  position: relative;
+  z-index: 5;
+  bottom: auto;
+  flex-wrap: wrap;
+  padding: var(--m-sp-2) 0 0;
+  background: var(--m-card-bg);
+}
+
+body[data-platform="mobile"] .structured_actions_sources .structured_list_actions {
+  display: contents;
+}
+
+body[data-platform="mobile"]
+  .structured_actions_sources
+  .structured_list_actions
+  button,
+body[data-platform="mobile"] .structured_actions_sources #pick_source_button {
+  box-sizing: border-box;
+  flex: 1 1 calc(50% - var(--m-sp-2));
+  min-width: 0;
+}
+
+body[data-platform="mobile"] .structured_actions_sources #pick_source_status {
+  flex: 1 0 100%;
+}
+
+body[data-platform="mobile"] .structured_row {
+  min-height: 70px;
+}
+
+body[data-platform="mobile"] .structured_row_main {
+  min-height: var(--m-touch);
+}
+
+body[data-platform="mobile"] .collector_badge {
+  flex-basis: 24px;
+  min-height: 20px;
+  margin: 0 var(--m-sp-2);
+  padding: 1px;
+  border: thin solid white;
+  font-size: var(--m-fs-meta);
+}
+
+body[data-platform="mobile"] .structured_move_actions button {
+  width: 26px;
+  min-width: 26px;
+  height: 22px;
+  min-height: 22px;
+  padding: 0;
+  font-size: 12px;
+}
+
+body[data-platform="mobile"] .structured_remove,
+body[data-platform="mobile"] .structured_inline_action,
+body[data-platform="mobile"] .structured_inline_input {
+  min-height: var(--m-touch);
+}
+
+body[data-platform="mobile"] .structured_group > summary {
+  min-height: var(--m-touch);
 }
 
 /* textarea + backdrop + highlights must share metrics or error

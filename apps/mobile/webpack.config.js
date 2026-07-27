@@ -50,7 +50,8 @@ module.exports = (_env = {}, argv = {}) => {
     mode,
     entry: {
       mobile: path.join(__dirname, "src", "main.ts"),
-      "reader-runtime": path.join(__dirname, "src", "readerRuntime.ts")
+      "reader-runtime": path.join(__dirname, "src", "readerRuntime.ts"),
+      "picker-injection": path.join(__dirname, "src", "pickerInjection.ts")
     },
     output: {
       path: path.join(__dirname, "dist"),
