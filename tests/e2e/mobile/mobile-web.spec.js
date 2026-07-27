@@ -439,6 +439,7 @@ test("a long-press that becomes a drag shows progress and opens nothing", async 
       marked: row.classList.contains("press_building"),
       animation: building.animationName,
       duration: building.animationDuration,
+      delay: building.animationDelay,
       height: building.height
     }
     // past MOVE_TOLERANCE_PX — the swipe handler owns the gesture now
@@ -453,7 +454,8 @@ test("a long-press that becomes a drag shows progress and opens nothing", async 
 
   expect(result.started.marked).toBe(true)
   expect(result.started.animation).toBe("once-press-progress")
-  expect(result.started.duration).toBe("0.5s")
+  expect(result.started.duration).toBe("0.4s")
+  expect(result.started.delay).toBe("0.1s")
   expect(result.started.height).toBe("2px")
   expect(result.cancelled).toBe(false)
   await expect(page.getByTestId("story-menu")).toBeHidden()

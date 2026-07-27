@@ -284,9 +284,10 @@ body[data-platform="mobile"] .story.press_building::after {
   position: absolute;
   left: 0;
   bottom: 0;
+  width: 0;
   height: 2px;
   background: var(--m-accent-bg);
-  animation: once-press-progress 500ms linear forwards;
+  animation: once-press-progress 400ms linear 100ms forwards;
   pointer-events: none;
 }
 
