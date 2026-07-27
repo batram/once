@@ -236,6 +236,8 @@ body[data-platform="mobile"] .story.stared .substories .info:first-child::after 
 body[data-platform="mobile"] .story .tags_container {
   order: 1;
   flex: 1 1 100%;
+  box-sizing: border-box;
+  padding-right: 32px;
   /* one .tag box: its line box, plus 1px padding + 1px border + 2px margin
      on each side. Keeps a tagless row exactly as tall as a tagged one. */
   min-height: calc(var(--m-fs-meta) * 1.25 + 8px);
@@ -253,13 +255,15 @@ body[data-platform="mobile"] .story .button_group {
 body[data-platform="mobile"] .story .menu_btn {
   display: grid;
   place-items: center;
-  align-self: stretch;
+  position: absolute;
+  right: var(--m-sp-1);
+  bottom: var(--m-sp-1);
   box-sizing: border-box;
-  flex: 0 0 38px;
-  height: auto;
-  /* cancel the row's own padding so the target spans the full row height */
-  margin: calc(-1 * var(--m-sp-3)) calc(-1 * var(--m-sp-4)) calc(-1 * var(--m-sp-3)) var(--m-sp-1);
-  border-left: var(--m-bw) solid var(--border-color);
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  border: var(--m-bw) solid var(--border-color);
+  border-radius: var(--m-radius);
   color: var(--text-color);
   font-size: 18px;
   line-height: 1;

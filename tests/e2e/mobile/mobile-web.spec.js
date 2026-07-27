@@ -327,24 +327,29 @@ test("the ⋮ button opens the story menu anchored above the tab bar", async ({ 
     const button = document
       .querySelector("story-item .menu_btn")
       .getBoundingClientRect()
+    const data = rowEl.querySelector(".data").getBoundingClientRect()
+    const title = rowEl.querySelector(".title").getBoundingClientRect()
     return {
       // right-aligned to the row it belongs to
       rightGap: Math.abs(rect.right - row.right),
       // never reaches behind the fixed tab bar
       clearsTabBar: rect.bottom <= tabs.top,
-      // clientHeight: the row's own borders are not part of the tap target
-      rowInnerHeight: rowEl.clientHeight,
       buttonHeight: Math.round(button.height),
       buttonWidth: Math.round(button.width),
-      buttonRightGap: Math.round(row.right - button.right)
+      buttonRightGap: Math.round(row.right - button.right),
+      buttonBottomGap: Math.round(row.bottom - button.bottom),
+      // The button no longer consumes a full-height column beside the title.
+      titleRightGap: Math.round(data.right - title.right)
     }
   })
   expect(geometry.rightGap).toBeLessThanOrEqual(8)
   expect(geometry.clearsTabBar).toBe(true)
-  // "full row height, ~38px wide, at the row's right edge"
-  expect(geometry.buttonHeight).toBe(geometry.rowInnerHeight)
-  expect(geometry.buttonWidth).toBe(38)
-  expect(geometry.buttonRightGap).toBeLessThanOrEqual(1)
+  // Compact, bottom-right, while the title keeps the row's full text width.
+  expect(geometry.buttonHeight).toBe(28)
+  expect(geometry.buttonWidth).toBe(28)
+  expect(geometry.buttonRightGap).toBe(4)
+  expect(geometry.buttonBottomGap).toBeLessThanOrEqual(5)
+  expect(geometry.titleRightGap).toBeLessThanOrEqual(1)
 
   // Tapping the backdrop dismisses without running an action.
   await page.getByTestId("story-menu-backdrop").click({ position: { x: 5, y: 5 } })
