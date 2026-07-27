@@ -1,6 +1,6 @@
 const test = require("node:test")
 const assert = require("node:assert/strict")
-const { Story } = require("../../../packages/core/dist")
+const { Story, URLRedirect } = require("../../../packages/core/dist")
 const { ReadingSession } = require("../../../packages/ui-web/dist/ReadingSession")
 
 function story(id) {
@@ -24,6 +24,31 @@ test("ReadingSession centralizes modes and visible-story traversal", () => {
   assert.equal(session.move(-1), stories[0])
   assert.equal(session.snapshot().mode, "comments")
   assert.equal(session.move(-1), null)
+})
+
+test("ReadingSession applies story redirects without rewriting comment URLs", (t) => {
+  URLRedirect.setRedirects([{
+    match_url: "^https://example\\.test/",
+    replace_url: "https://reader.test/"
+  }])
+  t.after(() => URLRedirect.setRedirects([]))
+
+  const active = story("redirected")
+  const session = new ReadingSession()
+  session.open(active, "browser")
+  assert.equal(
+    session.snapshot().currentUrl,
+    "https://reader.test/redirected"
+  )
+
+  session.open(active, "reader")
+  assert.equal(
+    session.snapshot().currentUrl,
+    "https://reader.test/redirected"
+  )
+
+  session.open(active, "comments")
+  assert.equal(session.snapshot().currentUrl, active.comment_url)
 })
 
 test("ReadingSession ignores stale native events and closes a vanished story", () => {

@@ -1,4 +1,4 @@
-import { Story } from "@once/core"
+import { Story, URLRedirect } from "@once/core"
 
 export type ReadingMode = "reader" | "browser" | "comments"
 export type ReadingLoadState = "idle" | "loading" | "ready" | "error"
@@ -66,9 +66,10 @@ export class ReadingSession {
   }
 
   open(story: Story, mode: ReadingMode): void {
+    const storyUrl = URLRedirect.redirect_url(story.href)
     const currentUrl = mode === "comments"
-      ? story.comment_url || story.href
-      : story.href
+      ? story.comment_url || storyUrl
+      : storyUrl
     this.state = {
       story,
       mode,

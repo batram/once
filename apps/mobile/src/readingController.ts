@@ -2,7 +2,7 @@ import {
   InAppBrowserSurface,
   normalizeReadingUrl
 } from "@once/platform-mobile"
-import { humanTime } from "@once/core"
+import { humanTime, URLRedirect } from "@once/core"
 import { ReaderTtsUiControls } from "./readerTtsControls"
 import {
   Menu,
@@ -618,8 +618,9 @@ export class MobileReadingController {
 
   private async openStoryContent(): Promise<void> {
     const state = this.session.snapshot()
-    const storyUrl = state.story?.href
-    if (!storyUrl) return
+    const storyHref = state.story?.href
+    if (!storyHref) return
+    const storyUrl = URLRedirect.redirect_url(storyHref)
     if (state.mode === "browser" && state.currentUrl === storyUrl) {
       if (this.browserOpened && state.loadState !== "loading") {
         await this.enqueueSurface(() => this.surface.reload())
