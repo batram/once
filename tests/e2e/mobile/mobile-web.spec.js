@@ -202,6 +202,43 @@ test("mobile text settings use the detail panel as an editor workspace", async (
 test("mobile refresh controls stay separated and theme-aware", async ({ page }) => {
   await page.goto("./")
 
+  const refreshControls = await page.evaluate(() => {
+    const reload = document.querySelector("#reload_stories_btn")
+    const reading = document.querySelector("#reading_navigate")
+    const reloadStyle = getComputedStyle(reload)
+    const readingStyle = getComputedStyle(reading)
+    reload.classList.add("disabled")
+    reading.classList.add("loading")
+    reading.disabled = true
+    return {
+      reload: {
+        width: reloadStyle.width,
+        height: reloadStyle.height,
+        border: reloadStyle.border,
+        radius: reloadStyle.borderRadius,
+        background: reloadStyle.backgroundColor
+      },
+      reading: {
+        width: readingStyle.width,
+        height: readingStyle.height,
+        border: readingStyle.border,
+        radius: readingStyle.borderRadius,
+        background: readingStyle.backgroundColor
+      },
+      reloadOpacity: getComputedStyle(reload).opacity,
+      readingOpacity: getComputedStyle(reading).opacity,
+      reloadAnimation: getComputedStyle(reload, "::before").animationName,
+      readingAnimation: getComputedStyle(reading, "::before").animationName,
+      readingMask: getComputedStyle(reading, "::before").webkitMaskImage
+    }
+  })
+  expect(refreshControls.reading).toEqual(refreshControls.reload)
+  expect(refreshControls.reloadOpacity).toBe("1")
+  expect(refreshControls.readingOpacity).toBe("1")
+  expect(refreshControls.reloadAnimation).toBe("rotating")
+  expect(refreshControls.readingAnimation).toBe("rotating")
+  expect(refreshControls.readingMask).toContain("reload.svg")
+
   await page.locator("#stories").evaluate((stories) => {
     const touch = new Touch({
       identifier: 1,
@@ -353,11 +390,12 @@ test("the ⋮ button opens the story menu anchored above the tab bar", async ({ 
   })
   expect(geometry.rightGap).toBeLessThanOrEqual(8)
   expect(geometry.clearsTabBar).toBe(true)
-  // Compact, bottom-right, while the title keeps the row's full text width.
+  // Compact and inset from the right, while the title keeps the row's full
+  // text width.
   expect(geometry.buttonHeight).toBe(28)
   expect(geometry.buttonWidth).toBe(28)
-  expect(geometry.buttonRightGap).toBe(4)
-  expect(geometry.buttonBottomGap).toBeLessThanOrEqual(5)
+  expect(geometry.buttonRightGap).toBe(12)
+  expect(geometry.buttonBottomGap).toBe(16)
   expect(geometry.titleRightGap).toBeLessThanOrEqual(1)
 
   // Tapping the backdrop dismisses without running an action.
@@ -666,7 +704,7 @@ test("the current Reading story reflects bookmark changes", async ({ page }) => 
   })
   expect(geometry.collapseSize).toEqual([28, 28])
   expect(geometry.menuSize).toEqual([28, 28])
-  expect(geometry.controlsGap).toBe(4)
+  expect(geometry.controlsGap).toBe(2)
   expect(geometry.contentClearControls).toBe(true)
   expect(geometry.oneLine).toBe(true)
   expect(geometry.compactHeight).toBeLessThanOrEqual(40)

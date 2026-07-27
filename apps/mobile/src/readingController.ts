@@ -648,7 +648,11 @@ export class MobileReadingController {
     const input = required<HTMLInputElement>("#reading_url")
     const action = required<HTMLButtonElement>("#reading_navigate")
     const changed = input.value.trim() !== state.currentUrl
-    action.textContent = changed ? "Go" : "↻"
+    action.classList.toggle("reading-go", changed)
+    action.classList.toggle(
+      "loading",
+      state.loadState === "loading" && !changed
+    )
     action.setAttribute("aria-label", changed ? "Go to address" : "Reload")
     action.disabled = state.loadState === "loading" && !changed
   }
