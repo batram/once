@@ -27,6 +27,21 @@ async function triggerMobileBack(page) {
   return page.evaluate(() => window.__onceE2E__.handleBack())
 }
 
+test("mobile layout is present before application JavaScript starts", async ({ page }) => {
+  await page.route("**/mobile.js", (route) => route.abort())
+  await page.goto("./", { waitUntil: "domcontentloaded" })
+
+  await expect(page.locator('link[rel="stylesheet"][href="mobile.css"]'))
+    .toHaveCount(1)
+  await expect(page.locator("body")).toHaveAttribute("data-platform", "mobile")
+  await expect(page.locator("#right_panel")).toBeHidden()
+  await expect(page.locator("#menu")).toHaveCSS("position", "fixed")
+  await expect(page.locator("#menu")).toHaveCSS("bottom", "0px")
+  await expect.poll(() => page.locator("#reload_stories_btn").evaluate(
+    (button) => getComputedStyle(button, "::before").webkitMaskImage
+  )).toContain("/app/imgs/reload.svg")
+})
+
 test("mobile shell is responsive and hides unavailable capabilities", async ({ page }) => {
   await page.goto("./")
   await expect(page.locator("body")).toHaveAttribute("data-platform", "mobile")

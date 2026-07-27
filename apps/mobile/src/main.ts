@@ -11,7 +11,6 @@ import { installStoryMenu } from "./storyMenu"
 import { installReaderTtsHostBridge } from "./readerTtsHostBridge"
 import { installReaderTtsControls } from "./readerTtsControls"
 import { MobileReadingController } from "./readingController"
-import "./mobile.css"
 
 declare const __ONCE_APP_VERSION__: string
 declare const __ONCE_BUILD_CHANNEL__: "release" | "dev"

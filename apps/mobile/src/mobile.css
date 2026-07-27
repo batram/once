@@ -223,9 +223,9 @@ body[data-platform="mobile"] .story.stared .substories .info:first-child::after 
   width: 12px;
   height: 12px;
   background: var(--text-high-color);
-  -webkit-mask: url("../../../packages/ui-web/public/static/imgs/star_fill.svg") center / contain
+  -webkit-mask: url("imgs/star_fill.svg") center / contain
     no-repeat;
-  mask: url("../../../packages/ui-web/public/static/imgs/star_fill.svg") center / contain no-repeat;
+  mask: url("imgs/star_fill.svg") center / contain no-repeat;
   opacity: 0.7;
   /* the pseudo is the last DOM child; order pulls it back onto the meta line */
   order: 0;
@@ -448,9 +448,9 @@ body[data-platform="mobile"] #reload_stories_btn::before {
   display: block;
   margin-top: 12px;
   background: currentColor;
-  -webkit-mask: url("../../../packages/ui-web/public/static/imgs/reload.svg") center / contain
+  -webkit-mask: url("imgs/reload.svg") center / contain
     no-repeat;
-  mask: url("../../../packages/ui-web/public/static/imgs/reload.svg") center / contain no-repeat;
+  mask: url("imgs/reload.svg") center / contain no-repeat;
 }
 
 /* ---------- Bottom tab bar ---------- */

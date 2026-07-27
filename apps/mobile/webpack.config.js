@@ -101,6 +101,10 @@ module.exports = (_env = {}, argv = {}) => {
             to: "imgs"
           },
           {
+            from: path.join(__dirname, "src", "mobile.css"),
+            to: "mobile.css"
+          },
+          {
             from: path.join(root, "packages", "ui-web", "public", "shell.html"),
             to: "index.html",
             transform(content) {
@@ -108,8 +112,16 @@ module.exports = (_env = {}, argv = {}) => {
                 .toString()
                 .replace("<title>once</title>", `<title>${channel === "dev" ? "Once Dev" : "Once"}</title>`)
                 .replace(
+                  '<link rel="stylesheet" href="css/style.css" />',
+                  '<link rel="stylesheet" href="css/style.css" />\n    <link rel="stylesheet" href="mobile.css" />'
+                )
+                .replace(
                   '<meta charset="UTF-8" />',
                   '<meta charset="UTF-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />'
+                )
+                .replace(
+                  '<body animated="true">',
+                  '<body animated="true" data-platform="mobile">'
                 )
                 .replace("</body>", '  <script src="mobile.js"></script>\n  </body>')
             }
