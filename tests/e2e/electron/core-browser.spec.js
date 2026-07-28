@@ -29,7 +29,18 @@ test("searches settings content without changing the open detail", async () => {
     )).toBeGreaterThan(760)
 
     await window.getByTestId("settings-menu").click()
+    await expect.poll(() => window.evaluate(() => {
+      const index = document.querySelector("#settings_index")
+        .getBoundingClientRect()
+      const container = document.querySelector(
+        "#settings_panel .settings_container"
+      ).getBoundingClientRect()
+      return Math.round(container.width - index.width)
+    })).toBe(0)
     await window.locator('[data-settings-target="sources"]').click()
+    await expect.poll(() => window.locator("#settings_index").evaluate(
+      (index) => Math.round(index.getBoundingClientRect().width)
+    )).toBe(300)
     const modeToggle = window.getByTestId("sources-mode-toggle")
     await expect(modeToggle).toHaveText("TXT")
     await expect(modeToggle).toHaveAttribute("aria-label", "Edit as text")
@@ -229,6 +240,17 @@ test("reorders story source groups with a native Electron drag", async () => {
       alphaBounds.y + 2,
       { steps: 8 }
     )
+    await expect(groups.nth(1)).toHaveClass(
+      /\bstructured_group_drop_(before|after)\b/
+    )
+    await expect.poll(() => groups.nth(1).evaluate((element) => {
+      const before = getComputedStyle(element, "::before")
+      const after = getComputedStyle(element, "::after")
+      return Math.max(
+        Number.parseFloat(before.height) || 0,
+        Number.parseFloat(after.height) || 0
+      )
+    })).toBe(3)
     await window.mouse.up()
 
     await expect(window.locator("body"))
@@ -244,6 +266,20 @@ test("reorders story source groups with a native Electron drag", async () => {
       "*Alpha",
       "https://example.test/alpha.xml"
     ].join("\n"))
+    await expect.poll(() => window.locator("#menu #groups > .btn")
+      .allTextContents()).toEqual(["*default", "*Beta", "*Alpha"])
+
+    await window.getByTestId("sources-mode-toggle").click()
+    await sources.fill([
+      "https://example.test/default.xml",
+      "*Beta",
+      "https://example.test/beta.xml",
+      "*Gamma",
+      "https://example.test/alpha.xml"
+    ].join("\n"))
+    await save.click()
+    await expect.poll(() => window.locator("#menu #groups > .btn")
+      .allTextContents()).toEqual(["*default", "*Beta", "*Gamma"])
   } finally {
     await closeApp(electronApp, userData)
   }
@@ -326,6 +362,105 @@ test("keeps a broad auto-scroll zone while dragging settings rows", async () => 
     })
     await expect.poll(() => list.evaluate((element) => element.scrollTop))
       .toBeLessThan(initialScroll)
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
+test("shows stable insertion indicators while dragging structured rows", async () => {
+  const { electronApp, userData, window } = await launchApp()
+  try {
+    for (const [section, indicator] of [
+      ["sources", "structured_source_drop_before"],
+      ["filters", "structured_row_drop_target"],
+      ["redirects", "structured_row_drop_target"]
+    ]) {
+      await openSettingsSection(window, section)
+      const rows = window.locator(
+        `[data-structured-section="${section}"] .structured_row`
+      )
+      await expect.poll(() => rows.count()).toBeGreaterThan(1)
+      const source = rows.nth(0)
+      const target = rows.nth(1)
+      const sourceBounds = await source.boundingBox()
+      const targetBounds = await target.boundingBox()
+      expect(sourceBounds).not.toBeNull()
+      expect(targetBounds).not.toBeNull()
+      await window.mouse.move(
+        sourceBounds.x + sourceBounds.width / 2,
+        sourceBounds.y + sourceBounds.height / 2
+      )
+      await window.mouse.down()
+      await window.mouse.move(
+        targetBounds.x + targetBounds.width / 2,
+        targetBounds.y + 3,
+        { steps: 8 }
+      )
+      await expect(target).toHaveClass(new RegExp(`\\b${indicator}\\b`))
+      await expect.poll(() => target.evaluate((element) => {
+        const marker = getComputedStyle(element, "::before")
+        return Number.parseFloat(marker.height) || 0
+      })).toBe(3)
+      await window.mouse.up()
+    }
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
+test("matches the final-row filter and redirect indicator to the drop", async () => {
+  const { electronApp, userData, window } = await launchApp()
+  try {
+    for (const section of ["filters", "redirects"]) {
+      await openSettingsSection(window, section)
+      const rows = window.locator(
+        `[data-structured-section="${section}"] .structured_row`
+      )
+      const rowCount = await rows.count()
+      expect(rowCount).toBeGreaterThan(1)
+      const source = rows.nth(rowCount - 2)
+      const target = rows.nth(rowCount - 1)
+      await target.evaluate((element) => {
+        element.scrollIntoView({ block: "end" })
+      })
+      const sourceValue = await source.getAttribute("data-search-value")
+      await target.evaluate((element, from) => {
+        const transfer = new DataTransfer()
+        transfer.setData("text/plain", String(from))
+        const bounds = element.getBoundingClientRect()
+        element.dispatchEvent(new DragEvent("dragover", {
+          bubbles: true,
+          cancelable: true,
+          clientY: bounds.bottom - 3,
+          dataTransfer: transfer
+        }))
+      }, rowCount - 2)
+      await expect(target).toHaveClass(
+        /\bstructured_row_drop_target\b.*\bstructured_row_drop_after\b/
+      )
+      await expect.poll(() => target.evaluate((element) => {
+        const marker = getComputedStyle(element, "::before")
+        return {
+          bottom: marker.bottom,
+          height: Number.parseFloat(marker.height) || 0
+        }
+      })).toEqual({ bottom: "0px", height: 3 })
+      await target.evaluate((element, from) => {
+        const transfer = new DataTransfer()
+        transfer.setData("text/plain", String(from))
+        const bounds = element.getBoundingClientRect()
+        element.dispatchEvent(new DragEvent("drop", {
+          bubbles: true,
+          cancelable: true,
+          clientY: bounds.bottom - 3,
+          dataTransfer: transfer
+        }))
+      }, rowCount - 2)
+      await expect(rows.nth(rowCount - 1)).toHaveAttribute(
+        "data-search-value",
+        sourceValue
+      )
+    }
   } finally {
     await closeApp(electronApp, userData)
   }
@@ -423,9 +558,38 @@ test("keeps every structured desktop editor usable", async () => {
     await window.getByTestId("add-filter").click()
     const inlineInput = window.getByTestId("filter-inline-input")
     await expect(inlineInput).toBeVisible()
+    await expect(window.getByTestId("save-inline-filter")).toBeVisible()
+    await expect(
+      inlineInput.locator("xpath=..").getByRole("button", { name: "Cancel" })
+    ).toBeVisible()
     await expect.poll(() => inlineInput.evaluate((element) =>
       Math.round(element.getBoundingClientRect().width)
     )).toBeGreaterThan(160)
+
+    await openSettingsSection(window, "sources")
+    await window.getByTestId("add-source").click()
+    await expect(window.getByTestId("structured-item-form")).toBeVisible()
+    await expect(window.getByTestId("structured-save")).toBeVisible()
+    await expect(
+      window.getByTestId("structured-item-form")
+        .getByRole("button", { name: "Cancel" })
+    ).toBeVisible()
+    await window.getByTestId("structured-item-form")
+      .getByRole("button", { name: "Cancel" }).click()
+    await expect(window.getByTestId("add-source")).toBeVisible()
+    await expect(window.getByTestId("add-source-group")).toBeVisible()
+    await expect(window.getByTestId("pick-source")).toBeVisible()
+
+    await openSettingsSection(window, "redirects")
+    await window.getByTestId("add-redirect").click()
+    await expect(window.getByTestId("structured-save")).toBeVisible()
+    await expect(
+      window.getByTestId("structured-item-form")
+        .getByRole("button", { name: "Cancel" })
+    ).toBeVisible()
+    await window.getByTestId("structured-item-form")
+      .getByRole("button", { name: "Cancel" }).click()
+    await expect(window.getByTestId("add-redirect")).toBeVisible()
 
     await openSettingsSection(window, "sources")
     await window.getByTestId("sources-mode-toggle").click()

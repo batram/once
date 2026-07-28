@@ -155,9 +155,12 @@
 #settings_panel .settings_version {
   color: var(--text-color);
   display: flex;
+  flex-direction: column;
   align-items: center;
+  justify-content: flex-start;
   flex-wrap: wrap;
   gap: 8px;
+  text-align: center;
 }
 
 #settings_panel .update_status {
@@ -790,11 +793,13 @@ body:not([data-platform="mobile"]) #settings_panel .bar {
 }
 
 body:not([data-platform="mobile"]) #settings_panel .bar button,
-body:not([data-platform="mobile"]) #settings_panel .bar .collapsebutton,
 body:not([data-platform="mobile"]) .structured_search input,
 body:not([data-platform="mobile"]) .structured_search button,
 body:not([data-platform="mobile"]) .structured_search input[type="button"],
 body:not([data-platform="mobile"]) #settings_search,
+body:not([data-platform="mobile"]) .settings_editor_block
+  > .settings_actions input,
+body:not([data-platform="mobile"]) .structured_form_actions button,
 body:not([data-platform="mobile"]) .structured_group_menu,
 body:not([data-platform="mobile"]) .structured_row_menu {
   box-sizing: border-box;
@@ -807,20 +812,25 @@ body:not([data-platform="mobile"]) .structured_row_menu {
   font: 12px/20px Verdana, Geneva, sans-serif;
 }
 
+body:not([data-platform="mobile"]) .settings_editor_block
+  > .settings_actions {
+  padding: 6px 0;
+  background: var(--main-bg-color);
+}
+
+body:not([data-platform="mobile"]) .settings_editor_block
+  > .settings_actions input,
+body:not([data-platform="mobile"]) .structured_form_actions button {
+  margin: 0;
+  padding: 0 8px;
+}
+
 body:not([data-platform="mobile"]) .structured_remove {
   flex: 0 0 22px;
   width: 22px;
   min-height: 22px;
   margin: 0 6px 0 0;
   font-size: 15px;
-}
-
-body:not([data-platform="mobile"]) #settings_panel .bar .collapsebutton {
-  order: 4;
-  width: 22px;
-  margin: 0 0 0 auto;
-  padding: 0;
-  text-align: center;
 }
 
 body:not([data-platform="mobile"]) #settings_panel .settings_title {
@@ -864,6 +874,25 @@ body:not([data-platform="mobile"]) #settings_panel
   overflow: hidden;
   font-size: 0;
   line-height: 20px;
+}
+
+body:not([data-platform="mobile"]) #settings_panel .bar .collapsebutton {
+  order: 4;
+  margin-right: 0;
+}
+
+body:not([data-platform="mobile"])
+  #settings_panel
+  .bar:not(:has(.structured_mode_toggle_topbar))
+  .collapsebutton {
+  margin-left: auto;
+}
+
+body:not([data-platform="mobile"])
+  #settings_panel
+  .bar:has(.structured_mode_toggle_topbar)
+  .collapsebutton {
+  margin-left: 0;
 }
 
 body:not([data-platform="mobile"]) #settings_panel
@@ -910,6 +939,12 @@ body:not([data-platform="mobile"]) #settings_index {
   overflow: auto;
 }
 
+body:not([data-platform="mobile"])
+  #settings_panel.settings_detail_open #settings_index {
+  flex: 0 0 300px;
+  width: 300px;
+}
+
 body:not([data-platform="mobile"]) #settings_search {
   width: 100%;
   margin: 0 0 7px;
@@ -933,11 +968,18 @@ body:not([data-platform="mobile"]) .settings_section_row[aria-current="page"] {
 }
 
 body:not([data-platform="mobile"]) .settings_section_row_text {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
+  min-width: max-content;
+}
+
+body:not([data-platform="mobile"]) .settings_section_row_text > span {
+  white-space: nowrap;
 }
 
 body:not([data-platform="mobile"]) .settings_section_summary {
   flex: 0 1 auto;
+  min-width: 0;
+  margin-left: auto;
   overflow: hidden;
   color: var(--text-color);
   font-size: 11px;
@@ -1031,6 +1073,7 @@ body:not([data-platform="mobile"]) #pick_source_button {
 }
 
 body:not([data-platform="mobile"]) .structured_group {
+  position: relative;
   flex: 0 0 auto;
   margin: 0;
   border: 1px solid var(--border-high-color);
@@ -1096,6 +1139,7 @@ body:not([data-platform="mobile"]) .structured_group_menu {
   background: transparent;
   font-size: 17px;
   opacity: 0;
+  cursor: pointer;
 }
 
 body:not([data-platform="mobile"]) .structured_group > summary:hover
@@ -1215,16 +1259,81 @@ body:not([data-platform="mobile"]) .structured_row_main:focus-visible {
 }
 
 body:not([data-platform="mobile"]) .structured_issue {
+  display: grid;
+  place-items: center;
   flex: 0 0 22px;
   width: 22px;
   height: 22px;
+  padding: 0;
   border: 1px solid currentColor;
   font-size: 11px;
+  line-height: 1;
+}
+
+body:not([data-platform="mobile"]) .structured_group_drop_before {
+  overflow: visible;
+  box-shadow: none;
+}
+
+body:not([data-platform="mobile"]) .structured_group_drop_after {
+  overflow: visible;
+  box-shadow: none;
+}
+
+body:not([data-platform="mobile"]) .structured_group_drop_before::before,
+body:not([data-platform="mobile"]) .structured_group_drop_after::after,
+body:not([data-platform="mobile"]) .structured_source_drop_before::before,
+body:not([data-platform="mobile"]) .structured_source_drop_after::after,
+body:not([data-platform="mobile"]) .structured_row_drop_target::before {
+  content: "";
+  position: absolute;
+  z-index: 8;
+  right: 2px;
+  left: 2px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--text-high-color);
+  pointer-events: none;
+}
+
+body:not([data-platform="mobile"]) .structured_group_drop_before::before {
+  top: -6px;
+}
+
+body:not([data-platform="mobile"]) .structured_group_drop_after::after {
+  bottom: -6px;
+}
+
+body:not([data-platform="mobile"]) .structured_source_drop_before::before,
+body:not([data-platform="mobile"]) .structured_row_drop_target::before {
+  top: 0;
+}
+
+body:not([data-platform="mobile"])
+  .structured_row_drop_target.structured_row_drop_after::before {
+  top: auto;
+  bottom: 0;
+}
+
+body:not([data-platform="mobile"]) .structured_source_drop_after::after {
+  bottom: 0;
+}
+
+body:not([data-platform="mobile"]) .structured_source_group_drop_target {
+  outline: 3px solid var(--text-high-color);
+  outline-offset: -3px;
+}
+
+body:not([data-platform="mobile"])
+  .structured_source_group_title_drop_target > summary {
+  outline: 3px solid var(--text-high-color);
+  outline-offset: -3px;
 }
 
 body:not([data-platform="mobile"]) .structured_row_menu {
   flex: 0 0 22px;
   width: 22px;
+  margin-right: 4px;
   padding: 0;
   font-size: 17px;
   opacity: 0;
@@ -1276,6 +1385,38 @@ body:not([data-platform="mobile"]) .once-anchored-menu-item {
   min-height: 24px;
   padding: 3px 8px;
   font-size: 12px;
+}
+
+.settings_about_logo {
+  display: block;
+  flex: 0 0 auto;
+  width: 160px;
+  height: 160px;
+  object-fit: contain;
+  filter: none !important;
+}
+
+.settings_about_title {
+  flex: 0 0 auto;
+  width: 100%;
+  margin: 0;
+  color: var(--text-high-color);
+  text-align: center;
+}
+
+body:not([data-platform="mobile"]) .settings_version {
+  align-content: flex-start;
+}
+
+body:not([data-platform="mobile"]) .settings_version
+  [data-testid="check-for-updates"] {
+  flex: 0 0 auto;
+}
+
+body:not([data-platform="mobile"]) .settings_version .update_status {
+  flex-basis: auto;
+  width: 100%;
+  text-align: center;
 }
 
 @container settings-panel (max-width: 420px) {

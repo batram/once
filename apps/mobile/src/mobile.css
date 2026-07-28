@@ -1160,12 +1160,32 @@ body[data-platform="mobile"] #settings_search {
 }
 
 body[data-platform="mobile"] .settings_section_row {
+  display: flex;
   width: 100%;
   min-height: var(--m-touch);
   margin: 0;
   border: 0;
   border-bottom: var(--m-bw) solid var(--sep-color);
   border-radius: 0;
+  gap: var(--m-sp-2);
+  align-items: center;
+}
+
+body[data-platform="mobile"] .settings_section_row_text {
+  flex: 0 0 auto;
+  min-width: max-content;
+}
+
+body[data-platform="mobile"] .settings_section_summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-platform="mobile"] .settings_section_summary {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: auto;
 }
 
 body[data-platform="mobile"] .settings_section_row[data-settings-target="errors"].has-warnings {
@@ -1179,7 +1199,7 @@ body[data-platform="mobile"] .settings_section_row[data-settings-target="errors"
 }
 
 body[data-platform="mobile"] .settings_issue_badges {
-  display: inline-flex;
+  display: none;
   flex: 0 0 auto;
   align-items: center;
   gap: var(--m-sp-2);
@@ -1578,6 +1598,40 @@ body[data-platform="mobile"] .structured_issue {
 body[data-platform="mobile"] .structured_issue.warning {
   border-color: var(--m-warning);
   color: var(--m-warning);
+  padding-bottom: 1px;
+}
+
+body[data-platform="mobile"] .structured_group_menu {
+  cursor: pointer;
+}
+
+body[data-platform="mobile"] .settings_version {
+  flex-direction: column;
+  align-content: flex-start;
+  justify-content: flex-start;
+  text-align: center;
+}
+
+body[data-platform="mobile"] .settings_about_logo {
+  width: 100%;
+  height: 144px;
+  margin: var(--m-sp-4) auto var(--m-sp-3);
+}
+
+body[data-platform="mobile"] .settings_about_title {
+  width: 100%;
+  text-align: center;
+}
+
+body[data-platform="mobile"] .settings_version .update_status {
+  width: 100%;
+  text-align: center;
+}
+
+@container settings-panel (max-width: 350px) {
+  body[data-platform="mobile"] .settings_section_summary {
+    display: none;
+  }
 }
 
 body[data-platform="mobile"] .structured_row_error,
@@ -1864,6 +1918,10 @@ body[data-platform="mobile"] .structured_form_actions {
 body[data-platform="mobile"] .structured_form_actions button {
   flex: 1 1 120px;
   margin: 0;
+}
+
+body[data-platform="mobile"] .structured_status_strip {
+  display: none;
 }
 
 body[data-platform="mobile"] .structured_remove,

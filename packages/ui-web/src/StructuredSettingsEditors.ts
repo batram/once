@@ -645,19 +645,7 @@ export class StructuredSettingsEditors {
   private render(section: Section): void {
     const root = this.roots.get(section)
     if (!root) return
-    if (!this.onTouch) {
-      const actions = this.textarea(section)
-        .closest<HTMLElement>(".settings_editor_block")
-        ?.querySelector<HTMLElement>(".settings_actions")
-      const listActions = root.querySelector<HTMLElement>(
-        `[data-structured-actions="${section}"]`
-      )
-      if (actions && listActions) actions.prepend(listActions)
-      if (actions && section === "sources") {
-        const picker = root.querySelector<HTMLElement>("#pick_source_button")
-        if (picker) actions.append(picker)
-      }
-    }
+    this.preserveDesktopActions(section, root)
     this.detailSections.delete(section)
     root.textContent = ""
     this.renderSearch(root, section)
@@ -668,6 +656,21 @@ export class StructuredSettingsEditors {
     this.placeDesktopActions(section)
     this.updateAddButton(section)
     this.placePickerStatus(section)
+  }
+
+  private preserveDesktopActions(section: Section, root: HTMLElement): void {
+    if (this.onTouch) return
+    const actions = this.textarea(section)
+      .closest<HTMLElement>(".settings_editor_block")
+      ?.querySelector<HTMLElement>(".settings_actions")
+    const listActions = root.querySelector<HTMLElement>(
+      `[data-structured-actions="${section}"]`
+    )
+    if (actions && listActions) actions.prepend(listActions)
+    if (actions && section === "sources") {
+      const picker = root.querySelector<HTMLElement>("#pick_source_button")
+      if (picker) actions.append(picker)
+    }
   }
 
   private placeDesktopActions(section: Section): void {
@@ -1033,6 +1036,43 @@ export class StructuredSettingsEditors {
           : "structured_group_drop_before"
       )
     }
+    const updateGroupDestinationAt = (clientY: number) => {
+      if (draggedGroupIndex === null || clientY <= 0) return false
+      const groups = Array.from(
+        root.querySelectorAll<HTMLElement>(".structured_group")
+      )
+      if (!groups.length) return false
+      const target = groups.find((candidate) => {
+        const bounds = candidate.getBoundingClientRect()
+        return clientY >= bounds.top && clientY <= bounds.bottom
+      }) || groups.reduce((closest, candidate) => {
+        const closestBounds = closest.getBoundingClientRect()
+        const candidateBounds = candidate.getBoundingClientRect()
+        const closestDistance = Math.min(
+          Math.abs(clientY - closestBounds.top),
+          Math.abs(clientY - closestBounds.bottom)
+        )
+        const candidateDistance = Math.min(
+          Math.abs(clientY - candidateBounds.top),
+          Math.abs(clientY - candidateBounds.bottom)
+        )
+        return candidateDistance < closestDistance ? candidate : closest
+      })
+      const groupIndex = Number(target.dataset.groupIndex)
+      if (!Number.isInteger(groupIndex)) return false
+      updateGroupDestination(target, groupIndex, clientY)
+      return true
+    }
+    root.addEventListener("dragover", (event) => {
+      if (!updateGroupDestinationAt(event.clientY)) return
+      event.preventDefault()
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "move"
+    })
+    root.addEventListener("drop", (event) => {
+      if (draggedGroupIndex === null || pendingGroupDestination === null) return
+      event.preventDefault()
+      commitGroupDrop(pendingGroupDestination)
+    })
 
     this.sourceGroups.forEach((group, groupIndex) => {
       const details = document.createElement("details")
@@ -1162,6 +1202,9 @@ export class StructuredSettingsEditors {
         )
         event.dataTransfer?.setData("text/plain", `group:${groupIndex}`)
         if (event.dataTransfer) event.dataTransfer.effectAllowed = "move"
+      })
+      name.addEventListener("drag", (event) => {
+        updateGroupDestinationAt(event.clientY)
       })
       name.addEventListener("dragend", (event) => {
         const draggedId = group.id
@@ -1736,6 +1779,8 @@ export class StructuredSettingsEditors {
       }
       return
     }
+    this.preserveDesktopActions("sources", root)
+    this.listActions("sources")
     root.textContent = ""
     this.detailSections.add("sources")
     this.updateAddButton("sources")
@@ -1761,8 +1806,7 @@ export class StructuredSettingsEditors {
         this.saveSources()
       }),
       this.actionButton("Cancel", () => this.render("sources")))
-    if (this.onTouch) dialog.append(actions)
-    else this.listActions("sources")?.append(actions)
+    dialog.append(actions)
     root.append(dialog)
   }
 
@@ -1834,28 +1878,68 @@ export class StructuredSettingsEditors {
       row.addEventListener("dragend", () => {
         row.classList.remove("structured_row_dragging")
         rows.querySelectorAll(".structured_row_drop_target").forEach((target) =>
-          target.classList.remove("structured_row_drop_target"))
+          target.classList.remove(
+            "structured_row_drop_target",
+            "structured_row_drop_after"
+          ))
       })
       row.addEventListener("dragenter", (event) => {
         event.preventDefault()
+        rows.querySelectorAll(".structured_row_drop_target").forEach((target) =>
+          target.classList.remove(
+            "structured_row_drop_target",
+            "structured_row_drop_after"
+          ))
+        const bounds = row.getBoundingClientRect()
         row.classList.add("structured_row_drop_target")
+        row.classList.toggle(
+          "structured_row_drop_after",
+          event.clientY >= bounds.top + bounds.height / 2
+        )
       })
-      row.addEventListener("dragleave", () =>
-        row.classList.remove("structured_row_drop_target"))
+      row.addEventListener("dragleave", (event) => {
+        const next = event.relatedTarget
+        if (next instanceof Node && row.contains(next)) return
+        if (next instanceof Node && rows.contains(next)) return
+        row.classList.remove(
+          "structured_row_drop_target",
+          "structured_row_drop_after"
+        )
+      })
       row.addEventListener("dragover", (event) => {
         event.preventDefault()
+        rows.querySelectorAll(".structured_row_drop_target").forEach((target) => {
+          if (target !== row) target.classList.remove(
+            "structured_row_drop_target",
+            "structured_row_drop_after"
+          )
+        })
+        const bounds = row.getBoundingClientRect()
+        row.classList.add("structured_row_drop_target")
+        row.classList.toggle(
+          "structured_row_drop_after",
+          event.clientY >= bounds.top + bounds.height / 2
+        )
         if (event.dataTransfer) event.dataTransfer.dropEffect = "move"
       })
       row.addEventListener("drop", (event) => {
         event.preventDefault()
-        row.classList.remove("structured_row_drop_target")
+        const bounds = row.getBoundingClientRect()
+        const after = event.clientY >= bounds.top + bounds.height / 2
+        row.classList.remove(
+          "structured_row_drop_target",
+          "structured_row_drop_after"
+        )
         const from = Number(event.dataTransfer?.getData("text/plain"))
-        if (!Number.isInteger(from) || from === index ||
+        if (!Number.isInteger(from) ||
             from < 0 || from >= this.filters.length) {
           return
         }
+        let destination = index + (after ? 1 : 0)
+        if (from < destination) destination--
+        if (from === destination) return
         const [moved] = this.filters.splice(from, 1)
-        this.filters.splice(index, 0, moved)
+        this.filters.splice(destination, 0, moved)
         this.saveFilters()
       })
       rows.append(row)
@@ -1930,8 +2014,8 @@ export class StructuredSettingsEditors {
     accept.className = "structured_inline_action"
     const dismiss = this.actionButton("Cancel", cancel)
     dismiss.className = "structured_inline_action"
-    row.append(input, validation)
-    this.listActions("filters")?.append(accept, dismiss)
+    this.listActions("filters")
+    row.append(input, validation, accept, dismiss)
     input.focus({ preventScroll: true })
     input.select()
     if (isNew) {
@@ -2027,28 +2111,68 @@ export class StructuredSettingsEditors {
       row.addEventListener("dragend", () => {
         row.classList.remove("structured_row_dragging")
         rows.querySelectorAll(".structured_row_drop_target").forEach((target) =>
-          target.classList.remove("structured_row_drop_target"))
+          target.classList.remove(
+            "structured_row_drop_target",
+            "structured_row_drop_after"
+          ))
       })
       row.addEventListener("dragenter", (event) => {
         event.preventDefault()
+        rows.querySelectorAll(".structured_row_drop_target").forEach((target) =>
+          target.classList.remove(
+            "structured_row_drop_target",
+            "structured_row_drop_after"
+          ))
+        const bounds = row.getBoundingClientRect()
         row.classList.add("structured_row_drop_target")
+        row.classList.toggle(
+          "structured_row_drop_after",
+          event.clientY >= bounds.top + bounds.height / 2
+        )
       })
-      row.addEventListener("dragleave", () =>
-        row.classList.remove("structured_row_drop_target"))
+      row.addEventListener("dragleave", (event) => {
+        const next = event.relatedTarget
+        if (next instanceof Node && row.contains(next)) return
+        if (next instanceof Node && rows.contains(next)) return
+        row.classList.remove(
+          "structured_row_drop_target",
+          "structured_row_drop_after"
+        )
+      })
       row.addEventListener("dragover", (event) => {
         event.preventDefault()
+        rows.querySelectorAll(".structured_row_drop_target").forEach((target) => {
+          if (target !== row) target.classList.remove(
+            "structured_row_drop_target",
+            "structured_row_drop_after"
+          )
+        })
+        const bounds = row.getBoundingClientRect()
+        row.classList.add("structured_row_drop_target")
+        row.classList.toggle(
+          "structured_row_drop_after",
+          event.clientY >= bounds.top + bounds.height / 2
+        )
         if (event.dataTransfer) event.dataTransfer.dropEffect = "move"
       })
       row.addEventListener("drop", (event) => {
         event.preventDefault()
-        row.classList.remove("structured_row_drop_target")
+        const bounds = row.getBoundingClientRect()
+        const after = event.clientY >= bounds.top + bounds.height / 2
+        row.classList.remove(
+          "structured_row_drop_target",
+          "structured_row_drop_after"
+        )
         const from = Number(event.dataTransfer?.getData("text/plain"))
-        if (!Number.isInteger(from) || from === index ||
+        if (!Number.isInteger(from) ||
             from < 0 || from >= this.redirects.length) {
           return
         }
+        let destination = index + (after ? 1 : 0)
+        if (from < destination) destination--
+        if (from === destination) return
         const [moved] = this.redirects.splice(from, 1)
-        this.redirects.splice(index, 0, moved)
+        this.redirects.splice(destination, 0, moved)
         this.saveRedirects()
       })
       rows.append(row)
@@ -2103,6 +2227,8 @@ export class StructuredSettingsEditors {
     const section = root.dataset.structuredSection as Section
     this.detailSections.add(section)
     this.updateAddButton(section)
+    this.preserveDesktopActions(section, root)
+    this.listActions(section)
     root.textContent = ""
     const form = document.createElement("form")
     form.className = "structured_form"
@@ -2154,8 +2280,7 @@ export class StructuredSettingsEditors {
       actions.querySelector<HTMLButtonElement>("[data-testid='structured-save']")?.click()
     })
     form.append(error)
-    if (this.onTouch) form.append(actions)
-    else this.listActions(section)?.append(actions)
+    form.append(actions)
     root.append(form)
     inputs[0]?.focus()
   }

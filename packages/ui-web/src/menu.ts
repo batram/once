@@ -39,6 +39,28 @@ export function add_type(type: string): void {
   add_entry("[" + type + "]", "type", "types")
 }
 
+function syncEntries(
+  values: string[],
+  className: "group" | "type",
+  containerId: "groups" | "types",
+  decorate: (value: string) => string
+): void {
+  const container = requireElement<HTMLElement>(`#menu #${containerId}`)
+  const labels = values.map(decorate)
+  const wanted = new Set(labels)
+  container.querySelectorAll<HTMLElement>(":scope > .btn").forEach((entry) => {
+    if (!wanted.has(entry.dataset.type || "")) entry.remove()
+  })
+  labels.forEach((label) => {
+    add_entry(label, className, containerId)
+    const entry = container.querySelector<HTMLElement>(
+      `:scope > .btn[data-type="${CSS.escape(label)}"]`
+    )
+    if (entry) container.append(entry)
+  })
+  syncMobileFilterChips()
+}
+
 export function add_entry(
   label: string,
   class_name: string,
@@ -101,8 +123,8 @@ export function init(client?: OnceClient): void {
   if (!commsRegistered) {
     commsRegistered = true
     client?.subscribe("menuChanged", ({ groups, types }) => {
-      groups.forEach(add_group)
-      types.forEach(add_type)
+      syncEntries(groups, "group", "groups", (group) => `*${group}`)
+      syncEntries(types, "type", "types", (type) => `[${type}]`)
     })
   }
 

@@ -221,6 +221,7 @@ export class OnceApp {
     reloadStories = true
   ): Promise<void> {
     await this.setListSetting("story_sources", storySources)
+    this.updateSourceMenu(storySources)
     this.events.publish("settingsChanged", { section: "sources" })
     if (reloadStories) await this.reloadStories(true)
   }
@@ -401,17 +402,15 @@ export class OnceApp {
   private async reloadStories(tryCache = true): Promise<void> {
     this.sourceErrors.clear()
     this.emitSourceErrors()
-    const groupedSources = groupStorySources(await this.getStorySources())
+    const storySources = await this.getStorySources()
+    const groupedSources = groupStorySources(storySources)
+    this.updateSourceMenu(storySources)
     const processingSources = new Map<string, ProcessingSource>()
     const promises: Promise<void>[] = []
 
     for (const groupName in groupedSources) {
-      this.menuGroups.add(groupName)
       for (const sourceUrl of groupedSources[groupName]) {
         const sourceInfo = this.getDomainAndParserType(sourceUrl)
-        if (sourceInfo.parserType !== "Unknown") {
-          this.menuTypes.add(sourceInfo.parserType)
-        }
         processingSources.set(sourceUrl, sourceInfo)
         this.emitLoader(processingSources)
         promises.push(
@@ -430,7 +429,6 @@ export class OnceApp {
       }
     }
 
-    this.emitMenuChanged()
     await Promise.all(promises)
     this.events.publish("loaderChanged", {
       processing: [],
@@ -620,6 +618,25 @@ export class OnceApp {
       groups: Array.from(this.menuGroups),
       types: Array.from(this.menuTypes)
     })
+  }
+
+  private updateSourceMenu(storySources: string[]): void {
+    const groupedSources = groupStorySources(storySources)
+    this.menuGroups.clear()
+    this.menuTypes.clear()
+    for (const type of ["ALL", "filtered", "stared", "new"]) {
+      this.menuTypes.add(type)
+    }
+    for (const groupName of Object.keys(groupedSources)) {
+      this.menuGroups.add(groupName)
+      for (const sourceUrl of groupedSources[groupName]) {
+        const sourceInfo = this.getDomainAndParserType(sourceUrl)
+        if (sourceInfo.parserType !== "Unknown") {
+          this.menuTypes.add(sourceInfo.parserType)
+        }
+      }
+    }
+    this.emitMenuChanged()
   }
 
   private setStory(href: string, story: Story, quiet = false): Story {
