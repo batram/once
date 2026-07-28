@@ -94,7 +94,7 @@ export function installSwipePreview(
   const report = (text: string): void => {
     status.textContent = text
   }
-  report("Drag the row to feel the detents; nothing is saved or opened.")
+  report("Drag the row to preview the actions; nothing is saved or opened.")
 
   const row = new StoryListItem(previewStory())
   row.dataset.testid = "swipe-preview-row"

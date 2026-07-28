@@ -1264,18 +1264,20 @@ function translateX(transform) {
   return parts ? Math.round(Number(parts[1].split(",")[4])) : 0
 }
 
-test("swipe rests on detents and commits the stage it was released on", async ({ page }) => {
+test("swipe follows the finger and commits the stage it was released on", async ({ page }) => {
   const story = await seedFixtureStories(page)
 
-  // Below stage 1: the row does not move off zero and nothing fires.
+  // Below stage 1: the row follows the finger and previews the first action,
+  // but releasing still fires nothing.
   const belowStage1 = await dragStory(story, 40)
-  expect(translateX(belowStage1.transform)).toBe(0)
+  expect(translateX(belowStage1.transform)).toBe(40)
+  expect(belowStage1.label).toBe("Read · open")
   expect(belowStage1.action).toBe("none")
   await expect(story).not.toHaveClass(/\bread\b/)
 
-  // Stage 1 left: snaps to -96 and names the action, then skips on release.
+  // Stage 1 left remains under the finger and skips on release.
   const stage1Left = await dragStory(story, -110, { release: false })
-  expect(translateX(stage1Left.transform)).toBe(-96)
+  expect(translateX(stage1Left.transform)).toBe(-110)
   expect(stage1Left.labelRight).toBe("Skip")
   expect(stage1Left.action).toBe("skip")
   await page.locator("story-item").first().evaluate(() => {
@@ -1288,7 +1290,7 @@ test("the default open swipe uses the in-app reading view", async ({ page }) => 
   const story = await seedFixtureStories(page)
 
   const stage1Right = await dragStory(story, 110, { release: false })
-  expect(translateX(stage1Right.transform)).toBe(96)
+  expect(translateX(stage1Right.transform)).toBe(110)
   expect(stage1Right.label).toBe("Read · open")
   expect(stage1Right.action).toBe("open")
   await story.evaluate(() => {
@@ -1426,7 +1428,7 @@ test("a flick that clears stage 1 in one move still commits stage 1", async ({ p
   const story = await seedFixtureStories(page)
 
   const flick = await dragStory(story, -110, { release: false, moves: [1] })
-  expect(translateX(flick.transform)).toBe(-96)
+  expect(translateX(flick.transform)).toBe(-110)
   expect(flick.action).toBe("skip")
 
   await story.evaluate(() => {
@@ -1435,20 +1437,17 @@ test("a flick that clears stage 1 in one move still commits stage 1", async ({ p
   await expect(story).toHaveClass(/skipped/)
 })
 
-// Thresholds and resting offsets are configured independently, so a stage can
-// legitimately rest short of the distance that engages it.
-test("a stage resting below its own threshold still commits", async ({ page }) => {
+test("a swipe beyond its threshold stays under the finger", async ({ page }) => {
   const story = await seedFixtureStories(page)
 
   await openSettingsSection(page, "swipe")
   await page.getByTestId("swipe-threshold-1").fill("100")
-  await page.getByTestId("swipe-offset-1").fill("40")
   await page.getByTestId("save-swipe").click()
   await page.waitForTimeout(300)
   await page.getByTestId("stories-menu").click()
 
   const shallow = await dragStory(story, -130, { release: false })
-  expect(translateX(shallow.transform)).toBe(-40)
+  expect(translateX(shallow.transform)).toBe(-130)
   expect(shallow.action).toBe("skip")
 
   await story.evaluate(() => {
@@ -1457,12 +1456,11 @@ test("a stage resting below its own threshold still commits", async ({ page }) =
   await expect(story).toHaveClass(/skipped/)
 })
 
-test("swipe escalates to stage two and stops at the plateau", async ({ page }) => {
+test("swipe follows the finger while escalating to stage two", async ({ page }) => {
   const story = await seedFixtureStories(page)
 
-  // Stage 2 right rests at +216 regardless of how much further the finger goes.
   const stage2 = await dragStory(story, 400, { release: false })
-  expect(translateX(stage2.transform)).toBe(216)
+  expect(translateX(stage2.transform)).toBe(400)
   expect(stage2.label).toBe("Open in reader")
   expect(stage2.action).toBe("open-reader")
 
@@ -1472,21 +1470,19 @@ test("swipe escalates to stage two and stops at the plateau", async ({ page }) =
   await expect(page.locator("#reading_content")).toHaveAttribute("data-mode", "reader")
 })
 
-test("swipe settings retune the detents without a reload", async ({ page }) => {
+test("swipe settings retune action thresholds without a reload", async ({ page }) => {
   const story = await seedFixtureStories(page)
 
   await openSettingsSection(page, "swipe")
   await page.getByTestId("swipe-threshold-1").fill("30")
-  await page.getByTestId("swipe-offset-1").fill("60")
   await page.getByTestId("swipe-right-1").selectOption("toggle-bookmark")
   await page.getByTestId("save-swipe").click()
   await page.waitForTimeout(300)
   await page.getByTestId("stories-menu").click()
 
-  // 40px used to be below stage 1; with a 30px threshold it now engages, and
-  // the row rests at the newly configured 60px offset.
+  // 40px used to be below stage 1; with a 30px threshold it now engages.
   const retuned = await dragStory(story, 40, { release: false })
-  expect(translateX(retuned.transform)).toBe(60)
+  expect(translateX(retuned.transform)).toBe(40)
   expect(retuned.label).toBe("Toggle bookmark")
 
   await story.evaluate(() => {
@@ -1501,12 +1497,11 @@ test("the swipe settings sample row tries unsaved values and commits nothing", a
 
   // Edited but deliberately NOT saved: the sample row reads the form.
   await page.getByTestId("swipe-threshold-1").fill("30")
-  await page.getByTestId("swipe-offset-1").fill("60")
   await page.getByTestId("swipe-right-1").selectOption("toggle-bookmark")
 
   const preview = page.getByTestId("swipe-preview-row")
   const dragged = await dragStory(preview, 40, { release: false })
-  expect(translateX(dragged.transform)).toBe(60)
+  expect(translateX(dragged.transform)).toBe(40)
   expect(dragged.label).toBe("Toggle bookmark")
 
   await preview.evaluate(() => {
@@ -1519,7 +1514,8 @@ test("the swipe settings sample row tries unsaved values and commits nothing", a
   // thresholds, where 40px is below stage 1.
   await page.getByTestId("stories-menu").click()
   const real = await dragStory(story, 40)
-  expect(translateX(real.transform)).toBe(0)
+  expect(translateX(real.transform)).toBe(40)
+  expect(real.label).toBe("Read · open")
   expect(real.action).toBe("none")
   await expect(story).not.toHaveClass(/stared/)
 })
@@ -1536,7 +1532,7 @@ test("turning off two-stage swipe keeps the gesture on stage one", async ({ page
 
   // A drag well past the old stage-2 threshold stays on stage 1.
   const long = await dragStory(story, 400, { release: false })
-  expect(translateX(long.transform)).toBe(96)
+  expect(translateX(long.transform)).toBe(400)
   expect(long.action).toBe("open")
 
   await story.evaluate(() => {

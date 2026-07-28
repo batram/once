@@ -1094,8 +1094,8 @@ export class SettingsPanel {
   }
 
   /**
-   * One row per stage: how far the drag must travel, where the row rests
-   * while it is engaged, and what each direction does when released there.
+   * One row per stage: how far the drag must travel and what each direction
+   * does when released there.
    * Generated rather than hand-written so the control count stays tied to
    * the number of stages in SwipeSettings.
    */
@@ -1105,7 +1105,7 @@ export class SettingsPanel {
 
     const header = document.createElement("div")
     header.classList.add("swipe_row", "swipe_head")
-    for (const label of ["", "engages at", "rests at", "swipe right", "swipe left"]) {
+    for (const label of ["", "engages at", "swipe right", "swipe left"]) {
       const cell = document.createElement("span")
       cell.textContent = label
       header.append(cell)
@@ -1121,20 +1121,18 @@ export class SettingsPanel {
       name.textContent = `Stage ${stage + 1}`
       row.append(name)
 
-      for (const field of ["threshold", "offset"] as const) {
-        const input = document.createElement("input")
-        input.type = "number"
-        input.min = "16"
-        input.max = "1000"
-        input.step = "1"
-        input.dataset.swipe = `${field}-${stage}`
-        input.dataset.testid = `swipe-${field}-${stage + 1}`
-        input.setAttribute(
-          "aria-label",
-          `Stage ${stage + 1} ${field === "threshold" ? "threshold" : "resting offset"} in pixels`
-        )
-        row.append(input)
-      }
+      const input = document.createElement("input")
+      input.type = "number"
+      input.min = "16"
+      input.max = "1000"
+      input.step = "1"
+      input.dataset.swipe = `threshold-${stage}`
+      input.dataset.testid = `swipe-threshold-${stage + 1}`
+      input.setAttribute(
+        "aria-label",
+        `Stage ${stage + 1} threshold in pixels`
+      )
+      row.append(input)
 
       for (const direction of ["right", "left"] as const) {
         const select = document.createElement("select")
@@ -1167,8 +1165,6 @@ export class SettingsPanel {
     for (const stage of [0, 1] as const) {
       this.swipeControl<HTMLInputElement>(`threshold-${stage}`).value =
         String(settings.stages[stage].threshold)
-      this.swipeControl<HTMLInputElement>(`offset-${stage}`).value =
-        String(settings.stages[stage].offset)
       this.swipeControl<HTMLSelectElement>(`right-${stage}`).value =
         settings.right[stage]
       this.swipeControl<HTMLSelectElement>(`left-${stage}`).value =
@@ -1211,11 +1207,11 @@ export class SettingsPanel {
       stages: [
         {
           threshold: number("threshold-0", DEFAULT_SWIPE_SETTINGS.stages[0].threshold),
-          offset: number("offset-0", DEFAULT_SWIPE_SETTINGS.stages[0].offset)
+          offset: DEFAULT_SWIPE_SETTINGS.stages[0].offset
         },
         {
           threshold: number("threshold-1", DEFAULT_SWIPE_SETTINGS.stages[1].threshold),
-          offset: number("offset-1", DEFAULT_SWIPE_SETTINGS.stages[1].offset)
+          offset: DEFAULT_SWIPE_SETTINGS.stages[1].offset
         }
       ],
       right: [action("right-0"), action("right-1")],

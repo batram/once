@@ -1849,7 +1849,7 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
 
 .settings_swipe .swipe_row {
   display: grid;
-  grid-template-columns: minmax(56px, auto) 5.5em 5.5em 1fr 1fr;
+  grid-template-columns: minmax(56px, auto) 5.5em 1fr 1fr;
   gap: 4px;
   align-items: center;
   margin-bottom: 4px;
@@ -1871,8 +1871,8 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
   opacity: 0.5;
 }
 
-/* The sample row travels the same distances a real row does, so the stage is
-   the positioning context for its reveal and clips the overhang. */
+/* The stage is the positioning context for the sample row's reveal and clips
+   the overhang while the row follows the pointer. */
 #swipe_preview .swipe_preview_stage {
   position: relative;
   overflow: hidden;

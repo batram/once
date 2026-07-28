@@ -27,14 +27,13 @@ import { requestReading } from "./ReadingSession"
 import { finishStoryExitTransition } from "./StoryExitTransition"
 
 /**
- * Two-stage detented swipe.
+ * Two-stage direct-manipulation swipe.
  *
- * The row rests on a plateau instead of tracking the finger, so the committed
- * action is unambiguous at the moment of release — classic mail-app behaviour.
- * Distances and actions are user-configurable; see swipeSettings.ts.
+ * The row tracks the pointer while thresholds select the action that will be
+ * committed on release. Distances and actions are user-configurable; see
+ * swipeSettings.ts.
  */
-/** Snapping between plateaus, and springing back after a release. */
-const SWIPE_SNAP_TRANSITION = "transform 90ms ease-out"
+/** Springing the directly manipulated row back after a release. */
 const SWIPE_RELEASE_TRANSITION = "transform 200ms cubic-bezier(.2, .8, .2, 1)"
 
 export type SwipeStage = 0 | 1 | 2
@@ -497,11 +496,8 @@ export class StoryListItem extends HTMLElement {
   swipeable = (): void => {
     let start_offset = -1
     // where the row currently rests, always 0 or one of the stage offsets
-    let plateau = 0
     // how far the pointer has travelled from where the press started, and the
-    // stage that distance engages. The commit reads these, not the plateau:
-    // thresholds and resting offsets are configured independently, so a stage
-    // can rest short of its own threshold without becoming uncommittable.
+    // stage that distance engages.
     let drag_offset = 0
     let stage: SwipeStage = 0
     // Read per gesture rather than captured: a preview row is configured
@@ -545,8 +541,9 @@ export class StoryListItem extends HTMLElement {
       this.bb_slide.style.lineHeight = this.offsetHeight + "px"
     }
 
-    // The revealed side names the action in words and recolors per stage, so
-    // the escalation from stage 1 to stage 2 is legible mid-gesture.
+    // Reveal the first action as soon as the row moves. The stage still stays
+    // at zero until its threshold, so an early release remains harmless, but
+    // the gesture responds immediately instead of showing an empty gap.
     const update_reveal = (offset: number) => {
       if (!this.sw_left || !this.sw_right) return
       const stage = geometry().stage(offset)
@@ -557,12 +554,17 @@ export class StoryListItem extends HTMLElement {
       hidden.dataset.stage = "0"
       hidden.dataset.action = "none"
 
-      const action = geometry().actionFor(offset)
-      revealed.innerText = stage === 0 ? "" : SWIPE_ACTION_LABELS[action]
+      const direction = Math.sign(offset)
+      const action =
+        direction === 0
+          ? "none"
+          : geometry().actionAt(stage === 0 ? 1 : stage, direction)
+      revealed.innerText =
+        direction === 0 ? "" : SWIPE_ACTION_LABELS[action]
       revealed.dataset.stage = String(stage)
       // CSS picks the reveal colour off the action, so a reconfigured swipe
       // keeps its colour meaning instead of colouring by stage number.
-      revealed.dataset.action = stage === 0 ? "none" : action
+      revealed.dataset.action = action
     }
 
     const mouse_swipe = (event: MouseEvent) => {
@@ -598,14 +600,14 @@ export class StoryListItem extends HTMLElement {
 
     const swipe = (x: number) => {
       drag_offset = x - start_offset
-      const next = geometry().plateau(drag_offset)
       const next_stage = geometry().stage(drag_offset)
-      if (next === plateau && next_stage === stage) return
-      plateau = next
       stage = next_stage
       update_reveal(drag_offset)
-      this.style.transition = SWIPE_SNAP_TRANSITION
-      this.style.transform = `translateX(${plateau}px)`
+      // Direct manipulation is deliberately 1:1, like the platform mail and
+      // list patterns: thresholds select an action but never move the row on
+      // the user's behalf.
+      this.style.transition = "none"
+      this.style.transform = `translateX(${drag_offset}px)`
     }
 
     this.addEventListener("touchmove", () => {
@@ -646,8 +648,8 @@ export class StoryListItem extends HTMLElement {
       this.parentElement?.addEventListener("scroll", end_swipe)
     })
 
-    // Releasing ON a plateau fires that stage; releasing below stage 1 fires
-    // nothing, which is what makes an abandoned drag safe.
+    // Releasing past a threshold fires that stage; an early release only
+    // floats the row home, which makes an abandoned drag safe.
     const end_swipe = (e: Event) => {
       e.preventDefault()
       e.stopPropagation()
@@ -720,7 +722,6 @@ export class StoryListItem extends HTMLElement {
       this.bb_slide = undefined
 
       start_offset = -1
-      plateau = 0
       drag_offset = 0
       stage = 0
       // spring back rather than snapping, so the release reads as a release

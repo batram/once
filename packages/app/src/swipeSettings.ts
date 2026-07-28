@@ -1,10 +1,10 @@
 /**
- * Configuration for the two-stage detented story swipe.
+ * Configuration for the two-stage story swipe.
  *
- * A drag engages a stage once it passes that stage's `threshold`; the row then
- * rests at `offset` until released. Releasing on a stage runs its action;
- * releasing below stage 1 runs nothing. Thresholds and offsets are symmetric
- * between left and right — only the actions differ by direction.
+ * The row follows the pointer directly. A drag engages a stage once it passes
+ * that stage's `threshold`; releasing there runs its action, while releasing
+ * below stage 1 runs nothing. Thresholds are symmetric between left and right
+ * — only the actions differ by direction.
  */
 
 export type SwipeActionId =
@@ -31,7 +31,7 @@ export const SWIPE_ACTION_LABELS: Record<SwipeActionId, string> = {
 export interface SwipeStageSetting {
   /** drag distance in px at which this stage engages */
   threshold: number
-  /** distance in px the row rests at while this stage is engaged */
+  /** Legacy detent offset, retained for synced-settings compatibility. */
   offset: number
 }
 
