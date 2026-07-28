@@ -202,8 +202,9 @@ test("stacks, dismisses, restores, and opens source issues through the error log
       "sources",
       '[data-testid="sources-structured-list"]'
     )
-    const failingSourceButton = window.locator("[data-source-value]")
-      .filter({ hasText: failingSource })
+    const failingSourceButton = window.locator(
+      `[data-source-value="${failingSource}"]`
+    )
     await failingSourceButton.click()
     await expect(window.getByTestId("structured-item-form")).toBeVisible()
 
