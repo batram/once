@@ -50,8 +50,8 @@ test("pulling past the threshold triggers a refresh and spins the icon", () => {
     })
 
     const indicator = document.querySelector(".ptr-indicator")
-    assert.ok(indicator, "indicator is inserted before the list")
-    assert.equal(indicator.nextElementSibling, stories)
+    assert.ok(indicator, "indicator is inserted in the list")
+    assert.equal(indicator.parentElement, stories)
 
     stories.dispatchEvent(touch(window, "touchstart", 100, 100))
     const move = touch(window, "touchmove", 100, 300) // dy 200 -> ~84px pull
@@ -60,6 +60,11 @@ test("pulling past the threshold triggers a refresh and spins the icon", () => {
       move.defaultPrevented,
       true,
       "an engaged pull cancels the native overscroll"
+    )
+    assert.match(
+      indicator.querySelector(".ptr-surface").getAttribute("style"),
+      /translateY\(48(?:\.\d+)?px\)/,
+      "the refresh icon descends over the stationary list"
     )
 
     stories.dispatchEvent(touch(window, "touchend", 100, 300))

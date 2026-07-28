@@ -15,16 +15,22 @@
   min-height: 0;
 }
 
-/* Pull-to-refresh indicator: a compact elevated surface emerges beneath the
-   toolbar while its flow height moves the list with the finger. */
+/* Pull-to-refresh indicator: the icon descends over the existing story rows.
+   Keeping it out of flow means the list does not open an empty strip while the
+   user pulls. The scrollable list itself is its positioning context. */
 .ptr-indicator {
-  flex: 0 0 auto;
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  right: 0;
+  left: 0;
   height: 0;
   overflow: hidden;
   display: flex;
   align-items: flex-start;
   justify-content: center;
   box-sizing: border-box;
+  pointer-events: none;
   will-change: height;
 }
 
@@ -33,7 +39,6 @@
   height: 36px;
   display: grid;
   flex: 0 0 auto;
-  margin-top: 10px;
   place-items: center;
   border: 1px solid var(--border-high-color);
   border-radius: 50%;

@@ -829,6 +829,7 @@ test("mobile text settings use the detail panel as an editor workspace", async (
 
 test("mobile refresh controls stay separated and theme-aware", async ({ page }) => {
   await page.goto("./")
+  await expect(page.locator("body")).toHaveAttribute("data-once-ready", "true")
 
   const refreshControls = await page.evaluate(() => {
     const reload = document.querySelector("#reload_stories_btn")
@@ -867,6 +868,9 @@ test("mobile refresh controls stay separated and theme-aware", async ({ page }) 
   expect(refreshControls.readingAnimation).toBe("rotating")
   expect(refreshControls.readingMask).toContain("reload.svg")
 
+  const listTopBeforePull = await page.locator("#stories").evaluate(
+    (stories) => stories.getBoundingClientRect().top
+  )
   await page.locator("#stories").evaluate((stories) => {
     const touch = new Touch({
       identifier: 1,
@@ -891,6 +895,29 @@ test("mobile refresh controls stay separated and theme-aware", async ({ page }) 
       touches: [moved]
     }))
   })
+  const pullGeometry = await page.locator("#stories").evaluate((stories) => {
+    const indicator = stories.querySelector(".ptr-indicator")
+    const surface = indicator.querySelector(".ptr-surface")
+    const listBounds = stories.getBoundingClientRect()
+    const indicatorBounds = indicator.getBoundingClientRect()
+    const surfaceBounds = surface.getBoundingClientRect()
+    return {
+      listTop: listBounds.top,
+      indicatorTop: indicatorBounds.top,
+      indicatorBottom: indicatorBounds.bottom,
+      surfaceTop: surfaceBounds.top,
+      surfaceBottom: surfaceBounds.bottom,
+      indicatorPosition: getComputedStyle(indicator).position
+    }
+  })
+  expect(pullGeometry.listTop).toBe(listTopBeforePull)
+  expect(pullGeometry.indicatorPosition).toBe("absolute")
+  expect(pullGeometry.indicatorTop).toBe(listTopBeforePull)
+  expect(pullGeometry.surfaceTop).toBeLessThan(pullGeometry.indicatorBottom)
+  expect(pullGeometry.surfaceBottom).toBeGreaterThan(listTopBeforePull)
+  expect(
+    pullGeometry.indicatorBottom - pullGeometry.surfaceBottom
+  ).toBeGreaterThanOrEqual(10)
 
   for (const theme of ["light", "dark"]) {
     await page.locator("body").evaluate((body, value) => {
