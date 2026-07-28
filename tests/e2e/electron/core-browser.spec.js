@@ -100,6 +100,9 @@ test("searches settings content without changing the open detail", async () => {
     await expect(activeTextarea).toHaveValue(activeValue)
 
     await window.locator('[data-settings-target="swipe"]').click()
+    await expect(
+      window.locator('[data-settings-target="swipe"]')
+    ).toHaveAttribute("aria-current", "page")
     await expect(window.locator(
       '.settings_section[data-settings-section="swipe"]'
     )).toBeVisible()
@@ -299,15 +302,16 @@ test("scrolls a new filter editor clear of sticky settings controls", async () =
 test("keeps a broad auto-scroll zone while dragging settings rows", async () => {
   const { electronApp, userData, window } = await launchApp()
   try {
-    const section = await openSettingsSection(window, "filters")
+    await openSettingsSection(window, "filters")
     const rows = window.locator(
       '[data-structured-section="filters"] .structured_row'
     )
     await expect.poll(() => rows.count()).toBeGreaterThan(20)
-    await section.evaluate((element) => {
+    const list = window.getByTestId("filters-structured-list")
+    await list.evaluate((element) => {
       element.scrollTop = element.scrollHeight
     })
-    const initialScroll = await section.evaluate((element) => element.scrollTop)
+    const initialScroll = await list.evaluate((element) => element.scrollTop)
     expect(initialScroll).toBeGreaterThan(0)
     await window.getByTestId("filters-structured-list").evaluate((root) => {
       const transfer = new DataTransfer()
@@ -320,7 +324,7 @@ test("keeps a broad auto-scroll zone while dragging settings rows", async () => 
         dataTransfer: transfer
       }))
     })
-    await expect.poll(() => section.evaluate((element) => element.scrollTop))
+    await expect.poll(() => list.evaluate((element) => element.scrollTop))
       .toBeLessThan(initialScroll)
   } finally {
     await closeApp(electronApp, userData)
@@ -346,6 +350,110 @@ test("settings menu always resets to a clean section index", async () => {
     await expect(window.locator(".settings_section_row").filter({
       visible: true
     })).toHaveCount(9)
+    await expect(
+      window.locator('[data-settings-target="sources"] .settings_section_summary')
+    ).toHaveText("5")
+    await expect(
+      window.locator('[data-settings-target="filters"] .settings_section_summary')
+    ).toContainText("keywords")
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
+test("uses the dense desktop source-list geometry and toolbar", async () => {
+  const { electronApp, userData, window } = await launchApp()
+  try {
+    await openSettingsSection(window, "sources")
+    await expect(window.getByTestId("add-source")).toBeVisible()
+    await expect(window.getByTestId("add-source-group")).toBeVisible()
+    await expect(window.getByTestId("pick-source")).toBeVisible()
+    await expect.poll(() => window.evaluate(() => {
+      const bounds = (selector) =>
+        document.querySelector(selector).getBoundingClientRect()
+      return {
+        search: Math.round(bounds(
+          '[data-structured-section="sources"] .structured_search input'
+        ).height),
+        groupHeader: Math.round(bounds(
+          '[data-structured-section="sources"] summary'
+        ).height),
+        row: Math.round(bounds(
+          '[data-structured-section="sources"] .structured_row'
+        ).height),
+        badge: [
+          Math.round(bounds(
+            '[data-structured-section="sources"] .collector_badge'
+          ).width),
+          Math.round(bounds(
+            '[data-structured-section="sources"] .collector_badge'
+          ).height)
+        ],
+        status: Math.round(bounds(".structured_status_strip").height)
+      }
+    })).toEqual({
+      search: 22,
+      groupHeader: 26,
+      row: 40,
+      badge: [20, 20],
+      status: 24
+    })
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
+test("keeps every structured desktop editor usable", async () => {
+  const { electronApp, userData, window } = await launchApp()
+  try {
+    for (const section of ["filters", "redirects"]) {
+      await openSettingsSection(window, section)
+      const row = window.locator(
+        `[data-structured-section="${section}"] .structured_row`
+      ).first()
+      const body = row.locator(".structured_row_body")
+      await expect(row).toBeVisible()
+      await expect(body).toBeVisible()
+      await expect.poll(() => body.evaluate((element) =>
+        Math.round(element.getBoundingClientRect().width)
+      )).toBeGreaterThan(200)
+    }
+
+    await openSettingsSection(window, "filters")
+    await window.getByTestId("add-filter").click()
+    const inlineInput = window.getByTestId("filter-inline-input")
+    await expect(inlineInput).toBeVisible()
+    await expect.poll(() => inlineInput.evaluate((element) =>
+      Math.round(element.getBoundingClientRect().width)
+    )).toBeGreaterThan(160)
+
+    await openSettingsSection(window, "sources")
+    await window.getByTestId("sources-mode-toggle").click()
+    await expect(window.locator(".structured_status_strip")).toBeHidden()
+    await expect(window.getByTestId("sources")).toBeVisible()
+    await expect(window.getByTestId("save-sources")).toBeVisible()
+    await expect(window.getByTestId("add-source")).toBeHidden()
+    await expect(window.getByTestId("add-source-group")).toBeHidden()
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
+test("opens the desktop source row menu from its hover control", async () => {
+  const { electronApp, userData, window } = await launchApp()
+  try {
+    await openSettingsSection(window, "sources")
+    const row = window.getByTestId("source-row").first().locator("xpath=../..")
+    await row.hover()
+    const menu = row.locator(".structured_row_menu")
+    await expect(menu).toBeVisible()
+    await menu.click()
+    await expect(window.getByRole("menuitem", {
+      name: "Edit source"
+    })).toBeVisible()
+    await expect(window.getByRole("menuitem", {
+      name: "Delete source"
+    })).toBeVisible()
   } finally {
     await closeApp(electronApp, userData)
   }

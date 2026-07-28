@@ -1,6 +1,7 @@
 import { SourceError } from "@once/app"
 import { get_parser_for_url, StoryParser } from "@once/collectors"
 import { parseRedirectList, Redirect } from "@once/core"
+import { AnchoredMenuItem, openAnchoredMenu } from "./StoryAnchoredMenu"
 
 export interface SourceGroup {
   id: string
@@ -112,7 +113,7 @@ function highlightMatches(
 type Section = "sources" | "filters" | "redirects"
 
 export interface StructuredSettingsOptions {
-  saveSources(values: string[], reloadStories?: boolean): void
+  saveSources(values: string[], reloadStories?: boolean): void | Promise<void>
   saveFilters(values: string[]): void
   saveRedirects(values: Redirect[]): void
   showSourceError(source: string): void
@@ -127,6 +128,8 @@ export class StructuredSettingsEditors {
   private redirects: RedirectRow[] = []
   private roots = new Map<Section, HTMLElement>()
   private headers = new Map<Section, HTMLElement>()
+  private addButtons = new Map<Section, HTMLButtonElement>()
+  private pickerStatus: HTMLElement | null = null
   private toggles = new Map<Section, HTMLButtonElement>()
   private searchQueries = new Map<Section, string>()
   private sourceGroupOpen = new Map<string, boolean>()
@@ -139,12 +142,38 @@ export class StructuredSettingsEditors {
   }>()
   private rowSequence = 0
   private sourceRenderGeneration = 0
+  private sourceSaveState: "saved" | "saving" | "failed" = "saved"
 
   constructor(private options: StructuredSettingsOptions) {
     for (const section of ["sources", "filters", "redirects"] as const) {
       this.install(section)
       this.modes.set(section, "list")
     }
+  }
+
+  /**
+   * Touch platforms replace the footer action bar with a floating add button
+   * and the paired group buttons with an anchored menu. Desktop and the
+   * extensions keep the footer, so the two presentations must not both render
+   * the same test ids.
+   */
+  private get onTouch(): boolean {
+    return document.body.dataset.platform === "mobile"
+  }
+
+  /** The tab bar is fixed to the bottom; menus must never open behind it. */
+  private bottomInset(): number {
+    if (!this.onTouch) return 0
+    const menu = document.querySelector<HTMLElement>("#menu")
+    return menu ? Math.round(menu.getBoundingClientRect().height) : 0
+  }
+
+  private openMenu(anchor: HTMLElement, items: AnchoredMenuItem[]): void {
+    openAnchoredMenu({
+      anchor,
+      items,
+      bottomInset: this.bottomInset()
+    })
   }
 
   private textarea(section: Section): HTMLTextAreaElement {
@@ -185,6 +214,14 @@ export class StructuredSettingsEditors {
     root.dataset.testid = `${section}-structured-list`
     input.before(root)
     this.roots.set(section, root)
+    if (section === "sources") {
+      const status = document.createElement("div")
+      status.className = "structured_status_strip"
+      status.innerHTML =
+        '<span class="structured_status_counts"></span>' +
+        '<span class="structured_status_saved" role="status"></span>'
+      root.after(status)
+    }
     this.installDragAutoScroll(root)
     const listActions = document.createElement("div")
     listActions.className = "structured_list_actions"
@@ -193,7 +230,90 @@ export class StructuredSettingsEditors {
     actions.prepend(listActions)
     input.hidden = true
     actions.classList.add("structured_text_actions")
+    if (this.onTouch) this.installAddButton(section, block, root)
     this.updateActionVisibility(section)
+  }
+
+  /**
+   * The floating +. It replaces the footer bar on touch, so it carries the
+   * footer's test id and the footer's buttons are never rendered there.
+   */
+  private installAddButton(
+    section: Section,
+    block: HTMLElement,
+    root: HTMLElement
+  ): void {
+    const labels: Record<Section, string> = {
+      sources: "Add source",
+      filters: "Add filter",
+      redirects: "Add redirect"
+    }
+    const testids: Record<Section, string> = {
+      sources: "add-source",
+      filters: "add-filter",
+      redirects: "add-redirect"
+    }
+    const button = document.createElement("button")
+    button.type = "button"
+    button.className = "structured_add_button"
+    button.dataset.testid = testids[section]
+    button.title = labels[section]
+    button.setAttribute("aria-label", labels[section])
+    const glyph = document.createElement("span")
+    glyph.className = "structured_add_glyph"
+    glyph.setAttribute("aria-hidden", "true")
+    glyph.textContent = "+"
+    button.append(glyph)
+    button.addEventListener("click", () => {
+      if (section === "filters") {
+        this.editFilterInline(root)
+        return
+      }
+      if (section === "redirects") {
+        this.editRedirect(root)
+        return
+      }
+      this.openMenu(button, this.addSourceMenu(root))
+    })
+    ;(block.closest<HTMLElement>(".settings_section") || block).append(button)
+    this.addButtons.set(section, button)
+  }
+
+  private addSourceMenu(root: HTMLElement): AnchoredMenuItem[] {
+    const items: AnchoredMenuItem[] = [
+      {
+        id: "add-source-entry",
+        label: "Source",
+        testid: "add-source-entry",
+        select: () => this.editSource(root)
+      },
+      {
+        id: "add-group",
+        label: "Group",
+        testid: "add-group",
+        select: () => this.editGroup(root)
+      }
+    ]
+    // The picker is unavailable where the host cannot reach a page to pick
+    // from; mountOnceUi hides its button there.
+    const picker = document.querySelector<HTMLElement>("#pick_source_button")
+    if (picker && !picker.hidden) {
+      items.push({
+        id: "pick-source-page",
+        label: "Pick from page",
+        testid: "pick-source-page",
+        select: () => picker.click()
+      })
+    }
+    return items
+  }
+
+  /** Hides the floating + whenever the list is not the visible surface. */
+  private updateAddButton(section: Section): void {
+    const button = this.addButtons.get(section)
+    if (!button) return
+    button.hidden = this.modes.get(section) !== "list" ||
+      this.detailSections.has(section)
   }
 
   private toggleMode(section: Section): void {
@@ -238,8 +358,18 @@ export class StructuredSettingsEditors {
     }
     const actions = block?.querySelector<HTMLElement>(".settings_actions")
     if (actions) {
+      // Nothing left to show: collapse the bar rather than leave its band of
+      // padding under the list.
+      actions.classList.toggle(
+        "structured_actions_empty",
+        this.onTouch && mode === "list"
+      )
       for (const child of Array.from(actions.children)) {
         const element = child as HTMLElement
+        // On touch the floating + owns adding and the whole bar is collapsed,
+        // so per-child hiding is left alone — `hidden` on the picker button
+        // stays the host's own "no page to pick from" signal.
+        if (this.onTouch && mode === "list") continue
         const isPicker = element.id === "pick_source_button" ||
           element.id === "pick_source_status"
         const isListActions = element.dataset.structuredActions === section
@@ -248,6 +378,37 @@ export class StructuredSettingsEditors {
           : isListActions
       }
     }
+    this.placeDesktopActions(section)
+    this.updateAddButton(section)
+    this.placePickerStatus(section)
+  }
+
+  /**
+   * Without the footer the picker has nowhere to report from, so its status
+   * line moves under the search field. It is the same element SourcePickerView
+   * writes to, only re-parented.
+   */
+  private placePickerStatus(section: Section): void {
+    if (section !== "sources" || !this.onTouch) return
+    // Cached: rendering the list detaches the element from the search row, and
+    // a detached node is no longer reachable by id.
+    const status = this.pickerStatus ||
+      document.getElementById("pick_source_status")
+    if (!status) return
+    this.pickerStatus = status
+    const root = this.roots.get("sources")
+    const listMode = this.modes.get("sources") === "list"
+    if (listMode && root) {
+      status.classList.add("structured_picker_status")
+      const search = root.querySelector<HTMLElement>(".structured_search")
+      if (search) search.after(status)
+      return
+    }
+    status.classList.remove("structured_picker_status")
+    const actions = this.textarea("sources")
+      .closest<HTMLElement>(".settings_editor_block")
+      ?.querySelector<HTMLElement>(".settings_actions")
+    if (actions && status.parentElement !== actions) actions.append(status)
   }
 
   setActiveSection(active: string | null): void {
@@ -484,6 +645,19 @@ export class StructuredSettingsEditors {
   private render(section: Section): void {
     const root = this.roots.get(section)
     if (!root) return
+    if (!this.onTouch) {
+      const actions = this.textarea(section)
+        .closest<HTMLElement>(".settings_editor_block")
+        ?.querySelector<HTMLElement>(".settings_actions")
+      const listActions = root.querySelector<HTMLElement>(
+        `[data-structured-actions="${section}"]`
+      )
+      if (actions && listActions) actions.prepend(listActions)
+      if (actions && section === "sources") {
+        const picker = root.querySelector<HTMLElement>("#pick_source_button")
+        if (picker) actions.append(picker)
+      }
+    }
     this.detailSections.delete(section)
     root.textContent = ""
     this.renderSearch(root, section)
@@ -491,6 +665,38 @@ export class StructuredSettingsEditors {
     if (section === "filters") this.renderSimpleList(root, section, this.filters)
     if (section === "redirects") this.renderRedirects(root)
     this.applySearch(root, section)
+    this.placeDesktopActions(section)
+    this.updateAddButton(section)
+    this.placePickerStatus(section)
+  }
+
+  private placeDesktopActions(section: Section): void {
+    if (this.onTouch) return
+    const root = this.roots.get(section)
+    const actions = this.textarea(section)
+      .closest<HTMLElement>(".settings_editor_block")
+      ?.querySelector<HTMLElement>(".settings_actions")
+    const listActions = document.querySelector<HTMLElement>(
+      `[data-structured-actions="${section}"]`
+    )
+    if (!root || !actions || !listActions) return
+    if (this.modes.get(section) === "list") {
+      listActions.hidden = false
+      root.querySelector<HTMLElement>(".structured_search")?.append(listActions)
+      if (section === "sources") {
+        const picker = document.getElementById("pick_source_button")
+        if (picker) root.querySelector(".structured_search")?.append(picker)
+      }
+      actions.classList.add("structured_desktop_actions_empty")
+    } else {
+      actions.classList.remove("structured_desktop_actions_empty")
+      listActions.hidden = true
+      actions.prepend(listActions)
+      if (section === "sources") {
+        const picker = document.getElementById("pick_source_button")
+        if (picker) actions.append(picker)
+      }
+    }
   }
 
   private renderSearch(root: HTMLElement, section: Section): void {
@@ -681,10 +887,34 @@ export class StructuredSettingsEditors {
   private renderSources(root: HTMLElement): void {
     const renderGeneration = ++this.sourceRenderGeneration
     const toolbar = this.listActions("sources")
-    toolbar?.append(
-      this.actionButton("Add source", () => this.editSource(root), "add-source"),
-      this.actionButton("Add group", () => this.editGroup(root), "add-source-group")
+    if (!this.onTouch) {
+      toolbar?.append(
+        this.actionButton("Add source", () => this.editSource(root), "add-source"),
+        this.actionButton("Add group", () => this.editGroup(root), "add-source-group")
+      )
+    }
+    const sourceCount = this.sourceGroups.reduce(
+      (count, group) => count + group.sources.length,
+      0
     )
+    const failing = this.sourceGroups.reduce((count, group) =>
+      count + group.sources.filter((source) => this.errors.has(source.trim())).length,
+    0)
+    const status = root.parentElement?.querySelector<HTMLElement>(
+      ".structured_status_counts"
+    )
+    if (status) {
+      status.textContent =
+        `${sourceCount} ${sourceCount === 1 ? "source" : "sources"} · ` +
+        `${this.sourceGroups.length} ${this.sourceGroups.length === 1 ? "group" : "groups"}`
+      if (failing) {
+        const issue = document.createElement("span")
+        issue.className = "structured_status_error"
+        issue.textContent = ` ${failing} failing`
+        status.append(issue)
+      }
+    }
+    this.renderSourceSaveState(root)
 
     let draggedGroupIndex: number | null = null
     let expandedSnapshot: Map<string, boolean> | null = null
@@ -749,10 +979,65 @@ export class StructuredSettingsEditors {
       }
       revealGroup(draggedId)
     }
+    const beginGroupDrag = (
+      groupIndex: number,
+      details: HTMLElement,
+      summary: HTMLElement
+    ) => {
+      if (groupIndex === 0 || draggedGroupIndex !== null) return false
+      draggedGroupIndex = groupIndex
+      pendingGroupDestination = null
+      groupDropCommitted = false
+      suppressGroupToggle = true
+      expandedSnapshot = new Map(
+        Array.from(root.querySelectorAll<HTMLDetailsElement>(
+          ".structured_group"
+        )).map((entry) => [
+          entry.dataset.groupId || "",
+          entry.open
+        ])
+      )
+      details.classList.add("structured_group_dragging")
+      const startingTop = summary.getBoundingClientRect().top
+      collapseFrame = requestAnimationFrame(() => {
+        collapseFrame = null
+        if (draggedGroupIndex !== groupIndex) return
+        root.classList.add("structured_group_drag_active")
+        const movedBy = summary.getBoundingClientRect().top - startingTop
+        if (movedBy) root.scrollTop += movedBy
+      })
+      return true
+    }
+    const updateGroupDestination = (
+      details: HTMLElement,
+      groupIndex: number,
+      clientY: number
+    ) => {
+      if (draggedGroupIndex === null) return
+      clearDropTargets()
+      const bounds = details.getBoundingClientRect()
+      const after = groupIndex > 0 &&
+        clientY >= bounds.top + bounds.height / 2
+      const dropAfter = groupIndex === 0 || after
+      let destination = groupIndex === 0
+        ? 1
+        : groupIndex + (dropAfter ? 1 : 0)
+      if (draggedGroupIndex < destination) destination--
+      pendingGroupDestination = Math.max(
+        1,
+        Math.min(destination, this.sourceGroups.length - 1)
+      )
+      details.classList.add(
+        dropAfter
+          ? "structured_group_drop_after"
+          : "structured_group_drop_before"
+      )
+    }
 
     this.sourceGroups.forEach((group, groupIndex) => {
       const details = document.createElement("details")
       details.className = "structured_group"
+      if (groupIndex > 0) details.classList.add("structured_group_reorderable")
       details.open = this.sourceGroupOpen.get(group.id) ?? true
       details.dataset.groupIndex = String(groupIndex)
       details.dataset.groupId = group.id
@@ -765,6 +1050,12 @@ export class StructuredSettingsEditors {
       })
       const summary = document.createElement("summary")
       let suppressNextSummaryClick = false
+      const caret = document.createElement("span")
+      caret.className = "structured_group_caret"
+      caret.setAttribute("aria-hidden", "true")
+      const dragHandle = document.createElement("span")
+      dragHandle.className = "structured_group_drag_handle"
+      dragHandle.setAttribute("aria-hidden", "true")
       const name = document.createElement("strong")
       name.className = "structured_group_name"
       name.textContent = group.name
@@ -774,15 +1065,52 @@ export class StructuredSettingsEditors {
         name.title = `Drag to reorder ${group.name}`
         name.setAttribute("aria-label", `${group.name} group; drag to reorder`)
       }
-      summary.append(name)
+      const count = document.createElement("span")
+      count.className = "structured_group_count"
+      count.textContent = String(group.sources.length)
+      summary.append(caret)
+      if (groupIndex > 0) summary.append(dragHandle)
+      summary.append(name, count)
+      if (groupIndex === 0) {
+        const menuSpacer = document.createElement("span")
+        menuSpacer.className = "structured_group_menu_spacer"
+        menuSpacer.setAttribute("aria-hidden", "true")
+        summary.append(menuSpacer)
+      }
       if (groupIndex > 0) {
         const controls = document.createElement("span")
         controls.className = "structured_group_actions"
         controls.addEventListener("click", (event) => event.preventDefault())
-        controls.append(
-          this.actionButton("Edit", () => this.editGroup(root, groupIndex)),
-          this.actionButton("Delete", () => this.deleteGroup(root, groupIndex))
-        )
+        const menuButton = document.createElement("button")
+        menuButton.type = "button"
+        menuButton.className = "structured_group_menu"
+        menuButton.textContent = "⋮"
+        menuButton.title = `${group.name} group actions`
+        menuButton.setAttribute("aria-label", menuButton.title)
+        menuButton.addEventListener("click", () => {
+          this.openMenu(menuButton, [
+            {
+              id: "rename-group",
+              label: "Rename group",
+              testid: "rename-source-group",
+              select: () => this.editGroup(root, groupIndex)
+            },
+            {
+              id: "delete-group",
+              label: "Delete group",
+              testid: "delete-source-group",
+              select: () => this.deleteGroup(root, groupIndex)
+            },
+            {
+              id: "add-source-here",
+              label: "Add source here",
+              // Desktop keeps this id on its footer "Add group" button.
+              testid: this.onTouch ? "add-source-group" : "add-source-here",
+              select: () => this.editSource(root, groupIndex)
+            }
+          ])
+        })
+        controls.append(menuButton)
         summary.append(controls)
       }
       summary.addEventListener("dragover", (event) => {
@@ -826,34 +1154,14 @@ export class StructuredSettingsEditors {
           event.preventDefault()
           return
         }
-        draggedGroupIndex = groupIndex
-        pendingGroupDestination = null
-        groupDropCommitted = false
-        suppressGroupToggle = true
         suppressNextSummaryClick = true
-        expandedSnapshot = new Map(
-          Array.from(root.querySelectorAll<HTMLDetailsElement>(
-            ".structured_group"
-          )).map((entry) => [
-            entry.dataset.groupId || "",
-            entry.open
-          ])
-        )
-        details.classList.add("structured_group_dragging")
+        beginGroupDrag(groupIndex, details, summary)
         event.dataTransfer?.setData(
           "application/x-once-source-group",
           String(groupIndex)
         )
         event.dataTransfer?.setData("text/plain", `group:${groupIndex}`)
         if (event.dataTransfer) event.dataTransfer.effectAllowed = "move"
-        const startingTop = summary.getBoundingClientRect().top
-        collapseFrame = requestAnimationFrame(() => {
-          collapseFrame = null
-          if (draggedGroupIndex !== groupIndex) return
-          root.classList.add("structured_group_drag_active")
-          const movedBy = summary.getBoundingClientRect().top - startingTop
-          if (movedBy) root.scrollTop += movedBy
-        })
       })
       name.addEventListener("dragend", (event) => {
         const draggedId = group.id
@@ -874,21 +1182,7 @@ export class StructuredSettingsEditors {
         if (draggedGroupIndex === null) return
         event.preventDefault()
         if (event.dataTransfer) event.dataTransfer.dropEffect = "move"
-        clearDropTargets()
-        const bounds = details.getBoundingClientRect()
-        const after = groupIndex > 0 &&
-          event.clientY >= bounds.top + bounds.height / 2
-        let destination = groupIndex === 0
-          ? 1
-          : groupIndex + (after ? 1 : 0)
-        if (draggedGroupIndex < destination) destination--
-        pendingGroupDestination = Math.max(
-          1,
-          Math.min(destination, this.sourceGroups.length - 1)
-        )
-        details.classList.add(
-          after ? "structured_group_drop_after" : "structured_group_drop_before"
-        )
+        updateGroupDestination(details, groupIndex, event.clientY)
       })
       details.addEventListener("drop", (event) => {
         if (draggedGroupIndex === null) return
@@ -904,6 +1198,211 @@ export class StructuredSettingsEditors {
         destination = Math.max(1, Math.min(destination, this.sourceGroups.length - 1))
         commitGroupDrop(destination)
       })
+      if (this.onTouch && groupIndex > 0) {
+        const holdDelay = 320
+        let pointerId: number | null = null
+        let pointerStartY = 0
+        let pointerLastY = 0
+        let pointerGrabOffset = 0
+        let dragBaseTop = 0
+        let pointerDragging = false
+        let holdTimer: number | null = null
+        const clearHold = () => {
+          if (holdTimer !== null) window.clearTimeout(holdTimer)
+          holdTimer = null
+          details.classList.remove("structured_group_pressing")
+        }
+        const targetAt = (clientY: number) => {
+          const candidates = Array.from(
+            root.querySelectorAll<HTMLElement>(".structured_group")
+          ).filter((candidate) => candidate !== details)
+          return candidates.reduce<HTMLElement | null>((nearest, candidate) => {
+            const bounds = candidate.getBoundingClientRect()
+            if (clientY >= bounds.top && clientY <= bounds.bottom) {
+              return candidate
+            }
+            if (!nearest) return candidate
+            const nearestBounds = nearest.getBoundingClientRect()
+            const distance = Math.min(
+              Math.abs(clientY - bounds.top),
+              Math.abs(clientY - bounds.bottom)
+            )
+            const nearestDistance = Math.min(
+              Math.abs(clientY - nearestBounds.top),
+              Math.abs(clientY - nearestBounds.bottom)
+            )
+            return distance < nearestDistance ? candidate : nearest
+          }, null)
+        }
+        const activatePointerDrag = () => {
+          holdTimer = null
+          details.classList.remove("structured_group_pressing")
+          suppressNextSummaryClick = true
+          pointerDragging = beginGroupDrag(groupIndex, details, summary)
+          if (!pointerDragging) return
+          const positionDraggedGroup = () => {
+            const offset = pointerLastY - pointerGrabOffset - dragBaseTop
+            details.style.setProperty(
+              "--structured-group-drag-y",
+              `${offset}px`
+            )
+          }
+          dragBaseTop = details.getBoundingClientRect().top
+          positionDraggedGroup()
+          // beginGroupDrag collapses every card on the next frame. Rebase once
+          // that layout change has happened so the held point stays exactly
+          // under the finger instead of jumping with the collapsed rows.
+          requestAnimationFrame(() => {
+            if (!pointerDragging) return
+            const transform = Number.parseFloat(
+              details.style.getPropertyValue("--structured-group-drag-y")
+            ) || 0
+            dragBaseTop = details.getBoundingClientRect().top - transform
+            positionDraggedGroup()
+          })
+          const neighbor = root.querySelector<HTMLElement>(
+            `.structured_group[data-group-index="${groupIndex + 1}"]`
+          ) || root.querySelector<HTMLElement>(
+            `.structured_group[data-group-index="${groupIndex - 1}"]`
+          )
+          if (neighbor) {
+            const neighborIndex = Number(neighbor.dataset.groupIndex)
+            const bounds = neighbor.getBoundingClientRect()
+            updateGroupDestination(
+              neighbor,
+              neighborIndex,
+              groupIndex < neighborIndex ? bounds.top : bounds.bottom
+            )
+          }
+        }
+        const finishPointerDrag = (commit: boolean) => {
+          if (pointerId === null) return
+          clearHold()
+          const draggedId = group.id
+          if (pointerDragging && commit &&
+              pendingGroupDestination !== null) {
+            commitGroupDrop(pendingGroupDestination)
+          } else {
+            restoreExpandedState()
+            revealGroup(draggedId)
+          }
+          details.classList.remove("structured_group_dragging")
+          details.style.removeProperty("--structured-group-drag-y")
+          pointerId = null
+          pointerDragging = false
+          pendingGroupDestination = null
+          window.setTimeout(() => {
+            suppressNextSummaryClick = false
+          }, 0)
+        }
+        const beginTouch = (
+          identifier: number,
+          clientY: number,
+          target: EventTarget | null
+        ) => {
+          if (target instanceof Element &&
+              target.closest(".structured_group_menu")) return
+          pointerId = identifier
+          pointerStartY = clientY
+          pointerLastY = clientY
+          pointerGrabOffset = clientY - details.getBoundingClientRect().top
+          pointerDragging = false
+          holdTimer = window.setTimeout(activatePointerDrag, holdDelay)
+        }
+        const moveTouch = (identifier: number, clientY: number) => {
+          if (identifier !== pointerId) return false
+          pointerLastY = clientY
+          if (!pointerDragging) {
+            if (Math.abs(clientY - pointerStartY) < 8) return false
+            clearHold()
+            pointerId = null
+            return false
+          }
+          details.style.setProperty("--structured-group-drag-y",
+            `${pointerLastY - pointerGrabOffset - dragBaseTop}px`)
+          const target = targetAt(clientY)
+          if (!target) return true
+          const targetIndex = Number(target.dataset.groupIndex)
+          if (!Number.isInteger(targetIndex)) return true
+          updateGroupDestination(target, targetIndex, clientY)
+          return true
+        }
+        summary.addEventListener("touchstart", (event) => {
+          if (event.touches.length !== 1) return
+          const touch = event.changedTouches[0]
+          beginTouch(touch.identifier, touch.clientY, event.target)
+        }, { passive: true })
+        summary.addEventListener("touchmove", (event) => {
+          const touch = Array.from(event.changedTouches).find(
+            (entry) => entry.identifier === pointerId
+          )
+          if (!touch) return
+          if (moveTouch(touch.identifier, touch.clientY)) {
+            // No movement happened during the hold, so native scrolling has
+            // not begun. From activation onward this gesture belongs to the
+            // reorder interaction and must stay with it.
+            event.preventDefault()
+          }
+        }, { passive: false })
+        summary.addEventListener("touchend", (event) => {
+          const touch = Array.from(event.changedTouches).find(
+            (entry) => entry.identifier === pointerId
+          )
+          if (!touch) return
+          finishPointerDrag(true)
+        })
+        summary.addEventListener("touchcancel", (event) => {
+          const touch = Array.from(event.changedTouches).find(
+            (entry) => entry.identifier === pointerId
+          )
+          if (!touch) return
+          finishPointerDrag(false)
+        })
+        summary.addEventListener("pointerdown", (event) => {
+          if (event.pointerType === "mouse" ||
+              event.pointerType === "touch" ||
+              event.button !== 0) return
+          if ((event.target as Element).closest(".structured_group_menu")) return
+          pointerId = event.pointerId
+          pointerStartY = event.clientY
+          pointerLastY = event.clientY
+          pointerGrabOffset = event.clientY -
+            details.getBoundingClientRect().top
+          pointerDragging = false
+          holdTimer = window.setTimeout(activatePointerDrag, holdDelay)
+          try {
+            summary.setPointerCapture(event.pointerId)
+          } catch {
+            // Synthetic test events and older WebViews may not expose capture.
+          }
+        })
+        summary.addEventListener("pointermove", (event) => {
+          if (event.pointerId !== pointerId) return
+          pointerLastY = event.clientY
+          if (!pointerDragging) {
+            if (Math.abs(event.clientY - pointerStartY) < 8) return
+            clearHold()
+            pointerId = null
+            return
+          }
+          event.preventDefault()
+          details.style.setProperty("--structured-group-drag-y",
+            `${pointerLastY - pointerGrabOffset - dragBaseTop}px`)
+          const target = targetAt(event.clientY)
+          if (!target) return
+          const targetIndex = Number(target.dataset.groupIndex)
+          if (!Number.isInteger(targetIndex)) return
+          updateGroupDestination(target, targetIndex, event.clientY)
+        })
+        summary.addEventListener("pointerup", (event) => {
+          if (event.pointerId !== pointerId) return
+          finishPointerDrag(true)
+        })
+        summary.addEventListener("pointercancel", (event) => {
+          if (event.pointerId !== pointerId) return
+          finishPointerDrag(false)
+        })
+      }
       details.append(summary)
       const list = document.createElement("div")
       list.className = "structured_rows"
@@ -948,6 +1447,35 @@ export class StructuredSettingsEditors {
     })
   }
 
+  /**
+   * The text block of a row: everything right of the badge column. It carries
+   * the separator, so the rule insets past the badge and the badges read as a
+   * column. Nothing in here draws chrome of its own.
+   */
+  private rowBody(...children: HTMLElement[]): HTMLElement {
+    const body = document.createElement("div")
+    body.className = "structured_row_body"
+    body.append(...children)
+    return body
+  }
+
+  /** The only thing in a row that advertises the row itself is tappable. */
+  private rowChevron(label?: string, action?: () => void): HTMLElement {
+    const chevron = action
+      ? document.createElement("button")
+      : document.createElement("span")
+    chevron.className = "structured_row_chevron"
+    if (chevron instanceof HTMLButtonElement && action) {
+      chevron.type = "button"
+      chevron.title = label || "Edit"
+      chevron.setAttribute("aria-label", chevron.title)
+      chevron.addEventListener("click", action)
+    } else {
+      chevron.setAttribute("aria-hidden", "true")
+    }
+    return chevron
+  }
+
   private sourceRow(
     root: HTMLElement,
     source: string,
@@ -973,6 +1501,9 @@ export class StructuredSettingsEditors {
       badge.style.backgroundColor = parser.options.colors[0]
       badge.style.color = parser.options.colors[1]
     }
+    const dragHandle = document.createElement("span")
+    dragHandle.className = "structured_source_drag_handle"
+    dragHandle.setAttribute("aria-hidden", "true")
     const open = document.createElement("button")
     open.type = "button"
     open.className = "structured_row_main"
@@ -986,13 +1517,17 @@ export class StructuredSettingsEditors {
     primary.dataset.searchText = primary.textContent
     const secondary = document.createElement("span")
     secondary.className = "structured_row_secondary"
-    secondary.textContent = source
-    secondary.dataset.searchText = source
+    const error = this.errors.get(source.trim())
+    // A failing source says why here; the full URL stays in the row's title.
+    secondary.textContent = error ? error.message : source
+    secondary.dataset.searchText = secondary.textContent
+    if (error) secondary.classList.add("structured_row_secondary_error")
     open.append(primary, secondary)
     open.addEventListener("click", () =>
       this.editSource(root, groupIndex, sourceIndex))
-    const error = this.errors.get(source.trim())
+    const body = this.rowBody(open)
     if (error) {
+      row.classList.add(`structured_row_${error.type}`)
       const issue = this.actionButton(
         error.type === "warning" ? "⚠" : "!",
         () => this.options.showSourceError(source),
@@ -1000,22 +1535,136 @@ export class StructuredSettingsEditors {
       )
       issue.className = `structured_issue ${error.type}`
       issue.title = `Open ${error.type} details`
-      row.append(badge, open, issue)
-    } else {
-      row.append(badge, open)
+      body.append(issue)
+    }
+    body.append(this.rowChevron(`Edit ${source}`, () =>
+      this.editSource(root, groupIndex, sourceIndex)))
+    if (!this.onTouch) {
+      const menuButton = document.createElement("button")
+      menuButton.type = "button"
+      menuButton.className = "structured_row_menu"
+      menuButton.textContent = "⋮"
+      menuButton.title = `Actions for ${source}`
+      menuButton.setAttribute("aria-label", menuButton.title)
+      const openRowMenu = () => this.openMenu(menuButton, [
+        {
+          id: "edit-source",
+          label: "Edit source",
+          select: () => this.editSource(root, groupIndex, sourceIndex)
+        },
+        {
+          id: "delete-source",
+          label: "Delete source",
+          select: () => {
+            if (!window.confirm("Delete this story source?")) return
+            this.sourceGroups[groupIndex].sources.splice(sourceIndex, 1)
+            this.saveSources()
+          }
+        }
+      ])
+      menuButton.addEventListener("click", openRowMenu)
+      body.append(menuButton)
+      row.addEventListener("contextmenu", (event) => {
+        event.preventDefault()
+        openRowMenu()
+      })
+    }
+    row.append(dragHandle, badge, body)
+    const clearSourceDropTargets = () => {
+      root.querySelectorAll(
+        ".structured_source_drop_before, .structured_source_drop_after"
+      ).forEach((target) => target.classList.remove(
+        "structured_source_drop_before",
+        "structured_source_drop_after"
+      ))
+      root.querySelectorAll(
+        ".structured_source_group_drop_target," +
+        " .structured_source_group_title_drop_target"
+      ).forEach((target) => target.classList.remove(
+        "structured_source_group_drop_target",
+        "structured_source_group_title_drop_target"
+      ))
+    }
+    const updateSourceDropTarget = (clientY: number) => {
+      if (clientY <= 0) return
+      clearSourceDropTargets()
+      const candidates = Array.from(
+        root.querySelectorAll<HTMLElement>(".structured_row")
+      ).filter((candidate) =>
+        candidate !== row && candidate.offsetParent !== null)
+      const target = candidates.find((candidate) => {
+        const bounds = candidate.getBoundingClientRect()
+        return clientY >= bounds.top && clientY <= bounds.bottom
+      })
+      if (target) {
+        const bounds = target.getBoundingClientRect()
+        target.classList.add(clientY >= bounds.top + bounds.height / 2
+          ? "structured_source_drop_after"
+          : "structured_source_drop_before")
+        return
+      }
+      const groups = Array.from(
+        root.querySelectorAll<HTMLElement>(".structured_group")
+      )
+      const targetGroup = groups.find((candidate) => {
+        const bounds = candidate.getBoundingClientRect()
+        return clientY >= bounds.top && clientY <= bounds.bottom
+      })
+      if (!targetGroup) return
+      const list = targetGroup.querySelector<HTMLElement>(".structured_rows")
+      if (list && list.offsetParent !== null) {
+        list.classList.add("structured_source_group_drop_target")
+      } else {
+        targetGroup.classList.add("structured_source_group_title_drop_target")
+      }
     }
     row.addEventListener("dragstart", (event) => {
+      row.classList.add("structured_row_dragging")
       event.dataTransfer?.setData("text/plain", `${groupIndex}:${sourceIndex}`)
     })
-    row.addEventListener("dragover", (event) => event.preventDefault())
+    // Android WebView reports the pointer position on the drag source but may
+    // omit dragover on the element underneath it. Resolve the visual target
+    // from those coordinates so mobile gets the same insertion feedback.
+    row.addEventListener("drag", (event) => {
+      updateSourceDropTarget(event.clientY)
+    })
+    row.addEventListener("dragend", () => {
+      row.classList.remove("structured_row_dragging")
+      clearSourceDropTargets()
+    })
+    row.addEventListener("dragover", (event) => {
+      if (!this.sourceDragPosition(event.dataTransfer)) return
+      event.preventDefault()
+      event.stopPropagation()
+      clearSourceDropTargets()
+      const bounds = row.getBoundingClientRect()
+      row.classList.add(event.clientY >= bounds.top + bounds.height / 2
+        ? "structured_source_drop_after"
+        : "structured_source_drop_before")
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "move"
+    })
+    row.addEventListener("dragleave", (event) => {
+      const next = event.relatedTarget
+      if (next instanceof Node && row.contains(next)) return
+      row.classList.remove(
+        "structured_source_drop_before",
+        "structured_source_drop_after"
+      )
+    })
     row.addEventListener("drop", (event) => {
       event.preventDefault()
       event.stopPropagation()
+      const bounds = row.getBoundingClientRect()
+      const after = event.clientY >= bounds.top + bounds.height / 2
+      row.classList.remove(
+        "structured_source_drop_before",
+        "structured_source_drop_after"
+      )
       const position = this.sourceDragPosition(event.dataTransfer)
       if (position) {
         const [fromGroup, fromIndex] = position
         const [value] = this.sourceGroups[fromGroup].sources.splice(fromIndex, 1)
-        let destination = sourceIndex
+        let destination = sourceIndex + (after ? 1 : 0)
         if (fromGroup === groupIndex && fromIndex < sourceIndex) destination--
         this.sourceGroups[groupIndex].sources.splice(destination, 0, value)
         this.saveSources(false)
@@ -1089,6 +1738,7 @@ export class StructuredSettingsEditors {
     }
     root.textContent = ""
     this.detailSections.add("sources")
+    this.updateAddButton("sources")
     const dialog = document.createElement("div")
     dialog.className = "structured_form"
     dialog.setAttribute("role", "dialog")
@@ -1097,7 +1747,9 @@ export class StructuredSettingsEditors {
     const explanation = document.createElement("p")
     explanation.textContent = "Choose what should happen to the sources in this group."
     dialog.append(title, explanation)
-    this.listActions("sources")?.append(
+    const actions = document.createElement("div")
+    actions.className = "structured_form_actions"
+    actions.append(
       this.actionButton("Remove group and move sources to Default", () => {
         this.sourceGroups[0].sources.push(...group.sources)
         this.sourceGroups.splice(groupIndex, 1)
@@ -1109,6 +1761,8 @@ export class StructuredSettingsEditors {
         this.saveSources()
       }),
       this.actionButton("Cancel", () => this.render("sources")))
+    if (this.onTouch) dialog.append(actions)
+    else this.listActions("sources")?.append(actions)
     root.append(dialog)
   }
 
@@ -1116,13 +1770,39 @@ export class StructuredSettingsEditors {
     const values = serializeSourceGroups(this.sourceGroups)
     this.textarea("sources").value = values.join("\n")
     this.baselines.set("sources", this.textarea("sources").value)
-    this.options.saveSources(values, reloadStories)
+    this.sourceSaveState = "saving"
     this.render("sources")
+    Promise.resolve(this.options.saveSources(values, reloadStories)).then(
+      () => {
+        this.sourceSaveState = "saved"
+        this.renderSourceSaveState(this.roots.get("sources"))
+      },
+      () => {
+        this.sourceSaveState = "failed"
+        this.renderSourceSaveState(this.roots.get("sources"))
+      }
+    )
+  }
+
+  private renderSourceSaveState(root?: HTMLElement): void {
+    const saved = root?.parentElement?.querySelector<HTMLElement>(
+      ".structured_status_saved"
+    )
+    if (!saved) return
+    saved.classList.toggle(
+      "structured_status_error",
+      this.sourceSaveState === "failed"
+    )
+    saved.textContent = this.sourceSaveState === "saving"
+      ? "Saving…"
+      : this.sourceSaveState === "failed" ? "Save failed" : "Saved"
   }
 
   private renderSimpleList(root: HTMLElement, section: "filters", values: string[]): void {
-    this.listActions(section)?.append(this.actionButton("Add filter", () =>
-      this.editFilterInline(root), "add-filter"))
+    if (!this.onTouch) {
+      this.listActions(section)?.append(this.actionButton("Add filter", () =>
+        this.editFilterInline(root), "add-filter"))
+    }
     const rows = document.createElement("div")
     rows.className = "structured_rows"
     values.forEach((value, index) => {
@@ -1143,7 +1823,9 @@ export class StructuredSettingsEditors {
       remove.className = "structured_remove"
       remove.title = `Delete filter ${value}`
       remove.setAttribute("aria-label", remove.title)
-      row.append(open, remove)
+      // No badge column: the filter expression starts at the row's own inset.
+      row.classList.add("structured_row_unbadged")
+      row.append(this.rowBody(open, remove))
       row.addEventListener("dragstart", (event) => {
         row.classList.add("structured_row_dragging")
         event.dataTransfer?.setData("text/plain", String(index))
@@ -1186,6 +1868,7 @@ export class StructuredSettingsEditors {
     const rows = root.querySelector<HTMLElement>(".structured_rows")
     if (!rows) return
     this.detailSections.add("filters")
+    this.updateAddButton("filters")
     const isNew = index === undefined
     const row = isNew
       ? document.createElement("div")
@@ -1298,13 +1981,16 @@ export class StructuredSettingsEditors {
   }
 
   private renderRedirects(root: HTMLElement): void {
-    this.listActions("redirects")?.append(this.actionButton("Add redirect", () =>
-      this.editRedirect(root), "add-redirect"))
+    if (!this.onTouch) {
+      this.listActions("redirects")?.append(this.actionButton("Add redirect", () =>
+        this.editRedirect(root), "add-redirect"))
+    }
     const rows = document.createElement("div")
     rows.className = "structured_rows"
     this.redirects.forEach((redirect, index) => {
       const row = document.createElement("div")
-      row.className = `structured_row${redirect.invalid ? " invalid" : ""}`
+      row.className = "structured_row structured_row_unbadged" +
+        (redirect.invalid ? " invalid" : "")
       row.draggable = true
       row.dataset.searchValue = [
         redirect.raw,
@@ -1321,11 +2007,18 @@ export class StructuredSettingsEditors {
       const replacement = document.createElement("span")
       replacement.className = "structured_row_secondary"
       replacement.textContent = redirect.invalid
-        ? "Invalid redirect — edit as text or repair this row"
-        : `→ ${redirect.replace_url}`
+        ? 'Not a "match => replace" line'
+        : `=> ${redirect.replace_url}`
+      if (redirect.invalid) {
+        replacement.classList.add("structured_row_secondary_error")
+        open.title = "Invalid redirect — edit as text or repair this row"
+      }
       open.append(match, replacement)
       open.addEventListener("click", () => this.editRedirect(root, index))
-      row.append(open)
+      row.append(this.rowBody(open, this.rowChevron(
+        `Edit redirect ${redirect.raw}`,
+        () => this.editRedirect(root, index)
+      )))
       row.addEventListener("dragstart", (event) => {
         row.classList.add("structured_row_dragging")
         event.dataTransfer?.setData("text/plain", String(index))
@@ -1409,6 +2102,7 @@ export class StructuredSettingsEditors {
   ): void {
     const section = root.dataset.structuredSection as Section
     this.detailSections.add(section)
+    this.updateAddButton(section)
     root.textContent = ""
     const form = document.createElement("form")
     form.className = "structured_form"
@@ -1460,7 +2154,8 @@ export class StructuredSettingsEditors {
       actions.querySelector<HTMLButtonElement>("[data-testid='structured-save']")?.click()
     })
     form.append(error)
-    this.listActions(section)?.append(actions)
+    if (this.onTouch) form.append(actions)
+    else this.listActions(section)?.append(actions)
     root.append(form)
     inputs[0]?.focus()
   }

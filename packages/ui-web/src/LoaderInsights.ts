@@ -414,6 +414,8 @@ export class LoaderInsights {
 
     const warningCount = this.issues().filter((issue) => issue.type === "warning").length
     const errorCount = this.issues().filter((issue) => issue.type === "error").length
+    errorRow.dataset.warningCount = String(warningCount)
+    errorRow.dataset.errorCount = String(errorCount)
     const updateState = (element: HTMLElement): void => {
       element.classList.toggle("has-warnings", warningCount > 0)
       element.classList.toggle("has-errors", errorCount > 0)

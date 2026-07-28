@@ -5,15 +5,17 @@
  * APIs; touch platforms have no such API, so this is the shared fallback. It
  * drops under the tapped row rather than sliding up from the bottom of the
  * screen, so the menu opens under the thumb that summoned it.
+ *
+ * `openAnchoredMenu` is the generic surface: the settings lists raise their
+ * group and add menus through it so touch platforms keep exactly one menu
+ * behaviour. `openStoryAnchoredMenu` is the story-specific wrapper over it.
  */
 
 import {
   describeStoryMenu,
   executeStoryMenuAction,
-  StoryMenuContext,
-  StoryMenuItemDescriptor
+  StoryMenuContext
 } from "./StoryContextMenu"
-import type { StoryListItem } from "./StoryListItem"
 
 /** Distance kept between the anchor and the panel, above or below. */
 const ANCHOR_GAP_PX = 4
@@ -32,6 +34,23 @@ export interface StoryAnchoredMenuOptions {
   onClose?: () => void
 }
 
+/** One row of a generic anchored menu. */
+export interface AnchoredMenuItem {
+  id: string
+  label: string
+  enabled?: boolean
+  /** Overrides the default `menu-${id}` test id. */
+  testid?: string
+  select(): void
+}
+
+export interface AnchoredMenuOptions {
+  anchor: HTMLElement
+  items: AnchoredMenuItem[]
+  bottomInset?: number
+  onClose?: () => void
+}
+
 let host: HTMLDivElement | null = null
 let closeCurrent: (() => void) | null = null
 
@@ -46,18 +65,33 @@ export function closeStoryAnchoredMenu(): void {
 export function openStoryAnchoredMenu(
   options: StoryAnchoredMenuOptions
 ): void {
+  const story = options.context.story
+  openAnchoredMenu({
+    anchor: options.anchor,
+    bottomInset: options.bottomInset,
+    onClose: options.onClose,
+    items: describeStoryMenu(options.context)
+      .filter((item) => item.visible)
+      .map((item) => ({
+        id: item.id,
+        label: item.label,
+        enabled: item.enabled,
+        testid: `story-menu-${item.id}`,
+        select: () => void executeStoryMenuAction(item.id, story)
+      }))
+  })
+}
+
+export function openAnchoredMenu(options: AnchoredMenuOptions): void {
   closeStoryAnchoredMenu()
 
-  const items = describeStoryMenu(options.context).filter(
-    (item) => item.visible
-  )
-  if (items.length === 0) return
+  if (options.items.length === 0) return
 
   const element = ensureHost()
   const panel = requirePanel(element)
   panel.textContent = ""
-  for (const item of items) {
-    panel.append(actionRow(item, options.context.story))
+  for (const item of options.items) {
+    panel.append(actionRow(item))
   }
 
   element.hidden = false
@@ -126,21 +160,18 @@ function requirePanel(element: HTMLDivElement): HTMLDivElement {
   return panel
 }
 
-function actionRow(
-  item: StoryMenuItemDescriptor,
-  story: StoryListItem | undefined
-): HTMLButtonElement {
+function actionRow(item: AnchoredMenuItem): HTMLButtonElement {
   const row = document.createElement("button")
   row.type = "button"
   row.className = "once-anchored-menu-item"
   row.setAttribute("role", "menuitem")
-  row.dataset.testid = `story-menu-${item.id}`
+  row.dataset.testid = item.testid || `menu-${item.id}`
   row.dataset.action = item.id
   row.textContent = item.label
-  row.disabled = !item.enabled
+  row.disabled = item.enabled === false
   row.addEventListener("click", () => {
     closeStoryAnchoredMenu()
-    void executeStoryMenuAction(item.id, story)
+    item.select()
   })
   return row
 }

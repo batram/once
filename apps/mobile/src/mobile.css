@@ -24,6 +24,13 @@ body[data-platform="mobile"] {
   --m-warning: light-dark(#b96500, #ffb84d);
   --m-error: light-dark(#c83d3d, #ff6b6b);
   --m-tabbar-h: calc(48px + env(safe-area-inset-bottom));
+  /* Card surfaces. --second-bg-color and --sep-color are full-strength UI
+     colours (#ccc / rgb(114,100,100) in light); mixing them toward the page
+     gives the quiet tints and hairlines the design asks for while both ends
+     still track the theme. */
+  --m-page-bg: color-mix(in srgb, var(--second-bg-color) 25%, var(--main-bg-color));
+  --m-head-bg: color-mix(in srgb, var(--second-bg-color) 12%, var(--main-bg-color));
+  --m-sep: color-mix(in srgb, var(--sep-color) 32%, transparent);
 
   min-width: 0;
   padding-top: env(safe-area-inset-top);
@@ -1044,19 +1051,68 @@ body[data-platform="mobile"] #settings_panel .settings_title {
   font-weight: 600;
 }
 
+/* Two-segment glyph pill: stacked rules for the list, </> for the raw text.
+   The words stay in textContent, title and aria-label — they are the
+   accessible name and what the tests read — but they are not drawn. */
 body[data-platform="mobile"] #settings_panel .structured_mode_toggle_topbar {
+  display: flex;
+  align-items: stretch;
   box-sizing: border-box;
-  min-width: 38px;
-  min-height: 30px;
+  width: 80px;
+  height: 32px;
+  min-width: 0;
+  min-height: 0;
   margin: 0 0 0 auto;
-  padding: 0 var(--m-sp-2);
+  padding: 0;
+  overflow: hidden;
   border: var(--m-bw) solid var(--m-ink);
   border-radius: var(--m-radius);
   background: transparent;
+  /* Hides the TXT / UI label without hiding it from assistive tech. */
+  font-size: 0;
+  line-height: 0;
+}
+
+body[data-platform="mobile"] #settings_panel .structured_mode_toggle_topbar::before {
+  content: "";
+  flex: 0 0 40px;
+  background-image:
+    linear-gradient(var(--m-ink), var(--m-ink)),
+    linear-gradient(var(--m-ink), var(--m-ink)),
+    linear-gradient(var(--m-ink), var(--m-ink));
+  background-repeat: no-repeat;
+  background-size: 14px 2px;
+  background-position:
+    center calc(50% - 5px),
+    center center,
+    center calc(50% + 5px);
+  opacity: 0.45;
+}
+
+body[data-platform="mobile"] #settings_panel .structured_mode_toggle_topbar::after {
+  content: "</>";
+  display: grid;
+  place-items: center;
+  flex: 0 0 40px;
+  border-left: var(--m-bw) solid var(--m-ink);
+  color: var(--m-ink);
   font-family: var(--m-mono);
   font-size: var(--m-fs-meta);
-  font-weight: 700;
-  letter-spacing: 0.03em;
+  font-weight: 600;
+  line-height: 1;
+  opacity: 0.45;
+}
+
+/* The label names the action, so it also names the mode that is showing:
+   "Edit as text" means the list is on screen. */
+body[data-platform="mobile"]
+  #settings_panel
+  .structured_mode_toggle_topbar[aria-label="Edit as text"]::before,
+body[data-platform="mobile"]
+  #settings_panel
+  .structured_mode_toggle_topbar[aria-label="Edit as list"]::after {
+  background-color: var(--m-accent-bg);
+  opacity: 1;
 }
 
 body[data-platform="mobile"] #settings_panel .settings_block {
@@ -1079,6 +1135,11 @@ body[data-platform="mobile"] #settings_panel .settings_container {
 
 body[data-platform="mobile"] #settings_panel.settings_detail_open {
   overflow: hidden;
+}
+
+body[data-platform="mobile"] #settings_panel.settings_detail_open > .bar {
+  padding-right: var(--m-sp-4);
+  padding-left: var(--m-sp-4);
 }
 
 body[data-platform="mobile"] #settings_panel.settings_detail_open .settings_container {
@@ -1179,22 +1240,41 @@ body[data-platform="mobile"]
   background: transparent;
 }
 
+body[data-platform="mobile"]
+  #settings_panel.settings_detail_open
+  .settings_section.active
+  > .settings_editor_block {
+  /* The editor's scrolling box must reach the viewport edge so its scrollbar
+     does too. Horizontal content gutters live inside that scroller instead. */
+  padding: 0;
+}
+
+/* Back chevron then the subpage title — the bar no longer says "Settings"
+   twice. */
 body[data-platform="mobile"] #settings_section_back {
+  display: grid;
+  place-items: center start;
   order: -1;
-  margin: 0 var(--m-sp-2) 0 0;
-  padding: 0 var(--m-sp-2);
+  width: var(--m-touch);
+  min-width: var(--m-touch);
+  margin: 0;
+  padding: 0;
   border: 0;
+  background: transparent;
+  box-shadow: none;
   font-size: 0;
 }
 
 body[data-platform="mobile"] #settings_section_back::before {
-  content: "‹ Settings";
+  content: "‹";
+  color: var(--m-ink);
   font-family: var(--m-sans);
-  font-size: var(--m-fs-body);
+  font-size: 26px;
+  line-height: 1;
 }
 
 body[data-platform="mobile"] #settings_panel.settings_detail_open #settings_section_back {
-  display: inline-block;
+  display: grid;
 }
 
 body[data-platform="mobile"] .input_container {
@@ -1213,22 +1293,57 @@ body[data-platform="mobile"] .settings_editor_block {
 
 body[data-platform="mobile"] .settings_editor_block .structured_settings {
   flex: 1 1 auto;
+  box-sizing: border-box;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
+  padding-right: var(--m-sp-4);
+  padding-left: var(--m-sp-4);
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
 
+/* ---------- Structured settings lists ---------- */
+
+/* The block is the page behind the cards: 12px gutters, 12px between cards. */
+body[data-platform="mobile"]
+  #settings_panel.settings_detail_open
+  .settings_section.active
+  > .settings_editor_block {
+  background: var(--m-page-bg);
+}
+
+body[data-platform="mobile"] .settings_editor_block .structured_settings {
+  /* The floating + must never cover the last row's chevron. */
+  padding-bottom: 72px;
+}
+
+/* Sticky at the top of the scroller, inset with the block's own gutter. */
 body[data-platform="mobile"] .structured_search {
   gap: var(--m-sp-2);
-  padding: var(--m-sp-1) 0;
-  background: var(--m-card-bg);
+  padding: var(--m-sp-3) 0;
+  background: var(--m-page-bg);
 }
 
 body[data-platform="mobile"] .structured_search input {
-  min-height: var(--m-touch);
+  height: 40px;
+  min-height: 40px;
   padding: 0 var(--m-sp-3);
+  /* The house radius, not a pill. */
+  border: var(--m-bw) solid var(--border-high-color);
+  border-radius: var(--m-radius);
+  background: var(--input-bg-color);
+  font-family: var(--m-sans);
+}
+
+body[data-platform="mobile"] .structured_picker_status {
+  padding: 0 0 var(--m-sp-2);
+  font-family: var(--m-sans);
+  font-size: var(--m-fs-meta);
+}
+
+body[data-platform="mobile"] .structured_search_status:empty {
+  display: none;
 }
 
 body[data-platform="mobile"] .settings_editor_block .structured_settings_header {
@@ -1244,14 +1359,6 @@ body[data-platform="mobile"] .settings_editor_block .input_container {
   min-height: 0;
   height: auto;
   margin: 0;
-}
-
-body[data-platform="mobile"] .settings_editor_block .settings_actions {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: var(--m-sp-2);
-  min-height: var(--m-touch);
 }
 
 body[data-platform="mobile"] .settings_editor_block .settings_actions input {
@@ -1272,49 +1379,492 @@ body[data-platform="mobile"] .structured_form_actions button {
 }
 
 body[data-platform="mobile"] .settings_editor_block .settings_actions {
+  display: flex;
   position: relative;
   z-index: 5;
   bottom: auto;
+  flex: 0 0 auto;
   flex-wrap: wrap;
+  align-items: center;
+  gap: var(--m-sp-2);
+  min-height: var(--m-touch);
   padding: var(--m-sp-2) 0 0;
-  background: var(--m-card-bg);
+  background: var(--m-page-bg);
 }
 
-body[data-platform="mobile"] .structured_actions_sources .structured_list_actions {
-  display: contents;
-}
-
+/* List mode has no footer at all — the list scrolls to the tab bar. */
 body[data-platform="mobile"]
-  .structured_actions_sources
-  .structured_list_actions
-  button,
-body[data-platform="mobile"] .structured_actions_sources #pick_source_button {
-  box-sizing: border-box;
-  flex: 1 1 calc(50% - var(--m-sp-2));
-  min-width: 0;
+  .settings_editor_block
+  .settings_actions.structured_actions_empty {
+  display: none;
 }
 
-body[data-platform="mobile"] .structured_actions_sources #pick_source_status {
-  flex: 1 0 100%;
-}
+/* ---------- Row grid ----------
+
+   16px | 30x20 badge | 12px | text block | 10px | trailing state | 12px
+
+   Height varies only with the secondary line. Nothing inside the row draws a
+   border, background or radius; the row is the tap target and only the
+   chevron advertises it. */
 
 body[data-platform="mobile"] .structured_row {
-  min-height: 70px;
+  display: flex;
+  align-items: center;
+  min-height: 60px;
+  padding-left: var(--m-sp-4);
+  /* The separator lives on the text block so it insets to 58px. */
+  border-top: 0;
+  background: var(--input-bg-color);
+}
+
+body[data-platform="mobile"] .structured_row:last-child {
+  border-bottom: 0;
+}
+
+body[data-platform="mobile"] .structured_row_body {
+  display: flex;
+  flex: 1 1 auto;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 60px;
+  align-items: center;
+  gap: 10px;
+  margin-left: var(--m-sp-3);
+  padding: 0 var(--m-sp-3) 0 0;
+  border: 0;
+  border-bottom: var(--m-bw) solid var(--m-sep);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body[data-platform="mobile"] .structured_row:last-child .structured_row_body {
+  border-bottom: 0;
+}
+
+/* Filters and redirects have no badge cell: the text starts at the row inset. */
+body[data-platform="mobile"] .structured_row_unbadged .structured_row_body {
+  margin-left: 0;
 }
 
 body[data-platform="mobile"] .structured_row_main {
-  min-height: var(--m-touch);
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  align-items: flex-start;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-family: var(--m-sans);
 }
 
+body[data-platform="mobile"] .structured_row_main:active {
+  background: transparent;
+}
+
+body[data-platform="mobile"] .structured_row_primary {
+  font-family: var(--m-sans);
+  font-size: var(--m-fs-body);
+  line-height: 1.35;
+  color: var(--text-high-color);
+}
+
+body[data-platform="mobile"] .structured_row_secondary {
+  font-family: var(--m-mono);
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text-color);
+  opacity: 1;
+}
+
+/* A failure replaces the URL, and says so in the interface font. */
+body[data-platform="mobile"] .structured_row_secondary_error {
+  font-family: var(--m-sans);
+  color: var(--m-error);
+}
+
+/* Filters carry no secondary line: one 48px row per expression, in mono. */
+body[data-platform="mobile"]
+  [data-structured-section="filters"] .structured_row,
+body[data-platform="mobile"]
+  [data-structured-section="filters"] .structured_row_body {
+  min-height: 48px;
+}
+
+body[data-platform="mobile"]
+  [data-structured-section="filters"] .structured_row_main {
+  justify-content: center;
+  font-family: var(--m-mono);
+  font-size: var(--m-fs-body);
+  color: var(--text-high-color);
+}
+
+/* Always exactly 30x20, whatever the collector calls itself. */
 body[data-platform="mobile"] .collector_badge {
-  flex-basis: 24px;
-  min-height: 20px;
-  margin: 0 var(--m-sp-2);
-  padding: 1px;
-  border: thin solid white;
-  font-size: var(--m-fs-meta);
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 20px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: var(--m-bw) solid white;
+  border-radius: 0;
+  font-family: var(--m-sans);
+  font-size: var(--m-fs-label);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.04em;
 }
 
+body[data-platform="mobile"] .structured_source_drag_handle {
+  flex: 0 0 10px;
+  width: 10px;
+  height: 18px;
+  margin-right: var(--m-sp-2);
+  opacity: 0.38;
+  background-image: radial-gradient(
+    circle,
+    var(--m-ink) 1.3px,
+    transparent 1.5px
+  );
+  background-position: 0 0;
+  background-size: 5px 6px;
+}
+
+body[data-platform="mobile"] .structured_row_chevron {
+  display: block;
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-top: 1.5px solid var(--border-high-color);
+  border-right: 1.5px solid var(--border-high-color);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transform: rotate(45deg);
+}
+
+body[data-platform="mobile"] .structured_issue {
+  display: grid;
+  place-items: center;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: var(--m-bw) solid var(--m-error);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--m-error);
+  font-family: var(--m-sans);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+body[data-platform="mobile"] .structured_issue.warning {
+  border-color: var(--m-warning);
+  color: var(--m-warning);
+}
+
+body[data-platform="mobile"] .structured_row_error,
+body[data-platform="mobile"] .structured_row.invalid {
+  box-shadow: inset 3px 0 var(--m-error);
+  background: color-mix(in srgb, var(--m-error) 6%, var(--input-bg-color));
+}
+
+body[data-platform="mobile"] .structured_row_warning {
+  box-shadow: inset 3px 0 var(--m-warning);
+  background: color-mix(in srgb, var(--m-warning) 6%, var(--input-bg-color));
+}
+
+/* ---------- Groups are cards, including Default ---------- */
+
+body[data-platform="mobile"] .structured_group {
+  margin-bottom: var(--m-sp-3);
+  overflow: hidden;
+  border: var(--m-bw) solid var(--border-color);
+  border-top: var(--m-bw) solid var(--border-color);
+  border-radius: var(--m-radius);
+  background: var(--input-bg-color);
+}
+
+body[data-platform="mobile"] .structured_group > summary {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: 38px;
+  min-height: 38px;
+  padding: 0 0 0 var(--m-sp-4);
+  border-bottom: var(--m-bw) solid var(--m-sep);
+  background: var(--m-head-bg);
+  list-style: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body[data-platform="mobile"] .structured_group_reorderable > summary {
+  /* A vertical move before the hold is ordinary page scrolling. The captured
+     pointer becomes a reorder only after the long-press timer activates. */
+  touch-action: pan-y;
+}
+
+body[data-platform="mobile"] .structured_group > summary::-webkit-details-marker {
+  display: none;
+}
+
+body[data-platform="mobile"] .structured_group_caret {
+  display: block;
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  margin-right: 10px;
+  border-right: 1.5px solid var(--text-color);
+  border-bottom: 1.5px solid var(--text-color);
+  transform: rotate(-45deg);
+}
+
+body[data-platform="mobile"] .structured_group_drag_handle {
+  flex: 0 0 10px;
+  width: 10px;
+  height: 18px;
+  margin: 0 10px 0 -2px;
+  background-image: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--m-ink) 55%, transparent) 1.4px,
+    transparent 1.6px
+  );
+  background-position: 0 0;
+  background-size: 5px 6px;
+}
+
+body[data-platform="mobile"] .structured_group[open] > summary .structured_group_caret {
+  transform: rotate(45deg) translate(-2px, -2px);
+}
+
+body[data-platform="mobile"] .structured_group_name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--m-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--m-ink) 75%, transparent);
+}
+
+body[data-platform="mobile"] .structured_group_dragging {
+  position: relative;
+  z-index: 4;
+  opacity: 1;
+  transform: translateY(var(--structured-group-drag-y, 0));
+  transition: none;
+  pointer-events: none;
+}
+
+body[data-platform="mobile"] .structured_group_dragging > summary {
+  background: var(--m-accent-bg);
+}
+
+body[data-platform="mobile"] .structured_group_drop_before,
+body[data-platform="mobile"] .structured_group_drop_after {
+  position: relative;
+  box-shadow: none;
+  overflow: visible;
+}
+
+body[data-platform="mobile"] .structured_group_drop_before::before,
+body[data-platform="mobile"] .structured_group_drop_after::after {
+  content: "";
+  position: absolute;
+  z-index: 5;
+  right: -1px;
+  left: -1px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--m-ink);
+  box-shadow: 0 0 0 1px var(--m-page-bg);
+}
+
+body[data-platform="mobile"] .structured_group_drop_before::before {
+  top: -7px;
+}
+
+body[data-platform="mobile"] .structured_group_drop_after::after {
+  bottom: -7px;
+}
+
+body[data-platform="mobile"] .structured_source_drop_before,
+body[data-platform="mobile"] .structured_source_drop_after {
+  position: relative;
+  z-index: 1;
+}
+
+body[data-platform="mobile"] .structured_source_drop_before::before,
+body[data-platform="mobile"] .structured_source_drop_after::after,
+body[data-platform="mobile"] .structured_source_group_drop_target::after {
+  content: "";
+  position: absolute;
+  z-index: 5;
+  right: var(--m-sp-3);
+  left: var(--m-sp-3);
+  height: 3px;
+  border-radius: 2px;
+  background: var(--m-ink);
+  box-shadow: 0 0 0 1px var(--m-page-bg);
+}
+
+body[data-platform="mobile"] .structured_source_drop_before::before {
+  top: -2px;
+}
+
+body[data-platform="mobile"] .structured_source_drop_after::after {
+  bottom: -2px;
+}
+
+body[data-platform="mobile"] .structured_source_group_drop_target {
+  position: relative;
+  outline: 0;
+}
+
+body[data-platform="mobile"] .structured_source_group_drop_target::after {
+  bottom: -2px;
+}
+
+body[data-platform="mobile"]
+  .structured_source_group_title_drop_target > summary {
+  position: relative;
+  outline: 0;
+  background: var(--m-accent-bg);
+}
+
+body[data-platform="mobile"]
+  .structured_source_group_title_drop_target > summary::after {
+  content: "";
+  position: absolute;
+  z-index: 5;
+  right: var(--m-sp-3);
+  bottom: -2px;
+  left: var(--m-sp-3);
+  height: 3px;
+  border-radius: 2px;
+  background: var(--m-ink);
+  box-shadow: 0 0 0 1px var(--m-page-bg);
+}
+
+body[data-platform="mobile"] .structured_group_count {
+  font-family: var(--m-mono);
+  font-size: 11px;
+  color: var(--text-color);
+  opacity: 1;
+}
+
+body[data-platform="mobile"] .structured_group_menu_spacer {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 38px;
+}
+
+/* One 40px control, never taller than the 38px header. */
+body[data-platform="mobile"] .structured_group_menu {
+  display: grid;
+  place-items: center;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 38px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--m-ink);
+  font-size: 18px;
+  line-height: 1;
+}
+
+body[data-platform="mobile"] .structured_group_menu:active,
+body[data-platform="mobile"] .structured_group_menu.menu_open {
+  background: var(--m-accent-bg);
+}
+
+body[data-platform="mobile"] .structured_empty {
+  margin: 0;
+  padding: var(--m-sp-3) var(--m-sp-4);
+  font-family: var(--m-sans);
+  font-size: var(--m-fs-body);
+  color: var(--text-color);
+}
+
+/* ---------- Floating add ---------- */
+
+body[data-platform="mobile"] .structured_add_button {
+  display: grid;
+  place-items: center;
+  position: fixed;
+  z-index: 6;
+  right: var(--m-sp-4);
+  bottom: calc(var(--m-tabbar-h) + var(--m-sp-3));
+  box-sizing: border-box;
+  width: var(--m-touch);
+  height: var(--m-touch);
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: var(--m-bw) solid var(--m-ink);
+  border-radius: var(--m-radius);
+  /* The light surface: the tan is the pressed state, and a tan resting state
+     reads as already-selected. */
+  background: var(--m-card-bg);
+  box-shadow: 0 3px 10px rgb(0 0 0 / 20%);
+  color: var(--m-ink);
+}
+
+body[data-platform="mobile"] .structured_add_button:active,
+body[data-platform="mobile"] .structured_add_button.menu_open {
+  background: var(--m-accent-bg);
+}
+
+body[data-platform="mobile"] .structured_add_glyph {
+  font-family: var(--m-sans);
+  font-size: 25px;
+  font-weight: 300;
+  line-height: 1;
+}
+
+/* Rotate the glyph, never the button — a rotated keyline is a diamond. */
+body[data-platform="mobile"] .structured_add_button.menu_open .structured_add_glyph {
+  transform: rotate(45deg);
+}
+
+body[data-platform="mobile"] .structured_form_actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--m-sp-2);
+  margin-top: var(--m-sp-2);
+}
+
+body[data-platform="mobile"] .structured_form_actions button {
+  flex: 1 1 120px;
+  margin: 0;
+}
 
 body[data-platform="mobile"] .structured_remove,
 body[data-platform="mobile"] .structured_inline_action,
@@ -1322,8 +1872,14 @@ body[data-platform="mobile"] .structured_inline_input {
   min-height: var(--m-touch);
 }
 
-body[data-platform="mobile"] .structured_group > summary {
-  min-height: var(--m-touch);
+body[data-platform="mobile"] .structured_remove {
+  flex: 0 0 var(--m-touch);
+  width: var(--m-touch);
+  margin: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-color);
 }
 
 /* textarea + backdrop + highlights must share metrics or error

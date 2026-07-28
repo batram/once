@@ -4,8 +4,11 @@ export { StoryHistory } from "./StoryHistory"
 export * from "./StoryContextMenu"
 export {
   openStoryAnchoredMenu,
+  openAnchoredMenu,
   closeStoryAnchoredMenu,
   isStoryAnchoredMenuOpen,
+  AnchoredMenuItem,
+  AnchoredMenuOptions,
   StoryAnchoredMenuOptions
 } from "./StoryAnchoredMenu"
 export { SettingsPanel } from "./SettingsPanel"

@@ -14,6 +14,8 @@
   --read-bg-color: light-dark(#ccc, #282a36);
   --text-high-color: light-dark(black, #bcc2cd);
   --text-color: light-dark(#828282, #828282);
+  --m-error: light-dark(#d33, #ff6b6b);
+  --m-warning: light-dark(#9a6200, #e2a642);
   /* Swipe reveal colours, keyed by action rather than by stage so a
      reconfigured swipe keeps the same colour meaning. Affirmative actions run
      green→blue, destructive ones red→dark red. */

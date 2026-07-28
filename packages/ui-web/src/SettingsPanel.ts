@@ -62,6 +62,7 @@ export class SettingsPanel {
       const element = requireElement<HTMLElement>("#couch_status")
       element.dataset.state = status.state
       element.textContent = status.message
+      this.updateSettingsSummaries()
     }
     client.subscribe("syncStatusChanged", setSyncStatus)
     setSyncStatus(client.getSyncStatus())
@@ -404,6 +405,7 @@ export class SettingsPanel {
         } else {
           this.sourcesReloadPending = true
         }
+        return this.sourcesSaveChain
       },
       saveFilters: (values) => this.client.saveFilterList(values),
       saveRedirects: (values) => this.client.saveRedirectList(values),
@@ -465,10 +467,13 @@ export class SettingsPanel {
       const title = document.createElement("span")
       title.textContent = label
       text.append(title)
+      const summary = document.createElement("span")
+      summary.className = "settings_section_summary"
       const arrow = document.createElement("span")
+      arrow.className = "settings_section_arrow"
       arrow.setAttribute("aria-hidden", "true")
       arrow.textContent = "›"
-      button.append(text, arrow)
+      button.append(text, summary, arrow)
       button.onclick = () => this.openSettingsSection(key)
       const matches = document.createElement("div")
       matches.className = "settings_section_matches"
@@ -486,18 +491,31 @@ export class SettingsPanel {
       this.filterSettingsSections(search.value)
     })
     requireElement<HTMLElement>(".settings_container").addEventListener("input", (event) => {
-      if (event.target !== search) this.filterSettingsSections(search.value)
+      if (event.target !== search) {
+        this.updateSettingsSummaries()
+        this.filterSettingsSections(search.value)
+      }
     })
     requireElement<HTMLElement>(".settings_container").addEventListener("change", () => {
+      this.updateSettingsSummaries()
       this.filterSettingsSections(search.value)
     })
     new MutationObserver(() => {
+      this.updateSettingsSummaries()
       this.filterSettingsSections(search.value)
     }).observe(requireElement<HTMLElement>("#error_log"), {
       childList: true,
       subtree: true,
       characterData: true
     })
+    new MutationObserver(() => {
+      this.updateSettingsSummaries()
+    }).observe(index, {
+      attributes: true,
+      attributeFilter: ["data-error-count", "data-warning-count"],
+      subtree: true
+    })
+    this.updateSettingsSummaries()
     back.onclick = () => {
       if (this.structuredEditors?.handleBack(this.activeSettingsSection)) return
       this.closeSettingsSection()
@@ -553,8 +571,69 @@ export class SettingsPanel {
 
   private refreshSettingsSearch(): void {
     if (this.settingsSectionButtons.size === 0) return
+    this.updateSettingsSummaries()
     const search = document.querySelector<HTMLInputElement>("#settings_search")
     if (search) this.filterSettingsSections(search.value)
+  }
+
+  private updateSettingsSummaries(): void {
+    if (this.settingsSectionButtons.size === 0) return
+    const value = (selector: string) =>
+      document.querySelector<HTMLInputElement | HTMLTextAreaElement |
+        HTMLSelectElement>(selector)?.value || ""
+    const lineCount = (text: string) =>
+      text.split("\n").filter((line) => line.trim()).length
+    const sourceLines = value("#sources_area").split("\n")
+      .map((line) => line.trim()).filter(Boolean)
+    const sourceCount = sourceLines.filter((line) => !line.startsWith("*")).length
+    const filterCount = lineCount(value("#filter_area"))
+    const redirectCount = lineCount(value("#redirect_area"))
+    const animation = document.querySelector<HTMLInputElement>("#anim_checkbox")
+      ?.checked ? "animated" : "still"
+    const theme = value("#theme_select") || "system"
+    const swipeRight = document.querySelector<HTMLSelectElement>(
+      '[data-swipe="right-0"]'
+    )?.selectedOptions[0]?.textContent || "Read"
+    const swipeLeft = document.querySelector<HTMLSelectElement>(
+      '[data-swipe="left-0"]'
+    )?.selectedOptions[0]?.textContent || "skip"
+    const errorRow = this.settingsSectionButtons.get("errors")
+    const errorCount = Number(errorRow?.dataset.errorCount || 0)
+    const warningCount = Number(errorRow?.dataset.warningCount || 0)
+    const sourceFailures = this.sourceErrors.size
+    const summaries: Record<string, { text: string, error?: boolean }> = {
+      sources: {
+        text: `${sourceCount}${sourceFailures ? ` · ${sourceFailures} failing` : ""}`,
+        error: sourceFailures > 0
+      },
+      filters: { text: `${filterCount} ${filterCount === 1 ? "keyword" : "keywords"}` },
+      redirects: { text: `${redirectCount} ${redirectCount === 1 ? "rule" : "rules"}` },
+      sync: {
+        text: document.querySelector("#couch_status")?.textContent?.trim() ||
+          "Not configured"
+      },
+      theme: { text: `${theme[0]?.toUpperCase()}${theme.slice(1)} · ${animation}` },
+      swipe: { text: `${swipeRight} · ${swipeLeft}` },
+      cache: { text: `${value("#cache_time_input") || "30"} min` },
+      errors: {
+        text: errorCount || warningCount
+          ? `${errorCount} error${errorCount === 1 ? "" : "s"} · ` +
+            `${warningCount} warning${warningCount === 1 ? "" : "s"}`
+          : "No issues",
+        error: errorCount > 0
+      },
+      about: {
+        text: document.querySelector("[data-testid='app-version']")
+          ?.textContent?.trim() || ""
+      }
+    }
+    for (const [key, summary] of Object.entries(summaries)) {
+      const element = this.settingsSectionButtons.get(key)
+        ?.querySelector<HTMLElement>(".settings_section_summary")
+      if (!element) continue
+      element.textContent = summary.text
+      element.classList.toggle("settings_section_summary_error", Boolean(summary.error))
+    }
   }
 
   private openSettingsSearchMatch(
@@ -609,6 +688,10 @@ export class SettingsPanel {
 
   private openSettingsSection(key: string): void {
     this.activeSettingsSection = key
+    this.settingsSectionButtons.forEach((button, buttonKey) => {
+      if (buttonKey === key) button.setAttribute("aria-current", "page")
+      else button.removeAttribute("aria-current")
+    })
     document.querySelectorAll<HTMLElement>(".settings_section").forEach((section) => {
       section.classList.toggle("active", section.dataset.settingsSection === key)
     })
@@ -645,6 +728,8 @@ export class SettingsPanel {
       })
     }
     this.activeSettingsSection = null
+    this.settingsSectionButtons.forEach((button) =>
+      button.removeAttribute("aria-current"))
     document.querySelectorAll<HTMLElement>(".settings_section").forEach((section) => {
       section.classList.remove("active")
     })
@@ -853,6 +938,7 @@ export class SettingsPanel {
     )
     this.updateSourcesDisplay()
     this.structuredEditors?.setErrors(errors)
+    this.refreshSettingsSearch()
   }
 
   private updateSourcesDisplay(): void {

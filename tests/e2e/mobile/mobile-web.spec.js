@@ -64,10 +64,15 @@ test("list settings are the default and expose structured add actions", async ({
   await expect(modeToggle.locator("xpath=..")).toHaveClass(/\bbar\b/)
   await expect(page.getByTestId("sources-structured-list")).toBeVisible()
   await expect(page.getByTestId("sources")).toBeHidden()
-  await expect(page.getByTestId("add-source")).toBeVisible()
-  await expect(page.getByTestId("add-source-group")).toBeVisible()
-  await expect(page.getByTestId("pick-source")).toBeVisible()
-  const pickerBounds = await page.getByTestId("pick-source").evaluate((button) => {
+  const addSource = page.getByTestId("add-source")
+  await expect(addSource).toBeVisible()
+  await addSource.click()
+  await expect(addSource).toHaveClass(/\bmenu_open\b/)
+  await expect(page.getByTestId("add-source-entry")).toBeVisible()
+  await expect(page.getByTestId("add-group")).toBeVisible()
+  const pickSourcePage = page.getByTestId("pick-source-page")
+  await expect(pickSourcePage).toBeVisible()
+  const pickerBounds = await pickSourcePage.evaluate((button) => {
     const bounds = button.getBoundingClientRect()
     return {
       left: bounds.left,
@@ -77,7 +82,8 @@ test("list settings are the default and expose structured add actions", async ({
   })
   expect(pickerBounds.left).toBeGreaterThanOrEqual(0)
   expect(pickerBounds.right).toBeLessThanOrEqual(pickerBounds.viewportWidth)
-  await page.getByTestId("pick-source").click()
+  await pickSourcePage.click()
+  await expect(addSource).not.toHaveClass(/\bmenu_open\b/)
   await expect(page.getByTestId("text-input-dialog")).toBeVisible()
   await expect(page.getByTestId("text-input-value")).toHaveValue("https://")
   await page.getByTestId("text-input-cancel").click()
@@ -101,8 +107,8 @@ test("list settings are the default and expose structured add actions", async ({
     '[data-structured-section="sources"] .structured_search_status'
   )).toHaveText("1 result")
   await expect(page.locator(
-    '[data-testid="source-row"]:visible .structured_row_secondary mark'
-  )).toHaveText("source-17")
+    '[data-testid="source-row"]:visible .structured_row_secondary_error'
+  )).toContainText("No handler available")
   await sourceSearch.fill("")
   await expect(page.locator(
     '[data-testid="source-row"] mark'
@@ -119,8 +125,13 @@ test("list settings are the default and expose structured add actions", async ({
   expect(scrollMetrics.scrollHeight).toBeGreaterThan(scrollMetrics.height)
   expect(scrollMetrics.top).toBeGreaterThan(0)
 
-  await page.getByTestId("add-source").click()
-  await expect(page.getByTestId("structured-item-form")).toBeVisible()
+  await addSource.click()
+  await page.getByTestId("add-source-entry").click()
+  const sourceForm = page.getByTestId("structured-item-form")
+  await expect(sourceForm).toBeVisible()
+  await expect(sourceForm.getByTestId("structured-save")).toBeVisible()
+  await expect(sourceForm.getByRole("button", { name: "Cancel" })).toBeVisible()
+  await expect(addSource).toBeHidden()
   await page.locator("#settings_section_back").click()
   await expect(page.getByTestId("sources-structured-list")).toBeVisible()
   await expect(page.getByTestId("structured-item-form")).toBeHidden()
@@ -137,6 +148,20 @@ test("filters edit inline and expose a row remove button", async ({ page }) => {
   await page.locator('[data-settings-target="filters"]').click()
 
   const firstRow = page.getByTestId("filter-row").first()
+  const filterMetrics = await firstRow.evaluate((button) => {
+    const row = button.closest(".structured_row")
+    const main = row?.querySelector(".structured_row_main")
+    const secondary = row?.querySelector(".structured_row_secondary")
+    const style = main && getComputedStyle(main)
+    return {
+      height: row?.getBoundingClientRect().height || 0,
+      fontFamily: style?.fontFamily || "",
+      hasSecondary: secondary !== null
+    }
+  })
+  expect(filterMetrics.height).toBe(48)
+  expect(filterMetrics.fontFamily.toLowerCase()).toContain("courier new")
+  expect(filterMetrics.hasSecondary).toBe(false)
   const original = await firstRow.textContent()
   await firstRow.click()
   const input = page.getByTestId("filter-inline-input")
@@ -257,6 +282,110 @@ test("story source groups collapse while dragging and restore afterward", async 
 
   const groups = page.locator(".structured_group")
   await expect(groups).toHaveCount(3)
+  const alignment = await page.evaluate(() => {
+    const bounds = (selector) =>
+      document.querySelector(selector)?.getBoundingClientRect()
+    const back = bounds("#settings_section_back")
+    const title = bounds("#settings_panel .settings_title")
+    const search = bounds(
+      '[data-structured-section="sources"] .structured_search input'
+    )
+    const group = bounds(
+      '[data-structured-section="sources"] .structured_group'
+    )
+    const toggle = bounds("[data-testid='sources-mode-toggle']")
+    const scroller = bounds("[data-structured-section='sources']")
+    return {
+      viewportWidth: window.innerWidth,
+      backLeft: back?.left,
+      backCenterY: back && back.top + back.height / 2,
+      titleCenterY: title && title.top + title.height / 2,
+      searchLeft: search?.left,
+      searchRight: search?.right,
+      groupLeft: group?.left,
+      groupRight: group?.right,
+      toggleRight: toggle?.right,
+      scrollerRight: scroller?.right
+    }
+  })
+  expect(alignment.backLeft).toBe(16)
+  expect(alignment.searchLeft).toBe(16)
+  expect(alignment.groupLeft).toBe(16)
+  expect(alignment.searchRight).toBe(alignment.viewportWidth - 16)
+  expect(alignment.groupRight).toBe(alignment.viewportWidth - 16)
+  expect(alignment.toggleRight).toBe(alignment.viewportWidth - 16)
+  expect(alignment.scrollerRight).toBe(alignment.viewportWidth)
+  expect(Math.abs(alignment.backCenterY - alignment.titleCenterY))
+    .toBeLessThan(1)
+  await expect(page.locator(".structured_group_drag_handle")).toHaveCount(2)
+  await expect(groups.nth(0).locator(".structured_group_drag_handle"))
+    .toHaveCount(0)
+  await expect(groups.nth(0).locator(".structured_group_menu")).toHaveCount(0)
+  await expect(groups.nth(0).locator(".structured_group_menu_spacer"))
+    .toHaveCount(1)
+  await expect(page.locator(".structured_source_drag_handle")).toHaveCount(3)
+  const groupHeaderMetrics = await groups.evaluateAll((entries) =>
+    entries.map((group) => {
+      const count = group.querySelector(".structured_group_count")
+      const summary = group.querySelector("summary")
+      return {
+        countRight: count?.getBoundingClientRect().right || 0,
+        touchAction: summary ? getComputedStyle(summary).touchAction : ""
+      }
+    }))
+  expect(groupHeaderMetrics[1].touchAction).toBe("pan-y")
+  expect(groupHeaderMetrics[2].touchAction).toBe("pan-y")
+  expect(Math.abs(
+    groupHeaderMetrics[0].countRight - groupHeaderMetrics[1].countRight
+  )).toBeLessThan(1)
+  await groups.nth(0).locator(".structured_row_chevron").click()
+  await expect(page.getByTestId("structured-item-form")).toBeVisible()
+  await page.getByRole("button", { name: "Cancel" }).click()
+  await expect(page.getByTestId("structured-item-form")).toBeHidden()
+  const defaultSource = groups.nth(0).locator(".structured_row")
+  const alphaSource = groups.nth(1).locator(".structured_row")
+  await defaultSource.evaluate((source, target) => {
+    const transfer = new DataTransfer()
+    source.dispatchEvent(new DragEvent("dragstart", {
+      bubbles: true,
+      cancelable: true,
+      dataTransfer: transfer
+    }))
+    const bounds = target.getBoundingClientRect()
+    // Android WebView can send movement to the drag source without firing
+    // dragover on the row underneath it.
+    source.dispatchEvent(new DragEvent("drag", {
+      bubbles: true,
+      cancelable: true,
+      clientY: bounds.top + 1,
+      dataTransfer: transfer
+    }))
+  }, await alphaSource.elementHandle())
+  await expect(alphaSource).toHaveClass(/\bstructured_source_drop_before\b/)
+  await defaultSource.evaluate((source, target) => {
+    const transfer = new DataTransfer()
+    source.dispatchEvent(new DragEvent("dragstart", {
+      bubbles: true,
+      cancelable: true,
+      dataTransfer: transfer
+    }))
+    const bounds = target.getBoundingClientRect()
+    target.dispatchEvent(new DragEvent("dragover", {
+      bubbles: true,
+      cancelable: true,
+      clientY: bounds.bottom - 1,
+      dataTransfer: transfer
+    }))
+  }, await alphaSource.elementHandle())
+  await expect(alphaSource).toHaveClass(/\bstructured_source_drop_after\b/)
+  await defaultSource.evaluate((source) => {
+    source.dispatchEvent(new DragEvent("dragend", {
+      bubbles: true,
+      cancelable: true
+    }))
+  })
+  await expect(alphaSource).not.toHaveClass(/\bstructured_source_drop_before\b/)
+  await expect(alphaSource).not.toHaveClass(/\bstructured_source_drop_after\b/)
   await groups.nth(1).locator(".structured_group_name").click()
   await expect(groups.nth(1)).not.toHaveAttribute("open", "")
   await expect(groups.nth(0)).toHaveAttribute("open", "")
@@ -288,28 +417,132 @@ test("story source groups collapse while dragging and restore afterward", async 
   await expect(groups.nth(1)).not.toHaveAttribute("open", "")
   await expect(groups.nth(2)).toHaveAttribute("open", "")
 
+  const alphaSummaryForScroll = groups.nth(1).locator("summary")
+  const alphaScrollBounds = await alphaSummaryForScroll.boundingBox()
+  expect(alphaScrollBounds).not.toBeNull()
+  const scrollTouchId = 16
+  const scrollMovePrevented = await alphaSummaryForScroll.evaluate(
+    async (summary, { pointerId, clientY }) => {
+      const start = new Touch({
+        identifier: pointerId,
+        target: summary,
+        clientY
+      })
+      summary.dispatchEvent(new TouchEvent("touchstart", {
+        bubbles: true,
+        cancelable: true,
+        touches: [start],
+        changedTouches: [start]
+      }))
+      const moved = new Touch({
+        identifier: pointerId,
+        target: summary,
+        clientY: clientY + 10
+      })
+      const move = new TouchEvent("touchmove", {
+        bubbles: true,
+        cancelable: true,
+        touches: [moved],
+        changedTouches: [moved]
+      })
+      summary.dispatchEvent(move)
+      return move.defaultPrevented
+    }, {
+      pointerId: scrollTouchId,
+      clientY: alphaScrollBounds.y + alphaScrollBounds.height / 2
+    })
+  expect(scrollMovePrevented).toBe(false)
+  await expect(page.getByTestId("sources-structured-list"))
+    .not.toHaveClass(/\bstructured_group_drag_active\b/)
+
   const betaBounds = await betaName.boundingBox()
   expect(betaBounds).not.toBeNull()
-  await page.mouse.move(
-    betaBounds.x + betaBounds.width / 2,
-    betaBounds.y + betaBounds.height / 2
-  )
-  await page.mouse.down()
-  await page.mouse.move(
-    betaBounds.x + betaBounds.width / 2,
-    betaBounds.y + betaBounds.height / 2 + 8,
-    { steps: 4 }
-  )
+  const betaGroupBounds = await groups.nth(2).boundingBox()
+  expect(betaGroupBounds).not.toBeNull()
+  const betaSummary = groups.nth(2).locator("summary")
+  const betaCount = groups.nth(2).locator(".structured_group_count")
+  const pointerId = 17
+  const betaStartY = betaBounds.y + betaBounds.height / 2
+  // The whole title bar is the touch handle, not only the group name.
+  await betaCount.evaluate((count, { pointerId, clientY }) => {
+    const touch = new Touch({
+      identifier: pointerId,
+      target: count,
+      clientY
+    })
+    count.dispatchEvent(new TouchEvent("touchstart", {
+      bubbles: true,
+      cancelable: true,
+      touches: [touch],
+      changedTouches: [touch]
+    }))
+  }, { pointerId, clientY: betaStartY })
+  await page.waitForTimeout(350)
   await expect(page.getByTestId("sources-structured-list"))
     .toHaveClass(/\bstructured_group_drag_active\b/)
+  await expect(groups.nth(2)).toHaveClass(/\bstructured_group_dragging\b/)
+  await expect(groups.nth(1)).toHaveClass(/\bstructured_group_drop_after\b/)
+  const defaultBounds = await groups.nth(0).locator("summary").boundingBox()
+  expect(defaultBounds).not.toBeNull()
+  const defaultMovePrevented = await betaSummary.evaluate(
+    (summary, { pointerId, clientY }) => {
+      const touch = new Touch({
+        identifier: pointerId,
+        target: summary,
+        clientY
+      })
+      const event = new TouchEvent("touchmove", {
+        bubbles: true,
+        cancelable: true,
+        touches: [touch],
+        changedTouches: [touch]
+      })
+      summary.dispatchEvent(event)
+      return event.defaultPrevented
+    }, { pointerId, clientY: defaultBounds.y + 1 })
+  expect(defaultMovePrevented).toBe(true)
+  await expect(groups.nth(0)).toHaveClass(/\bstructured_group_drop_after\b/)
+  await expect(groups.nth(0)).not.toHaveClass(/\bstructured_group_drop_before\b/)
   const alphaBounds = await groups.nth(1).locator("summary").boundingBox()
   expect(alphaBounds).not.toBeNull()
-  await page.mouse.move(
-    alphaBounds.x + 12,
-    alphaBounds.y + 2,
-    { steps: 8 }
-  )
-  await page.mouse.up()
+  const alphaMovePrevented = await betaSummary.evaluate(
+    (summary, { pointerId, clientY }) => {
+      const touch = new Touch({
+        identifier: pointerId,
+        target: summary,
+        clientY
+      })
+      const event = new TouchEvent("touchmove", {
+        bubbles: true,
+        cancelable: true,
+        touches: [touch],
+        changedTouches: [touch]
+      })
+      summary.dispatchEvent(event)
+      return event.defaultPrevented
+    }, { pointerId, clientY: alphaBounds.y + 2 })
+  expect(alphaMovePrevented).toBe(true)
+  await expect(groups.nth(1)).toHaveClass(/\bstructured_group_drop_before\b/)
+  const draggedTransform = await groups.nth(2).evaluate((group) =>
+    getComputedStyle(group).transform)
+  expect(draggedTransform).not.toBe("none")
+  const heldPointY = await groups.nth(2).evaluate((group, grabOffset) =>
+    group.getBoundingClientRect().top + grabOffset,
+  betaStartY - betaGroupBounds.y)
+  expect(Math.abs(heldPointY - (alphaBounds.y + 2))).toBeLessThan(2)
+  await betaSummary.evaluate((summary, { pointerId, clientY }) => {
+    const touch = new Touch({
+      identifier: pointerId,
+      target: summary,
+      clientY
+    })
+    summary.dispatchEvent(new TouchEvent("touchend", {
+      bubbles: true,
+      cancelable: true,
+      touches: [],
+      changedTouches: [touch]
+    }))
+  }, { pointerId, clientY: alphaBounds.y + 2 })
 
   await expect(page.locator(".structured_group_name")).toHaveText([
     "Default",
@@ -326,10 +559,6 @@ test("story source groups collapse while dragging and restore afterward", async 
   await expect(groups.nth(0)).toHaveAttribute("open", "")
   await expect(groups.nth(1)).toHaveAttribute("open", "")
   await expect(groups.nth(2)).not.toHaveAttribute("open", "")
-  await expect.poll(() => page.evaluate(() =>
-    document.activeElement?.querySelector(".structured_group_name")
-      ?.textContent
-  )).toBe("Beta")
   const revealed = await groups.nth(1).evaluate((group) => {
     const bounds = group.getBoundingClientRect()
     const list = group.closest(".structured_settings").getBoundingClientRect()

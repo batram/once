@@ -466,6 +466,19 @@
   flex: 1;
 }
 
+/* The disclosure caret is drawn where the native marker is suppressed
+   (touch); elsewhere the marker already says the same thing. */
+.structured_group_caret {
+  display: none;
+}
+
+.structured_group_count {
+  flex: 0 0 auto;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 11px;
+  opacity: 0.75;
+}
+
 .structured_group_actions {
   display: inline-flex;
   align-items: center;
@@ -476,6 +489,18 @@
   min-width: 30px;
   min-height: 30px;
   padding: 2px 6px;
+}
+
+/* One control for the whole group — rename, delete, add source here. Nothing
+   in a header may be taller than the header. */
+.structured_group_menu {
+  flex: 0 0 auto;
+  line-height: 1;
+}
+
+.structured_group_menu:disabled {
+  opacity: 0.3;
+  pointer-events: none;
 }
 
 .structured_row {
@@ -522,6 +547,18 @@
   box-shadow: inset 3px 0 var(--error-color, #d33);
 }
 
+/* Everything right of the badge column. It owns the row separator so the rule
+   insets past the badge and the badges read as a column. */
+.structured_row_body {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+/* A row draws no box inside itself: the row is the tap target, and a nested
+   frame is what made every entry look misaligned. */
 .structured_row_main {
   display: flex;
   flex: 1 1 auto;
@@ -530,10 +567,31 @@
   align-items: flex-start;
   justify-content: center;
   overflow: hidden;
+  padding: 0;
   border: 0;
+  border-radius: 0;
+  box-shadow: none;
   background: transparent;
   color: inherit;
   text-align: left;
+}
+
+/* Drawn on touch, where the row pushes a subpage. */
+.structured_row_chevron {
+  display: none;
+}
+
+.structured_row_secondary_error {
+  color: var(--error-color, #d33);
+  opacity: 1;
+}
+
+.structured_row_error {
+  box-shadow: inset 3px 0 var(--error-color, #d33);
+}
+
+.structured_row_warning {
+  box-shadow: inset 3px 0 var(--warning-color, #b06b00);
 }
 
 .structured_row_primary,
@@ -628,6 +686,65 @@
   opacity: 0.65;
 }
 
+/* Floating add control. Only touch builds one — it replaces the footer action
+   bar there — but the hidden state must win over any platform display rule. */
+.structured_add_button[hidden],
+.structured_picker_status[hidden] {
+  display: none !important;
+}
+
+.structured_picker_status {
+  display: block;
+  min-height: 1.2em;
+  font-size: 12px;
+  color: var(--text-color);
+}
+
+/* Base chrome for the shared anchored menu. The story rows raise it only on
+   touch, but the group ⋮ raises it everywhere, so it cannot depend on the
+   mobile skin for its positioning. */
+.once-anchored-menu {
+  position: fixed;
+  z-index: 900;
+  inset: 0;
+}
+
+.once-anchored-menu[hidden] {
+  display: none;
+}
+
+.once-anchored-menu-backdrop {
+  position: absolute;
+  inset: 0;
+}
+
+.once-anchored-menu-panel {
+  position: absolute;
+  min-width: 180px;
+  max-width: min(320px, calc(100vw - 16px));
+  border: thin solid var(--border-high-color);
+  background: var(--input-bg-color);
+}
+
+.once-anchored-menu-item {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.once-anchored-menu-item:hover:not(:disabled),
+.once-anchored-menu-item:focus-visible {
+  background: var(--highlight-bg-color);
+}
+
+.once-anchored-menu-item:disabled {
+  color: var(--text-color);
+}
+
 .structured_form {
   display: flex;
   flex-direction: column;
@@ -656,6 +773,519 @@
 .structured_validation {
   min-height: 1em;
   color: var(--error-color, #d33);
+}
+
+/* Dense desktop settings surface shared by Electron and both extensions.
+   Mobile deliberately owns its presentation in apps/mobile/src/mobile.css. */
+body:not([data-platform="mobile"]) #settings_panel {
+  overflow: hidden;
+}
+
+body:not([data-platform="mobile"]) #settings_panel .bar {
+  box-sizing: border-box;
+  flex: 0 0 30px;
+  height: 30px;
+  padding: 4px 0 4px 8px;
+  gap: 6px;
+}
+
+body:not([data-platform="mobile"]) #settings_panel .bar button,
+body:not([data-platform="mobile"]) #settings_panel .bar .collapsebutton,
+body:not([data-platform="mobile"]) .structured_search input,
+body:not([data-platform="mobile"]) .structured_search button,
+body:not([data-platform="mobile"]) .structured_search input[type="button"],
+body:not([data-platform="mobile"]) #settings_search,
+body:not([data-platform="mobile"]) .structured_group_menu,
+body:not([data-platform="mobile"]) .structured_row_menu {
+  box-sizing: border-box;
+  height: 22px;
+  min-height: 22px;
+  border: 1px solid var(--text-high-color);
+  border-radius: 2px;
+  color: var(--text-high-color);
+  background: var(--btn-bg-color);
+  font: 12px/20px Verdana, Geneva, sans-serif;
+}
+
+body:not([data-platform="mobile"]) .structured_remove {
+  flex: 0 0 22px;
+  width: 22px;
+  min-height: 22px;
+  margin: 0 6px 0 0;
+  font-size: 15px;
+}
+
+body:not([data-platform="mobile"]) #settings_panel .bar .collapsebutton {
+  order: 4;
+  width: 22px;
+  margin: 0 0 0 auto;
+  padding: 0;
+  text-align: center;
+}
+
+body:not([data-platform="mobile"]) #settings_panel .settings_title {
+  order: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body:not([data-platform="mobile"]) #settings_panel #settings_section_back {
+  order: 0;
+  margin: 0;
+  padding: 0 7px;
+}
+
+body:not([data-platform="mobile"]) #settings_panel #settings_section_back::before {
+  content: "‹ ";
+  font-size: 18px;
+  line-height: 12px;
+  vertical-align: -1px;
+}
+
+body:not([data-platform="mobile"]) #settings_panel.settings_detail_open
+  #settings_section_back {
+  display: inline-block;
+}
+
+body:not([data-platform="mobile"]) #settings_panel
+  .structured_mode_toggle_topbar {
+  order: 3;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-width: 60px;
+  height: 22px;
+  min-height: 22px;
+  margin-left: auto;
+  padding: 0;
+  overflow: hidden;
+  font-size: 0;
+  line-height: 20px;
+}
+
+body:not([data-platform="mobile"]) #settings_panel
+  .structured_mode_toggle_topbar::before,
+body:not([data-platform="mobile"]) #settings_panel
+  .structured_mode_toggle_topbar::after {
+  display: block;
+  height: 20px;
+  font: 700 13px/20px "Courier New", Courier, monospace;
+  text-align: center;
+}
+
+body:not([data-platform="mobile"]) #settings_panel
+  .structured_mode_toggle_topbar::before {
+  content: "☰";
+  border-right: 1px solid var(--text-high-color);
+}
+
+body:not([data-platform="mobile"]) #settings_panel
+  .structured_mode_toggle_topbar::after {
+  content: "</>";
+  font-size: 10px;
+}
+
+body:not([data-platform="mobile"]) #settings_panel
+  .structured_mode_toggle_topbar[aria-label="Edit as text"]::before,
+body:not([data-platform="mobile"]) #settings_panel
+  .structured_mode_toggle_topbar[aria-label="Edit as list"]::after {
+  background: var(--highlight-bg-color);
+}
+
+body:not([data-platform="mobile"]) .settings_container {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+body:not([data-platform="mobile"]) #settings_index {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  overflow: auto;
+}
+
+body:not([data-platform="mobile"]) #settings_search {
+  width: 100%;
+  margin: 0 0 7px;
+  padding: 1px 7px;
+}
+
+body:not([data-platform="mobile"]) .settings_section_row {
+  min-height: 28px;
+  height: 28px;
+  gap: 8px;
+  padding: 0 6px;
+  border-bottom: 1px solid var(--sep-color);
+  font-size: 13px;
+}
+
+body:not([data-platform="mobile"]) .settings_section_row:hover,
+body:not([data-platform="mobile"]) .settings_section_row:focus-visible,
+body:not([data-platform="mobile"]) .settings_section_row[aria-current="page"] {
+  outline: 0;
+  background: var(--highlight-bg-color);
+}
+
+body:not([data-platform="mobile"]) .settings_section_row_text {
+  flex: 1 1 auto;
+}
+
+body:not([data-platform="mobile"]) .settings_section_summary {
+  flex: 0 1 auto;
+  overflow: hidden;
+  color: var(--text-color);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body:not([data-platform="mobile"]) .settings_section_summary_error,
+body:not([data-platform="mobile"]) .structured_status_error {
+  color: var(--m-error);
+}
+
+body:not([data-platform="mobile"]) .settings_section_arrow {
+  flex: 0 0 6px;
+  color: var(--text-color);
+  font-size: 20px;
+  line-height: 1;
+}
+
+body:not([data-platform="mobile"]) .settings_section {
+  min-height: 0;
+  overflow: hidden;
+}
+
+body:not([data-platform="mobile"]) .settings_section.active {
+  display: flex;
+}
+
+body:not([data-platform="mobile"]) #settings_panel .settings_block {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 7px 8px 0;
+  border: 0;
+  overflow: auto;
+}
+
+body:not([data-platform="mobile"]) #settings_panel .settings_editor_block {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+body:not([data-platform="mobile"]) .structured_settings {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  gap: 8px;
+  overflow: auto;
+  padding-bottom: 8px;
+}
+
+body:not([data-platform="mobile"]) .structured_search {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  flex: 0 0 auto;
+  gap: 6px;
+  padding: 0;
+  background: var(--main-bg-color);
+}
+
+body:not([data-platform="mobile"]) .structured_search input[type="search"] {
+  flex: 1 1 180px;
+  min-width: 80px;
+  padding: 1px 7px;
+}
+
+body:not([data-platform="mobile"]) .structured_search_status:empty {
+  display: none;
+}
+
+body:not([data-platform="mobile"]) .structured_list_actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+body:not([data-platform="mobile"]) .structured_list_actions button {
+  flex: 0 0 auto;
+  padding: 0 8px;
+}
+
+body:not([data-platform="mobile"]) #pick_source_button {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0 8px;
+}
+
+body:not([data-platform="mobile"]) .structured_group {
+  flex: 0 0 auto;
+  margin: 0;
+  border: 1px solid var(--border-high-color);
+  border-radius: 4px;
+  overflow: clip;
+}
+
+body:not([data-platform="mobile"]) .structured_group > summary {
+  box-sizing: border-box;
+  min-height: 26px;
+  height: 26px;
+  gap: 7px;
+  padding: 0 4px 0 7px;
+  background: var(--read-bg-color);
+}
+
+body:not([data-platform="mobile"]) .structured_group > summary::marker {
+  content: "";
+}
+
+body:not([data-platform="mobile"]) .structured_group_caret {
+  display: inline-block;
+  flex: 0 0 7px;
+  width: 7px;
+  height: 7px;
+  border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  transform: rotate(45deg) translate(-1px, -1px);
+}
+
+body:not([data-platform="mobile"]) .structured_group:not([open])
+  .structured_group_caret {
+  transform: rotate(-45deg);
+}
+
+body:not([data-platform="mobile"]) .structured_group_name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body:not([data-platform="mobile"]) .structured_group_drag_handle {
+  display: none;
+}
+
+body:not([data-platform="mobile"]) .structured_group_count {
+  font-size: 11px;
+}
+
+body:not([data-platform="mobile"]) .structured_group_actions {
+  flex: 0 0 22px;
+}
+
+body:not([data-platform="mobile"]) .structured_group_menu {
+  width: 22px;
+  min-width: 22px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  font-size: 17px;
+  opacity: 0;
+}
+
+body:not([data-platform="mobile"]) .structured_group > summary:hover
+  .structured_group_menu,
+body:not([data-platform="mobile"]) .structured_group_menu:focus-visible,
+body:not([data-platform="mobile"]) .structured_group_menu[aria-expanded="true"] {
+  border-color: var(--text-high-color);
+  opacity: 1;
+}
+
+body:not([data-platform="mobile"]) .structured_group_menu_spacer {
+  flex: 0 0 22px;
+}
+
+body:not([data-platform="mobile"]) .structured_row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 10px 20px minmax(0, 1fr);
+  min-height: 40px;
+  height: 40px;
+  border: 0;
+  background: var(--input-bg-color);
+}
+
+body:not([data-platform="mobile"]) .structured_row_unbadged {
+  grid-template-columns: 10px minmax(0, 1fr);
+}
+
+body:not([data-platform="mobile"]) .structured_row_unbadged
+  .structured_row_body {
+  grid-column: 2;
+  width: auto;
+}
+
+body:not([data-platform="mobile"]) .structured_row_editing {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  height: auto;
+  min-height: 40px;
+  gap: 6px;
+  padding: 4px 6px;
+}
+
+body:not([data-platform="mobile"]) .structured_row_editing
+  .structured_inline_validation {
+  grid-column: 1 / -1;
+}
+
+body:not([data-platform="mobile"]) .structured_row_editing
+  .structured_inline_input,
+body:not([data-platform="mobile"]) .structured_row_editing
+  .structured_inline_action {
+  min-height: 22px;
+}
+
+body:not([data-platform="mobile"]) .structured_row:hover,
+body:not([data-platform="mobile"]) .structured_row:focus-within {
+  background: var(--selected_bg_color);
+}
+
+body:not([data-platform="mobile"]) .structured_source_drag_handle {
+  align-self: center;
+  width: 10px;
+  overflow: hidden;
+  color: var(--text-color);
+  font-size: 12px;
+  opacity: 0;
+}
+
+body:not([data-platform="mobile"]) .structured_source_drag_handle::before {
+  content: "⠿";
+}
+
+body:not([data-platform="mobile"]) .structured_row:hover
+  .structured_source_drag_handle,
+body:not([data-platform="mobile"]) .structured_row_dragging
+  .structured_source_drag_handle {
+  opacity: 1;
+}
+
+body:not([data-platform="mobile"]) .collector_badge {
+  box-sizing: border-box;
+  align-self: center;
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  min-height: 20px;
+  margin: 0;
+  padding: 1px;
+  border: 1px solid var(--input-bg-color);
+  font-size: 10px;
+}
+
+body:not([data-platform="mobile"]) .structured_row_body {
+  height: 40px;
+  margin-left: 10px;
+  gap: 6px;
+  border-bottom: 1px solid color-mix(in srgb, var(--sep-color) 38%, transparent);
+}
+
+body:not([data-platform="mobile"]) .structured_row:last-child
+  .structured_row_body {
+  border-bottom: 0;
+}
+
+body:not([data-platform="mobile"]) .structured_row_primary {
+  font-size: 12px;
+}
+
+body:not([data-platform="mobile"]) .structured_row_secondary {
+  font-size: 11px;
+}
+
+body:not([data-platform="mobile"]) .structured_row_main:focus-visible {
+  outline: 1px solid Highlight;
+  outline-offset: 1px;
+}
+
+body:not([data-platform="mobile"]) .structured_issue {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  border: 1px solid currentColor;
+  font-size: 11px;
+}
+
+body:not([data-platform="mobile"]) .structured_row_menu {
+  flex: 0 0 22px;
+  width: 22px;
+  padding: 0;
+  font-size: 17px;
+  opacity: 0;
+}
+
+body:not([data-platform="mobile"]) .structured_row:hover
+  .structured_row_menu,
+body:not([data-platform="mobile"]) .structured_row_menu:focus-visible {
+  opacity: 1;
+}
+
+body:not([data-platform="mobile"]) .structured_status_strip {
+  display: flex;
+  flex: 0 0 24px;
+  box-sizing: border-box;
+  height: 24px;
+  margin: 0 -8px;
+  padding: 0 8px;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--border-high-color);
+  color: var(--text-color);
+  background: var(--main-bg-color);
+  font-size: 11px;
+}
+
+body:not([data-platform="mobile"]) .structured_settings[hidden]
+  + .structured_status_strip {
+  display: none;
+}
+
+body:not([data-platform="mobile"]) .settings_editor_block
+  > .settings_actions.structured_actions_empty,
+body:not([data-platform="mobile"]) .settings_editor_block
+  > .settings_actions.structured_desktop_actions_empty {
+  box-sizing: border-box;
+  min-height: 0;
+  height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+body:not([data-platform="mobile"]) .once-anchored-menu-panel {
+  border-radius: 2px;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 28%);
+}
+
+body:not([data-platform="mobile"]) .once-anchored-menu-item {
+  min-height: 24px;
+  padding: 3px 8px;
+  font-size: 12px;
+}
+
+@container settings-panel (max-width: 420px) {
+  body:not([data-platform="mobile"]) .structured_search {
+    flex-wrap: wrap;
+  }
+
+  body:not([data-platform="mobile"]) .structured_search input[type="search"] {
+    flex-basis: 100%;
+  }
 }
 
 .visually_hidden {
