@@ -9,6 +9,26 @@ async function openStoryMenu(page, story) {
   await page.waitForTimeout(300)
 }
 
+/**
+ * Reorder by dropping into the lower half of the target row. A row's midpoint
+ * decides insert-before from insert-after, so dragTo's default centre landing
+ * is ambiguous and rounds to "before" — which, for the row directly above, is
+ * a no-op rather than a move.
+ */
+async function dragBelowMidpoint(source, target) {
+  // nth() re-resolves on every call, so a save still re-rendering the list can
+  // hand back a node that is detached by the time it is measured. Retry until
+  // the list has settled.
+  let box = null
+  await expect.poll(async () => {
+    box = await target.boundingBox()
+    return box !== null
+  }).toBe(true)
+  await source.dragTo(target, {
+    targetPosition: { x: box.width / 2, y: box.height * 0.75 }
+  })
+}
+
 async function openSettingsSection(page, section) {
   await page.getByTestId("settings-menu").click()
   const row = page.locator(`[data-settings-target="${section}"]`)
@@ -106,9 +126,11 @@ test("list settings are the default and expose structured add actions", async ({
   await expect(page.locator(
     '[data-structured-section="sources"] .structured_search_status'
   )).toHaveText("1 result")
+  // The row carries the error's short title; the full sentence lives behind
+  // the issue button and in the error log.
   await expect(page.locator(
     '[data-testid="source-row"]:visible .structured_row_secondary_error'
-  )).toContainText("No handler available")
+  )).toContainText("No Handler")
   await sourceSearch.fill("")
   await expect(page.locator(
     '[data-testid="source-row"] mark'
@@ -183,7 +205,7 @@ test("filters edit inline and expose a row remove button", async ({ page }) => {
   )
   const firstValue = await page.getByTestId("filter-row").nth(0).textContent()
   const secondValue = await page.getByTestId("filter-row").nth(1).textContent()
-  await rows.nth(0).dragTo(rows.nth(1))
+  await dragBelowMidpoint(rows.nth(0), rows.nth(1))
   await expect(page.getByTestId("filter-row").nth(0)).toHaveText(secondValue)
   await expect(page.getByTestId("filter-row").nth(1)).toHaveText(firstValue)
 
@@ -259,7 +281,10 @@ test("redirect list search matches expressions and replacement targets", async (
   await search.fill("")
   const redirectRows = page.locator('[data-testid="redirect-row"]:visible')
   await expect(redirectRows).toHaveCount(2)
-  await redirectRows.nth(0).dragTo(redirectRows.nth(1))
+  // Drop into the lower half: the midpoint decides before-vs-after, and a
+  // drop exactly on it means "insert before", which for the row above is a
+  // no-op rather than a move.
+  await dragBelowMidpoint(redirectRows.nth(0), redirectRows.nth(1))
   await expect(redirectRows.nth(0)).toContainText("second.example")
   await expect(redirectRows.nth(1)).toContainText("first.example")
 })
@@ -686,6 +711,25 @@ test("mobile back unwinds settings before restoring its previous panel", async (
   await page.getByTestId("reading-menu").click()
   await page.getByTestId("settings-menu").click()
   expect(await triggerMobileBack(page)).toBe(true)
+  await expect(leftPanel).toHaveAttribute("active_panel", "reading")
+})
+
+test("settings chevron back returns to the previous panel", async ({ page }) => {
+  await page.goto("./")
+  const leftPanel = page.locator("#left_panel")
+  const settingsBack = page.locator("#settings_section_back")
+  const desktopCollapse = page.locator("#settings_panel .collapsebutton")
+
+  await page.getByTestId("settings-menu").click()
+  await expect(settingsBack).toBeVisible()
+  await expect(settingsBack).toHaveAttribute("aria-label", "Back")
+  await expect(desktopCollapse).toBeHidden()
+  await settingsBack.click()
+  await expect(leftPanel).toHaveAttribute("active_panel", "stories")
+
+  await page.getByTestId("reading-menu").click()
+  await page.getByTestId("settings-menu").click()
+  await settingsBack.press("Enter")
   await expect(leftPanel).toHaveAttribute("active_panel", "reading")
 })
 

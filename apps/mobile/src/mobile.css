@@ -1077,8 +1077,7 @@ body[data-platform="mobile"] #settings_panel .structured_mode_toggle_topbar::bef
   content: "";
   flex: 0 0 40px;
   background-image:
-    linear-gradient(var(--m-ink), var(--m-ink)),
-    linear-gradient(var(--m-ink), var(--m-ink)),
+    linear-gradient(var(--m-ink), var(--m-ink)), linear-gradient(var(--m-ink), var(--m-ink)),
     linear-gradient(var(--m-ink), var(--m-ink));
   background-repeat: no-repeat;
   background-size: 14px 2px;
@@ -1176,16 +1175,23 @@ body[data-platform="mobile"] .settings_section_row_text {
   min-width: max-content;
 }
 
+/* The trailing value is supporting detail, not a second label — muted, the
+   same separation the desktop index uses. */
 body[data-platform="mobile"] .settings_section_summary {
+  flex: 0 1 auto;
+  min-width: 0;
   overflow: hidden;
+  margin-left: auto;
+  color: var(--text-color);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-body[data-platform="mobile"] .settings_section_summary {
-  flex: 0 1 auto;
-  min-width: 0;
-  margin-left: auto;
+/* The error-log row tints its label and value together; there the value must
+   keep the row's colour rather than drop back to muted. */
+body[data-platform="mobile"] .settings_section_row.has-warnings .settings_section_summary,
+body[data-platform="mobile"] .settings_section_row.has-errors .settings_section_summary {
+  color: inherit;
 }
 
 body[data-platform="mobile"] .settings_section_row[data-settings-target="errors"].has-warnings {
@@ -1275,8 +1281,6 @@ body[data-platform="mobile"] #settings_section_back {
   display: grid;
   place-items: center start;
   order: -1;
-  width: var(--m-touch);
-  min-width: var(--m-touch);
   margin: 0;
   padding: 0;
   border: 0;
@@ -1285,16 +1289,150 @@ body[data-platform="mobile"] #settings_section_back {
   font-size: 0;
 }
 
+body[data-platform="mobile"] #settings_section_back[hidden] {
+  display: none;
+}
+
+/* Settings itself participates in the same back stack as the native back
+   action, so its existing chevron remains available on the section index. */
+body[data-platform="mobile"]
+  #settings_panel:not(.settings_detail_open)
+  #settings_section_back[hidden] {
+  display: grid;
+}
+
+/* A real icon, masked so it still takes the theme's ink. A text "‹" sits high
+   in its em box and a rotated border box has no defined optical centre; an
+   icon in a square box is centred by its own geometry. */
 body[data-platform="mobile"] #settings_section_back::before {
-  content: "‹";
-  color: var(--m-ink);
-  font-family: var(--m-sans);
-  font-size: 26px;
-  line-height: 1;
+  content: "";
+  width: 20px;
+  height: 20px;
+  background: var(--m-ink);
+  -webkit-mask: url("imgs/chevron-left.svg") center / contain no-repeat;
+  mask: url("imgs/chevron-left.svg") center / contain no-repeat;
+  width: 23px;
+  height: 15px;
+  margin-top: 10px;
+  mask-size: 70%;
 }
 
 body[data-platform="mobile"] #settings_panel.settings_detail_open #settings_section_back {
   display: grid;
+}
+
+/* ---------- Full-screen editor inside a section ----------
+   A modal task, not navigation: the tab bar and the list's own mode toggle
+   step aside, the header keeps only ‹ and the editor's title, and the commit
+   pair moves into an action bar of its own at the bottom. */
+
+body[data-platform="mobile"]:has(#settings_panel.settings_form_open) #menu {
+  display: none;
+}
+
+body[data-platform="mobile"] #settings_panel.settings_form_open .structured_mode_toggle_topbar {
+  display: none;
+}
+
+/* Every structured form is a full-screen subpage on touch, so they all take
+   the same shape: scrolling body, and one fixed action bar the body clears. */
+body[data-platform="mobile"] .structured_form {
+  min-height: 100%;
+  box-sizing: border-box;
+  gap: var(--m-sp-3);
+  padding: var(--m-sp-2) var(--m-sp-3) 76px;
+}
+
+/* The header carries the title on a subpage, so the form's own heading would
+   say it twice. */
+body[data-platform="mobile"] .structured_form h3 {
+  display: none;
+}
+
+body[data-platform="mobile"] .structured_form_field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--m-sp-1);
+}
+
+body[data-platform="mobile"] .structured_form textarea {
+  min-height: 0;
+  padding: var(--m-sp-2);
+  resize: none;
+  font-size: var(--m-fs-body);
+}
+
+body[data-platform="mobile"] .structured_form input,
+body[data-platform="mobile"] .structured_form select {
+  height: 40px;
+  min-height: 40px;
+  padding: 0 var(--m-sp-2);
+  font-size: var(--m-fs-body);
+}
+
+body[data-platform="mobile"] .structured_redirect_output {
+  min-height: 68px;
+  font-size: var(--m-fs-meta);
+}
+
+/* A modal task, not navigation: the commit pair sits in its own bar rather
+   than wrapping into the scrolling body. Explicit columns, so the pair keeps
+   its place whatever order the form appends them in. */
+body[data-platform="mobile"] .structured_form .structured_form_actions {
+  position: fixed;
+  z-index: 20;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--m-touch) var(--m-touch);
+  align-items: center;
+  box-sizing: border-box;
+  height: 60px;
+  margin: 0;
+  padding: 10px var(--m-sp-3);
+  gap: var(--m-sp-2);
+  border-top: var(--m-bw) solid var(--text-high-color);
+  background: var(--main-bg-color);
+}
+
+body[data-platform="mobile"] .structured_form_actions .structured_inline_action {
+  width: var(--m-touch);
+  min-width: var(--m-touch);
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+}
+
+/* grid-row is pinned as well as the column: auto-placement runs in DOM order,
+   so once Save claims column 3 the cursor is past column 2 and Cancel would be
+   pushed onto a second row, off the bottom of the bar. */
+body[data-platform="mobile"]
+  .structured_form_actions
+  .structured_inline_action[aria-label="Cancel"] {
+  grid-row: 1;
+  grid-column: 2;
+}
+
+body[data-platform="mobile"] .structured_form_actions .structured_inline_action[aria-label="Save"] {
+  grid-row: 1;
+  grid-column: 3;
+}
+
+/* With no trailing column for a glyph, the destructive action can only be
+   told from cancel by language. */
+body[data-platform="mobile"] .structured_form_delete {
+  grid-row: 1;
+  grid-column: 1;
+  justify-self: start;
+  min-height: 40px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--m-error);
+  font: 600 var(--m-fs-body)/1 var(--m-sans);
 }
 
 body[data-platform="mobile"] .input_container {
@@ -1392,8 +1530,7 @@ body[data-platform="mobile"] .structured_settings_header {
 }
 
 body[data-platform="mobile"] .structured_mode_toggle,
-body[data-platform="mobile"] .structured_list_actions button,
-body[data-platform="mobile"] .structured_form_actions button {
+body[data-platform="mobile"] .structured_list_actions button {
   min-height: var(--m-touch);
   padding: 0 var(--m-sp-3);
 }
@@ -1413,9 +1550,7 @@ body[data-platform="mobile"] .settings_editor_block .settings_actions {
 }
 
 /* List mode has no footer at all — the list scrolls to the tab bar. */
-body[data-platform="mobile"]
-  .settings_editor_block
-  .settings_actions.structured_actions_empty {
+body[data-platform="mobile"] .settings_editor_block .settings_actions.structured_actions_empty {
   display: none;
 }
 
@@ -1508,19 +1643,55 @@ body[data-platform="mobile"] .structured_row_secondary_error {
 }
 
 /* Filters carry no secondary line: one 48px row per expression, in mono. */
-body[data-platform="mobile"]
-  [data-structured-section="filters"] .structured_row,
-body[data-platform="mobile"]
-  [data-structured-section="filters"] .structured_row_body {
+body[data-platform="mobile"] [data-structured-section="filters"] .structured_row,
+body[data-platform="mobile"] [data-structured-section="filters"] .structured_row_body {
   min-height: 48px;
 }
 
-body[data-platform="mobile"]
-  [data-structured-section="filters"] .structured_row_main {
+body[data-platform="mobile"] [data-structured-section="filters"] .structured_row_main {
   justify-content: center;
   font-family: var(--m-mono);
   font-size: var(--m-fs-body);
   color: var(--text-high-color);
+}
+
+/* The floating + sits 70px up from the bottom; the scroller has to clear it or
+   it covers the last row. */
+body[data-platform="mobile"] [data-structured-section="filters"],
+body[data-platform="mobile"] [data-structured-section="redirects"] {
+  padding-bottom: 72px;
+}
+
+/* An open row is 56px: a 36px field with the 36px commit pair beside it. The
+   edited row drops its remove button, so two cross glyphs never coexist. */
+body[data-platform="mobile"] .structured_row_editing {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px 36px;
+  height: auto;
+  min-height: 56px;
+  gap: var(--m-sp-2);
+  padding: 10px var(--m-sp-3) 10px var(--m-sp-4);
+}
+
+/* The blanket mobile button margin (8px 8px 4px 0) is asymmetric top-to-bottom
+   and out-specifies the bare class, so it drops the commit pair 2px below the
+   field it sits beside and eats into the grid gap. */
+body[data-platform="mobile"] .structured_inline_action {
+  margin: 0;
+}
+
+body[data-platform="mobile"] .structured_row_editing .structured_inline_input,
+body[data-platform="mobile"] .structured_row_editing .structured_inline_action {
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  min-height: 36px;
+}
+
+body[data-platform="mobile"] .structured_row_editing .structured_inline_input {
+  width: 100%;
+  font-family: var(--m-mono);
+  font-size: var(--m-fs-body);
 }
 
 /* Always exactly 30x20, whatever the collector calls itself. */
@@ -1550,11 +1721,7 @@ body[data-platform="mobile"] .structured_source_drag_handle {
   height: 18px;
   margin-right: var(--m-sp-2);
   opacity: 0.38;
-  background-image: radial-gradient(
-    circle,
-    var(--m-ink) 1.3px,
-    transparent 1.5px
-  );
+  background-image: radial-gradient(circle, var(--m-ink) 1.3px, transparent 1.5px);
   background-position: 0 0;
   background-size: 5px 6px;
 }
@@ -1647,7 +1814,8 @@ body[data-platform="mobile"] .structured_row_warning {
 
 /* ---------- Groups are cards, including Default ---------- */
 
-body[data-platform="mobile"] .structured_group {
+body[data-platform="mobile"] .structured_group,
+body[data-platform="mobile"] .structured_list_card {
   margin-bottom: var(--m-sp-3);
   overflow: hidden;
   border: var(--m-bw) solid var(--border-color);
@@ -1656,18 +1824,24 @@ body[data-platform="mobile"] .structured_group {
   background: var(--input-bg-color);
 }
 
-body[data-platform="mobile"] .structured_group > summary {
+body[data-platform="mobile"] .structured_group > summary,
+body[data-platform="mobile"] .structured_list_header {
   display: flex;
   align-items: center;
   box-sizing: border-box;
   height: 38px;
   min-height: 38px;
-  padding: 0 0 0 var(--m-sp-4);
+  padding: 0 var(--m-sp-4);
   border-bottom: var(--m-bw) solid var(--m-sep);
   background: var(--m-head-bg);
   list-style: none;
   user-select: none;
   -webkit-user-select: none;
+}
+
+/* A group summary ends in the ⋮ menu, which brings its own trailing inset. */
+body[data-platform="mobile"] .structured_group > summary {
+  padding-right: 0;
 }
 
 body[data-platform="mobile"] .structured_group_reorderable > summary {
@@ -1709,7 +1883,8 @@ body[data-platform="mobile"] .structured_group[open] > summary .structured_group
   transform: rotate(45deg) translate(-2px, -2px);
 }
 
-body[data-platform="mobile"] .structured_group_name {
+body[data-platform="mobile"] .structured_group_name,
+body[data-platform="mobile"] .structured_list_name {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
@@ -1801,15 +1976,13 @@ body[data-platform="mobile"] .structured_source_group_drop_target::after {
   bottom: -2px;
 }
 
-body[data-platform="mobile"]
-  .structured_source_group_title_drop_target > summary {
+body[data-platform="mobile"] .structured_source_group_title_drop_target > summary {
   position: relative;
   outline: 0;
   background: var(--m-accent-bg);
 }
 
-body[data-platform="mobile"]
-  .structured_source_group_title_drop_target > summary::after {
+body[data-platform="mobile"] .structured_source_group_title_drop_target > summary::after {
   content: "";
   position: absolute;
   z-index: 5;
@@ -1822,7 +1995,8 @@ body[data-platform="mobile"]
   box-shadow: 0 0 0 1px var(--m-page-bg);
 }
 
-body[data-platform="mobile"] .structured_group_count {
+body[data-platform="mobile"] .structured_group_count,
+body[data-platform="mobile"] .structured_list_count {
   font-family: var(--m-mono);
   font-size: 11px;
   color: var(--text-color);
@@ -1906,18 +2080,6 @@ body[data-platform="mobile"] .structured_add_glyph {
 /* Rotate the glyph, never the button — a rotated keyline is a diamond. */
 body[data-platform="mobile"] .structured_add_button.menu_open .structured_add_glyph {
   transform: rotate(45deg);
-}
-
-body[data-platform="mobile"] .structured_form_actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--m-sp-2);
-  margin-top: var(--m-sp-2);
-}
-
-body[data-platform="mobile"] .structured_form_actions button {
-  flex: 1 1 120px;
-  margin: 0;
 }
 
 body[data-platform="mobile"] .structured_status_strip {

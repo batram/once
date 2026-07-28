@@ -409,7 +409,11 @@ export class SettingsPanel {
       },
       saveFilters: (values) => this.client.saveFilterList(values),
       saveRedirects: (values) => this.client.saveRedirectList(values),
-      showSourceError: (source) => this.showSourceErrorLog(source)
+      showSourceError: (source) => this.showSourceErrorLog(source),
+      setDetailTitle: (title) => this.setSettingsDetailTitle(title),
+      loadedStoryUrls: () => this.client.getStorySnapshot().map(
+        (story) => story.href
+      )
     })
     this.structuredEditors.sync("sources")
     this.structuredEditors.sync("filters")
@@ -716,6 +720,25 @@ export class SettingsPanel {
         `.settings_section[data-settings-section="${key}"] button`
       )?.focus()
     })
+  }
+
+  /**
+   * A full-screen editor inside a section is a modal task, not navigation: it
+   * takes the header's title and hides the chrome belonging to the list behind
+   * it. Passing null restores the section's own title.
+   */
+  private setSettingsDetailTitle(title: string | null): void {
+    const panel = requireElement("#settings_panel")
+    panel.classList.toggle("settings_form_open", Boolean(title))
+    if (title) {
+      requireElement("#settings_panel .settings_title").textContent = title
+      return
+    }
+    if (!this.activeSettingsSection) return
+    const label = this.settingsSectionButtons
+      .get(this.activeSettingsSection)?.dataset.settingsLabel
+    requireElement("#settings_panel .settings_title").textContent =
+      label || "Settings"
   }
 
   private closeSettingsSection(): void {
@@ -1061,8 +1084,13 @@ export class SettingsPanel {
 
   public highlightSource(sourceUrl: string): void {
     this.openSettingsSection("sources")
-    if (this.structuredEditors?.focusSource(sourceUrl)) return
-    this.highlight_textarea_content("sources_area", sourceUrl, true, true)
+    // openSettingsSection queues its default section focus for the next frame.
+    // Reveal the requested source afterwards so that default focus cannot
+    // immediately steal focus back from the highlighted row.
+    requestAnimationFrame(() => {
+      if (this.structuredEditors?.focusSource(sourceUrl)) return
+      this.highlight_textarea_content("sources_area", sourceUrl, true, true)
+    })
   }
 
   /**

@@ -148,7 +148,7 @@
   }
 
   #settings_panel.settings_detail_open #settings_section_back {
-    display: inline-block;
+    display: inline-flex;
   }
 }
 
@@ -201,7 +201,9 @@
 }
 
 .error_log_entry pre {
-  font: 11px/1.4 "Courier New", monospace;
+  font:
+    11px/1.4 "Courier New",
+    monospace;
   margin: 8px 0 0;
   max-height: 240px;
   overflow: auto;
@@ -475,7 +477,8 @@
   display: none;
 }
 
-.structured_group_count {
+.structured_group_count,
+.structured_list_count {
   flex: 0 0 auto;
   font-family: "Courier New", Courier, monospace;
   font-size: 11px;
@@ -626,26 +629,36 @@
   background: var(--sep-color);
 }
 
+/* A ring and a glyph, never a filled disc: without an explicit background the
+   UA's buttonface shows through, which under a dark colour-scheme is an opaque
+   grey blob. */
 .structured_issue {
   flex: 0 0 30px;
   width: 30px;
   height: 30px;
   padding: 0;
   border-radius: 50%;
-  color: var(--error-color, #d33);
+  background: transparent;
+  color: var(--error-color);
 }
 
 .structured_issue.warning {
-  color: var(--warning-color, #b06b00);
+  color: var(--warning-color);
 }
 
+/* Nothing inside a non-editing row draws a border, a background or a radius —
+   the row is the target and the remove glyph is the only mark on it. */
 .structured_remove {
   flex: 0 0 34px;
   width: 34px;
   min-height: 34px;
   margin: 0 6px;
   padding: 0;
-  border-radius: 50%;
+  border: 0;
+  border-radius: 0;
+  color: var(--text-muted-color);
+  background: transparent;
+  box-shadow: none;
   font-size: 22px;
   line-height: 1;
 }
@@ -750,6 +763,7 @@
 
 .structured_form {
   display: flex;
+  box-sizing: border-box;
   flex-direction: column;
   gap: 12px;
   padding: 8px 0;
@@ -784,11 +798,16 @@ body:not([data-platform="mobile"]) #settings_panel {
   overflow: hidden;
 }
 
+/* Match the stories search bar's vertical rhythm — 5px above and below the
+   tallest control — so the collapse button has the same breathing room in both
+   panels. The horizontal inset stays tighter than the stories bar's 15px
+   because this surface is the dense one. */
 body:not([data-platform="mobile"]) #settings_panel .bar {
   box-sizing: border-box;
-  flex: 0 0 30px;
-  height: 30px;
-  padding: 4px 0 4px 8px;
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 0;
+  padding: 5px 0 5px 8px;
   gap: 6px;
 }
 
@@ -799,7 +818,11 @@ body:not([data-platform="mobile"]) .structured_search input[type="button"],
 body:not([data-platform="mobile"]) #settings_search,
 body:not([data-platform="mobile"]) .settings_editor_block
   > .settings_actions input,
-body:not([data-platform="mobile"]) .structured_form_actions button,
+/* .structured_inline_action is excluded throughout: it is a square glyph box
+   with its own complete skin, and this one's text padding and border would
+   shove the glyph off centre and give it a border the inline rows don't have. */
+body:not([data-platform="mobile"])
+  .structured_form_actions button:not(.structured_inline_action),
 body:not([data-platform="mobile"]) .structured_group_menu,
 body:not([data-platform="mobile"]) .structured_row_menu {
   box-sizing: border-box;
@@ -809,18 +832,19 @@ body:not([data-platform="mobile"]) .structured_row_menu {
   border-radius: 2px;
   color: var(--text-high-color);
   background: var(--btn-bg-color);
-  font: 12px/20px Verdana, Geneva, sans-serif;
+  font:
+    12px/20px Verdana,
+    Geneva,
+    sans-serif;
 }
 
-body:not([data-platform="mobile"]) .settings_editor_block
-  > .settings_actions {
+body:not([data-platform="mobile"]) .settings_editor_block > .settings_actions {
   padding: 6px 0;
   background: var(--main-bg-color);
 }
 
-body:not([data-platform="mobile"]) .settings_editor_block
-  > .settings_actions input,
-body:not([data-platform="mobile"]) .structured_form_actions button {
+body:not([data-platform="mobile"]) .settings_editor_block > .settings_actions input,
+body:not([data-platform="mobile"]) .structured_form_actions button:not(.structured_inline_action) {
   margin: 0;
   padding: 0 8px;
 }
@@ -845,24 +869,29 @@ body:not([data-platform="mobile"]) #settings_panel .settings_title {
 
 body:not([data-platform="mobile"]) #settings_panel #settings_section_back {
   order: 0;
+  align-items: center;
+  gap: 4px;
   margin: 0;
   padding: 0 7px;
 }
 
+/* A real icon, masked so it still takes the button's own colour. Flex centring
+   against the label needs no vertical-align fudging. */
 body:not([data-platform="mobile"]) #settings_panel #settings_section_back::before {
-  content: "‹ ";
-  font-size: 18px;
-  line-height: 12px;
-  vertical-align: -1px;
+  content: "";
+  flex: 0 0 11px;
+  width: 11px;
+  height: 11px;
+  background: currentColor;
+  -webkit-mask: url("../../imgs/chevron-left.svg") center / contain no-repeat;
+  mask: url("../../imgs/chevron-left.svg") center / contain no-repeat;
 }
 
-body:not([data-platform="mobile"]) #settings_panel.settings_detail_open
-  #settings_section_back {
-  display: inline-block;
+body:not([data-platform="mobile"]) #settings_panel.settings_detail_open #settings_section_back {
+  display: inline-flex;
 }
 
-body:not([data-platform="mobile"]) #settings_panel
-  .structured_mode_toggle_topbar {
+body:not([data-platform="mobile"]) #settings_panel .structured_mode_toggle_topbar {
   order: 3;
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -895,31 +924,32 @@ body:not([data-platform="mobile"])
   margin-left: 0;
 }
 
-body:not([data-platform="mobile"]) #settings_panel
-  .structured_mode_toggle_topbar::before,
-body:not([data-platform="mobile"]) #settings_panel
-  .structured_mode_toggle_topbar::after {
+body:not([data-platform="mobile"]) #settings_panel .structured_mode_toggle_topbar::before,
+body:not([data-platform="mobile"]) #settings_panel .structured_mode_toggle_topbar::after {
   display: block;
   height: 20px;
-  font: 700 13px/20px "Courier New", Courier, monospace;
+  font:
+    700 13px/20px "Courier New",
+    Courier,
+    monospace;
   text-align: center;
 }
 
-body:not([data-platform="mobile"]) #settings_panel
-  .structured_mode_toggle_topbar::before {
+body:not([data-platform="mobile"]) #settings_panel .structured_mode_toggle_topbar::before {
   content: "☰";
   border-right: 1px solid var(--text-high-color);
 }
 
-body:not([data-platform="mobile"]) #settings_panel
-  .structured_mode_toggle_topbar::after {
+body:not([data-platform="mobile"]) #settings_panel .structured_mode_toggle_topbar::after {
   content: "</>";
   font-size: 10px;
 }
 
-body:not([data-platform="mobile"]) #settings_panel
+body:not([data-platform="mobile"])
+  #settings_panel
   .structured_mode_toggle_topbar[aria-label="Edit as text"]::before,
-body:not([data-platform="mobile"]) #settings_panel
+body:not([data-platform="mobile"])
+  #settings_panel
   .structured_mode_toggle_topbar[aria-label="Edit as list"]::after {
   background: var(--highlight-bg-color);
 }
@@ -939,8 +969,7 @@ body:not([data-platform="mobile"]) #settings_index {
   overflow: auto;
 }
 
-body:not([data-platform="mobile"])
-  #settings_panel.settings_detail_open #settings_index {
+body:not([data-platform="mobile"]) #settings_panel.settings_detail_open #settings_index {
   flex: 0 0 300px;
   width: 300px;
 }
@@ -1019,10 +1048,14 @@ body:not([data-platform="mobile"]) #settings_panel .settings_block {
   overflow: auto;
 }
 
+/* The structured list is the scroller, so this block must not carry a right
+   inset — it would hold the scrollbar off the panel edge. The inset moves onto
+   the scroller, where it pads the content but not the bar. */
 body:not([data-platform="mobile"]) #settings_panel .settings_editor_block {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  padding-right: 0;
 }
 
 body:not([data-platform="mobile"]) .structured_settings {
@@ -1032,6 +1065,10 @@ body:not([data-platform="mobile"]) .structured_settings {
   flex-direction: column;
   gap: 8px;
   overflow: auto;
+  /* Without this the content-box default adds the inset outside the stretched
+     width and the scroller overhangs the panel by exactly that inset. */
+  box-sizing: border-box;
+  padding-right: 8px;
   padding-bottom: 8px;
 }
 
@@ -1072,7 +1109,8 @@ body:not([data-platform="mobile"]) #pick_source_button {
   padding: 0 8px;
 }
 
-body:not([data-platform="mobile"]) .structured_group {
+body:not([data-platform="mobile"]) .structured_group,
+body:not([data-platform="mobile"]) .structured_list_card {
   position: relative;
   flex: 0 0 auto;
   margin: 0;
@@ -1081,7 +1119,8 @@ body:not([data-platform="mobile"]) .structured_group {
   overflow: clip;
 }
 
-body:not([data-platform="mobile"]) .structured_group > summary {
+body:not([data-platform="mobile"]) .structured_group > summary,
+body:not([data-platform="mobile"]) .structured_list_header {
   box-sizing: border-box;
   min-height: 26px;
   height: 26px;
@@ -1104,12 +1143,12 @@ body:not([data-platform="mobile"]) .structured_group_caret {
   transform: rotate(45deg) translate(-1px, -1px);
 }
 
-body:not([data-platform="mobile"]) .structured_group:not([open])
-  .structured_group_caret {
+body:not([data-platform="mobile"]) .structured_group:not([open]) .structured_group_caret {
   transform: rotate(-45deg);
 }
 
-body:not([data-platform="mobile"]) .structured_group_name {
+body:not([data-platform="mobile"]) .structured_group_name,
+body:not([data-platform="mobile"]) .structured_list_name {
   flex: 1 1 auto;
   overflow: hidden;
   font-size: 10.5px;
@@ -1123,7 +1162,8 @@ body:not([data-platform="mobile"]) .structured_group_drag_handle {
   display: none;
 }
 
-body:not([data-platform="mobile"]) .structured_group_count {
+body:not([data-platform="mobile"]) .structured_group_count,
+body:not([data-platform="mobile"]) .structured_list_count {
   font-size: 11px;
 }
 
@@ -1142,8 +1182,7 @@ body:not([data-platform="mobile"]) .structured_group_menu {
   cursor: pointer;
 }
 
-body:not([data-platform="mobile"]) .structured_group > summary:hover
-  .structured_group_menu,
+body:not([data-platform="mobile"]) .structured_group > summary:hover .structured_group_menu,
 body:not([data-platform="mobile"]) .structured_group_menu:focus-visible,
 body:not([data-platform="mobile"]) .structured_group_menu[aria-expanded="true"] {
   border-color: var(--text-high-color);
@@ -1168,8 +1207,7 @@ body:not([data-platform="mobile"]) .structured_row_unbadged {
   grid-template-columns: 10px minmax(0, 1fr);
 }
 
-body:not([data-platform="mobile"]) .structured_row_unbadged
-  .structured_row_body {
+body:not([data-platform="mobile"]) .structured_row_unbadged .structured_row_body {
   grid-column: 2;
   width: auto;
 }
@@ -1181,22 +1219,300 @@ body:not([data-platform="mobile"]) .structured_row_editing {
   min-height: 40px;
   gap: 6px;
   padding: 4px 6px;
+  /* Repeated from the base rule: body:not(mobile) .structured_row sets its own
+     background and would otherwise win on specificity. */
+  background: var(--editing-bg-color);
+  box-shadow: inset 2px 0 var(--text-high-color);
 }
 
-body:not([data-platform="mobile"]) .structured_row_editing
-  .structured_inline_validation {
+body:not([data-platform="mobile"]) .structured_row_editing .structured_inline_validation {
   grid-column: 1 / -1;
 }
 
-body:not([data-platform="mobile"]) .structured_row_editing
-  .structured_inline_input,
-body:not([data-platform="mobile"]) .structured_row_editing
-  .structured_inline_action {
+/* 22px is the desktop control size the search field and the mode toggle
+   already use; the pair is square so save and cancel measure identically.
+   Sized wherever the pair appears, not only inside an editing row — the
+   source and group forms use it too, and without a size they stretch to the
+   height of whatever row they land in. */
+body:not([data-platform="mobile"]) .structured_row_editing .structured_inline_input,
+body:not([data-platform="mobile"]) .structured_inline_action {
+  box-sizing: border-box;
+  width: 22px;
+  min-width: 22px;
+  height: 22px;
   min-height: 22px;
 }
 
-body:not([data-platform="mobile"]) .structured_row:hover,
-body:not([data-platform="mobile"]) .structured_row:focus-within {
+body:not([data-platform="mobile"]) .structured_row_editing .structured_inline_input {
+  width: 100%;
+  padding: 2px 5px;
+  font-size: 12px;
+}
+
+/* Filters and redirects: compact list cards and unambiguous edit controls.
+   All colour is derived from the active theme; the reference literals are
+   deliberately not repeated here.
+
+   The card and its header are the chrome the sources groups already use — the
+   platform rules below add `.structured_list_card` / `.structured_list_header`
+   to the `.structured_group` / `> summary` selector lists, and the header
+   contents carry `.structured_list_name` / `.structured_list_count`, which are
+   added to the group typography rules rather than reusing the group classes —
+   a filter list is not a group, and selectors that mean "group name" must not
+   start matching it. Nothing about the card is declared twice, and the three
+   lists cannot drift apart.
+   The header is not a disclosure control, so it takes summary's layout but not
+   its cursor. */
+.structured_list_header {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The reference maps its near-black ink to --text-color; here that variable is
+   a mid grey (#828282) and near-black is --text-high-color, so the rail and the
+   tint are derived from the latter or they come out invisible in both themes. */
+.structured_row_editing {
+  box-sizing: border-box;
+  border: 0;
+  background: var(--editing-bg-color);
+  box-shadow: inset 3px 0 var(--text-high-color);
+}
+
+/* Save and cancel take the row's own background and the identical border;
+   hierarchy lives in the glyph alone. --border-color collapses onto the panel
+   background in dark mode, so the visible --border-high-color is used. */
+.structured_inline_action {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border-high-color);
+  border-radius: 4px;
+  background: transparent;
+}
+
+/* The nudge lives in the transform, not a negative margin: a margin is halved
+   by the centring maths, so the number written is not the offset you get. */
+/* Sized so the check's long arm and the cross's bars measure the same, at the
+   same stroke weight: the two controls must read as one size. Hierarchy comes
+   from the colour alone — check in --text-high-color, cross in muted. */
+.structured_inline_action .glyph_check {
+  box-sizing: content-box;
+  width: 10.5px;
+  height: 6px;
+  border: 0;
+  border-bottom: 1.5px solid var(--text-high-color);
+  border-left: 1.5px solid var(--text-high-color);
+  transform: translateY(-1.5px) rotate(-45deg);
+}
+
+body[data-platform="mobile"] section[data-settings-section="filters"] .glyph_check {
+  margin-left: -5px;
+}
+
+/* The bars are longer than the check's arms because a rotated bar's ink spans
+   only length x cos45: at 17px each bar draws ~12px across, which is what makes
+   the cross measure the same as the check rather than two thirds of it. */
+.structured_inline_action .glyph_cross {
+  position: relative;
+  width: 17px;
+  height: 17px;
+}
+
+body[data-platform="mobile"] section[data-settings-section="filters"] .glyph_cross {
+  margin-left: -7px;
+}
+
+.structured_inline_action .glyph_cross::before,
+.structured_inline_action .glyph_cross::after {
+  content: "";
+  position: absolute;
+  top: 7.75px;
+  left: 0;
+  width: 17px;
+  height: 1.5px;
+  background: var(--text-muted-color);
+}
+
+.structured_inline_action .glyph_cross::before {
+  transform: rotate(45deg);
+}
+
+.structured_inline_action .glyph_cross::after {
+  transform: rotate(-45deg);
+}
+
+.structured_form textarea {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.structured_form_label {
+  color: var(--text-muted-color);
+  font:
+    700 10.5px/1 Verdana,
+    Geneva,
+    sans-serif;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.structured_form_hint,
+.structured_redirect_corpus {
+  color: var(--text-muted-color);
+  font:
+    11px/1.3 Verdana,
+    Geneva,
+    sans-serif;
+}
+
+.structured_redirect_form textarea,
+.structured_redirect_test_input,
+.structured_redirect_output {
+  font-family: var(--m-mono, "Courier New", Courier, monospace);
+}
+
+.structured_redirect_form textarea {
+  resize: vertical;
+}
+
+.structured_redirect_tester {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.structured_redirect_output {
+  box-sizing: border-box;
+  min-height: 57px;
+  padding: 7px 9px;
+  border: 1px solid var(--border-high-color);
+  background: var(--input-bg-color);
+  font-size: 12px;
+}
+
+.structured_redirect_output p {
+  min-height: 1.35em;
+  word-break: break-all;
+}
+
+.structured_redirect_output strong {
+  font-family: Verdana, Geneva, sans-serif;
+  font-size: 10.5px;
+}
+
+/* --highlight-bg-color is already the reference's rgb(202,202,172) and, unlike
+   --selected_bg_color, is opaque in dark mode, so the ring cannot double up. */
+.structured_redirect_output mark {
+  color: inherit;
+  background: var(--highlight-bg-color);
+  box-shadow: 0 0 0 1px var(--highlight-bg-color);
+}
+
+.structured_redirect_no_match {
+  color: var(--text-muted-color);
+}
+
+.structured_redirect_parse_error {
+  color: var(--error-color);
+}
+
+.structured_form_delete {
+  border: 0;
+  color: var(--error-color);
+  background: transparent;
+  box-shadow: none;
+}
+
+body:not([data-platform="mobile"]) [data-structured-section="filters"] .structured_row {
+  grid-template-columns: minmax(0, 1fr);
+  height: 26px;
+  min-height: 26px;
+}
+
+body:not([data-platform="mobile"]) [data-structured-section="filters"] .structured_row_body {
+  grid-column: 1;
+  height: 26px;
+  margin-left: 0;
+  padding-left: 10px;
+}
+
+body:not([data-platform="mobile"]) [data-structured-section="filters"] .structured_row_main {
+  font: 12px/1 var(--m-mono, "Courier New", Courier, monospace);
+}
+
+body:not([data-platform="mobile"]) [data-structured-section="filters"] .structured_remove {
+  flex-basis: 20px;
+  width: 20px;
+  min-height: 20px;
+  margin-right: 3px;
+}
+
+body:not([data-platform="mobile"]) [data-structured-section="filters"] .structured_row_editing {
+  grid-template-columns: minmax(0, 1fr) 22px 22px;
+  min-height: 30px;
+  padding: 4px 6px 4px 10px;
+}
+
+body:not([data-platform="mobile"]) .structured_redirect_editor {
+  display: block;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+}
+
+body:not([data-platform="mobile"]) .structured_redirect_form {
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+}
+
+body:not([data-platform="mobile"]) .structured_redirect_form h3 {
+  display: none;
+}
+
+body:not([data-platform="mobile"]) .structured_redirect_form textarea {
+  min-height: 42px;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
+body:not([data-platform="mobile"]) .structured_redirect_form input {
+  min-height: 22px;
+  height: 22px;
+  padding: 2px 5px;
+  font-size: 12px;
+}
+
+/* Every structured form ends the same way: anything on the left, then the
+   commit pair at the trailing edge. */
+body:not([data-platform="mobile"]) .structured_form .structured_form_actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22px 22px;
+  margin: 0;
+}
+
+body:not([data-platform="mobile"])
+  .structured_form_actions
+  .structured_inline_action[aria-label="Save"] {
+  grid-row: 1;
+  grid-column: 2;
+}
+
+body:not([data-platform="mobile"])
+  .structured_form_actions
+  .structured_inline_action[aria-label="Cancel"] {
+  grid-row: 1;
+  grid-column: 3;
+}
+
+/* An editing row carries its own tint and rail; the hover fill would bury
+   both, and :focus-within is permanently true while the input has focus. */
+body:not([data-platform="mobile"]) .structured_row:not(.structured_row_editing):hover,
+body:not([data-platform="mobile"]) .structured_row:not(.structured_row_editing):focus-within {
   background: var(--selected_bg_color);
 }
 
@@ -1213,10 +1529,8 @@ body:not([data-platform="mobile"]) .structured_source_drag_handle::before {
   content: "⠿";
 }
 
-body:not([data-platform="mobile"]) .structured_row:hover
-  .structured_source_drag_handle,
-body:not([data-platform="mobile"]) .structured_row_dragging
-  .structured_source_drag_handle {
+body:not([data-platform="mobile"]) .structured_row:hover .structured_source_drag_handle,
+body:not([data-platform="mobile"]) .structured_row_dragging .structured_source_drag_handle {
   opacity: 1;
 }
 
@@ -1240,8 +1554,7 @@ body:not([data-platform="mobile"]) .structured_row_body {
   border-bottom: 1px solid color-mix(in srgb, var(--sep-color) 38%, transparent);
 }
 
-body:not([data-platform="mobile"]) .structured_row:last-child
-  .structured_row_body {
+body:not([data-platform="mobile"]) .structured_row:last-child .structured_row_body {
   border-bottom: 0;
 }
 
@@ -1270,12 +1583,13 @@ body:not([data-platform="mobile"]) .structured_issue {
   line-height: 1;
 }
 
-body:not([data-platform="mobile"]) .structured_group_drop_before {
-  overflow: visible;
-  box-shadow: none;
-}
-
-body:not([data-platform="mobile"]) .structured_group_drop_after {
+/* Desktop draws the drop line as a ::before bar that follows before/after.
+   The base inset box-shadow is the touch presentation and is pinned to the
+   top edge, so leaving it on paints a second indicator that points at the
+   wrong gap for every after-drop. */
+body:not([data-platform="mobile"]) .structured_group_drop_before,
+body:not([data-platform="mobile"]) .structured_group_drop_after,
+body:not([data-platform="mobile"]) .structured_row_drop_target {
   overflow: visible;
   box-shadow: none;
 }
@@ -1309,8 +1623,7 @@ body:not([data-platform="mobile"]) .structured_row_drop_target::before {
   top: 0;
 }
 
-body:not([data-platform="mobile"])
-  .structured_row_drop_target.structured_row_drop_after::before {
+body:not([data-platform="mobile"]) .structured_row_drop_target.structured_row_drop_after::before {
   top: auto;
   bottom: 0;
 }
@@ -1324,8 +1637,7 @@ body:not([data-platform="mobile"]) .structured_source_group_drop_target {
   outline-offset: -3px;
 }
 
-body:not([data-platform="mobile"])
-  .structured_source_group_title_drop_target > summary {
+body:not([data-platform="mobile"]) .structured_source_group_title_drop_target > summary {
   outline: 3px solid var(--text-high-color);
   outline-offset: -3px;
 }
@@ -1339,8 +1651,7 @@ body:not([data-platform="mobile"]) .structured_row_menu {
   opacity: 0;
 }
 
-body:not([data-platform="mobile"]) .structured_row:hover
-  .structured_row_menu,
+body:not([data-platform="mobile"]) .structured_row:hover .structured_row_menu,
 body:not([data-platform="mobile"]) .structured_row_menu:focus-visible {
   opacity: 1;
 }
@@ -1360,14 +1671,15 @@ body:not([data-platform="mobile"]) .structured_status_strip {
   font-size: 11px;
 }
 
-body:not([data-platform="mobile"]) .structured_settings[hidden]
-  + .structured_status_strip {
+body:not([data-platform="mobile"]) .structured_settings[hidden] + .structured_status_strip {
   display: none;
 }
 
-body:not([data-platform="mobile"]) .settings_editor_block
+body:not([data-platform="mobile"])
+  .settings_editor_block
   > .settings_actions.structured_actions_empty,
-body:not([data-platform="mobile"]) .settings_editor_block
+body:not([data-platform="mobile"])
+  .settings_editor_block
   > .settings_actions.structured_desktop_actions_empty {
   box-sizing: border-box;
   min-height: 0;
@@ -1408,8 +1720,7 @@ body:not([data-platform="mobile"]) .settings_version {
   align-content: flex-start;
 }
 
-body:not([data-platform="mobile"]) .settings_version
-  [data-testid="check-for-updates"] {
+body:not([data-platform="mobile"]) .settings_version [data-testid="check-for-updates"] {
   flex: 0 0 auto;
 }
 

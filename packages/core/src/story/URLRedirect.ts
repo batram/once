@@ -33,6 +33,12 @@ export class URLRedirect {
     })
   }
 
+  //apply one compiled rule; the settings preview calls this so that what it
+  //shows and what the loader does cannot drift apart
+  static apply_redirect(url: string, rex: RegExp, replace_url: string): string {
+    return url.match(rex) ? url.replace(rex, replace_url) : url
+  }
+
   static redirect_url(url: string): string {
     const cached = URLRedirect.rewritten_urls.get(url)
     if (cached !== undefined) {
@@ -41,9 +47,7 @@ export class URLRedirect {
 
     let rewritten = url
     URLRedirect.compiled_redirects.forEach(({ rex, replace_url }) => {
-      if (rewritten.match(rex)) {
-        rewritten = rewritten.replace(rex, replace_url)
-      }
+      rewritten = URLRedirect.apply_redirect(rewritten, rex, replace_url)
     })
 
     URLRedirect.rewritten_urls.set(url, rewritten)

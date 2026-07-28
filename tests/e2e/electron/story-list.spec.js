@@ -4,6 +4,7 @@ const {
 } = require("../../../packages/ui-web/dist/HoverUrlIndicator")
 const {
   closeApp,
+  expectDocumentFocus,
   launchApp,
   openPanel,
   openSettingsSection,
@@ -222,7 +223,7 @@ test("stacks, dismisses, restores, and opens source issues through the error log
     await logEntry.locator(".error_log_show_source").click()
     await expect(window.getByTestId("structured-item-form")).toBeHidden()
     await expect(failingSourceButton).toBeVisible()
-    await expect(failingSourceButton).toBeFocused()
+    await expectDocumentFocus(failingSourceButton)
     await expect(failingSourceButton).toHaveClass(/\bstructured_row_target\b/)
   } finally {
     await closeApp(electronApp, userData)

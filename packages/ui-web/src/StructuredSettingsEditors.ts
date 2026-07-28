@@ -1,7 +1,36 @@
 import { SourceError } from "@once/app"
 import { get_parser_for_url, StoryParser } from "@once/collectors"
-import { parseRedirectList, Redirect } from "@once/core"
+import { parseRedirectList, Redirect, URLRedirect } from "@once/core"
 import { AnchoredMenuItem, openAnchoredMenu } from "./StoryAnchoredMenu"
+
+/** Every control showForm builds: the three carry a value and take input. */
+type FormField = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+
+/** null rather than a throw: a half-typed expression is the normal state. */
+function compileRedirect(pattern: string): RegExp | null {
+  if (!pattern.trim()) return null
+  try {
+    return new RegExp(pattern, "d")
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Exact spans of the capture groups, from the `d` flag's match indices.
+ * Searching the URL for each captured substring instead would highlight the
+ * wrong run whenever the same text occurs earlier in the URL.
+ */
+function captureRanges(match: RegExpExecArray): Array<[number, number]> {
+  const indices = (match as RegExpExecArray & {
+    indices?: Array<[number, number] | undefined>
+  }).indices
+  if (!indices) return []
+  return indices.slice(1)
+    .filter((range): range is [number, number] =>
+      range !== undefined && range[0] < range[1])
+    .sort((left, right) => left[0] - right[0])
+}
 
 export interface SourceGroup {
   id: string
@@ -117,6 +146,18 @@ export interface StructuredSettingsOptions {
   saveFilters(values: string[]): void
   saveRedirects(values: Redirect[]): void
   showSourceError(source: string): void
+  /**
+   * Retitle the settings header while a full-screen editor is open, and hide
+   * the chrome that belongs to the list behind it. Passing null restores the
+   * section's own title. SettingsPanel owns the header, so it owns this.
+   */
+  setDetailTitle?(title: string | null): void
+  /**
+   * URLs of the stories currently loaded, for the redirect tester's corpus
+   * count. Reading them from the client rather than the DOM keeps search
+   * results from being counted twice.
+   */
+  loadedStoryUrls?(): string[]
 }
 
 export class StructuredSettingsEditors {
@@ -143,6 +184,15 @@ export class StructuredSettingsEditors {
   private rowSequence = 0
   private sourceRenderGeneration = 0
   private sourceSaveState: "saved" | "saving" | "failed" = "saved"
+  private pendingSourceReveal: string | null = null
+  private sourceRevealTimer: number | null = null
+  /**
+   * One edit surface at a time. Opening a second row while the first was still
+   * open left two inputs on screen and made the survivor depend on which blur
+   * fired first; the field holds the current editor's own close action, so
+   * nothing new is discarded when it runs.
+   */
+  private openEditor: (() => void) | null = null
 
   constructor(private options: StructuredSettingsOptions) {
     for (const section of ["sources", "filters", "redirects"] as const) {
@@ -214,14 +264,15 @@ export class StructuredSettingsEditors {
     root.dataset.testid = `${section}-structured-list`
     input.before(root)
     this.roots.set(section, root)
-    if (section === "sources") {
-      const status = document.createElement("div")
-      status.className = "structured_status_strip"
-      status.innerHTML =
-        '<span class="structured_status_counts"></span>' +
-        '<span class="structured_status_saved" role="status"></span>'
-      root.after(status)
-    }
+    // Every list gets the footer: it is where the desktop reference puts the
+    // count ("12 keywords", "3 rules") and the save state. It hides itself in
+    // text mode through the .structured_settings[hidden] + … adjacency.
+    const status = document.createElement("div")
+    status.className = "structured_status_strip"
+    status.innerHTML =
+      '<span class="structured_status_counts"></span>' +
+      '<span class="structured_status_saved" role="status"></span>'
+    root.after(status)
     this.installDragAutoScroll(root)
     const listActions = document.createElement("div")
     listActions.className = "structured_list_actions"
@@ -481,6 +532,7 @@ export class StructuredSettingsEditors {
 
   focusSource(source: string): boolean {
     if (this.isTextMode("sources")) return false
+    this.pendingSourceReveal = source.trim()
     if (this.detailSections.has("sources") ||
         (this.searchQueries.get("sources") || "").trim()) {
       this.detailSections.delete("sources")
@@ -491,25 +543,46 @@ export class StructuredSettingsEditors {
     const groupIndex = this.sourceGroups.findIndex((group) =>
       group.sources.some((entry) => entry.trim() === source.trim()))
     if (groupIndex < 0) {
+      this.pendingSourceReveal = null
       this.announce("That story source is no longer in settings.")
       return true
     }
-    const root = this.roots.get("sources")
-    const details = root?.querySelector<HTMLDetailsElement>(
-      `[data-group-index="${groupIndex}"]`
-    )
-    if (details) details.open = true
-    const buttons = Array.from(root?.querySelectorAll<HTMLButtonElement>(
-      "[data-source-value]"
-    ) || [])
-    const target = buttons.find((button) => button.dataset.sourceValue === source.trim())
-    if (target) {
+    this.sourceGroupOpen.set(this.sourceGroups[groupIndex].id, true)
+    this.applyPendingSourceReveal()
+    return true
+  }
+
+  private applyPendingSourceReveal(): void {
+    const source = this.pendingSourceReveal
+    if (!source) return
+    if (this.sourceRevealTimer !== null) {
+      window.clearTimeout(this.sourceRevealTimer)
+      this.sourceRevealTimer = null
+    }
+    requestAnimationFrame(() => {
+      if (this.pendingSourceReveal !== source) return
+      const root = this.roots.get("sources")
+      const target = Array.from(root?.querySelectorAll<HTMLButtonElement>(
+        "[data-source-value]"
+      ) || []).find((button) => button.dataset.sourceValue === source)
+      const details = target?.closest<HTMLDetailsElement>(".structured_group")
+      if (!target || !details) return
+      details.open = true
       target.focus({ preventScroll: true })
       target.scrollIntoView({ block: "center" })
       target.classList.add("structured_row_target")
-      window.setTimeout(() => target.classList.remove("structured_row_target"), 1600)
-    }
-    return true
+      this.sourceRevealTimer = window.setTimeout(() => {
+        if (this.pendingSourceReveal !== source) return
+        this.pendingSourceReveal = null
+        this.sourceRevealTimer = null
+        const current = Array.from(
+          this.roots.get("sources")?.querySelectorAll<HTMLButtonElement>(
+            "[data-source-value]"
+          ) || []
+        ).find((button) => button.dataset.sourceValue === source)
+        current?.classList.remove("structured_row_target")
+      }, 1600)
+    })
   }
 
   focusFilter(filter: string): boolean {
@@ -642,14 +715,134 @@ export class StructuredSettingsEditors {
     status.textContent = message
   }
 
+  /**
+   * Close whatever edit surface is open. Each editor registers its own close
+   * action, which is that editor's ordinary exit — so this commits or reverts
+   * exactly as clicking away from it would, and can never fail and leave two
+   * editors on screen.
+   */
+  private closeOpenEditor(): void {
+    const close = this.openEditor
+    this.openEditor = null
+    close?.()
+  }
+
+  /**
+   * The card and header chrome the sources groups already carry. Filters and
+   * redirects are flat lists rather than disclosures, so they take the same
+   * chrome without the <details>; reusing the name and count classes is what
+   * keeps the three lists from drifting apart.
+   */
+  private listCard(title: string, count: number): {
+    card: HTMLElement
+    rows: HTMLElement
+  } {
+    const card = document.createElement("section")
+    card.className = "structured_list_card"
+    const header = document.createElement("div")
+    header.className = "structured_list_header"
+    const name = document.createElement("strong")
+    name.className = "structured_list_name"
+    name.textContent = title
+    const total = document.createElement("span")
+    total.className = "structured_list_count"
+    total.textContent = String(count)
+    header.append(name, total)
+    const rows = document.createElement("div")
+    rows.className = "structured_rows"
+    card.append(header, rows)
+    return { card, rows }
+  }
+
+  /**
+   * Drag-to-reorder for a flat row list. The drop reads the indicator the last
+   * dragover left rather than re-measuring the pointer, so the line the person
+   * is looking at is always the position they get.
+   */
+  private installRowDragReorder(
+    rows: HTMLElement,
+    row: HTMLElement,
+    index: number,
+    reorder: (from: number, destination: number) => void
+  ): void {
+    const clearTargets = (keep?: HTMLElement) => {
+      rows.querySelectorAll(".structured_row_drop_target").forEach((target) => {
+        if (target === keep) return
+        target.classList.remove(
+          "structured_row_drop_target",
+          "structured_row_drop_after"
+        )
+      })
+    }
+    const markTarget = (event: DragEvent) => {
+      const bounds = row.getBoundingClientRect()
+      clearTargets(row)
+      row.classList.add("structured_row_drop_target")
+      row.classList.toggle(
+        "structured_row_drop_after",
+        event.clientY >= bounds.top + bounds.height / 2
+      )
+    }
+    row.addEventListener("dragstart", (event) => {
+      row.classList.add("structured_row_dragging")
+      event.dataTransfer?.setData("text/plain", String(index))
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = "move"
+    })
+    row.addEventListener("dragend", () => {
+      row.classList.remove("structured_row_dragging")
+      clearTargets()
+    })
+    row.addEventListener("dragenter", (event) => {
+      event.preventDefault()
+      markTarget(event)
+    })
+    row.addEventListener("dragleave", (event) => {
+      const next = event.relatedTarget
+      if (next instanceof Node && (row.contains(next) || rows.contains(next))) {
+        return
+      }
+      row.classList.remove(
+        "structured_row_drop_target",
+        "structured_row_drop_after"
+      )
+    })
+    row.addEventListener("dragover", (event) => {
+      event.preventDefault()
+      markTarget(event)
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "move"
+    })
+    row.addEventListener("drop", (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      const after = row.classList.contains("structured_row_drop_after")
+      row.classList.remove(
+        "structured_row_drop_target",
+        "structured_row_drop_after"
+      )
+      const from = Number(event.dataTransfer?.getData("text/plain"))
+      if (!Number.isInteger(from) || from < 0) return
+      let destination = index + (after ? 1 : 0)
+      if (from < destination) destination--
+      if (from === destination) return
+      reorder(from, destination)
+    })
+  }
+
   private render(section: Section): void {
     const root = this.roots.get(section)
     if (!root) return
     this.preserveDesktopActions(section, root)
     this.detailSections.delete(section)
+    // Rebuilding the list destroys any editor inside it, so the registered
+    // close action would only run against detached nodes.
+    this.openEditor = null
+    this.options.setDetailTitle?.(null)
     root.textContent = ""
     this.renderSearch(root, section)
-    if (section === "sources") this.renderSources(root)
+    if (section === "sources") {
+      this.renderSources(root)
+      this.applyPendingSourceReveal()
+    }
     if (section === "filters") this.renderSimpleList(root, section, this.filters)
     if (section === "redirects") this.renderRedirects(root)
     this.applySearch(root, section)
@@ -773,6 +966,9 @@ export class StructuredSettingsEditors {
       )
     } else {
       root.querySelectorAll<HTMLElement>(".structured_row").forEach((row) => {
+        // An open editor has no search value of its own and must never be
+        // filtered away underneath the person typing in it.
+        if (row.classList.contains("structured_row_editing")) return
         const matches = !query ||
           (row.dataset.searchValue || "").includes(query)
         row.hidden = !matches
@@ -790,6 +986,25 @@ export class StructuredSettingsEditors {
     button.type = "button"
     button.textContent = label
     if (testid) button.dataset.testid = testid
+    button.addEventListener("click", action)
+    return button
+  }
+
+  private inlineActionButton(
+    label: "Save" | "Cancel",
+    action: () => void,
+    testid?: string
+  ): HTMLButtonElement {
+    const button = document.createElement("button")
+    button.type = "button"
+    button.className = "structured_inline_action"
+    button.title = label
+    button.setAttribute("aria-label", label)
+    if (testid) button.dataset.testid = testid
+    const glyph = document.createElement("span")
+    glyph.className = label === "Save" ? "glyph_check" : "glyph_cross"
+    glyph.setAttribute("aria-hidden", "true")
+    button.append(glyph)
     button.addEventListener("click", action)
     return button
   }
@@ -1561,8 +1776,10 @@ export class StructuredSettingsEditors {
     const secondary = document.createElement("span")
     secondary.className = "structured_row_secondary"
     const error = this.errors.get(source.trim())
-    // A failing source says why here; the full URL stays in the row's title.
-    secondary.textContent = error ? error.message : source
+    // A failing source says why here, in its short title — the full sentence
+    // does not fit one line and ellipsises to nothing useful. The whole message
+    // is a tap away on the issue button, and the URL stays in the row's title.
+    secondary.textContent = error ? error.title || error.message : source
     secondary.dataset.searchText = secondary.textContent
     if (error) secondary.classList.add("structured_row_secondary_error")
     open.append(primary, secondary)
@@ -1744,10 +1961,13 @@ export class StructuredSettingsEditors {
       }
       this.saveSources()
       return true
-    }, sourceIndex === undefined ? undefined : () => {
-      if (!window.confirm("Delete this story source?")) return
-      this.sourceGroups[groupIndex].sources.splice(sourceIndex, 1)
-      this.saveSources()
+    }, sourceIndex === undefined ? undefined : {
+      label: "Delete source",
+      action: () => {
+        if (!window.confirm("Delete this story source?")) return
+        this.sourceGroups[groupIndex].sources.splice(sourceIndex, 1)
+        this.saveSources()
+      }
     }, this.sourceGroups.map((group, index) => [String(index), group.name]))
   }
 
@@ -1842,13 +2062,30 @@ export class StructuredSettingsEditors {
       : this.sourceSaveState === "failed" ? "Save failed" : "Saved"
   }
 
+  /**
+   * Footer counts for the flat lists. Sources track a real asynchronous save
+   * state; filters and redirects are written on every edit, so their half of
+   * the strip simply says so.
+   */
+  private renderListStatus(root: HTMLElement, count: number, noun: string): void {
+    const strip = root.parentElement
+    const counts = strip?.querySelector<HTMLElement>(
+      ".structured_status_counts"
+    )
+    if (counts) {
+      counts.textContent = `${count} ${count === 1 ? noun : `${noun}s`}`
+    }
+    const saved = strip?.querySelector<HTMLElement>(".structured_status_saved")
+    if (saved) saved.textContent = "Saved"
+  }
+
   private renderSimpleList(root: HTMLElement, section: "filters", values: string[]): void {
     if (!this.onTouch) {
       this.listActions(section)?.append(this.actionButton("Add filter", () =>
         this.editFilterInline(root), "add-filter"))
     }
-    const rows = document.createElement("div")
-    rows.className = "structured_rows"
+    this.renderListStatus(root, values.length, "keyword")
+    const { card, rows } = this.listCard("Keyword filters", values.length)
     values.forEach((value, index) => {
       const row = document.createElement("div")
       row.className = "structured_row"
@@ -1875,80 +2112,21 @@ export class StructuredSettingsEditors {
         event.dataTransfer?.setData("text/plain", String(index))
         if (event.dataTransfer) event.dataTransfer.effectAllowed = "move"
       })
-      row.addEventListener("dragend", () => {
-        row.classList.remove("structured_row_dragging")
-        rows.querySelectorAll(".structured_row_drop_target").forEach((target) =>
-          target.classList.remove(
-            "structured_row_drop_target",
-            "structured_row_drop_after"
-          ))
-      })
-      row.addEventListener("dragenter", (event) => {
-        event.preventDefault()
-        rows.querySelectorAll(".structured_row_drop_target").forEach((target) =>
-          target.classList.remove(
-            "structured_row_drop_target",
-            "structured_row_drop_after"
-          ))
-        const bounds = row.getBoundingClientRect()
-        row.classList.add("structured_row_drop_target")
-        row.classList.toggle(
-          "structured_row_drop_after",
-          event.clientY >= bounds.top + bounds.height / 2
-        )
-      })
-      row.addEventListener("dragleave", (event) => {
-        const next = event.relatedTarget
-        if (next instanceof Node && row.contains(next)) return
-        if (next instanceof Node && rows.contains(next)) return
-        row.classList.remove(
-          "structured_row_drop_target",
-          "structured_row_drop_after"
-        )
-      })
-      row.addEventListener("dragover", (event) => {
-        event.preventDefault()
-        rows.querySelectorAll(".structured_row_drop_target").forEach((target) => {
-          if (target !== row) target.classList.remove(
-            "structured_row_drop_target",
-            "structured_row_drop_after"
-          )
-        })
-        const bounds = row.getBoundingClientRect()
-        row.classList.add("structured_row_drop_target")
-        row.classList.toggle(
-          "structured_row_drop_after",
-          event.clientY >= bounds.top + bounds.height / 2
-        )
-        if (event.dataTransfer) event.dataTransfer.dropEffect = "move"
-      })
-      row.addEventListener("drop", (event) => {
-        event.preventDefault()
-        const bounds = row.getBoundingClientRect()
-        const after = event.clientY >= bounds.top + bounds.height / 2
-        row.classList.remove(
-          "structured_row_drop_target",
-          "structured_row_drop_after"
-        )
-        const from = Number(event.dataTransfer?.getData("text/plain"))
-        if (!Number.isInteger(from) ||
-            from < 0 || from >= this.filters.length) {
-          return
-        }
-        let destination = index + (after ? 1 : 0)
-        if (from < destination) destination--
-        if (from === destination) return
+      this.installRowDragReorder(rows, row, index, (from, destination) => {
+        if (from >= this.filters.length) return
         const [moved] = this.filters.splice(from, 1)
         this.filters.splice(destination, 0, moved)
         this.saveFilters()
       })
       rows.append(row)
     })
-    root.append(rows)
+    root.append(card)
     this.applyPendingFilterReveal()
   }
 
   private editFilterInline(root: HTMLElement, index?: number): void {
+    // Before anything is read from the DOM: closing re-renders the list.
+    this.closeOpenEditor()
     const rows = root.querySelector<HTMLElement>(".structured_rows")
     if (!rows) return
     this.detailSections.add("filters")
@@ -1979,6 +2157,7 @@ export class StructuredSettingsEditors {
       const value = input.value
       if (!value.trim()) {
         if (isNew) {
+          this.openEditor = null
           this.render("filters")
         } else {
           validation.textContent = "Filter cannot be empty"
@@ -1986,13 +2165,26 @@ export class StructuredSettingsEditors {
         }
         return
       }
+      this.openEditor = null
       const savedIndex = index ?? this.filters.length
       if (isNew) this.filters.push(value)
       else this.filters[savedIndex] = value
       if (isNew) this.pendingFilterRevealIndex = savedIndex
       this.saveFilters()
     }
-    const cancel = () => this.render("filters")
+    const cancel = () => {
+      this.openEditor = null
+      this.render("filters")
+    }
+    // Opening another editor commits this one exactly as clicking away does.
+    // An emptied or untouched row reverts instead, so closing always succeeds
+    // rather than stranding a second input on screen behind a validation
+    // message.
+    this.openEditor = () => {
+      if (!row.isConnected) return
+      if (!input.value.trim() || input.value === original) cancel()
+      else save()
+    }
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         event.preventDefault()
@@ -2010,10 +2202,12 @@ export class StructuredSettingsEditors {
         save()
       }, 0)
     })
-    const accept = this.actionButton("Save", save, "save-inline-filter")
-    accept.className = "structured_inline_action"
-    const dismiss = this.actionButton("Cancel", cancel)
-    dismiss.className = "structured_inline_action"
+    const accept = this.inlineActionButton(
+      "Save",
+      save,
+      "save-inline-filter"
+    )
+    const dismiss = this.inlineActionButton("Cancel", cancel)
     this.listActions("filters")
     row.append(input, validation, accept, dismiss)
     input.focus({ preventScroll: true })
@@ -2069,8 +2263,8 @@ export class StructuredSettingsEditors {
       this.listActions("redirects")?.append(this.actionButton("Add redirect", () =>
         this.editRedirect(root), "add-redirect"))
     }
-    const rows = document.createElement("div")
-    rows.className = "structured_rows"
+    this.renderListStatus(root, this.redirects.length, "rule")
+    const { card, rows } = this.listCard("Redirects", this.redirects.length)
     this.redirects.forEach((redirect, index) => {
       const row = document.createElement("div")
       row.className = "structured_row structured_row_unbadged" +
@@ -2083,6 +2277,7 @@ export class StructuredSettingsEditors {
       ].filter(Boolean).join(" ").toLowerCase()
       const open = document.createElement("button")
       open.type = "button"
+      open.draggable = true
       open.className = "structured_row_main"
       open.dataset.testid = "redirect-row"
       const match = document.createElement("span")
@@ -2099,93 +2294,63 @@ export class StructuredSettingsEditors {
       }
       open.append(match, replacement)
       open.addEventListener("click", () => this.editRedirect(root, index))
+      // Same trailing control as the filters list: the row's own × deletes it,
+      // which is why the editor carries no delete button on desktop.
+      const label = redirect.raw || redirect.match_url
+      const remove = this.actionButton("×", () => {
+        if (!window.confirm(`Delete redirect “${label}”?`)) return
+        this.redirects.splice(index, 1)
+        this.saveRedirects()
+      }, "remove-redirect")
+      remove.className = "structured_remove"
+      remove.title = `Delete redirect ${label}`
+      remove.setAttribute("aria-label", remove.title)
       row.append(this.rowBody(open, this.rowChevron(
         `Edit redirect ${redirect.raw}`,
         () => this.editRedirect(root, index)
-      )))
-      row.addEventListener("dragstart", (event) => {
-        row.classList.add("structured_row_dragging")
-        event.dataTransfer?.setData("text/plain", String(index))
-        if (event.dataTransfer) event.dataTransfer.effectAllowed = "move"
-      })
-      row.addEventListener("dragend", () => {
-        row.classList.remove("structured_row_dragging")
-        rows.querySelectorAll(".structured_row_drop_target").forEach((target) =>
-          target.classList.remove(
-            "structured_row_drop_target",
-            "structured_row_drop_after"
-          ))
-      })
-      row.addEventListener("dragenter", (event) => {
-        event.preventDefault()
-        rows.querySelectorAll(".structured_row_drop_target").forEach((target) =>
-          target.classList.remove(
-            "structured_row_drop_target",
-            "structured_row_drop_after"
-          ))
-        const bounds = row.getBoundingClientRect()
-        row.classList.add("structured_row_drop_target")
-        row.classList.toggle(
-          "structured_row_drop_after",
-          event.clientY >= bounds.top + bounds.height / 2
-        )
-      })
-      row.addEventListener("dragleave", (event) => {
-        const next = event.relatedTarget
-        if (next instanceof Node && row.contains(next)) return
-        if (next instanceof Node && rows.contains(next)) return
-        row.classList.remove(
-          "structured_row_drop_target",
-          "structured_row_drop_after"
-        )
-      })
-      row.addEventListener("dragover", (event) => {
-        event.preventDefault()
-        rows.querySelectorAll(".structured_row_drop_target").forEach((target) => {
-          if (target !== row) target.classList.remove(
-            "structured_row_drop_target",
-            "structured_row_drop_after"
-          )
-        })
-        const bounds = row.getBoundingClientRect()
-        row.classList.add("structured_row_drop_target")
-        row.classList.toggle(
-          "structured_row_drop_after",
-          event.clientY >= bounds.top + bounds.height / 2
-        )
-        if (event.dataTransfer) event.dataTransfer.dropEffect = "move"
-      })
-      row.addEventListener("drop", (event) => {
-        event.preventDefault()
-        const bounds = row.getBoundingClientRect()
-        const after = event.clientY >= bounds.top + bounds.height / 2
-        row.classList.remove(
-          "structured_row_drop_target",
-          "structured_row_drop_after"
-        )
-        const from = Number(event.dataTransfer?.getData("text/plain"))
-        if (!Number.isInteger(from) ||
-            from < 0 || from >= this.redirects.length) {
-          return
-        }
-        let destination = index + (after ? 1 : 0)
-        if (from < destination) destination--
-        if (from === destination) return
+      ), remove))
+      this.installRowDragReorder(rows, row, index, (from, destination) => {
+        if (from >= this.redirects.length) return
         const [moved] = this.redirects.splice(from, 1)
         this.redirects.splice(destination, 0, moved)
         this.saveRedirects()
       })
       rows.append(row)
     })
-    root.append(rows)
+    root.append(card)
   }
 
   private editRedirect(root: HTMLElement, index?: number): void {
+    // Before the row lookup below: closing re-renders the list, so the indices
+    // this reads must be the ones the rebuilt DOM has.
+    this.closeOpenEditor()
     const row = index === undefined
       ? { match_url: "", replace_url: "" } : this.redirects[index]
-    this.showForm(root, "Redirect", [
-      ["Match URL expression", row.match_url],
-      ["Replace with", row.replace_url]
+    let host: HTMLElement | undefined
+    if (!this.onTouch) {
+      // Desktop expands the row in place, so the list stays readable behind
+      // the editor. The rows and this.redirects are index-for-index because
+      // any previously injected editor was just closed.
+      const rows = root.querySelector<HTMLElement>(".structured_rows")
+      const existing = index === undefined
+        ? null
+        : rows?.children.item(index) as HTMLElement | null
+      host = existing || document.createElement("div")
+      if (!existing) rows?.append(host)
+      host.className =
+        "structured_row structured_row_editing structured_redirect_editor"
+      host.draggable = false
+      host.textContent = ""
+    }
+    this.showForm(root, "Redirect rule", [
+      ["Match", row.match_url, {
+        multiline: true,
+        hint: "JavaScript regular expression, matched against the whole story URL."
+      }],
+      ["Replace", row.replace_url, {
+        multiline: true,
+        hint: "Backreferences $1… refer to the groups above."
+      }]
     ], (values) => {
       if (!values[0].trim() || !values[1].trim()) return false
       const next = { match_url: values[0], replace_url: values[1] }
@@ -2193,11 +2358,14 @@ export class StructuredSettingsEditors {
       else this.redirects[index] = next
       this.saveRedirects()
       return true
-    }, index === undefined ? undefined : () => {
-      if (!window.confirm("Delete this redirect?")) return
-      this.redirects.splice(index, 1)
-      this.saveRedirects()
-    })
+    }, index === undefined ? undefined : {
+      label: "Delete rule",
+      action: () => {
+        if (!window.confirm("Delete this redirect?")) return
+        this.redirects.splice(index, 1)
+        this.saveRedirects()
+      }
+    }, undefined, { host, redirectTester: true })
   }
 
   private saveRedirects(): void {
@@ -2219,28 +2387,44 @@ export class StructuredSettingsEditors {
   private showForm(
     root: HTMLElement,
     titleText: string,
-    fields: Array<[string, string]>,
+    fields: Array<[
+      string,
+      string,
+      { multiline?: boolean; hint?: string }?
+    ]>,
     save: (values: string[]) => boolean,
-    remove?: () => void,
-    choices?: Array<[string, string]>
+    /** Labelled because the word is the only thing separating it from cancel. */
+    remove?: { label: string; action: () => void },
+    choices?: Array<[string, string]>,
+    presentation?: {
+      host?: HTMLElement
+      redirectTester?: boolean
+    }
   ): void {
     const section = root.dataset.structuredSection as Section
     this.detailSections.add(section)
     this.updateAddButton(section)
     this.preserveDesktopActions(section, root)
     this.listActions(section)
-    root.textContent = ""
+    if (!presentation?.host) root.textContent = ""
     const form = document.createElement("form")
     form.className = "structured_form"
+    if (presentation?.redirectTester) {
+      form.classList.add("structured_redirect_form")
+    }
     form.dataset.testid = "structured-item-form"
     const title = document.createElement("h3")
     title.textContent = titleText
     form.append(title)
-    const inputs: Array<HTMLInputElement | HTMLSelectElement> = []
-    fields.forEach(([labelText, value], fieldIndex) => {
+    const inputs: FormField[] = []
+    fields.forEach(([labelText, value, fieldOptions], fieldIndex) => {
       const label = document.createElement("label")
-      label.textContent = labelText
-      let input: HTMLInputElement | HTMLSelectElement
+      label.className = "structured_form_field"
+      const labelName = document.createElement("span")
+      labelName.className = "structured_form_label"
+      labelName.textContent = labelText
+      label.append(labelName)
+      let input: FormField
       if (choices && fieldIndex === fields.length - 1) {
         input = document.createElement("select")
         choices.forEach(([choiceValue, choiceLabel]) => {
@@ -2249,6 +2433,9 @@ export class StructuredSettingsEditors {
           option.textContent = choiceLabel
           input.append(option)
         })
+      } else if (fieldOptions?.multiline) {
+        input = document.createElement("textarea")
+        input.rows = this.onTouch && fieldIndex === 0 ? 3 : 2
       } else {
         input = document.createElement("input")
         input.type = "text"
@@ -2256,32 +2443,191 @@ export class StructuredSettingsEditors {
       input.value = value
       input.required = true
       label.append(input)
+      if (fieldOptions?.hint) {
+        const hint = document.createElement("span")
+        hint.className = "structured_form_hint"
+        hint.textContent = fieldOptions.hint
+        label.append(hint)
+      }
       inputs.push(input)
       form.append(label)
     })
+    const tester = presentation?.redirectTester
+      ? this.redirectTester(inputs[0], inputs[1])
+      : undefined
+    if (tester) form.append(tester.element)
     const error = document.createElement("p")
     error.className = "structured_validation"
     error.setAttribute("role", "alert")
     const actions = document.createElement("div")
     actions.className = "structured_form_actions"
-    actions.append(this.actionButton("Save", () => {
+    const saveButton = this.inlineActionButton("Save", () => {
       if (!form.reportValidity()) return
       if (!save(inputs.map((input) => input.value))) {
         error.textContent = "Complete all required fields."
       }
-    }, "structured-save"))
-    actions.append(this.actionButton("Cancel", () => {
+    }, "structured-save")
+    const dismiss = () => {
       this.read(section)
       this.render(section)
-    }))
-    if (remove) actions.append(this.actionButton("Delete", remove, "structured-delete"))
+    }
+    const cancelButton = this.inlineActionButton("Cancel", dismiss)
+    this.openEditor = dismiss
+    if (tester) {
+      // Desktop shares the footer line between the corpus count and the commit
+      // pair; the full-screen panel keeps it under the output block.
+      if (this.onTouch) tester.element.append(tester.corpus)
+      else actions.append(tester.corpus)
+    }
+    if (remove && this.onTouch) {
+      // With no trailing column for a glyph to live in, the destructive action
+      // can only be told from cancel by language. On desktop the row's own ×
+      // already does this job, so the editor carries no delete button there.
+      const deleteButton = this.actionButton(
+        remove.label,
+        remove.action,
+        "structured-delete"
+      )
+      deleteButton.className = "structured_form_delete"
+      actions.append(deleteButton)
+    }
+    // Save then cancel, the same order as the inline filter row. The mobile
+    // action bar assigns its own grid columns, so it is unaffected.
+    actions.append(saveButton, cancelButton)
     form.addEventListener("submit", (event) => {
       event.preventDefault()
       actions.querySelector<HTMLButtonElement>("[data-testid='structured-save']")?.click()
     })
     form.append(error)
     form.append(actions)
-    root.append(form)
+    ;(presentation?.host || root).append(form)
+    // On touch the form is a full-screen subpage, so its title belongs in the
+    // header, where the back control is — not repeated inside the body.
+    if (this.onTouch && !presentation?.host) {
+      this.options.setDetailTitle?.(titleText)
+    }
+    tester?.refresh()
     inputs[0]?.focus()
+  }
+
+  /**
+   * Live preview for the rule being edited. It applies the expression through
+   * URLRedirect.apply_redirect — the same call the loader makes — so the
+   * preview cannot disagree with what the redirect will actually do. It shows
+   * this one rule rather than the whole chain, because that is the rule the
+   * person has in front of them.
+   */
+  private redirectTester(
+    pattern: FormField,
+    replacement: FormField
+  ): { element: HTMLElement; corpus: HTMLElement; refresh: () => void } {
+    const element = document.createElement("section")
+    element.className = "structured_redirect_tester"
+    const testLabel = document.createElement("label")
+    testLabel.className = "structured_form_field"
+    const testLabelName = document.createElement("span")
+    testLabelName.className = "structured_form_label"
+    testLabelName.textContent = "Test a URL"
+    const testInput = document.createElement("input")
+    testInput.type = "url"
+    testInput.className = "structured_redirect_test_input"
+    testInput.placeholder = "https://example.com/2026/an-article"
+    const storyUrls = this.options.loadedStoryUrls?.() || []
+    // Seed with the shortest loaded URL the rule already matches, so reopening
+    // a working rule shows it working rather than an empty box.
+    const seed = compileRedirect(pattern.value)
+    testInput.value = seed
+      ? [...storyUrls]
+        .sort((left, right) => left.length - right.length)
+        .find((url) => seed.test(url)) || ""
+      : ""
+    testLabel.append(testLabelName, testInput)
+    const output = document.createElement("div")
+    output.className = "structured_redirect_output"
+    const corpus = document.createElement("p")
+    corpus.className = "structured_redirect_corpus"
+
+    const line = (className: string, text: string): HTMLElement => {
+      const paragraph = document.createElement("p")
+      paragraph.className = className
+      paragraph.textContent = text
+      return paragraph
+    }
+    const labelled = (name: string): HTMLElement => {
+      const paragraph = document.createElement("p")
+      const strong = document.createElement("strong")
+      strong.textContent = name
+      paragraph.append(strong, document.createTextNode(" "))
+      return paragraph
+    }
+    const countMatches = (expression: RegExp | null): void => {
+      const matched = expression
+        ? storyUrls.filter((url) => expression.test(url)).length
+        : 0
+      corpus.textContent =
+        `Matches ${matched} of ${storyUrls.length} loaded stories`
+    }
+    const render = () => {
+      const url = testInput.value
+      output.textContent = ""
+      if (!pattern.value.trim()) {
+        countMatches(null)
+        output.append(line(
+          "structured_redirect_no_match",
+          "Enter a match expression"
+        ))
+        return
+      }
+      let expression: RegExp
+      try {
+        expression = new RegExp(pattern.value, "d")
+      } catch (caught) {
+        // A half-typed expression is the normal state while someone types. The
+        // parse message takes the Match line and Result is left empty, so the
+        // block keeps both its lines and does not resize under the thumb.
+        countMatches(null)
+        const failed = labelled("Match")
+        failed.classList.add("structured_redirect_parse_error")
+        failed.append(document.createTextNode(caught instanceof Error
+          ? caught.message
+          : "Invalid regular expression"))
+        output.append(failed, labelled("Result"))
+        return
+      }
+      countMatches(expression)
+      const match = expression.exec(url)
+      if (!match) {
+        // A valid but non-matching rule still costs one line, or the editor
+        // changes height under the user's thumb as they type.
+        output.append(line("structured_redirect_no_match", "No match"))
+        return
+      }
+      const matchLine = labelled("Match")
+      let cursor = 0
+      for (const [start, end] of captureRanges(match)) {
+        if (start < cursor) continue
+        matchLine.append(document.createTextNode(url.slice(cursor, start)))
+        const mark = document.createElement("mark")
+        mark.textContent = url.slice(start, end)
+        matchLine.append(mark)
+        cursor = end
+      }
+      matchLine.append(document.createTextNode(url.slice(cursor)))
+      const resultLine = labelled("Result")
+      resultLine.append(document.createTextNode(
+        `→ ${URLRedirect.apply_redirect(url, expression, replacement.value)}`
+      ))
+      output.append(matchLine, resultLine)
+    }
+    let timer: number | undefined
+    const refresh = () => {
+      window.clearTimeout(timer)
+      timer = window.setTimeout(render, 120)
+    }
+    for (const source of [pattern, replacement, testInput]) {
+      source.addEventListener("input", refresh)
+    }
+    element.append(testLabel, output)
+    return { element, corpus, refresh }
   }
 }

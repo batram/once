@@ -211,6 +211,12 @@ async function closeApp(electronApp, userData, { keepUserData = false } = {}) {
   }
 }
 
+async function expectDocumentFocus(locator) {
+  await expect.poll(() => locator.evaluate(
+    (element) => document.activeElement === element
+  )).toBe(true)
+}
+
 async function openPanel(window, panel) {
   const heading = window
     .getByTestId(`${panel}-menu`)
@@ -371,6 +377,7 @@ async function transferTab(electronApp, windowId, action, tabId) {
 
 module.exports = {
   closeApp,
+  expectDocumentFocus,
   getLiveContentsState,
   getOnceWindows,
   getWindowTabs,

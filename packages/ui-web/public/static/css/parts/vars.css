@@ -14,6 +14,19 @@
   --read-bg-color: light-dark(#ccc, #282a36);
   --text-high-color: light-dark(black, #bcc2cd);
   --text-color: light-dark(#828282, #828282);
+  --text-muted-color: light-dark(#6b6357, #9297a3);
+  /* Tint marking a row that is open for editing. Mixed from --text-high-color
+     because --text-color is a mid grey here, and 3% of a mid grey against the
+     input background is not a visible change in either theme. */
+  --editing-bg-color: color-mix(
+    in srgb,
+    var(--text-high-color) 7%,
+    var(--input-bg-color)
+  );
+  --error-color: light-dark(#c83d3d, #ff6b6b);
+  /* Was only ever referenced through a var() fallback, so dark mode silently
+     used the light theme's muddy amber. */
+  --warning-color: light-dark(#9a6200, #e2a642);
   --m-error: light-dark(#d33, #ff6b6b);
   --m-warning: light-dark(#9a6200, #e2a642);
   /* Swipe reveal colours, keyed by action rather than by stage so a

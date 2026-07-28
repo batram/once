@@ -129,6 +129,21 @@ async function startMobileApp(): Promise<void> {
     sourcePicker: true,
     initialStoryLoad: __ONCE_MOBILE_E2E__ ? "disabled" : "network"
   })
+  const settingsBack = document.querySelector<HTMLButtonElement>(
+    "#settings_section_back"
+  )
+  if (settingsBack) {
+    settingsBack.setAttribute("aria-label", "Back")
+    const closeSettingsSection = settingsBack.onclick
+    settingsBack.onclick = () => {
+      const settingsPanel = document.querySelector<HTMLElement>("#settings_panel")
+      if (settingsPanel?.classList.contains("settings_detail_open")) {
+        closeSettingsSection?.call(settingsBack, new PointerEvent("click"))
+        return
+      }
+      void reading.handleBack()
+    }
+  }
   if (__ONCE_MOBILE_E2E__) {
     // Lets the e2e suite await queued story saves instead of pausing blindly.
     ;(window as { __onceE2E__?: unknown }).__onceE2E__ = {

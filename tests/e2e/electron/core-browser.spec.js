@@ -1,6 +1,7 @@
 const { test, expect } = require("@playwright/test")
 const {
   closeApp,
+  expectDocumentFocus,
   launchApp,
   openSettingsSection,
   startPageServer
@@ -292,7 +293,7 @@ test("scrolls a new filter editor clear of sticky settings controls", async () =
     await window.getByTestId("add-filter").click()
 
     const input = window.getByTestId("filter-inline-input")
-    await expect(input).toBeFocused()
+    await expectDocumentFocus(input)
     await expect.poll(() => input.evaluate((element) => {
       const bounds = element.getBoundingClientRect()
       const section = element.closest(".settings_section").getBoundingClientRect()
@@ -314,7 +315,7 @@ test("scrolls a new filter editor clear of sticky settings controls", async () =
     await window.getByTestId("save-inline-filter").click()
     const saved = window.locator(`[data-filter-value="${value}"]`)
     const savedRow = saved.locator("xpath=..")
-    await expect(saved).toBeFocused()
+    await expectDocumentFocus(saved)
     await expect.poll(() => savedRow.evaluate((element) => {
       const bounds = element.getBoundingClientRect()
       const section = element.closest(".settings_section").getBoundingClientRect()
@@ -524,7 +525,10 @@ test("uses the dense desktop source-list geometry and toolbar", async () => {
             '[data-structured-section="sources"] .collector_badge'
           ).height)
         ],
-        status: Math.round(bounds(".structured_status_strip").height)
+        status: Math.round(bounds(
+          '.settings_section[data-settings-section="sources"]' +
+          " .structured_status_strip"
+        ).height)
       }
     })).toEqual({
       search: 22,
@@ -566,6 +570,14 @@ test("keeps every structured desktop editor usable", async () => {
       Math.round(element.getBoundingClientRect().width)
     )).toBeGreaterThan(160)
 
+    // One edit surface at a time: opening a row commits and closes whatever
+    // was open, rather than leaving two inputs on screen.
+    await window.getByTestId("filter-row").first().click()
+    await expect(window.getByTestId("filter-inline-input")).toHaveCount(1)
+    await window.getByTestId("filter-row").last().click()
+    await expect(window.getByTestId("filter-inline-input")).toHaveCount(1)
+    await expect(window.locator(".structured_row_editing")).toHaveCount(1)
+
     await openSettingsSection(window, "sources")
     await window.getByTestId("add-source").click()
     await expect(window.getByTestId("structured-item-form")).toBeVisible()
@@ -591,9 +603,17 @@ test("keeps every structured desktop editor usable", async () => {
       .getByRole("button", { name: "Cancel" }).click()
     await expect(window.getByTestId("add-redirect")).toBeVisible()
 
+    // Same rule for the redirect editors, which expand in place on desktop.
+    await window.getByTestId("redirect-row").first().click()
+    await expect(window.getByTestId("structured-item-form")).toHaveCount(1)
+    await window.getByTestId("redirect-row").first().click()
+    await expect(window.getByTestId("structured-item-form")).toHaveCount(1)
+
     await openSettingsSection(window, "sources")
     await window.getByTestId("sources-mode-toggle").click()
-    await expect(window.locator(".structured_status_strip")).toBeHidden()
+    await expect(window.locator(
+      ".settings_section[data-settings-section='sources'] .structured_status_strip"
+    )).toBeHidden()
     await expect(window.getByTestId("sources")).toBeVisible()
     await expect(window.getByTestId("save-sources")).toBeVisible()
     await expect(window.getByTestId("add-source")).toBeHidden()
