@@ -365,6 +365,22 @@ export class SettingsPanel {
       .addEventListener("change", () => {
         this.update_swipe_disabled_state()
       })
+    requireElement<HTMLInputElement>("#swipe_sticky_stages")
+      .addEventListener("change", () => {
+        this.update_sticky_strength_state()
+      })
+    requireElement<HTMLInputElement>("#swipe_sticky_strength")
+      .addEventListener("input", () => {
+        this.update_sticky_strength_value()
+      })
+    requireElement<HTMLInputElement>("#swipe_fast_mode")
+      .addEventListener("change", () => {
+        this.update_fast_swipe_state()
+      })
+    requireElement<HTMLInputElement>("#swipe_stage_2_lock_in")
+      .addEventListener("input", () => {
+        this.update_fast_swipe_value()
+      })
 
     // Cache timing settings
     this.restore_cache_settings()
@@ -1162,6 +1178,14 @@ export class SettingsPanel {
   private apply_swipe_settings(settings: SwipeSettings): void {
     requireElement<HTMLInputElement>("#swipe_two_stage").checked =
       settings.twoStage
+    requireElement<HTMLInputElement>("#swipe_sticky_stages").checked =
+      settings.stickyStages
+    requireElement<HTMLInputElement>("#swipe_sticky_strength").value =
+      String(settings.stickyStrength)
+    requireElement<HTMLInputElement>("#swipe_fast_mode").checked =
+      settings.fastSwipeMode
+    requireElement<HTMLInputElement>("#swipe_stage_2_lock_in").value =
+      String(settings.stage2LockInMs)
     for (const stage of [0, 1] as const) {
       this.swipeControl<HTMLInputElement>(`threshold-${stage}`).value =
         String(settings.stages[stage].threshold)
@@ -1171,6 +1195,8 @@ export class SettingsPanel {
         settings.left[stage]
     }
     this.update_swipe_disabled_state()
+    this.update_sticky_strength_state()
+    this.update_fast_swipe_state()
     this.refreshSettingsSearch()
   }
 
@@ -1187,6 +1213,44 @@ export class SettingsPanel {
       .forEach((control) => {
         control.disabled = !twoStage
       })
+    this.update_fast_swipe_state()
+  }
+
+  private update_sticky_strength_state(): void {
+    const enabled =
+      requireElement<HTMLInputElement>("#swipe_sticky_stages").checked
+    const strength =
+      requireElement<HTMLInputElement>("#swipe_sticky_strength")
+    strength.disabled = !enabled
+    strength.closest("p")?.classList.toggle("disabled", !enabled)
+    this.update_sticky_strength_value()
+  }
+
+  private update_sticky_strength_value(): void {
+    requireElement<HTMLOutputElement>(
+      "#swipe_sticky_strength_value"
+    ).value =
+      requireElement<HTMLInputElement>("#swipe_sticky_strength").value
+  }
+
+  private update_fast_swipe_state(): void {
+    const twoStage =
+      requireElement<HTMLInputElement>("#swipe_two_stage").checked
+    const mode = requireElement<HTMLInputElement>("#swipe_fast_mode")
+    const lockIn =
+      requireElement<HTMLInputElement>("#swipe_stage_2_lock_in")
+    mode.disabled = !twoStage
+    mode.closest("p")?.classList.toggle("disabled", !twoStage)
+    lockIn.disabled = !twoStage || !mode.checked
+    lockIn.closest("p")?.classList.toggle("disabled", lockIn.disabled)
+    this.update_fast_swipe_value()
+  }
+
+  private update_fast_swipe_value(): void {
+    requireElement<HTMLOutputElement>(
+      "#swipe_stage_2_lock_in_value"
+    ).value =
+      requireElement<HTMLInputElement>("#swipe_stage_2_lock_in").value + " ms"
   }
 
   private read_swipe_settings(): SwipeSettings {
@@ -1204,6 +1268,18 @@ export class SettingsPanel {
     // stored, so out-of-order thresholds typed here cannot be persisted.
     return {
       twoStage: requireElement<HTMLInputElement>("#swipe_two_stage").checked,
+      stickyStages:
+        requireElement<HTMLInputElement>("#swipe_sticky_stages").checked,
+      stickyStrength: Number.parseInt(
+        requireElement<HTMLInputElement>("#swipe_sticky_strength").value,
+        10
+      ),
+      fastSwipeMode:
+        requireElement<HTMLInputElement>("#swipe_fast_mode").checked,
+      stage2LockInMs: Number.parseInt(
+        requireElement<HTMLInputElement>("#swipe_stage_2_lock_in").value,
+        10
+      ),
       stages: [
         {
           threshold: number("threshold-0", DEFAULT_SWIPE_SETTINGS.stages[0].threshold),

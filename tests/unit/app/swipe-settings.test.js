@@ -15,6 +15,10 @@ test("defaults match the redesign's plateaus and actions", () => {
   assert.deepEqual(DEFAULT_SWIPE_SETTINGS.right, ["open", "open-reader"])
   assert.deepEqual(DEFAULT_SWIPE_SETTINGS.left, ["skip", "filter"])
   assert.equal(DEFAULT_SWIPE_SETTINGS.twoStage, true)
+  assert.equal(DEFAULT_SWIPE_SETTINGS.stickyStages, false)
+  assert.equal(DEFAULT_SWIPE_SETTINGS.stickyStrength, 65)
+  assert.equal(DEFAULT_SWIPE_SETTINGS.fastSwipeMode, false)
+  assert.equal(DEFAULT_SWIPE_SETTINGS.stage2LockInMs, 175)
 })
 
 test("missing or malformed settings fall back to the defaults", () => {
@@ -79,4 +83,34 @@ test("twoStage only turns off when explicitly false", () => {
   assert.equal(normalizeSwipeSettings({ twoStage: false }).twoStage, false)
   assert.equal(normalizeSwipeSettings({ twoStage: undefined }).twoStage, true)
   assert.equal(normalizeSwipeSettings({ twoStage: "no" }).twoStage, true)
+})
+
+test("sticky stages are opt-in and only turn on when explicitly true", () => {
+  assert.equal(normalizeSwipeSettings({ stickyStages: true }).stickyStages, true)
+  assert.equal(normalizeSwipeSettings({ stickyStages: false }).stickyStages, false)
+  assert.equal(normalizeSwipeSettings({ stickyStages: "yes" }).stickyStages, false)
+})
+
+test("sticky strength is configurable and clamped to its advertised range", () => {
+  assert.equal(normalizeSwipeSettings({ stickyStrength: 1 }).stickyStrength, 1)
+  assert.equal(normalizeSwipeSettings({ stickyStrength: 80 }).stickyStrength, 80)
+  assert.equal(normalizeSwipeSettings({ stickyStrength: 500 }).stickyStrength, 100)
+  assert.equal(normalizeSwipeSettings({ stickyStrength: -5 }).stickyStrength, 1)
+  assert.equal(
+    normalizeSwipeSettings({ stickyStrength: "invalid" }).stickyStrength,
+    DEFAULT_SWIPE_SETTINGS.stickyStrength
+  )
+})
+
+test("fast swipe protection is opt-in and lock-in time is normalized", () => {
+  assert.equal(normalizeSwipeSettings({ fastSwipeMode: true }).fastSwipeMode, true)
+  assert.equal(normalizeSwipeSettings({ fastSwipeMode: "yes" }).fastSwipeMode, false)
+  assert.equal(normalizeSwipeSettings({ stage2LockInMs: 75 }).stage2LockInMs, 75)
+  assert.equal(normalizeSwipeSettings({ stage2LockInMs: 176 }).stage2LockInMs, 175)
+  assert.equal(normalizeSwipeSettings({ stage2LockInMs: 5 }).stage2LockInMs, 75)
+  assert.equal(normalizeSwipeSettings({ stage2LockInMs: 900 }).stage2LockInMs, 500)
+  assert.equal(
+    normalizeSwipeSettings({ stage2LockInMs: "invalid" }).stage2LockInMs,
+    DEFAULT_SWIPE_SETTINGS.stage2LockInMs
+  )
 })

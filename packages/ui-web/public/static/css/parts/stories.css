@@ -108,7 +108,7 @@
   overflow: hidden;
   white-space: nowrap;
   color: var(--swipe-label-color);
-  font-weight: 600;
+  font-weight: 400;
   /* The diagonal wash the row has always had, densest at the outer corner the
      finger is heading for. Stage 2 spreads it the whole way across, so the
      escalation reads as more ink and not only as a different hue. */
@@ -116,8 +116,61 @@
   --swipe-reveal-spread: 55%;
 }
 
+.bb_slide [data-stage="1"],
+.bb_slide [data-stage="2"] {
+  font-weight: 600;
+}
+
 .bb_slide [data-stage="2"] {
   --swipe-reveal-spread: 100%;
+}
+
+.bb_slide .swipe_action_primary,
+.bb_slide .swipe_action_secondary {
+  display: block;
+  line-height: 1.15;
+}
+
+.bb_slide .swipe_action_primary {
+  position: absolute;
+  top: 50%;
+  max-width: calc(100% - 30px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transform: translateY(-50%);
+}
+
+.bb_slide .swipe_action_secondary {
+  --swipe-pending-color: var(--swipe-label-color);
+  position: absolute;
+  top: calc(50% + 0.25em);
+  max-width: calc(100% - 30px);
+  overflow: hidden;
+  color: var(--swipe-pending-color);
+  font-size: 0.75em;
+  font-weight: 400;
+  opacity: 0;
+  text-overflow: ellipsis;
+}
+
+.bb_slide [data-lock-phase="handoff"] .swipe_action_primary {
+  top: calc(50% - 0.45em);
+}
+
+.bb_slide [data-lock-phase="handoff"] .swipe_action_secondary {
+  animation: swipe-stage-handoff var(--swipe-handoff-duration, 100ms) linear forwards;
+}
+
+@keyframes swipe-stage-handoff {
+  from {
+    color: var(--swipe-label-color);
+    opacity: 0.35;
+  }
+
+  to {
+    color: var(--swipe-pending-color);
+    opacity: 1;
+  }
 }
 
 .bb_slide .swipe_left {
@@ -129,6 +182,11 @@
   );
 }
 
+.bb_slide .swipe_left .swipe_action_primary,
+.bb_slide .swipe_left .swipe_action_secondary {
+  left: 15px;
+}
+
 .bb_slide .swipe_right {
   padding-right: 15px;
   text-align: right;
@@ -137,6 +195,11 @@
     transparent calc(100% - var(--swipe-reveal-spread)),
     var(--swipe-reveal-color)
   );
+}
+
+.bb_slide .swipe_right .swipe_action_primary,
+.bb_slide .swipe_right .swipe_action_secondary {
+  right: 15px;
 }
 
 /* Colour follows the configured action, set by StoryListItem.update_reveal */
@@ -166,6 +229,39 @@
 
 .bb_slide [data-action="toggle-bookmark"] {
   --swipe-reveal-color: var(--swipe-toggle-bookmark-color);
+}
+
+.bb_slide .swipe_action_secondary[data-action="open"],
+.bb_slide .swipe_action_secondary[data-action="open-browser"] {
+  --swipe-pending-color: var(--swipe-open-color);
+}
+
+.bb_slide .swipe_action_secondary[data-action="open-reader"] {
+  --swipe-pending-color: var(--swipe-open-reader-color);
+}
+
+.bb_slide .swipe_action_secondary[data-action="skip"] {
+  --swipe-pending-color: var(--swipe-skip-color);
+}
+
+.bb_slide .swipe_action_secondary[data-action="filter"] {
+  --swipe-pending-color: var(--swipe-filter-color);
+}
+
+.bb_slide .swipe_action_secondary[data-action="toggle-read"] {
+  --swipe-pending-color: var(--swipe-toggle-read-color);
+}
+
+.bb_slide .swipe_action_secondary[data-action="toggle-bookmark"] {
+  --swipe-pending-color: var(--swipe-toggle-bookmark-color);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bb_slide [data-lock-phase="handoff"] .swipe_action_secondary {
+    animation: none;
+    color: var(--swipe-pending-color);
+    opacity: 1;
+  }
 }
 
 .read_btn::after {

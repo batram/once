@@ -38,6 +38,14 @@ export interface SwipeStageSetting {
 export interface SwipeSettings {
   /** false collapses the gesture to a single stage */
   twoStage: boolean
+  /** magnetically settles the row around each active stage threshold */
+  stickyStages: boolean
+  /** strength of the magnetic stage notches, from 1 (subtle) to 100 (strong) */
+  stickyStrength: number
+  /** protects stage one when a fast gesture only passes through stage two */
+  fastSwipeMode: boolean
+  /** uninterrupted time beyond stage two before its action becomes armed */
+  stage2LockInMs: number
   stages: [SwipeStageSetting, SwipeStageSetting]
   right: [SwipeActionId, SwipeActionId]
   left: [SwipeActionId, SwipeActionId]
@@ -45,6 +53,10 @@ export interface SwipeSettings {
 
 export const DEFAULT_SWIPE_SETTINGS: SwipeSettings = {
   twoStage: true,
+  stickyStages: false,
+  stickyStrength: 65,
+  fastSwipeMode: false,
+  stage2LockInMs: 175,
   stages: [
     // Stage 2 sits close to its own resting offset on purpose: you have to
     // drag most of the way there before it engages, so the escalation from
@@ -60,6 +72,10 @@ export const DEFAULT_SWIPE_SETTINGS: SwipeSettings = {
 const MIN_THRESHOLD = 16
 const MAX_THRESHOLD = 1000
 const MAX_FIRST_STAGE = MAX_THRESHOLD - 1
+const MIN_STICKY_STRENGTH = 1
+const MAX_STICKY_STRENGTH = 100
+const MIN_STAGE_2_LOCK_IN_MS = 75
+const MAX_STAGE_2_LOCK_IN_MS = 500
 
 export function isSwipeActionId(value: unknown): value is SwipeActionId {
   return typeof value === "string" && value in SWIPE_ACTION_LABELS
@@ -73,6 +89,27 @@ function clamp(
   const parsed = typeof value === "number" ? value : Number(value)
   if (!Number.isFinite(parsed)) return fallback
   return Math.round(Math.min(maximum, Math.max(MIN_THRESHOLD, parsed)))
+}
+
+function clampStickyStrength(value: unknown, fallback: number): number {
+  const parsed = typeof value === "number" ? value : Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.round(
+    Math.min(
+      MAX_STICKY_STRENGTH,
+      Math.max(MIN_STICKY_STRENGTH, parsed)
+    )
+  )
+}
+
+function clampStage2LockIn(value: unknown, fallback: number): number {
+  const parsed = typeof value === "number" ? value : Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  const clamped = Math.min(
+    MAX_STAGE_2_LOCK_IN_MS,
+    Math.max(MIN_STAGE_2_LOCK_IN_MS, parsed)
+  )
+  return Math.round(clamped / 25) * 25
 }
 
 /**
@@ -113,6 +150,16 @@ export function normalizeSwipeSettings(value: unknown): SwipeSettings {
 
   return {
     twoStage: source.twoStage !== false,
+    stickyStages: source.stickyStages === true,
+    stickyStrength: clampStickyStrength(
+      source.stickyStrength,
+      defaults.stickyStrength
+    ),
+    fastSwipeMode: source.fastSwipeMode === true,
+    stage2LockInMs: clampStage2LockIn(
+      source.stage2LockInMs,
+      defaults.stage2LockInMs
+    ),
     stages: [first, second],
     right: [
       action(source.right?.[0], defaults.right[0]),

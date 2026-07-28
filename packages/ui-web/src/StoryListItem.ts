@@ -40,7 +40,10 @@ export type SwipeStage = 0 | 1 | 2
 
 /** Where a drag rests and what it commits, for one set of settings. */
 export interface SwipeGeometry {
+  settings(): SwipeSettings
   stage(offset: number): SwipeStage
+  /** Display position after applying the optional magnetic stage notches. */
+  displayOffset(offset: number): number
   plateau(offset: number): number
   actionFor(offset: number): SwipeActionId
   /**
@@ -61,6 +64,8 @@ export function createSwipeGeometry(
   read: () => SwipeSettings
 ): SwipeGeometry {
   const geometry: SwipeGeometry = {
+    settings: read,
+
     stage(offset) {
       const distance = Math.abs(offset)
       const settings = read()
@@ -68,6 +73,47 @@ export function createSwipeGeometry(
       if (distance < first.threshold) return 0
       if (!settings.twoStage || distance < second.threshold) return 1
       return 2
+    },
+
+    displayOffset(offset) {
+      const settings = read()
+      if (!settings.stickyStages || offset === 0) return offset
+
+      // Strength expands both the magnetic approach and the flat center of
+      // the notch. At the default 65 this yields a clearly felt 36px capture
+      // band with a 16px snap zone; the low end remains deliberately subtle.
+      const strength = settings.stickyStrength / 100
+      const captureRadius = 10 + 40 * strength
+      const snapRadius = 2 + 22 * strength
+      const direction = Math.sign(offset)
+      const distance = Math.abs(offset)
+      const thresholds = settings.twoStage
+        ? settings.stages.map((stage) => stage.threshold)
+        : [settings.stages[0].threshold]
+      const target = thresholds.find(
+        (threshold) =>
+          Math.abs(distance - threshold) <= captureRadius
+      )
+      if (target === undefined) return offset
+
+      const delta = distance - target
+      const absoluteDelta = Math.abs(delta)
+      if (absoluteDelta <= snapRadius) {
+        return direction * target
+      }
+
+      // Ease into and out of the notch without changing the row position at
+      // the edge of its capture band. This gives the stage a tactile-feeling
+      // pause while preserving direct manipulation everywhere else.
+      const freeRange = captureRadius - snapRadius
+      const progress = (absoluteDelta - snapRadius) / freeRange
+      const attractedDistance =
+        target +
+        Math.sign(delta) *
+          captureRadius *
+          progress *
+          progress
+      return direction * attractedDistance
     },
 
     plateau(offset) {
@@ -495,11 +541,18 @@ export class StoryListItem extends HTMLElement {
 
   swipeable = (): void => {
     let start_offset = -1
-    // where the row currently rests, always 0 or one of the stage offsets
-    // how far the pointer has travelled from where the press started, and the
-    // stage that distance engages.
+    // Raw travel decides when stage two starts locking. Display travel may be
+    // magnetically adjusted, but must never arm a protected action early.
+    let raw_offset = 0
     let drag_offset = 0
+    let visual_stage: SwipeStage = 0
+    // The committed stage can intentionally trail the visual stage while a
+    // fast swipe is passing through stage two.
     let stage: SwipeStage = 0
+    let stage_2_direction = 0
+    let stage_2_timer: ReturnType<typeof setTimeout> | undefined
+    let stage_2_quiet_timer: ReturnType<typeof setTimeout> | undefined
+    let stage_2_lock_phase: "none" | "quiet" | "handoff" = "none"
     // Read per gesture rather than captured: a preview row is configured
     // after story_html() has already installed the handlers.
     const geometry = (): SwipeGeometry => this.swipePreview?.geometry ?? SwipeConfig
@@ -515,11 +568,27 @@ export class StoryListItem extends HTMLElement {
 
         const bb_slide_left = document.createElement("div")
         bb_slide_left.classList.add("swipe_left")
+        bb_slide_left.append(
+          Object.assign(document.createElement("span"), {
+            className: "swipe_action_primary"
+          }),
+          Object.assign(document.createElement("span"), {
+            className: "swipe_action_secondary"
+          })
+        )
         bb_slide_el.append(bb_slide_left)
         this.sw_left = bb_slide_left
 
         const bb_slide_right = document.createElement("div")
         bb_slide_right.classList.add("swipe_right")
+        bb_slide_right.append(
+          Object.assign(document.createElement("span"), {
+            className: "swipe_action_primary"
+          }),
+          Object.assign(document.createElement("span"), {
+            className: "swipe_action_secondary"
+          })
+        )
         bb_slide_el.append(bb_slide_right)
         this.sw_right = bb_slide_right
 
@@ -529,7 +598,7 @@ export class StoryListItem extends HTMLElement {
         this.before(bb_slide_el)
       }
       position_background()
-      update_reveal(drag_offset)
+      update_reveal(drag_offset, visual_stage)
     }
 
     // offsetTop/offsetHeight are layout positions, unaffected by the row's own
@@ -544,27 +613,119 @@ export class StoryListItem extends HTMLElement {
     // Reveal the first action as soon as the row moves. The stage still stays
     // at zero until its threshold, so an early release remains harmless, but
     // the gesture responds immediately instead of showing an empty gap.
-    const update_reveal = (offset: number) => {
+    const update_reveal = (
+      offset: number,
+      revealedStage: SwipeStage,
+      lockState: "none" | "pending" | "armed" = "none",
+      lockPhase: "none" | "quiet" | "handoff" = "none"
+    ) => {
       if (!this.sw_left || !this.sw_right) return
-      const stage = geometry().stage(offset)
       const revealed = offset > 0 ? this.sw_left : this.sw_right
       const hidden = offset > 0 ? this.sw_right : this.sw_left
+      const primary = revealed.querySelector<HTMLElement>(".swipe_action_primary")
+      const secondary =
+        revealed.querySelector<HTMLElement>(".swipe_action_secondary")
+      const hiddenPrimary =
+        hidden.querySelector<HTMLElement>(".swipe_action_primary")
+      const hiddenSecondary =
+        hidden.querySelector<HTMLElement>(".swipe_action_secondary")
+      if (!primary || !secondary || !hiddenPrimary || !hiddenSecondary) return
 
-      hidden.innerText = ""
+      hiddenPrimary.innerText = ""
+      hiddenSecondary.innerText = ""
       hidden.dataset.stage = "0"
       hidden.dataset.action = "none"
+      hidden.dataset.lock = "none"
+      hidden.dataset.lockPhase = "none"
+      hidden.dataset.pendingAction = "none"
 
       const direction = Math.sign(offset)
       const action =
         direction === 0
           ? "none"
-          : geometry().actionAt(stage === 0 ? 1 : stage, direction)
-      revealed.innerText =
-        direction === 0 ? "" : SWIPE_ACTION_LABELS[action]
-      revealed.dataset.stage = String(stage)
+          : geometry().actionAt(
+            revealedStage === 0 ? 1 : revealedStage,
+            direction
+          )
+      const pendingAction =
+        direction === 0 ? "none" : geometry().actionAt(2, direction)
+      const showHandoff =
+        lockState === "pending" &&
+        lockPhase === "handoff" &&
+        pendingAction !== action
+
+      primary.innerText = direction === 0 ? "" : SWIPE_ACTION_LABELS[action]
+      secondary.innerText =
+        showHandoff ? `Hold → ${SWIPE_ACTION_LABELS[pendingAction]}` : ""
+      secondary.dataset.action = showHandoff ? pendingAction : "none"
+      revealed.dataset.stage = String(revealedStage)
+      revealed.dataset.lock = lockState
+      revealed.dataset.lockPhase = lockPhase
+      revealed.dataset.pendingAction = showHandoff ? pendingAction : "none"
+      const lockInMs = geometry().settings().stage2LockInMs
+      const quietMs = Math.min(75, lockInMs)
+      revealed.style.setProperty(
+        "--swipe-handoff-duration",
+        Math.max(0, lockInMs - quietMs) + "ms"
+      )
       // CSS picks the reveal colour off the action, so a reconfigured swipe
       // keeps its colour meaning instead of colouring by stage number.
       revealed.dataset.action = action
+    }
+
+    const clear_stage_2_lock = () => {
+      if (stage_2_timer !== undefined) {
+        clearTimeout(stage_2_timer)
+        stage_2_timer = undefined
+      }
+      if (stage_2_quiet_timer !== undefined) {
+        clearTimeout(stage_2_quiet_timer)
+        stage_2_quiet_timer = undefined
+      }
+      stage_2_direction = 0
+      stage_2_lock_phase = "none"
+    }
+
+    const start_stage_2_lock = (direction: number) => {
+      clear_stage_2_lock()
+      stage_2_direction = direction
+      stage_2_lock_phase = "quiet"
+      stage = 1
+      const lockInMs = geometry().settings().stage2LockInMs
+      const quietMs = Math.min(75, lockInMs)
+      const stage1Action = geometry().actionAt(1, direction)
+      const stage2Action = geometry().actionAt(2, direction)
+      if (quietMs < lockInMs && stage1Action !== stage2Action) {
+        stage_2_quiet_timer = setTimeout(() => {
+          stage_2_quiet_timer = undefined
+          if (
+            stage_2_direction !== direction ||
+            geometry().stage(raw_offset) !== 2 ||
+            Math.sign(raw_offset) !== direction
+          ) {
+            return
+          }
+          stage_2_lock_phase = "handoff"
+          update_reveal(drag_offset, 1, "pending", "handoff")
+        }, quietMs)
+      }
+      stage_2_timer = setTimeout(() => {
+        stage_2_timer = undefined
+        if (stage_2_quiet_timer !== undefined) {
+          clearTimeout(stage_2_quiet_timer)
+          stage_2_quiet_timer = undefined
+        }
+        if (
+          stage_2_direction !== direction ||
+          geometry().stage(raw_offset) !== 2 ||
+          Math.sign(raw_offset) !== direction
+        ) {
+          return
+        }
+        stage = 2
+        stage_2_lock_phase = "none"
+        update_reveal(drag_offset, 2, "armed")
+      }, lockInMs)
     }
 
     const mouse_swipe = (event: MouseEvent) => {
@@ -599,10 +760,36 @@ export class StoryListItem extends HTMLElement {
     }
 
     const swipe = (x: number) => {
-      drag_offset = x - start_offset
-      const next_stage = geometry().stage(drag_offset)
-      stage = next_stage
-      update_reveal(drag_offset)
+      raw_offset = x - start_offset
+      drag_offset = geometry().displayOffset(raw_offset)
+      const settings = geometry().settings()
+      const raw_stage = geometry().stage(raw_offset)
+      // Preserve magnetic stage selection in the normal mode. Fast-swipe
+      // protection alone uses raw travel, so stickiness cannot preview or arm
+      // its protected second action before the finger actually reaches it.
+      visual_stage = settings.fastSwipeMode
+        ? raw_stage
+        : geometry().stage(drag_offset)
+      let lockState: "none" | "pending" | "armed" = "none"
+
+      if (settings.fastSwipeMode && settings.twoStage && raw_stage === 2) {
+        const direction = Math.sign(raw_offset)
+        if (stage_2_direction !== direction) {
+          start_stage_2_lock(direction)
+        }
+        lockState = stage === 2 ? "armed" : "pending"
+      } else {
+        clear_stage_2_lock()
+        stage = visual_stage
+      }
+      const revealedStage =
+        lockState === "pending" ? 1 : visual_stage
+      update_reveal(
+        drag_offset,
+        revealedStage,
+        lockState,
+        lockState === "pending" ? stage_2_lock_phase : "none"
+      )
       // Direct manipulation is deliberately 1:1, like the platform mail and
       // list patterns: thresholds select an action but never move the row on
       // the user's behalf.
@@ -655,7 +842,7 @@ export class StoryListItem extends HTMLElement {
       e.stopPropagation()
 
       const committed = stage
-      const direction = Math.sign(drag_offset)
+      const direction = Math.sign(raw_offset)
       reset_swipe()
       commit_swipe(committed, direction)
 
@@ -722,7 +909,10 @@ export class StoryListItem extends HTMLElement {
       this.bb_slide = undefined
 
       start_offset = -1
+      clear_stage_2_lock()
+      raw_offset = 0
       drag_offset = 0
+      visual_stage = 0
       stage = 0
       // spring back rather than snapping, so the release reads as a release
       this.style.transition = SWIPE_RELEASE_TRANSITION
