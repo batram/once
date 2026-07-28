@@ -24,10 +24,53 @@ declare const __ONCE_BUILD_CHANNEL__: "release" | "dev"
 declare const __ONCE_BUILD_IDENTIFIER__: string
 declare const __ONCE_MOBILE_E2E__: boolean
 
+const MOBILE_SCROLLBAR_IDLE_DELAY_MS = 650
+
+function installTransientScrollbars(): void {
+  const idleTimers = new WeakMap<Element, ReturnType<typeof setTimeout>>()
+  const indicators = new WeakMap<Element, HTMLElement>()
+
+  document.addEventListener("scroll", (event) => {
+    const scroller = event.target
+    if (!(scroller instanceof HTMLElement)) return
+    if (scroller.scrollHeight <= scroller.clientHeight) return
+
+    scroller.classList.add("mobile_scrollbar_active")
+    let indicator = indicators.get(scroller)
+    if (!indicator) {
+      indicator = document.createElement("div")
+      indicator.className = "mobile_scroll_indicator"
+      indicator.setAttribute("aria-hidden", "true")
+      document.body.append(indicator)
+      indicators.set(scroller, indicator)
+    }
+
+    const bounds = scroller.getBoundingClientRect()
+    const visibleRatio = scroller.clientHeight / scroller.scrollHeight
+    const indicatorHeight = Math.max(24, bounds.height * visibleRatio)
+    const scrollRange = scroller.scrollHeight - scroller.clientHeight
+    const travel = Math.max(0, bounds.height - indicatorHeight)
+    const progress = scrollRange > 0 ? scroller.scrollTop / scrollRange : 0
+    indicator.style.height = `${indicatorHeight}px`
+    indicator.style.top = `${bounds.top + travel * progress}px`
+    indicator.style.left = `${bounds.right - 5}px`
+    indicator.style.opacity = "1"
+
+    const previousTimer = idleTimers.get(scroller)
+    if (previousTimer) clearTimeout(previousTimer)
+    idleTimers.set(scroller, setTimeout(() => {
+      scroller.classList.remove("mobile_scrollbar_active")
+      indicator.style.opacity = "0"
+      idleTimers.delete(scroller)
+    }, MOBILE_SCROLLBAR_IDLE_DELAY_MS))
+  }, true)
+}
+
 async function startMobileApp(): Promise<void> {
   document.body.dataset.platform = "mobile"
   document.body.dataset.buildChannel = __ONCE_BUILD_CHANNEL__
   document.body.dataset.onceStage = "platform"
+  installTransientScrollbars()
 
   const nativeBridge = createDefaultMobileNativeBridge()
   const platform = createMobilePlatform(nativeBridge)

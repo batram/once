@@ -137,15 +137,26 @@ test("list settings are the default and expose structured add actions", async ({
   )).toHaveCount(0)
   const sourceList = page.getByTestId("sources-structured-list")
   const scrollMetrics = await sourceList.evaluate((element) => {
+    const widthBeforeScroll = element.clientWidth
     element.scrollTop = element.scrollHeight
     return {
       top: element.scrollTop,
       height: element.clientHeight,
-      scrollHeight: element.scrollHeight
+      scrollHeight: element.scrollHeight,
+      widthBeforeScroll,
+      widthWhileScrolling: element.clientWidth
     }
   })
   expect(scrollMetrics.scrollHeight).toBeGreaterThan(scrollMetrics.height)
   expect(scrollMetrics.top).toBeGreaterThan(0)
+  expect(scrollMetrics.widthWhileScrolling).toBe(scrollMetrics.widthBeforeScroll)
+  await expect(sourceList).toHaveClass(/\bmobile_scrollbar_active\b/)
+  await expect(page.locator(".mobile_scroll_indicator")).toBeVisible()
+  await expect(sourceList).not.toHaveClass(
+    /\bmobile_scrollbar_active\b/,
+    { timeout: 1_500 }
+  )
+  await expect(page.locator(".mobile_scroll_indicator")).toHaveCSS("opacity", "0")
 
   await addSource.click()
   await page.getByTestId("add-source-entry").click()
@@ -660,15 +671,17 @@ test("mobile shell is responsive and hides unavailable capabilities", async ({ p
   await expect(page.getByTestId("settings-menu")).toBeVisible()
   await expect(page.getByTestId("stories-menu")).toBeVisible()
   expect(await page.locator("#left_panel").evaluate((element) => element.scrollWidth <= window.innerWidth)).toBe(true)
-  expect(await page.locator("#stories").evaluate((stories) => {
+  const trailingStorySpace = await page.locator("#stories").evaluate((stories) => {
     const finalStory = document.createElement("article")
     finalStory.style.cssText = "display:block;flex:0 0 1200px;height:1200px"
     stories.replaceChildren(finalStory)
     stories.scrollTop = stories.scrollHeight
     const menu = document.querySelector("#menu")
-    return finalStory.getBoundingClientRect().bottom <=
-      menu.getBoundingClientRect().top
-  })).toBe(true)
+    return menu.getBoundingClientRect().top -
+      finalStory.getBoundingClientRect().bottom
+  })
+  expect(trailingStorySpace).toBeGreaterThanOrEqual(0)
+  expect(trailingStorySpace).toBeLessThanOrEqual(1)
 })
 
 test("settings menu always resets to a clean section index", async ({ page }) => {

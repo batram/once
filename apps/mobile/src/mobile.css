@@ -43,6 +43,31 @@ body[data-platform="mobile"] {
   -webkit-text-size-adjust: 100%;
 }
 
+/* Mobile platforms use overlay scroll indicators: they do not reserve a
+   gutter, appear only while content is moving, and then quietly fade away.
+   This also neutralises the permanently painted desktop scrollbar from
+   base.css inside the mobile WebView. */
+body[data-platform="mobile"] * {
+  scrollbar-width: none;
+  scrollbar-gutter: auto;
+}
+
+body[data-platform="mobile"] *::-webkit-scrollbar {
+  display: none;
+}
+
+body[data-platform="mobile"] .mobile_scroll_indicator {
+  position: fixed;
+  z-index: 10000;
+  width: 3px;
+  min-height: 24px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-color) 55%, transparent);
+  opacity: 1;
+  pointer-events: none;
+  transition: opacity 180ms ease-out;
+}
+
 /* ---------- Shell layout ---------- */
 
 body[data-platform="mobile"] #window_content,
@@ -66,7 +91,9 @@ body[data-platform="mobile"] #left_main {
 
 body[data-platform="mobile"] #stories {
   box-sizing: border-box;
-  padding-bottom: calc(var(--m-tabbar-h) + var(--m-sp-3));
+  /* One physical boundary pixel keeps the last row above the tab-bar border
+     without adding a visible content gutter. */
+  padding-bottom: 1px;
 }
 
 body[data-platform="mobile"] #mobile_filter_chips {
