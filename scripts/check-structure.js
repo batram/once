@@ -16,6 +16,7 @@ const ignored = [
   /^apps\/mobile\/android\/gradle\//,
   /^apps\/mobile\/android\/app\/src\/main\/res\//,
   /^apps\/mobile\/ios\/App\/App\.xcodeproj\//,
+  /^apps\/mobile\/ios\/App\/App\/public\//,
   /\.min\.js$/
 ]
 
