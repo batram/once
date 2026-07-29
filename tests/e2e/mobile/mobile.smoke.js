@@ -52,24 +52,47 @@ async function settledStoryWrites() {
 // synthesized PointerEvents (a real webdriver long-press would trigger the OS
 // context menu / text selection instead on some platforms).
 // `action` is a StoryMenuActionId, e.g. "open-reader" or "toggle-read".
-async function storyMenuAction(story, action, platform) {
-  // State changes re-render the story row, staling old element handles, and
-  // browser.execute does not re-fetch stale references — re-resolve first.
-  const target = await $(story.selector)
-  await target.waitForDisplayed({ timeout: 10_000 })
+async function openStoryMenuWithLongPress(target) {
   await browser.execute((el) => {
+    window.__onceStoryMenuRequested = false
+    document.addEventListener("story-menu-request", () => {
+      window.__onceStoryMenuRequested = true
+    }, { once: true })
     el.dispatchEvent(new PointerEvent("pointerdown", {
       bubbles: true, cancelable: true, isPrimary: true,
       pointerId: 1, pointerType: "touch", button: 0
     }))
   }, target)
-  await browser.pause(700) // long-press threshold is 500ms
-  await browser.execute((el) => {
-    el.dispatchEvent(new PointerEvent("pointerup", {
-      bubbles: true, cancelable: true, isPrimary: true,
-      pointerId: 1, pointerType: "touch", button: 0
-    }))
-  }, target)
+  try {
+    await browser.waitUntil(
+      async () => browser.execute(() => window.__onceStoryMenuRequested === true),
+      {
+        timeout: 5_000,
+        timeoutMsg: "Long-press did not request the story menu"
+      }
+    )
+  } finally {
+    await browser.execute((el) => {
+      el.dispatchEvent(new PointerEvent("pointerup", {
+        bubbles: true, cancelable: true, isPrimary: true,
+        pointerId: 1, pointerType: "touch", button: 0
+      }))
+    }, target)
+  }
+}
+
+async function storyMenuAction(story, action, platform, { viaLongPress = false } = {}) {
+  // State changes re-render the story row, staling old element handles, and
+  // browser.execute does not re-fetch stale references — re-resolve first.
+  const target = await $(story.selector)
+  await target.waitForDisplayed({ timeout: 10_000 })
+  if (viaLongPress) {
+    await openStoryMenuWithLongPress(target)
+  } else {
+    const menuButton = await target.$("[data-testid='story-menu-button']")
+    await menuButton.waitForDisplayed({ timeout: 10_000 })
+    await clickWeb(menuButton, platform)
+  }
 
   if (platform === "ios" || platform === "android") {
     await selectNativeStoryMenuAction(action, platform)
@@ -110,6 +133,12 @@ async function selectNativeStoryMenuAction(action, platform) {
   await browser.switchContext("NATIVE_APP")
   let row
   await browser.waitUntil(async () => {
+    if (platform === "android") {
+      const anrDialog = await $("android=new UiSelector().textContains(\"isn't responding\")")
+      if (await anrDialog.isDisplayed()) {
+        throw new Error("Android system ANR dialog appeared while the story menu was open")
+      }
+    }
     for (const label of labels) {
       const selector = platform === "ios"
         ? `-ios predicate string:name == "${label}"`
@@ -243,7 +272,7 @@ describe("Once mobile", () => {
         }
       })
     })
-    await storyMenuAction(story, "open-reader", platform)
+    await storyMenuAction(story, "open-reader", platform, { viaLongPress: true })
     await $("#reading_content").waitForDisplayed({ timeout: 30_000 })
     await browser.waitUntil(async () =>
       (await browser.execute(() => window.__onceTtsSeen)).length > 0, {
