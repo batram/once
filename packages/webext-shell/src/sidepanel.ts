@@ -10,12 +10,14 @@ import {
   StoryMenuActionId
 } from "@once/ui-web"
 import { createWebExtPlatform } from "@once/platform-webext"
+import { isStoryMenuActionForContext } from "./storyMenuBackground"
 
 declare const __ONCE_WEBEXT_TARGET__: "chrome" | "firefox"
 declare const __ONCE_BUILD_CHANNEL__: "release" | "dev"
 declare const __ONCE_BUILD_IDENTIFIER__: string
 
 document.addEventListener("DOMContentLoaded", async () => {
+  const storyMenuContextId = crypto.randomUUID()
   const platform = createWebExtPlatform(browser)
   const testMode = new URLSearchParams(window.location.search).has("once-e2e")
   if (testMode) {
@@ -53,6 +55,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     })
     void browser.runtime.sendMessage({
       onceCommand: "story-menu-context",
+      contextId: storyMenuContextId,
       items
     })
     if (__ONCE_WEBEXT_TARGET__ === "firefox") {
@@ -66,9 +69,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   browser.runtime.onMessage.addListener((message: {
     onceCommand?: string
     action?: StoryMenuActionId
+    contextId?: string
     targetElementId?: number
   }) => {
-    if (message.onceCommand !== "story-menu-action" || !message.action) return
+    if (
+      !isStoryMenuActionForContext(message, storyMenuContextId) ||
+      !message.action
+    ) return
     const menus = browser.menus as unknown as {
       getTargetElement?(id: number): Element | null
     }

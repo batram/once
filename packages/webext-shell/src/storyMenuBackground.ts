@@ -1,4 +1,5 @@
 export interface NativeStoryMenuState {
+  contextId: string
   items: {
     id: string
     label: string
@@ -6,6 +7,21 @@ export interface NativeStoryMenuState {
     enabled: boolean
     visible: boolean
   }[]
+}
+
+export interface NativeStoryMenuAction {
+  onceCommand: "story-menu-action"
+  action: string
+  contextId: string
+  targetElementId?: number
+}
+
+export function isStoryMenuActionForContext(
+  message: { onceCommand?: string; contextId?: string },
+  contextId: string
+): message is NativeStoryMenuAction {
+  return message.onceCommand === "story-menu-action" &&
+    message.contextId === contextId
 }
 
 const prefix = "once_story_"
@@ -35,6 +51,7 @@ export function installStoryMenuBackground(browserApi: typeof browser): void {
     throw new Error("The WebExtension menus API is unavailable")
   }
   const pagePattern = browserApi.runtime.getURL("/static/sidepanel.html") + "*"
+  let menuContextId: string | undefined
 
   const createMenus = async (): Promise<void> => {
     await menus.removeAll()
@@ -66,9 +83,15 @@ export function installStoryMenuBackground(browserApi: typeof browser): void {
 
   browserApi.runtime.onMessage.addListener((message: {
     onceCommand?: string
+    contextId?: string
     items?: NativeStoryMenuState["items"]
   }) => {
-    if (message.onceCommand !== "story-menu-context" || !message.items) return
+    if (
+      message.onceCommand !== "story-menu-context" ||
+      !message.contextId ||
+      !message.items
+    ) return
+    menuContextId = message.contextId
     const items = message.items
     void (async () => {
       const state = new Map(items.map((item) => [item.id, item]))
@@ -104,10 +127,15 @@ export function installStoryMenuBackground(browserApi: typeof browser): void {
 
   menus.onClicked.addListener((info) => {
     const id = String(info.menuItemId)
-    if (!id.startsWith(prefix) || id.includes("separator_")) return
+    if (
+      !id.startsWith(prefix) ||
+      id.includes("separator_") ||
+      !menuContextId
+    ) return
     void browserApi.runtime.sendMessage({
       onceCommand: "story-menu-action",
       action: id.slice(prefix.length),
+      contextId: menuContextId,
       targetElementId: info.targetElementId
     })
   })
