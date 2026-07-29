@@ -23,7 +23,7 @@
     "build:mobile": "npm run mobile -- web --channel release",
     "build:mobile:dev": "npm run mobile -- web --channel dev",
     "build:packages": "tsc -b tsconfig.packages.json && node scripts/copy-package-assets.js",
-    "check": "npm run lint && npm run check:structure && npm run check:dead-code && npm run check:types && npm run check:boundaries && npm run build:extensions:dev && npm run build:electron && npm run build:mobile:dev",
+    "check": "npm run lint && npm run check:structure && npm run check:types && npm run check:dead-code && npm run check:boundaries && npm run build:extensions:dev && npm run build:electron && npm run build:mobile:dev",
     "check:boundaries": "node scripts/check-boundaries.js",
     "check:dead-code": "knip --include files,exports,types --no-progress",
     "check:structure": "node scripts/check-structure.js",
