@@ -769,8 +769,11 @@ test("launches a secure browser shell with legacy tab interactions", async () =>
     const buildInfo = await window.evaluate(() =>
       window.onceElectron.app.getBuildInfo()
     )
+    const expectedVersion = buildInfo.buildIdentifier
+      ? `${buildInfo.version} (${buildInfo.buildIdentifier})`
+      : buildInfo.version
     await expect(window.getByTestId("app-version")).toHaveText(
-      `${buildInfo.version} (${buildInfo.buildIdentifier})`
+      expectedVersion
     )
     const updateButton = await openSettingsSection(
       window,
