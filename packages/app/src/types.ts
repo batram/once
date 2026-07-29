@@ -161,7 +161,7 @@ export interface StoryStorePort {
 }
 
 export interface SyncServicePort {
-  syncFrom(couchdbUrl: string): void
+  syncFrom(couchdbUrl: string, getLoadedStoryIds?: () => string[]): void
   onDiagnostic?(handler: (error: DiagnosticError) => void): () => void
   onStatus?(handler: (status: SyncStatus) => void): () => void
   onRemoteChange?(handler: (change: DatabaseChange) => void): () => void
@@ -192,6 +192,7 @@ export interface DatabaseChange {
   id: string
   doc?: Record<string, unknown>
   presentation?: "foreground" | "background"
+  authoritative?: boolean
 }
 
 export interface OncePlatformPorts {

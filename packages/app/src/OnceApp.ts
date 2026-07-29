@@ -130,7 +130,7 @@ export class OnceApp {
     }
     try {
       const syncUrl = await this.getSyncUrl()
-      this.platform.syncService?.syncFrom(syncUrl)
+      this.syncFrom(syncUrl)
     } catch (error) {
       this.reportStartupSettingError("sync", error)
     }
@@ -297,7 +297,7 @@ export class OnceApp {
         })
         throw error
       }
-      this.platform.syncService?.syncFrom(syncUrl)
+      this.syncFrom(syncUrl)
     }
     this.events.publish("settingsChanged", { section: "sync" })
   }
@@ -309,6 +309,14 @@ export class OnceApp {
       this.reportStartupSettingError("cache", error)
       return 120
     }
+  }
+
+  private syncFrom(syncUrl: string): void {
+    this.platform.syncService?.syncFrom(syncUrl, () =>
+      Array.from(this.stories.keys(), (href) =>
+        this.platform.storyStore.storyId(href)
+      )
+    )
   }
 
   private async setCacheTime(cacheTime: string): Promise<void> {
@@ -1060,8 +1068,10 @@ export class OnceApp {
     const remoteStory = Story.from_obj(change.doc)
     const currentStory = this.getStory(remoteStory.href)
     const localStory = await this.platform.storyStore.getStory(remoteStory.href)
-    const mergeBase = currentStory ?? localStory ?? remoteStory
-    const merged = mergeStorySyncState(mergeBase, remoteStory)
+    const mergeBase = localStory ?? currentStory ?? remoteStory
+    const merged = change.authoritative
+      ? acceptRemoteStorySyncState(mergeBase, remoteStory)
+      : mergeStorySyncState(mergeBase, remoteStory)
     let effectiveStory = localStory ?? remoteStory
 
     if (!sameStorySyncState(merged, effectiveStory)) {
@@ -1107,6 +1117,17 @@ function mergeStorySyncState(local: Story, remote: Story): Story {
     merged.sync_updated_at = timestamps
   }
   return merged
+}
+
+function acceptRemoteStorySyncState(local: Story, remote: Story): Story {
+  const accepted = Story.from_obj(local.to_obj())
+  syncedStoryFields.forEach((field) => {
+    accepted[field] = remote[field] as never
+  })
+  accepted.sync_updated_at = remote.sync_updated_at
+    ? { ...remote.sync_updated_at }
+    : undefined
+  return accepted
 }
 
 function legacyStoryFieldRank(

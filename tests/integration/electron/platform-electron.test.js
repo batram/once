@@ -201,7 +201,10 @@ test("syncs settings, newest stories, backlog, then starts live sync", async () 
   service.onStatus((status) => statuses.push(status))
   service.onRemoteChange((change) => remoteChanges.push(change))
 
-  service.syncFrom("https://example.test/once")
+  service.syncFrom(
+    "https://example.test/once",
+    () => ["sto_loaded", "sto_loaded", "sto_visible"]
+  )
   assert.deepEqual(replications[0].options.doc_ids, [
     "story_sources",
     "filter_list",
@@ -213,38 +216,70 @@ test("syncs settings, newest stories, backlog, then starts live sync", async () 
   replications[0].chain.emit("complete", {})
   await nextTurn()
   assert.deepEqual(replications[1].options.doc_ids, [
+    "sto_loaded",
+    "sto_visible"
+  ])
+  assert.equal(statuses.at(-1).message, "Refreshing loaded stories…")
+
+  replications[1].chain.emit("change", {
+    docs: [{ _id: "sto_loaded", href: "loaded" }]
+  })
+  replications[1].chain.emit("complete", {})
+  await nextTurn()
+  assert.deepEqual(replications[2].options.doc_ids, [
     "sto_newest",
     "sto_next"
   ])
   assert.match(statuses.at(-1).message, /newest stories/)
 
-  replications[1].chain.emit("change", {
+  replications[2].chain.emit("change", {
     docs: [
       { _id: "sto_newest", href: "newest" },
       { _id: "sto_next", href: "next" }
     ]
   })
   assert.equal(statuses.at(-1).message, "Loading newest stories (2/2)…")
-  replications[1].chain.emit("complete", {})
+  replications[2].chain.emit("complete", {})
   await nextTurn()
-  assert.equal(replications[2].options, undefined)
+  assert.equal(replications[3].options, undefined)
   assert.equal(statuses.at(-1).message, "Loading older stories…")
 
-  replications[2].chain.emit("change", {
+  replications[3].chain.emit("change", {
     docs: [{ _id: "sto_older", href: "older" }]
   })
-  replications[2].chain.emit("complete", {})
+  replications[3].chain.emit("complete", {})
   await nextTurn()
   assert.equal(syncs.length, 1)
   assert.equal(syncs[0].target, remote)
   assert.equal(statuses.at(-1).state, "up-to-date")
-  assert.equal(statuses.at(-1).changes, 3)
+  assert.equal(statuses.at(-1).changes, 4)
   assert.deepEqual(
-    remoteChanges.map(({ id, presentation }) => ({ id, presentation })),
+    remoteChanges.map(({ id, presentation, authoritative }) => ({
+      id,
+      presentation,
+      authoritative: authoritative ?? false
+    })),
     [
-      { id: "sto_newest", presentation: "foreground" },
-      { id: "sto_next", presentation: "foreground" },
-      { id: "sto_older", presentation: "background" }
+      {
+        id: "sto_loaded",
+        presentation: "foreground",
+        authoritative: true
+      },
+      {
+        id: "sto_newest",
+        presentation: "foreground",
+        authoritative: false
+      },
+      {
+        id: "sto_next",
+        presentation: "foreground",
+        authoritative: false
+      },
+      {
+        id: "sto_older",
+        presentation: "background",
+        authoritative: false
+      }
     ]
   )
 })

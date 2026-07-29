@@ -36,6 +36,7 @@ export interface PouchRemoteChange {
   id: string
   doc: Record<string, unknown>
   presentation: "foreground" | "background"
+  authoritative?: boolean
 }
 
 export class PouchSyncService {
@@ -120,7 +121,7 @@ export class PouchSyncService {
     )
   }
 
-  syncFrom(couchdbUrl: string): void {
+  syncFrom(couchdbUrl: string, getLoadedStoryIds?: () => string[]): void {
     const syncOps = {
       live: true,
       retry: true,
@@ -158,7 +159,7 @@ export class PouchSyncService {
       return
     }
 
-    void this.runInitialSync(remote, generation)
+    void this.runInitialSync(remote, generation, getLoadedStoryIds)
       .then((initialChanges) => {
         if (this.generation !== generation) return
         this.initialReplication = undefined
@@ -182,13 +183,15 @@ export class PouchSyncService {
 
   private async runInitialSync(
     remote: string | PouchSyncDatabase,
-    generation: number
+    generation: number,
+    getLoadedStoryIds?: () => string[]
   ): Promise<number> {
     let changes = 0
     const replicateStage = async (
       message: string | ((stageChanges: number) => string),
       options?: Record<string, unknown>,
-      presentation: "foreground" | "background" = "background"
+      presentation: "foreground" | "background" = "background",
+      authoritative = false
     ): Promise<void> => {
       if (this.generation !== generation) return
       let stageChanges = 0
@@ -204,6 +207,7 @@ export class PouchSyncService {
         options,
         generation,
         presentation,
+        authoritative,
         (count) => {
           stageChanges += count
           changes += count
@@ -219,6 +223,16 @@ export class PouchSyncService {
     await replicateStage("Syncing settings…", {
       doc_ids: PouchSyncService.SETTINGS_DOCUMENT_IDS
     })
+
+    const loadedStoryIds = Array.from(new Set(getLoadedStoryIds?.() ?? []))
+    if (loadedStoryIds.length > 0) {
+      await replicateStage(
+        "Refreshing loaded stories…",
+        { doc_ids: loadedStoryIds },
+        "foreground",
+        true
+      )
+    }
 
     const newestIds = await this.findNewestStoryIds(remote, generation)
     if (newestIds.length > 0) {
@@ -239,6 +253,7 @@ export class PouchSyncService {
     options: Record<string, unknown> | undefined,
     generation: number,
     presentation: "foreground" | "background",
+    authoritative: boolean,
     onChange: (count: number) => void
   ): Promise<number> {
     return new Promise((resolve, reject) => {
@@ -256,7 +271,12 @@ export class PouchSyncService {
           const count = this.changeCount(info)
           stageChanges += count
           onChange(count)
-          this.notifyRemoteChanges(info, false, presentation)
+          this.notifyRemoteChanges(
+            info,
+            false,
+            presentation,
+            authoritative
+          )
         })
         .on("complete", () => {
           if (
@@ -372,7 +392,8 @@ export class PouchSyncService {
   private notifyRemoteChanges(
     event: unknown,
     requirePull = false,
-    presentation: "foreground" | "background" = "background"
+    presentation: "foreground" | "background" = "background",
+    authoritative = false
   ): void {
     if (!event || typeof event !== "object") return
     const record = event as {
@@ -384,7 +405,12 @@ export class PouchSyncService {
     const docs = record.docs ?? record.change?.docs ?? []
     docs.forEach((doc) => {
       if (typeof doc._id !== "string" || !doc._id.startsWith("sto_")) return
-      const change = { id: doc._id, doc, presentation }
+      const change = {
+        id: doc._id,
+        doc,
+        presentation,
+        ...(authoritative ? { authoritative: true } : {})
+      }
       this.remoteChangeHandlers.forEach((handler) => handler(change))
     })
   }

@@ -29,6 +29,21 @@ test("starts from stored stories and persists story changes", async () => {
   assert.equal(changes.at(-1).value, "read")
 })
 
+test("provides the current loaded-story ids to a new database sync", async () => {
+  const story = new Story("rss", "https://example.com/story", "A story")
+  const fake = createFakePlatform([story])
+  let getLoadedStoryIds
+  fake.ports.syncService.syncFrom = (_url, getIds) => {
+    getLoadedStoryIds = getIds
+  }
+  const app = createOnceApp(fake.ports)
+  await app.start()
+
+  assert.deepEqual(getLoadedStoryIds(), [])
+  await app.client.getStories()
+  assert.deepEqual(getLoadedStoryIds(), [`sto_${story.href}`])
+})
+
 test("persists rapid changes to one story in interaction order", async () => {
   const story = new Story("rss", "https://example.com/story", "A story")
   const fake = createFakePlatform([story])
@@ -352,6 +367,51 @@ test("uses field timestamps to converge story state without repeated writes", as
 
   assert.deepEqual(savedStates, [])
   assert.equal((await app.client.findStoryByUrl(story.href)).read_state, "read")
+})
+
+test("accepts remote state as authoritative for the loaded-story refresh", async () => {
+  const story = new Story("rss", "https://example.com/story", "A story")
+  story.read_state = "read"
+  story.stared = true
+  story.filter = "local"
+  story.sync_updated_at = {
+    read_state: 300,
+    stared: 300,
+    filter: 300
+  }
+  story._rev = "3-local"
+  const fake = createFakePlatform([story])
+  const app = createOnceApp(fake.ports)
+  await app.start()
+
+  fake.emitRemoteDatabaseChange({
+    id: `sto_${story.href}`,
+    doc: {
+      ...story.to_obj(),
+      _rev: "4-remote",
+      read_state: "unread",
+      stared: false,
+      filter: "",
+      sync_updated_at: {
+        read_state: 100,
+        stared: 100,
+        filter: 100
+      }
+    },
+    presentation: "foreground",
+    authoritative: true
+  })
+  await app.client.settledStoryWrites()
+
+  const accepted = await app.client.findStoryByUrl(story.href)
+  assert.equal(accepted.read_state, "unread")
+  assert.equal(accepted.stared, false)
+  assert.equal(accepted.filter, "")
+  assert.deepEqual(accepted.sync_updated_at, {
+    read_state: 100,
+    stared: 100,
+    filter: 100
+  })
 })
 
 test("rejects empty new stories and does not index empty comment URLs", async () => {
