@@ -32,37 +32,35 @@ The discovery and guardrail work is in place:
 
 For Settings, `SettingsPanel.ts` now mainly owns navigation and composition.
 Persistence, summaries, subscriptions, highlighting, control binding, flat
-filter/redirect editing, redirect testing, and drag/reorder helpers have been
-extracted. `StructuredSettingsEditors.ts` remains the public facade.
+filter/redirect editing, redirect testing, shared forms and add controls,
+source state/editing, source rows, source groups, and source/group reorder
+behavior have been extracted. `StructuredSettingsEditors.ts` remains the
+public facade.
 
 The last verified checkpoint passed:
 
 - `npm run check`
-- `npm run test:unit` (139 tests)
+- `npm run test:unit` (143 tests)
 - `npm run test:collectors` (23 tests)
 - `npm run check:dead-code`
 - `npm exec knip -- --no-progress`
+- focused mobile source-group Playwright tests (2 tests)
 - `git diff --check`
 
 Treat test counts as checkpoint information, not fixed expectations.
 
 ## Next change
 
-Extract source and source-group behavior from
-`packages/ui-web/src/StructuredSettingsEditors.ts`.
+Split `StoryListItem` markup/actions from swipe geometry and animation.
 
-1. Separate source-group rendering and reorder state from source-row rendering
-   and editing.
-2. Keep `StructuredSettingsEditors` as the facade.
-3. Preserve selectors, serialized settings, callbacks, parser exports, and
-   text/list-mode coordination.
+1. Keep `StoryListItem` as the public facade and preserve its existing exports.
+2. Separate markup and action wiring from gesture state, geometry, and
+   animation completion.
+3. Preserve selectors, callback order, swipe thresholds, cancellation, and
+   accessibility labels.
 4. Add focused DOM tests for each extracted stateful behavior.
-5. Remove the related entries from `scripts/structure-exceptions.json` only
-   after the facade and extracted functions meet the enforced limits.
-
-The current relevant exceptions are `renderSources`, `sourceRow`, `showForm`,
-anonymous callback wiring, and the `StructuredSettingsEditors.ts` file limit.
-Do not move a large function unchanged merely to move its exception.
+5. Remove the related `StoryListItem.ts` structure exceptions only after the
+   facade and extracted functions meet the enforced limits.
 
 ## Refactor invariants
 
@@ -82,13 +80,12 @@ Do not move a large function unchanged merely to move its exception.
 
 After Settings, take one behavior-preserving area at a time:
 
-1. Split `StoryListItem` markup/actions from swipe geometry and animation.
-2. Extract loading, working-set, persistence reconciliation, and settings
+1. Extract loading, working-set, persistence reconciliation, and settings
    access behind the `OnceApp` facade.
-3. Continue splitting Electron lifecycle/navigation coordination and mobile
+2. Continue splitting Electron lifecycle/navigation coordination and mobile
    reading/native-surface coordination.
-4. Split `SwipeSettingsLab` gesture simulation from persistence.
-5. Split large E2E suites by feature without reducing coverage.
+3. Split `SwipeSettingsLab` gesture simulation from persistence.
+4. Split large E2E suites by feature without reducing coverage.
 
 Re-check `scripts/structure-exceptions.json` before selecting work; it is the
 current inventory, while this list is only a suggested order.

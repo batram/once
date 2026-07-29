@@ -14,6 +14,12 @@ const {
 const {
   FlatSettingsEditors
 } = require("../../../packages/ui-web/dist/structuredSettings/FlatSettingsEditors")
+const {
+  renderSourceRow
+} = require("../../../packages/ui-web/dist/structuredSettings/SourceRows")
+const {
+  SourceGroupView
+} = require("../../../packages/ui-web/dist/structuredSettings/SourceGroupView")
 const { parseHTML } = require("linkedom")
 
 function withDom(html, callback) {
@@ -23,7 +29,10 @@ function withDom(html, callback) {
     "document",
     "window",
     "Node",
+    "Element",
     "HTMLElement",
+    "HTMLDetailsElement",
+    "HTMLButtonElement",
     "HTMLInputElement",
     "HTMLTextAreaElement"
   ]) {
@@ -31,10 +40,15 @@ function withDom(html, callback) {
     globalThis[name] = window[name] || window.document
   }
   const previousAnimationFrame = globalThis.requestAnimationFrame
+  const previousCancelAnimationFrame = globalThis.cancelAnimationFrame
+  const previousCss = globalThis.CSS
   globalThis.requestAnimationFrame = (action) => {
     action()
     return 1
   }
+  globalThis.cancelAnimationFrame = () => {}
+  globalThis.CSS = { escape: (value) => value }
+  window.HTMLElement.prototype.scrollIntoView = () => {}
   try {
     return callback(window)
   } finally {
@@ -47,6 +61,13 @@ function withDom(html, callback) {
     } else {
       globalThis.requestAnimationFrame = previousAnimationFrame
     }
+    if (previousCancelAnimationFrame === undefined) {
+      Reflect.deleteProperty(globalThis, "cancelAnimationFrame")
+    } else {
+      globalThis.cancelAnimationFrame = previousCancelAnimationFrame
+    }
+    if (previousCss === undefined) Reflect.deleteProperty(globalThis, "CSS")
+    else globalThis.CSS = previousCss
   }
 }
 
@@ -235,5 +256,230 @@ test("flat settings editor preserves malformed redirect rows", () => {
     const row = root.querySelector("[data-testid='redirect-row']")
     assert.equal(row.textContent, 'malformed redirectNot a "match => replace" line')
     assert.match(row.title, /Invalid redirect/)
+  })
+})
+
+function sourceRowHost(window, groups, saved, overrides = {}) {
+  return {
+    groups,
+    errors: new Map(),
+    onTouch: () => true,
+    edit: (...position) => saved.push(["edit", ...position.slice(1)]),
+    save: (reload) => saved.push(["save", reload]),
+    showError: (source) => saved.push(["error", source]),
+    openMenu: () => {},
+    rowBody: (...children) => {
+      const body = window.document.createElement("div")
+      body.append(...children)
+      return body
+    },
+    rowChevron: () => window.document.createElement("span"),
+    ...overrides
+  }
+}
+
+test("source row rendering keeps edit and error callbacks on the host", () => {
+  withDom("<main></main>", (window) => {
+    const root = window.document.querySelector("main")
+    const groups = [{ id: "default", name: "Default", sources: ["bad.test"] }]
+    const calls = []
+    const host = sourceRowHost(window, groups, calls, {
+      errors: new Map([["bad.test", {
+        url: "bad.test",
+        type: "error",
+        title: "Unavailable",
+        message: "The source is unavailable"
+      }]])
+    })
+    root.append(renderSourceRow(root, host, "bad.test", 0, 0, "source-1"))
+
+    root.querySelector("[data-testid='source-row']").click()
+    root.querySelector("[data-testid='source-error']").click()
+
+    assert.deepEqual(calls, [
+      ["edit", 0, 0],
+      ["error", "bad.test"]
+    ])
+    assert.equal(
+      root.querySelector(".structured_row_secondary").textContent,
+      "Unavailable"
+    )
+  })
+})
+
+test("source row drop reorders the model and saves without story reload", () => {
+  withDom("<main></main>", (window) => {
+    const root = window.document.querySelector("main")
+    const groups = [{
+      id: "default",
+      name: "Default",
+      sources: ["first.test", "second.test"]
+    }]
+    const calls = []
+    const host = sourceRowHost(window, groups, calls)
+    const row = renderSourceRow(root, host, "second.test", 0, 1, "source-2")
+    root.append(row)
+    row.getBoundingClientRect = () => ({ top: 20, height: 20 })
+    const drop = new window.Event("drop", { bubbles: true, cancelable: true })
+    Object.defineProperties(drop, {
+      clientY: { value: 20 },
+      dataTransfer: {
+        value: { getData: () => "0:0" }
+      }
+    })
+    row.dispatchEvent(drop)
+
+    assert.deepEqual(groups[0].sources, ["first.test", "second.test"])
+    assert.deepEqual(calls, [["save", false]])
+  })
+})
+
+function sourceGroupHost(window, groups, calls, overrides = {}) {
+  return sourceRowHost(window, groups, calls, {
+    listActions: () => null,
+    editGroup: () => {},
+    deleteGroup: () => {},
+    ...overrides
+  })
+}
+
+function dragEvent(window, type, values = {}) {
+  const event = new window.Event(type, { bubbles: true, cancelable: true })
+  Object.defineProperties(event, Object.fromEntries(
+    Object.entries(values).map(([key, value]) => [key, { value }])
+  ))
+  return event
+}
+
+test("source group view preserves expansion state across renders", () => {
+  withDom("<main></main>", (window) => {
+    const root = window.document.querySelector("main")
+    const groups = [
+      { id: "default", name: "Default", sources: [] },
+      { id: "alpha", name: "Alpha", sources: ["alpha.test"] }
+    ]
+    const view = new SourceGroupView(sourceGroupHost(window, groups, []))
+    view.render(root)
+    const alpha = root.querySelector("[data-group-id='alpha']")
+    alpha.open = false
+    alpha.dispatchEvent(new window.Event("toggle"))
+    root.textContent = ""
+    view.render(root)
+    assert.equal(root.querySelector("[data-group-id='alpha']").open, false)
+  })
+})
+
+test("source group title drop moves a row into an empty group", () => {
+  withDom("<main></main>", (window) => {
+    const root = window.document.querySelector("main")
+    const groups = [
+      { id: "default", name: "Default", sources: ["one.test"] },
+      { id: "empty", name: "Empty", sources: [] }
+    ]
+    const calls = []
+    new SourceGroupView(sourceGroupHost(window, groups, calls)).render(root)
+    const summary = root.querySelector("[data-group-id='empty'] summary")
+    summary.dispatchEvent(dragEvent(window, "drop", {
+      dataTransfer: { getData: () => "0:0" }
+    }))
+    assert.deepEqual(groups.map((group) => group.sources), [[], ["one.test"]])
+    assert.deepEqual(calls, [["save", false]])
+  })
+})
+
+test("source group drag commits order and restores expanded groups", () => {
+  withDom("<main></main>", (window) => {
+    const root = window.document.querySelector("main")
+    const groups = [
+      { id: "default", name: "Default", sources: [] },
+      { id: "alpha", name: "Alpha", sources: [] },
+      { id: "beta", name: "Beta", sources: [] }
+    ]
+    const calls = []
+    new SourceGroupView(sourceGroupHost(window, groups, calls)).render(root)
+    const details = [...root.querySelectorAll(".structured_group")]
+    details.forEach((group, index) => {
+      group.open = index !== 1
+      group.getBoundingClientRect = () => ({
+        top: index * 20,
+        bottom: index * 20 + 20,
+        height: 20
+      })
+      group.querySelector("summary").getBoundingClientRect =
+        group.getBoundingClientRect
+    })
+    const transfer = {
+      dropEffect: "move",
+      effectAllowed: "",
+      setData: () => {},
+      getData: () => "group:2"
+    }
+    details[2].querySelector(".structured_group_name").dispatchEvent(
+      dragEvent(window, "dragstart", { dataTransfer: transfer })
+    )
+    details[1].dispatchEvent(dragEvent(window, "drop", {
+      clientY: 20,
+      dataTransfer: transfer
+    }))
+    assert.deepEqual(groups.map((group) => group.name), [
+      "Default", "Beta", "Alpha"
+    ])
+    assert.deepEqual(calls, [["save", false]])
+    assert.equal(details[1].open, false)
+    assert.equal(details[2].open, true)
+  })
+})
+
+test("source row ignores stale drag coordinates", () => {
+  withDom("<main></main>", (window) => {
+    const root = window.document.querySelector("main")
+    const groups = [{ id: "default", name: "Default", sources: ["one.test"] }]
+    const calls = []
+    const row = renderSourceRow(
+      root,
+      sourceRowHost(window, groups, calls),
+      "one.test",
+      0,
+      0,
+      "source-1"
+    )
+    root.append(row)
+    row.dispatchEvent(dragEvent(window, "drop", {
+      clientY: 0,
+      dataTransfer: { getData: () => "9:4" }
+    }))
+    assert.deepEqual(groups[0].sources, ["one.test"])
+    assert.deepEqual(calls, [])
+  })
+})
+
+test("source row dragleave only clears its own insertion indicator", () => {
+  withDom("<main></main>", (window) => {
+    const root = window.document.querySelector("main")
+    const groups = [{
+      id: "default",
+      name: "Default",
+      sources: ["one.test", "two.test"]
+    }]
+    const host = sourceRowHost(window, groups, [])
+    const source = renderSourceRow(root, host, "one.test", 0, 0, "source-1")
+    const target = renderSourceRow(root, host, "two.test", 0, 1, "source-2")
+    root.append(source, target)
+    target.getBoundingClientRect = () => ({
+      top: 20,
+      bottom: 40,
+      height: 20
+    })
+    const transfer = { getData: () => "0:0", dropEffect: "" }
+
+    target.dispatchEvent(dragEvent(window, "dragover", {
+      clientY: 21,
+      dataTransfer: transfer
+    }))
+    source.dispatchEvent(dragEvent(window, "dragleave"))
+    assert.equal(target.classList.contains("structured_source_drop_before"), true)
+
+    target.dispatchEvent(dragEvent(window, "dragleave"))
+    assert.equal(target.classList.contains("structured_source_drop_before"), false)
   })
 })

@@ -5,7 +5,6 @@
     "packages/app/src/OnceApp.ts": "The public facade is being reduced through internal services.",
     "packages/ui-web/src/picker/sourcePicker.ts": "Picker overlay extraction is staged.",
     "packages/ui-web/src/StoryListItem.ts": "Swipe and markup extraction is staged.",
-    "packages/ui-web/src/StructuredSettingsEditors.ts": "Settings feature editors are being split.",
     "packages/ui-web/src/SwipeSettingsLab.ts": "Preview and persistence extraction is staged.",
     "tests/e2e/electron/core-browser.spec.js": "Browser scenarios are being split by feature.",
     "tests/e2e/mobile/mobile-web.spec.js": "Mobile scenarios are being split by feature."
@@ -19,10 +18,6 @@
     "packages/ui-web/src/reader/readerTts.ts#installReaderTts": "Reader speech controls extraction is staged.",
     "packages/ui-web/src/StoryListItem.ts#story_html": "Story markup extraction is staged.",
     "packages/ui-web/src/StoryListItem.ts#<anonymous>": "Swipe controller extraction is staged.",
-    "packages/ui-web/src/StructuredSettingsEditors.ts#renderSources": "Source editor extraction is staged.",
-    "packages/ui-web/src/StructuredSettingsEditors.ts#<anonymous>": "Editor callback wiring will move with feature editors.",
-    "packages/ui-web/src/StructuredSettingsEditors.ts#sourceRow": "Source row rendering extraction is staged.",
-    "packages/ui-web/src/StructuredSettingsEditors.ts#showForm": "Shared settings form extraction is staged.",
     "packages/ui-web/src/SwipeSettingsLab.ts#<anonymous>": "Preview event wiring extraction is staged.",
     "scripts/webpack.webext.config.js#<anonymous>": "Webpack configuration remains a declarative build entrypoint.",
     "tests/e2e/electron/story-list.debug.js#<anonymous>": "Interactive debug harness remains intentionally linear.",
