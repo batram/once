@@ -11,15 +11,9 @@ export declare interface PresenterOptions {
 }
 
 export declare interface Presenter {
-  is_presenter_url: (url: string) => boolean
-  present: (url: string) => void
-  description: string
   presenter_options: PresenterOptions
-  display_url: (url: string) => string
   story_elem_button?: (story: Story, intab: boolean) => HTMLElement
-  handle(url: string): Promise<boolean>
   handle_url(url: string): boolean
-  [key: string]: unknown
 }
 
 let presenters: Presenter[] = []
@@ -29,7 +23,13 @@ function get_active(): Presenter[] {
     //TODO: determine if active from settings
 
     //hardcode in available presenters, maybe dynamic am Sankt-Nimmerleins-Tag
-    presenters = [outline as Presenter]
+    presenters = [
+      {
+        presenter_options: outline.presenter_options,
+        story_elem_button: outline.story_elem_button,
+        handle_url: outline.handle_url
+      }
+    ]
   }
 
   return presenters

@@ -1,12 +1,87 @@
 {
-  "$schema": "https://unpkg.com/knip@5/schema.json",
-  "ignore": [
-    "apps/website/**",
-    "packages/platform-web/**",
-    "packages/collectors/src/collectors/**",
-    "packages/ui-web/src/presenters/outline.ts",
-    "apps/mobile/src/readerTtsProtocol.ts",
-    "packages/webext-shell/src/storyMenuBackground.ts"
-  ],
-  "ignoreExportsUsedInFile": true
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignoreExportsUsedInFile": true,
+  "webpack": false,
+  "workspaces": {
+    ".": {
+      "entry": [
+        "scripts/*.js",
+        "tests/**/*.config.js",
+        "tests/**/*.spec.js",
+        "tests/**/*.test.js",
+        "tests/e2e/electron/story-list.debug.js",
+        "tests/e2e/mobile/*.js",
+        "tests/mobile-env/server.js"
+      ],
+      "project": [
+        "scripts/**/*.{js,mjs,cjs}",
+        "tests/**/*.{js,mjs,cjs,ts,tsx}"
+      ]
+    },
+    "apps/chrome-extension": {
+      "entry": ["src/background.ts"],
+      "project": ["src/**/*.ts"],
+      "webpack": false
+    },
+    "apps/electron": {
+      "entry": [
+        "src/main.ts",
+        "src/preload.ts",
+        "src/renderer.ts",
+        "src/pickerInjection.ts",
+        "forge.config.js",
+        "webpack.*.config.js",
+        "scripts/*.js"
+      ],
+      "project": ["src/**/*.ts", "*.js", "scripts/*.js"],
+      "webpack": false
+    },
+    "apps/firefox-extension": {
+      "entry": ["src/background.ts"],
+      "project": ["src/**/*.ts"],
+      "webpack": false
+    },
+    "apps/mobile": {
+      "entry": [
+        "src/main.ts",
+        "src/pickerInjection.ts",
+        "src/readerRuntime.ts",
+        "webpack.config.js",
+        "scripts/*.js"
+      ],
+      "project": ["src/**/*.ts", "*.ts", "*.js", "scripts/*.js"],
+      "webpack": false
+    },
+    "apps/website": {
+      "entry": [],
+      "project": []
+    },
+    "packages/app": {
+      "project": ["src/**/*.ts"]
+    },
+    "packages/collectors": {
+      "project": ["src/**/*.ts"]
+    },
+    "packages/core": {
+      "project": ["src/**/*.ts"]
+    },
+    "packages/platform-web": {
+      "project": ["src/**/*.ts"]
+    },
+    "packages/ui-web": {
+      "entry": [
+        "src/picker/contentScript.ts",
+        "src/reader/contentScript.ts"
+      ],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/webext-shell": {
+      "entry": [
+        "src/pickerBackground.ts",
+        "src/readerBackground.ts",
+        "src/storyMenuBackground.ts"
+      ],
+      "project": ["src/**/*.ts"]
+    }
+  }
 }
