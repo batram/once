@@ -1,6 +1,18 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "ignoreExportsUsedInFile": true,
+  "ignoreDependencies": [
+    // Ambient browser.* declarations are loaded by the root TypeScript graph.
+    "@types/firefox-webext-browser",
+    // Webpack resolves this loader from string-valued rules in extension,
+    // Electron, and mobile configs rather than from JavaScript imports.
+    "ts-loader"
+  ],
+  "ignoreIssues": {
+    // TypeScript expands this wildcard to every visible ambient @types package;
+    // it is compiler configuration, not a module import.
+    "tsconfig.base.json": ["unresolved"]
+  },
   "webpack": false,
   "workspaces": {
     ".": {
@@ -24,6 +36,17 @@
       "webpack": false
     },
     "apps/electron": {
+      "ignoreDependencies": [
+        // run-forge.js resolves the Forge CLI by path so it can use the pinned
+        // Node runtime consistently on Windows.
+        "@electron-forge/cli",
+        // Forge loads makers by the package names declared in forge.config.js.
+        "@electron-forge/maker-squirrel",
+        "@electron-forge/maker-zip",
+        // Webpack resolves stylesheet loaders from string-valued rules.
+        "css-loader",
+        "style-loader"
+      ],
       "entry": [
         "src/main.ts",
         "src/preload.ts",
@@ -42,6 +65,25 @@
       "webpack": false
     },
     "apps/mobile": {
+      "ignoreDependencies": [
+        // Capacitor sync links these app-owned native plugins into the
+        // generated Android and iOS projects.
+        "@capacitor/browser",
+        "@capacitor/splash-screen",
+        "@capacitor/status-bar",
+        // The root native E2E runner invokes the workspace-owned WDIO/Appium
+        // CLI; WDIO then loads its service, runner, framework, reporter, and
+        // platform drivers from configuration names at runtime.
+        "@wdio/appium-service",
+        "@wdio/cli",
+        "@wdio/local-runner",
+        "@wdio/mocha-framework",
+        "@wdio/spec-reporter",
+        "appium",
+        "appium-uiautomator2-driver",
+        "appium-xcuitest-driver",
+        "webdriverio"
+      ],
       "entry": [
         "src/main.ts",
         "src/pickerInjection.ts",

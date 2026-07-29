@@ -35,9 +35,6 @@
     "appium": "3.5.2",
     "appium-uiautomator2-driver": "^8.1.0",
     "appium-xcuitest-driver": "^11.17.7",
-    "express": "4.21.2",
-    "express-pouchdb": "4.2.0",
-    "pouchdb": "9.0.0",
     "webdriverio": "9.29.1",
     "webpack-dev-server": "^5.2.2"
   }
