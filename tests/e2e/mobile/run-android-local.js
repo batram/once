@@ -1,6 +1,7 @@
 const fs = require("fs")
 const path = require("path")
 const { spawnSync } = require("child_process")
+const { androidDeviceCommands } = require("./android-device")
 
 const root = path.resolve(__dirname, "../../..")
 const npmCli = process.env.npm_execpath
@@ -18,7 +19,8 @@ function run(command, args, options = {}) {
     env: options.env || process.env,
     stdio: options.capture ? "pipe" : "inherit",
     encoding: options.capture ? "utf8" : undefined,
-    shell: false
+    shell: false,
+    timeout: options.timeout
   })
   if (result.error) fail(result.error.message)
   if (result.status !== 0) {
@@ -63,7 +65,11 @@ function androidEnvironment() {
 function requireConnectedDevice(sdk, env) {
   const adb = path.join(sdk, "platform-tools", process.platform === "win32" ? "adb.exe" : "adb")
   if (!fs.existsSync(adb)) fail(`adb not found at ${adb}`)
-  const result = run(adb, ["devices"], { env, capture: true })
+  const result = run(adb, ["devices"], {
+    env,
+    capture: true,
+    timeout: 10_000
+  })
   const connected = result.stdout.split(/\r?\n/)
     .map(line => /^(\S+)\s+device(?:\s|$)/.exec(line.trim())?.[1])
     .filter(Boolean)
@@ -75,7 +81,13 @@ function requireConnectedDevice(sdk, env) {
     fail("no Android device is ready; start an emulator or connect a device and try again")
   }
   if (!requested && connected.length > 1) {
-    fail(`multiple Android devices are ready (${connected.join(", ")}); set ONCE_ANDROID_UDID`)
+    const script = visual ? "inspect:mobile:android" : "test:mobile:e2e:android:local"
+    const commands = androidDeviceCommands(connected, script)
+    fail(
+      `multiple Android devices are ready (${connected.join(", ")}).\n` +
+      "Choose one and rerun:\n" +
+      commands.map(command => `  ${command}`).join("\n")
+    )
   }
   return requested || connected[0]
 }

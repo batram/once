@@ -2,6 +2,13 @@ const path = require("path")
 const fs = require("fs")
 const { spawn, spawnSync } = require("child_process")
 const { startTestServer } = require("./test-server-process")
+const {
+  ADB_COMMAND_TIMEOUT_MS,
+  adbFailureDetail,
+  isAndroidEmulator,
+  verifyAndroidTransport,
+  resolveAndroidSerial
+} = require("./android-device")
 
 const platform = process.argv[2]
 const visual = process.argv.includes("--visual")
@@ -66,8 +73,10 @@ function installVisualApp() {
     const executable = process.platform === "win32" ? "adb.exe" : "adb"
     const sdk = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT
     command = sdk ? path.join(sdk, "platform-tools", executable) : executable
-    const serial = process.env.ONCE_ANDROID_UDID || process.env.ANDROID_SERIAL
-    args = [...(serial ? ["-s", serial] : []), "install", "-r", app]
+    const serial = resolveAndroidSerial(command, process.env, spawnSync, {
+      npmScript: visual ? "inspect:mobile:android:run" : "test:mobile:e2e:android"
+    })
+    args = ["-s", serial, "install", "-r", app]
   } else {
     command = "xcrun"
     args = [
@@ -80,7 +89,8 @@ function installVisualApp() {
   const install = spawnSync(command, args, {
     cwd: root,
     env: process.env,
-    stdio: "inherit"
+    stdio: "inherit",
+    timeout: platform === "android" ? 120_000 : undefined
   })
   if (install.error) {
     throw new Error(`Unable to install the visual-inspection app: ${install.error.message}`)
@@ -97,24 +107,43 @@ let stopping = false
 let androidReverse
 let testServer
 let wdio
+let runWatchdog
+let finalizing = false
 
 function configureAndroidReverse(port, env) {
   if (platform !== "android" || process.env.ONCE_MOBILE_TEST_URL) return
   const executable = process.platform === "win32" ? "adb.exe" : "adb"
   const sdk = env.ANDROID_HOME || env.ANDROID_SDK_ROOT
   const adb = sdk ? path.join(sdk, "platform-tools", executable) : executable
-  const serial = env.ONCE_ANDROID_UDID || env.ANDROID_SERIAL
+  const serial = resolveAndroidSerial(adb, env, spawnSync, {
+    npmScript: visual ? "inspect:mobile:android:run" : "test:mobile:e2e:android"
+  })
+  verifyAndroidTransport(adb, serial, env, spawnSync)
+  env.ONCE_ANDROID_UDID = serial
+  env.ANDROID_SERIAL = serial
+  if (isAndroidEmulator(serial)) {
+    env.ONCE_MOBILE_TEST_URL = `http://10.0.2.2:${port}`
+    console.log(
+      `Connecting Android emulator ${serial} to the host test server at ` +
+      `10.0.2.2:${port}`
+    )
+    return
+  }
   const target = `tcp:${port}`
-  const args = [...(serial ? ["-s", serial] : []), "reverse", target, target]
-  const result = spawnSync(adb, args, { cwd: root, env, encoding: "utf8" })
-  if (result.error) {
-    throw new Error(`Unable to configure ADB reverse for the mobile test server: ${result.error.message}`)
+  const args = ["-s", serial, "reverse", target, target]
+  const result = spawnSync(adb, args, {
+    cwd: root,
+    env,
+    encoding: "utf8",
+    timeout: ADB_COMMAND_TIMEOUT_MS
+  })
+  if (result.error || result.status !== 0) {
+    throw new Error(
+      "Unable to configure ADB reverse for the mobile test server: " +
+      adbFailureDetail(result, "adb reverse")
+    )
   }
-  if (result.status !== 0) {
-    const detail = (result.stderr || result.stdout || "unknown adb error").trim()
-    throw new Error(`Unable to configure ADB reverse for the mobile test server: ${detail}`)
-  }
-  androidReverse = { adb, args: [...(serial ? ["-s", serial] : []), "reverse", "--remove", target], env }
+  androidReverse = { adb, args: ["-s", serial, "reverse", "--remove", target], env }
   env.ONCE_MOBILE_TEST_URL = `http://127.0.0.1:${port}`
   console.log(`Forwarding Android 127.0.0.1:${port} to the host test server with adb reverse`)
 }
@@ -124,9 +153,32 @@ function removeAndroidReverse() {
   spawnSync(androidReverse.adb, androidReverse.args, {
     cwd: root,
     env: androidReverse.env,
-    stdio: "ignore"
+    stdio: "ignore",
+    timeout: ADB_COMMAND_TIMEOUT_MS
   })
   androidReverse = undefined
+}
+
+function forceStopWdio() {
+  if (!wdio?.pid || wdio.exitCode !== null) return
+  if (process.platform === "win32") {
+    spawnSync("taskkill.exe", ["/pid", String(wdio.pid), "/t", "/f"], {
+      stdio: "ignore",
+      timeout: 5_000
+    })
+  } else {
+    wdio.kill("SIGKILL")
+  }
+}
+
+async function finalize(code) {
+  if (finalizing) return
+  finalizing = true
+  clearTimeout(runWatchdog)
+  await testServer?.stop()
+  removeAndroidReverse()
+  serverLog.end()
+  process.exit(code)
 }
 
 async function start() {
@@ -160,11 +212,7 @@ async function start() {
     if (!reset.ok) throw new Error(`Unable to reset ${database} test database`)
   } catch (error) {
     console.error(error)
-    await testServer?.stop()
-    removeAndroidReverse()
-    serverLog.end()
-    process.exit(1)
-    return
+    await finalize(1)
   }
   wdio = spawn(
     node,
@@ -194,18 +242,29 @@ async function start() {
       console.log("Press Ctrl-C when finished to remove forwarding and stop the fixture server.")
       return
     }
-    await testServer.stop()
-    removeAndroidReverse()
-    serverLog.end()
-    process.exit(signal ? 1 : (code || 0))
+    await finalize(signal ? 1 : (code || 0))
   })
   wdio.on("error", async error => {
     console.error(error)
-    await testServer.stop()
-    removeAndroidReverse()
-    serverLog.end()
-    process.exit(1)
+    await finalize(1)
   })
+  if (!visual) {
+    const configuredTimeout = Number(process.env.ONCE_MOBILE_E2E_TIMEOUT_MS || 600_000)
+    const runTimeout = Number.isFinite(configuredTimeout) && configuredTimeout > 0
+      ? configuredTimeout
+      : 600_000
+    runWatchdog = setTimeout(() => {
+      console.error(
+        `Mobile E2E run timed out after ${Math.round(runTimeout / 1000)}s; ` +
+        "forcing WebdriverIO/Appium cleanup"
+      )
+      if (wdio?.exitCode === null) wdio.kill("SIGTERM")
+      setTimeout(() => {
+        forceStopWdio()
+        void finalize(1)
+      }, 5_000).unref()
+    }, runTimeout)
+  }
 }
 
 start()
@@ -213,8 +272,8 @@ start()
 function stop() {
   stopping = true
   if (wdio?.exitCode === null) wdio.kill("SIGTERM")
-  void testServer?.stop()
-  removeAndroidReverse()
+  setTimeout(forceStopWdio, 5_000).unref()
+  void finalize(1)
 }
 process.on("SIGINT", stop)
 process.on("SIGTERM", stop)
