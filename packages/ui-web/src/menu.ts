@@ -31,10 +31,6 @@ function delight_panel(panel: string) {
   target_panel.classList.remove("pseudo_active")
 }
 
-export function add_group(group_name: string): void {
-  add_entry("*" + group_name, "group", "groups")
-}
-
 export function add_type(type: string): void {
   add_entry("[" + type + "]", "type", "types")
 }

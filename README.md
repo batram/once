@@ -59,6 +59,8 @@ unpacked Chrome extension.
   packaging
 - [Architecture](docs/ARCHITECTURE.md): platform design, package structure, and
   boundaries
+- [Code map](docs/CODEMAP.md): composition roots, feature ownership, generated
+  code, and where to start common changes
 - [Collectors](docs/COLLECTORS.md): source loading, built-in collectors, and
   Geny Match selector configuration
 - [Releasing](docs/RELEASING.md): versioning, cutting a tagged release, and CI

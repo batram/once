@@ -1,0 +1,33 @@
+{
+  "files": {
+    "apps/electron/src/TabManager.ts": "Tab ownership extraction is staged with Electron lifecycle work.",
+    "apps/mobile/src/readingController.ts": "Reading UI and native-surface extraction is staged.",
+    "packages/app/src/OnceApp.ts": "The public facade is being reduced through internal services.",
+    "packages/ui-web/src/picker/sourcePicker.ts": "Picker overlay extraction is staged.",
+    "packages/ui-web/src/SettingsPanel.ts": "Settings composition extraction is staged.",
+    "packages/ui-web/src/StoryListItem.ts": "Swipe and markup extraction is staged.",
+    "packages/ui-web/src/StructuredSettingsEditors.ts": "Settings feature editors are being split.",
+    "packages/ui-web/src/SwipeSettingsLab.ts": "Preview and persistence extraction is staged.",
+    "tests/e2e/electron/core-browser.spec.js": "Browser scenarios are being split by feature.",
+    "tests/e2e/mobile/mobile-web.spec.js": "Mobile scenarios are being split by feature."
+  },
+  "functions": {
+    "apps/electron/src/browser/TabEvents.ts#bind": "Event families will move to focused binders.",
+    "apps/electron/src/BrowserShell.ts#render": "Shell markup extraction is staged.",
+    "apps/mobile/src/main.ts#startMobileApp": "Composition steps will move to named installers.",
+    "apps/mobile/src/readerTtsPolyfill.ts#installReaderTtsPolyfill": "Speech API adapter extraction is staged.",
+    "packages/ui-web/src/PullToRefresh.ts#attachPullToRefresh": "Gesture state extraction is staged.",
+    "packages/ui-web/src/reader/readerTts.ts#installReaderTts": "Reader speech controls extraction is staged.",
+    "packages/ui-web/src/SettingsPanel.ts#<anonymous>": "Constructor callback wiring will move to binders.",
+    "packages/ui-web/src/StoryListItem.ts#story_html": "Story markup extraction is staged.",
+    "packages/ui-web/src/StoryListItem.ts#<anonymous>": "Swipe controller extraction is staged.",
+    "packages/ui-web/src/StructuredSettingsEditors.ts#renderSources": "Source editor extraction is staged.",
+    "packages/ui-web/src/StructuredSettingsEditors.ts#<anonymous>": "Editor callback wiring will move with feature editors.",
+    "packages/ui-web/src/StructuredSettingsEditors.ts#sourceRow": "Source row rendering extraction is staged.",
+    "packages/ui-web/src/StructuredSettingsEditors.ts#showForm": "Shared settings form extraction is staged.",
+    "packages/ui-web/src/SwipeSettingsLab.ts#<anonymous>": "Preview event wiring extraction is staged.",
+    "scripts/webpack.webext.config.js#<anonymous>": "Webpack configuration remains a declarative build entrypoint.",
+    "tests/e2e/electron/story-list.debug.js#<anonymous>": "Interactive debug harness remains intentionally linear.",
+    "tests/e2e/mobile/mobile-web.spec.js#<anonymous>": "Scenario split is staged."
+  }
+}

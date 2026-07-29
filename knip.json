@@ -1,0 +1,12 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "ignore": [
+    "apps/website/**",
+    "packages/platform-web/**",
+    "packages/collectors/src/collectors/**",
+    "packages/ui-web/src/presenters/outline.ts",
+    "apps/mobile/src/readerTtsProtocol.ts",
+    "packages/webext-shell/src/storyMenuBackground.ts"
+  ],
+  "ignoreExportsUsedInFile": true
+}

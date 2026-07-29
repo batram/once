@@ -8,7 +8,7 @@ const { assertStories } = require("../../helpers/collector-contract")
 const separator = "§§"
 
 test("parses configured JSON selectors, processors, tags, and URLs", () => {
-  const collector = require("../../../packages/collectors/dist/collectors/json_select")
+  const collector = require("../../../packages/collectors/dist/collectors/jsonSelect")
   const input = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../../fixtures/collectors/generic.json"), "utf8"))
   const config = { stories: { sel: "items", all: true }, link: { sel: "href" }, title: { sel: "title", processors: ["trim"] }, timestamp: { sel: "published" }, tags: [{ elements: { class: { sel: "kind" }, text: { sel: "author" } } }] }
   const source = `json:${separator}${JSON.stringify(config)}${separator}https://example.com/feed.json`
@@ -21,7 +21,7 @@ test("parses configured JSON selectors, processors, tags, and URLs", () => {
 })
 
 test("parses configured HTML selectors and skips invalid configuration", () => {
-  const collector = require("../../../packages/collectors/dist/collectors/geny_match")
+  const collector = require("../../../packages/collectors/dist/collectors/genyMatch")
   const doc = parseDocument(fs.readFileSync(path.resolve(__dirname, "../../fixtures/collectors/generic.html"), "utf8"))
   const config = { stories: { sel: "article", all: true }, link: { sel: ".link", component: "href" }, title: { sel: ".link", component: "innerText", processors: ["trim"] }, tags: [{ elements: { text: { sel: ".tag", component: "innerText" } } }] }
   const source = `geny:${separator}${JSON.stringify(config)}${separator}https://example.com/`
@@ -33,7 +33,7 @@ test("parses configured HTML selectors and skips invalid configuration", () => {
 })
 
 test("applies an empty geny fallback before title processors", () => {
-  const collector = require("../../../packages/collectors/dist/collectors/geny_match")
+  const collector = require("../../../packages/collectors/dist/collectors/genyMatch")
   const doc = parseDocument(
     '<!doctype html><html><body><article><h2><a href="https://example.com/owner/repo">Repo</a></h2></article></body></html>'
   )
@@ -55,7 +55,7 @@ test("applies an empty geny fallback before title processors", () => {
 })
 
 test("reports which required geny selector is empty", () => {
-  const collector = require("../../../packages/collectors/dist/collectors/geny_match")
+  const collector = require("../../../packages/collectors/dist/collectors/genyMatch")
   const doc = parseDocument(
     "<!doctype html><html><body><article></article></body></html>"
   )
@@ -77,8 +77,8 @@ test("reports which required geny selector is empty", () => {
 })
 
 test("rejects malformed configurable-source JSON", () => {
-  const jsonCollector = require("../../../packages/collectors/dist/collectors/json_select")
-  const htmlCollector = require("../../../packages/collectors/dist/collectors/geny_match")
+  const jsonCollector = require("../../../packages/collectors/dist/collectors/jsonSelect")
+  const htmlCollector = require("../../../packages/collectors/dist/collectors/genyMatch")
   const doc = parseDocument("<main></main>")
 
   assert.throws(

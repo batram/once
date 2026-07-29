@@ -1,4 +1,3 @@
-import * as menu from "./menu"
 import { Story } from "@once/core"
 import { requireElement } from "./dom"
 import { showConfirmDialog, showTextInputDialog } from "./ConfirmDialog"
@@ -98,37 +97,4 @@ function confirm_add_story(
     callback(value)
     inp.remove()
   })
-}
-
-export function show_filter(value: string): void {
-  if (value.startsWith(":: ")) {
-    void showConfirmDialog({
-      message: "Internal filters are not changeable yet.",
-      cancelLabel: null
-    })
-    return
-  }
-  const filter_area = requireElement<HTMLInputElement>("#filter_area")
-
-  const start = filter_area.value.indexOf(value)
-  if (start == -1) {
-    void showConfirmDialog({
-      message: "Sorry, I seem to have lost that filter.",
-      cancelLabel: null
-    })
-    return
-  }
-
-  menu.open_panel("settings")
-  const end = start + value.length
-
-  filter_area.focus()
-
-  filter_area.scrollTop = 0
-  const fullText = filter_area.value
-  filter_area.value = fullText.substring(0, end)
-  filter_area.scrollTop = filter_area.scrollHeight
-  filter_area.value = fullText
-
-  filter_area.setSelectionRange(start, end)
 }

@@ -1,6 +1,6 @@
 import { Story } from "@once/core"
-import { StoryListItem } from "./StoryListItem"
-import * as outline from "./presenters/outline"
+import { StoryListItem } from "../StoryListItem"
+import * as outline from "./outline"
 
 export declare interface PresenterOptions {
   story_button: {
@@ -17,10 +17,8 @@ export declare interface Presenter {
   presenter_options: PresenterOptions
   display_url: (url: string) => string
   story_elem_button?: (story: Story, intab: boolean) => HTMLElement
-  context_link?: (/*con_menu: Menu, cmenu_data: CMenuData*/) => void
   handle(url: string): Promise<boolean>
   handle_url(url: string): boolean
-  init_in_webtab?(/*tab: WebTab*/): void
   [key: string]: unknown
 }
 
@@ -35,25 +33,6 @@ function get_active(): Presenter[] {
   }
 
   return presenters
-}
-
-export function modify_url(url: string): string {
-  for (const presenter of get_active()) {
-    if (presenter.is_presenter_url(url)) {
-      return presenter.display_url(url)
-    }
-  }
-  return url
-}
-
-export async function handled_by(url: string): Promise<boolean> {
-  for (const presenter of get_active()) {
-    const present_handles = await presenter.handle(url)
-    if (present_handles) {
-      return true
-    }
-  }
-  return false
 }
 
 export function add_story_elem_buttons(
@@ -73,31 +52,5 @@ export function add_story_elem_buttons(
         story_el.button_group.appendChild(button)
       }
     }
-  })
-}
-
-//Do we need a sperate function for buttons and for init??
-/*
-function add_urlbar_buttons(elem, story, inmain = true) {
-  get_active().forEach((presenter) => {
-    if (presenter.hasOwnProperty("urlbar_button")) {
-      let button = presenter["urlbar_button"](story, inmain)
-      elem.appendChild(button)
-    }
-  })
-}
-*/
-
-export function init_in_webtab(/*tab: WebTab*/): void {
-  /*get_active().forEach((presenter) => {
-    if (presenter.init_in_webtab) {
-      presenter.init_in_webtab(tab)
-    }
-  })*/
-}
-
-export function context_link(/*con_menu: Menu, cmenu_data: CMenuData*/): void {
-  get_active().forEach((presenter) => {
-    presenter.context_link?.(/*con_menu, cmenu_data*/)
   })
 }

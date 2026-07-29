@@ -1,12 +1,12 @@
 import { Story } from "@once/core"
-import * as genyMatch from "./collectors/geny_match"
-import * as hackerNewsHtml from "./collectors/hackernews_html"
-import * as jsonSelect from "./collectors/json_select"
-import * as lobstersHtml from "./collectors/lobsters_html"
-import * as redditJson from "./collectors/reddit_json"
-import * as redditRss from "./collectors/reddit_rss"
-import * as twitterHtml from "./collectors/twitter_html"
-import * as vanillaRss from "./collectors/vanilla_rss"
+import * as genyMatch from "./collectors/genyMatch"
+import * as hackerNewsHtml from "./collectors/hackerNewsHtml"
+import * as jsonSelect from "./collectors/jsonSelect"
+import * as lobstersHtml from "./collectors/lobstersHtml"
+import * as redditJson from "./collectors/redditJson"
+import * as redditRss from "./collectors/redditRss"
+import * as twitterHtml from "./collectors/twitterHtml"
+import * as vanillaRss from "./collectors/vanillaRss"
 
 export declare interface StoryParser {
   options: {

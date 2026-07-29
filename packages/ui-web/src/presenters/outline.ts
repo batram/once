@@ -1,7 +1,7 @@
 import { Story } from "@once/core"
 import { StoryListItem } from "../StoryListItem"
 //import * as Readability from "../../third_party/Readability.js"
-import { PresenterOptions } from "../presenters_frontend"
+import { PresenterOptions } from "./registry"
 import { getOnceClient } from "../client"
 import { ReaderView } from "../reader/ReaderView"
 import { LoaderInsights } from "../LoaderInsights"
@@ -130,17 +130,6 @@ async function openInReaderMode(url: string, newTab = false) {
     return
   }
   await ReaderView.open(url)
-}
-
-export function init_in_webtab(): void {
-  if (!presenter_options.urlbar_button.value) {
-    return
-  }
-
-  const controlbar = document.querySelector("#controlbar")
-  if (controlbar) {
-    controlbar.insertBefore(urlbar_button(), controlbar.firstChild)
-  }
 }
 
 export function urlbar_button(): HTMLElement {

@@ -31,7 +31,8 @@
 - **Electron**
   - Restore windows, tabs, navigation, recently closed tabs, and reading position
   - Signing, updates, and supported-platform packaging
-  - Reader archive/cache fallback and secure video presenter
+  - Reader archive/cache fallback and a new secure video presenter (the
+    unreachable legacy presenter and vendored runtime were removed)
 - **Product**
   - Better sync setup, background behavior, and error reporting
   - Accounts and cross-device services with a clear privacy model

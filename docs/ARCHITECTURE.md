@@ -66,6 +66,27 @@ lifecycles, background processes, native bridges, and packaging belong in
 canonical source in `packages/ui-web/public`; extension builds copy them into
 the target output beside only that target's manifest.
 
+## Feature boundaries
+
+Package boundaries prevent invalid dependency directions; feature boundaries
+keep individual files understandable. UI features should expose a small facade
+while keeping rendering, interaction state, persistence binding, and
+platform coordination in separate modules. In particular:
+
+- settings navigation composes source, group, filter, redirect, search, and
+  persistence bindings;
+- story-list rendering composes story markup/actions with an independent swipe
+  interaction controller;
+- `OnceApp` is the public application facade over source loading, the bounded
+  working set, persistence reconciliation, settings, and events;
+- Electron window/tab ownership is separate from navigation, reader, picker,
+  menu, and IPC routing;
+- mobile reading UI is separate from the native browser-surface adapter and
+  native bridge implementations.
+
+See [CODEMAP.md](CODEMAP.md) for concrete entrypoints and source
+classifications.
+
 ## Package boundaries
 
 Dependencies flow from composition and presentation toward application and

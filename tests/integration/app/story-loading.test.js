@@ -187,7 +187,7 @@ test("serializes duplicate story writes while preserving substories", async () =
 test("publishes configurable parser failures as source errors", async (t) => {
   t.mock.method(console, "error", () => {})
 
-  const { separator } = require("../../../packages/collectors/dist/collectors/geny_match").options
+  const { separator } = require("../../../packages/collectors/dist/collectors/genyMatch").options
   const sourceUrl = `geny:${separator}{bad${separator}https://example.com/`
   const fake = createFakePlatform([], {
     storySources: [sourceUrl],

@@ -7,7 +7,7 @@
   "types": "dist/index.d.ts",
   "typesVersions": {
     "*": {
-      "geny": ["dist/collectors/geny_match.d.ts"]
+      "geny": ["dist/collectors/genyMatch.d.ts"]
     }
   },
   "exports": {
@@ -16,8 +16,8 @@
       "default": "./dist/index.js"
     },
     "./geny": {
-      "types": "./dist/collectors/geny_match.d.ts",
-      "default": "./dist/collectors/geny_match.js"
+      "types": "./dist/collectors/genyMatch.d.ts",
+      "default": "./dist/collectors/genyMatch.js"
     }
   },
   "dependencies": {

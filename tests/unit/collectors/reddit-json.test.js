@@ -1,6 +1,6 @@
 const test = require("node:test")
 const assert = require("node:assert/strict")
-const collector = require("../../../packages/collectors/dist/collectors/reddit_json")
+const collector = require("../../../packages/collectors/dist/collectors/redditJson")
 const { assertStories } = require("../../helpers/collector-contract")
 const fixture = require("../../fixtures/collectors/reddit.json")
 

@@ -8,7 +8,7 @@ const { assertStories } = require("../../helpers/collector-contract")
 const fixture = (name) => fs.readFileSync(path.resolve(__dirname, `../../fixtures/collectors/${name}`), "utf8")
 
 test("parses Hacker News stories, users, times, and job filtering", () => {
-  const collector = require("../../../packages/collectors/dist/collectors/hackernews_html")
+  const collector = require("../../../packages/collectors/dist/collectors/hackerNewsHtml")
   const stories = collector.parse(parseDocument(fixture("hackernews.html")))
   assertStories(stories, "HN", 2)
   assert.equal(stories[0].tags[0].text, "alice")
@@ -16,7 +16,7 @@ test("parses Hacker News stories, users, times, and job filtering", () => {
 })
 
 test("parses Lobsters stories and skips entries without links", () => {
-  const collector = require("../../../packages/collectors/dist/collectors/lobsters_html")
+  const collector = require("../../../packages/collectors/dist/collectors/lobstersHtml")
   const stories = collector.parse(parseDocument(fixture("lobsters.html")))
   assertStories(stories, "LO")
   assert.equal(stories.length, 1)
@@ -25,7 +25,7 @@ test("parses Lobsters stories and skips entries without links", () => {
 })
 
 test("parses Nitter timeline items", () => {
-  const collector = require("../../../packages/collectors/dist/collectors/twitter_html")
+  const collector = require("../../../packages/collectors/dist/collectors/twitterHtml")
   const stories = collector.parse(parseDocument(fixture("twitter.html")))
   assertStories(stories, "tw")
   assert.equal(stories[0].title, "A useful post")

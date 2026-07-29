@@ -7,7 +7,7 @@ import {
 import { humanTime } from "@once/core"
 import * as StoryFilterView from "./StoryFilterView"
 import { Story, SubStory } from "@once/core"
-import * as presenters from "./presenters_frontend"
+import * as presenters from "./presenters/registry"
 import { DataChangeEvent, resortSingle } from "./StoryList"
 import { URLRedirect } from "@once/core"
 import { StoryHistory } from "./StoryHistory"

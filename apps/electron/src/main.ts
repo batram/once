@@ -2,12 +2,8 @@ import {
   app,
   autoUpdater,
   BrowserWindow,
-  ipcMain,
-  IpcMainInvokeEvent,
-  net,
   Rectangle,
-  session,
-  shell
+  session
 } from "electron"
 import started from "electron-squirrel-startup"
 import { UpdateSourceType, updateElectronApp } from "update-electron-app"
@@ -15,16 +11,10 @@ import { existsSync } from "node:fs"
 import path from "path"
 import {
   ELECTRON_IPC,
-  ElectronBuildInfo,
-  ElectronFetchRequest,
-  ElectronFetchResponse,
-  ElectronPoint,
-  ElectronRect,
-  ElectronRedirectRule,
-  ElectronStoryMenuItem,
   ElectronUpdateStatus
 } from "@once/platform-electron/bridge"
 import { SecureSettings } from "./SecureSettings"
+import { registerIpcHandlers } from "./IpcHandlers"
 import { BrowserCoordinator } from "./TabManager"
 import {
   configureReaderProtocol,
@@ -164,265 +154,6 @@ function startAutoUpdates(): void {
   })
 }
 
-function assertTrusted(event: IpcMainInvokeEvent): void {
-  if (!browserCoordinator) throw new Error("Browser coordinator is unavailable")
-  browserCoordinator.requireWindow(event)
-}
-
-function requireExternalUrl(value: string): string {
-  const url = new URL(value)
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new Error("Only HTTP and HTTPS URLs are allowed")
-  }
-  return url.toString()
-}
-
-function browser(event: IpcMainInvokeEvent): {
-  coordinator: BrowserCoordinator
-  window: ReturnType<BrowserCoordinator["requireWindow"]>
-} {
-  if (!browserCoordinator) throw new Error("Browser coordinator is unavailable")
-  return {
-    coordinator: browserCoordinator,
-    window: browserCoordinator.requireWindow(event)
-  }
-}
-
-function registerIpc(
-  settings: SecureSettings,
-  coordinator: BrowserCoordinator
-): void {
-  ipcMain.handle(ELECTRON_IPC.appGetBuildInfo, (event): ElectronBuildInfo => {
-    assertTrusted(event)
-    return {
-      version: app.getVersion(),
-      channel: __ONCE_BUILD_CHANNEL__,
-      buildIdentifier: __ONCE_BUILD_IDENTIFIER__,
-      platform: process.platform
-    }
-  })
-  ipcMain.handle(
-    ELECTRON_IPC.appGetUpdateStatus,
-    (event): ElectronUpdateStatus => {
-      assertTrusted(event)
-      return updateStatus
-    }
-  )
-  ipcMain.handle(
-    ELECTRON_IPC.appCheckForUpdates,
-    (event): ElectronUpdateStatus => {
-      assertTrusted(event)
-      if (!autoUpdatesStarted || ["checking", "available", "downloaded"]
-        .includes(updateStatus.state)) {
-        return updateStatus
-      }
-
-      setUpdateStatus({ state: "checking" })
-      try {
-        autoUpdater.checkForUpdates()
-      } catch (error) {
-        setUpdateStatus({
-          state: "error",
-          message: error instanceof Error ? error.message : "Update check failed"
-        })
-      }
-      return updateStatus
-    }
-  )
-
-  ipcMain.handle(
-    ELECTRON_IPC.fetch,
-    async (event, request: ElectronFetchRequest): Promise<ElectronFetchResponse> => {
-      assertTrusted(event)
-      if (process.env.ONCE_ELECTRON_DISABLE_NETWORK_FETCH === "1") {
-        throw new Error("Network fetches are disabled for this Electron test")
-      }
-      const url = new URL(request.url)
-      if (url.protocol !== "http:" && url.protocol !== "https:") {
-        throw new Error("Only HTTP and HTTPS requests are allowed")
-      }
-      if (!Array.isArray(request.headers) || typeof request.method !== "string") {
-        throw new Error("Invalid fetch request")
-      }
-
-      const response = await net.fetch(url.toString(), {
-        method: request.method,
-        headers: request.headers,
-        body: request.body ? Buffer.from(request.body) : undefined
-      })
-      return {
-        status: response.status,
-        statusText: response.statusText,
-        headers: Array.from(response.headers.entries()),
-        body: await response.arrayBuffer()
-      }
-    }
-  )
-
-  ipcMain.handle(ELECTRON_IPC.getSyncUrl, (event) => {
-    assertTrusted(event)
-    return settings.getSyncUrl()
-  })
-  ipcMain.handle(ELECTRON_IPC.setSyncUrl, (event, value: string) => {
-    assertTrusted(event)
-    if (typeof value !== "string") throw new Error("Invalid sync URL")
-    if (value) {
-      const url = new URL(value)
-      if (url.protocol !== "http:" && url.protocol !== "https:") {
-        throw new Error("Sync URL must use HTTP or HTTPS")
-      }
-    }
-    return settings.setSyncUrl(value)
-  })
-  ipcMain.handle(ELECTRON_IPC.getCacheTime, (event) => {
-    assertTrusted(event)
-    return settings.getCacheTime()
-  })
-  ipcMain.handle(ELECTRON_IPC.setCacheTime, (event, value: string) => {
-    assertTrusted(event)
-    if (typeof value !== "string") throw new Error("Invalid cache time")
-    return settings.setCacheTime(value)
-  })
-
-  ipcMain.handle(ELECTRON_IPC.tabsGetAll, (event) => {
-    const target = browser(event)
-    return target.coordinator.getAll(target.window)
-  })
-  ipcMain.handle(ELECTRON_IPC.tabsOpenUrl, (event, url: string, target: string) => {
-    const current = browser(event)
-    return current.coordinator.openUrl(current.window, url, target)
-  })
-  ipcMain.handle(
-    ELECTRON_IPC.tabsOpenReader,
-    (event, html: string, sourceUrl: string, target: string) => {
-      const current = browser(event)
-      return current.coordinator.openReader(current.window, html, sourceUrl, target)
-    }
-  )
-  ipcMain.handle(
-    ELECTRON_IPC.tabsShowReaderError,
-    (event, sourceUrl: string, error: string) => {
-      const current = browser(event)
-      return current.coordinator.showReaderError(current.window, sourceUrl, error)
-    }
-  )
-  ipcMain.handle(ELECTRON_IPC.tabsCreate, (event, url?: string, active?: boolean) => {
-    const current = browser(event)
-    return current.coordinator.createTab(current.window, url, active)
-  })
-  ipcMain.handle(ELECTRON_IPC.tabsActivate, (event, id: string) => {
-    const current = browser(event)
-    return current.coordinator.activate(current.window, id)
-  })
-  ipcMain.handle(ELECTRON_IPC.tabsClose, (event, id: string) => {
-    const current = browser(event)
-    return current.coordinator.close(current.window, id)
-  })
-  ipcMain.handle(ELECTRON_IPC.tabsNavigate, (event, id: string, url: string) => {
-    const current = browser(event)
-    return current.coordinator.navigate(current.window, id, url)
-  })
-  ipcMain.handle(ELECTRON_IPC.tabsBack, (event, id: string) => {
-    const current = browser(event)
-    return current.coordinator.back(current.window, id)
-  })
-  ipcMain.handle(ELECTRON_IPC.tabsForward, (event, id: string) => {
-    const current = browser(event)
-    return current.coordinator.forward(current.window, id)
-  })
-  ipcMain.handle(ELECTRON_IPC.tabsReload, (event, id: string) => {
-    const current = browser(event)
-    return current.coordinator.reload(current.window, id)
-  })
-  ipcMain.handle(ELECTRON_IPC.tabsStop, (event, id: string) => {
-    const current = browser(event)
-    return current.coordinator.stop(current.window, id)
-  })
-  ipcMain.handle(ELECTRON_IPC.tabsDuplicate, (event, id: string) => {
-    const current = browser(event)
-    return current.coordinator.duplicate(current.window, id)
-  })
-  ipcMain.handle(
-    ELECTRON_IPC.tabsReorder,
-    (event, id: string, beforeId?: string) => {
-      const current = browser(event)
-      return current.coordinator.reorder(current.window, id, beforeId)
-    }
-  )
-  ipcMain.handle(
-    ELECTRON_IPC.tabsMoveHere,
-    (event, id: string, beforeId?: string) => {
-      const current = browser(event)
-      return current.coordinator.moveHere(current.window, id, beforeId)
-    }
-  )
-  ipcMain.handle(
-    ELECTRON_IPC.tabsDetach,
-    (event, id: string, point?: ElectronPoint) => {
-      const current = browser(event)
-      return current.coordinator.detach(current.window, id, point)
-    }
-  )
-  ipcMain.handle(ELECTRON_IPC.tabsToggleMuted, (event, id: string) => {
-    const current = browser(event)
-    return current.coordinator.toggleMuted(current.window, id)
-  })
-  ipcMain.handle(ELECTRON_IPC.tabsOpenDroppedUrls, (event, urls: string[]) => {
-    const current = browser(event)
-    return current.coordinator.openDroppedUrls(current.window, urls)
-  })
-  ipcMain.handle(ELECTRON_IPC.tabsStartSourcePicker, (event, url?: string) => {
-    const current = browser(event)
-    return current.coordinator.startSourcePicker(current.window, url)
-  })
-  ipcMain.handle(
-    ELECTRON_IPC.tabsShowMenu,
-    (event, id: string, point: ElectronPoint) => {
-      const current = browser(event)
-      return current.coordinator.showTabMenu(current.window, id, point)
-    }
-  )
-  ipcMain.handle(ELECTRON_IPC.tabsSetBounds, (event, bounds: ElectronRect) => {
-    const current = browser(event)
-    return current.coordinator.setBounds(current.window, bounds)
-  })
-  ipcMain.handle(
-    ELECTRON_IPC.storyMenuShow,
-    (event, items: ElectronStoryMenuItem[], point: ElectronPoint) => {
-      const current = browser(event)
-      return current.coordinator.showStoryMenu(current.window, items, point)
-    }
-  )
-  ipcMain.handle(ELECTRON_IPC.storyMenuOpenExternal, (event, url: string) => {
-    assertTrusted(event)
-    return shell.openExternal(requireExternalUrl(url))
-  })
-  ipcMain.handle(ELECTRON_IPC.storyMenuOpenWindow, (event, url: string) => {
-    assertTrusted(event)
-    return coordinator
-      .createWindow({ url: requireExternalUrl(url) })
-      .then(() => undefined)
-  })
-  ipcMain.handle(
-    ELECTRON_IPC.windowSetFullscreen,
-    (event, fullscreen: boolean) => {
-      const current = browser(event)
-      return current.coordinator.setFullscreen(current.window, fullscreen)
-    }
-  )
-  ipcMain.handle(
-    ELECTRON_IPC.windowSetRedirects,
-    (event, redirects: ElectronRedirectRule[]) => {
-      assertTrusted(event)
-      return coordinator.setRedirects(redirects)
-    }
-  )
-  ipcMain.handle(ELECTRON_IPC.windowSetBackgroundColor, (event, color: string) => {
-    const current = browser(event)
-    return current.coordinator.setBackgroundColor(current.window, color)
-  })
-}
-
 function createShellWindow(bounds?: Rectangle): BrowserWindow {
   return new BrowserWindow({
     // Packaged builds get their icon from the executable (release or dev per
@@ -480,7 +211,14 @@ app
         : MAIN_WINDOW_WEBPACK_ENTRY
     )
     startAutoUpdates()
-    registerIpc(new SecureSettings(), browserCoordinator)
+    registerIpcHandlers(new SecureSettings(), {
+      buildChannel: __ONCE_BUILD_CHANNEL__,
+      buildIdentifier: __ONCE_BUILD_IDENTIFIER__,
+      coordinator: browserCoordinator,
+      getUpdateStatus: () => updateStatus,
+      setUpdateStatus,
+      updatesStarted: () => autoUpdatesStarted
+    })
     await browserCoordinator.createWindow()
 
     app.on("activate", () => {

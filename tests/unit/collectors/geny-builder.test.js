@@ -4,7 +4,7 @@ const {
   build_source,
   sanitize_selector_conf,
   resolve_url
-} = require("../../../packages/collectors/dist/collectors/geny_match")
+} = require("../../../packages/collectors/dist/collectors/genyMatch")
 
 const separator = "§§"
 
