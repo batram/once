@@ -1,5 +1,19 @@
 const { test, expect } = require("@playwright/test")
 
+async function waitForMobileApp(page) {
+  await expect(page.locator("body")).toHaveAttribute("data-once-ready", "true")
+}
+
+async function gotoMobileApp(page) {
+  await page.goto("./")
+  await waitForMobileApp(page)
+}
+
+async function reloadMobileApp(page) {
+  await page.reload()
+  await waitForMobileApp(page)
+}
+
 // Long-press anywhere on the row; ⋮ opens the same menu at the same anchor.
 async function openStoryMenu(page, story) {
   await story.click({ delay: 700 })
@@ -30,6 +44,7 @@ async function dragBelowMidpoint(source, target) {
 }
 
 async function openSettingsSection(page, section) {
+  await waitForMobileApp(page)
   await page.getByTestId("settings-menu").click()
   const row = page.locator(`[data-settings-target="${section}"]`)
   if (!(await row.isVisible())) {
@@ -49,21 +64,30 @@ async function openSettingsSection(page, section) {
 
 async function setSwipeThreshold(page, stage, value) {
   const handle = page.getByTestId(`swipe-handle-right-${stage}`)
-  const handleBox = await handle.boundingBox()
-  const rulerBox = await page.getByTestId("swipe-ruler").boundingBox()
-  if (!handleBox || !rulerBox) throw new Error("Swipe ruler is not visible")
-  await page.mouse.move(
-    handleBox.x + handleBox.width / 2,
-    handleBox.y + handleBox.height / 2
-  )
-  await page.mouse.down()
-  await page.mouse.move(
-    rulerBox.x + value,
-    handleBox.y + handleBox.height / 2,
-    { steps: 2 }
-  )
-  await page.mouse.up()
-  await expect(handle).toHaveAttribute("aria-valuenow", String(value))
+  await expect(handle).toHaveAttribute("aria-valuemin", /\d+/)
+  const minimumAttribute = await handle.getAttribute("aria-valuemin")
+  if (minimumAttribute === null) {
+    throw new Error("Swipe threshold minimum is not rendered")
+  }
+  await handle.press("Home")
+  await expect(handle).toHaveAttribute("aria-valuenow", minimumAttribute)
+  const minimum = Number(await handle.getAttribute("aria-valuenow"))
+  if (!Number.isFinite(minimum) || value < minimum) {
+    throw new Error(`Swipe threshold ${value} is below the minimum ${minimum}`)
+  }
+  const tens = Math.floor((value - minimum) / 10)
+  const ones = value - minimum - tens * 10
+  let current = minimum
+  for (let index = 0; index < tens; index += 1) {
+    await handle.press("Shift+ArrowRight")
+    current += 10
+    await expect(handle).toHaveAttribute("aria-valuenow", String(current))
+  }
+  for (let index = 0; index < ones; index += 1) {
+    await handle.press("ArrowRight")
+    current += 1
+    await expect(handle).toHaveAttribute("aria-valuenow", String(current))
+  }
 }
 
 async function openSwipeAdvanced(page) {
@@ -81,7 +105,7 @@ async function waitForSwipeSettings(page) {
 test("structured settings sections do not autofocus search on mobile", async ({
   page
 }) => {
-  await page.goto("./")
+  await gotoMobileApp(page)
   await page.getByTestId("settings-menu").click()
   const back = page.locator("#settings_section_back")
 
@@ -94,7 +118,7 @@ test("structured settings sections do not autofocus search on mobile", async ({
 })
 
 test("list settings are the default and expose structured add actions", async ({ page }) => {
-  await page.goto("./")
+  await gotoMobileApp(page)
   await page.getByTestId("settings-menu").click()
   const sourcesSection = page.locator('[data-settings-target="sources"]')
   if (!(await sourcesSection.isVisible())) {
@@ -207,7 +231,7 @@ test("list settings are the default and expose structured add actions", async ({
 })
 
 test("filters edit inline and expose a row remove button", async ({ page }) => {
-  await page.goto("./")
+  await gotoMobileApp(page)
   await page.getByTestId("settings-menu").click()
   await page.locator('[data-settings-target="filters"]').click()
 
@@ -302,7 +326,7 @@ test("filters edit inline and expose a row remove button", async ({ page }) => {
 test("redirect list search matches expressions and replacement targets", async ({
   page
 }) => {
-  await page.goto("./")
+  await gotoMobileApp(page)
   await openSettingsSection(page, "redirects")
   await page.getByTestId("redirects").fill(
     "first.example => destination.example/one\n" +
@@ -334,7 +358,7 @@ test("redirect list search matches expressions and replacement targets", async (
 test("story source groups collapse while dragging and restore afterward", async ({
   page
 }) => {
-  await page.goto("./")
+  await gotoMobileApp(page)
   await openSettingsSection(page, "sources")
   const fixture = new URL("/fixtures/feed.rss", page.url()).href
   await page.getByTestId("sources").fill([
@@ -638,7 +662,7 @@ test("story source groups collapse while dragging and restore afterward", async 
 })
 
 test("story sources can be dragged into empty groups", async ({ page }) => {
-  await page.goto("./")
+  await gotoMobileApp(page)
   await openSettingsSection(page, "sources")
   const fixture = new URL("/fixtures/feed.rss", page.url()).href
   await page.getByTestId("sources").fill([
@@ -693,8 +717,38 @@ test("mobile layout is present before application JavaScript starts", async ({ p
   )).toContain("/app/imgs/reload.svg")
 })
 
+test("interactive navigation waits for a slow application startup", async ({
+  page
+}) => {
+  let releaseBundle
+  let markBundleRequested
+  const bundleReleased = new Promise((resolve) => {
+    releaseBundle = resolve
+  })
+  const bundleRequested = new Promise((resolve) => {
+    markBundleRequested = resolve
+  })
+  await page.route("**/mobile.js", async (route) => {
+    markBundleRequested()
+    await bundleReleased
+    await route.continue()
+  })
+
+  const navigation = gotoMobileApp(page)
+  await bundleRequested
+  await expect(page.locator("body")).not.toHaveAttribute(
+    "data-once-ready",
+    "true"
+  )
+  releaseBundle()
+  await navigation
+
+  await page.getByTestId("settings-menu").click()
+  await expect(page.locator("#settings_search")).toBeVisible()
+})
+
 test("mobile shell is responsive and hides unavailable capabilities", async ({ page }) => {
-  await page.goto("./")
+  await gotoMobileApp(page)
   await expect(page.locator("body")).toHaveAttribute("data-platform", "mobile")
   await expect(page.locator("body")).toHaveAttribute("data-once-ready", "true")
   await expect(page.getByTestId("app-version")).toContainText("dev")
@@ -716,7 +770,7 @@ test("mobile shell is responsive and hides unavailable capabilities", async ({ p
 })
 
 test("settings menu always resets to a clean section index", async ({ page }) => {
-  await page.goto("./")
+  await gotoMobileApp(page)
   await page.getByTestId("settings-menu").click()
   await page.locator("#settings_search").fill("two-stage")
   await page.locator('[data-settings-target="swipe"]').click()
@@ -735,7 +789,7 @@ test("settings menu always resets to a clean section index", async ({ page }) =>
 })
 
 test("mobile back unwinds settings before restoring its previous panel", async ({ page }) => {
-  await page.goto("./")
+  await gotoMobileApp(page)
   const leftPanel = page.locator("#left_panel")
 
   await openSettingsSection(page, "swipe")
@@ -759,7 +813,7 @@ test("mobile back unwinds settings before restoring its previous panel", async (
 })
 
 test("settings chevron back returns to the previous panel", async ({ page }) => {
-  await page.goto("./")
+  await gotoMobileApp(page)
   const leftPanel = page.locator("#left_panel")
   const settingsBack = page.locator("#settings_section_back")
   const desktopCollapse = page.locator("#settings_panel .collapsebutton")
@@ -780,7 +834,7 @@ test("settings chevron back returns to the previous panel", async ({ page }) => 
 test("swipe settings autosave, undo, and reset without submit controls", async ({
   page
 }) => {
-  await page.goto("./")
+  await gotoMobileApp(page)
   await openSettingsSection(page, "swipe")
 
   await expect(page.getByTestId("save-swipe")).toHaveCount(0)
@@ -839,7 +893,7 @@ test("mobile back dismisses transient story interactions before exiting", async 
 })
 
 test("mobile back returns an empty Reading tab to Stories", async ({ page }) => {
-  await page.goto("./")
+  await gotoMobileApp(page)
   await page.getByTestId("reading-menu").click()
   await expect(page.locator("#left_panel")).toHaveAttribute(
     "active_panel",
@@ -868,7 +922,7 @@ test("mobile back returns an empty Reading tab to Stories", async ({ page }) => 
 })
 
 test("mobile text settings use the detail panel as an editor workspace", async ({ page }) => {
-  await page.goto("./")
+  await gotoMobileApp(page)
   await openSettingsSection(page, "filters")
 
   const layout = await page.locator(
@@ -902,7 +956,7 @@ test("mobile text settings use the detail panel as an editor workspace", async (
 })
 
 test("mobile refresh controls stay separated and theme-aware", async ({ page }) => {
-  await page.goto("./")
+  await gotoMobileApp(page)
   await expect(page.locator("body")).toHaveAttribute("data-once-ready", "true")
 
   const refreshControls = await page.evaluate(() => {
@@ -1014,21 +1068,21 @@ test("mobile refresh controls stay separated and theme-aware", async ({ page }) 
 })
 
 test("mobile settings persist without contacting external sources", async ({ page }) => {
-  await page.goto("./")
+  await gotoMobileApp(page)
   await openSettingsSection(page, "sources")
   await page.getByTestId("sources").fill(await testServerUrl(page, "/fixtures/feed.rss"))
   await saveSourcesAndWait(page)
-  await page.reload()
+  await reloadMobileApp(page)
   await openSettingsSection(page, "sources")
   await expect(page.getByTestId("sources")).toHaveValue(/\/fixtures\/feed\.rss/)
 })
 
 test("stories persist offline and open in the in-app reader", async ({ page }) => {
-  await page.goto("./")
+  await gotoMobileApp(page)
   await openSettingsSection(page, "sources")
   await page.getByTestId("sources").fill(await testServerUrl(page, "/fixtures/feed.rss"))
   await saveSourcesAndWait(page)
-  await page.reload()
+  await reloadMobileApp(page)
   await openSettingsSection(page, "sources")
   await expect(page.getByTestId("sources")).toHaveValue(/\/fixtures\/feed\.rss/)
   await page.getByTestId("stories-menu").click()
@@ -1062,19 +1116,19 @@ test("stories persist offline and open in the in-app reader", async ({ page }) =
   await openStoryMenu(page, story)
   await page.getByTestId("story-menu-toggle-read").click()
   await expect(story).toHaveClass(/skipped/)
-  await page.waitForTimeout(500)
-  await page.reload()
+  await page.evaluate(() => window.__onceE2E__.settledStoryWrites())
+  await reloadMobileApp(page)
   await page.getByTestId("stories-menu").click()
   await page.getByTestId("reload-stories").click()
   await expect(page.getByTestId("story").filter({ hasText: "Fixture article" })).toHaveClass(/skipped/)
 })
 
 test("the ⋮ button opens the story menu anchored above the tab bar", async ({ page }) => {
-  await page.goto("./")
+  await gotoMobileApp(page)
   await openSettingsSection(page, "sources")
   await page.getByTestId("sources").fill(await testServerUrl(page, "/fixtures/feed.rss"))
   await saveSourcesAndWait(page)
-  await page.reload()
+  await reloadMobileApp(page)
   await page.getByTestId("stories-menu").click()
   await page.getByTestId("reload-stories").click()
 
@@ -1165,7 +1219,6 @@ test("filter actions open a visible editor from the menu and a swipe", async ({ 
   await openSettingsSection(page, "swipe")
   await page.getByTestId("swipe-left-1").selectOption("filter")
   await waitForSwipeSettings(page)
-  await page.waitForTimeout(300)
   await page.getByTestId("stories-menu").click()
 
   const swipe = await dragStory(story, -110, { release: false })
@@ -1183,11 +1236,11 @@ test("filter actions open a visible editor from the menu and a swipe", async ({ 
 })
 
 test("a long-press that becomes a drag shows progress and opens nothing", async ({ page }) => {
-  await page.goto("./")
+  await gotoMobileApp(page)
   await openSettingsSection(page, "sources")
   await page.getByTestId("sources").fill(await testServerUrl(page, "/fixtures/feed.rss"))
   await saveSourcesAndWait(page)
-  await page.reload()
+  await reloadMobileApp(page)
   await page.getByTestId("stories-menu").click()
   await page.getByTestId("reload-stories").click()
 
@@ -1239,11 +1292,11 @@ test("a long-press that becomes a drag shows progress and opens nothing", async 
 })
 
 async function seedFixtureStories(page) {
-  await page.goto("./")
+  await gotoMobileApp(page)
   await openSettingsSection(page, "sources")
   await page.getByTestId("sources").fill(await testServerUrl(page, "/fixtures/feed.rss"))
   await saveSourcesAndWait(page)
-  await page.reload()
+  await reloadMobileApp(page)
   await page.getByTestId("stories-menu").click()
   await page.getByTestId("reload-stories").click()
   const story = page.getByTestId("story").filter({ hasText: "Fixture article" })
@@ -1584,7 +1637,6 @@ test("a swipe beyond its threshold stays under the finger", async ({ page }) => 
   await openSettingsSection(page, "swipe")
   await setSwipeThreshold(page, 1, 100)
   await waitForSwipeSettings(page)
-  await page.waitForTimeout(300)
   await page.getByTestId("stories-menu").click()
 
   const shallow = await dragStory(story, -130, { release: false })
@@ -1618,7 +1670,6 @@ test("swipe settings retune action thresholds without a reload", async ({ page }
   await setSwipeThreshold(page, 1, 30)
   await page.getByTestId("swipe-right-1").selectOption("toggle-bookmark")
   await waitForSwipeSettings(page)
-  await page.waitForTimeout(300)
   await page.getByTestId("stories-menu").click()
 
   // 40px used to be below stage 1; with a 30px threshold it now engages.
@@ -1640,7 +1691,6 @@ test("sticky stage strength controls the magnetic snap", async ({ page }) => {
   await page.locator("#swipe_sticky_stages").check()
   await page.locator("#swipe_sticky_strength").fill("100")
   await waitForSwipeSettings(page)
-  await page.waitForTimeout(300)
   await page.getByTestId("stories-menu").click()
 
   // At full strength the default 56px threshold captures a swipe from 35px.
@@ -1662,7 +1712,6 @@ test("sticky stage strength controls the magnetic snap", async ({ page }) => {
   await openSwipeAdvanced(page)
   await page.locator("#swipe_sticky_strength").fill("1")
   await waitForSwipeSettings(page)
-  await page.waitForTimeout(300)
   await page.getByTestId("stories-menu").click()
 
   // The same 35px gesture is outside the low-strength capture band.
@@ -1997,7 +2046,6 @@ test("turning off two-stage swipe keeps the gesture on stage one", async ({ page
   await expect(page.getByTestId("swipe-handle-right-2")).toBeDisabled()
   await expect(page.getByTestId("swipe-handle-left-2")).toBeDisabled()
   await waitForSwipeSettings(page)
-  await page.waitForTimeout(300)
   await page.getByTestId("stories-menu").click()
 
   // A drag well past the old stage-2 threshold stays on stage 1.
@@ -2018,11 +2066,11 @@ test("reader TTS bridges through the host when the frame lacks speech synthesis"
       Object.defineProperty(window, "SpeechSynthesisUtterance", { configurable: true, value: undefined })
     }
   })
-  await page.goto("./")
+  await gotoMobileApp(page)
   await openSettingsSection(page, "sources")
   await page.getByTestId("sources").fill(await testServerUrl(page, "/fixtures/feed.rss"))
   await saveSourcesAndWait(page)
-  await page.reload()
+  await reloadMobileApp(page)
   await page.getByTestId("stories-menu").click()
   await page.getByTestId("reload-stories").click()
 
@@ -2040,7 +2088,7 @@ test("reader TTS bridges through the host when the frame lacks speech synthesis"
 })
 
 test("theme and phone navigation survive orientation changes", async ({ page }) => {
-  await page.goto("./")
+  await gotoMobileApp(page)
   await openSettingsSection(page, "theme")
   await page.getByTestId("theme").selectOption("light")
   await expect(page.locator("body")).toHaveAttribute("data-theme", "light")
@@ -2059,7 +2107,7 @@ test("authenticated PouchDB sync pulls and pushes deterministic settings", async
   await request.post(`${server}/test/databases/${database}/reset`, {
     data: { docs: [{ _id: "theme", list: "light" }] }
   })
-  await page.goto("./")
+  await gotoMobileApp(page)
   await openSettingsSection(page, "sync")
   await page.getByTestId("sync-url").fill(
     `${server.replace("http://", "http://once-test:once-test@")}/db/${database}`
@@ -2076,7 +2124,7 @@ test("authenticated PouchDB sync pulls and pushes deterministic settings", async
     return response.ok() ? (await response.json()).list : "pending"
   }, { timeout: 15_000 }).toBe("dark")
 
-  await page.reload()
+  await reloadMobileApp(page)
   await expect(page.locator("body")).toHaveAttribute("data-theme", "dark")
 })
 
@@ -2102,7 +2150,7 @@ test("Reader mode explains failures and offers clean recovery", async ({ page })
     })
   })
 
-  await page.goto("./")
+  await gotoMobileApp(page)
   await page.getByTestId("reading-menu").click()
   const url = await testServerUrl(page, "/fixtures/reader-failure")
   await page.getByTestId("reading-url-input").fill(url)
