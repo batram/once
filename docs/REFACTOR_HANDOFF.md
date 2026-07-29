@@ -2,281 +2,116 @@
 
 Updated: 2026-07-30
 
-## Objective
+## Goal
 
-Make the repository faster for humans and AI agents to discover, understand,
-and change without altering public package APIs or runtime behavior.
+Make the repository easier to discover and change without altering public
+package APIs or runtime behavior. Prefer small, behavior-preserving extractions
+behind existing facades.
 
-The agreed direction is to:
+Use these maintained references instead of repeating architecture details here:
 
-- remove confirmed dead code and analysis noise;
-- document composition roots, ownership, dynamic entrypoints, generated output,
-  inactive roadmap surfaces, and common change locations;
-- split large mixed-responsibility modules behind their existing public facades;
-- normalize filenames and touched TypeScript symbols;
-- enforce file/function size and dead-code guardrails;
-- reindex the repository after each structural phase.
+- `docs/CODEMAP.md` for ownership, composition roots, generated files, and
+  common change locations;
+- `docs/ARCHITECTURE.md` for package boundaries and runtime structure;
+- `docs/DEVELOPMENT.md` for platform-specific setup, builds, and tests;
+- `knip.jsonc` and `scripts/structure-exceptions.json` for documented analysis
+  exceptions.
 
-Native plugin methods, IPC bridge methods, compatibility paths, and other
-dynamically invoked APIs must not be removed solely because a static graph shows
-zero callers.
+## Current state
 
-## Completed work
+The discovery and guardrail work is in place:
 
-### Commit `874c8e2` — `refactor repo discovery and structural guardrails`
+- `npm run check` covers lint, structure, types, dead code, boundaries, and
+  development builds.
+- Knip models the Electron, extension, mobile, test, preload, content-script,
+  and background-script entry graphs. Its blocking check includes unused files,
+  exports, and types.
+- Dynamic dependency exceptions are narrow and documented in `knip.jsonc`.
+- Electron IPC registration and several large Settings responsibilities have
+  been split into focused modules.
 
-- Added `docs/CODEMAP.md` and linked it from the root README.
-- Expanded `docs/ARCHITECTURE.md` with feature-level boundaries.
-- Documented inactive roadmap surfaces, generated/native files, vendored
-  assets, and dynamic entrypoints.
-- Removed the unreachable legacy video presenter and vendored video assets.
-- Removed confirmed dead presenter/menu hooks and Capacitor template tests.
-- Renamed `presenters_frontend.ts` to `presenters/registry.ts`.
-- Renamed affected collector files from snake_case to camelCase.
-- Split Electron IPC registration by domain.
-- Added structural limits and the `check:structure` command.
-- Added Knip and an initial `check:dead-code` command.
-- Preserved the `OnceApp` bounded working set and lazy persistence behavior.
+For Settings, `SettingsPanel.ts` now mainly owns navigation and composition.
+Persistence, summaries, subscriptions, highlighting, control binding, flat
+filter/redirect editing, redirect testing, and drag/reorder helpers have been
+extracted. `StructuredSettingsEditors.ts` remains the public facade.
 
-### Commit `a1f57a6` — `fix dead-code analysis entry graph`
+The last verified checkpoint passed:
 
-This fixed a review finding that the initial Knip gate did not model the
-repository entry graph adequately.
+- `npm run check`
+- `npm run test:unit` (139 tests)
+- `npm run test:collectors` (23 tests)
+- `npm run check:dead-code`
+- `npm exec knip -- --no-progress`
+- `git diff --check`
 
-- Added explicit Knip workspace and runtime entrypoints for Electron,
-  extensions, mobile, tests, preload, content scripts, and background scripts.
-- Disabled automatic Webpack config loading. The shared extension Webpack
-  config requires `--env target=chrome|firefox`, so allowing Knip to load it
-  automatically caused graph discovery to abort.
-- Removed broad collector, presenter, website, and platform-web ignores.
-- Changed the blocking gate to analyze unused files as well as exports/types:
-  `knip --include files,exports,types --no-progress`.
-- Replaced namespace-only collector registration with explicit capability
-  objects so Knip can see which individual collector exports are live.
-- Added type predicates for optional global/domain search capabilities.
-- Replaced the outline presenter namespace cast with explicit registration.
-- Removed confirmed-dead outline presenter URL-bar and legacy presentation code.
+Treat test counts as checkpoint information, not fixed expectations.
 
-The repaired gate was tested with a temporary unused export inside an internal
-collector module. It reported the export and exited with status 1. The canary
-was then removed.
+## Next change
 
-### Commit `ea987eb` — `Tighten package export surfaces`
+Extract source and source-group behavior from
+`packages/ui-web/src/StructuredSettingsEditors.ts`.
 
-- Enabled `includeEntryExports` for package entrypoints that define public
-  surfaces.
-- Removed exports that were proven internal and unused.
-- Kept runtime entrypoints explicit so content scripts and background scripts
-  remain part of the analysis graph.
-- Did not remove the underlying implementations or change runtime behavior.
+1. Separate source-group rendering and reorder state from source-row rendering
+   and editing.
+2. Keep `StructuredSettingsEditors` as the facade.
+3. Preserve selectors, serialized settings, callbacks, parser exports, and
+   text/list-mode coordination.
+4. Add focused DOM tests for each extracted stateful behavior.
+5. Remove the related entries from `scripts/structure-exceptions.json` only
+   after the facade and extracted functions meet the enforced limits.
 
-### Commit `ca47b07` — `Clean up dependency analysis ownership`
+The current relevant exceptions are `renderSources`, `sourceRow`, `showForm`,
+anonymous callback wiring, and the `StructuredSettingsEditors.ts` file limit.
+Do not move a large function unchanged merely to move its exception.
 
-- Moved Playwright, Electron, and the mobile test server's
-  Express/Express-PouchDB/PouchDB declarations to the root test harness that
-  imports them.
-- Removed the genuinely unused `copyfiles` declaration and duplicate root
-  `pouchdb-browser` declarations. Platform packages retain their own
-  `pouchdb-browser` dependencies.
-- Kept Electron Forge, Webpack loader, Capacitor native plugin, WebdriverIO,
-  Appium service, and Appium driver dependencies with their runtime owners.
-- Replaced `knip.json` with commented `knip.jsonc` so every dynamic dependency
-  exception has an adjacent rationale.
-- Retained the entry-export analysis added in `ea987eb`; no barrel exports or
-  package export surfaces were changed.
-- Tested removing `types: ["*"]` from `tsconfig.base.json`. Full package
-  type-checking proved it is still required for ambient PouchDB, Firefox
-  `browser`, and NodeJS declarations, so it was restored and the single Knip
-  unresolved finding is suppressed by file and issue type.
+## Refactor invariants
 
-### Settings refactor checkpoint
+- Do not remove native plugin methods, preload/IPC bridge methods,
+  compatibility paths, or other dynamically invoked APIs solely because static
+  analysis reports no caller.
+- Preserve public exports, selectors, serialized keys, protocol payloads, and
+  native callback shapes.
+- Keep `OnceApp` startup loading bounded and persistence lazy.
+- Change generated assets at their source; do not edit `dist` or generated
+  native web assets directly.
+- Review current callers and runtime entrypoints before moving code.
+- Add focused regression tests, then run the broad checks appropriate to the
+  affected packages.
 
-- Kept `StructuredSettingsEditors` as the public facade while extracting
-  source-group, filter, and redirect parsing/serialization; structured-list
-  search/navigation; and shared form/action/list-card construction.
-- Kept the existing parser helper exports available from
-  `StructuredSettingsEditors`.
-- Extracted theme, animation, cache, and sync restoration behavior from
-  `SettingsPanel` into `settings/SettingsPersistence.ts`.
-- Removed `LoaderInsights`' import-time dependency on the
-  `SettingsPanel.instance` singleton. `mountOnceUi` now supplies its
-  clear/highlight/show actions from the UI composition layer.
-- Removed the `require.cache` SettingsPanel shim from
-  `notifications.test.js` and added assertions for the injected actions.
-- Updated `docs/CODEMAP.md` with the new Settings ownership directories.
-- Fixed the mobile test server's `ERR_PACKAGE_PATH_NOT_EXPORTED` startup
-  failure. The global UUID 11 security override remains, while the test-only
-  legacy `express-pouchdb@4.2.0` dependency receives a scoped `uuid@3.4.0`
-  override because it still imports `uuid/v4`.
+## Later candidates
 
-### Redirect tester extraction checkpoint
+After Settings, take one behavior-preserving area at a time:
 
-- Moved redirect expression compilation, exact capture-group highlighting,
-  loaded-story corpus counting, and debounced preview rendering from
-  `StructuredSettingsEditors` into
-  `structuredSettings/redirectTester.ts`.
-- Kept `StructuredSettingsEditors` as the facade that supplies the current
-  form fields and loaded story URLs. Existing selectors, timing, result
-  rendering, and `URLRedirect.apply_redirect` behavior are unchanged.
-- Added focused DOM tests for matching URL seeding, exact capture highlighting,
-  redirect output, corpus counts, and invalid regular expressions.
-- Reduced `StructuredSettingsEditors.ts` from 2,432 to 2,291 lines. Its
-  structural exception remains because the stateful source, filter, redirect,
-  and drag/reorder behavior still needs extraction.
+1. Split `StoryListItem` markup/actions from swipe geometry and animation.
+2. Extract loading, working-set, persistence reconciliation, and settings
+   access behind the `OnceApp` facade.
+3. Continue splitting Electron lifecycle/navigation coordination and mobile
+   reading/native-surface coordination.
+4. Split `SwipeSettingsLab` gesture simulation from persistence.
+5. Split large E2E suites by feature without reducing coverage.
 
-### Settings controls and flat-editor checkpoint
+Re-check `scripts/structure-exceptions.json` before selecting work; it is the
+current inventory, while this list is only a suggested order.
 
-- Moved Settings summary calculation, textarea selection/highlighting, sync
-  masking, settings subscriptions, and theme/text/cache/source control binding
-  into focused modules under `packages/ui-web/src/settings`.
-- Reduced `SettingsPanel.ts` to the enforced 600 logical-line limit and removed
-  both its file and anonymous-constructor structural exceptions.
-- Moved filter and redirect state, list rendering, inline editing, saving, and
-  redirect form coordination into
-  `structuredSettings/FlatSettingsEditors.ts`.
-- Moved shared flat-row drag/reorder and structured-list edge auto-scroll into
-  `structuredSettings/dragReorder.ts`.
-- Kept `StructuredSettingsEditors` as the facade and preserved its public
-  parser exports, selectors, serialized values, callbacks, and text/list mode
-  coordination.
-- Added focused DOM tests for Settings summaries, filter rendering/editing and
-  save propagation, malformed redirect presentation, and the previously
-  extracted redirect tester.
-- Intentionally stopped before source/source-group extraction. The
-  `StructuredSettingsEditors.ts` file and its source-rendering function
-  exceptions remain the next coherent phase.
+## Portable workflow
 
-## Verification completed
+Run commands from the repository root with Node.js 24 or newer. These commands
+work through npm on Windows, macOS, and Linux:
 
-After the Settings controls and flat-editor checkpoint:
-
-- `npm run check` passed.
-- `npm run test:unit` passed: 139 tests.
-- `npm run test:collectors` passed: 23 tests.
-- Focused Settings helper and structured-editor tests passed: 8 tests.
-- `npm run check:dead-code` passed.
-- Unfiltered `npx knip --no-progress` exited 0 with no dependency findings.
-- `git diff --check` passed.
-- A full codebase-memory MCP reindex succeeded:
-  - project: `once`
-  - nodes: 3,486
-  - edges: 8,768
-  - build/package output directories were excluded.
-
-On this Windows host, package builds can fail inside the sandbox with `EPERM`
-while updating committed/generated `dist` output. Retry the unchanged command
-under the normal Windows identity; do not delete output or alter permissions
-unless the escalated retry also fails.
-
-CI already runs `npm run check`, unit tests, and collector tests in its quality
-job. Extension and Electron suites run in separate jobs. No CI test wiring
-change is currently needed.
-
-## Known limitations and follow-up findings
-
-Unfiltered Knip is clean apart from one non-error configuration hint claiming
-that the explicitly listed mobile Webpack config is redundant. Keep that entry:
-with automatic Webpack plugin loading disabled, omitting the explicit entry
-makes `apps/mobile/webpack.config.js` appear unused.
-
-The remaining narrow dependency-analysis exceptions are justified in
-`knip.jsonc`:
-
-- ambient `@types/firefox-webext-browser` and the `types: ["*"]` compiler
-  wildcard;
-- `ts-loader`, Electron Forge CLI/makers, and CSS loaders resolved from paths
-  or string-valued configuration;
-- Capacitor plugins linked into generated Android and iOS projects;
-- WebdriverIO/Appium CLI, service, runner, framework, reporter, and platform
-  drivers loaded dynamically by the native E2E harness.
-
-Do not broaden these exceptions or remove dynamically invoked dependencies
-solely because a static graph reports no import.
-
-`npm ls` currently reports a separate Appium subtree inconsistency: installed
-`uuid@14` copies do not satisfy their parents' `^11.1.1` declarations. This did
-not cause the mobile test-server failure and was not changed in the Settings
-checkpoint.
-
-The scoped `express-pouchdb` UUID 3 dependency is confined to the local mobile
-test server. `express-pouchdb@4.2.0` still uses the removed `uuid/v4` CommonJS
-subpath. Replacing that legacy server would allow the compatibility dependency
-to be removed.
-
-The locally ignored `AGENTS.md` policy was intentionally left unchanged.
-Locally ignored planning notes such as `docs/dreams_of_road.txt` and
-`docs/once_todo.txt` were not part of the committed refactor.
-
-## Recommended next commit
-
-Finish the remaining source/source-group extraction behind the existing
-`StructuredSettingsEditors` facade:
-
-1. Move the stateful source/source-group renderer and editing behavior out of
-   `StructuredSettingsEditors`.
-2. Split the current 602-line source renderer into source-group rendering,
-   group drag/reorder state, and source-row rendering rather than moving its
-   structural exception intact.
-3. Preserve every selector, serialized setting, public facade method, and
-   visible behavior; add focused DOM tests around each stateful extraction.
-4. Remove the remaining `StructuredSettingsEditors.ts`, `renderSources`,
-   `sourceRow`, and anonymous-callback structural exceptions only after the
-   extracted modules and facade fall below the enforced limits.
-
-## Later structural phases
-
-Land each phase as a separate behavior-preserving commit:
-
-1. **Settings**
-   - Split the structured editor into source, source-group, filter, redirect,
-     form, drag/reorder, and search-navigation modules.
-   - Reduce `SettingsPanel` to navigation/composition and extract persistence,
-     summaries, highlighting, and control setup.
-   - Remove `LoaderInsights`' dependency on the `SettingsPanel.instance`
-     singleton. Supply its clear/highlight/show actions through an injected
-     collaborator from the UI composition layer, then remove the
-     `require.cache` SettingsPanel shim from `notifications.test.js`.
-2. **Story list**
-   - Separate story markup/actions from swipe state, geometry, animation, and
-     transitions.
-   - Keep `StoryListItem` as the public facade.
-3. **Application orchestration**
-   - Keep `OnceApp` as the facade.
-   - Extract source loading/error reporting, working-set management,
-     persistence/change reconciliation, and settings access.
-   - Preserve bounded startup loading and lazy persistence.
-4. **Platform composition**
-   - Continue separating Electron tab/window lifecycle from navigation,
-     Reader, and source-picker coordination.
-   - Split iOS secure settings, browser surface, bridge controller, and
-     application lifecycle into separate Swift files.
-   - Split mobile reading rendering, browser-surface synchronization, and
-     collapsed-card swipe behavior.
-   - Split `SwipeSettingsLab` preview/gesture simulation from persistence.
-5. **Tests**
-   - Split large E2E suites by feature without weakening coverage.
-
-For each phase:
-
-- inspect current callers and dynamic entrypoints with codebase-memory MCP;
-- preserve exports, selectors, serialized keys, IPC/plugin protocol shapes, and
-  native callbacks;
-- add focused regression tests around extracted behavior;
-- run full lint, structure, dead-code, type, boundary, and build checks;
-- run relevant unit/integration/E2E tests;
-- reindex before trusting graph-based impact analysis.
-
-## Useful starting commands
-
-```powershell
+```text
 git status --short
 git log -2 --oneline
+npm ci
+npm run check:structure
 npm run check:dead-code
-npx knip --no-progress
 npm run check
 npm run test:unit
 npm run test:collectors
+git diff --check
 ```
 
-Before graph analysis, list MCP projects and reindex `C:\Users\mjb\develop\once`
-if the index is absent, stale, or the branch has changed.
+Run only the installation step when dependencies need to be restored. Consult
+`docs/DEVELOPMENT.md` for platform-specific Electron, extension, Android, and
+iOS validation. Record any platform suite that could not be run rather than
+assuming another operating system's paths, executables, permissions, or
+sandbox behavior.
