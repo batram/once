@@ -274,6 +274,14 @@ explicit port is required; an occupied explicit port fails without terminating
 its owner. Set `ONCE_MOBILE_TEST_DATA_DIR` only when database files need to be
 retained for debugging.
 
+The test server depends on the legacy `express-pouchdb@4.2.0`, which still
+imports the removed `uuid/v4` CommonJS subpath. The root `package.json`
+therefore scopes a `uuid@3.4.0` override to `express-pouchdb` while the global
+`uuid@^11.1.1` security override stays in place; replacing this server would let
+the compatibility override go. Separately, `npm ls` reports installed `uuid@14`
+copies in the Appium subtree that do not satisfy their parents' `^11.1.1`
+declaration. That mismatch is known and has not caused a failure.
+
 With an Android emulator already running, `npm run test:mobile:e2e:android:local`
 configures the local SDK and JDK paths, installs the pinned UiAutomator2 driver
 when needed, builds the E2E APK, and runs the Android Appium suite.
@@ -383,6 +391,11 @@ after a type-check. `npm run test:electron:e2e` packages the application, then l
 the packaged webpack entry with Playwright. The E2E test currently references
 `electron.exe` directly and therefore runs on Windows. Failure traces and other
 Playwright artifacts are written below `test-results/`.
+
+On Windows, package builds that update committed or generated `dist` output can
+fail with `EPERM` when run from a restricted sandbox. Retry the unchanged
+command under the normal Windows identity; do not delete output or change
+permissions unless the retry also fails.
 
 `npm run package:electron` creates an unpacked Windows application.
 `npm run make:electron` also creates the configured Squirrel installer and ZIP.

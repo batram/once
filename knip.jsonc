@@ -10,9 +10,17 @@
   ],
   "ignoreIssues": {
     // TypeScript expands this wildcard to every visible ambient @types package;
-    // it is compiler configuration, not a module import.
+    // it is compiler configuration, not a module import. Removing
+    // `types: ["*"]` was tried and fails type-checking: ambient PouchDB,
+    // Firefox `browser`, and NodeJS declarations depend on it.
     "tsconfig.base.json": ["unresolved"]
   },
+  // Automatic Webpack config loading is disabled everywhere. The shared
+  // extension config requires `--env target=chrome|firefox`, and loading it
+  // without that aborts graph discovery. The cost is that each Webpack config
+  // must be listed as an explicit entry below; Knip then emits a non-error
+  // hint calling some of those entries redundant. Keep them anyway — removing
+  // one makes that config file itself report as unused.
   "webpack": false,
   "workspaces": {
     ".": {
