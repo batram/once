@@ -82,28 +82,40 @@ test("hover URL indicator delays, cancels, and completes dismissal", (t) => {
 
 test("status issues stack, dismiss, restore, and reset per reload", (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] })
-  const dom = installDom('<nav id="menu"></nav><main id="left_main"></main>')
-  const settingsModule = require.resolve(
-    "../../../packages/ui-web/dist/SettingsPanel"
-  )
-  const previousSettingsModule = require.cache[settingsModule]
-  require.cache[settingsModule] = {
-    id: settingsModule,
-    filename: settingsModule,
-    loaded: true,
-    exports: { SettingsPanel: { instance: null } }
-  }
+  const dom = installDom(`
+    <nav id="menu"></nav>
+    <main id="left_main"></main>
+    <button id="clear_error_log"></button>
+    <section id="error_log"></section>
+  `)
   try {
     const { LoaderInsights } = require(
       "../../../packages/ui-web/dist/LoaderInsights"
     )
     const subscriptions = new Map()
-    LoaderInsights.init({
-      subscribe(name, handler) {
-        subscriptions.set(name, handler)
-        return () => undefined
+    const actionCalls = []
+    LoaderInsights.init(
+      {
+        subscribe(name, handler) {
+          subscriptions.set(name, handler)
+          return () => undefined
+        }
+      },
+      {
+        clearSourceErrors() {
+          actionCalls.push(["clearSourceErrors"])
+        },
+        highlightSource(sourceUrl) {
+          actionCalls.push(["highlightSource", sourceUrl])
+        },
+        showErrorLog(logId) {
+          actionCalls.push(["showErrorLog", logId])
+        },
+        showStory(storyUrl) {
+          actionCalls.push(["showStory", storyUrl])
+        }
       }
-    })
+    )
     assert.ok(document.querySelector("#status_dock").hidden)
 
     subscriptions.get("loaderChanged")({
@@ -125,6 +137,10 @@ test("status issues stack, dismiss, restore, and reset per reload", (t) => {
     assert.equal(document.querySelectorAll(".status_issue_bubble").length, 4)
     assert.equal(document.querySelector("#status_bar_warnings .status_indicator_count").textContent, "2")
     assert.equal(document.querySelector("#status_bar_errors .status_indicator_count").textContent, "2")
+    document.querySelector(".error_log_show_source").click()
+    assert.deepEqual(actionCalls.shift(), ["highlightSource", "warning:one"])
+    document.querySelector(".status_issue_content").click()
+    assert.match(actionCalls.shift()[0], /showErrorLog/)
 
     document.querySelector(".status_issue_bubble.error .status_issue_close").click()
     assert.equal(document.querySelectorAll(".status_issue_bubble.error").length, 1)
@@ -153,9 +169,9 @@ test("status issues stack, dismiss, restore, and reset per reload", (t) => {
     subscriptions.get("loaderChanged")({ processing: [] })
     LoaderInsights.hide()
     assert.ok(document.querySelector("#status_dock").hidden)
+    document.querySelector("#clear_error_log").click()
+    assert.deepEqual(actionCalls.shift(), ["clearSourceErrors"])
   } finally {
-    if (previousSettingsModule) require.cache[settingsModule] = previousSettingsModule
-    else Reflect.deleteProperty(require.cache, settingsModule)
     dom.restore()
   }
 })

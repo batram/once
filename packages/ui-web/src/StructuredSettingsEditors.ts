@@ -2,6 +2,40 @@ import { SourceError } from "@once/app"
 import { get_parser_for_url, StoryParser } from "@once/collectors"
 import { parseRedirectList, Redirect, URLRedirect } from "@once/core"
 import { AnchoredMenuItem, openAnchoredMenu } from "./StoryAnchoredMenu"
+import { parseFilterRows } from "./structuredSettings/filters"
+import {
+  parseRedirectRows,
+  RedirectRow,
+  serializeRedirectRows
+} from "./structuredSettings/redirects"
+import {
+  parseSourceGroups,
+  serializeSourceGroups,
+  SourceGroup
+} from "./structuredSettings/sourceGroups"
+import {
+  applyStructuredSearch,
+  renderStructuredSearch,
+  StructuredSettingsSection
+} from "./structuredSettings/searchNavigation"
+import {
+  announceStructuredSettings,
+  createActionButton,
+  createInlineActionButton,
+  createListCard
+} from "./structuredSettings/form"
+
+export { parseFilterRows } from "./structuredSettings/filters"
+export {
+  parseRedirectRows,
+  RedirectRow,
+  serializeRedirectRows
+} from "./structuredSettings/redirects"
+export {
+  parseSourceGroups,
+  serializeSourceGroups,
+  SourceGroup
+} from "./structuredSettings/sourceGroups"
 
 /** Every control showForm builds: the three carry a value and take input. */
 type FormField = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
@@ -32,69 +66,6 @@ function captureRanges(match: RegExpExecArray): Array<[number, number]> {
     .sort((left, right) => left[0] - right[0])
 }
 
-export interface SourceGroup {
-  id: string
-  name: string
-  sources: string[]
-}
-
-export interface RedirectRow {
-  match_url: string
-  replace_url: string
-  raw?: string
-  invalid?: boolean
-}
-
-export function parseSourceGroups(lines: string[]): SourceGroup[] {
-  const groups: SourceGroup[] = [{ id: "default", name: "Default", sources: [] }]
-  let current = groups[0]
-  for (const raw of lines) {
-    const line = raw.trim()
-    if (!line) continue
-    if (line.startsWith("*")) {
-      current = {
-        id: `group-${groups.length}`,
-        name: line.slice(1),
-        sources: []
-      }
-      groups.push(current)
-    } else {
-      current.sources.push(line)
-    }
-  }
-  return groups
-}
-
-export function serializeSourceGroups(groups: SourceGroup[]): string[] {
-  return groups.flatMap((group, index) => [
-    ...(index === 0 ? [] : [`*${group.name}`]),
-    ...group.sources
-  ])
-}
-
-export function parseFilterRows(text: string): string[] {
-  return text.split("\n").filter((line) => line.trim() !== "")
-}
-
-export function parseRedirectRows(text: string): RedirectRow[] {
-  return text.split("\n").filter((line) => line.trim() !== "").map((raw) => {
-    const separator = raw.indexOf(" => ")
-    if (separator < 1 || separator + 4 >= raw.length) {
-      return { match_url: "", replace_url: "", raw, invalid: true }
-    }
-    return {
-      match_url: raw.slice(0, separator).trim(),
-      replace_url: raw.slice(separator + 4).trim()
-    }
-  })
-}
-
-export function serializeRedirectRows(rows: RedirectRow[]): string {
-  return rows.map((row) => row.invalid
-    ? row.raw || ""
-    : `${row.match_url} => ${row.replace_url}`).join("\n")
-}
-
 function collectorFor(source: string): StoryParser | undefined {
   try {
     return get_parser_for_url(source)
@@ -115,31 +86,7 @@ function sourceLabel(source: string): string {
   }
 }
 
-function highlightMatches(
-  element: HTMLElement,
-  value: string,
-  query: string
-): void {
-  element.textContent = ""
-  if (!query) {
-    element.textContent = value
-    return
-  }
-  const normalizedValue = value.toLowerCase()
-  let start = 0
-  let match = normalizedValue.indexOf(query)
-  while (match !== -1) {
-    element.append(document.createTextNode(value.slice(start, match)))
-    const mark = document.createElement("mark")
-    mark.textContent = value.slice(match, match + query.length)
-    element.append(mark)
-    start = match + query.length
-    match = normalizedValue.indexOf(query, start)
-  }
-  element.append(document.createTextNode(value.slice(start)))
-}
-
-type Section = "sources" | "filters" | "redirects"
+type Section = StructuredSettingsSection
 
 export interface StructuredSettingsOptions {
   saveSources(values: string[], reloadStories?: boolean): void | Promise<void>
@@ -544,7 +491,7 @@ export class StructuredSettingsEditors {
       group.sources.some((entry) => entry.trim() === source.trim()))
     if (groupIndex < 0) {
       this.pendingSourceReveal = null
-      this.announce("That story source is no longer in settings.")
+      announceStructuredSettings("That story source is no longer in settings.")
       return true
     }
     this.sourceGroupOpen.set(this.sourceGroups[groupIndex].id, true)
@@ -702,19 +649,6 @@ export class StructuredSettingsEditors {
     return true
   }
 
-  private announce(message: string): void {
-    let status = document.getElementById("structured_settings_status")
-    if (!status) {
-      status = document.createElement("div")
-      status.id = "structured_settings_status"
-      status.className = "visually_hidden"
-      status.setAttribute("role", "status")
-      status.setAttribute("aria-live", "polite")
-      document.body.append(status)
-    }
-    status.textContent = message
-  }
-
   /**
    * Close whatever edit surface is open. Each editor registers its own close
    * action, which is that editor's ordinary exit — so this commits or reverts
@@ -733,27 +667,6 @@ export class StructuredSettingsEditors {
    * chrome without the <details>; reusing the name and count classes is what
    * keeps the three lists from drifting apart.
    */
-  private listCard(title: string, count: number): {
-    card: HTMLElement
-    rows: HTMLElement
-  } {
-    const card = document.createElement("section")
-    card.className = "structured_list_card"
-    const header = document.createElement("div")
-    header.className = "structured_list_header"
-    const name = document.createElement("strong")
-    name.className = "structured_list_name"
-    name.textContent = title
-    const total = document.createElement("span")
-    total.className = "structured_list_count"
-    total.textContent = String(count)
-    header.append(name, total)
-    const rows = document.createElement("div")
-    rows.className = "structured_rows"
-    card.append(header, rows)
-    return { card, rows }
-  }
-
   /**
    * Drag-to-reorder for a flat row list. The drop reads the indicator the last
    * dragover left rather than re-measuring the pointer, so the line the person
@@ -838,14 +751,14 @@ export class StructuredSettingsEditors {
     this.openEditor = null
     this.options.setDetailTitle?.(null)
     root.textContent = ""
-    this.renderSearch(root, section)
+    renderStructuredSearch(root, section, this.searchQueries)
     if (section === "sources") {
       this.renderSources(root)
       this.applyPendingSourceReveal()
     }
     if (section === "filters") this.renderSimpleList(root, section, this.filters)
     if (section === "redirects") this.renderRedirects(root)
-    this.applySearch(root, section)
+    applyStructuredSearch(root, section, this.searchQueries)
     this.placeDesktopActions(section)
     this.updateAddButton(section)
     this.placePickerStatus(section)
@@ -893,120 +806,6 @@ export class StructuredSettingsEditors {
         if (picker) actions.append(picker)
       }
     }
-  }
-
-  private renderSearch(root: HTMLElement, section: Section): void {
-    const labels: Record<Section, string> = {
-      sources: "story sources",
-      filters: "filters",
-      redirects: "redirects"
-    }
-    const search = document.createElement("label")
-    search.className = "structured_search"
-    const text = document.createElement("span")
-    text.className = "visually_hidden"
-    text.textContent = `Search ${labels[section]}`
-    const input = document.createElement("input")
-    input.type = "search"
-    input.placeholder = `Search ${labels[section]}`
-    input.value = this.searchQueries.get(section) || ""
-    input.dataset.testid = `${section}-list-search`
-    input.setAttribute("aria-label", text.textContent)
-    const status = document.createElement("span")
-    status.className = "structured_search_status"
-    status.setAttribute("role", "status")
-    status.setAttribute("aria-live", "polite")
-    input.addEventListener("input", () => {
-      this.searchQueries.set(section, input.value)
-      this.applySearch(root, section)
-    })
-    search.append(text, input, status)
-    root.append(search)
-  }
-
-  private applySearch(root: HTMLElement, section: Section): void {
-    const query = (this.searchQueries.get(section) || "").trim().toLowerCase()
-    let visible = 0
-    if (section === "sources") {
-      root.querySelectorAll<HTMLDetailsElement>(".structured_group").forEach(
-        (group) => {
-          const groupMatches = (group.dataset.searchValue || "").includes(query)
-          const groupName = group.querySelector<HTMLElement>(
-            ".structured_group_name"
-          )
-          if (groupName) {
-            highlightMatches(
-              groupName,
-              groupName.dataset.searchText || "",
-              query
-            )
-          }
-          let groupVisible = false
-          group.querySelectorAll<HTMLElement>(".structured_row").forEach((row) => {
-            const matches = !query || groupMatches ||
-              (row.dataset.searchValue || "").includes(query)
-            row.hidden = !matches
-            row.querySelectorAll<HTMLElement>("[data-search-text]").forEach(
-              (element) => highlightMatches(
-                element,
-                element.dataset.searchText || "",
-                query
-              )
-            )
-            if (matches) {
-              visible++
-              groupVisible = true
-            }
-          })
-          const empty = group.querySelector<HTMLElement>(".structured_empty")
-          if (empty) empty.hidden = Boolean(query) && !groupMatches
-          group.hidden = Boolean(query) && !groupMatches && !groupVisible
-          if (query && !group.hidden) group.open = true
-        }
-      )
-    } else {
-      root.querySelectorAll<HTMLElement>(".structured_row").forEach((row) => {
-        // An open editor has no search value of its own and must never be
-        // filtered away underneath the person typing in it.
-        if (row.classList.contains("structured_row_editing")) return
-        const matches = !query ||
-          (row.dataset.searchValue || "").includes(query)
-        row.hidden = !matches
-        if (matches) visible++
-      })
-    }
-    const status = root.querySelector<HTMLElement>(".structured_search_status")
-    if (status) status.textContent = query
-      ? `${visible} ${visible === 1 ? "result" : "results"}`
-      : ""
-  }
-
-  private actionButton(label: string, action: () => void, testid?: string): HTMLButtonElement {
-    const button = document.createElement("button")
-    button.type = "button"
-    button.textContent = label
-    if (testid) button.dataset.testid = testid
-    button.addEventListener("click", action)
-    return button
-  }
-
-  private inlineActionButton(
-    label: "Save" | "Cancel",
-    action: () => void,
-    testid?: string
-  ): HTMLButtonElement {
-    const button = document.createElement("button")
-    button.type = "button"
-    button.className = "structured_inline_action"
-    button.title = label
-    button.setAttribute("aria-label", label)
-    if (testid) button.dataset.testid = testid
-    const glyph = document.createElement("span")
-    glyph.className = label === "Save" ? "glyph_check" : "glyph_cross"
-    glyph.setAttribute("aria-hidden", "true")
-    button.append(glyph)
-    button.addEventListener("click", action)
-    return button
   }
 
   private installDragAutoScroll(root: HTMLElement): void {
@@ -1107,8 +906,8 @@ export class StructuredSettingsEditors {
     const toolbar = this.listActions("sources")
     if (!this.onTouch) {
       toolbar?.append(
-        this.actionButton("Add source", () => this.editSource(root), "add-source"),
-        this.actionButton("Add group", () => this.editGroup(root), "add-source-group")
+        createActionButton("Add source", () => this.editSource(root), "add-source"),
+        createActionButton("Add group", () => this.editGroup(root), "add-source-group")
       )
     }
     const sourceCount = this.sourceGroups.reduce(
@@ -1788,7 +1587,7 @@ export class StructuredSettingsEditors {
     const body = this.rowBody(open)
     if (error) {
       row.classList.add(`structured_row_${error.type}`)
-      const issue = this.actionButton(
+      const issue = createActionButton(
         error.type === "warning" ? "⚠" : "!",
         () => this.options.showSourceError(source),
         "source-error"
@@ -2015,17 +1814,17 @@ export class StructuredSettingsEditors {
     const actions = document.createElement("div")
     actions.className = "structured_form_actions"
     actions.append(
-      this.actionButton("Remove group and move sources to Default", () => {
+      createActionButton("Remove group and move sources to Default", () => {
         this.sourceGroups[0].sources.push(...group.sources)
         this.sourceGroups.splice(groupIndex, 1)
         this.saveSources()
       }),
-      this.actionButton("Remove group and its sources", () => {
+      createActionButton("Remove group and its sources", () => {
         if (!window.confirm(`Permanently delete ${group.sources.length} sources?`)) return
         this.sourceGroups.splice(groupIndex, 1)
         this.saveSources()
       }),
-      this.actionButton("Cancel", () => this.render("sources")))
+      createActionButton("Cancel", () => this.render("sources")))
     dialog.append(actions)
     root.append(dialog)
   }
@@ -2081,22 +1880,22 @@ export class StructuredSettingsEditors {
 
   private renderSimpleList(root: HTMLElement, section: "filters", values: string[]): void {
     if (!this.onTouch) {
-      this.listActions(section)?.append(this.actionButton("Add filter", () =>
+      this.listActions(section)?.append(createActionButton("Add filter", () =>
         this.editFilterInline(root), "add-filter"))
     }
     this.renderListStatus(root, values.length, "keyword")
-    const { card, rows } = this.listCard("Keyword filters", values.length)
+    const { card, rows } = createListCard("Keyword filters", values.length)
     values.forEach((value, index) => {
       const row = document.createElement("div")
       row.className = "structured_row"
       row.draggable = true
       row.dataset.filterIndex = String(index)
       row.dataset.searchValue = value.toLowerCase()
-      const open = this.actionButton(value, () =>
+      const open = createActionButton(value, () =>
         this.editFilterInline(root, index), "filter-row")
       open.className = "structured_row_main"
       open.dataset.filterValue = value
-      const remove = this.actionButton("×", () => {
+      const remove = createActionButton("×", () => {
         if (!window.confirm(`Delete filter “${value}”?`)) return
         this.filters.splice(index, 1)
         this.saveFilters()
@@ -2202,12 +2001,12 @@ export class StructuredSettingsEditors {
         save()
       }, 0)
     })
-    const accept = this.inlineActionButton(
+    const accept = createInlineActionButton(
       "Save",
       save,
       "save-inline-filter"
     )
-    const dismiss = this.inlineActionButton("Cancel", cancel)
+    const dismiss = createInlineActionButton("Cancel", cancel)
     this.listActions("filters")
     row.append(input, validation, accept, dismiss)
     input.focus({ preventScroll: true })
@@ -2260,11 +2059,11 @@ export class StructuredSettingsEditors {
 
   private renderRedirects(root: HTMLElement): void {
     if (!this.onTouch) {
-      this.listActions("redirects")?.append(this.actionButton("Add redirect", () =>
+      this.listActions("redirects")?.append(createActionButton("Add redirect", () =>
         this.editRedirect(root), "add-redirect"))
     }
     this.renderListStatus(root, this.redirects.length, "rule")
-    const { card, rows } = this.listCard("Redirects", this.redirects.length)
+    const { card, rows } = createListCard("Redirects", this.redirects.length)
     this.redirects.forEach((redirect, index) => {
       const row = document.createElement("div")
       row.className = "structured_row structured_row_unbadged" +
@@ -2297,7 +2096,7 @@ export class StructuredSettingsEditors {
       // Same trailing control as the filters list: the row's own × deletes it,
       // which is why the editor carries no delete button on desktop.
       const label = redirect.raw || redirect.match_url
-      const remove = this.actionButton("×", () => {
+      const remove = createActionButton("×", () => {
         if (!window.confirm(`Delete redirect “${label}”?`)) return
         this.redirects.splice(index, 1)
         this.saveRedirects()
@@ -2461,7 +2260,7 @@ export class StructuredSettingsEditors {
     error.setAttribute("role", "alert")
     const actions = document.createElement("div")
     actions.className = "structured_form_actions"
-    const saveButton = this.inlineActionButton("Save", () => {
+    const saveButton = createInlineActionButton("Save", () => {
       if (!form.reportValidity()) return
       if (!save(inputs.map((input) => input.value))) {
         error.textContent = "Complete all required fields."
@@ -2471,7 +2270,7 @@ export class StructuredSettingsEditors {
       this.read(section)
       this.render(section)
     }
-    const cancelButton = this.inlineActionButton("Cancel", dismiss)
+    const cancelButton = createInlineActionButton("Cancel", dismiss)
     this.openEditor = dismiss
     if (tester) {
       // Desktop shares the footer line between the corpus count and the commit
@@ -2483,7 +2282,7 @@ export class StructuredSettingsEditors {
       // With no trailing column for a glyph to live in, the destructive action
       // can only be told from cancel by language. On desktop the row's own ×
       // already does this job, so the editor carries no delete button there.
-      const deleteButton = this.actionButton(
+      const deleteButton = createActionButton(
         remove.label,
         remove.action,
         "structured-delete"

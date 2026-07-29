@@ -1,5 +1,4 @@
 import { DiagnosticError, OnceClient, ProcessingSource, SourceError } from "@once/app"
-import { SettingsPanel } from "./SettingsPanel"
 import { requireElement } from "./dom"
 
 type IssueType = "warning" | "error"
@@ -12,6 +11,13 @@ interface UiIssue extends SourceError {
 
 const INFO_FADE_DELAY = 2500
 const WARNING_DISMISS_DELAY = 5000
+
+export interface LoaderInsightsActions {
+  clearSourceErrors(): void
+  highlightSource(sourceUrl: string): void
+  showErrorLog(logId: string): void
+  showStory(storyUrl: string): void
+}
 
 export class LoaderInsights {
   private static surfaces: HTMLElement | null = null
@@ -36,15 +42,17 @@ export class LoaderInsights {
   private static genericIssueId = 0
   private static errorLogId = 0
   private static sourceErrorLogIds = new Map<string, string>()
+  private static actions: LoaderInsightsActions | null = null
 
-  static init(client?: OnceClient): void {
+  static init(client?: OnceClient, actions?: LoaderInsightsActions): void {
+    if (actions) this.actions = actions
     this.ensureUi()
 
     document.querySelector("#clear_error_log")?.addEventListener("click", () => {
       document.querySelector("#error_log")?.replaceChildren()
       this.renderEmptyErrorLog()
       this.updateSourceErrors([])
-      SettingsPanel.instance?.clearSourceErrors()
+      this.actions?.clearSourceErrors()
     })
 
     client?.getDiagnostics?.().forEach((error) => this.showDiagnostic(error))
@@ -333,7 +341,7 @@ export class LoaderInsights {
       showSource.classList.add("error_log_show_source")
       showSource.textContent = "Show story source"
       showSource.addEventListener("click", () => {
-        SettingsPanel.instance?.highlightSource(sourceUrl)
+        this.actions?.highlightSource(sourceUrl)
       })
       entry.append(showSource)
     }
@@ -343,7 +351,7 @@ export class LoaderInsights {
       showStory.classList.add("error_log_show_story")
       showStory.textContent = "Show story"
       showStory.addEventListener("click", () => {
-        SettingsPanel.instance?.showStory(storyUrl)
+        this.actions?.showStory(storyUrl)
       })
       entry.append(showStory)
     }
@@ -528,11 +536,11 @@ export class LoaderInsights {
 
       if (issue.logId) {
         content.addEventListener("click", () => {
-          SettingsPanel.instance?.showErrorLog(issue.logId as string)
+          this.actions?.showErrorLog(issue.logId as string)
         })
       } else if (issue.sourceIssue) {
         content.addEventListener("click", () => {
-          SettingsPanel.instance?.highlightSource(issue.url)
+          this.actions?.highlightSource(issue.url)
         })
       }
 

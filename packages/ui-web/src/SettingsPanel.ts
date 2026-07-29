@@ -1,4 +1,4 @@
-import { OnceClient, SourceError, ThemeName } from "@once/app"
+import { OnceClient, SourceError } from "@once/app"
 import { parseRedirectList, presentRedirectList } from "@once/core"
 import { requireClosestElement, requireElement } from "./dom"
 import * as menu from "./menu"
@@ -8,6 +8,7 @@ import {
 } from "./SettingsSearch"
 import { SwipeSettingsLab } from "./SwipeSettingsLab"
 import { StructuredSettingsEditors } from "./StructuredSettingsEditors"
+import { SettingsPersistence } from "./settings/SettingsPersistence"
 
 export class SettingsPanel {
   static instance: SettingsPanel
@@ -16,8 +17,13 @@ export class SettingsPanel {
   private swipeLab?: SwipeSettingsLab
   private sourcesSaveChain: Promise<void> = Promise.resolve()
   private sourcesReloadPending = false
+  private persistence: SettingsPersistence
 
   constructor(private client: OnceClient) {
+    this.persistence = new SettingsPersistence(
+      client,
+      () => this.refreshSettingsSearch()
+    )
     SettingsPanel.instance = this
     client.subscribe("settingsChanged", ({ section }) => {
       switch (section) {
@@ -782,11 +788,7 @@ export class SettingsPanel {
   }
 
   async reset_couch_settings(): Promise<void> {
-    const couch_input =
-      requireElement<HTMLInputElement>("#couch_input")
-    couch_input.value = await this.client.getSyncUrl()
-    // Trigger password highlighting update using existing function
-    couch_input.dispatchEvent(new Event("input"))
+    await this.persistence.restoreSync()
   }
 
   save_couch_settings(): void {
@@ -813,57 +815,27 @@ export class SettingsPanel {
   }
 
   async restore_theme_settings(): Promise<void> {
-    const theme_value = await this.client.getTheme()
-
-    const theme_select =
-      requireElement<HTMLSelectElement>("#theme_select")
-    theme_select.value = theme_value
-    this.set_theme(theme_value)
-    this.refreshSettingsSearch()
+    await this.persistence.restoreTheme()
   }
 
   save_theme(name: string): void {
-    this.client.setTheme(name as ThemeName)
-    this.set_theme(name)
+    this.persistence.saveTheme(name)
   }
 
   async restore_animation_settings(): Promise<void> {
-    const checked = await this.client.getAnimation()
-
-    const anim_checkbox =
-      requireElement<HTMLInputElement>("#anim_checkbox")
-    anim_checkbox.checked = checked
-    this.set_animation(checked)
-    this.refreshSettingsSearch()
+    await this.persistence.restoreAnimation()
   }
 
   save_animation(checked: boolean): void {
-    this.client.setAnimation(checked)
-    const anim_checkbox =
-      requireElement<HTMLInputElement>("#anim_checkbox")
-    anim_checkbox.checked = checked
-    this.set_animation(checked)
+    this.persistence.saveAnimation(checked)
   }
 
   set_animation(checked: boolean): void {
-    document.body.setAttribute("animated", checked.toString())
+    this.persistence.applyAnimation(checked)
   }
 
   set_theme(name: string): void {
-    document.body.removeAttribute("data-theme")
-    switch (name) {
-      case "dark":
-        document.body.setAttribute("data-theme", "dark")
-        break
-      case "light":
-        document.body.setAttribute("data-theme", "light")
-        break
-      case "custom":
-        console.debug("custom theme, not implement, just hanging out here :D")
-        break
-      case "system":
-        break
-    }
+    this.persistence.applyTheme(name)
   }
 
   async set_sources_area(): Promise<void> {
@@ -1064,17 +1036,10 @@ export class SettingsPanel {
   }
 
   async restore_cache_settings(): Promise<void> {
-    const cache_time_input =
-      requireElement<HTMLInputElement>("#cache_time_input")
-    const cache_time = await this.client.getCacheTime()
-    cache_time_input.value = cache_time.toString()
-    this.refreshSettingsSearch()
+    await this.persistence.restoreCache()
   }
 
   async save_cache_settings(): Promise<void> {
-    const cache_time_input =
-      requireElement<HTMLInputElement>("#cache_time_input")
-    const cache_time = cache_time_input.value
-    await this.client.setCacheTime(cache_time)
+    await this.persistence.saveCache()
   }
 }

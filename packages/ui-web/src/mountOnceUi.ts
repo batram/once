@@ -73,7 +73,12 @@ export async function mountOnceUi(
   new StoryHistory(client)
   StoryList.init(client)
   Menu.init(client)
-  LoaderInsights.init(client)
+  LoaderInsights.init(client, {
+    clearSourceErrors: () => settingsPanel.clearSourceErrors(),
+    highlightSource: (sourceUrl) => settingsPanel.highlightSource(sourceUrl),
+    showErrorLog: (logId) => settingsPanel.showErrorLog(logId),
+    showStory: (storyUrl) => settingsPanel.showStory(storyUrl)
+  })
   if (options.showHoveredLinks) HoverUrlIndicator.mount()
   Search.init()
   addCollectorColorStyles()

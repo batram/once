@@ -26,7 +26,7 @@ target lifecycle, permissions, native bridges, and packaging belong in an app.
 | Loading, settings, story state | `packages/app/src/OnceApp.ts` | Application orchestration |
 | PouchDB storage and sync | `packages/persistence/src` | Storage implementations |
 | Story list and actions | `packages/ui-web/src/StoryListItem.ts` | Shared DOM UI |
-| Settings UI | `packages/ui-web/src/SettingsPanel.ts` | Shared DOM UI |
+| Settings UI | `packages/ui-web/src/SettingsPanel.ts`, `packages/ui-web/src/settings`, `packages/ui-web/src/structuredSettings` | Facade, persistence, structured editors, search, and form helpers |
 | Reader extraction and display | `packages/ui-web/src/reader` | Shared reader runtime |
 | Source picker | `packages/ui-web/src/picker` | Shared picker plus platform injection |
 | Electron tabs and windows | `apps/electron/src/TabManager.ts` | Main-process ownership |

@@ -89,20 +89,41 @@ was then removed.
   `browser`, and NodeJS declarations, so it was restored and the single Knip
   unresolved finding is suppressed by file and issue type.
 
+### Settings refactor checkpoint
+
+- Kept `StructuredSettingsEditors` as the public facade while extracting
+  source-group, filter, and redirect parsing/serialization; structured-list
+  search/navigation; and shared form/action/list-card construction.
+- Kept the existing parser helper exports available from
+  `StructuredSettingsEditors`.
+- Extracted theme, animation, cache, and sync restoration behavior from
+  `SettingsPanel` into `settings/SettingsPersistence.ts`.
+- Removed `LoaderInsights`' import-time dependency on the
+  `SettingsPanel.instance` singleton. `mountOnceUi` now supplies its
+  clear/highlight/show actions from the UI composition layer.
+- Removed the `require.cache` SettingsPanel shim from
+  `notifications.test.js` and added assertions for the injected actions.
+- Updated `docs/CODEMAP.md` with the new Settings ownership directories.
+- Fixed the mobile test server's `ERR_PACKAGE_PATH_NOT_EXPORTED` startup
+  failure. The global UUID 11 security override remains, while the test-only
+  legacy `express-pouchdb@4.2.0` dependency receives a scoped `uuid@3.4.0`
+  override because it still imports `uuid/v4`.
+
 ## Verification completed
 
-After `ca47b07`:
+After the Settings checkpoint:
 
 - `npm run check` passed.
 - `npm run test:unit` passed: 134 tests.
 - `npm run test:collectors` passed: 23 tests.
+- Focused Settings and notification tests passed: 10 tests.
 - `npm run check:dead-code` passed.
 - Unfiltered `npx knip --no-progress` exited 0 with no dependency findings.
 - `git diff --check` passed.
 - A full codebase-memory MCP reindex succeeded:
   - project: `once`
-  - nodes: 3,370
-  - edges: 8,586
+  - nodes: 3,406
+  - edges: 8,609
   - build/package output directories were excluded.
 
 On this Windows host, package builds can fail inside the sandbox with `EPERM`
@@ -135,30 +156,34 @@ The remaining narrow dependency-analysis exceptions are justified in
 Do not broaden these exceptions or remove dynamically invoked dependencies
 solely because a static graph reports no import.
 
+`npm ls` currently reports a separate Appium subtree inconsistency: installed
+`uuid@14` copies do not satisfy their parents' `^11.1.1` declarations. This did
+not cause the mobile test-server failure and was not changed in the Settings
+checkpoint.
+
+The scoped `express-pouchdb` UUID 3 dependency is confined to the local mobile
+test server. `express-pouchdb@4.2.0` still uses the removed `uuid/v4` CommonJS
+subpath. Replacing that legacy server would allow the compatibility dependency
+to be removed.
+
 The locally ignored `AGENTS.md` policy was intentionally left unchanged.
 Locally ignored planning notes such as `docs/dreams_of_road.txt` and
 `docs/once_todo.txt` were not part of the committed refactor.
 
 ## Recommended next commit
 
-Begin the Settings phase as a separate behavior-preserving change:
+Finish the remaining Settings extraction behind the existing facades:
 
-1. Split `StructuredSettingsEditors` behind its existing public surface into
-   source, source-group, filter, redirect, form, drag/reorder, and
-   search-navigation responsibilities.
-2. Reduce `SettingsPanel` to navigation and composition. Extract persistence,
-   summaries, highlighting, and control setup without changing selectors,
-   serialized settings, or visible behavior.
-3. Remove `LoaderInsights`' dependency on the `SettingsPanel.instance`
-   singleton by injecting its clear/highlight/show actions from the UI
-   composition layer.
-4. Remove the `require.cache` SettingsPanel shim from
-   `notifications.test.js` after the collaborator boundary is in place.
-5. Add focused regression tests, run the full checks and relevant UI suites,
-   then reindex before reviewing callers and impact.
-
-Keep these changes behind the existing settings facades and commit them
-separately from later story-list or application-orchestration work.
+1. Move the stateful source/source-group renderer and editing behavior out of
+   `StructuredSettingsEditors`.
+2. Move filter and redirect rendering/editing, redirect testing, and
+   drag/reorder behavior into focused modules.
+3. Reduce `SettingsPanel` further by extracting summaries, textarea
+   highlighting, and constructor control/event setup.
+4. Preserve every selector, serialized setting, public facade method, and
+   visible behavior; add focused DOM tests around each stateful extraction.
+5. Remove the `SettingsPanel.ts` and `StructuredSettingsEditors.ts` structural
+   exceptions only after both files fall below the enforced limits.
 
 ## Later structural phases
 
