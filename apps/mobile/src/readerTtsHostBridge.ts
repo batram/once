@@ -1,7 +1,9 @@
 import { QueueStrategy, TextToSpeech } from "@capacitor-community/text-to-speech"
 import {
   READER_TTS_CHANNEL,
-  ReaderTtsEvent,
+  READER_TTS_VERSION,
+  isReaderTtsRequest,
+  ReaderTtsEventBody,
   ReaderTtsRequest,
   ReaderTtsVoice
 } from "./readerTtsProtocol"
@@ -23,6 +25,13 @@ export interface ReaderTtsHostWindow {
   addEventListener(type: "message", listener: (event: MessageEvent) => void): void
 }
 
+export interface ReaderTtsHostController {
+  send(message: ReaderTtsEventBody): void
+  subscribe(
+    listener: (state: Extract<ReaderTtsRequest, { type: "ui-state" }>) => void
+  ): () => void
+}
+
 /**
  * Host-page half of the reader TTS bridge: receives speech requests from the
  * sandboxed reader frame (see readerTtsPolyfill.ts) and drives the native
@@ -34,17 +43,36 @@ export function installReaderTtsHostBridge(
   isReaderWindow: (source: MessageEventSource | null) => boolean,
   engine: ReaderTtsEngine = TextToSpeech,
   host: ReaderTtsHostWindow = window
-): void {
+): ReaderTtsHostController {
   let generation = 0
   let queueTail: Promise<void> = Promise.resolve()
+  let uiSource: Window | null = null
+  let uiSessionId = ""
+  const uiListeners = new Set<
+    (state: Extract<ReaderTtsRequest, { type: "ui-state" }>) => void
+  >()
 
   host.addEventListener("message", (event) => {
     const request = event.data as ReaderTtsRequest | undefined
-    if (!request || request.channel !== READER_TTS_CHANNEL) return
+    if (!isReaderTtsRequest(request)) return
     const source = event.source
     if (!source || !isReaderWindow(source)) return
-    const reply = (message: ReaderTtsEvent): void => {
-      ;(source as Window).postMessage(message, "*")
+    const reply = (
+      message: ReaderTtsEventBody
+    ): void => {
+      ;(source as Window).postMessage({
+        ...message,
+        channel: READER_TTS_CHANNEL,
+        version: READER_TTS_VERSION,
+        sessionId: request.sessionId
+      }, "*")
+    }
+
+    if (request.type === "ui-state") {
+      uiSource = source as Window
+      uiSessionId = request.sessionId
+      uiListeners.forEach((listener) => listener(request))
+      return
     }
 
     if (request.type === "cancel") {
@@ -64,14 +92,14 @@ export function installReaderTtsHostBridge(
           localService: Boolean(voice.localService)
         })))
         .catch(() => [] as ReaderTtsVoice[])
-        .then((voices) => reply({ channel: READER_TTS_CHANNEL, type: "voices", voices }))
+        .then((voices) => reply({ type: "voices", voices }))
       return
     }
 
     const run = generation
     const { id, text, rate, voice, lang } = request
     void queueTail.then(() => {
-      if (run === generation) reply({ channel: READER_TTS_CHANNEL, type: "start", id })
+      if (run === generation) reply({ type: "start", id })
     })
     queueTail = engine.speak({
       text,
@@ -82,11 +110,27 @@ export function installReaderTtsHostBridge(
       queueStrategy: QueueStrategy.Add
     }).then(
       () => {
-        if (run === generation) reply({ channel: READER_TTS_CHANNEL, type: "end", id })
+        if (run === generation) reply({ type: "end", id })
       },
       () => {
-        if (run === generation) reply({ channel: READER_TTS_CHANNEL, type: "error", id, error: "interrupted" })
+        if (run === generation) reply({ type: "error", id, error: "interrupted" })
       }
     )
   })
+
+  return {
+    send(message) {
+      if (!uiSource || !uiSessionId) return
+      uiSource.postMessage({
+        ...message,
+        channel: READER_TTS_CHANNEL,
+        version: READER_TTS_VERSION,
+        sessionId: uiSessionId
+      }, "*")
+    },
+    subscribe(listener) {
+      uiListeners.add(listener)
+      return () => uiListeners.delete(listener)
+    }
+  }
 }

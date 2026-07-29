@@ -13,6 +13,9 @@ export default tseslint.config(
       "web-ext-artifacts/",
       "test-results/",
       "playwright-report/",
+      // design references dropped in as-is; not repo source
+      "docs/**/*.js",
+      "docs/**/*.jsx",
       "apps/electron/out/",
       "apps/electron/.webpack/",
       "apps/mobile/android/**/build/",

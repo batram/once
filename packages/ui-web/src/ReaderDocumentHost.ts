@@ -16,7 +16,7 @@ export class ReaderDocumentHost {
     close.type = "button"
     close.textContent = "Back"
     close.setAttribute("aria-label", "Close reader mode")
-    close.dataset.testid = "reader-close"
+    close.dataset.testid = "reader-frame-close"
     close.onclick = () => this.close()
 
     this.frame = document.createElement("iframe")

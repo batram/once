@@ -3,6 +3,7 @@
 const path = require("path")
 
 function configFor(platform) {
+  const visual = process.env.ONCE_MOBILE_VISUAL_INSPECTION === "1"
   const root = path.resolve(__dirname, "../../..")
   const androidApp = path.join(
     root,
@@ -25,6 +26,15 @@ function configFor(platform) {
     // already-booted device and just reinstalls the app (the default reset).
     "appium:fullReset": platform === "android",
     "appium:newCommandTimeout": 120
+  }
+  if (visual) {
+    common["appium:fullReset"] = false
+    common["appium:noReset"] = true
+    if (platform === "android") {
+      common["appium:dontStopAppOnReset"] = true
+    } else {
+      common["appium:shouldTerminateApp"] = false
+    }
   }
   if (platform === "android") {
     common["appium:deviceName"] = process.env.ONCE_MOBILE_DEVICE || "Once API 36"
@@ -77,7 +87,10 @@ function configFor(platform) {
   return {
     ...iosTimeouts,
     runner: "local",
-    specs: [path.join(__dirname, "mobile.smoke.js")],
+    specs: [path.join(
+      __dirname,
+      visual ? "mobile.visual-inspection.js" : "mobile.smoke.js"
+    )],
     maxInstances: 1,
     logLevel: "info",
     outputDir: results,

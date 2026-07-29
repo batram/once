@@ -8,6 +8,8 @@ module.exports = defineConfig({
   workers: 1,
   reporter: "line",
   use: {
+    actionTimeout: 5_000,
+    navigationTimeout: 8_000,
     trace: "retain-on-failure"
   }
 })

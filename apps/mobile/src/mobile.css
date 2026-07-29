@@ -21,7 +21,16 @@ body[data-platform="mobile"] {
   --m-pressed-bg: var(--second-bg-color);
   --m-accent-bg: var(--highlight-bg-color);
   --m-card-bg: var(--unread-bg-color);
+  --m-warning: light-dark(#b96500, #ffb84d);
+  --m-error: light-dark(#c83d3d, #ff6b6b);
   --m-tabbar-h: calc(48px + env(safe-area-inset-bottom));
+  /* Card surfaces. --second-bg-color and --sep-color are full-strength UI
+     colours (#ccc / rgb(114,100,100) in light); mixing them toward the page
+     gives the quiet tints and hairlines the design asks for while both ends
+     still track the theme. */
+  --m-page-bg: color-mix(in srgb, var(--second-bg-color) 25%, var(--main-bg-color));
+  --m-head-bg: color-mix(in srgb, var(--second-bg-color) 12%, var(--main-bg-color));
+  --m-sep: color-mix(in srgb, var(--sep-color) 32%, transparent);
 
   min-width: 0;
   padding-top: env(safe-area-inset-top);
@@ -32,6 +41,31 @@ body[data-platform="mobile"] {
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   -webkit-text-size-adjust: 100%;
+}
+
+/* Mobile platforms use overlay scroll indicators: they do not reserve a
+   gutter, appear only while content is moving, and then quietly fade away.
+   This also neutralises the permanently painted desktop scrollbar from
+   base.css inside the mobile WebView. */
+body[data-platform="mobile"] * {
+  scrollbar-width: none;
+  scrollbar-gutter: auto;
+}
+
+body[data-platform="mobile"] *::-webkit-scrollbar {
+  display: none;
+}
+
+body[data-platform="mobile"] .mobile_scroll_indicator {
+  position: fixed;
+  z-index: 10000;
+  width: 3px;
+  min-height: 24px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-color) 55%, transparent);
+  opacity: 1;
+  pointer-events: none;
+  transition: opacity 180ms ease-out;
 }
 
 /* ---------- Shell layout ---------- */
@@ -57,7 +91,30 @@ body[data-platform="mobile"] #left_main {
 
 body[data-platform="mobile"] #stories {
   box-sizing: border-box;
-  padding-bottom: calc(var(--m-tabbar-h) + var(--m-sp-3));
+  /* One physical boundary pixel keeps the last row above the tab-bar border
+     without adding a visible content gutter. */
+  padding-bottom: 1px;
+}
+
+body[data-platform="mobile"] #mobile_filter_chips {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--m-sp-2);
+  padding: var(--m-sp-2) var(--m-sp-3) var(--m-sp-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+body[data-platform="mobile"] #mobile_filter_chips::-webkit-scrollbar {
+  display: none;
+}
+
+body[data-platform="mobile"] #mobile_filter_chips .mobile_filter_chip {
+  flex: 0 0 auto;
+  min-height: 24px;
+  margin: 0;
+  padding: 0 6px;
+  white-space: nowrap;
 }
 
 body[data-platform="mobile"] #menu #types,
@@ -78,8 +135,7 @@ body[data-platform="mobile"] select {
 }
 
 body[data-platform="mobile"] textarea,
-body[data-platform="mobile"] input,
-body[data-platform="mobile"] select {
+body[data-platform="mobile"] input {
   font-size: 16px;
   border: var(--m-bw) solid var(--m-ink);
   border-radius: var(--m-radius);
@@ -132,14 +188,38 @@ body[data-platform="mobile"] .story {
   touch-action: pan-y;
 }
 
+/* basis 0, not 100% or auto: the row wraps, so any basis wider than the free
+   space pushes the ⋮ button onto a line of its own instead of beside the text */
 body[data-platform="mobile"] .story .data {
-  flex: 1 1 100%;
+  flex: 1 1 0;
+  min-width: 0;
   font-size: var(--m-fs-meta);
 }
 
+/* Slot 1+2: (domain) is pulled onto its own line above the title. Reordering
+   here rather than in story_html() keeps the Electron/extension row intact. */
+body[data-platform="mobile"] .story .title_line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  min-width: 0;
+  column-gap: var(--m-sp-1);
+}
+
+body[data-platform="mobile"] .story .hostname {
+  order: -1;
+  flex: 0 1 100%;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-left: -1px;
+}
+
 body[data-platform="mobile"] .story .title {
+  flex: 1 1 100%;
   font-size: var(--m-fs-title);
-  line-height: 1.35;
+  line-height: 1.3;
 }
 
 body[data-platform="mobile"] .story .hostname,
@@ -149,6 +229,7 @@ body[data-platform="mobile"] .story .comment_url {
   font-family: var(--m-mono);
 }
 
+/* Slot 3: type badge, [comments], time, star. Must wrap, or slot 4 collides. */
 body[data-platform="mobile"] .story .info {
   display: flex;
   align-items: center;
@@ -158,61 +239,146 @@ body[data-platform="mobile"] .story .info {
   font-size: var(--m-fs-meta);
 }
 
+/* Without both declarations "36 mins / ago" splits across lines and overlaps
+   the tags — stories.css gives .time a 65px min-width that must not win here. */
 body[data-platform="mobile"] .info .time {
+  flex: 0 0 auto;
   min-width: 0;
+  white-space: nowrap;
   font-family: var(--m-mono);
 }
 
-/* actions live in the long-press sheet instead */
+/* Bookmark indicator: the real toggle lives in the row menu, this is a glyph.
+   Only the first substory carries it — the flag is per story, not per source. */
+body[data-platform="mobile"] .story.stared .substories .info:first-child::after {
+  content: "";
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  background: var(--text-high-color);
+  -webkit-mask: url("imgs/star_fill.svg") center / contain no-repeat;
+  mask: url("imgs/star_fill.svg") center / contain no-repeat;
+  opacity: 0.7;
+  /* the pseudo is the last DOM child; order pulls it back onto the meta line */
+  order: 0;
+}
+
+/* Slot 4: tags always own their line, and reserve it even when empty so rows
+   without tags stay the same height as rows with them. */
+body[data-platform="mobile"] .story .tags_container {
+  order: 1;
+  flex: 1 1 100%;
+  box-sizing: border-box;
+  padding-right: 32px;
+  /* one .tag box: its line box, plus 1px padding + 1px border + 2px margin
+     on each side. Keeps a tagless row exactly as tall as a tagged one. */
+  min-height: calc(var(--m-fs-meta) * 1.25 + 8px);
+  align-content: flex-start;
+  margin: 0;
+  margin-left: -1.65px;
+}
+
+/* actions live in the ⋮ menu instead */
 body[data-platform="mobile"] .story .button_group {
   display: none;
 }
 
-/* ---------- Long-press action sheet ---------- */
+/* ---------- Row ⋮ button ---------- */
 
-body[data-platform="mobile"] .once-sheet {
+body[data-platform="mobile"] .story .menu_btn {
+  display: grid;
+  place-items: center;
+  position: absolute;
+  right: 12px;
+  bottom: 15px;
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: thin solid var(--text-color);
+  border-radius: var(--m-radius);
+  color: var(--text-color);
+  font-size: 18px;
+  line-height: 1;
+}
+
+body[data-platform="mobile"] .stories_container .story .menu_btn {
+  right: 12px;
+  bottom: 15px;
+}
+
+body[data-platform="mobile"] .story .menu_btn:active,
+body[data-platform="mobile"] .story.menu_open .menu_btn {
+  background: var(--m-accent-bg);
+  color: var(--text-high-color);
+}
+
+/* ---------- Long-press progress ---------- */
+
+body[data-platform="mobile"] .story {
+  position: relative;
+}
+
+/* Tells the user a long-press is building before the menu appears. Not gated
+   on [animated] — it is feedback for a gesture, not decoration. */
+body[data-platform="mobile"] .story.press_building::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 0;
+  height: 2px;
+  background: var(--m-accent-bg);
+  animation: once-press-progress 400ms linear 100ms forwards;
+  pointer-events: none;
+}
+
+@keyframes once-press-progress {
+  from {
+    width: 0;
+  }
+
+  to {
+    width: 100%;
+  }
+}
+
+/* ---------- Anchored story menu ---------- */
+
+body[data-platform="mobile"] .once-anchored-menu {
   position: fixed;
   z-index: 900;
   inset: 0;
 }
 
-body[data-platform="mobile"] .once-sheet[hidden] {
+body[data-platform="mobile"] .once-anchored-menu[hidden] {
   display: none;
 }
 
-body[data-platform="mobile"] .once-sheet-backdrop {
+body[data-platform="mobile"] .once-anchored-menu-backdrop {
   position: absolute;
   inset: 0;
-  background: rgb(0 0 0 / 40%);
+  background: rgb(0 0 0 / 25%);
 }
 
-body[data-platform="mobile"] .once-sheet-panel {
+body[data-platform="mobile"] .once-anchored-menu-panel {
   position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  padding: 0 0 env(safe-area-inset-bottom);
-  border-top: var(--m-bw) solid var(--m-ink);
-  border-radius: 14px 14px 0 0;
+  min-width: 220px;
+  max-width: min(320px, calc(100vw - 16px));
+  padding: 0;
+  border: var(--m-bw) solid var(--m-ink);
+  border-radius: var(--m-radius);
   background: var(--main-bg-color);
   overflow: hidden;
 }
 
-body[data-platform="mobile"] .once-sheet-title {
-  padding: var(--m-sp-3) var(--m-sp-4);
-  border-bottom: var(--m-bw) solid var(--border-high-color);
-  color: var(--text-color);
-  font-family: var(--m-sans);
-  font-size: var(--m-fs-meta);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-body[data-platform="mobile"] .once-sheet-action {
+body[data-platform="mobile"] .once-anchored-menu-item {
   display: block;
   width: 100%;
-  min-height: 52px;
+  min-height: var(--m-touch);
   margin: 0;
   padding: 0 var(--m-sp-4);
   border: 0;
@@ -221,21 +387,23 @@ body[data-platform="mobile"] .once-sheet-action {
   background: var(--main-bg-color);
   color: var(--text-high-color);
   font-family: var(--m-sans);
-  font-size: var(--m-fs-title);
+  font-size: var(--m-fs-body);
   text-align: left;
 }
 
-body[data-platform="mobile"] .once-sheet-action:active {
+body[data-platform="mobile"] .once-anchored-menu-item:last-child {
+  border-bottom: 0;
+}
+
+body[data-platform="mobile"] .once-anchored-menu-item:active {
   background: var(--m-pressed-bg);
 }
 
-body[data-platform="mobile"] .once-sheet-cancel {
-  border-bottom: 0;
+body[data-platform="mobile"] .once-anchored-menu-item:disabled {
   color: var(--text-color);
-  text-align: center;
 }
 
-body.once-sheet-open {
+body.once-anchored-menu-open {
   overflow: hidden;
 }
 
@@ -243,7 +411,6 @@ body.once-sheet-open {
 
 body[data-platform="mobile"] #search_bar {
   align-items: center;
-  gap: var(--m-sp-2);
   padding: var(--m-sp-1) var(--m-sp-3);
   border-bottom: var(--m-bw) solid var(--m-ink);
 }
@@ -254,6 +421,8 @@ body[data-platform="mobile"] #search_scope {
   appearance: none;
   border: var(--m-bw) solid var(--m-ink);
   border-radius: var(--m-radius);
+  border-right: none;
+  border-radius: var(--m-radius) 0 0 var(--m-radius);
   background: var(--input-bg-color);
   font-family: var(--m-sans);
   padding: 0 var(--m-sp-4) 0 var(--m-sp-2);
@@ -278,6 +447,7 @@ body[data-platform="mobile"] #searchfield {
   padding-right: var(--m-touch);
   background: var(--input-bg-color);
   font-family: var(--m-sans);
+  border-radius: 0;
 }
 
 /* overlays the field's right end; visibility toggled inline by search.ts */
@@ -293,11 +463,11 @@ body[data-platform="mobile"] #cancel_search_btn {
   box-shadow: none;
 }
 
-body[data-platform="mobile"] #reload_stories_btn {
+body[data-platform="mobile"] #reload_stories_btn,
+body[data-platform="mobile"] #reading_navigate {
   box-sizing: border-box;
   width: var(--m-touch);
   height: var(--m-touch);
-  margin: 0 0 0 var(--m-sp-2);
   padding: 0;
   display: grid;
   place-items: center;
@@ -307,7 +477,12 @@ body[data-platform="mobile"] #reload_stories_btn {
   color: var(--text-high-color);
 }
 
-body[data-platform="mobile"] #reload_stories_btn:active {
+body[data-platform="mobile"] #reload_stories_btn {
+  margin: 0 0 0 var(--m-sp-2);
+}
+
+body[data-platform="mobile"] #reload_stories_btn:active,
+body[data-platform="mobile"] #reading_navigate:active {
   background: var(--m-pressed-bg);
 }
 
@@ -319,16 +494,30 @@ body[data-platform="mobile"] #reload_stories_btn img {
   margin-top: 8px;
 }
 
-body[data-platform="mobile"] #reload_stories_btn::before {
+body[data-platform="mobile"] #reload_stories_btn::before,
+body[data-platform="mobile"] #reading_navigate::before {
   content: "";
   width: 20px;
   height: 20px;
   display: block;
-  margin-top: 12px;
   background: currentColor;
-  -webkit-mask: url("../../../packages/ui-web/public/static/imgs/reload.svg") center / contain
-    no-repeat;
-  mask: url("../../../packages/ui-web/public/static/imgs/reload.svg") center / contain no-repeat;
+  -webkit-mask: url("imgs/reload.svg") center / contain no-repeat;
+  mask: url("imgs/reload.svg") center / contain no-repeat;
+}
+
+body[data-platform="mobile"] #reload_stories_btn::before {
+  margin-top: 12px;
+}
+
+body[data-platform="mobile"] #reload_stories_btn.disabled,
+body[data-platform="mobile"] #reading_navigate:disabled {
+  opacity: 1;
+  color: var(--text-low-color);
+}
+
+body[data-platform="mobile"] #reload_stories_btn.disabled::before,
+body[data-platform="mobile"] #reading_navigate.loading::before {
+  animation: rotating 2s linear infinite;
 }
 
 /* ---------- Bottom tab bar ---------- */
@@ -351,7 +540,7 @@ body[data-platform="mobile"] #menu {
 
 body[data-platform="mobile"] #menu > .sub {
   display: flex;
-  flex: 1 1 50%;
+  flex: 1 1 33.333%;
   min-width: 0;
   align-items: center;
   justify-content: center;
@@ -359,7 +548,29 @@ body[data-platform="mobile"] #menu > .sub {
   opacity: 0.55;
 }
 
+body[data-platform="mobile"] #reading_menu_btn {
+  display: flex !important;
+}
+
+body[data-platform="mobile"] #stories_menu_btn {
+  order: 1;
+}
+
+body[data-platform="mobile"] #reading_menu_btn {
+  order: 2;
+}
+
+body[data-platform="mobile"] #settings_menu_btn {
+  order: 3;
+}
+
+body[data-platform="mobile"] #settings_menu_btn.has-warnings,
+body[data-platform="mobile"] #settings_menu_btn.has-errors {
+  opacity: 1;
+}
+
 body[data-platform="mobile"] #menu .heading {
+  position: relative;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -386,6 +597,7 @@ body[data-platform="mobile"] #menu .heading p {
 }
 
 body[data-platform="mobile"] #left_panel[active_panel="stories"] #menu .sub[data-panel="stories"],
+body[data-platform="mobile"] #left_panel[active_panel="reading"] #menu .sub[data-panel="reading"],
 body[data-platform="mobile"]
   #left_panel[active_panel="settings"]
   #menu
@@ -400,6 +612,12 @@ body[data-platform="mobile"]
   .heading
   img,
 body[data-platform="mobile"]
+  #left_panel[active_panel="reading"]
+  #menu
+  .sub[data-panel="reading"]
+  .heading
+  img,
+body[data-platform="mobile"]
   #left_panel[active_panel="settings"]
   #menu
   .sub[data-panel="settings"]
@@ -408,12 +626,448 @@ body[data-platform="mobile"]
   background: var(--m-accent-bg);
 }
 
+/* ---------- Reading tab ---------- */
+
+body[data-platform="mobile"] #reading_panel {
+  min-height: 0;
+  background: var(--main-bg-color);
+}
+
+body[data-platform="mobile"] #reading_url_form {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--m-sp-2);
+  padding: var(--m-sp-1) var(--m-sp-2);
+  background: var(--main-bg-color);
+}
+
+body[data-platform="mobile"] #reading_url_group {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: stretch;
+  overflow: hidden;
+  border: var(--m-bw) solid var(--m-ink);
+  border-radius: var(--m-radius);
+  background: var(--input-bg-color);
+}
+
+body[data-platform="mobile"] #reading_url {
+  flex: 1 1 auto;
+  width: 0;
+  min-width: 0;
+  min-height: var(--m-touch);
+  box-sizing: border-box;
+  padding: 0 var(--m-sp-3);
+  border: 0;
+  border-radius: 0;
+  outline-offset: -2px;
+  background: transparent;
+  font-family: var(--m-mono);
+  font-size: var(--m-fs-meta);
+}
+
+body[data-platform="mobile"] #reading_reader_toggle,
+body[data-platform="mobile"] #reading_navigate {
+  min-width: var(--m-touch);
+  min-height: var(--m-touch);
+  margin: 0;
+  padding: 0 var(--m-sp-2);
+}
+
+body[data-platform="mobile"] #reading_reader_toggle {
+  border: 0;
+  border-left: var(--m-bw) solid var(--m-ink);
+  border-radius: 0;
+  background: transparent;
+}
+
+body[data-platform="mobile"] #reading_reader_toggle img {
+  display: block;
+  width: 20px;
+  height: 20px;
+  margin: auto;
+  opacity: 0.75;
+}
+
+body[data-platform="mobile"] #reading_reader_toggle.active {
+  color: var(--highlight-color);
+  background: var(--highlight-bg-color);
+}
+
+body[data-platform="mobile"] #reading_reader_toggle.active img {
+  opacity: 1;
+}
+
+@media (prefers-color-scheme: dark) {
+  body[data-platform="mobile"]:not([data-theme="light"]) #reading_reader_toggle:not(.active) img {
+    filter: contrast(0%);
+  }
+}
+
+body[data-platform="mobile"][data-theme="dark"] #reading_reader_toggle:not(.active) img {
+  filter: contrast(0%);
+}
+
+body[data-platform="mobile"] #reading_navigate {
+  flex: 0 0 auto;
+}
+
+body[data-platform="mobile"] #reading_navigate span {
+  display: none;
+}
+
+body[data-platform="mobile"] #reading_navigate.reading-go {
+  width: auto;
+  min-width: var(--m-touch);
+  padding: 0 var(--m-sp-2);
+}
+
+body[data-platform="mobile"] #reading_navigate.reading-go::before {
+  display: none;
+}
+
+body[data-platform="mobile"] #reading_navigate.reading-go span {
+  display: block;
+}
+
+body[data-platform="mobile"] #reading_url_validation,
+body[data-platform="mobile"] #reading_error {
+  flex: 0 0 auto;
+  padding: var(--m-sp-1) var(--m-sp-4) var(--m-sp-2);
+  color: var(--error-color);
+  background: var(--main-bg-color);
+  font-family: var(--m-sans);
+  font-size: var(--m-fs-meta);
+}
+
+body[data-platform="mobile"] #reading_current_card {
+  flex: 0 0 auto;
+  margin-top: 0;
+  touch-action: none;
+  transform: translateY(var(--reading-story-drag, 0));
+  padding: 7px 10px;
+}
+
+body[data-platform="mobile"] #reading_current_card.reading_story_dragging {
+  transition: none;
+}
+
+body[data-platform="mobile"] .reading_story_collapsed button {
+  bottom: 3px !important;
+}
+
+body[data-platform="mobile"] #reading_current_card .reading_story_control {
+  display: grid;
+  place-items: center;
+  position: absolute;
+  right: 42px;
+  bottom: 15px;
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: var(--m-bw) solid var(--border-color);
+  border-radius: var(--m-radius);
+  color: var(--text-color);
+  background: var(--main-bg-color);
+  font-size: 18px;
+  line-height: 1;
+}
+
+body[data-platform="mobile"] #reading_current_card #reading_story_meta,
+body[data-platform="mobile"] #reading_current_card .tags_container {
+  padding-right: 68px;
+}
+
+body[data-platform="mobile"] #reading_current_card.reading_story_collapsed #reading_story_time,
+body[data-platform="mobile"] #reading_current_card.reading_story_collapsed #reading_story_tags {
+  display: none;
+}
+
+body[data-platform="mobile"] #reading_current_card.reading_story_collapsed {
+  min-height: 36px;
+  padding-top: var(--m-sp-1);
+  padding-bottom: var(--m-sp-1);
+}
+
+body[data-platform="mobile"] #reading_current_card.reading_story_collapsed .data {
+  display: flex;
+  align-items: center;
+  gap: var(--m-sp-1);
+  box-sizing: border-box;
+  min-width: 0;
+  padding-right: 68px;
+  overflow: hidden;
+}
+
+body[data-platform="mobile"] #reading_current_card.reading_story_collapsed .title_line,
+body[data-platform="mobile"] #reading_current_card.reading_story_collapsed .substories,
+body[data-platform="mobile"] #reading_current_card.reading_story_collapsed #reading_story_meta {
+  display: contents;
+}
+
+body[data-platform="mobile"] #reading_current_card.reading_story_collapsed #reading_type {
+  order: 1;
+  flex: 0 0 auto;
+}
+
+body[data-platform="mobile"] #reading_current_card.reading_story_collapsed #reading_comments {
+  display: none;
+}
+
+body[data-platform="mobile"] #reading_current_card.reading_story_collapsed #reading_title {
+  order: 2;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--m-fs-meta);
+  line-height: 1.25;
+}
+
+body[data-platform="mobile"]
+  #reading_current_card.reading_story_collapsed.stared
+  .substories
+  .info:first-child::after {
+  display: none;
+}
+
+/* `.story` sets display:flex, which otherwise overrides the HTML hidden
+   state and leaves an empty Reading row in the layout. */
+body[data-platform="mobile"] #reading_current_card[hidden] {
+  display: none;
+}
+
+body[data-platform="mobile"] #reading_comments {
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+body[data-platform="mobile"] #reading_content {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: var(--main-bg-color);
+}
+
+body[data-platform="mobile"] #reading_empty {
+  margin: 0;
+  padding: var(--m-sp-5) var(--m-sp-4);
+  color: var(--text-color);
+  font-family: var(--m-sans);
+  font-size: var(--m-fs-body);
+  text-align: center;
+}
+
+body[data-platform="mobile"] #reading_empty[hidden] {
+  display: none;
+}
+
+body[data-platform="mobile"] #reading_reader_status {
+  display: grid;
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  place-items: center;
+  box-sizing: border-box;
+  padding: var(--m-sp-5) var(--m-sp-4);
+  background: var(--main-bg-color);
+  color: var(--text-color);
+  font-family: var(--m-sans);
+  text-align: center;
+}
+
+body[data-platform="mobile"] #reading_reader_status[hidden],
+body[data-platform="mobile"] #reading_reader_loading[hidden],
+body[data-platform="mobile"] #reading_reader_failure[hidden] {
+  display: none;
+}
+
+body[data-platform="mobile"] #reading_reader_loading,
+body[data-platform="mobile"] #reading_reader_failure {
+  max-width: 32rem;
+}
+
+body[data-platform="mobile"] #reading_reader_loading p,
+body[data-platform="mobile"] #reading_reader_failure p {
+  margin: var(--m-sp-3) 0 0;
+}
+
+body[data-platform="mobile"] .reading_status_spinner {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--border-color);
+  border-top-color: var(--highlight-color);
+  border-radius: 50%;
+  animation: reading-status-spin 800ms linear infinite;
+}
+
+body[data-platform="mobile"] #reading_reader_error_message {
+  color: var(--error-color);
+}
+
+body[data-platform="mobile"] .reading_status_actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--m-sp-2);
+  margin-top: var(--m-sp-4);
+}
+
+body[data-platform="mobile"] .reading_status_actions button {
+  min-height: var(--m-touch);
+}
+
+@keyframes reading-status-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-platform="mobile"] .reading_status_spinner {
+    animation: none;
+    border-top-color: var(--border-color);
+  }
+}
+
+body[data-platform="mobile"] #reading_content .once-reader-host {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  padding: 0;
+  pointer-events: auto;
+}
+
+body[data-platform="mobile"] #reading_content .once-reader-host-close {
+  display: none;
+}
+
+body[data-platform="mobile"] #reader_tts_pill {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex: 0 0 auto;
+  min-height: var(--m-touch);
+  align-items: center;
+  justify-content: center;
+  gap: var(--m-sp-2);
+  box-sizing: border-box;
+  padding: var(--m-sp-1) var(--m-sp-2);
+  border: 0;
+  border-top: var(--m-bw) solid var(--m-ink);
+  background: var(--m-card-bg);
+  box-shadow: 0 -2px 8px rgb(0 0 0 / 10%);
+}
+
+body[data-platform="mobile"] #reader_tts_pill[hidden] {
+  display: none;
+}
+
+body[data-platform="mobile"] #reader_tts_pill > button,
+body[data-platform="mobile"] #reader_tts_pill summary {
+  display: grid;
+  place-items: center;
+  min-width: 40px;
+  min-height: var(--m-touch);
+  margin: 0;
+  padding: 0 var(--m-sp-1);
+  border: 0;
+  border-radius: var(--m-radius);
+  background: transparent;
+  font-family: var(--m-sans);
+  font-size: var(--m-fs-body);
+}
+
+body[data-platform="mobile"] #reader_tts_pill > button:active,
+body[data-platform="mobile"] #reader_tts_pill summary:active {
+  background: var(--m-pressed-bg);
+}
+
+body[data-platform="mobile"] #reader_tts_pill .reader_tts_play {
+  color: var(--text-high-color);
+  background: var(--m-accent-bg);
+}
+
+body[data-platform="mobile"] #reader_tts_settings {
+  position: relative;
+}
+
+body[data-platform="mobile"] #reader_tts_settings summary {
+  list-style: none;
+  font-variant-numeric: tabular-nums;
+}
+
+body[data-platform="mobile"] #reader_tts_settings summary::-webkit-details-marker {
+  display: none;
+}
+
+body[data-platform="mobile"] .reader_tts_settings_menu {
+  position: fixed;
+  z-index: 5;
+  right: var(--m-sp-4);
+  bottom: calc(var(--m-tabbar-h) + 60px);
+  left: var(--m-sp-4);
+  box-sizing: border-box;
+  display: grid;
+  gap: var(--m-sp-3);
+  padding: var(--m-sp-3);
+  border: var(--m-bw) solid var(--m-ink);
+  border-radius: var(--m-radius);
+  background: var(--main-bg-color);
+  box-shadow: 0 4px 18px rgb(0 0 0 / 24%);
+  font-family: var(--m-sans);
+  font-size: var(--m-fs-body);
+}
+
+body[data-platform="mobile"] .reader_tts_settings_menu label {
+  display: grid;
+  gap: var(--m-sp-1);
+}
+
+body[data-platform="mobile"] #reader_tts_voice {
+  width: 100%;
+}
+
+body[data-platform="mobile"] #reader_tts_rates {
+  display: flex;
+  gap: var(--m-sp-1);
+}
+
+body[data-platform="mobile"] .reader_tts_rate_setting {
+  display: grid;
+  gap: var(--m-sp-1);
+}
+
+body[data-platform="mobile"] #reader_tts_rates button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 36px;
+  margin: 0;
+  padding: 0 var(--m-sp-1);
+}
+
 /* ---------- Settings panel ---------- */
 
 body[data-platform="mobile"] #settings_panel .bar {
+  flex: 0 0 auto;
   align-items: center;
   min-height: var(--m-touch);
   height: auto;
+  box-sizing: border-box;
+  padding: var(--m-sp-1) var(--m-sp-2);
 }
 
 body[data-platform="mobile"] #settings_panel .settings_title {
@@ -421,6 +1075,69 @@ body[data-platform="mobile"] #settings_panel .settings_title {
   font-family: var(--m-sans);
   font-size: var(--m-fs-title);
   font-weight: 600;
+}
+
+/* Two-segment glyph pill: stacked rules for the list, </> for the raw text.
+   The words stay in textContent, title and aria-label — they are the
+   accessible name and what the tests read — but they are not drawn. */
+body[data-platform="mobile"] #settings_panel .structured_mode_toggle_topbar {
+  display: flex;
+  align-items: stretch;
+  box-sizing: border-box;
+  width: 80px;
+  height: 32px;
+  min-width: 0;
+  min-height: 0;
+  margin: 0 0 0 auto;
+  padding: 0;
+  overflow: hidden;
+  border: var(--m-bw) solid var(--m-ink);
+  border-radius: var(--m-radius);
+  background: transparent;
+  /* Hides the TXT / UI label without hiding it from assistive tech. */
+  font-size: 0;
+  line-height: 0;
+}
+
+body[data-platform="mobile"] #settings_panel .structured_mode_toggle_topbar::before {
+  content: "";
+  flex: 0 0 40px;
+  background-image:
+    linear-gradient(var(--m-ink), var(--m-ink)), linear-gradient(var(--m-ink), var(--m-ink)),
+    linear-gradient(var(--m-ink), var(--m-ink));
+  background-repeat: no-repeat;
+  background-size: 14px 2px;
+  background-position:
+    center calc(50% - 5px),
+    center center,
+    center calc(50% + 5px);
+  opacity: 0.45;
+}
+
+body[data-platform="mobile"] #settings_panel .structured_mode_toggle_topbar::after {
+  content: "</>";
+  display: grid;
+  place-items: center;
+  flex: 0 0 40px;
+  border-left: var(--m-bw) solid var(--m-ink);
+  color: var(--m-ink);
+  font-family: var(--m-mono);
+  font-size: var(--m-fs-meta);
+  font-weight: 600;
+  line-height: 1;
+  opacity: 0.45;
+}
+
+/* The label names the action, so it also names the mode that is showing:
+   "Edit as text" means the list is on screen. */
+body[data-platform="mobile"]
+  #settings_panel
+  .structured_mode_toggle_topbar[aria-label="Edit as text"]::before,
+body[data-platform="mobile"]
+  #settings_panel
+  .structured_mode_toggle_topbar[aria-label="Edit as list"]::after {
+  background-color: var(--m-accent-bg);
+  opacity: 1;
 }
 
 body[data-platform="mobile"] #settings_panel .settings_block {
@@ -433,11 +1150,982 @@ body[data-platform="mobile"] #settings_panel .settings_block {
   font-size: var(--m-fs-body);
 }
 
+body[data-platform="mobile"] #settings_panel .settings_container {
+  display: block;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  overflow: auto;
+}
+
+body[data-platform="mobile"] #settings_panel.settings_detail_open {
+  overflow: hidden;
+}
+
+body[data-platform="mobile"] #settings_panel.settings_detail_open > .bar {
+  padding-right: var(--m-sp-4);
+  padding-left: var(--m-sp-4);
+}
+
+body[data-platform="mobile"] #settings_panel.settings_detail_open .settings_container {
+  display: flex;
+  overflow: hidden;
+}
+
+body[data-platform="mobile"] #settings_index {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--m-sp-3);
+  border: 0;
+}
+
+body[data-platform="mobile"] #settings_search {
+  min-height: var(--m-touch);
+  padding: 0 var(--m-sp-3);
+}
+
+body[data-platform="mobile"] .settings_section_row {
+  display: flex;
+  width: 100%;
+  min-height: var(--m-touch);
+  margin: 0;
+  border: 0;
+  border-bottom: var(--m-bw) solid var(--sep-color);
+  border-radius: 0;
+  gap: var(--m-sp-2);
+  align-items: center;
+}
+
+body[data-platform="mobile"] .settings_section_row_text {
+  flex: 0 0 auto;
+  min-width: max-content;
+}
+
+/* The trailing value is supporting detail, not a second label — muted, the
+   same separation the desktop index uses. */
+body[data-platform="mobile"] .settings_section_summary {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  margin-left: auto;
+  color: var(--text-color);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The error-log row tints its label and value together; there the value must
+   keep the row's colour rather than drop back to muted. */
+body[data-platform="mobile"] .settings_section_row.has-warnings .settings_section_summary,
+body[data-platform="mobile"] .settings_section_row.has-errors .settings_section_summary {
+  color: inherit;
+}
+
+body[data-platform="mobile"] .settings_section_row[data-settings-target="errors"].has-warnings {
+  color: var(--m-warning);
+  background: color-mix(in srgb, var(--m-warning) 10%, transparent);
+}
+
+body[data-platform="mobile"] .settings_section_row[data-settings-target="errors"].has-errors {
+  color: var(--m-error);
+  background: color-mix(in srgb, var(--m-error) 10%, transparent);
+}
+
+body[data-platform="mobile"] .settings_issue_badges {
+  display: none;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--m-sp-2);
+  margin-left: auto;
+  padding-left: var(--m-sp-2);
+}
+
+body[data-platform="mobile"] .settings_issue_badge {
+  font-size: var(--m-fs-label);
+  font-weight: 700;
+  line-height: 1;
+}
+
+body[data-platform="mobile"] .settings_issue_badge.warning {
+  color: var(--m-warning);
+}
+
+body[data-platform="mobile"] .settings_issue_badge.error {
+  color: var(--m-error);
+}
+
+body[data-platform="mobile"] .settings_section_match {
+  width: 100%;
+  min-height: var(--m-touch);
+  margin: 0;
+  padding: 0 var(--m-sp-3);
+  border: 0;
+  border-bottom: var(--m-bw) solid var(--sep-color);
+  border-radius: 0;
+}
+
+body[data-platform="mobile"] .settings_section {
+  display: none;
+  min-height: 0;
+  overflow: auto;
+}
+
+body[data-platform="mobile"] #settings_panel.settings_detail_open #settings_index {
+  display: none;
+}
+
+body[data-platform="mobile"] #settings_panel.settings_detail_open .settings_section.active {
+  display: flex;
+  flex: 1 1 auto;
+}
+
+body[data-platform="mobile"]
+  #settings_panel.settings_detail_open
+  .settings_section.active
+  > .settings_block {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  padding: var(--m-sp-3);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+body[data-platform="mobile"]
+  #settings_panel.settings_detail_open
+  .settings_section.active
+  > .settings_editor_block {
+  /* The editor's scrolling box must reach the viewport edge so its scrollbar
+     does too. Horizontal content gutters live inside that scroller instead. */
+  padding: 0;
+}
+
+/* Back chevron then the subpage title — the bar no longer says "Settings"
+   twice. */
+body[data-platform="mobile"] #settings_section_back {
+  display: grid;
+  place-items: center start;
+  order: -1;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 0;
+}
+
+body[data-platform="mobile"] #settings_section_back[hidden] {
+  display: none;
+}
+
+/* Settings itself participates in the same back stack as the native back
+   action, so its existing chevron remains available on the section index. */
+body[data-platform="mobile"]
+  #settings_panel:not(.settings_detail_open)
+  #settings_section_back[hidden] {
+  display: grid;
+}
+
+/* A real icon, masked so it still takes the theme's ink. A text "‹" sits high
+   in its em box and a rotated border box has no defined optical centre; an
+   icon in a square box is centred by its own geometry. */
+body[data-platform="mobile"] #settings_section_back::before {
+  content: "";
+  width: 20px;
+  height: 20px;
+  background: var(--m-ink);
+  -webkit-mask: url("imgs/chevron-left.svg") center / contain no-repeat;
+  mask: url("imgs/chevron-left.svg") center / contain no-repeat;
+  width: 23px;
+  height: 15px;
+  margin-top: 10px;
+  mask-size: 70%;
+}
+
+body[data-platform="mobile"] #settings_panel.settings_detail_open #settings_section_back {
+  display: grid;
+}
+
+/* ---------- Full-screen editor inside a section ----------
+   A modal task, not navigation: the tab bar and the list's own mode toggle
+   step aside, the header keeps only ‹ and the editor's title, and the commit
+   pair moves into an action bar of its own at the bottom. */
+
+body[data-platform="mobile"]:has(#settings_panel.settings_form_open) #menu {
+  display: none;
+}
+
+body[data-platform="mobile"] #settings_panel.settings_form_open .structured_mode_toggle_topbar {
+  display: none;
+}
+
+/* Every structured form is a full-screen subpage on touch, so they all take
+   the same shape: scrolling body, and one fixed action bar the body clears. */
+body[data-platform="mobile"] .structured_form {
+  min-height: 100%;
+  box-sizing: border-box;
+  gap: var(--m-sp-3);
+  padding: var(--m-sp-2) var(--m-sp-3) 76px;
+}
+
+/* The header carries the title on a subpage, so the form's own heading would
+   say it twice. */
+body[data-platform="mobile"] .structured_form h3 {
+  display: none;
+}
+
+body[data-platform="mobile"] .structured_form_field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--m-sp-1);
+}
+
+body[data-platform="mobile"] .structured_form textarea {
+  min-height: 0;
+  padding: var(--m-sp-2);
+  resize: none;
+  font-size: var(--m-fs-body);
+}
+
+body[data-platform="mobile"] .structured_form input,
+body[data-platform="mobile"] .structured_form select {
+  height: 40px;
+  min-height: 40px;
+  padding: 0 var(--m-sp-2);
+  font-size: var(--m-fs-body);
+}
+
+body[data-platform="mobile"] .structured_redirect_output {
+  min-height: 68px;
+  font-size: var(--m-fs-meta);
+}
+
+/* A modal task, not navigation: the commit pair sits in its own bar rather
+   than wrapping into the scrolling body. Explicit columns, so the pair keeps
+   its place whatever order the form appends them in. */
+body[data-platform="mobile"] .structured_form .structured_form_actions {
+  position: fixed;
+  z-index: 20;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--m-touch) var(--m-touch);
+  align-items: center;
+  box-sizing: border-box;
+  height: 60px;
+  margin: 0;
+  padding: 10px var(--m-sp-3);
+  gap: var(--m-sp-2);
+  border-top: var(--m-bw) solid var(--text-high-color);
+  background: var(--main-bg-color);
+}
+
+body[data-platform="mobile"] .structured_form_actions .structured_inline_action {
+  width: var(--m-touch);
+  min-width: var(--m-touch);
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+}
+
+/* grid-row is pinned as well as the column: auto-placement runs in DOM order,
+   so once Save claims column 3 the cursor is past column 2 and Cancel would be
+   pushed onto a second row, off the bottom of the bar. */
+body[data-platform="mobile"]
+  .structured_form_actions
+  .structured_inline_action[aria-label="Cancel"] {
+  grid-row: 1;
+  grid-column: 2;
+}
+
+body[data-platform="mobile"] .structured_form_actions .structured_inline_action[aria-label="Save"] {
+  grid-row: 1;
+  grid-column: 3;
+}
+
+/* With no trailing column for a glyph, the destructive action can only be
+   told from cancel by language. */
+body[data-platform="mobile"] .structured_form_delete {
+  grid-row: 1;
+  grid-column: 1;
+  justify-self: start;
+  min-height: 40px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--m-error);
+  font: 600 var(--m-fs-body)/1 var(--m-sans);
+}
+
 body[data-platform="mobile"] .input_container {
   width: 100%;
   border-width: var(--m-bw);
   border-color: var(--m-ink);
   border-radius: var(--m-radius);
+}
+
+body[data-platform="mobile"] .settings_editor_block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--m-sp-2);
+  overflow: hidden;
+}
+
+body[data-platform="mobile"] .settings_editor_block .structured_settings {
+  flex: 1 1 auto;
+  box-sizing: border-box;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: var(--m-sp-4);
+  padding-left: var(--m-sp-4);
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ---------- Structured settings lists ---------- */
+
+/* The block is the page behind the cards: 12px gutters, 12px between cards. */
+body[data-platform="mobile"]
+  #settings_panel.settings_detail_open
+  .settings_section.active
+  > .settings_editor_block {
+  background: var(--m-page-bg);
+}
+
+body[data-platform="mobile"] .settings_editor_block .structured_settings {
+  /* The floating + must never cover the last row's chevron. */
+  padding-bottom: 72px;
+}
+
+/* Sticky at the top of the scroller, inset with the block's own gutter. */
+body[data-platform="mobile"] .structured_search {
+  gap: var(--m-sp-2);
+  padding: var(--m-sp-3) 0;
+  background: var(--m-page-bg);
+}
+
+body[data-platform="mobile"] .structured_search input {
+  height: 40px;
+  min-height: 40px;
+  padding: 0 var(--m-sp-3);
+  /* The house radius, not a pill. */
+  border: var(--m-bw) solid var(--border-high-color);
+  border-radius: var(--m-radius);
+  background: var(--input-bg-color);
+  font-family: var(--m-sans);
+}
+
+body[data-platform="mobile"] .structured_picker_status {
+  padding: 0 0 var(--m-sp-2);
+  font-family: var(--m-sans);
+  font-size: var(--m-fs-meta);
+}
+
+body[data-platform="mobile"] .structured_search_status:empty {
+  display: none;
+}
+
+body[data-platform="mobile"] .settings_editor_block .structured_settings_header {
+  flex: 0 0 auto;
+}
+
+body[data-platform="mobile"] .settings_editor_block .settings_block_label {
+  flex: 0 0 auto;
+}
+
+body[data-platform="mobile"] .settings_editor_block .input_container {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  margin: 0;
+}
+
+body[data-platform="mobile"] .settings_editor_block .settings_actions input {
+  min-width: 88px;
+  margin: 0;
+  padding: 0 var(--m-sp-3);
+}
+
+body[data-platform="mobile"] .structured_settings_header {
+  min-height: var(--m-touch);
+}
+
+body[data-platform="mobile"] .structured_mode_toggle,
+body[data-platform="mobile"] .structured_list_actions button {
+  min-height: var(--m-touch);
+  padding: 0 var(--m-sp-3);
+}
+
+body[data-platform="mobile"] .settings_editor_block .settings_actions {
+  display: flex;
+  position: relative;
+  z-index: 5;
+  bottom: auto;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--m-sp-2);
+  min-height: var(--m-touch);
+  padding: var(--m-sp-2) 0 0;
+  background: var(--m-page-bg);
+}
+
+/* List mode has no footer at all — the list scrolls to the tab bar. */
+body[data-platform="mobile"] .settings_editor_block .settings_actions.structured_actions_empty {
+  display: none;
+}
+
+/* ---------- Row grid ----------
+
+   16px | 30x20 badge | 12px | text block | 10px | trailing state | 12px
+
+   Height varies only with the secondary line. Nothing inside the row draws a
+   border, background or radius; the row is the tap target and only the
+   chevron advertises it. */
+
+body[data-platform="mobile"] .structured_row {
+  display: flex;
+  align-items: center;
+  min-height: 60px;
+  padding-left: var(--m-sp-4);
+  /* The separator lives on the text block so it insets to 58px. */
+  border-top: 0;
+  background: var(--input-bg-color);
+}
+
+body[data-platform="mobile"] .structured_row:last-child {
+  border-bottom: 0;
+}
+
+body[data-platform="mobile"] .structured_row_body {
+  display: flex;
+  flex: 1 1 auto;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 60px;
+  align-items: center;
+  gap: 10px;
+  margin-left: var(--m-sp-3);
+  padding: 0 var(--m-sp-3) 0 0;
+  border: 0;
+  border-bottom: var(--m-bw) solid var(--m-sep);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body[data-platform="mobile"] .structured_row:last-child .structured_row_body {
+  border-bottom: 0;
+}
+
+/* Filters and redirects have no badge cell: the text starts at the row inset. */
+body[data-platform="mobile"] .structured_row_unbadged .structured_row_body {
+  margin-left: 0;
+}
+
+body[data-platform="mobile"] .structured_row_main {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  align-items: flex-start;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-family: var(--m-sans);
+}
+
+body[data-platform="mobile"] .structured_row_main:active {
+  background: transparent;
+}
+
+body[data-platform="mobile"] .structured_row_primary {
+  font-family: var(--m-sans);
+  font-size: var(--m-fs-body);
+  line-height: 1.35;
+  color: var(--text-high-color);
+}
+
+body[data-platform="mobile"] .structured_row_secondary {
+  font-family: var(--m-mono);
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text-color);
+  opacity: 1;
+}
+
+/* A failure replaces the URL, and says so in the interface font. */
+body[data-platform="mobile"] .structured_row_secondary_error {
+  font-family: var(--m-sans);
+  color: var(--m-error);
+}
+
+/* Filters carry no secondary line: one 48px row per expression, in mono. */
+body[data-platform="mobile"] [data-structured-section="filters"] .structured_row,
+body[data-platform="mobile"] [data-structured-section="filters"] .structured_row_body {
+  min-height: 48px;
+}
+
+body[data-platform="mobile"] [data-structured-section="filters"] .structured_row_main {
+  justify-content: center;
+  font-family: var(--m-mono);
+  font-size: var(--m-fs-body);
+  color: var(--text-high-color);
+}
+
+/* The floating + sits 70px up from the bottom; the scroller has to clear it or
+   it covers the last row. */
+body[data-platform="mobile"] [data-structured-section="filters"],
+body[data-platform="mobile"] [data-structured-section="redirects"] {
+  padding-bottom: 72px;
+}
+
+/* An open row is 56px: a 36px field with the 36px commit pair beside it. The
+   edited row drops its remove button, so two cross glyphs never coexist. */
+body[data-platform="mobile"] .structured_row_editing {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px 36px;
+  height: auto;
+  min-height: 56px;
+  gap: var(--m-sp-2);
+  padding: 10px var(--m-sp-3) 10px var(--m-sp-4);
+}
+
+/* The blanket mobile button margin (8px 8px 4px 0) is asymmetric top-to-bottom
+   and out-specifies the bare class, so it drops the commit pair 2px below the
+   field it sits beside and eats into the grid gap. */
+body[data-platform="mobile"] .structured_inline_action {
+  margin: 0;
+}
+
+body[data-platform="mobile"] .structured_row_editing .structured_inline_input,
+body[data-platform="mobile"] .structured_row_editing .structured_inline_action {
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  min-height: 36px;
+}
+
+body[data-platform="mobile"] .structured_row_editing .structured_inline_input {
+  width: 100%;
+  font-family: var(--m-mono);
+  font-size: var(--m-fs-body);
+}
+
+/* Always exactly 30x20, whatever the collector calls itself. */
+body[data-platform="mobile"] .collector_badge {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 20px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: var(--m-bw) solid white;
+  border-radius: 0;
+  font-family: var(--m-sans);
+  font-size: var(--m-fs-label);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.04em;
+}
+
+body[data-platform="mobile"] .structured_source_drag_handle {
+  flex: 0 0 10px;
+  width: 10px;
+  height: 18px;
+  margin-right: var(--m-sp-2);
+  opacity: 0.38;
+  background-image: radial-gradient(circle, var(--m-ink) 1.3px, transparent 1.5px);
+  background-position: 0 0;
+  background-size: 5px 6px;
+}
+
+body[data-platform="mobile"] .structured_row_chevron {
+  display: block;
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-top: 1.5px solid var(--border-high-color);
+  border-right: 1.5px solid var(--border-high-color);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transform: rotate(45deg);
+}
+
+body[data-platform="mobile"] .structured_issue {
+  display: grid;
+  place-items: center;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: var(--m-bw) solid var(--m-error);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--m-error);
+  font-family: var(--m-sans);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+body[data-platform="mobile"] .structured_issue.warning {
+  border-color: var(--m-warning);
+  color: var(--m-warning);
+  padding-bottom: 1px;
+}
+
+body[data-platform="mobile"] .structured_group_menu {
+  cursor: pointer;
+}
+
+body[data-platform="mobile"] .settings_version {
+  flex-direction: column;
+  align-content: flex-start;
+  justify-content: flex-start;
+  text-align: center;
+}
+
+body[data-platform="mobile"] .settings_about_logo {
+  width: 100%;
+  height: 144px;
+  margin: var(--m-sp-4) auto var(--m-sp-3);
+}
+
+body[data-platform="mobile"] .settings_about_title {
+  width: 100%;
+  text-align: center;
+}
+
+body[data-platform="mobile"] .settings_version .update_status {
+  width: 100%;
+  text-align: center;
+}
+
+@container settings-panel (max-width: 350px) {
+  body[data-platform="mobile"] .settings_section_summary {
+    display: none;
+  }
+}
+
+body[data-platform="mobile"] .structured_row_error,
+body[data-platform="mobile"] .structured_row.invalid {
+  box-shadow: inset 3px 0 var(--m-error);
+  background: color-mix(in srgb, var(--m-error) 6%, var(--input-bg-color));
+}
+
+body[data-platform="mobile"] .structured_row_warning {
+  box-shadow: inset 3px 0 var(--m-warning);
+  background: color-mix(in srgb, var(--m-warning) 6%, var(--input-bg-color));
+}
+
+/* ---------- Groups are cards, including Default ---------- */
+
+body[data-platform="mobile"] .structured_group,
+body[data-platform="mobile"] .structured_list_card {
+  margin-bottom: var(--m-sp-3);
+  overflow: hidden;
+  border: var(--m-bw) solid var(--border-color);
+  border-top: var(--m-bw) solid var(--border-color);
+  border-radius: var(--m-radius);
+  background: var(--input-bg-color);
+}
+
+body[data-platform="mobile"] .structured_group > summary,
+body[data-platform="mobile"] .structured_list_header {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: 38px;
+  min-height: 38px;
+  padding: 0 var(--m-sp-4);
+  border-bottom: var(--m-bw) solid var(--m-sep);
+  background: var(--m-head-bg);
+  list-style: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* A group summary ends in the ⋮ menu, which brings its own trailing inset. */
+body[data-platform="mobile"] .structured_group > summary {
+  padding-right: 0;
+}
+
+body[data-platform="mobile"] .structured_group_reorderable > summary {
+  /* A vertical move before the hold is ordinary page scrolling. The captured
+     pointer becomes a reorder only after the long-press timer activates. */
+  touch-action: pan-y;
+}
+
+body[data-platform="mobile"] .structured_group > summary::-webkit-details-marker {
+  display: none;
+}
+
+body[data-platform="mobile"] .structured_group_caret {
+  display: block;
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  margin-right: 10px;
+  border-right: 1.5px solid var(--text-color);
+  border-bottom: 1.5px solid var(--text-color);
+  transform: rotate(-45deg);
+}
+
+body[data-platform="mobile"] .structured_group_drag_handle {
+  flex: 0 0 10px;
+  width: 10px;
+  height: 18px;
+  margin: 0 10px 0 -2px;
+  background-image: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--m-ink) 55%, transparent) 1.4px,
+    transparent 1.6px
+  );
+  background-position: 0 0;
+  background-size: 5px 6px;
+}
+
+body[data-platform="mobile"] .structured_group[open] > summary .structured_group_caret {
+  transform: rotate(45deg) translate(-2px, -2px);
+}
+
+body[data-platform="mobile"] .structured_group_name,
+body[data-platform="mobile"] .structured_list_name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--m-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--m-ink) 75%, transparent);
+}
+
+body[data-platform="mobile"] .structured_group_dragging {
+  position: relative;
+  z-index: 4;
+  opacity: 1;
+  transform: translateY(var(--structured-group-drag-y, 0));
+  transition: none;
+  pointer-events: none;
+}
+
+body[data-platform="mobile"] .structured_group_dragging > summary {
+  background: var(--m-accent-bg);
+}
+
+body[data-platform="mobile"] .structured_group_drop_before,
+body[data-platform="mobile"] .structured_group_drop_after {
+  position: relative;
+  box-shadow: none;
+  overflow: visible;
+}
+
+body[data-platform="mobile"] .structured_group_drop_before::before,
+body[data-platform="mobile"] .structured_group_drop_after::after {
+  content: "";
+  position: absolute;
+  z-index: 5;
+  right: -1px;
+  left: -1px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--m-ink);
+  box-shadow: 0 0 0 1px var(--m-page-bg);
+}
+
+body[data-platform="mobile"] .structured_group_drop_before::before {
+  top: -7px;
+}
+
+body[data-platform="mobile"] .structured_group_drop_after::after {
+  bottom: -7px;
+}
+
+body[data-platform="mobile"] .structured_source_drop_before,
+body[data-platform="mobile"] .structured_source_drop_after {
+  position: relative;
+  z-index: 1;
+}
+
+body[data-platform="mobile"] .structured_source_drop_before::before,
+body[data-platform="mobile"] .structured_source_drop_after::after,
+body[data-platform="mobile"] .structured_source_group_drop_target::after {
+  content: "";
+  position: absolute;
+  z-index: 5;
+  right: var(--m-sp-3);
+  left: var(--m-sp-3);
+  height: 3px;
+  border-radius: 2px;
+  background: var(--m-ink);
+  box-shadow: 0 0 0 1px var(--m-page-bg);
+}
+
+body[data-platform="mobile"] .structured_source_drop_before::before {
+  top: -2px;
+}
+
+body[data-platform="mobile"] .structured_source_drop_after::after {
+  bottom: -2px;
+}
+
+body[data-platform="mobile"] .structured_source_group_drop_target {
+  position: relative;
+  outline: 0;
+}
+
+body[data-platform="mobile"] .structured_source_group_drop_target::after {
+  bottom: -2px;
+}
+
+body[data-platform="mobile"] .structured_source_group_title_drop_target > summary {
+  position: relative;
+  outline: 0;
+  background: var(--m-accent-bg);
+}
+
+body[data-platform="mobile"] .structured_source_group_title_drop_target > summary::after {
+  content: "";
+  position: absolute;
+  z-index: 5;
+  right: var(--m-sp-3);
+  bottom: -2px;
+  left: var(--m-sp-3);
+  height: 3px;
+  border-radius: 2px;
+  background: var(--m-ink);
+  box-shadow: 0 0 0 1px var(--m-page-bg);
+}
+
+body[data-platform="mobile"] .structured_group_count,
+body[data-platform="mobile"] .structured_list_count {
+  font-family: var(--m-mono);
+  font-size: 11px;
+  color: var(--text-color);
+  opacity: 1;
+}
+
+body[data-platform="mobile"] .structured_group_menu_spacer {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 38px;
+}
+
+/* One 40px control, never taller than the 38px header. */
+body[data-platform="mobile"] .structured_group_menu {
+  display: grid;
+  place-items: center;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 38px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--m-ink);
+  font-size: 18px;
+  line-height: 1;
+}
+
+body[data-platform="mobile"] .structured_group_menu:active,
+body[data-platform="mobile"] .structured_group_menu.menu_open {
+  background: var(--m-accent-bg);
+}
+
+body[data-platform="mobile"] .structured_empty {
+  margin: 0;
+  padding: var(--m-sp-3) var(--m-sp-4);
+  font-family: var(--m-sans);
+  font-size: var(--m-fs-body);
+  color: var(--text-color);
+}
+
+/* ---------- Floating add ---------- */
+
+body[data-platform="mobile"] .structured_add_button {
+  display: grid;
+  place-items: center;
+  position: fixed;
+  z-index: 6;
+  right: var(--m-sp-4);
+  bottom: calc(var(--m-tabbar-h) + var(--m-sp-3));
+  box-sizing: border-box;
+  width: var(--m-touch);
+  height: var(--m-touch);
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: var(--m-bw) solid var(--m-ink);
+  border-radius: var(--m-radius);
+  /* The light surface: the tan is the pressed state, and a tan resting state
+     reads as already-selected. */
+  background: var(--m-card-bg);
+  box-shadow: 0 3px 10px rgb(0 0 0 / 20%);
+  color: var(--m-ink);
+}
+
+body[data-platform="mobile"] .structured_add_button:active,
+body[data-platform="mobile"] .structured_add_button.menu_open {
+  background: var(--m-accent-bg);
+}
+
+body[data-platform="mobile"] .structured_add_glyph {
+  font-family: var(--m-sans);
+  font-size: 25px;
+  font-weight: 300;
+  line-height: 1;
+}
+
+/* Rotate the glyph, never the button — a rotated keyline is a diamond. */
+body[data-platform="mobile"] .structured_add_button.menu_open .structured_add_glyph {
+  transform: rotate(45deg);
+}
+
+body[data-platform="mobile"] .structured_status_strip {
+  display: none;
+}
+
+body[data-platform="mobile"] .structured_remove,
+body[data-platform="mobile"] .structured_inline_action,
+body[data-platform="mobile"] .structured_inline_input {
+  min-height: var(--m-touch);
+}
+
+body[data-platform="mobile"] .structured_remove {
+  flex: 0 0 var(--m-touch);
+  width: var(--m-touch);
+  margin: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-color);
 }
 
 /* textarea + backdrop + highlights must share metrics or error
@@ -532,9 +2220,83 @@ body.once-reader-open {
 }
 
 body[data-platform="mobile"] #status_surfaces {
-  bottom: 55px;
+  display: none;
 }
 
-body[data-platform="mobile"] #status_surfaces {
-  border: none;
+body[data-platform="mobile"] #status_dock {
+  position: absolute;
+  z-index: 1;
+  top: -18px;
+  left: calc(50% - 21px);
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+body[data-platform="mobile"] #status_bar_state {
+  display: none;
+}
+
+body[data-platform="mobile"] #status_dock .status_indicator {
+  width: 11px;
+  min-width: 11px;
+  height: 11px;
+  padding: 0;
+  margin-right: 19px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+body[data-platform="mobile"] #status_dock .warning .status_indicator_icon {
+  font-size: 13px;
+}
+
+body[data-platform="mobile"] #status_dock .status_indicator_icon {
+  width: auto;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  font-size: 9px;
+  line-height: 1;
+}
+
+body[data-platform="mobile"] #status_dock .status_indicator.error .status_indicator_icon {
+  width: 11px;
+  height: 11px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 7px;
+}
+
+body[data-platform="mobile"] #status_dock .status_indicator_count {
+  display: none;
+}
+
+body[data-platform="mobile"] .status_issue_bubble {
+  width: 100%;
+  min-height: var(--m-touch);
+  border: var(--m-bw) solid currentColor;
+  border-radius: var(--m-radius);
+}
+
+body[data-platform="mobile"] :focus-visible {
+  outline: 2px solid var(--highlight-color);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-platform="mobile"],
+  body[data-platform="mobile"] *,
+  body[data-platform="mobile"] *::before,
+  body[data-platform="mobile"] *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

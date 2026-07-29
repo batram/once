@@ -18,6 +18,7 @@
     "@once/app": "*",
     "@once/core": "*",
     "@once/persistence": "*",
-    "pouchdb-browser": "^9.0.0"
+    "pouchdb-browser": "^9.0.0",
+    "pouchdb-find": "^9.0.0"
   }
 }

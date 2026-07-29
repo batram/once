@@ -367,6 +367,15 @@ body #titlebar-text {
   border-radius: 2px 0 0 2px;
 }
 
+#settings_panel .bar .collapsebutton {
+  margin-left: auto;
+}
+
+#settings_panel #settings_section_back {
+  order: -1;
+  margin: 0 8px 0 0;
+}
+
 .electron-fullscreen #titlebar,
 .electron-fullscreen #left_panel,
 .electron-fullscreen #sep_slider,

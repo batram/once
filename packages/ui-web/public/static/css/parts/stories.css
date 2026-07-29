@@ -1,4 +1,6 @@
 .stories_container {
+  /* positioning context for .bb_slide, which is laid over the dragged row */
+  position: relative;
   overflow-y: auto;
   overflow-x: hidden;
   /* keep pull-to-refresh from chaining into the browser's own overscroll */
@@ -13,16 +15,22 @@
   min-height: 0;
 }
 
-/* Pull-to-refresh indicator: a compact elevated surface emerges beneath the
-   toolbar while its flow height moves the list with the finger. */
+/* Pull-to-refresh indicator: the icon descends over the existing story rows.
+   Keeping it out of flow means the list does not open an empty strip while the
+   user pulls. The scrollable list itself is its positioning context. */
 .ptr-indicator {
-  flex: 0 0 auto;
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  right: 0;
+  left: 0;
   height: 0;
   overflow: hidden;
   display: flex;
   align-items: flex-start;
   justify-content: center;
   box-sizing: border-box;
+  pointer-events: none;
   will-change: height;
 }
 
@@ -31,7 +39,6 @@
   height: 36px;
   display: grid;
   flex: 0 0 auto;
-  margin-top: 10px;
   place-items: center;
   border: 1px solid var(--border-high-color);
   border-radius: 50%;
@@ -80,22 +87,181 @@
   transform: translateX(0);
 }
 
+/* Out of flow on purpose: an in-flow reveal reflows the whole list the moment
+   a drag starts. top/height are set from the row's own box by swipeable(). */
 .bb_slide {
+  position: absolute;
+  left: 0;
   width: 100%;
-  display: flex;
+  pointer-events: none;
+}
+
+/* Both sides span the whole row and are stacked, rather than sharing the width
+   as flex halves: a stage-2 drag uncovers more than half the row, and a
+   half-width reveal left a gap between the row's trailing edge and the colour.
+   Only one side is ever coloured (the other is cleared to a transparent
+   gradient and empty text by update_reveal), so the overlap is invisible. */
+.bb_slide .swipe_left,
+.bb_slide .swipe_right {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--swipe-label-color);
+  font-weight: 400;
+  /* The diagonal wash the row has always had, densest at the outer corner the
+     finger is heading for. Stage 2 spreads it the whole way across, so the
+     escalation reads as more ink and not only as a different hue. */
+  --swipe-reveal-color: transparent;
+  --swipe-reveal-spread: 55%;
+}
+
+.bb_slide [data-stage="1"],
+.bb_slide [data-stage="2"] {
+  font-weight: 600;
+}
+
+.bb_slide [data-stage="2"] {
+  --swipe-reveal-spread: 100%;
+}
+
+.bb_slide .swipe_action_primary,
+.bb_slide .swipe_action_secondary {
+  display: block;
+  line-height: 1.15;
+}
+
+.bb_slide .swipe_action_primary {
+  position: absolute;
+  top: 50%;
+  max-width: calc(100% - 30px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transform: translateY(-50%);
+}
+
+.bb_slide .swipe_action_secondary {
+  --swipe-pending-color: var(--swipe-label-color);
+  position: absolute;
+  top: calc(50% + 0.25em);
+  max-width: calc(100% - 30px);
+  overflow: hidden;
+  color: var(--swipe-pending-color);
+  font-size: 0.75em;
+  font-weight: 400;
+  opacity: 0;
+  text-overflow: ellipsis;
+}
+
+.bb_slide [data-lock-phase="handoff"] .swipe_action_primary {
+  top: calc(50% - 0.45em);
+}
+
+.bb_slide [data-lock-phase="handoff"] .swipe_action_secondary {
+  animation: swipe-stage-handoff var(--swipe-handoff-duration, 100ms) linear forwards;
+}
+
+@keyframes swipe-stage-handoff {
+  from {
+    color: var(--swipe-label-color);
+    opacity: 0.35;
+  }
+
+  to {
+    color: var(--swipe-pending-color);
+    opacity: 1;
+  }
 }
 
 .bb_slide .swipe_left {
-  height: 100%;
-  width: 100%;
-  padding-left: 5px;
+  padding-left: 15px;
+  background-image: linear-gradient(
+    45deg,
+    var(--swipe-reveal-color),
+    transparent var(--swipe-reveal-spread)
+  );
+}
+
+.bb_slide .swipe_left .swipe_action_primary,
+.bb_slide .swipe_left .swipe_action_secondary {
+  left: 15px;
 }
 
 .bb_slide .swipe_right {
-  height: 100%;
-  width: 100%;
-  padding-right: 5px;
+  padding-right: 15px;
   text-align: right;
+  background-image: linear-gradient(
+    45deg,
+    transparent calc(100% - var(--swipe-reveal-spread)),
+    var(--swipe-reveal-color)
+  );
+}
+
+.bb_slide .swipe_right .swipe_action_primary,
+.bb_slide .swipe_right .swipe_action_secondary {
+  right: 15px;
+}
+
+/* Colour follows the configured action, set by StoryListItem.update_reveal */
+.bb_slide [data-action="open"] {
+  --swipe-reveal-color: var(--swipe-open-color);
+}
+
+.bb_slide [data-action="open-browser"] {
+  --swipe-reveal-color: var(--swipe-open-color);
+}
+
+.bb_slide [data-action="open-reader"] {
+  --swipe-reveal-color: var(--swipe-open-reader-color);
+}
+
+.bb_slide [data-action="skip"] {
+  --swipe-reveal-color: var(--swipe-skip-color);
+}
+
+.bb_slide [data-action="filter"] {
+  --swipe-reveal-color: var(--swipe-filter-color);
+}
+
+.bb_slide [data-action="toggle-read"] {
+  --swipe-reveal-color: var(--swipe-toggle-read-color);
+}
+
+.bb_slide [data-action="toggle-bookmark"] {
+  --swipe-reveal-color: var(--swipe-toggle-bookmark-color);
+}
+
+.bb_slide .swipe_action_secondary[data-action="open"],
+.bb_slide .swipe_action_secondary[data-action="open-browser"] {
+  --swipe-pending-color: var(--swipe-open-color);
+}
+
+.bb_slide .swipe_action_secondary[data-action="open-reader"] {
+  --swipe-pending-color: var(--swipe-open-reader-color);
+}
+
+.bb_slide .swipe_action_secondary[data-action="skip"] {
+  --swipe-pending-color: var(--swipe-skip-color);
+}
+
+.bb_slide .swipe_action_secondary[data-action="filter"] {
+  --swipe-pending-color: var(--swipe-filter-color);
+}
+
+.bb_slide .swipe_action_secondary[data-action="toggle-read"] {
+  --swipe-pending-color: var(--swipe-toggle-read-color);
+}
+
+.bb_slide .swipe_action_secondary[data-action="toggle-bookmark"] {
+  --swipe-pending-color: var(--swipe-toggle-bookmark-color);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bb_slide [data-lock-phase="handoff"] .swipe_action_secondary {
+    animation: none;
+    color: var(--swipe-pending-color);
+    opacity: 1;
+  }
 }
 
 .read_btn::after {
@@ -169,6 +335,12 @@
 
 .story .button_group {
   display: inline-flex;
+}
+
+/* Touch-only affordance: Electron and the extensions open story actions from
+   their native context menus, so the row keeps its inline button group. */
+.story .menu_btn {
+  display: none;
 }
 
 .info .time {

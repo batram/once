@@ -45,39 +45,116 @@ async function settledStoryWrites() {
   })
 }
 
-// The per-story action buttons are hidden on mobile; a long-press on the
-// story opens the action sheet that proxies them. The long-press detector
-// listens for pointer events in the page, so drive it with synthesized
-// PointerEvents (a real webdriver long-press would trigger the OS context
-// menu / text selection instead on some platforms).
-async function storySheetAction(story, testid, platform) {
-  // State changes re-render the story row, staling old element handles, and
-  // browser.execute does not re-fetch stale references — re-resolve first.
-  const target = await $(story.selector)
-  await target.waitForDisplayed({ timeout: 10_000 })
+// The per-story action buttons are hidden on mobile; a long-press on the story
+// opens the menu built from describeStoryMenu. Installed apps present it
+// natively, while the web harness retains the DOM anchored-menu fallback. The
+// long-press detector listens for pointer events in the page, so drive it with
+// synthesized PointerEvents (a real webdriver long-press would trigger the OS
+// context menu / text selection instead on some platforms).
+// `action` is a StoryMenuActionId, e.g. "open-reader" or "toggle-read".
+async function openStoryMenuWithLongPress(target) {
   await browser.execute((el) => {
+    window.__onceStoryMenuRequested = false
+    document.addEventListener("story-menu-request", () => {
+      window.__onceStoryMenuRequested = true
+    }, { once: true })
     el.dispatchEvent(new PointerEvent("pointerdown", {
       bubbles: true, cancelable: true, isPrimary: true,
       pointerId: 1, pointerType: "touch", button: 0
     }))
   }, target)
-  await browser.pause(700) // long-press threshold is 500ms
-  await browser.execute((el) => {
-    el.dispatchEvent(new PointerEvent("pointerup", {
-      bubbles: true, cancelable: true, isPrimary: true,
-      pointerId: 1, pointerType: "touch", button: 0
-    }))
-  }, target)
-  const action = await $(`[data-testid='sheet-${testid}']`)
-  await action.waitForDisplayed({ timeout: 10_000 })
-  // the sheet suppresses taps for ~250ms after the finger lifts (so the
+  try {
+    await browser.waitUntil(
+      async () => browser.execute(() => window.__onceStoryMenuRequested === true),
+      {
+        timeout: 5_000,
+        timeoutMsg: "Long-press did not request the story menu"
+      }
+    )
+  } finally {
+    await browser.execute((el) => {
+      el.dispatchEvent(new PointerEvent("pointerup", {
+        bubbles: true, cancelable: true, isPrimary: true,
+        pointerId: 1, pointerType: "touch", button: 0
+      }))
+    }, target)
+  }
+}
+
+async function storyMenuAction(story, action, platform, { viaLongPress = false } = {}) {
+  // State changes re-render the story row, staling old element handles, and
+  // browser.execute does not re-fetch stale references — re-resolve first.
+  const target = await $(story.selector)
+  await target.waitForDisplayed({ timeout: 10_000 })
+  if (viaLongPress) {
+    await openStoryMenuWithLongPress(target)
+  } else {
+    const menuButton = await target.$("[data-testid='story-menu-button']")
+    await menuButton.waitForDisplayed({ timeout: 10_000 })
+    await clickWeb(menuButton, platform)
+  }
+
+  if (platform === "ios" || platform === "android") {
+    await selectNativeStoryMenuAction(action, platform)
+    await switchToWebView()
+    return
+  }
+
+  const row = await $(`[data-testid='story-menu-${action}']`)
+  await row.waitForDisplayed({ timeout: 10_000 })
+  // the menu suppresses taps for ~250ms after the finger lifts (so the
   // release of the long-press doesn't phantom-tap a row); wait it out
   await browser.pause(500)
-  await clickWeb(action, platform)
-  await browser.waitUntil(async () => !(await $(".once-sheet").isDisplayed()), {
-    timeout: 5_000,
-    timeoutMsg: "Action sheet did not close after tapping a row"
+  await clickWeb(row, platform)
+  await browser.waitUntil(
+    async () => !(await $(".once-anchored-menu").isDisplayed()),
+    {
+      timeout: 5_000,
+      timeoutMsg: "Story menu did not close after tapping a row"
+    }
+  )
+}
+
+const nativeStoryMenuLabels = {
+  "open": ["Open story"],
+  "open-comments": ["Open comments"],
+  "open-browser": ["Open in browser"],
+  "open-reader": ["Open in reader"],
+  "toggle-read": ["Skip reading", "Mark as unread", "Unskip"],
+  "toggle-bookmark": ["Bookmark", "Remove bookmark"],
+  "filter": ["Filter source", "Edit filter"],
+  "search-domain": ["Search this domain"],
+  "copy-link": ["Copy link address"]
+}
+
+async function selectNativeStoryMenuAction(action, platform) {
+  const labels = nativeStoryMenuLabels[action]
+  if (!labels) throw new Error(`No native story-menu label for ${action}`)
+  await browser.switchContext("NATIVE_APP")
+  let row
+  await browser.waitUntil(async () => {
+    if (platform === "android") {
+      const anrDialog = await $("android=new UiSelector().textContains(\"isn't responding\")")
+      if (await anrDialog.isDisplayed()) {
+        throw new Error("Android system ANR dialog appeared while the story menu was open")
+      }
+    }
+    for (const label of labels) {
+      const selector = platform === "ios"
+        ? `-ios predicate string:name == "${label}"`
+        : `android=new UiSelector().text("${label}")`
+      const candidate = await $(selector)
+      if (await candidate.isDisplayed()) {
+        row = candidate
+        return true
+      }
+    }
+    return false
+  }, {
+    timeout: 10_000,
+    timeoutMsg: `Native story-menu action ${action} did not appear`
   })
+  await row.click()
 }
 
 async function clickWeb(element, platform) {
@@ -90,6 +167,15 @@ async function clickWeb(element, platform) {
   } else {
     await element.click()
   }
+}
+
+async function setWebValue(element, value) {
+  await element.waitForDisplayed({ timeout: 10_000 })
+  await browser.execute((target, nextValue) => {
+    target.value = nextValue
+    target.dispatchEvent(new Event("input", { bubbles: true }))
+    target.dispatchEvent(new Event("change", { bubbles: true }))
+  }, element, value)
 }
 
 describe("Once mobile", () => {
@@ -119,10 +205,22 @@ describe("Once mobile", () => {
     const baseUrl = process.env.ONCE_MOBILE_TEST_URL ||
       (platform === "android" ? `http://10.0.2.2:${port}` : `http://127.0.0.1:${port}`)
     await clickWeb(await $("[data-testid='settings-menu']"), platform)
-    await $("[data-testid='sources']").setValue(`${baseUrl}/fixtures/feed.rss`)
+    await clickWeb(await $("[data-settings-target='sources']"), platform)
+    const sourcesInput = await $("[data-testid='sources']")
+    if (!(await sourcesInput.isDisplayed())) {
+      await clickWeb(await $("[data-testid='sources-mode-toggle']"), platform)
+    }
+    await setWebValue(sourcesInput, `${baseUrl}/fixtures/feed.rss`)
     await clickWeb(await $("[data-testid='save-sources']"), platform)
-    await $("[data-testid='sync-url']").setValue(`http://once-test:once-test@${new URL(baseUrl).host}/db/mobile_${platform}`)
+    await clickWeb(await $("#settings_section_back"), platform)
+    await clickWeb(await $("[data-settings-target='sync']"), platform)
+    await setWebValue(
+      await $("[data-testid='sync-url']"),
+      `http://once-test:once-test@${new URL(baseUrl).host}/db/mobile_${platform}`
+    )
     await clickWeb(await $("[data-testid='save-sync']"), platform)
+    await clickWeb(await $("#settings_section_back"), platform)
+    await clickWeb(await $("[data-settings-target='theme']"), platform)
     if (platform === "ios") {
       await browser.execute(() => {
         if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
@@ -143,41 +241,19 @@ describe("Once mobile", () => {
     expect((await story.getAttribute("data-title")).includes("Fixture article")).toBe(true)
 
     await clickWeb(await story.$("[data-testid='story-title']"), platform)
-    await browser.switchContext("NATIVE_APP")
-    if (platform === "android") {
-      await browser.waitUntil(async () => (await browser.getCurrentPackage()) !== "com.zmarn.once.dev", {
-        timeout: 30_000,
-        timeoutMsg: "Story link did not open in an external browser"
-      })
-      await browser.pressKeyCode(4)
-    } else {
-      // SFSafariViewController's dismiss button ("Done" up to iOS 18, "Close"
-      // on iOS 26) swallows XCUITest element clicks because the Safari view
-      // runs out of process; dismiss it with a device-level coordinate tap.
-      const dismissButton = '-ios predicate string:type == "XCUIElementTypeButton" AND name IN {"Done", "Close"}'
-      let done = await $(dismissButton)
-      // Presenting the Safari view can silently no-op when the view
-      // controller is still busy (seen on CI), so re-click until it is up.
-      await browser.waitUntil(async () => {
-        done = await $(dismissButton)
-        if (await done.isDisplayed().catch(() => false)) return true
-        await switchToWebView()
-        await clickWeb(await story.$("[data-testid='story-title']"), platform)
-        await browser.switchContext("NATIVE_APP")
-        done = await $(dismissButton)
-        return done.waitForDisplayed({ timeout: 5_000 }).then(() => true, () => false)
-      }, {
-        timeout: 60_000,
-        timeoutMsg: "Story link did not open SFSafariViewController"
-      })
-      const rect = await browser.getElementRect(done.elementId)
-      await browser.execute("mobile: tap", {
-        x: Math.round(rect.x + rect.width / 2),
-        y: Math.round(rect.y + rect.height / 2)
-      })
-      await done.waitForDisplayed({ timeout: 10_000, reverse: true })
-    }
-    await switchToWebView()
+    const readingContent = await $("#reading_content")
+    await readingContent.waitForDisplayed({ timeout: 10_000 })
+    await browser.waitUntil(async () =>
+      (await readingContent.getAttribute("data-mode")) === "browser" &&
+      (await readingContent.getAttribute("data-load-state")) === "ready", {
+      timeout: 30_000,
+      timeoutMsg: "Story title did not finish loading in the embedded browser"
+    })
+    expect(await $("#reading_url").getProperty("value")).toBe(
+      `${baseUrl}/fixtures/article.html`
+    )
+    await clickWeb(await $("[data-testid='stories-menu']"), platform)
+    await readingContent.waitForDisplayed({ timeout: 10_000, reverse: true })
 
     // The reader frame is opaque-origin, so automation cannot reach into it.
     // Observe the TTS bridge traffic (readerTtsPolyfill -> readerTtsHostBridge)
@@ -196,8 +272,8 @@ describe("Once mobile", () => {
         }
       })
     })
-    await storySheetAction(story, "story-reader", platform)
-    await $("[data-testid='reader-close']").waitForDisplayed({ timeout: 30_000 })
+    await storyMenuAction(story, "open-reader", platform, { viaLongPress: true })
+    await $("#reading_content").waitForDisplayed({ timeout: 30_000 })
     await browser.waitUntil(async () =>
       (await browser.execute(() => window.__onceTtsSeen)).length > 0, {
       timeout: 10_000,
@@ -210,16 +286,16 @@ describe("Once mobile", () => {
       await browser.switchContext("NATIVE_APP")
       await browser.pressKeyCode(4)
       await switchToWebView()
-      await expect($("[data-testid='reader-close']")).not.toBeDisplayed()
+      await expect($("#reading_content")).not.toBeDisplayed()
     } else {
-      await clickWeb(await $("[data-testid='reader-close']"), platform)
+      await clickWeb(await $("[data-testid='stories-menu']"), platform)
     }
 
     await browser.waitUntil(async () => (await story.getAttribute("class")).includes("read"), {
       timeout: 10_000,
       timeoutMsg: "Reader mode did not persist the read state"
     })
-    await storySheetAction(story, "story-read-state", platform)
+    await storyMenuAction(story, "toggle-read", platform)
     await browser.waitUntil(async () => {
       const classes = await story.getAttribute("class")
       return !classes.includes("read") && !classes.includes("skipped")
@@ -227,7 +303,7 @@ describe("Once mobile", () => {
       timeout: 10_000,
       timeoutMsg: "Story did not return to unread state"
     })
-    await storySheetAction(story, "story-read-state", platform)
+    await storyMenuAction(story, "toggle-read", platform)
     await browser.waitUntil(async () => (await story.getAttribute("class")).includes("skipped"), {
       timeout: 10_000,
       timeoutMsg: "Story did not enter skipped state"
@@ -249,8 +325,11 @@ describe("Once mobile", () => {
     expect((await restored.getAttribute("data-title")).includes("Fixture article")).toBe(true)
     await expect($("body")).toHaveAttribute("data-theme", "light")
     await clickWeb(await $("[data-testid='settings-menu']"), platform)
+    await clickWeb(await $("[data-settings-target='sources']"), platform)
     const sources = await $("[data-testid='sources']")
     expect(String(await sources.getProperty("value")).includes("/fixtures/feed.rss")).toBe(true)
+    await clickWeb(await $("#settings_section_back"), platform)
+    await clickWeb(await $("[data-settings-target='sync']"), platform)
     const syncUrl = await $("[data-testid='sync-url']")
     expect(String(await syncUrl.getProperty("value")).includes(`/db/mobile_${platform}`)).toBe(true)
   })

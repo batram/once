@@ -2,6 +2,7 @@ import { OnceClient } from "@once/app"
 import { build_source, sanitize_selector_conf } from "@once/collectors/geny"
 import { SettingsPanel } from "../SettingsPanel"
 import { LoaderInsights } from "../LoaderInsights"
+import { showTextInputDialog } from "../ConfirmDialog"
 
 declare const browser: {
   runtime?: {
@@ -26,13 +27,14 @@ interface PickedMessage {
 // root supplies a starter that resolves with the finished source line.
 export class SourcePickerView {
   private static client: OnceClient | null = null
-  private static startPicker: (() => Promise<string | null>) | null = null
+  private static startPicker:
+    ((url?: string) => Promise<string | null>) | null = null
   private static listening = false
   private static busy = false
 
   static mount(
     client: OnceClient,
-    startPicker?: () => Promise<string | null>
+    startPicker?: (url?: string) => Promise<string | null>
   ): void {
     SourcePickerView.client = client
     if (startPicker) SourcePickerView.startPicker = startPicker
@@ -53,15 +55,16 @@ export class SourcePickerView {
     const runtime = SourcePickerView.webExtensionRuntime()
     if (runtime) {
       try {
-        await runtime.sendMessage({ onceCommand: "startSourcePicker" })
+        const result = await runtime.sendMessage({ onceCommand: "startSourcePicker" })
+        if ((result as { needsUrl?: boolean } | undefined)?.needsUrl) {
+          const url = await SourcePickerView.requestUrl()
+          if (!url) return
+          await runtime.sendMessage({ onceCommand: "startSourcePicker", url })
+        }
         SourcePickerView.setStatus("Pick the story elements on the page.")
       } catch (error) {
         SourcePickerView.showError(error)
       }
-      return
-    }
-    if (!SourcePickerView.startPicker) {
-      SourcePickerView.setStatus("Source picking is not available here.")
       return
     }
     SourcePickerView.busy = true
@@ -69,15 +72,54 @@ export class SourcePickerView {
     button.disabled = true
     button.value = "picking…"
     try {
-      const source = await SourcePickerView.startPicker()
+      let source: string | null
+      if (SourcePickerView.startPicker) {
+        source = await SourcePickerView.startPicker()
+      } else {
+        const url = await SourcePickerView.requestUrl()
+        if (!url) return
+        throw new Error("Source picking is not available on this device")
+      }
       if (source) await SourcePickerView.addSource(source)
     } catch (error) {
-      SourcePickerView.showError(error)
+      if (SourcePickerView.startPicker &&
+          /no active tab|needs an HTTP or HTTPS page/i.test(String(error))) {
+        try {
+          const url = await SourcePickerView.requestUrl()
+          if (!url) return
+          const source = await SourcePickerView.startPicker(url)
+          if (source) await SourcePickerView.addSource(source)
+        } catch (fallbackError) {
+          SourcePickerView.showError(fallbackError)
+        }
+      } else {
+        SourcePickerView.showError(error)
+      }
     } finally {
       SourcePickerView.busy = false
       button.disabled = false
       button.value = label
     }
+  }
+
+  private static async requestUrl(): Promise<string | null> {
+    const value = await showTextInputDialog({
+      message: "Enter the URL of the page to pick story elements from.",
+      value: "https://",
+      confirmLabel: "Open and pick",
+      positionWithin: document.querySelector<HTMLElement>("#settings_panel") || undefined
+    })
+    if (value === null) return null
+    const candidate = value.trim()
+    if (!candidate) return null
+    const normalized = /^[a-z][a-z\d+.-]*:/i.test(candidate)
+      ? candidate
+      : `https://${candidate}`
+    const url = new URL(normalized)
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      throw new Error("Source picking needs an HTTP or HTTPS URL")
+    }
+    return url.href
   }
 
   private static listen(): void {

@@ -14,6 +14,35 @@
   --read-bg-color: light-dark(#ccc, #282a36);
   --text-high-color: light-dark(black, #bcc2cd);
   --text-color: light-dark(#828282, #828282);
+  --text-muted-color: light-dark(#6b6357, #9297a3);
+  /* Tint marking a row that is open for editing. Mixed from --text-high-color
+     because --text-color is a mid grey here, and 3% of a mid grey against the
+     input background is not a visible change in either theme. */
+  --editing-bg-color: color-mix(
+    in srgb,
+    var(--text-high-color) 7%,
+    var(--input-bg-color)
+  );
+  --error-color: light-dark(#c83d3d, #ff6b6b);
+  /* Was only ever referenced through a var() fallback, so dark mode silently
+     used the light theme's muddy amber. */
+  --warning-color: light-dark(#9a6200, #e2a642);
+  --m-error: light-dark(#d33, #ff6b6b);
+  --m-warning: light-dark(#9a6200, #e2a642);
+  /* Swipe reveal colours, keyed by action rather than by stage so a
+     reconfigured swipe keeps the same colour meaning. Affirmative actions run
+     green→blue, destructive ones red→dark red. */
+  --swipe-open-color: light-dark(rgb(0 128 0 / 72%), rgb(38 160 38 / 72%));
+  --swipe-open-reader-color: light-dark(#4050ac, #5a68c8);
+  --swipe-skip-color: light-dark(rgb(200 0 0 / 66%), rgb(215 60 60 / 66%));
+  --swipe-filter-color: light-dark(#8f0000, #b02020);
+  --swipe-toggle-read-color: light-dark(rgb(0 128 0 / 72%), rgb(38 160 38 / 72%));
+  --swipe-toggle-bookmark-color: light-dark(#b8860b, #d4a017);
+  --swipe-label-color: white;
+  /* Badge for the swipe settings sample row. Deliberately unlike any
+     collector's palette — teal, which none of them use. */
+  --sample-badge-bg: light-dark(#cfe9e4, #1f4b46);
+  --sample-badge-ink: light-dark(#1f6b60, #7fd0c4);
 }
 
 /* Default color scheme */

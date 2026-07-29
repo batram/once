@@ -1,10 +1,12 @@
 const fs = require("fs")
 const path = require("path")
 const { spawnSync } = require("child_process")
+const { androidDeviceCommands } = require("./android-device")
 
 const root = path.resolve(__dirname, "../../..")
 const npmCli = process.env.npm_execpath
 if (!npmCli) throw new Error("Run mobile E2E through an npm script")
+const visual = process.argv.includes("--visual")
 
 function fail(message) {
   console.error(`mobile-e2e: ${message}`)
@@ -17,7 +19,8 @@ function run(command, args, options = {}) {
     env: options.env || process.env,
     stdio: options.capture ? "pipe" : "inherit",
     encoding: options.capture ? "utf8" : undefined,
-    shell: false
+    shell: false,
+    timeout: options.timeout
   })
   if (result.error) fail(result.error.message)
   if (result.status !== 0) {
@@ -62,7 +65,11 @@ function androidEnvironment() {
 function requireConnectedDevice(sdk, env) {
   const adb = path.join(sdk, "platform-tools", process.platform === "win32" ? "adb.exe" : "adb")
   if (!fs.existsSync(adb)) fail(`adb not found at ${adb}`)
-  const result = run(adb, ["devices"], { env, capture: true })
+  const result = run(adb, ["devices"], {
+    env,
+    capture: true,
+    timeout: 10_000
+  })
   const connected = result.stdout.split(/\r?\n/)
     .map(line => /^(\S+)\s+device(?:\s|$)/.exec(line.trim())?.[1])
     .filter(Boolean)
@@ -74,7 +81,13 @@ function requireConnectedDevice(sdk, env) {
     fail("no Android device is ready; start an emulator or connect a device and try again")
   }
   if (!requested && connected.length > 1) {
-    fail(`multiple Android devices are ready (${connected.join(", ")}); set ONCE_ANDROID_UDID`)
+    const script = visual ? "inspect:mobile:android" : "test:mobile:e2e:android:local"
+    const commands = androidDeviceCommands(connected, script)
+    fail(
+      `multiple Android devices are ready (${connected.join(", ")}).\n` +
+      "Choose one and rerun:\n" +
+      commands.map(command => `  ${command}`).join("\n")
+    )
   }
   return requested || connected[0]
 }
@@ -98,4 +111,7 @@ const serial = requireConnectedDevice(android.sdk, android.env)
 const env = { ...android.env, ONCE_ANDROID_UDID: serial, ANDROID_SERIAL: serial }
 ensureUiAutomatorDriver(env)
 runNpm(["run", "mobile", "--", "package", "android", "--channel", "dev", "--e2e"], env)
-runNpm(["run", "test:mobile:e2e:android"], env)
+runNpm([
+  "run",
+  visual ? "inspect:mobile:android:run" : "test:mobile:e2e:android"
+], env)

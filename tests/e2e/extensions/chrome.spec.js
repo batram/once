@@ -35,6 +35,18 @@ test("installed Chrome extension loads, collects, persists settings, and opens a
     expect(testPageUnexpectedRequests, "initial test-mode load must stay offline").toEqual([])
     await expect(page.getByTestId("stories-menu")).toBeVisible()
     await page.getByTestId("settings-menu").click()
+    await expect(page.getByTestId("sources")).toBeHidden()
+    await page.locator('[data-settings-target="sources"]').click()
+    const modeToggle = page.getByTestId("sources-mode-toggle")
+    await expect(modeToggle).toHaveText("TXT")
+    await expect(modeToggle).toHaveAttribute("aria-label", "Edit as text")
+    await expect(modeToggle.locator("xpath=..")).toHaveClass(/\bbar\b/)
+    await expect(
+      page.locator(
+        '[data-settings-section="sources"] .settings_panel_heading'
+      )
+    ).toBeHidden()
+    await page.getByTestId("sources-mode-toggle").click()
     await page.getByTestId("sources").fill(source.source)
     await page.getByTestId("save-sources").click()
     await page.getByTestId("stories-menu").locator(":scope > .heading").click()
@@ -47,6 +59,9 @@ test("installed Chrome extension loads, collects, persists settings, and opens a
     await expect(page.locator("body")).toHaveAttribute("data-once-ready", "true")
     expect(testPageUnexpectedRequests, "test-mode reload must stay offline").toEqual([])
     await page.getByTestId("settings-menu").click()
+    await expect(page.getByTestId("sources")).toBeHidden()
+    await page.locator('[data-settings-target="sources"]').click()
+    await page.getByTestId("sources-mode-toggle").click()
     await expect(page.getByTestId("sources")).toHaveValue(source.source)
     await page.getByTestId("stories-menu").locator(":scope > .heading").click()
     await page.locator("#searchfield").fill("")

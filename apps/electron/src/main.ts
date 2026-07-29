@@ -371,9 +371,9 @@ function registerIpc(
     const current = browser(event)
     return current.coordinator.openDroppedUrls(current.window, urls)
   })
-  ipcMain.handle(ELECTRON_IPC.tabsStartSourcePicker, (event) => {
+  ipcMain.handle(ELECTRON_IPC.tabsStartSourcePicker, (event, url?: string) => {
     const current = browser(event)
-    return current.coordinator.startSourcePicker(current.window)
+    return current.coordinator.startSourcePicker(current.window, url)
   })
   ipcMain.handle(
     ELECTRON_IPC.tabsShowMenu,

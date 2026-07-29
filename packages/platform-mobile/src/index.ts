@@ -1,4 +1,5 @@
 import PouchDB from "pouchdb-browser"
+import PouchDBFind from "pouchdb-find"
 import { Browser } from "@capacitor/browser"
 import { Capacitor, registerPlugin } from "@capacitor/core"
 import { StatusBar, Style } from "@capacitor/status-bar"
@@ -11,6 +12,10 @@ import {
   PouchSyncDatabase,
   PouchSyncService
 } from "@once/persistence"
+export * from "./InAppBrowserSurface"
+export * from "./ReadingUrl"
+
+PouchDB.plugin(PouchDBFind)
 
 interface SecureSettingsPlugin {
   getSyncUrl(): Promise<{ value: string }>

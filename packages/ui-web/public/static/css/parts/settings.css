@@ -4,17 +4,21 @@
   overflow-x: hidden;
   flex-direction: column;
   display: none;
+  container-name: settings-panel;
+  container-type: inline-size;
 }
 
 #settings_panel .bar {
   height: 28px;
+  align-items: center;
+  justify-content: flex-start;
 }
 #settings_panel .settings_title {
   font-size: 13px;
-  margin-top: 7px;
 }
 
 .settings_container {
+  display: flex;
   height: 100%;
   overflow: scroll;
 }
@@ -26,12 +30,137 @@
   border-bottom: thin solid var(--border-color);
 }
 
+.settings_actions {
+  display: contents;
+}
+
+#settings_index {
+  flex: 0 0 240px;
+  padding: 8px;
+  border-right: 1px solid var(--sep-color);
+}
+
+#settings_search {
+  box-sizing: border-box;
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+#settings_sections {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings_section_row {
+  display: flex;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 40px;
+  margin: 0;
+  padding: 6px;
+  align-items: center;
+  justify-content: space-between;
+  border: 0;
+  border-bottom: 1px solid var(--sep-color);
+  border-radius: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.settings_section_row[hidden] {
+  display: none;
+}
+
+.settings_section_row_text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.settings_issue_badges {
+  display: none;
+}
+
+.settings_section_result[hidden],
+.settings_section_matches[hidden],
+#settings_search_empty[hidden] {
+  display: none;
+}
+
+.settings_section_matches {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0 6px 8px;
+}
+
+.settings_section_match {
+  overflow: hidden;
+  padding: 3px 5px;
+  border: 0;
+  color: var(--text-color);
+  background: transparent;
+  font-size: 11px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings_section_match:hover,
+.settings_section_match:focus-visible {
+  color: var(--text-high-color);
+  background: var(--highlight-bg-color);
+}
+
+.settings_section_more {
+  padding: 2px 5px;
+  color: var(--text-color);
+  opacity: 0.75;
+}
+
+#settings_search_empty {
+  color: var(--text-color);
+  opacity: 0.75;
+}
+
+.settings_section {
+  display: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: auto;
+}
+
+.settings_section.active {
+  display: block;
+}
+
+#settings_section_back {
+  display: none;
+  margin-left: auto;
+}
+
+@container settings-panel (max-width: 760px) {
+  #settings_panel.settings_detail_open #settings_index {
+    display: none;
+  }
+
+  #settings_panel.settings_detail_open #settings_section_back {
+    display: inline-flex;
+  }
+}
+
 #settings_panel .settings_version {
   color: var(--text-color);
   display: flex;
+  flex-direction: column;
   align-items: center;
+  justify-content: flex-start;
   flex-wrap: wrap;
   gap: 8px;
+  text-align: center;
 }
 
 #settings_panel .update_status {
@@ -72,7 +201,9 @@
 }
 
 .error_log_entry pre {
-  font: 11px/1.4 "Courier New", monospace;
+  font:
+    11px/1.4 "Courier New",
+    monospace;
   margin: 8px 0 0;
   max-height: 240px;
   overflow: auto;
@@ -186,6 +317,1438 @@
   cursor: pointer;
 }
 
+/* Structured list editors. The raw textarea remains immediately below this
+   surface and is restored by the “Edit as text” control. */
+.structured_settings_header,
+.structured_list_actions,
+.structured_form_actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.structured_settings_header {
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.structured_mode_toggle {
+  white-space: nowrap;
+}
+
+.settings_panel_heading {
+  display: none;
+}
+
+#settings_panel .structured_mode_toggle_topbar {
+  box-sizing: border-box;
+  min-width: 38px;
+  min-height: 30px;
+  margin-left: auto;
+  padding: 0 8px;
+  border: thin solid var(--sep-color);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.structured_settings_header.structured_toggle_moved {
+  display: none;
+}
+
+.structured_settings {
+  width: 100%;
+}
+
+.structured_search {
+  position: sticky;
+  z-index: 4;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 0;
+  background: var(--background-color, var(--input-bg-color));
+}
+
+.structured_search input {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 36px;
+  padding: 4px 8px;
+}
+
+.structured_search_status {
+  flex: 0 0 auto;
+  opacity: 0.65;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.structured_settings mark {
+  border-radius: 2px;
+  padding: 0;
+  background: var(--highlight-bg-color, #ffe66d);
+  color: var(--highlight-color, #111);
+}
+
+.structured_settings[hidden],
+.structured_group[hidden],
+.structured_row[hidden],
+.structured_empty[hidden],
+.input_container[hidden],
+.settings_actions > [hidden] {
+  display: none !important;
+}
+
+.settings_editor_block .settings_actions {
+  position: sticky;
+  z-index: 5;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  background: var(--background-color, var(--input-bg-color));
+}
+
+.structured_list_actions {
+  flex: 1 1 auto;
+}
+
+.structured_list_actions button {
+  flex: 1 1 0;
+}
+
+.structured_group {
+  border-top: thin solid var(--sep-color);
+}
+
+.structured_group > summary {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.structured_group_name[draggable="true"] {
+  cursor: grab;
+}
+
+.structured_group_name[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.structured_group_dragging {
+  opacity: 0.45;
+}
+
+.structured_group_drag_active {
+  overflow-anchor: none;
+}
+
+.structured_group_drag_active .structured_group > .structured_rows {
+  display: none;
+}
+
+.structured_group_drop_before {
+  box-shadow: inset 0 3px Highlight;
+}
+
+.structured_group_drop_after {
+  box-shadow: inset 0 -3px Highlight;
+}
+
+.structured_group > summary strong {
+  flex: 1;
+}
+
+/* The disclosure caret is drawn where the native marker is suppressed
+   (touch); elsewhere the marker already says the same thing. */
+.structured_group_caret {
+  display: none;
+}
+
+.structured_group_count,
+.structured_list_count {
+  flex: 0 0 auto;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+.structured_group_actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.structured_group_actions button {
+  min-width: 30px;
+  min-height: 30px;
+  padding: 2px 6px;
+}
+
+/* One control for the whole group — rename, delete, add source here. Nothing
+   in a header may be taller than the header. */
+.structured_group_menu {
+  flex: 0 0 auto;
+  line-height: 1;
+}
+
+.structured_group_menu:disabled {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.structured_row {
+  display: flex;
+  align-items: center;
+  min-height: 58px;
+  border-top: thin solid var(--sep-color);
+  background: var(--input-bg-color);
+}
+
+.structured_row[draggable="true"] {
+  cursor: grab;
+}
+
+.structured_row[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.structured_row_dragging {
+  opacity: 0.45;
+}
+
+.structured_row_drop_target {
+  box-shadow: inset 0 3px Highlight;
+}
+
+.structured_source_group_drop_target {
+  min-height: 44px;
+  outline: 3px solid Highlight;
+  outline-offset: -3px;
+}
+
+.structured_source_group_title_drop_target > summary {
+  outline: 3px solid Highlight;
+  outline-offset: -3px;
+  background: color-mix(in srgb, Highlight 18%, transparent);
+}
+
+.structured_row:last-child {
+  border-bottom: thin solid var(--sep-color);
+}
+
+.structured_row.invalid {
+  box-shadow: inset 3px 0 var(--error-color, #d33);
+}
+
+/* Everything right of the badge column. It owns the row separator so the rule
+   insets past the badge and the badges read as a column. */
+.structured_row_body {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+/* A row draws no box inside itself: the row is the tap target, and a nested
+   frame is what made every entry look misaligned. */
+.structured_row_main {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+/* Drawn on touch, where the row pushes a subpage. */
+.structured_row_chevron {
+  display: none;
+}
+
+.structured_row_secondary_error {
+  color: var(--error-color, #d33);
+  opacity: 1;
+}
+
+.structured_row_error {
+  box-shadow: inset 3px 0 var(--error-color, #d33);
+}
+
+.structured_row_warning {
+  box-shadow: inset 3px 0 var(--warning-color, #b06b00);
+}
+
+.structured_row_primary,
+.structured_row_secondary {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.structured_row_primary {
+  font-size: 15px;
+}
+
+.structured_row_secondary {
+  opacity: 0.65;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 12px;
+}
+
+.collector_badge {
+  display: inline-flex;
+  flex: 0 0 34px;
+  min-height: 26px;
+  align-items: center;
+  justify-content: center;
+  margin: 0 8px;
+  background: var(--sep-color);
+}
+
+/* A ring and a glyph, never a filled disc: without an explicit background the
+   UA's buttonface shows through, which under a dark colour-scheme is an opaque
+   grey blob. */
+.structured_issue {
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--error-color);
+}
+
+.structured_issue.warning {
+  color: var(--warning-color);
+}
+
+/* Nothing inside a non-editing row draws a border, a background or a radius —
+   the row is the target and the remove glyph is the only mark on it. */
+.structured_remove {
+  flex: 0 0 34px;
+  width: 34px;
+  min-height: 34px;
+  margin: 0 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: var(--text-muted-color);
+  background: transparent;
+  box-shadow: none;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.structured_row_editing {
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px;
+}
+
+.structured_inline_input {
+  box-sizing: border-box;
+  flex: 1 1 180px;
+  min-width: 0;
+  min-height: 38px;
+  padding: 6px 8px;
+  font: inherit;
+}
+
+.structured_inline_validation {
+  flex: 1 0 100%;
+  color: var(--error-color, #d33);
+}
+
+.structured_inline_validation:empty {
+  display: none;
+}
+
+.structured_inline_action {
+  flex: 0 0 auto;
+  min-height: 38px;
+}
+
+.structured_row_target {
+  outline: 3px solid Highlight;
+  outline-offset: -3px;
+}
+
+.structured_empty {
+  margin: 8px;
+  opacity: 0.65;
+}
+
+/* Floating add control. Only touch builds one — it replaces the footer action
+   bar there — but the hidden state must win over any platform display rule. */
+.structured_add_button[hidden],
+.structured_picker_status[hidden] {
+  display: none !important;
+}
+
+.structured_picker_status {
+  display: block;
+  min-height: 1.2em;
+  font-size: 12px;
+  color: var(--text-color);
+}
+
+/* Base chrome for the shared anchored menu. The story rows raise it only on
+   touch, but the group ⋮ raises it everywhere, so it cannot depend on the
+   mobile skin for its positioning. */
+.once-anchored-menu {
+  position: fixed;
+  z-index: 900;
+  inset: 0;
+}
+
+.once-anchored-menu[hidden] {
+  display: none;
+}
+
+.once-anchored-menu-backdrop {
+  position: absolute;
+  inset: 0;
+}
+
+.once-anchored-menu-panel {
+  position: absolute;
+  min-width: 180px;
+  max-width: min(320px, calc(100vw - 16px));
+  border: thin solid var(--border-high-color);
+  background: var(--input-bg-color);
+}
+
+.once-anchored-menu-item {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.once-anchored-menu-item:hover:not(:disabled),
+.once-anchored-menu-item:focus-visible {
+  background: var(--highlight-bg-color);
+}
+
+.once-anchored-menu-item:disabled {
+  color: var(--text-color);
+}
+
+.structured_form {
+  display: flex;
+  box-sizing: border-box;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.structured_form h3,
+.structured_form p {
+  margin: 0;
+}
+
+.structured_form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.structured_form input,
+.structured_form select {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 38px;
+}
+
+.structured_validation {
+  min-height: 1em;
+  color: var(--error-color, #d33);
+}
+
+/* Dense desktop settings surface shared by Electron and both extensions.
+   Mobile deliberately owns its presentation in apps/mobile/src/mobile.css. */
+body:not([data-platform="mobile"]) #settings_panel {
+  overflow: hidden;
+}
+
+/* Match the stories search bar's vertical rhythm — 5px above and below the
+   tallest control — so the collapse button has the same breathing room in both
+   panels. The horizontal inset stays tighter than the stories bar's 15px
+   because this surface is the dense one. */
+body:not([data-platform="mobile"]) #settings_panel .bar {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 0;
+  padding: 5px 0 5px 8px;
+  gap: 6px;
+}
+
+body:not([data-platform="mobile"]) #settings_panel .bar button,
+body:not([data-platform="mobile"]) .structured_search input,
+body:not([data-platform="mobile"]) .structured_search button,
+body:not([data-platform="mobile"]) .structured_search input[type="button"],
+body:not([data-platform="mobile"]) #settings_search,
+body:not([data-platform="mobile"]) .settings_editor_block
+  > .settings_actions input,
+/* .structured_inline_action is excluded throughout: it is a square glyph box
+   with its own complete skin, and this one's text padding and border would
+   shove the glyph off centre and give it a border the inline rows don't have. */
+body:not([data-platform="mobile"])
+  .structured_form_actions button:not(.structured_inline_action),
+body:not([data-platform="mobile"]) .structured_group_menu,
+body:not([data-platform="mobile"]) .structured_row_menu {
+  box-sizing: border-box;
+  height: 22px;
+  min-height: 22px;
+  border: 1px solid var(--text-high-color);
+  border-radius: 2px;
+  color: var(--text-high-color);
+  background: var(--btn-bg-color);
+  font:
+    12px/20px Verdana,
+    Geneva,
+    sans-serif;
+}
+
+body:not([data-platform="mobile"]) .settings_editor_block > .settings_actions {
+  padding: 6px 0;
+  background: var(--main-bg-color);
+}
+
+body:not([data-platform="mobile"]) .settings_editor_block > .settings_actions input,
+body:not([data-platform="mobile"]) .structured_form_actions button:not(.structured_inline_action) {
+  margin: 0;
+  padding: 0 8px;
+}
+
+body:not([data-platform="mobile"]) .structured_remove {
+  flex: 0 0 22px;
+  width: 22px;
+  min-height: 22px;
+  margin: 0 6px 0 0;
+  font-size: 15px;
+}
+
+body:not([data-platform="mobile"]) #settings_panel .settings_title {
+  order: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body:not([data-platform="mobile"]) #settings_panel #settings_section_back {
+  order: 0;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0 7px;
+}
+
+/* A real icon, masked so it still takes the button's own colour. Flex centring
+   against the label needs no vertical-align fudging. */
+body:not([data-platform="mobile"]) #settings_panel #settings_section_back::before {
+  content: "";
+  flex: 0 0 11px;
+  width: 11px;
+  height: 11px;
+  background: currentColor;
+  -webkit-mask: url("../../imgs/chevron-left.svg") center / contain no-repeat;
+  mask: url("../../imgs/chevron-left.svg") center / contain no-repeat;
+}
+
+body:not([data-platform="mobile"]) #settings_panel.settings_detail_open #settings_section_back {
+  display: inline-flex;
+}
+
+body:not([data-platform="mobile"]) #settings_panel .structured_mode_toggle_topbar {
+  order: 3;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-width: 60px;
+  height: 22px;
+  min-height: 22px;
+  margin-left: auto;
+  padding: 0;
+  overflow: hidden;
+  font-size: 0;
+  line-height: 20px;
+}
+
+body:not([data-platform="mobile"]) #settings_panel .bar .collapsebutton {
+  order: 4;
+  margin-right: 0;
+}
+
+body:not([data-platform="mobile"])
+  #settings_panel
+  .bar:not(:has(.structured_mode_toggle_topbar))
+  .collapsebutton {
+  margin-left: auto;
+}
+
+body:not([data-platform="mobile"])
+  #settings_panel
+  .bar:has(.structured_mode_toggle_topbar)
+  .collapsebutton {
+  margin-left: 0;
+}
+
+body:not([data-platform="mobile"]) #settings_panel .structured_mode_toggle_topbar::before,
+body:not([data-platform="mobile"]) #settings_panel .structured_mode_toggle_topbar::after {
+  display: block;
+  height: 20px;
+  font:
+    700 13px/20px "Courier New",
+    Courier,
+    monospace;
+  text-align: center;
+}
+
+body:not([data-platform="mobile"]) #settings_panel .structured_mode_toggle_topbar::before {
+  content: "☰";
+  border-right: 1px solid var(--text-high-color);
+}
+
+body:not([data-platform="mobile"]) #settings_panel .structured_mode_toggle_topbar::after {
+  content: "</>";
+  font-size: 10px;
+}
+
+body:not([data-platform="mobile"])
+  #settings_panel
+  .structured_mode_toggle_topbar[aria-label="Edit as text"]::before,
+body:not([data-platform="mobile"])
+  #settings_panel
+  .structured_mode_toggle_topbar[aria-label="Edit as list"]::after {
+  background: var(--highlight-bg-color);
+}
+
+body:not([data-platform="mobile"]) .settings_container {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+body:not([data-platform="mobile"]) #settings_index {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  overflow: auto;
+}
+
+body:not([data-platform="mobile"]) #settings_panel.settings_detail_open #settings_index {
+  flex: 0 0 300px;
+  width: 300px;
+}
+
+body:not([data-platform="mobile"]) #settings_search {
+  width: 100%;
+  margin: 0 0 7px;
+  padding: 1px 7px;
+}
+
+body:not([data-platform="mobile"]) .settings_section_row {
+  min-height: 28px;
+  height: 28px;
+  gap: 8px;
+  padding: 0 6px;
+  border-bottom: 1px solid var(--sep-color);
+  font-size: 13px;
+}
+
+body:not([data-platform="mobile"]) .settings_section_row:hover,
+body:not([data-platform="mobile"]) .settings_section_row:focus-visible,
+body:not([data-platform="mobile"]) .settings_section_row[aria-current="page"] {
+  outline: 0;
+  background: var(--highlight-bg-color);
+}
+
+body:not([data-platform="mobile"]) .settings_section_row_text {
+  flex: 0 0 auto;
+  min-width: max-content;
+}
+
+body:not([data-platform="mobile"]) .settings_section_row_text > span {
+  white-space: nowrap;
+}
+
+body:not([data-platform="mobile"]) .settings_section_summary {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--text-color);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body:not([data-platform="mobile"]) .settings_section_summary_error,
+body:not([data-platform="mobile"]) .structured_status_error {
+  color: var(--m-error);
+}
+
+body:not([data-platform="mobile"]) .settings_section_arrow {
+  flex: 0 0 6px;
+  color: var(--text-color);
+  font-size: 20px;
+  line-height: 1;
+}
+
+body:not([data-platform="mobile"]) .settings_section {
+  min-height: 0;
+  overflow: hidden;
+}
+
+body:not([data-platform="mobile"]) .settings_section.active {
+  display: flex;
+}
+
+body:not([data-platform="mobile"]) #settings_panel .settings_block {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 7px 8px 0;
+  border: 0;
+  overflow: auto;
+}
+
+/* The structured list is the scroller, so this block must not carry a right
+   inset — it would hold the scrollbar off the panel edge. The inset moves onto
+   the scroller, where it pads the content but not the bar. */
+body:not([data-platform="mobile"]) #settings_panel .settings_editor_block {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-right: 0;
+}
+
+body:not([data-platform="mobile"]) .structured_settings {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  gap: 8px;
+  overflow: auto;
+  /* Without this the content-box default adds the inset outside the stretched
+     width and the scroller overhangs the panel by exactly that inset. */
+  box-sizing: border-box;
+  padding-right: 8px;
+  padding-bottom: 8px;
+}
+
+body:not([data-platform="mobile"]) .structured_search {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  flex: 0 0 auto;
+  gap: 6px;
+  padding: 0;
+  background: var(--main-bg-color);
+}
+
+body:not([data-platform="mobile"]) .structured_search input[type="search"] {
+  flex: 1 1 180px;
+  min-width: 80px;
+  padding: 1px 7px;
+}
+
+body:not([data-platform="mobile"]) .structured_search_status:empty {
+  display: none;
+}
+
+body:not([data-platform="mobile"]) .structured_list_actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+body:not([data-platform="mobile"]) .structured_list_actions button {
+  flex: 0 0 auto;
+  padding: 0 8px;
+}
+
+body:not([data-platform="mobile"]) #pick_source_button {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0 8px;
+}
+
+body:not([data-platform="mobile"]) .structured_group,
+body:not([data-platform="mobile"]) .structured_list_card {
+  position: relative;
+  flex: 0 0 auto;
+  margin: 0;
+  border: 1px solid var(--border-high-color);
+  border-radius: 4px;
+  overflow: clip;
+}
+
+body:not([data-platform="mobile"]) .structured_group > summary,
+body:not([data-platform="mobile"]) .structured_list_header {
+  box-sizing: border-box;
+  min-height: 26px;
+  height: 26px;
+  gap: 7px;
+  padding: 0 4px 0 7px;
+  background: var(--read-bg-color);
+}
+
+body:not([data-platform="mobile"]) .structured_group > summary::marker {
+  content: "";
+}
+
+body:not([data-platform="mobile"]) .structured_group_caret {
+  display: inline-block;
+  flex: 0 0 7px;
+  width: 7px;
+  height: 7px;
+  border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  transform: rotate(45deg) translate(-1px, -1px);
+}
+
+body:not([data-platform="mobile"]) .structured_group:not([open]) .structured_group_caret {
+  transform: rotate(-45deg);
+}
+
+body:not([data-platform="mobile"]) .structured_group_name,
+body:not([data-platform="mobile"]) .structured_list_name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body:not([data-platform="mobile"]) .structured_group_drag_handle {
+  display: none;
+}
+
+body:not([data-platform="mobile"]) .structured_group_count,
+body:not([data-platform="mobile"]) .structured_list_count {
+  font-size: 11px;
+}
+
+body:not([data-platform="mobile"]) .structured_group_actions {
+  flex: 0 0 22px;
+}
+
+body:not([data-platform="mobile"]) .structured_group_menu {
+  width: 22px;
+  min-width: 22px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  font-size: 17px;
+  opacity: 0;
+  cursor: pointer;
+}
+
+body:not([data-platform="mobile"]) .structured_group > summary:hover .structured_group_menu,
+body:not([data-platform="mobile"]) .structured_group_menu:focus-visible,
+body:not([data-platform="mobile"]) .structured_group_menu[aria-expanded="true"] {
+  border-color: var(--text-high-color);
+  opacity: 1;
+}
+
+body:not([data-platform="mobile"]) .structured_group_menu_spacer {
+  flex: 0 0 22px;
+}
+
+body:not([data-platform="mobile"]) .structured_row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 10px 20px minmax(0, 1fr);
+  min-height: 40px;
+  height: 40px;
+  border: 0;
+  background: var(--input-bg-color);
+}
+
+body:not([data-platform="mobile"]) .structured_row_unbadged {
+  grid-template-columns: 10px minmax(0, 1fr);
+}
+
+body:not([data-platform="mobile"]) .structured_row_unbadged .structured_row_body {
+  grid-column: 2;
+  width: auto;
+}
+
+body:not([data-platform="mobile"]) .structured_row_editing {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  height: auto;
+  min-height: 40px;
+  gap: 6px;
+  padding: 4px 6px;
+  /* Repeated from the base rule: body:not(mobile) .structured_row sets its own
+     background and would otherwise win on specificity. */
+  background: var(--editing-bg-color);
+  box-shadow: inset 2px 0 var(--text-high-color);
+}
+
+body:not([data-platform="mobile"]) .structured_row_editing .structured_inline_validation {
+  grid-column: 1 / -1;
+}
+
+/* 22px is the desktop control size the search field and the mode toggle
+   already use; the pair is square so save and cancel measure identically.
+   Sized wherever the pair appears, not only inside an editing row — the
+   source and group forms use it too, and without a size they stretch to the
+   height of whatever row they land in. */
+body:not([data-platform="mobile"]) .structured_row_editing .structured_inline_input,
+body:not([data-platform="mobile"]) .structured_inline_action {
+  box-sizing: border-box;
+  width: 22px;
+  min-width: 22px;
+  height: 22px;
+  min-height: 22px;
+}
+
+body:not([data-platform="mobile"]) .structured_row_editing .structured_inline_input {
+  width: 100%;
+  padding: 2px 5px;
+  font-size: 12px;
+}
+
+/* Filters and redirects: compact list cards and unambiguous edit controls.
+   All colour is derived from the active theme; the reference literals are
+   deliberately not repeated here.
+
+   The card and its header are the chrome the sources groups already use — the
+   platform rules below add `.structured_list_card` / `.structured_list_header`
+   to the `.structured_group` / `> summary` selector lists, and the header
+   contents carry `.structured_list_name` / `.structured_list_count`, which are
+   added to the group typography rules rather than reusing the group classes —
+   a filter list is not a group, and selectors that mean "group name" must not
+   start matching it. Nothing about the card is declared twice, and the three
+   lists cannot drift apart.
+   The header is not a disclosure control, so it takes summary's layout but not
+   its cursor. */
+.structured_list_header {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The reference maps its near-black ink to --text-color; here that variable is
+   a mid grey (#828282) and near-black is --text-high-color, so the rail and the
+   tint are derived from the latter or they come out invisible in both themes. */
+.structured_row_editing {
+  box-sizing: border-box;
+  border: 0;
+  background: var(--editing-bg-color);
+  box-shadow: inset 3px 0 var(--text-high-color);
+}
+
+/* Save and cancel take the row's own background and the identical border;
+   hierarchy lives in the glyph alone. --border-color collapses onto the panel
+   background in dark mode, so the visible --border-high-color is used. */
+.structured_inline_action {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border-high-color);
+  border-radius: 4px;
+  background: transparent;
+}
+
+/* The nudge lives in the transform, not a negative margin: a margin is halved
+   by the centring maths, so the number written is not the offset you get. */
+/* Sized so the check's long arm and the cross's bars measure the same, at the
+   same stroke weight: the two controls must read as one size. Hierarchy comes
+   from the colour alone — check in --text-high-color, cross in muted. */
+.structured_inline_action .glyph_check {
+  box-sizing: content-box;
+  width: 10.5px;
+  height: 6px;
+  border: 0;
+  border-bottom: 1.5px solid var(--text-high-color);
+  border-left: 1.5px solid var(--text-high-color);
+  transform: translateY(-1.5px) rotate(-45deg);
+}
+
+body[data-platform="mobile"] section[data-settings-section="filters"] .glyph_check {
+  margin-left: -5px;
+}
+
+/* The bars are longer than the check's arms because a rotated bar's ink spans
+   only length x cos45: at 17px each bar draws ~12px across, which is what makes
+   the cross measure the same as the check rather than two thirds of it. */
+.structured_inline_action .glyph_cross {
+  position: relative;
+  width: 17px;
+  height: 17px;
+}
+
+body[data-platform="mobile"] section[data-settings-section="filters"] .glyph_cross {
+  margin-left: -7px;
+}
+
+.structured_inline_action .glyph_cross::before,
+.structured_inline_action .glyph_cross::after {
+  content: "";
+  position: absolute;
+  top: 7.75px;
+  left: 0;
+  width: 17px;
+  height: 1.5px;
+  background: var(--text-muted-color);
+}
+
+.structured_inline_action .glyph_cross::before {
+  transform: rotate(45deg);
+}
+
+.structured_inline_action .glyph_cross::after {
+  transform: rotate(-45deg);
+}
+
+.structured_form textarea {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.structured_form_label {
+  color: var(--text-muted-color);
+  font:
+    700 10.5px/1 Verdana,
+    Geneva,
+    sans-serif;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.structured_form_hint,
+.structured_redirect_corpus {
+  color: var(--text-muted-color);
+  font:
+    11px/1.3 Verdana,
+    Geneva,
+    sans-serif;
+}
+
+.structured_redirect_form textarea,
+.structured_redirect_test_input,
+.structured_redirect_output {
+  font-family: var(--m-mono, "Courier New", Courier, monospace);
+}
+
+.structured_redirect_form textarea {
+  resize: vertical;
+}
+
+.structured_redirect_tester {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.structured_redirect_output {
+  box-sizing: border-box;
+  min-height: 57px;
+  padding: 7px 9px;
+  border: 1px solid var(--border-high-color);
+  background: var(--input-bg-color);
+  font-size: 12px;
+}
+
+.structured_redirect_output p {
+  min-height: 1.35em;
+  word-break: break-all;
+}
+
+.structured_redirect_output strong {
+  font-family: Verdana, Geneva, sans-serif;
+  font-size: 10.5px;
+}
+
+/* --highlight-bg-color is already the reference's rgb(202,202,172) and, unlike
+   --selected_bg_color, is opaque in dark mode, so the ring cannot double up. */
+.structured_redirect_output mark {
+  color: inherit;
+  background: var(--highlight-bg-color);
+  box-shadow: 0 0 0 1px var(--highlight-bg-color);
+}
+
+.structured_redirect_no_match {
+  color: var(--text-muted-color);
+}
+
+.structured_redirect_parse_error {
+  color: var(--error-color);
+}
+
+.structured_form_delete {
+  border: 0;
+  color: var(--error-color);
+  background: transparent;
+  box-shadow: none;
+}
+
+body:not([data-platform="mobile"]) [data-structured-section="filters"] .structured_row {
+  grid-template-columns: minmax(0, 1fr);
+  height: 26px;
+  min-height: 26px;
+}
+
+body:not([data-platform="mobile"]) [data-structured-section="filters"] .structured_row_body {
+  grid-column: 1;
+  height: 26px;
+  margin-left: 0;
+  padding-left: 10px;
+}
+
+body:not([data-platform="mobile"]) [data-structured-section="filters"] .structured_row_main {
+  font: 12px/1 var(--m-mono, "Courier New", Courier, monospace);
+}
+
+body:not([data-platform="mobile"]) [data-structured-section="filters"] .structured_remove {
+  flex-basis: 20px;
+  width: 20px;
+  min-height: 20px;
+  margin-right: 3px;
+}
+
+body:not([data-platform="mobile"]) [data-structured-section="filters"] .structured_row_editing {
+  grid-template-columns: minmax(0, 1fr) 22px 22px;
+  min-height: 30px;
+  padding: 4px 6px 4px 10px;
+}
+
+body:not([data-platform="mobile"]) .structured_redirect_editor {
+  display: block;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+}
+
+body:not([data-platform="mobile"]) .structured_redirect_form {
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+}
+
+body:not([data-platform="mobile"]) .structured_redirect_form h3 {
+  display: none;
+}
+
+body:not([data-platform="mobile"]) .structured_redirect_form textarea {
+  min-height: 42px;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
+body:not([data-platform="mobile"]) .structured_redirect_form input {
+  min-height: 22px;
+  height: 22px;
+  padding: 2px 5px;
+  font-size: 12px;
+}
+
+/* Every structured form ends the same way: anything on the left, then the
+   commit pair at the trailing edge. */
+body:not([data-platform="mobile"]) .structured_form .structured_form_actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22px 22px;
+  margin: 0;
+}
+
+body:not([data-platform="mobile"])
+  .structured_form_actions
+  .structured_inline_action[aria-label="Save"] {
+  grid-row: 1;
+  grid-column: 2;
+}
+
+body:not([data-platform="mobile"])
+  .structured_form_actions
+  .structured_inline_action[aria-label="Cancel"] {
+  grid-row: 1;
+  grid-column: 3;
+}
+
+/* An editing row carries its own tint and rail; the hover fill would bury
+   both, and :focus-within is permanently true while the input has focus. */
+body:not([data-platform="mobile"]) .structured_row:not(.structured_row_editing):hover,
+body:not([data-platform="mobile"]) .structured_row:not(.structured_row_editing):focus-within {
+  background: var(--selected_bg_color);
+}
+
+body:not([data-platform="mobile"]) .structured_source_drag_handle {
+  align-self: center;
+  width: 10px;
+  overflow: hidden;
+  color: var(--text-color);
+  font-size: 12px;
+  opacity: 0;
+}
+
+body:not([data-platform="mobile"]) .structured_source_drag_handle::before {
+  content: "⠿";
+}
+
+body:not([data-platform="mobile"]) .structured_row:hover .structured_source_drag_handle,
+body:not([data-platform="mobile"]) .structured_row_dragging .structured_source_drag_handle {
+  opacity: 1;
+}
+
+body:not([data-platform="mobile"]) .collector_badge {
+  box-sizing: border-box;
+  align-self: center;
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  min-height: 20px;
+  margin: 0;
+  padding: 1px;
+  border: 1px solid var(--input-bg-color);
+  font-size: 10px;
+}
+
+body:not([data-platform="mobile"]) .structured_row_body {
+  height: 40px;
+  margin-left: 10px;
+  gap: 6px;
+  border-bottom: 1px solid color-mix(in srgb, var(--sep-color) 38%, transparent);
+}
+
+body:not([data-platform="mobile"]) .structured_row:last-child .structured_row_body {
+  border-bottom: 0;
+}
+
+body:not([data-platform="mobile"]) .structured_row_primary {
+  font-size: 12px;
+}
+
+body:not([data-platform="mobile"]) .structured_row_secondary {
+  font-size: 11px;
+}
+
+body:not([data-platform="mobile"]) .structured_row_main:focus-visible {
+  outline: 1px solid Highlight;
+  outline-offset: 1px;
+}
+
+body:not([data-platform="mobile"]) .structured_issue {
+  display: grid;
+  place-items: center;
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid currentColor;
+  font-size: 11px;
+  line-height: 1;
+}
+
+/* Desktop draws the drop line as a ::before bar that follows before/after.
+   The base inset box-shadow is the touch presentation and is pinned to the
+   top edge, so leaving it on paints a second indicator that points at the
+   wrong gap for every after-drop. */
+body:not([data-platform="mobile"]) .structured_group_drop_before,
+body:not([data-platform="mobile"]) .structured_group_drop_after,
+body:not([data-platform="mobile"]) .structured_row_drop_target {
+  overflow: visible;
+  box-shadow: none;
+}
+
+body:not([data-platform="mobile"]) .structured_group_drop_before::before,
+body:not([data-platform="mobile"]) .structured_group_drop_after::after,
+body:not([data-platform="mobile"]) .structured_source_drop_before::before,
+body:not([data-platform="mobile"]) .structured_source_drop_after::after,
+body:not([data-platform="mobile"]) .structured_row_drop_target::before {
+  content: "";
+  position: absolute;
+  z-index: 8;
+  right: 2px;
+  left: 2px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--text-high-color);
+  pointer-events: none;
+}
+
+body:not([data-platform="mobile"]) .structured_group_drop_before::before {
+  top: -6px;
+}
+
+body:not([data-platform="mobile"]) .structured_group_drop_after::after {
+  bottom: -6px;
+}
+
+body:not([data-platform="mobile"]) .structured_source_drop_before::before,
+body:not([data-platform="mobile"]) .structured_row_drop_target::before {
+  top: 0;
+}
+
+body:not([data-platform="mobile"]) .structured_row_drop_target.structured_row_drop_after::before {
+  top: auto;
+  bottom: 0;
+}
+
+body:not([data-platform="mobile"]) .structured_source_drop_after::after {
+  bottom: 0;
+}
+
+body:not([data-platform="mobile"]) .structured_source_group_drop_target {
+  outline: 3px solid var(--text-high-color);
+  outline-offset: -3px;
+}
+
+body:not([data-platform="mobile"]) .structured_source_group_title_drop_target > summary {
+  outline: 3px solid var(--text-high-color);
+  outline-offset: -3px;
+}
+
+body:not([data-platform="mobile"]) .structured_row_menu {
+  flex: 0 0 22px;
+  width: 22px;
+  margin-right: 4px;
+  padding: 0;
+  font-size: 17px;
+  opacity: 0;
+}
+
+body:not([data-platform="mobile"]) .structured_row:hover .structured_row_menu,
+body:not([data-platform="mobile"]) .structured_row_menu:focus-visible {
+  opacity: 1;
+}
+
+body:not([data-platform="mobile"]) .structured_status_strip {
+  display: flex;
+  flex: 0 0 24px;
+  box-sizing: border-box;
+  height: 24px;
+  margin: 0 -8px;
+  padding: 0 8px;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--border-high-color);
+  color: var(--text-color);
+  background: var(--main-bg-color);
+  font-size: 11px;
+}
+
+body:not([data-platform="mobile"]) .structured_settings[hidden] + .structured_status_strip {
+  display: none;
+}
+
+body:not([data-platform="mobile"])
+  .settings_editor_block
+  > .settings_actions.structured_actions_empty,
+body:not([data-platform="mobile"])
+  .settings_editor_block
+  > .settings_actions.structured_desktop_actions_empty {
+  box-sizing: border-box;
+  min-height: 0;
+  height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+body:not([data-platform="mobile"]) .once-anchored-menu-panel {
+  border-radius: 2px;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 28%);
+}
+
+body:not([data-platform="mobile"]) .once-anchored-menu-item {
+  min-height: 24px;
+  padding: 3px 8px;
+  font-size: 12px;
+}
+
+.settings_about_logo {
+  display: block;
+  flex: 0 0 auto;
+  width: 160px;
+  height: 160px;
+  object-fit: contain;
+  filter: none !important;
+}
+
+.settings_about_title {
+  flex: 0 0 auto;
+  width: 100%;
+  margin: 0;
+  color: var(--text-high-color);
+  text-align: center;
+}
+
+body:not([data-platform="mobile"]) .settings_version {
+  align-content: flex-start;
+}
+
+body:not([data-platform="mobile"]) .settings_version [data-testid="check-for-updates"] {
+  flex: 0 0 auto;
+}
+
+body:not([data-platform="mobile"]) .settings_version .update_status {
+  flex-basis: auto;
+  width: 100%;
+  text-align: center;
+}
+
+@container settings-panel (max-width: 420px) {
+  body:not([data-platform="mobile"]) .structured_search {
+    flex-wrap: wrap;
+  }
+
+  body:not([data-platform="mobile"]) .structured_search input[type="search"] {
+    flex-basis: 100%;
+  }
+}
+
+.visually_hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  white-space: nowrap !important;
+}
+
 #couch_input {
   width: calc(100% - 40px);
   padding-right: 40px;
@@ -280,4 +1843,498 @@
 
 .couch-status[data-state="error"]::before {
   color: #d64545;
+}
+
+/* ---------- Swipe actions ---------- */
+
+.settings_swipe .swipe_stickiness,
+.settings_swipe .swipe_lock_in {
+  display: grid;
+  grid-template-columns: auto minmax(100px, 1fr) minmax(3ch, auto);
+  gap: 8px;
+  align-items: center;
+}
+
+.settings_swipe .swipe_stickiness output,
+.settings_swipe .swipe_lock_in output {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings_swipe .swipe_stickiness.disabled,
+.settings_swipe .swipe_fast_mode.disabled,
+.settings_swipe .swipe_lock_in.disabled {
+  opacity: 0.5;
+}
+
+.settings_swipe .swipe_row {
+  display: grid;
+  grid-template-columns: minmax(56px, auto) 5.5em 1fr 1fr;
+  gap: 4px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.settings_swipe .swipe_head {
+  font-size: 0.8em;
+  color: var(--text-color);
+}
+
+.settings_swipe .swipe_row input,
+.settings_swipe .swipe_row select {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.settings_swipe .swipe_row.disabled {
+  opacity: 0.5;
+}
+
+/* The stage is the positioning context for the sample row's reveal and clips
+   the overhang while the row follows the pointer. */
+#swipe_preview .swipe_preview_stage {
+  position: relative;
+  overflow: hidden;
+  margin: 8px 0 4px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background-color: var(--unread-bg-color);
+}
+
+/* No collector emits [EX], so addCollectorColorStyles never styles this badge. */
+#swipe_preview .info[data-type="[EX]"] .type {
+  background-color: var(--sample-badge-bg);
+  border-color: var(--sample-badge-ink);
+  color: var(--sample-badge-ink);
+}
+
+#swipe_preview .swipe_preview_status {
+  margin: 0 0 6px;
+  font-size: 0.8em;
+  color: var(--text-color);
+  min-height: 1.2em;
+}
+
+/* ---------- Interactive swipe lab ---------- */
+
+.settings_swipe {
+  --swipe-handle-width: 14px;
+}
+
+#swipe_lab {
+  min-width: 0;
+}
+
+.swipe_lab_scroller {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  padding-bottom: 20px;
+}
+
+.swipe_lab_inner {
+  width: 100%;
+  box-sizing: border-box;
+  /* Transformed handles and their centred value labels must not enlarge the
+     scroller by a stray pixel when they sit at either edge. The inner box's
+     explicit min-width still drives intentional narrow-screen scrolling. */
+  overflow-x: clip;
+}
+
+.swipe_action_blocks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.swipe_action_block {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+  box-sizing: border-box;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--border-color);
+  border-bottom: 0;
+  background: var(--input-bg-color);
+}
+
+.swipe_action_right {
+  border-right: 0;
+  border-radius: 4px 0 0;
+}
+
+.swipe_action_left {
+  border-radius: 0 4px 0 0;
+}
+
+.swipe_action_heading {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.swipe_action_heading span {
+  min-width: 0;
+  color: var(--text-color);
+  font-size: 0.75em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.swipe_action_left .swipe_action_heading {
+  justify-content: flex-end;
+}
+
+.swipe_action_field {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.swipe_stage_label {
+  flex: 0 0 30px;
+  color: var(--text-muted-color);
+  font-size: 0.85em;
+}
+
+.swipe_action_left .swipe_stage_label {
+  text-align: right;
+}
+
+.swipe_action_field select {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  box-sizing: border-box;
+  border-color: var(--border-color);
+}
+
+.swipe_action_right select {
+  border-left: 3px solid var(--swipe-action-color, transparent);
+}
+
+.swipe_action_left select {
+  border-right: 3px solid var(--swipe-action-color, transparent);
+}
+
+.settings_swipe [data-action="open"],
+.settings_swipe [data-action="open-browser"] {
+  --swipe-action-color: var(--swipe-open-color);
+}
+
+.settings_swipe [data-action="open-reader"] {
+  --swipe-action-color: var(--swipe-open-reader-color);
+}
+
+.settings_swipe [data-action="skip"] {
+  --swipe-action-color: var(--swipe-skip-color);
+}
+
+.settings_swipe [data-action="filter"] {
+  --swipe-action-color: var(--swipe-filter-color);
+}
+
+.settings_swipe [data-action="toggle-read"] {
+  --swipe-action-color: var(--swipe-toggle-read-color);
+}
+
+.settings_swipe [data-action="toggle-bookmark"] {
+  --swipe-action-color: var(--swipe-toggle-bookmark-color);
+}
+
+.swipe_action_field.disabled,
+.swipe_ruler_zone.disabled,
+.swipe_ruler_handle.disabled,
+.swipe_advanced .disabled {
+  opacity: 0.5;
+}
+
+.swipe_ruler {
+  position: relative;
+  height: 36px;
+  box-sizing: border-box;
+  margin-bottom: 25px;
+  border-block: 1px solid var(--border-color);
+  border-inline: 0;
+  border-radius: 0 0 4px 4px;
+  background: color-mix(in srgb, var(--text-color) 10%, transparent);
+  /* Draw the side edges without putting them into the ruler's coordinate
+     system. Thus clientWidth, the action-block seam and every zone boundary
+     all describe the same set of pixels. */
+  box-shadow:
+    inset 1px 0 var(--border-color),
+    inset -1px 0 var(--border-color);
+}
+
+.swipe_ruler_zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  box-sizing: border-box;
+  padding: 0;
+  background: color-mix(in srgb, var(--swipe-action-color, var(--text-color)) 20%, transparent);
+  color: var(--text-high-color);
+  font-size: 0.78em;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.swipe_ruler_zone_label {
+  min-width: 0;
+  margin-inline: calc(var(--swipe-handle-width) + 4px);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.swipe_ruler_zone[data-zone^="right"] {
+  justify-content: flex-end;
+}
+
+.swipe_ruler_zone[data-zone^="left"] {
+  justify-content: flex-start;
+}
+
+#swipe_lab .swipe_ruler_handle {
+  position: absolute;
+  z-index: 2;
+  top: -4px;
+  width: var(--swipe-handle-width);
+  height: 44px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  transform: translateX(-50%);
+  border: 1px solid var(--text-high-color);
+  border-radius: 4px;
+  background: var(--input-bg-color);
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.swipe_ruler_handle:focus-visible {
+  outline: 2px solid var(--swipe-open-reader-color);
+  outline-offset: 2px;
+}
+
+.swipe_ruler_value {
+  position: absolute;
+  top: 45px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--text-color);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.swipe_ruler_marker {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  transform: translateX(-1px);
+  background: var(--text-high-color);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.swipe_ruler_marker.active {
+  opacity: 1;
+}
+
+.swipe_lab_preview {
+  min-width: 0;
+}
+
+.swipe_advanced {
+  margin: 0 0 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-color);
+}
+
+.swipe_advanced summary {
+  color: var(--text-high-color);
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
+.swipe_advanced_body {
+  padding-top: 10px;
+}
+
+.swipe_check_row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+
+.swipe_check_row input {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.swipe_inline_hint {
+  color: var(--text-color);
+  font-size: 0.85em;
+}
+
+.swipe_advanced_description {
+  margin: -5px 0 10px 19px;
+  color: var(--text-color);
+  font-size: 0.8em;
+  line-height: 1.4;
+}
+
+.swipe_slider_row {
+  display: grid;
+  grid-template-columns: 10em minmax(100px, 1fr) minmax(4ch, auto);
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px 19px;
+}
+
+.swipe_slider_row input {
+  width: 100%;
+}
+
+.swipe_slider_row output {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.swipe_footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.swipe_save_status {
+  color: var(--text-color);
+  font-size: 0.85em;
+}
+
+.swipe_footer button:first-of-type {
+  margin-left: auto;
+}
+
+@container settings-panel (max-width: 520px) {
+  body[data-platform="mobile"] .settings_swipe {
+    --swipe-handle-width: 22px;
+  }
+
+  body[data-platform="mobile"] .swipe_action_block {
+    gap: 10px;
+    padding: 12px 12px 14px;
+  }
+
+  body[data-platform="mobile"] .swipe_action_heading {
+    font-size: 14px;
+  }
+
+  body[data-platform="mobile"] .swipe_action_heading span {
+    display: none;
+  }
+
+  body[data-platform="mobile"] .swipe_action_field {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+
+  body[data-platform="mobile"] .swipe_action_field::after {
+    position: absolute;
+    z-index: 1;
+    bottom: 0;
+    left: 0;
+    width: 3px;
+    height: 44px;
+    background: transparent;
+    border-radius: 8px 0 0 8px;
+    content: "";
+    pointer-events: none;
+  }
+
+  body[data-platform="mobile"] .swipe_action_field[data-action="open"]::after,
+  body[data-platform="mobile"] .swipe_action_field[data-action="open-browser"]::after,
+  body[data-platform="mobile"] .swipe_action_field[data-action="toggle-read"]::after {
+    background: rgb(0 128 0 / 72%);
+  }
+
+  body[data-platform="mobile"] .swipe_action_field[data-action="open-reader"]::after {
+    background: #4050ac;
+  }
+
+  body[data-platform="mobile"] .swipe_action_field[data-action="skip"]::after {
+    background: rgb(200 0 0 / 66%);
+  }
+
+  body[data-platform="mobile"] .swipe_action_field[data-action="filter"]::after {
+    background: #8f0000;
+  }
+
+  body[data-platform="mobile"] .swipe_action_field[data-action="toggle-bookmark"]::after {
+    background: #b8860b;
+  }
+
+  @supports (color: light-dark(black, white)) {
+    body[data-platform="mobile"] .swipe_action_field::after {
+      background: var(--swipe-action-color, transparent);
+    }
+  }
+
+  body[data-platform="mobile"] .swipe_action_left .swipe_action_field {
+    flex-direction: column-reverse;
+  }
+
+  body[data-platform="mobile"] .swipe_action_left .swipe_action_field::after {
+    right: 0;
+    left: auto;
+    border-radius: 0 8px 8px 0;
+  }
+
+  body[data-platform="mobile"] .swipe_stage_label {
+    flex-basis: auto;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  body[data-platform="mobile"] .swipe_ruler {
+    height: 44px;
+    margin-bottom: 38px;
+  }
+
+  body[data-platform="mobile"] #swipe_lab .swipe_ruler_handle {
+    height: 54px;
+    border-radius: 6px;
+  }
+
+  body[data-platform="mobile"] .swipe_ruler_value {
+    top: 55px;
+    font-size: 11px;
+  }
+
+  body[data-platform="mobile"] .swipe_lab_scroller {
+    padding-bottom: 26px;
+  }
+
+  body[data-platform="mobile"] .swipe_footer button {
+    min-height: 44px;
+  }
 }

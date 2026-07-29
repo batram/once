@@ -353,10 +353,49 @@ export class BrowserCoordinator {
   // sanitized geny_match source line, or null when the user cancels. Browser
   // tabs have no preload, so the picker bundle is injected on demand and only
   // its JSON completion value crosses back; the page never gains IPC access.
-  startSourcePicker(state: WindowEntry): Promise<string | null> {
+  async startSourcePicker(
+    state: WindowEntry,
+    requestedUrl?: string
+  ): Promise<string | null> {
+    if (requestedUrl) {
+      const normalized = this.normalizeTabUrl(requestedUrl)
+      const id = await this.createTab(state, normalized, true)
+      const entry = this.requireOwnedTab(state, id)
+      await this.waitForPickerPage(entry)
+      return this.sourcePicker.start(entry)
+    }
     if (!state.activeId) throw new Error("There is no active tab to pick from")
     const entry = this.requireOwnedTab(state, state.activeId)
     return this.sourcePicker.start(entry)
+  }
+
+  private waitForPickerPage(entry: TabEntry): Promise<void> {
+    if (!entry.view.webContents.isLoadingMainFrame()) return Promise.resolve()
+    return new Promise((resolve, reject) => {
+      const contents = entry.view.webContents
+      const timeout = setTimeout(() => finish(
+        new Error("The page took too long to load")), 30_000)
+      const finish = (error?: Error) => {
+        clearTimeout(timeout)
+        contents.removeListener("did-finish-load", loaded)
+        contents.removeListener("did-fail-load", failed)
+        if (error) reject(error)
+        else resolve()
+      }
+      const loaded = () => finish()
+      const failed = (
+        _event: Electron.Event,
+        code: number,
+        description: string,
+        _url: string,
+        isMainFrame: boolean
+      ) => {
+        if (isMainFrame) finish(new Error(
+          `The page could not be loaded (${code}): ${description}`))
+      }
+      contents.once("did-finish-load", loaded)
+      contents.on("did-fail-load", failed)
+    })
   }
 
   async navigate(state: WindowEntry, id: string, url: string): Promise<void> {

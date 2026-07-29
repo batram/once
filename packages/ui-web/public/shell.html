@@ -31,6 +31,17 @@
             </div>
             <div
               class="sub"
+              id="reading_menu_btn"
+              data-panel="reading"
+              data-testid="reading-menu"
+            >
+              <div class="heading">
+                <img src="imgs/reading.svg" title="Reading" />
+                <p>Reading</p>
+              </div>
+            </div>
+            <div
+              class="sub"
               id="stories_menu_btn"
               data-panel="stories"
               data-testid="stories-menu"
@@ -70,6 +81,7 @@
                   <img src="imgs/reload.svg" />
                 </div>
               </div>
+              <div id="mobile_filter_chips" aria-label="Story filters"></div>
               <div class="stories_container" id="selected_container"></div>
               <div
                 class="stories_container"
@@ -85,10 +97,24 @@
                   &lt;
                 </div>
                 <div class="settings_title">Settings</div>
+                <button type="button" id="settings_section_back" hidden>
+                  Settings
+                </button>
               </div>
               <div class="settings_container">
-                <div class="settings_block">
-                  Story sources:
+                <div id="settings_index">
+                  <input
+                    type="search"
+                    id="settings_search"
+                    placeholder="Search settings"
+                    aria-label="Search settings"
+                  />
+                  <nav id="settings_sections" aria-label="Settings sections"></nav>
+                </div>
+                <div class="settings_block settings_editor_block">
+                  <div class="settings_block_label settings_panel_heading">
+                    Story sources:
+                  </div>
                   <div class="input_container">
                     <div class="backdrop"></div>
                     <textarea
@@ -98,23 +124,27 @@
                     ></textarea>
                     <div class="highlights"></div>
                   </div>
-                  <input
-                    type="button"
-                    value="save"
-                    data-testid="save-sources"
-                  />
-                  <input type="button" value="cancel" />
-                  <input
-                    type="button"
-                    id="pick_source_button"
-                    value="pick from page"
-                    title="Build a source by picking story elements on the current page"
-                    data-testid="pick-source"
-                  />
-                  <span id="pick_source_status" role="status"></span>
+                  <div class="settings_actions">
+                    <input
+                      type="button"
+                      value="save"
+                      data-testid="save-sources"
+                    />
+                    <input type="button" value="cancel" />
+                    <input
+                      type="button"
+                      id="pick_source_button"
+                      value="pick from page"
+                      title="Build a source by picking story elements on the current page"
+                      data-testid="pick-source"
+                    />
+                    <span id="pick_source_status" role="status"></span>
+                  </div>
                 </div>
-                <div class="settings_block">
-                  Filters:
+                <div class="settings_block settings_editor_block">
+                  <div class="settings_block_label settings_panel_heading">
+                    Filters:
+                  </div>
                   <div class="input_container">
                     <textarea
                       id="filter_area"
@@ -122,15 +152,19 @@
                       data-testid="filters"
                     ></textarea>
                   </div>
-                  <input
-                    type="button"
-                    value="save"
-                    data-testid="save-filters"
-                  />
-                  <input type="button" value="cancel" />
+                  <div class="settings_actions">
+                    <input
+                      type="button"
+                      value="save"
+                      data-testid="save-filters"
+                    />
+                    <input type="button" value="cancel" />
+                  </div>
                 </div>
-                <div class="settings_block">
-                  Redirects:
+                <div class="settings_block settings_editor_block">
+                  <div class="settings_block_label settings_panel_heading">
+                    Redirects:
+                  </div>
                   <div class="input_container">
                     <textarea
                       id="redirect_area"
@@ -138,15 +172,17 @@
                       data-testid="redirects"
                     ></textarea>
                   </div>
-                  <input
-                    type="button"
-                    value="save"
-                    data-testid="save-redirects"
-                  />
-                  <input type="button" value="cancel" />
+                  <div class="settings_actions">
+                    <input
+                      type="button"
+                      value="save"
+                      data-testid="save-redirects"
+                    />
+                    <input type="button" value="cancel" />
+                  </div>
                 </div>
                 <div class="settings_block">
-                  CouchDB Sync:
+                  <span class="settings_panel_heading">CouchDB Sync:</span>
                   <div class="couch-container masked">
                     <div class="couch-highlights"></div>
                     <input
@@ -178,8 +214,8 @@
                   </div>
                 </div>
                 <div class="settings_block">
-                  Theme:
-                  <select id="theme_select" data-testid="theme">
+                  <span class="settings_panel_heading">Theme:</span>
+                  <select id="theme_select" data-testid="theme" aria-label="Theme">
                     <option value="dark">Dark</option>
                     <option value="light">Light</option>
                     <option value="system">System</option>
@@ -190,6 +226,9 @@
                     <label for="anim_checkbox">Animations</label>
                   </p>
                 </div>
+                <div class="settings_block settings_swipe">
+                  <div id="swipe_lab" data-testid="swipe-lab"></div>
+                </div>
                 <div class="settings_block">
                   Cache timing (minutes):
                   <input type="text" id="cache_time_input" />
@@ -198,7 +237,7 @@
                 </div>
                 <div class="settings_block settings_error_log">
                   <div class="settings_error_log_header">
-                    <span>Error log:</span>
+                    <span class="settings_panel_heading">Error log:</span>
                     <button type="button" id="clear_error_log">Clear</button>
                   </div>
                   <div id="error_log" data-testid="error-log">
@@ -206,6 +245,12 @@
                   </div>
                 </div>
                 <div class="settings_block settings_version">
+                  <img
+                    class="settings_about_logo"
+                    src="imgs/icons/icon.svg"
+                    alt="Once"
+                  />
+                  <h2 class="settings_about_title">Once</h2>
                   <span>Version: <span data-testid="app-version"></span></span>
                   <input
                     type="button"
@@ -220,6 +265,90 @@
                     aria-live="polite"
                   ></span>
                 </div>
+              </div>
+            </div>
+            <div id="reading_panel" class="panel" data-panel="reading">
+              <form id="reading_url_form" data-testid="reading-url-form" novalidate>
+                <div id="reading_url_group">
+                  <input id="reading_url" data-testid="reading-url-input" type="url"
+                    inputmode="url" enterkeyhint="go" autocomplete="url"
+                    autocapitalize="none" spellcheck="false" aria-label="Address"
+                    placeholder="Enter a URL" />
+                  <button type="button" id="reading_reader_toggle" aria-label="Toggle reader mode">
+                    <img src="imgs/article.svg" alt="" />
+                  </button>
+                </div>
+                <button type="submit" id="reading_navigate" data-testid="reading-url-action"
+                  aria-label="Reload"><span>Go</span></button>
+              </form>
+              <div id="reading_url_validation" data-testid="reading-url-validation"
+                role="status" aria-live="polite" hidden></div>
+              <section id="reading_current_card" class="story" data-testid="reading-current-card"
+                aria-label="Current page">
+                <div class="data">
+                  <div class="title_line">
+                    <a id="reading_title" class="title" href="">Reading</a>
+                  </div>
+                  <div class="substories">
+                    <div id="reading_story_meta" class="info">
+                      <p id="reading_type" class="type" role="link" tabindex="0"></p>
+                      <button type="button" id="reading_comments"
+                        class="comment_url">[comments]</button>
+                      <div id="reading_story_time" class="time"></div>
+                      <div id="reading_story_tags" class="tags_container"></div>
+                    </div>
+                  </div>
+                </div>
+                <button type="button" id="reading_story_collapse"
+                  data-testid="reading-story-collapse" class="reading_story_control"
+                  aria-label="Collapse current story" aria-expanded="true">⌃</button>
+                <button type="button" id="reading_story_menu" class="menu_btn"
+                  aria-label="Story actions">⋮</button>
+              </section>
+              <div id="reading_error" role="status" aria-live="polite" hidden></div>
+              <div id="reading_content" aria-label="Reading content">
+                <p id="reading_empty" data-testid="reading-empty">
+                  Open a story or enter a URL above to start reading.
+                </p>
+                <section id="reading_reader_status" data-testid="reading-reader-status"
+                  role="status" aria-live="polite" hidden>
+                  <div id="reading_reader_loading" data-testid="reading-reader-loading" hidden>
+                    <span class="reading_status_spinner" aria-hidden="true"></span>
+                    <p>Preparing Reader mode&hellip;</p>
+                  </div>
+                  <div id="reading_reader_failure" data-testid="reading-reader-error" hidden>
+                    <strong>Reader mode couldn&rsquo;t open this page</strong>
+                    <p id="reading_reader_error_message"></p>
+                    <div class="reading_status_actions">
+                      <button type="button" id="reading_reader_retry">Try again</button>
+                      <button type="button" id="reading_reader_open_page">Open page instead</button>
+                    </div>
+                  </div>
+                </section>
+              </div>
+              <div id="reader_tts_pill" data-testid="reader-tts-bar"
+                role="group" aria-label="Text to speech" hidden>
+                <button type="button" data-host-tts="prev"
+                  aria-label="Previous segment">|◀</button>
+                <button type="button" class="reader_tts_play" data-host-tts="play"
+                  aria-label="Play article">▶</button>
+                <button type="button" data-host-tts="next"
+                  aria-label="Next segment">▶|</button>
+                <button type="button" data-host-tts="stop"
+                  aria-label="Stop reading">■</button>
+                <details id="reader_tts_settings">
+                  <summary><span id="reader_tts_rate_label">1.0×</span></summary>
+                  <div class="reader_tts_settings_menu">
+                    <label>
+                      Voice
+                      <select id="reader_tts_voice"><option value="">Default voice</option></select>
+                    </label>
+                    <div class="reader_tts_rate_setting">
+                      <span>Speed</span>
+                      <div id="reader_tts_rates" aria-label="Speech rate"></div>
+                    </div>
+                  </div>
+                </details>
               </div>
             </div>
           </div>

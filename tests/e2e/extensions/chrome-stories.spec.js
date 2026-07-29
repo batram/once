@@ -55,8 +55,10 @@ async function launchStoryExtension() {
       []
     )
 
-    await page.getByTestId("settings-menu").click()
+    await openSettingsSection(page, "theme")
     await page.locator("#anim_checkbox").uncheck()
+    await openSettingsSection(page, "sources")
+    await page.getByTestId("sources-mode-toggle").click()
     await page.getByTestId("sources").fill(source.source)
     await page.getByTestId("save-sources").click()
     await openStories(page)
@@ -97,29 +99,57 @@ async function openStories(page) {
   await page.locator("#searchfield").fill("")
 }
 
-async function waitForOpenedPage(context, action) {
-  const opened = context.waitForEvent("page")
+async function waitForOpenedPage(context, label, action) {
+  const opened = context.waitForEvent("page", {
+    timeout: 5_000
+  }).catch(error => {
+    throw new Error(`${label} did not open a new page within 5s`, { cause: error })
+  })
   await action()
   const page = await opened
-  await page.waitForLoadState("domcontentloaded")
+  await page.waitForLoadState("domcontentloaded", { timeout: 5_000 })
   return page
 }
 
-async function saveRedirects(page, text) {
+async function openSettingsSection(page, target) {
   await page.getByTestId("settings-menu").click()
+  await page.locator(`[data-settings-target="${target}"]`).click()
+}
+
+async function saveRedirects(page, text) {
+  await openSettingsSection(page, "redirects")
+  if (!(await page.getByTestId("redirects").isVisible())) {
+    await page.getByTestId("redirects-mode-toggle").click()
+  }
   await page.getByTestId("redirects").fill(text)
   await page.getByTestId("save-redirects").click()
   await openStories(page)
 }
 
 async function saveFilters(page, text) {
-  await page.getByTestId("settings-menu").click()
+  await openSettingsSection(page, "filters")
+  if (!(await page.getByTestId("filters").isVisible())) {
+    await page.getByTestId("filters-mode-toggle").click()
+  }
   await page.getByTestId("filters").fill(text)
   await page.getByTestId("save-filters").click()
   await openStories(page)
 }
 
-async function swipeStory(page, story, direction) {
+// The swipe is detented: distance selects a stage, not a proportion of the
+// row. Defaults are stage 1 from 56px and stage 2 from 200px, so these land
+// mid-plateau rather than on a boundary.
+const SWIPE_STAGE_DISTANCE = { 1: 110, 2: 260 }
+
+// `moves` are the fractions of the distance the pointer is reported at. A
+// fast drag is coalesced into very few moves, so `[1]` is the realistic worst
+// case: the gesture has to be measured from the press, not from the first move.
+async function swipeStory(
+  page,
+  story,
+  direction,
+  { stage = 1, moves = [0.25, 0.5, 0.75, 1] } = {}
+) {
   await expect(story).toBeVisible()
   await story.scrollIntoViewIfNeeded()
   const box = await story.boundingBox()
@@ -128,10 +158,10 @@ async function swipeStory(page, story, direction) {
   const startX = Math.round(box.x + box.width * 0.45)
   const y = Math.round(box.y + box.height / 2)
   const distance =
-    Math.round(box.width * 0.4) * (direction === "left" ? -1 : 1)
+    SWIPE_STAGE_DISTANCE[stage] * (direction === "left" ? -1 : 1)
   await page.mouse.move(startX, y)
   await page.mouse.down()
-  for (const fraction of [0.25, 0.5, 0.75, 1]) {
+  for (const fraction of moves) {
     await page.mouse.move(Math.round(startX + distance * fraction), y)
   }
   await page.mouse.up()
@@ -164,14 +194,14 @@ test("opens story, comment, substory, and original links", async () => {
       timeout: HIDE_DELAY * 2
     }).not.toMatch(/\bvisible\b/)
 
-    const alphaPage = await waitForOpenedPage(context, () =>
+    const alphaPage = await waitForOpenedPage(context, "alpha story link", () =>
       alphaTitle.click()
     )
     await expect(alphaPage).toHaveURL(source.urls.alpha)
     await expect(alpha).toHaveClass(/\bread\b/)
     await alphaPage.close()
 
-    const betaPage = await waitForOpenedPage(context, () =>
+    const betaPage = await waitForOpenedPage(context, "middle-clicked beta story link", () =>
       beta.locator(storyFixture.SELECTORS.title).click({ button: "middle" })
     )
     await expect(betaPage).toHaveURL(source.urls.beta)
@@ -180,12 +210,12 @@ test("opens story, comment, substory, and original links", async () => {
 
     const comments = beta.locator(".info a.comment_url")
     await expect(comments).toHaveCount(2)
-    const mainComments = await waitForOpenedPage(context, () =>
+    const mainComments = await waitForOpenedPage(context, "beta comments link", () =>
       comments.nth(0).click()
     )
     await expect(mainComments).toHaveURL(source.urls.betaComments)
     await mainComments.close()
-    const substoryComments = await waitForOpenedPage(context, () =>
+    const substoryComments = await waitForOpenedPage(context, "beta substory comments link", () =>
       comments.nth(1).click()
     )
     await expect(substoryComments).toHaveURL(source.urls.betaSubstoryComments)
@@ -199,7 +229,7 @@ test("opens story, comment, substory, and original links", async () => {
     )
     const originalLink = gamma.locator(storyFixture.SELECTORS.og)
     await expect(originalLink).toBeVisible()
-    const originalPage = await waitForOpenedPage(context, () =>
+    const originalPage = await waitForOpenedPage(context, "original URL link", () =>
       originalLink.click()
     )
     await expect(originalPage).toHaveURL(source.redirectRule.original)
@@ -214,7 +244,7 @@ test("opens the reader and marks the story read", async () => {
   const { context, page, source } = harness
   try {
     const alpha = storyItem(page, source.urls.alpha)
-    const readerPage = await waitForOpenedPage(context, () =>
+    const readerPage = await waitForOpenedPage(context, "reader link", () =>
       alpha.locator(storyFixture.SELECTORS.outlineBtn).click()
     )
     await expect(readerPage).toHaveURL(/^data:text\/html/)
@@ -227,6 +257,34 @@ test("opens the reader and marks the story read", async () => {
       "The reader pipeline extracts long-form content"
     )
     await expect(alpha).toHaveClass(/\bread\b/)
+    expectCleanHarness(harness)
+  } finally {
+    await closeStoryExtension(harness)
+  }
+})
+
+test("a fast drag reported as a single move still commits stage 1", async () => {
+  const harness = await launchStoryExtension()
+  const { page, source } = harness
+  try {
+    const gamma = storyItem(page, source.urls.gamma)
+    await swipeStory(page, gamma, "left", { moves: [1] })
+    await expect(gamma).toHaveClass(/skipped/)
+    expectCleanHarness(harness)
+  } finally {
+    await closeStoryExtension(harness)
+  }
+})
+
+test("a full swipe left keeps the filter editor open after release", async () => {
+  const harness = await launchStoryExtension()
+  const { page, source } = harness
+  try {
+    const delta = storyItem(page, source.urls.delta)
+    await swipeStory(page, delta, "left", { stage: 2 })
+    await expect(
+      delta.locator(`${storyFixture.SELECTORS.filterBtn} input`)
+    ).toHaveValue("127.0.0.1")
     expectCleanHarness(harness)
   } finally {
     await closeStoryExtension(harness)
@@ -283,7 +341,7 @@ test("adds and removes a story filter", async () => {
   const harness = await launchStoryExtension()
   const { page, source } = harness
   try {
-    await page.getByTestId("settings-menu").click()
+    await openSettingsSection(page, "theme")
     await page.locator("#theme_select").selectOption("dark")
     await openStories(page)
 
@@ -301,7 +359,7 @@ test("adds and removes a story filter", async () => {
     await expect(dialog).toHaveCSS("color", "rgb(188, 194, 205)")
     await page.getByTestId("confirm-cancel").click()
 
-    await page.getByTestId("settings-menu").click()
+    await openSettingsSection(page, "theme")
     await page.locator("#theme_select").selectOption("light")
     await openStories(page)
     await delta.locator(storyFixture.SELECTORS.filterBtn).click()
@@ -314,7 +372,10 @@ test("adds and removes a story filter", async () => {
     await expect(delta).toHaveClass(/filtered/)
     await expect(delta).toBeHidden()
 
-    await page.getByTestId("settings-menu").click()
+    await openSettingsSection(page, "filters")
+    if (!(await page.getByTestId("filters").isVisible())) {
+      await page.getByTestId("filters-mode-toggle").click()
+    }
     const filterArea = page.getByTestId("filters")
     await expect(filterArea).toHaveValue(
       new RegExp(storyFixture.FILTER_TOKEN)
@@ -339,7 +400,7 @@ test("tracks selected stories opened through original and rewritten URLs", async
     await saveRedirects(page, source.redirectRule.line)
     const selected = page.locator(storyFixture.SELECTORS.selected)
     const alpha = storyItem(page, source.urls.alpha)
-    const alphaPage = await waitForOpenedPage(context, () =>
+    const alphaPage = await waitForOpenedPage(context, "selected alpha story link", () =>
       alpha.locator(storyFixture.SELECTORS.title).click()
     )
     await expect(alphaPage).toHaveURL(source.urls.alpha)
@@ -348,7 +409,7 @@ test("tracks selected stories opened through original and rewritten URLs", async
       .toBe(source.urls.alpha)
 
     const gamma = storyItem(page, source.redirectRule.original)
-    const gammaPage = await waitForOpenedPage(context, () =>
+    const gammaPage = await waitForOpenedPage(context, "selected rewritten story link", () =>
       gamma.locator(storyFixture.SELECTORS.title).click()
     )
     await expect(gammaPage).toHaveURL(source.redirectRule.rewritten)

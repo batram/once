@@ -1,4 +1,5 @@
 import PouchDB from "pouchdb-browser"
+import PouchDBFind from "pouchdb-find"
 import { DatabaseChange, OncePlatformPorts, ThemeName } from "@once/app"
 import { Story } from "@once/core"
 import {
@@ -14,6 +15,8 @@ import { ElectronBridge, ElectronTabState } from "./types"
 export * from "./types"
 export * from "./fetch"
 export * from "./navigation"
+
+PouchDB.plugin(PouchDBFind)
 
 export function createElectronPlatform(
   bridge: ElectronBridge

@@ -5,6 +5,8 @@ import { getOnceClient } from "./client"
 
 export type StoryMenuActionId =
   | "open"
+  | "open-comments"
+  | "open-browser"
   | "open-new-tab"
   | "open-background-tab"
   | "open-new-window"
@@ -23,6 +25,22 @@ export type StoryMenuActionId =
   | "inspect"
 
 export type StoryMenuPlatform = "electron" | "firefox" | "chrome" | "mobile"
+
+export const STORY_MENU_REQUEST = "story-menu-request"
+
+/**
+ * Raised by a story row when the user asks for its actions — the ⋮ button and
+ * a long-press both raise it, so a platform installs one handler and both
+ * gestures open the same menu at the same anchor.
+ */
+export class StoryMenuRequestEvent extends Event {
+  constructor(
+    readonly story: StoryListItem,
+    readonly anchor: HTMLElement
+  ) {
+    super(STORY_MENU_REQUEST, { bubbles: true, composed: true })
+  }
+}
 
 export interface StoryMenuItemDescriptor {
   id: StoryMenuActionId
@@ -52,13 +70,36 @@ export function describeStoryMenu(
   const story = context.story
   const history = StoryHistory.instance
   const items: StoryMenuItemDescriptor[] = []
+  // Touch gets a short, single-column menu under the thumb: no tab targets to
+  // choose between, and undo/redo belong to a keyboard, not a long-press.
+  const touch = context.platform === "mobile"
 
   if (story) {
     const redirected = URLRedirect.redirect_url(story.story.href)
     items.push(
       item("open", "Open story", "navigation"),
-      item("open-new-tab", "Open in new tab", "navigation"),
-      item("open-background-tab", "Open in background tab", "navigation"),
+      item(
+        "open-comments",
+        "Open comments",
+        "navigation",
+        true,
+        Boolean(story.story.comment_url)
+      ),
+      item(
+        "open-browser",
+        "Open in browser",
+        "navigation",
+        true,
+        touch
+      ),
+      item("open-new-tab", "Open in new tab", "navigation", true, !touch),
+      item(
+        "open-background-tab",
+        "Open in background tab",
+        "navigation",
+        true,
+        !touch
+      ),
       item(
         "open-new-window",
         "Open in new Once window",
@@ -78,7 +119,7 @@ export function describeStoryMenu(
         "Open original URL",
         "navigation",
         true,
-        redirected !== story.story.href
+        !touch && redirected !== story.story.href
       ),
       item("open-reader", "Open in reader", "navigation"),
       item("toggle-read", story.readActionLabel(), "state"),
@@ -91,14 +132,14 @@ export function describeStoryMenu(
         "Copy original link address",
         "discovery",
         true,
-        redirected !== story.story.href
+        !touch && redirected !== story.story.href
       )
     )
   }
 
   items.push(
-    item("undo", "Undo", "history", history?.canUndo ?? false),
-    item("redo", "Redo", "history", history?.canRedo ?? false)
+    item("undo", "Undo", "history", history?.canUndo ?? false, !touch),
+    item("redo", "Redo", "history", history?.canRedo ?? false, !touch)
   )
 
   if (story) {
@@ -133,6 +174,10 @@ export async function executeStoryMenuAction(
   switch (id) {
     case "open":
       return story.openStory("_self")
+    case "open-comments":
+      return story.openComments()
+    case "open-browser":
+      return story.openStory("blank")
     case "open-new-tab":
       return story.openStory("blank")
     case "open-background-tab":
@@ -140,6 +185,15 @@ export async function executeStoryMenuAction(
     case "open-original":
       return story.openOriginal()
     case "open-reader": {
+      const { requestReading } = await import("./ReadingSession.js")
+      if (requestReading(story.story, "reader")) {
+        await getOnceClient().persistStoryChange(
+          story.story.href,
+          "read_state",
+          "read"
+        )
+        return
+      }
       const { ReaderView } = await import("./reader/ReaderView.js")
       await ReaderView.open(story.story.href)
       await getOnceClient().persistStoryChange(

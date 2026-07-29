@@ -55,3 +55,27 @@ test("recovers a corrupted story and reports its stored document", async (t) => 
   assert.equal(diagnostics[0].documentId, doc._id)
   assert.match(diagnostics[0].details, /Stored document/)
 })
+
+test("loads stared stories through an indexed query", async () => {
+  const stared = new Story("rss", "https://example.com/stared", "Stared")
+  stared.stared = true
+  const calls = []
+  const store = new PouchStoryStore(
+    {
+      createIndex: async (options) => calls.push(["createIndex", options]),
+      find: async (options) => {
+        calls.push(["find", options])
+        return { docs: [stared.to_obj()] }
+      }
+    },
+    Story.from_obj.bind(Story)
+  )
+
+  const stories = await store.getStaredStories()
+
+  assert.deepEqual(calls, [
+    ["createIndex", { index: { fields: ["stared"] } }],
+    ["find", { selector: { stared: { $eq: true } } }]
+  ])
+  assert.deepEqual(stories.map((story) => story.href), [stared.href])
+})

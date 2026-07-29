@@ -1,7 +1,7 @@
 import * as menu from "./menu"
 import { Story } from "@once/core"
 import { requireElement } from "./dom"
-import { showConfirmDialog } from "./ConfirmDialog"
+import { showConfirmDialog, showTextInputDialog } from "./ConfirmDialog"
 
 export function show_filter_dialog(
   event: MouseEvent,
@@ -30,22 +30,32 @@ export function show_filter_dialog(
     return
   }
 
-  document.addEventListener("click", (e) => {
-    if (e.target != filter_btn) {
-      document
-        .querySelectorAll(".story:not(.filtered) .filter_btn input")
-        .forEach((x) => {
-          x.outerHTML = ""
-        })
-    }
-  })
-
   inp = document.createElement("input")
   inp.type = "text"
   inp.setAttribute("draggable", "false")
   inp.value = new URL(story.href).hostname
   filter_btn.prepend(inp)
   inp.focus()
+
+  // A swipe commits on pointerup, after which Chromium emits its corresponding
+  // click. Installing the outside-click handler synchronously would see that
+  // same click and immediately remove the input that the swipe just opened.
+  // Wait until the opening event sequence is over, and treat every descendant
+  // of the filter button as inside the editor.
+  const dismissOnOutsideClick = (clickEvent: MouseEvent) => {
+    const target = clickEvent.target
+    if (target instanceof Node && filter_btn.contains(target)) return
+    document
+      .querySelectorAll(".story:not(.filtered) .filter_btn input")
+      .forEach((x) => {
+        x.remove()
+      })
+    document.removeEventListener("click", dismissOnOutsideClick)
+  }
+  setTimeout(() => {
+    document.addEventListener("click", dismissOnOutsideClick)
+  })
+
   inp.addEventListener("keyup", (e) => {
     if (e.keyCode === 27) {
       //ESC
@@ -54,6 +64,22 @@ export function show_filter_dialog(
       //ENTER
       confirm_add_story(inp, callback)
     }
+  })
+}
+
+export function show_mobile_filter_dialog(
+  story: Story,
+  callback: (filter: string) => unknown
+): void {
+  const storiesPanel = requireElement<HTMLElement>("#stories_panel")
+  void showTextInputDialog({
+    message: "Filter stories matching:",
+    value: new URL(story.href).hostname,
+    confirmLabel: "Add filter",
+    positionWithin: storiesPanel
+  }).then((value) => {
+    if (value === null) return
+    callback(value)
   })
 }
 

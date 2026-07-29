@@ -13,6 +13,9 @@ function panelFor(button: HTMLElement): string {
 export function open_panel(panel: string): void {
   const left_panel = requireElement<HTMLElement>("#left_panel")
   left_panel.setAttribute("active_panel", panel)
+  document.dispatchEvent(new CustomEvent("once-panel-changed", {
+    detail: { panel }
+  }))
 }
 
 function highlight_panel(panel: string) {
@@ -34,6 +37,28 @@ export function add_group(group_name: string): void {
 
 export function add_type(type: string): void {
   add_entry("[" + type + "]", "type", "types")
+}
+
+function syncEntries(
+  values: string[],
+  className: "group" | "type",
+  containerId: "groups" | "types",
+  decorate: (value: string) => string
+): void {
+  const container = requireElement<HTMLElement>(`#menu #${containerId}`)
+  const labels = values.map(decorate)
+  const wanted = new Set(labels)
+  container.querySelectorAll<HTMLElement>(":scope > .btn").forEach((entry) => {
+    if (!wanted.has(entry.dataset.type || "")) entry.remove()
+  })
+  labels.forEach((label) => {
+    add_entry(label, className, containerId)
+    const entry = container.querySelector<HTMLElement>(
+      `:scope > .btn[data-type="${CSS.escape(label)}"]`
+    )
+    if (entry) container.append(entry)
+  })
+  syncMobileFilterChips()
 }
 
 export function add_entry(
@@ -61,7 +86,25 @@ export function add_entry(
     }
     active_flash_panel(type_el)
     requireElement("#menu #" + container_id).appendChild(type_el)
+    syncMobileFilterChips()
   }
+}
+
+function syncMobileFilterChips(): void {
+  const host = document.querySelector<HTMLElement>("#mobile_filter_chips")
+  if (!host) return
+  host.replaceChildren()
+  document.querySelectorAll<HTMLElement>("#menu #types > .btn, #menu #groups > .btn")
+    .forEach((entry) => {
+      const chip = document.createElement("button")
+      chip.type = "button"
+      chip.className = entry.className
+      chip.classList.add("mobile_filter_chip")
+      chip.textContent = entry.textContent
+      chip.dataset.type = entry.dataset.type
+      chip.onclick = () => entry.click()
+      host.append(chip)
+    })
 }
 
 function active_flash_panel(btn: HTMLElement) {
@@ -80,14 +123,20 @@ export function init(client?: OnceClient): void {
   if (!commsRegistered) {
     commsRegistered = true
     client?.subscribe("menuChanged", ({ groups, types }) => {
-      groups.forEach(add_group)
-      types.forEach(add_type)
+      syncEntries(groups, "group", "groups", (group) => `*${group}`)
+      syncEntries(types, "type", "types", (type) => `[${type}]`)
     })
   }
 
   document.querySelectorAll<HTMLElement>("#menu .sub").forEach((sub_menu) => {
-    sub_menu.onclick = () => {
-      open_panel(panelFor(sub_menu))
+    sub_menu.onclick = (event) => {
+      const panel = panelFor(sub_menu)
+      const clickedStatus = event.target instanceof Element &&
+        event.target.closest("#status_dock")
+      if (panel === "settings" && !clickedStatus) {
+        document.dispatchEvent(new CustomEvent("once-settings-index-requested"))
+      }
+      open_panel(panel)
     }
     sub_menu.querySelectorAll("img").forEach((x) => {
       x.setAttribute("draggable", "false")

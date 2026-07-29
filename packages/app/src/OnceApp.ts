@@ -24,6 +24,11 @@ import {
   SyncStatus,
   ThemeName
 } from "./types"
+import {
+  DEFAULT_SWIPE_SETTINGS,
+  normalizeSwipeSettings,
+  SwipeSettings
+} from "./swipeSettings"
 import { LocalEventBus } from "./EventBus"
 
 export class OnceApp {
@@ -97,6 +102,18 @@ export class OnceApp {
     })
 
     try {
+      const staredStories = await this.platform.storyStore.getStaredStories()
+      staredStories.forEach((story) => this.setStory(story.href, story, true))
+    } catch (error) {
+      this.reportDiagnostic({
+        severity: "error",
+        operation: "story.load-stared",
+        message: "Stared stories could not be loaded",
+        details: errorDetails(error)
+      })
+    }
+
+    try {
       this.animated = await this.getAnimation()
     } catch (error) {
       this.reportStartupSettingError("animation", error)
@@ -132,7 +149,8 @@ export class OnceApp {
       getDiagnostics: () => [...this.diagnostics],
       getSyncStatus: () => this.syncStatus,
       getStorySources: () => this.getStorySources(),
-      saveStorySources: (storySources) => this.saveStorySources(storySources),
+      saveStorySources: (storySources, reloadStories) =>
+        this.saveStorySources(storySources, reloadStories),
       getFilterList: () => this.getFilterList(),
       saveFilterList: (filterList) => this.saveFilterList(filterList),
       getRedirectList: () => this.getRedirectList(),
@@ -145,6 +163,8 @@ export class OnceApp {
       setTheme: (theme) => this.setTheme(theme),
       getAnimation: () => this.getAnimation(),
       setAnimation: (animated) => this.setAnimation(animated),
+      getSwipeSettings: () => this.getSwipeSettings(),
+      setSwipeSettings: (settings) => this.setSwipeSettings(settings),
       reloadStories: (tryCache = true) => this.reloadStories(tryCache),
       getStories: () => this.getWorkingStories(),
       getStorySnapshot: () => Array.from(this.stories.values()),
@@ -196,10 +216,14 @@ export class OnceApp {
     return this.getListSetting("story_sources", defaultSources)
   }
 
-  private async saveStorySources(storySources: string[]): Promise<void> {
+  private async saveStorySources(
+    storySources: string[],
+    reloadStories = true
+  ): Promise<void> {
     await this.setListSetting("story_sources", storySources)
+    this.updateSourceMenu(storySources)
     this.events.publish("settingsChanged", { section: "sources" })
-    await this.reloadStories(true)
+    if (reloadStories) await this.reloadStories(true)
   }
 
   private async getFilterList(): Promise<string[]> {
@@ -337,6 +361,19 @@ export class OnceApp {
     this.events.publish("settingsChanged", { section: "animation" })
   }
 
+  private async getSwipeSettings(): Promise<SwipeSettings> {
+    // Normalized on read as well as write: the stored document is synced, so
+    // it may have been written by a different version of the app.
+    return normalizeSwipeSettings(
+      await this.getListSetting<unknown>("swipe", DEFAULT_SWIPE_SETTINGS)
+    )
+  }
+
+  private async setSwipeSettings(settings: SwipeSettings): Promise<void> {
+    await this.setListSetting("swipe", normalizeSwipeSettings(settings))
+    this.events.publish("settingsChanged", { section: "swipe" })
+  }
+
   private async addFilter(filter: string): Promise<void> {
     const filterList = await this.getFilterList()
     filterList.push(filter)
@@ -365,17 +402,15 @@ export class OnceApp {
   private async reloadStories(tryCache = true): Promise<void> {
     this.sourceErrors.clear()
     this.emitSourceErrors()
-    const groupedSources = groupStorySources(await this.getStorySources())
+    const storySources = await this.getStorySources()
+    const groupedSources = groupStorySources(storySources)
+    this.updateSourceMenu(storySources)
     const processingSources = new Map<string, ProcessingSource>()
     const promises: Promise<void>[] = []
 
     for (const groupName in groupedSources) {
-      this.menuGroups.add(groupName)
       for (const sourceUrl of groupedSources[groupName]) {
         const sourceInfo = this.getDomainAndParserType(sourceUrl)
-        if (sourceInfo.parserType !== "Unknown") {
-          this.menuTypes.add(sourceInfo.parserType)
-        }
         processingSources.set(sourceUrl, sourceInfo)
         this.emitLoader(processingSources)
         promises.push(
@@ -394,7 +429,6 @@ export class OnceApp {
       }
     }
 
-    this.emitMenuChanged()
     await Promise.all(promises)
     this.events.publish("loaderChanged", {
       processing: [],
@@ -586,6 +620,25 @@ export class OnceApp {
     })
   }
 
+  private updateSourceMenu(storySources: string[]): void {
+    const groupedSources = groupStorySources(storySources)
+    this.menuGroups.clear()
+    this.menuTypes.clear()
+    for (const type of ["ALL", "filtered", "stared", "new"]) {
+      this.menuTypes.add(type)
+    }
+    for (const groupName of Object.keys(groupedSources)) {
+      this.menuGroups.add(groupName)
+      for (const sourceUrl of groupedSources[groupName]) {
+        const sourceInfo = this.getDomainAndParserType(sourceUrl)
+        if (sourceInfo.parserType !== "Unknown") {
+          this.menuTypes.add(sourceInfo.parserType)
+        }
+      }
+    }
+    this.emitMenuChanged()
+  }
+
   private setStory(href: string, story: Story, quiet = false): Story {
     Story.assertIngestible(story)
     if (href !== story.href) {
@@ -774,10 +827,13 @@ export class OnceApp {
   }
 
   private async getWorkingStories(): Promise<Story[]> {
-    if (this.stories.size === 0) {
-      const stored = await this.platform.storyStore.getStories(500)
-      stored.forEach((story) => this.setStory(story.href, story, true))
-    }
+    const [stored, stared] = await Promise.all([
+      this.platform.storyStore.getStories(500),
+      this.platform.storyStore.getStaredStories()
+    ])
+    stored
+      .concat(stared)
+      .forEach((story) => this.setStory(story.href, story, true))
     return Array.from(this.stories.values())
   }
 

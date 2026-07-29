@@ -5,10 +5,10 @@
 // laptops) the classic "pull down past the top to reload" gesture. The reload
 // button remains the affordance for pointer users.
 //
-// The indicator is inserted as a flow sibling *before* the scroller, so growing
-// its height slides the list down instead of transforming the scroller. That
-// avoids overflow/transform hacks and never interferes with the horizontal
-// `.story` swipe handlers living inside the scroller.
+// The indicator is inserted as an absolutely positioned child of the scroller.
+// Its clipping area grows over the list and the icon follows the
+// finger, while the story rows themselves stay in place. The overlay has no
+// pointer events, so it never interferes with horizontal story swipes.
 
 import {
   beginTouchGesture,
@@ -47,7 +47,7 @@ export function attachPullToRefresh(
   icon.className = "ptr-icon"
   surface.append(icon)
   indicator.append(surface)
-  scroller.before(indicator)
+  scroller.prepend(indicator)
 
   let startY = 0
   let startX = 0
@@ -55,16 +55,19 @@ export function attachPullToRefresh(
   let armed = false
   let pulling = false
   let refreshing = false
+  const shadowClearance = 12
 
   // Resistance curve: asymptotes toward maxPull for a rubber-band feel that
   // travels noticeably further than the horizontal swipe ("stories") effect.
   const damp = (dy: number): number => maxPull * (1 - Math.exp(-dy / maxPull))
 
   const render = (px: number, spinning: boolean): void => {
-    indicator.style.height = `${px}px`
+    // The surface itself ends at the finger-driven pull distance. Keep extra
+    // clipping room below it for the 8px blur plus its 2px downward offset.
+    indicator.style.height = `${px + shadowClearance}px`
     const progress = Math.min(px / threshold, 1)
     surface.style.opacity = `${progress}`
-    surface.style.transform = `translateY(${Math.max(0, 8 - px / 8)}px) scale(${0.75 + progress * 0.25})`
+    surface.style.transform = `translateY(${px - 36}px) scale(${0.75 + progress * 0.25})`
     if (spinning) {
       icon.classList.add("rotating")
       icon.style.transform = ""

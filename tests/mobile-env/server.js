@@ -5,8 +5,15 @@ const path = require("path")
 const PouchDB = require("pouchdb")
 
 const port = Number.parseInt(process.env.ONCE_MOBILE_TEST_PORT || "3211", 10)
+const owner = process.env.ONCE_MOBILE_TEST_OWNER || ""
 const root = path.resolve(__dirname, "../..")
-const databaseRoot = path.join(root, "test-results", "mobile", "pouchdb")
+const runIdentity = (owner || `pid-${process.pid}`).replace(/[^a-zA-Z0-9_-]/g, "_")
+const configuredDataDirectory = process.env.ONCE_MOBILE_TEST_DATA_DIR
+const resultDirectory = port === 3211 ? "mobile" :
+  port === 0 ? `mobile-run-${runIdentity}` : `mobile-${port}`
+const databaseRoot = configuredDataDirectory
+  ? path.resolve(configuredDataDirectory)
+  : path.join(root, "test-results", resultDirectory, "pouchdb")
 fs.mkdirSync(databaseRoot, { recursive: true })
 const TestPouchDB = PouchDB.defaults({ prefix: `${databaseRoot}${path.sep}` })
 const app = express()
@@ -19,7 +26,12 @@ app.use((request, response, next) => {
   next()
 })
 
-app.get("/health", (_request, response) => response.json({ ok: true }))
+app.get("/health", (_request, response) => response.json({
+  ok: true,
+  owner,
+  pid: process.pid,
+  port: response.socket.localPort
+}))
 app.get("/test/urls", (_request, response) => response.json({
   android: process.env.ONCE_MOBILE_TEST_URL || `http://10.0.2.2:${port}`,
   ios: `http://127.0.0.1:${port}`
@@ -32,13 +44,18 @@ app.post("/test/databases/:name/reset", async (request, response, next) => {
     return
   }
   try {
-    try {
-      await new TestPouchDB(name).destroy()
-    } catch (error) {
-      if (error.status !== 404) throw error
+    const database = new TestPouchDB(name)
+    const existing = await database.allDocs({ include_docs: true })
+    const deletions = existing.rows
+      .map(row => row.doc)
+      .filter(Boolean)
+      .map(doc => ({ _id: doc._id, _rev: doc._rev, _deleted: true }))
+    if (deletions.length) {
+      await database.bulkDocs(deletions)
     }
     const docs = Array.isArray(request.body?.docs) ? request.body.docs : []
-    if (docs.length) await new TestPouchDB(name).bulkDocs(docs)
+    if (docs.length) await database.bulkDocs(docs)
+    await database.close()
     response.json({ ok: true, database: name, seeded: docs.length })
   } catch (error) {
     next(error)
@@ -55,13 +72,46 @@ app.get("/fixtures/feed.rss", (request, response) => {
     <guid>${baseUrl}/fixtures/article.html</guid><pubDate>Mon, 15 Jul 2030 10:00:00 GMT</pubDate></item>
     </channel></rss>`)
 })
-app.get("/fixtures/article.html", (_request, response) => {
+app.get("/fixtures/visual-feed.rss", (request, response) => {
+  const baseUrl = `${request.protocol}://${request.get("host")}`
+  const stories = [
+    ["A careful look at native reading surfaces", "native-reading", "Mon, 15 Jul 2030 10:00:00 GMT"],
+    ["Designing a calmer story list", "calmer-list", "Mon, 15 Jul 2030 09:00:00 GMT"],
+    ["Why deterministic tests improve product work", "deterministic-tests", "Mon, 15 Jul 2030 08:00:00 GMT"],
+    ["Small details in mobile typography", "typography", "Sun, 14 Jul 2030 18:00:00 GMT"],
+    ["An unusually long headline for checking wrapping across narrow phone layouts", "long-headline", "Sun, 14 Jul 2030 15:00:00 GMT"],
+    ["Offline-first interfaces in practice", "offline-first", "Sun, 14 Jul 2030 12:00:00 GMT"],
+    ["Reader mode without the browser chrome", "reader-mode", "Sat, 13 Jul 2030 17:00:00 GMT"],
+    ["A short title", "short-title", "Sat, 13 Jul 2030 11:00:00 GMT"]
+  ]
+  const items = stories.map(([title, slug, published]) => {
+    const url = `${baseUrl}/fixtures/articles/${slug}.html`
+    return `<item><title>${title}</title><link>${url}</link>` +
+      `<guid>${url}</guid><pubDate>${published}</pubDate></item>`
+  }).join("")
+  response.type("application/rss+xml")
+  response.send(`<?xml version="1.0" encoding="UTF-8" ?>
+    <rss version="2.0"><channel><title>Once visual inspection</title>
+    <link>${baseUrl}/fixtures/</link>
+    <description>Varied deterministic stories for mobile visual inspection</description>
+    ${items}</channel></rss>`)
+})
+app.get([
+  "/fixtures/article.html",
+  "/fixtures/articles/:slug.html"
+], (request, response) => {
+  const slug = request.params.slug || "fixture-article"
+  const title = request.params.slug
+    ? slug.split("-")
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ")
+    : "Fixture article"
   const paragraph =
     "Once mobile reader fixture content is intentionally detailed, deterministic, and long enough for article extraction. " +
     "It verifies that the sanitized in-app reader can preserve useful prose while discarding page chrome and scripts. "
   response.type("text/html").send(
-    "<!doctype html><html><head><title>Fixture article</title></head><body>" +
-    `<article><h1>Fixture article</h1><p>${paragraph.repeat(8)}</p></article></body></html>`
+    `<!doctype html><html><head><title>${title}</title></head><body>` +
+    `<article><h1>${title}</h1><p>${paragraph.repeat(8)}</p></article></body></html>`
   )
 })
 
@@ -76,6 +126,19 @@ app.use("/db", (request, response, next) => {
 })
 app.use("/db", expressPouchDB(TestPouchDB, { mode: "minimumForPouchDB" }))
 
-app.listen(port, "0.0.0.0", () => {
-  console.log(`Once mobile test environment listening on ${port}`)
+const server = app.listen(port, "0.0.0.0", () => {
+  const address = server.address()
+  const listeningPort = typeof address === "object" && address ? address.port : port
+  console.log(`Once mobile test environment listening on ${listeningPort}`)
+  process.send?.({ type: "once-mobile-test-server-ready", port: listeningPort, owner })
 })
+
+let closing = false
+function close() {
+  if (closing) return
+  closing = true
+  server.close(() => process.exit(0))
+  setTimeout(() => process.exit(1), 2_000).unref()
+}
+process.on("SIGINT", close)
+process.on("SIGTERM", close)

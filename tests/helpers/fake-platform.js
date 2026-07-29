@@ -34,6 +34,9 @@ function createFakePlatform(stories = [], options = {}) {
           const stories = Array.from(savedStories.values())
           return limit === undefined ? stories : stories.slice(0, limit)
         },
+        async getStaredStories() {
+          return Array.from(savedStories.values()).filter((story) => story.stared)
+        },
         async getStoriesByUrls(urls) {
           return new Map(urls.flatMap((url) => savedStories.has(url) ? [[url, savedStories.get(url)]] : []))
         },

@@ -1,3 +1,9 @@
+import {
+  DEFAULT_SWIPE_SETTINGS,
+  SWIPE_ACTION_LABELS,
+  SwipeActionId,
+  SwipeSettings
+} from "@once/app"
 import { humanTime } from "@once/core"
 import * as StoryFilterView from "./StoryFilterView"
 import { Story, SubStory } from "@once/core"
@@ -9,7 +15,149 @@ import { SettingsPanel } from "./SettingsPanel"
 import { getOnceClient } from "./client"
 import * as Search from "./search"
 import { showConfirmDialog } from "./ConfirmDialog"
-import { getTouchGestureAxis } from "./TouchGestureLock"
+import {
+  getTouchGestureAxis,
+  getTouchGestureStart
+} from "./TouchGestureLock"
+import {
+  executeStoryMenuAction,
+  StoryMenuRequestEvent
+} from "./StoryContextMenu"
+import { requestReading } from "./ReadingSession"
+import { finishStoryExitTransition } from "./StoryExitTransition"
+
+/**
+ * Two-stage direct-manipulation swipe.
+ *
+ * The row tracks the pointer while thresholds select the action that will be
+ * committed on release. Distances and actions are user-configurable; see
+ * swipeSettings.ts.
+ */
+/** Springing the directly manipulated row back after a release. */
+const SWIPE_RELEASE_TRANSITION = "transform 200ms cubic-bezier(.2, .8, .2, 1)"
+
+export type SwipeStage = 0 | 1 | 2
+
+/** Where a drag rests and what it commits, for one set of settings. */
+export interface SwipeGeometry {
+  settings(): SwipeSettings
+  stage(offset: number): SwipeStage
+  /** Display position after applying the optional magnetic stage notches. */
+  displayOffset(offset: number): number
+  plateau(offset: number): number
+  actionFor(offset: number): SwipeActionId
+  /**
+   * What an engaged stage commits, for a drag in `direction` (-1 left,
+   * 1 right). Committing works off the stage the drag reached, never off the
+   * plateau it is resting on: the two only agree while every stage's resting
+   * offset happens to sit past its own threshold.
+   */
+  actionAt(stage: SwipeStage, direction: number): SwipeActionId
+}
+
+/**
+ * The geometry reads its settings through `read` on every call, so a caller
+ * can drive a row from settings that are still being edited (the swipe
+ * settings preview row) without touching the live configuration.
+ */
+export function createSwipeGeometry(
+  read: () => SwipeSettings
+): SwipeGeometry {
+  const geometry: SwipeGeometry = {
+    settings: read,
+
+    stage(offset) {
+      const distance = Math.abs(offset)
+      const settings = read()
+      const [first, second] = settings.stages
+      if (distance < first.threshold) return 0
+      if (!settings.twoStage || distance < second.threshold) return 1
+      return 2
+    },
+
+    displayOffset(offset) {
+      const settings = read()
+      if (!settings.stickyStages || offset === 0) return offset
+
+      // Strength expands both the magnetic approach and the flat center of
+      // the notch. At the default 65 this yields a clearly felt 36px capture
+      // band with a 16px snap zone; the low end remains deliberately subtle.
+      const strength = settings.stickyStrength / 100
+      const captureRadius = 10 + 40 * strength
+      const snapRadius = 2 + 22 * strength
+      const direction = Math.sign(offset)
+      const distance = Math.abs(offset)
+      const thresholds = settings.twoStage
+        ? settings.stages.map((stage) => stage.threshold)
+        : [settings.stages[0].threshold]
+      const target = thresholds.find(
+        (threshold) =>
+          Math.abs(distance - threshold) <= captureRadius
+      )
+      if (target === undefined) return offset
+
+      const delta = distance - target
+      const absoluteDelta = Math.abs(delta)
+      if (absoluteDelta <= snapRadius) {
+        return direction * target
+      }
+
+      // Ease into and out of the notch without changing the row position at
+      // the edge of its capture band. This gives the stage a tactile-feeling
+      // pause while preserving direct manipulation everywhere else.
+      const freeRange = captureRadius - snapRadius
+      const progress = (absoluteDelta - snapRadius) / freeRange
+      const attractedDistance =
+        target +
+        Math.sign(delta) *
+          captureRadius *
+          progress *
+          progress
+      return direction * attractedDistance
+    },
+
+    plateau(offset) {
+      const stage = geometry.stage(offset)
+      if (stage === 0) return 0
+      return Math.sign(offset) * read().stages[stage === 1 ? 0 : 1].offset
+    },
+
+    actionFor(offset) {
+      return geometry.actionAt(geometry.stage(offset), Math.sign(offset))
+    },
+
+    actionAt(stage, direction) {
+      if (stage === 0) return "none"
+      const settings = read()
+      const actions = direction < 0 ? settings.left : settings.right
+      return actions[stage === 1 ? 0 : 1]
+    }
+  }
+  return geometry
+}
+
+/**
+ * Live swipe configuration, shared by every row. Rows are created and
+ * destroyed constantly, so the settings live here rather than per instance;
+ * mountOnceUi seeds it and keeps it current.
+ */
+export const SwipeConfig: SwipeGeometry & { current: SwipeSettings } = {
+  current: DEFAULT_SWIPE_SETTINGS,
+  ...createSwipeGeometry(() => SwipeConfig.current)
+}
+
+/**
+ * Turns a row into a sample the user can drag without consequences: the
+ * gesture uses `geometry` instead of the live settings, and a release reports
+ * the action it would have run instead of running it.
+ */
+export interface SwipePreview {
+  geometry: SwipeGeometry
+  /** Element the touch axis lock is keyed to, in place of #stories. */
+  scroller: HTMLElement
+  onAction(action: SwipeActionId, stage: SwipeStage): void
+  onTravel?(offset: number): void
+}
 
 export class StoryListItem extends HTMLElement {
   static devToolsEnabled = false
@@ -24,6 +172,11 @@ export class StoryListItem extends HTMLElement {
   substories_el!: HTMLElement
   sw_left!: HTMLElement
   sw_right!: HTMLElement
+  bb_slide?: HTMLElement
+  menu_btn!: HTMLElement
+  private cancelReadAnimation?: () => void
+  /** Set only on the swipe settings sample row; see SwipePreview. */
+  swipePreview?: SwipePreview
 
   constructor(story: Story) {
     super()
@@ -64,7 +217,15 @@ export class StoryListItem extends HTMLElement {
     bindLinkBehavior(this.link, {
       onClick: () => {
         this.read_btn.classList.add("user_interaction")
-        open_story(this.story.href, "_self")
+        if (!requestReading(this.story, "browser")) {
+          open_story(this.story.href, "_self")
+        } else {
+          void getOnceClient().persistStoryChange(
+            this.story.href,
+            "read_state",
+            "read"
+          )
+        }
       },
       onMiddleClick: () => {
         this.read_btn.classList.add("user_interaction")
@@ -163,6 +324,7 @@ export class StoryListItem extends HTMLElement {
     }
 
     presenters.add_story_elem_buttons(this, this.story)
+    this.add_menu_button()
     this.button_events()
 
     if (add_listeners) {
@@ -178,6 +340,9 @@ export class StoryListItem extends HTMLElement {
   }
 
   animate_read(): void {
+    this.cancelReadAnimation?.()
+    this.cancelReadAnimation = undefined
+
     if (!this.parentElement) {
       //not attached to dom, no need to sort or animate anything, no on will see
       return
@@ -192,13 +357,10 @@ export class StoryListItem extends HTMLElement {
         //consume user interaction
         this.read_btn.classList.remove("user_interaction")
         this.classList.add(anmim_class)
-        this.addEventListener(
-          "transitionend",
-          () => {
-            resort()
-          },
-          false
-        )
+        this.cancelReadAnimation = finishStoryExitTransition(this, () => {
+          this.cancelReadAnimation = undefined
+          resort()
+        })
       } else {
         resort()
       }
@@ -298,12 +460,29 @@ export class StoryListItem extends HTMLElement {
 
   openStory(target: "_self" | "middle" | "blank"): void {
     this.read_btn.classList.add("user_interaction")
+    if (target === "_self" && requestReading(this.story, "browser")) {
+      void getOnceClient().persistStoryChange(
+        this.story.href,
+        "read_state",
+        "read"
+      )
+      return
+    }
     open_story(this.story.href, target)
   }
 
   openOriginal(): void {
     this.read_btn.classList.add("user_interaction")
     openStoryUrl(this.story.href, "_self", false)
+  }
+
+  openComments(): void {
+    const commentsUrl = this.story.comment_url
+    if (!commentsUrl) return
+    this.read_btn.classList.add("user_interaction")
+    if (!requestReading(this.story, "comments")) {
+      openStoryUrl(commentsUrl, "_self", false)
+    }
   }
 
   toggleReadState(): void {
@@ -328,6 +507,13 @@ export class StoryListItem extends HTMLElement {
   showFilterAction(event?: MouseEvent): void {
     if (this.classList.contains("filtered")) {
       SettingsPanel.instance?.highlight_filter(this.story.filter, true)
+      return
+    }
+    if (document.body.dataset.platform === "mobile") {
+      StoryFilterView.show_mobile_filter_dialog(
+        this.story,
+        (filter) => getOnceClient().addFilter(filter)
+      )
       return
     }
     StoryFilterView.show_filter_dialog(
@@ -356,48 +542,203 @@ export class StoryListItem extends HTMLElement {
 
   swipeable = (): void => {
     let start_offset = -1
-    const threshold = 0.1
+    // Raw travel decides when stage two starts locking. Display travel may be
+    // magnetically adjusted, but must never arm a protected action early.
+    let raw_offset = 0
+    let drag_offset = 0
+    let visual_stage: SwipeStage = 0
+    // The committed stage can intentionally trail the visual stage while a
+    // fast swipe is passing through stage two.
+    let stage: SwipeStage = 0
+    let stage_2_direction = 0
+    let stage_2_timer: ReturnType<typeof setTimeout> | undefined
+    let stage_2_quiet_timer: ReturnType<typeof setTimeout> | undefined
+    let stage_2_lock_phase: "none" | "quiet" | "handoff" = "none"
+    // Read per gesture rather than captured: a preview row is configured
+    // after story_html() has already installed the handlers.
+    const geometry = (): SwipeGeometry => this.swipePreview?.geometry ?? SwipeConfig
 
+    // The reveal is absolutely positioned over the row's own box, inside the
+    // scroll container. It must not participate in layout: an in-flow sibling
+    // (even one cancelled out with a negative margin) reflows the list, and
+    // the rows above it visibly jump the moment a drag begins.
     const add_background_element = () => {
-      this.style.display = "inline-flex"
-
-      if (!this.querySelector(".bb_slide")) {
+      if (!this.bb_slide?.isConnected) {
         const bb_slide_el = document.createElement("div")
-        bb_slide_el.style.height = this.clientHeight + "px"
-        bb_slide_el.style.marginBottom = -this.clientHeight + "px"
-        bb_slide_el.style.lineHeight = this.clientHeight + "px"
         bb_slide_el.classList.add("bb_slide")
 
         const bb_slide_left = document.createElement("div")
-        bb_slide_left.innerText = "read"
         bb_slide_left.classList.add("swipe_left")
-        bb_slide_left.style.backgroundImage =
-          "linear-gradient(45deg, rgba(0, 128, 0, 0.5), transparent 50%)"
+        bb_slide_left.append(
+          Object.assign(document.createElement("span"), {
+            className: "swipe_action_primary"
+          }),
+          Object.assign(document.createElement("span"), {
+            className: "swipe_action_secondary"
+          })
+        )
         bb_slide_el.append(bb_slide_left)
         this.sw_left = bb_slide_left
 
         const bb_slide_right = document.createElement("div")
-        bb_slide_right.innerText = "skip"
         bb_slide_right.classList.add("swipe_right")
-        bb_slide_right.style.backgroundImage =
-          "linear-gradient(45deg, transparent 50%, rgba(200, 0, 0, 0.5))"
+        bb_slide_right.append(
+          Object.assign(document.createElement("span"), {
+            className: "swipe_action_primary"
+          }),
+          Object.assign(document.createElement("span"), {
+            className: "swipe_action_secondary"
+          })
+        )
         bb_slide_el.append(bb_slide_right)
         this.sw_right = bb_slide_right
 
+        this.bb_slide = bb_slide_el
+        // Before the row in DOM order so the row paints over it. Both sit in
+        // the positioned layer — the row because of its transform.
         this.before(bb_slide_el)
       }
+      position_background()
+      update_reveal(drag_offset, visual_stage)
+    }
+
+    // offsetTop/offsetHeight are layout positions, unaffected by the row's own
+    // transform, so the reveal stays put while the row slides across it.
+    const position_background = () => {
+      if (!this.bb_slide) return
+      this.bb_slide.style.top = this.offsetTop + "px"
+      this.bb_slide.style.height = this.offsetHeight + "px"
+      this.bb_slide.style.lineHeight = this.offsetHeight + "px"
+    }
+
+    // Reveal the first action as soon as the row moves. The stage still stays
+    // at zero until its threshold, so an early release remains harmless, but
+    // the gesture responds immediately instead of showing an empty gap.
+    const update_reveal = (
+      offset: number,
+      revealedStage: SwipeStage,
+      lockState: "none" | "pending" | "armed" = "none",
+      lockPhase: "none" | "quiet" | "handoff" = "none"
+    ) => {
+      if (!this.sw_left || !this.sw_right) return
+      const revealed = offset > 0 ? this.sw_left : this.sw_right
+      const hidden = offset > 0 ? this.sw_right : this.sw_left
+      const primary = revealed.querySelector<HTMLElement>(".swipe_action_primary")
+      const secondary =
+        revealed.querySelector<HTMLElement>(".swipe_action_secondary")
+      const hiddenPrimary =
+        hidden.querySelector<HTMLElement>(".swipe_action_primary")
+      const hiddenSecondary =
+        hidden.querySelector<HTMLElement>(".swipe_action_secondary")
+      if (!primary || !secondary || !hiddenPrimary || !hiddenSecondary) return
+
+      hiddenPrimary.innerText = ""
+      hiddenSecondary.innerText = ""
+      hidden.dataset.stage = "0"
+      hidden.dataset.action = "none"
+      hidden.dataset.lock = "none"
+      hidden.dataset.lockPhase = "none"
+      hidden.dataset.pendingAction = "none"
+
+      const direction = Math.sign(offset)
+      const action =
+        direction === 0
+          ? "none"
+          : geometry().actionAt(
+            revealedStage === 0 ? 1 : revealedStage,
+            direction
+          )
+      const pendingAction =
+        direction === 0 ? "none" : geometry().actionAt(2, direction)
+      const showHandoff =
+        lockState === "pending" &&
+        lockPhase === "handoff" &&
+        pendingAction !== action
+
+      primary.innerText = direction === 0 ? "" : SWIPE_ACTION_LABELS[action]
+      secondary.innerText =
+        showHandoff ? `Hold → ${SWIPE_ACTION_LABELS[pendingAction]}` : ""
+      secondary.dataset.action = showHandoff ? pendingAction : "none"
+      revealed.dataset.stage = String(revealedStage)
+      revealed.dataset.lock = lockState
+      revealed.dataset.lockPhase = lockPhase
+      revealed.dataset.pendingAction = showHandoff ? pendingAction : "none"
+      const lockInMs = geometry().settings().stage2LockInMs
+      const quietMs = Math.min(75, lockInMs)
+      revealed.style.setProperty(
+        "--swipe-handoff-duration",
+        Math.max(0, lockInMs - quietMs) + "ms"
+      )
+      // CSS picks the reveal colour off the action, so a reconfigured swipe
+      // keeps its colour meaning instead of colouring by stage number.
+      revealed.dataset.action = action
+    }
+
+    const clear_stage_2_lock = () => {
+      if (stage_2_timer !== undefined) {
+        clearTimeout(stage_2_timer)
+        stage_2_timer = undefined
+      }
+      if (stage_2_quiet_timer !== undefined) {
+        clearTimeout(stage_2_quiet_timer)
+        stage_2_quiet_timer = undefined
+      }
+      stage_2_direction = 0
+      stage_2_lock_phase = "none"
+    }
+
+    const start_stage_2_lock = (direction: number) => {
+      clear_stage_2_lock()
+      stage_2_direction = direction
+      stage_2_lock_phase = "quiet"
+      stage = 1
+      const lockInMs = geometry().settings().stage2LockInMs
+      const quietMs = Math.min(75, lockInMs)
+      const stage1Action = geometry().actionAt(1, direction)
+      const stage2Action = geometry().actionAt(2, direction)
+      if (quietMs < lockInMs && stage1Action !== stage2Action) {
+        stage_2_quiet_timer = setTimeout(() => {
+          stage_2_quiet_timer = undefined
+          if (
+            stage_2_direction !== direction ||
+            geometry().stage(raw_offset) !== 2 ||
+            Math.sign(raw_offset) !== direction
+          ) {
+            return
+          }
+          stage_2_lock_phase = "handoff"
+          update_reveal(drag_offset, 1, "pending", "handoff")
+        }, quietMs)
+      }
+      stage_2_timer = setTimeout(() => {
+        stage_2_timer = undefined
+        if (stage_2_quiet_timer !== undefined) {
+          clearTimeout(stage_2_quiet_timer)
+          stage_2_quiet_timer = undefined
+        }
+        if (
+          stage_2_direction !== direction ||
+          geometry().stage(raw_offset) !== 2 ||
+          Math.sign(raw_offset) !== direction
+        ) {
+          return
+        }
+        stage = 2
+        stage_2_lock_phase = "none"
+        update_reveal(drag_offset, 2, "armed")
+      }, lockInMs)
     }
 
     const mouse_swipe = (event: MouseEvent) => {
-      if (start_offset == -1) {
-        start_offset = event.pageX
+      if (!this.bb_slide) {
         add_background_element()
       }
       swipe(event.pageX)
     }
 
     const touch_swipe = (event: TouchEvent) => {
-      const scroller = this.closest<HTMLElement>("#stories")
+      const scroller =
+        this.swipePreview?.scroller ?? this.closest<HTMLElement>("#stories")
       if (!scroller || getTouchGestureAxis(scroller) !== "horizontal") {
         return
       }
@@ -407,37 +748,55 @@ export class StoryListItem extends HTMLElement {
       }
       event.preventDefault()
       if (start_offset == -1) {
-        start_offset = one_touch.clientX
+        // Measure from the touchstart, not from here: this handler first runs
+        // once the axis lock has resolved, several moves into the gesture, and
+        // a flick can cover most of its distance by then. Anchoring here threw
+        // that travel away, so a swipe that visibly passed stage 1 could
+        // release having registered almost nothing.
+        start_offset =
+          getTouchGestureStart(scroller)?.x ?? one_touch.clientX
         add_background_element()
       }
       swipe(one_touch.clientX)
     }
-    
+
     const swipe = (x: number) => {
-      //check that slide_bb is infront of our story element
-      if (!this.previousElementSibling?.classList.contains("bb_slide")) {
-        //find and place in front of story element
-        const bb_slide_el = document.querySelector(".bb_slide")
-        if (bb_slide_el) {
-          this.before(bb_slide_el)
+      raw_offset = x - start_offset
+      drag_offset = geometry().displayOffset(raw_offset)
+      const settings = geometry().settings()
+      const raw_stage = geometry().stage(raw_offset)
+      // Preserve magnetic stage selection in the normal mode. Fast-swipe
+      // protection alone uses raw travel, so stickiness cannot preview or arm
+      // its protected second action before the finger actually reaches it.
+      visual_stage = settings.fastSwipeMode
+        ? raw_stage
+        : geometry().stage(drag_offset)
+      let lockState: "none" | "pending" | "armed" = "none"
+
+      if (settings.fastSwipeMode && settings.twoStage && raw_stage === 2) {
+        const direction = Math.sign(raw_offset)
+        if (stage_2_direction !== direction) {
+          start_stage_2_lock(direction)
         }
+        lockState = stage === 2 ? "armed" : "pending"
+      } else {
+        clear_stage_2_lock()
+        stage = visual_stage
       }
+      const revealedStage =
+        lockState === "pending" ? 1 : visual_stage
+      update_reveal(
+        drag_offset,
+        revealedStage,
+        lockState,
+        lockState === "pending" ? stage_2_lock_phase : "none"
+      )
+      // Direct manipulation is deliberately 1:1, like the platform mail and
+      // list patterns: thresholds select an action but never move the row on
+      // the user's behalf.
       this.style.transition = "none"
-      const shift = x - start_offset
-      const shift_percent = Math.abs(shift) / this.clientWidth
-
-
-      if (this.sw_left && this.sw_right) {
-        if (shift_percent > threshold) {
-          this.sw_left.style.fontWeight = "bold"
-          this.sw_right.style.fontWeight = "bold"
-        } else {
-          this.sw_left.style.fontWeight = ""
-          this.sw_right.style.fontWeight = ""
-        }
-      }
-
-      this.style.transform = `translateX(${shift}px)`
+      this.style.transform = `translateX(${drag_offset}px)`
+      this.swipePreview?.onTravel?.(drag_offset)
     }
 
     this.addEventListener("touchmove", () => {
@@ -462,10 +821,12 @@ export class StoryListItem extends HTMLElement {
         e.stopPropagation()
         return
       }
-      if (this.parentElement) {
-        this.parentElement.style.width = this.parentElement.offsetWidth + "px"
-      }
       e.preventDefault()
+      // The press is the origin of the drag. Taking it from the first
+      // pointermove instead dropped however far the pointer had already
+      // travelled — with coalesced moves that is easily past stage 1, which
+      // left mid-length drags resting on a plateau but committing nothing.
+      start_offset = e.pageX
       document.body.style.cursor = "w-resize"
       document.addEventListener("pointermove", mouse_swipe)
       document.addEventListener("touchmove", touch_swipe)
@@ -476,41 +837,65 @@ export class StoryListItem extends HTMLElement {
       this.parentElement?.addEventListener("scroll", end_swipe)
     })
 
+    // Releasing past a threshold fires that stage; an early release only
+    // floats the row home, which makes an abandoned drag safe.
     const end_swipe = (e: Event) => {
       e.preventDefault()
       e.stopPropagation()
 
-      // Extract shift value from transform
-      const transformValue = this.style.transform
-      let shift = 0
-      if (transformValue && transformValue.includes("translateX")) {
-        const match = transformValue.match(/translateX\((-?[\d.]+)px\)/)
-        if (match) {
-          shift = parseFloat(match[1])
-        }
-      }
+      const committed = stage
+      const direction = Math.sign(raw_offset)
+      reset_swipe()
+      commit_swipe(committed, direction)
 
-      if (Math.abs(shift) / this.clientWidth > threshold) {
-        if (shift < 0) {
+      return false
+    }
+
+    const commit_swipe = (committed: SwipeStage, direction: number) => {
+      const action = geometry().actionAt(committed, direction)
+      if (this.swipePreview) {
+        // A sample row: say what would have happened, change nothing.
+        this.swipePreview.onAction(action, committed)
+        return
+      }
+      switch (action) {
+        case "none":
+          return
+        case "open":
+          this.read_btn.classList.add("user_interaction")
+          this.openStory("_self")
+          return
+        case "open-browser":
+          void executeStoryMenuAction("open-browser", this)
+          return
+        case "skip":
+          // Unconditional, unlike toggle-read: a swipe to skip should skip.
           this.read_btn.classList.add("user_interaction")
           StoryHistory.instance.story_change(
             this.story,
             "skipped",
             this.story.read_state
           )
-          getOnceClient().persistStoryChange(
+          void getOnceClient().persistStoryChange(
             this.story.href,
             "read_state",
             "skipped"
           )
-        } else {
-          open_story(this.story.href, "_self")
-        }
+          return
+        // The rest already exist as menu actions; routing through them keeps
+        // reader persistence and the filter dialog in one place.
+        case "open-reader":
+          void executeStoryMenuAction("open-reader", this)
+          return
+        case "toggle-read":
+          void executeStoryMenuAction("toggle-read", this)
+          return
+        case "toggle-bookmark":
+          void executeStoryMenuAction("toggle-bookmark", this)
+          return
+        case "filter":
+          void executeStoryMenuAction("filter", this)
       }
-
-      reset_swipe()
-
-      return false
     }
 
     // the browser took over the gesture (e.g. Android starts scrolling):
@@ -520,18 +905,21 @@ export class StoryListItem extends HTMLElement {
     }
 
     const reset_swipe = () => {
-      this.style.display = ""
-      if (this.parentElement) {
-        this.parentElement.style.width = ""
-      }
-
       document.querySelectorAll<HTMLElement>(".bb_slide").forEach((el) => {
-        el.outerHTML = ""
+        el.remove()
       })
+      this.bb_slide = undefined
 
       start_offset = -1
-      this.style.transition = ""
+      clear_stage_2_lock()
+      raw_offset = 0
+      drag_offset = 0
+      visual_stage = 0
+      stage = 0
+      // spring back rather than snapping, so the release reads as a release
+      this.style.transition = SWIPE_RELEASE_TRANSITION
       this.style.transform = ""
+      this.swipePreview?.onTravel?.(0)
       document.body.style.cursor = ""
       document.removeEventListener("touchmove", touch_swipe)
       document.removeEventListener("pointermove", mouse_swipe)
@@ -562,8 +950,12 @@ export class StoryListItem extends HTMLElement {
     const commentsUrl = sub_story_ob.comment_url || this.story.href
     bindLinkBehavior(comments_link, {
       onClick: () => {
-        this.read_btn.classList.add("user_interaction")
-        openStoryUrl(commentsUrl, "_self", false)
+        if (commentsUrl === this.story.comment_url) {
+          this.openComments()
+        } else {
+          this.read_btn.classList.add("user_interaction")
+          openStoryUrl(commentsUrl, "_self", false)
+        }
       },
       onMiddleClick: () => {
         this.read_btn.classList.add("user_interaction")
@@ -607,7 +999,8 @@ export class StoryListItem extends HTMLElement {
 
         if (tag.icon) {
           tag_el.style.background = `url(${tag.icon}) no-repeat`
-          tag_el.style.backgroundSize = "13px"
+          tag_el.style.backgroundSize =
+            document.body.dataset.platform === "mobile" ? "16px" : "13px"
           tag_el.style.backgroundPosition = "left top"
           tag_el.style.paddingLeft = "17px"
         }
@@ -637,6 +1030,34 @@ export class StoryListItem extends HTMLElement {
     }
     btn.title = title
     return btn
+  }
+
+  /**
+   * The ⋮ affordance. Hidden by default (Electron and the extensions use their
+   * native context menus) and revealed by the touch platforms, which have no
+   * such API.
+   */
+  add_menu_button(): void {
+    this.menu_btn = StoryListItem.icon_button("story actions", "menu_btn")
+    this.menu_btn.dataset.testid = "story-menu-button"
+    this.menu_btn.textContent = "⋮"
+    this.menu_btn.setAttribute("aria-haspopup", "menu")
+    this.menu_btn.setAttribute("aria-label", "Story actions")
+    // Claiming the press keeps swipeable() and the long-press detector from
+    // arming, so the button opens the menu on TAP and nothing else fires.
+    this.menu_btn.addEventListener("pointerdown", (event) => {
+      event.stopPropagation()
+    })
+    this.menu_btn.addEventListener("click", (event) => {
+      event.stopPropagation()
+      this.requestMenu()
+    })
+    this.appendChild(this.menu_btn)
+  }
+
+  /** Anchors on the whole row by default so ⋮ and long-press agree. */
+  requestMenu(anchor: HTMLElement = this): void {
+    this.dispatchEvent(new StoryMenuRequestEvent(this, anchor))
   }
 
   add_read_button(): void {

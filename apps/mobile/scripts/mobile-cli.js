@@ -17,9 +17,7 @@ function fail(message) {
 
 function loadAndroidLocalEnvironment() {
   const envPath = path.join(root, ".env.android.local")
-  if (!fs.existsSync(envPath)) {
-    fail("missing .env.android.local; copy .env.android.example and set ONCE_ANDROID_WIRELESS_ADDRESS")
-  }
+  if (!fs.existsSync(envPath)) return
   for (const rawLine of fs.readFileSync(envPath, "utf8").split(/\r?\n/)) {
     const line = rawLine.trim()
     if (!line || line.startsWith("#")) continue
@@ -128,6 +126,82 @@ function adbCommand(env) {
   return command
 }
 
+const wirelessAddressPattern = /^[^:\s]+:\d+$/
+
+// `adb mdns services` lists paired wireless-debugging devices advertising
+// _adb-tls-connect._tcp, e.g.
+//   adb-RF8RC1R3QFT-i4U24z  _adb-tls-connect._tcp  192.168.2.212:41525
+// The port is reassigned on every reboot, so discovery beats a pinned address.
+function discoverWirelessAddresses(adb, env) {
+  const result = spawnSync(adb, ["mdns", "services"], { env, encoding: "utf8" })
+  if (result.error || result.status !== 0) return []
+  const addresses = []
+  for (const line of (result.stdout || "").split(/\r?\n/)) {
+    const match = line.trim().match(/^(\S+)\s+_adb-tls-connect\._tcp\.?\s+(\S+:\d+)$/)
+    if (match && wirelessAddressPattern.test(match[2])) {
+      addresses.push({ name: match[1], address: match[2] })
+    }
+  }
+  return addresses
+}
+
+// On macOS, Bonjour discovery can intermittently return no services even while
+// the ADB server still has a healthy wireless connection. An IP:port serial in
+// `adb devices` is already connected and is therefore a safe discovery fallback.
+function connectedWirelessAddresses(adb, env) {
+  const result = spawnSync(adb, ["devices"], { env, encoding: "utf8" })
+  if (result.error || result.status !== 0) return []
+  const addresses = []
+  for (const line of (result.stdout || "").split(/\r?\n/)) {
+    const match = line.trim().match(/^(\S+)\s+device(?:\s|$)/)
+    if (match && wirelessAddressPattern.test(match[1])) {
+      addresses.push(match[1])
+    }
+  }
+  return [...new Set(addresses)]
+}
+
+// Precedence: an explicit ONCE_ANDROID_WIRELESS_ADDRESS in the environment,
+// then mDNS discovery, an existing ADB wireless connection, then
+// .env.android.local.
+function resolveWirelessAddress(adb, env) {
+  const exported = process.env.ONCE_ANDROID_WIRELESS_ADDRESS
+  if (exported) {
+    if (!wirelessAddressPattern.test(exported)) {
+      fail("ONCE_ANDROID_WIRELESS_ADDRESS must be an IP or hostname followed by :port")
+    }
+    console.log(`mobile: using ONCE_ANDROID_WIRELESS_ADDRESS ${exported}`)
+    return exported
+  }
+  const discovered = discoverWirelessAddresses(adb, env)
+  if (discovered.length > 1) {
+    const listed = discovered.map(entry => `${entry.name} (${entry.address})`).join(", ")
+    fail(`adb mdns found multiple devices: ${listed} — set ONCE_ANDROID_WIRELESS_ADDRESS to pick one`)
+  }
+  if (discovered.length === 1) {
+    console.log(`mobile: discovered ${discovered[0].name} at ${discovered[0].address} via adb mdns`)
+    return discovered[0].address
+  }
+  const connected = connectedWirelessAddresses(adb, env)
+  if (connected.length > 1) {
+    fail(`adb has multiple connected wireless devices: ${connected.join(", ")} — set ONCE_ANDROID_WIRELESS_ADDRESS to pick one`)
+  }
+  if (connected.length === 1) {
+    console.log(`mobile: using connected wireless device ${connected[0]} from adb devices`)
+    return connected[0]
+  }
+  loadAndroidLocalEnvironment()
+  const address = process.env.ONCE_ANDROID_WIRELESS_ADDRESS
+  if (!address) {
+    fail("no wireless device found via adb mdns or adb devices; enable wireless debugging and pair the device, or copy .env.android.example to .env.android.local and set ONCE_ANDROID_WIRELESS_ADDRESS")
+  }
+  if (!wirelessAddressPattern.test(address)) {
+    fail("ONCE_ANDROID_WIRELESS_ADDRESS must be an IP or hostname followed by :port")
+  }
+  console.log(`mobile: using ${address} from .env.android.local`)
+  return address
+}
+
 function platformEnvironment(platform, channel) {
   return platform === "android" ? androidEnvironment(channel).env : environment(channel)
 }
@@ -166,6 +240,23 @@ function buildWeb(channel) {
   const env = environment(channel)
   runNpm(["run", "build:packages"], env)
   runNpm(["run", channel === "dev" ? "build:dev" : "build", "--workspace", "@once/mobile"], env)
+  writeWebStamp(channel)
+}
+
+// Record what the web bundle in dist was built from. `npm run check` runs a
+// plain `build:mobile:dev`, which overwrites an --e2e bundle with one that
+// loads stories from the network at startup; the mobile web suite reads this
+// stamp so it rebuilds instead of failing in ways that look like gesture bugs.
+function writeWebStamp(channel) {
+  fs.mkdirSync(path.join(appRoot, "dist"), { recursive: true })
+  fs.writeFileSync(
+    path.join(appRoot, "dist", ".once-web-build.json"),
+    JSON.stringify({
+      channel,
+      e2e: Boolean(options.e2e),
+      builtAt: Date.now()
+    })
+  )
 }
 
 function sync(platform, channel) {
@@ -266,13 +357,10 @@ else if (command === "run") {
 } else if (command === "deploy") {
   if (platform !== "android") fail("deploy only supports android")
   if (channel !== "release") fail("deploy only supports the release channel")
-  loadAndroidLocalEnvironment()
-  const address = process.env.ONCE_ANDROID_WIRELESS_ADDRESS
-  if (!address || !/^[^:\s]+:\d+$/.test(address)) {
-    fail("ONCE_ANDROID_WIRELESS_ADDRESS must be an IP or hostname followed by :port")
-  }
-  sync(platform, channel)
   const android = androidEnvironment(channel)
+  const adb = adbCommand(android.env)
+  const address = resolveWirelessAddress(adb, android.env)
+  sync(platform, channel)
   run(android.command, [
     "-classpath",
     path.join(appRoot, "android", "gradle", "wrapper", "gradle-wrapper.jar"),
@@ -295,7 +383,6 @@ else if (command === "run") {
     "app-production-debug.apk"
   )
   if (!fs.existsSync(apk)) fail(`built APK not found at ${apk}`)
-  const adb = adbCommand(android.env)
   run(adb, ["connect", address], { env: android.env })
   run(adb, ["-s", address, "install", "-r", apk], { env: android.env })
 } else if (command === "package") {

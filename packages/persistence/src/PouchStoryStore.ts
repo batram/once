@@ -2,6 +2,20 @@ import { Story } from "@once/core"
 
 export interface PouchStoryDatabase {
   allDocs(options: Record<string, unknown>): Promise<{ rows: { doc?: unknown }[] }>
+  createIndex(
+    options: PouchDB.Find.CreateIndexOptions,
+    callback: PouchDB.Core.Callback<PouchDB.Find.CreateIndexResponse<object>>
+  ): void
+  createIndex(
+    options?: PouchDB.Find.CreateIndexOptions
+  ): Promise<PouchDB.Find.CreateIndexResponse<object>>
+  find(
+    options: PouchDB.Find.FindRequest<object>,
+    callback: PouchDB.Core.Callback<PouchDB.Find.FindResponse<object>>
+  ): void
+  find(
+    options?: PouchDB.Find.FindRequest<object>
+  ): Promise<PouchDB.Find.FindResponse<object>>
   get(id: string): Promise<Record<string, unknown>>
   put(doc: Record<string, unknown>): Promise<{ rev?: string }>
   remove(
@@ -57,6 +71,16 @@ export class PouchStoryStore<TStory extends Story> {
         const doc = entry.doc as Record<string, unknown>
         return this.storyFromDocument(doc)
       })
+  }
+
+  async getStaredStories(): Promise<TStory[]> {
+    await this.db.createIndex({ index: { fields: ["stared"] } })
+    const response = await this.db.find({
+      selector: { stared: { $eq: true } }
+    })
+    return response.docs.map((doc) =>
+      this.storyFromDocument(doc as unknown as Record<string, unknown>)
+    )
   }
 
   async getStoriesByUrls(urls: string[]): Promise<Map<string, TStory>> {

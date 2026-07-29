@@ -7,6 +7,7 @@ const { startStoryFixture } = require("./local-source")
 const storyFixture = require("../shared/story-fixture")
 const {
   openExtensionPanel,
+  openSettingsSection,
   reopenExtensionPanel,
   systemAccessService
 } = require("./firefox-panel")
@@ -71,13 +72,16 @@ test(
 
       let panelHandle = await openExtensionPanel(driver, extensionUuid)
 
-      await driver
-        .findElement(By.css('[data-testid="settings-menu"]'))
-        .click()
-      const animation = await driver.findElement(By.css("#anim_checkbox"))
+      const animation = await openSettingsSection(
+        driver,
+        "theme",
+        "#anim_checkbox"
+      )
       if (await animation.isSelected()) await animation.click()
-      const sources = await driver.findElement(
-        By.css('[data-testid="sources"]')
+      const sources = await openSettingsSection(
+        driver,
+        "sources",
+        '[data-testid="sources"]'
       )
       await sources.clear()
       await sources.sendKeys(source.source)
@@ -152,6 +156,12 @@ test(
       await waitForClass(driver, deltaSelector, "stared")
 
       const betaSelector = storySelector(source.urls.beta)
+      await driver.wait(
+        until.elementLocated(
+          By.css(`${betaSelector} .info a.comment_url`)
+        ),
+        15_000
+      )
       await openNewTab(
         driver,
         panelHandle,

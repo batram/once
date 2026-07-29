@@ -7,7 +7,11 @@ const {
   STORY_TITLE,
   startGenyFixture
 } = require("../shared/geny-fixture")
-const { openExtensionPanel, systemAccessService } = require("./firefox-panel")
+const {
+  openExtensionPanel,
+  openSettingsSection,
+  systemAccessService
+} = require("./firefox-panel")
 
 test(
   "Firefox genymatch extracts innerText from fetched HTML",
@@ -44,9 +48,10 @@ test(
 
       await openExtensionPanel(driver, extensionUuid)
 
-      await driver.findElement(By.css('[data-testid="settings-menu"]')).click()
-      const sources = await driver.findElement(
-        By.css('[data-testid="sources"]')
+      const sources = await openSettingsSection(
+        driver,
+        "sources",
+        '[data-testid="sources"]'
       )
       await sources.clear()
       await sources.sendKeys(fixture.source)

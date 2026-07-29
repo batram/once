@@ -68,14 +68,16 @@ Webpack cleans only the selected target and channel directory on each extension
 build, so dev and release artifacts can coexist. Production builds are minified
 and omit source maps; development builds include inline source maps.
 
-Every build carries a build channel (`release` or `dev`) that is shown next to
-the version in the settings panel, as `x.y.z (dev)` on dev builds. Production
-extension builds are release-channel; development builds are dev-channel and
-additionally rename the extension to "Once Sidepanel (dev)" and switch the
-manifest icons to `ic_launcher_dev.png`, so a dev install is distinguishable
-from a store install in the toolbar and extension list. The icon sources live
-in `packages/ui-web/public/static/imgs/icons/` (`icon.svg`/`icon_dev.svg` plus
-the exported `ic_launcher*` files under `mipmap-mdpi/`).
+Every build carries a build channel (`release` or `dev`). The settings panel
+shows a compact build identifier beside the version: `x.y.z (dev ID)` for dev
+builds and `x.y.z (ID)` for non-dev builds. Published releases omit this blip
+and show only `x.y.z`. Production extension builds are release-channel;
+development builds are dev-channel and additionally rename the extension to
+"Once Sidepanel (dev)" and switch the manifest icons to
+`ic_launcher_dev.png`, so a dev install is distinguishable from a store install
+in the toolbar and extension list. The icon sources live in
+`packages/ui-web/public/static/imgs/icons/` (`icon.svg`/`icon_dev.svg` plus the
+exported `ic_launcher*` files under `mipmap-mdpi/`).
 
 ## Load locally
 
@@ -164,11 +166,17 @@ npm run mobile -- package ios --channel dev
 npm run package:mobile:android
 npm run package:mobile:ios
 
-# Install release-channel Android content on a paired wireless device
-copy .env.android.example .env.android.local
-# Edit ONCE_ANDROID_WIRELESS_ADDRESS, then:
+# Install release-channel Android content on a paired wireless device.
+# The address is discovered with `adb mdns services`; no configuration is
+# needed when exactly one paired device is advertising.
 npm run deploy:mobile:android
 ```
+
+Deploy resolves the wireless address in this order: an exported
+`ONCE_ANDROID_WIRELESS_ADDRESS`, then `adb mdns services`, then
+`.env.android.local`. Export the variable or copy `.env.android.example` to
+`.env.android.local` when discovery finds nothing, or set it to choose between
+several advertised devices.
 
 The iOS packaging command resolves the public Capacitor Swift package with
 system Git, disables Git credential helpers and interactive prompts, and tells
@@ -256,8 +264,15 @@ driver listed in CI first. The runner rebuilds the dev app automatically when
 the installed bundle is missing, older than the sources, or was not packaged
 with `--e2e` (tracked via a build stamp in `apps/mobile/dist`); set
 `ONCE_MOBILE_APP` to test a specific prebuilt bundle instead. The test
-environment listens on port 3211, serves only reviewed fixtures, and exposes
-its authenticated CouchDB-compatible endpoint below `/db`.
+environment serves only reviewed fixtures and exposes its authenticated
+CouchDB-compatible endpoint below `/db`. Standard web and native runs ask the
+OS for a free port, identify the server with a per-run ownership token, and
+keep PouchDB state in a private temporary directory that is removed after the
+server exits. This avoids port-selection races, Playwright artifact cleanup,
+and cross-run LevelDB locks. Set `ONCE_MOBILE_TEST_PORT` only when a stable
+explicit port is required; an occupied explicit port fails without terminating
+its owner. Set `ONCE_MOBILE_TEST_DATA_DIR` only when database files need to be
+retained for debugging.
 
 With an Android emulator already running, `npm run test:mobile:e2e:android:local`
 configures the local SDK and JDK paths, installs the pinned UiAutomator2 driver
@@ -266,6 +281,26 @@ The runner also supports physical and network-connected ADB devices: it pins
 Appium to the selected serial and uses `adb reverse` so the app can reach the
 host-only test server at `127.0.0.1`. If more than one device is connected, set
 `ONCE_ANDROID_UDID` to the serial shown by `adb devices`.
+
+For a repeatable manual visual pass, use:
+
+```bash
+npm run inspect:mobile:android
+npm run inspect:mobile:ios
+```
+
+Each command builds and installs the current development app, replaces its
+sources with a deterministic visual-inspection feed, loads eight stories with
+varied title lengths and dates, scrolls to the top of the Stories panel, and
+then releases automation while leaving the app and emulator/simulator open.
+The command intentionally keeps running because the story and reader fixtures
+are served from its isolated temporary server; interact with the app normally
+and press Ctrl-C in the terminal when the visual pass is finished. Ctrl-C stops
+the fixture server and removes Android reverse-port forwarding without shutting
+down or erasing the device. Android requires one already-running emulator or
+connected device and follows the same `ONCE_ANDROID_UDID` selection rule as the
+local native test. iOS uses the configured `ONCE_MOBILE_DEVICE`,
+`ONCE_IOS_VERSION`, or `ONCE_IOS_UDID` when supplied.
 
 Before either channel is distributed to internal testers, run this checklist on
 at least one physical Android device and one physical iPhone:

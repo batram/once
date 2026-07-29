@@ -2,11 +2,32 @@ export { StoryListItem } from "./StoryListItem"
 export * as StoryList from "./StoryList"
 export { StoryHistory } from "./StoryHistory"
 export * from "./StoryContextMenu"
+export {
+  openStoryAnchoredMenu,
+  openAnchoredMenu,
+  closeStoryAnchoredMenu,
+  isStoryAnchoredMenuOpen,
+  AnchoredMenuItem,
+  AnchoredMenuOptions,
+  StoryAnchoredMenuOptions
+} from "./StoryAnchoredMenu"
 export { SettingsPanel } from "./SettingsPanel"
+export {
+  parseSourceGroups,
+  serializeSourceGroups,
+  parseFilterRows,
+  parseRedirectRows,
+  serializeRedirectRows
+} from "./StructuredSettingsEditors"
 export { LoaderInsights } from "./LoaderInsights"
 export { HoverUrlIndicator } from "./HoverUrlIndicator"
 export { addCollectorColorStyles } from "./CollectorStyles"
-export { showConfirmDialog, ConfirmDialogOptions } from "./ConfirmDialog"
+export {
+  showConfirmDialog,
+  showTextInputDialog,
+  ConfirmDialogOptions,
+  TextInputDialogOptions
+} from "./ConfirmDialog"
 export * as Search from "./search"
 export * as Menu from "./menu"
 export { setOnceClient, getOnceClient } from "./client"
@@ -20,6 +41,15 @@ export {
 } from "./AppUpdateControls"
 export { ReaderView } from "./reader/ReaderView"
 export { ReaderDocumentHost } from "./ReaderDocumentHost"
+export {
+  ReadingSession,
+  ReadingSessionState,
+  ReadingMode,
+  ReadingLoadState,
+  ReadingRequestEvent,
+  READING_REQUEST,
+  requestReading
+} from "./ReadingSession"
 export { SourcePickerView } from "./picker/SourcePickerView"
 export { extractArticle, ReaderArticle } from "./reader/extractArticle"
 export { readerDocument, ReaderTheme } from "./reader/readerDocument"

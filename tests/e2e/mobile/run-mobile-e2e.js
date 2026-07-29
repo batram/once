@@ -1,9 +1,17 @@
 const path = require("path")
 const fs = require("fs")
-const net = require("net")
 const { spawn, spawnSync } = require("child_process")
+const { startTestServer } = require("./test-server-process")
+const {
+  ADB_COMMAND_TIMEOUT_MS,
+  adbFailureDetail,
+  isAndroidEmulator,
+  verifyAndroidTransport,
+  resolveAndroidSerial
+} = require("./android-device")
 
 const platform = process.argv[2]
+const visual = process.argv.includes("--visual")
 if (platform !== "android" && platform !== "ios") {
   console.error("Expected android or ios")
   process.exit(1)
@@ -18,36 +26,15 @@ const appBundles = {
   android: "android/app/build/outputs/apk/development/debug/app-development-debug.apk",
   ios: "ios/build/Build/Products/Debug-iphonesimulator/Once Dev.app"
 }
-// Generated during builds; changes here must not count as source changes.
-const generatedNames = new Set([
-  "node_modules", "dist", "build", ".gradle", "output", "DerivedData",
-  "xcuserdata", "public", "capacitor.config.json", "capacitor.plugins.json",
-  "config.xml"
-])
-
-function newestSourceTime(target) {
-  const stat = fs.statSync(target, { throwIfNoEntry: false })
-  if (!stat) return 0
-  if (!stat.isDirectory()) return stat.mtimeMs
-  let newest = 0
-  for (const entry of fs.readdirSync(target)) {
-    if (generatedNames.has(entry)) continue
-    newest = Math.max(newest, newestSourceTime(path.join(target, entry)))
-  }
-  return newest
-}
+const { newestSourceTime, packageSources, readStamp } = require("./build-freshness")
 
 function stalenessReason() {
   if (process.env.ONCE_MOBILE_APP) return null
   if (!fs.existsSync(path.join(appRoot, appBundles[platform]))) {
     return "the app bundle is missing"
   }
-  let stamp
-  try {
-    stamp = JSON.parse(fs.readFileSync(path.join(appRoot, "dist", `.once-package-${platform}.json`), "utf8"))
-  } catch {
-    return "there is no build stamp from `mobile package`"
-  }
+  const stamp = readStamp(`.once-package-${platform}.json`)
+  if (!stamp) return "there is no build stamp from `mobile package`"
   if (!stamp.e2e) return "the last build was not an --e2e build"
   if (stamp.channel !== "dev") return `the last build was for the ${stamp.channel} channel`
   const sources = [
@@ -55,8 +42,7 @@ function stalenessReason() {
     path.join(appRoot, "webpack.config.js"),
     path.join(appRoot, "capacitor.config.ts"),
     path.join(appRoot, platform === "android" ? "android" : "ios"),
-    ...fs.readdirSync(path.join(root, "packages")).map((name) =>
-      path.join(root, "packages", name, "src"))
+    ...packageSources()
   ]
   if (sources.some((source) => newestSourceTime(source) > stamp.builtAt)) {
     return "sources changed since the last build"
@@ -78,56 +64,86 @@ function ensureFreshApp() {
   if (build.status !== 0) process.exit(build.status || 1)
 }
 
+function installVisualApp() {
+  if (!visual) return
+  const app = path.join(appRoot, appBundles[platform])
+  let command
+  let args
+  if (platform === "android") {
+    const executable = process.platform === "win32" ? "adb.exe" : "adb"
+    const sdk = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT
+    command = sdk ? path.join(sdk, "platform-tools", executable) : executable
+    const serial = resolveAndroidSerial(command, process.env, spawnSync, {
+      npmScript: visual ? "inspect:mobile:android:run" : "test:mobile:e2e:android"
+    })
+    args = ["-s", serial, "install", "-r", app]
+  } else {
+    command = "xcrun"
+    args = [
+      "simctl",
+      "install",
+      process.env.ONCE_IOS_UDID || "booted",
+      app
+    ]
+  }
+  const install = spawnSync(command, args, {
+    cwd: root,
+    env: process.env,
+    stdio: "inherit",
+    timeout: platform === "android" ? 120_000 : undefined
+  })
+  if (install.error) {
+    throw new Error(`Unable to install the visual-inspection app: ${install.error.message}`)
+  }
+  if (install.status !== 0) {
+    throw new Error(`Unable to install the visual-inspection app (exit ${install.status})`)
+  }
+}
+
 const results = path.join(root, "test-results", "mobile")
 fs.mkdirSync(results, { recursive: true })
 const serverLog = fs.createWriteStream(path.join(results, `${platform}-test-server.log`))
-let server
 let stopping = false
 let androidReverse
-
-function availablePort() {
-  return new Promise((resolve, reject) => {
-    const probe = net.createServer()
-    probe.once("error", reject)
-    probe.listen(0, "127.0.0.1", () => {
-      const address = probe.address()
-      const port = typeof address === "object" && address ? address.port : 0
-      probe.close((error) => error ? reject(error) : resolve(port))
-    })
-  })
-}
-
-function startServer(env) {
-  server = spawn(node, ["tests/mobile-env/server.js"], {
-    cwd: root,
-    env,
-    stdio: ["ignore", "pipe", "pipe"]
-  })
-  for (const stream of [server.stdout, server.stderr]) {
-    stream.on("data", chunk => {
-      process.stdout.write(chunk)
-      serverLog.write(chunk)
-    })
-  }
-}
+let testServer
+let wdio
+let runWatchdog
+let finalizing = false
 
 function configureAndroidReverse(port, env) {
   if (platform !== "android" || process.env.ONCE_MOBILE_TEST_URL) return
   const executable = process.platform === "win32" ? "adb.exe" : "adb"
   const sdk = env.ANDROID_HOME || env.ANDROID_SDK_ROOT
   const adb = sdk ? path.join(sdk, "platform-tools", executable) : executable
-  const serial = env.ONCE_ANDROID_UDID || env.ANDROID_SERIAL
+  const serial = resolveAndroidSerial(adb, env, spawnSync, {
+    npmScript: visual ? "inspect:mobile:android:run" : "test:mobile:e2e:android"
+  })
+  verifyAndroidTransport(adb, serial, env, spawnSync)
+  env.ONCE_ANDROID_UDID = serial
+  env.ANDROID_SERIAL = serial
+  if (isAndroidEmulator(serial)) {
+    env.ONCE_MOBILE_TEST_URL = `http://10.0.2.2:${port}`
+    console.log(
+      `Connecting Android emulator ${serial} to the host test server at ` +
+      `10.0.2.2:${port}`
+    )
+    return
+  }
   const target = `tcp:${port}`
-  const args = [...(serial ? ["-s", serial] : []), "reverse", target, target]
-  const result = spawnSync(adb, args, { cwd: root, env, encoding: "utf8" })
-  if (result.error) {
-    throw new Error(`Unable to configure ADB reverse for the mobile test server: ${result.error.message}`)
+  const args = ["-s", serial, "reverse", target, target]
+  const result = spawnSync(adb, args, {
+    cwd: root,
+    env,
+    encoding: "utf8",
+    timeout: ADB_COMMAND_TIMEOUT_MS
+  })
+  if (result.error || result.status !== 0) {
+    throw new Error(
+      "Unable to configure ADB reverse for the mobile test server: " +
+      adbFailureDetail(result, "adb reverse")
+    )
   }
-  if (result.status !== 0) {
-    const detail = (result.stderr || result.stdout || "unknown adb error").trim()
-    throw new Error(`Unable to configure ADB reverse for the mobile test server: ${detail}`)
-  }
-  androidReverse = { adb, args: [...(serial ? ["-s", serial] : []), "reverse", "--remove", target], env }
+  androidReverse = { adb, args: ["-s", serial, "reverse", "--remove", target], env }
   env.ONCE_MOBILE_TEST_URL = `http://127.0.0.1:${port}`
   console.log(`Forwarding Android 127.0.0.1:${port} to the host test server with adb reverse`)
 }
@@ -137,49 +153,68 @@ function removeAndroidReverse() {
   spawnSync(androidReverse.adb, androidReverse.args, {
     cwd: root,
     env: androidReverse.env,
-    stdio: "ignore"
+    stdio: "ignore",
+    timeout: ADB_COMMAND_TIMEOUT_MS
   })
   androidReverse = undefined
 }
 
-async function waitForServer(port) {
-  for (let attempt = 0; attempt < 50; attempt += 1) {
-    if (server.exitCode !== null) throw new Error(`Mobile test server exited with ${server.exitCode}`)
-    try {
-      const response = await fetch(`http://127.0.0.1:${port}/health`)
-      if (response.ok) return
-    } catch {
-      // Server is still starting.
-    }
-    await new Promise(resolve => setTimeout(resolve, 100))
+function forceStopWdio() {
+  if (!wdio?.pid || wdio.exitCode !== null) return
+  if (process.platform === "win32") {
+    spawnSync("taskkill.exe", ["/pid", String(wdio.pid), "/t", "/f"], {
+      stdio: "ignore",
+      timeout: 5_000
+    })
+  } else {
+    wdio.kill("SIGKILL")
   }
-  throw new Error(`Mobile test server did not become ready on port ${port}`)
+}
+
+async function finalize(code) {
+  if (finalizing) return
+  finalizing = true
+  clearTimeout(runWatchdog)
+  await testServer?.stop()
+  removeAndroidReverse()
+  serverLog.end()
+  process.exit(code)
 }
 
 async function start() {
   ensureFreshApp()
-  const port = process.env.ONCE_MOBILE_TEST_PORT || String(await availablePort())
-  const testEnv = { ...process.env, ONCE_MOBILE_TEST_PORT: port }
+  installVisualApp()
+  let testEnv
+  let port
   try {
+    testServer = startTestServer({
+      port: process.env.ONCE_MOBILE_TEST_PORT || "0",
+      stdout: "pipe",
+      stderr: "pipe"
+    })
+    for (const stream of [testServer.child.stdout, testServer.child.stderr]) {
+      stream.on("data", chunk => {
+        process.stdout.write(chunk)
+        serverLog.write(chunk)
+      })
+    }
+    const started = await testServer.ready
+    port = String(started.port)
+    testEnv = started.env
     configureAndroidReverse(port, testEnv)
-    startServer(testEnv)
-    await waitForServer(port)
     if (stopping) return
-    const reset = await fetch(`http://127.0.0.1:${port}/test/databases/mobile_${platform}/reset`, {
+    const database = visual ? `visual_${platform}` : `mobile_${platform}`
+    const reset = await fetch(`http://127.0.0.1:${port}/test/databases/${database}/reset`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ docs: [] })
     })
-    if (!reset.ok) throw new Error(`Unable to reset mobile_${platform} test database`)
+    if (!reset.ok) throw new Error(`Unable to reset ${database} test database`)
   } catch (error) {
     console.error(error)
-    server?.kill()
-    removeAndroidReverse()
-    serverLog.end()
-    process.exit(1)
-    return
+    await finalize(1)
   }
-  const wdio = spawn(
+  wdio = spawn(
     node,
     [
       npmCli,
@@ -190,22 +225,55 @@ async function start() {
       "wdio",
       path.join(root, `tests/e2e/mobile/wdio.${platform}.conf.js`)
     ],
-    { cwd: root, stdio: "inherit", env: testEnv }
+    {
+      cwd: root,
+      stdio: "inherit",
+      env: {
+        ...testEnv,
+        ...(visual ? { ONCE_MOBILE_VISUAL_INSPECTION: "1" } : {})
+      }
+    }
   )
-  wdio.on("exit", (code) => {
-    server.kill()
-    removeAndroidReverse()
-    serverLog.end()
-    process.exit(code || 0)
+  wdio.on("exit", async (code, signal) => {
+    if (visual && !signal && code === 0) {
+      console.log("")
+      console.log(`${platform === "android" ? "Android emulator" : "iOS Simulator"} is ready for visual inspection.`)
+      console.log("The fixture server will remain available while this command is running.")
+      console.log("Press Ctrl-C when finished to remove forwarding and stop the fixture server.")
+      return
+    }
+    await finalize(signal ? 1 : (code || 0))
   })
+  wdio.on("error", async error => {
+    console.error(error)
+    await finalize(1)
+  })
+  if (!visual) {
+    const configuredTimeout = Number(process.env.ONCE_MOBILE_E2E_TIMEOUT_MS || 600_000)
+    const runTimeout = Number.isFinite(configuredTimeout) && configuredTimeout > 0
+      ? configuredTimeout
+      : 600_000
+    runWatchdog = setTimeout(() => {
+      console.error(
+        `Mobile E2E run timed out after ${Math.round(runTimeout / 1000)}s; ` +
+        "forcing WebdriverIO/Appium cleanup"
+      )
+      if (wdio?.exitCode === null) wdio.kill("SIGTERM")
+      setTimeout(() => {
+        forceStopWdio()
+        void finalize(1)
+      }, 5_000).unref()
+    }, runTimeout)
+  }
 }
 
 start()
 
 function stop() {
   stopping = true
-  server?.kill()
-  removeAndroidReverse()
+  if (wdio?.exitCode === null) wdio.kill("SIGTERM")
+  setTimeout(forceStopWdio, 5_000).unref()
+  void finalize(1)
 }
 process.on("SIGINT", stop)
 process.on("SIGTERM", stop)

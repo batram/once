@@ -11,7 +11,7 @@ declare const browser: {
 
 export class ReaderView {
   private static client: OnceClient | null = null
-  private static openDocument: ((html: string, sourceUrl: string, target: "_self" | "middle") => Promise<void>) | null = null
+  private static openDocument: ReaderDocumentOpener | null = null
 
   static mount(
     client: OnceClient,
@@ -22,6 +22,14 @@ export class ReaderView {
   }
 
   static async open(url: string, target: "_self" | "middle" = "_self"): Promise<void> {
+    return ReaderView.openWith(url, target)
+  }
+
+  static async openWith(
+    url: string,
+    target: "_self" | "middle" = "_self",
+    openDocument: ReaderDocumentOpener | null = ReaderView.openDocument
+  ): Promise<void> {
     if (typeof browser !== "undefined" && browser.runtime?.getURL) {
       await browser.runtime.sendMessage({
         onceCommand: "openReader",
@@ -35,15 +43,21 @@ export class ReaderView {
     const fetched = await ReaderView.client.fetchDocument(url)
     const article = extractArticle(fetched.html, fetched.url)
     const html = readerDocument(article, currentTheme())
-    if (ReaderView.openDocument) {
+    if (openDocument) {
       // Keep the requested story URL as reader identity even when fetching
       // followed redirects; article assets still resolve against the final URL.
-      await ReaderView.openDocument(html, url, target)
+      await openDocument(html, url, target)
       return
     }
     ReaderView.client.openUrl(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`, target)
   }
 }
+
+type ReaderDocumentOpener = (
+  html: string,
+  sourceUrl: string,
+  target: "_self" | "middle"
+) => Promise<void>
 
 function currentTheme(): ReaderTheme {
   const explicit = document.body.getAttribute("data-theme")

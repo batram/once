@@ -46,12 +46,31 @@
   position: relative;
 }
 
+#reading_panel {
+  display: none;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
+}
+
 #left_panel[active_panel="stories"] #stories_panel {
   display: flex;
 }
 
 #left_panel[active_panel="settings"] #settings_panel {
   display: flex;
+}
+
+#left_panel[active_panel="reading"] #reading_panel {
+  display: flex;
+}
+
+#reading_menu_btn {
+  display: none !important;
+}
+
+#mobile_filter_chips {
+  display: none;
 }
 
 #menu {
@@ -68,8 +87,9 @@
 #left_main {
   display: flex;
   flex-direction: column;
-  width: 80%;
-  flex: 1 1;
+  width: auto;
+  flex: 1 1 auto;
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
   position: relative;

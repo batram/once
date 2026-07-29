@@ -118,6 +118,9 @@ export class BrowserShell {
   }
 
   private bindTabs(): void {
+    const clearWindowDropState = () => {
+      document.body.classList.remove("window-is-receiving-drop")
+    }
     this.tabStrip.addEventListener(
       "wheel",
       (event) => {
@@ -140,14 +143,24 @@ export class BrowserShell {
       }
     })
 
+    // Capture cleanup before an internal drop handler can stop propagation.
+    // Otherwise a settings reorder can leave the entire window in no-drag mode.
+    window.addEventListener("drop", clearWindowDropState, { capture: true })
+    window.addEventListener("dragend", clearWindowDropState, { capture: true })
+
     document.addEventListener("dragover", (event) => {
+      // A control inside the shell may already own this drag. In particular,
+      // structured settings rows use text/plain for internal reordering and
+      // set dropEffect to "move"; treating that payload as a dropped URL here
+      // changes it to "link" and prevents native Electron drops from completing.
+      if (event.defaultPrevented) return
       if (!this.hasSupportedDrop(event.dataTransfer)) return
       event.preventDefault()
       if (event.dataTransfer)
         event.dataTransfer.dropEffect = this.hasTabDrop(event.dataTransfer) ? "move" : "link"
     })
     document.addEventListener("drop", (event) => {
-      document.body.classList.remove("window-is-receiving-drop")
+      clearWindowDropState()
       event.preventDefault()
       void this.handleDrop(event)
     })
@@ -156,7 +169,7 @@ export class BrowserShell {
   private bindLayout(): void {
     const stored = Number.parseFloat(localStorage.getItem(SPLIT_RATIO_KEY) || "0.42")
     const initialRatio = Number.isFinite(stored) ? clamp(stored, 0.2, 0.8) : 0.42
-    this.leftPanel.style.flex = `0 0 ${Math.round(initialRatio * 100)}%`
+    this.leftPanel.style.flex = `0 1 ${initialRatio * 100}%`
     this.rightPanel.style.flex = "1 1 auto"
 
     let dragging = false
@@ -171,7 +184,7 @@ export class BrowserShell {
       const minimum = 280
       const maximum = Math.max(minimum, window.innerWidth - 320)
       const width = Math.min(maximum, Math.max(minimum, event.clientX))
-      this.leftPanel.style.flexBasis = `${width}px`
+      this.leftPanel.style.flexBasis = `${width / window.innerWidth * 100}%`
       this.reportBounds()
     })
     this.splitter.addEventListener("pointerup", (event) => {

@@ -30,6 +30,10 @@ class WebStoryStore {
     return limit === undefined ? stories : stories.slice(0, limit)
   }
 
+  async getStaredStories(): Promise<Story[]> {
+    return (await this.getStories()).filter((story) => story.stared)
+  }
+
   async getStoriesByUrls(urls: string[]): Promise<Map<string, Story>> {
     const entries = await Promise.all(
       urls.map(async (url) => [url, await this.getStory(url)] as const)

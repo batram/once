@@ -4,8 +4,10 @@ const {
 } = require("../../../packages/ui-web/dist/HoverUrlIndicator")
 const {
   closeApp,
+  expectDocumentFocus,
   launchApp,
   openPanel,
+  openSettingsSection,
   saveFilters,
   saveRedirects,
   seedLocalSource,
@@ -59,8 +61,14 @@ async function getTabs(window) {
   return window.evaluate(() => window.onceElectron.tabs.getAll())
 }
 
-// The drag needs several moves (the first one only anchors the swipe origin).
-async function swipeStory(window, story, direction) {
+// The swipe is detented: distance selects a stage, not a proportion of the
+// row. Defaults are stage 1 from 56px and stage 2 from 200px, so these land
+// mid-plateau rather than on a boundary.
+const SWIPE_STAGE_DISTANCE = { 1: 110, 2: 260 }
+
+// Several moves rather than one jump, so the drag passes through the detents
+// the way a real one does. The origin is the press, so the full distance counts.
+async function swipeStory(window, story, direction, stage = 1) {
   await expect(story).toBeVisible()
   await story.scrollIntoViewIfNeeded()
 
@@ -70,10 +78,11 @@ async function swipeStory(window, story, direction) {
   }
 
   // Fractional positions on purpose: real touch coordinates (Android
-  // especially) are sub-pixel, and end_swipe must parse those too.
+  // especially) are sub-pixel, and the drag maths must handle those too.
   const startX = box.x + box.width * 0.45
   const y = box.y + box.height / 2
-  const distance = box.width * 0.4 * (direction === "left" ? -1 : 1)
+  const distance =
+    SWIPE_STAGE_DISTANCE[stage] * (direction === "left" ? -1 : 1)
 
   await window.mouse.move(startX, y)
   await window.mouse.down()
@@ -141,9 +150,17 @@ test("stacks, dismisses, restores, and opens source issues through the error log
     const failingSource = `${origin}/failure.rss`
     const sourceLines = [warningOne, warningTwo, failingSource].join("\n")
 
-    await openPanel(window, "settings")
-    await window.locator("#anim_checkbox").uncheck()
-    const sources = window.getByTestId("sources")
+    const animation = await openSettingsSection(
+      window,
+      "theme",
+      "#anim_checkbox"
+    )
+    await animation.uncheck()
+    const sources = await openSettingsSection(
+      window,
+      "sources",
+      '[data-testid="sources"]'
+    )
     await sources.evaluate((textarea, value) => {
       textarea.value = value
     }, sourceLines)
@@ -180,6 +197,18 @@ test("stacks, dismisses, restores, and opens source issues through the error log
     await errors.click()
     const errorBubble = window.locator(".status_issue_bubble.error")
     await expect(errorBubble).toHaveCount(1)
+
+    await openSettingsSection(
+      window,
+      "sources",
+      '[data-testid="sources-structured-list"]'
+    )
+    const failingSourceButton = window.locator(
+      `[data-source-value="${failingSource}"]`
+    )
+    await failingSourceButton.click()
+    await expect(window.getByTestId("structured-item-form")).toBeVisible()
+
     await errorBubble.locator(".status_issue_content").click()
     await expect(window.locator("#left_panel")).toHaveAttribute(
       "active_panel",
@@ -192,9 +221,10 @@ test("stacks, dismisses, restores, and opens source issues through the error log
     await expect(logEntry).toBeVisible()
     await expect(logEntry).toHaveAttribute("open", "")
     await logEntry.locator(".error_log_show_source").click()
-    await expect.poll(() => sources.evaluate((textarea) =>
-      textarea.value.slice(textarea.selectionStart, textarea.selectionEnd)
-    )).toBe(failingSource)
+    await expect(window.getByTestId("structured-item-form")).toBeHidden()
+    await expect(failingSourceButton).toBeVisible()
+    await expectDocumentFocus(failingSourceButton)
+    await expect(failingSourceButton).toHaveClass(/\bstructured_row_target\b/)
   } finally {
     await closeApp(electronApp, userData)
   }
@@ -250,6 +280,19 @@ test("swipe left skips a story without navigating", async () => {
     await swipeStory(window, gamma, "left")
     await expect(gamma).toHaveClass(/skipped/)
     await expect(address).toHaveValue(initialAddress)
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
+test("a full swipe left keeps the filter editor open after release", async () => {
+  const { electronApp, userData, window } = await launchApp(STORY_ENV)
+  try {
+    await seedLocalSource(window, storyFixture.sourceLine(origin), urls.alpha)
+    const delta = storyItem(window, urls.delta)
+
+    await swipeStory(window, delta, "left", 2)
+    await expect(delta.locator(".filter_btn input")).toHaveValue("127.0.0.1")
   } finally {
     await closeApp(electronApp, userData)
   }

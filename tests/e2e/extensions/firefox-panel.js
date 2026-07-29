@@ -1,4 +1,4 @@
-const { By } = require("selenium-webdriver")
+const { By, until } = require("selenium-webdriver")
 const firefox = require("selenium-webdriver/firefox")
 
 // Open the extension's sidepanel page as a normal, drivable tab.
@@ -61,6 +61,41 @@ async function reopenExtensionPanel(driver, extensionUuid) {
   return openExtensionPanel(driver, extensionUuid)
 }
 
+async function openSettingsSection(driver, target, controlSelector) {
+  const label = target.replace(/(^|-)([a-z])/g, (_match, separator, letter) =>
+    `${separator ? " " : ""}${letter.toUpperCase()}`)
+  await driver.findElement(By.css('[data-testid="settings-menu"]')).click()
+  const section = await driver.wait(
+    until.elementLocated(By.css(`[data-settings-target="${target}"]`)),
+    5_000,
+    `${label} settings entry did not appear within 5s`
+  )
+  await driver.wait(
+    until.elementIsVisible(section),
+    5_000,
+    `${label} settings entry was not visible within 5s`
+  )
+  await section.click()
+  if (!controlSelector) return null
+  const control = await driver.wait(
+    until.elementLocated(By.css(controlSelector)),
+    5_000,
+    `${label} settings control ${controlSelector} did not appear within 5s`
+  )
+  const displayed = await control.isDisplayed()
+  if (!displayed && ["sources", "filters", "redirects"].includes(target)) {
+    await driver.findElement(
+      By.css(`[data-testid="${target}-mode-toggle"]`)
+    ).click()
+  }
+  await driver.wait(
+    until.elementIsVisible(control),
+    5_000,
+    `${label} settings control ${controlSelector} was not visible within 5s`
+  )
+  return control
+}
+
 // Build the geckodriver service that lets `openExtensionPanel` run privileged
 // (system-principal) script in the chrome context.
 //
@@ -76,6 +111,7 @@ function systemAccessService() {
 }
 
 module.exports = {
+  openSettingsSection,
   openExtensionPanel,
   reopenExtensionPanel,
   systemAccessService

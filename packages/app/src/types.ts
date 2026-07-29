@@ -1,4 +1,5 @@
 import { Redirect, Story } from "@once/core"
+import { SwipeSettings } from "./swipeSettings"
 
 export type ThemeName = "system" | "light" | "dark"
 export type AnimationSetting = boolean
@@ -75,6 +76,7 @@ export interface OnceAppEvents {
       | "animation"
       | "cache"
       | "sync"
+      | "swipe"
   }
   redirectsChanged: {
     redirects: Redirect[]
@@ -103,7 +105,10 @@ export interface OnceClient {
   getDiagnostics(): DiagnosticError[]
   getSyncStatus(): SyncStatus
   getStorySources(): Promise<string[]>
-  saveStorySources(storySources: string[]): Promise<void>
+  saveStorySources(
+    storySources: string[],
+    reloadStories?: boolean
+  ): Promise<void>
   getFilterList(): Promise<string[]>
   saveFilterList(filterList: string[]): Promise<void>
   getRedirectList(): Promise<Redirect[]>
@@ -116,6 +121,8 @@ export interface OnceClient {
   setTheme(theme: ThemeName): Promise<void>
   getAnimation(): Promise<AnimationSetting>
   setAnimation(animated: AnimationSetting): Promise<void>
+  getSwipeSettings(): Promise<SwipeSettings>
+  setSwipeSettings(settings: SwipeSettings): Promise<void>
   reloadStories(tryCache?: boolean): Promise<void>
   getStories(): Promise<Story[]>
   getStorySnapshot(): Story[]
@@ -145,6 +152,7 @@ export interface ListStorePort {
 export interface StoryStorePort {
   storyId(url: string): string
   getStories(limit?: number): Promise<Story[]>
+  getStaredStories(): Promise<Story[]>
   getStoriesByUrls(urls: string[]): Promise<Map<string, Story>>
   getStory(url: string): Promise<Story | null>
   saveStory(story: Story): Promise<Story>
