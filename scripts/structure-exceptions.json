@@ -10,17 +10,17 @@
     "tests/e2e/mobile/mobile-web.spec.js": "Mobile scenarios are being split by feature."
   },
   "functions": {
-    "apps/electron/src/browser/TabEvents.ts#bind": "Event families will move to focused binders.",
-    "apps/electron/src/BrowserShell.ts#render": "Shell markup extraction is staged.",
+    "apps/electron/src/browser/TabEvents.ts#TabEvents.bind": "Event families will move to focused binders.",
+    "apps/electron/src/BrowserShell.ts#BrowserShell.render": "Shell markup extraction is staged.",
     "apps/mobile/src/main.ts#startMobileApp": "Composition steps will move to named installers.",
     "apps/mobile/src/readerTtsPolyfill.ts#installReaderTtsPolyfill": "Speech API adapter extraction is staged.",
     "packages/ui-web/src/PullToRefresh.ts#attachPullToRefresh": "Gesture state extraction is staged.",
     "packages/ui-web/src/reader/readerTts.ts#installReaderTts": "Reader speech controls extraction is staged.",
-    "packages/ui-web/src/StoryListItem.ts#story_html": "Story markup extraction is staged.",
-    "packages/ui-web/src/StoryListItem.ts#<anonymous>": "Swipe controller extraction is staged.",
-    "packages/ui-web/src/SwipeSettingsLab.ts#<anonymous>": "Preview event wiring extraction is staged.",
-    "scripts/webpack.webext.config.js#<anonymous>": "Webpack configuration remains a declarative build entrypoint.",
-    "tests/e2e/electron/story-list.debug.js#<anonymous>": "Interactive debug harness remains intentionally linear.",
-    "tests/e2e/mobile/mobile-web.spec.js#<anonymous>": "Scenario split is staged."
+    "packages/ui-web/src/StoryListItem.ts#StoryListItem.story_html": "Story markup extraction is staged.",
+    "packages/ui-web/src/StoryListItem.ts#StoryListItem.swipeable": "Swipe controller extraction is staged.",
+    "packages/ui-web/src/SwipeSettingsLab.ts#SwipeSettingsLab.constructor": "Preview event wiring extraction is staged.",
+    "scripts/webpack.webext.config.js#module.exports": "Webpack configuration remains a declarative build entrypoint.",
+    "tests/e2e/electron/story-list.debug.js#test(diagnoses Electron story loading and interactions)": "Interactive debug harness remains intentionally linear.",
+    "tests/e2e/mobile/mobile-web.spec.js#test(story source groups collapse while dragging and restore afterward)": "Scenario split is staged."
   }
 }

@@ -12,6 +12,19 @@ export interface SourceGroupHost extends SourceRowHost {
   deleteGroup(root: HTMLElement, groupIndex: number): void
 }
 
+/**
+ * State of one group reorder gesture, shared by the pointer, touch, and
+ * native drag-and-drop paths so at most one reorder can be in flight.
+ *
+ * `index` is the authoritative "a reorder is running" flag: source-row drop
+ * handlers refuse to move a row while it is set, and `beginDrag` refuses a
+ * second gesture. `destination` is already expressed in post-removal
+ * coordinates, so `commitDrop` can splice with it directly. `committed` is a
+ * commit-once latch, because a gesture can end at a `drop` handler or at
+ * `dragend` and both may fire. `expanded` and `collapseFrame` belong to the
+ * cosmetic collapse described on `beginDrag`, and `suppressToggle` protects
+ * the user's expansion choices from that collapse.
+ */
 interface DragState {
   index: number | null; destination: number | null; committed: boolean
   expanded: Map<string, boolean> | null; collapseFrame: number | null
@@ -19,8 +32,22 @@ interface DragState {
 }
 
 export class SourceGroupView {
+  /**
+   * A render replaces the group elements but cannot unbind the listeners of
+   * the elements it replaced, and `host.save()` re-renders synchronously.
+   * Each `toggle` listener captures the generation it was rendered in, so a
+   * queued event from a replaced element cannot write a stale expansion state
+   * into `open`.
+   */
   private generation = 0
+  // Labels rendered rows as `data-row-key`; no caller reads it yet.
   private rowSequence = 0
+  /**
+   * Expansion state by group id, not by index: group order changes under a
+   * reorder, and `SourceSettingsEditor.read` carries ids across a reparse so a
+   * group the user opened stays open when the text is saved and read back.
+   * Groups absent from the map default to open.
+   */
   private open = new Map<string, boolean>()
   private drag: DragState = { index: null, destination: null, committed: false,
     expanded: null, collapseFrame: null, suppressToggle: false }
@@ -80,6 +107,8 @@ export class SourceGroupView {
     index: number,
     generation: number
   ): HTMLDetailsElement {
+    // Group 0 is the implicit ungrouped bucket: it cannot be renamed, deleted,
+    // dragged, or displaced, which is why index 0 is special-cased throughout.
     const details = document.createElement("details")
     details.className = "structured_group"
     if (index > 0) details.classList.add("structured_group_reorderable")
@@ -87,6 +116,9 @@ export class SourceGroupView {
     details.dataset.groupIndex = String(index)
     details.dataset.groupId = group.id
     details.dataset.searchValue = group.name.toLowerCase()
+    // Only a toggle the user caused counts as a preference: the reorder
+    // collapse and its restoration also mutate `open` on the element, and
+    // `toggle` is delivered after the fact.
     details.addEventListener("toggle", () => {
       if (!this.drag.suppressToggle && generation === this.generation) {
         this.open.set(group.id, details.open)
@@ -207,6 +239,8 @@ export class SourceGroupView {
     return list
   }
 
+  // A row list accepts only a source payload — `<group>:<source>` indices in
+  // `text/plain` — so a group drag crossing it never lights up as a target.
   private installSourceListDrop(list: HTMLElement, groupIndex: number): void {
     list.addEventListener("dragover", (event) => {
       if (!sourceDragPosition(event.dataTransfer)) return
@@ -230,6 +264,12 @@ export class SourceGroupView {
     })
   }
 
+  /**
+   * Dropping a source on a group title moves it into that group, which is the
+   * only way to reach a collapsed or empty group. The `drag.index` checks make
+   * the group reorder win: while a group is being dragged its own summary is
+   * under the pointer, and treating that as a source drop would move a row.
+   */
   private installSourceTitleDrop(
     root: HTMLElement,
     summary: HTMLElement,
@@ -267,6 +307,8 @@ export class SourceGroupView {
     const [fromGroup, fromIndex] = position
     const origin = this.host.groups[fromGroup]
     const target = this.host.groups[destination]
+    // The payload is a stale pair of indices once the model has been edited
+    // during the gesture, so it is bounds-checked rather than trusted.
     if (!origin || !target || fromIndex < 0 || fromIndex >= origin.sources.length) {
       return
     }
@@ -275,6 +317,8 @@ export class SourceGroupView {
     this.host.save(false)
   }
 
+  // The list container is the fallback target: gaps between groups and the
+  // space below the last group would otherwise cancel an in-flight reorder.
   private installRootDrop(root: HTMLElement): void {
     root.addEventListener("dragover", (event) => {
       if (!this.updateDestinationAt(root, event.clientY)) return
@@ -296,6 +340,10 @@ export class SourceGroupView {
     index: number
   ): void {
     const name = summary.querySelector<HTMLElement>(".structured_group_name")
+    // A drag that starts on the group name still ends in a click on the
+    // summary, which `details` would treat as an expand/collapse. The capture
+    // listener swallows exactly that click, and the flag is cleared a task
+    // later so the click dispatched after `dragend` is still covered.
     let suppressClick = false
     summary.addEventListener("click", (event) => {
       if (!suppressClick) return
@@ -316,6 +364,9 @@ export class SourceGroupView {
       this.updateDestinationAt(root, event.clientY))
     name?.addEventListener("dragend", (event) => {
       details.classList.remove("structured_group_dragging")
+      // Last chance to commit: a drop over a gap, or over a target that did not
+      // handle it, reaches only `dragend`. A cancelled drag reports a
+      // `dropEffect` of "none" and must leave the order untouched.
       if (!this.drag.committed && this.drag.destination !== null &&
           event.dataTransfer?.dropEffect === "move") {
         this.commitDrop(root, this.drag.destination)
@@ -342,6 +393,21 @@ export class SourceGroupView {
     })
   }
 
+  /**
+   * Opens a reorder gesture, or refuses it for the pinned first group and for
+   * a second concurrent gesture.
+   *
+   * While reordering, `structured_group_drag_active` collapses every group so
+   * the whole list is reachable without scrolling. That is presentation only,
+   * so the pre-drag expansion of every group is snapshotted first and replayed
+   * by `restore`. The collapse waits a frame because it changes layout: the
+   * browser must have taken the drag image from the uncollapsed element first,
+   * and the scroll position is then corrected by however far the grabbed
+   * summary moved, so the group stays under the pointer. The frame is stored so
+   * a gesture that ends within it can cancel the collapse instead of undoing
+   * it, and it re-checks `drag.index` because a new gesture may own the state
+   * by the time it runs.
+   */
   private beginDrag(
     root: HTMLElement,
     details: HTMLElement,
@@ -367,6 +433,18 @@ export class SourceGroupView {
     return true
   }
 
+  /**
+   * Records where the dragged group would land if the gesture ended now, and
+   * marks the hovered group with the matching insertion indicator.
+   *
+   * The pointer is over `index`, and the vertical half decides whether the drop
+   * goes before or after it. That insertion point counts positions in the list
+   * as it looks now, while `commitDrop` splices the dragged group out before
+   * inserting it, so a destination past the origin shifts down by one.
+   * Hovering the pinned group resolves to position 1, the earliest a movable
+   * group can sit, and the clamp keeps the destination inside the movable range
+   * even when the pointer leaves the list.
+   */
   private updateDestination(
     details: HTMLElement,
     index: number,
@@ -387,6 +465,16 @@ export class SourceGroupView {
       : "structured_group_drop_before")
   }
 
+  /**
+   * Resolves a bare Y coordinate to a group and updates the destination from
+   * it, for the events that report a position but no element: the container's
+   * `dragover`, the repeated `drag` on the dragged name, and touch movement.
+   *
+   * A coordinate of 0 or less is the placeholder some browsers report on the
+   * final `drag` event, and acting on it would snap the destination to the top
+   * of the list. Falling back to the nearest group keeps the gesture live in the
+   * gaps between groups and past the ends of the list.
+   */
   private updateDestinationAt(root: HTMLElement, clientY: number): boolean {
     if (this.drag.index === null || clientY <= 0) return false
     const groups = Array.from(
@@ -413,6 +501,15 @@ export class SourceGroupView {
     )
   }
 
+  /**
+   * Applies the reorder once, and only from the state captured during the
+   * gesture — the caller passes the destination because `restore` clears it.
+   *
+   * The order of the body matters. `restore` runs first, so the expansion state
+   * is repaired while the elements it repairs still exist: `host.save` writes
+   * the settings text and re-renders synchronously, replacing them. The group is
+   * then re-found by id rather than by index, since its index just changed.
+   */
   private commitDrop(root: HTMLElement, destination: number): void {
     if (this.drag.committed || this.drag.index === null) return
     this.drag.committed = true
@@ -427,6 +524,15 @@ export class SourceGroupView {
     this.reveal(root, id)
   }
 
+  /**
+   * Ends the gesture and undoes everything it did for presentation: the pending
+   * or applied collapse, the insertion indicators, and the drag-active class.
+   *
+   * The snapshot is written back to both `open` and the live elements, because
+   * a commit re-renders from `open` while a cancelled gesture keeps the elements
+   * it collapsed. `suppressToggle` is released a task later, after the `toggle`
+   * events caused by those writes have been delivered.
+   */
   private restore(root: HTMLElement): void {
     if (this.drag.collapseFrame !== null) {
       cancelAnimationFrame(this.drag.collapseFrame)
@@ -457,6 +563,15 @@ export class SourceGroupView {
     ))
   }
 
+  /**
+   * Returns focus to the group the gesture moved, so a keyboard or screen
+   * reader user is not dropped at the top of the list.
+   *
+   * Two frames: the first lets the re-render that `host.save` started replace
+   * the elements, the second lets the restored expansion settle so
+   * `scrollIntoView` measures the final layout. Focus is taken without
+   * scrolling for the same reason.
+   */
   private reveal(root: HTMLElement, id: string): void {
     requestAnimationFrame(() => requestAnimationFrame(() => {
       const group = root.querySelector<HTMLElement>(
@@ -468,6 +583,18 @@ export class SourceGroupView {
     }))
   }
 
+  /**
+   * The touch equivalent of `installGroupDrag`: touch devices get no native
+   * drag, so a long press starts the reorder and the group is moved by writing
+   * a transform instead of by a drag image.
+   *
+   * `state` is per element and per gesture. `id` is the pointer or touch
+   * identifier the gesture claimed, which keeps a second finger from steering
+   * it. `grab` is where inside the group the finger landed, so the group stays
+   * under it; `baseTop` is the untransformed top the transform is measured
+   * from. `active` separates a pending press from a running reorder, and
+   * `timer` is the press that has not yet become one.
+   */
   private installTouchReorder(
     root: HTMLElement,
     details: HTMLElement,
@@ -496,6 +623,9 @@ export class SourceGroupView {
       if (!state.active) return
       state.baseTop = details.getBoundingClientRect().top
       this.positionTouch(details, state)
+      // `beginDrag` collapses the list a frame later, which moves this group.
+      // Re-measure once that has happened, discounting the transform already
+      // applied, or every later position would be offset by the collapse.
       requestAnimationFrame(() => {
         if (!state.active) return
         const transform = Number.parseFloat(details.style.getPropertyValue(
@@ -504,6 +634,9 @@ export class SourceGroupView {
         state.baseTop = details.getBoundingClientRect().top - transform
         this.positionTouch(details, state)
       })
+      // Seeding from an adjacent group's near edge resolves to this group's own
+      // position, so a press that never moves shows an insertion indicator and
+      // commits no reorder.
       const neighbor = root.querySelector<HTMLElement>(
         `.structured_group[data-group-index="${index + 1}"]`
       ) || root.querySelector<HTMLElement>(
@@ -519,6 +652,8 @@ export class SourceGroupView {
         )
       }
     }
+    // A press on the group's menu button is not a reorder; claiming it would
+    // swallow the tap that opens the menu.
     const begin = (id: number, y: number, target: EventTarget | null) => {
       if (target instanceof Element && target.closest(".structured_group_menu")) {
         return
@@ -526,12 +661,18 @@ export class SourceGroupView {
       state.id = id; state.startY = state.lastY = y
       state.grab = y - details.getBoundingClientRect().top; state.active = false
       details.classList.add("structured_group_pressing")
+      // Long enough that a scroll or a tap does not trip it, with
+      // `structured_group_pressing` as the feedback that the press is being
+      // held. Movement before it fires belongs to the scroller.
       state.timer = window.setTimeout(activate, 320)
     }
     const move = (id: number, y: number): boolean => {
       if (id !== state.id) return false
       state.lastY = y
       if (!state.active) {
+        // Under the slop the press may still become a reorder, so it stays
+        // pending; past it the gesture is a scroll and is abandoned to the
+        // scroller, which owns the touch until it is released.
         if (Math.abs(y - state.startY) < 8) return false
         clear()
         state.id = null
@@ -541,6 +682,9 @@ export class SourceGroupView {
       this.updateDestinationAt(root, y)
       return true
     }
+    // `touchend` and `pointerup` commit; `touchcancel` and `pointercancel` do
+    // not. Either way the transform is dropped and the state is reset, so an
+    // interrupted gesture cannot leave the group displaced.
     const finish = (commit: boolean) => {
       if (state.id === null) return
       clear()
@@ -580,6 +724,8 @@ export class SourceGroupView {
       const touch = event.changedTouches[0]
       begin(touch.identifier, touch.clientY, event.target)
     }, { passive: true })
+    // Not passive: once the reorder is running the page must not scroll under
+    // it, and only a non-passive listener may cancel that.
     summary.addEventListener("touchmove", (event) => {
       const touch = Array.from(event.changedTouches)
         .find((entry) => entry.identifier === state.id)
@@ -602,6 +748,9 @@ export class SourceGroupView {
     finish: (commit: boolean) => void,
     state: { id: number | null }
   ): void {
+    // Pens and unknown pointer types only: mouse reordering is the native drag
+    // in `installGroupDrag`, and touch is handled by the touch events above, so
+    // accepting either here would run two gestures for one input.
     summary.addEventListener("pointerdown", (event) => {
       if (event.pointerType === "mouse" || event.pointerType === "touch" ||
           event.button !== 0) return

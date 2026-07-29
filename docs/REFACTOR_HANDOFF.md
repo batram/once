@@ -1,6 +1,6 @@
 # Repository Refactor Handoff
 
-Updated: 2026-07-30
+Updated: 2026-07-30 (second pass)
 
 ## Goal
 
@@ -41,21 +41,26 @@ Settings is nearly finished. `SettingsPanel.ts` owns navigation and composition;
 `settings/` and `structuredSettings/`. The 600-line `renderSources` was
 genuinely decomposed — nothing in the new source modules exceeds 89 lines — and
 the risky drag/reorder behavior has direct tests. Last checkpoint: `npm run
-check`, 146 unit tests, 23 collector tests, `check:dead-code`, unfiltered
-`knip`, `git diff --check`. Treat counts as information, not expectations.
+check`, 155 unit tests, 23 collector tests, `check:dead-code`, unfiltered
+`knip`. Treat counts as information, not expectations.
 
-Three known problems, all created by optimizing for the limits:
+`check-structure.js` no longer charges comments against a file's budget, and
+exception keys now name one function each: a class member is keyed
+`File.ts#Class.member`, an assigned function by its target
+(`webpack.webext.config.js#module.exports`), a callback by its call
+(`spec.js#test(name)`), and only a function nothing names falls back to
+`#<anonymous@line>`. The rules are covered by `tests/unit/check-structure.test.js`
+and the exception file was rekeyed in place, so the count is still 20 (8 files,
+12 functions). `SourceGroupView.ts` now documents its drag/reorder state
+machine, which cost 108 comment lines and no budget.
+
+Two known problems, both created by optimizing for the limits:
 
 1. **Two files sit one line under the cap.** `SettingsPanel.ts` and
    `structuredSettings/SourceGroupView.ts` are both at 599 logical lines
-   against a 600 limit. Neither is finished; both are unable to absorb a
-   comment without failing CI.
-2. **Comments are charged against the budget.** `logicalLines` in
-   `scripts/check-structure.js` strips `//` but counts `/** */`. Every new
-   Settings module landed with zero block comments while the facade kept all
-   44 — including `SourceGroupView.ts`, which holds the hardest state machine
-   in the package and explains none of it.
-3. **Host callback bags replaced imports.** Extraction produced five host
+   against a 600 limit. Comments are free now, so both can be explained, but
+   neither can absorb a line of code and neither is finished.
+2. **Host callback bags replaced imports.** Extraction produced five host
    interfaces totalling ~47 members (`FlatSettingsHost` 15,
    `SourceSettingsHost` 13, `SourceRowHost` 9, `StructuredAddButtonHost` 7,
    `SourceGroupHost` 3). Some entries are pure pass-through —
@@ -65,28 +70,9 @@ Three known problems, all created by optimizing for the limits:
 
 ## Next changes
 
-Finish the quality debt before starting a new area. These are small and
-independent of each other.
+Finish the quality debt before starting a new area.
 
-### 1. Make the limit measure code, not prose
-
-In `scripts/check-structure.js`: exclude `/* */` and `/** */` lines from
-`logicalLines`, and key anonymous-function exceptions by position or enclosing
-member instead of collapsing them to `file#<anonymous>`. Today a single
-`file#<anonymous>` entry exempts every unnamed function in that file, present
-and future — five such entries exist. Do this first; it is what unblocks the
-next item.
-
-### 2. Explain the state machines that were just moved
-
-`structuredSettings/SourceGroupView.ts` owns group expansion, drag/reorder,
-drop targets, and collapse restoration, and documents none of it. Add the
-"why" comments: what invariant each piece of mutable state protects, and why
-the reorder commits where it does. Same for the touch reorder path. This is the
-change most likely to save a future reader an hour, and it is currently
-impossible without item 1.
-
-### 3. Collapse the host bags back into imports
+### 1. Collapse the host bags back into imports
 
 - Delete pass-through adapter entries and import `createRowBody`,
   `createRowChevron`, and `showStructuredForm` from `form.ts` at the point of
@@ -101,7 +87,7 @@ impossible without item 1.
 Expect this to reduce total lines and shrink the test stubs; if it does not,
 say so and stop.
 
-### 4. Then `StoryListItem`
+### 2. Then `StoryListItem`
 
 Split markup and action wiring from gesture state, geometry, and animation
 completion. Keep `StoryListItem` as the facade and preserve its exports,
