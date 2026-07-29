@@ -41,29 +41,15 @@ jobs:
       - name: Package extensions
         shell: bash
         run: |
-          mkdir release
+          mkdir -p release/firefox-unsigned
           (cd apps/chrome-extension/dist/release && zip -qr "../../../../release/once-chrome-${RELEASE_TAG}.zip" .)
-      - name: Sign Firefox extension with Mozilla
-        env:
-          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
-          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
-        shell: bash
-        run: |
-          npm exec -- web-ext sign \
-            --source-dir apps/firefox-extension/dist/release \
-            --artifacts-dir release/firefox-signed \
-            --channel unlisted \
-            --api-key "$AMO_JWT_ISSUER" \
-            --api-secret "$AMO_JWT_SECRET"
-          signed_xpi=$(find release/firefox-signed -maxdepth 1 -type f -name '*.xpi' -print -quit)
-          test -n "$signed_xpi"
-          mv "$signed_xpi" "release/once-firefox-${RELEASE_TAG}.xpi"
+          cp -R apps/firefox-extension/dist/release/. release/firefox-unsigned/
       - uses: actions/upload-artifact@v7
         with:
-          name: extensions
+          name: extensions-unsigned
           path: |
             release/*.zip
-            release/*.xpi
+            release/firefox-unsigned
           if-no-files-found: error
 
   electron:
@@ -96,9 +82,51 @@ jobs:
             apps/electron/out/make/**/RELEASES
           if-no-files-found: error
 
+  sign-firefox:
+    name: Sign Firefox extension with Mozilla
+    needs: [extensions, electron]
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v8
+        with:
+          name: extensions-unsigned
+          path: release
+      - name: Sign Firefox extension with Mozilla
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        shell: bash
+        run: |
+          npm exec -- web-ext sign \
+            --source-dir release/firefox-unsigned \
+            --artifacts-dir release/firefox-signed \
+            --channel unlisted \
+            --api-key "$AMO_JWT_ISSUER" \
+            --api-secret "$AMO_JWT_SECRET"
+          signed_xpi=$(find release/firefox-signed -maxdepth 1 -type f -name '*.xpi' -print -quit)
+          test -n "$signed_xpi"
+          mv "$signed_xpi" "release/once-firefox-${RELEASE_TAG}.xpi"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: extensions
+          path: |
+            release/*.zip
+            release/*.xpi
+          if-no-files-found: error
+
   release:
     name: Publish GitHub release
-    needs: [extensions, electron]
+    needs: [sign-firefox, electron]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -113,8 +141,12 @@ jobs:
           node-version: 24
       - uses: actions/download-artifact@v8
         with:
+          name: extensions
           path: release
-          merge-multiple: true
+      - uses: actions/download-artifact@v8
+        with:
+          name: electron-windows
+          path: release
       - run: npm run verify:release-version -- "$RELEASE_TAG"
       - run: npm run verify:release-artifacts -- release release
       - name: Publish release

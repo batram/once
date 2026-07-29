@@ -68,19 +68,26 @@ Work from a clean, green `main`.
    git push origin main vX.Y.Z
    ```
 
-To re-run a release for a tag that already exists, use the workflow's
-`workflow_dispatch` trigger with the tag name instead of pushing a new tag.
+   Once the workflow reaches Mozilla signing, treat the tag and version as
+   immutable. If a problem is found after that point, fix it in a new patch
+   release instead of moving the existing tag; Mozilla does not accept a second
+   submission of the same extension version.
+
+To re-run a release before Mozilla signing has succeeded, use the workflow's
+`workflow_dispatch` trigger with the existing tag name instead of pushing the
+tag again. After Mozilla accepts a version, use a new patch version.
 
 ## What CI checks and produces
 
-The workflow runs three jobs:
+The workflow runs four jobs:
 
 - **Browser extensions** (Ubuntu) — `npm ci`, verify version, run the extension
-  test suite, package the Chrome ZIP, and sign the Firefox XPI with Mozilla via
-  `web-ext sign`. Requires the `AMO_JWT_ISSUER` and `AMO_JWT_SECRET` repository
-  secrets.
+  test suite, and upload the Chrome ZIP plus unsigned Firefox bundle.
 - **Electron for Windows** — `npm ci`, verify version, run Electron unit/e2e
   tests, and `make:electron` (Squirrel installer, NuGet package, ZIP).
+- **Sign Firefox extension with Mozilla** — starts only after both build/test
+  jobs pass, then signs the Firefox bundle via `web-ext sign`. Requires the
+  `AMO_JWT_ISSUER` and `AMO_JWT_SECRET` repository secrets.
 - **Publish GitHub release** — downloads both sets of artifacts, verifies them,
   and runs `gh release create` with the notes file as the release body.
 
