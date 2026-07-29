@@ -57,15 +57,34 @@
       "project": []
     },
     "packages/app": {
+      "includeEntryExports": true,
       "project": ["src/**/*.ts"]
     },
     "packages/collectors": {
+      "includeEntryExports": true,
       "project": ["src/**/*.ts"]
     },
     "packages/core": {
+      "includeEntryExports": true,
+      "project": ["src/**/*.ts"]
+    },
+    "packages/persistence": {
+      "includeEntryExports": true,
+      "project": ["src/**/*.ts"]
+    },
+    "packages/platform-electron": {
+      "includeEntryExports": true,
+      "project": ["src/**/*.ts"]
+    },
+    "packages/platform-mobile": {
+      "includeEntryExports": true,
       "project": ["src/**/*.ts"]
     },
     "packages/platform-web": {
+      "project": ["src/**/*.ts"]
+    },
+    "packages/platform-webext": {
+      "includeEntryExports": true,
       "project": ["src/**/*.ts"]
     },
     "packages/ui-web": {
@@ -73,6 +92,7 @@
         "src/picker/contentScript.ts",
         "src/reader/contentScript.ts"
       ],
+      "includeEntryExports": true,
       "project": ["src/**/*.ts"]
     },
     "packages/webext-shell": {
@@ -81,6 +101,7 @@
         "src/readerBackground.ts",
         "src/storyMenuBackground.ts"
       ],
+      "includeEntryExports": true,
       "project": ["src/**/*.ts"]
     }
   }
