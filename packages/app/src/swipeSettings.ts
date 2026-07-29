@@ -70,8 +70,9 @@ export const DEFAULT_SWIPE_SETTINGS: SwipeSettings = {
 
 /** Smallest sane plateau; below this a stage is indistinguishable from a tap. */
 const MIN_THRESHOLD = 16
+const MIN_STAGE_GAP = 16
 const MAX_THRESHOLD = 1000
-const MAX_FIRST_STAGE = MAX_THRESHOLD - 1
+const MAX_FIRST_STAGE = MAX_THRESHOLD - MIN_STAGE_GAP
 const MIN_STICKY_STRENGTH = 1
 const MAX_STICKY_STRENGTH = 100
 const MIN_STAGE_2_LOCK_IN_MS = 75
@@ -136,11 +137,11 @@ export function normalizeSwipeSettings(value: unknown): SwipeSettings {
 
   const first = stage(0)
   const second = stage(1)
-  if (second.threshold <= first.threshold) {
-    second.threshold = first.threshold + 1
+  if (second.threshold < first.threshold + MIN_STAGE_GAP) {
+    second.threshold = first.threshold + MIN_STAGE_GAP
   }
-  if (second.offset <= first.offset) {
-    second.offset = first.offset + 1
+  if (second.offset < first.offset + MIN_STAGE_GAP) {
+    second.offset = first.offset + MIN_STAGE_GAP
   }
 
   const action = (

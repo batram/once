@@ -135,8 +135,7 @@ body[data-platform="mobile"] select {
 }
 
 body[data-platform="mobile"] textarea,
-body[data-platform="mobile"] input,
-body[data-platform="mobile"] select {
+body[data-platform="mobile"] input {
   font-size: 16px;
   border: var(--m-bw) solid var(--m-ink);
   border-radius: var(--m-radius);

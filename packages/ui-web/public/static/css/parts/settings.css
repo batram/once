@@ -1915,3 +1915,426 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
   color: var(--text-color);
   min-height: 1.2em;
 }
+
+/* ---------- Interactive swipe lab ---------- */
+
+.settings_swipe {
+  --swipe-handle-width: 14px;
+}
+
+#swipe_lab {
+  min-width: 0;
+}
+
+.swipe_lab_scroller {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  padding-bottom: 20px;
+}
+
+.swipe_lab_inner {
+  width: 100%;
+  box-sizing: border-box;
+  /* Transformed handles and their centred value labels must not enlarge the
+     scroller by a stray pixel when they sit at either edge. The inner box's
+     explicit min-width still drives intentional narrow-screen scrolling. */
+  overflow-x: clip;
+}
+
+.swipe_action_blocks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.swipe_action_block {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+  box-sizing: border-box;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--border-color);
+  border-bottom: 0;
+  background: var(--input-bg-color);
+}
+
+.swipe_action_right {
+  border-right: 0;
+  border-radius: 4px 0 0;
+}
+
+.swipe_action_left {
+  border-radius: 0 4px 0 0;
+}
+
+.swipe_action_heading {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.swipe_action_heading span {
+  min-width: 0;
+  color: var(--text-color);
+  font-size: 0.75em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.swipe_action_left .swipe_action_heading {
+  justify-content: flex-end;
+}
+
+.swipe_action_field {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.swipe_stage_label {
+  flex: 0 0 30px;
+  color: var(--text-muted-color);
+  font-size: 0.85em;
+}
+
+.swipe_action_left .swipe_stage_label {
+  text-align: right;
+}
+
+.swipe_action_field select {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  box-sizing: border-box;
+  border-color: var(--border-color);
+}
+
+.swipe_action_right select {
+  border-left: 3px solid var(--swipe-action-color, transparent);
+}
+
+.swipe_action_left select {
+  border-right: 3px solid var(--swipe-action-color, transparent);
+}
+
+.settings_swipe [data-action="open"],
+.settings_swipe [data-action="open-browser"] {
+  --swipe-action-color: var(--swipe-open-color);
+}
+
+.settings_swipe [data-action="open-reader"] {
+  --swipe-action-color: var(--swipe-open-reader-color);
+}
+
+.settings_swipe [data-action="skip"] {
+  --swipe-action-color: var(--swipe-skip-color);
+}
+
+.settings_swipe [data-action="filter"] {
+  --swipe-action-color: var(--swipe-filter-color);
+}
+
+.settings_swipe [data-action="toggle-read"] {
+  --swipe-action-color: var(--swipe-toggle-read-color);
+}
+
+.settings_swipe [data-action="toggle-bookmark"] {
+  --swipe-action-color: var(--swipe-toggle-bookmark-color);
+}
+
+.swipe_action_field.disabled,
+.swipe_ruler_zone.disabled,
+.swipe_ruler_handle.disabled,
+.swipe_advanced .disabled {
+  opacity: 0.5;
+}
+
+.swipe_ruler {
+  position: relative;
+  height: 36px;
+  box-sizing: border-box;
+  margin-bottom: 25px;
+  border-block: 1px solid var(--border-color);
+  border-inline: 0;
+  border-radius: 0 0 4px 4px;
+  background: color-mix(in srgb, var(--text-color) 10%, transparent);
+  /* Draw the side edges without putting them into the ruler's coordinate
+     system. Thus clientWidth, the action-block seam and every zone boundary
+     all describe the same set of pixels. */
+  box-shadow:
+    inset 1px 0 var(--border-color),
+    inset -1px 0 var(--border-color);
+}
+
+.swipe_ruler_zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  box-sizing: border-box;
+  padding: 0;
+  background: color-mix(in srgb, var(--swipe-action-color, var(--text-color)) 20%, transparent);
+  color: var(--text-high-color);
+  font-size: 0.78em;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.swipe_ruler_zone_label {
+  min-width: 0;
+  margin-inline: calc(var(--swipe-handle-width) + 4px);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.swipe_ruler_zone[data-zone^="right"] {
+  justify-content: flex-end;
+}
+
+.swipe_ruler_zone[data-zone^="left"] {
+  justify-content: flex-start;
+}
+
+#swipe_lab .swipe_ruler_handle {
+  position: absolute;
+  z-index: 2;
+  top: -4px;
+  width: var(--swipe-handle-width);
+  height: 44px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  transform: translateX(-50%);
+  border: 1px solid var(--text-high-color);
+  border-radius: 4px;
+  background: var(--input-bg-color);
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.swipe_ruler_handle:focus-visible {
+  outline: 2px solid var(--swipe-open-reader-color);
+  outline-offset: 2px;
+}
+
+.swipe_ruler_value {
+  position: absolute;
+  top: 45px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--text-color);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.swipe_ruler_marker {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  transform: translateX(-1px);
+  background: var(--text-high-color);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.swipe_ruler_marker.active {
+  opacity: 1;
+}
+
+.swipe_lab_preview {
+  min-width: 0;
+}
+
+.swipe_advanced {
+  margin: 0 0 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-color);
+}
+
+.swipe_advanced summary {
+  color: var(--text-high-color);
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
+.swipe_advanced_body {
+  padding-top: 10px;
+}
+
+.swipe_check_row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+
+.swipe_check_row input {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.swipe_inline_hint {
+  color: var(--text-color);
+  font-size: 0.85em;
+}
+
+.swipe_advanced_description {
+  margin: -5px 0 10px 19px;
+  color: var(--text-color);
+  font-size: 0.8em;
+  line-height: 1.4;
+}
+
+.swipe_slider_row {
+  display: grid;
+  grid-template-columns: 10em minmax(100px, 1fr) minmax(4ch, auto);
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px 19px;
+}
+
+.swipe_slider_row input {
+  width: 100%;
+}
+
+.swipe_slider_row output {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.swipe_footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.swipe_save_status {
+  color: var(--text-color);
+  font-size: 0.85em;
+}
+
+.swipe_footer button:first-of-type {
+  margin-left: auto;
+}
+
+@container settings-panel (max-width: 520px) {
+  body[data-platform="mobile"] .settings_swipe {
+    --swipe-handle-width: 22px;
+  }
+
+  body[data-platform="mobile"] .swipe_action_block {
+    gap: 10px;
+    padding: 12px 12px 14px;
+  }
+
+  body[data-platform="mobile"] .swipe_action_heading {
+    font-size: 14px;
+  }
+
+  body[data-platform="mobile"] .swipe_action_heading span {
+    display: none;
+  }
+
+  body[data-platform="mobile"] .swipe_action_field {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+
+  body[data-platform="mobile"] .swipe_action_field::after {
+    position: absolute;
+    z-index: 1;
+    bottom: 0;
+    left: 0;
+    width: 3px;
+    height: 44px;
+    background: transparent;
+    border-radius: 8px 0 0 8px;
+    content: "";
+    pointer-events: none;
+  }
+
+  body[data-platform="mobile"] .swipe_action_field[data-action="open"]::after,
+  body[data-platform="mobile"] .swipe_action_field[data-action="open-browser"]::after,
+  body[data-platform="mobile"] .swipe_action_field[data-action="toggle-read"]::after {
+    background: rgb(0 128 0 / 72%);
+  }
+
+  body[data-platform="mobile"] .swipe_action_field[data-action="open-reader"]::after {
+    background: #4050ac;
+  }
+
+  body[data-platform="mobile"] .swipe_action_field[data-action="skip"]::after {
+    background: rgb(200 0 0 / 66%);
+  }
+
+  body[data-platform="mobile"] .swipe_action_field[data-action="filter"]::after {
+    background: #8f0000;
+  }
+
+  body[data-platform="mobile"] .swipe_action_field[data-action="toggle-bookmark"]::after {
+    background: #b8860b;
+  }
+
+  @supports (color: light-dark(black, white)) {
+    body[data-platform="mobile"] .swipe_action_field::after {
+      background: var(--swipe-action-color, transparent);
+    }
+  }
+
+  body[data-platform="mobile"] .swipe_action_left .swipe_action_field {
+    flex-direction: column-reverse;
+  }
+
+  body[data-platform="mobile"] .swipe_action_left .swipe_action_field::after {
+    right: 0;
+    left: auto;
+    border-radius: 0 8px 8px 0;
+  }
+
+  body[data-platform="mobile"] .swipe_stage_label {
+    flex-basis: auto;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  body[data-platform="mobile"] .swipe_ruler {
+    height: 44px;
+    margin-bottom: 38px;
+  }
+
+  body[data-platform="mobile"] #swipe_lab .swipe_ruler_handle {
+    height: 54px;
+    border-radius: 6px;
+  }
+
+  body[data-platform="mobile"] .swipe_ruler_value {
+    top: 55px;
+    font-size: 11px;
+  }
+
+  body[data-platform="mobile"] .swipe_lab_scroller {
+    padding-bottom: 26px;
+  }
+
+  body[data-platform="mobile"] .swipe_footer button {
+    min-height: 44px;
+  }
+}

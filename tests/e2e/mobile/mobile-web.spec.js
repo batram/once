@@ -47,6 +47,37 @@ async function openSettingsSection(page, section) {
   }
 }
 
+async function setSwipeThreshold(page, stage, value) {
+  const handle = page.getByTestId(`swipe-handle-right-${stage}`)
+  const handleBox = await handle.boundingBox()
+  const rulerBox = await page.getByTestId("swipe-ruler").boundingBox()
+  if (!handleBox || !rulerBox) throw new Error("Swipe ruler is not visible")
+  await page.mouse.move(
+    handleBox.x + handleBox.width / 2,
+    handleBox.y + handleBox.height / 2
+  )
+  await page.mouse.down()
+  await page.mouse.move(
+    rulerBox.x + value,
+    handleBox.y + handleBox.height / 2,
+    { steps: 2 }
+  )
+  await page.mouse.up()
+  await expect(handle).toHaveAttribute("aria-valuenow", String(value))
+}
+
+async function openSwipeAdvanced(page) {
+  const details = page.getByTestId("swipe-advanced")
+  if (!(await details.evaluate((element) => element.open))) {
+    await details.locator("summary").click()
+  }
+}
+
+async function waitForSwipeSettings(page) {
+  await expect(page.getByTestId("swipe-save-status"))
+    .toHaveText("all changes saved")
+}
+
 test("structured settings sections do not autofocus search on mobile", async ({
   page
 }) => {
@@ -746,6 +777,36 @@ test("settings chevron back returns to the previous panel", async ({ page }) => 
   await expect(leftPanel).toHaveAttribute("active_panel", "reading")
 })
 
+test("swipe settings autosave, undo, and reset without submit controls", async ({
+  page
+}) => {
+  await page.goto("./")
+  await openSettingsSection(page, "swipe")
+
+  await expect(page.getByTestId("save-swipe")).toHaveCount(0)
+  await expect(page.getByTestId("undo-swipe")).toBeDisabled()
+  await page.getByTestId("swipe-right-1").selectOption("toggle-bookmark")
+  await expect(page.getByTestId("swipe-save-status")).toHaveText("saving…")
+  await waitForSwipeSettings(page)
+  await expect(page.getByTestId("undo-swipe")).toBeEnabled()
+
+  await page.getByTestId("undo-swipe").click()
+  await expect(page.getByTestId("swipe-right-1")).toHaveValue("open")
+  await waitForSwipeSettings(page)
+  await expect(page.getByTestId("undo-swipe")).toBeDisabled()
+
+  await page.getByTestId("swipe-right-1").selectOption("skip")
+  await waitForSwipeSettings(page)
+  await page.getByTestId("reset-swipe").click()
+  await expect(page.getByTestId("swipe-right-1")).toHaveValue("open")
+  await waitForSwipeSettings(page)
+  await page.getByTestId("undo-swipe").click()
+  await expect(page.getByTestId("swipe-right-1")).toHaveValue("skip")
+  await waitForSwipeSettings(page)
+  await page.getByTestId("reset-swipe").click()
+  await waitForSwipeSettings(page)
+})
+
 test("mobile back dismisses transient story interactions before exiting", async ({ page }) => {
   const story = await seedFixtureStories(page)
   const searchfield = page.locator("#searchfield")
@@ -1103,7 +1164,7 @@ test("filter actions open a visible editor from the menu and a swipe", async ({ 
 
   await openSettingsSection(page, "swipe")
   await page.getByTestId("swipe-left-1").selectOption("filter")
-  await page.getByTestId("save-swipe").click()
+  await waitForSwipeSettings(page)
   await page.waitForTimeout(300)
   await page.getByTestId("stories-menu").click()
 
@@ -1521,8 +1582,8 @@ test("a swipe beyond its threshold stays under the finger", async ({ page }) => 
   const story = await seedFixtureStories(page)
 
   await openSettingsSection(page, "swipe")
-  await page.getByTestId("swipe-threshold-1").fill("100")
-  await page.getByTestId("save-swipe").click()
+  await setSwipeThreshold(page, 1, 100)
+  await waitForSwipeSettings(page)
   await page.waitForTimeout(300)
   await page.getByTestId("stories-menu").click()
 
@@ -1554,9 +1615,9 @@ test("swipe settings retune action thresholds without a reload", async ({ page }
   const story = await seedFixtureStories(page)
 
   await openSettingsSection(page, "swipe")
-  await page.getByTestId("swipe-threshold-1").fill("30")
+  await setSwipeThreshold(page, 1, 30)
   await page.getByTestId("swipe-right-1").selectOption("toggle-bookmark")
-  await page.getByTestId("save-swipe").click()
+  await waitForSwipeSettings(page)
   await page.waitForTimeout(300)
   await page.getByTestId("stories-menu").click()
 
@@ -1575,9 +1636,10 @@ test("sticky stage strength controls the magnetic snap", async ({ page }) => {
   const story = await seedFixtureStories(page)
 
   await openSettingsSection(page, "swipe")
+  await openSwipeAdvanced(page)
   await page.locator("#swipe_sticky_stages").check()
   await page.locator("#swipe_sticky_strength").fill("100")
-  await page.getByTestId("save-swipe").click()
+  await waitForSwipeSettings(page)
   await page.waitForTimeout(300)
   await page.getByTestId("stories-menu").click()
 
@@ -1597,8 +1659,9 @@ test("sticky stage strength controls the magnetic snap", async ({ page }) => {
   })
 
   await openSettingsSection(page, "swipe")
+  await openSwipeAdvanced(page)
   await page.locator("#swipe_sticky_strength").fill("1")
-  await page.getByTestId("save-swipe").click()
+  await waitForSwipeSettings(page)
   await page.waitForTimeout(300)
   await page.getByTestId("stories-menu").click()
 
@@ -1614,6 +1677,7 @@ test("sticky stage strength controls the magnetic snap", async ({ page }) => {
 test("fast swipe mode requires stage two to lock before it commits", async ({ page }) => {
   await seedFixtureStories(page)
   await openSettingsSection(page, "swipe")
+  await openSwipeAdvanced(page)
   await page.locator("#swipe_fast_mode").check()
   await page.locator("#swipe_stage_2_lock_in").fill("175")
 
@@ -1739,6 +1803,7 @@ test("fast swipe handoff respects lock-in extremes and identical actions", async
 }) => {
   await seedFixtureStories(page)
   await openSettingsSection(page, "swipe")
+  await openSwipeAdvanced(page)
   await page.locator("#swipe_fast_mode").check()
   const preview = page.getByTestId("swipe-preview-row")
 
@@ -1789,6 +1854,7 @@ test("fast swipe handoff respects lock-in extremes and identical actions", async
 test("leaving protected stage two resets its lock-in period", async ({ page }) => {
   await seedFixtureStories(page)
   await openSettingsSection(page, "swipe")
+  await openSwipeAdvanced(page)
   await page.locator("#swipe_fast_mode").check()
   await page.locator("#swipe_stage_2_lock_in").fill("175")
   const preview = page.getByTestId("swipe-preview-row")
@@ -1898,7 +1964,7 @@ test("the swipe settings sample row tries unsaved values and commits nothing", a
   await openSettingsSection(page, "swipe")
 
   // Edited but deliberately NOT saved: the sample row reads the form.
-  await page.getByTestId("swipe-threshold-1").fill("30")
+  await setSwipeThreshold(page, 1, 30)
   await page.getByTestId("swipe-right-1").selectOption("toggle-bookmark")
 
   const preview = page.getByTestId("swipe-preview-row")
@@ -1926,9 +1992,11 @@ test("turning off two-stage swipe keeps the gesture on stage one", async ({ page
   const story = await seedFixtureStories(page)
 
   await openSettingsSection(page, "swipe")
+  await openSwipeAdvanced(page)
   await page.locator("#swipe_two_stage").uncheck()
-  await expect(page.getByTestId("swipe-threshold-2")).toBeDisabled()
-  await page.getByTestId("save-swipe").click()
+  await expect(page.getByTestId("swipe-handle-right-2")).toBeDisabled()
+  await expect(page.getByTestId("swipe-handle-left-2")).toBeDisabled()
+  await waitForSwipeSettings(page)
   await page.waitForTimeout(300)
   await page.getByTestId("stories-menu").click()
 

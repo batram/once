@@ -50,7 +50,7 @@ test("distances are clamped into a usable range", () => {
     ]
   })
   assert.equal(settings.stages[0].threshold, 16)
-  assert.equal(settings.stages[0].offset, 999)
+  assert.equal(settings.stages[0].offset, 984)
   assert.equal(settings.stages[1].threshold, 400)
 })
 
@@ -63,20 +63,23 @@ test("normalization keeps both stages within the advertised maximum", () => {
   })
 
   assert.deepEqual(normalized.stages, [
-    { threshold: 999, offset: 999 },
+    { threshold: 984, offset: 984 },
     { threshold: 1000, offset: 1000 }
   ])
 })
 
-test("an inverted stage 2 is pushed above stage 1 so it stays reachable", () => {
+test("stage 2 stays at least 16px beyond stage 1", () => {
   const settings = normalizeSwipeSettings({
     stages: [
       { threshold: 200, offset: 300 },
       { threshold: 50, offset: 60 }
     ]
   })
-  assert.ok(settings.stages[1].threshold > settings.stages[0].threshold)
-  assert.ok(settings.stages[1].offset > settings.stages[0].offset)
+  assert.equal(
+    settings.stages[1].threshold - settings.stages[0].threshold,
+    16
+  )
+  assert.equal(settings.stages[1].offset - settings.stages[0].offset, 16)
 })
 
 test("twoStage only turns off when explicitly false", () => {

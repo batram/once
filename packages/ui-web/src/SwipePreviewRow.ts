@@ -78,7 +78,8 @@ function describe(action: SwipeActionId, stage: SwipeStage): string {
  */
 export function installSwipePreview(
   host: HTMLElement,
-  readSettings: () => SwipeSettings
+  readSettings: () => SwipeSettings,
+  onTravel?: (offset: number) => void
 ): void {
   host.textContent = ""
 
@@ -102,7 +103,8 @@ export function installSwipePreview(
   row.swipePreview = {
     geometry: createSwipeGeometry(readSettings),
     scroller: stage,
-    onAction: (action, stageNumber) => report(describe(action, stageNumber))
+    onAction: (action, stageNumber) => report(describe(action, stageNumber)),
+    onTravel
   }
   blockInteractions(row, report)
   stage.append(row)

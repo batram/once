@@ -156,6 +156,7 @@ export interface SwipePreview {
   /** Element the touch axis lock is keyed to, in place of #stories. */
   scroller: HTMLElement
   onAction(action: SwipeActionId, stage: SwipeStage): void
+  onTravel?(offset: number): void
 }
 
 export class StoryListItem extends HTMLElement {
@@ -795,6 +796,7 @@ export class StoryListItem extends HTMLElement {
       // the user's behalf.
       this.style.transition = "none"
       this.style.transform = `translateX(${drag_offset}px)`
+      this.swipePreview?.onTravel?.(drag_offset)
     }
 
     this.addEventListener("touchmove", () => {
@@ -917,6 +919,7 @@ export class StoryListItem extends HTMLElement {
       // spring back rather than snapping, so the release reads as a release
       this.style.transition = SWIPE_RELEASE_TRANSITION
       this.style.transform = ""
+      this.swipePreview?.onTravel?.(0)
       document.body.style.cursor = ""
       document.removeEventListener("touchmove", touch_swipe)
       document.removeEventListener("pointermove", mouse_swipe)
