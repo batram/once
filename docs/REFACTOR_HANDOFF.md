@@ -109,21 +109,36 @@ was then removed.
   legacy `express-pouchdb@4.2.0` dependency receives a scoped `uuid@3.4.0`
   override because it still imports `uuid/v4`.
 
+### Redirect tester extraction checkpoint
+
+- Moved redirect expression compilation, exact capture-group highlighting,
+  loaded-story corpus counting, and debounced preview rendering from
+  `StructuredSettingsEditors` into
+  `structuredSettings/redirectTester.ts`.
+- Kept `StructuredSettingsEditors` as the facade that supplies the current
+  form fields and loaded story URLs. Existing selectors, timing, result
+  rendering, and `URLRedirect.apply_redirect` behavior are unchanged.
+- Added focused DOM tests for matching URL seeding, exact capture highlighting,
+  redirect output, corpus counts, and invalid regular expressions.
+- Reduced `StructuredSettingsEditors.ts` from 2,432 to 2,291 lines. Its
+  structural exception remains because the stateful source, filter, redirect,
+  and drag/reorder behavior still needs extraction.
+
 ## Verification completed
 
-After the Settings checkpoint:
+After the redirect tester extraction checkpoint:
 
 - `npm run check` passed.
-- `npm run test:unit` passed: 134 tests.
+- `npm run test:unit` passed: 136 tests.
 - `npm run test:collectors` passed: 23 tests.
-- Focused Settings and notification tests passed: 10 tests.
+- Focused structured Settings tests passed: 5 tests.
 - `npm run check:dead-code` passed.
 - Unfiltered `npx knip --no-progress` exited 0 with no dependency findings.
 - `git diff --check` passed.
 - A full codebase-memory MCP reindex succeeded:
   - project: `once`
-  - nodes: 3,406
-  - edges: 8,609
+  - nodes: 3,418
+  - edges: 8,633
   - build/package output directories were excluded.
 
 On this Windows host, package builds can fail inside the sandbox with `EPERM`
@@ -176,8 +191,8 @@ Finish the remaining Settings extraction behind the existing facades:
 
 1. Move the stateful source/source-group renderer and editing behavior out of
    `StructuredSettingsEditors`.
-2. Move filter and redirect rendering/editing, redirect testing, and
-   drag/reorder behavior into focused modules.
+2. Move filter and redirect rendering/editing and drag/reorder behavior into
+   focused modules. The redirect tester is already extracted.
 3. Reduce `SettingsPanel` further by extracting summaries, textarea
    highlighting, and constructor control/event setup.
 4. Preserve every selector, serialized setting, public facade method, and

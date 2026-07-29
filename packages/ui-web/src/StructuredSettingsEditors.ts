@@ -1,6 +1,6 @@
 import { SourceError } from "@once/app"
 import { get_parser_for_url, StoryParser } from "@once/collectors"
-import { parseRedirectList, Redirect, URLRedirect } from "@once/core"
+import { parseRedirectList, Redirect } from "@once/core"
 import { AnchoredMenuItem, openAnchoredMenu } from "./StoryAnchoredMenu"
 import { parseFilterRows } from "./structuredSettings/filters"
 import {
@@ -24,6 +24,7 @@ import {
   createInlineActionButton,
   createListCard
 } from "./structuredSettings/form"
+import { createRedirectTester } from "./structuredSettings/redirectTester"
 
 export { parseFilterRows } from "./structuredSettings/filters"
 export {
@@ -39,32 +40,6 @@ export {
 
 /** Every control showForm builds: the three carry a value and take input. */
 type FormField = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-
-/** null rather than a throw: a half-typed expression is the normal state. */
-function compileRedirect(pattern: string): RegExp | null {
-  if (!pattern.trim()) return null
-  try {
-    return new RegExp(pattern, "d")
-  } catch {
-    return null
-  }
-}
-
-/**
- * Exact spans of the capture groups, from the `d` flag's match indices.
- * Searching the URL for each captured substring instead would highlight the
- * wrong run whenever the same text occurs earlier in the URL.
- */
-function captureRanges(match: RegExpExecArray): Array<[number, number]> {
-  const indices = (match as RegExpExecArray & {
-    indices?: Array<[number, number] | undefined>
-  }).indices
-  if (!indices) return []
-  return indices.slice(1)
-    .filter((range): range is [number, number] =>
-      range !== undefined && range[0] < range[1])
-    .sort((left, right) => left[0] - right[0])
-}
 
 function collectorFor(source: string): StoryParser | undefined {
   try {
@@ -2252,7 +2227,11 @@ export class StructuredSettingsEditors {
       form.append(label)
     })
     const tester = presentation?.redirectTester
-      ? this.redirectTester(inputs[0], inputs[1])
+      ? createRedirectTester(
+        inputs[0],
+        inputs[1],
+        this.options.loadedStoryUrls?.() || []
+      )
       : undefined
     if (tester) form.append(tester.element)
     const error = document.createElement("p")
@@ -2309,124 +2288,4 @@ export class StructuredSettingsEditors {
     inputs[0]?.focus()
   }
 
-  /**
-   * Live preview for the rule being edited. It applies the expression through
-   * URLRedirect.apply_redirect — the same call the loader makes — so the
-   * preview cannot disagree with what the redirect will actually do. It shows
-   * this one rule rather than the whole chain, because that is the rule the
-   * person has in front of them.
-   */
-  private redirectTester(
-    pattern: FormField,
-    replacement: FormField
-  ): { element: HTMLElement; corpus: HTMLElement; refresh: () => void } {
-    const element = document.createElement("section")
-    element.className = "structured_redirect_tester"
-    const testLabel = document.createElement("label")
-    testLabel.className = "structured_form_field"
-    const testLabelName = document.createElement("span")
-    testLabelName.className = "structured_form_label"
-    testLabelName.textContent = "Test a URL"
-    const testInput = document.createElement("input")
-    testInput.type = "url"
-    testInput.className = "structured_redirect_test_input"
-    testInput.placeholder = "https://example.com/2026/an-article"
-    const storyUrls = this.options.loadedStoryUrls?.() || []
-    // Seed with the shortest loaded URL the rule already matches, so reopening
-    // a working rule shows it working rather than an empty box.
-    const seed = compileRedirect(pattern.value)
-    testInput.value = seed
-      ? [...storyUrls]
-        .sort((left, right) => left.length - right.length)
-        .find((url) => seed.test(url)) || ""
-      : ""
-    testLabel.append(testLabelName, testInput)
-    const output = document.createElement("div")
-    output.className = "structured_redirect_output"
-    const corpus = document.createElement("p")
-    corpus.className = "structured_redirect_corpus"
-
-    const line = (className: string, text: string): HTMLElement => {
-      const paragraph = document.createElement("p")
-      paragraph.className = className
-      paragraph.textContent = text
-      return paragraph
-    }
-    const labelled = (name: string): HTMLElement => {
-      const paragraph = document.createElement("p")
-      const strong = document.createElement("strong")
-      strong.textContent = name
-      paragraph.append(strong, document.createTextNode(" "))
-      return paragraph
-    }
-    const countMatches = (expression: RegExp | null): void => {
-      const matched = expression
-        ? storyUrls.filter((url) => expression.test(url)).length
-        : 0
-      corpus.textContent =
-        `Matches ${matched} of ${storyUrls.length} loaded stories`
-    }
-    const render = () => {
-      const url = testInput.value
-      output.textContent = ""
-      if (!pattern.value.trim()) {
-        countMatches(null)
-        output.append(line(
-          "structured_redirect_no_match",
-          "Enter a match expression"
-        ))
-        return
-      }
-      let expression: RegExp
-      try {
-        expression = new RegExp(pattern.value, "d")
-      } catch (caught) {
-        // A half-typed expression is the normal state while someone types. The
-        // parse message takes the Match line and Result is left empty, so the
-        // block keeps both its lines and does not resize under the thumb.
-        countMatches(null)
-        const failed = labelled("Match")
-        failed.classList.add("structured_redirect_parse_error")
-        failed.append(document.createTextNode(caught instanceof Error
-          ? caught.message
-          : "Invalid regular expression"))
-        output.append(failed, labelled("Result"))
-        return
-      }
-      countMatches(expression)
-      const match = expression.exec(url)
-      if (!match) {
-        // A valid but non-matching rule still costs one line, or the editor
-        // changes height under the user's thumb as they type.
-        output.append(line("structured_redirect_no_match", "No match"))
-        return
-      }
-      const matchLine = labelled("Match")
-      let cursor = 0
-      for (const [start, end] of captureRanges(match)) {
-        if (start < cursor) continue
-        matchLine.append(document.createTextNode(url.slice(cursor, start)))
-        const mark = document.createElement("mark")
-        mark.textContent = url.slice(start, end)
-        matchLine.append(mark)
-        cursor = end
-      }
-      matchLine.append(document.createTextNode(url.slice(cursor)))
-      const resultLine = labelled("Result")
-      resultLine.append(document.createTextNode(
-        `→ ${URLRedirect.apply_redirect(url, expression, replacement.value)}`
-      ))
-      output.append(matchLine, resultLine)
-    }
-    let timer: number | undefined
-    const refresh = () => {
-      window.clearTimeout(timer)
-      timer = window.setTimeout(render, 120)
-    }
-    for (const source of [pattern, replacement, testInput]) {
-      source.addEventListener("input", refresh)
-    }
-    element.append(testLabel, output)
-    return { element, corpus, refresh }
-  }
 }
