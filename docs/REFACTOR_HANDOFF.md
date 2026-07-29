@@ -1,6 +1,6 @@
 # Repository Refactor Handoff
 
-Updated: 2026-07-29
+Updated: 2026-07-30
 
 ## Objective
 
@@ -124,21 +124,43 @@ was then removed.
   structural exception remains because the stateful source, filter, redirect,
   and drag/reorder behavior still needs extraction.
 
+### Settings controls and flat-editor checkpoint
+
+- Moved Settings summary calculation, textarea selection/highlighting, sync
+  masking, settings subscriptions, and theme/text/cache/source control binding
+  into focused modules under `packages/ui-web/src/settings`.
+- Reduced `SettingsPanel.ts` to the enforced 600 logical-line limit and removed
+  both its file and anonymous-constructor structural exceptions.
+- Moved filter and redirect state, list rendering, inline editing, saving, and
+  redirect form coordination into
+  `structuredSettings/FlatSettingsEditors.ts`.
+- Moved shared flat-row drag/reorder and structured-list edge auto-scroll into
+  `structuredSettings/dragReorder.ts`.
+- Kept `StructuredSettingsEditors` as the facade and preserved its public
+  parser exports, selectors, serialized values, callbacks, and text/list mode
+  coordination.
+- Added focused DOM tests for Settings summaries, filter rendering/editing and
+  save propagation, malformed redirect presentation, and the previously
+  extracted redirect tester.
+- Intentionally stopped before source/source-group extraction. The
+  `StructuredSettingsEditors.ts` file and its source-rendering function
+  exceptions remain the next coherent phase.
+
 ## Verification completed
 
-After the redirect tester extraction checkpoint:
+After the Settings controls and flat-editor checkpoint:
 
 - `npm run check` passed.
-- `npm run test:unit` passed: 136 tests.
+- `npm run test:unit` passed: 139 tests.
 - `npm run test:collectors` passed: 23 tests.
-- Focused structured Settings tests passed: 5 tests.
+- Focused Settings helper and structured-editor tests passed: 8 tests.
 - `npm run check:dead-code` passed.
 - Unfiltered `npx knip --no-progress` exited 0 with no dependency findings.
 - `git diff --check` passed.
 - A full codebase-memory MCP reindex succeeded:
   - project: `once`
-  - nodes: 3,418
-  - edges: 8,633
+  - nodes: 3,486
+  - edges: 8,768
   - build/package output directories were excluded.
 
 On this Windows host, package builds can fail inside the sandbox with `EPERM`
@@ -187,18 +209,19 @@ Locally ignored planning notes such as `docs/dreams_of_road.txt` and
 
 ## Recommended next commit
 
-Finish the remaining Settings extraction behind the existing facades:
+Finish the remaining source/source-group extraction behind the existing
+`StructuredSettingsEditors` facade:
 
 1. Move the stateful source/source-group renderer and editing behavior out of
    `StructuredSettingsEditors`.
-2. Move filter and redirect rendering/editing and drag/reorder behavior into
-   focused modules. The redirect tester is already extracted.
-3. Reduce `SettingsPanel` further by extracting summaries, textarea
-   highlighting, and constructor control/event setup.
-4. Preserve every selector, serialized setting, public facade method, and
+2. Split the current 602-line source renderer into source-group rendering,
+   group drag/reorder state, and source-row rendering rather than moving its
+   structural exception intact.
+3. Preserve every selector, serialized setting, public facade method, and
    visible behavior; add focused DOM tests around each stateful extraction.
-5. Remove the `SettingsPanel.ts` and `StructuredSettingsEditors.ts` structural
-   exceptions only after both files fall below the enforced limits.
+4. Remove the remaining `StructuredSettingsEditors.ts`, `renderSources`,
+   `sourceRow`, and anonymous-callback structural exceptions only after the
+   extracted modules and facade fall below the enforced limits.
 
 ## Later structural phases
 

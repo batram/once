@@ -11,7 +11,44 @@ const {
 const {
   createRedirectTester
 } = require("../../../packages/ui-web/dist/structuredSettings/redirectTester")
+const {
+  FlatSettingsEditors
+} = require("../../../packages/ui-web/dist/structuredSettings/FlatSettingsEditors")
 const { parseHTML } = require("linkedom")
+
+function withDom(html, callback) {
+  const { window } = parseHTML(html)
+  const previous = {}
+  for (const name of [
+    "document",
+    "window",
+    "Node",
+    "HTMLElement",
+    "HTMLInputElement",
+    "HTMLTextAreaElement"
+  ]) {
+    previous[name] = globalThis[name]
+    globalThis[name] = window[name] || window.document
+  }
+  const previousAnimationFrame = globalThis.requestAnimationFrame
+  globalThis.requestAnimationFrame = (action) => {
+    action()
+    return 1
+  }
+  try {
+    return callback(window)
+  } finally {
+    for (const [name, value] of Object.entries(previous)) {
+      if (value === undefined) Reflect.deleteProperty(globalThis, name)
+      else globalThis[name] = value
+    }
+    if (previousAnimationFrame === undefined) {
+      Reflect.deleteProperty(globalThis, "requestAnimationFrame")
+    } else {
+      globalThis.requestAnimationFrame = previousAnimationFrame
+    }
+  }
+}
 
 test("story source groups round-trip order, duplicates, and empty groups", () => {
   const lines = [
@@ -111,4 +148,92 @@ test("redirect tester reports invalid expressions without throwing", async () =>
       else globalThis[name] = value
     }
   }
+})
+
+test("flat settings editor renders and saves filter edits through its host", () => {
+  withDom('<main data-structured-section="filters"></main>', (window) => {
+    const root = window.document.querySelector("main")
+    const saved = []
+    let openEditor = null
+    const host = {
+      onTouch: () => false,
+      closeOpenEditor: () => openEditor?.(),
+      setOpenEditor: (close) => {
+        openEditor = close
+      },
+      setDetail: () => {},
+      updateAddButton: () => {},
+      listActions: () => null,
+      renderListStatus: () => {},
+      rowBody: (...children) => {
+        const body = window.document.createElement("div")
+        body.append(...children)
+        return body
+      },
+      rowChevron: () => window.document.createElement("span"),
+      render: () => {
+        root.textContent = ""
+        editor.renderFilters(root)
+      },
+      root: () => root,
+      setText: (_section, text) => saved.push(["text", text]),
+      showForm: () => {},
+      saveFilters: (values) => saved.push(["filters", values]),
+      saveRedirects: () => {}
+    }
+    const editor = new FlatSettingsEditors(host)
+    editor.readFilters("first\nsecond")
+    editor.renderFilters(root)
+
+    assert.deepEqual(
+      [...root.querySelectorAll("[data-testid='filter-row']")]
+        .map((button) => button.textContent),
+      ["first", "second"]
+    )
+    window.HTMLInputElement.prototype.select = () => {}
+    root.querySelector("[data-testid='filter-row']").click()
+    const input = root.querySelector("[data-testid='filter-inline-input']")
+    input.value = "changed"
+    const enter = new window.Event("keydown")
+    Object.defineProperty(enter, "key", { value: "Enter" })
+    input.dispatchEvent(enter)
+
+    assert.deepEqual(saved, [
+      ["text", "changed\nsecond"],
+      ["filters", ["changed", "second"]]
+    ])
+  })
+})
+
+test("flat settings editor preserves malformed redirect rows", () => {
+  withDom('<main data-structured-section="redirects"></main>', (window) => {
+    const root = window.document.querySelector("main")
+    const editor = new FlatSettingsEditors({
+      onTouch: () => false,
+      closeOpenEditor: () => {},
+      setOpenEditor: () => {},
+      setDetail: () => {},
+      updateAddButton: () => {},
+      listActions: () => null,
+      renderListStatus: () => {},
+      rowBody: (...children) => {
+        const body = window.document.createElement("div")
+        body.append(...children)
+        return body
+      },
+      rowChevron: () => window.document.createElement("span"),
+      render: () => {},
+      root: () => root,
+      setText: () => {},
+      showForm: () => {},
+      saveFilters: () => {},
+      saveRedirects: () => {}
+    })
+    editor.readRedirects("malformed redirect")
+    editor.renderRedirects(root)
+
+    const row = root.querySelector("[data-testid='redirect-row']")
+    assert.equal(row.textContent, 'malformed redirectNot a "match => replace" line')
+    assert.match(row.title, /Invalid redirect/)
+  })
 })

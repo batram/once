@@ -1,13 +1,7 @@
 import { SourceError } from "@once/app"
 import { get_parser_for_url, StoryParser } from "@once/collectors"
-import { parseRedirectList, Redirect } from "@once/core"
+import { Redirect } from "@once/core"
 import { AnchoredMenuItem, openAnchoredMenu } from "./StoryAnchoredMenu"
-import { parseFilterRows } from "./structuredSettings/filters"
-import {
-  parseRedirectRows,
-  RedirectRow,
-  serializeRedirectRows
-} from "./structuredSettings/redirects"
 import {
   parseSourceGroups,
   serializeSourceGroups,
@@ -21,10 +15,11 @@ import {
 import {
   announceStructuredSettings,
   createActionButton,
-  createInlineActionButton,
-  createListCard
+  createInlineActionButton
 } from "./structuredSettings/form"
 import { createRedirectTester } from "./structuredSettings/redirectTester"
+import { installDragAutoScroll } from "./structuredSettings/dragReorder"
+import { FlatSettingsEditors } from "./structuredSettings/FlatSettingsEditors"
 
 export { parseFilterRows } from "./structuredSettings/filters"
 export {
@@ -87,8 +82,7 @@ export class StructuredSettingsEditors {
   private baselines = new Map<Section, string>()
   private errors = new Map<string, SourceError>()
   private sourceGroups: SourceGroup[] = []
-  private filters: string[] = []
-  private redirects: RedirectRow[] = []
+  private flatEditors: FlatSettingsEditors
   private roots = new Map<Section, HTMLElement>()
   private headers = new Map<Section, HTMLElement>()
   private addButtons = new Map<Section, HTMLButtonElement>()
@@ -97,12 +91,6 @@ export class StructuredSettingsEditors {
   private searchQueries = new Map<Section, string>()
   private sourceGroupOpen = new Map<string, boolean>()
   private detailSections = new Set<Section>()
-  private pendingFilterRevealIndex: number | null = null
-  private filterRevealTimer: number | null = null
-  private dragScroll = new WeakMap<HTMLElement, {
-    frame: number | null
-    velocity: number
-  }>()
   private rowSequence = 0
   private sourceRenderGeneration = 0
   private sourceSaveState: "saved" | "saving" | "failed" = "saved"
@@ -121,6 +109,38 @@ export class StructuredSettingsEditors {
       this.install(section)
       this.modes.set(section, "list")
     }
+    this.flatEditors = new FlatSettingsEditors({
+      onTouch: () => this.onTouch,
+      closeOpenEditor: () => this.closeOpenEditor(),
+      setOpenEditor: (close) => {
+        this.openEditor = close
+      },
+      setDetail: (section) => this.detailSections.add(section),
+      updateAddButton: (section) => this.updateAddButton(section),
+      listActions: (section) => this.listActions(section),
+      renderListStatus: (root, count, noun) =>
+        this.renderListStatus(root, count, noun),
+      rowBody: (...children) => this.rowBody(...children),
+      rowChevron: (label, action) => this.rowChevron(label, action),
+      render: (section) => this.render(section),
+      root: (section) => this.roots.get(section),
+      setText: (section, text) => {
+        this.textarea(section).value = text
+        this.baselines.set(section, text)
+      },
+      showForm: (root, title, fields, save, remove, presentation) =>
+        this.showForm(
+          root,
+          title,
+          fields,
+          save,
+          remove,
+          undefined,
+          presentation
+        ),
+      saveFilters: (values) => this.options.saveFilters(values),
+      saveRedirects: (values) => this.options.saveRedirects(values)
+    })
   }
 
   /**
@@ -195,7 +215,7 @@ export class StructuredSettingsEditors {
       '<span class="structured_status_counts"></span>' +
       '<span class="structured_status_saved" role="status"></span>'
     root.after(status)
-    this.installDragAutoScroll(root)
+    installDragAutoScroll(root)
     const listActions = document.createElement("div")
     listActions.className = "structured_list_actions"
     listActions.dataset.structuredActions = section
@@ -239,11 +259,11 @@ export class StructuredSettingsEditors {
     button.append(glyph)
     button.addEventListener("click", () => {
       if (section === "filters") {
-        this.editFilterInline(root)
+        this.flatEditors.editFilter(root)
         return
       }
       if (section === "redirects") {
-        this.editRedirect(root)
+        this.flatEditors.editRedirect(root)
         return
       }
       this.openMenu(button, this.addSourceMenu(root))
@@ -439,8 +459,8 @@ export class StructuredSettingsEditors {
       })
       this.sourceGroups = parsed
     }
-    if (section === "filters") this.filters = parseFilterRows(text)
-    if (section === "redirects") this.redirects = parseRedirectRows(text)
+    if (section === "filters") this.flatEditors.readFilters(text)
+    if (section === "redirects") this.flatEditors.readRedirects(text)
   }
 
   setErrors(errors: SourceError[]): void {
@@ -509,14 +529,7 @@ export class StructuredSettingsEditors {
 
   focusFilter(filter: string): boolean {
     if (this.isTextMode("filters")) return false
-    const root = this.roots.get("filters")
-    const target = Array.from(root?.querySelectorAll<HTMLButtonElement>(
-      "[data-filter-value]"
-    ) || []).find((button) => button.dataset.filterValue === filter)
-    target?.focus({ preventScroll: true })
-    target?.scrollIntoView({ block: "center" })
-    target?.click()
-    return true
+    return this.flatEditors.focusFilter(filter)
   }
 
   openSettingsSearchMatch(section: string, startIndex: number): boolean {
@@ -588,18 +601,9 @@ export class StructuredSettingsEditors {
     }
     if (rowIndex < 0) return true
     if (section === "filters") {
-      this.editFilterInline(root, rowIndex)
-      const input = root.querySelector<HTMLInputElement>(
-        "[data-testid='filter-inline-input']"
-      )
-      const row = input?.closest<HTMLElement>(".structured_row")
-      row?.classList.add("structured_row_target")
-      window.setTimeout(
-        () => row?.classList.remove("structured_row_target"),
-        1600
-      )
+      this.flatEditors.editFilterAt(root, rowIndex)
     } else {
-      this.editRedirect(root, rowIndex)
+      this.flatEditors.editRedirect(root, rowIndex)
     }
     return true
   }
@@ -636,86 +640,6 @@ export class StructuredSettingsEditors {
     close?.()
   }
 
-  /**
-   * The card and header chrome the sources groups already carry. Filters and
-   * redirects are flat lists rather than disclosures, so they take the same
-   * chrome without the <details>; reusing the name and count classes is what
-   * keeps the three lists from drifting apart.
-   */
-  /**
-   * Drag-to-reorder for a flat row list. The drop reads the indicator the last
-   * dragover left rather than re-measuring the pointer, so the line the person
-   * is looking at is always the position they get.
-   */
-  private installRowDragReorder(
-    rows: HTMLElement,
-    row: HTMLElement,
-    index: number,
-    reorder: (from: number, destination: number) => void
-  ): void {
-    const clearTargets = (keep?: HTMLElement) => {
-      rows.querySelectorAll(".structured_row_drop_target").forEach((target) => {
-        if (target === keep) return
-        target.classList.remove(
-          "structured_row_drop_target",
-          "structured_row_drop_after"
-        )
-      })
-    }
-    const markTarget = (event: DragEvent) => {
-      const bounds = row.getBoundingClientRect()
-      clearTargets(row)
-      row.classList.add("structured_row_drop_target")
-      row.classList.toggle(
-        "structured_row_drop_after",
-        event.clientY >= bounds.top + bounds.height / 2
-      )
-    }
-    row.addEventListener("dragstart", (event) => {
-      row.classList.add("structured_row_dragging")
-      event.dataTransfer?.setData("text/plain", String(index))
-      if (event.dataTransfer) event.dataTransfer.effectAllowed = "move"
-    })
-    row.addEventListener("dragend", () => {
-      row.classList.remove("structured_row_dragging")
-      clearTargets()
-    })
-    row.addEventListener("dragenter", (event) => {
-      event.preventDefault()
-      markTarget(event)
-    })
-    row.addEventListener("dragleave", (event) => {
-      const next = event.relatedTarget
-      if (next instanceof Node && (row.contains(next) || rows.contains(next))) {
-        return
-      }
-      row.classList.remove(
-        "structured_row_drop_target",
-        "structured_row_drop_after"
-      )
-    })
-    row.addEventListener("dragover", (event) => {
-      event.preventDefault()
-      markTarget(event)
-      if (event.dataTransfer) event.dataTransfer.dropEffect = "move"
-    })
-    row.addEventListener("drop", (event) => {
-      event.preventDefault()
-      event.stopPropagation()
-      const after = row.classList.contains("structured_row_drop_after")
-      row.classList.remove(
-        "structured_row_drop_target",
-        "structured_row_drop_after"
-      )
-      const from = Number(event.dataTransfer?.getData("text/plain"))
-      if (!Number.isInteger(from) || from < 0) return
-      let destination = index + (after ? 1 : 0)
-      if (from < destination) destination--
-      if (from === destination) return
-      reorder(from, destination)
-    })
-  }
-
   private render(section: Section): void {
     const root = this.roots.get(section)
     if (!root) return
@@ -731,8 +655,8 @@ export class StructuredSettingsEditors {
       this.renderSources(root)
       this.applyPendingSourceReveal()
     }
-    if (section === "filters") this.renderSimpleList(root, section, this.filters)
-    if (section === "redirects") this.renderRedirects(root)
+    if (section === "filters") this.flatEditors.renderFilters(root)
+    if (section === "redirects") this.flatEditors.renderRedirects(root)
     applyStructuredSearch(root, section, this.searchQueries)
     this.placeDesktopActions(section)
     this.updateAddButton(section)
@@ -781,99 +705,6 @@ export class StructuredSettingsEditors {
         if (picker) actions.append(picker)
       }
     }
-  }
-
-  private installDragAutoScroll(root: HTMLElement): void {
-    const state = { frame: null as number | null, velocity: 0 }
-    let scroller: HTMLElement = root
-    this.dragScroll.set(root, state)
-    const scrollContainer = () => {
-      const overflow = getComputedStyle(root).overflowY
-      if ((overflow === "auto" || overflow === "scroll") &&
-          root.scrollHeight > root.clientHeight) {
-        return root
-      }
-      return root.closest<HTMLElement>(".settings_section") || root
-    }
-    const stop = () => {
-      state.velocity = 0
-      if (state.frame !== null) cancelAnimationFrame(state.frame)
-      state.frame = null
-    }
-    const step = () => {
-      if (state.velocity === 0) {
-        state.frame = null
-        return
-      }
-      const previous = scroller.scrollTop
-      scroller.scrollTop += state.velocity
-      if (scroller.scrollTop === previous) {
-        stop()
-        return
-      }
-      state.frame = requestAnimationFrame(step)
-    }
-    const update = (event: DragEvent) => {
-      if (!event.dataTransfer) return
-      if (event.currentTarget === section &&
-          event.target instanceof Node &&
-          root.contains(event.target)) {
-        return
-      }
-      event.preventDefault()
-      scroller = scrollContainer()
-      const bounds = scroller.getBoundingClientRect()
-      const search = root.querySelector<HTMLElement>(".structured_search")
-      const searchBounds = search?.getBoundingClientRect()
-      const visibleTop = Math.max(
-        bounds.top,
-        searchBounds && searchBounds.bottom <= bounds.bottom
-          ? searchBounds.bottom
-          : bounds.top
-      )
-      const visibleBottom = bounds.bottom
-      const visibleHeight = Math.max(1, visibleBottom - visibleTop)
-      // Keep a generous, stable activation band at each visible edge. The old
-      // root-relative percentage shrank as groups collapsed or the list moved.
-      const edge = Math.min(128, Math.max(72, visibleHeight * 0.24))
-      const distanceFromTop = event.clientY - visibleTop
-      const distanceFromBottom = visibleBottom - event.clientY
-      let velocity = 0
-      if (distanceFromTop < edge) {
-        const intensity = Math.min(
-          1,
-          Math.max(0, 1 - distanceFromTop / edge)
-        )
-        velocity = -Math.max(3, Math.round(22 * intensity))
-      } else if (distanceFromBottom < edge) {
-        const intensity = Math.min(
-          1,
-          Math.max(0, 1 - distanceFromBottom / edge)
-        )
-        velocity = Math.max(3, Math.round(22 * intensity))
-      }
-      state.velocity = velocity
-      if (velocity === 0) {
-        stop()
-      } else {
-        // Electron may throttle animation frames during a native HTML drag.
-        // Move on every dragover as well so the full edge band stays responsive.
-        scroller.scrollTop += velocity
-        if (state.frame === null) state.frame = requestAnimationFrame(step)
-      }
-    }
-    root.addEventListener("dragover", update)
-    const section = root.closest<HTMLElement>(".settings_section")
-    if (section && section !== root) section.addEventListener("dragover", update)
-    root.addEventListener("dragleave", (event) => {
-      const next = event.relatedTarget
-      if (next instanceof Node &&
-          (root.contains(next) || section?.contains(next))) return
-      stop()
-    })
-    const eventRoot = section || root
-    eventRoot.addEventListener("drop", stop)
-    eventRoot.addEventListener("dragend", stop)
   }
 
   private renderSources(root: HTMLElement): void {
@@ -1851,303 +1682,6 @@ export class StructuredSettingsEditors {
     }
     const saved = strip?.querySelector<HTMLElement>(".structured_status_saved")
     if (saved) saved.textContent = "Saved"
-  }
-
-  private renderSimpleList(root: HTMLElement, section: "filters", values: string[]): void {
-    if (!this.onTouch) {
-      this.listActions(section)?.append(createActionButton("Add filter", () =>
-        this.editFilterInline(root), "add-filter"))
-    }
-    this.renderListStatus(root, values.length, "keyword")
-    const { card, rows } = createListCard("Keyword filters", values.length)
-    values.forEach((value, index) => {
-      const row = document.createElement("div")
-      row.className = "structured_row"
-      row.draggable = true
-      row.dataset.filterIndex = String(index)
-      row.dataset.searchValue = value.toLowerCase()
-      const open = createActionButton(value, () =>
-        this.editFilterInline(root, index), "filter-row")
-      open.className = "structured_row_main"
-      open.dataset.filterValue = value
-      const remove = createActionButton("×", () => {
-        if (!window.confirm(`Delete filter “${value}”?`)) return
-        this.filters.splice(index, 1)
-        this.saveFilters()
-      }, "remove-filter")
-      remove.className = "structured_remove"
-      remove.title = `Delete filter ${value}`
-      remove.setAttribute("aria-label", remove.title)
-      // No badge column: the filter expression starts at the row's own inset.
-      row.classList.add("structured_row_unbadged")
-      row.append(this.rowBody(open, remove))
-      row.addEventListener("dragstart", (event) => {
-        row.classList.add("structured_row_dragging")
-        event.dataTransfer?.setData("text/plain", String(index))
-        if (event.dataTransfer) event.dataTransfer.effectAllowed = "move"
-      })
-      this.installRowDragReorder(rows, row, index, (from, destination) => {
-        if (from >= this.filters.length) return
-        const [moved] = this.filters.splice(from, 1)
-        this.filters.splice(destination, 0, moved)
-        this.saveFilters()
-      })
-      rows.append(row)
-    })
-    root.append(card)
-    this.applyPendingFilterReveal()
-  }
-
-  private editFilterInline(root: HTMLElement, index?: number): void {
-    // Before anything is read from the DOM: closing re-renders the list.
-    this.closeOpenEditor()
-    const rows = root.querySelector<HTMLElement>(".structured_rows")
-    if (!rows) return
-    this.detailSections.add("filters")
-    this.updateAddButton("filters")
-    const isNew = index === undefined
-    const row = isNew
-      ? document.createElement("div")
-      : rows.children.item(index) as HTMLElement | null
-    if (!row) return
-    if (isNew) {
-      row.className = "structured_row"
-      rows.append(row)
-    }
-
-    const original = isNew ? "" : this.filters[index]
-    row.textContent = ""
-    row.classList.add("structured_row_editing")
-    const input = document.createElement("input")
-    input.type = "text"
-    input.className = "structured_inline_input"
-    input.dataset.testid = "filter-inline-input"
-    input.value = original
-    input.setAttribute("aria-label", isNew ? "New filter" : `Edit filter ${original}`)
-    const validation = document.createElement("span")
-    validation.className = "structured_inline_validation"
-    validation.setAttribute("role", "alert")
-    const save = () => {
-      const value = input.value
-      if (!value.trim()) {
-        if (isNew) {
-          this.openEditor = null
-          this.render("filters")
-        } else {
-          validation.textContent = "Filter cannot be empty"
-          input.focus()
-        }
-        return
-      }
-      this.openEditor = null
-      const savedIndex = index ?? this.filters.length
-      if (isNew) this.filters.push(value)
-      else this.filters[savedIndex] = value
-      if (isNew) this.pendingFilterRevealIndex = savedIndex
-      this.saveFilters()
-    }
-    const cancel = () => {
-      this.openEditor = null
-      this.render("filters")
-    }
-    // Opening another editor commits this one exactly as clicking away does.
-    // An emptied or untouched row reverts instead, so closing always succeeds
-    // rather than stranding a second input on screen behind a validation
-    // message.
-    this.openEditor = () => {
-      if (!row.isConnected) return
-      if (!input.value.trim() || input.value === original) cancel()
-      else save()
-    }
-    input.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault()
-        save()
-      } else if (event.key === "Escape") {
-        event.preventDefault()
-        cancel()
-      }
-    })
-    input.addEventListener("blur", () => {
-      // Let a pointer press on an explicit action complete before deciding
-      // whether focus really left the inline editor.
-      window.setTimeout(() => {
-        if (document.activeElement === input || !row.isConnected) return
-        save()
-      }, 0)
-    })
-    const accept = createInlineActionButton(
-      "Save",
-      save,
-      "save-inline-filter"
-    )
-    const dismiss = createInlineActionButton("Cancel", cancel)
-    this.listActions("filters")
-    row.append(input, validation, accept, dismiss)
-    input.focus({ preventScroll: true })
-    input.select()
-    if (isNew) {
-      requestAnimationFrame(() => {
-        if (row.isConnected) row.scrollIntoView({ block: "center" })
-      })
-    }
-  }
-
-  private applyPendingFilterReveal(): void {
-    const index = this.pendingFilterRevealIndex
-    if (index === null) return
-    if (this.filterRevealTimer !== null) {
-      window.clearTimeout(this.filterRevealTimer)
-      this.filterRevealTimer = null
-    }
-    requestAnimationFrame(() => {
-      if (this.pendingFilterRevealIndex !== index) return
-      const root = this.roots.get("filters")
-      const row = root?.querySelector<HTMLElement>(
-        `[data-filter-index="${index}"]`
-      )
-      const button = row?.querySelector<HTMLButtonElement>(
-        "[data-filter-value]"
-      )
-      if (!row || !button) return
-      button.focus({ preventScroll: true })
-      row.scrollIntoView({ block: "center" })
-      row.classList.add("structured_row_target")
-      this.filterRevealTimer = window.setTimeout(() => {
-        if (this.pendingFilterRevealIndex !== index) return
-        this.pendingFilterRevealIndex = null
-        this.filterRevealTimer = null
-        const current = this.roots.get("filters")?.querySelector<HTMLElement>(
-          `[data-filter-index="${index}"]`
-        )
-        current?.classList.remove("structured_row_target")
-      }, 1600)
-    })
-  }
-
-  private saveFilters(): void {
-    this.textarea("filters").value = this.filters.join("\n")
-    this.baselines.set("filters", this.textarea("filters").value)
-    this.options.saveFilters([...this.filters])
-    this.render("filters")
-  }
-
-  private renderRedirects(root: HTMLElement): void {
-    if (!this.onTouch) {
-      this.listActions("redirects")?.append(createActionButton("Add redirect", () =>
-        this.editRedirect(root), "add-redirect"))
-    }
-    this.renderListStatus(root, this.redirects.length, "rule")
-    const { card, rows } = createListCard("Redirects", this.redirects.length)
-    this.redirects.forEach((redirect, index) => {
-      const row = document.createElement("div")
-      row.className = "structured_row structured_row_unbadged" +
-        (redirect.invalid ? " invalid" : "")
-      row.draggable = true
-      row.dataset.searchValue = [
-        redirect.raw,
-        redirect.match_url,
-        redirect.replace_url
-      ].filter(Boolean).join(" ").toLowerCase()
-      const open = document.createElement("button")
-      open.type = "button"
-      open.draggable = true
-      open.className = "structured_row_main"
-      open.dataset.testid = "redirect-row"
-      const match = document.createElement("span")
-      match.className = "structured_row_primary"
-      match.textContent = redirect.invalid ? redirect.raw || "" : redirect.match_url
-      const replacement = document.createElement("span")
-      replacement.className = "structured_row_secondary"
-      replacement.textContent = redirect.invalid
-        ? 'Not a "match => replace" line'
-        : `=> ${redirect.replace_url}`
-      if (redirect.invalid) {
-        replacement.classList.add("structured_row_secondary_error")
-        open.title = "Invalid redirect — edit as text or repair this row"
-      }
-      open.append(match, replacement)
-      open.addEventListener("click", () => this.editRedirect(root, index))
-      // Same trailing control as the filters list: the row's own × deletes it,
-      // which is why the editor carries no delete button on desktop.
-      const label = redirect.raw || redirect.match_url
-      const remove = createActionButton("×", () => {
-        if (!window.confirm(`Delete redirect “${label}”?`)) return
-        this.redirects.splice(index, 1)
-        this.saveRedirects()
-      }, "remove-redirect")
-      remove.className = "structured_remove"
-      remove.title = `Delete redirect ${label}`
-      remove.setAttribute("aria-label", remove.title)
-      row.append(this.rowBody(open, this.rowChevron(
-        `Edit redirect ${redirect.raw}`,
-        () => this.editRedirect(root, index)
-      ), remove))
-      this.installRowDragReorder(rows, row, index, (from, destination) => {
-        if (from >= this.redirects.length) return
-        const [moved] = this.redirects.splice(from, 1)
-        this.redirects.splice(destination, 0, moved)
-        this.saveRedirects()
-      })
-      rows.append(row)
-    })
-    root.append(card)
-  }
-
-  private editRedirect(root: HTMLElement, index?: number): void {
-    // Before the row lookup below: closing re-renders the list, so the indices
-    // this reads must be the ones the rebuilt DOM has.
-    this.closeOpenEditor()
-    const row = index === undefined
-      ? { match_url: "", replace_url: "" } : this.redirects[index]
-    let host: HTMLElement | undefined
-    if (!this.onTouch) {
-      // Desktop expands the row in place, so the list stays readable behind
-      // the editor. The rows and this.redirects are index-for-index because
-      // any previously injected editor was just closed.
-      const rows = root.querySelector<HTMLElement>(".structured_rows")
-      const existing = index === undefined
-        ? null
-        : rows?.children.item(index) as HTMLElement | null
-      host = existing || document.createElement("div")
-      if (!existing) rows?.append(host)
-      host.className =
-        "structured_row structured_row_editing structured_redirect_editor"
-      host.draggable = false
-      host.textContent = ""
-    }
-    this.showForm(root, "Redirect rule", [
-      ["Match", row.match_url, {
-        multiline: true,
-        hint: "JavaScript regular expression, matched against the whole story URL."
-      }],
-      ["Replace", row.replace_url, {
-        multiline: true,
-        hint: "Backreferences $1… refer to the groups above."
-      }]
-    ], (values) => {
-      if (!values[0].trim() || !values[1].trim()) return false
-      const next = { match_url: values[0], replace_url: values[1] }
-      if (index === undefined) this.redirects.push(next)
-      else this.redirects[index] = next
-      this.saveRedirects()
-      return true
-    }, index === undefined ? undefined : {
-      label: "Delete rule",
-      action: () => {
-        if (!window.confirm("Delete this redirect?")) return
-        this.redirects.splice(index, 1)
-        this.saveRedirects()
-      }
-    }, undefined, { host, redirectTester: true })
-  }
-
-  private saveRedirects(): void {
-    const text = serializeRedirectRows(this.redirects)
-    this.textarea("redirects").value = text
-    this.baselines.set("redirects", text)
-    this.options.saveRedirects(parseRedirectList(text))
-    this.render("redirects")
   }
 
   private listActions(section: Section): HTMLElement | null {

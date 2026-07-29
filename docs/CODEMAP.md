@@ -65,6 +65,22 @@ apps -> shells / UI / platform adapters -> app -> collectors -> core
 Run `npm run check:boundaries` after moving imports across packages. Do not add
 new exceptions to the boundary baseline without an architectural decision.
 
+## Settings ownership
+
+- `SettingsPanel.ts` owns settings navigation and composes collaborators.
+- `settings/SettingsPersistence.ts` owns persisted theme, animation, cache, and
+  sync restoration.
+- `settings/SettingsControlBindings.ts`, `SettingsSubscriptions.ts`,
+  `SettingsSummaries.ts`, `SyncSettingsControls.ts`, and
+  `TextareaHighlight.ts` own DOM control wiring and derived presentation.
+- `StructuredSettingsEditors.ts` remains the structured-settings facade.
+- `structuredSettings/FlatSettingsEditors.ts` owns filter and redirect list
+  state, rendering, editing, and saving.
+- `structuredSettings/dragReorder.ts` owns reusable row reordering and
+  drag-edge scrolling.
+- Source and source-group rendering/editing still lives in
+  `StructuredSettingsEditors.ts` and is the next Settings extraction boundary.
+
 ## Common changes
 
 - Add a collector in `packages/collectors/src/collectors`, register it in
