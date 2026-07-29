@@ -210,7 +210,8 @@ test("syncs settings, newest stories, backlog, then starts live sync", async () 
     "filter_list",
     "redirect_list",
     "theme",
-    "animation"
+    "animation",
+    "swipe"
   ])
 
   replications[0].chain.emit("complete", {})

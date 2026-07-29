@@ -455,9 +455,32 @@ test("publishes settings, database, reload, and history events", async () => {
   await app.start()
   await app.client.saveStorySources(["https://invalid.example/unknown"])
   fake.emitDatabaseChange({ id: "theme", doc: { list: "light" } })
+  fake.emitDatabaseChange({ id: "swipe", doc: { list: { twoStage: false } } })
   fake.emitHistory("undo")
   assert.ok(settings.includes("sources"))
   assert.ok(settings.includes("theme"))
+  assert.ok(settings.includes("swipe"))
   assert.equal(sourceErrors.at(-1)[0].title, "No Handler")
   assert.deepEqual(history, ["undo"])
+})
+
+test("suppresses a local swipe settings echo without hiding remote changes", async () => {
+  const fake = createFakePlatform([], { emitDatabaseChangesOnSet: true })
+  const app = createOnceApp(fake.ports)
+  const settings = []
+  app.client.subscribe("settingsChanged", ({ section }) => settings.push(section))
+  await app.start()
+
+  const swipe = await app.client.getSwipeSettings()
+  await app.client.setSwipeSettings({ ...swipe, twoStage: false })
+  assert.deepEqual(settings.filter((section) => section === "swipe"), ["swipe"])
+
+  fake.emitDatabaseChange({
+    id: "swipe",
+    doc: { list: { ...swipe, twoStage: true } }
+  })
+  assert.deepEqual(settings.filter((section) => section === "swipe"), [
+    "swipe",
+    "swipe"
+  ])
 })

@@ -1018,6 +1018,9 @@ export class OnceApp {
           this.events.publish("settingsChanged", { section: "animation" })
         })
         break
+      case "swipe":
+        this.events.publish("settingsChanged", { section: "swipe" })
+        break
     }
   }
 

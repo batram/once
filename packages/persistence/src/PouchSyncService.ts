@@ -46,7 +46,8 @@ export class PouchSyncService {
     "filter_list",
     "redirect_list",
     "theme",
-    "animation"
+    "animation",
+    "swipe"
   ]
   private syncHandler?: PouchEventChain
   private initialReplication?: PouchEventChain
