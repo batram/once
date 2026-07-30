@@ -79,8 +79,11 @@ function createFakeEngine() {
 
 async function setUp() {
   const protocol = loadModule("apps/mobile/src/readerTtsProtocol.ts")
-  const { installReaderTtsPolyfill } = loadModule("apps/mobile/src/readerTtsPolyfill.ts", {
+  const adapter = loadModule("apps/mobile/src/ReaderTtsAdapter.ts", {
     "./readerTtsProtocol": protocol
+  })
+  const { installReaderTtsPolyfill } = loadModule("apps/mobile/src/readerTtsPolyfill.ts", {
+    "./ReaderTtsAdapter": adapter
   })
   const { installReaderTtsHostBridge } = loadModule("apps/mobile/src/readerTtsHostBridge.ts", {
     "./readerTtsProtocol": protocol,
@@ -121,8 +124,11 @@ test("polyfill installs bridged speech synthesis and reports host voices", async
 
 test("force replaces a present-but-broken Web Speech implementation", async () => {
   const protocol = loadModule("apps/mobile/src/readerTtsProtocol.ts")
-  const { installReaderTtsPolyfill } = loadModule("apps/mobile/src/readerTtsPolyfill.ts", {
+  const adapter = loadModule("apps/mobile/src/ReaderTtsAdapter.ts", {
     "./readerTtsProtocol": protocol
+  })
+  const { installReaderTtsPolyfill } = loadModule("apps/mobile/src/readerTtsPolyfill.ts", {
+    "./ReaderTtsAdapter": adapter
   })
   const posts = []
   const native = { native: true }
@@ -274,4 +280,141 @@ test("rate is clamped to the range native engines accept", async () => {
   synth.speak(fast)
   await settle()
   assert.equal(requests[0].options.rate, 6)
+})
+
+function createAdapterTarget() {
+  const posts = []
+  const listeners = []
+  const parent = { postMessage: (message) => posts.push(message) }
+  const target = {
+    parent,
+    addEventListener: (type, listener) => listeners.push(listener),
+    document: { documentElement: { lang: "fr-FR" } },
+    navigator: { language: "en-US" }
+  }
+  const dispatch = (data, source = parent) => {
+    listeners.forEach((listener) => listener({ data, source }))
+  }
+  return { target, parent, posts, dispatch }
+}
+
+function loadAdapter() {
+  const protocol = loadModule("apps/mobile/src/readerTtsProtocol.ts")
+  const adapter = loadModule("apps/mobile/src/ReaderTtsAdapter.ts", {
+    "./readerTtsProtocol": protocol
+  })
+  return { protocol, ...adapter }
+}
+
+test("adapter scopes callbacks to its parent and session", () => {
+  const { READER_TTS_CHANNEL, READER_TTS_VERSION } =
+    loadModule("apps/mobile/src/readerTtsProtocol.ts")
+  const { ReaderTtsAdapter, BridgedSpeechSynthesisUtterance } = loadAdapter()
+  const { target, posts, dispatch } = createAdapterTarget()
+  const synth = new ReaderTtsAdapter(target, "reader-direct")
+  const utterance = new BridgedSpeechSynthesisUtterance("Scoped")
+  const events = []
+  utterance.onstart = () => events.push("start")
+  synth.speak(utterance)
+
+  const start = {
+    channel: READER_TTS_CHANNEL,
+    version: READER_TTS_VERSION,
+    sessionId: "reader-direct",
+    type: "start",
+    id: 1
+  }
+  dispatch(start, { postMessage: () => {} })
+  dispatch({ ...start, sessionId: "reader-other" })
+  assert.deepEqual(events, [])
+  dispatch(start)
+  assert.deepEqual(events, ["start"])
+  assert.equal(posts[0].type, "voices")
+  assert.equal(posts[1].type, "speak")
+})
+
+test("adapter owns voice routing, language fallback, and defensive voice snapshots", () => {
+  const { READER_TTS_CHANNEL, READER_TTS_VERSION } =
+    loadModule("apps/mobile/src/readerTtsProtocol.ts")
+  const { ReaderTtsAdapter, BridgedSpeechSynthesisUtterance } = loadAdapter()
+  const { target, posts, dispatch } = createAdapterTarget()
+  const synth = new ReaderTtsAdapter(target, "reader-routing")
+  const voices = [{
+    voiceURI: "de-voice",
+    name: "Vicki",
+    lang: "de-DE",
+    default: true,
+    localService: true
+  }]
+  dispatch({
+    channel: READER_TTS_CHANNEL,
+    version: READER_TTS_VERSION,
+    sessionId: "reader-routing",
+    type: "voices",
+    voices
+  })
+  const snapshot = synth.getVoices()
+  snapshot.length = 0
+  assert.equal(synth.getVoices().length, 1)
+
+  const voiced = new BridgedSpeechSynthesisUtterance("Hallo")
+  voiced.voice = synth.getVoices()[0]
+  voiced.rate = Number.NaN
+  synth.speak(voiced)
+  assert.deepEqual(posts[1], {
+    channel: READER_TTS_CHANNEL,
+    version: READER_TTS_VERSION,
+    sessionId: "reader-routing",
+    type: "speak",
+    id: 1,
+    text: "Hallo",
+    rate: 1,
+    voice: 0,
+    lang: "de-DE"
+  })
+
+  const fallback = new BridgedSpeechSynthesisUtterance("Bonjour")
+  synth.speak(fallback)
+  assert.equal(posts[2].lang, "fr-FR")
+})
+
+test("adapter reports active errors but cancellation resets state and ignores late errors", () => {
+  const { READER_TTS_CHANNEL, READER_TTS_VERSION } =
+    loadModule("apps/mobile/src/readerTtsProtocol.ts")
+  const { ReaderTtsAdapter, BridgedSpeechSynthesisUtterance } = loadAdapter()
+  const { target, posts, dispatch } = createAdapterTarget()
+  const synth = new ReaderTtsAdapter(target, "reader-cancel")
+  const errors = []
+  const failing = new BridgedSpeechSynthesisUtterance("Fail")
+  failing.onerror = (event) => errors.push(event.error)
+  synth.speak(failing)
+  dispatch({
+    channel: READER_TTS_CHANNEL,
+    version: READER_TTS_VERSION,
+    sessionId: "reader-cancel",
+    type: "error",
+    id: 1,
+    error: "native-failure"
+  })
+  assert.deepEqual(errors, ["native-failure"])
+  assert.equal(synth.speaking, false)
+
+  const cancelled = new BridgedSpeechSynthesisUtterance("Stop")
+  cancelled.onerror = (event) => errors.push(event.error)
+  synth.speak(cancelled)
+  synth.pause()
+  assert.equal(synth.paused, true)
+  assert.equal(posts.at(-1).type, "cancel")
+  synth.cancel()
+  assert.equal(synth.paused, false)
+  assert.equal(synth.speaking, false)
+  dispatch({
+    channel: READER_TTS_CHANNEL,
+    version: READER_TTS_VERSION,
+    sessionId: "reader-cancel",
+    type: "error",
+    id: 2,
+    error: "interrupted"
+  })
+  assert.deepEqual(errors, ["native-failure"])
 })

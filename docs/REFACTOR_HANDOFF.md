@@ -44,9 +44,8 @@ code, boundaries, and development builds. Knip models the Electron, extension,
 mobile, test, preload, content-script, and background-script entry graphs and
 blocks on unused files, exports, and types.
 
-The live inventory is `scripts/structure-exceptions.json`: 5 function
-exceptions. One entry belongs to the ordered work package below, one is
-opportunistic cleanup, and three are accepted
+The live inventory is `scripts/structure-exceptions.json`: 4 function
+exceptions. One is opportunistic cleanup and three are accepted
 exceptions that are not refactor work: the cohesive pull-to-refresh gesture,
 declarative Webpack configuration, and the intentionally linear Electron
 diagnostic scenario.
@@ -79,27 +78,11 @@ For every package:
    and truthful names. The package is unfinished if it merely passes a line
    limit.
 6. Commit the complete package as one focused commit before starting the next
-   package. The package below is a single architectural step, not permission
-   to fold unrelated adjacent work into one commit. Do not begin a later
-   package while the current one is uncommitted.
+   package. Do not begin a later package while the current one is uncommitted.
 
 If a package cannot be completed without changing a public API or an invariant
 below, stop and update this handoff with the concrete blocker. Do not commit a
 half-extracted architecture.
-
-## Ordered work packages
-
-### 1. Extract the mobile speech polyfill adapter
-
-Move the bridge-backed speech-synthesis and utterance implementations out of
-`installReaderTtsPolyfill` in
-`apps/mobile/src/readerTtsPolyfill.ts`. Give session/request routing and speech
-state an explicit adapter boundary with direct tests. Leave feature detection
-and browser-global installation in the installer.
-
-Preserve the browser speech API shape, native request/callback payloads,
-default language behavior, and cancellation/error semantics. Remove the
-function exception.
 
 ## Opportunistic cleanup, not a scheduled package
 
