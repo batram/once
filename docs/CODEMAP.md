@@ -23,7 +23,7 @@ target lifecycle, permissions, native bridges, and packaging belong in an app.
 | --- | --- | --- |
 | Story model, comparison, filtering | `packages/core/src/story` | Platform-neutral and DOM-free |
 | Source parsing and collectors | `packages/collectors/src` | May depend only on core |
-| Loading, settings, story state | `packages/app/src/OnceApp.ts` | Application orchestration |
+| Loading, settings, story state | `packages/app/src/OnceApp.ts`, `packages/app/src/AppRuntime.ts` | Public facade and application service composition |
 | PouchDB storage and sync | `packages/persistence/src` | Storage implementations |
 | Story list and actions | `packages/ui-web/src/story` | Shared DOM UI |
 | Story and settings popup menus | `packages/ui-web/src/menu` | Action model plus anchored renderer |

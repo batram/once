@@ -2,7 +2,6 @@
   "files": {
     "apps/electron/src/TabManager.ts": "Work package 4 will extract tab ownership and window lifecycle while preserving BrowserCoordinator as the orchestration surface.",
     "apps/mobile/src/readingController.ts": "Work package 3 will separate native reading-session and surface state from current-story DOM interaction.",
-    "packages/app/src/OnceApp.ts": "Work package 1 will reduce the public facade through tested settings, loading, working-set, persistence, and sync-policy services.",
     "packages/ui-web/src/picker/sourcePicker.ts": "Work package 9 will separate pure selector and source-line policy from the injected overlay; embedded overlay CSS currently inflates the logical-line count.",
     "packages/ui-web/src/settings/SwipeSettingsLab.ts": "Work package 5 will extract the debounced persistence state owner and a coherent view-construction boundary in the same commit."
   },

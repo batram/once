@@ -44,8 +44,8 @@ code, boundaries, and development builds. Knip models the Electron, extension,
 mobile, test, preload, content-script, and background-script entry graphs and
 blocks on unused files, exports, and types.
 
-The live inventory is `scripts/structure-exceptions.json`: 14 entries, made up
-of 5 file and 9 function exceptions. Ten entries belong to the nine ordered
+The live inventory is `scripts/structure-exceptions.json`: 13 entries, made up
+of 4 file and 9 function exceptions. Nine entries belong to the eight ordered
 work packages below, one is opportunistic cleanup, and three are accepted
 exceptions that are not refactor work: the cohesive pull-to-refresh gesture,
 declarative Webpack configuration, and the intentionally linear Electron
@@ -87,18 +87,6 @@ below, stop and update this handoff with the concrete blocker. Do not commit a
 half-extracted architecture.
 
 ## Ordered work packages
-
-### 1. Reduce `OnceApp` to a facade
-
-Extract settings access, bounded source loading, working-set ownership, lazy
-persistence/write reconciliation, and story sync-merge policy from
-`packages/app/src/OnceApp.ts`. New services must own real state or policy and
-have direct tests; do not replace private methods with host methods that only
-forward imports.
-
-Keep the `OnceApp` and client public APIs unchanged. Startup loading must remain
-bounded, persistence must remain lazy, and serialized/sync behavior must remain
-compatible. Finish by removing the `OnceApp.ts` file exception.
 
 ### 2. Extract the reader speech session
 
