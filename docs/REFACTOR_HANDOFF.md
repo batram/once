@@ -36,83 +36,13 @@ mobile, test, preload, content-script, and background-script entry graphs and
 blocks on unused files, exports, and types. Structural exceptions are down from
 27 to 20 (8 files, 12 functions).
 
-Settings is nearly finished. `SettingsPanel.ts` owns navigation and composition;
-`StructuredSettingsEditors.ts` (1,825 → 629 physical lines, 534 logical) is a facade over
-`settings/` and `structuredSettings/`. The 600-line `renderSources` was
-genuinely decomposed — nothing in the new source modules exceeds 89 lines — and
-the risky drag/reorder behavior has direct tests. Last checkpoint: `npm run
-check`, 155 unit tests, 23 collector tests, `check:dead-code`, unfiltered
-`knip`. Treat counts as information, not expectations.
-
-`check-structure.js` no longer charges comments against a file's budget, and
-exception keys now name one function each: a class member is keyed
-`File.ts#Class.member`, an assigned function by its target
-(`webpack.webext.config.js#module.exports`), a callback by its call
-(`spec.js#test(name)`), and only a function nothing names falls back to
-`#<anonymous@line>`. The rules are covered by `tests/unit/check-structure.test.js`
-and the exception file was rekeyed in place, so the count is still 20 (8 files,
-12 functions). `SourceGroupView.ts` now documents its drag/reorder state
-machine, which cost 108 comment lines and no budget.
-
-One known structural problem remains from optimizing for the limits:
-
-**Two files remain too close to the cap.** `SettingsPanel.ts` is at 594
-logical lines and `structuredSettings/SourceGroupView.ts` is at 599, against a
-600 limit. Comments are free now, so both can be explained, but
-`SourceGroupView.ts` cannot absorb a line of code and is not finished merely
-because it passes.
-
-## Next changes
-
-The Settings dependency cleanup is complete:
-
-- `createRowBody` and `createRowChevron` are direct imports at their use sites,
-  rather than six adapter and test-stub members across the host chain.
-- `FlatSettingsEditors.ts` and `SourceSettingsEditor.ts` reuse
-  `StructuredFormField`; their domain types come from `redirects.ts` and
-  `sourceGroups.ts`, rather than importing back from the parent facade.
-- Entering an inline filter detail is one facade-owned operation, rather than
-  separate callbacks for mutating detail state and refreshing the add button.
-- `showForm` remains a host operation intentionally: it is not a pass-through.
-  The facade adds section lifecycle, desktop action preservation, redirect
-  tester wiring, editor dismissal, touch presentation, and header ownership.
-
-The remaining host members cross real ownership boundaries: editor lifecycle,
-section rendering, persistence, application error presentation, anchored-menu
-placement, or access to facade-owned DOM. Do not split them solely to hit an
-interface-width target.
-
 ### Next: `StoryListItem`
 
 Split markup and action wiring from gesture state, geometry, and animation
 completion. Keep `StoryListItem` as the facade and preserve its exports,
 selectors, callback order, swipe thresholds, cancellation, and accessibility
 labels. Add focused DOM tests per extracted stateful behavior. Retire its
-structure exceptions only once the real limits are met — and do not leave the
-result at 599 lines.
-
-## Naming and structure
-
-Unresolved and worth deciding before the next extraction, because every commit
-adds to it. Filenames currently encode *when* a file was written, not what it
-is: roughly 16 of 23 top-level PascalCase files in `packages/ui-web/src` export
-no class, so "PascalCase means class" is not a real rule. `SourceRows.ts`
-(functions) sits beside `SourceGroupView.ts` (class) and `sourceGroups.ts`
-(parse/serialize) — three names, one apparent topic. Nine `Story*` files have
-no directory while `reader/`, `picker/`, and `presenters/` do. `settings/` and
-`structuredSettings/` are siblings split by owning class rather than feature,
-which is why `FlatSettingsEditors` lives under `structuredSettings/`. Three
-modules mean "search" and four mean "menu", including `menu.ts`, which is
-actually panel navigation.
-
-A candidate rule, mechanically checkable so it does not rely on `CODEMAP.md`
-being read: a prefix shared by three or more files becomes a directory and is
-dropped from the filenames; `PascalCase.ts` only when the primary export is a
-same-named class. Nothing in the Settings cluster is exported from
-`packages/ui-web/src/index.ts`, so renames there carry no public-API risk.
-
-Do not rename the `presenters/` symbols (`handle_url`, `presenter_options`,
-`story_elem_button`). They are the dynamically invoked presenter contract.
+structure exceptions only once the real limits are met.
 
 ## Refactor invariants
 

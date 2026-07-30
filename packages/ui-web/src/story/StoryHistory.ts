@@ -1,6 +1,6 @@
 import { Story } from "@once/core"
 import { OnceClient } from "@once/app"
-import { getOnceClient } from "./client"
+import { getOnceClient } from "../client"
 
 export class StoryHistory {
   undo_history: {

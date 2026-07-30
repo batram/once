@@ -25,8 +25,11 @@ target lifecycle, permissions, native bridges, and packaging belong in an app.
 | Source parsing and collectors | `packages/collectors/src` | May depend only on core |
 | Loading, settings, story state | `packages/app/src/OnceApp.ts` | Application orchestration |
 | PouchDB storage and sync | `packages/persistence/src` | Storage implementations |
-| Story list and actions | `packages/ui-web/src/StoryListItem.ts` | Shared DOM UI |
-| Settings UI | `packages/ui-web/src/SettingsPanel.ts`, `packages/ui-web/src/settings`, `packages/ui-web/src/structuredSettings` | Facade, persistence, structured editors, search, and form helpers |
+| Story list and actions | `packages/ui-web/src/story` | Shared DOM UI |
+| Story and settings popup menus | `packages/ui-web/src/menu` | Action model plus anchored renderer |
+| Panel navigation and status surfaces | `packages/ui-web/src/shell` | Sidebar, panels, overlays |
+| Touch and drag gestures | `packages/ui-web/src/gesture` | Shared gesture plumbing |
+| Settings UI | `packages/ui-web/src/settings` | Panel, persistence, structured editors, search, and form helpers |
 | Reader extraction and display | `packages/ui-web/src/reader` | Shared reader runtime |
 | Source picker | `packages/ui-web/src/picker` | Shared picker plus platform injection |
 | Electron tabs and windows | `apps/electron/src/TabManager.ts` | Main-process ownership |
@@ -67,19 +70,42 @@ new exceptions to the boundary baseline without an architectural decision.
 
 ## Settings ownership
 
-- `SettingsPanel.ts` owns settings navigation and composes collaborators.
+All paths below are under `packages/ui-web/src`.
+
+- `settings/SettingsPanel.ts` owns settings navigation and composes
+  collaborators.
 - `settings/SettingsPersistence.ts` owns persisted theme, animation, cache, and
   sync restoration.
-- `settings/SettingsControlBindings.ts`, `SettingsSubscriptions.ts`,
-  `SettingsSummaries.ts`, `SyncSettingsControls.ts`, and
-  `TextareaHighlight.ts` own DOM control wiring and derived presentation.
-- `StructuredSettingsEditors.ts` remains the structured-settings facade.
-- `structuredSettings/FlatSettingsEditors.ts` owns filter and redirect list
+- `settings/settingsControlBindings.ts`, `settingsSubscriptions.ts`,
+  `settingsSummaries.ts`, `syncSettingsControls.ts`, and
+  `textareaHighlight.ts` own DOM control wiring and derived presentation.
+- `settings/StructuredSettingsEditors.ts` remains the structured-settings
+  facade over `settings/structured/`.
+- `settings/structured/FlatSettingsEditors.ts` owns filter and redirect list
   state, rendering, editing, and saving.
-- `structuredSettings/dragReorder.ts` owns reusable row reordering and
-  drag-edge scrolling.
-- Source and source-group rendering/editing still lives in
-  `StructuredSettingsEditors.ts` and is the next Settings extraction boundary.
+- `settings/structured/SourceSettingsEditor.ts` owns the sources section, with
+  `SourceGroupView.ts` for group rendering and reordering and `sourceRows.ts`
+  for one source row.
+- `gesture/dragReorder.ts` owns reusable row reordering and drag-edge
+  scrolling, shared with the story list rather than owned by settings.
+
+## Naming
+
+`packages/ui-web/src` follows the convention the rest of the repo already uses:
+
+- A directory groups a feature; filenames keep their full descriptive name
+  rather than dropping the prefix the directory implies.
+- `PascalCase.ts` only when the primary export is a same-named class
+  (`story/StoryListItem.ts`, `settings/structured/SourceGroupView.ts`).
+  Everything else is a camelCase module (`story/storyList.ts`,
+  `settings/settingsSummaries.ts`).
+- A filename says what the module is, not what it was written beside:
+  `shell/panelNavigation.ts` is panel navigation, and
+  `settings/structured/structuredSearch.ts` filters rows within one structured
+  list — neither is the story search in `story/storySearch.ts`.
+
+`presenters/` keeps its `handle_url`, `presenter_options`, and
+`story_elem_button` symbols; they are the presenter contract.
 
 ## Common changes
 

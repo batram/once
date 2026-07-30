@@ -14,12 +14,12 @@ import {
   createSwipeGeometry,
   StoryListItem,
   SwipeStage
-} from "./StoryListItem"
+} from "../story/StoryListItem"
 import {
   beginTouchGesture,
   endTouchGesture,
   updateTouchGesture
-} from "./TouchGestureLock"
+} from "../gesture/touchGestureLock"
 
 const PREVIEW_STORY_HREF = "https://example.com/swipe-preview"
 

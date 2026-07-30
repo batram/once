@@ -1,30 +1,30 @@
 import { SourceError } from "@once/app"
 import { Redirect } from "@once/core"
-import { AnchoredMenuItem, openAnchoredMenu } from "./StoryAnchoredMenu"
+import { AnchoredMenuItem, openAnchoredMenu } from "../menu/storyAnchoredMenu"
 import {
   applyStructuredSearch,
   renderStructuredSearch,
   StructuredSettingsSection
-} from "./structuredSettings/searchNavigation"
+} from "./structured/structuredSearch"
 import {
   announceStructuredSettings,
   showStructuredForm
-} from "./structuredSettings/form"
-import { createRedirectTester } from "./structuredSettings/redirectTester"
-import { installDragAutoScroll } from "./structuredSettings/dragReorder"
-import { FlatSettingsEditors } from "./structuredSettings/FlatSettingsEditors"
-import { SourceSettingsEditor } from "./structuredSettings/SourceSettingsEditor"
-import { StructuredAddButtons } from "./structuredSettings/StructuredAddButtons"
+} from "./structured/form"
+import { createRedirectTester } from "./structured/redirectTester"
+import { installDragAutoScroll } from "../gesture/dragReorder"
+import { FlatSettingsEditors } from "./structured/FlatSettingsEditors"
+import { SourceSettingsEditor } from "./structured/SourceSettingsEditor"
+import { StructuredAddButtons } from "./structured/StructuredAddButtons"
 
-export { parseFilterRows } from "./structuredSettings/filters"
+export { parseFilterRows } from "./structured/filters"
 export {
   parseRedirectRows,
   serializeRedirectRows
-} from "./structuredSettings/redirects"
+} from "./structured/redirects"
 export {
   parseSourceGroups,
   serializeSourceGroups
-} from "./structuredSettings/sourceGroups"
+} from "./structured/sourceGroups"
 
 type Section = StructuredSettingsSection
 

@@ -7,7 +7,7 @@ import {
   createRowChevron,
   StructuredFormField
 } from "./form"
-import { installRowDragReorder } from "./dragReorder"
+import { installRowDragReorder } from "../../gesture/dragReorder"
 import { parseFilterRows } from "./filters"
 import {
   parseRedirectRows,

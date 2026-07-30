@@ -1,5 +1,5 @@
-import { AnchoredMenuItem } from "../StoryAnchoredMenu"
-import { StructuredSettingsSection } from "./searchNavigation"
+import { AnchoredMenuItem } from "../../menu/storyAnchoredMenu"
+import { StructuredSettingsSection } from "./structuredSearch"
 
 type Section = StructuredSettingsSection
 

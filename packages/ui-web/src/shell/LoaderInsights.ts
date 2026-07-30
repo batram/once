@@ -1,5 +1,5 @@
 import { DiagnosticError, OnceClient, ProcessingSource, SourceError } from "@once/app"
-import { requireElement } from "./dom"
+import { requireElement } from "../dom"
 
 type IssueType = "warning" | "error"
 

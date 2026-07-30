@@ -6,7 +6,7 @@ import {
   SwipeActionId,
   SwipeSettings
 } from "@once/app"
-import { installSwipePreview } from "./SwipePreviewRow"
+import { installSwipePreview } from "./swipePreviewRow"
 
 const SAVE_DEBOUNCE_MS = 700
 const MIN_THRESHOLD = 16

@@ -1,6 +1,6 @@
-import * as Search from "./search"
+import * as Search from "../story/storySearch"
 import { OnceClient } from "@once/app"
-import { requireElement } from "./dom"
+import { requireElement } from "../dom"
 
 let commsRegistered = false
 

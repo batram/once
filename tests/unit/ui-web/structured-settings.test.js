@@ -7,19 +7,19 @@ const {
   parseFilterRows,
   parseRedirectRows,
   serializeRedirectRows
-} = require("../../../packages/ui-web/dist/StructuredSettingsEditors")
+} = require("../../../packages/ui-web/dist/settings/StructuredSettingsEditors")
 const {
   createRedirectTester
-} = require("../../../packages/ui-web/dist/structuredSettings/redirectTester")
+} = require("../../../packages/ui-web/dist/settings/structured/redirectTester")
 const {
   FlatSettingsEditors
-} = require("../../../packages/ui-web/dist/structuredSettings/FlatSettingsEditors")
+} = require("../../../packages/ui-web/dist/settings/structured/FlatSettingsEditors")
 const {
   renderSourceRow
-} = require("../../../packages/ui-web/dist/structuredSettings/SourceRows")
+} = require("../../../packages/ui-web/dist/settings/structured/sourceRows")
 const {
   SourceGroupView
-} = require("../../../packages/ui-web/dist/structuredSettings/SourceGroupView")
+} = require("../../../packages/ui-web/dist/settings/structured/SourceGroupView")
 const { parseHTML } = require("linkedom")
 
 function withDom(html, callback) {

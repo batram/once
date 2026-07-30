@@ -15,7 +15,7 @@ test("collapse controls toggle the menu and notify their host", () => {
 
   try {
     const { bindMenuCollapseControls } = require(
-      "../../../packages/ui-web/dist/MenuCollapse"
+      "../../../packages/ui-web/dist/shell/menuCollapse"
     )
     const changes = []
     const controls = [...document.querySelectorAll(".collapsebutton")]

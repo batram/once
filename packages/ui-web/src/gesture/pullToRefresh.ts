@@ -14,7 +14,7 @@ import {
   beginTouchGesture,
   endTouchGesture,
   updateTouchGesture
-} from "./TouchGestureLock"
+} from "./touchGestureLock"
 
 export interface PullToRefreshOptions {
   // Pull distance (px) required to trigger a refresh, and the resting height of

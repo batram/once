@@ -1,5 +1,5 @@
 import { Story } from "@once/core"
-import { StoryListItem } from "../StoryListItem"
+import { StoryListItem } from "../story/StoryListItem"
 import * as outline from "./outline"
 
 export declare interface PresenterOptions {

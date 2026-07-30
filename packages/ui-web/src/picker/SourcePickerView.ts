@@ -1,8 +1,8 @@
 import { OnceClient } from "@once/app"
 import { build_source, sanitize_selector_conf } from "@once/collectors/geny"
-import { SettingsPanel } from "../SettingsPanel"
-import { LoaderInsights } from "../LoaderInsights"
-import { showTextInputDialog } from "../ConfirmDialog"
+import { SettingsPanel } from "../settings/SettingsPanel"
+import { LoaderInsights } from "../shell/LoaderInsights"
+import { showTextInputDialog } from "../confirmDialog"
 
 declare const browser: {
   runtime?: {

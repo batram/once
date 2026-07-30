@@ -1,7 +1,7 @@
 import { URLRedirect } from "@once/core"
-import { StoryHistory } from "./StoryHistory"
-import type { StoryListItem } from "./StoryListItem"
-import { getOnceClient } from "./client"
+import { StoryHistory } from "../story/StoryHistory"
+import type { StoryListItem } from "../story/StoryListItem"
+import { getOnceClient } from "../client"
 
 export type StoryMenuActionId =
   | "open"
@@ -185,7 +185,7 @@ export async function executeStoryMenuAction(
     case "open-original":
       return story.openOriginal()
     case "open-reader": {
-      const { requestReading } = await import("./ReadingSession.js")
+      const { requestReading } = await import("../ReadingSession.js")
       if (requestReading(story.story, "reader")) {
         await getOnceClient().persistStoryChange(
           story.story.href,
@@ -194,7 +194,7 @@ export async function executeStoryMenuAction(
         )
         return
       }
-      const { ReaderView } = await import("./reader/ReaderView.js")
+      const { ReaderView } = await import("../reader/ReaderView.js")
       await ReaderView.open(story.story.href)
       await getOnceClient().persistStoryChange(
         story.story.href,
@@ -210,7 +210,7 @@ export async function executeStoryMenuAction(
     case "filter":
       return story.showFilterAction()
     case "search-domain": {
-      const Search = await import("./search.js")
+      const Search = await import("../story/storySearch.js")
       Search.searchStories(`domain:${new URL(story.story.href).hostname}`)
       return
     }

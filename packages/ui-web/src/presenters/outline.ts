@@ -1,10 +1,10 @@
 import { Story } from "@once/core"
-import { StoryListItem } from "../StoryListItem"
+import { StoryListItem } from "../story/StoryListItem"
 //import * as Readability from "../../third_party/Readability.js"
 import { PresenterOptions } from "./registry"
 import { getOnceClient } from "../client"
 import { ReaderView } from "../reader/ReaderView"
-import { LoaderInsights } from "../LoaderInsights"
+import { LoaderInsights } from "../shell/LoaderInsights"
 import { requireElement } from "../dom"
 
 export const presenter_options: PresenterOptions = {

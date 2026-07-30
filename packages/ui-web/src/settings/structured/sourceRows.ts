@@ -1,6 +1,6 @@
 import { SourceError } from "@once/app"
 import { get_parser_for_url, StoryParser } from "@once/collectors"
-import { AnchoredMenuItem } from "../StoryAnchoredMenu"
+import { AnchoredMenuItem } from "../../menu/storyAnchoredMenu"
 import {
   createActionButton,
   createRowBody,

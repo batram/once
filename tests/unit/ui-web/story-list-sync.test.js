@@ -3,7 +3,7 @@ const assert = require("node:assert/strict")
 
 test("story-list sync subscribes before replaying its working snapshot", () => {
   const { connectStoryListSync } = require(
-    "../../../packages/ui-web/dist/StoryListSync"
+    "../../../packages/ui-web/dist/story/storyListSync"
   )
   const { Story } = require("../../../packages/core/dist")
   const snapshotStory = new Story(

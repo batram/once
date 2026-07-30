@@ -15,7 +15,7 @@ import {
   describeStoryMenu,
   executeStoryMenuAction,
   StoryMenuContext
-} from "./StoryContextMenu"
+} from "./storyContextMenu"
 
 /** Distance kept between the anchor and the panel, above or below. */
 const ANCHOR_GAP_PX = 4

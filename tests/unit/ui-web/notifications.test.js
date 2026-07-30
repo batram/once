@@ -41,7 +41,7 @@ test("hover URL indicator delays, cancels, and completes dismissal", (t) => {
   `)
   try {
     const { HIDE_DELAY, HoverUrlIndicator } = require(
-      "../../../packages/ui-web/dist/HoverUrlIndicator"
+      "../../../packages/ui-web/dist/shell/HoverUrlIndicator"
     )
     const indicator = HoverUrlIndicator.mount()
     assert.ok(indicator)
@@ -90,7 +90,7 @@ test("status issues stack, dismiss, restore, and reset per reload", (t) => {
   `)
   try {
     const { LoaderInsights } = require(
-      "../../../packages/ui-web/dist/LoaderInsights"
+      "../../../packages/ui-web/dist/shell/LoaderInsights"
     )
     const subscriptions = new Map()
     const actionCalls = []

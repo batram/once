@@ -19,7 +19,7 @@ function withDom(run) {
   window.document.querySelector("#stories").scrollTop = 0
   try {
     const { attachPullToRefresh } = require(
-      "../../../packages/ui-web/dist/PullToRefresh"
+      "../../../packages/ui-web/dist/gesture/pullToRefresh"
     )
     return run(window, attachPullToRefresh)
   } finally {

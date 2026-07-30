@@ -5,26 +5,26 @@ import {
   SwipeSettings
 } from "@once/app"
 import { humanTime } from "@once/core"
-import * as StoryFilterView from "./StoryFilterView"
+import * as StoryFilterView from "./storyFilterView"
 import { Story, SubStory } from "@once/core"
-import * as presenters from "./presenters/registry"
-import { DataChangeEvent, resortSingle } from "./StoryList"
+import * as presenters from "../presenters/registry"
+import { DataChangeEvent, resortSingle } from "./storyList"
 import { URLRedirect } from "@once/core"
 import { StoryHistory } from "./StoryHistory"
-import { SettingsPanel } from "./SettingsPanel"
-import { getOnceClient } from "./client"
-import * as Search from "./search"
-import { showConfirmDialog } from "./ConfirmDialog"
+import { SettingsPanel } from "../settings/SettingsPanel"
+import { getOnceClient } from "../client"
+import * as Search from "./storySearch"
+import { showConfirmDialog } from "../confirmDialog"
 import {
   getTouchGestureAxis,
   getTouchGestureStart
-} from "./TouchGestureLock"
+} from "../gesture/touchGestureLock"
 import {
   executeStoryMenuAction,
   StoryMenuRequestEvent
-} from "./StoryContextMenu"
-import { requestReading } from "./ReadingSession"
-import { finishStoryExitTransition } from "./StoryExitTransition"
+} from "../menu/storyContextMenu"
+import { requestReading } from "../ReadingSession"
+import { finishStoryExitTransition } from "./storyExitTransition"
 
 /**
  * Two-stage direct-manipulation swipe.

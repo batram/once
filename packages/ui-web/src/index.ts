@@ -1,19 +1,19 @@
-export { StoryListItem } from "./StoryListItem"
-export * as StoryList from "./StoryList"
-export * from "./StoryContextMenu"
+export { StoryListItem } from "./story/StoryListItem"
+export * as StoryList from "./story/storyList"
+export * from "./menu/storyContextMenu"
 export {
   openStoryAnchoredMenu,
   closeStoryAnchoredMenu,
   isStoryAnchoredMenuOpen
-} from "./StoryAnchoredMenu"
-export { HoverUrlIndicator } from "./HoverUrlIndicator"
-export * as Search from "./search"
-export * as Menu from "./menu"
+} from "./menu/storyAnchoredMenu"
+export { HoverUrlIndicator } from "./shell/HoverUrlIndicator"
+export * as Search from "./story/storySearch"
+export * as Menu from "./shell/panelNavigation"
 export { getOnceClient } from "./client"
 export { mountOnceUi } from "./mountOnceUi"
-export { bindMenuCollapseControls } from "./MenuCollapse"
+export { bindMenuCollapseControls } from "./shell/menuCollapse"
 export { ReaderView } from "./reader/ReaderView"
-export { ReaderDocumentHost } from "./ReaderDocumentHost"
+export { ReaderDocumentHost } from "./reader/ReaderDocumentHost"
 export {
   ReadingSession,
   ReadingSessionState,

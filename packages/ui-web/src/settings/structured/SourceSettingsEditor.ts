@@ -1,5 +1,5 @@
 import { SourceError } from "@once/app"
-import { AnchoredMenuItem } from "../StoryAnchoredMenu"
+import { AnchoredMenuItem } from "../../menu/storyAnchoredMenu"
 import { createActionButton, StructuredFormField } from "./form"
 import { SourceGroupView } from "./SourceGroupView"
 import {

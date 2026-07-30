@@ -1,6 +1,6 @@
 import { Story } from "@once/core"
-import { requireElement } from "./dom"
-import { showConfirmDialog, showTextInputDialog } from "./ConfirmDialog"
+import { requireElement } from "../dom"
+import { showConfirmDialog, showTextInputDialog } from "../confirmDialog"
 
 export function show_filter_dialog(
   event: MouseEvent,

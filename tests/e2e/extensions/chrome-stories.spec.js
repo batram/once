@@ -4,7 +4,7 @@ const os = require("node:os")
 const path = require("node:path")
 const {
   HIDE_DELAY
-} = require("../../../packages/ui-web/dist/HoverUrlIndicator")
+} = require("../../../packages/ui-web/dist/shell/HoverUrlIndicator")
 const { startStoryFixture } = require("./local-source")
 const storyFixture = require("../shared/story-fixture")
 

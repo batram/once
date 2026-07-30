@@ -13,7 +13,7 @@ function loadTransitionModule() {
   globalThis.Event = window.Event
   return {
     window,
-    module: require("../../../packages/ui-web/dist/StoryExitTransition")
+    module: require("../../../packages/ui-web/dist/story/storyExitTransition")
   }
 }
 

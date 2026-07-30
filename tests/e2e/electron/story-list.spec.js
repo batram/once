@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test")
 const {
   HIDE_DELAY
-} = require("../../../packages/ui-web/dist/HoverUrlIndicator")
+} = require("../../../packages/ui-web/dist/shell/HoverUrlIndicator")
 const {
   closeApp,
   expectDocumentFocus,

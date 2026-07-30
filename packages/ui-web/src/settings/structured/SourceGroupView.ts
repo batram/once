@@ -3,7 +3,7 @@ import {
   renderSourceRow,
   SourceRowHost,
   sourceDragPosition
-} from "./SourceRows"
+} from "./sourceRows"
 import { SourceGroup } from "./sourceGroups"
 
 export interface SourceGroupHost extends SourceRowHost {

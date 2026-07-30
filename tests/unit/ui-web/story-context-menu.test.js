@@ -10,7 +10,7 @@ function loadMenuModule() {
   globalThis.HTMLElement = window.HTMLElement
   globalThis.customElements = window.customElements
   globalThis.MouseEvent = window.MouseEvent
-  return require("../../../packages/ui-web/dist/StoryContextMenu")
+  return require("../../../packages/ui-web/dist/menu/storyContextMenu")
 }
 
 function fakeStory(overrides = {}) {

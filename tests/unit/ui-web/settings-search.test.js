@@ -5,7 +5,7 @@ const { parseHTML } = require("linkedom")
 const {
   matchSettingsSection,
   settingsSearchSegments
-} = require("../../../packages/ui-web/dist/SettingsSearch")
+} = require("../../../packages/ui-web/dist/settings/settingsSearch")
 
 function withDom(html, callback) {
   const { window } = parseHTML(html)

@@ -1,13 +1,13 @@
 import { Story } from "@once/core"
-import * as StoryList from "./StoryList"
+import * as StoryList from "./storyList"
 import { StoryListItem } from "./StoryListItem"
 import {
   domain_search_providers,
   global_search_providers
 } from "@once/collectors"
 import { applyStoryFilters } from "@once/core"
-import { getOnceClient } from "./client"
-import { requireElement } from "./dom"
+import { getOnceClient } from "../client"
+import { requireElement } from "../dom"
 
 export function init(): void {
   const searchfield =

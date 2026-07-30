@@ -4,7 +4,7 @@ const { parseHTML } = require("linkedom")
 
 const {
   updateSettingsSummaries
-} = require("../../../packages/ui-web/dist/settings/SettingsSummaries")
+} = require("../../../packages/ui-web/dist/settings/settingsSummaries")
 
 test("settings summaries report counts, state, and source failures", () => {
   const { window } = parseHTML(`

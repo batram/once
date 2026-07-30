@@ -17,7 +17,7 @@ test("update controls expose status and disable busy checks", async () => {
 
   try {
     const { bindAppUpdateControls } = require(
-      "../../../packages/ui-web/dist/AppUpdateControls"
+      "../../../packages/ui-web/dist/settings/appUpdateControls"
     )
     let statusHandler = () => {}
     let checks = 0

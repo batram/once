@@ -2,11 +2,11 @@ import { Story, SortableStory } from "@once/core"
 import { StoryListItem } from "./StoryListItem"
 import { applyStoryFilter } from "@once/core"
 import { StoryChangeDetail, OnceClient } from "@once/app"
-import * as Search from "./search"
+import * as Search from "./storySearch"
 import { URLRedirect } from "@once/core"
-import { requireElement } from "./dom"
-import { attachPullToRefresh } from "./PullToRefresh"
-import { connectStoryListSync } from "./StoryListSync"
+import { requireElement } from "../dom"
+import { attachPullToRefresh } from "../gesture/pullToRefresh"
+import { connectStoryListSync } from "./storyListSync"
 
 export class DataChangeEvent extends Event {
   detail: StoryChangeDetail
