@@ -44,9 +44,9 @@ code, boundaries, and development builds. Knip models the Electron, extension,
 mobile, test, preload, content-script, and background-script entry graphs and
 blocks on unused files, exports, and types.
 
-The live inventory is `scripts/structure-exceptions.json`: 7 entries, made up
-of 1 file and 6 function exceptions. Three entries belong to the two ordered
-work packages below, one is opportunistic cleanup, and three are accepted
+The live inventory is `scripts/structure-exceptions.json`: 5 function
+exceptions. One entry belongs to the ordered work package below, one is
+opportunistic cleanup, and three are accepted
 exceptions that are not refactor work: the cohesive pull-to-refresh gesture,
 declarative Webpack configuration, and the intentionally linear Electron
 diagnostic scenario.
@@ -79,10 +79,9 @@ For every package:
    and truthful names. The package is unfinished if it merely passes a line
    limit.
 6. Commit the complete package as one focused commit before starting the next
-   package. The combined Electron and source-picker packages below are single
-   architectural steps, not permission to fold unrelated adjacent work into
-   one commit. Do not begin a later package while the current one is
-   uncommitted.
+   package. The package below is a single architectural step, not permission
+   to fold unrelated adjacent work into one commit. Do not begin a later
+   package while the current one is uncommitted.
 
 If a package cannot be completed without changing a public API or an invariant
 below, stop and update this handoff with the concrete blocker. Do not commit a
@@ -90,38 +89,7 @@ half-extracted architecture.
 
 ## Ordered work packages
 
-### 1. Extract the mobile source-picker runner and injected-picker policy
-
-Before editing, inspect the mobile runner, injected picker, their direct tests,
-and the injection build. Treat them as one package only if the result and
-serialization contract can remain explicit and the combined diff still has
-one reviewable source-picker narrative. If that is not true, stop and update
-this handoff to restore separate runner and policy packages before changing
-either implementation.
-
-Keep `apps/mobile/src/main.ts` as a readable composition root. Extract only the
-substantial source-picker/native-browser workflow: navigation listener
-lifetimes, surface activation, injection loading, result polling/timeout,
-decoding, and sanitization.
-
-Test that workflow directly, including navigation failure, cleanup, timeout,
-and malformed results. Do not introduce generic installer wrappers around
-ordinary composition calls.
-
-The limit for `packages/ui-web/src/picker/sourcePicker.ts` is inflated by the
-large `OVERLAY_STYLES` template literal, so do not treat its reported logical
-line count as 758 lines of TypeScript behavior. Extract pure selector
-derivation/generalization and source-line parsing/serialization from the
-injected overlay. Move styles only if the injection build can retain a single
-source of truth without generated-file edits.
-
-Keep picking, hover, preview, editing, cancellation, sanitization, and the
-runner/overlay result contract unchanged. Add direct tests for the extracted
-pure policy and end-to-end contract coverage at the runner boundary. Remove
-both the `startMobileApp` function exception and `sourcePicker.ts` file
-exception only after the composition root and overlay have real headroom.
-
-### 2. Extract the mobile speech polyfill adapter
+### 1. Extract the mobile speech polyfill adapter
 
 Move the bridge-backed speech-synthesis and utterance implementations out of
 `installReaderTtsPolyfill` in

@@ -13,11 +13,14 @@ import {
   ReaderView,
   SourcePickerView
 } from "@once/ui-web"
-import { build_source, sanitize_selector_conf } from "@once/collectors/geny"
 import { installStoryMenu } from "./storyMenu"
 import { installReaderTtsHostBridge } from "./readerTtsHostBridge"
 import { installReaderTtsControls } from "./readerTtsControls"
 import { MobileReadingController } from "./readingController"
+import {
+  loadMobilePickerInjection,
+  MobileSourcePicker
+} from "./mobileSourcePicker"
 
 declare const __ONCE_APP_VERSION__: string
 declare const __ONCE_BUILD_CHANNEL__: "release" | "dev"
@@ -88,71 +91,14 @@ async function startMobileApp(): Promise<void> {
   const reading = new MobileReadingController(browserSurface, reader, ttsControls)
   await reading.install()
   ReaderView.mount(app.client)
-  let browserUrl = ""
-  await browserSurface.addListener("navigationCommitted", ({ url }) => {
-    browserUrl = url
+  const sourcePicker = new MobileSourcePicker({
+    surface: browserSurface,
+    openBrowserUrl: (url) => reading.openBrowserUrl(url),
+    activateSurface: () => PanelNavigation.open_panel("reading"),
+    loadInjection: loadMobilePickerInjection
   })
-  const pickerInjection = fetch(
-    new URL("picker-injection.js", document.baseURI)
-  ).then((response) => {
-    if (!response.ok) throw new Error("The source picker bundle could not be loaded")
-    return response.text()
-  })
-  SourcePickerView.mount(app.client, async (requestedUrl) => {
-    if (!browserSurface.available) {
-      throw new Error("There is no active tab to pick from")
-    }
-    if (requestedUrl) {
-      let resolveFinished = (): void => undefined
-      let rejectFinished = (_error: Error): void => undefined
-      const finished = new Promise<void>((resolve, reject) => {
-        resolveFinished = resolve
-        rejectFinished = reject
-      })
-      let removeFinished = (): void => undefined
-      let removeFailed = (): void => undefined
-      removeFinished = await browserSurface.addListener(
-        "navigationFinished",
-        () => {
-          removeFinished()
-          removeFailed()
-          resolveFinished()
-        }
-      )
-      removeFailed = await browserSurface.addListener(
-        "navigationFailed",
-        ({ message }) => {
-          removeFinished()
-          removeFailed()
-          rejectFinished(new Error(`The page could not be loaded: ${message}`))
-        }
-      )
-      reading.openBrowserUrl(requestedUrl)
-      await finished
-    } else if (!/^https?:\/\//i.test(browserUrl)) {
-      throw new Error("There is no active tab to pick from")
-    }
-    PanelNavigation.open_panel("reading")
-    await browserSurface.setVisible(true)
-    await browserSurface.evaluateJavaScript(await pickerInjection)
-    await browserSurface.evaluateJavaScript(
-      "window.__oncePickerResult=undefined;" +
-      "window.__onceSourcePicker().then(function(value){" +
-      "window.__oncePickerResult=JSON.stringify(value)})"
-    )
-    let encoded: string | null = null
-    for (let attempt = 0; attempt < 1800 && encoded == null; attempt += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 100))
-      const value = await browserSurface.evaluateJavaScript(
-        "window.__oncePickerResult===undefined?null:window.__oncePickerResult"
-      )
-      if (value && value !== "null") encoded = JSON.parse(value) as string
-    }
-    if (encoded == null) throw new Error("The source picker timed out")
-    const conf = JSON.parse(encoded) as string | null
-    if (!conf) return null
-    return build_source(sanitize_selector_conf(JSON.parse(conf)), browserUrl)
-  })
+  await sourcePicker.install()
+  SourcePickerView.mount(app.client, (url) => sourcePicker.pick(url))
 
   if (Capacitor.getPlatform() === "android") {
     await App.addListener("backButton", () => {

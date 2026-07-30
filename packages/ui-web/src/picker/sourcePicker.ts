@@ -1,10 +1,22 @@
 import {
-  GenySelector,
   GenySelectorConf,
-  options as genyOptions,
   parse as genyParse,
   sanitize_selector_conf
 } from "@once/collectors/geny"
+import {
+  cssSegment,
+  generalizeStorySelector,
+  relativeFieldSelector,
+  safeQueryAll
+} from "./selectorPolicy"
+import {
+  buildPickerConf,
+  parseSourceLine,
+  serializeSourceLine
+} from "./sourceLinePolicy"
+import { OVERLAY_STYLES } from "./overlayStyles"
+
+export { cssSegment, generalizeStorySelector, relativeFieldSelector }
 
 // In-page overlay that lets the user build a geny_match selector
 // configuration by clicking elements (like an adblocker element picker) or
@@ -36,247 +48,6 @@ const FIELDS: FieldSpec[] = [
 
 const MAX_HIGHLIGHTS = 150
 const PREVIEW_LIMIT = 8
-
-function escapeCssIdent(value: string): string {
-  if (typeof CSS !== "undefined" && CSS.escape) return CSS.escape(value)
-  return value.replace(/[^a-zA-Z0-9_-]/g, (match) => `\\${match}`)
-}
-
-function safeQueryAll(root: Element, selector: string): Element[] {
-  if (!selector.trim()) return []
-  try {
-    return Array.from(root.querySelectorAll(selector))
-  } catch {
-    return []
-  }
-}
-
-// "div.story.item" style segment for one element (tag plus up to three classes).
-export function cssSegment(element: Element): string {
-  const tag = element.tagName.toLowerCase()
-  const classes = Array.from(element.classList)
-    .filter((name) => !/^\d/.test(name))
-    .slice(0, 3)
-    .map((name) => `.${escapeCssIdent(name)}`)
-  return tag + classes.join("")
-}
-
-// Generalizes a clicked element into a selector matching the repeated story
-// containers: walks the ancestors and keeps the candidate matching the most
-// elements that contain a link, preferring the outermost candidate on ties
-// so the container keeps tags and timestamps next to the clicked title.
-export function generalizeStorySelector(element: Element): string {
-  const doc = element.ownerDocument
-  if (!doc?.body) return cssSegment(element)
-  let best: { selector: string; score: number } | null = null
-
-  let candidate: Element | null = element
-  for (let depth = 0; candidate && candidate !== doc.body && depth < 15; depth++) {
-    let selector = cssSegment(candidate)
-    const parent: Element | null = candidate.parentElement
-    if (candidate.classList.length === 0 && parent && parent !== doc.body) {
-      selector = `${cssSegment(parent)} > ${selector}`
-    }
-    const matches = safeQueryAll(doc.body, selector)
-    const score = matches.filter((match) => match.querySelector("a[href]")).length
-    if (score >= 2 && (!best || score >= best.score)) {
-      best = { selector, score }
-    }
-    candidate = parent
-  }
-  return best ? best.selector : cssSegment(element)
-}
-
-function nthOfType(element: Element): number {
-  let index = 1
-  let sibling = element.previousElementSibling
-  while (sibling) {
-    if (sibling.tagName === element.tagName) index++
-    sibling = sibling.previousElementSibling
-  }
-  return index
-}
-
-// Builds a selector for an element relative to its story container so that
-// story.querySelectorAll(selector)[0] finds the element, preferring short
-// descendant selectors over full child paths.
-export function relativeFieldSelector(root: Element, element: Element): string | null {
-  if (element === root || !root.contains(element)) return null
-
-  const short = cssSegment(element)
-  if (safeQueryAll(root, short)[0] === element) return short
-
-  const parts: string[] = []
-  let current: Element = element
-  while (current !== root) {
-    const parent: Element | null = current.parentElement
-    if (!parent) break
-    let segment = cssSegment(current)
-    const twins = Array.from(parent.children).filter(
-      (child) => child.tagName === current.tagName
-    )
-    if (twins.length > 1) segment += `:nth-of-type(${nthOfType(current)})`
-    parts.unshift(segment)
-    const candidate = parts.join(" > ")
-    if (safeQueryAll(root, candidate)[0] === element) return candidate
-    current = parent
-  }
-  return parts.join(" > ")
-}
-
-const OVERLAY_STYLES = `
-  :host { all: initial; }
-  * { box-sizing: border-box; }
-  #boxes, #catcher {
-    position: fixed;
-    inset: 0;
-    margin: 0;
-  }
-  #boxes { pointer-events: none; z-index: 1; }
-  .box {
-    position: absolute;
-    pointer-events: none;
-    border: 2px solid #3a76d0;
-    background: rgba(58, 118, 208, 0.12);
-    border-radius: 2px;
-  }
-  .box.field {
-    border-color: #d07a3a;
-    background: rgba(208, 122, 58, 0.18);
-  }
-  .box.hover {
-    border-color: #2fa463;
-    background: rgba(47, 164, 99, 0.18);
-  }
-  #catcher { z-index: 2; cursor: crosshair; display: none; }
-  #hoverhint {
-    position: fixed;
-    z-index: 4;
-    display: none;
-    max-width: 60vw;
-    padding: 3px 7px;
-    font: 11px/1.4 Consolas, monospace;
-    color: #e8eaf2;
-    background: #20242f;
-    border: 1px solid #3a76d0;
-    border-radius: 3px;
-    pointer-events: none;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  #panel {
-    position: fixed;
-    right: 14px;
-    bottom: 14px;
-    z-index: 3;
-    width: 380px;
-    max-width: calc(100vw - 28px);
-    max-height: calc(100vh - 28px);
-    overflow: auto;
-    font: 12px/1.45 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    color: #e8eaf2;
-    background: #262a35;
-    border: 1px solid #444b5d;
-    border-radius: 6px;
-    padding: 12px;
-  }
-  #panel h1 {
-    font-size: 13px;
-    font-weight: 600;
-    margin: 0 0 8px;
-  }
-  .row {
-    display: grid;
-    grid-template-columns: 52px 1fr auto auto;
-    gap: 6px;
-    align-items: center;
-    margin-bottom: 6px;
-  }
-  .row label { color: #aab1c2; }
-  .row input[type="text"] {
-    width: 100%;
-    min-width: 0;
-    padding: 3px 6px;
-    font: 11px Consolas, monospace;
-    color: #e8eaf2;
-    background: #1b1e26;
-    border: 1px solid #444b5d;
-    border-radius: 3px;
-  }
-  .row input[type="text"]:focus { outline: 1px solid #3a76d0; }
-  .row .count {
-    min-width: 26px;
-    text-align: right;
-    color: #8f97a8;
-    font-variant-numeric: tabular-nums;
-  }
-  button {
-    padding: 3px 9px;
-    font: 11px -apple-system, "Segoe UI", sans-serif;
-    color: #e8eaf2;
-    background: #333a4a;
-    border: 1px solid #4c5468;
-    border-radius: 3px;
-    cursor: pointer;
-  }
-  button:hover { background: #40495e; }
-  button.picking { background: #3a76d0; border-color: #3a76d0; }
-  button:disabled { opacity: 0.45; cursor: default; }
-  #status {
-    min-height: 16px;
-    margin: 4px 0;
-    color: #ffb37a;
-    word-break: break-word;
-  }
-  #preview {
-    margin-top: 6px;
-    border-top: 1px solid #444b5d;
-    padding-top: 6px;
-  }
-  #preview .summary { color: #8f97a8; margin-bottom: 6px; }
-  #preview .story {
-    padding: 4px 6px;
-    margin-bottom: 4px;
-    background: #1b1e26;
-    border-radius: 3px;
-  }
-  #preview .story .t { color: #e8eaf2; }
-  #preview .story .u, #preview .story .m {
-    color: #8f97a8;
-    font-size: 11px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  #source { margin-top: 6px; }
-  #source label {
-    display: block;
-    color: #aab1c2;
-    margin-bottom: 2px;
-  }
-  #source textarea {
-    width: 100%;
-    min-height: 48px;
-    resize: vertical;
-    padding: 4px 6px;
-    font: 10px/1.5 Consolas, monospace;
-    color: #e8eaf2;
-    background: #1b1e26;
-    border: 1px solid #444b5d;
-    border-radius: 3px;
-    word-break: break-all;
-  }
-  #source textarea:focus { outline: 1px solid #3a76d0; }
-  #actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    margin-top: 8px;
-  }
-  #actions .save { background: #2fa463; border-color: #2fa463; }
-  #actions .save:hover { background: #37b56f; }
-`
 
 class PickerOverlay {
   private readonly host: HTMLElement
@@ -551,49 +322,17 @@ class PickerOverlay {
   // a field only regenerates its selector slot when its selector changed, so
   // custom components and processors survive round trips through the fields.
   private buildLooseConf(): GenySelectorConf {
-    const conf = JSON.parse(JSON.stringify(this.baseConf)) as GenySelectorConf
-    this.applyFieldSlot(conf, "stories", { all: true })
-    this.applyFieldSlot(conf, "link", {
-      component: this.components.get("link") || "href"
+    return buildPickerConf({
+      baseConf: this.baseConf,
+      components: this.components,
+      values: {
+        stories: this.value("stories"),
+        link: this.value("link"),
+        title: this.value("title"),
+        timestamp: this.value("timestamp"),
+        tag: this.value("tag")
+      }
     })
-    this.applyFieldSlot(conf, "title", {
-      component: "innerText",
-      processors: ["trim"]
-    })
-    this.applyFieldSlot(conf, "timestamp", {
-      component: this.components.get("timestamp") || "innerText"
-    })
-
-    const tag = this.value("tag")
-    const baseTagText = conf.tags?.[0]?.elements?.text
-    if (!tag) {
-      delete conf.tags
-    } else if (baseTagText?.sel !== tag) {
-      conf.tags = [
-        {
-          elements: {
-            text: { sel: tag, component: this.components.get("tag") || "innerText" }
-          }
-        }
-      ]
-    }
-    // Cleared fields leave undefined-valued keys behind; serialize them away
-    // so validation sees the same configuration that will be saved.
-    return JSON.parse(JSON.stringify(conf)) as GenySelectorConf
-  }
-
-  private applyFieldSlot(
-    conf: GenySelectorConf,
-    field: "stories" | "link" | "title" | "timestamp",
-    defaults: GenySelector
-  ): void {
-    const sel = this.value(field)
-    if (!sel) {
-      // undefined slots disappear when the configuration is serialized.
-      conf[field] = undefined
-    } else if (conf[field]?.sel !== sel) {
-      conf[field] = { ...defaults, sel }
-    }
   }
 
   private scheduleUpdate(): void {
@@ -690,8 +429,7 @@ class PickerOverlay {
   }
 
   private buildSourceLine(conf: GenySelectorConf): string {
-    const separator = genyOptions.separator
-    return `geny:${separator}${JSON.stringify(conf)}${separator}${location.href}`
+    return serializeSourceLine(conf, location.href)
   }
 
   private renderSourceLine(): void {
@@ -726,37 +464,16 @@ class PickerOverlay {
   // Parses an edited source line back into the form fields. Returns a
   // warning when the configuration parses but the collector would reject it.
   private applySourceLine(raw: string): string {
-    const separator = genyOptions.separator
-    const parts = raw.trim().split(separator)
-    if (!parts[0].startsWith("geny:") || parts.length < 3) {
-      throw new Error(
-        `expected geny:${separator}{"stories":…}${separator}${location.origin}…`
-      )
+    const parsed = parseSourceLine(raw)
+    this.baseConf = parsed.state.baseConf
+    this.components.clear()
+    for (const [field, component] of parsed.state.components) {
+      this.components.set(field, component)
     }
-    const parsed: unknown = JSON.parse(parts[1])
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-      throw new Error("the configuration must be a JSON object")
+    for (const field of FIELDS) {
+      this.setValue(field.key, parsed.state.values[field.key])
     }
-    const conf = parsed as GenySelectorConf
-    this.baseConf = conf
-    this.applyFieldSelector("stories", conf.stories)
-    this.applyFieldSelector("link", conf.link)
-    this.applyFieldSelector("title", conf.title)
-    this.applyFieldSelector("timestamp", conf.timestamp)
-    const tagText = conf.tags?.[0]?.elements?.text
-    this.setValue("tag", tagText?.sel || "")
-    if (tagText?.component) this.components.set("tag", tagText.component)
-    try {
-      sanitize_selector_conf(conf)
-    } catch (error) {
-      return error instanceof Error ? error.message : String(error)
-    }
-    return ""
-  }
-
-  private applyFieldSelector(field: FieldKey, selector?: GenySelector): void {
-    this.setValue(field, selector?.sel || "")
-    if (selector?.component) this.components.set(field, selector.component)
+    return parsed.warning
   }
 
   private scheduleRender(): void {
