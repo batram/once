@@ -24,12 +24,13 @@ and Capacitor applications for Android and iOS.
 ## Quick start
 
 ```bash
-npm install
+npm ci
 npm run check
 ```
 
-`npm run check` type-checks the workspace, validates package boundaries, and
-creates development builds for both browser extensions.
+`npm run check` lints and type-checks the workspace, validates source structure,
+dead code, and package boundaries, and creates development builds for the
+browser extensions, Electron, and mobile targets.
 
 ## Run and build
 

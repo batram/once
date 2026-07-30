@@ -45,6 +45,7 @@ packages/
   platform-electron/    Electron renderer implementations of application ports
   platform-web/         Future website adapters
   platform-mobile/      Capacitor implementations of application ports
+```
 
 ### Mobile
 
@@ -52,13 +53,12 @@ The Capacitor application embeds the shared Once web UI in WKWebView or Android
 WebView. It stores stories and lists in a target-specific PouchDB database,
 uses Capacitor's native HTTP patch for collector and CouchDB requests, and
 opens ordinary links in the platform browser. Reader documents stay inside a
-sanboxed local reader surface.
+sandboxed local reader surface.
 
 The sync URL can contain credentials, so mobile stores it outside the WebView:
 iOS uses Keychain and Android encrypts an app-private preference with an
 Android Keystore key. Development and release installs use separate bundle IDs
 and native flavors/schemes.
-```
 
 Shared behavior belongs in `packages/*`. Target-specific permissions,
 lifecycles, background processes, native bridges, and packaging belong in

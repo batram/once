@@ -40,10 +40,11 @@ become stale, use `npm run clean:packages` before rebuilding.
 npm run check
 ```
 
-`npm run check` lints the workspace, builds the shared packages, type-checks
-the workspace, checks package boundaries, creates development builds for both
-browser targets, and type-checks Electron. It does not run the Electron unit or
-E2E test suites; run those separately as described below.
+`npm run check` lints and type-checks the workspace, validates source structure,
+dead code, and package boundaries, and creates development builds for both
+browser targets, Electron, and mobile. It does not run unit, collector,
+platform integration, or E2E test suites; run those separately as described
+below.
 
 ## Build commands
 

@@ -90,7 +90,8 @@ All paths below are under `packages/ui-web/src`.
   state, rendering, editing, and saving.
 - `settings/structured/SourceSettingsEditor.ts` owns the sources section, with
   `SourceGroupView.ts` for group rendering and reordering and `sourceRows.ts`
-  for one source row.
+  for one source row. `SourceDropController.ts` owns source-row drop targeting
+  and moves between groups.
 - `gesture/dragReorder.ts` owns reusable row reordering and drag-edge
   scrolling, shared with the story list rather than owned by settings.
 

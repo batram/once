@@ -70,8 +70,8 @@ test("independent dynamic-port servers use independent database roots", async t 
     owner: "isolation-second"
   })
   if (!secondRunning) return
-  const { server: first, started: firstStarted } = firstRunning
-  const { server: second, started: secondStarted } = secondRunning
+  const { started: firstStarted } = firstRunning
+  const { started: secondStarted } = secondRunning
 
   assert.notEqual(firstStarted.port, secondStarted.port)
   for (const port of [firstStarted.port, secondStarted.port]) {

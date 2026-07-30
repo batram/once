@@ -1,11 +1,6 @@
 import { createActionButton } from "./form"
-import {
-  clearSourceDropTargets,
-  renderSourceRow,
-  SourceRowHost,
-  sourceDragPosition,
-  updateSourceDropTarget
-} from "./sourceRows"
+import { SourceDropController } from "./SourceDropController"
+import { renderSourceRow, SourceRowHost } from "./sourceRows"
 import { SourceGroup } from "./sourceGroups"
 
 export interface SourceGroupHost extends SourceRowHost {
@@ -53,8 +48,14 @@ export class SourceGroupView {
   private open = new Map<string, boolean>()
   private drag: DragState = { index: null, destination: null, committed: false,
     expanded: null, collapseFrame: null, suppressToggle: false }
+  private sourceDrops: SourceDropController
 
-  constructor(private host: SourceGroupHost) {}
+  constructor(private host: SourceGroupHost) {
+    this.sourceDrops = new SourceDropController(
+      host,
+      () => this.drag.index !== null
+    )
+  }
   expand(groupId: string): void { this.open.set(groupId, true) }
 
   render(root: HTMLElement): void {
@@ -164,7 +165,7 @@ export class SourceGroupView {
     if (index > 0) summary.append(handle)
     summary.append(name, count)
     this.appendGroupActions(root, summary, group, index)
-    this.installSourceTitleDrop(root, summary, details, index)
+    this.sourceDrops.installTitle(root, summary, details, index)
     return summary
   }
 
@@ -221,7 +222,7 @@ export class SourceGroupView {
   ): HTMLElement {
     const list = document.createElement("div")
     list.className = "structured_rows"
-    this.installSourceListDrop(list, groupIndex)
+    this.sourceDrops.installList(list, groupIndex)
     group.sources.forEach((source, sourceIndex) => {
       list.append(renderSourceRow(
         root,
@@ -239,114 +240,6 @@ export class SourceGroupView {
       list.append(empty)
     }
     return list
-  }
-
-  // A row list accepts only a source payload — `<group>:<source>` indices in
-  // `text/plain` — so a group drag crossing it never lights up as a target.
-  private installSourceListDrop(list: HTMLElement, groupIndex: number): void {
-    list.addEventListener("dragover", (event) => {
-      if (!sourceDragPosition(event.dataTransfer)) return
-      event.preventDefault()
-      if (event.dataTransfer) event.dataTransfer.dropEffect = "move"
-      const root = list.closest<HTMLElement>(".structured_settings")
-      const dragged = root?.querySelector<HTMLElement>(
-        ".structured_row_dragging"
-      )
-      if (root && dragged) {
-        updateSourceDropTarget(root, dragged, event.clientY)
-      } else {
-        clearSourceDropTargets(list.parentElement || list)
-        list.classList.add("structured_source_group_drop_target")
-      }
-    })
-    list.addEventListener("dragleave", (event) => {
-      const next = event.relatedTarget
-      if (!(next instanceof Node && list.contains(next))) {
-        list.classList.remove("structured_source_group_drop_target")
-      }
-    })
-    list.addEventListener("drop", (event) => {
-      const position = sourceDragPosition(event.dataTransfer)
-      if (!position) return
-      event.preventDefault()
-      event.stopPropagation()
-      const indicated = list.querySelector<HTMLElement>(
-        ".structured_source_drop_before, .structured_source_drop_after"
-      )
-      const sourceIndex = Number(indicated?.dataset.sourceIndex)
-      const after = indicated?.classList.contains(
-        "structured_source_drop_after"
-      )
-      clearSourceDropTargets(
-        list.closest<HTMLElement>(".structured_settings") || list
-      )
-      this.moveSource(
-        position,
-        groupIndex,
-        Number.isInteger(sourceIndex) ? sourceIndex + (after ? 1 : 0) : undefined
-      )
-    })
-  }
-
-  /**
-   * Dropping a source on a group title moves it into that group, which is the
-   * only way to reach a collapsed or empty group. The `drag.index` checks make
-   * the group reorder win: while a group is being dragged its own summary is
-   * under the pointer, and treating that as a source drop would move a row.
-   */
-  private installSourceTitleDrop(
-    root: HTMLElement,
-    summary: HTMLElement,
-    details: HTMLElement,
-    groupIndex: number
-  ): void {
-    summary.addEventListener("dragover", (event) => {
-      if (this.drag.index !== null || !sourceDragPosition(event.dataTransfer)) {
-        return
-      }
-      event.preventDefault()
-      event.stopPropagation()
-      if (event.dataTransfer) event.dataTransfer.dropEffect = "move"
-      clearSourceDropTargets(root)
-      details.classList.add("structured_source_group_title_drop_target")
-    })
-    summary.addEventListener("dragleave", (event) => {
-      const next = event.relatedTarget
-      if (!(next instanceof Node && summary.contains(next))) {
-        details.classList.remove("structured_source_group_title_drop_target")
-      }
-    })
-    summary.addEventListener("drop", (event) => {
-      if (this.drag.index !== null) return
-      const position = sourceDragPosition(event.dataTransfer)
-      if (!position) return
-      event.preventDefault()
-      event.stopPropagation()
-      details.classList.remove("structured_source_group_title_drop_target")
-      this.moveSource(position, groupIndex)
-      root.classList.remove("structured_group_drag_active")
-    })
-  }
-
-  private moveSource(
-    position: [number, number],
-    destination: number,
-    destinationIndex?: number
-  ): void {
-    const [fromGroup, fromIndex] = position
-    const origin = this.host.groups[fromGroup]
-    const target = this.host.groups[destination]
-    // The payload is a stale pair of indices once the model has been edited
-    // during the gesture, so it is bounds-checked rather than trusted.
-    if (!origin || !target || fromIndex < 0 || fromIndex >= origin.sources.length) {
-      return
-    }
-    const [value] = origin.sources.splice(fromIndex, 1)
-    let index = destinationIndex ?? target.sources.length
-    if (fromGroup === destination && fromIndex < index) index--
-    target.sources.splice(Math.max(0, Math.min(index, target.sources.length)), 0,
-      value)
-    this.host.save(false)
   }
 
   // The list container is the fallback target: gaps between groups and the
