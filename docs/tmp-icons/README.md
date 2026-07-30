@@ -5,7 +5,7 @@ Scratch material behind Phase 4 of [design-system-plan.md](../design-system-plan
 before any call site changes.
 
 Delete this directory once Phase 4 lands and the audit has moved into
-`tests/unit/ui-web/`.
+`tests/e2e/design-system/`.
 
 ## Contents
 

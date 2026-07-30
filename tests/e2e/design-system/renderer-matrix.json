@@ -1,0 +1,45 @@
+{
+  "shared": {
+    "automated": true,
+    "coverage": [
+      "primitive geometry",
+      "icon integrity",
+      "control semantics",
+      "keyboard focus"
+    ]
+  },
+  "extensions": {
+    "automated": true,
+    "coverage": [
+      "Chrome artifact shell smoke",
+      "Firefox artifact shell smoke"
+    ]
+  },
+  "electron": {
+    "automated": true,
+    "coverage": [
+      "renderer override smoke",
+      "desktop geometry"
+    ]
+  },
+  "mobileWeb": {
+    "automated": true,
+    "coverage": [
+      "platform CSS",
+      "touch geometry",
+      "narrow and wide viewports"
+    ]
+  },
+  "android": {
+    "automated": false,
+    "releaseGate": "Required for safe-area, native keyboard, touch, or WebView changes"
+  },
+  "ios": {
+    "automated": false,
+    "releaseGate": "Required for safe-area, native keyboard, touch, or WebView changes"
+  },
+  "readerAndPresenters": {
+    "automated": false,
+    "releaseGate": "The theming scope must be decided in Phase 5"
+  }
+}
