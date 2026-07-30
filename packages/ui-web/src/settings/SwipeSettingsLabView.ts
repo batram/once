@@ -126,11 +126,11 @@ function buildFooter(host: HTMLElement): {
   status.dataset.testid = "swipe-save-status"
   status.setAttribute("role", "status")
   status.setAttribute("aria-live", "polite")
-  const undo = element("button")
+  const undo = element("button", "button")
   undo.type = "button"
   undo.textContent = "undo"
   undo.dataset.testid = "undo-swipe"
-  const reset = element("button")
+  const reset = element("button", "button")
   reset.type = "button"
   reset.textContent = "reset to defaults"
   reset.dataset.testid = "reset-swipe"

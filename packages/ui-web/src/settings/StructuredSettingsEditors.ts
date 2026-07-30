@@ -188,7 +188,7 @@ export class StructuredSettingsEditors {
     this.headers.set(section, header)
     const toggle = document.createElement("button")
     toggle.type = "button"
-    toggle.className = "structured_mode_toggle"
+    toggle.className = "button structured_mode_toggle"
     toggle.dataset.testid = `${section}-mode-toggle`
     toggle.textContent = "Edit as text"
     toggle.addEventListener("click", () => this.toggleMode(section))

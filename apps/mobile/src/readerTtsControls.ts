@@ -28,6 +28,7 @@ export function installReaderTtsControls(
   for (const rate of [1, 1.25, 1.5, 2, 3]) {
     const button = document.createElement("button")
     button.type = "button"
+    button.className = "button"
     button.textContent = `${rate}×`
     button.onclick = () => {
       controller.send({ type: "ui-set-rate", rate })

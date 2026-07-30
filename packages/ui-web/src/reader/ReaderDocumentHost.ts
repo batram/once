@@ -12,7 +12,7 @@ export class ReaderDocumentHost {
     this.root.setAttribute("aria-label", "Reader mode")
 
     const close = document.createElement("button")
-    close.className = "once-reader-host-close"
+    close.className = "button once-reader-host-close"
     close.type = "button"
     close.textContent = "Back"
     close.setAttribute("aria-label", "Close reader mode")

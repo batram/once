@@ -31,7 +31,7 @@ export class StructuredAddButtons {
     }
     const button = document.createElement("button")
     button.type = "button"
-    button.className = "structured_add_button"
+    button.className = "button structured_add_button"
     button.dataset.testid = testids[section]
     button.title = labels[section]
     button.setAttribute("aria-label", labels[section])

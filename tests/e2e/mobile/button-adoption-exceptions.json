@@ -51,30 +51,5 @@
       "removeWhen": "The primitive stops carrying a visual box that a dock dot has to undo"
     }
   ],
-  "unclassified": [
-    {
-      "family": "structured_mode_toggle",
-      "reason": "Declares only min-height and padding, so it currently takes the platform baseline's border, background and radius. Likely a real primitive button, but not yet inspected against its desktop and interaction states",
-      "phase": "3.1",
-      "removeWhen": "Inspected and either migrated to .button or recorded as box-owning"
-    },
-    {
-      "family": "structured_add_button",
-      "reason": "Declares position, size, border and radius but deliberately omits background so it inherits the baseline's. A hybrid that needs a decision rather than a default",
-      "phase": "3.1",
-      "removeWhen": "Inspected and either migrated to .button or recorded as box-owning"
-    },
-    {
-      "family": "once-reader-host-close",
-      "reason": "Reader host close control, surfaced by this guard rather than by the family inventory; not yet inspected",
-      "phase": "3.1",
-      "removeWhen": "Inspected and either migrated to .button or recorded as box-owning"
-    },
-    {
-      "family": "(no class)",
-      "reason": "Native buttons carrying no class at all. Inventory only: each needs individual inspection before it is called a primitive or a box-owning control",
-      "phase": "3.1",
-      "removeWhen": "Each unclassed button is inspected and either adopts .button or gains a named family entry"
-    }
-  ]
+  "unclassified": []
 }
