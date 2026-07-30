@@ -198,6 +198,8 @@
   cursor: pointer;
   font-weight: bold;
   overflow-wrap: anywhere;
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .error_log_entry pre {
@@ -208,11 +210,18 @@
   max-height: 240px;
   overflow: auto;
   white-space: pre-wrap;
+  -webkit-user-select: text;
+  user-select: text;
 }
 
+.error_log_copy,
 .error_log_show_source,
 .error_log_show_story {
   margin-top: 8px;
+}
+
+.error_log_show_source {
+  margin-left: 6px;
 }
 
 .error_log_show_story {

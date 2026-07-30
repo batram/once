@@ -11,6 +11,7 @@ interface UiIssue extends SourceError {
 
 const INFO_FADE_DELAY = 2500
 const WARNING_DISMISS_DELAY = 5000
+const COPY_FEEDBACK_DELAY = 1500
 
 export interface LoaderInsightsActions {
   clearSourceErrors(): void
@@ -335,6 +336,23 @@ export class LoaderInsights {
     const body = document.createElement("pre")
     body.textContent = `${new Date().toLocaleString()}\n${details}`
     entry.append(summary, body)
+
+    const copyError = document.createElement("button")
+    copyError.type = "button"
+    copyError.classList.add("error_log_copy")
+    copyError.textContent = "Copy error text"
+    copyError.setAttribute("aria-live", "polite")
+    copyError.addEventListener("click", () => {
+      const errorText = `${title}\n${body.textContent || ""}`
+      void this.copyText(errorText).then((copied) => {
+        copyError.textContent = copied ? "Copied" : "Copy failed"
+        window.setTimeout(() => {
+          copyError.textContent = "Copy error text"
+        }, COPY_FEEDBACK_DELAY)
+      })
+    })
+    entry.append(copyError)
+
     if (sourceUrl) {
       const showSource = document.createElement("button")
       showSource.type = "button"
@@ -357,6 +375,32 @@ export class LoaderInsights {
     }
     log.append(entry)
     return logId
+  }
+
+  private static async copyText(text: string): Promise<boolean> {
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text)
+        return true
+      } catch {
+        // Older embedded WebViews can expose the API but reject writes.
+      }
+    }
+
+    const textarea = document.createElement("textarea")
+    try {
+      textarea.value = text
+      textarea.setAttribute("readonly", "")
+      textarea.style.position = "fixed"
+      textarea.style.opacity = "0"
+      document.body.append(textarea)
+      textarea.select()
+      return document.execCommand?.("copy") ?? false
+    } catch {
+      return false
+    } finally {
+      textarea.remove()
+    }
   }
 
   private static renderEmptyErrorLog(): void {

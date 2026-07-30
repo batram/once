@@ -9,7 +9,9 @@ function installDom(source) {
     document: window.document,
     Element: window.Element,
     HTMLElement: window.HTMLElement,
-    Node: window.Node
+    Node: window.Node,
+    navigator: window.navigator,
+    window
   })) {
     previous.set(name, globalThis[name])
     globalThis[name] = value
@@ -80,7 +82,7 @@ test("hover URL indicator delays, cancels, and completes dismissal", (t) => {
   }
 })
 
-test("status issues stack, dismiss, restore, and reset per reload", (t) => {
+test("status issues stack, dismiss, restore, and reset per reload", async (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] })
   const dom = installDom(`
     <nav id="menu"></nav>
@@ -89,6 +91,15 @@ test("status issues stack, dismiss, restore, and reset per reload", (t) => {
     <section id="error_log"></section>
   `)
   try {
+    const copiedText = []
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        async writeText(text) {
+          copiedText.push(text)
+        }
+      }
+    })
     const { LoaderInsights } = require(
       "../../../packages/ui-web/dist/shell/LoaderInsights"
     )
@@ -137,6 +148,16 @@ test("status issues stack, dismiss, restore, and reset per reload", (t) => {
     assert.equal(document.querySelectorAll(".status_issue_bubble").length, 4)
     assert.equal(document.querySelector("#status_bar_warnings .status_indicator_count").textContent, "2")
     assert.equal(document.querySelector("#status_bar_errors .status_indicator_count").textContent, "2")
+    document.querySelector(".error_log_copy").click()
+    await Promise.resolve()
+    await Promise.resolve()
+    assert.match(
+      copiedText.shift(),
+      /^Warning one\n.+\none\n\nStory source: warning:one$/s
+    )
+    assert.equal(document.querySelector(".error_log_copy").textContent, "Copied")
+    t.mock.timers.tick(1500)
+    assert.equal(document.querySelector(".error_log_copy").textContent, "Copy error text")
     document.querySelector(".error_log_show_source").click()
     assert.deepEqual(actionCalls.shift(), ["highlightSource", "warning:one"])
     document.querySelector(".status_issue_content").click()
