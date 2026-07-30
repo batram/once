@@ -409,7 +409,10 @@ export class BrowserCoordinator {
     } else if (entry.loadError || entry.errorPageUrl) {
       this.navigationErrors.load(entry, entry.displayedUrl)
     }
-    else entry.view.webContents.reload()
+    else {
+      this.tabEvents.preserveTitleOnNextNavigation(entry)
+      entry.view.webContents.reload()
+    }
   }
 
   stop(state: WindowEntry, id: string): void {

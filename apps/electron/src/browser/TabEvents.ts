@@ -15,10 +15,16 @@ interface NavigationActions extends TabOwnerAccess {
 }
 
 class TabNavigationEvents {
+  private readonly titlePreservingReloads = new WeakSet<TabEntry>()
+
   constructor(
     private readonly errors: NavigationErrors,
     private readonly actions: NavigationActions
   ) {}
+
+  preserveTitleOnNextNavigation(entry: TabEntry): void {
+    this.titlePreservingReloads.add(entry)
+  }
 
   bind(entry: TabEntry): void {
     const contents = entry.view.webContents
@@ -38,18 +44,18 @@ class TabNavigationEvents {
     })
     contents.on("did-start-navigation", (event) => {
       if (!event.isMainFrame || event.isSameDocument) return
+      const preserveTitle = this.titlePreservingReloads.delete(entry)
       const errorPage = this.errors.state(entry, event.url)
       if (errorPage) {
         this.errors.restore(entry, event.url, errorPage)
         return
       }
-      const reload = event.url === entry.displayedUrl
       this.reset(entry, event.url)
       entry.audible = false
       entry.hasPlayedAudio = false
       if (entry.muted) contents.setAudioMuted(false)
       entry.muted = false
-      if (!reload) entry.title = "New tab"
+      if (!preserveTitle) entry.title = "New tab"
       changed()
     })
     contents.on("did-redirect-navigation", (event) => {
@@ -237,5 +243,9 @@ export class TabEvents {
     this.navigation.bind(entry)
     this.interaction.bind(entry)
     this.lifecycle.bind(entry)
+  }
+
+  preserveTitleOnNextNavigation(entry: TabEntry): void {
+    this.navigation.preserveTitleOnNextNavigation(entry)
   }
 }

@@ -173,6 +173,9 @@ test("clears a stale tab title when the next page has no title", async () => {
     await address.press("Enter")
     await expect(title).toHaveText("Titled")
 
+    await window.locator("#browser_reload").click()
+    await expect(title).toHaveText("Titled")
+
     await address.fill("about:blank")
     await address.press("Enter")
     await expect(title).toHaveText("New tab")

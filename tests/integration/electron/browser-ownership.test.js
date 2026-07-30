@@ -226,6 +226,7 @@ test("TabEvents preserves the title while reloading the current URL", () => {
   )
   events.bind(tab)
 
+  events.preserveTitleOnNextNavigation(tab)
   tab.view.webContents.emit("did-start-navigation", {
     isMainFrame: true,
     isSameDocument: false,
@@ -233,6 +234,15 @@ test("TabEvents preserves the title while reloading the current URL", () => {
   })
   assert.equal(tab.title, "Existing title")
 
+  tab.title = "Same URL title"
+  tab.view.webContents.emit("did-start-navigation", {
+    isMainFrame: true,
+    isSameDocument: false,
+    url: tab.displayedUrl
+  })
+  assert.equal(tab.title, "New tab")
+
+  tab.title = "Next page title"
   tab.view.webContents.emit("did-start-navigation", {
     isMainFrame: true,
     isSameDocument: false,
