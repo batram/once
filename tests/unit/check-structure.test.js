@@ -1,9 +1,20 @@
 const assert = require("node:assert/strict")
 const test = require("node:test")
 
-const { logicalLines, functionEntries, fileViolations } = require("../../scripts/check-structure")
+const {
+  logicalLines,
+  functionEntries,
+  fileViolations,
+  isIgnored
+} = require("../../scripts/check-structure")
 
 const noExceptions = { files: {}, functions: {} }
+
+test("ignores generated mobile web assets on both native platforms", () => {
+  assert.equal(isIgnored("apps/mobile/android/app/src/main/assets/public/mobile.js"), true)
+  assert.equal(isIgnored("apps/mobile/ios/App/App/public/mobile.js"), true)
+  assert.equal(isIgnored("apps/mobile/src/mobile.ts"), false)
+})
 
 test("counts code lines and ignores comments of every shape", () => {
   const source = [

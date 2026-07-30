@@ -14,6 +14,7 @@ const ignored = [
   /^packages\/platform-web\//,
   /^apps\/mobile\/android\/gradle\//,
   /^apps\/mobile\/android\/app\/src\/main\/res\//,
+  /^apps\/mobile\/android\/app\/src\/main\/assets\/public\//,
   /^apps\/mobile\/ios\/App\/App\.xcodeproj\//,
   /^apps\/mobile\/ios\/App\/App\/public\//,
   /\.min\.js$/
@@ -29,6 +30,10 @@ function filesBelow(directory) {
     const entryPath = path.join(directory, entry.name)
     return entry.isDirectory() ? filesBelow(entryPath) : [entryPath]
   })
+}
+
+function isIgnored(fileName) {
+  return ignored.some((rule) => rule.test(fileName))
 }
 
 // Comments are prose, not code, so they must not count against a file's budget.
@@ -188,7 +193,7 @@ function main() {
   const violations = []
   for (const file of roots.flatMap((directory) => filesBelow(path.join(root, directory)))) {
     const fileName = relative(file)
-    if (!sourceExtensions.has(path.extname(file)) || ignored.some((rule) => rule.test(fileName))) {
+    if (!sourceExtensions.has(path.extname(file)) || isIgnored(fileName)) {
       continue
     }
     violations.push(...fileViolations(fileName, fs.readFileSync(file, "utf8"), config))
@@ -204,4 +209,4 @@ function main() {
 
 if (require.main === module) main()
 
-module.exports = { logicalLines, functionEntries, fileViolations }
+module.exports = { logicalLines, functionEntries, fileViolations, isIgnored }
