@@ -770,6 +770,75 @@ async function captureMobile(output, sourceRoot = repoRoot) {
   }
 }
 
+// The report's keyboard layer, kept out of reportHtml so the markup builder
+// stays readable. Samples are located by scroll position rather than by a
+// stored index, so arrow stepping stays correct after the reader scrolls or
+// follows a link by hand.
+function reportScript() {
+  return `
+  const sections = [...document.querySelectorAll("section")]
+  const orderStatus = document.querySelector("#comparison-order")
+  const sampleStatus = document.querySelector("#sample-status")
+  const header = document.querySelector("header")
+  const sampleGap = 12
+  function setCurrentLeft(currentLeft) {
+    document.body.classList.toggle("current-left", currentLeft)
+    orderStatus.textContent = currentLeft
+      ? "Current left, previous right"
+      : "Previous left, current right"
+  }
+  function headerBottom() {
+    return header.getBoundingClientRect().bottom
+  }
+  function sampleOffset(index) {
+    return sections[index].getBoundingClientRect().top -
+      headerBottom() - sampleGap
+  }
+  function nearestSample() {
+    let nearest = 0
+    sections.forEach((section, index) => {
+      if (sampleOffset(index) <= 4) nearest = index
+    })
+    return nearest
+  }
+  function markSample(index) {
+    sections.forEach((section, position) => {
+      section.classList.toggle("active", position === index)
+    })
+    sampleStatus.textContent =
+      "Sample " + (index + 1) + " of " + sections.length + ": " +
+      sections[index].dataset.sample
+  }
+  function showSample(index) {
+    const clamped = Math.min(Math.max(index, 0), sections.length - 1)
+    scrollTo({ top: scrollY + sampleOffset(clamped) })
+    markSample(clamped)
+  }
+  // From an unaligned scroll position the first press settles on the sample the
+  // reader is looking at; only an aligned one steps to a neighbour.
+  function stepSample(delta) {
+    const nearest = nearestSample()
+    const offset = sampleOffset(nearest)
+    if (delta > 0 && offset > 4) return showSample(nearest)
+    if (delta < 0 && offset < -4) return showSample(nearest)
+    showSample(nearest + delta)
+  }
+  document.addEventListener("keydown", (event) => {
+    if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
+    if (event.key === "ArrowLeft") setCurrentLeft(true)
+    else if (event.key === "ArrowRight") setCurrentLeft(false)
+    else if (event.key === "ArrowDown") stepSample(1)
+    else if (event.key === "ArrowUp") stepSample(-1)
+    else return
+    event.preventDefault()
+  })
+  addEventListener("scroll", () => markSample(nearestSample()), {
+    passive: true
+  })
+  markSample(nearestSample())
+`
+}
+
 function reportHtml({
   baseline,
   baselineHref = "baseline",
@@ -782,8 +851,9 @@ function reportHtml({
       const baselineExists = fs.existsSync(path.join(baseline, name))
       const styles = styleSnapshotName(name)
       const baselineStylesExist = fs.existsSync(path.join(baseline, styles))
-      return `<section>
-        <h2>${name.replace(".png", "")}</h2>
+      const sample = name.replace(".png", "")
+      return `<section data-sample="${sample}">
+        <h2>${sample}</h2>
         <div class="comparison">
           <figure class="previous"><figcaption>${baselineExists ? baselineLabel : "No previous run"}</figcaption>
             ${baselineExists ? `<img src="${baselineHref}/${name}" alt="Previous ${name}">` : "<p>Run the command again to compare against this capture.</p>"}
@@ -802,10 +872,13 @@ function reportHtml({
 <title>Once built-app visual review</title>
 <style>
   :root { color-scheme: dark; font-family: system-ui, sans-serif; }
-  body { margin: 0; padding: 24px; background: #202124; color: #f1f3f4; }
-  header { position: sticky; top: 0; z-index: 2; padding: 12px 0; background: #202124; }
+  body { margin: 0; padding: 0 24px 24px; background: #202124; color: #f1f3f4; }
+  header { position: sticky; top: 0; z-index: 2; padding: 24px 0 12px; background: #202124; box-shadow: 0 1px 0 #5f6368; }
+  header p { margin: 0 0 8px; }
   h1, h2 { margin: 0 0 12px; }
-  section { margin-bottom: 36px; }
+  section { margin-bottom: 36px; padding-left: 12px; border-left: 3px solid transparent; }
+  section.active { border-left-color: #8ab4f8; }
+  section.active h2 { color: #8ab4f8; }
   .comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
   figure { min-width: 0; margin: 0; padding: 12px; border: 1px solid #5f6368; background: #292a2d; }
   body.current-left .comparison .current { order: -1; }
@@ -814,27 +887,11 @@ function reportHtml({
   @media (max-width: 900px) { .comparison { grid-template-columns: 1fr; } }
 </style></head><body>
 <header><h1>Once built-app visual review</h1>
-<p>Deterministic fixture data rendered by the packaged Electron app and generated mobile web app.</p></header>
+<p>Deterministic fixture data rendered by the packaged Electron app and generated mobile web app.</p>
 <p><kbd>←</kbd> Current on left · <kbd>→</kbd> Previous on left · <span id="comparison-order" role="status">Previous left, current right</span></p>
+<p><kbd>↑</kbd> <kbd>↓</kbd> Jump between samples · <span id="sample-status" role="status"></span></p></header>
 ${rows}
-<script>
-  const orderStatus = document.querySelector("#comparison-order")
-  function setCurrentLeft(currentLeft) {
-    document.body.classList.toggle("current-left", currentLeft)
-    orderStatus.textContent = currentLeft
-      ? "Current left, previous right"
-      : "Previous left, current right"
-  }
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "ArrowLeft") {
-      setCurrentLeft(true)
-      event.preventDefault()
-    } else if (event.key === "ArrowRight") {
-      setCurrentLeft(false)
-      event.preventDefault()
-    }
-  })
-</script>
+<script>${reportScript()}</script>
 </body></html>`
 }
 

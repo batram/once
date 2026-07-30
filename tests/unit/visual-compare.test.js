@@ -114,6 +114,17 @@ test("visual report supports keyboard-controlled comparison order", () => {
   assert.match(html, /current\/electron-light-stories\.styles\.json/)
 })
 
+test("visual report steps between samples with the vertical arrows", () => {
+  const html = reportHtml({
+    baseline: "baseline",
+    imageNames: ["electron-light-stories.png", "electron-dark-stories.png"]
+  })
+  assert.match(html, /event\.key === "ArrowDown"/)
+  assert.match(html, /event\.key === "ArrowUp"/)
+  assert.match(html, /data-sample="electron-dark-stories"/)
+  assert.match(html, /id="sample-status"/)
+})
+
 test("visual report can link a retained historical run", (t) => {
   const baseline = fs.mkdtempSync(path.join(os.tmpdir(), "once-visual-unit-"))
   t.after(() => fs.rmSync(baseline, { recursive: true, force: true }))
