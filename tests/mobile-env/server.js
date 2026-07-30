@@ -5,6 +5,7 @@ const path = require("path")
 const PouchDB = require("pouchdb")
 
 const port = Number.parseInt(process.env.ONCE_MOBILE_TEST_PORT || "3211", 10)
+const host = process.env.ONCE_MOBILE_TEST_HOST || "0.0.0.0"
 const owner = process.env.ONCE_MOBILE_TEST_OWNER || ""
 const root = path.resolve(__dirname, "../..")
 const runIdentity = (owner || `pid-${process.pid}`).replace(/[^a-zA-Z0-9_-]/g, "_")
@@ -126,17 +127,42 @@ app.use("/db", (request, response, next) => {
 })
 app.use("/db", expressPouchDB(TestPouchDB, { mode: "minimumForPouchDB" }))
 
-const server = app.listen(port, "0.0.0.0", () => {
+const server = app.listen(port, host, () => {
   const address = server.address()
   const listeningPort = typeof address === "object" && address ? address.port : port
   console.log(`Once mobile test environment listening on ${listeningPort}`)
   process.send?.({ type: "once-mobile-test-server-ready", port: listeningPort, owner })
+})
+server.on("error", error => {
+  const details = {
+    code: error.code || "UNKNOWN",
+    message: error.message,
+    address: error.address || host,
+    port: error.port ?? port
+  }
+  console.error(
+    "Unable to start the mobile test environment on " +
+    `${details.address}:${details.port} (${details.code}): ${details.message}`
+  )
+  const failure = {
+    type: "once-mobile-test-server-failed",
+    owner,
+    error: details
+  }
+  if (process.send) {
+    process.send(failure, () => process.exit(1))
+  } else {
+    process.exit(1)
+  }
 })
 
 let closing = false
 function close() {
   if (closing) return
   closing = true
+  if (!server.listening) {
+    process.exit(0)
+  }
   server.close(() => process.exit(0))
   setTimeout(() => process.exit(1), 2_000).unref()
 }

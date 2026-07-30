@@ -4,22 +4,40 @@ const os = require("node:os")
 const path = require("node:path")
 const test = require("node:test")
 const {
+  isNetworkPermissionError,
   readHealth,
   startTestServer
 } = require("../../e2e/mobile/test-server-process")
 
-test("mobile test server atomically selects a port and reports ownership", async t => {
-  const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "once-mobile-server-"))
+async function requireServer(t, options = {}) {
   const server = startTestServer({
-    port: 0,
-    owner: "unit-test-owner",
-    env: { ONCE_MOBILE_TEST_DATA_DIR: dataRoot },
-    stdout: "ignore",
-    stderr: "ignore"
+    ...options,
+    host: "127.0.0.1",
+    stdout: options.stdout || "ignore",
+    stderr: options.stderr || "ignore"
   })
   t.after(() => server.stop())
+  try {
+    return { server, started: await server.ready }
+  } catch (error) {
+    if (!isNetworkPermissionError(error)) throw error
+    t.skip(
+      "loopback listeners are unavailable in this test environment " +
+      `(${error.code})`
+    )
+    return null
+  }
+}
 
-  const started = await server.ready
+test("mobile test server atomically selects a port and reports ownership", async t => {
+  const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "once-mobile-server-"))
+  const running = await requireServer(t, {
+    port: 0,
+    owner: "unit-test-owner",
+    env: { ONCE_MOBILE_TEST_DATA_DIR: dataRoot }
+  })
+  if (!running) return
+  const { server, started } = running
   assert.ok(started.port > 0)
   assert.equal(started.env.ONCE_MOBILE_TEST_PORT, String(started.port))
   assert.deepEqual(await readHealth(started.port), {
@@ -42,10 +60,18 @@ test("mobile test server atomically selects a port and reports ownership", async
 })
 
 test("independent dynamic-port servers use independent database roots", async t => {
-  const first = startTestServer({ port: 0, owner: "isolation-first", stdout: "ignore", stderr: "ignore" })
-  const second = startTestServer({ port: 0, owner: "isolation-second", stdout: "ignore", stderr: "ignore" })
-  t.after(() => Promise.all([first.stop(), second.stop()]))
-  const [firstStarted, secondStarted] = await Promise.all([first.ready, second.ready])
+  const firstRunning = await requireServer(t, {
+    port: 0,
+    owner: "isolation-first"
+  })
+  if (!firstRunning) return
+  const secondRunning = await requireServer(t, {
+    port: 0,
+    owner: "isolation-second"
+  })
+  if (!secondRunning) return
+  const { server: first, started: firstStarted } = firstRunning
+  const { server: second, started: secondStarted } = secondRunning
 
   assert.notEqual(firstStarted.port, secondStarted.port)
   for (const port of [firstStarted.port, secondStarted.port]) {
@@ -63,27 +89,31 @@ test("independent dynamic-port servers use independent database roots", async t 
 })
 
 test("mobile test server rejects an explicitly occupied port without disturbing its owner", async t => {
-  const first = startTestServer({ port: 0, owner: "first", stdout: "ignore", stderr: "ignore" })
-  t.after(() => first.stop())
-  const started = await first.ready
+  const running = await requireServer(t, { port: 0, owner: "first" })
+  if (!running) return
+  const { server: first, started } = running
 
   const second = startTestServer({
     port: started.port,
     owner: "second",
+    host: "127.0.0.1",
     stdout: "ignore",
     stderr: "ignore"
   })
   t.after(() => second.stop())
-  await assert.rejects(second.ready, /exited before readiness/)
+  await assert.rejects(second.ready, error =>
+    error.name === "MobileTestServerStartupError" &&
+    error.code === "EADDRINUSE")
 
   const health = await readHealth(started.port)
   assert.equal(health.owner, "first")
   assert.equal(health.pid, first.child.pid)
 })
 
-test("mobile test server exits cleanly when its owner stops it", async () => {
-  const server = startTestServer({ port: 0, stdout: "ignore", stderr: "ignore" })
-  const started = await server.ready
+test("mobile test server exits cleanly when its owner stops it", async t => {
+  const running = await requireServer(t, { port: 0 })
+  if (!running) return
+  const { server, started } = running
   assert.ok(fs.existsSync(started.dataDirectory))
   await server.stop()
   assert.notEqual(server.child.exitCode ?? server.child.signalCode, null)
@@ -92,9 +122,9 @@ test("mobile test server exits cleanly when its owner stops it", async () => {
 })
 
 test("database reset replaces documents in place without a destroy/recreate race", async t => {
-  const server = startTestServer({ port: 0, owner: "reset-test", stdout: "ignore", stderr: "ignore" })
-  t.after(() => server.stop())
-  const { port } = await server.ready
+  const running = await requireServer(t, { port: 0, owner: "reset-test" })
+  if (!running) return
+  const { started: { port } } = running
   const resetUrl = `http://127.0.0.1:${port}/test/databases/reset_test/reset`
 
   for (const docs of [

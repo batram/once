@@ -6,8 +6,25 @@ const { spawn } = require("child_process")
 
 const root = path.resolve(__dirname, "../../..")
 
-function delay(milliseconds) {
-  return new Promise(resolve => setTimeout(resolve, milliseconds))
+class MobileTestServerStartupError extends Error {
+  constructor(details, requestedPort) {
+    const code = details?.code || "UNKNOWN"
+    const address = details?.address || "0.0.0.0"
+    const port = details?.port ?? requestedPort
+    super(
+      `Mobile test server could not listen on ${address}:${port} ` +
+      `(${code}): ${details?.message || "unknown startup error"}`
+    )
+    this.name = "MobileTestServerStartupError"
+    this.code = code
+    this.address = address
+    this.port = port
+  }
+}
+
+function isNetworkPermissionError(error) {
+  return error instanceof MobileTestServerStartupError &&
+    (error.code === "EACCES" || error.code === "EPERM")
 }
 
 async function readHealth(port, timeout = 500) {
@@ -20,10 +37,17 @@ async function readHealth(port, timeout = 500) {
 
 function waitForExit(child, timeout) {
   if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve(true)
-  return Promise.race([
-    new Promise(resolve => child.once("exit", () => resolve(true))),
-    delay(timeout).then(() => false)
-  ])
+  return new Promise(resolve => {
+    const onExit = () => {
+      clearTimeout(timer)
+      resolve(true)
+    }
+    const timer = setTimeout(() => {
+      child.off("exit", onExit)
+      resolve(false)
+    }, timeout)
+    child.once("exit", onExit)
+  })
 }
 
 async function stopChild(child) {
@@ -47,6 +71,8 @@ function startTestServer(options = {}) {
     ...process.env,
     ...options.env,
     ONCE_MOBILE_TEST_PORT: requestedPort,
+    ONCE_MOBILE_TEST_HOST: options.host ||
+      process.env.ONCE_MOBILE_TEST_HOST || "0.0.0.0",
     ONCE_MOBILE_TEST_OWNER: owner,
     ONCE_MOBILE_TEST_DATA_DIR: dataDirectory
   }
@@ -74,14 +100,20 @@ function startTestServer(options = {}) {
       new Error(`Mobile test server exited before readiness (code ${code ?? "none"}, signal ${signal ?? "none"})`)
     )
     const onMessage = message => {
-      if (message?.type !== "once-mobile-test-server-ready") return
-      finish(resolve, {
-        port: message.port,
-        owner,
-        child,
-        dataDirectory,
-        env: { ...env, ONCE_MOBILE_TEST_PORT: String(message.port) }
-      })
+      if (message?.type === "once-mobile-test-server-ready") {
+        finish(resolve, {
+          port: message.port,
+          owner,
+          child,
+          dataDirectory,
+          env: { ...env, ONCE_MOBILE_TEST_PORT: String(message.port) }
+        })
+      } else if (message?.type === "once-mobile-test-server-failed") {
+        finish(reject, new MobileTestServerStartupError(
+          message.error,
+          requestedPort
+        ))
+      }
     }
     child.once("error", onError)
     child.once("exit", onExit)
@@ -101,4 +133,10 @@ function startTestServer(options = {}) {
   }
 }
 
-module.exports = { readHealth, startTestServer, stopChild }
+module.exports = {
+  isNetworkPermissionError,
+  MobileTestServerStartupError,
+  readHealth,
+  startTestServer,
+  stopChild
+}
