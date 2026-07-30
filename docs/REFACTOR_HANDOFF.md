@@ -88,17 +88,6 @@ half-extracted architecture.
 
 ## Ordered work packages
 
-### 3. Separate mobile reading UI from native-surface coordination
-
-Reduce `apps/mobile/src/readingController.ts` by separating the native reading
-session/surface lifecycle from current-story DOM interaction. The native side
-should own visibility, bounds, navigation/request generations, reader loading,
-and stale-result rejection. The view side should own observation, collapse,
-swipe, controls, and rendering.
-
-Do not create a wide callback bag between the two. Add tests around the state
-each side owns and remove the file exception.
-
 ### 4. Extract Electron tab ownership and window lifecycle
 
 Continue the existing decomposition of `apps/electron/src/TabManager.ts`.

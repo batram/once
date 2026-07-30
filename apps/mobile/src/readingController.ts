@@ -1,13 +1,9 @@
-import {
-  InAppBrowserSurface,
-  normalizeReadingUrl
-} from "@once/platform-mobile"
+import { InAppBrowserSurface, normalizeReadingUrl } from "@once/platform-mobile"
 import { humanTime, URLRedirect } from "@once/core"
 import { ReaderTtsUiControls } from "./readerTtsControls"
 import {
   PanelNavigation,
   READING_REQUEST,
-  ReaderDocumentHost,
   ReadingRequestEvent,
   ReadingSession,
   ReadingSessionState,
@@ -17,24 +13,19 @@ import {
   closeStoryAnchoredMenu,
   isStoryAnchoredMenuOpen
 } from "@once/ui-web"
+import { ReaderDocumentHost } from "@once/ui-web"
+import { ReadingSurfaceCoordinator } from "./readingSurfaceCoordinator"
 
 export class MobileReadingController {
-  readonly session = new ReadingSession()
+  readonly session
   private readonly content: HTMLElement
+  private readonly nativeReading: ReadingSurfaceCoordinator
   private activePanel = "stories"
   private settingsReturnPanel: "stories" | "reading" = "stories"
-  private removers: Array<() => void> = []
-  private browserOpened = false
-  private browserUrl = ""
-  private browserReady = false
   private editingAddress = false
-  private surfaceGeneration = 0
-  private readerRequestId = 0
-  private surfaceQueue: Promise<void> = Promise.resolve()
   private currentStoryRow: StoryListItem | null = null
   private currentCardStoryHref = ""
   private currentStoryCollapsed = false
-  private storyMenuOpen = false
 
   openBrowserUrl(url: string): void {
     PanelNavigation.open_panel("reading")
@@ -42,72 +33,27 @@ export class MobileReadingController {
   }
 
   constructor(
-    private readonly surface: InAppBrowserSurface,
-    private readonly reader: ReaderDocumentHost,
+    surface: InAppBrowserSurface,
+    reader: ReaderDocumentHost,
     private readonly ttsControls: ReaderTtsUiControls
   ) {
     this.content = required("#reading_content")
+    this.nativeReading = new ReadingSurfaceCoordinator(
+      new ReadingSession(),
+      surface,
+      reader,
+      this.content
+    )
+    this.session = this.nativeReading.session
     this.bindControls()
     this.bindEvents()
     this.session.subscribe((state) => {
       this.render(state)
-      const generation = ++this.surfaceGeneration
-      void this.enqueueSurface(() => this.syncSurface(state, generation))
     })
   }
 
   async install(): Promise<void> {
-    const started = await this.surface.addListener(
-      "navigationStarted",
-      (event) => {
-        if (!this.acceptsNavigation(event.navigationId)) return
-        this.browserUrl = event.url
-        this.browserReady = false
-        this.session.navigationStarted(event.navigationId, event.url)
-      }
-    )
-    const committed = await this.surface.addListener(
-      "navigationCommitted",
-      (event) => {
-        if (!this.acceptsNavigation(event.navigationId)) return
-        this.browserUrl = event.url
-        this.session.navigationCommitted(event.navigationId, event.url)
-      }
-    )
-    const finished = await this.surface.addListener(
-      "navigationFinished",
-      (event) => {
-        if (!this.acceptsNavigation(event.navigationId)) return
-        this.browserUrl = event.url
-        this.browserReady = true
-        this.session.navigationFinished(event.navigationId, event.url)
-      }
-    )
-    const failed = await this.surface.addListener(
-      "navigationFailed",
-      (event) => {
-        if (!this.acceptsNavigation(event.navigationId)) return
-        this.browserReady = false
-        this.session.navigationFailed(
-          event.navigationId,
-          event.url,
-          event.message
-        )
-      }
-    )
-    const history = await this.surface.addListener(
-      "historyChanged",
-      (event) => {
-        if (!this.acceptsNavigation(event.navigationId)) return
-        this.browserUrl = event.url
-        this.session.historyChanged(
-          event.navigationId,
-          event.url,
-          event.canGoBack
-        )
-      }
-    )
-    this.removers.push(started, committed, finished, failed, history)
+    await this.nativeReading.install()
   }
 
   async handleBack(): Promise<boolean> {
@@ -162,7 +108,7 @@ export class MobileReadingController {
       return true
     }
     if (state.mode !== "reader" && state.canGoBack) {
-      await this.enqueueSurface(() => this.surface.goBack())
+      await this.nativeReading.goBack()
       return true
     }
     this.close()
@@ -176,8 +122,7 @@ export class MobileReadingController {
 
   private clearReading(): void {
     this.ttsControls.dismiss()
-    this.reader.close()
-    this.session.close()
+    this.nativeReading.closeReading()
   }
 
   private bindEvents(): void {
@@ -207,17 +152,20 @@ export class MobileReadingController {
         state.loadState === "ready" &&
         Boolean(state.currentUrl)
       )
-      void this.updateVisibility()
+      this.nativeReading.setReadingPanelVisible(
+        this.activePanel === "reading"
+      )
     })
-    window.addEventListener("resize", () => void this.updateBounds())
+    window.addEventListener("resize", () => void this.nativeReading.updateBounds())
     window.visualViewport?.addEventListener(
       "resize",
-      () => void this.updateBounds()
+      () => void this.nativeReading.updateBounds()
     )
     // The native browser is a sibling view, so it does not follow DOM flex
     // layout automatically. Keep its rectangle synchronized when the current
     // story row appears or collapses.
-    new ResizeObserver(() => void this.updateBounds()).observe(this.content)
+    new ResizeObserver(() => void this.nativeReading.updateBounds())
+      .observe(this.content)
   }
 
   private bindControls(): void {
@@ -247,7 +195,7 @@ export class MobileReadingController {
       address.value = this.session.snapshot().currentUrl
       this.session.setMode(
         this.session.snapshot().mode === "reader" ? "browser" : "reader",
-        this.browserReady
+        this.nativeReading.isBrowserReady()
       )
     }
     required<HTMLButtonElement>("#reading_reader_retry").onclick = () => {
@@ -258,7 +206,7 @@ export class MobileReadingController {
     required<HTMLButtonElement>("#reading_reader_open_page").onclick = () => {
       const state = this.session.snapshot()
       if (!state.currentUrl) return
-      this.session.setMode("browser", this.browserReady)
+      this.session.setMode("browser", this.nativeReading.isBrowserReady())
     }
     address.addEventListener("focus", () => {
       this.editingAddress = true
@@ -287,18 +235,16 @@ export class MobileReadingController {
       const story = this.storyElement()
       if (!story) return
       const anchor = event.currentTarget as HTMLElement
-      if (!this.surface.available) {
-        this.storyMenuOpen = true
-        void this.enqueueSurface(() => this.surface.setVisible(false))
+      if (!this.nativeReading.isAvailable()) {
+        this.nativeReading.setMenuOpen(true)
       }
       story.requestMenu(anchor)
     }
     document.addEventListener("once-story-menu-closed", () => {
-      this.storyMenuOpen = false
       // The anchored menu closes before it executes its action. Refresh on the
       // next microtask so synchronous changes such as bookmarking are visible.
       queueMicrotask(() => this.render(this.session.snapshot()))
-      void this.updateVisibility()
+      this.nativeReading.setMenuOpen(false)
     })
   }
 
@@ -370,7 +316,7 @@ export class MobileReadingController {
     if (this.currentStoryCollapsed === collapsed) return
     this.currentStoryCollapsed = collapsed
     this.renderCurrentStoryCollapse()
-    void this.updateBounds()
+    void this.nativeReading.updateBounds()
   }
 
   private renderCurrentStoryCollapse(): void {
@@ -403,89 +349,6 @@ export class MobileReadingController {
   private readonly handleCurrentStoryChange = (): void => {
     // StoryListItem updates its story reference from the same event.
     queueMicrotask(() => this.render(this.session.snapshot()))
-  }
-
-  private async syncSurface(
-    state: Readonly<ReadingSessionState>,
-    generation: number
-  ): Promise<void> {
-    if (generation !== this.surfaceGeneration) return
-    if (!state.currentUrl) {
-      this.readerRequestId += 1
-      this.reader.close()
-      if (this.browserOpened) {
-        await this.surface.close()
-        this.browserOpened = false
-        this.browserUrl = ""
-        this.browserReady = false
-      }
-      return
-    }
-    if (state.mode === "reader") {
-      await this.surface.setVisible(false)
-      if (generation !== this.surfaceGeneration) return
-      if (state.loadState !== "loading") {
-        if (state.loadState === "error") this.reader.close()
-        return
-      }
-      this.reader.close()
-      const requestId = ++this.readerRequestId
-      void this.loadReader(state.currentUrl, requestId)
-      return
-    }
-    this.readerRequestId += 1
-    this.reader.close()
-    const bounds = this.bounds()
-    if (!this.browserOpened) {
-      await this.surface.open({
-        url: state.currentUrl,
-        bounds,
-        // Never let an older open cover a newer Reader transition.
-        visible: false
-      })
-      this.browserOpened = true
-      this.browserUrl = state.currentUrl
-      this.browserReady = false
-    } else {
-      await this.surface.setBounds(bounds)
-      if (generation !== this.surfaceGeneration) return
-      if (this.browserUrl !== state.currentUrl) {
-        this.browserUrl = state.currentUrl
-        this.browserReady = false
-        await this.surface.navigate(state.currentUrl)
-      }
-    }
-    if (generation !== this.surfaceGeneration) return
-    await this.surface.setVisible(
-      this.activePanel === "reading" && !this.storyMenuOpen
-    )
-    document.body.classList.toggle(
-      "once-native-reading-surface",
-      this.surface.available
-    )
-  }
-
-  private async updateBounds(): Promise<void> {
-    if (!this.session.snapshot().currentUrl || !this.browserOpened) return
-    const bounds = this.bounds()
-    await this.enqueueSurface(() => this.surface.setBounds(bounds))
-  }
-
-  private async updateVisibility(): Promise<void> {
-    const state = this.session.snapshot()
-    const visible = this.activePanel === "reading" &&
-      Boolean(state.currentUrl) &&
-      state.mode !== "reader" &&
-      !this.storyMenuOpen
-    await this.enqueueSurface(async () => {
-      if (!this.browserOpened) return
-      await this.surface.setVisible(visible)
-    })
-  }
-
-  private bounds() {
-    const rect = this.content.getBoundingClientRect()
-    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
   }
 
   private render(state: Readonly<ReadingSessionState>): void {
@@ -609,7 +472,7 @@ export class MobileReadingController {
     this.clearValidation()
     if (normalized.url === state.currentUrl && state.mode !== "reader") {
       if (state.loadState !== "loading") {
-        await this.enqueueSurface(() => this.surface.reload())
+        await this.nativeReading.reload()
       }
       return
     }
@@ -624,8 +487,8 @@ export class MobileReadingController {
     const commentsUrl = state.story?.comment_url
     if (!commentsUrl) return
     if (state.mode === "comments" && state.currentUrl === commentsUrl) {
-      if (this.browserOpened && state.loadState !== "loading") {
-        await this.enqueueSurface(() => this.surface.reload())
+      if (this.nativeReading.isBrowserOpened() && state.loadState !== "loading") {
+        await this.nativeReading.reload()
       }
       return
     }
@@ -651,8 +514,8 @@ export class MobileReadingController {
     if (!storyHref) return
     const storyUrl = URLRedirect.redirect_url(storyHref)
     if (state.mode === "browser" && state.currentUrl === storyUrl) {
-      if (this.browserOpened && state.loadState !== "loading") {
-        await this.enqueueSurface(() => this.surface.reload())
+      if (this.nativeReading.isBrowserOpened() && state.loadState !== "loading") {
+        await this.nativeReading.reload()
       }
       return
     }
@@ -680,45 +543,6 @@ export class MobileReadingController {
     action.disabled = state.loadState === "loading" && !changed
   }
 
-  private async loadReader(url: string, requestId: number): Promise<void> {
-    try {
-      const { ReaderView } = await import("@once/ui-web")
-      await ReaderView.openWith(url, "_self", async (html, sourceUrl) => {
-        if (!this.acceptsReaderRequest(requestId, sourceUrl)) return
-        await this.reader.open(html)
-      })
-      if (!this.acceptsReaderRequest(requestId, url)) return
-      this.session.readerFinished(url)
-    } catch (error) {
-      if (!this.acceptsReaderRequest(requestId, url)) return
-      this.reader.close()
-      const message = error instanceof Error
-        ? error.message
-        : "Reader mode could not process this page."
-      this.session.readerFailed(url, message)
-    }
-  }
-
-  private acceptsReaderRequest(requestId: number, url: string): boolean {
-    const state = this.session.snapshot()
-    return requestId === this.readerRequestId &&
-      state.mode === "reader" &&
-      state.currentUrl === url
-  }
-
-  private enqueueSurface(operation: () => Promise<void>): Promise<void> {
-    const queued = this.surfaceQueue.then(operation).catch((error) => {
-      console.error("Reading browser surface operation failed", error)
-    })
-    this.surfaceQueue = queued
-    return queued
-  }
-
-  private acceptsNavigation(navigationId: number): boolean {
-    const state = this.session.snapshot()
-    return Boolean(state.story || state.currentUrl) &&
-      navigationId >= state.navigationId
-  }
 }
 
 

@@ -33,7 +33,8 @@ target lifecycle, permissions, native bridges, and packaging belong in an app.
 | Reader extraction and display | `packages/ui-web/src/reader` | Shared reader runtime |
 | Source picker | `packages/ui-web/src/picker` | Shared picker plus platform injection |
 | Electron tabs and windows | `apps/electron/src/TabManager.ts` | Main-process ownership |
-| Mobile reading surface | `apps/mobile/src/readingController.ts` | Web/native coordination |
+| Mobile reading view | `apps/mobile/src/readingController.ts` | Current-story DOM interaction |
+| Mobile reading surface | `apps/mobile/src/readingSurfaceCoordinator.ts` | Native session and surface lifecycle |
 | Native browser bridge | `packages/platform-mobile/src/InAppBrowserSurface.ts` | Capacitor-facing adapter |
 
 ## Source classifications
