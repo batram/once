@@ -24,6 +24,7 @@ test("keeps the title bar draggable and interactive controls no-drag", async () 
     expect(await electronApp.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()[0].isMovable()
     )).toBe(true)
+    await expect(window.locator("#reading_menu_btn")).toBeHidden()
 
     const titlebar = await window.locator("#titlebar").boundingBox()
     expect(titlebar).not.toBeNull()

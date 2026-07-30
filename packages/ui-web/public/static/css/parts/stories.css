@@ -370,7 +370,7 @@
   opacity: 0.8;
 }
 
-.tag--icon {
+.tags_container .tag--icon {
   --stories-tag-icon-padding-left: 17px;
   padding-left: var(--stories-tag-icon-padding-left);
   background: var(--tag-icon) left top / var(--tag-icon-size, 16px) no-repeat;

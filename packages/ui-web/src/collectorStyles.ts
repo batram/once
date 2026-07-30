@@ -16,8 +16,10 @@ export function addCollectorColorStyles(): void {
       }
 
       .menu_btn[data-type='${bracketedType}'] {
-        background-color: ${colors[0]};
-        color: ${colors[1]};
+        --collector-bg: ${colors[0]};
+        --collector-color: ${colors[1]};
+        background-color: var(--collector-bg);
+        color: var(--collector-color);
       }
     }`
     document.head.append(style)

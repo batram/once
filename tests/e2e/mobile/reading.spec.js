@@ -76,6 +76,9 @@ test("the current Reading story reflects bookmark changes", async ({ page }) => 
       collapseSize: [collapseButton.width, collapseButton.height],
       menuSize: [menuButton.width, menuButton.height],
       controlsGap: menuButton.left - collapseButton.right,
+      controlsInsideCard: [collapseButton, menuButton].every(
+        (item) => item.top >= cardBox.top && item.bottom <= cardBox.bottom
+      ),
       contentClearControls: title.right <= collapseButton.left,
       oneLine: [source, title].every(
         (item) => item.top >= cardBox.top && item.bottom <= cardBox.bottom
@@ -89,6 +92,7 @@ test("the current Reading story reflects bookmark changes", async ({ page }) => 
   expect(geometry.collapseSize).toEqual([28, 28])
   expect(geometry.menuSize).toEqual([28, 28])
   expect(geometry.controlsGap).toBe(2)
+  expect(geometry.controlsInsideCard).toBe(true)
   expect(geometry.contentClearControls).toBe(true)
   expect(geometry.oneLine).toBe(true)
   expect(geometry.compactHeight).toBeLessThanOrEqual(40)

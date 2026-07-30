@@ -106,6 +106,8 @@ body {
   --mobile-mobile_filter_chips-mobile_filter_chip-padding: 0 6px;
   padding: var(--mobile-mobile_filter_chips-mobile_filter_chip-padding);
   white-space: nowrap;
+  color: var(--collector-color, inherit);
+  background-color: var(--collector-bg, var(--main-bg-color));
 }
 
 #menu #types,
@@ -752,7 +754,7 @@ body[data-theme="dark"] #reading_reader_toggle:not(.active) img {
   transition: none;
 }
 
-.reading_story_collapsed button {
+#reading_current_card.reading_story_collapsed > button {
   bottom: 3px;
 }
 

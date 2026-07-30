@@ -55,6 +55,58 @@ test("mobile shell is responsive and hides unavailable capabilities", async ({ p
   await expect(page.getByTestId("pick-source")).toBeHidden()
   await expect(page.getByTestId("settings-menu")).toBeVisible()
   await expect(page.getByTestId("stories-menu")).toBeVisible()
+  const collectorColors = await page.evaluate(() => {
+    const style = document.createElement("style")
+    style.textContent = `@layer components {
+      .menu_btn[data-type="[TEST]"] {
+        --collector-bg: rgb(12 34 56);
+        --collector-color: rgb(240 241 242);
+        background-color: var(--collector-bg);
+        color: var(--collector-color);
+      }
+    }`
+    const source = document.createElement("div")
+    source.className = "menu_btn"
+    source.dataset.type = "[TEST]"
+    const chip = document.createElement("button")
+    chip.className = "menu_btn mobile_filter_chip"
+    chip.dataset.type = "[TEST]"
+    document.head.append(style)
+    document.querySelector("#menu #types").append(source)
+    document.querySelector("#mobile_filter_chips").append(chip)
+    const sourceStyle = getComputedStyle(source)
+    const chipStyle = getComputedStyle(chip)
+    const result = {
+      source: [sourceStyle.backgroundColor, sourceStyle.color],
+      chip: [chipStyle.backgroundColor, chipStyle.color]
+    }
+    style.remove()
+    source.remove()
+    chip.remove()
+    return result
+  })
+  expect(collectorColors.chip).toEqual(collectorColors.source)
+
+  const iconTag = await page.locator("#stories").evaluate((stories) => {
+    const tags = document.createElement("div")
+    tags.className = "tags_container"
+    const tag = document.createElement("span")
+    tag.className = "tag tag--icon"
+    tag.style.setProperty("--tag-icon", 'url("imgs/reddit.svg")')
+    tag.textContent = "author"
+    tags.append(tag)
+    stories.append(tags)
+    const style = getComputedStyle(tag)
+    const result = {
+      paddingLeft: style.paddingLeft,
+      backgroundImage: style.backgroundImage
+    }
+    tags.remove()
+    return result
+  })
+  expect(iconTag.paddingLeft).toBe("17px")
+  expect(iconTag.backgroundImage).toContain("reddit.svg")
+
   expect(await page.locator("#left_panel").evaluate((element) => element.scrollWidth <= window.innerWidth)).toBe(true)
   const trailingStorySpace = await page.locator("#stories").evaluate((stories) => {
     const finalStory = document.createElement("article")
