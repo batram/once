@@ -1,14 +1,12 @@
 import { SourceError } from "@once/app"
 import { AnchoredMenuItem } from "../StoryAnchoredMenu"
-import { createActionButton } from "./form"
+import { createActionButton, StructuredFormField } from "./form"
 import { SourceGroupView } from "./SourceGroupView"
 import {
   parseSourceGroups,
+  SourceGroup,
   serializeSourceGroups
 } from "./sourceGroups"
-import type { SourceGroup } from "../StructuredSettingsEditors"
-
-type Fields = Array<[string, string, { multiline?: boolean; hint?: string }?]>
 
 export interface SourceSettingsHost {
   onTouch(): boolean
@@ -19,13 +17,11 @@ export interface SourceSettingsHost {
   saveSources(values: string[], reloadStories?: boolean): void | Promise<void>
   showSourceError(source: string): void
   openMenu(anchor: HTMLElement, items: AnchoredMenuItem[]): void
-  rowBody(...children: HTMLElement[]): HTMLElement
-  rowChevron(label: string, action: () => void): HTMLElement
   listActions(): HTMLElement | null
   showForm(
     root: HTMLElement,
     title: string,
-    fields: Fields,
+    fields: StructuredFormField[],
     save: (values: string[]) => boolean,
     remove?: { label: string; action: () => void },
     choices?: Array<[string, string]>
@@ -52,8 +48,6 @@ export class SourceSettingsEditor {
       save: (reload) => this.save(reload),
       showError: (source) => this.host.showSourceError(source),
       openMenu: (anchor, items) => this.host.openMenu(anchor, items),
-      rowBody: (...children) => this.host.rowBody(...children),
-      rowChevron: (label, action) => this.host.rowChevron(label, action),
       listActions: () => this.host.listActions()
     })
   }

@@ -37,7 +37,7 @@ blocks on unused files, exports, and types. Structural exceptions are down from
 27 to 20 (8 files, 12 functions).
 
 Settings is nearly finished. `SettingsPanel.ts` owns navigation and composition;
-`StructuredSettingsEditors.ts` (1,825 → 634 lines) is a facade over
+`StructuredSettingsEditors.ts` (1,825 → 629 physical lines, 534 logical) is a facade over
 `settings/` and `structuredSettings/`. The 600-line `renderSources` was
 genuinely decomposed — nothing in the new source modules exceeds 89 lines — and
 the risky drag/reorder behavior has direct tests. Last checkpoint: `npm run
@@ -54,40 +54,35 @@ and the exception file was rekeyed in place, so the count is still 20 (8 files,
 12 functions). `SourceGroupView.ts` now documents its drag/reorder state
 machine, which cost 108 comment lines and no budget.
 
-Two known problems, both created by optimizing for the limits:
+One known structural problem remains from optimizing for the limits:
 
-1. **Two files sit one line under the cap.** `SettingsPanel.ts` and
-   `structuredSettings/SourceGroupView.ts` are both at 599 logical lines
-   against a 600 limit. Comments are free now, so both can be explained, but
-   neither can absorb a line of code and neither is finished.
-2. **Host callback bags replaced imports.** Extraction produced five host
-   interfaces totalling ~47 members (`FlatSettingsHost` 15,
-   `SourceSettingsHost` 13, `SourceRowHost` 9, `StructuredAddButtonHost` 7,
-   `SourceGroupHost` 3). Some entries are pure pass-through —
-   `rowBody: (...children) => createRowBody(...children)` appears in two
-   adapters, delivering a `form.ts` function to modules that already import
-   from `form.ts`.
+**Two files remain too close to the cap.** `SettingsPanel.ts` is at 594
+logical lines and `structuredSettings/SourceGroupView.ts` is at 599, against a
+600 limit. Comments are free now, so both can be explained, but
+`SourceGroupView.ts` cannot absorb a line of code and is not finished merely
+because it passes.
 
 ## Next changes
 
-Finish the quality debt before starting a new area.
+The Settings dependency cleanup is complete:
 
-### 1. Collapse the host bags back into imports
+- `createRowBody` and `createRowChevron` are direct imports at their use sites,
+  rather than six adapter and test-stub members across the host chain.
+- `FlatSettingsEditors.ts` and `SourceSettingsEditor.ts` reuse
+  `StructuredFormField`; their domain types come from `redirects.ts` and
+  `sourceGroups.ts`, rather than importing back from the parent facade.
+- Entering an inline filter detail is one facade-owned operation, rather than
+  separate callbacks for mutating detail state and refreshing the add button.
+- `showForm` remains a host operation intentionally: it is not a pass-through.
+  The facade adds section lifecycle, desktop action preservation, redirect
+  tester wiring, editor dismissal, touch presentation, and header ownership.
 
-- Delete pass-through adapter entries and import `createRowBody`,
-  `createRowChevron`, and `showStructuredForm` from `form.ts` at the point of
-  use.
-- Migrate `structuredSettings/FlatSettingsEditors.ts`, which was not updated
-  when `form.ts` absorbed those primitives: it still routes them through its
-  host, declares its own `FormFields` type duplicating `form.ts`'s
-  `StructuredFormField`, and type-imports `RedirectRow` from the parent facade.
-- Target: no host interface wider than about 8 members, and no host method that
-  only forwards a free function.
+The remaining host members cross real ownership boundaries: editor lifecycle,
+section rendering, persistence, application error presentation, anchored-menu
+placement, or access to facade-owned DOM. Do not split them solely to hit an
+interface-width target.
 
-Expect this to reduce total lines and shrink the test stubs; if it does not,
-say so and stop.
-
-### 2. Then `StoryListItem`
+### Next: `StoryListItem`
 
 Split markup and action wiring from gesture state, geometry, and animation
 completion. Keep `StoryListItem` as the facade and preserve its exports,

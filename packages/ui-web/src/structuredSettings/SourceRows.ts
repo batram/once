@@ -1,7 +1,11 @@
 import { SourceError } from "@once/app"
 import { get_parser_for_url, StoryParser } from "@once/collectors"
 import { AnchoredMenuItem } from "../StoryAnchoredMenu"
-import { createActionButton } from "./form"
+import {
+  createActionButton,
+  createRowBody,
+  createRowChevron
+} from "./form"
 import { SourceGroup } from "./sourceGroups"
 
 function collectorFor(source: string): StoryParser | undefined {
@@ -39,8 +43,6 @@ export interface SourceRowHost {
   save(reloadStories?: boolean): void
   showError(source: string): void
   openMenu(anchor: HTMLElement, items: AnchoredMenuItem[]): void
-  rowBody(...children: HTMLElement[]): HTMLElement
-  rowChevron(label: string, action: () => void): HTMLElement
 }
 
 function clearDropTargets(root: HTMLElement): void {
@@ -160,7 +162,7 @@ function appendRowActions(
   sourceIndex: number
 ): void {
   const edit = () => host.edit(root, groupIndex, sourceIndex)
-  body.append(host.rowChevron(`Edit ${source}`, edit))
+  body.append(createRowChevron(`Edit ${source}`, edit))
   if (host.onTouch()) return
   const menu = document.createElement("button")
   menu.type = "button"
@@ -234,7 +236,7 @@ export function renderSourceRow(
   if (error) secondary.classList.add("structured_row_secondary_error")
   open.append(primary, secondary)
   open.addEventListener("click", () => host.edit(root, groupIndex, sourceIndex))
-  const body = host.rowBody(open)
+  const body = createRowBody(open)
   if (error) {
     row.classList.add(`structured_row_${error.type}`)
     const issue = createActionButton(

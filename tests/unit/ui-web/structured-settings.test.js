@@ -176,22 +176,16 @@ test("flat settings editor renders and saves filter edits through its host", () 
     const root = window.document.querySelector("main")
     const saved = []
     let openEditor = null
+    let detailEntries = 0
     const host = {
       onTouch: () => false,
       closeOpenEditor: () => openEditor?.(),
       setOpenEditor: (close) => {
         openEditor = close
       },
-      setDetail: () => {},
-      updateAddButton: () => {},
+      enterFilterDetail: () => { detailEntries += 1 },
       listActions: () => null,
       renderListStatus: () => {},
-      rowBody: (...children) => {
-        const body = window.document.createElement("div")
-        body.append(...children)
-        return body
-      },
-      rowChevron: () => window.document.createElement("span"),
       render: () => {
         root.textContent = ""
         editor.renderFilters(root)
@@ -213,6 +207,7 @@ test("flat settings editor renders and saves filter edits through its host", () 
     )
     window.HTMLInputElement.prototype.select = () => {}
     root.querySelector("[data-testid='filter-row']").click()
+    assert.equal(detailEntries, 1)
     const input = root.querySelector("[data-testid='filter-inline-input']")
     input.value = "changed"
     const enter = new window.Event("keydown")
@@ -233,16 +228,9 @@ test("flat settings editor preserves malformed redirect rows", () => {
       onTouch: () => false,
       closeOpenEditor: () => {},
       setOpenEditor: () => {},
-      setDetail: () => {},
-      updateAddButton: () => {},
+      enterFilterDetail: () => {},
       listActions: () => null,
       renderListStatus: () => {},
-      rowBody: (...children) => {
-        const body = window.document.createElement("div")
-        body.append(...children)
-        return body
-      },
-      rowChevron: () => window.document.createElement("span"),
       render: () => {},
       root: () => root,
       setText: () => {},
@@ -268,12 +256,6 @@ function sourceRowHost(window, groups, saved, overrides = {}) {
     save: (reload) => saved.push(["save", reload]),
     showError: (source) => saved.push(["error", source]),
     openMenu: () => {},
-    rowBody: (...children) => {
-      const body = window.document.createElement("div")
-      body.append(...children)
-      return body
-    },
-    rowChevron: () => window.document.createElement("span"),
     ...overrides
   }
 }

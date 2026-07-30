@@ -8,8 +8,6 @@ import {
 } from "./structuredSettings/searchNavigation"
 import {
   announceStructuredSettings,
-  createRowBody,
-  createRowChevron,
   showStructuredForm
 } from "./structuredSettings/form"
 import { createRedirectTester } from "./structuredSettings/redirectTester"
@@ -21,13 +19,11 @@ import { StructuredAddButtons } from "./structuredSettings/StructuredAddButtons"
 export { parseFilterRows } from "./structuredSettings/filters"
 export {
   parseRedirectRows,
-  RedirectRow,
   serializeRedirectRows
 } from "./structuredSettings/redirects"
 export {
   parseSourceGroups,
-  serializeSourceGroups,
-  SourceGroup
+  serializeSourceGroups
 } from "./structuredSettings/sourceGroups"
 
 type Section = StructuredSettingsSection
@@ -84,8 +80,6 @@ export class StructuredSettingsEditors {
       saveSources: (values, reload) => this.options.saveSources(values, reload),
       showSourceError: (source) => this.options.showSourceError(source),
       openMenu: (anchor, items) => this.openMenu(anchor, items),
-      rowBody: (...children) => createRowBody(...children),
-      rowChevron: (label, action) => createRowChevron(label, action),
       listActions: () => this.listActions("sources"),
       showForm: (root, title, fields, save, remove, choices) =>
         this.showForm(root, title, fields, save, remove, choices),
@@ -116,13 +110,13 @@ export class StructuredSettingsEditors {
       setOpenEditor: (close) => {
         this.openEditor = close
       },
-      setDetail: (section) => this.detailSections.add(section),
-      updateAddButton: (section) => this.updateAddButton(section),
+      enterFilterDetail: () => {
+        this.detailSections.add("filters")
+        this.updateAddButton("filters")
+      },
       listActions: (section) => this.listActions(section),
       renderListStatus: (root, count, noun) =>
         this.renderListStatus(root, count, noun),
-      rowBody: (...children) => createRowBody(...children),
-      rowChevron: (label, action) => createRowChevron(label, action),
       render: (section) => this.render(section),
       root: (section) => this.roots.get(section),
       setText: (section, text) => {

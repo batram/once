@@ -1,36 +1,34 @@
 import { parseRedirectList, Redirect } from "@once/core"
-import { createActionButton, createInlineActionButton, createListCard } from "./form"
+import {
+  createActionButton,
+  createInlineActionButton,
+  createListCard,
+  createRowBody,
+  createRowChevron,
+  StructuredFormField
+} from "./form"
 import { installRowDragReorder } from "./dragReorder"
 import { parseFilterRows } from "./filters"
 import {
   parseRedirectRows,
+  RedirectRow,
   serializeRedirectRows
 } from "./redirects"
-import type { RedirectRow } from "../StructuredSettingsEditors"
-
-type FormFields = Array<[
-  string,
-  string,
-  { multiline?: boolean; hint?: string }?
-]>
 
 export interface FlatSettingsHost {
   onTouch(): boolean
   closeOpenEditor(): void
   setOpenEditor(close: (() => void) | null): void
-  setDetail(section: "filters" | "redirects"): void
-  updateAddButton(section: "filters" | "redirects"): void
+  enterFilterDetail(): void
   listActions(section: "filters" | "redirects"): HTMLElement | null
   renderListStatus(root: HTMLElement, count: number, noun: string): void
-  rowBody(...children: HTMLElement[]): HTMLElement
-  rowChevron(label?: string, action?: () => void): HTMLElement
   render(section: "filters" | "redirects"): void
   root(section: "filters" | "redirects"): HTMLElement | undefined
   setText(section: "filters" | "redirects", text: string): void
   showForm(
     root: HTMLElement,
     title: string,
-    fields: FormFields,
+    fields: StructuredFormField[],
     save: (values: string[]) => boolean,
     remove: { label: string; action: () => void } | undefined,
     presentation: { host?: HTMLElement; redirectTester?: boolean }
@@ -115,7 +113,7 @@ export class FlatSettingsEditors {
       remove.className = "structured_remove"
       remove.title = `Delete filter ${value}`
       remove.setAttribute("aria-label", remove.title)
-      row.append(this.host.rowBody(open, remove))
+      row.append(createRowBody(open, remove))
       installRowDragReorder(rows, row, index, (from, destination) => {
         if (from >= this.filters.length) return
         const [moved] = this.filters.splice(from, 1)
@@ -132,8 +130,7 @@ export class FlatSettingsEditors {
     this.host.closeOpenEditor()
     const rows = root.querySelector<HTMLElement>(".structured_rows")
     if (!rows) return
-    this.host.setDetail("filters")
-    this.host.updateAddButton("filters")
+    this.host.enterFilterDetail()
     const isNew = index === undefined
     const row = isNew
       ? document.createElement("div")
@@ -268,9 +265,9 @@ export class FlatSettingsEditors {
       remove.className = "structured_remove"
       remove.title = `Delete redirect ${label}`
       remove.setAttribute("aria-label", remove.title)
-      row.append(this.host.rowBody(
+      row.append(createRowBody(
         open,
-        this.host.rowChevron(
+        createRowChevron(
           `Edit redirect ${redirect.raw}`,
           () => this.editRedirect(root, index)
         ),
