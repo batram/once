@@ -88,19 +88,6 @@ half-extracted architecture.
 
 ## Ordered work packages
 
-### 2. Extract the reader speech session
-
-Split `packages/ui-web/src/reader/readerTts.ts` into:
-
-- pure document segmentation, speech-text normalization, and chunking;
-- a playback session that owns utterance, position, voice, rate, lifecycle,
-  and ownership arbitration;
-- thin DOM and external-control binding.
-
-Test the pure text policy and the playback state directly. Preserve current
-control behavior, highlighting, rate storage, cross-window ownership, and
-cleanup. Remove the `installReaderTts` exception.
-
 ### 3. Separate mobile reading UI from native-surface coordination
 
 Reduce `apps/mobile/src/readingController.ts` by separating the native reading

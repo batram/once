@@ -1,5 +1,5 @@
 import { ReaderArticle } from "./extractArticle"
-import { installReaderTts } from "./readerTts"
+import { createStandaloneReaderTtsScript } from "./readerTts"
 import readerTemplate from "./readerDocument.html?raw"
 import styles from "./readerDocument.css?raw"
 
@@ -20,7 +20,7 @@ export function readerDocument(
     STYLES: readerStyles,
     THEME: theme,
     TITLE: escapeHtml(article.title),
-    TTS_SCRIPT: `(${installReaderTts.toString()})();`
+    TTS_SCRIPT: createStandaloneReaderTtsScript()
   }
   return readerTemplate.replace(
     /\{\{([A-Z_]+)\}\}/g,

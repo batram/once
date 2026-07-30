@@ -1,3 +1,10 @@
+import { ReaderSpeechSession, ReaderSpeechState } from "./ReaderSpeechSession"
+import {
+  createReaderSpeechSegments,
+  normalizeReaderSpeechText,
+  splitReaderSpeechText
+} from "./readerSpeechText"
+
 export type ReaderTtsControl =
   | { type: "play-toggle" }
   | { type: "stop" }
@@ -6,22 +13,9 @@ export type ReaderTtsControl =
   | { type: "set-rate"; rate: number }
   | { type: "set-voice"; voice: string }
 
-export interface ReaderTtsState {
-  playing: boolean
-  paused: boolean
-  rate: number
-  segment: number
-  voices: Array<{
-    voiceURI: string
-    name: string
-    lang: string
-    default: boolean
-    localService: boolean
-  }>
-  voice: string
-}
+export type ReaderTtsState = ReaderSpeechState
 
-export function installReaderTts(options: {
+export interface ReaderTtsOptions {
   initialRate?: number
   onRateChange?: (rate: number) => void
   claimOwnership?: () => void
@@ -31,7 +25,17 @@ export function installReaderTts(options: {
     handler: (control: ReaderTtsControl) => void
   ) => (() => void) | undefined
   onStateChange?: (state: ReaderTtsState) => void
-} = {}): void {
+}
+
+export function installReaderTts(options: ReaderTtsOptions = {}): void {
+  runReaderTts(options, ReaderSpeechSession, createReaderSpeechSegments)
+}
+
+function runReaderTts(
+  options: ReaderTtsOptions,
+  Session: typeof ReaderSpeechSession,
+  createSegments: typeof createReaderSpeechSegments
+): void {
   if (document.documentElement.dataset.onceTtsInstalled === "true") return
   document.documentElement.dataset.onceTtsInstalled = "true"
 
@@ -48,110 +52,20 @@ export function installReaderTts(options: {
   if (!play || !stop || !back || !forward || !voiceSelect || !rateInput || !rateValue || !article) return
 
   if (!synth || typeof SpeechSynthesisUtterance === "undefined") {
-    [play, stop, back, forward, voiceSelect, rateInput].forEach((control) => {
-      control.disabled = true
-    })
-    voiceSettings?.setAttribute("hidden", "")
-    const message = "Text to speech is not available on this device."
-    play.title = message
-    const notice = document.createElement("p")
-    notice.className = "tts-unavailable"
-    notice.dataset.testid = "tts-unavailable"
-    notice.setAttribute("role", "status")
-    notice.textContent = message
-    document.querySelector(".tts-controls")?.append(notice)
-    // TODO: Decide whether to bridge to Android's local TextToSpeech or use an external provider.
+    showUnavailable([play, stop, back, forward, voiceSelect, rateInput], play, voiceSettings)
     return
   }
 
-  const storageKey = "once:reader:tts-rate"
-  let initialRate = options.initialRate
-  if (initialRate == null) {
-    try {
-      initialRate = Number(localStorage.getItem(storageKey))
-    } catch {
-      initialRate = 1
-    }
-  }
-  if (Number.isFinite(initialRate) && initialRate >= 0.5 && initialRate <= 6) {
-    rateInput.value = String(initialRate)
-  }
-
-  const storeRate = (rate: number): void => {
-    if (options.onRateChange) {
-      options.onRateChange(rate)
-      return
-    }
-    try {
-      localStorage.setItem(storageKey, String(rate))
-    } catch {
-      // Reader playback remains usable when storage is disabled.
-    }
-  }
-
   const segments = createSegments(article)
-  let currentIndex = 0
-  let active = false
-  let paused = false
-  let generation = 0
+  const storageKey = "once:reader:tts-rate"
+  const initialRate = readInitialRate(options.initialRate, storageKey)
+  if (initialRate >= 0.5 && initialRate <= 6) rateInput.value = String(initialRate)
+
   const ownerId = `${Date.now()}-${Math.random()}`
-  let ownershipChannel: BroadcastChannel | null = null
-  const voices = (): SpeechSynthesisVoice[] => synth.getVoices()
-  const selectedVoice = (): SpeechSynthesisVoice | undefined =>
-    voices().find((voice) => voice.voiceURI === voiceSelect.value)
-
-  const populateVoices = (): void => {
-    const previous = voiceSelect.value
-    const available = voices().sort((a, b) =>
-      `${a.lang} ${a.name}`.localeCompare(`${b.lang} ${b.name}`)
-    )
-    voiceSelect.innerHTML = ""
-    const automatic = document.createElement("option")
-    automatic.value = ""
-    automatic.textContent = "Default voice"
-    voiceSelect.append(automatic)
-    available.forEach((voice) => {
-      const option = document.createElement("option")
-      option.value = voice.voiceURI
-      option.textContent = `${voice.name} (${voice.lang})`
-      voiceSelect.append(option)
-    })
-    if (available.some((voice) => voice.voiceURI === previous)) {
-      voiceSelect.value = previous
-    }
-  }
-
-  const updateControls = (): void => {
-    const action = active
-      ? (paused ? "Resume" : "Pause")
-      : (currentIndex > 0 ? "Resume" : "Play")
-    play.dataset.playing = String(active && !paused)
-    play.title = action
-    play.setAttribute("aria-label", action + " article")
-    stop.disabled = !active
-    back.disabled = !active || currentIndex <= 0
-    forward.disabled = !active || currentIndex >= segments.length - 1
-    rateValue.textContent = `${Number(rateInput.value).toFixed(1)}×`
-    options.onStateChange?.({
-      playing: active,
-      paused,
-      rate: Number(rateInput.value),
-      segment: currentIndex,
-      voices: voices().map((voice) => ({
-        voiceURI: voice.voiceURI,
-        name: voice.name,
-        lang: voice.lang,
-        default: voice.default,
-        localService: voice.localService
-      })),
-      voice: voiceSelect.value
-    })
-  }
-
+  const ownershipChannel = createOwnershipChannel(options)
   const clearHighlight = (): void => {
     article.querySelector(".tts-current")?.classList.remove("tts-current")
   }
-
   const highlight = (index: number): void => {
     clearHighlight()
     const segment = segments[index]
@@ -161,235 +75,216 @@ export function installReaderTts(options: {
     if (bounds.top < 64 || bounds.bottom > window.innerHeight - 24) {
       segment.element.scrollIntoView({ behavior: "smooth", block: "center" })
     }
-    updateControls()
   }
-
-  const finish = (resetPosition = true): void => {
-    active = false
-    paused = false
-    if (resetPosition) {
-      currentIndex = 0
-      clearHighlight()
-    } else {
-      highlight(currentIndex)
-    }
-    updateControls()
-    options.releaseOwnership?.()
-  }
-
-  const stopPlayback = (): void => {
-    generation += 1
-    synth.cancel()
-    finish()
-  }
-
-  const yieldPlayback = (): void => {
-    generation += 1
-    synth.cancel()
-    finish(false)
-  }
-
-  const start = (from = currentIndex): void => {
-    options.claimOwnership?.()
-    ownershipChannel?.postMessage({ type: "claim", ownerId })
-    synth.cancel()
-    generation += 1
-    const run = generation
-    currentIndex = Math.max(0, Math.min(from, Math.max(0, segments.length - 1)))
-    active = segments.length > 0
-    paused = false
-    updateControls()
-    if (!active) return
-
-    // Queue paragraph-sized chunks together. Native speech synthesis can then
-    // transition without the start/stop gap caused by sentence-by-sentence calls.
-    for (let index = currentIndex; index < segments.length; index += 1) {
-      const utterance = new SpeechSynthesisUtterance(segments[index].text)
-      utterance.rate = Number(rateInput.value)
-      const voice = selectedVoice()
-      if (voice) utterance.voice = voice
-      utterance.onstart = () => {
-        if (run !== generation) return
-        currentIndex = index
-        highlight(index)
-      }
-      utterance.onend = () => {
-        if (run === generation && index === segments.length - 1) finish()
-      }
-      utterance.onerror = (event) => {
-        if (run !== generation || event.error === "canceled" || event.error === "interrupted") return
-        finish()
-        console.error("Reader speech failed", event.error)
-      }
-      synth.speak(utterance)
-    }
-  }
-
-  play.addEventListener("click", () => {
-    if (!active) {
-      start(currentIndex)
-    } else if (paused) {
-      synth.resume()
-      paused = false
-      updateControls()
-    } else {
-      synth.pause()
-      paused = true
-      updateControls()
-    }
+  const session = new Session({
+    engine: synth,
+    createUtterance: (text) => new SpeechSynthesisUtterance(text),
+    texts: segments.map((segment) => segment.text),
+    initialRate,
+    claimOwnership: () => {
+      options.claimOwnership?.()
+    },
+    releaseOwnership: options.releaseOwnership,
+    ownershipChannel,
+    ownerId,
+    onPositionChange: highlight,
+    onError: (error) => console.error("Reader speech failed", error),
+    onStateChange: (state) => updateControls(state)
   })
-  stop.addEventListener("click", () => {
-    stopPlayback()
+
+  const updateControls = (state: ReaderTtsState): void => {
+    const action = state.playing
+      ? (state.paused ? "Resume" : "Pause")
+      : (state.segment > 0 ? "Resume" : "Play")
+    play.dataset.playing = String(state.playing && !state.paused)
+    play.title = action
+    play.setAttribute("aria-label", action + " article")
+    stop.disabled = !state.playing
+    back.disabled = !state.playing || state.segment <= 0
+    forward.disabled = !state.playing || state.segment >= segments.length - 1
+    rateInput.value = String(state.rate)
+    rateValue.textContent = `${state.rate.toFixed(1)}×`
+    options.onStateChange?.(state)
+    if (!state.playing && state.segment === 0) clearHighlight()
+  }
+
+  bindReaderTtsDom({
+    play, stop, back, forward, voiceSelect, voiceSettings, rateInput, rateValue,
+    segments, session, options, storageKey
   })
-  back.addEventListener("click", () => {
-    if (active) start(Math.max(0, currentIndex - 1))
+  populateVoices(voiceSelect, synth.getVoices())
+  synth.addEventListener?.("voiceschanged", () => {
+    populateVoices(voiceSelect, synth.getVoices())
+    session.notify()
   })
-  forward.addEventListener("click", () => {
-    if (active) start(Math.min(segments.length - 1, currentIndex + 1))
+  const unsubscribeStop = options.subscribeToStop?.(() => session.yield())
+  const unsubscribeControl = options.subscribeToControl?.((control) => {
+    applyExternalControl(control, session, voiceSelect, options, storageKey)
   })
+  window.addEventListener("pagehide", () => {
+    session.dispose()
+    unsubscribeStop?.()
+    unsubscribeControl?.()
+  }, { once: true })
+  session.notify()
+
+}
+
+export function createStandaloneReaderTtsScript(): string {
+  return `(() => {
+    ${normalizeReaderSpeechText.toString()}
+    ${splitReaderSpeechText.toString()}
+    ${createReaderSpeechSegments.toString()}
+    ${ReaderSpeechSession.toString()}
+    ${readInitialRate.toString()}
+    ${storeRate.toString()}
+    ${showUnavailable.toString()}
+    ${populateVoices.toString()}
+    ${bindReaderTtsDom.toString()}
+    ${applyExternalControl.toString()}
+    ${createOwnershipChannel.toString()}
+    ${runReaderTts.toString()}
+    runReaderTts({}, ReaderSpeechSession, createReaderSpeechSegments);
+  })();`
+}
+
+function createOwnershipChannel(options: ReaderTtsOptions): BroadcastChannel | undefined {
+  if (options.claimOwnership || typeof BroadcastChannel === "undefined") return undefined
+  try {
+    return new BroadcastChannel("once-reader-tts")
+  } catch {
+    return undefined
+  }
+}
+
+interface ReaderTtsDomBinding {
+  play: HTMLButtonElement
+  stop: HTMLButtonElement
+  back: HTMLButtonElement
+  forward: HTMLButtonElement
+  voiceSelect: HTMLSelectElement
+  voiceSettings: HTMLDetailsElement | null
+  rateInput: HTMLInputElement
+  rateValue: HTMLElement
+  segments: ReturnType<typeof createReaderSpeechSegments>
+  session: ReaderSpeechSession
+  options: ReaderTtsOptions
+  storageKey: string
+}
+
+function bindReaderTtsDom(binding: ReaderTtsDomBinding): void {
+  const {
+    play, stop, back, forward, voiceSelect, voiceSettings, rateInput, rateValue,
+    segments, session, options, storageKey
+  } = binding
+  play.addEventListener("click", () => session.toggle())
+  stop.addEventListener("click", () => session.stop())
+  back.addEventListener("click", () => session.previous())
+  forward.addEventListener("click", () => session.next())
   voiceSelect.addEventListener("change", () => {
     if (voiceSettings) voiceSettings.open = false
-    if (active) start(currentIndex)
+    session.setVoice(voiceSelect.value)
+  })
+  rateInput.addEventListener("input", () => {
+    rateValue.textContent = `${Number(rateInput.value).toFixed(1)}×`
+    session.previewRate(Number(rateInput.value))
+  })
+  rateInput.addEventListener("change", () => {
+    const rate = Number(rateInput.value)
+    storeRate(options, storageKey, rate)
+    session.setRate(rate)
   })
   document.addEventListener("pointerdown", (event) => {
-    if (
-      voiceSettings?.open &&
-      event.target instanceof Node &&
-      !voiceSettings.contains(event.target)
-    ) {
+    if (voiceSettings?.open && event.target instanceof Node && !voiceSettings.contains(event.target)) {
       voiceSettings.open = false
     }
-  })
-  rateInput.addEventListener("input", updateControls)
-  rateInput.addEventListener("change", () => {
-    storeRate(Number(rateInput.value))
-    if (active) start(currentIndex)
   })
   Array.from(new Set(segments.map((segment) => segment.element))).forEach((element) => {
     element.classList.add("tts-segment")
     element.title = "Start reading here"
     element.addEventListener("click", () => {
       const index = segments.findIndex((segment) => segment.element === element)
-      if (index >= 0) start(index)
+      if (index >= 0) session.start(index)
     })
   })
+}
 
-  populateVoices()
-  synth.addEventListener?.("voiceschanged", () => {
-    populateVoices()
-    updateControls()
-  })
-  const unsubscribeStop = options.subscribeToStop?.(yieldPlayback)
-  const unsubscribeControl = options.subscribeToControl?.((control) => {
-    switch (control.type) {
-      case "play-toggle":
-        play.click()
-        break
-      case "stop":
-        stop.click()
-        break
-      case "prev":
-        back.click()
-        break
-      case "next":
-        forward.click()
-        break
-      case "set-rate":
-        rateInput.value = String(Math.min(6, Math.max(0.5, control.rate)))
-        rateInput.dispatchEvent(new Event("change"))
-        break
-      case "set-voice":
-        voiceSelect.value = control.voice
-        voiceSelect.dispatchEvent(new Event("change"))
-        break
-    }
-  })
-  if (!options.claimOwnership && typeof BroadcastChannel !== "undefined") {
+function applyExternalControl(
+  control: ReaderTtsControl,
+  session: ReaderSpeechSession,
+  voiceSelect: HTMLSelectElement,
+  options: ReaderTtsOptions,
+  storageKey: string
+): void {
+  switch (control.type) {
+    case "play-toggle": session.toggle(); break
+    case "stop": session.stop(); break
+    case "prev": session.previous(); break
+    case "next": session.next(); break
+    case "set-rate":
+      storeRate(options, storageKey, Math.min(6, Math.max(0.5, control.rate)))
+      session.setRate(control.rate)
+      break
+    case "set-voice":
+      voiceSelect.value = control.voice
+      session.setVoice(control.voice)
+      break
+  }
+}
+
+function readInitialRate(provided: number | undefined, storageKey: string): number {
+  if (provided != null) return Number.isFinite(provided) ? provided : 1
+  try {
+    const stored = Number(localStorage.getItem(storageKey))
+    return Number.isFinite(stored) && stored > 0 ? stored : 1
+  } catch {
+    return 1
+  }
+}
+
+function storeRate(options: ReaderTtsOptions, storageKey: string, rate: number): void {
+  if (options.onRateChange) options.onRateChange(rate)
+  else {
     try {
-      ownershipChannel = new BroadcastChannel("once-reader-tts")
-      ownershipChannel.addEventListener("message", (event) => {
-        if (event.data?.type === "claim" && event.data.ownerId !== ownerId) {
-          yieldPlayback()
-        }
-      })
+      localStorage.setItem(storageKey, String(rate))
     } catch {
-      ownershipChannel = null
+      // Reader playback remains usable when storage is disabled.
     }
   }
-  window.addEventListener("pagehide", () => {
-    stopPlayback()
-    if (typeof unsubscribeStop === "function") unsubscribeStop()
-    if (typeof unsubscribeControl === "function") unsubscribeControl()
-    ownershipChannel?.close()
-  }, { once: true })
-  updateControls()
+}
 
-  function createSegments(root: HTMLElement): Array<{ element: HTMLElement; text: string }> {
-    const blockSelector = "p,li,h2,h3,h4,h5,h6,blockquote,pre,figcaption,td,th"
-    let blocks = Array.from(root.querySelectorAll<HTMLElement>(blockSelector))
-      .filter((element) => !element.querySelector(blockSelector))
-    if (blocks.length === 0) blocks = [root]
+function showUnavailable(
+  controls: Array<HTMLButtonElement | HTMLSelectElement | HTMLInputElement>,
+  play: HTMLButtonElement,
+  settings: HTMLDetailsElement | null
+): void {
+  controls.forEach((control) => { control.disabled = true })
+  settings?.setAttribute("hidden", "")
+  const message = "Text to speech is not available on this device."
+  play.title = message
+  const notice = document.createElement("p")
+  notice.className = "tts-unavailable"
+  notice.dataset.testid = "tts-unavailable"
+  notice.setAttribute("role", "status")
+  notice.textContent = message
+  document.querySelector(".tts-controls")?.append(notice)
+}
 
-    const result: Array<{ element: HTMLElement; text: string }> = []
-    blocks.forEach((element) => {
-      // innerText follows the rendered reading order and contributes spacing
-      // around block/line-break elements without exposing HTML markup to TTS.
-      const text = normalizeSpeechText(element.innerText || element.textContent || "")
-      if (!text) return
-      splitLongText(text, 900).forEach((chunk) => {
-        result.push({ element, text: chunk })
-      })
-    })
-    return result
-  }
-
-  function normalizeSpeechText(value: string): string {
-    return value
-      .normalize("NFKC")
-      .replace(/[\u200B-\u200D\u2060\uFEFF]/g, "")
-      .replace(/https?:\/\/\S+/gi, (url) => {
-        try {
-          return new URL(url.replace(/[),.;!?]+$/, "")).hostname.replace(/^www\./, "")
-        } catch {
-          return "link"
-        }
-      })
-      .replace(/[•·▪◦]+/g, ". ")
-      .replace(/[—–]+/g, ", ")
-      .replace(/…+/g, ". ")
-      .replace(/&/g, " and ")
-      .replace(/[@#*_~=<>|^]+/g, " ")
-      .replace(/([!?.,])\1+/g, "$1")
-      .replace(/\s+/g, " ")
-      .trim()
-  }
-
-  function splitLongText(value: string, maximum: number): string[] {
-    if (value.length <= maximum) return [value]
-    const sentences = value.match(/[^.!?]+(?:[.!?]+["')\]]*|$)\s*/g) || [value]
-    const chunks: string[] = []
-    let current = ""
-    sentences.forEach((sentence) => {
-      const clean = sentence.trim()
-      if (!clean) return
-      if (current && current.length + clean.length + 1 > maximum) {
-        chunks.push(current)
-        current = ""
-      }
-      if (clean.length > maximum) {
-        const words = clean.split(" ")
-        words.forEach((word) => {
-          if (current && current.length + word.length + 1 > maximum) {
-            chunks.push(current)
-            current = ""
-          }
-          current += `${current ? " " : ""}${word}`
-        })
-      } else {
-        current += `${current ? " " : ""}${clean}`
-      }
-    })
-    if (current) chunks.push(current)
-    return chunks
-  }
+function populateVoices(select: HTMLSelectElement, voices: SpeechSynthesisVoice[]): void {
+  const previous = select.value
+  const available = [...voices].sort((a, b) =>
+    `${a.lang} ${a.name}`.localeCompare(`${b.lang} ${b.name}`)
+  )
+  select.innerHTML = ""
+  const automatic = document.createElement("option")
+  automatic.value = ""
+  automatic.textContent = "Default voice"
+  select.append(automatic)
+  available.forEach((voice) => {
+    const option = document.createElement("option")
+    option.value = voice.voiceURI
+    option.textContent = `${voice.name} (${voice.lang})`
+    select.append(option)
+  })
+  if (available.some((voice) => voice.voiceURI === previous)) select.value = previous
 }
