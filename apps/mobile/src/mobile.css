@@ -2218,6 +2218,10 @@ body:has(#settings_panel.settings_form_open) #menu {
   flex: 0 0 var(--touch);
   width: var(--touch);
   margin: 0;
+  /* settings.css declares padding 0, but layer(platform) outranks it, so the
+     glyph target has to restore it here or the button baseline's 16px inline
+     padding leaves 12px of content box inside a 44px control. */
+  padding: 0;
   border: 0;
   background: transparent;
   box-shadow: none;
