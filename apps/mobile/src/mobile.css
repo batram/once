@@ -415,7 +415,7 @@ body.once-anchored-menu-open {
   display: flex;
   flex: 1 1 auto;
   min-width: 0;
-  gap: var(--sp-2);
+  gap: 0;
 }
 
 #search_scope {
@@ -447,23 +447,34 @@ body.once-anchored-menu-open {
   height: var(--touch);
   margin-left: 0;
   padding-left: var(--sp-3);
-  padding-right: var(--touch);
+  padding-right: var(--sp-3);
   background: var(--input-bg-color);
   font-family: var(--m-sans);
   border-radius: 0;
 }
 
-/* overlays the field's right end; visibility toggled inline by search.ts */
 #cancel_search_btn {
   box-sizing: border-box;
+  flex: 0 0 var(--touch);
   width: var(--touch);
   height: var(--touch);
-  margin: 0 0 0 calc(-1 * var(--touch) - var(--sp-2));
+  margin: 0;
   padding: 0;
-  display: grid;
+  display: none;
   place-items: center;
-  border: 0;
+  border: var(--m-bw) solid var(--m-ink);
+  border-left: 0;
+  border-radius: 0 var(--m-radius) var(--m-radius) 0;
+  background: var(--input-bg-color);
   box-shadow: none;
+}
+
+#cancel_search_btn.search-cancel-visible {
+  display: grid;
+}
+
+.search_query:not(:has(#cancel_search_btn.search-cancel-visible)) #searchfield {
+  border-radius: 0 var(--m-radius) var(--m-radius) 0;
 }
 
 #reload_stories_btn,
@@ -481,7 +492,8 @@ body.once-anchored-menu-open {
 }
 
 #reload_stories_btn {
-  margin: 0 0 0 var(--sp-2);
+  flex: 0 0 var(--touch);
+  margin: 0;
 }
 
 #reload_stories_btn:active,
