@@ -1965,6 +1965,31 @@ body[data-platform="mobile"] .structured_group_drop_after::after {
   bottom: -7px;
 }
 
+body[data-platform="mobile"] .structured_row_drop_target {
+  position: relative;
+  overflow: visible;
+  box-shadow: none;
+}
+
+body[data-platform="mobile"] .structured_row_drop_target::before {
+  content: "";
+  position: absolute;
+  z-index: 5;
+  top: -2px;
+  right: var(--m-sp-3);
+  left: var(--m-sp-3);
+  height: 3px;
+  border-radius: 2px;
+  background: var(--m-ink);
+  box-shadow: 0 0 0 1px var(--m-page-bg);
+}
+
+body[data-platform="mobile"]
+  .structured_row_drop_target.structured_row_drop_after::before {
+  top: auto;
+  bottom: -2px;
+}
+
 body[data-platform="mobile"] .structured_source_drop_before,
 body[data-platform="mobile"] .structured_source_drop_after {
   position: relative;

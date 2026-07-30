@@ -1,5 +1,6 @@
 const { test, expect } = require("@playwright/test")
 const { gotoMobileApp } = require("./helpers/mobile-app")
+const { dragAcross, endDrag } = require("./helpers/gestures")
 const {
   dragBelowMidpoint,
   openSettingsSection,
@@ -132,6 +133,55 @@ test("list settings are the default and expose structured add actions", async ({
   )
   await page.getByTestId("sources-mode-toggle").click()
   await expect(page.getByTestId("sources")).toBeVisible()
+})
+
+test("filter and redirect after-drop indicators use the final row edge", async ({
+  page
+}) => {
+  await gotoMobileApp(page)
+  await openSettingsSection(page, "filters")
+  await page.getByTestId("filters-mode-toggle").click()
+  const filterRows = page.locator(
+    '[data-structured-section="filters"] .structured_row'
+  )
+  await expect(filterRows).toHaveCount(36)
+  await dragAcross(filterRows.nth(0), filterRows.nth(1), {
+    on: "target",
+    edge: "bottom"
+  })
+  await expect(filterRows.nth(1)).toHaveClass(/\bstructured_row_drop_target\b/)
+  await expect(filterRows.nth(1)).toHaveClass(/\bstructured_row_drop_after\b/)
+  const filterIndicator = await filterRows.nth(1).evaluate((row) => {
+    const indicator = getComputedStyle(row, "::before")
+    return {
+      bottom: indicator.bottom,
+      top: indicator.top
+    }
+  })
+  expect(Number.parseFloat(filterIndicator.top)).toBeGreaterThan(40)
+  expect(filterIndicator.bottom).toBe("-2px")
+  await endDrag(filterRows.nth(0))
+
+  await page.locator("#settings_section_back").click()
+  await openSettingsSection(page, "redirects")
+  await page.getByTestId("redirects").fill(
+    "first.example => destination.example/one\n" +
+    "second.example => destination.example/two"
+  )
+  await page.getByTestId("save-redirects").click()
+  await page.getByTestId("redirects-mode-toggle").click()
+  const redirectRows = page.locator(
+    '[data-structured-section="redirects"] .structured_row'
+  )
+  await expect(redirectRows).toHaveCount(2)
+  await dragAcross(redirectRows.nth(0), redirectRows.nth(1), {
+    on: "target",
+    edge: "bottom"
+  })
+  await expect(redirectRows.nth(1)).toHaveClass(/\bstructured_row_drop_target\b/)
+  await expect(redirectRows.nth(1)).toHaveClass(/\bstructured_row_drop_after\b/)
+  await expect(redirectRows.nth(1)).toHaveCSS("box-shadow", "none")
+  await endDrag(redirectRows.nth(0))
 })
 
 test("filters edit inline and expose a row remove button", async ({ page }) => {

@@ -1,8 +1,10 @@
 import { createActionButton } from "./form"
 import {
+  clearSourceDropTargets,
   renderSourceRow,
   SourceRowHost,
-  sourceDragPosition
+  sourceDragPosition,
+  updateSourceDropTarget
 } from "./sourceRows"
 import { SourceGroup } from "./sourceGroups"
 
@@ -246,7 +248,16 @@ export class SourceGroupView {
       if (!sourceDragPosition(event.dataTransfer)) return
       event.preventDefault()
       if (event.dataTransfer) event.dataTransfer.dropEffect = "move"
-      list.classList.add("structured_source_group_drop_target")
+      const root = list.closest<HTMLElement>(".structured_settings")
+      const dragged = root?.querySelector<HTMLElement>(
+        ".structured_row_dragging"
+      )
+      if (root && dragged) {
+        updateSourceDropTarget(root, dragged, event.clientY)
+      } else {
+        clearSourceDropTargets(list.parentElement || list)
+        list.classList.add("structured_source_group_drop_target")
+      }
     })
     list.addEventListener("dragleave", (event) => {
       const next = event.relatedTarget
@@ -259,8 +270,21 @@ export class SourceGroupView {
       if (!position) return
       event.preventDefault()
       event.stopPropagation()
-      list.classList.remove("structured_source_group_drop_target")
-      this.moveSource(position, groupIndex)
+      const indicated = list.querySelector<HTMLElement>(
+        ".structured_source_drop_before, .structured_source_drop_after"
+      )
+      const sourceIndex = Number(indicated?.dataset.sourceIndex)
+      const after = indicated?.classList.contains(
+        "structured_source_drop_after"
+      )
+      clearSourceDropTargets(
+        list.closest<HTMLElement>(".structured_settings") || list
+      )
+      this.moveSource(
+        position,
+        groupIndex,
+        Number.isInteger(sourceIndex) ? sourceIndex + (after ? 1 : 0) : undefined
+      )
     })
   }
 
@@ -283,6 +307,7 @@ export class SourceGroupView {
       event.preventDefault()
       event.stopPropagation()
       if (event.dataTransfer) event.dataTransfer.dropEffect = "move"
+      clearSourceDropTargets(root)
       details.classList.add("structured_source_group_title_drop_target")
     })
     summary.addEventListener("dragleave", (event) => {
@@ -303,7 +328,11 @@ export class SourceGroupView {
     })
   }
 
-  private moveSource(position: [number, number], destination: number): void {
+  private moveSource(
+    position: [number, number],
+    destination: number,
+    destinationIndex?: number
+  ): void {
     const [fromGroup, fromIndex] = position
     const origin = this.host.groups[fromGroup]
     const target = this.host.groups[destination]
@@ -313,7 +342,10 @@ export class SourceGroupView {
       return
     }
     const [value] = origin.sources.splice(fromIndex, 1)
-    target.sources.push(value)
+    let index = destinationIndex ?? target.sources.length
+    if (fromGroup === destination && fromIndex < index) index--
+    target.sources.splice(Math.max(0, Math.min(index, target.sources.length)), 0,
+      value)
     this.host.save(false)
   }
 
@@ -477,8 +509,13 @@ export class SourceGroupView {
    */
   private updateDestinationAt(root: HTMLElement, clientY: number): boolean {
     if (this.drag.index === null || clientY <= 0) return false
+    // A touch drag translates the held group under the finger. It must not
+    // compete with the stationary groups for that same pointer coordinate,
+    // or it masks every target below its original position.
     const groups = Array.from(
-      root.querySelectorAll<HTMLElement>(".structured_group")
+      root.querySelectorAll<HTMLElement>(
+        ".structured_group:not(.structured_group_dragging)"
+      )
     )
     if (!groups.length) return false
     const target = groups.find((candidate) => {

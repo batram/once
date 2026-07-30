@@ -412,6 +412,49 @@ test("source group drag commits order and restores expanded groups", () => {
   })
 })
 
+test("source group drag resolves targets below the translated origin", () => {
+  withDom("<main></main>", (window) => {
+    const root = window.document.querySelector("main")
+    const groups = [
+      { id: "default", name: "Default", sources: [] },
+      { id: "alpha", name: "Alpha", sources: [] },
+      { id: "beta", name: "Beta", sources: [] }
+    ]
+    new SourceGroupView(sourceGroupHost(window, groups, [])).render(root)
+    const details = [...root.querySelectorAll(".structured_group")]
+    details.forEach((group, index) => {
+      group.getBoundingClientRect = () => {
+        const translatedOrigin =
+          group.dataset.groupId === "alpha" &&
+          group.classList.contains("structured_group_dragging")
+        const top = translatedOrigin ? 40 : index * 20
+        return { top, bottom: top + 20, height: 20 }
+      }
+      group.querySelector("summary").getBoundingClientRect =
+        group.getBoundingClientRect
+    })
+    const transfer = {
+      dropEffect: "move",
+      effectAllowed: "",
+      setData: () => {},
+      getData: () => "group:1"
+    }
+    const alphaName = details[1].querySelector(".structured_group_name")
+    alphaName.dispatchEvent(dragEvent(window, "dragstart", {
+      dataTransfer: transfer
+    }))
+    alphaName.dispatchEvent(dragEvent(window, "drag", {
+      clientY: 59,
+      dataTransfer: transfer
+    }))
+
+    assert.equal(
+      details[2].classList.contains("structured_group_drop_after"),
+      true
+    )
+  })
+})
+
 test("source row ignores stale drag coordinates", () => {
   withDom("<main></main>", (window) => {
     const root = window.document.querySelector("main")

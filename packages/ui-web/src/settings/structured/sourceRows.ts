@@ -45,7 +45,7 @@ export interface SourceRowHost {
   openMenu(anchor: HTMLElement, items: AnchoredMenuItem[]): void
 }
 
-function clearDropTargets(root: HTMLElement): void {
+export function clearSourceDropTargets(root: HTMLElement): void {
   root.querySelectorAll(
     ".structured_source_drop_before, .structured_source_drop_after"
   ).forEach((target) => target.classList.remove(
@@ -61,38 +61,64 @@ function clearDropTargets(root: HTMLElement): void {
   ))
 }
 
-function updateDropTarget(
+export function updateSourceDropTarget(
   root: HTMLElement,
   dragged: HTMLElement,
   clientY: number
 ): void {
   if (clientY <= 0) return
-  clearDropTargets(root)
-  const rows = Array.from(root.querySelectorAll<HTMLElement>(".structured_row"))
+  clearSourceDropTargets(root)
+  const groups = Array.from(
+    root.querySelectorAll<HTMLElement>(".structured_group")
+  ).filter((group) => group.offsetParent !== null)
+  if (!groups.length) return
+  // Resolve gaps to the nearest group. Native Android drag events commonly
+  // report the list container rather than the row under the finger.
+  const group = groups.find((candidate) => {
+    const bounds = candidate.getBoundingClientRect()
+    return clientY >= bounds.top && clientY <= bounds.bottom
+  }) || groups.reduce((nearest, candidate) => {
+    const distance = (element: HTMLElement) => {
+      const bounds = element.getBoundingClientRect()
+      return Math.min(
+        Math.abs(clientY - bounds.top),
+        Math.abs(clientY - bounds.bottom)
+      )
+    }
+    return distance(candidate) < distance(nearest) ? candidate : nearest
+  })
+  const list = group.querySelector<HTMLElement>(".structured_rows")
+  if (!list || list.offsetParent === null) {
+    group.classList.add("structured_source_group_title_drop_target")
+    return
+  }
+  const rows = Array.from(list.querySelectorAll<HTMLElement>(".structured_row"))
     .filter((row) => row !== dragged && row.offsetParent !== null)
+  if (!rows.length) {
+    // A group containing only the dragged row has no alternative insertion
+    // point. Showing its append marker suggests a move that cannot occur.
+    if (!group.contains(dragged)) {
+      list.classList.add("structured_source_group_drop_target")
+    }
+    return
+  }
   const target = rows.find((row) => {
     const bounds = row.getBoundingClientRect()
     return clientY >= bounds.top && clientY <= bounds.bottom
+  }) || rows.reduce((nearest, row) => {
+    const distance = (element: HTMLElement) => {
+      const bounds = element.getBoundingClientRect()
+      return Math.min(
+        Math.abs(clientY - bounds.top),
+        Math.abs(clientY - bounds.bottom)
+      )
+    }
+    return distance(row) < distance(nearest) ? row : nearest
   })
-  if (target) {
-    const bounds = target.getBoundingClientRect()
-    target.classList.add(clientY >= bounds.top + bounds.height / 2
-      ? "structured_source_drop_after"
-      : "structured_source_drop_before")
-    return
-  }
-  const group = Array.from(
-    root.querySelectorAll<HTMLElement>(".structured_group")
-  ).find((candidate) => {
-    const bounds = candidate.getBoundingClientRect()
-    return clientY >= bounds.top && clientY <= bounds.bottom
-  })
-  const list = group?.querySelector<HTMLElement>(".structured_rows")
-  if (list && list.offsetParent !== null) {
-    list.classList.add("structured_source_group_drop_target")
-  } else {
-    group?.classList.add("structured_source_group_title_drop_target")
-  }
+  const bounds = target.getBoundingClientRect()
+  target.classList.add(clientY >= bounds.top + bounds.height / 2
+    ? "structured_source_drop_after"
+    : "structured_source_drop_before")
 }
 
 function installRowDrag(
@@ -107,16 +133,16 @@ function installRowDrag(
     event.dataTransfer?.setData("text/plain", `${groupIndex}:${sourceIndex}`)
   })
   row.addEventListener("drag", (event) =>
-    updateDropTarget(root, row, event.clientY))
+    updateSourceDropTarget(root, row, event.clientY))
   row.addEventListener("dragend", () => {
     row.classList.remove("structured_row_dragging")
-    clearDropTargets(root)
+    clearSourceDropTargets(root)
   })
   row.addEventListener("dragover", (event) => {
     if (!sourceDragPosition(event.dataTransfer)) return
     event.preventDefault()
     event.stopPropagation()
-    clearDropTargets(root)
+    clearSourceDropTargets(root)
     const bounds = row.getBoundingClientRect()
     row.classList.add(event.clientY >= bounds.top + bounds.height / 2
       ? "structured_source_drop_after"
@@ -147,7 +173,7 @@ function installRowDrag(
     let destination = sourceIndex + (after ? 1 : 0)
     if (fromGroup === groupIndex && fromIndex < sourceIndex) destination--
     target.sources.splice(destination, 0, value)
-    clearDropTargets(root)
+    clearSourceDropTargets(root)
     host.save(false)
   })
 }
@@ -202,6 +228,8 @@ export function renderSourceRow(
   row.className = "structured_row"
   row.draggable = true
   row.dataset.rowKey = rowKey
+  row.dataset.groupIndex = String(groupIndex)
+  row.dataset.sourceIndex = String(sourceIndex)
   const parser = collectorFor(source)
   row.dataset.searchValue = [source, sourceLabel(source), parser?.options.type]
     .filter(Boolean).join(" ").toLowerCase()

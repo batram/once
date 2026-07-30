@@ -111,6 +111,14 @@ test("dragging a source previews its drop position in another group", async ({
   const defaultSource = groups.nth(0).locator(".structured_row")
   const alphaSource = groups.nth(1).locator(".structured_row")
 
+  // Android reports movement on the held row. Its own one-row group is a
+  // no-op destination and must not advertise a misleading append position.
+  await dragAcross(defaultSource, defaultSource, { on: "source", edge: "bottom" })
+  await expect(page.locator(
+    ".structured_source_group_drop_target," +
+    " .structured_source_group_title_drop_target"
+  )).toHaveCount(0)
+
   await dragAcross(defaultSource, alphaSource, { on: "source", edge: "top" })
   await expect(alphaSource).toHaveClass(/\bstructured_source_drop_before\b/)
 
@@ -231,6 +239,42 @@ test("story source groups collapse while dragging and restore afterward", async 
   await page.locator("#settings_section_back").click()
   await expect(page.locator("#settings_panel"))
     .not.toHaveClass(/\bsettings_detail_open\b/)
+})
+
+test("story source groups expose drop targets below their touch origin", async ({
+  page
+}) => {
+  const { groups } = await seedGroupedSources(page)
+  const alpha = groups.nth(1)
+  const beta = groups.nth(2)
+  const alphaSummary = alpha.locator("summary")
+  const alphaBounds = await alphaSummary.boundingBox()
+  const betaBounds = await beta.locator("summary").boundingBox()
+  expect(alphaBounds).not.toBeNull()
+  expect(betaBounds).not.toBeNull()
+
+  const touchId = 18
+  await touchStart(alpha.locator(".structured_group_count"), {
+    touchId,
+    clientY: alphaBounds.y + alphaBounds.height / 2
+  })
+  await page.waitForTimeout(350)
+  await expect(alpha).toHaveClass(/\bstructured_group_dragging\b/)
+
+  const destinationY = betaBounds.y + betaBounds.height - 2
+  expect(await touchMove(alphaSummary, {
+    touchId,
+    clientY: destinationY
+  })).toBe(true)
+  await expect(beta).toHaveClass(/\bstructured_group_drop_after\b/)
+  await expect(beta).not.toHaveClass(/\bstructured_group_drop_before\b/)
+
+  await touchEnd(alphaSummary, { touchId, clientY: destinationY })
+  await expect(page.locator(".structured_group_name")).toHaveText([
+    "Default",
+    "Beta",
+    "Alpha"
+  ])
 })
 
 test("story sources can be dragged into empty groups", async ({ page }) => {
