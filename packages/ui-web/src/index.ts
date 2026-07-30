@@ -9,6 +9,7 @@ export {
 export { HoverUrlIndicator } from "./shell/HoverUrlIndicator"
 export * as StorySearch from "./story/storySearch"
 export * as PanelNavigation from "./shell/panelNavigation"
+export * as SidebarFilters from "./shell/sidebarFilters"
 export { getOnceClient } from "./client"
 export { mountOnceUi } from "./mountOnceUi"
 export { bindMenuCollapseControls } from "./shell/menuCollapse"

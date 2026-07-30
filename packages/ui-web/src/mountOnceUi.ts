@@ -3,6 +3,7 @@ import { addCollectorColorStyles } from "./collectorStyles"
 import { LoaderInsights } from "./shell/LoaderInsights"
 import { HoverUrlIndicator } from "./shell/HoverUrlIndicator"
 import * as PanelNavigation from "./shell/panelNavigation"
+import * as SidebarFilters from "./shell/sidebarFilters"
 import * as StorySearch from "./story/storySearch"
 import { setOnceClient } from "./client"
 import { SettingsPanel } from "./settings/SettingsPanel"
@@ -72,7 +73,8 @@ export async function mountOnceUi(
   }
   new StoryHistory(client)
   StoryList.init(client)
-  PanelNavigation.init(client)
+  PanelNavigation.init()
+  SidebarFilters.init(client)
   LoaderInsights.init(client, {
     clearSourceErrors: () => settingsPanel.clearSourceErrors(),
     highlightSource: (sourceUrl) => settingsPanel.highlightSource(sourceUrl),
