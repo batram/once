@@ -39,6 +39,7 @@ test("renderer matrix names every Phase 0 surface", () => {
 
 test("known failures carry ownership and a deletion condition", () => {
   for (const entry of [
+    ...known.platformOwnership,
     ...known.controlSemantics,
     ...known.iconViewBox
   ]) {
@@ -84,6 +85,72 @@ test("trusted stylesheets have no unlayered application rules", async ({ page })
 test("the platform layer overrides components without important", async ({ page }) => {
   await page.goto(`${baseURL}/static/sidepanel.html?target=mobile`)
   await expect(page.locator("#reading_menu_btn")).toHaveCSS("display", "flex")
+})
+
+// The test above proves the platform layer can win. It must not win over a
+// component that declares its own box: layer order beats specificity, so a
+// platform rule matching the `button` element silently replaces geometry the
+// component owns, and no amount of specificity in layer(components) recovers
+// it. Assert the exact properties a platform density rule must not take:
+// spacing, border, background and declared size. The touch target is a
+// separate contract and is asserted below.
+// Height is deliberately absent. The platform touch baseline raises a short
+// control to var(--touch), which is a contract in its own right and is asserted
+// separately below; folding it in here would leave this test red after the
+// visual baseline is correctly retargeted. Width stays, because it is the
+// visual rule that inflates it: the horizontal padding floors the border box.
+const ownedBox = {
+  width: "30px",
+  padding: "0px",
+  margin: "0px",
+  borderWidth: "0px",
+  backgroundColor: "rgba(0, 0, 0, 0)"
+}
+
+test("a component-owned control keeps its declared box under the platform layer", async ({ page }) => {
+  const pending = known.platformOwnership[0]
+  test.fail(Boolean(pending), pending?.reason ?? "")
+  await page.goto(`${baseURL}/static/sidepanel.html?target=mobile`)
+  await page.addStyleTag({
+    content: `@layer components {
+      button.owns_its_box {
+        width: 30px;
+        height: 30px;
+        padding: 0;
+        margin: 0;
+        border: 0;
+        background: transparent;
+      }
+    }`
+  })
+  const actual = await page.evaluate(() => {
+    const probe = document.createElement("button")
+    probe.type = "button"
+    probe.className = "owns_its_box"
+    document.body.append(probe)
+    const style = getComputedStyle(probe)
+    return {
+      width: style.width,
+      padding: style.padding,
+      margin: style.margin,
+      borderWidth: style.borderWidth,
+      backgroundColor: style.backgroundColor
+    }
+  })
+  expect(actual).toEqual(ownedBox)
+})
+
+// Retargeting the visual baseline must not take the touch target with it: a
+// control that owns its box still needs a reachable hit area on mobile.
+test("the platform touch baseline reaches a control with no component box", async ({ page }) => {
+  await page.goto(`${baseURL}/static/sidepanel.html?target=mobile`)
+  const minHeight = await page.evaluate(() => {
+    const probe = document.createElement("button")
+    probe.type = "button"
+    document.body.append(probe)
+    return getComputedStyle(probe).minHeight
+  })
+  expect(minHeight).toBe("44px")
 })
 
 test("documented priority utilities retain their contracts", async ({ page }) => {
