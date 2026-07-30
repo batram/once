@@ -37,6 +37,10 @@ visual refactor.** Otherwise every later phase is done with the same blindness.
 
 Evidence gathered on `main` at 7f17cce. Numbers here are load-bearing for the phases below.
 
+The icon figures below are reproducible: `node docs/tmp-icons/measure-icons.js`. The
+before/after page, the rescaled candidates and the open taste decisions live in
+[`docs/tmp-icons/`](tmp-icons/README.md).
+
 ### Size and spacing
 
 | Fact | Value |
@@ -111,7 +115,14 @@ themes correctly. The good technique exists in the codebase and is used once.
 | `pause` | 56% | 9.0px |
 | `chevron-left` | 81% | 13.0px |
 | `volume` | 81% | 13.0px |
-| **median** | **88%** | **14.1px** |
+| `volume-mute` | 84% | 13.5px |
+| `story`, `reload`, `filter`, `article` | 87–88% | ~14px |
+| the other 10 icons | 100% | 16.0px |
+
+**The set is bimodal**: 10 icons fill their grid completely, 10 sit at 50–88%, and nothing
+lands in between. There is no meaningful "average" icon size to design against — the spread
+is min 50% / p25 84% / max 100%. Quoting a median here is misleading and any
+spread-around-the-median rule is the wrong shape; the useful constraint is a floor.
 
 `story.svg` is the sole off-grid icon (`0 0 20 20`) and the sole fully-stroke-drawn one
 (`stroke-width="2"` ≈ 1.6px effective against the set's ~1px).
@@ -143,16 +154,19 @@ Rationale: `getBoundingClientRect()` resolves exactly what a screenshot cannot.
 
 ### 0.2 Icon set audit as a test
 
-Promote the audit script built for this plan into `tests/unit/ui-web/icon-set.test.js`
+Promote `docs/tmp-icons/measure-icons.js` into `tests/unit/ui-web/icon-set.test.js`
 (matching the existing kebab-case `*.test.js` convention in that directory):
 
 - every icon's `viewBox` is `0 0 16 16`
-- every icon's ink fill is within ±8 points of the set median
+- every icon's ink fill is **at or above a floor** (start at 84%, i.e. the current p25) — a
+  floor, not a band around the median, because the set is bimodal and a band would either
+  fail the 100% cluster or pass the 50% outliers
 - no icon file exceeds a size ceiling
 
 Uses Playwright's `getBoundingClientRect()` measurement (`getBBox()` is **not** usable — it
 reports an element's own user space and ignores ancestor transforms and stroke width; this
-caused a silent no-op while preparing this plan).
+caused a silent no-op while preparing this plan). See `docs/tmp-icons/README.md` for the
+gotcha in full.
 
 ### 0.3 Stylelint
 
@@ -335,16 +349,18 @@ renders black into the alpha channel, which is exactly what is wanted.
 
 Rescale the five outliers by wrapping existing paths in a `<g transform>` that scales ink
 about the centre to a target fill (~86%). No path is redrawn — one line per file, fully
-reversible. Candidates already generated during planning.
+reversible. Candidates are already generated, in `docs/tmp-icons/candidates/`; review them
+against `docs/tmp-icons/icon-comparison.html` §6.
 
-**Owner decision required:** the target fill is a taste knob. 86% was chosen over the 88%
-median because a sparse mark at full extent reads heavier than a dense one. Review the
-rendered candidates before committing.
+**Owner decision required:** the target fill is a taste knob. 86% sits just above the set's
+lower cluster (p25 is 84%) rather than at the 100% mode, because a sparse mark at full
+extent reads heavier than a dense one. Review the rendered candidates before committing —
+see `docs/tmp-icons/`.
 
 ### 4.3 story.svg
 
-Redraw on the 16 grid at `stroke-width="1.5"`. Candidate exists; proportions are the
-owner's call.
+Redraw on the 16 grid at `stroke-width="1.5"`. Candidate exists at
+`docs/tmp-icons/story-candidate.svg`; proportions are the owner's call.
 
 ### 4.4 Lock it in
 
