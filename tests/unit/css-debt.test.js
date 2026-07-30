@@ -1,6 +1,11 @@
 const assert = require("node:assert/strict")
 const test = require("node:test")
-const { analyzeCss, compareDebt } = require("../../scripts/check-css-debt")
+const {
+  analyzeCss,
+  compareDebt,
+  currentDebt,
+  phaseOneMigratedScopes
+} = require("../../scripts/check-css-debt")
 
 test("CSS debt analysis identifies the guarded debt categories", () => {
   const source = `
@@ -26,4 +31,15 @@ test("CSS debt comparison reports both additions and stale baseline entries", ()
     added: ["added"],
     removed: ["removed"]
   })
+})
+
+test("completed Phase 1 scopes contain no raw geometry or mobile aliases", () => {
+  const phaseOneDebt = currentDebt().filter((entry) =>
+    (entry.startsWith("raw-geometry-px|") &&
+      phaseOneMigratedScopes.some((file) =>
+        entry.startsWith(`raw-geometry-px|${file}:`)
+      )) ||
+    entry.startsWith("mobile-token-alias|")
+  )
+  assert.deepEqual(phaseOneDebt, [])
 })

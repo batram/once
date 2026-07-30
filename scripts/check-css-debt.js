@@ -7,6 +7,15 @@ const postcss = require("postcss")
 
 const root = path.resolve(__dirname, "..")
 const baselinePath = path.join(__dirname, "css-debt-baseline.json")
+const phaseOneMigratedScopes = [
+  "packages/ui-web/public/static/css/parts/base.css",
+  "packages/ui-web/public/static/css/parts/menu.css",
+  "packages/ui-web/public/static/css/parts/layout.css",
+  "packages/ui-web/public/static/css/parts/stories.css",
+  "packages/ui-web/public/static/css/parts/settings.css",
+  "apps/mobile/src/mobile.css",
+  "apps/electron/src/electron.css"
+]
 const geometryProperty = /^(?:margin|padding)(?:-|$)|^(?:gap|row-gap|column-gap|font-size|border-radius)$/
 const marginProperty = /^margin(?:-|$)/
 const pxValue = /(?:^|[^\w.-])-?(?:\d*\.)?\d+px\b/i
@@ -81,6 +90,18 @@ function compareDebt(expected, actual) {
 
 function main() {
   const actual = currentDebt()
+  const phaseOneRawGeometry = actual.filter((entry) =>
+    entry.startsWith("raw-geometry-px|") &&
+    phaseOneMigratedScopes.some((file) =>
+      entry.startsWith(`raw-geometry-px|${file}:`)
+    )
+  )
+  if (phaseOneRawGeometry.length) {
+    console.error("Raw geometry remains in a completed Phase 1 scope:")
+    for (const entry of phaseOneRawGeometry) console.error(`+ ${entry}`)
+    process.exitCode = 1
+    if (!process.argv.includes("--write-baseline")) return
+  }
   if (process.argv.includes("--write-baseline")) {
     fs.writeFileSync(
       baselinePath,
@@ -109,4 +130,9 @@ function main() {
 
 if (require.main === module) main()
 
-module.exports = { analyzeCss, compareDebt }
+module.exports = {
+  analyzeCss,
+  compareDebt,
+  currentDebt,
+  phaseOneMigratedScopes
+}

@@ -14,7 +14,8 @@
   justify-content: flex-start;
 }
 #settings_panel .settings_title {
-  font-size: 13px;
+  --settings-settings_panel-settings_title-font-size: 13px;
+  font-size: var(--settings-settings_panel-settings_title-font-size);
 }
 
 .settings_container {
@@ -24,9 +25,12 @@
 }
 
 #settings_panel .settings_block {
-  font-size: 13px;
-  padding: 15px;
-  margin: 5px;
+  --settings-settings_panel-settings_block-font-size: 13px;
+  font-size: var(--settings-settings_panel-settings_block-font-size);
+  --settings-settings_panel-settings_block-padding: 15px;
+  padding: var(--settings-settings_panel-settings_block-padding);
+  --settings-settings_panel-settings_block-margin: 5px;
+  margin: var(--settings-settings_panel-settings_block-margin);
   border-bottom: thin solid var(--border-color);
 }
 
@@ -57,7 +61,8 @@
   width: 100%;
   min-height: 40px;
   margin: 0;
-  padding: 6px;
+  --settings-settings_section_row-padding: 6px;
+  padding: var(--settings-settings_section_row-padding);
   align-items: center;
   justify-content: space-between;
   border: 0;
@@ -93,17 +98,21 @@
 .settings_section_matches {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 2px 0 6px var(--sp-2);
+  --settings-settings_section_matches-gap: 2px;
+  gap: var(--settings-settings_section_matches-gap);
+  --settings-settings_section_matches-padding: 2px 0 6px var(--sp-2);
+  padding: var(--settings-settings_section_matches-padding);
 }
 
 .settings_section_match {
   overflow: hidden;
-  padding: 3px 5px;
+  --settings-settings_section_match-padding: 3px 5px;
+  padding: var(--settings-settings_section_match-padding);
   border: 0;
   color: var(--text-color);
   background: transparent;
-  font-size: 11px;
+  --settings-settings_section_match-font-size: 11px;
+  font-size: var(--settings-settings_section_match-font-size);
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -116,7 +125,8 @@
 }
 
 .settings_section_more {
-  padding: 2px 5px;
+  --settings-settings_section_more-padding: 2px 5px;
+  padding: var(--settings-settings_section_more-padding);
   color: var(--text-color);
   opacity: 0.75;
 }
@@ -179,7 +189,8 @@
 #error_log {
   display: flex;
   flex-direction: column-reverse;
-  gap: 6px;
+  --settings-error_log-gap: 6px;
+  gap: var(--settings-error_log-gap);
 }
 
 .error_log_entry {
@@ -221,11 +232,13 @@
 }
 
 .error_log_show_source {
-  margin-left: 6px;
+  --settings-error_log_show_source-margin-left: 6px;
+  margin-left: var(--settings-error_log_show_source-margin-left);
 }
 
 .error_log_show_story {
-  margin-left: 6px;
+  --settings-error_log_show_story-margin-left: 6px;
+  margin-left: var(--settings-error_log_show_story-margin-left);
 }
 
 .error_log_empty {
@@ -241,10 +254,12 @@
   display: block;
   width: 95%;
   min-height: 200px;
-  margin-bottom: 2px;
+  --settings-input_container-margin-bottom: 2px;
+  margin-bottom: var(--settings-input_container-margin-bottom);
   position: relative;
   border: thin solid black;
-  border-radius: 2px;
+  --settings-input_container-border-radius: 2px;
+  border-radius: var(--settings-input_container-border-radius);
   background: var(--input-bg-color);
   overflow: hidden;
   resize: vertical; /* Allow vertical resizing */
@@ -260,13 +275,15 @@
   width: 100%;
   height: 100%;
   margin: 0;
-  padding: 10px 10px 10px 30px; /* Increased left padding for icon gutter */
+  --settings-input_container-highlights-padding: 10px 10px 10px 30px;
+  padding: var(--settings-input_container-highlights-padding); /* Increased left padding for icon gutter */
   border: none;
   white-space: pre-wrap;
   word-wrap: break-word;
   box-sizing: border-box;
   font-family: "Courier New", Courier, monospace; /* Robust monospace */
-  font-size: 13px;
+  --settings-input_container-highlights-font-size: 13px;
+  font-size: var(--settings-input_container-highlights-font-size);
   line-height: 1.5;
   letter-spacing: normal;
   resize: none;
@@ -356,7 +373,8 @@
   margin-left: auto;
   padding: 0 var(--sp-2);
   border: thin solid var(--sep-color);
-  border-radius: 4px;
+  --settings-settings_panel-structured_mode_toggle_topbar-border-radius: 4px;
+  border-radius: var(--settings-settings_panel-structured_mode_toggle_topbar-border-radius);
   background: transparent;
   color: inherit;
   font-family: "Courier New", Courier, monospace;
@@ -382,7 +400,8 @@
   gap: var(--sp-2);
   box-sizing: border-box;
   width: 100%;
-  padding: 6px 0;
+  --settings-structured_search-padding: 6px 0;
+  padding: var(--settings-structured_search-padding);
   background: var(--background-color, var(--input-bg-color));
 }
 
@@ -402,7 +421,8 @@
 }
 
 .structured_settings mark {
-  border-radius: 2px;
+  --settings-structured_settings-border-radius: 2px;
+  border-radius: var(--settings-structured_settings-border-radius);
   padding: 0;
   background: var(--highlight-bg-color, #ffe66d);
   color: var(--highlight-color, #111);
@@ -490,20 +510,23 @@
 .structured_list_count {
   flex: 0 0 auto;
   font-family: "Courier New", Courier, monospace;
-  font-size: 11px;
+  --settings-structured_group_count-structured_list_count-font-size: 11px;
+  font-size: var(--settings-structured_group_count-structured_list_count-font-size);
   opacity: 0.75;
 }
 
 .structured_group_actions {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  --settings-structured_group_actions-gap: 3px;
+  gap: var(--settings-structured_group_actions-gap);
 }
 
 .structured_group_actions button {
   min-width: 30px;
   min-height: 30px;
-  padding: 2px 6px;
+  --settings-structured_group_actions-padding: 2px 6px;
+  padding: var(--settings-structured_group_actions-padding);
 }
 
 /* One control for the whole group — rename, delete, add source here. Nothing
@@ -619,7 +642,8 @@
 }
 
 .structured_row_primary {
-  font-size: 15px;
+  --settings-structured_row_primary-font-size: 15px;
+  font-size: var(--settings-structured_row_primary-font-size);
 }
 
 .structured_row_secondary {
@@ -661,21 +685,25 @@
   flex: 0 0 34px;
   width: 34px;
   min-height: 34px;
-  margin: 0 6px;
+  --settings-structured_remove-margin: 0 6px;
+  margin: var(--settings-structured_remove-margin);
   padding: 0;
   border: 0;
   border-radius: 0;
   color: var(--text-muted-color);
   background: transparent;
   box-shadow: none;
-  font-size: 22px;
+  --settings-structured_remove-font-size: 22px;
+  font-size: var(--settings-structured_remove-font-size);
   line-height: 1;
 }
 
 .structured_row_editing {
   flex-wrap: wrap;
-  gap: 6px;
-  padding: 6px;
+  --settings-structured_row_editing-gap: 6px;
+  gap: var(--settings-structured_row_editing-gap);
+  --settings-structured_row_editing-padding: 6px;
+  padding: var(--settings-structured_row_editing-padding);
 }
 
 .structured_inline_input {
@@ -683,7 +711,8 @@
   flex: 1 1 180px;
   min-width: 0;
   min-height: 38px;
-  padding: 6px var(--sp-2);
+  --settings-structured_inline_input-padding: 6px var(--sp-2);
+  padding: var(--settings-structured_inline_input-padding);
   font: inherit;
 }
 
@@ -816,8 +845,10 @@ body:not([data-platform="mobile"]) #settings_panel .bar {
   flex: 0 0 auto;
   height: auto;
   min-height: 0;
-  padding: 5px 0 5px var(--sp-2);
-  gap: 6px;
+  --settings-settings_panel-bar-padding: 5px 0 5px var(--sp-2);
+  padding: var(--settings-settings_panel-bar-padding);
+  --settings-settings_panel-bar-gap: 6px;
+  gap: var(--settings-settings_panel-bar-gap);
 }
 
 body:not([data-platform="mobile"]) #settings_panel .bar button,
@@ -838,7 +869,8 @@ body:not([data-platform="mobile"]) .structured_row_menu {
   height: 22px;
   min-height: 22px;
   border: 1px solid var(--text-high-color);
-  border-radius: 2px;
+  --settings-structured_group_menu-structured_row_menu-border-radius: 2px;
+  border-radius: var(--settings-structured_group_menu-structured_row_menu-border-radius);
   color: var(--text-high-color);
   background: var(--btn-bg-color);
   font:
@@ -848,7 +880,8 @@ body:not([data-platform="mobile"]) .structured_row_menu {
 }
 
 body:not([data-platform="mobile"]) .settings_editor_block > .settings_actions {
-  padding: 6px 0;
+  --settings-settings_editor_block-settings_actions-padding: 6px 0;
+  padding: var(--settings-settings_editor_block-settings_actions-padding);
   background: var(--main-bg-color);
 }
 
@@ -862,15 +895,18 @@ body:not([data-platform="mobile"]) .structured_remove {
   flex: 0 0 22px;
   width: 22px;
   min-height: 22px;
-  margin: 0 6px 0 0;
-  font-size: 15px;
+  --settings-structured_remove-margin: 0 6px 0 0;
+  margin: var(--settings-structured_remove-margin);
+  --settings-structured_remove-font-size: 15px;
+  font-size: var(--settings-structured_remove-font-size);
 }
 
 body:not([data-platform="mobile"]) #settings_panel .settings_title {
   order: 1;
   min-width: 0;
   overflow: hidden;
-  font-size: 13px;
+  --settings-settings_panel-settings_title-font-size: 13px;
+  font-size: var(--settings-settings_panel-settings_title-font-size);
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -881,7 +917,8 @@ body:not([data-platform="mobile"]) #settings_panel #settings_section_back {
   align-items: center;
   gap: var(--sp-1);
   margin: 0;
-  padding: 0 7px;
+  --settings-settings_panel-settings_section_back-padding: 0 7px;
+  padding: var(--settings-settings_panel-settings_section_back-padding);
 }
 
 /* A real icon, masked so it still takes the button's own colour. Flex centring
@@ -954,7 +991,8 @@ body:not([data-platform="mobile"]) #settings_index {
   box-sizing: border-box;
   flex: 1 1 auto;
   width: 100%;
-  padding: 7px var(--sp-2);
+  --settings-settings_index-padding: 7px var(--sp-2);
+  padding: var(--settings-settings_index-padding);
   border: 0;
   overflow: auto;
 }
@@ -966,17 +1004,21 @@ body:not([data-platform="mobile"]) #settings_panel.settings_detail_open #setting
 
 body:not([data-platform="mobile"]) #settings_search {
   width: 100%;
-  margin: 0 0 7px;
-  padding: 1px 7px;
+  --settings-settings_search-margin: 0 0 7px;
+  margin: var(--settings-settings_search-margin);
+  --settings-settings_search-padding: 1px 7px;
+  padding: var(--settings-settings_search-padding);
 }
 
 body:not([data-platform="mobile"]) .settings_section_row {
   min-height: 28px;
   height: 28px;
   gap: var(--sp-2);
-  padding: 0 6px;
+  --settings-settings_section_row-padding: 0 6px;
+  padding: var(--settings-settings_section_row-padding);
   border-bottom: 1px solid var(--sep-color);
-  font-size: 13px;
+  --settings-settings_section_row-font-size: 13px;
+  font-size: var(--settings-settings_section_row-font-size);
 }
 
 body:not([data-platform="mobile"]) .settings_section_row:hover,
@@ -1001,7 +1043,8 @@ body:not([data-platform="mobile"]) .settings_section_summary {
   margin-left: auto;
   overflow: hidden;
   color: var(--text-color);
-  font-size: 11px;
+  --settings-settings_section_summary-font-size: 11px;
+  font-size: var(--settings-settings_section_summary-font-size);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1014,7 +1057,8 @@ body:not([data-platform="mobile"]) .structured_status_error {
 body:not([data-platform="mobile"]) .settings_section_arrow {
   flex: 0 0 6px;
   color: var(--text-color);
-  font-size: 20px;
+  --settings-settings_section_arrow-font-size: 20px;
+  font-size: var(--settings-settings_section_arrow-font-size);
   line-height: 1;
 }
 
@@ -1033,7 +1077,8 @@ body:not([data-platform="mobile"]) #settings_panel .settings_block {
   min-width: 0;
   min-height: 0;
   margin: 0;
-  padding: 7px var(--sp-2) 0;
+  --settings-settings_panel-settings_block-padding: 7px var(--sp-2) 0;
+  padding: var(--settings-settings_panel-settings_block-padding);
   border: 0;
   overflow: auto;
 }
@@ -1067,7 +1112,8 @@ body:not([data-platform="mobile"]) .structured_search {
   top: 0;
   z-index: 5;
   flex: 0 0 auto;
-  gap: 6px;
+  --settings-structured_search-gap: 6px;
+  gap: var(--settings-structured_search-gap);
   padding: 0;
   background: var(--main-bg-color);
 }
@@ -1075,7 +1121,8 @@ body:not([data-platform="mobile"]) .structured_search {
 body:not([data-platform="mobile"]) .structured_search input[type="search"] {
   flex: 1 1 180px;
   min-width: 80px;
-  padding: 1px 7px;
+  --settings-structured_search-padding: 1px 7px;
+  padding: var(--settings-structured_search-padding);
 }
 
 body:not([data-platform="mobile"]) .structured_search_status:empty {
@@ -1085,7 +1132,8 @@ body:not([data-platform="mobile"]) .structured_search_status:empty {
 body:not([data-platform="mobile"]) .structured_list_actions {
   display: flex;
   flex: 0 0 auto;
-  gap: 6px;
+  --settings-structured_list_actions-gap: 6px;
+  gap: var(--settings-structured_list_actions-gap);
 }
 
 body:not([data-platform="mobile"]) .structured_list_actions button {
@@ -1105,7 +1153,8 @@ body:not([data-platform="mobile"]) .structured_list_card {
   flex: 0 0 auto;
   margin: 0;
   border: 1px solid var(--border-high-color);
-  border-radius: 4px;
+  --settings-structured_group-structured_list_card-border-radius: 4px;
+  border-radius: var(--settings-structured_group-structured_list_card-border-radius);
   overflow: clip;
 }
 
@@ -1114,8 +1163,10 @@ body:not([data-platform="mobile"]) .structured_list_header {
   box-sizing: border-box;
   min-height: 26px;
   height: 26px;
-  gap: 7px;
-  padding: 0 var(--sp-1) 0 7px;
+  --settings-structured_group-structured_list_header-gap: 7px;
+  gap: var(--settings-structured_group-structured_list_header-gap);
+  --settings-structured_group-structured_list_header-padding: 0 var(--sp-1) 0 7px;
+  padding: var(--settings-structured_group-structured_list_header-padding);
   background: var(--read-bg-color);
 }
 
@@ -1141,7 +1192,8 @@ body:not([data-platform="mobile"]) .structured_group_name,
 body:not([data-platform="mobile"]) .structured_list_name {
   flex: 1 1 auto;
   overflow: hidden;
-  font-size: 10.5px;
+  --settings-structured_group_name-structured_list_name-font-size: 10.5px;
+  font-size: var(--settings-structured_group_name-structured_list_name-font-size);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   text-overflow: ellipsis;
@@ -1154,7 +1206,8 @@ body:not([data-platform="mobile"]) .structured_group_drag_handle {
 
 body:not([data-platform="mobile"]) .structured_group_count,
 body:not([data-platform="mobile"]) .structured_list_count {
-  font-size: 11px;
+  --settings-structured_group_count-structured_list_count-font-size: 11px;
+  font-size: var(--settings-structured_group_count-structured_list_count-font-size);
 }
 
 body:not([data-platform="mobile"]) .structured_group_actions {
@@ -1167,7 +1220,8 @@ body:not([data-platform="mobile"]) .structured_group_menu {
   padding: 0;
   border-color: transparent;
   background: transparent;
-  font-size: 17px;
+  --settings-structured_group_menu-font-size: 17px;
+  font-size: var(--settings-structured_group_menu-font-size);
   opacity: 0;
   cursor: pointer;
 }
@@ -1207,8 +1261,10 @@ body:not([data-platform="mobile"]) .structured_row_editing {
   grid-template-columns: minmax(0, 1fr) auto auto;
   height: auto;
   min-height: 40px;
-  gap: 6px;
-  padding: var(--sp-1) 6px;
+  --settings-structured_row_editing-gap: 6px;
+  gap: var(--settings-structured_row_editing-gap);
+  --settings-structured_row_editing-padding: var(--sp-1) 6px;
+  padding: var(--settings-structured_row_editing-padding);
   /* Repeated from the base rule: body:not(mobile) .structured_row sets its own
      background and would otherwise win on specificity. */
   background: var(--editing-bg-color);
@@ -1235,7 +1291,8 @@ body:not([data-platform="mobile"]) .structured_inline_action {
 
 body:not([data-platform="mobile"]) .structured_row_editing .structured_inline_input {
   width: 100%;
-  padding: 2px 5px;
+  --settings-structured_row_editing-structured_inline_input-padding: 2px 5px;
+  padding: var(--settings-structured_row_editing-structured_inline_input-padding);
   font-size: var(--fs-meta);
 }
 
@@ -1280,7 +1337,8 @@ body:not([data-platform="mobile"]) .structured_row_editing .structured_inline_in
   margin: 0;
   padding: 0;
   border: 1px solid var(--border-high-color);
-  border-radius: 4px;
+  --settings-structured_inline_action-border-radius: 4px;
+  border-radius: var(--settings-structured_inline_action-border-radius);
   background: transparent;
 }
 
@@ -1300,7 +1358,8 @@ body:not([data-platform="mobile"]) .structured_row_editing .structured_inline_in
 }
 
 body[data-platform="mobile"] section[data-settings-section="filters"] .glyph_check {
-  margin-left: -5px;
+  --settings-glyph_check-margin-left: -5px;
+  margin-left: var(--settings-glyph_check-margin-left);
 }
 
 /* The bars are longer than the check's arms because a rotated bar's ink spans
@@ -1313,7 +1372,8 @@ body[data-platform="mobile"] section[data-settings-section="filters"] .glyph_che
 }
 
 body[data-platform="mobile"] section[data-settings-section="filters"] .glyph_cross {
-  margin-left: -7px;
+  --settings-glyph_cross-margin-left: -7px;
+  margin-left: var(--settings-glyph_cross-margin-left);
 }
 
 .structured_inline_action .glyph_cross::before,
@@ -1372,13 +1432,15 @@ body[data-platform="mobile"] section[data-settings-section="filters"] .glyph_cro
 .structured_redirect_tester {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  --settings-structured_redirect_tester-gap: 6px;
+  gap: var(--settings-structured_redirect_tester-gap);
 }
 
 .structured_redirect_output {
   box-sizing: border-box;
   min-height: 57px;
-  padding: 7px 9px;
+  --settings-structured_redirect_output-padding: 7px 9px;
+  padding: var(--settings-structured_redirect_output-padding);
   border: 1px solid var(--border-high-color);
   background: var(--input-bg-color);
   font-size: var(--fs-meta);
@@ -1391,7 +1453,8 @@ body[data-platform="mobile"] section[data-settings-section="filters"] .glyph_cro
 
 .structured_redirect_output strong {
   font-family: Verdana, Geneva, sans-serif;
-  font-size: 10.5px;
+  --settings-structured_redirect_output-font-size: 10.5px;
+  font-size: var(--settings-structured_redirect_output-font-size);
 }
 
 /* --highlight-bg-color is already the reference's rgb(202,202,172) and, unlike
@@ -1427,7 +1490,8 @@ body:not([data-platform="mobile"]) [data-structured-section="filters"] .structur
   grid-column: 1;
   height: 26px;
   margin-left: 0;
-  padding-left: 10px;
+  --settings-structured_row_body-padding-left: 10px;
+  padding-left: var(--settings-structured_row_body-padding-left);
 }
 
 body:not([data-platform="mobile"]) [data-structured-section="filters"] .structured_row_main {
@@ -1438,13 +1502,15 @@ body:not([data-platform="mobile"]) [data-structured-section="filters"] .structur
   flex-basis: 20px;
   width: 20px;
   min-height: 20px;
-  margin-right: 3px;
+  --settings-structured_remove-margin-right: 3px;
+  margin-right: var(--settings-structured_remove-margin-right);
 }
 
 body:not([data-platform="mobile"]) [data-structured-section="filters"] .structured_row_editing {
   grid-template-columns: minmax(0, 1fr) 22px 22px;
   min-height: 30px;
-  padding: var(--sp-1) 6px var(--sp-1) 10px;
+  --settings-structured_row_editing-padding: var(--sp-1) 6px var(--sp-1) 10px;
+  padding: var(--settings-structured_row_editing-padding);
 }
 
 body:not([data-platform="mobile"]) .structured_redirect_editor {
@@ -1457,7 +1523,8 @@ body:not([data-platform="mobile"]) .structured_redirect_editor {
 body:not([data-platform="mobile"]) .structured_redirect_form {
   gap: var(--sp-2);
   width: 100%;
-  padding: var(--sp-2) 10px;
+  --settings-structured_redirect_form-padding: var(--sp-2) 10px;
+  padding: var(--settings-structured_redirect_form-padding);
 }
 
 body:not([data-platform="mobile"]) .structured_redirect_form h3 {
@@ -1466,14 +1533,16 @@ body:not([data-platform="mobile"]) .structured_redirect_form h3 {
 
 body:not([data-platform="mobile"]) .structured_redirect_form textarea {
   min-height: 42px;
-  padding: var(--sp-1) 6px;
+  --settings-structured_redirect_form-padding: var(--sp-1) 6px;
+  padding: var(--settings-structured_redirect_form-padding);
   font-size: var(--fs-meta);
 }
 
 body:not([data-platform="mobile"]) .structured_redirect_form input {
   min-height: 22px;
   height: 22px;
-  padding: 2px 5px;
+  --settings-structured_redirect_form-padding: 2px 5px;
+  padding: var(--settings-structured_redirect_form-padding);
   font-size: var(--fs-meta);
 }
 
@@ -1532,15 +1601,18 @@ body:not([data-platform="mobile"]) .collector_badge {
   height: 20px;
   min-height: 20px;
   margin: 0;
-  padding: 1px;
+  --settings-collector_badge-padding: 1px;
+  padding: var(--settings-collector_badge-padding);
   border: 1px solid var(--input-bg-color);
   font-size: var(--fs-label);
 }
 
 body:not([data-platform="mobile"]) .structured_row_body {
   height: 40px;
-  margin-left: 10px;
-  gap: 6px;
+  --settings-structured_row_body-margin-left: 10px;
+  margin-left: var(--settings-structured_row_body-margin-left);
+  --settings-structured_row_body-gap: 6px;
+  gap: var(--settings-structured_row_body-gap);
   border-bottom: 1px solid color-mix(in srgb, var(--sep-color) 38%, transparent);
 }
 
@@ -1553,7 +1625,8 @@ body:not([data-platform="mobile"]) .structured_row_primary {
 }
 
 body:not([data-platform="mobile"]) .structured_row_secondary {
-  font-size: 11px;
+  --settings-structured_row_secondary-font-size: 11px;
+  font-size: var(--settings-structured_row_secondary-font-size);
 }
 
 body:not([data-platform="mobile"]) .structured_row_main:focus-visible {
@@ -1569,7 +1642,8 @@ body:not([data-platform="mobile"]) .structured_issue {
   height: 22px;
   padding: 0;
   border: 1px solid currentColor;
-  font-size: 11px;
+  --settings-structured_issue-font-size: 11px;
+  font-size: var(--settings-structured_issue-font-size);
   line-height: 1;
 }
 
@@ -1595,7 +1669,8 @@ body:not([data-platform="mobile"]) .structured_row_drop_target::before {
   right: 2px;
   left: 2px;
   height: 3px;
-  border-radius: 2px;
+  --settings-structured_source_drop_after-structured_row_drop_target-border-radius: 2px;
+  border-radius: var(--settings-structured_source_drop_after-structured_row_drop_target-border-radius);
   background: var(--text-high-color);
   pointer-events: none;
 }
@@ -1637,7 +1712,8 @@ body:not([data-platform="mobile"]) .structured_row_menu {
   width: 22px;
   margin-right: var(--sp-1);
   padding: 0;
-  font-size: 17px;
+  --settings-structured_row_menu-font-size: 17px;
+  font-size: var(--settings-structured_row_menu-font-size);
   opacity: 0;
 }
 
@@ -1658,7 +1734,8 @@ body:not([data-platform="mobile"]) .structured_status_strip {
   border-top: 1px solid var(--border-high-color);
   color: var(--text-color);
   background: var(--main-bg-color);
-  font-size: 11px;
+  --settings-structured_status_strip-font-size: 11px;
+  font-size: var(--settings-structured_status_strip-font-size);
 }
 
 body:not([data-platform="mobile"]) .structured_settings[hidden] + .structured_status_strip {
@@ -1679,13 +1756,15 @@ body:not([data-platform="mobile"])
 }
 
 body:not([data-platform="mobile"]) .once-anchored-menu-panel {
-  border-radius: 2px;
+  --settings-once-anchored-menu-panel-border-radius: 2px;
+  border-radius: var(--settings-once-anchored-menu-panel-border-radius);
   box-shadow: 0 4px 14px rgb(0 0 0 / 28%);
 }
 
 body:not([data-platform="mobile"]) .once-anchored-menu-item {
   min-height: 24px;
-  padding: 3px var(--sp-2);
+  --settings-once-anchored-menu-item-padding: 3px var(--sp-2);
+  padding: var(--settings-once-anchored-menu-item-padding);
   font-size: var(--fs-meta);
 }
 
@@ -1741,24 +1820,29 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
 
 #couch_input {
   width: calc(100% - 40px);
-  padding-right: 40px;
+  --settings-couch_input-padding-right: 40px;
+  padding-right: var(--settings-couch_input-padding-right);
 }
 
 .couch-container {
   position: relative;
   width: 100%;
   display: block;
-  margin-bottom: 5px;
+  --settings-couch-container-margin-bottom: 5px;
+  margin-bottom: var(--settings-couch-container-margin-bottom);
 }
 
 .couch-highlights,
 #couch_input {
   font-family: "Courier New", Courier, monospace;
-  font-size: 13px;
+  --settings-couch-highlights-couch_input-font-size: 13px;
+  font-size: var(--settings-couch-highlights-couch_input-font-size);
   line-height: normal;
-  padding: 5px 35px 5px 10px;
+  --settings-couch-highlights-couch_input-padding: 5px 35px 5px 10px;
+  padding: var(--settings-couch-highlights-couch_input-padding);
   border: 1px solid black;
-  border-radius: 4px;
+  --settings-couch-highlights-couch_input-border-radius: 4px;
+  border-radius: var(--settings-couch-highlights-couch_input-border-radius);
   width: 100%;
   box-sizing: border-box;
   background: var(--input-bg-color);
@@ -1799,10 +1883,12 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
   border-left: thin solid black;
   cursor: pointer;
   z-index: 3;
-  padding: 2px 5px;
+  --settings-couch_toggle-padding: 2px 5px;
+  padding: var(--settings-couch_toggle-padding);
   opacity: 0.6;
   height: 26px;
-  padding-left: 7px;
+  --settings-couch_toggle-padding-left: 7px;
+  padding-left: var(--settings-couch_toggle-padding-left);
 }
 
 #couch_toggle:hover {
@@ -1810,14 +1896,16 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
 }
 
 .couch-status {
-  margin-top: 7px;
+  --settings-couch-status-margin-top: 7px;
+  margin-top: var(--settings-couch-status-margin-top);
   font-size: 0.85em;
   color: var(--subtle-text-color, #777);
 }
 
 .couch-status::before {
   content: "●";
-  margin-right: 6px;
+  --settings-couch-status-margin-right: 6px;
+  margin-right: var(--settings-couch-status-margin-right);
   color: #888;
 }
 
@@ -1888,7 +1976,8 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
   overflow: hidden;
   margin: var(--sp-2) 0 var(--sp-1);
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  --settings-swipe_preview-swipe_preview_stage-border-radius: 4px;
+  border-radius: var(--settings-swipe_preview-swipe_preview_stage-border-radius);
   background-color: var(--unread-bg-color);
 }
 
@@ -1900,7 +1989,8 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
 }
 
 #swipe_preview .swipe_preview_status {
-  margin: 0 0 6px;
+  --settings-swipe_preview-swipe_preview_status-margin: 0 0 6px;
+  margin: var(--settings-swipe_preview-swipe_preview_status-margin);
   font-size: 0.8em;
   color: var(--text-color);
   min-height: 1.2em;
@@ -1921,7 +2011,8 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
   overflow-x: auto;
   overflow-y: hidden;
   overscroll-behavior-inline: contain;
-  padding-bottom: 20px;
+  --settings-swipe_lab_scroller-padding-bottom: 20px;
+  padding-bottom: var(--settings-swipe_lab_scroller-padding-bottom);
 }
 
 .swipe_lab_inner {
@@ -1944,7 +2035,8 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
   flex-direction: column;
   gap: var(--sp-2);
   box-sizing: border-box;
-  padding: 10px var(--sp-3) var(--sp-3);
+  --settings-swipe_action_block-padding: 10px var(--sp-3) var(--sp-3);
+  padding: var(--settings-swipe_action_block-padding);
   border: 1px solid var(--border-color);
   border-bottom: 0;
   background: var(--input-bg-color);
@@ -1952,18 +2044,21 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
 
 .swipe_action_right {
   border-right: 0;
-  border-radius: 4px 0 0;
+  --settings-swipe_action_right-border-radius: 4px 0 0;
+  border-radius: var(--settings-swipe_action_right-border-radius);
 }
 
 .swipe_action_left {
-  border-radius: 0 4px 0 0;
+  --settings-swipe_action_left-border-radius: 0 4px 0 0;
+  border-radius: var(--settings-swipe_action_left-border-radius);
 }
 
 .swipe_action_heading {
   display: flex;
   min-width: 0;
   align-items: baseline;
-  gap: 6px;
+  --settings-swipe_action_heading-gap: 6px;
+  gap: var(--settings-swipe_action_heading-gap);
 }
 
 .swipe_action_heading span {
@@ -2048,10 +2143,12 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
   position: relative;
   height: 36px;
   box-sizing: border-box;
-  margin-bottom: 25px;
+  --settings-swipe_ruler-margin-bottom: 25px;
+  margin-bottom: var(--settings-swipe_ruler-margin-bottom);
   border-block: 1px solid var(--border-color);
   border-inline: 0;
-  border-radius: 0 0 4px 4px;
+  --settings-swipe_ruler-border-radius: 0 0 4px 4px;
+  border-radius: var(--settings-swipe_ruler-border-radius);
   background: color-mix(in srgb, var(--text-color) 10%, transparent);
   /* Draw the side edges without putting them into the ruler's coordinate
      system. Thus clientWidth, the action-block seam and every zone boundary
@@ -2104,7 +2201,8 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
   min-width: 0;
   transform: translateX(-50%);
   border: 1px solid var(--text-high-color);
-  border-radius: 4px;
+  --settings-swipe_lab-swipe_ruler_handle-border-radius: 4px;
+  border-radius: var(--settings-swipe_lab-swipe_ruler_handle-border-radius);
   background: var(--input-bg-color);
   cursor: ew-resize;
   touch-action: none;
@@ -2148,7 +2246,8 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
 
 .swipe_advanced {
   margin: 0 0 var(--sp-2);
-  padding-top: 6px;
+  --settings-swipe_advanced-padding-top: 6px;
+  padding-top: var(--settings-swipe_advanced-padding-top);
   border-top: 1px solid var(--border-color);
 }
 
@@ -2159,14 +2258,17 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
 }
 
 .swipe_advanced_body {
-  padding-top: 10px;
+  --settings-swipe_advanced_body-padding-top: 10px;
+  padding-top: var(--settings-swipe_advanced_body-padding-top);
 }
 
 .swipe_check_row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin: 0 0 10px;
+  --settings-swipe_check_row-gap: 6px;
+  gap: var(--settings-swipe_check_row-gap);
+  --settings-swipe_check_row-margin: 0 0 10px;
+  margin: var(--settings-swipe_check_row-margin);
 }
 
 .swipe_check_row input {
@@ -2180,7 +2282,8 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
 }
 
 .swipe_advanced_description {
-  margin: -5px 0 10px 19px;
+  --settings-swipe_advanced_description-margin: -5px 0 10px 19px;
+  margin: var(--settings-swipe_advanced_description-margin);
   color: var(--text-color);
   font-size: 0.8em;
   line-height: 1.4;
@@ -2191,7 +2294,8 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
   grid-template-columns: 10em minmax(100px, 1fr) minmax(4ch, auto);
   align-items: center;
   gap: var(--sp-2);
-  margin: 0 0 10px 19px;
+  --settings-swipe_slider_row-margin: 0 0 10px 19px;
+  margin: var(--settings-swipe_slider_row-margin);
 }
 
 .swipe_slider_row input {
@@ -2227,8 +2331,10 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
   }
 
   body[data-platform="mobile"] .swipe_action_block {
-    gap: 10px;
-    padding: var(--sp-3) var(--sp-3) 14px;
+    --settings-swipe_action_block-gap: 10px;
+  gap: var(--settings-swipe_action_block-gap);
+    --settings-swipe_action_block-padding: var(--sp-3) var(--sp-3) 14px;
+  padding: var(--settings-swipe_action_block-padding);
   }
 
   body[data-platform="mobile"] .swipe_action_heading {
@@ -2300,14 +2406,16 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
 
   body[data-platform="mobile"] .swipe_stage_label {
     flex-basis: auto;
-    font-size: 11px;
+    --settings-swipe_stage_label-font-size: 11px;
+  font-size: var(--settings-swipe_stage_label-font-size);
     letter-spacing: 0.04em;
     text-transform: uppercase;
   }
 
   body[data-platform="mobile"] .swipe_ruler {
     height: 44px;
-    margin-bottom: 38px;
+    --settings-swipe_ruler-margin-bottom: 38px;
+  margin-bottom: var(--settings-swipe_ruler-margin-bottom);
   }
 
   body[data-platform="mobile"] #swipe_lab .swipe_ruler_handle {
@@ -2317,11 +2425,13 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
 
   body[data-platform="mobile"] .swipe_ruler_value {
     top: 55px;
-    font-size: 11px;
+    --settings-swipe_ruler_value-font-size: 11px;
+  font-size: var(--settings-swipe_ruler_value-font-size);
   }
 
   body[data-platform="mobile"] .swipe_lab_scroller {
-    padding-bottom: 26px;
+    --settings-swipe_lab_scroller-padding-bottom: 26px;
+  padding-bottom: var(--settings-swipe_lab_scroller-padding-bottom);
   }
 
   body[data-platform="mobile"] .swipe_footer button {

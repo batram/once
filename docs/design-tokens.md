@@ -34,8 +34,10 @@ The current color catalog is:
   `--swipe-label-color`
 
 Component geometry and optical corrections are not automatically snapped to this
-scale. They retain their measured value until they are classified and given a
-semantic component token.
+scale. In the completed Phase 1 scopes they retain their measured values through
+selector-scoped component tokens such as `--base-bar-padding` and
+`--electron-controlbar-gap`. These internal tokens document local relationships;
+they are not part of the supported Tier 1 theme API.
 
 This Phase 1 catalog applies to the shared shell and its Electron and mobile
 platform styles. The separately rendered reader and outline presenter retain

@@ -15,7 +15,8 @@ body #titlebar {
   box-sizing: border-box;
   background: var(--sep-color);
   border-bottom: 1px solid var(--border-high-color);
-  font-size: 13px;
+  --electron-titlebar-font-size: 13px;
+  font-size: var(--electron-titlebar-font-size);
   color: var(--text-high-color);
   font-weight: 500;
   app-region: drag;
@@ -37,7 +38,8 @@ body #titlebar-logo {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
-  margin-left: 6px;
+  --electron-titlebar-logo-margin-left: 6px;
+  margin-left: var(--electron-titlebar-logo-margin-left);
 }
 
 body #titlebar-text {
@@ -75,7 +77,8 @@ body #titlebar-text {
   height: 30px;
   /* titlebar-area-width is the usable area, so derive the controls inset from
    * the viewport remainder rather than using that width as the inset itself. */
-  padding: 5px calc(var(--sp-1) + 100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw)) 0 var(--sp-1);
+  --electron-tab_dropzone-padding: 5px calc(var(--sp-1) + 100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw)) 0 var(--sp-1);
+  padding: var(--electron-tab_dropzone-padding);
   border-bottom: 1px solid var(--border-high-color);
   overflow: hidden;
   app-region: drag;
@@ -110,7 +113,8 @@ body #titlebar-text {
   height: 24px;
   border: 1px solid var(--border-high-color);
   border-bottom: 0;
-  border-radius: 2px 2px 0 0;
+  --electron-electron-tab-legacy-tab-button-border-radius: 2px 2px 0 0;
+  border-radius: var(--electron-electron-tab-legacy-tab-button-border-radius);
   color: var(--text-color);
   background: var(--read-bg-color);
   cursor: pointer;
@@ -125,15 +129,20 @@ body #titlebar-text {
   flex: 0 0 var(--electron-tab-width, 220px);
   min-width: 140px;
   max-width: 220px;
-  margin-left: 2px;
-  padding: 3px var(--sp-1);
-  font-size: 13px;
+  --electron-electron-tab-margin-left: 2px;
+  margin-left: var(--electron-electron-tab-margin-left);
+  --electron-electron-tab-padding: 3px var(--sp-1);
+  padding: var(--electron-electron-tab-padding);
+  --electron-electron-tab-font-size: 13px;
+  font-size: var(--electron-electron-tab-font-size);
   outline: none;
-  margin-top: 3px;
+  --electron-electron-tab-margin-top: 3px;
+  margin-top: var(--electron-electron-tab-margin-top);
 }
 
 .electron-tab.active {
-  margin-top: 2px;
+  --electron-electron-tab-active-margin-top: 2px;
+  margin-top: var(--electron-electron-tab-active-margin-top);
   color: var(--text-high-color);
   background: var(--border-high-color);
 }
@@ -162,11 +171,13 @@ body #titlebar-text {
   justify-content: center;
   width: 18px;
   height: 18px;
-  padding: 1px;
+  --electron-electron-tab-close-electron-tab-media-padding: 1px;
+  padding: var(--electron-electron-tab-close-electron-tab-media-padding);
   color: inherit;
   background: transparent;
   border: 0;
-  border-radius: 2px;
+  --electron-electron-tab-close-electron-tab-media-border-radius: 2px;
+  border-radius: var(--electron-electron-tab-close-electron-tab-media-border-radius);
   cursor: pointer;
 }
 
@@ -219,8 +230,10 @@ body #titlebar-text {
 .legacy-tab-button {
   flex: 0 0 26px;
   min-width: 26px;
-  margin-left: 2px;
-  padding: 1px 6px;
+  --electron-legacy-tab-button-margin-left: 2px;
+  margin-left: var(--electron-legacy-tab-button-margin-left);
+  --electron-legacy-tab-button-padding: 1px 6px;
+  padding: var(--electron-legacy-tab-button-padding);
   font-size: var(--fs-title);
 }
 
@@ -229,9 +242,11 @@ body #titlebar-text {
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 3px;
+  --electron-controlbar-gap: 3px;
+  gap: var(--electron-controlbar-gap);
   height: 34px;
-  padding: var(--sp-1) 6px;
+  --electron-controlbar-padding: var(--sp-1) 6px;
+  padding: var(--electron-controlbar-padding);
   border-bottom: 1px solid var(--border-high-color);
 }
 
@@ -243,13 +258,16 @@ body #titlebar-text {
   width: 26px;
   height: 26px;
   margin: 0;
-  padding: 3px;
+  --electron-browser-button-padding: 3px;
+  padding: var(--electron-browser-button-padding);
   color: var(--text-high-color);
   background: var(--btn-bg-color);
   border: 1px solid black;
-  border-radius: 2px;
+  --electron-browser-button-border-radius: 2px;
+  border-radius: var(--electron-browser-button-border-radius);
   cursor: pointer;
-  font-size: 15px;
+  --electron-browser-button-font-size: 15px;
+  font-size: var(--electron-browser-button-font-size);
 }
 
 .browser-button img,
@@ -283,7 +301,8 @@ body #titlebar-text {
 }
 
 .stop-symbol {
-  font-size: 19px;
+  --electron-stop-symbol-font-size: 19px;
+  font-size: var(--electron-stop-symbol-font-size);
   line-height: 1;
 }
 
@@ -293,9 +312,11 @@ body #titlebar-text {
   height: 26px;
   box-sizing: border-box;
   margin: 0;
-  padding: 2px var(--sp-2);
+  --electron-urlfield-padding: 2px var(--sp-2);
+  padding: var(--electron-urlfield-padding);
   border: 1px solid black;
-  border-radius: 2px;
+  --electron-urlfield-border-radius: 2px;
+  border-radius: var(--electron-urlfield-border-radius);
 }
 
 #url_error {
@@ -364,10 +385,12 @@ body #titlebar-text {
  * tab shape base.css gives the other shells. */
 #left_panel .bar .collapsebutton {
   order: 1;
-  margin: 0 -15px 0 3px;
+  --electron-bar-collapsebutton-margin: 0 -15px 0 3px;
+  margin: var(--electron-bar-collapsebutton-margin);
   border-left: thin solid var(--border-high-color);
   border-right: 0;
-  border-radius: 2px 0 0 2px;
+  --electron-bar-collapsebutton-border-radius: 2px 0 0 2px;
+  border-radius: var(--electron-bar-collapsebutton-border-radius);
 }
 
 /* In Electron this button collapses the whole left panel, so it sits at the

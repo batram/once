@@ -63,6 +63,20 @@ test("the user layer overrides a default token on the same element", async ({ pa
   )).toBe("19px")
 })
 
+test("tokenized shared and mobile geometry retains its measured values", async ({ page }) => {
+  await page.goto(`${baseURL}/static/sidepanel.html`)
+  await expect(page.locator(".bar").first()).toHaveCSS("padding", "5px 15px")
+  await expect(page.locator("#menu .heading").first()).toHaveCSS("padding", "5px")
+
+  await page.goto(`${baseURL}/static/sidepanel.html?target=mobile`)
+  await expect(page.locator("#mobile_filter_chips")).toHaveCSS("gap", "8px")
+  await expect(page.locator("#mobile_filter_chips")).toHaveCSS(
+    "padding",
+    "8px 12px"
+  )
+  await expect(page.locator("#reload_stories_btn")).toHaveCSS("height", "44px")
+})
+
 test("legacy control-semantic debt is explicit and cannot grow", async ({ page }) => {
   await page.goto(`${baseURL}/static/sidepanel.html`)
   const violations = await page.locator(
