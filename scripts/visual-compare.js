@@ -204,7 +204,11 @@ async function settleImages(page) {
 }
 
 async function computedStyleSnapshot(page) {
-  return page.evaluate((collectorConfig) => {
+  // Named rather than passed inline so its structure-exception key stays put.
+  // check-structure.js keys an unnamed function by the line it starts on, so an
+  // inline callback's exception would silently stop applying the first time
+  // anything above it moved.
+  const collectStyles = (collectorConfig) => {
     const selectors = [
       "body",
       "#left_panel",
@@ -440,7 +444,8 @@ async function computedStyleSnapshot(page) {
           .map(describe)
       ]))
     }
-  }, structuralCollectorConfig)
+  }
+  return page.evaluate(collectStyles, structuralCollectorConfig)
 }
 
 async function screenshot(page, file) {
