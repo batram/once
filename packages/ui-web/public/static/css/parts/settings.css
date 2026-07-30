@@ -914,25 +914,6 @@ body:not([data-platform="mobile"]) #settings_panel .structured_mode_toggle_topba
   line-height: 20px;
 }
 
-body:not([data-platform="mobile"]) #settings_panel .bar .collapsebutton {
-  order: 4;
-  margin-right: 0;
-}
-
-body:not([data-platform="mobile"])
-  #settings_panel
-  .bar:not(:has(.structured_mode_toggle_topbar))
-  .collapsebutton {
-  margin-left: auto;
-}
-
-body:not([data-platform="mobile"])
-  #settings_panel
-  .bar:has(.structured_mode_toggle_topbar)
-  .collapsebutton {
-  margin-left: 0;
-}
-
 body:not([data-platform="mobile"]) #settings_panel .structured_mode_toggle_topbar::before,
 body:not([data-platform="mobile"]) #settings_panel .structured_mode_toggle_topbar::after {
   display: block;

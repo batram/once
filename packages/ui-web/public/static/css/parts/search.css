@@ -10,6 +10,12 @@
   padding-left: 8px;
 }
 
+/* 15px bar padding vs the settings bar's 8px: cancel this one so the collapse
+ * arrow sits at the panel edge in both panels. */
+#search_bar .collapsebutton {
+  margin-left: -15px;
+}
+
 #searchfield {
   margin-left: -65px;
   padding-left: 70px;

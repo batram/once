@@ -360,15 +360,30 @@ body #titlebar-text {
   flex: 0 0 calc(var(--macos-window-controls-width) - 30px);
 }
 
+/* Attached to the divider on the trailing edge here, so mirror the leading-edge
+ * tab shape base.css gives the other shells. */
 #left_panel .bar .collapsebutton {
   order: 1;
   margin: 0 -15px 0 3px;
+  border-left: thin solid var(--border-high-color);
   border-right: 0;
   border-radius: 2px 0 0 2px;
 }
 
+/* In Electron this button collapses the whole left panel, so it sits at the
+ * trailing edge of the settings title bar. Other shells only collapse the menu
+ * panel and keep it on the left (see base.css). */
 #settings_panel .bar .collapsebutton {
+  order: 4;
+  margin-right: 0;
+}
+
+#settings_panel .bar:not(:has(.structured_mode_toggle_topbar)) .collapsebutton {
   margin-left: auto;
+}
+
+#settings_panel .bar:has(.structured_mode_toggle_topbar) .collapsebutton {
+  margin-left: 0;
 }
 
 #settings_panel #settings_section_back {
