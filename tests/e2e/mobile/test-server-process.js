@@ -74,7 +74,10 @@ function startTestServer(options = {}) {
     ONCE_MOBILE_TEST_HOST: options.host ||
       process.env.ONCE_MOBILE_TEST_HOST || "0.0.0.0",
     ONCE_MOBILE_TEST_OWNER: owner,
-    ONCE_MOBILE_TEST_DATA_DIR: dataDirectory
+    ONCE_MOBILE_TEST_DATA_DIR: dataDirectory,
+    ...(options.appRoot
+      ? { ONCE_MOBILE_TEST_APP_ROOT: path.resolve(options.appRoot) }
+      : {})
   }
   const child = spawn(process.execPath, ["tests/mobile-env/server.js"], {
     cwd: root,

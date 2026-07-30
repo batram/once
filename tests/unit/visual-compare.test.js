@@ -1,12 +1,17 @@
 "use strict"
 
 const assert = require("node:assert/strict")
+const fs = require("node:fs")
+const os = require("node:os")
 const path = require("node:path")
 const test = require("node:test")
 const {
   buildImageNames,
+  historicalRunComplete,
+  historicalRunName,
   parseArgs,
-  reportHtml
+  reportHtml,
+  styleSnapshotName
 } = require("../../scripts/visual-compare")
 
 test("visual comparison defaults to building both real app targets", () => {
@@ -30,6 +35,42 @@ test("visual comparison target and build switches compose", () => {
     options.output,
     path.resolve(__dirname, "../..", "artifacts/custom-visual")
   )
+})
+
+test("visual comparison accepts a historical Git ref", () => {
+  const options = parseArgs([
+    "--ref",
+    "HEAD~3",
+    "--ref-only",
+    "--electron-only"
+  ])
+  assert.equal(options.ref, "HEAD~3")
+  assert.equal(options.refOnly, true)
+  assert.equal(options.electron, true)
+  assert.equal(options.mobile, false)
+})
+
+test("historical visual runs use full immutable commit ids", () => {
+  const sha = "A".repeat(40)
+  assert.equal(historicalRunName(sha), "a".repeat(40))
+  assert.throws(() => historicalRunName("HEAD~1"), /Invalid commit SHA/)
+})
+
+test("complete historical runs can be reused", (t) => {
+  const output = fs.mkdtempSync(path.join(os.tmpdir(), "once-visual-history-"))
+  t.after(() => fs.rmSync(output, { recursive: true, force: true }))
+  const sha = "a".repeat(40)
+  const names = ["electron-light-stories.png"]
+  fs.writeFileSync(
+    path.join(output, "manifest.json"),
+    JSON.stringify({ sha })
+  )
+  fs.writeFileSync(path.join(output, names[0]), "")
+  fs.writeFileSync(path.join(output, styleSnapshotName(names[0])), "{}")
+  assert.equal(historicalRunComplete(output, names, sha), true)
+  assert.equal(historicalRunComplete(output, names, "b".repeat(40)), false)
+  fs.rmSync(path.join(output, styleSnapshotName(names[0])))
+  assert.equal(historicalRunComplete(output, names, sha), false)
 })
 
 test("visual comparison rejects unsupported switches", () => {
@@ -69,4 +110,30 @@ test("visual report supports keyboard-controlled comparison order", () => {
   assert.match(html, /class="previous"/)
   assert.match(html, /class="current"/)
   assert.match(html, /Current left, previous right/)
+  assert.match(html, /current\/electron-light-stories\.styles\.json/)
+})
+
+test("visual report can link a retained historical run", (t) => {
+  const baseline = fs.mkdtempSync(path.join(os.tmpdir(), "once-visual-unit-"))
+  t.after(() => fs.rmSync(baseline, { recursive: true, force: true }))
+  fs.writeFileSync(path.join(baseline, "electron-light-stories.png"), "")
+  fs.writeFileSync(
+    path.join(baseline, "electron-light-stories.styles.json"),
+    "{}"
+  )
+  const html = reportHtml({
+    baseline,
+    baselineHref: `runs/${"a".repeat(40)}`,
+    baselineLabel: "HEAD~1 (aaaaaaaaaaaa)",
+    imageNames: ["electron-light-stories.png"]
+  })
+  assert.match(html, /HEAD~1 \(aaaaaaaaaaaa\)/)
+  assert.match(html, new RegExp(`src="runs/${"a".repeat(40)}/`))
+})
+
+test("visual screenshots have deterministic style companion names", () => {
+  assert.equal(
+    styleSnapshotName("mobile-dark-settings-theme.png"),
+    "mobile-dark-settings-theme.styles.json"
+  )
 })

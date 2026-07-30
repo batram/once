@@ -2,6 +2,7 @@
 
 const childProcess = require("node:child_process")
 const fs = require("node:fs")
+const os = require("node:os")
 const path = require("node:path")
 const { chromium, devices, expect } = require("@playwright/test")
 
@@ -56,18 +57,29 @@ function buildImageNames(targets) {
   ]))
 }
 
+function styleSnapshotName(imageName) {
+  return imageName.replace(/\.png$/, ".styles.json")
+}
+
 function parseArgs(argv) {
   const options = {
     build: true,
     electron: true,
     mobile: true,
-    output: defaultOutput
+    output: defaultOutput,
+    ref: null,
+    refOnly: false
   }
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index]
     if (value === "--skip-build") options.build = false
     else if (value === "--electron-only") options.mobile = false
     else if (value === "--mobile-only") options.electron = false
+    else if (value === "--ref") {
+      options.ref = argv[++index]
+      if (!options.ref) throw new Error("--ref requires a Git commit-ish")
+    }
+    else if (value === "--ref-only") options.refOnly = true
     else if (value === "--output") {
       const output = argv[++index]
       if (!output) throw new Error("--output requires a directory")
@@ -81,13 +93,13 @@ function parseArgs(argv) {
   return options
 }
 
-function runNpm(npmArgs) {
+function runNpm(npmArgs, cwd = repoRoot, env = process.env) {
   const npmCli = process.env.npm_execpath
   const command = npmCli ? process.execPath : process.platform === "win32" ? "npm.cmd" : "npm"
   const args = npmCli ? [npmCli, ...npmArgs] : npmArgs
   const result = childProcess.spawnSync(command, args, {
-    cwd: repoRoot,
-    env: process.env,
+    cwd,
+    env,
     stdio: "inherit",
     windowsHide: true
   })
@@ -97,23 +109,71 @@ function runNpm(npmArgs) {
   }
 }
 
+function runGit(args, options = {}) {
+  const result = childProcess.spawnSync("git", args, {
+    cwd: options.cwd || repoRoot,
+    encoding: "utf8",
+    stdio: options.quiet ? "pipe" : "inherit",
+    windowsHide: true
+  })
+  if (result.error) throw result.error
+  if (result.status !== 0) {
+    const detail = options.quiet
+      ? `\n${result.stdout || ""}${result.stderr || ""}`
+      : ""
+    throw new Error(`git ${args.join(" ")} failed${detail}`)
+  }
+  return (result.stdout || "").trim()
+}
+
+function resolveRef(ref) {
+  return runGit(["rev-parse", "--verify", `${ref}^{commit}`], { quiet: true })
+}
+
+function historicalRunName(sha) {
+  if (!/^[0-9a-f]{40}$/i.test(sha)) {
+    throw new Error(`Invalid commit SHA for visual history: ${sha}`)
+  }
+  return sha.toLowerCase()
+}
+
+function historicalRunComplete(runOutput, imageNames, sha) {
+  const manifestPath = path.join(runOutput, "manifest.json")
+  if (!fs.existsSync(manifestPath)) return false
+  try {
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"))
+    if (manifest.sha !== sha) return false
+    return imageNames.every(name =>
+      fs.existsSync(path.join(runOutput, name)) &&
+      fs.existsSync(path.join(runOutput, styleSnapshotName(name)))
+    )
+  } catch {
+    return false
+  }
+}
+
 function prepareOutput(output, imageNames) {
   const current = path.join(output, "current")
   const baseline = path.join(output, "baseline")
   fs.mkdirSync(current, { recursive: true })
   fs.mkdirSync(baseline, { recursive: true })
   for (const name of imageNames) {
-    const previous = path.join(current, name)
-    const saved = path.join(baseline, name)
-    if (fs.existsSync(previous)) fs.copyFileSync(previous, saved)
+    for (const artifact of [name, styleSnapshotName(name)]) {
+      const previous = path.join(current, artifact)
+      const saved = path.join(baseline, artifact)
+      if (fs.existsSync(previous)) fs.copyFileSync(previous, saved)
+    }
   }
   const selectedTargets = new Set(
     imageNames.map(name => name.slice(0, name.indexOf("-")))
   )
-  const activeNames = new Set(imageNames)
+  const activeNames = new Set(imageNames.flatMap(name => [
+    name,
+    styleSnapshotName(name)
+  ]))
   for (const entry of fs.readdirSync(baseline)) {
     const target = entry.slice(0, entry.indexOf("-"))
-    if (entry.endsWith(".png") &&
+    if ((entry.endsWith(".png") || entry.endsWith(".styles.json")) &&
         selectedTargets.has(target) &&
         !activeNames.has(entry)) {
       fs.rmSync(path.join(baseline, entry))
@@ -121,6 +181,7 @@ function prepareOutput(output, imageNames) {
   }
   for (const name of imageNames) {
     fs.rmSync(path.join(current, name), { force: true })
+    fs.rmSync(path.join(current, styleSnapshotName(name)), { force: true })
   }
   return { current, baseline }
 }
@@ -132,8 +193,143 @@ async function settleImages(page) {
   await page.evaluate(() => document.fonts?.ready)
 }
 
+async function computedStyleSnapshot(page) {
+  return page.evaluate(() => {
+    const selectors = [
+      "body",
+      "#left_panel",
+      "#menu",
+      "#search_bar",
+      "#stories_panel",
+      "#stories",
+      "story-item",
+      "story-item .data",
+      "story-item .title",
+      "story-item .info",
+      "story-item .type",
+      "story-item .tags_container",
+      "story-item .tag",
+      "story-item .button_group",
+      "story-item .menu_btn",
+      ".bb_slide",
+      ".bb_slide .swipe_left",
+      ".bb_slide .swipe_right",
+      "#settings_panel",
+      "#settings_sections",
+      ".settings_section",
+      ".settings_block",
+      ".structured_settings",
+      "#reading_panel",
+      "#reading_content",
+      ".once-reader-host"
+    ]
+    const properties = [
+      "display", "position", "inset", "top", "right", "bottom", "left",
+      "z-index", "box-sizing", "width", "height", "min-width", "min-height",
+      "max-width", "max-height", "margin", "margin-block", "margin-inline",
+      "padding", "padding-block", "padding-inline", "border",
+      "border-width", "border-style", "border-color", "border-radius",
+      "outline", "background", "background-color", "background-image",
+      "color", "opacity", "box-shadow", "font-family", "font-size",
+      "font-style", "font-weight", "line-height", "letter-spacing",
+      "text-align", "text-decoration", "text-overflow", "white-space",
+      "overflow", "overflow-x", "overflow-y", "visibility",
+      "flex", "flex-basis", "flex-direction", "flex-grow", "flex-shrink",
+      "flex-wrap", "align-content", "align-items", "align-self",
+      "justify-content", "justify-items", "justify-self", "gap",
+      "row-gap", "column-gap", "grid-template-columns",
+      "grid-template-rows", "grid-auto-flow", "transform",
+      "transform-origin", "transition", "animation", "cursor",
+      "pointer-events", "touch-action", "object-fit", "aspect-ratio"
+    ]
+    const computed = (element, pseudo = null) => {
+      const style = getComputedStyle(element, pseudo)
+      const selected = pseudo
+        ? [
+          "content", "display", "position", "inset", "width", "height",
+          "border", "border-radius", "background", "color", "opacity",
+          "box-shadow", "transform", "transition", "animation"
+        ]
+        : properties
+      return Object.fromEntries(selected.map(property => [
+        property,
+        style.getPropertyValue(property)
+      ]))
+    }
+    const describe = (element, index) => {
+      const rect = element.getBoundingClientRect()
+      return {
+        index,
+        tag: element.tagName.toLowerCase(),
+        id: element.id || null,
+        classes: [...element.classList],
+        testId: element.getAttribute("data-testid"),
+        text: (element.textContent || "").replace(/\s+/g, " ").trim().slice(0, 160),
+        attributes: Object.fromEntries(
+          [...element.attributes]
+            .filter(attribute =>
+              attribute.name.startsWith("data-") ||
+              ["aria-expanded", "aria-selected", "hidden"].includes(attribute.name)
+            )
+            .map(attribute => [attribute.name, attribute.value])
+        ),
+        rect: {
+          x: rect.x,
+          y: rect.y,
+          width: rect.width,
+          height: rect.height,
+          top: rect.top,
+          right: rect.right,
+          bottom: rect.bottom,
+          left: rect.left
+        },
+        visible: rect.width > 0 && rect.height > 0 &&
+          getComputedStyle(element).visibility !== "hidden",
+        computed: computed(element),
+        before: computed(element, "::before"),
+        after: computed(element, "::after")
+      }
+    }
+    return {
+      schemaVersion: 1,
+      url: location.href,
+      title: document.title,
+      capturedAt: new Date().toISOString(),
+      viewport: {
+        width: innerWidth,
+        height: innerHeight,
+        devicePixelRatio,
+        scrollX,
+        scrollY
+      },
+      documentState: {
+        theme: document.body.dataset.theme || null,
+        animated: document.body.getAttribute("animated"),
+        activePanel: document.querySelector("#left_panel")
+          ?.getAttribute("active_panel") || null
+      },
+      selectors: Object.fromEntries(selectors.map(selector => [
+        selector,
+        [...document.querySelectorAll(selector)]
+          .slice(
+            0,
+            selector === "story-item" ? 10
+              : selector === "story-item .tag" ? 16
+                : 6
+          )
+          .map(describe)
+      ]))
+    }
+  })
+}
+
 async function screenshot(page, file) {
   await settleImages(page)
+  const styles = await computedStyleSnapshot(page)
+  fs.writeFileSync(
+    file.replace(/\.png$/, ".styles.json"),
+    `${JSON.stringify(styles, null, 2)}\n`
+  )
   await page.screenshot({
     path: file,
     animations: "disabled"
@@ -178,7 +374,7 @@ async function captureSwipeMatrix(page, story, output, prefix) {
   await cancelSwipe(story)
 }
 
-async function captureElectron(output) {
+async function captureElectron(output, sourceRoot = repoRoot) {
   const fixture = await startPageServer()
   const urls = storyFixture.storyUrls(fixture.origin)
   let electronApp
@@ -186,6 +382,7 @@ async function captureElectron(output) {
   let page
   try {
     ;({ electronApp, userData, window: page } = await launchApp({
+      appRoot: sourceRoot,
       env: {
         ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0"
       }
@@ -263,8 +460,8 @@ async function captureElectron(output) {
   }
 }
 
-async function captureMobile(output) {
-  const server = startTestServer()
+async function captureMobile(output, sourceRoot = repoRoot) {
+  const server = startTestServer({ appRoot: sourceRoot })
   const started = await server.ready
   const browser = await chromium.launch()
   const context = await browser.newContext({
@@ -381,18 +578,28 @@ async function captureMobile(output) {
   }
 }
 
-function reportHtml({ baseline, imageNames }) {
+function reportHtml({
+  baseline,
+  baselineHref = "baseline",
+  baselineLabel = "Previous run",
+  currentLabel = "Current built app",
+  imageNames
+}) {
   const rows = imageNames
     .map(name => {
       const baselineExists = fs.existsSync(path.join(baseline, name))
+      const styles = styleSnapshotName(name)
+      const baselineStylesExist = fs.existsSync(path.join(baseline, styles))
       return `<section>
         <h2>${name.replace(".png", "")}</h2>
         <div class="comparison">
-          <figure class="previous"><figcaption>${baselineExists ? "Previous run" : "No previous run"}</figcaption>
-            ${baselineExists ? `<img src="baseline/${name}" alt="Previous ${name}">` : "<p>Run the command again to compare against this capture.</p>"}
+          <figure class="previous"><figcaption>${baselineExists ? baselineLabel : "No previous run"}</figcaption>
+            ${baselineExists ? `<img src="${baselineHref}/${name}" alt="Previous ${name}">` : "<p>Run the command again to compare against this capture.</p>"}
+            ${baselineStylesExist ? `<p><a href="${baselineHref}/${styles}">Previous computed styles JSON</a></p>` : ""}
           </figure>
-          <figure class="current"><figcaption>Current built app</figcaption>
+          <figure class="current"><figcaption>${currentLabel}</figcaption>
             <img src="current/${name}" alt="Current ${name}">
+            <p><a href="current/${styles}">Current computed styles JSON</a></p>
           </figure>
         </div>
       </section>`
@@ -449,8 +656,100 @@ themes. The previous capture becomes the side-by-side baseline.
   --skip-build      reuse existing Electron and mobile build outputs
   --electron-only   capture only the packaged Electron app
   --mobile-only     capture only the generated mobile web app
+  --ref REF         compare with REF and retain its results by commit SHA
+  --ref-only        prepare and retain REF without touching the current run
   --output DIR      write artifacts below DIR
 `)
+}
+
+function prepareHistoricalOutput(output, imageNames) {
+  fs.mkdirSync(output, { recursive: true })
+  for (const name of imageNames) {
+    fs.rmSync(path.join(output, name), { force: true })
+    fs.rmSync(path.join(output, styleSnapshotName(name)), { force: true })
+  }
+}
+
+function writeRunManifest(output, details) {
+  fs.writeFileSync(
+    path.join(output, "manifest.json"),
+    `${JSON.stringify({
+      schemaVersion: 1,
+      capturedAt: new Date().toISOString(),
+      ...details
+    }, null, 2)}\n`
+  )
+}
+
+function configureHistoricalInstallPolicy(worktree) {
+  const packagePath = path.join(worktree, "package.json")
+  const packageJson = JSON.parse(fs.readFileSync(packagePath, "utf8"))
+  packageJson.allowScripts = {
+    ...(packageJson.allowScripts || {}),
+    node: true,
+    esbuild: true,
+    "electron-winstaller": true,
+    leveldown: true,
+    sharp: true,
+    appium: false,
+    "appium-ios-tuntap": false,
+    edgedriver: false,
+    geckodriver: false
+  }
+  fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`)
+}
+
+async function captureTargets(options, output, sourceRoot) {
+  if (options.electron) await captureElectron(output, sourceRoot)
+  if (options.mobile) await captureMobile(output, sourceRoot)
+}
+
+async function captureHistoricalRef(options, imageNames, sha) {
+  const runName = historicalRunName(sha)
+  const runOutput = path.join(options.output, "runs", runName)
+  prepareHistoricalOutput(runOutput, imageNames)
+  const tempParent = fs.mkdtempSync(path.join(os.tmpdir(), "once-visual-ref-"))
+  const worktree = path.join(tempParent, "worktree")
+  let added = false
+  try {
+    runGit(["worktree", "add", "--detach", worktree, sha], { quiet: true })
+    added = true
+    configureHistoricalInstallPolicy(worktree)
+    runNpm(
+      ["ci", "--allow-git=all"],
+      worktree,
+      {
+        ...process.env,
+        GIT_CONFIG_COUNT: "1",
+        GIT_CONFIG_KEY_0: "url.https://github.com/.insteadOf",
+        GIT_CONFIG_VALUE_0: "ssh://git@github.com/",
+        GIT_TERMINAL_PROMPT: "0"
+      }
+    )
+    if (options.electron) runNpm(["run", "package:electron"], worktree)
+    if (options.mobile) {
+      runNpm(
+        ["run", "mobile", "--", "web", "--channel", "dev", "--e2e"],
+        worktree
+      )
+    }
+    await captureTargets(options, runOutput, worktree)
+    writeRunManifest(runOutput, {
+      ref: options.ref,
+      sha,
+      targets: [
+        ...(options.electron ? ["electron"] : []),
+        ...(options.mobile ? ["mobile"] : [])
+      ],
+      imageNames
+    })
+    return runOutput
+  } finally {
+    if (added) {
+      runGit(["worktree", "remove", "--force", worktree], { quiet: true })
+    }
+    fs.rmSync(tempParent, { recursive: true, force: true })
+  }
 }
 
 async function main() {
@@ -464,17 +763,46 @@ async function main() {
     ...(options.mobile ? ["mobile"] : [])
   ]
   const imageNames = buildImageNames(targets)
+  if (options.refOnly && !options.ref) {
+    throw new Error("--ref-only requires --ref REF")
+  }
+  let comparisonRoot = null
+  let baselineHref = "baseline"
+  let baselineLabel = "Previous run"
+  if (options.ref) {
+    const sha = resolveRef(options.ref)
+    const runOutput = path.join(
+      options.output,
+      "runs",
+      historicalRunName(sha)
+    )
+    if (!options.refOnly && historicalRunComplete(runOutput, imageNames, sha)) {
+      comparisonRoot = runOutput
+      console.log(`Reusing historical visual run: ${comparisonRoot}`)
+    } else {
+      comparisonRoot = await captureHistoricalRef(options, imageNames, sha)
+    }
+    baselineHref = `runs/${historicalRunName(sha)}`
+    baselineLabel = `${options.ref} (${sha.slice(0, 12)})`
+    if (options.refOnly) {
+      console.log(`Historical visual run: ${comparisonRoot}`)
+      return
+    }
+  }
   const directories = prepareOutput(options.output, imageNames)
   if (options.build && options.electron) runNpm(["run", "package:electron"])
   if (options.build && options.mobile) {
     runNpm(["run", "mobile", "--", "web", "--channel", "dev", "--e2e"])
   }
-  if (options.electron) await captureElectron(directories.current)
-  if (options.mobile) await captureMobile(directories.current)
+  await captureTargets(options, directories.current, repoRoot)
+  comparisonRoot ||= directories.baseline
   fs.writeFileSync(
     path.join(options.output, "index.html"),
     reportHtml({
-      ...directories,
+      baseline: comparisonRoot,
+      baselineHref,
+      current: directories.current,
+      baselineLabel,
       imageNames
     })
   )
@@ -488,4 +816,11 @@ if (require.main === module) {
   })
 }
 
-module.exports = { buildImageNames, parseArgs, reportHtml }
+module.exports = {
+  buildImageNames,
+  historicalRunComplete,
+  historicalRunName,
+  parseArgs,
+  reportHtml,
+  styleSnapshotName
+}

@@ -8,7 +8,9 @@ const storyFixture = require("../e2e/shared/story-fixture")
 const port = Number.parseInt(process.env.ONCE_MOBILE_TEST_PORT || "3211", 10)
 const host = process.env.ONCE_MOBILE_TEST_HOST || "0.0.0.0"
 const owner = process.env.ONCE_MOBILE_TEST_OWNER || ""
-const root = path.resolve(__dirname, "../..")
+const root = process.env.ONCE_MOBILE_TEST_APP_ROOT
+  ? path.resolve(process.env.ONCE_MOBILE_TEST_APP_ROOT)
+  : path.resolve(__dirname, "../..")
 const runIdentity = (owner || `pid-${process.pid}`).replace(/[^a-zA-Z0-9_-]/g, "_")
 const configuredDataDirectory = process.env.ONCE_MOBILE_TEST_DATA_DIR
 const resultDirectory = port === 3211 ? "mobile" :

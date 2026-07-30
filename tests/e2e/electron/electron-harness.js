@@ -172,12 +172,18 @@ async function launchApp(options = {}) {
   const userData =
     options.userData ||
     (await fs.mkdtemp(path.join(os.tmpdir(), "once-electron-test-")))
+  const appRoot = options.appRoot || path.resolve(__dirname, "../../..")
   // Electron 43+ downloads its development binary lazily when the package is required,
   // so do not hard-code node_modules/electron/dist/electron.exe after a clean npm ci.
-  const executablePath = require("electron")
-  const appPath = path.resolve(
-    __dirname,
-    `../../../apps/electron/.webpack/${process.arch}/main/index.js`
+  const executablePath = require(path.join(appRoot, "node_modules", "electron"))
+  const appPath = path.join(
+    appRoot,
+    "apps",
+    "electron",
+    ".webpack",
+    process.arch,
+    "main",
+    "index.js"
   )
   const electronApp = await electron.launch({
     executablePath,
