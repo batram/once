@@ -1,8 +1,13 @@
 {
-  "files": {},
+  "files": {
+    "scripts/visual-compare.js": "One review harness drives build, fixture setup, the screenshot matrix, both capture targets, retained git revisions, and report generation over shared run state; the matrix and the state it threads are the file's subject, and splitting them across modules would spread one sequence over several files without giving any part a separate owner."
+  },
   "functions": {
     "apps/electron/src/BrowserShell.ts#BrowserShell.render": "The two-line overage is accepted until related shell work can create useful tab-strip and active-control render seams; limit-only helpers are not warranted.",
     "packages/ui-web/src/gesture/pullToRefresh.ts#attachPullToRefresh": "One touch-gesture state machine intentionally keeps start, move, end, refresh, render, and cleanup handlers over shared closure state; splitting it would add indirection without a new owner.",
+    "scripts/visual-compare.js#computedStyleSnapshot": "The style companion's schema is its body: one curated selector list, the collected property groups, and the structural coverage pass are read together when deciding what a screenshot proves.",
+    "scripts/visual-compare.js#computedStyleSnapshot.<anonymous@207>": "This is the page.evaluate callback for the snapshot above. It is serialized into the browser context and cannot reference module scope, so every selector, property list, and traversal helper it uses must be declared inside it.",
+    "scripts/visual-compare.js#captureMobile": "One linear capture sequence for the generated mobile web app: serve, load fixture data, then walk the screenshot matrix in order. The steps share page state and are only correct in sequence.",
     "scripts/webpack.webext.config.js#module.exports": "One declarative Webpack build entrypoint keeps entries, output, optimization, rules, and plugins readable together; extracting object fragments would increase reading span.",
     "tests/e2e/electron/story-list.debug.js#test(diagnoses Electron story loading and interactions)": "One numbered diagnostic journey intentionally shares its process, fixture, checkpoint, logging, failure-capture, and cleanup lifetime; splitting it would weaken the diagnostic narrative."
   }
