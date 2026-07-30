@@ -177,8 +177,10 @@ input[type="submit"]:active {
    --swipe-handle-width, and the ruler reserves runway with
    margin-inline: calc(var(--swipe-handle-width) + var(--sp-1)). Blanket padding
    inflates it past that reserve and blanket margin drops it off the band.
-   Delete once the `.button` primitive lands and this rule targets the component
-   class instead of the element (design-system plan, phase 3.1). */
+   The `.button` primitive already exists in primitives.css; what remains is
+   retargeting the baseline above from the `button` element to `.button`, after
+   which controls that are not the primitive keep their own box and this rule
+   can go (design-system plan, phase 3). */
 #swipe_lab .swipe_ruler_handle {
   margin: 0;
   padding: 0;
