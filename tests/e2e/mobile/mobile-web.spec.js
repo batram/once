@@ -1,106 +1,20 @@
 const { test, expect } = require("@playwright/test")
-
-async function waitForMobileApp(page) {
-  await expect(page.locator("body")).toHaveAttribute("data-once-ready", "true")
-}
-
-async function gotoMobileApp(page) {
-  await page.goto("./")
-  await waitForMobileApp(page)
-}
-
-async function reloadMobileApp(page) {
-  await page.reload()
-  await waitForMobileApp(page)
-}
-
-// Long-press anywhere on the row; ⋮ opens the same menu at the same anchor.
-async function openStoryMenu(page, story) {
-  await story.click({ delay: 700 })
-  await expect(page.getByTestId("story-menu")).toBeVisible()
-  // The app suppresses the synthetic release click from a long-press for up
-  // to 250ms. Do not let the harness's next intentional tap get swallowed.
-  await page.waitForTimeout(300)
-}
-
-/**
- * Reorder by dropping into the lower half of the target row. A row's midpoint
- * decides insert-before from insert-after, so dragTo's default centre landing
- * is ambiguous and rounds to "before" — which, for the row directly above, is
- * a no-op rather than a move.
- */
-async function dragBelowMidpoint(source, target) {
-  // nth() re-resolves on every call, so a save still re-rendering the list can
-  // hand back a node that is detached by the time it is measured. Retry until
-  // the list has settled.
-  let box = null
-  await expect.poll(async () => {
-    box = await target.boundingBox()
-    return box !== null
-  }).toBe(true)
-  await source.dragTo(target, {
-    targetPosition: { x: box.width / 2, y: box.height * 0.75 }
-  })
-}
-
-async function openSettingsSection(page, section) {
-  await waitForMobileApp(page)
-  await page.getByTestId("settings-menu").click()
-  const row = page.locator(`[data-settings-target="${section}"]`)
-  if (!(await row.isVisible())) {
-    const back = page.locator("#settings_section_back")
-    if (await back.isVisible()) await back.click()
-  }
-  await row.click()
-  if (["sources", "filters", "redirects"].includes(section)) {
-    const textarea = page.getByTestId(
-      section === "sources" ? "sources" : section
-    )
-    if (!(await textarea.isVisible())) {
-      await page.getByTestId(`${section}-mode-toggle`).click()
-    }
-  }
-}
-
-async function setSwipeThreshold(page, stage, value) {
-  const handle = page.getByTestId(`swipe-handle-right-${stage}`)
-  await expect(handle).toHaveAttribute("aria-valuemin", /\d+/)
-  const minimumAttribute = await handle.getAttribute("aria-valuemin")
-  if (minimumAttribute === null) {
-    throw new Error("Swipe threshold minimum is not rendered")
-  }
-  await handle.press("Home")
-  await expect(handle).toHaveAttribute("aria-valuenow", minimumAttribute)
-  const minimum = Number(await handle.getAttribute("aria-valuenow"))
-  if (!Number.isFinite(minimum) || value < minimum) {
-    throw new Error(`Swipe threshold ${value} is below the minimum ${minimum}`)
-  }
-  const tens = Math.floor((value - minimum) / 10)
-  const ones = value - minimum - tens * 10
-  let current = minimum
-  for (let index = 0; index < tens; index += 1) {
-    await handle.press("Shift+ArrowRight")
-    current += 10
-    await expect(handle).toHaveAttribute("aria-valuenow", String(current))
-  }
-  for (let index = 0; index < ones; index += 1) {
-    await handle.press("ArrowRight")
-    current += 1
-    await expect(handle).toHaveAttribute("aria-valuenow", String(current))
-  }
-}
-
-async function openSwipeAdvanced(page) {
-  const details = page.getByTestId("swipe-advanced")
-  if (!(await details.evaluate((element) => element.open))) {
-    await details.locator("summary").click()
-  }
-}
-
-async function waitForSwipeSettings(page) {
-  await expect(page.getByTestId("swipe-save-status"))
-    .toHaveText("all changes saved")
-}
+const {
+  gotoMobileApp,
+  reloadMobileApp,
+  testServerUrl,
+  triggerMobileBack
+} = require("./helpers/mobile-app")
+const {
+  dragBelowMidpoint,
+  openSettingsSection,
+  openSwipeAdvanced,
+  saveSourcesAndWait,
+  setSwipeThreshold,
+  waitForSwipeSettings
+} = require("./helpers/settings")
+const { openStoryMenu, seedFixtureStories } = require("./helpers/stories")
+const { dragStory, sampleSwipePhases, translateX } = require("./helpers/swipe")
 
 test("structured settings sections do not autofocus search on mobile", async ({
   page
@@ -687,20 +601,6 @@ test("story sources can be dragged into empty groups", async ({ page }) => {
   await expect(groups.nth(1).getByTestId("source-row")).toContainText(fixture)
   await expect(groups.nth(1)).not.toHaveAttribute("open", "")
 })
-
-async function testServerUrl(page, path) {
-  return new URL(path, page.url()).href
-}
-
-async function saveSourcesAndWait(page) {
-  const save = page.getByTestId("save-sources")
-  await save.click()
-  await expect(save).toBeEnabled()
-}
-
-async function triggerMobileBack(page) {
-  return page.evaluate(() => window.__onceE2E__.handleBack())
-}
 
 test("mobile layout is present before application JavaScript starts", async ({ page }) => {
   await page.route("**/mobile.js", (route) => route.abort())
@@ -1290,152 +1190,6 @@ test("a long-press that becomes a drag shows progress and opens nothing", async 
   expect(result.cancelled).toBe(false)
   await expect(page.getByTestId("story-menu")).toBeHidden()
 })
-
-async function seedFixtureStories(page) {
-  await gotoMobileApp(page)
-  await openSettingsSection(page, "sources")
-  await page.getByTestId("sources").fill(await testServerUrl(page, "/fixtures/feed.rss"))
-  await saveSourcesAndWait(page)
-  await reloadMobileApp(page)
-  await page.getByTestId("stories-menu").click()
-  await page.getByTestId("reload-stories").click()
-  const story = page.getByTestId("story").filter({ hasText: "Fixture article" })
-  await expect(story).toBeVisible()
-  return story
-}
-
-// Drives the touch path (not the mouse path) so the axis lock is exercised too.
-// `moves` are the fractions of `distance` the finger is sampled at — a real
-// flick reports far fewer, coarser moves than a slow drag.
-async function dragStory(
-  story,
-  distance,
-  { release = true, moves = [0.2, 0.5, 0.8, 1] } = {}
-) {
-  return story.evaluate(
-    async (row, options) => {
-      const rect = row.getBoundingClientRect()
-      const y = rect.top + rect.height / 2
-      const startX = rect.left + 40
-      const touch = (x) =>
-        new Touch({ identifier: 3, target: row, clientX: x, clientY: y })
-      const fire = (type, x) => {
-        row.dispatchEvent(
-          new TouchEvent(type, {
-            bubbles: true,
-            cancelable: true,
-            touches: type === "touchend" ? [] : [touch(x)],
-            changedTouches: [touch(x)]
-          })
-        )
-      }
-      fire("touchstart", startX)
-      for (const fraction of options.moves) {
-        fire("touchmove", startX + options.distance * fraction)
-        await new Promise((resolve) => setTimeout(resolve, 10))
-      }
-      // Sample only after the transform has stopped changing. Waiting on the
-      // rendered state avoids assuming the 90ms snap transition will finish
-      // within a fixed wall-clock delay on a loaded CI worker.
-      await new Promise((resolve) => {
-        const deadline = performance.now() + 750
-        let previous = getComputedStyle(row).transform
-        let stableFrames = 0
-        const sample = () => {
-          const current = getComputedStyle(row).transform
-          stableFrames = current === previous ? stableFrames + 1 : 0
-          previous = current
-          if (stableFrames >= 3 || performance.now() >= deadline) {
-            resolve()
-            return
-          }
-          requestAnimationFrame(sample)
-        }
-        requestAnimationFrame(sample)
-      })
-      const revealedLabel = document.querySelector(
-        options.distance > 0
-          ? ".bb_slide .swipe_left"
-          : ".bb_slide .swipe_right"
-      )
-      const state = {
-        transform: getComputedStyle(row).transform,
-        label:
-          document.querySelector(".bb_slide .swipe_left .swipe_action_primary")
-            ?.innerText || "",
-        labelRight:
-          document.querySelector(".bb_slide .swipe_right .swipe_action_primary")
-            ?.innerText || "",
-        secondaryLabel:
-          revealedLabel?.querySelector(".swipe_action_secondary")?.innerText || "",
-        labelWeight: revealedLabel
-          ? getComputedStyle(
-            revealedLabel.querySelector(".swipe_action_primary") || revealedLabel
-          ).fontWeight
-          : "",
-        action:
-          document.querySelector('.bb_slide [data-stage="1"], .bb_slide [data-stage="2"]')
-            ?.dataset.action || "none"
-      }
-      if (options.release) {
-        document.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }))
-      }
-      return state
-    },
-    { distance, release, moves }
-  )
-}
-
-async function sampleSwipePhases(story, distance, waits) {
-  return story.evaluate(
-    async (row, options) => {
-      const rect = row.getBoundingClientRect()
-      const y = rect.top + rect.height / 2
-      const startX = options.distance > 0 ? rect.left + 40 : rect.right - 40
-      const touch = (x) =>
-        new Touch({ identifier: 11, target: row, clientX: x, clientY: y })
-      const fire = (type, x) => {
-        row.dispatchEvent(
-          new TouchEvent(type, {
-            bubbles: true,
-            cancelable: true,
-            touches: type === "touchend" ? [] : [touch(x)],
-            changedTouches: [touch(x)]
-          })
-        )
-      }
-      fire("touchstart", startX)
-      fire("touchmove", startX + options.distance)
-      const snapshots = []
-      for (const wait of options.waits) {
-        await new Promise((resolve) => setTimeout(resolve, wait))
-        const side = options.distance > 0 ? ".swipe_left" : ".swipe_right"
-        const revealed = document.querySelector(`.bb_slide ${side}`)
-        snapshots.push({
-          action: revealed?.dataset.action,
-          lock: revealed?.dataset.lock,
-          phase: revealed?.dataset.lockPhase,
-          primary:
-            revealed?.querySelector(".swipe_action_primary")?.textContent,
-          secondary:
-            revealed?.querySelector(".swipe_action_secondary")?.textContent,
-          handoffDuration:
-            revealed?.style.getPropertyValue("--swipe-handoff-duration")
-        })
-      }
-      document.dispatchEvent(new PointerEvent("pointercancel", { bubbles: true }))
-      return snapshots
-    },
-    { distance, waits }
-  )
-}
-
-function translateX(transform) {
-  if (!transform || transform === "none") return 0
-  // computed transforms come back as a matrix; tx is the 5th component
-  const parts = transform.match(/matrix\(([^)]+)\)/)
-  return parts ? Math.round(Number(parts[1].split(",")[4])) : 0
-}
 
 test("swipe labels become bold only after a stage threshold is active", async ({ page }) => {
   const story = await seedFixtureStories(page)
