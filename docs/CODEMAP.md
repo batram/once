@@ -77,6 +77,10 @@ All paths below are under `packages/ui-web/src`.
   collaborators.
 - `settings/SettingsPersistence.ts` owns persisted theme, animation, cache, and
   sync restoration.
+- `settings/SwipeSettingsLab.ts` is the swipe editor facade;
+  `SwipeSettingsPersistence.ts` owns its debounced write queue, undo state, and
+  external reconciliation, while `SwipeSettingsLabView.ts` owns controls,
+  preview, and ruler geometry.
 - `settings/settingsControlBindings.ts`, `settingsSubscriptions.ts`,
   `settingsSummaries.ts`, `syncSettingsControls.ts`, and
   `textareaHighlight.ts` own DOM control wiring and derived presentation.

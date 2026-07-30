@@ -44,8 +44,8 @@ code, boundaries, and development builds. Knip models the Electron, extension,
 mobile, test, preload, content-script, and background-script entry graphs and
 blocks on unused files, exports, and types.
 
-The live inventory is `scripts/structure-exceptions.json`: 9 entries, made up
-of 2 file and 7 function exceptions. Five entries belong to the three ordered
+The live inventory is `scripts/structure-exceptions.json`: 7 entries, made up
+of 1 file and 6 function exceptions. Three entries belong to the two ordered
 work packages below, one is opportunistic cleanup, and three are accepted
 exceptions that are not refactor work: the cohesive pull-to-refresh gesture,
 declarative Webpack configuration, and the intentionally linear Electron
@@ -90,20 +90,7 @@ half-extracted architecture.
 
 ## Ordered work packages
 
-### 1. Separate swipe-settings persistence from the lab view
-
-Extract the debounced save queue, single in-flight write, queued snapshot,
-batched undo, retry, and external-change reconciliation from
-`packages/ui-web/src/settings/SwipeSettingsLab.ts` into a directly tested state
-owner. Keep gesture preview and exact ruler geometry on the view side.
-
-Build and bind the view through one coherent view boundary so the constructor
-becomes orchestration, not a set of arbitrary one-line builder extractions.
-Preserve selectors, accessibility state, save-status wording, undo semantics,
-and pixel geometry. Remove both the file and constructor exceptions in the
-same commit.
-
-### 2. Extract the mobile source-picker runner and injected-picker policy
+### 1. Extract the mobile source-picker runner and injected-picker policy
 
 Before editing, inspect the mobile runner, injected picker, their direct tests,
 and the injection build. Treat them as one package only if the result and
@@ -134,7 +121,7 @@ pure policy and end-to-end contract coverage at the runner boundary. Remove
 both the `startMobileApp` function exception and `sourcePicker.ts` file
 exception only after the composition root and overlay have real headroom.
 
-### 3. Extract the mobile speech polyfill adapter
+### 2. Extract the mobile speech polyfill adapter
 
 Move the bridge-backed speech-synthesis and utterance implementations out of
 `installReaderTtsPolyfill` in

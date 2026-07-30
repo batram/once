@@ -1,14 +1,12 @@
 {
   "files": {
-    "packages/ui-web/src/picker/sourcePicker.ts": "Work package 2 will separate pure selector and source-line policy from the injected overlay; embedded overlay CSS currently inflates the logical-line count.",
-    "packages/ui-web/src/settings/SwipeSettingsLab.ts": "Work package 1 will extract the debounced persistence state owner and a coherent view-construction boundary in the same commit."
+    "packages/ui-web/src/picker/sourcePicker.ts": "Work package 1 will separate pure selector and source-line policy from the injected overlay; embedded overlay CSS currently inflates the logical-line count."
   },
   "functions": {
     "apps/electron/src/BrowserShell.ts#BrowserShell.render": "The two-line overage is accepted until related shell work can create useful tab-strip and active-control render seams; limit-only helpers are not warranted.",
-    "apps/mobile/src/main.ts#startMobileApp": "Work package 2 will extract the source-picker and native-browser workflow while keeping ordinary startup composition linear.",
-    "apps/mobile/src/readerTtsPolyfill.ts#installReaderTtsPolyfill": "Work package 3 will move bridge-backed speech implementations and session routing behind a tested adapter.",
+    "apps/mobile/src/main.ts#startMobileApp": "Work package 1 will extract the source-picker and native-browser workflow while keeping ordinary startup composition linear.",
+    "apps/mobile/src/readerTtsPolyfill.ts#installReaderTtsPolyfill": "Work package 2 will move bridge-backed speech implementations and session routing behind a tested adapter.",
     "packages/ui-web/src/gesture/pullToRefresh.ts#attachPullToRefresh": "One touch-gesture state machine intentionally keeps start, move, end, refresh, render, and cleanup handlers over shared closure state; splitting it would add indirection without a new owner.",
-    "packages/ui-web/src/settings/SwipeSettingsLab.ts#SwipeSettingsLab.constructor": "Work package 1 will replace constructor-owned DOM assembly and binding with one coherent view boundary alongside persistence extraction.",
     "scripts/webpack.webext.config.js#module.exports": "One declarative Webpack build entrypoint keeps entries, output, optimization, rules, and plugins readable together; extracting object fragments would increase reading span.",
     "tests/e2e/electron/story-list.debug.js#test(diagnoses Electron story loading and interactions)": "One numbered diagnostic journey intentionally shares its process, fixture, checkpoint, logging, failure-capture, and cleanup lifetime; splitting it would weaken the diagnostic narrative."
   }
