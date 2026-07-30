@@ -104,8 +104,14 @@ All paths below are under `packages/ui-web/src`.
   `settings/structured/structuredSearch.ts` filters rows within one structured
   list — neither is the story search in `story/storySearch.ts`.
 
+- A namespace export in `index.ts` carries its module's name, so the import
+  site names the file it came from: `StoryList`, `StorySearch`, and
+  `PanelNavigation`.
+
 `presenters/` keeps its `handle_url`, `presenter_options`, and
-`story_elem_button` symbols; they are the presenter contract.
+`story_elem_button` symbols; they are the presenter contract. The remaining
+snake_case exports (`open_panel`, `show_filter_dialog`) are unconverted, not
+deliberate.
 
 ## Common changes
 

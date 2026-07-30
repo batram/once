@@ -13,7 +13,7 @@ import { URLRedirect } from "@once/core"
 import { StoryHistory } from "./StoryHistory"
 import { SettingsPanel } from "../settings/SettingsPanel"
 import { getOnceClient } from "../client"
-import * as Search from "./storySearch"
+import * as StorySearch from "./storySearch"
 import { showConfirmDialog } from "../confirmDialog"
 import {
   getTouchGestureAxis,
@@ -263,7 +263,7 @@ export class StoryListItem extends HTMLElement {
     hostname.target = "search"
     bindLinkBehavior(hostname, {
       onClick: () => {
-        Search.searchStories("domain:" + og_link.hostname)
+        StorySearch.searchStories("domain:" + og_link.hostname)
       }
     })
     title_line.appendChild(hostname)

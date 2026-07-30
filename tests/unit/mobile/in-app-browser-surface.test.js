@@ -92,13 +92,13 @@ test("mobile reading atomically opens a visible native surface", () => {
 
   assert.ok(requestHandler.indexOf('this.activePanel = "reading"') >= 0)
   assert.ok(requestHandler.indexOf("this.session.open(") >= 0)
-  assert.ok(requestHandler.indexOf('Menu.open_panel("reading")') >= 0)
+  assert.ok(requestHandler.indexOf('PanelNavigation.open_panel("reading")') >= 0)
   assert.ok(
     requestHandler.indexOf('this.activePanel = "reading"') <
     requestHandler.indexOf("this.session.open(")
   )
   assert.ok(
-    requestHandler.indexOf('Menu.open_panel("reading")') <
+    requestHandler.indexOf('PanelNavigation.open_panel("reading")') <
     requestHandler.indexOf("this.session.open(")
   )
 })

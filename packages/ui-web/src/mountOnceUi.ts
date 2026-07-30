@@ -2,8 +2,8 @@ import { OnceClient } from "@once/app"
 import { addCollectorColorStyles } from "./collectorStyles"
 import { LoaderInsights } from "./shell/LoaderInsights"
 import { HoverUrlIndicator } from "./shell/HoverUrlIndicator"
-import * as Menu from "./shell/panelNavigation"
-import * as Search from "./story/storySearch"
+import * as PanelNavigation from "./shell/panelNavigation"
+import * as StorySearch from "./story/storySearch"
 import { setOnceClient } from "./client"
 import { SettingsPanel } from "./settings/SettingsPanel"
 import { StoryHistory } from "./story/StoryHistory"
@@ -72,7 +72,7 @@ export async function mountOnceUi(
   }
   new StoryHistory(client)
   StoryList.init(client)
-  Menu.init(client)
+  PanelNavigation.init(client)
   LoaderInsights.init(client, {
     clearSourceErrors: () => settingsPanel.clearSourceErrors(),
     highlightSource: (sourceUrl) => settingsPanel.highlightSource(sourceUrl),
@@ -80,7 +80,7 @@ export async function mountOnceUi(
     showStory: (storyUrl) => settingsPanel.showStory(storyUrl)
   })
   if (options.showHoveredLinks) HoverUrlIndicator.mount()
-  Search.init()
+  StorySearch.init()
   addCollectorColorStyles()
   await settingsPanel.ready
 
@@ -88,7 +88,7 @@ export async function mountOnceUi(
     updateSelected(client, url)
   })
   client.subscribe("searchRequested", ({ query }) => {
-    Search.searchStories(query)
+    StorySearch.searchStories(query)
   })
 
   const initialStoryLoad = options.initialStoryLoad || "network"

@@ -5,13 +5,13 @@ import {
 import { humanTime, URLRedirect } from "@once/core"
 import { ReaderTtsUiControls } from "./readerTtsControls"
 import {
-  Menu,
+  PanelNavigation,
   READING_REQUEST,
   ReaderDocumentHost,
   ReadingRequestEvent,
   ReadingSession,
   ReadingSessionState,
-  Search,
+  StorySearch,
   StoryList,
   StoryListItem,
   closeStoryAnchoredMenu,
@@ -37,7 +37,7 @@ export class MobileReadingController {
   private storyMenuOpen = false
 
   openBrowserUrl(url: string): void {
-    Menu.open_panel("reading")
+    PanelNavigation.open_panel("reading")
     this.session.navigate(url)
   }
 
@@ -128,14 +128,14 @@ export class MobileReadingController {
         document.querySelector<HTMLButtonElement>("#settings_section_back")?.click()
         return true
       }
-      Menu.open_panel(this.settingsReturnPanel)
+      PanelNavigation.open_panel(this.settingsReturnPanel)
       return true
     }
 
     if (this.activePanel === "stories") {
       const searchfield = required<HTMLInputElement>("#searchfield")
       if (searchfield.value !== "") {
-        await Search.searchStories("")
+        await StorySearch.searchStories("")
         searchfield.blur()
         return true
       }
@@ -158,7 +158,7 @@ export class MobileReadingController {
 
     const state = this.session.snapshot()
     if (!state.story && !state.currentUrl) {
-      Menu.open_panel("stories")
+      PanelNavigation.open_panel("stories")
       return true
     }
     if (state.mode !== "reader" && state.canGoBack) {
@@ -171,7 +171,7 @@ export class MobileReadingController {
 
   close(): void {
     this.clearReading()
-    Menu.open_panel("stories")
+    PanelNavigation.open_panel("stories")
   }
 
   private clearReading(): void {
@@ -188,7 +188,7 @@ export class MobileReadingController {
       // Panel selection is synchronous: expose and lay out #reading_content
       // before session.open publishes the state that measures its bounds.
       this.activePanel = "reading"
-      Menu.open_panel("reading")
+      PanelNavigation.open_panel("reading")
       this.session.open(event.story, event.mode)
     })
     document.addEventListener("once-panel-changed", (rawEvent) => {

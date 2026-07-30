@@ -8,7 +8,7 @@ import {
 } from "@once/platform-mobile"
 import {
   mountOnceUi,
-  Menu,
+  PanelNavigation,
   ReaderDocumentHost,
   ReaderView,
   SourcePickerView
@@ -132,7 +132,7 @@ async function startMobileApp(): Promise<void> {
     } else if (!/^https?:\/\//i.test(browserUrl)) {
       throw new Error("There is no active tab to pick from")
     }
-    Menu.open_panel("reading")
+    PanelNavigation.open_panel("reading")
     await browserSurface.setVisible(true)
     await browserSurface.evaluateJavaScript(await pickerInjection)
     await browserSurface.evaluateJavaScript(

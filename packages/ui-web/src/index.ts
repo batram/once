@@ -7,8 +7,8 @@ export {
   isStoryAnchoredMenuOpen
 } from "./menu/storyAnchoredMenu"
 export { HoverUrlIndicator } from "./shell/HoverUrlIndicator"
-export * as Search from "./story/storySearch"
-export * as Menu from "./shell/panelNavigation"
+export * as StorySearch from "./story/storySearch"
+export * as PanelNavigation from "./shell/panelNavigation"
 export { getOnceClient } from "./client"
 export { mountOnceUi } from "./mountOnceUi"
 export { bindMenuCollapseControls } from "./shell/menuCollapse"

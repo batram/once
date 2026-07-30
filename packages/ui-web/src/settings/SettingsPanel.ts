@@ -1,7 +1,7 @@
 import { OnceClient, SourceError } from "@once/app"
 import { parseRedirectList, presentRedirectList } from "@once/core"
 import { requireClosestElement, requireElement } from "../dom"
-import * as menu from "../shell/panelNavigation"
+import * as panelNavigation from "../shell/panelNavigation"
 import { matchSettingsSection, SettingsSearchMatch } from "./settingsSearch"
 import { SwipeSettingsLab } from "./SwipeSettingsLab"
 import { StructuredSettingsEditors } from "./StructuredSettingsEditors"
@@ -453,7 +453,7 @@ export class SettingsPanel {
   }
 
   showErrorLog(logId: string): void {
-    menu.open_panel("settings")
+    panelNavigation.open_panel("settings")
     this.openSettingsSection("errors")
     requestAnimationFrame(() => {
       const entry = document.querySelector<HTMLDetailsElement>(`#${logId}`)
@@ -465,7 +465,7 @@ export class SettingsPanel {
   }
 
   showSourceErrorLog(sourceUrl: string): void {
-    menu.open_panel("settings")
+    panelNavigation.open_panel("settings")
     this.openSettingsSection("errors")
     requestAnimationFrame(() => {
       const entries = Array.from(
@@ -488,7 +488,7 @@ export class SettingsPanel {
   }
 
   showStory(storyUrl: string): void {
-    menu.open_panel("stories")
+    panelNavigation.open_panel("stories")
     void this.client.selectUrl(storyUrl)
   }
 
@@ -629,7 +629,7 @@ export class SettingsPanel {
       filter,
       shouldOpenPanel,
       false,
-      () => menu.open_panel("settings")
+      () => panelNavigation.open_panel("settings")
     )
   }
 
@@ -645,7 +645,7 @@ export class SettingsPanel {
         sourceUrl,
         true,
         true,
-        () => menu.open_panel("settings")
+        () => panelNavigation.open_panel("settings")
       )
     })
   }

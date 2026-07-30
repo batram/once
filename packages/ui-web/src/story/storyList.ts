@@ -2,7 +2,7 @@ import { Story, SortableStory } from "@once/core"
 import { StoryListItem } from "./StoryListItem"
 import { applyStoryFilter } from "@once/core"
 import { StoryChangeDetail, OnceClient } from "@once/app"
-import * as Search from "./storySearch"
+import * as StorySearch from "./storySearch"
 import { URLRedirect } from "@once/core"
 import { requireElement } from "../dom"
 import { attachPullToRefresh } from "../gesture/pullToRefresh"
@@ -102,7 +102,7 @@ function add_stories(stories: Story[], bucket = "stories") {
     searchfield.value != "" &&
     search_scope.value != "global"
   ) {
-    Search.searchStories(searchfield.value)
+    StorySearch.searchStories(searchfield.value)
   }
 }
 

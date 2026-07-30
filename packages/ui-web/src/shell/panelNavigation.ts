@@ -1,4 +1,4 @@
-import * as Search from "../story/storySearch"
+import * as StorySearch from "../story/storySearch"
 import { OnceClient } from "@once/app"
 import { requireElement } from "../dom"
 
@@ -78,7 +78,7 @@ export function add_entry(
 
       const searchfield = requireElement<HTMLInputElement>("#searchfield")
       searchfield.value = label
-      Search.searchStories(label)
+      StorySearch.searchStories(label)
     }
     active_flash_panel(type_el)
     requireElement("#menu #" + container_id).appendChild(type_el)
