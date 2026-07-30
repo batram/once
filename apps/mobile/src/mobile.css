@@ -150,43 +150,33 @@ select {
   background-repeat: no-repeat;
 }
 
-/* action buttons — no `display` here: must not defeat [hidden] */
+/* Typography stays broad. A control that owns its box still reads as part of
+   the app, and the UA default for a button is 13.333px Arial rather than an
+   inherited font, so narrowing this to .button would drop hundreds of controls
+   onto the system face. */
 button,
 input[type="button"],
 input[type="submit"] {
+  font-family: var(--m-sans);
+  font-size: var(--fs-body);
+}
+
+/* The visual box belongs to the primitive, not to every native button.
+   layer(platform) outranks layer(components), so matching the element here
+   replaced geometry that components declare and no specificity could win it
+   back — which is why eight families below had to restore their own box.
+   Controls that are not the primitive keep the touch target and type above.
+   No `display` here: it must not defeat [hidden]. */
+.button {
   padding: 0 var(--sp-4);
   border: var(--m-bw) solid var(--m-ink);
   border-radius: var(--m-radius);
   background: var(--main-bg-color);
-  font-family: var(--m-sans);
-  font-size: var(--fs-body);
   margin: var(--sp-2) var(--sp-2) var(--sp-1) 0;
 }
 
-button:active,
-input[type="button"]:active,
-input[type="submit"]:active {
+.button:active {
   background: var(--m-pressed-bg);
-}
-
-/* The rule above styles the `button` element, so it also lands on buttons whose
-   component CSS already owns their box. `layer(platform)` outranks
-   `layer(components)` regardless of specificity, so the component rule cannot
-   win the cascade on its own and needs restoring here.
-   The swipe ruler handle is a positioned control: its width comes from
-   --swipe-handle-width, and the ruler reserves runway with
-   margin-inline: calc(var(--swipe-handle-width) + var(--sp-1)). Blanket padding
-   inflates it past that reserve and blanket margin drops it off the band.
-   The `.button` primitive already exists in primitives.css; what remains is
-   retargeting the baseline above from the `button` element to `.button`, after
-   which controls that are not the primitive keep their own box and this rule
-   can go (design-system plan, phase 3). */
-#swipe_lab .swipe_ruler_handle {
-  margin: 0;
-  padding: 0;
-  border: var(--bw) solid var(--text-high-color);
-  border-radius: var(--radius-md);
-  background: var(--input-bg-color);
 }
 
 /* ---------- Story rows ---------- */

@@ -1,12 +1,5 @@
 {
-  "platformOwnership": [
-    {
-      "selector": "button.owns_its_box",
-      "reason": "mobile.css styles the `button` element for controls that have not adopted the .button primitive, and layer(platform) outranks layer(components), so a component cannot keep its own padding, margin, border or background",
-      "phase": "3.1",
-      "removeWhen": "The mobile visual baseline targets .button instead of the button element"
-    }
-  ],
+  "platformOwnership": [],
   "controlSemantics": [],
   "iconViewBox": [
     {

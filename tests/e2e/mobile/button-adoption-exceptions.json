@@ -4,51 +4,51 @@
       "family": "structured_row_main",
       "reason": "The row body is the tap target for a whole settings row; it declares flex, padding 0, border 0 and a transparent background in settings.css and must not take the primitive's visual box",
       "phase": "3.1",
-      "removeWhen": "The primitive stops carrying a visual box that a row has to undo"
+      "removeWhen": "This control is redesigned to present as a primitive button rather than a settings row body. It uses <button> for semantics, not for appearance, so the entry is a recorded decision rather than pending debt."
     },
     {
       "family": "structured_remove",
       "reason": "A fixed 44px glyph target that declares its own width, margin and transparent background",
       "phase": "3.1",
-      "removeWhen": "The primitive stops carrying a visual box that a glyph target has to undo"
+      "removeWhen": "This control is redesigned to present as a primitive button rather than a glyph target. It uses <button> for semantics, not for appearance, so the entry is a recorded decision rather than pending debt."
     },
     {
       "family": "structured_row_chevron",
       "reason": "An 8px caret drawn from two borders; it has no button visuals at all",
       "phase": "3.1",
-      "removeWhen": "The primitive stops carrying a visual box that a caret has to undo"
+      "removeWhen": "This control is redesigned to present as a primitive button rather than a caret. It uses <button> for semantics, not for appearance, so the entry is a recorded decision rather than pending debt."
     },
     {
       "family": "settings_section_row",
       "reason": "A full-width navigation row with its own touch height and bottom separator",
       "phase": "3.1",
-      "removeWhen": "The primitive stops carrying a visual box that a navigation row has to undo"
+      "removeWhen": "This control is redesigned to present as a primitive button rather than a navigation row. It uses <button> for semantics, not for appearance, so the entry is a recorded decision rather than pending debt."
     },
     {
       "family": "structured_group_menu",
       "reason": "A 40x38 menu affordance inside a group header, sized by the header rather than by button padding",
       "phase": "3.1",
-      "removeWhen": "The primitive stops carrying a visual box that a header affordance has to undo",
+      "removeWhen": "This control is redesigned to present as a primitive button rather than a header affordance. It uses <button> for semantics, not for appearance, so the entry is a recorded decision rather than pending debt.",
       "conditional": "Only rendered for non-default source groups, which the covered sections do not reach"
     },
     {
       "family": "swipe_ruler_handle",
       "reason": "An absolutely positioned slider handle whose width is --swipe-handle-width and whose runway the ruler reserves; role=slider rather than a button visually",
       "phase": "3.1",
-      "removeWhen": "The primitive stops carrying a visual box that a slider handle has to undo"
+      "removeWhen": "This control is redesigned to present as a primitive button rather than a slider handle. It uses <button> for semantics, not for appearance, so the entry is a recorded decision rather than pending debt."
     },
     {
       "family": "structured_issue",
       "reason": "A round 18px status badge with a coloured border and transparent background",
       "phase": "3.1",
-      "removeWhen": "The primitive stops carrying a visual box that a status badge has to undo",
+      "removeWhen": "This control is redesigned to present as a primitive button rather than a status badge. It uses <button> for semantics, not for appearance, so the entry is a recorded decision rather than pending debt.",
       "conditional": "Only rendered for rows carrying a validation issue, which the covered sections do not produce"
     },
     {
       "family": "status_indicator",
       "reason": "An 11px dock dot inside #status_dock with no button visuals",
       "phase": "3.1",
-      "removeWhen": "The primitive stops carrying a visual box that a dock dot has to undo"
+      "removeWhen": "This control is redesigned to present as a primitive button rather than a dock dot. It uses <button> for semantics, not for appearance, so the entry is a recorded decision rather than pending debt."
     }
   ],
   "unclassified": []
