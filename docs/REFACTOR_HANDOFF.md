@@ -47,13 +47,6 @@ mobile, test, preload, content-script, and background-script entry graphs and
 blocks on unused files, exports, and types. Structural exceptions are down from
 27 to 17 (7 files, 10 functions).
 
-`StoryListItem` is done. It went from 994 logical lines holding all three of
-its exceptions to a 350-line facade over `story/swipe/` (geometry, drag
-tracking, reveal layer, stage lock, input, commit) and three markup modules;
-see the story row section of `docs/CODEMAP.md`. The parts that were unreachable
-closure state now have unit tests: `swipe-geometry`, `swipe-stage-lock`, and
-`swipe-reveal-layer`.
-
 ### Next: `OnceApp`
 
 Extract loading, working-set, persistence reconciliation, and settings access
@@ -84,24 +77,12 @@ order.
 
 1. Continue splitting Electron lifecycle/navigation coordination and mobile
    reading/native-surface coordination.
-2. Split the 432-line iOS `AppDelegate.swift` into secure settings, browser
-   surface, bridge controller, and application lifecycle. It is under the file
-   limit, so no exception flags it.
-3. Split `SwipeSettingsLab` gesture simulation from persistence. Its preview
+2. Split `SwipeSettingsLab` gesture simulation from persistence. Its preview
    row now drives `story/swipe/` directly, so the seam is on the lab side.
 
 The large E2E suites are split and no test file carries an exception any more.
 `mobile-web.spec.js` became ten feature specs over `tests/e2e/mobile/helpers/`,
 and `core-browser.spec.js` became seven. Both retired their exceptions.
-
-Know the shape of E2E coverage before reading a count as a gap. The mobile web
-(43 tests) and Electron (40) suites cover shared `ui-web` behavior, so
-`mobile.smoke.js` deliberately covers only the seams a browser harness cannot
-reach: Capacitor WebView attach, the real native story menu, Android hardware
-back, process kill and relaunch, and the reader TTS bridge. It is seven phases
-sharing one device session, not seven independent cases, so it runs with
-Mocha's `bail`. Neither the native suites nor `test:mobile:web` are part of
-`npm test`; `.github/workflows/mobile.yml` is `workflow_dispatch` only.
 
 ## Workflow
 
