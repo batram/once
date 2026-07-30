@@ -50,9 +50,9 @@ test("names an assigned function by its assignment target", () => {
 
 test("names a callback by the call that takes it", () => {
   const source = 'test("restores collapse after a drag", async () => {})'
-  const entries = functionEntries("tests/e2e/mobile/mobile-web.spec.js", source)
+  const entries = functionEntries("tests/e2e/mobile/settings-source-groups.spec.js", source)
   assert.deepEqual(entries.map((entry) => entry.key), [
-    "tests/e2e/mobile/mobile-web.spec.js#test(restores collapse after a drag)"
+    "tests/e2e/mobile/settings-source-groups.spec.js#test(restores collapse after a drag)"
   ])
 })
 

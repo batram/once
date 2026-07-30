@@ -22,6 +22,17 @@ change on four things instead:
 A change that satisfies the limits while making any of these worse is a
 regression, and should be rejected in review even though CI is green.
 
+The function limit reads differently in `tests/`. A `test()` body has no
+callers and no collaborators, so "extract something" is not available to it —
+the only moves are pushing assertions into a helper, which costs reading span,
+or splitting into more tests, which is a coverage decision. So when the limit
+flags a test, ask whether the test has one subject rather than how long it is.
+Three subjects sharing a fixture should be three tests; one continuous
+scenario that happens to be long should keep an exception saying why. Measured
+across 308 test callbacks, the limit flags two, so it is cheap either way.
+The file limit is the one that earns its keep in `tests/`: it is what surfaced
+the 2189-line mobile suite.
+
 Maintained references, rather than repeating them here: `docs/CODEMAP.md`
 (ownership, composition roots, generated files), `docs/ARCHITECTURE.md`
 (package boundaries), `docs/DEVELOPMENT.md` (setup, builds, platform tests),
@@ -78,7 +89,10 @@ order.
    limit, so no exception flags it.
 3. Split `SwipeSettingsLab` gesture simulation from persistence. Its preview
    row now drives `story/swipe/` directly, so the seam is on the lab side.
-4. Split large E2E suites by feature without reducing coverage.
+4. Split `tests/e2e/electron/core-browser.spec.js` by feature without reducing
+   coverage. The mobile web suite is done: `mobile-web.spec.js` became ten
+   feature specs over `tests/e2e/mobile/helpers/`, and both of its exceptions
+   are retired.
 
 ## Workflow
 

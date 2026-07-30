@@ -5,8 +5,7 @@
     "packages/app/src/OnceApp.ts": "The public facade is being reduced through internal services.",
     "packages/ui-web/src/picker/sourcePicker.ts": "Picker overlay extraction is staged.",
     "packages/ui-web/src/settings/SwipeSettingsLab.ts": "Preview and persistence extraction is staged.",
-    "tests/e2e/electron/core-browser.spec.js": "Browser scenarios are being split by feature.",
-    "tests/e2e/mobile/mobile-web.spec.js": "Mobile scenarios are being split by feature."
+    "tests/e2e/electron/core-browser.spec.js": "Browser scenarios are being split by feature."
   },
   "functions": {
     "apps/electron/src/browser/TabEvents.ts#TabEvents.bind": "Event families will move to focused binders.",
@@ -17,7 +16,6 @@
     "packages/ui-web/src/reader/readerTts.ts#installReaderTts": "Reader speech controls extraction is staged.",
     "packages/ui-web/src/settings/SwipeSettingsLab.ts#SwipeSettingsLab.constructor": "Preview event wiring extraction is staged.",
     "scripts/webpack.webext.config.js#module.exports": "Webpack configuration remains a declarative build entrypoint.",
-    "tests/e2e/electron/story-list.debug.js#test(diagnoses Electron story loading and interactions)": "Interactive debug harness remains intentionally linear.",
-    "tests/e2e/mobile/mobile-web.spec.js#test(story source groups collapse while dragging and restore afterward)": "Scenario split is staged."
+    "tests/e2e/electron/story-list.debug.js#test(diagnoses Electron story loading and interactions)": "Interactive debug harness remains intentionally linear."
   }
 }

@@ -4,7 +4,7 @@ const port = Number.parseInt(process.env.ONCE_MOBILE_TEST_PORT || "3211", 10)
 
 module.exports = defineConfig({
   testDir: __dirname,
-  testMatch: "mobile-web.spec.js",
+  testMatch: "*.spec.js",
   globalSetup: path.join(__dirname, "global-setup.js"),
   timeout: 30_000,
   use: {
