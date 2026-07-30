@@ -1,0 +1,80 @@
+{
+  "boxOwning": [
+    {
+      "family": "structured_row_main",
+      "reason": "The row body is the tap target for a whole settings row; it declares flex, padding 0, border 0 and a transparent background in settings.css and must not take the primitive's visual box",
+      "phase": "3.1",
+      "removeWhen": "The primitive stops carrying a visual box that a row has to undo"
+    },
+    {
+      "family": "structured_remove",
+      "reason": "A fixed 44px glyph target that declares its own width, margin and transparent background",
+      "phase": "3.1",
+      "removeWhen": "The primitive stops carrying a visual box that a glyph target has to undo"
+    },
+    {
+      "family": "structured_row_chevron",
+      "reason": "An 8px caret drawn from two borders; it has no button visuals at all",
+      "phase": "3.1",
+      "removeWhen": "The primitive stops carrying a visual box that a caret has to undo"
+    },
+    {
+      "family": "settings_section_row",
+      "reason": "A full-width navigation row with its own touch height and bottom separator",
+      "phase": "3.1",
+      "removeWhen": "The primitive stops carrying a visual box that a navigation row has to undo"
+    },
+    {
+      "family": "structured_group_menu",
+      "reason": "A 40x38 menu affordance inside a group header, sized by the header rather than by button padding",
+      "phase": "3.1",
+      "removeWhen": "The primitive stops carrying a visual box that a header affordance has to undo",
+      "conditional": "Only rendered for non-default source groups, which the covered sections do not reach"
+    },
+    {
+      "family": "swipe_ruler_handle",
+      "reason": "An absolutely positioned slider handle whose width is --swipe-handle-width and whose runway the ruler reserves; role=slider rather than a button visually",
+      "phase": "3.1",
+      "removeWhen": "The primitive stops carrying a visual box that a slider handle has to undo"
+    },
+    {
+      "family": "structured_issue",
+      "reason": "A round 18px status badge with a coloured border and transparent background",
+      "phase": "3.1",
+      "removeWhen": "The primitive stops carrying a visual box that a status badge has to undo",
+      "conditional": "Only rendered for rows carrying a validation issue, which the covered sections do not produce"
+    },
+    {
+      "family": "status_indicator",
+      "reason": "An 11px dock dot inside #status_dock with no button visuals",
+      "phase": "3.1",
+      "removeWhen": "The primitive stops carrying a visual box that a dock dot has to undo"
+    }
+  ],
+  "unclassified": [
+    {
+      "family": "structured_mode_toggle",
+      "reason": "Declares only min-height and padding, so it currently takes the platform baseline's border, background and radius. Likely a real primitive button, but not yet inspected against its desktop and interaction states",
+      "phase": "3.1",
+      "removeWhen": "Inspected and either migrated to .button or recorded as box-owning"
+    },
+    {
+      "family": "structured_add_button",
+      "reason": "Declares position, size, border and radius but deliberately omits background so it inherits the baseline's. A hybrid that needs a decision rather than a default",
+      "phase": "3.1",
+      "removeWhen": "Inspected and either migrated to .button or recorded as box-owning"
+    },
+    {
+      "family": "once-reader-host-close",
+      "reason": "Reader host close control, surfaced by this guard rather than by the family inventory; not yet inspected",
+      "phase": "3.1",
+      "removeWhen": "Inspected and either migrated to .button or recorded as box-owning"
+    },
+    {
+      "family": "(no class)",
+      "reason": "Native buttons carrying no class at all. Inventory only: each needs individual inspection before it is called a primitive or a box-owning control",
+      "phase": "3.1",
+      "removeWhen": "Each unclassed button is inspected and either adopts .button or gains a named family entry"
+    }
+  ]
+}
