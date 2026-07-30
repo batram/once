@@ -199,3 +199,44 @@ test("TabEvents composes navigation, interaction, and lifecycle families", () =>
   assert.equal(tab.view.webContents.listenerCount("destroyed"), 1)
   assert.equal(typeof tab.view.webContents.windowOpenHandler, "function")
 })
+
+test("TabEvents preserves the title while reloading the current URL", () => {
+  const tab = entry("tab", 1)
+  tab.title = "Existing title"
+  tab.view.webContents.setWindowOpenHandler = () => {}
+  const errors = {
+    state: () => null,
+    handleFailure() {},
+    restore() {},
+    collapseFailedEntry() {},
+    applyTheme() {}
+  }
+  const ownerAccess = { ownerFor: () => undefined, notify() {} }
+  const events = new TabEvents(
+    errors,
+    { showContentsMenu() {} },
+    { ...ownerAccess, applyRedirects: (url) => url },
+    {
+      ...ownerAccess,
+      createTab: async () => "new",
+      createWindow: async () => {},
+      setFullscreen() {}
+    },
+    { ...ownerAccess, finalizeClosedTab() {} }
+  )
+  events.bind(tab)
+
+  tab.view.webContents.emit("did-start-navigation", {
+    isMainFrame: true,
+    isSameDocument: false,
+    url: tab.displayedUrl
+  })
+  assert.equal(tab.title, "Existing title")
+
+  tab.view.webContents.emit("did-start-navigation", {
+    isMainFrame: true,
+    isSameDocument: false,
+    url: "https://example.com/next"
+  })
+  assert.equal(tab.title, "New tab")
+})

@@ -7,6 +7,20 @@ export function createReaderSpeechSegments(
   root: HTMLElement,
   maximum = 900
 ): ReaderSpeechSegment[] {
+  return createReaderSpeechSegmentsWith(
+    root,
+    maximum,
+    normalizeReaderSpeechText,
+    splitReaderSpeechText
+  )
+}
+
+export function createReaderSpeechSegmentsWith(
+  root: HTMLElement,
+  maximum: number,
+  normalize: typeof normalizeReaderSpeechText,
+  split: typeof splitReaderSpeechText
+): ReaderSpeechSegment[] {
   const blockSelector = "p,li,h2,h3,h4,h5,h6,blockquote,pre,figcaption,td,th"
   let blocks = Array.from(root.querySelectorAll<HTMLElement>(blockSelector))
     .filter((element) => !element.querySelector(blockSelector))
@@ -14,9 +28,9 @@ export function createReaderSpeechSegments(
 
   return blocks.flatMap((element) => {
     // innerText follows rendered reading order and supplies block/line spacing.
-    const text = normalizeReaderSpeechText(element.innerText || element.textContent || "")
+    const text = normalize(element.innerText || element.textContent || "")
     return text
-      ? splitReaderSpeechText(text, maximum).map((chunk) => ({ element, text: chunk }))
+      ? split(text, maximum).map((chunk) => ({ element, text: chunk }))
       : []
   })
 }

@@ -1,6 +1,7 @@
 import { ReaderSpeechSession, ReaderSpeechState } from "./ReaderSpeechSession"
 import {
   createReaderSpeechSegments,
+  createReaderSpeechSegmentsWith,
   normalizeReaderSpeechText,
   splitReaderSpeechText
 } from "./readerSpeechText"
@@ -27,15 +28,49 @@ export interface ReaderTtsOptions {
   onStateChange?: (state: ReaderTtsState) => void
 }
 
+interface ReaderTtsRuntime {
+  applyControl: typeof applyExternalControl
+  bindDom: typeof bindReaderTtsDom
+  createChannel: typeof createOwnershipChannel
+  initialRate: typeof readInitialRate
+  persistRate: typeof storeRate
+  populateVoiceOptions: typeof populateVoices
+  showTtsUnavailable: typeof showUnavailable
+}
+
+const readerTtsRuntime: ReaderTtsRuntime = {
+  applyControl: applyExternalControl,
+  bindDom: bindReaderTtsDom,
+  createChannel: createOwnershipChannel,
+  initialRate: readInitialRate,
+  persistRate: storeRate,
+  populateVoiceOptions: populateVoices,
+  showTtsUnavailable: showUnavailable
+}
+
 export function installReaderTts(options: ReaderTtsOptions = {}): void {
-  runReaderTts(options, ReaderSpeechSession, createReaderSpeechSegments)
+  runReaderTts(
+    options,
+    ReaderSpeechSession,
+    createReaderSpeechSegments,
+    readerTtsRuntime
+  )
 }
 
 function runReaderTts(
   options: ReaderTtsOptions,
   Session: typeof ReaderSpeechSession,
-  createSegments: typeof createReaderSpeechSegments
+  createSegments: typeof createReaderSpeechSegments,
+  runtime: ReaderTtsRuntime
 ): void {
+  const {
+    applyControl,
+    bindDom,
+    createChannel,
+    initialRate: resolveInitialRate,
+    populateVoiceOptions,
+    showTtsUnavailable
+  } = runtime
   if (document.documentElement.dataset.onceTtsInstalled === "true") return
   document.documentElement.dataset.onceTtsInstalled = "true"
 
@@ -52,17 +87,21 @@ function runReaderTts(
   if (!play || !stop || !back || !forward || !voiceSelect || !rateInput || !rateValue || !article) return
 
   if (!synth || typeof SpeechSynthesisUtterance === "undefined") {
-    showUnavailable([play, stop, back, forward, voiceSelect, rateInput], play, voiceSettings)
+    showTtsUnavailable(
+      [play, stop, back, forward, voiceSelect, rateInput],
+      play,
+      voiceSettings
+    )
     return
   }
 
   const segments = createSegments(article)
   const storageKey = "once:reader:tts-rate"
-  const initialRate = readInitialRate(options.initialRate, storageKey)
+  const initialRate = resolveInitialRate(options.initialRate, storageKey)
   if (initialRate >= 0.5 && initialRate <= 6) rateInput.value = String(initialRate)
 
   const ownerId = `${Date.now()}-${Math.random()}`
-  const ownershipChannel = createOwnershipChannel(options)
+  const ownershipChannel = createChannel(options)
   const clearHighlight = (): void => {
     article.querySelector(".tts-current")?.classList.remove("tts-current")
   }
@@ -108,18 +147,25 @@ function runReaderTts(
     if (!state.playing && state.segment === 0) clearHighlight()
   }
 
-  bindReaderTtsDom({
+  bindDom({
     play, stop, back, forward, voiceSelect, voiceSettings, rateInput, rateValue,
     segments, session, options, storageKey
-  })
-  populateVoices(voiceSelect, synth.getVoices())
+  }, runtime.persistRate)
+  populateVoiceOptions(voiceSelect, synth.getVoices())
   synth.addEventListener?.("voiceschanged", () => {
-    populateVoices(voiceSelect, synth.getVoices())
+    populateVoiceOptions(voiceSelect, synth.getVoices())
     session.notify()
   })
   const unsubscribeStop = options.subscribeToStop?.(() => session.yield())
   const unsubscribeControl = options.subscribeToControl?.((control) => {
-    applyExternalControl(control, session, voiceSelect, options, storageKey)
+    applyControl(
+      control,
+      session,
+      voiceSelect,
+      options,
+      storageKey,
+      runtime.persistRate
+    )
   })
   window.addEventListener("pagehide", () => {
     session.dispose()
@@ -132,19 +178,35 @@ function runReaderTts(
 
 export function createStandaloneReaderTtsScript(): string {
   return `(() => {
-    ${normalizeReaderSpeechText.toString()}
-    ${splitReaderSpeechText.toString()}
-    ${createReaderSpeechSegments.toString()}
-    ${ReaderSpeechSession.toString()}
-    ${readInitialRate.toString()}
-    ${storeRate.toString()}
-    ${showUnavailable.toString()}
-    ${populateVoices.toString()}
-    ${bindReaderTtsDom.toString()}
-    ${applyExternalControl.toString()}
-    ${createOwnershipChannel.toString()}
-    ${runReaderTts.toString()}
-    runReaderTts({}, ReaderSpeechSession, createReaderSpeechSegments);
+    const normalizeReaderSpeechText = ${normalizeReaderSpeechText.toString()};
+    const splitReaderSpeechText = ${splitReaderSpeechText.toString()};
+    const createReaderSpeechSegmentsWith = ${createReaderSpeechSegmentsWith.toString()};
+    const createReaderSpeechSegments = (root, maximum = 900) =>
+      createReaderSpeechSegmentsWith(
+        root,
+        maximum,
+        normalizeReaderSpeechText,
+        splitReaderSpeechText
+      );
+    const ReaderSpeechSession = ${ReaderSpeechSession.toString()};
+    const readInitialRate = ${readInitialRate.toString()};
+    const storeRate = ${storeRate.toString()};
+    const showUnavailable = ${showUnavailable.toString()};
+    const populateVoices = ${populateVoices.toString()};
+    const bindReaderTtsDom = ${bindReaderTtsDom.toString()};
+    const applyExternalControl = ${applyExternalControl.toString()};
+    const createOwnershipChannel = ${createOwnershipChannel.toString()};
+    const runReaderTts = ${runReaderTts.toString()};
+    const runtime = {
+      applyControl: applyExternalControl,
+      bindDom: bindReaderTtsDom,
+      createChannel: createOwnershipChannel,
+      initialRate: readInitialRate,
+      persistRate: storeRate,
+      populateVoiceOptions: populateVoices,
+      showTtsUnavailable: showUnavailable
+    };
+    runReaderTts({}, ReaderSpeechSession, createReaderSpeechSegments, runtime);
   })();`
 }
 
@@ -172,7 +234,10 @@ interface ReaderTtsDomBinding {
   storageKey: string
 }
 
-function bindReaderTtsDom(binding: ReaderTtsDomBinding): void {
+function bindReaderTtsDom(
+  binding: ReaderTtsDomBinding,
+  persistRate: typeof storeRate
+): void {
   const {
     play, stop, back, forward, voiceSelect, voiceSettings, rateInput, rateValue,
     segments, session, options, storageKey
@@ -191,7 +256,7 @@ function bindReaderTtsDom(binding: ReaderTtsDomBinding): void {
   })
   rateInput.addEventListener("change", () => {
     const rate = Number(rateInput.value)
-    storeRate(options, storageKey, rate)
+    persistRate(options, storageKey, rate)
     session.setRate(rate)
   })
   document.addEventListener("pointerdown", (event) => {
@@ -214,7 +279,8 @@ function applyExternalControl(
   session: ReaderSpeechSession,
   voiceSelect: HTMLSelectElement,
   options: ReaderTtsOptions,
-  storageKey: string
+  storageKey: string,
+  persistRate: typeof storeRate
 ): void {
   switch (control.type) {
     case "play-toggle": session.toggle(); break
@@ -222,7 +288,7 @@ function applyExternalControl(
     case "prev": session.previous(); break
     case "next": session.next(); break
     case "set-rate":
-      storeRate(options, storageKey, Math.min(6, Math.max(0.5, control.rate)))
+      persistRate(options, storageKey, Math.min(6, Math.max(0.5, control.rate)))
       session.setRate(control.rate)
       break
     case "set-voice":
