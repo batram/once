@@ -4,8 +4,7 @@
     "apps/mobile/src/readingController.ts": "Reading UI and native-surface extraction is staged.",
     "packages/app/src/OnceApp.ts": "The public facade is being reduced through internal services.",
     "packages/ui-web/src/picker/sourcePicker.ts": "Picker overlay extraction is staged.",
-    "packages/ui-web/src/settings/SwipeSettingsLab.ts": "Preview and persistence extraction is staged.",
-    "tests/e2e/electron/core-browser.spec.js": "Browser scenarios are being split by feature."
+    "packages/ui-web/src/settings/SwipeSettingsLab.ts": "Preview and persistence extraction is staged."
   },
   "functions": {
     "apps/electron/src/browser/TabEvents.ts#TabEvents.bind": "Event families will move to focused binders.",

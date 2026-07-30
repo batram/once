@@ -89,10 +89,9 @@ order.
    limit, so no exception flags it.
 3. Split `SwipeSettingsLab` gesture simulation from persistence. Its preview
    row now drives `story/swipe/` directly, so the seam is on the lab side.
-4. Split `tests/e2e/electron/core-browser.spec.js` by feature without reducing
-   coverage. The mobile web suite is done: `mobile-web.spec.js` became ten
-   feature specs over `tests/e2e/mobile/helpers/`, and both of its exceptions
-   are retired.
+The large E2E suites are split and no test file carries an exception any more.
+`mobile-web.spec.js` became ten feature specs over `tests/e2e/mobile/helpers/`,
+and `core-browser.spec.js` became seven. Both retired their exceptions.
 
 ## Workflow
 
