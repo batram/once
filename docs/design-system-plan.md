@@ -1,495 +1,824 @@
 # Design System Plan: verifiable CSS, primitives, and user theming
 
-Branch: `design-css-impro` · Written: 2026-07-30
+Branch: `design-css-impro` · Reworked: 2026-07-30
 
 ## Goal
 
-Make layout, alignment and spacing in this codebase **cheap to get right and expensive to
-get wrong** — for humans and for AI agents — and lay the groundwork for a fully
-user-themeable app.
+Make layout, alignment, spacing, and theming in this codebase cheap to get right and
+expensive to get wrong—for humans and for agents.
 
-Two things must become true:
+The end state is:
 
-1. There is exactly one way to express each common UI shape (a button, an icon, a settings
-   row), and the alternatives are removed rather than deprecated.
-2. Every property we care about is either impossible to express wrongly, or asserted by a
-   test. Nothing important is left in the "you can tell by looking" category.
+1. Common UI shapes have one documented semantic contract.
+2. Shared contracts are asserted in tests, while platform-specific behavior is verified in
+   the platform where it runs.
+3. Design values use a small vocabulary of tokens without erasing intentional component
+   geometry.
+4. User theming has an explicit public surface, recovery path, and security/privacy model.
+5. Existing alternatives are removed after their callers migrate.
 
-## The governing principle
+This plan does not assume that every visual property can be inferred from geometry. Box
+geometry, focus behavior, clipping, and token use are mechanically testable. Perceived icon
+weight and final visual balance still require a deliberately small visual review surface.
 
-> If a design property can only be verified by looking at it, it will regress.
+## Governing principles
 
-An agent cannot resolve a 1px offset in a screenshot, and neither can a human in review.
-This is not hypothetical: while preparing the icon comparison for this plan, a demo written
-with full attention on this exact problem still shipped two alignment bugs — a button
-implementation that drifted from the correct one written minutes earlier in the same file,
-and a `var(--icon-size, 1em)` fallback that silently rendered every icon 19% small. Neither
-errored. Both were caught by a human looking at the render.
+### Verify contracts, not implementation trivia
 
-The app contains a fossil of the same failure: `.bar_btn img { margin-bottom: -1px }` is
-someone hitting this precise problem and patching the symptom instead of the structure. The
-nudge hid it for years.
+Tests should describe the behavior that must remain true:
 
-**Consequence for sequencing: verification infrastructure lands first (Phase 0), before any
-visual refactor.** Otherwise every later phase is done with the same blindness.
+- controls are semantic, reachable, and visibly focused;
+- icon-only controls center a nonzero square icon;
+- toolbars and settings rows use a declared layout primitive;
+- public tokens can be overridden in supported themes;
+- platform styles do not silently undo shared contracts.
 
-## Current state (measured, 2026-07-30)
+Avoid global rules such as “every flexbox must declare `align-items`.” Stretch is sometimes
+intentional, and a noisy rule trains contributors to add meaningless declarations. Enforce
+alignment on the primitives and component families where alignment is part of the contract.
 
-Evidence gathered on `main` at 7f17cce. Numbers here are load-bearing for the phases below.
+### Preserve before rationalising
 
-The icon figures below are reproducible: `node docs/tmp-icons/measure-icons.js`. The
-before/after page, the rescaled candidates and the open taste decisions live in
+The first token conversion should preserve current computed values. Odd values such as 11,
+13, 17, 19, 22, 26, 34, and 38px must be classified before they are changed:
+
+- semantic spacing;
+- typography;
+- component geometry;
+- optical correction;
+- a derived relationship suitable for `calc()`;
+- unexplained legacy value.
+
+Only semantic spacing should snap to the shared spacing scale. Intentional component
+geometry gets a named component token. Unexplained values stay unchanged until measured.
+
+### Shared shell does not mean identical render
+
+All products originate from `shell.html`, but they do not render identically:
+
+- extensions use the shared stylesheet;
+- Electron imports `apps/electron/src/electron.css`;
+- mobile appends `apps/mobile/src/mobile.css` after the shared stylesheet;
+- mobile WebViews add viewport, safe-area, touch, and native-shell behavior;
+- the reader document and presenters have separate documents/styles.
+
+Shared primitive tests can run once. Platform override tests must run in each affected
+renderer.
+
+### User CSS is either constrained or explicitly unsafe
+
+CSS cascade layers organize trusted styles; they are not a sandbox. Arbitrary CSS can close
+an injected wrapper, create unlayered rules, use `!important`, hide recovery UI, and request
+remote resources permitted by CSP.
+
+The product therefore exposes two clearly different contracts:
+
+- **Tier 1: supported token themes.** A versioned set of custom properties. These are
+  validated before storage. Color themes are safe by construction; density values use
+  documented ranges. This is the promoted path.
+- **Tier 2: advanced custom CSS.** May break on update, obscure the UI, and make network
+  requests through permitted CSS URLs. It is either parsed and restricted, or labelled
+  explicitly as unrestricted. A cascade layer alone must never be described as containment.
+
+---
+
+## Current state (measured 2026-07-30)
+
+Evidence was gathered on `main` at `7f17cce`. Refresh the measurements before implementation
+if the base commit changes.
+
+The icon measurements are reproducible with:
+
+```text
+node docs/tmp-icons/measure-icons.js
+```
+
+The comparison page, candidates, measurement details, and open taste decisions live in
 [`docs/tmp-icons/`](tmp-icons/README.md).
 
 ### Size and spacing
 
 | Fact | Value |
-|---|---|
+|---|---:|
 | Colour tokens in `vars.css` | 25 |
-| Size / spacing / type tokens in `vars.css` | **0** |
-| Geometry declarations with a raw px literal (13 files) | **644** |
-| Uses of the `--m-sp-*` scale | 87, all inside `mobile.css` |
-| Distinct px values in use | 1,2,3,4,5,6,7,8,10,11,12,13,14,15,16,17,18,19,20,22,24,26,28,30,34,36,38,40,44… |
+| Size/spacing/type tokens in `vars.css` | 0 |
+| Geometry declarations with a raw px literal (13 files) | 644 |
+| Uses of `--m-sp-*` | 87, all inside `mobile.css` |
 
-`apps/mobile/src/mobile.css` defines a real 4pt scale (`--m-sp-1..5`), a type scale
-(`--m-fs-*`) and `--m-touch: 44px`. Nothing outside that file can reach them.
+`apps/mobile/src/mobile.css` already contains a useful 4pt spacing scale, type scale, and
+44px touch target. The values are platform-local today.
 
 ### Cascade and platform layering
 
 | Fact | Value |
-|---|---|
-| `@layer` usage | **0** |
-| `body[data-platform="mobile"]`-prefixed selectors in `mobile.css` | **332** |
-| `!important` declarations | **27** (15 `settings.css`, 7 `mobile.css`, 3 `electron.css`, 1 `base.css`, 1 `layout.css`) |
-| Width-based media queries, whole repo | **2** (`mobile.css:2215`, `readerDocument.css:216`) |
-| Container queries | 4 (all `settings-panel`) |
+|---|---:|
+| `@layer` usage | 0 |
+| `body[data-platform="mobile"]` selectors in `mobile.css` | 332 |
+| `!important` declarations | 27 |
+| Width-based media queries | 2 |
+| Container queries | 4, all in the settings panel |
 
-`mobile.css` loads *after* the full desktop `style.css` over the same `shell.html`
-(`apps/mobile/webpack.config.js:116`). It is an override sheet, not a responsive layer: two
-sources of truth per component, ~1,800 lines apart, in different packages.
+Mobile loads `mobile.css` after the full shared `style.css`. Electron imports a separate
+renderer stylesheet. The platform sheets are real test surfaces, not interchangeable copies
+of the extension shell.
 
-### Buttons
+The application also creates CSS rules at runtime for collector colors and sets inline
+styles for gesture positions, drag transforms, transient visibility, and other measured
+state. Inline declarations outrank normal layered declarations, so the cascade migration
+must inventory these separately rather than pretending that imported stylesheets are the
+whole cascade.
 
-Three conventions coexist inside `packages/ui-web/public/shell.html` alone: 14 `<button>`,
-5 `<div class="btn">`, and one `class="icon-btn"` (kebab-case in a snake_case codebase).
+Some current `!important` declarations are likely specificity debt. Others enforce
+reduced-motion, `[hidden]`, or visually-hidden accessibility behavior and should remain as
+documented utility exceptions if they are still required.
 
-Desktop styles the **class** (`.btn`, `base.css:64`); mobile styles the **element**
-(`body[data-platform="mobile"] button`, `mobile.css:161`). The sets barely intersect — a
-`<div class="btn">` gets no 44px touch target, no radius, no mobile font.
+### Controls
 
-`.btn` declares no `display`, so on a `<div>` it is a block box with no content centring,
-while a native `<button>` centres its content. Same class, two behaviours.
+The shell currently mixes native `<button>`, `<input type="button">`, `<div class="btn">`,
+and `icon-btn`. Several clickable `<div>` controls are not keyboard reachable. The sidebar
+also uses clickable `.sub` containers whose semantics need auditing.
 
-`.bar` is `display:flex` with **no `align-items`** (default `stretch`), as is
-`#menu .heading`. The resulting misalignment is corrected by hand-tuned nudges:
-`.bar_btn img { margin-bottom: -1px }`, `.bar .collapsebutton { margin-left: -17px }`,
-`#menu_btn { margin-left: -13px }`.
-
-The 5 `<div class="btn">` are also an accessibility defect: no `tabindex`, no `role`, so the
-collapse and cancel-search controls are unreachable by keyboard.
+Desktop styles `.btn`, while mobile broadly styles the `button` element. These sets do not
+describe one component contract. `.bar` and `#menu .heading` use flexbox without a declared
+cross-axis contract, and local negative margins compensate for visible misalignment.
 
 ### Icons
 
-20 SVGs in `packages/ui-web/public/static/imgs/`. 19 are Bootstrap Icons on a consistent
-`0 0 16 16` grid. Consumed as `<img src="...">`.
+Twenty SVGs live in `packages/ui-web/public/static/imgs/`. Nineteen use a 16×16 viewBox.
+`story.svg` uses a 20×20 grid and a heavier stroke.
 
-**`fill="currentColor"` and `width="1em"` are dead attributes in that path.** An SVG loaded
-through `<img>` is an isolated document: it cannot see the host page's `color` or
-`font-size`. So the fill resolves to black in both themes, and the em resolves against the
-SVG's own 16px default. This is what forces:
+SVGs consumed through `<img>` cannot inherit the host page's `color`; the current
+`currentColor` attributes do not provide host-page theming. This drives filter-based color
+hacks. `.ptr-icon` already demonstrates the useful mask/current-color technique.
 
-- `vars.css:67` — `#menu .sub img { filter: contrast(0%) }` for dark mode
-- `base.css:75` — `.active img { filter: invert(42%) sepia(93%) saturate(252%)
-  hue-rotate(87deg) brightness(119%) contrast(119%) }`
-
-`.ptr-icon` (`stories.css:51`) already uses `mask` + `background: var(--text-high-color)` and
-themes correctly. The good technique exists in the codebase and is used once.
-
-**Optical size audit** (ink extent as a share of viewBox, measured via
-`getBoundingClientRect()` so transforms and stroke are included):
-
-| icon | ink fill | mark @16px |
-|---|---|---|
-| `x` | 50% | 8.0px |
-| `play` | 56% | 9.0px |
-| `pause` | 56% | 9.0px |
-| `chevron-left` | 81% | 13.0px |
-| `volume` | 81% | 13.0px |
-| `volume-mute` | 84% | 13.5px |
-| `story`, `reload`, `filter`, `article` | 87–88% | ~14px |
-| the other 10 icons | 100% | 16.0px |
-
-**The set is bimodal**: 10 icons fill their grid completely, 10 sit at 50–88%, and nothing
-lands in between. There is no meaningful "average" icon size to design against — the spread
-is min 50% / p25 84% / max 100%. Quoting a median here is misleading and any
-spread-around-the-median rule is the wrong shape; the useful constraint is a floor.
-
-`story.svg` is the sole off-grid icon (`0 0 20 20`) and the sole fully-stroke-drawn one
-(`stroke-width="2"` ≈ 1.6px effective against the set's ~1px).
-
-No CSS rule can fix the optical spread — identical markup yields visibly different sizes
-depending on which file it points at. This is a concrete reason icon sizing feels
-unlearnable.
+The current set has large differences in bounding extent. Bounding extent is a useful guard
+against grossly undersized, empty, clipped, or off-grid assets, but it is not a complete
+measure of perceived weight.
 
 ---
 
-## Phase 0 — Verification infrastructure
+## Target contracts
 
-**Lands first. Everything after this is checkable.**
+### Cascade
 
-### 0.1 Geometry assertions
-
-New Playwright spec under the existing `tests/e2e/extensions` config — the shell renders
-identically in all targets, so one target suffices. Renders `shell.html`, opens each panel,
-and asserts on computed geometry:
-
-- every `.icon`: computed `width === height`, and `!== 0`
-- every button containing an icon: `|iconCentreY − buttonCentreY| ≤ 0.5px`, same for X on
-  icon-only buttons
-- no element matching the button/icon contract has a computed negative margin
-- every focusable-looking control (`[class*=btn]`, `[role=button]`) is either a `<button>`
-  or has `tabindex`
-
-Rationale: `getBoundingClientRect()` resolves exactly what a screenshot cannot.
-
-### 0.2 Icon set audit as a test
-
-Promote `docs/tmp-icons/measure-icons.js` into `tests/unit/ui-web/icon-set.test.js`
-(matching the existing kebab-case `*.test.js` convention in that directory):
-
-- every icon's `viewBox` is `0 0 16 16`
-- every icon's ink fill is **at or above a floor** (start at 84%, i.e. the current p25) — a
-  floor, not a band around the median, because the set is bimodal and a band would either
-  fail the 100% cluster or pass the 50% outliers
-- no icon file exceeds a size ceiling
-
-Uses Playwright's `getBoundingClientRect()` measurement (`getBBox()` is **not** usable — it
-reports an element's own user space and ignores ancestor transforms and stroke width; this
-caused a silent no-op while preparing this plan). See `docs/tmp-icons/README.md` for the
-gotcha in full.
-
-### 0.3 Stylelint
-
-Add `stylelint` + `stylelint-config-standard`, wired into `npm run check`. Rules, in the
-order they should be enforced:
-
-1. **`declaration-property-value-disallowed-list`** — no raw px on `padding`, `margin`,
-   `gap`, `font-size`, `border-radius`. Report-only at first; convert file by file with
-   per-file disables; flip to error when the count reaches zero.
-2. **Custom rule: `display: flex|grid` requires `align-items`.** This one rule would have
-   flagged `.bar` and `#menu .heading` — the origin of every nudge in the codebase.
-3. **No negative margins** outside an allowlist. The reliable signature of the failure mode.
-
-### 0.4 Measurement command for agents
-
-`npm run measure -- "<selector>"` → prints box, padding, border, centre offsets against
-siblings and parent, and baseline positions for matched elements.
-
-The alignment fix loop must be *measure → change → measure*, not *screenshot → guess*. This
-script is the single most useful artifact in Phase 0 for day-to-day agent work.
-
-**Phase 0 exit:** all four land, `npm run check` green, geometry spec passing against
-current `main` behaviour (with known failures explicitly skipped and listed here).
-
----
-
-## Phase 1 — Tokens
-
-### 1.1 Promote the mobile scale to platform-neutral
-
-Into `packages/ui-web/public/static/css/parts/vars.css`:
+Trusted application CSS uses:
 
 ```css
---sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px;  --sp-4: 16px;  --sp-5: 24px;  --sp-6: 32px;
---fs-title: 16px; --fs-body: 14px; --fs-meta: 12px; --fs-label: 10px;
---icon-sm: 12px; --icon-md: 16px; --icon-lg: 24px;
---touch: 44px;
---radius-sm: 2px; --radius-md: 6px; --radius-lg: 8px;
---bw: 1px;
+@layer reset, tokens, base, components, platform, user;
 ```
 
-Keep `--m-sp-*` etc. as aliases in `mobile.css` so nothing breaks in a single commit; remove
-the aliases at the end of Phase 1.
+All trusted stylesheet rules and runtime-generated rules are assigned to a named layer.
+Inline styles are reserved for genuinely dynamic geometry/state or setting a documented
+custom property; they are not a component styling API. Token defaults belong in the
+low-priority `tokens` layer:
 
-### 1.2 Convert the part files
+```css
+@import "./parts/vars.css" layer(tokens);
+@import "./parts/base.css" layer(base);
+@import "./parts/primitives.css" layer(components);
+```
 
-Order by leverage: `base.css` → `menu.css` → `layout.css` → `stories.css` → `settings.css` →
-`mobile.css`. Each file's conversion is one commit, gated by the stylelint count dropping.
+This is essential: normal unlayered declarations outrank every normal named-layer
+declaration. Leaving token defaults unlayered would prevent same-element overrides in
+`layer(user)`.
 
-**Open question for the owner:** the current px spread includes 11, 13, 17, 19, 22, 26, 34,
-38. Some are intentional optical corrections, most are probably incidental. Where a value
-does not map cleanly onto the scale, the default is to snap to the nearest step and note it
-in the commit; call out any that must stay exact.
+Electron and mobile platform declarations must also enter `layer(platform)`. Because those
+stylesheets are assembled differently, implementation must choose one explicit mechanism per
+target:
 
-### 1.3 Why this is prerequisite to everything else
+- import a platform part through a target entry stylesheet with `layer(platform)`; or
+- wrap the platform stylesheet contents in `@layer platform { ... }`.
 
-- Skins can only recolour until size tokens exist — density is the most-requested skin knob.
-- The design handoff (Phase 5) has no vocabulary to design in without a scale, which is why
-  the swipe prototype had to invent `padding: 10px 12px 12px`.
-- Agents pick spacing at random when 30 values are equally plausible.
+Do not assume an independently loaded `<link>` or a TypeScript CSS import inherits a layer
+from `style.css`.
+
+### Tokens
+
+Start with primitive values that preserve current behavior:
+
+```css
+:root {
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+
+  --fs-title: 16px;
+  --fs-body: 14px;
+  --fs-meta: 12px;
+  --fs-label: 10px;
+
+  --icon-sm: 12px;
+  --icon-md: 16px;
+  --icon-lg: 24px;
+  --touch: 44px;
+
+  --radius-sm: 2px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --bw: 1px;
+}
+```
+
+Primitive tokens are not sufficient for every value. Add semantic or component tokens where
+the relationship matters, for example `--toolbar-control-size` or
+`--story-action-inline-offset`. Do not create aliases such as `--size-13` merely to satisfy
+lint.
+
+### Button
+
+The public markup contract is a native `<button>`:
+
+```html
+<button type="button" class="button button--icon" aria-label="Reload stories">
+  <span class="icon icon--chrome icon--reload" aria-hidden="true"></span>
+</button>
+```
+
+Rules:
+
+- interactive actions use `<button type="button">`;
+- form submission uses `<button type="submit">`;
+- links that navigate remain `<a href>`;
+- icon-only controls require an accessible name;
+- `.button` is the one component class;
+- modifiers describe supported variants;
+- no `.btn` compatibility selector remains at the end of the migration;
+- existing `<input type="button">`, clickable `.sub`, `.btn`, and `icon-btn` callers are
+  audited and migrated rather than ignored.
+
+The primitive owns display, centering, gap, typography inheritance, focus-visible styling,
+disabled behavior, and icon sizing. The platform layer may adjust density and touch target
+without replacing the contract.
+
+### Icon
+
+```css
+.icon {
+  display: inline-block;
+  inline-size: var(--icon-size);
+  block-size: var(--icon-size);
+  flex: none;
+  background-color: currentColor;
+  mask: var(--icon) center / contain no-repeat;
+  -webkit-mask: var(--icon) center / contain no-repeat;
+}
+
+.icon--chrome {
+  --icon-size: var(--icon-md);
+}
+
+.icon--inline {
+  --icon-size: 1em;
+  vertical-align: -0.125em;
+}
+```
+
+Required custom properties intentionally have no fallback. An incomplete icon contract must
+render invalidly and fail the geometry test instead of looking plausibly undersized.
+
+Per-icon classes define `--icon`; call sites do not carry inline `style` declarations.
+Chrome and inline variants remain separate because fixed control geometry and text baseline
+alignment are different contracts.
+
+### Layout primitives
+
+`parts/primitives.css` initially provides only primitives demonstrated by repeated current
+use:
+
+- `.row`: non-wrapping inline axis, declared cross-axis alignment and gap;
+- `.stack`: block-axis layout and gap;
+- `.cluster`: wrapping inline grouping and gap;
+- `.field`: label/control relationship;
+- `.toolbar`: control group with an explicit alignment contract.
+
+Primitives should be composable and low-specificity. Component CSS owns component geometry.
+Do not replace every flex/grid declaration merely to increase primitive adoption counts.
+
+---
+
+## Phase 0 — Baselines and verification infrastructure
+
+Phase 0 is additive. It records the current intentional contract before visual values change.
+
+### 0.1 Define the renderer matrix
+
+Add a short test manifest under `tests/e2e/design-system/` that assigns assertions to:
+
+| Surface | Required coverage |
+|---|---|
+| Shared Chromium fixture | primitive geometry, icon integrity, keyboard semantics |
+| Chrome/Firefox artifacts | shared stylesheet packaging and shell smoke |
+| Electron | renderer stylesheet overrides and desktop chrome geometry |
+| Mobile web | platform CSS, representative narrow/wide viewports, touch geometry |
+| Android/iOS | targeted safe-area, touch, keyboard, and visual release gates |
+| Reader/presenter documents | explicitly in or out of theming scope |
+
+Shared assertions may be reused by multiple projects. “One target suffices” applies only to a
+contract proven to have no platform override.
+
+### 0.2 Geometry and accessibility assertions
+
+Create shared Playwright helpers that assert, for elements participating in the declared
+contracts:
+
+- `.icon` has nonzero equal width and height;
+- an icon does not overflow its button;
+- icon-only controls center their icon within a documented tolerance;
+- `.button` elements are native buttons;
+- icon-only buttons have accessible names;
+- keyboard traversal reaches migrated controls;
+- focus-visible styling is observable;
+- touch targets meet the mobile contract;
+- declared toolbar/row primitives have their required computed alignment.
+
+Use explicit primitive/data-part selectors, not `[class*=btn]`.
+
+Add axe-core or an equivalent semantic accessibility pass if accepted as a dependency.
+Geometry does not replace semantic or keyboard testing.
+
+Known failures must live in a reviewed baseline file with:
+
+- selector/test identity;
+- reason;
+- tracking phase;
+- intended deletion condition.
+
+Do not use anonymous `test.skip()` calls. Phase gates fail if new baseline entries appear.
+
+### 0.3 Icon integrity audit
+
+Promote the measurement work into the Playwright design-system suite rather than the
+Node-only unit suite. Assert:
+
+- allowed SVG files have a 16×16 viewBox, with `story.svg` temporarily baselined;
+- the rendered mark is nonempty;
+- transforms and strokes do not clip;
+- file size stays below a justified ceiling;
+- bounding extent stays above a conservative gross-error floor.
+
+Keep the rendered comparison sheet as the approval surface for perceived weight. An extent
+threshold must not be presented as proof of optical equality.
+
+### 0.4 CSS lint and debt budget
+
+Add `stylelint` and `stylelint-config-standard`, with `npm run lint:css` included in
+`npm run check`.
+
+Introduce rules in two categories:
+
+**Immediate errors**
+
+- invalid/unknown CSS;
+- duplicate declarations where unsafe;
+- forbidden new `!important` outside named utility exceptions;
+- primitive-specific contract violations;
+- new negative margins in button/icon primitives;
+- new raw spacing values in already migrated files.
+
+**Existing debt budget**
+
+A repository script records exact existing raw spacing, negative-margin, specificity-prefix,
+and `!important` occurrences. CI fails if:
+
+- a new occurrence appears;
+- a removed occurrence returns;
+- the total increases.
+
+The baseline is exact and reviewable, not a warning stream or a broad per-file disable. Each
+migration commit shrinks it. When a category reaches zero in its intended scope, stylelint
+becomes the sole enforcement.
+
+Do not globally require `align-items` on all flex/grid declarations. Enforce it on `.button`,
+`.row`, `.toolbar`, and identified component contracts.
+
+### 0.5 Measurement command
+
+Add:
+
+```text
+npm run measure -- "<selector>"
+```
+
+It prints:
+
+- bounding box;
+- padding and border;
+- center offsets from parent and relevant siblings;
+- overflow/clipping;
+- line-height and baseline-related metrics where applicable;
+- renderer, viewport, and loaded stylesheet identities.
+
+The tool must use the same fixture/build-stamp checks as the E2E harness so stale bundles do
+not masquerade as product behavior.
+
+### Phase 0 exit
+
+- `npm run check`
+- shared design-system Playwright project green against the reviewed baseline;
+- extension artifact smoke green;
+- Electron geometry smoke green;
+- `npm run test:mobile:web` green;
+- no untracked skips;
+- baseline cannot grow.
+
+---
+
+## Phase 1 — Token introduction without visual change
+
+### 1.1 Add the token layer
+
+Add the layer order and import `vars.css` into `layer(tokens)`. Add a test fixture proving
+that a value declared in `layer(user)` overrides the default token on the same element.
+
+### 1.2 Promote the mobile scale
+
+Add platform-neutral tokens to `vars.css`. Keep `--m-sp-*`, `--m-fs-*`, and `--m-touch` as
+temporary aliases in `mobile.css`. Add a debt-baseline entry for every alias so no new mobile
+alias use appears.
+
+### 1.3 Convert without snapping
+
+Suggested order:
+
+1. `base.css`
+2. `menu.css`
+3. `layout.css`
+4. `stories.css`
+5. `settings.css`
+6. `mobile.css`
+7. `electron.css`
+8. reader/presenter styles if in scope
+
+Each commit:
+
+- preserves computed values;
+- adds semantic/component tokens when needed;
+- shrinks the raw-value baseline;
+- runs shared geometry plus affected platform tests;
+- includes a visual comparison for any deliberate value change.
+
+Rationalising the scale is a separate pass after the preserved-value conversion.
+
+### Phase 1 exit
+
+- public token catalog documented;
+- mobile aliases removed;
+- no raw spacing values in migrated scopes except reviewed component/optical tokens;
+- Tier 1 override fixture green;
+- no unintended geometry changes.
 
 ---
 
 ## Phase 2 — Cascade layers
 
-Declare once at the top of `style.css`:
+This is the highest-blast-radius phase.
 
-```css
-@layer base, components, platform, user;
-```
+### 2.1 Layer shared parts incrementally
 
-Assign via the existing imports — no part file needs editing:
+Move one part file per commit into its target layer. After each move:
 
-```css
-@import "./parts/vars.css";                    /* unlayered: tokens must win everywhere */
-@import "./parts/base.css"      layer(base);
-@import "./parts/layout.css"    layer(components);
-/* … */
-```
+- compare computed-style snapshots for representative fixtures;
+- run shared design-system tests;
+- run affected product smoke tests;
+- shrink specificity and `!important` debt only when the new cascade makes it redundant.
 
-`mobile.css` and `electron.css` move into `layer(platform)`.
+### 2.2 Layer platform styles explicitly
 
-**Payoff:** layer order beats specificity outright, so:
+Move Electron and mobile CSS into `layer(platform)` using their actual build assembly.
+Prove with a fixture that:
 
-- the 332 `body[data-platform="mobile"]` prefixes become plain selectors — mobile wins by
-  position, not by out-specifying
-- most of the 27 `!important`s become deletable
-- `layer(user)` is a free, safe attachment point for Phase 5 skins
+- platform rules override component rules;
+- user token values override defaults;
+- trusted unlayered application rules do not exist.
 
-**Risk:** this is the highest-blast-radius change in the plan. It must land *after* Phase 0
-so the geometry spec catches regressions, and it should be one commit per sheet moved, with
-the mobile prefix-stripping as a separate follow-up commit.
+### 2.3 Audit generated and inline styles
 
-**Verify:** all five targets build; geometry spec green on desktop shell and mobile web
-(`npm run test:mobile:web`). Watch for the known trap that `npm run check` clobbers the
-`--e2e` bundle.
+Inventory `document.createElement("style")`, CSS text/rule injection, and direct `.style`
+writes.
+
+- Put trusted generated rules, including collector-color rules, in an appropriate named
+  layer.
+- Keep direct styles only for measured geometry, transient interaction state, or public
+  custom-property values.
+- Migrate static colors, padding, cursor, display, and other component styling into classes,
+  attributes, or tokens.
+- Add a structure/debt check so new static inline styling is reviewed.
+
+### 2.4 Remove specificity prefixes separately
+
+Strip `body[data-platform="mobile"]` prefixes only after the equivalent platform-layer rule
+is measured and tested. Prefix removal is not part of the same commit that first moves a
+sheet into a layer.
+
+### 2.5 Audit `!important`
+
+Delete component-specific specificity overrides. Retain only named, documented utility
+exceptions where the behavior genuinely requires priority, such as reduced motion,
+canonical hidden behavior, or visually-hidden accessibility utilities.
+
+### Phase 2 exit
+
+- all trusted stylesheet and generated rules are layered;
+- remaining inline styles are limited to reviewed runtime geometry/state and custom
+  properties;
+- no unlayered rule accidentally outranks user tokens;
+- mobile prefixes remain only where they express platform identity, not specificity;
+- component-specific `!important` debt is zero;
+- documented utility exceptions have direct tests;
+- extension, Electron, and mobile-web gates are green.
 
 ---
 
-## Phase 3 — Primitives
+## Phase 3 — Semantic primitives
 
-### 3.1 Button
+### 3.1 Button migration
 
-One primitive. `<button>` only — convert the 5 `<div class="btn">` (fixes the keyboard
-accessibility defect at the same time), and retire `icon-btn`.
+Land the native button primitive and migrate one component family at a time:
 
-```css
-button, .btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--sp-1);
-  min-block-size: var(--touch);       /* platform layer relaxes on desktop */
-  padding: var(--sp-1) var(--sp-2);
-  border: var(--bw) solid var(--border-high-color);
-  border-radius: var(--radius-sm);
-  background: var(--btn-bg-color);
-  font: inherit;
-  cursor: pointer;
-}
-```
+1. search/reload/collapse controls;
+2. sidebar panel controls;
+3. settings actions, including `<input type="button">`;
+4. reader/TTS controls;
+5. dynamically built story and platform controls.
 
-Then delete `.bar_btn img { margin-bottom: -1px }`, `.bar .collapsebutton { margin-left:
--17px }` and `#menu_btn { margin-left: -13px }`. Centring makes them unnecessary; the
-stylelint negative-margin rule stops them coming back.
+Update event bindings and selectors with each family. Preserve stable `data-testid` hooks.
+Add accessible names and keyboard coverage before deleting compatibility styles.
 
-**Critical: remove the alternatives.** A primitive only works if hand-rolling is harder than
-using it. Leaving `.btn`, `<button>` and a third variant all valid guarantees an agent picks
-one at random — that is exactly how the demo bug happened.
+Delete `.btn` and `icon-btn` only after repository search proves zero callers.
 
-### 3.2 Icon
+### 3.2 Layout primitives
 
-```css
-.icon {
-  display: inline-block;
-  inline-size: var(--icon-size);      /* NO fallback — see below */
-  block-size: var(--icon-size);
-  background: currentColor;
-  -webkit-mask: var(--icon) center / contain no-repeat;
-  mask: var(--icon) center / contain no-repeat;
-  flex: none;
-}
-.icon-chrome { --icon-size: var(--icon-md); }      /* fixed box in toolbars/menus */
-.icon-inline { --icon-size: 1em; vertical-align: -0.125em; }  /* runs with text */
-```
+Introduce primitives from repeated proven patterns. Migrate settings in bounded component
+families rather than treating the entire large stylesheet as one change.
 
-**No fallback on `--icon-size` is deliberate.** `var(--icon-size, 1em)` fails silently and
-plausibly — it produced the 19%-small bug. With no fallback an unsized icon renders 0×0 and
-is instantly obvious, and the Phase 0 assertion `width !== 0` catches it in CI.
+Keep component geometry in component CSS. A `.row` should not encode story-, settings-, or
+platform-specific offsets.
 
-The two variant classes exist because the correct answer genuinely differs: chrome buttons
-want a fixed box that does not shrink with a 13px button font; icons in running text want
-`1em` and a baseline correction. `vertical-align` is only ever correct for the inline case —
-it is ignored inside a flex container, which is what chrome buttons are.
+### 3.3 Contract lint
 
-### 3.3 Layout primitives
+Once migration is complete:
 
-Extract into a new `parts/primitives.css`: `.row` (inline-flex, centred, gap),
-`.stack` (column, gap), `.cluster` (wrap + gap), `.field` (label/control pair). Migrate
-`settings.css` onto them — that is where 2,340 of the lines and most of the misalignment
-live.
+- `.button` is valid only on `<button>`;
+- icon-only `.button` requires an accessible name;
+- prohibited legacy classes fail structure checks;
+- new clickable noninteractive markup fails semantic checks.
+
+### Phase 3 exit
+
+- no clickable `.btn`, `.sub`, or `icon-btn` alternatives remain;
+- no `<input type="button">` remains unless explicitly justified;
+- migrated controls pass keyboard, focus, and platform geometry tests;
+- button/icon nudges are removed rather than allowlisted.
 
 ---
 
 ## Phase 4 — Icon system
 
-### 4.1 Convert consumption to mask
+### 4.1 Convert consumption to masks
 
-Every `<img src="imgs/*.svg">` becomes `<span class="icon icon-chrome" style="--icon: …">`,
-or a per-icon class in CSS to avoid inline styles. Call sites: `shell.html` plus the TS
-builders in `ui-web/src` and `apps/*/src`.
+Replace UI glyph `<img>` elements with the icon primitive and per-icon classes. Keep actual
+content images and branded logos as `<img>`.
 
-Deletes `vars.css:67` and `base.css:75` outright, and makes active/hover states a single
-`color:` declaration.
+Call sites include:
 
-**The 19 on-grid SVG files need no edits.** Under a mask the existing `fill="currentColor"`
-renders black into the alpha channel, which is exactly what is wanted.
+- `shell.html`;
+- builders in `packages/ui-web/src`;
+- mobile/electron-specific builders;
+- reader/presenter surfaces if in scope.
 
-### 4.2 Normalise optical size
+Delete icon color filters as their callers migrate. Active and hover states become `color`
+changes.
 
-Rescale the five outliers by wrapping existing paths in a `<g transform>` that scales ink
-about the centre to a target fill (~86%). No path is redrawn — one line per file, fully
-reversible. Candidates are already generated, in `docs/tmp-icons/candidates/`; review them
-against `docs/tmp-icons/icon-comparison.html` §6.
+### 4.2 Normalize gross geometry
 
-**Owner decision required:** the target fill is a taste knob. 86% sits just above the set's
-lower cluster (p25 is 84%) rather than at the 100% mode, because a sparse mark at full
-extent reads heavier than a dense one. Review the rendered candidates before committing —
-see `docs/tmp-icons/`.
+Move all UI glyphs to the 16×16 grid. Rescale clear extent outliers around the center without
+redrawing paths where possible. Verify that mask rendering does not clip.
 
-### 4.3 story.svg
+### 4.3 Review optical balance
 
-Redraw on the 16 grid at `stroke-width="1.5"`. Candidate exists at
-`docs/tmp-icons/story-candidate.svg`; proportions are the owner's call.
+Use `docs/tmp-icons/icon-comparison.html` and generated candidates for the owner decision.
+The proposed ~86% extent is a starting point, not a mechanical definition of optical
+equality. Review at actual 12, 16, and 24px rendered sizes in both themes.
 
-### 4.4 Lock it in
+Redraw `story.svg` on the 16 grid only after that review.
 
-Phase 0.2's icon test now enforces grid and optical consistency for every icon added later.
+### Phase 4 exit
+
+- UI glyphs use masks/current color;
+- no icon color-filter hacks;
+- grid/nonempty/clipping/file-size tests green;
+- comparison sheet approved for both themes and supported sizes;
+- content images and logos remain semantically correct.
 
 ---
 
-## Phase 5 — User theming
+## Phase 5 — Theming architecture
 
-Phases 1–3 are the groundwork. This phase is small once they land.
+### 5.1 Decide scope
 
-### 5.1 Two-tier contract
+Explicitly choose and document which surfaces are themed:
 
-- **Tier 1 — tokens.** Users override custom properties only. Cannot break layout, cannot
-  desync from a refactor, needs no knowledge of internal class names. This is the promoted
-  path and the reason Phase 1 is prerequisite: without size tokens a skin can only recolour.
-- **Tier 2 — rules.** Arbitrary CSS in `@layer user`, explicitly "may break on update".
+- shell;
+- reader document;
+- outline presenter;
+- other presenter iframes;
+- Electron browser/error surfaces.
 
-### 5.2 Stable selector surface
+Each included separate document needs its own token stylesheet and application/injection
+path. Excluded surfaces are stated as product limitations.
 
-Add `data-part` attributes at the ~20 elements that matter (`story`, `story-title`,
-`toolbar-button`, `icon`, `settings-row`, …). Document those as the contract; declare class
-names internal. This lets us keep refactoring CSS without breaking every skin, and it is the
-same attribute surface that makes design-tool markup transfer cleanly (Phase 6).
+### 5.2 Define the public token and selector API
 
-### 5.3 Injection
+Document:
 
-One function in `ui-web`, one `<style>` node kept last in `<head>`:
+- supported color tokens;
+- supported density/type tokens and accepted ranges;
+- stable `data-part` selectors;
+- versioning/deprecation policy;
+- unsupported internal class names.
 
-```ts
-export function applyUserStyles(css: string): void {
-  let el = document.getElementById("user-skin") as HTMLStyleElement | null
-  if (!el) {
-    el = document.createElement("style")
-    el.id = "user-skin"
-    document.head.append(el)
-  }
-  el.textContent = `@layer user {\n${css}\n}`
-}
-```
+Add `data-part` only where a real public styling use case exists. First-party skins should
+exercise the same public surface.
 
-Wrapping at injection time means skin authors never write the boilerplate, and a skin
-*cannot* escape into a higher layer. Fed from a `customCss` settings key through the
-existing store (syncs via Pouch like every other setting), applied on input with a debounce
-for live preview.
+### 5.3 Extend settings and persistence deliberately
 
-### 5.4 CSP reality
+Add typed APIs for theme mode and custom theme data across:
 
-`shell.html` declares `style-src 'self' 'unsafe-inline'`, so an injected `<style>` works.
-Neither extension manifest sets `content_security_policy`, so MV3's default constrains only
-scripts and objects.
+- core settings types;
+- `OnceClient`;
+- settings persistence;
+- settings-change events;
+- platform theme adapters;
+- UI restore/save/subscription behavior.
 
-**One real constraint:** `default-src 'self'` means `font-src` falls back to `'self'` —
-**user `@font-face` pointing at an external URL fails silently.** Background images from
-`https:` do work (`img-src 'self' data: https:`).
+Do not cast `"custom"` to the existing `ThemeName` union.
 
-**Decision: keep `font-src` closed.** Widening it lets any shared skin phone home on load.
-Offer `data:` URIs or bundled faces, and document it prominently — it will otherwise be the
-top support report.
+Decide whether custom theme data syncs through Pouch. Keep the emergency disable flag local
+to each installation so a broken synced skin cannot disable recovery everywhere.
 
-### 5.5 Guardrails
+The settings UI requires explicit loading, ready, validation-error, save-error, reset, and
+preview states.
 
-- **Safe mode.** A skin can `display: none` the settings button and lock the user out of the
-  UI that would fix it. Needs a recovery path independent of the skinned UI — a keyboard
-  chord, or auto-disable after a launch that failed to reach interactive.
-- **Scope decision required.** The reader is a separate document
-  (`readerDocument.html` + its own CSS, copied as `reader.css`) and presenters render in
-  iframes. Either add a second injection site or state explicitly that skins cover the shell
-  only. Do not leave this implicit.
-- **Ship 2–3 first-party skins** built on the same public token/`data-part` surface. The
-  only reliable way to discover what the contract is missing.
+### 5.4 Tier 1 supported themes
+
+Store a structured token map, not a CSS string. Validate:
+
+- token name is public;
+- color syntax is allowed;
+- numeric values fall within documented ranges;
+- URL-bearing values are rejected;
+- unknown tokens are preserved or rejected according to a documented forward-compatibility
+  policy.
+
+Render the validated map into `layer(user)`. Add tests proving overrides work on same-element
+defaults and across platform layers.
+
+Ship two or three first-party themes, including at least one density variation.
+
+### 5.5 Tier 2 advanced CSS
+
+Choose one model:
+
+**Restricted CSS**
+
+- parse with a real CSS parser;
+- reject `@import`, external `url()`, `@font-face`, unapproved at-rules, and disallowed
+  selectors/properties;
+- reconstruct the accepted AST inside `layer(user)`;
+- reject malformed input rather than interpolating it.
+
+**Unrestricted CSS**
+
+- state that layers are organizational, not containment;
+- warn that CSS can hide UI, break layout, and request remote resources permitted by CSP;
+- do not claim privacy isolation;
+- retain a local, out-of-band recovery mechanism.
+
+Do not interpolate an arbitrary string into `@layer user { ${css} }` and describe it as
+unable to escape.
+
+### 5.6 Recovery
+
+Provide all of:
+
+- live preview that is not persisted until explicit save;
+- automatic rollback of an unconfirmed preview;
+- a local “disable custom theme on next start” flag;
+- a keyboard recovery chord handled independently of styled controls;
+- a startup query/flag or platform menu recovery path where practical;
+- last-known-good theme data.
+
+“Reached interactive” is not sufficient health detection: a skin can leave the app running
+while hiding the settings entry point.
+
+### Phase 5 exit
+
+- typed settings path with no unsafe theme cast;
+- Tier 1 themes validated, synced according to the chosen policy, and tested;
+- Tier 2 security/privacy behavior accurately documented and tested;
+- hostile theme cannot permanently lock out recovery;
+- every in-scope document receives the intended theme;
+- first-party themes use only public tokens and `data-part` hooks.
 
 ---
 
 ## Phase 6 — Design handoff rules
 
-New `docs/DESIGN_HANDOFF.md`, pointed at by any design-generation step.
-
-Motivation, from integrating the swipe-actions design: the prototype carried **221** inline
-`style="` attributes, **~85** hardcoded hex literals and **zero** `var(--…)` — despite the
-values proving the tool had read `vars.css` (`#cfe9e4`/`#1f6b60` are exactly
-`--sample-badge-bg`/`--sample-badge-ink`). Every one of those had to be reverse-looked-up by
-hand, and the light-only output could not be reviewed in dark mode at all.
+Add `docs/DESIGN_HANDOFF.md` and point design-generation work at it.
 
 Rules:
 
-1. **Reference tokens by name; never inline a resolved value.** If a colour or size has no
-   token, define one with `light-dark()` and say so.
-2. **Classes in one `<style>` block, not inline style attributes.**
-3. **One responsive artifact using container queries**, not one file per breakpoint. The
-   swipe design shipped two 27KB prototypes that had to be merged into one component plus a
-   `@container` block by hand.
-4. **Use `data-part` hooks** (Phase 5.2) so markup transfers near-verbatim.
-5. **Keep the two sections that already work**: "details that caused bugs in the prototype"
-   and a testable "definition of done".
+1. Reference tokens by name; never inline a resolved value.
+2. If a value has no token, propose a semantic token and explain its scope.
+3. Put classes in one stylesheet/style block, not hundreds of inline attributes.
+4. Produce one responsive artifact using container queries where the component owns the
+   responsive boundary.
+5. Use documented `data-part` hooks.
+6. Show all supported themes and representative density settings.
+7. Include “details that caused bugs” and a testable definition of done.
+8. Identify which checks are mechanical and which require visual approval.
+
+### Phase 6 exit
+
+- handoff document references the actual token catalog and primitives;
+- a sample generated artifact passes token/inline-style checks;
+- light/dark and narrow/wide review states are present;
+- its definition of done maps to repository test commands.
+
+---
+
+## Verification commands and release gates
+
+Add stable scripts rather than requiring contributors to remember raw Playwright commands:
+
+```text
+npm run lint:css
+npm run test:design-system
+npm run test:design-system:electron
+npm run test:design-system:mobile
+```
+
+Existing required gates remain:
+
+```text
+npm run check
+npm run test:extensions
+npm run test:electron:e2e
+npm run test:mobile:web
+```
+
+Native Android/iOS visual and interaction gates are required for changes to safe-area,
+touch, keyboard, or native WebView behavior. Web/unit checks do not count as native release
+delivery.
+
+Because `npm run check` can replace the mobile `--e2e` bundle, test scripts must rebuild or
+verify their expected bundle stamp before running.
 
 ---
 
 ## Sequencing
 
-| Phase | Depends on | Risk | Notes |
-|---|---|---|---|
-| 0 Verification | — | low | Additive only. **Must be first.** |
-| 1 Tokens | 0 | low | Mechanical, incremental, lint-gated |
-| 2 Layers | 0 | **high** | One sheet per commit; all five targets must build |
-| 3 Primitives | 1, 2 | medium | Deleting alternatives is the point |
-| 4 Icons | 0.2, 3 | low | Two owner taste decisions |
-| 5 Theming | 1, 2, 3 | low | Small once groundwork lands |
-| 6 Handoff | 1 | low | Doc only; can land any time after tokens |
+| Phase | Depends on | Risk | Primary result |
+|---|---|---:|---|
+| 0 Baselines/verification | — | low | Trusted, platform-aware gates |
+| 1 Tokens without visual change | 0 | low | Shared vocabulary and override proof |
+| 2 Cascade layers | 0, 1 | high | Predictable trusted cascade |
+| 3 Semantic primitives | 1, 2 | medium | One control/layout contract |
+| 4 Icon system | 0, 3 | medium | Themeable, verified glyphs |
+| 5 Theming architecture | 1, 2, 3 | high | Supported tokens, explicit advanced-CSS risk |
+| 6 Design handoff | 1, 3 | low | Transferable design artifacts |
 
-Phases 0 and 1 are worth doing even if nothing else in this plan ever ships.
+Phases 0 and 1 remain valuable independently. Phase 5 is not “small”: persistence, platform
+adapters, validation, privacy, and recovery make it a product architecture phase.
 
 ## Definition of done
 
-- `npm run check` green with stylelint at **error** level for raw-px, flex-without-
-  `align-items`, and negative margins
-- geometry spec green on desktop shell and mobile web
-- icon test enforcing grid and optical consistency
-- zero `!important` in `mobile.css`; zero `body[data-platform="mobile"]` prefixes used purely
-  for specificity
-- zero `filter:` colour hacks on icons
-- a token-only skin can change density and colour without touching a class name
-- a deliberately hostile skin cannot lock the user out
+- CSS debt baseline is zero in migrated scopes and cannot regress.
+- Primitive-specific lint is at error level.
+- Shared, Electron, mobile-web, and applicable native gates are green.
+- Native buttons and links express interaction semantics; legacy button alternatives are
+  removed.
+- Icon integrity is mechanically tested and optical review is explicitly approved.
+- Trusted stylesheet and generated CSS is fully layered; reviewed runtime inline styles are
+  narrowly scoped; user tokens override defaults.
+- Component-specific specificity prefixes and `!important` hacks are removed.
+- Required accessibility/reduced-motion utilities are documented and tested exceptions.
+- No icon color-filter hacks remain.
+- A first-party token theme changes color and density without internal class names.
+- Advanced CSS is either parsed/restricted or accurately labelled unrestricted.
+- A hostile or broken theme cannot permanently lock the user out.
+- Reader/presenter/theming scope is explicit rather than accidental.
 
-## Open decisions for the owner
+## Owner decisions
 
-1. Icon optical target fill (86% proposed) and the `story.svg` redraw proportions.
-2. Which of the odd px values (11, 13, 17, 19, 22, 26, 34, 38) are intentional optical
-   corrections that must not snap to the scale.
-3. Whether user skins cover the reader document and presenter iframes, or the shell only.
-4. Whether to keep `font-src 'self'` (recommended) and document the limitation, or widen it
-   for skin webfonts and accept the privacy leak.
+1. Which surfaces are in the theming contract: shell, reader, presenters, and Electron
+   auxiliary surfaces.
+2. Whether Tier 2 CSS is restricted through parsing or intentionally unrestricted.
+3. Whether custom theme data syncs; the recovery-disable flag should remain local.
+4. Allowed density ranges for Tier 1 tokens.
+5. Icon optical target and `story.svg` redraw after reviewing actual-size candidates.
+6. Which odd geometry values are intentional component/optical contracts.
+7. Whether to add axe-core to the design-system E2E harness.
