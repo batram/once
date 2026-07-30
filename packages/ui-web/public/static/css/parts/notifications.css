@@ -1,3 +1,8 @@
+.clipboard_textarea {
+  position: fixed;
+  opacity: 0;
+}
+
 .disabled {
   cursor: not-allowed;
   opacity: 0.5;

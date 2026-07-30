@@ -191,7 +191,6 @@ function position(
     0,
     available - EDGE_GAP_PX * 2
   )}px`
-  panel.style.overflowY = "auto"
   const height = panel.offsetHeight
   const width = panel.offsetWidth
 

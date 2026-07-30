@@ -63,6 +63,55 @@ test("the user layer overrides a default token on the same element", async ({ pa
   )).toBe("19px")
 })
 
+test("trusted stylesheets have no unlayered application rules", async ({ page }) => {
+  await page.goto(`${baseURL}/static/sidepanel.html?target=mobile`)
+  const violations = await page.evaluate(() => {
+    const failures = []
+    for (const sheet of document.styleSheets) {
+      for (const rule of sheet.cssRules) {
+        if (rule.constructor.name === "CSSImportRule" && !rule.layerName) {
+          failures.push(`unlayered import ${rule.href}`)
+        } else if (rule.constructor.name === "CSSStyleRule") {
+          failures.push(`unlayered rule ${rule.selectorText}`)
+        }
+      }
+    }
+    return failures
+  })
+  expect(violations).toEqual([])
+})
+
+test("the platform layer overrides components without important", async ({ page }) => {
+  await page.goto(`${baseURL}/static/sidepanel.html?target=mobile`)
+  await expect(page.locator("#reading_menu_btn")).toHaveCSS("display", "flex")
+})
+
+test("documented priority utilities retain their contracts", async ({ page }) => {
+  await page.goto(`${baseURL}/static/sidepanel.html?target=mobile`)
+  const result = await page.evaluate(() => {
+    const hidden = document.createElement("div")
+    hidden.className = "input_container"
+    hidden.hidden = true
+    hidden.style.display = "block"
+    const visuallyHidden = document.createElement("span")
+    visuallyHidden.className = "visually_hidden"
+    document.body.append(hidden, visuallyHidden)
+    const hiddenStyle = getComputedStyle(hidden)
+    const visualStyle = getComputedStyle(visuallyHidden)
+    return {
+      hidden: hiddenStyle.display,
+      visual: [
+        visualStyle.position,
+        visualStyle.width,
+        visualStyle.height,
+        visualStyle.overflow
+      ]
+    }
+  })
+  expect(result.hidden).toBe("none")
+  expect(result.visual).toEqual(["absolute", "1px", "1px", "hidden"])
+})
+
 test("tokenized shared and mobile geometry retains its measured values", async ({ page }) => {
   await page.goto(`${baseURL}/static/sidepanel.html`)
   await expect(page.locator(".bar").first()).toHaveCSS("padding", "5px 15px")

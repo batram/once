@@ -1,3 +1,4 @@
+@layer base {
 :root {
   color-scheme: light dark;
   --reader-bg: rgb(246, 246, 239);
@@ -231,4 +232,5 @@ ul { margin: 5px; padding: 0 25px; }
   border: 1px solid #641d1d;
   border-radius: 2px;
   font: 600 14px/1.4 system-ui, sans-serif;
+}
 }

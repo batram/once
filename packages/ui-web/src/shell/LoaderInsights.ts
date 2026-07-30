@@ -391,8 +391,7 @@ export class LoaderInsights {
     try {
       textarea.value = text
       textarea.setAttribute("readonly", "")
-      textarea.style.position = "fixed"
-      textarea.style.opacity = "0"
+      textarea.className = "clipboard_textarea"
       document.body.append(textarea)
       textarea.select()
       return document.execCommand?.("copy") ?? false

@@ -86,8 +86,6 @@ class PickerOverlay {
 
   constructor() {
     this.host = document.createElement("once-source-picker")
-    this.host.style.cssText =
-      "all: initial; position: fixed; top: 0; left: 0; z-index: 2147483647;"
     this.shadow = this.host.attachShadow({ mode: "open" })
 
     const style = document.createElement("style")
@@ -185,7 +183,7 @@ class PickerOverlay {
     })
     this.catcher.addEventListener("mouseleave", () => {
       this.hoverTarget = null
-      this.hoverHint.style.display = "none"
+      this.hoverHint.hidden = true
       this.scheduleRender()
     })
     for (const type of ["mousedown", "mouseup", "contextmenu"]) {
@@ -210,11 +208,11 @@ class PickerOverlay {
 
   private moveHoverHint(x: number, y: number): void {
     if (!this.picking || !this.hoverTarget) {
-      this.hoverHint.style.display = "none"
+      this.hoverHint.hidden = true
       return
     }
     this.hoverHint.textContent = this.hoverSelector(this.hoverTarget)
-    this.hoverHint.style.display = "block"
+    this.hoverHint.hidden = false
     this.hoverHint.style.left = `${Math.min(x + 14, window.innerWidth - 220)}px`
     this.hoverHint.style.top = `${Math.min(y + 18, window.innerHeight - 30)}px`
   }
@@ -231,8 +229,8 @@ class PickerOverlay {
     this.picking = field
     if (field) this.focusField = field
     this.hoverTarget = null
-    this.hoverHint.style.display = "none"
-    this.catcher.style.display = field ? "block" : "none"
+    this.hoverHint.hidden = true
+    this.catcher.hidden = !field
     for (const [key, button] of this.pickButtons) {
       button.classList.toggle("picking", key === field)
       button.textContent = key === field ? "Esc" : "Pick"

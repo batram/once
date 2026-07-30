@@ -8,7 +8,7 @@ export function addCollectorColorStyles(): void {
     const bracketedType = `[${parser.options.type}]`
     const style = document.createElement("style")
     style.classList.add("type_style")
-    style.textContent = `
+    style.textContent = `@layer components {
       .info[data-type='${bracketedType}'] .type {
         background-color: ${colors[0]};
         border-color: ${colors[1]};
@@ -19,7 +19,7 @@ export function addCollectorColorStyles(): void {
         background-color: ${colors[0]};
         color: ${colors[1]};
       }
-    `
+    }`
     document.head.append(style)
   }
 }

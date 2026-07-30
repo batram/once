@@ -1,3 +1,4 @@
+@layer platform {
 body {
   min-width: 0;
 }
@@ -31,7 +32,7 @@ body.electron-platform-darwin #titlebar {
 body.window-is-receiving-drop #titlebar,
 body.window-is-receiving-drop #tab_dropzone,
 body.window-is-receiving-drop {
-  app-region: no-drag !important;
+  app-region: no-drag;
 }
 
 body #titlebar-logo {
@@ -50,6 +51,7 @@ body #titlebar-text {
 #left_panel {
   min-width: 280px;
   display: flex;
+  flex: 0 1 var(--electron-left-panel-basis, 42%);
   flex-direction: column;
 }
 
@@ -64,6 +66,7 @@ body #titlebar-text {
 #right_panel {
   min-width: 320px;
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   background: var(--main-bg-color);
   overflow: hidden;
@@ -356,7 +359,7 @@ body #titlebar-text {
 }
 
 .electron-left-collapsed #left_panel {
-  flex: 0 0 30px !important;
+  flex: 0 0 30px;
   min-width: 30px;
 }
 
@@ -431,5 +434,6 @@ body #titlebar-text {
 /* Video presentation is not yet implemented for Electron. */
 body .video_btn,
 body #video_webview_btn {
-  display: none !important;
+  display: none;
+}
 }

@@ -1,12 +1,12 @@
 @layer reset, tokens, base, components, platform, user;
 
 @import "./parts/vars.css" layer(tokens);
-@import "./parts/base.css";
-@import "./parts/layout.css";
-@import "./parts/animations.css";
-@import "./parts/dialogs.css";
-@import "./parts/stories.css";
-@import "./parts/menu.css";
-@import "./parts/settings.css";
-@import "./parts/search.css";
-@import "./parts/notifications.css";
+@import "./parts/base.css" layer(base);
+@import "./parts/layout.css" layer(components);
+@import "./parts/animations.css" layer(components);
+@import "./parts/dialogs.css" layer(components);
+@import "./parts/stories.css" layer(components);
+@import "./parts/menu.css" layer(components);
+@import "./parts/settings.css" layer(components);
+@import "./parts/search.css" layer(components);
+@import "./parts/notifications.css" layer(components);

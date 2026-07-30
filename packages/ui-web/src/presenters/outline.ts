@@ -25,7 +25,7 @@ export function story_elem_button(story: Story): HTMLElement {
     "imgs/article.svg"
   )
   outline_btn.dataset.testid = "story-reader"
-  outline_btn.style.order = "2"
+  outline_btn.classList.add("outline_button")
 
   if (story.has_content()) {
     const img = requireElement<HTMLImageElement>("img", outline_btn)

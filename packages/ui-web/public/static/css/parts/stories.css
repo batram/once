@@ -370,6 +370,12 @@
   opacity: 0.8;
 }
 
+.tag--icon {
+  --stories-tag-icon-padding-left: 17px;
+  padding-left: var(--stories-tag-icon-padding-left);
+  background: var(--tag-icon) left top / var(--tag-icon-size, 16px) no-repeat;
+}
+
 .story .type {
   margin: 0;
   display: inline-block;
@@ -384,6 +390,10 @@
 .story a {
   text-decoration-line: none;
   color: var(--text-color);
+}
+
+.story-link-hidden {
+  display: none;
 }
 
 .story .btn {
@@ -428,6 +438,11 @@
   --stories-filter_btn-margin: 0 1px;
   margin: var(--stories-filter_btn-margin);
   order: 1;
+  cursor: pointer;
+}
+
+.filter_btn--active {
+  border-color: red;
 }
 
 .star_btn {

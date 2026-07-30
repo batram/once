@@ -1,4 +1,5 @@
-body[data-platform="mobile"] {
+@layer platform {
+body {
   --m-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --m-mono: "Courier New", ui-monospace, Menlo, monospace;
   /* flat chrome: thin ink borders, no shadows */
@@ -34,16 +35,16 @@ body[data-platform="mobile"] {
    gutter, appear only while content is moving, and then quietly fade away.
    This also neutralises the permanently painted desktop scrollbar from
    base.css inside the mobile WebView. */
-body[data-platform="mobile"] * {
+* {
   scrollbar-width: none;
   scrollbar-gutter: auto;
 }
 
-body[data-platform="mobile"] *::-webkit-scrollbar {
+*::-webkit-scrollbar {
   display: none;
 }
 
-body[data-platform="mobile"] .mobile_scroll_indicator {
+.mobile_scroll_indicator {
   position: fixed;
   z-index: 10000;
   width: 3px;
@@ -58,26 +59,26 @@ body[data-platform="mobile"] .mobile_scroll_indicator {
 
 /* ---------- Shell layout ---------- */
 
-body[data-platform="mobile"] #window_content,
-body[data-platform="mobile"] #left_panel,
-body[data-platform="mobile"] #left_panel_content,
-body[data-platform="mobile"] #left_main {
+#window_content,
+#left_panel,
+#left_panel_content,
+#left_main {
   min-width: 0;
   width: 100%;
 }
 
-body[data-platform="mobile"] #left_panel_content {
+#left_panel_content {
   position: relative;
   display: block;
 }
 
-body[data-platform="mobile"] #left_main {
+#left_main {
   height: 100%;
   box-sizing: border-box;
   padding-bottom: var(--m-tabbar-h);
 }
 
-body[data-platform="mobile"] #stories {
+#stories {
   box-sizing: border-box;
   /* One physical boundary pixel keeps the last row above the tab-bar border
      without adding a visible content gutter. */
@@ -85,7 +86,7 @@ body[data-platform="mobile"] #stories {
   padding-bottom: var(--mobile-stories-padding-bottom);
 }
 
-body[data-platform="mobile"] #mobile_filter_chips {
+#mobile_filter_chips {
   display: flex;
   flex: 0 0 auto;
   gap: var(--sp-2);
@@ -94,11 +95,11 @@ body[data-platform="mobile"] #mobile_filter_chips {
   scrollbar-width: none;
 }
 
-body[data-platform="mobile"] #mobile_filter_chips::-webkit-scrollbar {
+#mobile_filter_chips::-webkit-scrollbar {
   display: none;
 }
 
-body[data-platform="mobile"] #mobile_filter_chips .mobile_filter_chip {
+#mobile_filter_chips .mobile_filter_chip {
   flex: 0 0 auto;
   min-height: 24px;
   margin: 0;
@@ -107,31 +108,31 @@ body[data-platform="mobile"] #mobile_filter_chips .mobile_filter_chip {
   white-space: nowrap;
 }
 
-body[data-platform="mobile"] #menu #types,
-body[data-platform="mobile"] #menu #groups,
-body[data-platform="mobile"] .collapsebutton,
-body[data-platform="mobile"] #right_panel,
-body[data-platform="mobile"] #sep_slider {
-  display: none !important;
+#menu #types,
+#menu #groups,
+.collapsebutton,
+#right_panel,
+#sep_slider {
+  display: none;
 }
 
 /* ---------- Form control baseline ---------- */
 
-body[data-platform="mobile"] button,
-body[data-platform="mobile"] input[type="button"],
-body[data-platform="mobile"] input[type="submit"],
-body[data-platform="mobile"] select {
+button,
+input[type="button"],
+input[type="submit"],
+select {
   min-height: var(--touch);
 }
 
-body[data-platform="mobile"] textarea,
-body[data-platform="mobile"] input {
+textarea,
+input {
   font-size: var(--fs-title);
   border: var(--m-bw) solid var(--m-ink);
   border-radius: var(--m-radius);
 }
 
-body[data-platform="mobile"] select {
+select {
   appearance: none;
   padding: 0 var(--sp-5) 0 var(--sp-3);
   background: var(--input-bg-color);
@@ -148,9 +149,9 @@ body[data-platform="mobile"] select {
 }
 
 /* action buttons — no `display` here: must not defeat [hidden] */
-body[data-platform="mobile"] button,
-body[data-platform="mobile"] input[type="button"],
-body[data-platform="mobile"] input[type="submit"] {
+button,
+input[type="button"],
+input[type="submit"] {
   padding: 0 var(--sp-4);
   border: var(--m-bw) solid var(--m-ink);
   border-radius: var(--m-radius);
@@ -160,15 +161,15 @@ body[data-platform="mobile"] input[type="submit"] {
   margin: var(--sp-2) var(--sp-2) var(--sp-1) 0;
 }
 
-body[data-platform="mobile"] button:active,
-body[data-platform="mobile"] input[type="button"]:active,
-body[data-platform="mobile"] input[type="submit"]:active {
+button:active,
+input[type="button"]:active,
+input[type="submit"]:active {
   background: var(--m-pressed-bg);
 }
 
 /* ---------- Story rows ---------- */
 
-body[data-platform="mobile"] .story {
+.story {
   padding: var(--sp-3) var(--sp-4);
   user-select: none;
   -webkit-user-select: none;
@@ -180,7 +181,7 @@ body[data-platform="mobile"] .story {
 
 /* basis 0, not 100% or auto: the row wraps, so any basis wider than the free
    space pushes the ⋮ button onto a line of its own instead of beside the text */
-body[data-platform="mobile"] .story .data {
+.story .data {
   flex: 1 1 0;
   min-width: 0;
   font-size: var(--fs-meta);
@@ -188,7 +189,7 @@ body[data-platform="mobile"] .story .data {
 
 /* Slot 1+2: (domain) is pulled onto its own line above the title. Reordering
    here rather than in story_html() keeps the Electron/extension row intact. */
-body[data-platform="mobile"] .story .title_line {
+.story .title_line {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -196,7 +197,7 @@ body[data-platform="mobile"] .story .title_line {
   column-gap: var(--sp-1);
 }
 
-body[data-platform="mobile"] .story .hostname {
+.story .hostname {
   order: -1;
   flex: 0 1 100%;
   max-width: 100%;
@@ -207,21 +208,21 @@ body[data-platform="mobile"] .story .hostname {
   margin-left: var(--mobile-story-hostname-margin-left);
 }
 
-body[data-platform="mobile"] .story .title {
+.story .title {
   flex: 1 1 100%;
   font-size: var(--fs-title);
   line-height: 1.3;
 }
 
-body[data-platform="mobile"] .story .hostname,
-body[data-platform="mobile"] .story .og_href,
-body[data-platform="mobile"] .story .comment_url {
+.story .hostname,
+.story .og_href,
+.story .comment_url {
   font-size: var(--fs-meta);
   font-family: var(--m-mono);
 }
 
 /* Slot 3: type badge, [comments], time, star. Must wrap, or slot 4 collides. */
-body[data-platform="mobile"] .story .info {
+.story .info {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -232,7 +233,7 @@ body[data-platform="mobile"] .story .info {
 
 /* Without both declarations "36 mins / ago" splits across lines and overlaps
    the tags — stories.css gives .time a 65px min-width that must not win here. */
-body[data-platform="mobile"] .info .time {
+.info .time {
   flex: 0 0 auto;
   min-width: 0;
   white-space: nowrap;
@@ -241,7 +242,7 @@ body[data-platform="mobile"] .info .time {
 
 /* Bookmark indicator: the real toggle lives in the row menu, this is a glyph.
    Only the first substory carries it — the flag is per story, not per source. */
-body[data-platform="mobile"] .story.stared .substories .info:first-child::after {
+.story.stared .substories .info:first-child::after {
   content: "";
   flex: 0 0 auto;
   width: 12px;
@@ -256,7 +257,7 @@ body[data-platform="mobile"] .story.stared .substories .info:first-child::after 
 
 /* Slot 4: tags always own their line, and reserve it even when empty so rows
    without tags stay the same height as rows with them. */
-body[data-platform="mobile"] .story .tags_container {
+.story .tags_container {
   order: 1;
   flex: 1 1 100%;
   box-sizing: border-box;
@@ -271,13 +272,13 @@ body[data-platform="mobile"] .story .tags_container {
 }
 
 /* actions live in the ⋮ menu instead */
-body[data-platform="mobile"] .story .button_group {
+.story .button_group {
   display: none;
 }
 
 /* ---------- Row ⋮ button ---------- */
 
-body[data-platform="mobile"] .story .menu_btn {
+.story .menu_btn {
   display: grid;
   place-items: center;
   position: absolute;
@@ -298,26 +299,26 @@ body[data-platform="mobile"] .story .menu_btn {
   line-height: 1;
 }
 
-body[data-platform="mobile"] .stories_container .story .menu_btn {
+.stories_container .story .menu_btn {
   right: 12px;
   bottom: 15px;
 }
 
-body[data-platform="mobile"] .story .menu_btn:active,
-body[data-platform="mobile"] .story.menu_open .menu_btn {
+.story .menu_btn:active,
+.story.menu_open .menu_btn {
   background: var(--m-accent-bg);
   color: var(--text-high-color);
 }
 
 /* ---------- Long-press progress ---------- */
 
-body[data-platform="mobile"] .story {
+.story {
   position: relative;
 }
 
 /* Tells the user a long-press is building before the menu appears. Not gated
    on [animated] — it is feedback for a gesture, not decoration. */
-body[data-platform="mobile"] .story.press_building::after {
+.story.press_building::after {
   content: "";
   position: absolute;
   left: 0;
@@ -341,23 +342,23 @@ body[data-platform="mobile"] .story.press_building::after {
 
 /* ---------- Anchored story menu ---------- */
 
-body[data-platform="mobile"] .once-anchored-menu {
+.once-anchored-menu {
   position: fixed;
   z-index: 900;
   inset: 0;
 }
 
-body[data-platform="mobile"] .once-anchored-menu[hidden] {
+.once-anchored-menu[hidden] {
   display: none;
 }
 
-body[data-platform="mobile"] .once-anchored-menu-backdrop {
+.once-anchored-menu-backdrop {
   position: absolute;
   inset: 0;
   background: rgb(0 0 0 / 25%);
 }
 
-body[data-platform="mobile"] .once-anchored-menu-panel {
+.once-anchored-menu-panel {
   position: absolute;
   min-width: 220px;
   max-width: min(320px, calc(100vw - 16px));
@@ -368,7 +369,7 @@ body[data-platform="mobile"] .once-anchored-menu-panel {
   overflow: hidden;
 }
 
-body[data-platform="mobile"] .once-anchored-menu-item {
+.once-anchored-menu-item {
   display: block;
   width: 100%;
   min-height: var(--touch);
@@ -384,15 +385,15 @@ body[data-platform="mobile"] .once-anchored-menu-item {
   text-align: left;
 }
 
-body[data-platform="mobile"] .once-anchored-menu-item:last-child {
+.once-anchored-menu-item:last-child {
   border-bottom: 0;
 }
 
-body[data-platform="mobile"] .once-anchored-menu-item:active {
+.once-anchored-menu-item:active {
   background: var(--m-pressed-bg);
 }
 
-body[data-platform="mobile"] .once-anchored-menu-item:disabled {
+.once-anchored-menu-item:disabled {
   color: var(--text-color);
 }
 
@@ -402,13 +403,13 @@ body.once-anchored-menu-open {
 
 /* ---------- Top bar (search + reload) ---------- */
 
-body[data-platform="mobile"] #search_bar {
+#search_bar {
   align-items: center;
   padding: var(--sp-1) var(--sp-3);
   border-bottom: var(--m-bw) solid var(--m-ink);
 }
 
-body[data-platform="mobile"] #search_scope {
+#search_scope {
   flex: 0 0 auto;
   height: var(--touch);
   appearance: none;
@@ -429,7 +430,7 @@ body[data-platform="mobile"] #search_scope {
   background-repeat: no-repeat;
 }
 
-body[data-platform="mobile"] #searchfield {
+#searchfield {
   flex: 1 1 auto;
   min-width: 0;
   width: auto;
@@ -444,7 +445,7 @@ body[data-platform="mobile"] #searchfield {
 }
 
 /* overlays the field's right end; visibility toggled inline by search.ts */
-body[data-platform="mobile"] #cancel_search_btn {
+#cancel_search_btn {
   box-sizing: border-box;
   width: var(--touch);
   height: var(--touch);
@@ -456,8 +457,8 @@ body[data-platform="mobile"] #cancel_search_btn {
   box-shadow: none;
 }
 
-body[data-platform="mobile"] #reload_stories_btn,
-body[data-platform="mobile"] #reading_navigate {
+#reload_stories_btn,
+#reading_navigate {
   box-sizing: border-box;
   width: var(--touch);
   height: var(--touch);
@@ -470,16 +471,16 @@ body[data-platform="mobile"] #reading_navigate {
   color: var(--text-high-color);
 }
 
-body[data-platform="mobile"] #reload_stories_btn {
+#reload_stories_btn {
   margin: 0 0 0 var(--sp-2);
 }
 
-body[data-platform="mobile"] #reload_stories_btn:active,
-body[data-platform="mobile"] #reading_navigate:active {
+#reload_stories_btn:active,
+#reading_navigate:active {
   background: var(--m-pressed-bg);
 }
 
-body[data-platform="mobile"] #reload_stories_btn img {
+#reload_stories_btn img {
   width: 0;
   height: 0;
   margin: 0;
@@ -487,8 +488,8 @@ body[data-platform="mobile"] #reload_stories_btn img {
   margin-top: var(--sp-2);
 }
 
-body[data-platform="mobile"] #reload_stories_btn::before,
-body[data-platform="mobile"] #reading_navigate::before {
+#reload_stories_btn::before,
+#reading_navigate::before {
   content: "";
   width: 20px;
   height: 20px;
@@ -498,24 +499,24 @@ body[data-platform="mobile"] #reading_navigate::before {
   mask: url("imgs/reload.svg") center / contain no-repeat;
 }
 
-body[data-platform="mobile"] #reload_stories_btn::before {
+#reload_stories_btn::before {
   margin-top: var(--sp-3);
 }
 
-body[data-platform="mobile"] #reload_stories_btn.disabled,
-body[data-platform="mobile"] #reading_navigate:disabled {
+#reload_stories_btn.disabled,
+#reading_navigate:disabled {
   opacity: 1;
   color: var(--text-low-color);
 }
 
-body[data-platform="mobile"] #reload_stories_btn.disabled::before,
-body[data-platform="mobile"] #reading_navigate.loading::before {
+#reload_stories_btn.disabled::before,
+#reading_navigate.loading::before {
   animation: rotating 2s linear infinite;
 }
 
 /* ---------- Bottom tab bar ---------- */
 
-body[data-platform="mobile"] #menu {
+#menu {
   position: fixed;
   z-index: 20;
   right: env(safe-area-inset-right);
@@ -531,7 +532,7 @@ body[data-platform="mobile"] #menu {
   background: var(--main-bg-color);
 }
 
-body[data-platform="mobile"] #menu > .sub {
+#menu > .sub {
   display: flex;
   flex: 1 1 33.333%;
   min-width: 0;
@@ -541,28 +542,28 @@ body[data-platform="mobile"] #menu > .sub {
   opacity: 0.55;
 }
 
-body[data-platform="mobile"] #reading_menu_btn {
-  display: flex !important;
+#reading_menu_btn {
+  display: flex;
 }
 
-body[data-platform="mobile"] #stories_menu_btn {
+#stories_menu_btn {
   order: 1;
 }
 
-body[data-platform="mobile"] #reading_menu_btn {
+#reading_menu_btn {
   order: 2;
 }
 
-body[data-platform="mobile"] #settings_menu_btn {
+#settings_menu_btn {
   order: 3;
 }
 
-body[data-platform="mobile"] #settings_menu_btn.has-warnings,
-body[data-platform="mobile"] #settings_menu_btn.has-errors {
+#settings_menu_btn.has-warnings,
+#settings_menu_btn.has-errors {
   opacity: 1;
 }
 
-body[data-platform="mobile"] #menu .heading {
+#menu .heading {
   position: relative;
   flex-direction: column;
   align-items: center;
@@ -575,7 +576,7 @@ body[data-platform="mobile"] #menu .heading {
 }
 
 /* icon carries an accent pill when its tab is active */
-body[data-platform="mobile"] #menu .heading img {
+#menu .heading img {
   box-sizing: content-box;
   width: 20px;
   height: 20px;
@@ -585,35 +586,35 @@ body[data-platform="mobile"] #menu .heading img {
   border-radius: var(--mobile-menu-heading-border-radius);
 }
 
-body[data-platform="mobile"] #menu .heading p {
+#menu .heading p {
   padding-left: 0;
   font-family: var(--m-sans);
   font-size: var(--fs-label);
   font-weight: 500;
 }
 
-body[data-platform="mobile"] #left_panel[active_panel="stories"] #menu .sub[data-panel="stories"],
-body[data-platform="mobile"] #left_panel[active_panel="reading"] #menu .sub[data-panel="reading"],
-body[data-platform="mobile"]
+#left_panel[active_panel="stories"] #menu .sub[data-panel="stories"],
+#left_panel[active_panel="reading"] #menu .sub[data-panel="reading"],
+
   #left_panel[active_panel="settings"]
   #menu
   .sub[data-panel="settings"] {
   opacity: 1;
 }
 
-body[data-platform="mobile"]
+
   #left_panel[active_panel="stories"]
   #menu
   .sub[data-panel="stories"]
   .heading
   img,
-body[data-platform="mobile"]
+
   #left_panel[active_panel="reading"]
   #menu
   .sub[data-panel="reading"]
   .heading
   img,
-body[data-platform="mobile"]
+
   #left_panel[active_panel="settings"]
   #menu
   .sub[data-panel="settings"]
@@ -624,12 +625,12 @@ body[data-platform="mobile"]
 
 /* ---------- Reading tab ---------- */
 
-body[data-platform="mobile"] #reading_panel {
+#reading_panel {
   min-height: 0;
   background: var(--main-bg-color);
 }
 
-body[data-platform="mobile"] #reading_url_form {
+#reading_url_form {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
@@ -638,7 +639,7 @@ body[data-platform="mobile"] #reading_url_form {
   background: var(--main-bg-color);
 }
 
-body[data-platform="mobile"] #reading_url_group {
+#reading_url_group {
   display: flex;
   flex: 1 1 auto;
   min-width: 0;
@@ -649,7 +650,7 @@ body[data-platform="mobile"] #reading_url_group {
   background: var(--input-bg-color);
 }
 
-body[data-platform="mobile"] #reading_url {
+#reading_url {
   flex: 1 1 auto;
   width: 0;
   min-width: 0;
@@ -664,22 +665,22 @@ body[data-platform="mobile"] #reading_url {
   font-size: var(--fs-meta);
 }
 
-body[data-platform="mobile"] #reading_reader_toggle,
-body[data-platform="mobile"] #reading_navigate {
+#reading_reader_toggle,
+#reading_navigate {
   min-width: var(--touch);
   min-height: var(--touch);
   margin: 0;
   padding: 0 var(--sp-2);
 }
 
-body[data-platform="mobile"] #reading_reader_toggle {
+#reading_reader_toggle {
   border: 0;
   border-left: var(--m-bw) solid var(--m-ink);
   border-radius: 0;
   background: transparent;
 }
 
-body[data-platform="mobile"] #reading_reader_toggle img {
+#reading_reader_toggle img {
   display: block;
   width: 20px;
   height: 20px;
@@ -687,49 +688,49 @@ body[data-platform="mobile"] #reading_reader_toggle img {
   opacity: 0.75;
 }
 
-body[data-platform="mobile"] #reading_reader_toggle.active {
+#reading_reader_toggle.active {
   color: var(--highlight-color);
   background: var(--highlight-bg-color);
 }
 
-body[data-platform="mobile"] #reading_reader_toggle.active img {
+#reading_reader_toggle.active img {
   opacity: 1;
 }
 
 @media (prefers-color-scheme: dark) {
-  body[data-platform="mobile"]:not([data-theme="light"]) #reading_reader_toggle:not(.active) img {
+  body:not([data-theme="light"]) #reading_reader_toggle:not(.active) img {
     filter: contrast(0%);
   }
 }
 
-body[data-platform="mobile"][data-theme="dark"] #reading_reader_toggle:not(.active) img {
+body[data-theme="dark"] #reading_reader_toggle:not(.active) img {
   filter: contrast(0%);
 }
 
-body[data-platform="mobile"] #reading_navigate {
+#reading_navigate {
   flex: 0 0 auto;
 }
 
-body[data-platform="mobile"] #reading_navigate span {
+#reading_navigate span {
   display: none;
 }
 
-body[data-platform="mobile"] #reading_navigate.reading-go {
+#reading_navigate.reading-go {
   width: auto;
   min-width: var(--touch);
   padding: 0 var(--sp-2);
 }
 
-body[data-platform="mobile"] #reading_navigate.reading-go::before {
+#reading_navigate.reading-go::before {
   display: none;
 }
 
-body[data-platform="mobile"] #reading_navigate.reading-go span {
+#reading_navigate.reading-go span {
   display: block;
 }
 
-body[data-platform="mobile"] #reading_url_validation,
-body[data-platform="mobile"] #reading_error {
+#reading_url_validation,
+#reading_error {
   flex: 0 0 auto;
   padding: var(--sp-1) var(--sp-4) var(--sp-2);
   color: var(--error-color);
@@ -738,7 +739,7 @@ body[data-platform="mobile"] #reading_error {
   font-size: var(--fs-meta);
 }
 
-body[data-platform="mobile"] #reading_current_card {
+#reading_current_card {
   flex: 0 0 auto;
   margin-top: 0;
   touch-action: none;
@@ -747,15 +748,15 @@ body[data-platform="mobile"] #reading_current_card {
   padding: var(--mobile-reading_current_card-padding);
 }
 
-body[data-platform="mobile"] #reading_current_card.reading_story_dragging {
+#reading_current_card.reading_story_dragging {
   transition: none;
 }
 
-body[data-platform="mobile"] .reading_story_collapsed button {
-  bottom: 3px !important;
+.reading_story_collapsed button {
+  bottom: 3px;
 }
 
-body[data-platform="mobile"] #reading_current_card .reading_story_control {
+#reading_current_card .reading_story_control {
   display: grid;
   place-items: center;
   position: absolute;
@@ -777,24 +778,24 @@ body[data-platform="mobile"] #reading_current_card .reading_story_control {
   line-height: 1;
 }
 
-body[data-platform="mobile"] #reading_current_card #reading_story_meta,
-body[data-platform="mobile"] #reading_current_card .tags_container {
+#reading_current_card #reading_story_meta,
+#reading_current_card .tags_container {
   --mobile-reading_current_card-tags_container-padding-right: 68px;
   padding-right: var(--mobile-reading_current_card-tags_container-padding-right);
 }
 
-body[data-platform="mobile"] #reading_current_card.reading_story_collapsed #reading_story_time,
-body[data-platform="mobile"] #reading_current_card.reading_story_collapsed #reading_story_tags {
+#reading_current_card.reading_story_collapsed #reading_story_time,
+#reading_current_card.reading_story_collapsed #reading_story_tags {
   display: none;
 }
 
-body[data-platform="mobile"] #reading_current_card.reading_story_collapsed {
+#reading_current_card.reading_story_collapsed {
   min-height: 36px;
   padding-top: var(--sp-1);
   padding-bottom: var(--sp-1);
 }
 
-body[data-platform="mobile"] #reading_current_card.reading_story_collapsed .data {
+#reading_current_card.reading_story_collapsed .data {
   display: flex;
   align-items: center;
   gap: var(--sp-1);
@@ -805,22 +806,22 @@ body[data-platform="mobile"] #reading_current_card.reading_story_collapsed .data
   overflow: hidden;
 }
 
-body[data-platform="mobile"] #reading_current_card.reading_story_collapsed .title_line,
-body[data-platform="mobile"] #reading_current_card.reading_story_collapsed .substories,
-body[data-platform="mobile"] #reading_current_card.reading_story_collapsed #reading_story_meta {
+#reading_current_card.reading_story_collapsed .title_line,
+#reading_current_card.reading_story_collapsed .substories,
+#reading_current_card.reading_story_collapsed #reading_story_meta {
   display: contents;
 }
 
-body[data-platform="mobile"] #reading_current_card.reading_story_collapsed #reading_type {
+#reading_current_card.reading_story_collapsed #reading_type {
   order: 1;
   flex: 0 0 auto;
 }
 
-body[data-platform="mobile"] #reading_current_card.reading_story_collapsed #reading_comments {
+#reading_current_card.reading_story_collapsed #reading_comments {
   display: none;
 }
 
-body[data-platform="mobile"] #reading_current_card.reading_story_collapsed #reading_title {
+#reading_current_card.reading_story_collapsed #reading_title {
   order: 2;
   flex: 1 1 auto;
   min-width: 0;
@@ -831,7 +832,7 @@ body[data-platform="mobile"] #reading_current_card.reading_story_collapsed #read
   line-height: 1.25;
 }
 
-body[data-platform="mobile"]
+
   #reading_current_card.reading_story_collapsed.stared
   .substories
   .info:first-child::after {
@@ -840,11 +841,11 @@ body[data-platform="mobile"]
 
 /* `.story` sets display:flex, which otherwise overrides the HTML hidden
    state and leaves an empty Reading row in the layout. */
-body[data-platform="mobile"] #reading_current_card[hidden] {
+#reading_current_card[hidden] {
   display: none;
 }
 
-body[data-platform="mobile"] #reading_comments {
+#reading_comments {
   min-width: 0;
   min-height: 0;
   margin: 0;
@@ -854,14 +855,14 @@ body[data-platform="mobile"] #reading_comments {
   color: inherit;
 }
 
-body[data-platform="mobile"] #reading_content {
+#reading_content {
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
   background: var(--main-bg-color);
 }
 
-body[data-platform="mobile"] #reading_empty {
+#reading_empty {
   margin: 0;
   padding: var(--sp-5) var(--sp-4);
   color: var(--text-color);
@@ -870,11 +871,11 @@ body[data-platform="mobile"] #reading_empty {
   text-align: center;
 }
 
-body[data-platform="mobile"] #reading_empty[hidden] {
+#reading_empty[hidden] {
   display: none;
 }
 
-body[data-platform="mobile"] #reading_reader_status {
+#reading_reader_status {
   display: grid;
   position: absolute;
   z-index: 2;
@@ -888,23 +889,23 @@ body[data-platform="mobile"] #reading_reader_status {
   text-align: center;
 }
 
-body[data-platform="mobile"] #reading_reader_status[hidden],
-body[data-platform="mobile"] #reading_reader_loading[hidden],
-body[data-platform="mobile"] #reading_reader_failure[hidden] {
+#reading_reader_status[hidden],
+#reading_reader_loading[hidden],
+#reading_reader_failure[hidden] {
   display: none;
 }
 
-body[data-platform="mobile"] #reading_reader_loading,
-body[data-platform="mobile"] #reading_reader_failure {
+#reading_reader_loading,
+#reading_reader_failure {
   max-width: 32rem;
 }
 
-body[data-platform="mobile"] #reading_reader_loading p,
-body[data-platform="mobile"] #reading_reader_failure p {
+#reading_reader_loading p,
+#reading_reader_failure p {
   margin: var(--sp-3) 0 0;
 }
 
-body[data-platform="mobile"] .reading_status_spinner {
+.reading_status_spinner {
   display: inline-block;
   width: 24px;
   height: 24px;
@@ -914,11 +915,11 @@ body[data-platform="mobile"] .reading_status_spinner {
   animation: reading-status-spin 800ms linear infinite;
 }
 
-body[data-platform="mobile"] #reading_reader_error_message {
+#reading_reader_error_message {
   color: var(--error-color);
 }
 
-body[data-platform="mobile"] .reading_status_actions {
+.reading_status_actions {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -926,7 +927,7 @@ body[data-platform="mobile"] .reading_status_actions {
   margin-top: var(--sp-4);
 }
 
-body[data-platform="mobile"] .reading_status_actions button {
+.reading_status_actions button {
   min-height: var(--touch);
 }
 
@@ -937,13 +938,13 @@ body[data-platform="mobile"] .reading_status_actions button {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body[data-platform="mobile"] .reading_status_spinner {
+  .reading_status_spinner {
     animation: none;
     border-top-color: var(--border-color);
   }
 }
 
-body[data-platform="mobile"] #reading_content .once-reader-host {
+#reading_content .once-reader-host {
   position: absolute;
   z-index: 1;
   inset: 0;
@@ -951,11 +952,11 @@ body[data-platform="mobile"] #reading_content .once-reader-host {
   pointer-events: auto;
 }
 
-body[data-platform="mobile"] #reading_content .once-reader-host-close {
+#reading_content .once-reader-host-close {
   display: none;
 }
 
-body[data-platform="mobile"] #reader_tts_pill {
+#reader_tts_pill {
   position: relative;
   z-index: 2;
   display: flex;
@@ -972,12 +973,12 @@ body[data-platform="mobile"] #reader_tts_pill {
   box-shadow: 0 -2px 8px rgb(0 0 0 / 10%);
 }
 
-body[data-platform="mobile"] #reader_tts_pill[hidden] {
+#reader_tts_pill[hidden] {
   display: none;
 }
 
-body[data-platform="mobile"] #reader_tts_pill > button,
-body[data-platform="mobile"] #reader_tts_pill summary {
+#reader_tts_pill > button,
+#reader_tts_pill summary {
   display: grid;
   place-items: center;
   min-width: 40px;
@@ -991,30 +992,30 @@ body[data-platform="mobile"] #reader_tts_pill summary {
   font-size: var(--fs-body);
 }
 
-body[data-platform="mobile"] #reader_tts_pill > button:active,
-body[data-platform="mobile"] #reader_tts_pill summary:active {
+#reader_tts_pill > button:active,
+#reader_tts_pill summary:active {
   background: var(--m-pressed-bg);
 }
 
-body[data-platform="mobile"] #reader_tts_pill .reader_tts_play {
+#reader_tts_pill .reader_tts_play {
   color: var(--text-high-color);
   background: var(--m-accent-bg);
 }
 
-body[data-platform="mobile"] #reader_tts_settings {
+#reader_tts_settings {
   position: relative;
 }
 
-body[data-platform="mobile"] #reader_tts_settings summary {
+#reader_tts_settings summary {
   list-style: none;
   font-variant-numeric: tabular-nums;
 }
 
-body[data-platform="mobile"] #reader_tts_settings summary::-webkit-details-marker {
+#reader_tts_settings summary::-webkit-details-marker {
   display: none;
 }
 
-body[data-platform="mobile"] .reader_tts_settings_menu {
+.reader_tts_settings_menu {
   position: fixed;
   z-index: 5;
   right: var(--sp-4);
@@ -1032,26 +1033,26 @@ body[data-platform="mobile"] .reader_tts_settings_menu {
   font-size: var(--fs-body);
 }
 
-body[data-platform="mobile"] .reader_tts_settings_menu label {
+.reader_tts_settings_menu label {
   display: grid;
   gap: var(--sp-1);
 }
 
-body[data-platform="mobile"] #reader_tts_voice {
+#reader_tts_voice {
   width: 100%;
 }
 
-body[data-platform="mobile"] #reader_tts_rates {
+#reader_tts_rates {
   display: flex;
   gap: var(--sp-1);
 }
 
-body[data-platform="mobile"] .reader_tts_rate_setting {
+.reader_tts_rate_setting {
   display: grid;
   gap: var(--sp-1);
 }
 
-body[data-platform="mobile"] #reader_tts_rates button {
+#reader_tts_rates button {
   flex: 1 1 0;
   min-width: 0;
   min-height: 36px;
@@ -1061,7 +1062,7 @@ body[data-platform="mobile"] #reader_tts_rates button {
 
 /* ---------- Settings panel ---------- */
 
-body[data-platform="mobile"] #settings_panel .bar {
+#settings_panel .bar {
   flex: 0 0 auto;
   align-items: center;
   min-height: var(--touch);
@@ -1070,7 +1071,7 @@ body[data-platform="mobile"] #settings_panel .bar {
   padding: var(--sp-1) var(--sp-2);
 }
 
-body[data-platform="mobile"] #settings_panel .settings_title {
+#settings_panel .settings_title {
   margin-top: 0;
   font-family: var(--m-sans);
   font-size: var(--fs-title);
@@ -1080,7 +1081,7 @@ body[data-platform="mobile"] #settings_panel .settings_title {
 /* Two-segment glyph pill: stacked rules for the list, </> for the raw text.
    The words stay in textContent, title and aria-label — they are the
    accessible name and what the tests read — but they are not drawn. */
-body[data-platform="mobile"] #settings_panel .structured_mode_toggle_topbar {
+#settings_panel .structured_mode_toggle_topbar {
   display: flex;
   align-items: stretch;
   box-sizing: border-box;
@@ -1099,7 +1100,7 @@ body[data-platform="mobile"] #settings_panel .structured_mode_toggle_topbar {
   line-height: 0;
 }
 
-body[data-platform="mobile"] #settings_panel .structured_mode_toggle_topbar::before {
+#settings_panel .structured_mode_toggle_topbar::before {
   content: "";
   flex: 0 0 40px;
   background-image:
@@ -1114,7 +1115,7 @@ body[data-platform="mobile"] #settings_panel .structured_mode_toggle_topbar::bef
   opacity: 0.45;
 }
 
-body[data-platform="mobile"] #settings_panel .structured_mode_toggle_topbar::after {
+#settings_panel .structured_mode_toggle_topbar::after {
   content: "</>";
   display: grid;
   place-items: center;
@@ -1130,17 +1131,17 @@ body[data-platform="mobile"] #settings_panel .structured_mode_toggle_topbar::aft
 
 /* The label names the action, so it also names the mode that is showing:
    "Edit as text" means the list is on screen. */
-body[data-platform="mobile"]
+
   #settings_panel
   .structured_mode_toggle_topbar[aria-label="Edit as text"]::before,
-body[data-platform="mobile"]
+
   #settings_panel
   .structured_mode_toggle_topbar[aria-label="Edit as list"]::after {
   background-color: var(--m-accent-bg);
   opacity: 1;
 }
 
-body[data-platform="mobile"] #settings_panel .settings_block {
+#settings_panel .settings_block {
   border: var(--m-bw) solid var(--m-ink);
   border-radius: var(--m-radius);
   background: var(--m-card-bg);
@@ -1150,7 +1151,7 @@ body[data-platform="mobile"] #settings_panel .settings_block {
   font-size: var(--fs-body);
 }
 
-body[data-platform="mobile"] #settings_panel .settings_container {
+#settings_panel .settings_container {
   display: block;
   flex: 1 1 auto;
   min-height: 0;
@@ -1158,33 +1159,33 @@ body[data-platform="mobile"] #settings_panel .settings_container {
   overflow: auto;
 }
 
-body[data-platform="mobile"] #settings_panel.settings_detail_open {
+#settings_panel.settings_detail_open {
   overflow: hidden;
 }
 
-body[data-platform="mobile"] #settings_panel.settings_detail_open > .bar {
+#settings_panel.settings_detail_open > .bar {
   padding-right: var(--sp-4);
   padding-left: var(--sp-4);
 }
 
-body[data-platform="mobile"] #settings_panel.settings_detail_open .settings_container {
+#settings_panel.settings_detail_open .settings_container {
   display: flex;
   overflow: hidden;
 }
 
-body[data-platform="mobile"] #settings_index {
+#settings_index {
   box-sizing: border-box;
   width: 100%;
   padding: var(--sp-3);
   border: 0;
 }
 
-body[data-platform="mobile"] #settings_search {
+#settings_search {
   min-height: var(--touch);
   padding: 0 var(--sp-3);
 }
 
-body[data-platform="mobile"] .settings_section_row {
+.settings_section_row {
   display: flex;
   width: 100%;
   min-height: var(--touch);
@@ -1196,14 +1197,14 @@ body[data-platform="mobile"] .settings_section_row {
   align-items: center;
 }
 
-body[data-platform="mobile"] .settings_section_row_text {
+.settings_section_row_text {
   flex: 0 0 auto;
   min-width: max-content;
 }
 
 /* The trailing value is supporting detail, not a second label — muted, the
    same separation the desktop index uses. */
-body[data-platform="mobile"] .settings_section_summary {
+.settings_section_summary {
   flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
@@ -1215,22 +1216,22 @@ body[data-platform="mobile"] .settings_section_summary {
 
 /* The error-log row tints its label and value together; there the value must
    keep the row's colour rather than drop back to muted. */
-body[data-platform="mobile"] .settings_section_row.has-warnings .settings_section_summary,
-body[data-platform="mobile"] .settings_section_row.has-errors .settings_section_summary {
+.settings_section_row.has-warnings .settings_section_summary,
+.settings_section_row.has-errors .settings_section_summary {
   color: inherit;
 }
 
-body[data-platform="mobile"] .settings_section_row[data-settings-target="errors"].has-warnings {
+.settings_section_row[data-settings-target="errors"].has-warnings {
   color: var(--m-warning);
   background: color-mix(in srgb, var(--m-warning) 10%, transparent);
 }
 
-body[data-platform="mobile"] .settings_section_row[data-settings-target="errors"].has-errors {
+.settings_section_row[data-settings-target="errors"].has-errors {
   color: var(--m-error);
   background: color-mix(in srgb, var(--m-error) 10%, transparent);
 }
 
-body[data-platform="mobile"] .settings_issue_badges {
+.settings_issue_badges {
   display: none;
   flex: 0 0 auto;
   align-items: center;
@@ -1239,21 +1240,21 @@ body[data-platform="mobile"] .settings_issue_badges {
   padding-left: var(--sp-2);
 }
 
-body[data-platform="mobile"] .settings_issue_badge {
+.settings_issue_badge {
   font-size: var(--fs-label);
   font-weight: 700;
   line-height: 1;
 }
 
-body[data-platform="mobile"] .settings_issue_badge.warning {
+.settings_issue_badge.warning {
   color: var(--m-warning);
 }
 
-body[data-platform="mobile"] .settings_issue_badge.error {
+.settings_issue_badge.error {
   color: var(--m-error);
 }
 
-body[data-platform="mobile"] .settings_section_match {
+.settings_section_match {
   width: 100%;
   min-height: var(--touch);
   margin: 0;
@@ -1263,22 +1264,22 @@ body[data-platform="mobile"] .settings_section_match {
   border-radius: 0;
 }
 
-body[data-platform="mobile"] .settings_section {
+.settings_section {
   display: none;
   min-height: 0;
   overflow: auto;
 }
 
-body[data-platform="mobile"] #settings_panel.settings_detail_open #settings_index {
+#settings_panel.settings_detail_open #settings_index {
   display: none;
 }
 
-body[data-platform="mobile"] #settings_panel.settings_detail_open .settings_section.active {
+#settings_panel.settings_detail_open .settings_section.active {
   display: flex;
   flex: 1 1 auto;
 }
 
-body[data-platform="mobile"]
+
   #settings_panel.settings_detail_open
   .settings_section.active
   > .settings_block {
@@ -1292,7 +1293,7 @@ body[data-platform="mobile"]
   background: transparent;
 }
 
-body[data-platform="mobile"]
+
   #settings_panel.settings_detail_open
   .settings_section.active
   > .settings_editor_block {
@@ -1303,7 +1304,7 @@ body[data-platform="mobile"]
 
 /* Back chevron then the subpage title — the bar no longer says "Settings"
    twice. */
-body[data-platform="mobile"] #settings_section_back {
+#settings_section_back {
   display: grid;
   place-items: center start;
   order: -1;
@@ -1315,13 +1316,13 @@ body[data-platform="mobile"] #settings_section_back {
   font-size: 0;
 }
 
-body[data-platform="mobile"] #settings_section_back[hidden] {
+#settings_section_back[hidden] {
   display: none;
 }
 
 /* Settings itself participates in the same back stack as the native back
    action, so its existing chevron remains available on the section index. */
-body[data-platform="mobile"]
+
   #settings_panel:not(.settings_detail_open)
   #settings_section_back[hidden] {
   display: grid;
@@ -1330,7 +1331,7 @@ body[data-platform="mobile"]
 /* A real icon, masked so it still takes the theme's ink. A text "‹" sits high
    in its em box and a rotated border box has no defined optical centre; an
    icon in a square box is centred by its own geometry. */
-body[data-platform="mobile"] #settings_section_back::before {
+#settings_section_back::before {
   content: "";
   width: 20px;
   height: 20px;
@@ -1344,7 +1345,7 @@ body[data-platform="mobile"] #settings_section_back::before {
   mask-size: 70%;
 }
 
-body[data-platform="mobile"] #settings_panel.settings_detail_open #settings_section_back {
+#settings_panel.settings_detail_open #settings_section_back {
   display: grid;
 }
 
@@ -1353,17 +1354,17 @@ body[data-platform="mobile"] #settings_panel.settings_detail_open #settings_sect
    step aside, the header keeps only ‹ and the editor's title, and the commit
    pair moves into an action bar of its own at the bottom. */
 
-body[data-platform="mobile"]:has(#settings_panel.settings_form_open) #menu {
+body:has(#settings_panel.settings_form_open) #menu {
   display: none;
 }
 
-body[data-platform="mobile"] #settings_panel.settings_form_open .structured_mode_toggle_topbar {
+#settings_panel.settings_form_open .structured_mode_toggle_topbar {
   display: none;
 }
 
 /* Every structured form is a full-screen subpage on touch, so they all take
    the same shape: scrolling body, and one fixed action bar the body clears. */
-body[data-platform="mobile"] .structured_form {
+.structured_form {
   min-height: 100%;
   box-sizing: border-box;
   gap: var(--sp-3);
@@ -1373,32 +1374,32 @@ body[data-platform="mobile"] .structured_form {
 
 /* The header carries the title on a subpage, so the form's own heading would
    say it twice. */
-body[data-platform="mobile"] .structured_form h3 {
+.structured_form h3 {
   display: none;
 }
 
-body[data-platform="mobile"] .structured_form_field {
+.structured_form_field {
   display: flex;
   flex-direction: column;
   gap: var(--sp-1);
 }
 
-body[data-platform="mobile"] .structured_form textarea {
+.structured_form textarea {
   min-height: 0;
   padding: var(--sp-2);
   resize: none;
   font-size: var(--fs-body);
 }
 
-body[data-platform="mobile"] .structured_form input,
-body[data-platform="mobile"] .structured_form select {
+.structured_form input,
+.structured_form select {
   height: 40px;
   min-height: 40px;
   padding: 0 var(--sp-2);
   font-size: var(--fs-body);
 }
 
-body[data-platform="mobile"] .structured_redirect_output {
+.structured_redirect_output {
   min-height: 68px;
   font-size: var(--fs-meta);
 }
@@ -1406,7 +1407,7 @@ body[data-platform="mobile"] .structured_redirect_output {
 /* A modal task, not navigation: the commit pair sits in its own bar rather
    than wrapping into the scrolling body. Explicit columns, so the pair keeps
    its place whatever order the form appends them in. */
-body[data-platform="mobile"] .structured_form .structured_form_actions {
+.structured_form .structured_form_actions {
   position: fixed;
   z-index: 20;
   right: 0;
@@ -1425,7 +1426,7 @@ body[data-platform="mobile"] .structured_form .structured_form_actions {
   background: var(--main-bg-color);
 }
 
-body[data-platform="mobile"] .structured_form_actions .structured_inline_action {
+.structured_form_actions .structured_inline_action {
   width: var(--touch);
   min-width: var(--touch);
   height: 40px;
@@ -1436,21 +1437,21 @@ body[data-platform="mobile"] .structured_form_actions .structured_inline_action 
 /* grid-row is pinned as well as the column: auto-placement runs in DOM order,
    so once Save claims column 3 the cursor is past column 2 and Cancel would be
    pushed onto a second row, off the bottom of the bar. */
-body[data-platform="mobile"]
+
   .structured_form_actions
   .structured_inline_action[aria-label="Cancel"] {
   grid-row: 1;
   grid-column: 2;
 }
 
-body[data-platform="mobile"] .structured_form_actions .structured_inline_action[aria-label="Save"] {
+.structured_form_actions .structured_inline_action[aria-label="Save"] {
   grid-row: 1;
   grid-column: 3;
 }
 
 /* With no trailing column for a glyph, the destructive action can only be
    told from cancel by language. */
-body[data-platform="mobile"] .structured_form_delete {
+.structured_form_delete {
   grid-row: 1;
   grid-column: 1;
   justify-self: start;
@@ -1464,21 +1465,21 @@ body[data-platform="mobile"] .structured_form_delete {
   font: 600 var(--fs-body)/1 var(--m-sans);
 }
 
-body[data-platform="mobile"] .input_container {
+.input_container {
   width: 100%;
   border-width: var(--m-bw);
   border-color: var(--m-ink);
   border-radius: var(--m-radius);
 }
 
-body[data-platform="mobile"] .settings_editor_block {
+.settings_editor_block {
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
   overflow: hidden;
 }
 
-body[data-platform="mobile"] .settings_editor_block .structured_settings {
+.settings_editor_block .structured_settings {
   flex: 1 1 auto;
   box-sizing: border-box;
   min-height: 0;
@@ -1493,27 +1494,27 @@ body[data-platform="mobile"] .settings_editor_block .structured_settings {
 /* ---------- Structured settings lists ---------- */
 
 /* The block is the page behind the cards: 12px gutters, 12px between cards. */
-body[data-platform="mobile"]
+
   #settings_panel.settings_detail_open
   .settings_section.active
   > .settings_editor_block {
   background: var(--m-page-bg);
 }
 
-body[data-platform="mobile"] .settings_editor_block .structured_settings {
+.settings_editor_block .structured_settings {
   /* The floating + must never cover the last row's chevron. */
   --mobile-settings_editor_block-structured_settings-padding-bottom: 72px;
   padding-bottom: var(--mobile-settings_editor_block-structured_settings-padding-bottom);
 }
 
 /* Sticky at the top of the scroller, inset with the block's own gutter. */
-body[data-platform="mobile"] .structured_search {
+.structured_search {
   gap: var(--sp-2);
   padding: var(--sp-3) 0;
   background: var(--m-page-bg);
 }
 
-body[data-platform="mobile"] .structured_search input {
+.structured_search input {
   height: 40px;
   min-height: 40px;
   padding: 0 var(--sp-3);
@@ -1524,48 +1525,48 @@ body[data-platform="mobile"] .structured_search input {
   font-family: var(--m-sans);
 }
 
-body[data-platform="mobile"] .structured_picker_status {
+.structured_picker_status {
   padding: 0 0 var(--sp-2);
   font-family: var(--m-sans);
   font-size: var(--fs-meta);
 }
 
-body[data-platform="mobile"] .structured_search_status:empty {
+.structured_search_status:empty {
   display: none;
 }
 
-body[data-platform="mobile"] .settings_editor_block .structured_settings_header {
+.settings_editor_block .structured_settings_header {
   flex: 0 0 auto;
 }
 
-body[data-platform="mobile"] .settings_editor_block .settings_block_label {
+.settings_editor_block .settings_block_label {
   flex: 0 0 auto;
 }
 
-body[data-platform="mobile"] .settings_editor_block .input_container {
+.settings_editor_block .input_container {
   flex: 1 1 auto;
   min-height: 0;
   height: auto;
   margin: 0;
 }
 
-body[data-platform="mobile"] .settings_editor_block .settings_actions input {
+.settings_editor_block .settings_actions input {
   min-width: 88px;
   margin: 0;
   padding: 0 var(--sp-3);
 }
 
-body[data-platform="mobile"] .structured_settings_header {
+.structured_settings_header {
   min-height: var(--touch);
 }
 
-body[data-platform="mobile"] .structured_mode_toggle,
-body[data-platform="mobile"] .structured_list_actions button {
+.structured_mode_toggle,
+.structured_list_actions button {
   min-height: var(--touch);
   padding: 0 var(--sp-3);
 }
 
-body[data-platform="mobile"] .settings_editor_block .settings_actions {
+.settings_editor_block .settings_actions {
   display: flex;
   position: relative;
   z-index: 5;
@@ -1580,7 +1581,7 @@ body[data-platform="mobile"] .settings_editor_block .settings_actions {
 }
 
 /* List mode has no footer at all — the list scrolls to the tab bar. */
-body[data-platform="mobile"] .settings_editor_block .settings_actions.structured_actions_empty {
+.settings_editor_block .settings_actions.structured_actions_empty {
   display: none;
 }
 
@@ -1592,7 +1593,7 @@ body[data-platform="mobile"] .settings_editor_block .settings_actions.structured
    border, background or radius; the row is the tap target and only the
    chevron advertises it. */
 
-body[data-platform="mobile"] .structured_row {
+.structured_row {
   display: flex;
   align-items: center;
   min-height: 60px;
@@ -1602,11 +1603,11 @@ body[data-platform="mobile"] .structured_row {
   background: var(--input-bg-color);
 }
 
-body[data-platform="mobile"] .structured_row:last-child {
+.structured_row:last-child {
   border-bottom: 0;
 }
 
-body[data-platform="mobile"] .structured_row_body {
+.structured_row_body {
   display: flex;
   flex: 1 1 auto;
   box-sizing: border-box;
@@ -1624,16 +1625,16 @@ body[data-platform="mobile"] .structured_row_body {
   box-shadow: none;
 }
 
-body[data-platform="mobile"] .structured_row:last-child .structured_row_body {
+.structured_row:last-child .structured_row_body {
   border-bottom: 0;
 }
 
 /* Filters and redirects have no badge cell: the text starts at the row inset. */
-body[data-platform="mobile"] .structured_row_unbadged .structured_row_body {
+.structured_row_unbadged .structured_row_body {
   margin-left: 0;
 }
 
-body[data-platform="mobile"] .structured_row_main {
+.structured_row_main {
   display: flex;
   flex: 1 1 auto;
   min-width: 0;
@@ -1648,18 +1649,18 @@ body[data-platform="mobile"] .structured_row_main {
   font-family: var(--m-sans);
 }
 
-body[data-platform="mobile"] .structured_row_main:active {
+.structured_row_main:active {
   background: transparent;
 }
 
-body[data-platform="mobile"] .structured_row_primary {
+.structured_row_primary {
   font-family: var(--m-sans);
   font-size: var(--fs-body);
   line-height: 1.35;
   color: var(--text-high-color);
 }
 
-body[data-platform="mobile"] .structured_row_secondary {
+.structured_row_secondary {
   font-family: var(--m-mono);
   --mobile-structured_row_secondary-font-size: 11px;
   font-size: var(--mobile-structured_row_secondary-font-size);
@@ -1669,18 +1670,18 @@ body[data-platform="mobile"] .structured_row_secondary {
 }
 
 /* A failure replaces the URL, and says so in the interface font. */
-body[data-platform="mobile"] .structured_row_secondary_error {
+.structured_row_secondary_error {
   font-family: var(--m-sans);
   color: var(--m-error);
 }
 
 /* Filters carry no secondary line: one 48px row per expression, in mono. */
-body[data-platform="mobile"] [data-structured-section="filters"] .structured_row,
-body[data-platform="mobile"] [data-structured-section="filters"] .structured_row_body {
+[data-structured-section="filters"] .structured_row,
+[data-structured-section="filters"] .structured_row_body {
   min-height: 48px;
 }
 
-body[data-platform="mobile"] [data-structured-section="filters"] .structured_row_main {
+[data-structured-section="filters"] .structured_row_main {
   justify-content: center;
   font-family: var(--m-mono);
   font-size: var(--fs-body);
@@ -1689,15 +1690,15 @@ body[data-platform="mobile"] [data-structured-section="filters"] .structured_row
 
 /* The floating + sits 70px up from the bottom; the scroller has to clear it or
    it covers the last row. */
-body[data-platform="mobile"] [data-structured-section="filters"],
-body[data-platform="mobile"] [data-structured-section="redirects"] {
+[data-structured-section="filters"],
+[data-structured-section="redirects"] {
   --mobile-element-padding-bottom: 72px;
   padding-bottom: var(--mobile-element-padding-bottom);
 }
 
 /* An open row is 56px: a 36px field with the 36px commit pair beside it. The
    edited row drops its remove button, so two cross glyphs never coexist. */
-body[data-platform="mobile"] .structured_row_editing {
+.structured_row_editing {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 36px 36px;
   height: auto;
@@ -1710,26 +1711,26 @@ body[data-platform="mobile"] .structured_row_editing {
 /* The blanket mobile button margin (8px 8px 4px 0) is asymmetric top-to-bottom
    and out-specifies the bare class, so it drops the commit pair 2px below the
    field it sits beside and eats into the grid gap. */
-body[data-platform="mobile"] .structured_inline_action {
+.structured_inline_action {
   margin: 0;
 }
 
-body[data-platform="mobile"] .structured_row_editing .structured_inline_input,
-body[data-platform="mobile"] .structured_row_editing .structured_inline_action {
+.structured_row_editing .structured_inline_input,
+.structured_row_editing .structured_inline_action {
   width: 36px;
   min-width: 36px;
   height: 36px;
   min-height: 36px;
 }
 
-body[data-platform="mobile"] .structured_row_editing .structured_inline_input {
+.structured_row_editing .structured_inline_input {
   width: 100%;
   font-family: var(--m-mono);
   font-size: var(--fs-body);
 }
 
 /* Always exactly 30x20, whatever the collector calls itself. */
-body[data-platform="mobile"] .collector_badge {
+.collector_badge {
   display: grid;
   place-items: center;
   box-sizing: border-box;
@@ -1749,7 +1750,7 @@ body[data-platform="mobile"] .collector_badge {
   letter-spacing: 0.04em;
 }
 
-body[data-platform="mobile"] .structured_source_drag_handle {
+.structured_source_drag_handle {
   flex: 0 0 10px;
   width: 10px;
   height: 18px;
@@ -1760,7 +1761,7 @@ body[data-platform="mobile"] .structured_source_drag_handle {
   background-size: 5px 6px;
 }
 
-body[data-platform="mobile"] .structured_row_chevron {
+.structured_row_chevron {
   display: block;
   flex: 0 0 auto;
   width: 8px;
@@ -1777,7 +1778,7 @@ body[data-platform="mobile"] .structured_row_chevron {
   transform: rotate(45deg);
 }
 
-body[data-platform="mobile"] .structured_issue {
+.structured_issue {
   display: grid;
   place-items: center;
   flex: 0 0 18px;
@@ -1797,61 +1798,61 @@ body[data-platform="mobile"] .structured_issue {
   line-height: 1;
 }
 
-body[data-platform="mobile"] .structured_issue.warning {
+.structured_issue.warning {
   border-color: var(--m-warning);
   color: var(--m-warning);
   --mobile-structured_issue-warning-padding-bottom: 1px;
   padding-bottom: var(--mobile-structured_issue-warning-padding-bottom);
 }
 
-body[data-platform="mobile"] .structured_group_menu {
+.structured_group_menu {
   cursor: pointer;
 }
 
-body[data-platform="mobile"] .settings_version {
+.settings_version {
   flex-direction: column;
   align-content: flex-start;
   justify-content: flex-start;
   text-align: center;
 }
 
-body[data-platform="mobile"] .settings_about_logo {
+.settings_about_logo {
   width: 100%;
   height: 144px;
   margin: var(--sp-4) auto var(--sp-3);
 }
 
-body[data-platform="mobile"] .settings_about_title {
+.settings_about_title {
   width: 100%;
   text-align: center;
 }
 
-body[data-platform="mobile"] .settings_version .update_status {
+.settings_version .update_status {
   width: 100%;
   text-align: center;
 }
 
 @container settings-panel (max-width: 350px) {
-  body[data-platform="mobile"] .settings_section_summary {
+  .settings_section_summary {
     display: none;
   }
 }
 
-body[data-platform="mobile"] .structured_row_error,
-body[data-platform="mobile"] .structured_row.invalid {
+.structured_row_error,
+.structured_row.invalid {
   box-shadow: inset 3px 0 var(--m-error);
   background: color-mix(in srgb, var(--m-error) 6%, var(--input-bg-color));
 }
 
-body[data-platform="mobile"] .structured_row_warning {
+.structured_row_warning {
   box-shadow: inset 3px 0 var(--m-warning);
   background: color-mix(in srgb, var(--m-warning) 6%, var(--input-bg-color));
 }
 
 /* ---------- Groups are cards, including Default ---------- */
 
-body[data-platform="mobile"] .structured_group,
-body[data-platform="mobile"] .structured_list_card {
+.structured_group,
+.structured_list_card {
   margin-bottom: var(--sp-3);
   overflow: hidden;
   border: var(--m-bw) solid var(--border-color);
@@ -1860,8 +1861,8 @@ body[data-platform="mobile"] .structured_list_card {
   background: var(--input-bg-color);
 }
 
-body[data-platform="mobile"] .structured_group > summary,
-body[data-platform="mobile"] .structured_list_header {
+.structured_group > summary,
+.structured_list_header {
   display: flex;
   align-items: center;
   box-sizing: border-box;
@@ -1876,21 +1877,21 @@ body[data-platform="mobile"] .structured_list_header {
 }
 
 /* A group summary ends in the ⋮ menu, which brings its own trailing inset. */
-body[data-platform="mobile"] .structured_group > summary {
+.structured_group > summary {
   padding-right: 0;
 }
 
-body[data-platform="mobile"] .structured_group_reorderable > summary {
+.structured_group_reorderable > summary {
   /* A vertical move before the hold is ordinary page scrolling. The captured
      pointer becomes a reorder only after the long-press timer activates. */
   touch-action: pan-y;
 }
 
-body[data-platform="mobile"] .structured_group > summary::-webkit-details-marker {
+.structured_group > summary::-webkit-details-marker {
   display: none;
 }
 
-body[data-platform="mobile"] .structured_group_caret {
+.structured_group_caret {
   display: block;
   flex: 0 0 auto;
   width: 8px;
@@ -1902,7 +1903,7 @@ body[data-platform="mobile"] .structured_group_caret {
   transform: rotate(-45deg);
 }
 
-body[data-platform="mobile"] .structured_group_drag_handle {
+.structured_group_drag_handle {
   flex: 0 0 10px;
   width: 10px;
   height: 18px;
@@ -1917,12 +1918,12 @@ body[data-platform="mobile"] .structured_group_drag_handle {
   background-size: 5px 6px;
 }
 
-body[data-platform="mobile"] .structured_group[open] > summary .structured_group_caret {
+.structured_group[open] > summary .structured_group_caret {
   transform: rotate(45deg) translate(-2px, -2px);
 }
 
-body[data-platform="mobile"] .structured_group_name,
-body[data-platform="mobile"] .structured_list_name {
+.structured_group_name,
+.structured_list_name {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
@@ -1937,7 +1938,7 @@ body[data-platform="mobile"] .structured_list_name {
   color: color-mix(in srgb, var(--m-ink) 75%, transparent);
 }
 
-body[data-platform="mobile"] .structured_group_dragging {
+.structured_group_dragging {
   position: relative;
   z-index: 4;
   opacity: 1;
@@ -1946,19 +1947,19 @@ body[data-platform="mobile"] .structured_group_dragging {
   pointer-events: none;
 }
 
-body[data-platform="mobile"] .structured_group_dragging > summary {
+.structured_group_dragging > summary {
   background: var(--m-accent-bg);
 }
 
-body[data-platform="mobile"] .structured_group_drop_before,
-body[data-platform="mobile"] .structured_group_drop_after {
+.structured_group_drop_before,
+.structured_group_drop_after {
   position: relative;
   box-shadow: none;
   overflow: visible;
 }
 
-body[data-platform="mobile"] .structured_group_drop_before::before,
-body[data-platform="mobile"] .structured_group_drop_after::after {
+.structured_group_drop_before::before,
+.structured_group_drop_after::after {
   content: "";
   position: absolute;
   z-index: 5;
@@ -1971,21 +1972,21 @@ body[data-platform="mobile"] .structured_group_drop_after::after {
   box-shadow: 0 0 0 1px var(--m-page-bg);
 }
 
-body[data-platform="mobile"] .structured_group_drop_before::before {
+.structured_group_drop_before::before {
   top: -7px;
 }
 
-body[data-platform="mobile"] .structured_group_drop_after::after {
+.structured_group_drop_after::after {
   bottom: -7px;
 }
 
-body[data-platform="mobile"] .structured_row_drop_target {
+.structured_row_drop_target {
   position: relative;
   overflow: visible;
   box-shadow: none;
 }
 
-body[data-platform="mobile"] .structured_row_drop_target::before {
+.structured_row_drop_target::before {
   content: "";
   position: absolute;
   z-index: 5;
@@ -1999,21 +2000,21 @@ body[data-platform="mobile"] .structured_row_drop_target::before {
   box-shadow: 0 0 0 1px var(--m-page-bg);
 }
 
-body[data-platform="mobile"]
+
   .structured_row_drop_target.structured_row_drop_after::before {
   top: auto;
   bottom: -2px;
 }
 
-body[data-platform="mobile"] .structured_source_drop_before,
-body[data-platform="mobile"] .structured_source_drop_after {
+.structured_source_drop_before,
+.structured_source_drop_after {
   position: relative;
   z-index: 1;
 }
 
-body[data-platform="mobile"] .structured_source_drop_before::before,
-body[data-platform="mobile"] .structured_source_drop_after::after,
-body[data-platform="mobile"] .structured_source_group_drop_target::after {
+.structured_source_drop_before::before,
+.structured_source_drop_after::after,
+.structured_source_group_drop_target::after {
   content: "";
   position: absolute;
   z-index: 5;
@@ -2026,30 +2027,30 @@ body[data-platform="mobile"] .structured_source_group_drop_target::after {
   box-shadow: 0 0 0 1px var(--m-page-bg);
 }
 
-body[data-platform="mobile"] .structured_source_drop_before::before {
+.structured_source_drop_before::before {
   top: -2px;
 }
 
-body[data-platform="mobile"] .structured_source_drop_after::after {
+.structured_source_drop_after::after {
   bottom: -2px;
 }
 
-body[data-platform="mobile"] .structured_source_group_drop_target {
+.structured_source_group_drop_target {
   position: relative;
   outline: 0;
 }
 
-body[data-platform="mobile"] .structured_source_group_drop_target::after {
+.structured_source_group_drop_target::after {
   bottom: -2px;
 }
 
-body[data-platform="mobile"] .structured_source_group_title_drop_target > summary {
+.structured_source_group_title_drop_target > summary {
   position: relative;
   outline: 0;
   background: var(--m-accent-bg);
 }
 
-body[data-platform="mobile"] .structured_source_group_title_drop_target > summary::after {
+.structured_source_group_title_drop_target > summary::after {
   content: "";
   position: absolute;
   z-index: 5;
@@ -2063,8 +2064,8 @@ body[data-platform="mobile"] .structured_source_group_title_drop_target > summar
   box-shadow: 0 0 0 1px var(--m-page-bg);
 }
 
-body[data-platform="mobile"] .structured_group_count,
-body[data-platform="mobile"] .structured_list_count {
+.structured_group_count,
+.structured_list_count {
   font-family: var(--m-mono);
   --mobile-structured_group_count-structured_list_count-font-size: 11px;
   font-size: var(--mobile-structured_group_count-structured_list_count-font-size);
@@ -2072,14 +2073,14 @@ body[data-platform="mobile"] .structured_list_count {
   opacity: 1;
 }
 
-body[data-platform="mobile"] .structured_group_menu_spacer {
+.structured_group_menu_spacer {
   flex: 0 0 40px;
   width: 40px;
   height: 38px;
 }
 
 /* One 40px control, never taller than the 38px header. */
-body[data-platform="mobile"] .structured_group_menu {
+.structured_group_menu {
   display: grid;
   place-items: center;
   flex: 0 0 40px;
@@ -2098,12 +2099,12 @@ body[data-platform="mobile"] .structured_group_menu {
   line-height: 1;
 }
 
-body[data-platform="mobile"] .structured_group_menu:active,
-body[data-platform="mobile"] .structured_group_menu.menu_open {
+.structured_group_menu:active,
+.structured_group_menu.menu_open {
   background: var(--m-accent-bg);
 }
 
-body[data-platform="mobile"] .structured_empty {
+.structured_empty {
   margin: 0;
   padding: var(--sp-3) var(--sp-4);
   font-family: var(--m-sans);
@@ -2113,7 +2114,7 @@ body[data-platform="mobile"] .structured_empty {
 
 /* ---------- Floating add ---------- */
 
-body[data-platform="mobile"] .structured_add_button {
+.structured_add_button {
   display: grid;
   place-items: center;
   position: fixed;
@@ -2135,12 +2136,12 @@ body[data-platform="mobile"] .structured_add_button {
   color: var(--m-ink);
 }
 
-body[data-platform="mobile"] .structured_add_button:active,
-body[data-platform="mobile"] .structured_add_button.menu_open {
+.structured_add_button:active,
+.structured_add_button.menu_open {
   background: var(--m-accent-bg);
 }
 
-body[data-platform="mobile"] .structured_add_glyph {
+.structured_add_glyph {
   font-family: var(--m-sans);
   --mobile-structured_add_glyph-font-size: 25px;
   font-size: var(--mobile-structured_add_glyph-font-size);
@@ -2149,21 +2150,21 @@ body[data-platform="mobile"] .structured_add_glyph {
 }
 
 /* Rotate the glyph, never the button — a rotated keyline is a diamond. */
-body[data-platform="mobile"] .structured_add_button.menu_open .structured_add_glyph {
+.structured_add_button.menu_open .structured_add_glyph {
   transform: rotate(45deg);
 }
 
-body[data-platform="mobile"] .structured_status_strip {
+.structured_status_strip {
   display: none;
 }
 
-body[data-platform="mobile"] .structured_remove,
-body[data-platform="mobile"] .structured_inline_action,
-body[data-platform="mobile"] .structured_inline_input {
+.structured_remove,
+.structured_inline_action,
+.structured_inline_input {
   min-height: var(--touch);
 }
 
-body[data-platform="mobile"] .structured_remove {
+.structured_remove {
   flex: 0 0 var(--touch);
   width: var(--touch);
   margin: 0;
@@ -2175,19 +2176,19 @@ body[data-platform="mobile"] .structured_remove {
 
 /* textarea + backdrop + highlights must share metrics or error
    highlights drift out of alignment */
-body[data-platform="mobile"] .input_container textarea,
-body[data-platform="mobile"] .input_container .backdrop,
-body[data-platform="mobile"] .input_container .highlights {
+.input_container textarea,
+.input_container .backdrop,
+.input_container .highlights {
   font-size: var(--fs-title);
 }
 
-body[data-platform="mobile"] #couch_input,
-body[data-platform="mobile"] .couch-highlights {
+#couch_input,
+.couch-highlights {
   min-height: var(--touch);
   border-width: var(--m-bw);
 }
 
-body[data-platform="mobile"] #couch_toggle {
+#couch_toggle {
   top: 2px;
   bottom: 2px;
   height: auto;
@@ -2200,7 +2201,7 @@ body[data-platform="mobile"] #couch_toggle {
   background: none;
 }
 
-body[data-platform="mobile"] #couch_toggle:active {
+#couch_toggle:active {
   background: none;
 }
 
@@ -2221,7 +2222,7 @@ body[data-platform="mobile"] #couch_toggle:active {
   display: none;
 }
 
-body[data-platform="mobile"] .once-reader-host-close {
+.once-reader-host-close {
   min-height: 48px;
   margin: 0;
   padding: 0 var(--sp-4);
@@ -2237,11 +2238,11 @@ body[data-platform="mobile"] .once-reader-host-close {
   font-weight: 600;
 }
 
-body[data-platform="mobile"] .once-reader-host-close:active {
+.once-reader-host-close:active {
   background: var(--m-pressed-bg);
 }
 
-body[data-platform="mobile"] .once-reader-host-close::before {
+.once-reader-host-close::before {
   content: "‹ ";
 }
 
@@ -2258,17 +2259,17 @@ body.once-reader-open {
 }
 
 @media (min-width: 700px) {
-  body[data-platform="mobile"] #menu {
+  #menu {
     max-width: 700px;
     margin-inline: auto;
   }
 }
 
-body[data-platform="mobile"] #status_surfaces {
+#status_surfaces {
   display: none;
 }
 
-body[data-platform="mobile"] #status_dock {
+#status_dock {
   position: absolute;
   z-index: 1;
   top: -18px;
@@ -2282,11 +2283,11 @@ body[data-platform="mobile"] #status_dock {
   background: transparent;
 }
 
-body[data-platform="mobile"] #status_bar_state {
+#status_bar_state {
   display: none;
 }
 
-body[data-platform="mobile"] #status_dock .status_indicator {
+#status_dock .status_indicator {
   width: 11px;
   min-width: 11px;
   height: 11px;
@@ -2298,12 +2299,12 @@ body[data-platform="mobile"] #status_dock .status_indicator {
   background: transparent;
 }
 
-body[data-platform="mobile"] #status_dock .warning .status_indicator_icon {
+#status_dock .warning .status_indicator_icon {
   --mobile-warning-status_indicator_icon-font-size: 13px;
   font-size: var(--mobile-warning-status_indicator_icon-font-size);
 }
 
-body[data-platform="mobile"] #status_dock .status_indicator_icon {
+#status_dock .status_indicator_icon {
   width: auto;
   height: auto;
   border: 0;
@@ -2313,7 +2314,7 @@ body[data-platform="mobile"] #status_dock .status_indicator_icon {
   line-height: 1;
 }
 
-body[data-platform="mobile"] #status_dock .status_indicator.error .status_indicator_icon {
+#status_dock .status_indicator.error .status_indicator_icon {
   width: 11px;
   height: 11px;
   border: 1px solid currentColor;
@@ -2322,30 +2323,31 @@ body[data-platform="mobile"] #status_dock .status_indicator.error .status_indica
   font-size: var(--mobile-error-status_indicator_icon-font-size);
 }
 
-body[data-platform="mobile"] #status_dock .status_indicator_count {
+#status_dock .status_indicator_count {
   display: none;
 }
 
-body[data-platform="mobile"] .status_issue_bubble {
+.status_issue_bubble {
   width: 100%;
   min-height: var(--touch);
   border: var(--m-bw) solid currentColor;
   border-radius: var(--m-radius);
 }
 
-body[data-platform="mobile"] :focus-visible {
+:focus-visible {
   outline: 2px solid var(--highlight-color);
   outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
   body[data-platform="mobile"],
-  body[data-platform="mobile"] *,
-  body[data-platform="mobile"] *::before,
-  body[data-platform="mobile"] *::after {
+  *,
+  *::before,
+  *::after {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
   }
+}
 }

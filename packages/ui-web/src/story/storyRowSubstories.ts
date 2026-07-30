@@ -31,11 +31,12 @@ function tagElement(tag: NonNullable<SubStory["tags"]>[number]): HTMLElement {
   }
 
   if (tag.icon) {
-    tag_el.style.background = `url(${tag.icon}) no-repeat`
-    tag_el.style.backgroundSize =
+    tag_el.classList.add("tag--icon")
+    tag_el.style.setProperty("--tag-icon", `url(${tag.icon})`)
+    tag_el.style.setProperty(
+      "--tag-icon-size",
       document.body.dataset.platform === "mobile" ? "16px" : "13px"
-    tag_el.style.backgroundPosition = "left top"
-    tag_el.style.paddingLeft = "17px"
+    )
   }
 
   return tag_el

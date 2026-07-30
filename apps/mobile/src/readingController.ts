@@ -451,8 +451,8 @@ export class MobileReadingController {
       element.classList.add("tag", `tag_${tag.class}`)
       element.textContent = tag.text
       if (tag.icon) {
-        element.style.background = `url(${tag.icon}) left top / 16px no-repeat`
-        element.style.paddingLeft = "17px"
+        element.classList.add("tag--icon")
+        element.style.setProperty("--tag-icon", `url(${tag.icon})`)
       }
       container.append(element)
     }

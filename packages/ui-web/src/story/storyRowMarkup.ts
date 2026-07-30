@@ -90,7 +90,7 @@ export function buildTitleLine(
   container.appendChild(og_link)
   if (link.href == og_link.href) {
     //og_link.style.opacity = "0.4"
-    og_link.style.display = "none"
+    og_link.classList.add("story-link-hidden")
   }
 
   const hostname = document.createElement("a")
@@ -122,7 +122,6 @@ export function buildFilterButton(row: StoryListItem): HTMLElement {
   dinp.classList.add("filter_input")
   dinp.type = "text"
   dinp.value = row.story.filter
-  dinp.style.cursor = "pointer"
   dinp.readOnly = true
   dinp.addEventListener("click", (event) => {
     event.stopPropagation()
@@ -131,7 +130,7 @@ export function buildFilterButton(row: StoryListItem): HTMLElement {
     }
   })
   filter_btn.prepend(dinp)
-  filter_btn.style.borderColor = "red"
+  filter_btn.classList.add("filter_btn--active")
   return filter_btn
 }
 

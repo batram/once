@@ -293,7 +293,7 @@
   z-index: 1;
   overflow: hidden; /* Hide backdrop scrollbar */
   pointer-events: none;
-  color: transparent !important;
+  color: transparent;
   background: transparent;
 }
 
@@ -312,14 +312,24 @@
   z-index: 3;
   pointer-events: none;
   overflow: hidden;
-  color: transparent !important; /* Hide mirrored text */
+  color: transparent; /* Hide mirrored text */
+}
+
+.settings_highlights--interactive {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.settings_highlight_icon {
+  pointer-events: auto;
+  cursor: pointer;
 }
 
 .input_container .highlights mark {
   background-color: transparent;
-  color: transparent !important; /* Hide mirrored text */
+  color: transparent; /* Hide mirrored text */
   text-decoration: underline red wavy;
-  text-decoration-color: red !important; /* Ensure underline is visible despite transparent text */
+  text-decoration-color: red; /* Ensure underline is visible despite transparent text */
 }
 
 .input_container .highlights .line-mirrored {
@@ -338,7 +348,7 @@
   align-items: center;
   justify-content: center;
   font-size: var(--fs-body);
-  color: initial !important; /* Override backdrop's transparent color */
+  color: initial; /* Override backdrop's transparent color */
   pointer-events: auto; /* Make emoji clickable */
   cursor: pointer;
 }
@@ -654,12 +664,13 @@
 
 .collector_badge {
   display: inline-flex;
+  color: var(--source-badge-color);
   flex: 0 0 34px;
   min-height: 26px;
   align-items: center;
   justify-content: center;
   margin: 0 var(--sp-2);
-  background: var(--sep-color);
+  background: var(--source-badge-bg, var(--sep-color));
 }
 
 /* A ring and a glyph, never a filled disc: without an explicit background the
@@ -778,6 +789,7 @@
   max-width: min(320px, calc(100vw - 16px));
   border: thin solid var(--border-high-color);
   background: var(--input-bg-color);
+  overflow-y: auto;
 }
 
 .once-anchored-menu-item {
@@ -1774,7 +1786,7 @@ body:not([data-platform="mobile"]) .once-anchored-menu-item {
   width: 160px;
   height: 160px;
   object-fit: contain;
-  filter: none !important;
+  filter: none;
 }
 
 .settings_about_title {
@@ -1871,7 +1883,7 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
 }
 
 .couch-container.masked #couch_input {
-  color: transparent !important;
+  color: transparent;
   caret-color: initial; /* Keep caret visible */
 }
 

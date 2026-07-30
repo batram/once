@@ -304,9 +304,9 @@ function update_redirects(): void {
         og_link.href = href
         // Hide OG link if it's the same as redirected URL
         if (title_link && title_link.href == og_link.href) {
-          og_link.style.display = "none"
+          og_link.classList.add("story-link-hidden")
         } else {
-          og_link.style.display = ""
+          og_link.classList.remove("story-link-hidden")
         }
       }
     }

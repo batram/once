@@ -1,3 +1,4 @@
+@layer base {
 html {
   margin: 0;
   padding: 0;
@@ -66,4 +67,9 @@ pre {
 ul {
   margin: 5px;
   padding: 0 25px;
+}
+
+.outline_button {
+  order: 2;
+}
 }

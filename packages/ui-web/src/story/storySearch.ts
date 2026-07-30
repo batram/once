@@ -121,14 +121,15 @@ export async function searchStories(needle: string): Promise<void> {
   searchfield.value = needle
 
   story_container.classList.remove("show_filtered")
-  story_container.style.display = "flex"
-  global_search_results.style.display = "none"
+  story_container.classList.remove("search-hidden")
+  global_search_results.classList.add("search-hidden")
+  global_search_results.classList.remove("search-visible")
 
   if (needle && needle != "") {
-    cancel_search_btn.style.visibility = "visible"
+    cancel_search_btn.classList.add("search-cancel-visible")
     story_container.classList.add("show_stored_star")
   } else {
-    cancel_search_btn.style.visibility = "hidden"
+    cancel_search_btn.classList.remove("search-cancel-visible")
     story_container.classList.remove("show_stored_star")
   }
 
@@ -144,8 +145,9 @@ export async function searchStories(needle: string): Promise<void> {
     if (extra_search_providers[proto]) {
       const search_provider = extra_search_providers[proto]
       if (search_provider.type == "global") {
-        global_search_results.style.display = "flex"
-        story_container.style.display = "none"
+        global_search_results.classList.remove("search-hidden")
+        global_search_results.classList.add("search-visible")
+        story_container.classList.add("search-hidden")
         global_search_results.innerHTML = ""
       }
 
@@ -155,8 +157,9 @@ export async function searchStories(needle: string): Promise<void> {
   }
 
   if (needle != "" && search_scope.value == "global") {
-    global_search_results.style.display = "flex"
-    story_container.style.display = "none"
+    global_search_results.classList.remove("search-hidden")
+    global_search_results.classList.add("search-visible")
+    story_container.classList.add("search-hidden")
     global_search_results.innerHTML = ""
     global_search_providers().forEach((gsp) => {
       gsp.global_search(needle).then((results: Story[]) => {

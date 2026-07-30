@@ -239,8 +239,8 @@ export function renderSourceRow(
   badge.dataset.searchText = badge.textContent
   badge.title = parser?.options.description || "Unknown collector"
   if (parser?.options.colors?.[0]) {
-    badge.style.backgroundColor = parser.options.colors[0]
-    badge.style.color = parser.options.colors[1]
+    badge.style.setProperty("--source-badge-bg", parser.options.colors[0])
+    badge.style.setProperty("--source-badge-color", parser.options.colors[1])
   }
   const handle = document.createElement("span")
   handle.className = "structured_source_drag_handle"

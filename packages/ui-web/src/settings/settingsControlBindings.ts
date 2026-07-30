@@ -50,8 +50,7 @@ export function bindSourceTextarea(
         icon.title = isWarning
           ? "Click for warning details"
           : "Click for error details"
-        icon.style.pointerEvents = "auto"
-        icon.style.cursor = "pointer"
+        icon.classList.add("settings_highlight_icon")
         icon.onclick = () => showSourceError(sourceError.url)
         lineContainer.append(icon)
         const mark = document.createElement("mark")

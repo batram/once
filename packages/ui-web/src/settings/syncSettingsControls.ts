@@ -54,8 +54,7 @@ export function bindSyncSettingsControls(
     container.classList.toggle("masked")
     render()
   }
-  highlights.style.pointerEvents = "auto"
-  highlights.style.cursor = "pointer"
+  highlights.classList.add("settings_highlights--interactive")
   highlights.addEventListener("click", toggleMask)
   toggle.addEventListener("click", (event) => {
     event.preventDefault()

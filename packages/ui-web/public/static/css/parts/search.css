@@ -2,6 +2,15 @@
   display: none;
 }
 
+#stories.search-hidden,
+#global_search_results.search-hidden {
+  display: none;
+}
+
+#global_search_results.search-visible {
+  display: flex;
+}
+
 #filtered_stories {
   display: none;
 }
@@ -27,6 +36,10 @@
   border: none;
   border-left: thin solid black;
   background: none;
+}
+
+.search-cancel-visible {
+  visibility: visible;
 }
 
 #search_scope {

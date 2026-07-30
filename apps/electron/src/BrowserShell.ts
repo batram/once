@@ -169,8 +169,10 @@ export class BrowserShell {
   private bindLayout(): void {
     const stored = Number.parseFloat(localStorage.getItem(SPLIT_RATIO_KEY) || "0.42")
     const initialRatio = Number.isFinite(stored) ? clamp(stored, 0.2, 0.8) : 0.42
-    this.leftPanel.style.flex = `0 1 ${initialRatio * 100}%`
-    this.rightPanel.style.flex = "1 1 auto"
+    this.leftPanel.style.setProperty(
+      "--electron-left-panel-basis",
+      `${initialRatio * 100}%`
+    )
 
     let dragging = false
     this.splitter.addEventListener("pointerdown", (event) => {
@@ -184,7 +186,10 @@ export class BrowserShell {
       const minimum = 280
       const maximum = Math.max(minimum, window.innerWidth - 320)
       const width = Math.min(maximum, Math.max(minimum, event.clientX))
-      this.leftPanel.style.flexBasis = `${width / window.innerWidth * 100}%`
+      this.leftPanel.style.setProperty(
+        "--electron-left-panel-basis",
+        `${width / window.innerWidth * 100}%`
+      )
       this.reportBounds()
     })
     this.splitter.addEventListener("pointerup", (event) => {

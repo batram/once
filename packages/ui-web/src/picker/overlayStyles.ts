@@ -1,5 +1,11 @@
-export const OVERLAY_STYLES = `
-  :host { all: initial; }
+export const OVERLAY_STYLES = `@layer components {
+  :host {
+    all: initial;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 2147483647;
+  }
   * { box-sizing: border-box; }
   #boxes, #catcher {
     position: fixed;
@@ -23,6 +29,7 @@ export const OVERLAY_STYLES = `
     background: rgba(47, 164, 99, 0.18);
   }
   #catcher { z-index: 2; cursor: crosshair; display: none; }
+  #catcher:not([hidden]) { display: block; }
   #hoverhint {
     position: fixed;
     z-index: 4;
@@ -39,6 +46,7 @@ export const OVERLAY_STYLES = `
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  #hoverhint:not([hidden]) { display: block; }
   #panel {
     position: fixed;
     right: 14px;
@@ -150,4 +158,5 @@ export const OVERLAY_STYLES = `
   }
   #actions .save { background: #2fa463; border-color: #2fa463; }
   #actions .save:hover { background: #37b56f; }
+}
 `
