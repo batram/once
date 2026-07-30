@@ -169,6 +169,24 @@ input[type="submit"]:active {
   background: var(--m-pressed-bg);
 }
 
+/* The rule above styles the `button` element, so it also lands on buttons whose
+   component CSS already owns their box. `layer(platform)` outranks
+   `layer(components)` regardless of specificity, so the component rule cannot
+   win the cascade on its own and needs restoring here.
+   The swipe ruler handle is a positioned control: its width comes from
+   --swipe-handle-width, and the ruler reserves runway with
+   margin-inline: calc(var(--swipe-handle-width) + var(--sp-1)). Blanket padding
+   inflates it past that reserve and blanket margin drops it off the band.
+   Delete once the `.button` primitive lands and this rule targets the component
+   class instead of the element (design-system plan, phase 3.1). */
+#swipe_lab .swipe_ruler_handle {
+  margin: 0;
+  padding: 0;
+  border: var(--bw) solid var(--text-high-color);
+  border-radius: var(--radius-md);
+  background: var(--input-bg-color);
+}
+
 /* ---------- Story rows ---------- */
 
 .story {
