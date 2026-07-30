@@ -44,8 +44,8 @@ code, boundaries, and development builds. Knip models the Electron, extension,
 mobile, test, preload, content-script, and background-script entry graphs and
 blocks on unused files, exports, and types.
 
-The live inventory is `scripts/structure-exceptions.json`: 13 entries, made up
-of 4 file and 9 function exceptions. Nine entries belong to the eight ordered
+The live inventory is `scripts/structure-exceptions.json`: 11 entries, made up
+of 3 file and 8 function exceptions. Seven entries belong to the four ordered
 work packages below, one is opportunistic cleanup, and three are accepted
 exceptions that are not refactor work: the cohesive pull-to-refresh gesture,
 declarative Webpack configuration, and the intentionally linear Electron
@@ -79,8 +79,10 @@ For every package:
    and truthful names. The package is unfinished if it merely passes a line
    limit.
 6. Commit the complete package as one focused commit before starting the next
-   package. Do not combine adjacent packages in one commit, and do not begin a
-   later package while the current one is uncommitted.
+   package. The combined Electron and source-picker packages below are single
+   architectural steps, not permission to fold unrelated adjacent work into
+   one commit. Do not begin a later package while the current one is
+   uncommitted.
 
 If a package cannot be completed without changing a public API or an invariant
 below, stop and update this handoff with the concrete blocker. Do not commit a
@@ -88,7 +90,7 @@ half-extracted architecture.
 
 ## Ordered work packages
 
-### 4. Extract Electron tab ownership and window lifecycle
+### 1. Extract Electron tab ownership, window lifecycle, and event families
 
 Continue the existing decomposition of `apps/electron/src/TabManager.ts`.
 Extract coherent owners for tab movement/reordering/closure and window
@@ -96,11 +98,22 @@ lifecycle. Preserve IPC sender validation, `WebContentsView` ownership,
 activation order, fullscreen geometry, reader regeneration, drag/drop, native
 menus, and source-picker behavior.
 
-The `BrowserCoordinator` remains the public orchestration surface. Avoid
-forwarding-only host methods and remove the file exception when the coordinator
-has real headroom.
+At the same time, split `TabEvents.bind` into focused navigation/load,
+window-interaction, and lifecycle event binders where doing so narrows
+dependencies. Replace the wide `TabEventActions` bag with smaller truthful
+collaborator surfaces; helper methods that all retain the same callback bag do
+not complete this package. Designing these surfaces together avoids an
+intermediate `BrowserCoordinator` interface that the event extraction would
+immediately replace.
 
-### 5. Separate swipe-settings persistence from the lab view
+The `BrowserCoordinator` remains the public orchestration surface. Avoid
+forwarding-only host methods. Preserve Electron event ordering, error-page
+behavior, redirects, unload confirmation, fullscreen handling, new-window
+dispositions, menus, and cleanup. Add direct ownership and event-family tests,
+and remove both the `TabManager.ts` file exception and `TabEvents.bind`
+function exception when the coordinator has real headroom.
+
+### 2. Separate swipe-settings persistence from the lab view
 
 Extract the debounced save queue, single in-flight write, queued snapshot,
 batched undo, retry, and external-change reconciliation from
@@ -113,7 +126,14 @@ Preserve selectors, accessibility state, save-status wording, undo semantics,
 and pixel geometry. Remove both the file and constructor exceptions in the
 same commit.
 
-### 6. Extract the mobile source-picker runner
+### 3. Extract the mobile source-picker runner and injected-picker policy
+
+Before editing, inspect the mobile runner, injected picker, their direct tests,
+and the injection build. Treat them as one package only if the result and
+serialization contract can remain explicit and the combined diff still has
+one reviewable source-picker narrative. If that is not true, stop and update
+this handoff to restore separate runner and policy packages before changing
+either implementation.
 
 Keep `apps/mobile/src/main.ts` as a readable composition root. Extract only the
 substantial source-picker/native-browser workflow: navigation listener
@@ -122,9 +142,22 @@ decoding, and sanitization.
 
 Test that workflow directly, including navigation failure, cleanup, timeout,
 and malformed results. Do not introduce generic installer wrappers around
-ordinary composition calls. Remove the `startMobileApp` exception.
+ordinary composition calls.
 
-### 7. Extract the mobile speech polyfill adapter
+The limit for `packages/ui-web/src/picker/sourcePicker.ts` is inflated by the
+large `OVERLAY_STYLES` template literal, so do not treat its reported logical
+line count as 758 lines of TypeScript behavior. Extract pure selector
+derivation/generalization and source-line parsing/serialization from the
+injected overlay. Move styles only if the injection build can retain a single
+source of truth without generated-file edits.
+
+Keep picking, hover, preview, editing, cancellation, sanitization, and the
+runner/overlay result contract unchanged. Add direct tests for the extracted
+pure policy and end-to-end contract coverage at the runner boundary. Remove
+both the `startMobileApp` function exception and `sourcePicker.ts` file
+exception only after the composition root and overlay have real headroom.
+
+### 4. Extract the mobile speech polyfill adapter
 
 Move the bridge-backed speech-synthesis and utterance implementations out of
 `installReaderTtsPolyfill` in
@@ -135,30 +168,6 @@ and browser-global installation in the installer.
 Preserve the browser speech API shape, native request/callback payloads,
 default language behavior, and cancellation/error semantics. Remove the
 function exception.
-
-### 8. Split Electron tab events by dependency family
-
-Split `TabEvents.bind` into focused navigation/load, window-interaction, and
-lifecycle event binders only where doing so narrows dependencies. Replace the
-wide `TabEventActions` bag with smaller truthful collaborator surfaces; helper
-methods that all retain the same callback bag do not complete this package.
-
-Preserve Electron event ordering, error-page behavior, redirects, unload
-confirmation, fullscreen handling, new-window dispositions, menus, and
-cleanup. Add direct event-family tests and remove the function exception.
-
-### 9. Separate source-picker policy from its injected overlay
-
-The limit for `packages/ui-web/src/picker/sourcePicker.ts` is inflated by the
-large `OVERLAY_STYLES` template literal, so do not treat its reported logical
-line count as 758 lines of TypeScript behavior. Extract coherent boundaries:
-pure selector derivation/generalization and source-line parsing/serialization
-belong outside the injected overlay. Move styles only if the injection build
-can retain a single source of truth without generated-file edits.
-
-Keep picking, hover, preview, editing, cancellation, and sanitization behavior
-unchanged. Add direct tests for the extracted pure policy and remove the file
-exception only after the overlay itself has real headroom.
 
 ## Opportunistic cleanup, not a scheduled package
 
