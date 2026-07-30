@@ -16,9 +16,9 @@ export function bindTextSetting({
 }: TextSettingBinding): void {
   const textarea = requireElement<HTMLTextAreaElement>(`#${textareaId}`)
   const block = requireClosestElement<HTMLElement>(textarea, ".settings_block")
-  requireElement<HTMLInputElement>('input[value="save"]', block)
+  requireElement<HTMLButtonElement>('button[data-action="save"]', block)
     .addEventListener("click", () => void save())
-  requireElement<HTMLInputElement>('input[value="cancel"]', block)
+  requireElement<HTMLButtonElement>('button[data-action="cancel"]', block)
     .addEventListener("click", () => void restore())
   textarea.addEventListener("keydown", (event) => {
     if (event.keyCode === 27) {
@@ -75,9 +75,9 @@ export function bindCacheControls(
 ): void {
   const input = requireElement<HTMLInputElement>("#cache_time_input")
   const block = requireClosestElement<HTMLElement>(input, ".settings_block")
-  requireElement<HTMLInputElement>("#cache_time_save", block)
+  requireElement<HTMLButtonElement>("#cache_time_save", block)
     .addEventListener("click", () => void save())
-  requireElement<HTMLInputElement>("#cache_time_cancel", block)
+  requireElement<HTMLButtonElement>("#cache_time_cancel", block)
     .addEventListener("click", () => void restore())
   input.addEventListener("keydown", (event) => {
     if (event.keyCode === 27) {

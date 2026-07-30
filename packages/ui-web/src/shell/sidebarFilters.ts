@@ -21,13 +21,13 @@ function syncEntries(
   const container = requireElement<HTMLElement>(`#menu #${containerId}`)
   const labels = values.map(decorate)
   const wanted = new Set(labels)
-  container.querySelectorAll<HTMLElement>(":scope > .btn").forEach((entry) => {
+  container.querySelectorAll<HTMLButtonElement>(":scope > .button").forEach((entry) => {
     if (!wanted.has(entry.dataset.type || "")) entry.remove()
   })
   labels.forEach((label) => {
     add_entry(label, className, containerId)
     const entry = container.querySelector<HTMLElement>(
-      `:scope > .btn[data-type="${CSS.escape(label)}"]`
+      `:scope > .button[data-type="${CSS.escape(label)}"]`
     )
     if (entry) container.append(entry)
   })
@@ -39,10 +39,11 @@ export function add_entry(
   class_name: string,
   container_id: string
 ): void {
-  if (!document.querySelector('#menu div[data-type="' + label + '"]')) {
-    const type_el = document.createElement("div")
+  if (!document.querySelector('#menu button[data-type="' + label + '"]')) {
+    const type_el = document.createElement("button")
+    type_el.type = "button"
     type_el.dataset.type = label
-    type_el.classList.add("btn")
+    type_el.classList.add("button")
     type_el.classList.add("menu_btn")
     type_el.classList.add(class_name)
     type_el.innerText = label
@@ -67,7 +68,9 @@ function syncMobileFilterChips(): void {
   const host = document.querySelector<HTMLElement>("#mobile_filter_chips")
   if (!host) return
   host.replaceChildren()
-  document.querySelectorAll<HTMLElement>("#menu #types > .btn, #menu #groups > .btn")
+  document.querySelectorAll<HTMLButtonElement>(
+    "#menu #types > .button, #menu #groups > .button"
+  )
     .forEach((entry) => {
       const chip = document.createElement("button")
       chip.type = "button"

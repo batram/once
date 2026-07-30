@@ -2,7 +2,7 @@
   justify-content: space-between;
 }
 
-#menu .btn {
+#menu .button {
   --menu-menu-btn-margin: 2px var(--sp-2);
   margin: var(--menu-menu-btn-margin);
   --menu-menu-btn-padding: 2px;
@@ -13,41 +13,39 @@
   --menu-bar_btn-padding: 3px;
   padding: var(--menu-bar_btn-padding);
   margin: 0;
-  --menu-bar_btn-margin-left: 3px;
-  margin-left: var(--menu-bar_btn-margin-left);
 }
 
-.bar_btn img {
-  --menu-bar_btn-margin: 2px;
-  margin: var(--menu-bar_btn-margin);
-  --menu-bar_btn-margin-bottom: -1px;
-  margin-bottom: var(--menu-bar_btn-margin-bottom);
-}
-
-#menu_btn {
-  font-size: var(--fs-body);
-  --menu-menu_btn-padding: 3px;
-  padding: var(--menu-menu_btn-padding);
-  margin: 0;
-  --menu-menu_btn-margin-left: -13px;
-  margin-left: var(--menu-menu_btn-margin-left);
-  --menu-menu_btn-margin-right: 3px;
-  margin-right: var(--menu-menu_btn-margin-right);
-}
-
-#menu .sub {
+#menu .sidebar_panel {
   border-top: thin solid var(--border-high-color);
   cursor: pointer;
   --menu-menu-sub-font-size: 13px;
   font-size: var(--menu-menu-sub-font-size);
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+  border-radius: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
 }
 
 #menu .heading {
-  display: flex;
   --menu-menu-heading-padding: 5px;
   padding: var(--menu-menu-heading-padding);
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
 }
 
 #menu .heading p {

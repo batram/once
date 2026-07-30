@@ -21,9 +21,10 @@ export function createIconButton(
   title: string,
   classname: string,
   icon_src?: string
-): HTMLElement {
-  const btn = document.createElement("div")
-  btn.classList.add("btn")
+): HTMLButtonElement {
+  const btn = document.createElement("button")
+  btn.type = "button"
+  btn.classList.add("button")
   btn.classList.add(classname)
   btn.setAttribute("draggable", "false")
   if (icon_src) {
@@ -33,6 +34,7 @@ export function createIconButton(
     btn.appendChild(icon)
   }
   btn.title = title
+  btn.setAttribute("aria-label", title)
   return btn
 }
 

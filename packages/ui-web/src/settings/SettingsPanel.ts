@@ -64,8 +64,8 @@ export class SettingsPanel {
     const sources_area = requireElement<HTMLTextAreaElement>("#sources_area")
     const sources_block = requireClosestElement<HTMLElement>(
       sources_area, ".settings_block")
-    const saveSourcesButton = requireElement<HTMLInputElement>(
-      'input[value="save"]',
+    const saveSourcesButton = requireElement<HTMLButtonElement>(
+      'button[data-action="save"]',
       sources_block
     )
     saveSourcesButton.addEventListener("click", async () => {
@@ -76,7 +76,7 @@ export class SettingsPanel {
         saveSourcesButton.disabled = false
       }
     })
-    requireElement<HTMLInputElement>('input[value="cancel"]', sources_block)
+    requireElement<HTMLButtonElement>('button[data-action="cancel"]', sources_block)
       .addEventListener("click", () => void this.set_sources_area())
     sources_area.addEventListener("keydown", (event) => {
       if (event.keyCode === 27) {

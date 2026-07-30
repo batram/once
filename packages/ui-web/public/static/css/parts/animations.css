@@ -85,11 +85,11 @@ body[animated="true"] #left_panel .pseudo_active .bar {
 }
 
 body[animated="true"] #menu .heading:active,
-body[animated="true"] #menu .btn:active {
+body[animated="true"] #menu .button:active {
   background: var(--highlight-bg-color);
 }
 
-body[animated="true"] #menu .btn:active {
+body[animated="true"] #menu .button:active {
   filter: saturate(40%) contrast(100%);
   border-color: var(--border-high-color);
 }

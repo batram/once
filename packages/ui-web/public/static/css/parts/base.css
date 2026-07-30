@@ -47,18 +47,10 @@ body {
   border-bottom: thin solid var(--border-high-color);
   --base-bar-padding: 5px 15px;
   padding: var(--base-bar-padding);
-  display: flex;
-  flex-direction: row;
 }
 
-/* The arrow hugs the menu panel to its left like an attached tab: cancel the
- * bar's own left padding so it stops exactly at the panel edge instead of
- * disappearing underneath it. #search_bar has wider padding to cancel (see
- * search.css). Electron overrides both. */
 .bar .collapsebutton {
-  margin-left: calc(-1 * var(--sp-2));
-  --base-bar-collapsebutton-margin-right: 15px;
-  margin-right: var(--base-bar-collapsebutton-margin-right);
+  margin: 0;
   border: thin solid var(--border-high-color);
   border-left: 0;
   --base-bar-collapsebutton-border-radius: 0 2px 2px 0;
@@ -68,21 +60,6 @@ body {
 
 .bar input {
   width: 100%;
-}
-
-.btn {
-  border: thin solid black;
-  cursor: pointer;
-  --base-btn-padding: 2px;
-  padding: var(--base-btn-padding);
-  --base-btn-font-size: 13px;
-  font-size: var(--base-btn-font-size);
-  --base-btn-margin: 2px;
-  margin: var(--base-btn-margin);
-  --base-btn-border-radius: 2px;
-  border-radius: var(--base-btn-border-radius);
-  background: var(--btn-bg-color);
-  user-select: none;
 }
 
 .active img {

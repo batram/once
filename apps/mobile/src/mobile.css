@@ -534,7 +534,7 @@ body.once-anchored-menu-open {
   background: var(--main-bg-color);
 }
 
-#menu > .sub {
+#menu > .sidebar_panel {
   display: flex;
   flex: 1 1 33.333%;
   min-width: 0;
@@ -595,31 +595,31 @@ body.once-anchored-menu-open {
   font-weight: 500;
 }
 
-#left_panel[active_panel="stories"] #menu .sub[data-panel="stories"],
-#left_panel[active_panel="reading"] #menu .sub[data-panel="reading"],
+#left_panel[active_panel="stories"] #menu .sidebar_panel[data-panel="stories"],
+#left_panel[active_panel="reading"] #menu .sidebar_panel[data-panel="reading"],
 
   #left_panel[active_panel="settings"]
   #menu
-  .sub[data-panel="settings"] {
+  .sidebar_panel[data-panel="settings"] {
   opacity: 1;
 }
 
 
   #left_panel[active_panel="stories"]
   #menu
-  .sub[data-panel="stories"]
+  .sidebar_panel[data-panel="stories"]
   .heading
   img,
 
   #left_panel[active_panel="reading"]
   #menu
-  .sub[data-panel="reading"]
+  .sidebar_panel[data-panel="reading"]
   .heading
   img,
 
   #left_panel[active_panel="settings"]
   #menu
-  .sub[data-panel="settings"]
+  .sidebar_panel[data-panel="settings"]
   .heading
   img {
   background: var(--m-accent-bg);
@@ -1552,7 +1552,7 @@ body:has(#settings_panel.settings_form_open) #menu {
   margin: 0;
 }
 
-.settings_editor_block .settings_actions input {
+.settings_editor_block .settings_actions .button {
   min-width: 88px;
   margin: 0;
   padding: 0 var(--sp-3);

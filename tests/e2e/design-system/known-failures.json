@@ -1,48 +1,5 @@
 {
-  "controlSemantics": [
-    {
-      "selector": "#settings_menu_btn",
-      "reason": "Clickable sidebar div has no native button or keyboard contract",
-      "phase": "3.1",
-      "removeWhen": "Sidebar controls use the native button primitive"
-    },
-    {
-      "selector": "#reading_menu_btn",
-      "reason": "Clickable sidebar div has no native button or keyboard contract",
-      "phase": "3.1",
-      "removeWhen": "Sidebar controls use the native button primitive"
-    },
-    {
-      "selector": "#stories_menu_btn",
-      "reason": "Clickable sidebar div has no native button or keyboard contract",
-      "phase": "3.1",
-      "removeWhen": "Sidebar controls use the native button primitive"
-    },
-    {
-      "selector": "#search_bar > .btn.bar_btn.collapsebutton",
-      "reason": "Legacy div.btn collapse action is not keyboard reachable",
-      "phase": "3.1",
-      "removeWhen": "Search toolbar controls use the native button primitive"
-    },
-    {
-      "selector": "#cancel_search_btn",
-      "reason": "Legacy div.btn cancel action is not keyboard reachable",
-      "phase": "3.1",
-      "removeWhen": "Search toolbar controls use the native button primitive"
-    },
-    {
-      "selector": "#reload_stories_btn",
-      "reason": "Legacy div.btn reload action is not keyboard reachable",
-      "phase": "3.1",
-      "removeWhen": "Search toolbar controls use the native button primitive"
-    },
-    {
-      "selector": "#settings_panel .bar > .btn.bar_btn.collapsebutton",
-      "reason": "Legacy div.btn collapse action is not keyboard reachable",
-      "phase": "3.1",
-      "removeWhen": "Settings toolbar controls use the native button primitive"
-    }
-  ],
+  "controlSemantics": [],
   "iconViewBox": [
     {
       "file": "story.svg",

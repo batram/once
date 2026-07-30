@@ -4,7 +4,7 @@ const { parseHTML } = require("linkedom")
 
 test("collapse controls toggle the menu and notify their host", () => {
   const { window } = parseHTML(`
-    <nav id="menu"><button class="sub">Settings</button></nav>
+    <nav id="menu"><button class="button sidebar_panel">Settings</button></nav>
     <button class="collapsebutton">&lt;</button>
     <button class="collapsebutton">&lt;</button>
   `)
@@ -25,7 +25,7 @@ test("collapse controls toggle the menu and notify their host", () => {
     assert.ok(document.querySelector("#menu").classList.contains("collapse"))
     assert.deepEqual(controls.map((control) => control.textContent), [">", ">"])
 
-    document.querySelector(".sub").click()
+    document.querySelector(".sidebar_panel").click()
     assert.ok(!document.querySelector("#menu").classList.contains("collapse"))
     assert.deepEqual(controls.map((control) => control.textContent), ["<", "<"])
     assert.deepEqual(changes, [true, false])

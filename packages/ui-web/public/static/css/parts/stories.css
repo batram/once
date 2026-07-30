@@ -292,10 +292,20 @@
   opacity: 0.6;
 }
 
+.star_btn {
+  position: relative;
+}
+
+.star_btn::before,
+.star_btn::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
 .stared .star_btn::after {
   content: url(../../imgs/star.svg);
-  --stories-stared-star_btn-margin-top: -19px;
-  margin-top: var(--stories-stared-star_btn-margin-top);
   display: block;
   opacity: 0.6;
 }
@@ -396,13 +406,13 @@
   display: none;
 }
 
-.story .btn {
+.story .button {
   height: 16px;
   box-sizing: content-box;
   white-space: nowrap;
 }
 
-.story .btn img {
+.story .button img {
   opacity: 0.6;
 }
 
@@ -432,11 +442,9 @@
 }
 
 .filter_btn input {
-  position: relative;
-  top: -4px;
   height: 16px;
-  --stories-filter_btn-margin: 0 1px;
-  margin: var(--stories-filter_btn-margin);
+  margin: 0;
+  align-self: center;
   order: 1;
   cursor: pointer;
 }

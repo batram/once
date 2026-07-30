@@ -62,8 +62,8 @@ export function bindSyncSettingsControls(
   })
   input.addEventListener("input", render)
   void reset().then(render)
-  requireElement<HTMLInputElement>('input[value="save"]', actions)
+  requireElement<HTMLButtonElement>('button[data-action="save"]', actions)
     .addEventListener("click", save)
-  requireElement<HTMLInputElement>('input[value="cancel"]', actions)
+  requireElement<HTMLButtonElement>('button[data-action="cancel"]', actions)
     .addEventListener("click", () => void reset().then(render))
 }

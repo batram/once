@@ -49,7 +49,7 @@ function blockInteractions(
       type,
       (event) => {
         const target = event.target as Element | null
-        if (!target?.closest("a, .btn, .menu_btn")) return
+        if (!target?.closest("a, .button")) return
         event.preventDefault()
         event.stopPropagation()
         if (event.type === "click") {

@@ -43,12 +43,12 @@ export function showTextInputDialog({
   actions.classList.add("once-confirm-dialog__actions")
   const confirmButton = document.createElement("button")
   confirmButton.type = "submit"
-  confirmButton.classList.add("btn", "once-confirm-dialog__primary")
+  confirmButton.classList.add("button", "once-confirm-dialog__primary")
   confirmButton.dataset.testid = "text-input-accept"
   confirmButton.textContent = confirmLabel
   const cancelButton = document.createElement("button")
   cancelButton.type = "button"
-  cancelButton.classList.add("btn")
+  cancelButton.classList.add("button")
   cancelButton.dataset.testid = "text-input-cancel"
   cancelButton.textContent = cancelLabel
   actions.append(confirmButton, cancelButton)
@@ -132,7 +132,7 @@ export function showConfirmDialog({
   actions.classList.add("once-confirm-dialog__actions")
   const confirmButton = document.createElement("button")
   confirmButton.type = "button"
-  confirmButton.classList.add("btn", "once-confirm-dialog__primary")
+  confirmButton.classList.add("button", "once-confirm-dialog__primary")
   confirmButton.dataset.testid = "confirm-accept"
   confirmButton.textContent = confirmLabel
   actions.append(confirmButton)
@@ -140,7 +140,7 @@ export function showConfirmDialog({
   if (cancelLabel !== null) {
     const cancelButton = document.createElement("button")
     cancelButton.type = "button"
-    cancelButton.classList.add("btn")
+    cancelButton.classList.add("button")
     cancelButton.dataset.testid = "confirm-cancel"
     cancelButton.textContent = cancelLabel
     cancelButton.addEventListener("click", () => dialog.close())

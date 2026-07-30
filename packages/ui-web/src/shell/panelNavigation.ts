@@ -45,7 +45,9 @@ export function active_flash_panel(btn: HTMLElement): void {
 }
 
 export function init(): void {
-  document.querySelectorAll<HTMLElement>("#menu .sub").forEach((sub_menu) => {
+  document.querySelectorAll<HTMLButtonElement>(
+    "#menu > button.sidebar_panel, #menu > .sidebar_panel > button.heading"
+  ).forEach((sub_menu) => {
     sub_menu.onclick = (event) => {
       const panel = panelFor(sub_menu)
       const clickedStatus = event.target instanceof Element &&

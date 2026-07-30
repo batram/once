@@ -18,68 +18,72 @@
         </div>
         <div id="left_panel_content">
           <div id="menu">
-            <div
-              class="sub"
+            <button
+              type="button"
+              class="button sidebar_panel"
               id="settings_menu_btn"
               data-panel="settings"
               data-testid="settings-menu"
             >
-              <div class="heading">
+              <span class="heading row">
                 <img src="imgs/gear.svg" title="Settings" />
                 <p>Settings</p>
-              </div>
-            </div>
-            <div
-              class="sub"
+              </span>
+            </button>
+            <button
+              type="button"
+              class="button sidebar_panel"
               id="reading_menu_btn"
               data-panel="reading"
               data-testid="reading-menu"
             >
-              <div class="heading">
+              <span class="heading row">
                 <img src="imgs/reading.svg" title="Reading" />
                 <p>Reading</p>
-              </div>
-            </div>
-            <div
-              class="sub"
+              </span>
+            </button>
+            <section
+              class="sidebar_panel"
               id="stories_menu_btn"
               data-panel="stories"
               data-testid="stories-menu"
             >
-              <div class="heading">
+              <button type="button" class="button heading row" data-panel="stories">
                 <img src="imgs/story.svg" title="Stories" />
                 <p>Stories</p>
-              </div>
+              </button>
               <div id="types"></div>
               <div id="groups"></div>
-            </div>
+            </section>
           </div>
           <div id="left_main">
             <div id="stories_panel" class="panel" data-panel="stories">
-              <div id="search_bar" class="bar">
-                <div class="btn bar_btn collapsebutton" title="collapse">
+              <div id="search_bar" class="bar toolbar">
+                <button type="button" class="button bar_btn collapsebutton" aria-label="Collapse sidebar">
                   &lt;
-                </div>
+                </button>
                 <select id="search_scope">
                   <option>local</option>
                   <option>global</option>
                 </select>
                 <input type="text" id="searchfield" placeholder="search" />
-                <div
+                <button
+                  type="button"
                   id="cancel_search_btn"
-                  class="bar_btn btn"
-                  title="cancel search"
+                  class="button button--icon bar_btn"
+                  aria-label="Cancel search"
                 >
-                  <img src="imgs/x.svg" />
-                </div>
-                <div
+                  <img src="imgs/x.svg" alt="" />
+                </button>
+                <button
+                  type="button"
                   id="reload_stories_btn"
                   data-testid="reload-stories"
-                  class="btn bar_btn"
-                  title="reload stories"
+                  class="button button--icon bar_btn"
+                  aria-label="Reload stories"
                 >
-                  <img src="imgs/reload.svg" />
-                </div>
+                  <img src="imgs/reload.svg" alt="" />
+                </button>
               </div>
               <div id="mobile_filter_chips" aria-label="Story filters"></div>
               <div class="stories_container" id="selected_container"></div>
@@ -92,12 +96,12 @@
               <div class="stories_container" id="filtered_stories"></div>
             </div>
             <div id="settings_panel" class="panel" data-panel="settings">
-              <div class="bar">
-                <div class="btn bar_btn collapsebutton" title="collapse">
+              <div class="bar toolbar">
+                <button type="button" class="button bar_btn collapsebutton" aria-label="Collapse sidebar">
                   &lt;
-                </div>
+                </button>
                 <div class="settings_title">Settings</div>
-                <button type="button" id="settings_section_back" hidden>
+                <button type="button" class="button" id="settings_section_back" hidden>
                   Settings
                 </button>
               </div>
@@ -124,20 +128,21 @@
                     ></textarea>
                     <div class="highlights"></div>
                   </div>
-                  <div class="settings_actions">
-                    <input
+                  <div class="settings_actions cluster">
+                    <button
                       type="button"
-                      value="save"
+                      class="button"
+                      data-action="save"
                       data-testid="save-sources"
-                    />
-                    <input type="button" value="cancel" />
-                    <input
+                    >save</button>
+                    <button type="button" class="button" data-action="cancel">cancel</button>
+                    <button
                       type="button"
+                      class="button"
                       id="pick_source_button"
-                      value="pick from page"
                       title="Build a source by picking story elements on the current page"
                       data-testid="pick-source"
-                    />
+                    >pick from page</button>
                     <span id="pick_source_status" role="status"></span>
                   </div>
                 </div>
@@ -152,13 +157,14 @@
                       data-testid="filters"
                     ></textarea>
                   </div>
-                  <div class="settings_actions">
-                    <input
+                  <div class="settings_actions cluster">
+                    <button
                       type="button"
-                      value="save"
+                      class="button"
+                      data-action="save"
                       data-testid="save-filters"
-                    />
-                    <input type="button" value="cancel" />
+                    >save</button>
+                    <button type="button" class="button" data-action="cancel">cancel</button>
                   </div>
                 </div>
                 <div class="settings_block settings_editor_block">
@@ -172,13 +178,14 @@
                       data-testid="redirects"
                     ></textarea>
                   </div>
-                  <div class="settings_actions">
-                    <input
+                  <div class="settings_actions cluster">
+                    <button
                       type="button"
-                      value="save"
+                      class="button"
+                      data-action="save"
                       data-testid="save-redirects"
-                    />
-                    <input type="button" value="cancel" />
+                    >save</button>
+                    <button type="button" class="button" data-action="cancel">cancel</button>
                   </div>
                 </div>
                 <div class="settings_block">
@@ -194,14 +201,15 @@
                     />
                     <button
                       id="couch_toggle"
-                      class="icon-btn"
-                      title="Toggle password visibility"
+                      type="button"
+                      class="button button--icon"
+                      aria-label="Toggle password visibility"
                     >
                       👁️
                     </button>
                   </div>
-                  <input type="button" value="save" data-testid="save-sync" />
-                  <input type="button" value="cancel" />
+                  <button type="button" class="button" data-action="save" data-testid="save-sync">save</button>
+                  <button type="button" class="button" data-action="cancel">cancel</button>
                   <div
                     id="couch_status"
                     class="couch-status"
@@ -232,13 +240,13 @@
                 <div class="settings_block">
                   Cache timing (minutes):
                   <input type="text" id="cache_time_input" />
-                  <input type="button" value="save" id="cache_time_save" />
-                  <input type="button" value="cancel" id="cache_time_cancel" />
+                  <button type="button" class="button" id="cache_time_save">save</button>
+                  <button type="button" class="button" id="cache_time_cancel">cancel</button>
                 </div>
                 <div class="settings_block settings_error_log">
                   <div class="settings_error_log_header">
                     <span class="settings_panel_heading">Error log:</span>
-                    <button type="button" id="clear_error_log">Clear</button>
+                    <button type="button" class="button" id="clear_error_log">Clear</button>
                   </div>
                   <div id="error_log" data-testid="error-log">
                     <p class="error_log_empty">No errors recorded this session.</p>
@@ -252,12 +260,12 @@
                   />
                   <h2 class="settings_about_title">Once</h2>
                   <span>Version: <span data-testid="app-version"></span></span>
-                  <input
+                  <button
                     type="button"
+                    class="button"
                     data-testid="check-for-updates"
-                    value="Check for updates"
                     hidden
-                  />
+                  >Check for updates</button>
                   <span
                     class="update_status"
                     data-testid="update-status"
@@ -274,11 +282,11 @@
                     inputmode="url" enterkeyhint="go" autocomplete="url"
                     autocapitalize="none" spellcheck="false" aria-label="Address"
                     placeholder="Enter a URL" />
-                  <button type="button" id="reading_reader_toggle" aria-label="Toggle reader mode">
+                  <button type="button" class="button button--icon" id="reading_reader_toggle" aria-label="Toggle reader mode">
                     <img src="imgs/article.svg" alt="" />
                   </button>
                 </div>
-                <button type="submit" id="reading_navigate" data-testid="reading-url-action"
+                <button type="submit" class="button" id="reading_navigate" data-testid="reading-url-action"
                   aria-label="Reload"><span>Go</span></button>
               </form>
               <div id="reading_url_validation" data-testid="reading-url-validation"
@@ -292,7 +300,7 @@
                   <div class="substories">
                     <div id="reading_story_meta" class="info">
                       <p id="reading_type" class="type" role="link" tabindex="0"></p>
-                      <button type="button" id="reading_comments"
+                      <button type="button" class="button" id="reading_comments"
                         class="comment_url">[comments]</button>
                       <div id="reading_story_time" class="time"></div>
                       <div id="reading_story_tags" class="tags_container"></div>
@@ -300,9 +308,9 @@
                   </div>
                 </div>
                 <button type="button" id="reading_story_collapse"
-                  data-testid="reading-story-collapse" class="reading_story_control"
+                  data-testid="reading-story-collapse" class="button reading_story_control"
                   aria-label="Collapse current story" aria-expanded="true">⌃</button>
-                <button type="button" id="reading_story_menu" class="menu_btn"
+                <button type="button" id="reading_story_menu" class="button button--icon menu_btn"
                   aria-label="Story actions">⋮</button>
               </section>
               <div id="reading_error" role="status" aria-live="polite" hidden></div>
@@ -320,21 +328,21 @@
                     <strong>Reader mode couldn&rsquo;t open this page</strong>
                     <p id="reading_reader_error_message"></p>
                     <div class="reading_status_actions">
-                      <button type="button" id="reading_reader_retry">Try again</button>
-                      <button type="button" id="reading_reader_open_page">Open page instead</button>
+                      <button type="button" class="button" id="reading_reader_retry">Try again</button>
+                      <button type="button" class="button" id="reading_reader_open_page">Open page instead</button>
                     </div>
                   </div>
                 </section>
               </div>
               <div id="reader_tts_pill" data-testid="reader-tts-bar"
                 role="group" aria-label="Text to speech" hidden>
-                <button type="button" data-host-tts="prev"
+                <button type="button" class="button button--icon" data-host-tts="prev"
                   aria-label="Previous segment">|◀</button>
-                <button type="button" class="reader_tts_play" data-host-tts="play"
+                <button type="button" class="button button--icon reader_tts_play" data-host-tts="play"
                   aria-label="Play article">▶</button>
-                <button type="button" data-host-tts="next"
+                <button type="button" class="button button--icon" data-host-tts="next"
                   aria-label="Next segment">▶|</button>
-                <button type="button" data-host-tts="stop"
+                <button type="button" class="button button--icon" data-host-tts="stop"
                   aria-label="Stop reading">■</button>
                 <details id="reader_tts_settings">
                   <summary><span id="reader_tts_rate_label">1.0×</span></summary>

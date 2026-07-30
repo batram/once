@@ -111,12 +111,15 @@ test("list settings are the default and expose structured add actions", async ({
   expect(scrollMetrics.top).toBeGreaterThan(0)
   expect(scrollMetrics.widthWhileScrolling).toBe(scrollMetrics.widthBeforeScroll)
   await expect(sourceList).toHaveClass(/\bmobile_scrollbar_active\b/)
-  await expect(page.locator(".mobile_scroll_indicator")).toBeVisible()
+  const sourceScrollIndicator = page.locator(
+    '.mobile_scroll_indicator[data-scroll-owner="sources-structured-list"]'
+  )
+  await expect(sourceScrollIndicator).toBeVisible()
   await expect(sourceList).not.toHaveClass(
     /\bmobile_scrollbar_active\b/,
     { timeout: 1_500 }
   )
-  await expect(page.locator(".mobile_scroll_indicator")).toHaveCSS("opacity", "0")
+  await expect(sourceScrollIndicator).toHaveCSS("opacity", "0")
 
   await addSource.click()
   await page.getByTestId("add-source-entry").click()

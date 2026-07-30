@@ -88,7 +88,7 @@ body[data-theme="light"] {
     --opacity: 0.8;
   }
 
-  #menu .sub img {
+  #menu .sidebar_panel img {
     filter: contrast(0%);
   }
 }
@@ -97,7 +97,7 @@ body[data-theme="dark"] {
   color-scheme: dark;
   --opacity: 0.8;
 }
-body[data-theme="dark"] #menu .sub img {
+body[data-theme="dark"] #menu .sidebar_panel img {
   filter: contrast(0%);
 }
 

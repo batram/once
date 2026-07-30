@@ -14,7 +14,7 @@ export function bindMenuCollapseControls(
     menu.onclick = (event) => {
       if (!menu.classList.contains("collapse")) return
       const target = event.target
-      if (!(target instanceof Element) || !target.closest(".sub")) return
+      if (!(target instanceof Element) || !target.closest(".sidebar_panel")) return
       setMenuCollapsed(menu, false)
       onMenuCollapsedChanged?.(false)
     }

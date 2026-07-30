@@ -44,6 +44,8 @@ function installTransientScrollbars(): void {
       indicator = document.createElement("div")
       indicator.className = "mobile_scroll_indicator"
       indicator.setAttribute("aria-hidden", "true")
+      const owner = scroller.dataset.testid || scroller.id
+      if (owner) indicator.dataset.scrollOwner = owner
       document.body.append(indicator)
       indicators.set(scroller, indicator)
     }

@@ -76,7 +76,7 @@ test("reorders story source groups with a native Electron drag", async () => {
       "*Alpha",
       "https://example.test/alpha.xml"
     ].join("\n"))
-    await expect.poll(() => window.locator("#menu #groups > .btn")
+    await expect.poll(() => window.locator("#menu #groups > .button")
       .allTextContents()).toEqual(["*default", "*Beta", "*Alpha"])
 
     await window.getByTestId("sources-mode-toggle").click()
@@ -88,7 +88,7 @@ test("reorders story source groups with a native Electron drag", async () => {
       "https://example.test/alpha.xml"
     ].join("\n"))
     await save.click()
-    await expect.poll(() => window.locator("#menu #groups > .btn")
+    await expect.poll(() => window.locator("#menu #groups > .button")
       .allTextContents()).toEqual(["*default", "*Beta", "*Gamma"])
   } finally {
     await closeApp(electronApp, userData)

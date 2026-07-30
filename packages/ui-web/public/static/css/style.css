@@ -2,6 +2,7 @@
 
 @import "./parts/vars.css" layer(tokens);
 @import "./parts/base.css" layer(base);
+@import "./parts/primitives.css" layer(components);
 @import "./parts/layout.css" layer(components);
 @import "./parts/animations.css" layer(components);
 @import "./parts/dialogs.css" layer(components);

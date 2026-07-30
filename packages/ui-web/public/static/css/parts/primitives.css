@@ -1,0 +1,68 @@
+.button {
+  display: inline-flex;
+  box-sizing: border-box;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  margin: 2px;
+  padding: 2px;
+  border: var(--bw) solid black;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  background: var(--btn-bg-color);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  line-height: normal;
+  text-align: center;
+  user-select: none;
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--text-high-color);
+  outline-offset: 2px;
+}
+
+.button:disabled,
+.button.disabled {
+  cursor: default;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.button--icon {
+  aspect-ratio: 1;
+}
+
+.row,
+.toolbar {
+  display: flex;
+  flex-flow: row nowrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.stack {
+  display: flex;
+  flex-flow: column nowrap;
+  gap: var(--sp-2);
+}
+
+.cluster {
+  display: flex;
+  flex-flow: row wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.field {
+  display: grid;
+  grid-template-columns: minmax(max-content, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.toolbar {
+  justify-content: flex-start;
+}

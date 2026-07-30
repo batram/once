@@ -129,7 +129,7 @@ test("tokenized shared and mobile geometry retains its measured values", async (
 test("legacy control-semantic debt is explicit and cannot grow", async ({ page }) => {
   await page.goto(`${baseURL}/static/sidepanel.html`)
   const violations = await page.locator(
-    "div.btn, #menu > .sub, [role='button']"
+    ".btn, .icon-btn, #menu > .sub, [role='button'], input[type='button']"
   ).evaluateAll((elements) => elements
     .filter((element) => {
       if (element instanceof HTMLButtonElement) return false
@@ -158,6 +158,41 @@ test("legacy control-semantic debt is explicit and cannot grow", async ({ page }
   expect(violations).toEqual(
     known.controlSemantics.map((entry) => entry.selector).sort()
   )
+})
+
+test("button semantics, accessible names, keyboard focus, and layout primitives hold", async ({ page }) => {
+  await page.goto(`${baseURL}/static/sidepanel.html`)
+
+  await expect(page.locator(".button").first()).toHaveJSProperty("tagName", "BUTTON")
+  const unnamedIconButtons = await page.locator(".button--icon").evaluateAll((buttons) =>
+    buttons
+      .filter((button) => !button.getAttribute("aria-label") && !button.textContent?.trim())
+      .map((button) => button.id || button.outerHTML)
+  )
+  expect(unnamedIconButtons).toEqual([])
+
+  await page.locator("body").click({ position: { x: 1, y: 1 } })
+  await page.keyboard.press("Tab")
+  const focused = page.locator(":focus")
+  await expect(focused).toHaveJSProperty("tagName", "BUTTON")
+  await expect(focused).toHaveCSS("outline-style", "solid")
+
+  for (const selector of [".row", ".cluster", ".toolbar"]) {
+    const alignments = await page.locator(selector).evaluateAll((elements) =>
+      elements.map((element) => getComputedStyle(element).alignItems)
+    )
+    expect(alignments.every((value) => value === "center")).toBe(true)
+  }
+})
+
+test("mobile button controls retain the touch contract", async ({ page }) => {
+  await page.goto(`${baseURL}/static/sidepanel.html?target=mobile`)
+  const controls = page.locator(
+    "#reload_stories_btn, #settings_menu_btn, #reading_menu_btn, #stories_menu_btn > .heading"
+  )
+  for (const control of await controls.all()) {
+    await expect(control).toHaveCSS("min-height", "44px")
+  }
 })
 
 test("declared icon and button contracts have measurable geometry", async ({ page }) => {
