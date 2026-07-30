@@ -3,6 +3,7 @@ const expressPouchDB = require("express-pouchdb")
 const fs = require("fs")
 const path = require("path")
 const PouchDB = require("pouchdb")
+const storyFixture = require("../e2e/shared/story-fixture")
 
 const port = Number.parseInt(process.env.ONCE_MOBILE_TEST_PORT || "3211", 10)
 const host = process.env.ONCE_MOBILE_TEST_HOST || "0.0.0.0"
@@ -37,6 +38,14 @@ app.get("/test/urls", (_request, response) => response.json({
   android: process.env.ONCE_MOBILE_TEST_URL || `http://10.0.2.2:${port}`,
   ios: `http://127.0.0.1:${port}`
 }))
+app.get("/fixtures/visual-feed.json", (request, response) => {
+  const baseUrl = `${request.protocol}://${request.get("host")}`
+  response.json(storyFixture.feedJson(baseUrl))
+})
+app.use((request, response, next) => {
+  const baseUrl = `${request.protocol}://${request.get("host")}`
+  if (!storyFixture.handleRequest(request, response, baseUrl)) next()
+})
 app.use("/test/databases", express.json())
 app.post("/test/databases/:name/reset", async (request, response, next) => {
   const name = request.params.name

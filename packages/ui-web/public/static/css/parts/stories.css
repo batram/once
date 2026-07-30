@@ -381,6 +381,21 @@
   opacity: 0.8;
 }
 
+.tags_container .tag_user {
+  border-color: #5b8def;
+  background-color: rgb(91 141 239 / 16%);
+}
+
+.tags_container .tag_channel {
+  border-color: #d9822b;
+  background-color: rgb(217 130 43 / 16%);
+}
+
+.tags_container .tag_category {
+  border-color: #43a047;
+  background-color: rgb(67 160 71 / 16%);
+}
+
 .tags_container .tag--icon {
   --stories-tag-icon-padding-left: 17px;
   padding-left: var(--stories-tag-icon-padding-left);

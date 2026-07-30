@@ -80,6 +80,7 @@
     "test:unit": "npm run build:packages && node --test tests/unit/**/*.test.js",
     "verify:release-artifacts": "node scripts/verify-release-artifacts.js",
     "verify:release-version": "node scripts/verify-release-version.js",
+    "visual:compare": "node scripts/visual-compare.js",
     "version": "node scripts/sync-release-version.js"
   },
   "author": "",

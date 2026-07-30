@@ -7,7 +7,13 @@ const STORY_TITLES = {
   alpha: "Alpha reader story",
   beta: "Beta discussion story",
   gamma: "Gamma redirect story",
-  delta: "Delta delta-filter story"
+  delta: "Delta delta-filter story",
+  epsilon: "Epsilon accessibility notes",
+  zeta: "Zeta offline interface study",
+  eta: "Eta typography field guide",
+  theta: "Theta browser architecture",
+  iota: "Iota testing without sleeps",
+  kappa: "Kappa unusually long headline for narrow layouts"
 }
 
 const SELECTORS = {
@@ -32,6 +38,12 @@ function storyUrls(origin) {
     beta: `${origin}/story/beta`,
     gamma: `${origin}/story/gamma`,
     delta: `${origin}/story/delta-filter-target`,
+    epsilon: `${origin}/story/epsilon`,
+    zeta: `${origin}/story/zeta`,
+    eta: `${origin}/story/eta`,
+    theta: `${origin}/story/theta`,
+    iota: `${origin}/story/iota`,
+    kappa: `${origin}/story/kappa`,
     rewrittenGamma: `${origin}/rewritten/gamma`,
     betaComments: `${origin}/comments/beta-1`,
     betaSubstoryComments: `${origin}/comments/beta-2`
@@ -40,17 +52,23 @@ function storyUrls(origin) {
 
 function feedJson(origin) {
   const urls = storyUrls(origin)
-  return {
+  const result = {
     items: [
       {
         href: urls.alpha,
         title: STORY_TITLES.alpha,
-        published: "2024-03-04T05:06:07Z"
+        published: "2030-07-15T10:00:00Z",
+        author: "Ada",
+        channel: "Engineering",
+        topic: "reader"
       },
       {
         href: urls.beta,
         title: STORY_TITLES.beta,
-        published: "2024-03-03T05:06:07Z",
+        published: "2030-07-15T09:00:00Z",
+        author: "Lin",
+        channel: "Community",
+        topic: "discussion",
         comments: urls.betaComments
       },
       // Same href with a different comments URL: OnceApp.addStory records it
@@ -58,32 +76,92 @@ function feedJson(origin) {
       {
         href: urls.beta,
         title: STORY_TITLES.beta,
-        published: "2024-03-03T04:06:07Z",
+        published: "2030-07-15T08:55:00Z",
+        author: "Sam",
+        channel: "Community",
+        topic: "follow-up",
         comments: urls.betaSubstoryComments
       },
       {
         href: urls.gamma,
         title: STORY_TITLES.gamma,
-        published: "2024-03-02T05:06:07Z"
+        published: "2030-07-15T08:00:00Z",
+        author: "Mira",
+        channel: "Web",
+        topic: "redirects"
       },
       {
         href: urls.delta,
         title: STORY_TITLES.delta,
-        published: "2024-03-01T05:06:07Z"
-      }
+        published: "2030-07-15T07:00:00Z",
+        author: "Noor",
+        channel: "Filters",
+        topic: "search"
+      },
+      ...[
+        ["epsilon", "Rae", "Design", "accessibility"],
+        ["zeta", "Kai", "Mobile", "offline"],
+        ["eta", "Inez", "Design", "typography"],
+        ["theta", "Bo", "Desktop", "architecture"],
+        ["iota", "Uma", "Testing", "determinism"],
+        ["kappa", "Sol", "Mobile", "responsive"]
+      ].map(([key, author, channel, topic], index) => ({
+        href: urls[key],
+        title: STORY_TITLES[key],
+        published: `2030-07-14T${String(18 - index).padStart(2, "0")}:00:00Z`,
+        author,
+        channel,
+        topic
+      }))
     ]
   }
+  for (const item of result.items) {
+    item.authorClass = "user"
+    item.channelClass = "channel"
+    item.topicClass = "category"
+  }
+  return result
 }
 
-function sourceLine(origin) {
+function sourceLine(origin, feedPath = "/feed.json") {
   return `json:§§${JSON.stringify({
     stories: { sel: "items", all: true },
     link: { sel: "href" },
     title: { sel: "title" },
     timestamp: { sel: "published" },
     comment_href: { sel: "comments" },
-    tags: []
-  })}§§${origin}/feed.json`
+    tags: [
+      { elements: { class: { sel: "authorClass" }, text: { sel: "author" } } },
+      { elements: { class: { sel: "channelClass" }, text: { sel: "channel" } } },
+      { elements: { class: { sel: "topicClass" }, text: { sel: "topic" } } }
+    ]
+  })}§§${origin}${feedPath}`
+}
+
+function rssSourceLine(origin, feedPath = "/feed.rss") {
+  return `${origin}${feedPath}`
+}
+
+function feedRss(origin) {
+  const urls = storyUrls(origin)
+  const keys = [
+    "alpha", "beta", "gamma", "delta", "epsilon",
+    "zeta", "eta", "theta", "iota", "kappa"
+  ]
+  const items = keys.map((key, index) => `
+    <item>
+      <title>${STORY_TITLES[key]}</title>
+      <link>${urls[key]}</link>
+      <guid>${urls[key]}</guid>
+      <pubDate>${new Date(Date.UTC(2030, 6, 15, 10 - index)).toUTCString()}</pubDate>
+    </item>`).join("")
+  return `<?xml version="1.0" encoding="UTF-8"?>
+    <rss version="2.0"><channel>
+      <title>Once RSS visual source</title>
+      <link>${origin}/feed.rss</link>
+      <description>Deterministic RSS companions for visual comparison</description>
+      ${items}
+    </channel></rss>`
 }
 
 function escapeRegex(value) {
@@ -118,6 +196,15 @@ function handleRequest(request, response, origin) {
     return true
   }
 
+  if (path === "/feed.rss") {
+    response.writeHead(200, {
+      "content-type": "application/rss+xml; charset=utf-8",
+      "access-control-allow-origin": "*"
+    })
+    response.end(feedRss(origin))
+    return true
+  }
+
   if (path === "/story/alpha") {
     response.writeHead(200, { "content-type": "text/html; charset=utf-8" })
     response.end(`<!doctype html>
@@ -149,8 +236,10 @@ module.exports = {
   SELECTORS,
   STORY_TITLES,
   feedJson,
+  feedRss,
   handleRequest,
   redirectRule,
   sourceLine,
+  rssSourceLine,
   storyUrls
 }
