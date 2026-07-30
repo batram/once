@@ -1,5 +1,5 @@
 #left_panel .bar {
-  justify-content: space-between;
+  justify-content: flex-start;
 }
 
 #menu .button {

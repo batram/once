@@ -7,6 +7,7 @@ const path = require("node:path")
 const root = path.resolve(__dirname, "../../..")
 const uiPublic = path.join(root, "packages", "ui-web", "public")
 const mobileCss = path.join(root, "apps", "mobile", "src", "mobile.css")
+const electronCss = path.join(root, "apps", "electron", "src", "electron.css")
 
 const contentTypes = new Map([
   [".css", "text/css; charset=utf-8"],
@@ -26,12 +27,24 @@ function shell(target) {
         '    <link rel="stylesheet" href="/mobile.css" />'
       )
       .replace("<body ", '<body data-platform="mobile" ')
+  } else if (target === "electron") {
+    html = html
+      .replace(
+        '<link rel="stylesheet" href="css/style.css" />',
+        '<link rel="stylesheet" href="css/style.css" />\n' +
+        '    <link rel="stylesheet" href="/electron.css" />'
+      )
+      .replace("<body ", '<body class="electron-platform-win32" ')
   }
   return html
 }
 
 function resolvedAsset(urlPath) {
   if (urlPath === "/mobile.css") return mobileCss
+  if (urlPath === "/electron.css") return electronCss
+  if (urlPath.startsWith("/imgs/")) {
+    return path.join(uiPublic, "static", urlPath.slice(1))
+  }
   if (!urlPath.startsWith("/static/")) return null
   const relative = urlPath.slice("/static/".length)
   const resolved = path.resolve(uiPublic, "static", relative)

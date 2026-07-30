@@ -538,9 +538,14 @@ body.once-anchored-menu-open {
   display: flex;
   flex: 1 1 33.333%;
   min-width: 0;
+  min-height: var(--touch);
+  margin: 0;
+  padding: 0;
   align-items: center;
   justify-content: center;
-  border-top: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   opacity: 0.55;
 }
 
@@ -574,7 +579,11 @@ body.once-anchored-menu-open {
   gap: var(--mobile-menu-heading-gap);
   width: 100%;
   min-height: var(--touch);
+  margin: 0;
   padding: var(--sp-1);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 /* icon carries an accent pill when its tab is active */
