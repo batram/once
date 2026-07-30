@@ -89,9 +89,19 @@ order.
    limit, so no exception flags it.
 3. Split `SwipeSettingsLab` gesture simulation from persistence. Its preview
    row now drives `story/swipe/` directly, so the seam is on the lab side.
+
 The large E2E suites are split and no test file carries an exception any more.
 `mobile-web.spec.js` became ten feature specs over `tests/e2e/mobile/helpers/`,
 and `core-browser.spec.js` became seven. Both retired their exceptions.
+
+Know the shape of E2E coverage before reading a count as a gap. The mobile web
+(43 tests) and Electron (40) suites cover shared `ui-web` behavior, so
+`mobile.smoke.js` deliberately covers only the seams a browser harness cannot
+reach: Capacitor WebView attach, the real native story menu, Android hardware
+back, process kill and relaunch, and the reader TTS bridge. It is seven phases
+sharing one device session, not seven independent cases, so it runs with
+Mocha's `bail`. Neither the native suites nor `test:mobile:web` are part of
+`npm test`; `.github/workflows/mobile.yml` is `workflow_dispatch` only.
 
 ## Workflow
 

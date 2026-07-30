@@ -96,7 +96,10 @@ function configFor(platform) {
     outputDir: results,
     framework: "mocha",
     reporters: ["spec"],
-    mochaOpts: { timeout: 120_000 },
+    // The smoke phases share one device session and each builds on the state
+    // the last one left, so stop at the first failure rather than reporting
+    // every later phase as broken too.
+    mochaOpts: { timeout: 120_000, bail: true },
     services: [["appium", {
       command: "appium",
       logPath: path.join(results, `${platform}-appium.log`),

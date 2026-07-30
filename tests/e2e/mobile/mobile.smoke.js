@@ -1,4 +1,4 @@
-/* global browser, describe, it, expect, $ */
+/* global browser, describe, before, it, expect, $ */
 
 function contextName(context) {
   return typeof context === "string" ? context : context?.id || ""
@@ -178,8 +178,23 @@ async function setWebValue(element, value) {
   }, element, value)
 }
 
+// One installed app and one WebDriver session carry across these phases: each
+// depends on the state the one before it left behind, which is the point — the
+// suite follows a single device journey rather than seven independent cases.
+// `bail` in the Mocha options stops at the first failure, so a broken early
+// phase reports once instead of cascading into six confusing ones.
 describe("Once mobile", () => {
-  it("launches, loads fixtures, uses the reader, and persists state", async () => {
+  let platform
+  let baseUrl
+
+  before(() => {
+    platform = String(browser.capabilities.platformName).toLowerCase()
+    const port = process.env.ONCE_MOBILE_TEST_PORT || "3211"
+    baseUrl = process.env.ONCE_MOBILE_TEST_URL ||
+      (platform === "android" ? `http://10.0.2.2:${port}` : `http://127.0.0.1:${port}`)
+  })
+
+  it("attaches to the Capacitor WebView and finishes startup", async () => {
     await switchToWebView()
     const body = await $("body")
     await body.waitForExist({ timeout: 30_000 })
@@ -199,11 +214,9 @@ describe("Once mobile", () => {
     await expect($("[data-testid='settings-menu']")).toBeDisplayed()
     await expect($("[data-testid='stories-menu']")).toBeDisplayed()
     await expect($("[data-testid='pick-source']")).not.toBeDisplayed()
+  })
 
-    const platform = String(browser.capabilities.platformName).toLowerCase()
-    const port = process.env.ONCE_MOBILE_TEST_PORT || "3211"
-    const baseUrl = process.env.ONCE_MOBILE_TEST_URL ||
-      (platform === "android" ? `http://10.0.2.2:${port}` : `http://127.0.0.1:${port}`)
+  it("stores sources, sync, and theme through settings", async () => {
     await clickWeb(await $("[data-testid='settings-menu']"), platform)
     await clickWeb(await $("[data-settings-target='sources']"), platform)
     const sourcesInput = await $("[data-testid='sources']")
@@ -228,8 +241,10 @@ describe("Once mobile", () => {
       })
     }
     await $("[data-testid='theme']").selectByAttribute("value", "light")
-    await expect(body).toHaveAttribute("data-theme", "light")
+    await expect($("body")).toHaveAttribute("data-theme", "light")
+  })
 
+  it("loads fixture stories and opens one in the embedded browser", async () => {
     await clickWeb(await $("[data-testid='stories-menu']"), platform)
     const reloadStories = await $("[data-testid='reload-stories']")
     await reloadStories.waitForDisplayed({ timeout: 10_000 })
@@ -254,7 +269,11 @@ describe("Once mobile", () => {
     )
     await clickWeb(await $("[data-testid='stories-menu']"), platform)
     await readingContent.waitForDisplayed({ timeout: 10_000, reverse: true })
+  })
 
+  it("opens the reader from the native story menu and bridges TTS to the host", async () => {
+    const story = await $("[data-testid='story']")
+    await story.waitForDisplayed({ timeout: 30_000 })
     // The reader frame is opaque-origin, so automation cannot reach into it.
     // Observe the TTS bridge traffic (readerTtsPolyfill -> readerTtsHostBridge)
     // from the host page instead: the frame must request the native voices.
@@ -281,16 +300,21 @@ describe("Once mobile", () => {
     })
     const ttsTraffic = await browser.execute(() => window.__onceTtsSeen)
     expect(ttsTraffic.some((message) => message.type === "voices" && message.fromReader)).toBe(true)
+  })
 
+  it("leaves the reader with the platform back affordance", async () => {
     if (platform === "android") {
       await browser.switchContext("NATIVE_APP")
       await browser.pressKeyCode(4)
       await switchToWebView()
-      await expect($("#reading_content")).not.toBeDisplayed()
     } else {
       await clickWeb(await $("[data-testid='stories-menu']"), platform)
     }
+    await expect($("#reading_content")).not.toBeDisplayed()
+  })
 
+  it("tracks read, unread, and skipped state", async () => {
+    const story = await $("[data-testid='story']")
     await browser.waitUntil(async () => (await story.getAttribute("class")).includes("read"), {
       timeout: 10_000,
       timeoutMsg: "Reader mode did not persist the read state"
@@ -309,7 +333,9 @@ describe("Once mobile", () => {
       timeoutMsg: "Story did not enter skipped state"
     })
     await settledStoryWrites()
+  })
 
+  it("restores durable state after a hard restart", async () => {
     await browser.switchContext("NATIVE_APP")
     await browser.terminateApp("com.zmarn.once.dev")
     await browser.activateApp("com.zmarn.once.dev")
