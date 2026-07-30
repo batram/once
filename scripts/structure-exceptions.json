@@ -1,20 +1,20 @@
 {
   "files": {
-    "apps/electron/src/TabManager.ts": "Tab ownership extraction is staged with Electron lifecycle work.",
-    "apps/mobile/src/readingController.ts": "Reading UI and native-surface extraction is staged.",
-    "packages/app/src/OnceApp.ts": "The public facade is being reduced through internal services.",
-    "packages/ui-web/src/picker/sourcePicker.ts": "Picker overlay extraction is staged.",
-    "packages/ui-web/src/settings/SwipeSettingsLab.ts": "Preview and persistence extraction is staged."
+    "apps/electron/src/TabManager.ts": "Work package 4 will extract tab ownership and window lifecycle while preserving BrowserCoordinator as the orchestration surface.",
+    "apps/mobile/src/readingController.ts": "Work package 3 will separate native reading-session and surface state from current-story DOM interaction.",
+    "packages/app/src/OnceApp.ts": "Work package 1 will reduce the public facade through tested settings, loading, working-set, persistence, and sync-policy services.",
+    "packages/ui-web/src/picker/sourcePicker.ts": "Work package 9 will separate pure selector and source-line policy from the injected overlay; embedded overlay CSS currently inflates the logical-line count.",
+    "packages/ui-web/src/settings/SwipeSettingsLab.ts": "Work package 5 will extract the debounced persistence state owner and a coherent view-construction boundary in the same commit."
   },
   "functions": {
-    "apps/electron/src/browser/TabEvents.ts#TabEvents.bind": "Event families will move to focused binders.",
-    "apps/electron/src/BrowserShell.ts#BrowserShell.render": "Shell markup extraction is staged.",
-    "apps/mobile/src/main.ts#startMobileApp": "Composition steps will move to named installers.",
-    "apps/mobile/src/readerTtsPolyfill.ts#installReaderTtsPolyfill": "Speech API adapter extraction is staged.",
-    "packages/ui-web/src/gesture/pullToRefresh.ts#attachPullToRefresh": "Gesture state extraction is staged.",
-    "packages/ui-web/src/reader/readerTts.ts#installReaderTts": "Reader speech controls extraction is staged.",
-    "packages/ui-web/src/settings/SwipeSettingsLab.ts#SwipeSettingsLab.constructor": "Preview event wiring extraction is staged.",
-    "scripts/webpack.webext.config.js#module.exports": "Webpack configuration remains a declarative build entrypoint.",
-    "tests/e2e/electron/story-list.debug.js#test(diagnoses Electron story loading and interactions)": "Interactive debug harness remains intentionally linear."
+    "apps/electron/src/browser/TabEvents.ts#TabEvents.bind": "Work package 8 will split event families only where focused binders can narrow the current action dependencies.",
+    "apps/electron/src/BrowserShell.ts#BrowserShell.render": "The two-line overage is accepted until related shell work can create useful tab-strip and active-control render seams; limit-only helpers are not warranted.",
+    "apps/mobile/src/main.ts#startMobileApp": "Work package 6 will extract the source-picker and native-browser workflow while keeping ordinary startup composition linear.",
+    "apps/mobile/src/readerTtsPolyfill.ts#installReaderTtsPolyfill": "Work package 7 will move bridge-backed speech implementations and session routing behind a tested adapter.",
+    "packages/ui-web/src/gesture/pullToRefresh.ts#attachPullToRefresh": "One touch-gesture state machine intentionally keeps start, move, end, refresh, render, and cleanup handlers over shared closure state; splitting it would add indirection without a new owner.",
+    "packages/ui-web/src/reader/readerTts.ts#installReaderTts": "Work package 2 will separate pure text segmentation, the playback session, and thin DOM and external-control binding.",
+    "packages/ui-web/src/settings/SwipeSettingsLab.ts#SwipeSettingsLab.constructor": "Work package 5 will replace constructor-owned DOM assembly and binding with one coherent view boundary alongside persistence extraction.",
+    "scripts/webpack.webext.config.js#module.exports": "One declarative Webpack build entrypoint keeps entries, output, optimization, rules, and plugins readable together; extracting object fragments would increase reading span.",
+    "tests/e2e/electron/story-list.debug.js#test(diagnoses Electron story loading and interactions)": "One numbered diagnostic journey intentionally shares its process, fixture, checkpoint, logging, failure-capture, and cleanup lifetime; splitting it would weaken the diagnostic narrative."
   }
 }

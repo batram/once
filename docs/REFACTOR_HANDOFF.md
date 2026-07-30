@@ -1,6 +1,6 @@
 # Repository Refactor Handoff
 
-Updated: 2026-07-30 (second pass)
+Updated: 2026-07-30 (work-package plan)
 
 ## Goal
 
@@ -25,13 +25,11 @@ regression, and should be rejected in review even though CI is green.
 The function limit reads differently in `tests/`. A `test()` body has no
 callers and no collaborators, so "extract something" is not available to it —
 the only moves are pushing assertions into a helper, which costs reading span,
-or splitting into more tests, which is a coverage decision. So when the limit
-flags a test, ask whether the test has one subject rather than how long it is.
-Three subjects sharing a fixture should be three tests; one continuous
-scenario that happens to be long should keep an exception saying why. Measured
-across 308 test callbacks, the limit flags two, so it is cheap either way.
-The file limit is the one that earns its keep in `tests/`: it is what surfaced
-the 2189-line mobile suite.
+or splitting into more tests, which is a coverage decision. Ask whether a
+flagged test has one subject rather than how long it is. Three subjects sharing
+a fixture should be three tests; one continuous scenario that happens to be
+long should keep an exception saying why. The file limit is the useful test
+signal: it surfaced the former 2189-line mobile suite.
 
 Maintained references, rather than repeating them here: `docs/CODEMAP.md`
 (ownership, composition roots, generated files), `docs/ARCHITECTURE.md`
@@ -44,15 +42,189 @@ rationale inline).
 Guardrails are in place. `npm run check` covers lint, structure, types, dead
 code, boundaries, and development builds. Knip models the Electron, extension,
 mobile, test, preload, content-script, and background-script entry graphs and
-blocks on unused files, exports, and types. Structural exceptions are down from
-27 to 17 (7 files, 10 functions).
+blocks on unused files, exports, and types.
 
-### Next: `OnceApp`
+The live inventory is `scripts/structure-exceptions.json`: 14 entries, made up
+of 5 file and 9 function exceptions. Ten entries belong to the nine ordered
+work packages below, one is opportunistic cleanup, and three are accepted
+exceptions that are not refactor work: the cohesive pull-to-refresh gesture,
+declarative Webpack configuration, and the intentionally linear Electron
+diagnostic scenario.
 
-Extract loading, working-set, persistence reconciliation, and settings access
-behind the `OnceApp` facade, preserving its public API. Keep startup loading
-bounded and persistence lazy. Add tests per extracted service, and retire its
-structure exception only once the real limits are met.
+The large E2E suites are already split and no test file carries a file
+exception. `mobile-web.spec.js` became ten feature specs over
+`tests/e2e/mobile/helpers/`, and `core-browser.spec.js` became seven.
+
+## Work-package rule
+
+Complete exactly one package at a time, in the order below. A package is not an
+invitation to make the first extraction and leave the repository between
+designs.
+
+For every package:
+
+1. Read the affected implementation, its direct tests, and the relevant
+   architecture/codemap sections before editing.
+2. Make all extractions needed for the stated boundary in one working session.
+   Preserve the public facade and behavior; do not leave temporary adapters,
+   duplicate implementations, TODO migrations, or an exception relocated to a
+   new file.
+3. Add direct tests for each new state owner or pure policy. Keep existing
+   integration coverage.
+4. Remove the package's entries from `scripts/structure-exceptions.json`.
+   Run `npm run check` and the relevant unit/integration suites. Perform the
+   platform validation described in `docs/DEVELOPMENT.md` when available, and
+   record any platform suite that could not be run.
+5. Review the diff for reading span, explicit dependencies, testable seams,
+   and truthful names. The package is unfinished if it merely passes a line
+   limit.
+6. Commit the complete package as one focused commit before starting the next
+   package. Do not combine adjacent packages in one commit, and do not begin a
+   later package while the current one is uncommitted.
+
+If a package cannot be completed without changing a public API or an invariant
+below, stop and update this handoff with the concrete blocker. Do not commit a
+half-extracted architecture.
+
+## Ordered work packages
+
+### 1. Reduce `OnceApp` to a facade
+
+Extract settings access, bounded source loading, working-set ownership, lazy
+persistence/write reconciliation, and story sync-merge policy from
+`packages/app/src/OnceApp.ts`. New services must own real state or policy and
+have direct tests; do not replace private methods with host methods that only
+forward imports.
+
+Keep the `OnceApp` and client public APIs unchanged. Startup loading must remain
+bounded, persistence must remain lazy, and serialized/sync behavior must remain
+compatible. Finish by removing the `OnceApp.ts` file exception.
+
+### 2. Extract the reader speech session
+
+Split `packages/ui-web/src/reader/readerTts.ts` into:
+
+- pure document segmentation, speech-text normalization, and chunking;
+- a playback session that owns utterance, position, voice, rate, lifecycle,
+  and ownership arbitration;
+- thin DOM and external-control binding.
+
+Test the pure text policy and the playback state directly. Preserve current
+control behavior, highlighting, rate storage, cross-window ownership, and
+cleanup. Remove the `installReaderTts` exception.
+
+### 3. Separate mobile reading UI from native-surface coordination
+
+Reduce `apps/mobile/src/readingController.ts` by separating the native reading
+session/surface lifecycle from current-story DOM interaction. The native side
+should own visibility, bounds, navigation/request generations, reader loading,
+and stale-result rejection. The view side should own observation, collapse,
+swipe, controls, and rendering.
+
+Do not create a wide callback bag between the two. Add tests around the state
+each side owns and remove the file exception.
+
+### 4. Extract Electron tab ownership and window lifecycle
+
+Continue the existing decomposition of `apps/electron/src/TabManager.ts`.
+Extract coherent owners for tab movement/reordering/closure and window
+lifecycle. Preserve IPC sender validation, `WebContentsView` ownership,
+activation order, fullscreen geometry, reader regeneration, drag/drop, native
+menus, and source-picker behavior.
+
+The `BrowserCoordinator` remains the public orchestration surface. Avoid
+forwarding-only host methods and remove the file exception when the coordinator
+has real headroom.
+
+### 5. Separate swipe-settings persistence from the lab view
+
+Extract the debounced save queue, single in-flight write, queued snapshot,
+batched undo, retry, and external-change reconciliation from
+`packages/ui-web/src/settings/SwipeSettingsLab.ts` into a directly tested state
+owner. Keep gesture preview and exact ruler geometry on the view side.
+
+Build and bind the view through one coherent view boundary so the constructor
+becomes orchestration, not a set of arbitrary one-line builder extractions.
+Preserve selectors, accessibility state, save-status wording, undo semantics,
+and pixel geometry. Remove both the file and constructor exceptions in the
+same commit.
+
+### 6. Extract the mobile source-picker runner
+
+Keep `apps/mobile/src/main.ts` as a readable composition root. Extract only the
+substantial source-picker/native-browser workflow: navigation listener
+lifetimes, surface activation, injection loading, result polling/timeout,
+decoding, and sanitization.
+
+Test that workflow directly, including navigation failure, cleanup, timeout,
+and malformed results. Do not introduce generic installer wrappers around
+ordinary composition calls. Remove the `startMobileApp` exception.
+
+### 7. Extract the mobile speech polyfill adapter
+
+Move the bridge-backed speech-synthesis and utterance implementations out of
+`installReaderTtsPolyfill` in
+`apps/mobile/src/readerTtsPolyfill.ts`. Give session/request routing and speech
+state an explicit adapter boundary with direct tests. Leave feature detection
+and browser-global installation in the installer.
+
+Preserve the browser speech API shape, native request/callback payloads,
+default language behavior, and cancellation/error semantics. Remove the
+function exception.
+
+### 8. Split Electron tab events by dependency family
+
+Split `TabEvents.bind` into focused navigation/load, window-interaction, and
+lifecycle event binders only where doing so narrows dependencies. Replace the
+wide `TabEventActions` bag with smaller truthful collaborator surfaces; helper
+methods that all retain the same callback bag do not complete this package.
+
+Preserve Electron event ordering, error-page behavior, redirects, unload
+confirmation, fullscreen handling, new-window dispositions, menus, and
+cleanup. Add direct event-family tests and remove the function exception.
+
+### 9. Separate source-picker policy from its injected overlay
+
+The limit for `packages/ui-web/src/picker/sourcePicker.ts` is inflated by the
+large `OVERLAY_STYLES` template literal, so do not treat its reported logical
+line count as 758 lines of TypeScript behavior. Extract coherent boundaries:
+pure selector derivation/generalization and source-line parsing/serialization
+belong outside the injected overlay. Move styles only if the injection build
+can retain a single source of truth without generated-file edits.
+
+Keep picking, hover, preview, editing, cancellation, and sanitization behavior
+unchanged. Add direct tests for the extracted pure policy and remove the file
+exception only after the overlay itself has real headroom.
+
+## Opportunistic cleanup, not a scheduled package
+
+`BrowserShell.render` is 122 lines against a 120-line limit. The two-line
+overage is not by itself a design problem. During related Electron shell work,
+it may be split into tab-strip rendering and active-navigation-control
+rendering if that produces useful named seams and direct tests. Until then its
+documented exception is preferable to helpers created only to satisfy the
+counter. Do not interrupt the ordered packages solely to retire it.
+
+## Accepted structural exceptions
+
+These are reviewed decisions, not pending refactors:
+
+- `attachPullToRefresh` is one gesture state machine whose handlers
+  intentionally share closure state. Splitting it would spread one event
+  sequence across files or replace closure state with fields without producing
+  a new owner.
+- `scripts/webpack.webext.config.js#module.exports` is a declarative build
+  entrypoint. Extracting fragments of one configuration object would increase
+  reading span.
+- The Electron `story-list.debug.js` callback is one numbered diagnostic
+  journey with shared process, fixture, checkpoint, logging, failure capture,
+  and cleanup lifetime. Moving its steps behind helpers or separate tests
+  would weaken the diagnostic narrative.
+
+Revisit an accepted exception only when its responsibility changes, not when a
+limit changes or nearby lines are added. Its rationale in
+`scripts/structure-exceptions.json` must continue to describe why the code is
+cohesive rather than merely saying that an exception exists.
 
 ## Refactor invariants
 
@@ -66,30 +238,18 @@ structure exception only once the real limits are met.
 - Change generated assets at their source; do not edit `dist` or generated
   native web assets directly.
 - Do not add a host method that only forwards an importable function.
-- A file left at the limit is not finished; leave real headroom or say in the
-  commit why the remainder is irreducible.
+- A file left at the limit is not finished; leave real headroom or explain why
+  the remainder is irreducible.
 - Do not move a large function unchanged merely to relocate its exception.
 
-## Later candidates
+## Validation
 
-`scripts/structure-exceptions.json` is the real inventory; this is a suggested
-order.
+Run from the repository root with Node.js 24 or newer. Every relevant command
+is an npm script that works on Windows, macOS, and Linux: `npm run check`,
+`test:unit`, `test:collectors`, plus narrower checks such as
+`check:structure` and `check:dead-code`.
 
-1. Continue splitting Electron lifecycle/navigation coordination and mobile
-   reading/native-surface coordination.
-2. Split `SwipeSettingsLab` gesture simulation from persistence. Its preview
-   row now drives `story/swipe/` directly, so the seam is on the lab side.
-
-The large E2E suites are split and no test file carries an exception any more.
-`mobile-web.spec.js` became ten feature specs over `tests/e2e/mobile/helpers/`,
-and `core-browser.spec.js` became seven. Both retired their exceptions.
-
-## Workflow
-
-Run from the repository root with Node.js 24 or newer; every relevant command is
-an npm script that works on Windows, macOS, and Linux (`npm run check`,
-`test:unit`, `test:collectors`, plus the narrower `check:structure` and
-`check:dead-code`). Consult `docs/DEVELOPMENT.md` before platform-specific
-Electron, extension, Android, or iOS validation, and record any platform suite
-you could not run instead of assuming another operating system's paths,
-executables, permissions, or sandbox behavior.
+Consult `docs/DEVELOPMENT.md` before Electron, extension, Android, or iOS
+validation. Record platform suites that could not be run instead of assuming
+another operating system's paths, executables, permissions, or sandbox
+behavior.
