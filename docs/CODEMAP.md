@@ -32,7 +32,7 @@ target lifecycle, permissions, native bridges, and packaging belong in an app.
 | Settings UI | `packages/ui-web/src/settings` | Panel, persistence, structured editors, search, and form helpers |
 | Reader extraction and display | `packages/ui-web/src/reader` | Shared reader runtime |
 | Source picker | `packages/ui-web/src/picker` | Shared picker plus platform injection |
-| Electron tabs and windows | `apps/electron/src/TabManager.ts` | Main-process ownership |
+| Electron tabs and windows | `apps/electron/src/TabManager.ts`, `apps/electron/src/browser/TabOwnership.ts`, `WindowLifecycle.ts` | Main-process orchestration and ownership |
 | Mobile reading view | `apps/mobile/src/readingController.ts` | Current-story DOM interaction |
 | Mobile reading surface | `apps/mobile/src/readingSurfaceCoordinator.ts` | Native session and surface lifecycle |
 | Native browser bridge | `packages/platform-mobile/src/InAppBrowserSurface.ts` | Capacitor-facing adapter |

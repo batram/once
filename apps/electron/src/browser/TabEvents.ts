@@ -5,27 +5,24 @@ import { NativeMenus } from "./NativeMenus"
 import { NavigationErrors, sameUrl } from "./NavigationErrors"
 import { TabEntry, WindowEntry } from "./BrowserState"
 
-interface TabEventActions {
-  applyRedirects(url: string): string
-  createTab(owner: WindowEntry, url: string, active: boolean): Promise<string>
-  createWindow(url: string): Promise<void>
-  finalizeClosedTab(entry: TabEntry): void
+interface TabOwnerAccess {
   ownerFor(entry: TabEntry): WindowEntry | undefined
-  setFullscreen(owner: WindowEntry, fullscreen: boolean): void
   notify(entry: TabEntry): void
 }
 
-export class TabEvents {
+interface NavigationActions extends TabOwnerAccess {
+  applyRedirects(url: string): string
+}
+
+class TabNavigationEvents {
   constructor(
     private readonly errors: NavigationErrors,
-    private readonly menus: NativeMenus,
-    private readonly actions: TabEventActions
+    private readonly actions: NavigationActions
   ) {}
 
   bind(entry: TabEntry): void {
     const contents = entry.view.webContents
     const changed = () => this.actions.notify(entry)
-
     contents.on("did-start-loading", () => {
       entry.loading = true
       changed()
@@ -46,13 +43,11 @@ export class TabEvents {
         this.errors.restore(entry, event.url, errorPage)
         return
       }
-      this.resetNavigationState(entry, event.url)
+      this.reset(entry, event.url)
       entry.audible = false
       entry.hasPlayedAudio = false
-      if (entry.muted) {
-        contents.setAudioMuted(false)
-        entry.muted = false
-      }
+      if (entry.muted) contents.setAudioMuted(false)
+      entry.muted = false
       entry.title = "New tab"
       changed()
     })
@@ -71,21 +66,6 @@ export class TabEvents {
         this.errors.applyTheme(entry, owner.backgroundColor)
       }
     })
-    contents.on("page-title-updated", (_event, title) => {
-      entry.title = title || "New tab"
-      changed()
-    })
-    contents.on("audio-state-changed", (event) => {
-      entry.audible = event.audible
-      if (event.audible) entry.hasPlayedAudio = true
-      changed()
-    })
-    contents.on("update-target-url", (_event, url) => {
-      const owner = this.actions.ownerFor(entry)
-      if (owner?.activeId === entry.id && !owner.window.isDestroyed()) {
-        owner.window.webContents.send(ELECTRON_IPC.windowTargetUrlChanged, url)
-      }
-    })
     contents.on("will-navigate", (event, url) => {
       try {
         const normalized = normalizeBrowserUrl(url)
@@ -96,6 +76,47 @@ export class TabEvents {
         }
       } catch {
         event.preventDefault()
+      }
+    })
+  }
+
+  private didNavigate(entry: TabEntry, url: string, changed: () => void): void {
+    const errorPage = this.errors.state(entry, url)
+    if (errorPage) {
+      this.errors.restore(entry, url, errorPage)
+      this.errors.collapseFailedEntry(entry)
+      return
+    }
+    this.reset(entry, url)
+    changed()
+  }
+
+  private reset(entry: TabEntry, url: string): void {
+    entry.displayedUrl = url
+    entry.loadError = null
+    entry.loadErrorRetryable = false
+    entry.errorPageUrl = null
+  }
+}
+
+interface WindowInteractionActions extends TabOwnerAccess {
+  createTab(owner: WindowEntry, url: string, active: boolean): Promise<string>
+  createWindow(url: string): Promise<void>
+  setFullscreen(owner: WindowEntry, fullscreen: boolean): void
+}
+
+class TabWindowInteractionEvents {
+  constructor(
+    private readonly menus: NativeMenus,
+    private readonly actions: WindowInteractionActions
+  ) {}
+
+  bind(entry: TabEntry): void {
+    const contents = entry.view.webContents
+    contents.on("update-target-url", (_event, url) => {
+      const owner = this.actions.ownerFor(entry)
+      if (owner?.activeId === entry.id && !owner.window.isDestroyed()) {
+        owner.window.webContents.send(ELECTRON_IPC.windowTargetUrlChanged, url)
       }
     })
     contents.on("will-prevent-unload", (event) => {
@@ -111,20 +132,8 @@ export class TabEvents {
       })
       if (choice === 0) event.preventDefault()
     })
-    contents.on("enter-html-full-screen", () => {
-      const owner = this.actions.ownerFor(entry)
-      if (!owner) return
-      entry.htmlFullscreen = true
-      this.sendFullscreen(owner, true)
-      this.actions.setFullscreen(owner, true)
-    })
-    contents.on("leave-html-full-screen", () => {
-      const owner = this.actions.ownerFor(entry)
-      entry.htmlFullscreen = false
-      if (!owner) return
-      this.sendFullscreen(owner, false)
-      this.actions.setFullscreen(owner, false)
-    })
+    contents.on("enter-html-full-screen", () => this.enterFullscreen(entry))
+    contents.on("leave-html-full-screen", () => this.leaveFullscreen(entry))
     contents.on("before-input-event", (event, input) => {
       if (input.type !== "keyDown" || input.isAutoRepeat) return
       const owner = this.actions.ownerFor(entry)
@@ -133,7 +142,11 @@ export class TabEvents {
         event.preventDefault()
         if (entry.htmlFullscreen) void contents.executeJavaScript("document.exitFullscreen()")
         else this.actions.setFullscreen(owner, !owner.window.isFullScreen())
-      } else if (input.key === "Escape" && owner.window.isFullScreen() && !entry.htmlFullscreen) {
+      } else if (
+        input.key === "Escape" &&
+        owner.window.isFullScreen() &&
+        !entry.htmlFullscreen
+      ) {
         event.preventDefault()
         this.actions.setFullscreen(owner, false)
       }
@@ -154,30 +167,74 @@ export class TabEvents {
       const owner = this.actions.ownerFor(entry)
       if (owner) this.menus.showContentsMenu(owner, contents, params)
     })
-    contents.on("destroyed", () => this.actions.finalizeClosedTab(entry))
   }
 
-  private didNavigate(entry: TabEntry, url: string, changed: () => void): void {
-    const errorPage = this.errors.state(entry, url)
-    if (errorPage) {
-      this.errors.restore(entry, url, errorPage)
-      this.errors.collapseFailedEntry(entry)
-      return
-    }
-    this.resetNavigationState(entry, url)
-    changed()
+  private enterFullscreen(entry: TabEntry): void {
+    const owner = this.actions.ownerFor(entry)
+    if (!owner) return
+    entry.htmlFullscreen = true
+    this.sendFullscreen(owner, true)
+    this.actions.setFullscreen(owner, true)
   }
 
-  private resetNavigationState(entry: TabEntry, url: string): void {
-    entry.displayedUrl = url
-    entry.loadError = null
-    entry.loadErrorRetryable = false
-    entry.errorPageUrl = null
+  private leaveFullscreen(entry: TabEntry): void {
+    const owner = this.actions.ownerFor(entry)
+    entry.htmlFullscreen = false
+    if (!owner) return
+    this.sendFullscreen(owner, false)
+    this.actions.setFullscreen(owner, false)
   }
 
   private sendFullscreen(owner: WindowEntry, fullscreen: boolean): void {
     if (!owner.window.isDestroyed()) {
       owner.window.webContents.send(ELECTRON_IPC.windowFullscreenChanged, fullscreen)
     }
+  }
+}
+
+interface LifecycleActions extends TabOwnerAccess {
+  finalizeClosedTab(entry: TabEntry): void
+}
+
+class TabLifecycleEvents {
+  constructor(private readonly actions: LifecycleActions) {}
+
+  bind(entry: TabEntry): void {
+    const contents = entry.view.webContents
+    const changed = () => this.actions.notify(entry)
+    contents.on("page-title-updated", (_event, title) => {
+      entry.title = title || "New tab"
+      changed()
+    })
+    contents.on("audio-state-changed", (event) => {
+      entry.audible = event.audible
+      if (event.audible) entry.hasPlayedAudio = true
+      changed()
+    })
+    contents.on("destroyed", () => this.actions.finalizeClosedTab(entry))
+  }
+}
+
+export class TabEvents {
+  private readonly navigation: TabNavigationEvents
+  private readonly interaction: TabWindowInteractionEvents
+  private readonly lifecycle: TabLifecycleEvents
+
+  constructor(
+    errors: NavigationErrors,
+    menus: NativeMenus,
+    navigationActions: NavigationActions,
+    interactionActions: WindowInteractionActions,
+    lifecycleActions: LifecycleActions
+  ) {
+    this.navigation = new TabNavigationEvents(errors, navigationActions)
+    this.interaction = new TabWindowInteractionEvents(menus, interactionActions)
+    this.lifecycle = new TabLifecycleEvents(lifecycleActions)
+  }
+
+  bind(entry: TabEntry): void {
+    this.navigation.bind(entry)
+    this.interaction.bind(entry)
+    this.lifecycle.bind(entry)
   }
 }
