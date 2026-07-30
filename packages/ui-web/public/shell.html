@@ -25,7 +25,7 @@
               data-panel="settings"
               data-testid="settings-menu"
             >
-              <span class="heading row">
+              <span class="heading">
                 <img src="imgs/gear.svg" title="Settings" />
                 <p>Settings</p>
               </span>
@@ -37,7 +37,7 @@
               data-panel="reading"
               data-testid="reading-menu"
             >
-              <span class="heading row">
+              <span class="heading">
                 <img src="imgs/reading.svg" title="Reading" />
                 <p>Reading</p>
               </span>
@@ -48,33 +48,32 @@
               data-panel="stories"
               data-testid="stories-menu"
             >
-              <button type="button" class="button heading row" data-panel="stories">
+              <button type="button" class="button heading" data-panel="stories">
                 <img src="imgs/story.svg" title="Stories" />
                 <p>Stories</p>
               </button>
-              <div id="types"></div>
-              <div id="groups"></div>
+              <div id="types" class="sidebar_filter_list"></div>
+              <div id="groups" class="sidebar_filter_list"></div>
             </section>
           </div>
           <div id="left_main">
             <div id="stories_panel" class="panel" data-panel="stories">
-              <div id="search_bar" class="bar toolbar">
-                <button type="button" class="button bar_btn collapsebutton" aria-label="Collapse sidebar">
-                  &lt;
-                </button>
-                <select id="search_scope">
-                  <option>local</option>
-                  <option>global</option>
-                </select>
-                <input type="text" id="searchfield" placeholder="search" />
-                <button
-                  type="button"
-                  id="cancel_search_btn"
-                  class="button button--icon bar_btn"
-                  aria-label="Cancel search"
-                >
-                  <img src="imgs/x.svg" alt="" />
-                </button>
+              <div id="search_bar" class="bar toolbar panel_titlebar">
+                <div class="search_query">
+                  <select id="search_scope">
+                    <option>local</option>
+                    <option>global</option>
+                  </select>
+                  <input type="text" id="searchfield" placeholder="search" />
+                  <button
+                    type="button"
+                    id="cancel_search_btn"
+                    class="button button--icon bar_btn"
+                    aria-label="Cancel search"
+                  >
+                    <img src="imgs/x.svg" alt="" />
+                  </button>
+                </div>
                 <button
                   type="button"
                   id="reload_stories_btn"
@@ -83,6 +82,13 @@
                   aria-label="Reload stories"
                 >
                   <img src="imgs/reload.svg" alt="" />
+                </button>
+                <button
+                  type="button"
+                  class="button bar_btn collapsebutton"
+                  aria-label="Collapse sidebar"
+                >
+                  <img class="collapsebutton_icon" src="imgs/collapse.svg" alt="" />
                 </button>
               </div>
               <div id="mobile_filter_chips" aria-label="Story filters"></div>
@@ -96,13 +102,17 @@
               <div class="stories_container" id="filtered_stories"></div>
             </div>
             <div id="settings_panel" class="panel" data-panel="settings">
-              <div class="bar toolbar">
-                <button type="button" class="button bar_btn collapsebutton" aria-label="Collapse sidebar">
-                  &lt;
-                </button>
+              <div class="bar toolbar panel_titlebar">
                 <div class="settings_title">Settings</div>
                 <button type="button" class="button" id="settings_section_back" hidden>
                   Settings
+                </button>
+                <button
+                  type="button"
+                  class="button bar_btn collapsebutton"
+                  aria-label="Collapse sidebar"
+                >
+                  <img class="collapsebutton_icon" src="imgs/collapse.svg" alt="" />
                 </button>
               </div>
               <div class="settings_container">

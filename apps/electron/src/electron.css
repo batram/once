@@ -249,7 +249,7 @@ body #titlebar-text {
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  --electron-controlbar-gap: 3px;
+  --electron-controlbar-gap: var(--toolbar-control-gap);
   gap: var(--electron-controlbar-gap);
   height: 34px;
   --electron-controlbar-padding: var(--sp-1) 6px;
@@ -261,9 +261,9 @@ body #titlebar-text {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 26px;
-  width: 26px;
-  height: 26px;
+  flex: 0 0 var(--toolbar-control-size);
+  width: var(--toolbar-control-size);
+  height: var(--toolbar-control-size);
   margin: 0;
   --electron-browser-button-padding: 3px;
   padding: var(--electron-browser-button-padding);
@@ -316,7 +316,7 @@ body #titlebar-text {
 #urlfield {
   flex: 1 1 auto;
   min-width: 0;
-  height: 26px;
+  height: var(--toolbar-control-size);
   box-sizing: border-box;
   margin: 0;
   --electron-urlfield-padding: 2px var(--sp-2);
@@ -388,24 +388,19 @@ body #titlebar-text {
   flex: 0 0 calc(var(--macos-window-controls-width) - 30px);
 }
 
-/* Attached to the divider on the trailing edge here, so mirror the leading-edge
- * tab shape base.css gives the other shells. */
-#left_panel .bar .collapsebutton {
-  order: 1;
-  --electron-bar-collapsebutton-margin: 0 -15px 0 3px;
-  margin: var(--electron-bar-collapsebutton-margin);
-  border-left: thin solid var(--border-high-color);
-  border-right: 0;
-  --electron-bar-collapsebutton-border-radius: 2px 0 0 2px;
-  border-radius: var(--electron-bar-collapsebutton-border-radius);
+#search_bar {
+  padding-inline: var(--search-titlebar-inline-start) 0;
 }
 
-/* In Electron this button collapses the whole left panel, so it sits at the
- * trailing edge of the settings title bar. Other shells only collapse the menu
- * panel and keep it on the left (see base.css). */
-#settings_panel .bar .collapsebutton {
+#settings_panel .bar {
+  padding-inline: var(--sp-2) 0;
+}
+
+#left_panel .panel_titlebar > .collapsebutton {
   order: 4;
-  margin-right: 0;
+  border-left: thin solid var(--border-high-color);
+  border-right: 0;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
 }
 
 #settings_panel .bar:not(:has(.structured_mode_toggle_topbar)) .collapsebutton {

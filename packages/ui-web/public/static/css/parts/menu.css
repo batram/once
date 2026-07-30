@@ -9,6 +9,19 @@
   padding: var(--menu-menu-btn-padding);
 }
 
+.sidebar_filter_list {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding-inline: var(--sp-2);
+}
+
+#menu .sidebar_filter_list > .button {
+  margin-inline: 0;
+  justify-content: flex-start;
+  text-align: left;
+}
+
 .bar_btn {
   --menu-bar_btn-padding: 3px;
   padding: var(--menu-bar_btn-padding);
@@ -36,6 +49,10 @@
 }
 
 #menu .heading {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--sp-1);
   --menu-menu-heading-padding: 5px;
   padding: var(--menu-menu-heading-padding);
   box-sizing: border-box;
@@ -49,8 +66,7 @@
 }
 
 #menu .heading p {
-  --menu-menu-heading-padding-left: 3px;
-  padding-left: var(--menu-menu-heading-padding-left);
+  padding-left: 0;
   margin: 0;
 }
 

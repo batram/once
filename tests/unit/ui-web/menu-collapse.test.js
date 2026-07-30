@@ -5,8 +5,8 @@ const { parseHTML } = require("linkedom")
 test("collapse controls toggle the menu and notify their host", () => {
   const { window } = parseHTML(`
     <nav id="menu"><button class="button sidebar_panel">Settings</button></nav>
-    <button class="collapsebutton">&lt;</button>
-    <button class="collapsebutton">&lt;</button>
+    <button class="collapsebutton" aria-label="Collapse sidebar"></button>
+    <button class="collapsebutton" aria-label="Collapse sidebar"></button>
   `)
   const previousDocument = globalThis.document
   const previousElement = globalThis.Element
@@ -23,11 +23,23 @@ test("collapse controls toggle the menu and notify their host", () => {
 
     controls[0].click()
     assert.ok(document.querySelector("#menu").classList.contains("collapse"))
-    assert.deepEqual(controls.map((control) => control.textContent), [">", ">"])
+    assert.ok(controls.every((control) =>
+      control.classList.contains("collapsebutton--collapsed")
+    ))
+    assert.deepEqual(
+      controls.map((control) => control.getAttribute("aria-label")),
+      ["Expand sidebar", "Expand sidebar"]
+    )
 
     document.querySelector(".sidebar_panel").click()
     assert.ok(!document.querySelector("#menu").classList.contains("collapse"))
-    assert.deepEqual(controls.map((control) => control.textContent), ["<", "<"])
+    assert.ok(controls.every((control) =>
+      !control.classList.contains("collapsebutton--collapsed")
+    ))
+    assert.deepEqual(
+      controls.map((control) => control.getAttribute("aria-label")),
+      ["Collapse sidebar", "Collapse sidebar"]
+    )
     assert.deepEqual(changes, [true, false])
   } finally {
     if (previousDocument === undefined) Reflect.deleteProperty(globalThis, "document")

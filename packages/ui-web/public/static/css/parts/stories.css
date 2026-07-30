@@ -274,6 +274,12 @@
   opacity: 0.6;
 }
 
+.story .read_btn,
+.story .star_btn {
+  /* Prevent legacy url() pseudo-icons from inheriting a text line box. */
+  line-height: 0;
+}
+
 .read:not(.skipped) .read_btn::after {
   content: url(../../imgs/real_read.svg);
   display: block;
@@ -352,6 +358,8 @@
 
 .story .button_group {
   display: inline-flex;
+  padding: calc(var(--sp-1) / 2);
+  gap: var(--sp-1);
 }
 
 /* Touch-only affordance: Electron and the extensions open story actions from

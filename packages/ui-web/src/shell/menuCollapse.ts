@@ -29,7 +29,11 @@ function toggleMenu(menu: HTMLElement | null): boolean {
 function setMenuCollapsed(menu: HTMLElement, collapsed: boolean): boolean {
   menu.classList.toggle("collapse", collapsed)
   document.querySelectorAll<HTMLElement>(".collapsebutton").forEach((element) => {
-    element.textContent = collapsed ? ">" : "<"
+    element.classList.toggle("collapsebutton--collapsed", collapsed)
+    element.setAttribute(
+      "aria-label",
+      collapsed ? "Expand sidebar" : "Collapse sidebar"
+    )
   })
   return collapsed
 }

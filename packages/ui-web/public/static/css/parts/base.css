@@ -49,15 +49,6 @@ body {
   padding: var(--base-bar-padding);
 }
 
-.bar .collapsebutton {
-  margin: 0;
-  border: thin solid var(--border-high-color);
-  border-left: 0;
-  --base-bar-collapsebutton-border-radius: 0 2px 2px 0;
-  border-radius: var(--base-bar-collapsebutton-border-radius);
-  height: 20px;
-}
-
 .bar input {
   width: 100%;
 }

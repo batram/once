@@ -411,6 +411,13 @@ body.once-anchored-menu-open {
   border-bottom: var(--m-bw) solid var(--m-ink);
 }
 
+.search_query {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: var(--sp-2);
+}
+
 #search_scope {
   flex: 0 0 auto;
   height: var(--touch);

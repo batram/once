@@ -24,6 +24,13 @@
   --radius-lg: 8px;
   --bw: 1px;
 
+  /* Dense desktop chrome. Mobile components retain the --touch contract. */
+  --toolbar-control-size: 26px;
+  --toolbar-control-gap: 3px;
+  --panel-titlebar-block-padding: 5px;
+  --search-titlebar-inline-start: 15px;
+  --search-scope-inline-size: 70px;
+
   /* Theme-aware variables using light-dark() directly */
   --main-bg-color: light-dark(rgb(246, 246, 239), #282a36);
   --second-bg-color: light-dark(#ccc, #383a59);

@@ -73,3 +73,33 @@
 .toolbar {
   justify-content: flex-start;
 }
+
+body:not([data-platform="mobile"]) .panel_titlebar {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  min-height: 0;
+  padding-block: var(--panel-titlebar-block-padding);
+  gap: var(--toolbar-control-gap);
+}
+
+body:not([data-platform="mobile"]) .panel_titlebar > .collapsebutton {
+  order: -1;
+  flex: 0 0 auto;
+  height: var(--toolbar-control-size);
+  min-height: 0;
+  margin: 0;
+  padding: 0 calc(var(--sp-1) / 2);
+  border: thin solid var(--border-high-color);
+  border-left: 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.collapsebutton_icon {
+  display: block;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+.collapsebutton--collapsed .collapsebutton_icon {
+  transform: rotate(180deg);
+}

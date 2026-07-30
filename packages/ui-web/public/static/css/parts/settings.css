@@ -848,22 +848,18 @@ body:not([data-platform="mobile"]) #settings_panel {
   overflow: hidden;
 }
 
-/* Match the stories search bar's vertical rhythm — 5px above and below the
-   tallest control — so the collapse button has the same breathing room in both
-   panels. The horizontal inset stays tighter than the stories bar's 15px
-   because this surface is the dense one. */
+/* The shared titlebar owns vertical rhythm and control spacing. Settings keeps
+   the tighter horizontal inset used by this dense surface. */
 body:not([data-platform="mobile"]) #settings_panel .bar {
-  box-sizing: border-box;
-  flex: 0 0 auto;
   height: auto;
   min-height: 0;
-  --settings-settings_panel-bar-padding: 5px 0 5px var(--sp-2);
-  padding: var(--settings-settings_panel-bar-padding);
-  --settings-settings_panel-bar-gap: 6px;
-  gap: var(--settings-settings_panel-bar-gap);
+  padding-inline: 0;
 }
 
-body:not([data-platform="mobile"]) #settings_panel .bar button,
+body:not([data-platform="mobile"])
+  #settings_panel
+  .bar
+  button:not(.collapsebutton),
 body:not([data-platform="mobile"]) .structured_search input,
 body:not([data-platform="mobile"]) .structured_search button,
 body:not([data-platform="mobile"]) #settings_search,
