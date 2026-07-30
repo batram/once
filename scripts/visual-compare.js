@@ -883,7 +883,7 @@ function reportHtml({
   figure { min-width: 0; margin: 0; padding: 12px; border: 1px solid #5f6368; background: #292a2d; }
   body.current-left .comparison .current { order: -1; }
   figcaption { margin-bottom: 8px; font-weight: 600; }
-  img { display: block; max-width: 100%; height: auto; background: white; }
+  img { display: block; max-width: 100%; height: auto; background: white; max-height: 800px; }
   @media (max-width: 900px) { .comparison { grid-template-columns: 1fr; } }
 </style></head><body>
 <header><h1>Once built-app visual review</h1>
