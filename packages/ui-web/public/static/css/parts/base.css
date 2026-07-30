@@ -55,7 +55,7 @@ body {
  * disappearing underneath it. #search_bar has wider padding to cancel (see
  * search.css). Electron overrides both. */
 .bar .collapsebutton {
-  margin-left: -8px;
+  margin-left: calc(-1 * var(--sp-2));
   margin-right: 15px;
   border: thin solid var(--border-high-color);
   border-left: 0;

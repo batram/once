@@ -3,7 +3,7 @@
 }
 
 #menu .btn {
-  margin: 2px 8px;
+  margin: 2px var(--sp-2);
   padding: 2px;
 }
 
@@ -19,7 +19,7 @@
 }
 
 #menu_btn {
-  font-size: 14px;
+  font-size: var(--fs-body);
   padding: 3px;
   margin: 0;
   margin-left: -13px;

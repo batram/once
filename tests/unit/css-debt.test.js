@@ -5,17 +5,19 @@ const { analyzeCss, compareDebt } = require("../../scripts/check-css-debt")
 test("CSS debt analysis identifies the guarded debt categories", () => {
   const source = `
 body[data-platform="mobile"] .toolbar {
+  --m-sp-2: 8px;
   margin: 0 -2px;
-  padding: 12px;
+  padding: var(--m-sp-2);
   display: flex !important;
 }
 `
   assert.deepEqual(analyzeCss("sample.css", source), [
-    "important|sample.css:5|display: flex !important",
+    "important|sample.css:6|display: flex !important",
     "mobile-specificity-prefix|sample.css:2|body[data-platform=\"mobile\"] .toolbar",
-    "negative-margin|sample.css:3|margin: 0 -2px",
-    "raw-geometry-px|sample.css:3|margin: 0 -2px",
-    "raw-geometry-px|sample.css:4|padding: 12px"
+    "mobile-token-alias|sample.css:3|--m-sp-2",
+    "mobile-token-alias|sample.css:5|--m-sp-2",
+    "negative-margin|sample.css:4|margin: 0 -2px",
+    "raw-geometry-px|sample.css:4|margin: 0 -2px"
   ])
 })
 

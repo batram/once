@@ -1,4 +1,6 @@
-@import "./parts/vars.css";
+@layer reset, tokens, base, components, platform, user;
+
+@import "./parts/vars.css" layer(tokens);
 @import "./parts/base.css";
 @import "./parts/layout.css";
 @import "./parts/animations.css";

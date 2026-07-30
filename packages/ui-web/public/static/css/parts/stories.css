@@ -354,7 +354,7 @@
 }
 
 .tags_container .tag {
-  padding: 1px 4px;
+  padding: 1px var(--sp-1);
   margin: 2px;
   border: thin solid var(--text-color);
   border-radius: 2px;

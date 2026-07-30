@@ -36,14 +36,14 @@
 
 #settings_index {
   flex: 0 0 240px;
-  padding: 8px;
+  padding: var(--sp-2);
   border-right: 1px solid var(--sep-color);
 }
 
 #settings_search {
   box-sizing: border-box;
   width: 100%;
-  margin-bottom: 8px;
+  margin-bottom: var(--sp-2);
 }
 
 #settings_sections {
@@ -94,7 +94,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 2px 0 6px 8px;
+  padding: 2px 0 6px var(--sp-2);
 }
 
 .settings_section_match {
@@ -159,7 +159,7 @@
   align-items: center;
   justify-content: flex-start;
   flex-wrap: nowrap;
-  gap: 8px;
+  gap: var(--sp-2);
   text-align: center;
 }
 
@@ -173,7 +173,7 @@
   align-items: center;
   display: flex;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: var(--sp-2);
 }
 
 #error_log {
@@ -186,7 +186,7 @@
   background: var(--input-bg-color);
   border: 1px solid var(--border-color);
   border-left: 3px solid #e05252;
-  padding: 8px;
+  padding: var(--sp-2);
 }
 
 .error_log_entry:focus {
@@ -206,7 +206,7 @@
   font:
     11px/1.4 "Courier New",
     monospace;
-  margin: 8px 0 0;
+  margin: var(--sp-2) 0 0;
   max-height: 240px;
   overflow: auto;
   white-space: pre-wrap;
@@ -217,7 +217,7 @@
 .error_log_copy,
 .error_log_show_source,
 .error_log_show_story {
-  margin-top: 8px;
+  margin-top: var(--sp-2);
 }
 
 .error_log_show_source {
@@ -320,7 +320,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: var(--fs-body);
   color: initial !important; /* Override backdrop's transparent color */
   pointer-events: auto; /* Make emoji clickable */
   cursor: pointer;
@@ -333,12 +333,12 @@
 .structured_form_actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
 }
 
 .structured_settings_header {
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: var(--sp-2);
 }
 
 .structured_mode_toggle {
@@ -354,13 +354,13 @@
   min-width: 38px;
   min-height: 30px;
   margin-left: auto;
-  padding: 0 8px;
+  padding: 0 var(--sp-2);
   border: thin solid var(--sep-color);
   border-radius: 4px;
   background: transparent;
   color: inherit;
   font-family: "Courier New", Courier, monospace;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   font-weight: 700;
   letter-spacing: 0.03em;
 }
@@ -379,7 +379,7 @@
   top: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
   box-sizing: border-box;
   width: 100%;
   padding: 6px 0;
@@ -391,13 +391,13 @@
   flex: 1 1 auto;
   min-width: 0;
   min-height: 36px;
-  padding: 4px 8px;
+  padding: var(--sp-1) var(--sp-2);
 }
 
 .structured_search_status {
   flex: 0 0 auto;
   opacity: 0.65;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   white-space: nowrap;
 }
 
@@ -423,8 +423,8 @@
   bottom: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 0;
+  gap: var(--sp-2);
+  padding: var(--sp-2) 0;
   background: var(--background-color, var(--input-bg-color));
 }
 
@@ -444,7 +444,7 @@
   display: flex;
   min-height: 38px;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
   cursor: pointer;
 }
 
@@ -569,7 +569,7 @@
   flex: 1 1 auto;
   min-width: 0;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
 }
 
 /* A row draws no box inside itself: the row is the tap target, and a nested
@@ -625,7 +625,7 @@
 .structured_row_secondary {
   opacity: 0.65;
   font-family: "Courier New", Courier, monospace;
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 
 .collector_badge {
@@ -634,7 +634,7 @@
   min-height: 26px;
   align-items: center;
   justify-content: center;
-  margin: 0 8px;
+  margin: 0 var(--sp-2);
   background: var(--sep-color);
 }
 
@@ -683,7 +683,7 @@
   flex: 1 1 180px;
   min-width: 0;
   min-height: 38px;
-  padding: 6px 8px;
+  padding: 6px var(--sp-2);
   font: inherit;
 }
 
@@ -707,7 +707,7 @@
 }
 
 .structured_empty {
-  margin: 8px;
+  margin: var(--sp-2);
   opacity: 0.65;
 }
 
@@ -721,7 +721,7 @@
 .structured_picker_status {
   display: block;
   min-height: 1.2em;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--text-color);
 }
 
@@ -774,8 +774,8 @@
   display: flex;
   box-sizing: border-box;
   flex-direction: column;
-  gap: 12px;
-  padding: 8px 0;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
 }
 
 .structured_form h3,
@@ -786,7 +786,7 @@
 .structured_form label {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--sp-1);
 }
 
 .structured_form input,
@@ -816,7 +816,7 @@ body:not([data-platform="mobile"]) #settings_panel .bar {
   flex: 0 0 auto;
   height: auto;
   min-height: 0;
-  padding: 5px 0 5px 8px;
+  padding: 5px 0 5px var(--sp-2);
   gap: 6px;
 }
 
@@ -855,7 +855,7 @@ body:not([data-platform="mobile"]) .settings_editor_block > .settings_actions {
 body:not([data-platform="mobile"]) .settings_editor_block > .settings_actions input,
 body:not([data-platform="mobile"]) .structured_form_actions button:not(.structured_inline_action) {
   margin: 0;
-  padding: 0 8px;
+  padding: 0 var(--sp-2);
 }
 
 body:not([data-platform="mobile"]) .structured_remove {
@@ -879,7 +879,7 @@ body:not([data-platform="mobile"]) #settings_panel .settings_title {
 body:not([data-platform="mobile"]) #settings_panel #settings_section_back {
   order: 0;
   align-items: center;
-  gap: 4px;
+  gap: var(--sp-1);
   margin: 0;
   padding: 0 7px;
 }
@@ -932,7 +932,7 @@ body:not([data-platform="mobile"]) #settings_panel .structured_mode_toggle_topba
 
 body:not([data-platform="mobile"]) #settings_panel .structured_mode_toggle_topbar::after {
   content: "</>";
-  font-size: 10px;
+  font-size: var(--fs-label);
 }
 
 body:not([data-platform="mobile"])
@@ -954,7 +954,7 @@ body:not([data-platform="mobile"]) #settings_index {
   box-sizing: border-box;
   flex: 1 1 auto;
   width: 100%;
-  padding: 7px 8px;
+  padding: 7px var(--sp-2);
   border: 0;
   overflow: auto;
 }
@@ -973,7 +973,7 @@ body:not([data-platform="mobile"]) #settings_search {
 body:not([data-platform="mobile"]) .settings_section_row {
   min-height: 28px;
   height: 28px;
-  gap: 8px;
+  gap: var(--sp-2);
   padding: 0 6px;
   border-bottom: 1px solid var(--sep-color);
   font-size: 13px;
@@ -1033,7 +1033,7 @@ body:not([data-platform="mobile"]) #settings_panel .settings_block {
   min-width: 0;
   min-height: 0;
   margin: 0;
-  padding: 7px 8px 0;
+  padding: 7px var(--sp-2) 0;
   border: 0;
   overflow: auto;
 }
@@ -1053,13 +1053,13 @@ body:not([data-platform="mobile"]) .structured_settings {
   flex: 1 1 auto;
   min-height: 0;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--sp-2);
   overflow: auto;
   /* Without this the content-box default adds the inset outside the stretched
      width and the scroller overhangs the panel by exactly that inset. */
   box-sizing: border-box;
-  padding-right: 8px;
-  padding-bottom: 8px;
+  padding-right: var(--sp-2);
+  padding-bottom: var(--sp-2);
 }
 
 body:not([data-platform="mobile"]) .structured_search {
@@ -1090,13 +1090,13 @@ body:not([data-platform="mobile"]) .structured_list_actions {
 
 body:not([data-platform="mobile"]) .structured_list_actions button {
   flex: 0 0 auto;
-  padding: 0 8px;
+  padding: 0 var(--sp-2);
 }
 
 body:not([data-platform="mobile"]) #pick_source_button {
   flex: 0 0 auto;
   margin: 0;
-  padding: 0 8px;
+  padding: 0 var(--sp-2);
 }
 
 body:not([data-platform="mobile"]) .structured_group,
@@ -1115,7 +1115,7 @@ body:not([data-platform="mobile"]) .structured_list_header {
   min-height: 26px;
   height: 26px;
   gap: 7px;
-  padding: 0 4px 0 7px;
+  padding: 0 var(--sp-1) 0 7px;
   background: var(--read-bg-color);
 }
 
@@ -1208,7 +1208,7 @@ body:not([data-platform="mobile"]) .structured_row_editing {
   height: auto;
   min-height: 40px;
   gap: 6px;
-  padding: 4px 6px;
+  padding: var(--sp-1) 6px;
   /* Repeated from the base rule: body:not(mobile) .structured_row sets its own
      background and would otherwise win on specificity. */
   background: var(--editing-bg-color);
@@ -1236,7 +1236,7 @@ body:not([data-platform="mobile"]) .structured_inline_action {
 body:not([data-platform="mobile"]) .structured_row_editing .structured_inline_input {
   width: 100%;
   padding: 2px 5px;
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 
 /* Filters and redirects: compact list cards and unambiguous edit controls.
@@ -1257,7 +1257,7 @@ body:not([data-platform="mobile"]) .structured_row_editing .structured_inline_in
   display: flex;
   min-height: 38px;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
 }
 
 /* The reference maps its near-black ink to --text-color; here that variable is
@@ -1381,7 +1381,7 @@ body[data-platform="mobile"] section[data-settings-section="filters"] .glyph_cro
   padding: 7px 9px;
   border: 1px solid var(--border-high-color);
   background: var(--input-bg-color);
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 
 .structured_redirect_output p {
@@ -1444,7 +1444,7 @@ body:not([data-platform="mobile"]) [data-structured-section="filters"] .structur
 body:not([data-platform="mobile"]) [data-structured-section="filters"] .structured_row_editing {
   grid-template-columns: minmax(0, 1fr) 22px 22px;
   min-height: 30px;
-  padding: 4px 6px 4px 10px;
+  padding: var(--sp-1) 6px var(--sp-1) 10px;
 }
 
 body:not([data-platform="mobile"]) .structured_redirect_editor {
@@ -1455,9 +1455,9 @@ body:not([data-platform="mobile"]) .structured_redirect_editor {
 }
 
 body:not([data-platform="mobile"]) .structured_redirect_form {
-  gap: 8px;
+  gap: var(--sp-2);
   width: 100%;
-  padding: 8px 10px;
+  padding: var(--sp-2) 10px;
 }
 
 body:not([data-platform="mobile"]) .structured_redirect_form h3 {
@@ -1466,15 +1466,15 @@ body:not([data-platform="mobile"]) .structured_redirect_form h3 {
 
 body:not([data-platform="mobile"]) .structured_redirect_form textarea {
   min-height: 42px;
-  padding: 4px 6px;
-  font-size: 12px;
+  padding: var(--sp-1) 6px;
+  font-size: var(--fs-meta);
 }
 
 body:not([data-platform="mobile"]) .structured_redirect_form input {
   min-height: 22px;
   height: 22px;
   padding: 2px 5px;
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 
 /* Every structured form ends the same way: anything on the left, then the
@@ -1511,7 +1511,7 @@ body:not([data-platform="mobile"]) .structured_source_drag_handle {
   width: 10px;
   overflow: hidden;
   color: var(--text-color);
-  font-size: 12px;
+  font-size: var(--fs-meta);
   opacity: 0;
 }
 
@@ -1534,7 +1534,7 @@ body:not([data-platform="mobile"]) .collector_badge {
   margin: 0;
   padding: 1px;
   border: 1px solid var(--input-bg-color);
-  font-size: 10px;
+  font-size: var(--fs-label);
 }
 
 body:not([data-platform="mobile"]) .structured_row_body {
@@ -1549,7 +1549,7 @@ body:not([data-platform="mobile"]) .structured_row:last-child .structured_row_bo
 }
 
 body:not([data-platform="mobile"]) .structured_row_primary {
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 
 body:not([data-platform="mobile"]) .structured_row_secondary {
@@ -1635,7 +1635,7 @@ body:not([data-platform="mobile"]) .structured_source_group_title_drop_target > 
 body:not([data-platform="mobile"]) .structured_row_menu {
   flex: 0 0 22px;
   width: 22px;
-  margin-right: 4px;
+  margin-right: var(--sp-1);
   padding: 0;
   font-size: 17px;
   opacity: 0;
@@ -1651,8 +1651,8 @@ body:not([data-platform="mobile"]) .structured_status_strip {
   flex: 0 0 24px;
   box-sizing: border-box;
   height: 24px;
-  margin: 0 -8px;
-  padding: 0 8px;
+  margin: 0 calc(-1 * var(--sp-2));
+  padding: 0 var(--sp-2);
   align-items: center;
   justify-content: space-between;
   border-top: 1px solid var(--border-high-color);
@@ -1685,8 +1685,8 @@ body:not([data-platform="mobile"]) .once-anchored-menu-panel {
 
 body:not([data-platform="mobile"]) .once-anchored-menu-item {
   min-height: 24px;
-  padding: 3px 8px;
-  font-size: 12px;
+  padding: 3px var(--sp-2);
+  font-size: var(--fs-meta);
 }
 
 .settings_about_logo {
@@ -1841,7 +1841,7 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
 .settings_swipe .swipe_lock_in {
   display: grid;
   grid-template-columns: auto minmax(100px, 1fr) minmax(3ch, auto);
-  gap: 8px;
+  gap: var(--sp-2);
   align-items: center;
 }
 
@@ -1860,9 +1860,9 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
 .settings_swipe .swipe_row {
   display: grid;
   grid-template-columns: minmax(56px, auto) 5.5em 1fr 1fr;
-  gap: 4px;
+  gap: var(--sp-1);
   align-items: center;
-  margin-bottom: 4px;
+  margin-bottom: var(--sp-1);
 }
 
 .settings_swipe .swipe_head {
@@ -1886,7 +1886,7 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
 #swipe_preview .swipe_preview_stage {
   position: relative;
   overflow: hidden;
-  margin: 8px 0 4px;
+  margin: var(--sp-2) 0 var(--sp-1);
   border: 1px solid var(--border-color);
   border-radius: 4px;
   background-color: var(--unread-bg-color);
@@ -1942,9 +1942,9 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--sp-2);
   box-sizing: border-box;
-  padding: 10px 12px 12px;
+  padding: 10px var(--sp-3) var(--sp-3);
   border: 1px solid var(--border-color);
   border-bottom: 0;
   background: var(--input-bg-color);
@@ -1983,7 +1983,7 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
 }
 
 .swipe_stage_label {
@@ -2079,7 +2079,7 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
 
 .swipe_ruler_zone_label {
   min-width: 0;
-  margin-inline: calc(var(--swipe-handle-width) + 4px);
+  margin-inline: calc(var(--swipe-handle-width) + var(--sp-1));
   overflow: hidden;
   white-space: nowrap;
 }
@@ -2121,7 +2121,7 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
   left: 50%;
   transform: translateX(-50%);
   color: var(--text-color);
-  font-size: 10px;
+  font-size: var(--fs-label);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -2147,7 +2147,7 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
 }
 
 .swipe_advanced {
-  margin: 0 0 8px;
+  margin: 0 0 var(--sp-2);
   padding-top: 6px;
   border-top: 1px solid var(--border-color);
 }
@@ -2190,7 +2190,7 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
   display: grid;
   grid-template-columns: 10em minmax(100px, 1fr) minmax(4ch, auto);
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
   margin: 0 0 10px 19px;
 }
 
@@ -2207,8 +2207,8 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
 .swipe_footer {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 0 12px;
+  gap: var(--sp-2);
+  padding: var(--sp-2) 0 var(--sp-3);
   border-top: 1px solid var(--border-color);
 }
 
@@ -2228,11 +2228,11 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
 
   body[data-platform="mobile"] .swipe_action_block {
     gap: 10px;
-    padding: 12px 12px 14px;
+    padding: var(--sp-3) var(--sp-3) 14px;
   }
 
   body[data-platform="mobile"] .swipe_action_heading {
-    font-size: 14px;
+    font-size: var(--fs-body);
   }
 
   body[data-platform="mobile"] .swipe_action_heading span {
@@ -2244,7 +2244,7 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: 4px;
+    gap: var(--sp-1);
   }
 
   body[data-platform="mobile"] .swipe_action_field::after {
@@ -2255,7 +2255,7 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
     width: 3px;
     height: 44px;
     background: transparent;
-    border-radius: 8px 0 0 8px;
+    border-radius: var(--radius-lg) 0 0 var(--radius-lg);
     content: "";
     pointer-events: none;
   }
@@ -2295,7 +2295,7 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
   body[data-platform="mobile"] .swipe_action_left .swipe_action_field::after {
     right: 0;
     left: auto;
-    border-radius: 0 8px 8px 0;
+    border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
   }
 
   body[data-platform="mobile"] .swipe_stage_label {
@@ -2312,7 +2312,7 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
 
   body[data-platform="mobile"] #swipe_lab .swipe_ruler_handle {
     height: 54px;
-    border-radius: 6px;
+    border-radius: var(--radius-md);
   }
 
   body[data-platform="mobile"] .swipe_ruler_value {

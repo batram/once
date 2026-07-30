@@ -1,5 +1,29 @@
 /* Modern theme system using color-scheme and light-dark() */
 :root {
+  /* Public platform-neutral geometry tokens. These values intentionally match
+     the pre-token UI; scale rationalisation is a separate design pass. */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+
+  --fs-title: 16px;
+  --fs-body: 14px;
+  --fs-meta: 12px;
+  --fs-label: 10px;
+
+  --icon-sm: 12px;
+  --icon-md: 16px;
+  --icon-lg: 24px;
+  --touch: 44px;
+
+  --radius-sm: 2px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --bw: 1px;
+
   /* Theme-aware variables using light-dark() directly */
   --main-bg-color: light-dark(rgb(246, 246, 239), #282a36);
   --second-bg-color: light-dark(#ccc, #383a59);
@@ -84,5 +108,5 @@ option {
   background: var(--input-bg-color);
   color: var(--text-high-color);
   border: thin solid black;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
 }

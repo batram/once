@@ -9,7 +9,7 @@ body.electron-platform-darwin {
 body #titlebar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
   height: 30px;
   padding: 0;
   box-sizing: border-box;
@@ -75,7 +75,7 @@ body #titlebar-text {
   height: 30px;
   /* titlebar-area-width is the usable area, so derive the controls inset from
    * the viewport remainder rather than using that width as the inset itself. */
-  padding: 5px calc(4px + 100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw)) 0 4px;
+  padding: 5px calc(var(--sp-1) + 100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw)) 0 var(--sp-1);
   border-bottom: 1px solid var(--border-high-color);
   overflow: hidden;
   app-region: drag;
@@ -126,7 +126,7 @@ body #titlebar-text {
   min-width: 140px;
   max-width: 220px;
   margin-left: 2px;
-  padding: 3px 4px;
+  padding: 3px var(--sp-1);
   font-size: 13px;
   outline: none;
   margin-top: 3px;
@@ -173,7 +173,7 @@ body #titlebar-text {
 .electron-tab-close {
   opacity: 0;
   pointer-events: none;
-  font-size: 16px;
+  font-size: var(--fs-title);
   line-height: 1;
 }
 
@@ -221,7 +221,7 @@ body #titlebar-text {
   min-width: 26px;
   margin-left: 2px;
   padding: 1px 6px;
-  font-size: 16px;
+  font-size: var(--fs-title);
 }
 
 #controlbar {
@@ -231,7 +231,7 @@ body #titlebar-text {
   align-items: center;
   gap: 3px;
   height: 34px;
-  padding: 4px 6px;
+  padding: var(--sp-1) 6px;
   border-bottom: 1px solid var(--border-high-color);
 }
 
@@ -293,7 +293,7 @@ body #titlebar-text {
   height: 26px;
   box-sizing: border-box;
   margin: 0;
-  padding: 2px 8px;
+  padding: 2px var(--sp-2);
   border: 1px solid black;
   border-radius: 2px;
 }
@@ -303,11 +303,11 @@ body #titlebar-text {
   box-sizing: border-box;
   min-height: 0;
   overflow: hidden;
-  padding: 0 8px;
+  padding: 0 var(--sp-2);
   color: #fff;
   background: #9b2c2c;
   border-bottom: 0 solid #641d1d;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   line-height: 22px;
   opacity: 0;
 }
@@ -388,7 +388,7 @@ body #titlebar-text {
 
 #settings_panel #settings_section_back {
   order: -1;
-  margin: 0 8px 0 0;
+  margin: 0 var(--sp-2) 0 0;
 }
 
 .electron-fullscreen #titlebar,

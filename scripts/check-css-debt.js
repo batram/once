@@ -11,6 +11,7 @@ const geometryProperty = /^(?:margin|padding)(?:-|$)|^(?:gap|row-gap|column-gap|
 const marginProperty = /^margin(?:-|$)/
 const pxValue = /(?:^|[^\w.-])-?(?:\d*\.)?\d+px\b/i
 const negativeValue = /(?:^|[\s,(])-(?:0*\.)?[1-9]\d*(?:\.\d+)?(?:px|%|em|rem|vh|vw)\b|calc\([^)]*-\s*(?:\d|\.)/i
+const mobileAlias = /--m-(?:sp-\d+|fs-(?:title|body|meta|label)|touch)\b/g
 
 function normalized(value) {
   return value.trim().replace(/\s+/g, " ")
@@ -23,6 +24,11 @@ function debtId(kind, file, line, detail) {
 function analyzeCss(file, source) {
   const debts = []
   const ast = postcss.parse(source, { from: file })
+  source.split(/\r?\n/).forEach((line, index) => {
+    for (const match of line.matchAll(mobileAlias)) {
+      debts.push(debtId("mobile-token-alias", file, index + 1, match[0]))
+    }
+  })
   ast.walkRules((rule) => {
     if (/body\[data-platform=(?:"mobile"|'mobile')\]/.test(rule.selector)) {
       debts.push(debtId(

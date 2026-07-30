@@ -48,6 +48,21 @@ test("known failures carry ownership and a deletion condition", () => {
   }
 })
 
+test("the user layer overrides a default token on the same element", async ({ page }) => {
+  await page.goto(`${baseURL}/static/sidepanel.html`)
+  await expect.poll(() => page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue("--sp-2").trim()
+  )).toBe("8px")
+
+  await page.addStyleTag({
+    content: "@layer user { :root { --sp-2: 19px; } }"
+  })
+
+  await expect.poll(() => page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue("--sp-2").trim()
+  )).toBe("19px")
+})
+
 test("legacy control-semantic debt is explicit and cannot grow", async ({ page }) => {
   await page.goto(`${baseURL}/static/sidepanel.html`)
   const violations = await page.locator(
