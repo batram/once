@@ -10,11 +10,8 @@
 
 import { SWIPE_ACTION_LABELS, SwipeActionId, SwipeSettings } from "@once/app"
 import { Story } from "@once/core"
-import {
-  createSwipeGeometry,
-  StoryListItem,
-  SwipeStage
-} from "../story/StoryListItem"
+import { StoryListItem } from "../story/StoryListItem"
+import { createSwipeGeometry, SwipeStage } from "../story/swipe/geometry"
 import {
   beginTouchGesture,
   endTouchGesture,

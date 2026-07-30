@@ -89,6 +89,38 @@ All paths below are under `packages/ui-web/src`.
 - `gesture/dragReorder.ts` owns reusable row reordering and drag-edge
   scrolling, shared with the story list rather than owned by settings.
 
+## Story row ownership
+
+All paths below are under `packages/ui-web/src/story`.
+
+- `StoryListItem.ts` is the `story-item` custom element and the row's public
+  API: its lifecycle, the state it reflects (read, bookmark, filter), and the
+  actions the context menu calls (`openStory`, `toggleReadState`,
+  `confirmPurge`, the `*ActionLabel` getters). It composes the modules below
+  rather than containing them.
+- `storyRowMarkup.ts` builds the title line and the filter and purge buttons,
+  and exports `createIconButton`, the row's shared button shape — presenters
+  use it so a collector-specific action looks like the built-in ones.
+- `storyRowSubstories.ts` builds the per-source lines under the title.
+- `storyLinks.ts` owns anchor behaviour on a row: claiming clicks and
+  middle-clicks from the browser, and marking a story read when its URL opens.
+- `storyExitTransition.ts` owns completing a row's slide-out even when the
+  transition is cancelled.
+
+`story/swipe/` is the two-stage swipe, split by what each part owns:
+
+- `geometry.ts` is the model alone — travel to stage, resting position, and
+  action. No DOM, so it is driven directly from tests.
+- `track.ts` owns one drag: its origin, travel, the stage a release would
+  commit, and moving the row.
+- `revealLayer.ts` owns the `.bb_slide` panel revealed behind the row.
+- `stageLock.ts` owns fast-swipe protection for stage two.
+- `gesture.ts` owns the input half only — which events drive a drag and when
+  the document listeners go up and come down — and is what `StoryListItem`
+  calls as `attachStorySwipe`.
+- `commit.ts` runs what a released swipe selected, routing through
+  `menu/storyContextMenu` so the reader and filter paths stay in one place.
+
 ## Naming
 
 `packages/ui-web/src` follows the convention the rest of the repo already uses:

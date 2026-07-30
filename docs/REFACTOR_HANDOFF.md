@@ -34,15 +34,21 @@ Guardrails are in place. `npm run check` covers lint, structure, types, dead
 code, boundaries, and development builds. Knip models the Electron, extension,
 mobile, test, preload, content-script, and background-script entry graphs and
 blocks on unused files, exports, and types. Structural exceptions are down from
-27 to 20 (8 files, 12 functions).
+27 to 17 (7 files, 10 functions).
 
-### Next: `StoryListItem`
+`StoryListItem` is done. It went from 994 logical lines holding all three of
+its exceptions to a 350-line facade over `story/swipe/` (geometry, drag
+tracking, reveal layer, stage lock, input, commit) and three markup modules;
+see the story row section of `docs/CODEMAP.md`. The parts that were unreachable
+closure state now have unit tests: `swipe-geometry`, `swipe-stage-lock`, and
+`swipe-reveal-layer`.
 
-Split markup and action wiring from gesture state, geometry, and animation
-completion. Keep `StoryListItem` as the facade and preserve its exports,
-selectors, callback order, swipe thresholds, cancellation, and accessibility
-labels. Add focused DOM tests per extracted stateful behavior. Retire its
-structure exceptions only once the real limits are met.
+### Next: `OnceApp`
+
+Extract loading, working-set, persistence reconciliation, and settings access
+behind the `OnceApp` facade, preserving its public API. Keep startup loading
+bounded and persistence lazy. Add tests per extracted service, and retire its
+structure exception only once the real limits are met.
 
 ## Refactor invariants
 
@@ -65,15 +71,14 @@ structure exceptions only once the real limits are met.
 `scripts/structure-exceptions.json` is the real inventory; this is a suggested
 order.
 
-1. Extract loading, working-set, persistence reconciliation, and settings
-   access behind the `OnceApp` facade.
-2. Continue splitting Electron lifecycle/navigation coordination and mobile
+1. Continue splitting Electron lifecycle/navigation coordination and mobile
    reading/native-surface coordination.
-3. Split the 432-line iOS `AppDelegate.swift` into secure settings, browser
+2. Split the 432-line iOS `AppDelegate.swift` into secure settings, browser
    surface, bridge controller, and application lifecycle. It is under the file
    limit, so no exception flags it.
-4. Split `SwipeSettingsLab` gesture simulation from persistence.
-5. Split large E2E suites by feature without reducing coverage.
+3. Split `SwipeSettingsLab` gesture simulation from persistence. Its preview
+   row now drives `story/swipe/` directly, so the seam is on the lab side.
+4. Split large E2E suites by feature without reducing coverage.
 
 ## Workflow
 

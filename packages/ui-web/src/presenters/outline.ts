@@ -1,5 +1,5 @@
 import { Story } from "@once/core"
-import { StoryListItem } from "../story/StoryListItem"
+import { createIconButton } from "../story/storyRowMarkup"
 //import * as Readability from "../../third_party/Readability.js"
 import { PresenterOptions } from "./registry"
 import { getOnceClient } from "../client"
@@ -19,7 +19,7 @@ export function handle_url(_: string): boolean {
 }
 
 export function story_elem_button(story: Story): HTMLElement {
-  const outline_btn = StoryListItem.icon_button(
+  const outline_btn = createIconButton(
     "outline",
     "outline_btn",
     "imgs/article.svg"
