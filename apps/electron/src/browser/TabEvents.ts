@@ -43,12 +43,13 @@ class TabNavigationEvents {
         this.errors.restore(entry, event.url, errorPage)
         return
       }
+      const reload = event.url === entry.displayedUrl
       this.reset(entry, event.url)
       entry.audible = false
       entry.hasPlayedAudio = false
       if (entry.muted) contents.setAudioMuted(false)
       entry.muted = false
-      entry.title = "New tab"
+      if (!reload) entry.title = "New tab"
       changed()
     })
     contents.on("did-redirect-navigation", (event) => {
