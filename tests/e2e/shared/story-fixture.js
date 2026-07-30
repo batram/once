@@ -187,6 +187,15 @@ const ARTICLE_PARAGRAPH =
 function handleRequest(request, response, origin) {
   const path = (request.url || "").split("?")[0]
 
+  if (path === "/failure.rss") {
+    response.writeHead(503, {
+      "content-type": "text/plain; charset=utf-8",
+      "access-control-allow-origin": "*"
+    })
+    response.end("deterministic visual source failure")
+    return true
+  }
+
   if (path === "/feed.json") {
     response.writeHead(200, {
       "content-type": "application/json",

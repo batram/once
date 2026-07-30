@@ -326,6 +326,10 @@ at least one physical Android device and one physical iPhone:
 
 ## Test harness
 
+For deterministic screenshots of the packaged Electron and generated mobile
+apps, including historical Git baselines and computed-style JSON, see
+[Built-app visual comparison](VISUAL_COMPARISON.md).
+
 ```bash
 # Fast deterministic unit and integration tests (never contact story sources)
 npm test

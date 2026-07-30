@@ -43,6 +43,16 @@ const settingsSections = [
   "about"
 ]
 
+const structuralCollectorConfig = Object.freeze({
+  repeatLimit: 12,
+  maxElements: 500,
+  excludedSubtrees: ["story-item", ".once-reader-host"],
+  excludedTags: [
+    "SCRIPT", "STYLE", "LINK", "META", "TEMPLATE", "NOSCRIPT",
+    "SOURCE", "TRACK"
+  ]
+})
+
 function buildImageNames(targets) {
   return targets.flatMap(target => themes.flatMap(theme => [
     `${target}-${theme}-stories.png`,
@@ -194,7 +204,7 @@ async function settleImages(page) {
 }
 
 async function computedStyleSnapshot(page) {
-  return page.evaluate(() => {
+  return page.evaluate((collectorConfig) => {
     const selectors = [
       "body",
       "#left_panel",
@@ -240,7 +250,9 @@ async function computedStyleSnapshot(page) {
       "row-gap", "column-gap", "grid-template-columns",
       "grid-template-rows", "grid-auto-flow", "transform",
       "transform-origin", "transition", "animation", "cursor",
-      "pointer-events", "touch-action", "object-fit", "aspect-ratio"
+      "pointer-events", "touch-action", "object-fit", "aspect-ratio",
+      "appearance", "accent-color", "font", "vertical-align",
+      "inline-size", "block-size", "min-inline-size", "max-inline-size"
     ]
     const computed = (element, pseudo = null) => {
       const style = getComputedStyle(element, pseudo)
@@ -256,10 +268,11 @@ async function computedStyleSnapshot(page) {
         style.getPropertyValue(property)
       ]))
     }
-    const describe = (element, index) => {
+    const describe = (element, index, identity = {}) => {
       const rect = element.getBoundingClientRect()
       return {
         index,
+        ...identity,
         tag: element.tagName.toLowerCase(),
         id: element.id || null,
         classes: [...element.classList],
@@ -269,7 +282,11 @@ async function computedStyleSnapshot(page) {
           [...element.attributes]
             .filter(attribute =>
               attribute.name.startsWith("data-") ||
-              ["aria-expanded", "aria-selected", "hidden"].includes(attribute.name)
+              attribute.name.startsWith("aria-") ||
+              [
+                "role", "type", "name", "title", "placeholder",
+                "disabled", "checked", "selected", "open", "hidden"
+              ].includes(attribute.name)
             )
             .map(attribute => [attribute.name, attribute.value])
         ),
@@ -290,8 +307,110 @@ async function computedStyleSnapshot(page) {
         after: computed(element, "::after")
       }
     }
+    const structuralSignature = (element) => {
+      const classes = [...element.classList].sort().join(".")
+      const role = element.getAttribute("role") || ""
+      const type = element.getAttribute("type") || ""
+      const testId = element.getAttribute("data-testid") || ""
+      const action = element.getAttribute("data-action") || ""
+      return [
+        element.tagName.toLowerCase(),
+        element.id ? `#${element.id}` : "",
+        classes ? `.${classes}` : "",
+        role ? `[role=${role}]` : "",
+        type ? `[type=${type}]` : "",
+        testId ? `[testid=${testId}]` : "",
+        action ? `[action=${action}]` : ""
+      ].join("")
+    }
+    const structuralPath = (element) => {
+      if (element.id) return `#${CSS.escape(element.id)}`
+      const segments = []
+      let current = element
+      while (current && current !== document.body) {
+        let segment = current.tagName.toLowerCase()
+        if (current.classList.length) {
+          segment += [...current.classList]
+            .sort()
+            .map(className => `.${CSS.escape(className)}`)
+            .join("")
+        }
+        const parent = current.parentElement
+        if (parent) {
+          const sameTag = [...parent.children]
+            .filter(sibling => sibling.tagName === current.tagName)
+          if (sameTag.length > 1) {
+            segment += `:nth-of-type(${sameTag.indexOf(current) + 1})`
+          }
+        }
+        segments.unshift(segment)
+        current = parent
+        if (current?.id) {
+          segments.unshift(`#${CSS.escape(current.id)}`)
+          break
+        }
+      }
+      return segments.join(" > ")
+    }
+    const collectStructuralElements = () => {
+      const counts = new Map()
+      const omitted = {
+        excludedSubtree: 0,
+        excludedTag: 0,
+        invisible: 0,
+        repeatLimit: 0,
+        maxElements: 0
+      }
+      const elements = []
+      const candidates = [document.body, ...document.body.querySelectorAll("*")]
+      for (const element of candidates) {
+        if (collectorConfig.excludedTags.includes(element.tagName)) {
+          omitted.excludedTag += 1
+          continue
+        }
+        if (collectorConfig.excludedSubtrees.some(selector =>
+          element.matches(selector) || element.closest(selector)
+        )) {
+          omitted.excludedSubtree += 1
+          continue
+        }
+        const rect = element.getBoundingClientRect()
+        const style = getComputedStyle(element)
+        if (
+          rect.width <= 0 ||
+          rect.height <= 0 ||
+          style.display === "none" ||
+          style.visibility === "hidden"
+        ) {
+          omitted.invisible += 1
+          continue
+        }
+        const signature = structuralSignature(element)
+        const count = counts.get(signature) || 0
+        if (!element.id && count >= collectorConfig.repeatLimit) {
+          omitted.repeatLimit += 1
+          continue
+        }
+        if (elements.length >= collectorConfig.maxElements) {
+          omitted.maxElements += 1
+          continue
+        }
+        counts.set(signature, count + 1)
+        elements.push(describe(element, elements.length, {
+          path: structuralPath(element),
+          signature,
+          signatureIndex: count
+        }))
+      }
+      return {
+        repeatLimit: collectorConfig.repeatLimit,
+        maxElements: collectorConfig.maxElements,
+        omitted,
+        elements
+      }
+    }
     return {
-      schemaVersion: 1,
+      schemaVersion: 2,
       url: location.href,
       title: document.title,
       capturedAt: new Date().toISOString(),
@@ -308,6 +427,7 @@ async function computedStyleSnapshot(page) {
         activePanel: document.querySelector("#left_panel")
           ?.getAttribute("active_panel") || null
       },
+      structuralCoverage: collectStructuralElements(),
       selectors: Object.fromEntries(selectors.map(selector => [
         selector,
         [...document.querySelectorAll(selector)]
@@ -320,7 +440,7 @@ async function computedStyleSnapshot(page) {
           .map(describe)
       ]))
     }
-  })
+  }, structuralCollectorConfig)
 }
 
 async function screenshot(page, file) {
@@ -342,10 +462,67 @@ async function setTheme(page, theme, openSection) {
   await expect(page.locator("body")).toHaveAttribute("data-theme", theme)
 }
 
-async function captureSettingsMatrix(page, output, prefix, openIndex, openSection) {
+async function replaceVisualSources(page, openSection, sourceLines) {
+  await openSection("sources")
+  const sources = page.getByTestId("sources")
+  await sources.evaluate((textarea, value) => {
+    textarea.value = value
+    textarea.dispatchEvent(new Event("input", { bubbles: true }))
+  }, sourceLines)
+  await expect(sources).toHaveValue(sourceLines)
+  const save = page.getByTestId("save-sources")
+  await save.evaluate(button => button.click())
+  await expect(save).toBeEnabled()
+}
+
+function visualErrorState(page, openSection, sourceLines, failingSource) {
+  return {
+    async populate() {
+      await replaceVisualSources(
+        page,
+        openSection,
+        `${sourceLines}\n${failingSource}`
+      )
+      const entries = page.locator("#error_log .error_log_entry")
+      await expect(entries).toHaveCount(1, { timeout: 10_000 })
+      const entry = entries.last()
+      await entry.evaluate((element, sourcePath) => {
+        element.open = true
+        element.dataset.sourceUrl = sourcePath
+        const details = element.querySelector("pre")
+        if (details) {
+          details.textContent = [
+            "7/15/2030, 12:00:00 PM",
+            "Error: HTTP 503: Service Unavailable",
+            "",
+            `Story source: ${sourcePath}`
+          ].join("\n")
+        }
+      }, "/failure.rss")
+      await expect(entry).toHaveAttribute("open", "")
+    },
+    async clear() {
+      await page.locator("#clear_error_log").evaluate(button => button.click())
+      await expect(page.locator("#error_log .error_log_entry")).toHaveCount(0)
+      await expect(page.locator("#error_log .error_log_empty")).toBeVisible()
+      await replaceVisualSources(page, openSection, sourceLines)
+      await expect(page.locator("#status_bar")).toBeHidden({ timeout: 10_000 })
+    }
+  }
+}
+
+async function captureSettingsMatrix(
+  page,
+  output,
+  prefix,
+  openIndex,
+  openSection,
+  errorState
+) {
   await openIndex()
   await screenshot(page, path.join(output, `${prefix}-settings-index.png`))
   for (const section of settingsSections) {
+    if (section === "errors") await errorState.populate()
     await openSection(section)
     await expect(
       page.locator(`[data-settings-section="${section}"]`)
@@ -354,6 +531,7 @@ async function captureSettingsMatrix(page, output, prefix, openIndex, openSectio
       page,
       path.join(output, `${prefix}-settings-${section}.png`)
     )
+    if (section === "errors") await errorState.clear()
   }
 }
 
@@ -391,14 +569,11 @@ async function captureElectron(output, sourceRoot = repoRoot) {
       const window = BrowserWindow.getAllWindows()[0]
       window.setBounds({ x: 0, y: 0, width: 1280, height: 800 })
     })
-    await seedLocalSource(
-      page,
-      [
-        storyFixture.sourceLine(fixture.origin),
-        storyFixture.rssSourceLine(fixture.origin)
-      ].join("\n"),
-      urls.alpha
-    )
+    const sourceLines = [
+      storyFixture.sourceLine(fixture.origin),
+      storyFixture.rssSourceLine(fixture.origin)
+    ].join("\n")
+    await seedLocalSource(page, sourceLines, urls.alpha)
     await expect(page.getByTestId("story")).toHaveCount(10)
     const electronReadStory = page.locator(
       `story-item[data-href="${urls.beta}"]`
@@ -442,7 +617,13 @@ async function captureElectron(output, sourceRoot = repoRoot) {
         output,
         prefix,
         openIndex,
-        openSection
+        openSection,
+        visualErrorState(
+          page,
+          openSection,
+          sourceLines,
+          `${fixture.origin}/failure.rss`
+        )
       )
 
       const address = page.locator("#urlfield")
@@ -475,16 +656,16 @@ async function captureMobile(output, sourceRoot = repoRoot) {
     const animation = page.locator("#anim_checkbox")
     if (await animation.isChecked()) await animation.uncheck()
 
+    const mobileOrigin = new URL(page.url()).origin
+    const sourceLines = [
+      storyFixture.sourceLine(
+        mobileOrigin,
+        "/fixtures/visual-feed.json"
+      ),
+      storyFixture.rssSourceLine(mobileOrigin)
+    ].join("\n")
     await openMobileSettingsSection(page, "sources")
-    await page.getByTestId("sources").fill(
-      [
-        storyFixture.sourceLine(
-          new URL(page.url()).origin,
-          "/fixtures/visual-feed.json"
-        ),
-        storyFixture.rssSourceLine(new URL(page.url()).origin)
-      ].join("\n")
-    )
+    await page.getByTestId("sources").fill(sourceLines)
     await saveSourcesAndWait(page)
     await reloadMobileApp(page)
     await page.getByTestId("stories-menu").click()
@@ -544,7 +725,13 @@ async function captureMobile(output, sourceRoot = repoRoot) {
         output,
         prefix,
         openIndex,
-        openSection
+        openSection,
+        visualErrorState(
+          page,
+          openSection,
+          sourceLines,
+          `${mobileOrigin}/failure.rss`
+        )
       )
 
       if (!readerInitialized) {
@@ -822,5 +1009,6 @@ module.exports = {
   historicalRunName,
   parseArgs,
   reportHtml,
+  structuralCollectorConfig,
   styleSnapshotName
 }

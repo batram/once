@@ -11,6 +11,7 @@ const {
   historicalRunName,
   parseArgs,
   reportHtml,
+  structuralCollectorConfig,
   styleSnapshotName
 } = require("../../scripts/visual-compare")
 
@@ -136,4 +137,15 @@ test("visual screenshots have deterministic style companion names", () => {
     styleSnapshotName("mobile-dark-settings-theme.png"),
     "mobile-dark-settings-theme.styles.json"
   )
+})
+
+test("structural style collection is bounded around generated content", () => {
+  assert.equal(structuralCollectorConfig.repeatLimit, 12)
+  assert.equal(structuralCollectorConfig.maxElements, 500)
+  assert.deepEqual(
+    structuralCollectorConfig.excludedSubtrees,
+    ["story-item", ".once-reader-host"]
+  )
+  assert.ok(structuralCollectorConfig.excludedTags.includes("SCRIPT"))
+  assert.ok(structuralCollectorConfig.excludedTags.includes("STYLE"))
 })
