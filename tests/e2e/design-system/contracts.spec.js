@@ -181,7 +181,10 @@ test("documented priority utilities retain their contracts", async ({ page }) =>
 
 test("tokenized shared and mobile geometry retains its measured values", async ({ page }) => {
   await page.goto(`${baseURL}/static/sidepanel.html`)
-  await expect(page.locator(".bar").first()).toHaveCSS("padding", "5px 15px")
+  // .bar first resolves to #search_bar, which cancels the bar's inline padding
+  // so the collapse control can meet the menu panel edge (see search.css). The
+  // block padding is the tokenized value; the inline value is deliberately 0.
+  await expect(page.locator(".bar").first()).toHaveCSS("padding", "5px 0px")
   await expect(page.locator("#menu .heading").first()).toHaveCSS("padding", "5px")
 
   await page.goto(`${baseURL}/static/sidepanel.html?target=mobile`)
