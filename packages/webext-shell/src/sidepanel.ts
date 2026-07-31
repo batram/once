@@ -17,6 +17,8 @@ declare const __ONCE_BUILD_CHANNEL__: "release" | "dev"
 declare const __ONCE_BUILD_IDENTIFIER__: string
 
 document.addEventListener("DOMContentLoaded", async () => {
+  document.body.dataset.platform = "webext"
+  document.body.dataset.webextTarget = __ONCE_WEBEXT_TARGET__
   const storyMenuContextId = crypto.randomUUID()
   const platform = createWebExtPlatform(browser)
   const testMode = new URLSearchParams(window.location.search).has("once-e2e")

@@ -55,7 +55,7 @@ geometry gets a named component token. Unexplained values stay unchanged until m
 
 All products originate from `shell.html`, but they do not render identically:
 
-- extensions use the shared stylesheet;
+- extensions use the shared stylesheet plus the narrow WebExtension platform sheet;
 - Electron imports `apps/electron/src/electron.css`;
 - mobile appends `apps/mobile/src/mobile.css` after the shared stylesheet;
 - mobile WebViews add viewport, safe-area, touch, and native-shell behavior;

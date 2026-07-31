@@ -37,11 +37,11 @@ cascade layers removed 399 `body[data-platform="mobile"]` and
 platform, either the difference is really about space (use a query) or the
 platform owns it (put it in that platform's sheet).
 
-There is deliberately no generic "desktop" sheet. Extensions and the desktop web
-shell have no platform stylesheet, so "desktop only" has nowhere to live except
-a guard inside component CSS — the thing the layer order exists to replace. Add
-a capability-named sheet only if an audit finds a substantial coherent rule set
-shared by Electron and extensions, excluded from mobile, and not expressible by
+There is deliberately no generic "desktop" sheet. The WebExtension shell has a
+narrow platform sheet for host-owned differences; the ordinary desktop web shell
+has none. A rule shared by Electron and extensions but excluded from mobile still
+needs a capability-named owner rather than a guard in component CSS. Add one only
+when an audit finds a substantial coherent rule set that is not expressible by
 the existing owners.
 
 ## The cascade
@@ -59,7 +59,7 @@ Trusted CSS declares one layer order, in
 | `tokens` | `parts/vars.css` — token and colour defaults |
 | `base` | `parts/base.css`, and the separate reader/outline documents |
 | `components` | Every shared part, plus runtime-generated trusted rules |
-| `platform` | `mobile.css`, `electron.css`, `error-page.css` |
+| `platform` | `mobile.css`, `electron.css`, `webext.css`, `error-page.css` |
 | `user` | Reserved for future user theming; nothing writes it yet |
 
 Two properties this buys, both asserted by tests:
@@ -81,11 +81,12 @@ before it. Each target states its own:
 | Shared parts | `<link>` to `style.css` | `@import "./parts/x.css" layer(components)` |
 | `mobile.css` | Its own `<link>`, after `style.css` | Self-wrapped in `@layer platform { … }` |
 | `electron.css` | `import "./electron.css"` in `renderer.ts` | Self-wrapped in `@layer platform { … }` |
+| `webext.css` | Generated `<link>`, after `style.css` | Self-wrapped in `@layer platform { … }` |
 | `error-page.css` | Served as `once-error://style/<token>` | Self-wrapped in `@layer platform { … }` |
 | `readerDocument.css`, `outline_style.css` | Separate documents | Self-wrapped in `@layer base { … }` |
 
 `check:cascade` fails if a shared import lacks `layer(...)`, or if any of those
-five files is not exactly one top-level `@layer` block of the expected name.
+six files is not exactly one top-level `@layer` block of the expected name.
 
 ## Stylesheet map
 
@@ -111,6 +112,7 @@ Platform and separate documents:
 | --- | --- |
 | `apps/mobile/src/mobile.css` | Touch shell, tab bar, reading tab, mobile settings presentation |
 | `apps/electron/src/electron.css` | Titlebar, tabs, window chrome |
+| `packages/webext-shell/src/webext.css` | Extension-host search geometry and host stylesheet corrections |
 | `apps/electron/src/browser/error-page.css` | The standalone Electron error document |
 | `packages/ui-web/src/reader/readerDocument.css` | Reader document |
 | `packages/ui-web/src/presenters/outline/outline_style.css` | Outline presenter |

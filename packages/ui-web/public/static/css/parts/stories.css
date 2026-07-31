@@ -352,13 +352,13 @@
 .story .hostname {
   display: inline;
   color: var(--text-color);
-  font-size: 6.9pt;
+  font-size: var(--source-badge-font-size);
 }
 
 .story .data {
   width: 100%;
   color: var(--text-color);
-  font-size: 6.9pt;
+  font-size: var(--source-badge-font-size);
   flex: 1 1 300px;
 }
 

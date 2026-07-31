@@ -32,8 +32,10 @@
 }
 
 #searchfield {
+  position: absolute;
+  inset: 0 0 0 calc(-1 * var(--search-field-inline-overhang));
   box-sizing: border-box;
-  width: 100%;
+  width: auto;
   height: 100%;
   margin: 0;
   padding-left: var(--search-scope-inline-size);
@@ -56,6 +58,10 @@
 
 #cancel_search_btn.search-cancel-visible {
   visibility: visible;
+}
+
+#cancel_search_btn .icon {
+  --icon-size: 9px;
 }
 
 #search_scope {

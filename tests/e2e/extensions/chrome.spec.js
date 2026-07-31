@@ -32,6 +32,14 @@ test("installed Chrome extension loads, collects, persists settings, and opens a
     page.on("pageerror", (error) => pageErrors.push(error.message))
     await page.goto(`chrome-extension://${extensionId}/static/sidepanel.html?once-e2e=1`)
     await expect(page.locator("body")).toHaveAttribute("data-once-ready", "true")
+    await expect(page.locator("body")).toHaveAttribute(
+      "data-webext-target",
+      "chrome"
+    )
+    await expect(page.locator("body")).toHaveCSS(
+      "font-family",
+      "Verdana, Geneva, sans-serif"
+    )
     expect(testPageUnexpectedRequests, "initial test-mode load must stay offline").toEqual([])
     await expect(page.getByTestId("stories-menu")).toBeVisible()
     await page.getByTestId("settings-menu").click()

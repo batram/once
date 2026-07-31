@@ -8,6 +8,7 @@ import {
 import { applyStoryFilters } from "@once/core"
 import { getOnceClient } from "../client"
 import { requireElement } from "../dom"
+import { searchableStoryElements } from "./storySearchScope"
 
 export function init(): void {
   const searchfield =
@@ -62,7 +63,7 @@ const specialk: Record<string, () => void> = {
   "[filtered]": () => {
     const story_container = requireElement<HTMLElement>("#stories")
     story_container.classList.add("show_filtered")
-    document.querySelectorAll(".story").forEach((x) => {
+    searchableStoryElements(story_container).forEach((x) => {
       x.classList.remove("nomatch")
       if (!x.classList.contains("filtered")) {
         x.classList.add("nomatch")
@@ -70,7 +71,7 @@ const specialk: Record<string, () => void> = {
     })
   },
   "[stared]": () => {
-    document.querySelectorAll(".story").forEach((x) => {
+    searchableStoryElements(requireElement("#stories")).forEach((x) => {
       x.classList.add("nomatch")
       if (x.classList.contains("stared")) {
         x.classList.remove("nomatch")
@@ -78,7 +79,7 @@ const specialk: Record<string, () => void> = {
     })
   },
   "[new]": () => {
-    document.querySelectorAll(".story").forEach((x) => {
+    searchableStoryElements(requireElement("#stories")).forEach((x) => {
       x.classList.add("nomatch")
       if (!x.classList.contains("read")) {
         x.classList.remove("nomatch")
@@ -174,46 +175,48 @@ export async function searchStories(needle: string): Promise<void> {
 }
 
 async function local_search(needle: string) {
-  document.querySelectorAll<StoryListItem>(".story").forEach((story_el) => {
-    const find_in: (string | undefined)[] = [
-      story_el.story.title,
-      story_el.story.href,
-      "[" + story_el.story.type + "]",
-      story_el.dataset.redirected_url
-    ]
+  searchableStoryElements<StoryListItem>(requireElement("#stories")).forEach(
+    (story_el) => {
+      const find_in: (string | undefined)[] = [
+        story_el.story.title,
+        story_el.story.href,
+        "[" + story_el.story.type + "]",
+        story_el.dataset.redirected_url
+      ]
 
-    if (story_el.story.tags) {
-      story_el.story.tags.forEach((tag_info) => {
-        find_in.push(tag_info.text)
-        if (tag_info.href) {
-          find_in.push(tag_info.href)
-        }
-      })
-    }
-
-    story_el.story.substories.forEach((source_info) => {
-      find_in.push("[" + source_info.type + "]")
-      find_in.push(source_info.comment_url)
-      if (source_info.tags) {
-        source_info.tags.forEach((tag_info) => {
+      if (story_el.story.tags) {
+        story_el.story.tags.forEach((tag_info) => {
           find_in.push(tag_info.text)
           if (tag_info.href) {
             find_in.push(tag_info.href)
           }
         })
       }
-    })
 
-    const found_index = find_in.findIndex(
-      (x) => x != undefined && x.toLowerCase().includes(needle.toLowerCase())
-    )
+      story_el.story.substories.forEach((source_info) => {
+        find_in.push("[" + source_info.type + "]")
+        find_in.push(source_info.comment_url)
+        if (source_info.tags) {
+          source_info.tags.forEach((tag_info) => {
+            find_in.push(tag_info.text)
+            if (tag_info.href) {
+              find_in.push(tag_info.href)
+            }
+          })
+        }
+      })
 
-    if (found_index != -1) {
-      story_el.classList.remove("nomatch")
-    } else {
-      story_el.classList.add("nomatch")
+      const found_index = find_in.findIndex(
+        (x) => x != undefined && x.toLowerCase().includes(needle.toLowerCase())
+      )
+
+      if (found_index != -1) {
+        story_el.classList.remove("nomatch")
+      } else {
+        story_el.classList.add("nomatch")
+      }
     }
-  })
+  )
 
   StoryList.sortStories()
 }

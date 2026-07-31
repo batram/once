@@ -9,7 +9,6 @@
 }
 
 #settings_panel .bar {
-  height: 28px;
   align-items: center;
   justify-content: flex-start;
 }
@@ -46,6 +45,18 @@
   box-sizing: border-box;
   width: 100%;
   margin-bottom: var(--sp-2);
+}
+
+#settings_panel input:not([type]),
+#settings_panel input:is(
+  [type="email"],
+  [type="number"],
+  [type="password"],
+  [type="search"],
+  [type="text"],
+  [type="url"]
+) {
+  background: var(--input-bg-color);
 }
 
 #settings_sections {
@@ -205,18 +216,8 @@
   user-select: text;
 }
 
-.error_log_copy,
-.error_log_show_source,
-.error_log_show_story {
+.error_log_actions {
   margin-top: var(--sp-2);
-}
-
-.error_log_show_source {
-  margin-left: var(--sp-1-5);
-}
-
-.error_log_show_story {
-  margin-left: var(--sp-1-5);
 }
 
 .error_log_empty {
@@ -484,16 +485,13 @@
   gap: var(--sp-1);
 }
 
-.structured_group_actions button {
-  min-width: 30px;
-  min-height: 30px;
-  padding: var(--sp-0-5) var(--sp-1-5);
-}
-
 /* One control for the whole group — rename, delete, add source here. Nothing
    in a header may be taller than the header. */
 .structured_group_menu {
   flex: 0 0 auto;
+  min-width: 30px;
+  min-height: 30px;
+  padding: var(--sp-0-5) var(--sp-1-5);
   line-height: 1;
 }
 
@@ -784,7 +782,6 @@
 /* The shared titlebar owns vertical rhythm and control spacing. Settings keeps
    the tighter horizontal inset used by this dense surface. */
 #settings_panel .bar {
-  height: auto;
   min-height: 0;
   padding-inline: 0;
 }
@@ -800,9 +797,13 @@
    the square inline glyph actions, embedded story actions, and the segmented
    mode toggle. */
 #settings_panel
-  .button:not(.button--icon):not(.story .button):not(.structured_inline_action):not(
+  .button:not(:where(
+    .collapsebutton,
+    .button--icon,
+    .story .button,
+    .structured_inline_action,
     .structured_mode_toggle_topbar
-  ),
+  )),
 .structured_group_menu,
 .structured_row_menu {
   box-sizing: border-box;
@@ -824,9 +825,13 @@
 }
 
 #settings_panel
-  .button:not(.button--icon):not(.story .button):not(.structured_inline_action):not(
+  .button:not(:where(
+    .collapsebutton,
+    .button--icon,
+    .story .button,
+    .structured_inline_action,
     .structured_mode_toggle_topbar
-  ) {
+  )) {
   margin: 0;
   padding: 0 var(--sp-2);
 }
@@ -880,34 +885,45 @@
   display: inline-flex;
 }
 
+#settings_panel .bar.panel_titlebar > button {
+  height: var(--toolbar-control-size);
+  min-height: var(--toolbar-control-size);
+}
+
 #settings_panel .structured_mode_toggle_topbar {
+  --settings-mode-toggle-content-height: calc(
+    var(--toolbar-control-size) - 2 * var(--bw)
+  );
   order: 3;
   display: grid;
   grid-template-columns: 1fr 1fr;
   min-width: 60px;
-  height: 22px;
+  height: var(--toolbar-control-size);
   min-height: 22px;
   margin-left: auto;
   padding: 0;
   overflow: hidden;
   font-size: 0;
-  line-height: 20px;
+  line-height: var(--settings-mode-toggle-content-height);
 }
 
 #settings_panel .structured_mode_toggle_topbar::before,
 #settings_panel .structured_mode_toggle_topbar::after {
   display: block;
-  height: 20px;
+  height: var(--settings-mode-toggle-content-height);
   font:
     700 13px/20px "Courier New",
     Courier,
     monospace;
+  line-height: var(--settings-mode-toggle-content-height);
   text-align: center;
 }
 
 #settings_panel .structured_mode_toggle_topbar::before {
   content: "☰";
   border-right: 1px solid var(--text-high-color);
+  color: transparent;
+  text-shadow: 0 1px 0 var(--text-high-color);
 }
 
 #settings_panel .structured_mode_toggle_topbar::after {
@@ -1263,6 +1279,24 @@
   border: 1px solid var(--border-high-color);
   border-radius: var(--radius-md);
   background: transparent;
+  cursor: pointer;
+}
+
+.structured_inline_action:hover:not(:disabled),
+.structured_inline_action:focus-visible {
+  border-color: var(--text-high-color);
+  background: var(--structured-row-highlight-bg-color);
+}
+
+.structured_inline_action:focus-visible {
+  outline: 2px solid var(--text-high-color);
+  outline-offset: 2px;
+}
+
+.structured_inline_action:disabled {
+  cursor: default;
+  opacity: 0.55;
+  pointer-events: none;
 }
 
 /* The nudge lives in the transform, not a negative margin: a margin is halved
@@ -1280,23 +1314,22 @@
   transform: translateY(-1.5px) rotate(-45deg);
 }
 
-/* The bars are longer than the check's arms because a rotated bar's ink spans
-   only length x cos45: at 17px each bar draws ~12px across, which is what makes
-   the cross measure the same as the check rather than two thirds of it. */
+/* Keep the cross at the checkmark's visual scale. Rotating each bar expands
+   its painted bounds, so matching the check's arm length is already enough. */
 .structured_inline_action .glyph_cross {
   position: relative;
-  width: 17px;
-  height: 17px;
+  width: 11px;
+  height: 11px;
 }
 
 .structured_inline_action .glyph_cross::before,
 .structured_inline_action .glyph_cross::after {
   content: "";
   position: absolute;
-  top: 7.75px;
+  top: 5px;
   left: 0;
-  width: 17px;
-  height: 1.5px;
+  width: 11px;
+  height: 1px;
   background: var(--text-muted-color);
 }
 
@@ -1478,7 +1511,7 @@
    both, and :focus-within is permanently true while the input has focus. */
 .structured_row:not(.structured_row_editing):hover,
 .structured_row:not(.structured_row_editing):focus-within {
-  background: var(--selected_bg_color);
+  background: var(--structured-row-highlight-bg-color);
 }
 
 .structured_source_drag_handle {
@@ -1500,16 +1533,18 @@
 }
 
 .collector_badge {
-  box-sizing: border-box;
+  box-sizing: content-box;
+  display: inline-block;
   align-self: center;
   width: 20px;
-  min-width: 20px;
-  height: 20px;
-  min-height: 20px;
+  min-width: 0;
+  height: auto;
+  min-height: 0;
   margin: 0;
   padding: var(--sp-0-5);
-  border: 1px solid var(--input-bg-color);
-  font-size: var(--fs-label);
+  border: thin solid white;
+  font-size: var(--source-badge-font-size);
+  text-align: center;
 }
 
 .structured_row_body {
@@ -1626,7 +1661,7 @@
   flex: 0 0 24px;
   box-sizing: border-box;
   height: 24px;
-  margin: 0 calc(-1 * var(--sp-2));
+  margin: 0 0 0 calc(-1 * var(--sp-2));
   padding: 0 var(--sp-2);
   align-items: center;
   justify-content: space-between;
@@ -1730,8 +1765,11 @@
 .couch-highlights {
   position: absolute;
   top: 0;
+  right: var(--couch-toggle-inset);
   left: 0;
+  width: auto;
   height: 100%;
+  padding-right: 0;
   pointer-events: none;
   white-space: nowrap;
   overflow: hidden;
@@ -2167,10 +2205,7 @@
 }
 
 .swipe_save_status {
+  margin-right: auto;
   color: var(--text-color);
   font-size: 0.85em;
-}
-
-.swipe_footer button:first-of-type {
-  margin-left: auto;
 }

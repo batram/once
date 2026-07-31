@@ -42,7 +42,8 @@ The current color catalog is:
 
 - Surfaces: `--main-bg-color`, `--second-bg-color`,
   `--highlight-bg-color`, `--input-bg-color`, `--unread-bg-color`,
-  `--read-bg-color`, `--editing-bg-color`, `--sample-badge-bg`
+  `--read-bg-color`, `--editing-bg-color`,
+  `--structured-row-highlight-bg-color`, `--sample-badge-bg`
 - Borders and separators: `--border-color`, `--border-high-color`,
   `--sep-color`
 - Text and state: `--text-high-color`, `--text-color`,
@@ -58,7 +59,8 @@ Values in the migrated scopes now resolve to this scale. Geometry that a scale
 step cannot express keeps a **named component token declared where the
 relationship lives** and read by the rules that depend on it — for example
 `--reading-card-control-inset`, `--couch-toggle-inset`, `--m-fab-clearance`,
-and the `--status-glyph-size-*` family. Each of those is derived from something
+`--source-badge-font-size`, and the `--status-glyph-size-*` family. Each of
+those is derived from something
 concrete (a control cluster's width, a floating button's position, the inner
 box of an 11px ring), so snapping it would break an alignment rather than
 adjust a spacing choice. These internal tokens are not candidates for the
