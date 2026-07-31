@@ -12,8 +12,8 @@ test("mobile layout is present before application JavaScript starts", async ({ p
   await expect(page.locator("#right_panel")).toBeHidden()
   await expect(page.locator("#menu")).toHaveCSS("position", "fixed")
   await expect(page.locator("#menu")).toHaveCSS("bottom", "0px")
-  await expect.poll(() => page.locator("#reload_stories_btn").evaluate(
-    (button) => getComputedStyle(button, "::before").webkitMaskImage
+  await expect.poll(() => page.locator("#reload_stories_btn .icon--reload").evaluate(
+    (icon) => getComputedStyle(icon).webkitMaskImage
   )).toContain("/app/imgs/reload.svg")
 })
 
@@ -128,16 +128,90 @@ test("mobile shell is responsive and hides unavailable capabilities", async ({ p
   expect(trailingStorySpace).toBeLessThanOrEqual(1)
 })
 
+test("mobile tabs keep full icons, a separate selection pill, and aligned status badges", async ({ page }) => {
+  await gotoMobileApp(page)
+  await page.getByTestId("settings-menu").click()
+
+  const geometry = await page.evaluate(() => {
+    const rect = (selector) =>
+      document.querySelector(selector).getBoundingClientRect()
+    const heading = rect("#settings_menu_btn .heading")
+    const pill = {
+      left: heading.left + (heading.width - 44) / 2,
+      right: heading.left + (heading.width + 44) / 2,
+      top: heading.top + 3
+    }
+    const iconMetrics = ["story", "reading", "gear"].map((name) => {
+      const icon = document.querySelector(`#menu .icon--${name}`)
+      const style = getComputedStyle(icon)
+      return {
+        width: style.width,
+        height: style.height,
+        radius: style.borderRadius,
+        mask: style.webkitMaskImage
+      }
+    })
+    return {
+      icons: iconMetrics,
+      pillBackground: getComputedStyle(
+        document.querySelector("#settings_menu_btn .heading"),
+        "::before"
+      ).backgroundColor,
+      dockTop: getComputedStyle(document.querySelector("#status_dock")).top,
+      warningLeft: getComputedStyle(
+        document.querySelector("#status_bar_warnings")
+      ).left,
+      errorLeft: getComputedStyle(
+        document.querySelector("#status_bar_errors")
+      ).left,
+      errorBackground: getComputedStyle(
+        document.querySelector("#status_bar_errors")
+      ).backgroundColor,
+      warningSize: getComputedStyle(
+        document.querySelector("#status_bar_warnings")
+      ).width,
+      dockPointerEvents: getComputedStyle(
+        document.querySelector("#status_dock")
+      ).pointerEvents,
+      indicatorPointerEvents: getComputedStyle(
+        document.querySelector("#status_bar_warnings")
+      ).pointerEvents,
+      errorIconBackground: getComputedStyle(
+        document.querySelector("#status_bar_errors .status_indicator_icon")
+      ).backgroundColor,
+      pill
+    }
+  })
+
+  for (const icon of geometry.icons) {
+    expect(icon.width).toBe("20px")
+    expect(icon.height).toBe("20px")
+    expect(icon.radius).toBe("0px")
+    expect(icon.mask).toContain(".svg")
+  }
+  expect(geometry.pillBackground).not.toBe("rgba(0, 0, 0, 0)")
+  expect(geometry.dockTop).toBe("-12px")
+  expect(geometry.warningLeft).toBe("calc(50% - 26px)")
+  expect(geometry.errorLeft).toBe("calc(50% + 10px)")
+  expect(geometry.warningSize).toBe("16px")
+  expect(geometry.dockPointerEvents).toBe("none")
+  expect(geometry.indicatorPointerEvents).toBe("auto")
+  expect(geometry.errorBackground).toBe("rgba(0, 0, 0, 0)")
+  expect(geometry.errorIconBackground).not.toBe("rgba(0, 0, 0, 0)")
+})
+
 test("mobile refresh controls stay separated and theme-aware", async ({ page }) => {
   await gotoMobileApp(page)
   await expect(page.locator("body")).toHaveAttribute("data-once-ready", "true")
 
   const refreshControls = await page.evaluate(() => {
     const reload = document.querySelector("#reload_stories_btn")
+    const reloadIcon = reload.querySelector(".icon--reload")
     const reading = document.querySelector("#reading_navigate")
     const reloadStyle = getComputedStyle(reload)
     const readingStyle = getComputedStyle(reading)
     reload.classList.add("disabled")
+    reloadIcon.classList.add("rotating")
     reading.classList.add("loading")
     reading.disabled = true
     return {
@@ -157,7 +231,12 @@ test("mobile refresh controls stay separated and theme-aware", async ({ page }) 
       },
       reloadOpacity: getComputedStyle(reload).opacity,
       readingOpacity: getComputedStyle(reading).opacity,
-      reloadAnimation: getComputedStyle(reload, "::before").animationName,
+      reloadIcon: {
+        width: getComputedStyle(reloadIcon).width,
+        height: getComputedStyle(reloadIcon).height,
+        mask: getComputedStyle(reloadIcon).webkitMaskImage
+      },
+      reloadAnimation: getComputedStyle(reloadIcon).animationName,
       readingAnimation: getComputedStyle(reading, "::before").animationName,
       readingMask: getComputedStyle(reading, "::before").webkitMaskImage
     }
@@ -165,6 +244,9 @@ test("mobile refresh controls stay separated and theme-aware", async ({ page }) 
   expect(refreshControls.reading).toEqual(refreshControls.reload)
   expect(refreshControls.reloadOpacity).toBe("1")
   expect(refreshControls.readingOpacity).toBe("1")
+  expect(refreshControls.reloadIcon.width).toBe("20px")
+  expect(refreshControls.reloadIcon.height).toBe("20px")
+  expect(refreshControls.reloadIcon.mask).toContain("reload.svg")
   expect(refreshControls.reloadAnimation).toBe("rotating")
   expect(refreshControls.readingAnimation).toBe("rotating")
   expect(refreshControls.readingMask).toContain("reload.svg")

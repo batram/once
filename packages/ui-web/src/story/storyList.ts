@@ -274,9 +274,9 @@ function refilter(): void {
 async function reload(try_cache = true): Promise<void> {
   console.log("reload called, try_cache:", try_cache)
   const btn = document.querySelector("#reload_stories_btn")
-  const btn_img = btn?.querySelector("img")
+  const btnIcon = btn?.querySelector(".icon--reload")
   btn?.classList.add("disabled")
-  btn_img?.classList.add("rotating")
+  btnIcon?.classList.add("rotating")
 
   try {
     document.querySelectorAll("#stories .story").forEach((x) => {
@@ -286,7 +286,7 @@ async function reload(try_cache = true): Promise<void> {
     await onceClient.reloadStories(try_cache)
   } finally {
     btn?.classList.remove("disabled")
-    btn_img?.classList.remove("rotating")
+    btnIcon?.classList.remove("rotating")
   }
 }
 

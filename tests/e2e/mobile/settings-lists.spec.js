@@ -229,6 +229,35 @@ test("filters edit inline and expose a row remove button", async ({ page }) => {
   await firstRow.click()
   const input = page.getByTestId("filter-inline-input")
   await expect(input).toBeFocused()
+  const editMetrics = await input.evaluate((field) => {
+    const row = field.closest(".structured_row_editing")
+    const actions = [...row.querySelectorAll(".structured_inline_action")]
+    const centers = actions.map((button) => {
+      const glyph = button.firstElementChild
+      const buttonRect = button.getBoundingClientRect()
+      const glyphRect = glyph.getBoundingClientRect()
+      return {
+        dx: Math.abs(
+          buttonRect.left + buttonRect.width / 2 -
+          (glyphRect.left + glyphRect.width / 2)
+        ),
+        dy: Math.abs(
+          buttonRect.top + buttonRect.height / 2 -
+          (glyphRect.top + glyphRect.height / 2)
+        )
+      }
+    })
+    const divider = getComputedStyle(row, "::after")
+    return {
+      centers,
+      dividerWidth: divider.borderBottomWidth,
+      dividerLeft: divider.left
+    }
+  })
+  expect(editMetrics.centers.every(({ dx, dy }) => dx <= 1 && dy <= 1))
+    .toBe(true)
+  expect(editMetrics.dividerWidth).toBe("1px")
+  expect(editMetrics.dividerLeft).toBe("16px")
   await input.fill(`${original}-edited`)
   await input.press("Enter")
   await expect(page.getByTestId("filter-row").first()).toHaveText(

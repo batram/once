@@ -84,6 +84,10 @@ test("story source groups align with the settings panel and expose their handles
   await expect(groups.nth(0).locator(".structured_group_menu")).toHaveCount(0)
   await expect(groups.nth(0).locator(".structured_group_menu_spacer"))
     .toHaveCount(1)
+  await expect(groups.nth(1).locator(".structured_group_menu"))
+    .toHaveCSS("opacity", "1")
+  await expect(groups.nth(2).locator(".structured_group_menu"))
+    .toHaveCSS("opacity", "1")
   await expect(page.locator(".structured_source_drag_handle")).toHaveCount(3)
 
   const groupHeaderMetrics = await groups.evaluateAll((entries) =>

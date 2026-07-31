@@ -249,6 +249,13 @@ input[type="submit"] {
   font-size: var(--fs-meta);
 }
 
+/* Two-letter badges keep their compact width; three-letter collectors such as
+   RSS expand far enough that the final glyph does not touch the border. */
+.story .type {
+  width: auto;
+  min-width: 20px;
+}
+
 /* Without both declarations "36 mins / ago" splits across lines and overlaps
    the tags — stories.css gives .time a 65px min-width that must not win here. */
 .info .time {
@@ -528,15 +535,11 @@ body.once-anchored-menu-open {
   background: var(--m-pressed-bg);
 }
 
-#reload_stories_btn img {
-  width: 0;
-  height: 0;
-  margin: 0;
-  visibility: hidden;
-  margin-top: var(--sp-2);
+#reload_stories_btn > .icon--reload {
+  width: 20px;
+  height: 20px;
 }
 
-#reload_stories_btn::before,
 #reading_navigate::before {
   content: "";
   width: 20px;
@@ -547,17 +550,12 @@ body.once-anchored-menu-open {
   mask: url("imgs/reload.svg") center / contain no-repeat;
 }
 
-#reload_stories_btn::before {
-  margin-top: var(--sp-3);
-}
-
 #reload_stories_btn.disabled,
 #reading_navigate:disabled {
   opacity: 1;
   color: var(--text-low-color);
 }
 
-#reload_stories_btn.disabled::before,
 #reading_navigate.loading::before {
   animation: rotating 2s linear infinite;
 }
@@ -631,13 +629,14 @@ body.once-anchored-menu-open {
   background: transparent;
 }
 
-/* icon carries an accent pill when its tab is active */
-#menu .heading img {
-  box-sizing: content-box;
+/* The mask stays a plain foreground glyph. The selected-tab pill is a
+   separate heading layer so it cannot recolor or clip the icon. */
+#menu .heading > .icon {
+  position: relative;
+  z-index: 1;
   width: 20px;
   height: 20px;
-  padding: var(--sp-0-5) var(--sp-3);
-  border-radius: var(--radius-pill);
+  border-radius: 0;
 }
 
 #menu .heading p {
@@ -649,32 +648,26 @@ body.once-anchored-menu-open {
 
 #left_panel[active_panel="stories"] #menu .sidebar_panel[data-panel="stories"],
 #left_panel[active_panel="reading"] #menu .sidebar_panel[data-panel="reading"],
-
-  #left_panel[active_panel="settings"]
-  #menu
-  .sidebar_panel[data-panel="settings"] {
+#left_panel[active_panel="settings"] #menu .sidebar_panel[data-panel="settings"] {
   opacity: 1;
 }
 
-
-  #left_panel[active_panel="stories"]
-  #menu
-  .sidebar_panel[data-panel="stories"]
-  .heading
-  img,
-
-  #left_panel[active_panel="reading"]
-  #menu
-  .sidebar_panel[data-panel="reading"]
-  .heading
-  img,
-
-  #left_panel[active_panel="settings"]
-  #menu
-  .sidebar_panel[data-panel="settings"]
-  .heading
-  img {
+#left_panel[active_panel="stories"] #menu
+  .sidebar_panel[data-panel="stories"] .heading::before,
+#left_panel[active_panel="reading"] #menu
+  .sidebar_panel[data-panel="reading"] .heading::before,
+#left_panel[active_panel="settings"] #menu
+  .sidebar_panel[data-panel="settings"] .heading::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  top: 3px;
+  left: 50%;
+  width: 44px;
+  height: 24px;
+  border-radius: var(--radius-pill);
   background: var(--m-accent-bg);
+  transform: translateX(-50%);
 }
 
 /* ---------- Reading tab ---------- */
@@ -1709,11 +1702,43 @@ body:has(#settings_panel.settings_form_open) #menu {
   padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4);
 }
 
+/* Editing replaces .structured_row_body, which normally owns the inset row
+   separator. Restore the same divider until the final row. */
+.structured_row_editing:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: var(--sp-4);
+  border-bottom: var(--m-bw) solid var(--m-sep);
+}
+
 /* The blanket mobile button margin (8px 8px 4px 0) is asymmetric top-to-bottom
    and out-specifies the bare class, so it drops the commit pair 2px below the
    field it sits beside and eats into the grid gap. */
 .structured_inline_action {
   margin: 0;
+}
+
+.structured_inline_action .glyph_check {
+  width: 12px;
+  height: 7px;
+  margin: 0;
+  border-width: 0 0 2px 2px;
+  transform: translateY(-1px) rotate(-45deg);
+}
+
+.structured_inline_action .glyph_cross {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+
+.structured_inline_action .glyph_cross::before,
+.structured_inline_action .glyph_cross::after {
+  top: 6px;
+  width: 14px;
+  height: 2px;
 }
 
 .structured_row_editing .structured_inline_input,
@@ -2086,6 +2111,7 @@ body:has(#settings_panel.settings_form_open) #menu {
   color: var(--m-ink);
   font-size: var(--icon-md);
   line-height: 1;
+  opacity: 1;
 }
 
 .structured_group_menu:active,
@@ -2185,9 +2211,9 @@ body:has(#settings_panel.settings_form_open) #menu {
 }
 
 #couch_toggle {
-  top: 2px;
-  right: 2px;
-  bottom: 2px;
+  top: 0;
+  right: 0;
+  bottom: 0;
   width: var(--touch);
   height: auto;
   min-height: 0;
@@ -2274,8 +2300,10 @@ body.once-reader-open {
   --status-glyph-size-error: 7px;
   position: absolute;
   z-index: 1;
-  top: -18px;
-  left: calc(50% - 21px);
+  top: -12px;
+  left: 0;
+  width: 100%;
+  height: 44px;
   min-height: 0;
   padding: 0;
   margin: 0;
@@ -2289,20 +2317,56 @@ body.once-reader-open {
   display: none;
 }
 
-/* notifications.css already gives the indicator no border and no background;
-   the dock only shrinks it, drops the 2px padding and squares off the 6px
-   radius. */
+/* Only the status glyphs capture taps. The dock remains click-through so the
+   gear and the middle of the selected pill still open Settings. */
+#status_dock {
+  pointer-events: none;
+}
+
 #status_dock .status_indicator {
-  width: 11px;
-  min-width: 11px;
-  height: 11px;
+  position: absolute;
+  top: 14px;
+  width: 16px;
+  min-width: 16px;
+  height: 16px;
+  min-height: 16px;
   padding: 0;
-  margin-right: var(--sp-4);
+  margin: 0;
   border-radius: 0;
+  background: transparent;
+  pointer-events: auto;
+}
+
+#status_bar_warnings {
+  left: calc(50% - 26px);
+}
+
+#status_bar_errors {
+  left: calc(50% + 10px);
+}
+
+#status_dock .status_indicator:hover,
+#status_dock .status_indicator:focus-visible {
+  background: transparent;
 }
 
 #status_dock .warning .status_indicator_icon {
+  position: relative;
   font-size: var(--status-glyph-size-warning);
+}
+
+/* Fill the hollow warning with a smaller matching font triangle. Unlike a
+   clipped rectangle, it cannot protrude below the antialiased glyph. */
+#status_dock .warning .status_indicator_icon::before {
+  content: "▲";
+  position: absolute;
+  z-index: -1;
+  top: 50%;
+  left: 50%;
+  color: var(--main-bg-color);
+  font-size: 9px;
+  line-height: 1;
+  transform: translate(-50%, -44%);
 }
 
 #status_dock .status_indicator_icon {
@@ -2319,6 +2383,7 @@ body.once-reader-open {
   height: 11px;
   border: 1px solid currentColor;
   border-radius: 50%;
+  background: var(--main-bg-color);
   font-size: var(--status-glyph-size-error);
 }
 
@@ -2331,14 +2396,6 @@ body.once-reader-open {
   min-height: var(--touch);
   border: var(--m-bw) solid currentColor;
   border-radius: var(--m-radius);
-}
-
-section[data-settings-section="filters"] .glyph_check {
-  margin-left: calc(-1 * var(--sp-1-5));
-}
-
-section[data-settings-section="filters"] .glyph_cross {
-  margin-left: calc(-1 * var(--sp-2));
 }
 
 @container settings-panel (max-width: 520px) {
