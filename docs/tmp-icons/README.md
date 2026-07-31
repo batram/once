@@ -1,9 +1,8 @@
 # Icon investigation — working material
 
-Archived review material behind completed Phase 4 of
-[design-system-completed.md](../design-system-completed.md). The shipped icons
-now use the accepted candidates; the mechanical audit lives in
-`tests/e2e/design-system/`.
+Archived review material behind the shipped icon contract documented in
+[DESIGN_SYSTEM.md](../DESIGN_SYSTEM.md#icon). The shipped icons now use the
+accepted candidates; the mechanical audit lives in `tests/e2e/design-system/`.
 
 ## Contents
 

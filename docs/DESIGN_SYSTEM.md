@@ -7,12 +7,8 @@ enforce. Read this before adding CSS.
 Related pages:
 
 - [design-tokens.md](design-tokens.md) — the public token catalog.
-- [design-system-plan.md](design-system-plan.md) — refactor closeout and the
-  governing principles behind these rules.
 - [design-system-theming-plan.md](design-system-theming-plan.md) — future user
   theming product work; it is not part of the current refactor.
-- [design-system-completed.md](design-system-completed.md) — the implementation
-  record. History, not guidance; do not treat it as the current contract.
 - [VISUAL_COMPARISON.md](VISUAL_COMPARISON.md) — screenshotting built apps when
   a change is meant to look different.
 

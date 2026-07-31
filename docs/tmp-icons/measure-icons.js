@@ -5,7 +5,7 @@
  * viewBox its ink actually covers, and how many CSS px of visible mark that
  * leaves inside a 16px box.
  *
- * This is the seed for the Phase 0.2 test in docs/design-system-plan.md.
+ * This is the seed for the icon audit documented in docs/DESIGN_SYSTEM.md.
  *
  *   node docs/tmp-icons/measure-icons.js
  *
