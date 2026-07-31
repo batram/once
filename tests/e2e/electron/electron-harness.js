@@ -219,11 +219,9 @@ async function expectDocumentFocus(locator) {
 }
 
 async function openPanel(window, panel) {
-  const heading = window
-    .getByTestId(`${panel}-menu`)
-    .locator(":scope > .heading")
-  await expect(heading).toBeVisible()
-  await heading.click()
+  const control = window.getByTestId(`${panel}-menu`)
+  await expect(control).toBeVisible()
+  await control.click()
   await expect(window.locator("#left_panel")).toHaveAttribute(
     "active_panel",
     panel
