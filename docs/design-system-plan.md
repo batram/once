@@ -157,6 +157,84 @@ measure of perceived weight.
 
 ---
 
+## Status (measured 2026-07-31 on `design-css-impro` at `6ae960e`)
+
+The section above records `main` at `7f17cce` and is left as written. This one records where
+the branch actually stands.
+
+### Phase progress
+
+| Phase | State |
+|---|---|
+| 0 Baselines | Landed. Six check scripts in `npm run check`; design-system Playwright project green |
+| 1 Tokens | Landed in its stated scope. No `--m-sp-*`, `--m-fs-*` or `--m-touch` aliases remain |
+| 2 Cascade layers | Layering landed and enforced. 2.4 outstanding: platform prefixes remain |
+| 3 Primitives | Landed. No `.btn`, `icon-btn`, `<input type="button">` or clickable `.sub` |
+
+### Debt, counted honestly
+
+236 entries. Platform branching is the largest category, not raw geometry:
+
+| Category | Count |
+|---|---:|
+| `desktop-specificity-prefix` | 110 |
+| `raw-geometry-px` | 87 |
+| `mobile-specificity-prefix` | 23 |
+| `important` | 13 |
+| `negative-margin` | 3 |
+
+The count rose from 126 when the script began counting the negated guard. Nothing regressed;
+110 rules had never been measured. The 13 `!important` declarations are all sanctioned
+utility exceptions under 2.5: reduced motion, visually hidden, canonical `[hidden]`, and one
+drag state.
+
+### Contracts now asserted
+
+- a component-owned control keeps its box under `layer(platform)`;
+- the platform touch baseline reaches a control with no component box;
+- every native control adopts `.button` or is a reviewed exception, on the mobile web
+  surface where controls built from settings data actually render.
+
+The last one carries a reviewed list split into controls that own their box and use
+`<button>` for semantics only, and controls awaiting inspection. Entries that render only in
+states the guard cannot reach are marked `conditional` and excluded from its staleness check,
+so it never claims coverage it does not have.
+
+### What this phase cost, and why
+
+`layer(platform)` matched the `button` element, so it replaced geometry components declare
+and no specificity recovered it. Eight families carried rules that existed only to undo it.
+The visual box now belongs to `.button`; touch target and typography stay on the element,
+because the user-agent default for a button is 13.333px Arial rather than an inherited font.
+
+The lesson worth keeping: a declaration that looks redundant against component CSS may be
+restoring what another platform rule turned off two rules earlier. Verify a removal by
+measuring the rendered control before and after, not by comparing declarations.
+
+### Open, in the order worth doing
+
+1. **Delete the negated guards.** Unguarded component rules become the default and
+   `mobile.css` overrides them through layer order, which is what the layer migration bought.
+   Blocked on nothing; each removal shows up as the baseline shrinking.
+2. **Decide the desktop platform sheet.** Either add one, or accept unguarded component CSS
+   as the desktop default. Item 1 depends on which.
+3. **Give the debt budget a direction.** The ratchet blocks growth but nothing drives
+   reduction, and the total sat flat while real dead code was removed.
+4. **Finish unpicking the platform neutralizers.** `settings_section_row` and
+   `structured_remove` still mix redundant declarations with load-bearing mobile geometry.
+   `structured_row_chevron` and `structured_group_menu` want moving to `settings.css`: their
+   whole definition lives in the platform sheet.
+5. **Close the Phase 1 scope gap.** `notifications.css`, `dialogs.css`, `search.css` and
+   `error-page.css` were never on the 1.3 list and hold 46 raw-geometry entries. A further 41
+   sit in reader and presenter styles, pending owner decision 1.
+6. **Decide `.button`'s padding.** The primitive's `calc(var(--sp-1) / 2)` is too tight for a
+   text button and is why settings buttons needed a skin. Icon buttons set `aspect-ratio: 1`,
+   so horizontal padding cannot simply be added.
+7. **Run a full visual comparison.** Desktop rendering of the primitive migration has only
+   had a cursory review, which did find two real faults.
+
+---
+
 ## Target contracts
 
 ### Cascade
