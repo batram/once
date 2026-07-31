@@ -396,9 +396,15 @@
   opacity: 0.8;
 }
 
+/* The icon fills the tag corner to corner: its height is the full border box
+   (text line + block padding + both borders), so it never leaves a gap above or
+   below. Icons are square, so that height doubles as the width the text has to
+   clear — plus one gap. */
 .tags_container .tag--icon {
-  padding-left: var(--sp-4);
-  background: var(--tag-icon) left top / var(--tag-icon-size, 16px) no-repeat;
+  --tag-icon-box: calc(1lh + var(--sp-1) + 2px);
+
+  padding-left: calc(var(--tag-icon-box) + var(--sp-1) - 1px);
+  background: var(--tag-icon) left top / auto 100% no-repeat border-box;
 }
 
 .story .type {

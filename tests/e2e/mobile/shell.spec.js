@@ -105,13 +105,19 @@ test("mobile shell is responsive and hides unavailable capabilities", async ({ p
     stories.append(tags)
     const style = getComputedStyle(tag)
     const result = {
-      paddingLeft: style.paddingLeft,
+      backgroundSize: style.backgroundSize,
+      backgroundOrigin: style.backgroundOrigin,
+      tagHeight: tag.getBoundingClientRect().height,
+      paddingLeft: parseFloat(style.paddingLeft),
       backgroundImage: style.backgroundImage
     }
     tags.remove()
     return result
   })
-  expect(iconTag.paddingLeft).toBe("16px")
+  // The icon spans the tag corner to corner, and the text clears its width.
+  expect(iconTag.backgroundSize).toBe("auto 100%")
+  expect(iconTag.backgroundOrigin).toBe("border-box")
+  expect(iconTag.paddingLeft).toBeGreaterThan(iconTag.tagHeight)
   expect(iconTag.backgroundImage).toContain("reddit.svg")
 
   expect(await page.locator("#left_panel").evaluate((element) => element.scrollWidth <= window.innerWidth)).toBe(true)
