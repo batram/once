@@ -867,8 +867,10 @@ body:not([data-platform="mobile"])
 body:not([data-platform="mobile"]) .structured_search input,
 body:not([data-platform="mobile"]) .structured_search button,
 body:not([data-platform="mobile"]) #settings_search,
-body:not([data-platform="mobile"]) .settings_editor_block
-  > .settings_actions .button,
+/* Every settings action row, not just the ones inside an editor block: the
+   scope was why the sync section's save and cancel kept the primitive's bare
+   2px padding while the identical pair under Story sources did not. */
+body:not([data-platform="mobile"]) .settings_actions .button,
 /* .structured_inline_action is excluded throughout: it is a square glyph box
    with its own complete skin, and this one's text padding and border would
    shove the glyph off centre and give it a border the inline rows don't have. */
@@ -896,7 +898,7 @@ body:not([data-platform="mobile"]) .settings_editor_block > .settings_actions {
   background: var(--main-bg-color);
 }
 
-body:not([data-platform="mobile"]) .settings_editor_block > .settings_actions .button,
+body:not([data-platform="mobile"]) .settings_actions .button,
 body:not([data-platform="mobile"]) .structured_form_actions button:not(.structured_inline_action) {
   margin: 0;
   padding: 0 var(--sp-2);

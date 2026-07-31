@@ -218,8 +218,10 @@
                       👁️
                     </button>
                   </div>
-                  <button type="button" class="button" data-action="save" data-testid="save-sync">save</button>
-                  <button type="button" class="button" data-action="cancel">cancel</button>
+                  <div class="settings_actions cluster">
+                    <button type="button" class="button" data-action="save" data-testid="save-sync">save</button>
+                    <button type="button" class="button" data-action="cancel">cancel</button>
+                  </div>
                   <div
                     id="couch_status"
                     class="couch-status"
@@ -250,13 +252,17 @@
                 <div class="settings_block">
                   Cache timing (minutes):
                   <input type="text" id="cache_time_input" />
-                  <button type="button" class="button" id="cache_time_save">save</button>
-                  <button type="button" class="button" id="cache_time_cancel">cancel</button>
+                  <div class="settings_actions cluster">
+                    <button type="button" class="button" id="cache_time_save">save</button>
+                    <button type="button" class="button" id="cache_time_cancel">cancel</button>
+                  </div>
                 </div>
                 <div class="settings_block settings_error_log">
                   <div class="settings_error_log_header">
                     <span class="settings_panel_heading">Error log:</span>
-                    <button type="button" class="button" id="clear_error_log">Clear</button>
+                    <div class="settings_actions cluster">
+                      <button type="button" class="button" id="clear_error_log">Clear</button>
+                    </div>
                   </div>
                   <div id="error_log" data-testid="error-log">
                     <p class="error_log_empty">No errors recorded this session.</p>
@@ -270,12 +276,14 @@
                   />
                   <h2 class="settings_about_title">Once</h2>
                   <span>Version: <span data-testid="app-version"></span></span>
-                  <button
-                    type="button"
-                    class="button"
-                    data-testid="check-for-updates"
-                    hidden
-                  >Check for updates</button>
+                  <div class="settings_actions cluster">
+                    <button
+                      type="button"
+                      class="button"
+                      data-testid="check-for-updates"
+                      hidden
+                    >Check for updates</button>
+                  </div>
                   <span
                     class="update_status"
                     data-testid="update-status"
