@@ -1,6 +1,7 @@
 import { OnceClient, SourceError } from "@once/app"
 import { parseRedirectList, presentRedirectList } from "@once/core"
 import { requireClosestElement, requireElement } from "../dom"
+import { revealElement } from "../scrollReveal"
 import * as panelNavigation from "../shell/panelNavigation"
 import { matchSettingsSection, SettingsSearchMatch } from "./settingsSearch"
 import { SwipeSettingsLab } from "./SwipeSettingsLab"
@@ -355,7 +356,7 @@ export class SettingsPanel {
           if (!target) return
           if (target instanceof HTMLDetailsElement) target.open = true
           target.focus({ preventScroll: true })
-          target.scrollIntoView({ block: "center" })
+          revealElement(target, { block: "center" })
           return
         }
         if (!controlId) return
@@ -378,7 +379,7 @@ export class SettingsPanel {
             return
           }
         }
-        control.scrollIntoView({ block: "center" })
+        revealElement(control, { block: "center" })
       })
     })
   }
@@ -405,12 +406,15 @@ export class SettingsPanel {
         back.focus({ preventScroll: true })
         return
       }
-      document.querySelector<HTMLElement>(
+      const first = document.querySelector<HTMLElement>(
         `.settings_section[data-settings-section="${key}"] input, ` +
         `.settings_section[data-settings-section="${key}"] select, ` +
         `.settings_section[data-settings-section="${key}"] textarea, ` +
         `.settings_section[data-settings-section="${key}"] button`
-      )?.focus()
+      )
+      if (!first) return
+      first.focus({ preventScroll: true })
+      revealElement(first)
     })
   }
 
@@ -469,8 +473,8 @@ export class SettingsPanel {
       const entry = document.querySelector<HTMLDetailsElement>(`#${logId}`)
       if (!entry) return
       entry.open = true
-      entry.scrollIntoView({ block: "center" })
-      entry.focus()
+      entry.focus({ preventScroll: true })
+      revealElement(entry, { block: "center" })
     })
   }
 
@@ -488,8 +492,8 @@ export class SettingsPanel {
       entries.forEach((entry) => {
         entry.open = true
       })
-      latest.scrollIntoView({ block: "center" })
-      latest.focus()
+      latest.focus({ preventScroll: true })
+      revealElement(latest, { block: "center" })
     })
   }
 

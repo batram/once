@@ -1,4 +1,5 @@
 import { requireElement } from "../dom"
+import { revealElement } from "../scrollReveal"
 
 export function scrollTextareaSelectionIntoView(
   textarea: HTMLTextAreaElement,
@@ -6,9 +7,8 @@ export function scrollTextareaSelectionIntoView(
 ): void {
   const lineIndex = textarea.value.slice(0, startIndex).split("\n").length - 1
   requestAnimationFrame(() => {
-    textarea.closest(".settings_block")?.scrollIntoView({
-      block: "nearest"
-    })
+    const block = textarea.closest(".settings_block")
+    if (block) revealElement(block)
     const highlights = textarea
       .closest(".input_container")
       ?.querySelector<HTMLElement>(".highlights")

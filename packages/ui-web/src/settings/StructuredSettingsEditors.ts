@@ -12,6 +12,7 @@ import {
 } from "./structured/form"
 import { createRedirectTester } from "./structured/redirectTester"
 import { installDragAutoScroll } from "../gesture/dragReorder"
+import { revealElement } from "../scrollReveal"
 import { FlatSettingsEditors } from "./structured/FlatSettingsEditors"
 import { SourceSettingsEditor } from "./structured/SourceSettingsEditor"
 import { StructuredAddButtons } from "./structured/StructuredAddButtons"
@@ -421,7 +422,7 @@ export class StructuredSettingsEditors {
               group.open = true
               const summary = group.querySelector<HTMLElement>("summary")
               summary?.focus({ preventScroll: true })
-              summary?.scrollIntoView({ block: "center" })
+              if (summary) revealElement(summary, { block: "center" })
               summary?.classList.add("structured_row_target")
               window.setTimeout(
                 () => summary?.classList.remove("structured_row_target"),
@@ -451,7 +452,7 @@ export class StructuredSettingsEditors {
     if (section === "filters") {
       this.flatEditors.editFilterAt(root, rowIndex)
     } else {
-      this.flatEditors.editRedirect(root, rowIndex)
+      this.flatEditors.editRedirectAt(root, rowIndex)
     }
     return true
   }

@@ -1,4 +1,5 @@
 import { ElectronBridge, ElectronTabState } from "@once/platform-electron/bridge"
+import { revealElement } from "@once/ui-web"
 import browserShellMarkup from "./browser/browser-shell.html"
 
 const TAB_MIME = "application/x-once-tab"
@@ -453,10 +454,7 @@ export class BrowserShell {
   }
 
   private scrollActiveTabIntoView(): void {
-    this.activeTabElement?.scrollIntoView({
-      block: "nearest",
-      inline: "nearest"
-    })
+    if (this.activeTabElement) revealElement(this.activeTabElement)
   }
 
   private layoutTabs(): void {

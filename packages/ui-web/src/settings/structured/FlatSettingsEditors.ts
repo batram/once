@@ -8,6 +8,7 @@ import {
   StructuredFormField
 } from "./form"
 import { installRowDragReorder } from "../../gesture/dragReorder"
+import { revealElement } from "../../scrollReveal"
 import { parseFilterRows } from "./filters"
 import {
   parseRedirectRows,
@@ -59,7 +60,7 @@ export class FlatSettingsEditors {
       "[data-filter-value]"
     ) || []).find((button) => button.dataset.filterValue === filter)
     target?.focus({ preventScroll: true })
-    target?.scrollIntoView({ block: "center" })
+    if (target) revealElement(target, { block: "center" })
     target?.click()
     return true
   }
@@ -70,11 +71,28 @@ export class FlatSettingsEditors {
       "[data-testid='filter-inline-input']"
     )
     const row = input?.closest<HTMLElement>(".structured_row")
-    row?.classList.add("structured_row_target")
-    window.setTimeout(
-      () => row?.classList.remove("structured_row_target"),
-      1600
-    )
+    if (!row) return
+    row.classList.add("structured_row_target")
+    this.revealEditor(row)
+    window.setTimeout(() => row.classList.remove("structured_row_target"), 1600)
+  }
+
+  /**
+   * The editor for a row the caller picked out, rather than one the user just
+   * clicked: settings search opens a rule that can be hundreds of rows down,
+   * and the editor takes focus without scrolling, so nothing brings it into
+   * view unless the reveal is asked for here.
+   */
+  editRedirectAt(root: HTMLElement, index: number): void {
+    this.editRedirect(root, index)
+    const row = root.querySelector<HTMLElement>(".structured_row_editing")
+    if (row) this.revealEditor(row)
+  }
+
+  private revealEditor(row: HTMLElement): void {
+    requestAnimationFrame(() => {
+      if (row.isConnected) revealElement(row, { block: "center" })
+    })
   }
 
   renderFilters(root: HTMLElement): void {
@@ -206,11 +224,7 @@ export class FlatSettingsEditors {
     row.append(input, validation, accept, dismiss)
     input.focus({ preventScroll: true })
     input.select()
-    if (isNew) {
-      requestAnimationFrame(() => {
-        if (row.isConnected) row.scrollIntoView({ block: "center" })
-      })
-    }
+    if (isNew) this.revealEditor(row)
   }
 
   renderRedirects(root: HTMLElement): void {
@@ -346,7 +360,7 @@ export class FlatSettingsEditors {
       )
       if (!row || !button) return
       button.focus({ preventScroll: true })
-      row.scrollIntoView({ block: "center" })
+      revealElement(row, { block: "center" })
       row.classList.add("structured_row_target")
       this.filterRevealTimer = window.setTimeout(() => {
         if (this.pendingFilterRevealIndex !== index) return

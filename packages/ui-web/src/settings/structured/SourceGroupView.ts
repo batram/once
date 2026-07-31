@@ -1,4 +1,5 @@
 import { createActionButton } from "./form"
+import { revealElement } from "../../scrollReveal"
 import { SourceDropController } from "./SourceDropController"
 import { renderSourceRow, SourceRowHost } from "./sourceRows"
 import { SourceGroup } from "./sourceGroups"
@@ -499,9 +500,9 @@ export class SourceGroupView {
    * reader user is not dropped at the top of the list.
    *
    * Two frames: the first lets the re-render that `host.save` started replace
-   * the elements, the second lets the restored expansion settle so
-   * `scrollIntoView` measures the final layout. Focus is taken without
-   * scrolling for the same reason.
+   * the elements, the second lets the restored expansion settle so the reveal
+   * measures the final layout. Focus is taken without scrolling for the same
+   * reason.
    */
   private reveal(root: HTMLElement, id: string): void {
     requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -510,7 +511,7 @@ export class SourceGroupView {
       )
       group?.querySelector<HTMLElement>("summary")
         ?.focus({ preventScroll: true })
-      group?.scrollIntoView({ block: "nearest" })
+      if (group) revealElement(group)
     }))
   }
 

@@ -73,9 +73,11 @@
   display: none;
 }
 
+/* No height here: the row stretches the menu to its own height already, and
+   `height: 100%` on a content-box would put the top padding on top of that,
+   leaving the menu taller than the row that clips it. */
 #menu {
   width: 100px;
-  height: 100%;
   display: flex;
   flex-direction: column;
   flex: 0 0 89px;

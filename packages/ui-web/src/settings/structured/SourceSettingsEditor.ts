@@ -2,6 +2,7 @@ import { SourceError } from "@once/app"
 import { showChoiceDialog, showConfirmDialog } from "../../confirmDialog"
 import { AnchoredMenuItem } from "../../menu/storyAnchoredMenu"
 import { StructuredFormField } from "./form"
+import { revealElement } from "../../scrollReveal"
 import { SourceGroupView } from "./SourceGroupView"
 import {
   parseSourceGroups,
@@ -115,7 +116,7 @@ export class SourceSettingsEditor {
       if (!target || !details) return
       details.open = true
       target.focus({ preventScroll: true })
-      target.scrollIntoView({ block: "center" })
+      revealElement(target, { block: "center" })
       target.classList.add("structured_row_target")
       this.revealTimer = window.setTimeout(() => {
         if (this.revealSource !== source) return
