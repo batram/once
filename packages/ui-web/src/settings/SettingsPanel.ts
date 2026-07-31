@@ -11,6 +11,7 @@ import { highlightTextareaContent, scrollTextareaSelectionIntoView } from "./tex
 import * as settingsControls from "./settingsControlBindings"
 import { bindSyncSettingsControls } from "./syncSettingsControls"
 import { bindSettingsSubscriptions } from "./settingsSubscriptions"
+import settingsSectionDefinitions from "./settingsSectionDefinitions"
 
 export class SettingsPanel {
   static instance: SettingsPanel
@@ -162,17 +163,6 @@ export class SettingsPanel {
   private settingsSectionMatches = new Map<string, HTMLElement>()
 
   private installSettingsNavigation(): void {
-    const definitions = [
-      ["sources", "Story sources", "#sources_area"],
-      ["filters", "Filters", "#filter_area"],
-      ["redirects", "Redirects", "#redirect_area"],
-      ["sync", "CouchDB Sync", "#couch_input"],
-      ["theme", "Theme & animations", "#theme_select"],
-      ["swipe", "Swipe actions", "#swipe_lab"],
-      ["cache", "Cache timing", "#cache_time_input"],
-      ["errors", "Error log", "#error_log"],
-      ["about", "About Once", "[data-testid='app-version']"]
-    ] as const
     const index = requireElement<HTMLElement>("#settings_sections")
     const search = requireElement<HTMLInputElement>("#settings_search")
     const back = requireElement<HTMLButtonElement>("#settings_section_back")
@@ -183,7 +173,7 @@ export class SettingsPanel {
     noResults.setAttribute("aria-live", "polite")
     noResults.hidden = true
 
-    for (const [key, label, selector] of definitions) {
+    for (const [key, label, selector] of settingsSectionDefinitions) {
       const control = requireElement<HTMLElement>(selector)
       const block = requireClosestElement<HTMLElement>(control, ".settings_block")
       const section = document.createElement("section")

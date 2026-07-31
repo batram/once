@@ -27,20 +27,25 @@ const {
   saveSourcesAndWait
 } = require("../tests/e2e/mobile/helpers/settings")
 const { dragStory } = require("../tests/e2e/mobile/helpers/swipe")
+const settingsSectionDefinitions = require(
+  "../packages/ui-web/src/settings/settingsSectionDefinitions"
+)
 
 const repoRoot = path.resolve(__dirname, "..")
 const defaultOutput = path.join(repoRoot, "artifacts", "app-visual-review")
 const themes = ["light", "dark"]
-const settingsSections = [
-  "sources",
-  "filters",
-  "redirects",
-  "sync",
-  "theme",
-  "swipe",
-  "cache",
-  "errors",
-  "about"
+const settingsSections = settingsSectionDefinitions.map(([key]) => key)
+const settingsStateNames = [
+  "search-results",
+  "sources-structured",
+  "sources-add-source",
+  "sources-add-group",
+  "filters-inline",
+  "filters-validation",
+  "filters-text",
+  "redirects-editor",
+  "redirects-text",
+  "swipe-advanced"
 ]
 
 const structuralCollectorConfig = Object.freeze({
@@ -53,15 +58,18 @@ const structuralCollectorConfig = Object.freeze({
   ]
 })
 
-function buildImageNames(targets) {
+function buildImageNames(targets, sectionsByTarget = {}) {
   return targets.flatMap(target => themes.flatMap(theme => [
     `${target}-${theme}-stories.png`,
     `${target}-${theme}-story-states.png`,
     `${target}-${theme}-swipe-left-stage1.png`,
     `${target}-${theme}-swipe-right-stage2.png`,
     `${target}-${theme}-settings-index.png`,
-    ...settingsSections.map(section =>
+    ...(sectionsByTarget[target] || settingsSections).map(section =>
       `${target}-${theme}-settings-${section}.png`
+    ),
+    ...settingsStateNames.map(state =>
+      `${target}-${theme}-settings-state-${state}.png`
     ),
     `${target}-${theme}-reading.png`
   ]))
@@ -147,13 +155,18 @@ function historicalRunName(sha) {
   return sha.toLowerCase()
 }
 
-function historicalRunComplete(runOutput, imageNames, sha) {
+function historicalRunComplete(runOutput, sha, targets) {
   const manifestPath = path.join(runOutput, "manifest.json")
   if (!fs.existsSync(manifestPath)) return false
   try {
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"))
-    if (manifest.sha !== sha) return false
-    return imageNames.every(name =>
+    if (
+      manifest.sha !== sha ||
+      manifest.matrixVersion !== 3 ||
+      JSON.stringify(manifest.targets) !== JSON.stringify(targets) ||
+      !Array.isArray(manifest.imageNames)
+    ) return false
+    return manifest.imageNames.every(name =>
       fs.existsSync(path.join(runOutput, name)) &&
       fs.existsSync(path.join(runOutput, styleSnapshotName(name)))
     )
@@ -162,38 +175,36 @@ function historicalRunComplete(runOutput, imageNames, sha) {
   }
 }
 
-function prepareOutput(output, imageNames) {
+function prepareOutput(output, targets) {
   const current = path.join(output, "current")
   const baseline = path.join(output, "baseline")
   fs.mkdirSync(current, { recursive: true })
   fs.mkdirSync(baseline, { recursive: true })
-  for (const name of imageNames) {
+  const targetPrefixes = targets.map(target => `${target}-`)
+  const previousNames = fs.existsSync(current)
+    ? fs.readdirSync(current).filter(name =>
+      name.endsWith(".png") &&
+      targetPrefixes.some(prefix => name.startsWith(prefix))
+    )
+    : []
+  for (const entry of fs.readdirSync(baseline)) {
+    if (entry.endsWith(".png") || entry.endsWith(".styles.json")) {
+      fs.rmSync(path.join(baseline, entry))
+    }
+  }
+  for (const name of previousNames) {
     for (const artifact of [name, styleSnapshotName(name)]) {
       const previous = path.join(current, artifact)
       const saved = path.join(baseline, artifact)
       if (fs.existsSync(previous)) fs.copyFileSync(previous, saved)
     }
   }
-  const selectedTargets = new Set(
-    imageNames.map(name => name.slice(0, name.indexOf("-")))
-  )
-  const activeNames = new Set(imageNames.flatMap(name => [
-    name,
-    styleSnapshotName(name)
-  ]))
-  for (const entry of fs.readdirSync(baseline)) {
-    const target = entry.slice(0, entry.indexOf("-"))
-    if ((entry.endsWith(".png") || entry.endsWith(".styles.json")) &&
-        selectedTargets.has(target) &&
-        !activeNames.has(entry)) {
-      fs.rmSync(path.join(baseline, entry))
+  for (const entry of fs.readdirSync(current)) {
+    if (entry.endsWith(".png") || entry.endsWith(".styles.json")) {
+      fs.rmSync(path.join(current, entry))
     }
   }
-  for (const name of imageNames) {
-    fs.rmSync(path.join(current, name), { force: true })
-    fs.rmSync(path.join(current, styleSnapshotName(name)), { force: true })
-  }
-  return { current, baseline }
+  return { current, baseline, baselineImageNames: previousNames }
 }
 
 async function settleImages(page) {
@@ -232,7 +243,17 @@ async function computedStyleSnapshot(page) {
       "#settings_sections",
       ".settings_section",
       ".settings_block",
+      ".settings_actions",
+      ".button",
       ".structured_settings",
+      ".structured_row",
+      ".structured_row_editing",
+      ".structured_inline_input",
+      ".structured_inline_action",
+      ".structured_form",
+      ".structured_form_actions",
+      ".once-anchored-menu-panel",
+      ".once-anchored-menu-item",
       "#reading_panel",
       "#reading_content",
       ".once-reader-host"
@@ -525,8 +546,12 @@ async function captureSettingsMatrix(
   errorState
 ) {
   await openIndex()
+  const discoveredSections = await page.locator("[data-settings-target]")
+    .evaluateAll((rows) =>
+      [...new Set(rows.map((row) => row.dataset.settingsTarget).filter(Boolean))]
+    )
   await screenshot(page, path.join(output, `${prefix}-settings-index.png`))
-  for (const section of settingsSections) {
+  for (const section of discoveredSections) {
     if (section === "errors") await errorState.populate()
     await openSection(section)
     await expect(
@@ -538,6 +563,116 @@ async function captureSettingsMatrix(
     )
     if (section === "errors") await errorState.clear()
   }
+  return discoveredSections
+}
+
+async function ensureStructuredMode(page, openSection, section, mode) {
+  await openSection(section)
+  const list = page.getByTestId(`${section}-structured-list`)
+  const listVisible = await list.isVisible()
+  if ((mode === "list") !== listVisible) {
+    await page.getByTestId(`${section}-mode-toggle`).click()
+  }
+  if (mode === "list") await expect(list).toBeVisible()
+  else await expect(list).toBeHidden()
+}
+
+async function openSourceForm(page, kind) {
+  const desktopGroup = page.getByTestId("add-source-group")
+  if (kind === "group" && await desktopGroup.isVisible()) {
+    await desktopGroup.click()
+    await expect(page.getByTestId("structured-item-form")).toBeVisible()
+    return
+  }
+  await page.getByTestId("add-source").click()
+  const menu = page.getByTestId("story-menu")
+  if (await menu.isVisible()) {
+    await page.getByTestId(
+      kind === "source" ? "add-source-entry" : "add-group"
+    ).click()
+  }
+  await expect(page.getByTestId("structured-item-form")).toBeVisible()
+}
+
+async function captureSettingsStateMatrix(
+  page,
+  output,
+  prefix,
+  openIndex,
+  openSection
+) {
+  const capture = state => screenshot(
+    page,
+    path.join(output, `${prefix}-settings-state-${state}.png`)
+  )
+
+  await openIndex()
+  const settingsSearch = page.locator("#settings_search")
+  await settingsSearch.fill("source")
+  await expect(page.locator(".settings_section_match").first()).toBeVisible()
+  await capture("search-results")
+  await settingsSearch.fill("")
+
+  await ensureStructuredMode(page, openSection, "sources", "list")
+  await capture("sources-structured")
+
+  await openSourceForm(page, "source")
+  await capture("sources-add-source")
+  await page.getByTestId("structured-item-form")
+    .getByRole("button", { name: "Cancel" }).click()
+
+  await ensureStructuredMode(page, openSection, "sources", "list")
+  await openSourceForm(page, "group")
+  await capture("sources-add-group")
+  await page.getByTestId("structured-item-form")
+    .getByRole("button", { name: "Cancel" }).click()
+
+  await ensureStructuredMode(page, openSection, "filters", "list")
+  await page.getByTestId("add-filter").click()
+  await expect(page.getByTestId("filter-inline-input")).toBeVisible()
+  await capture("filters-inline")
+  await page.locator(".structured_row_editing")
+    .getByRole("button", { name: "Cancel" })
+    .evaluate(button => button.click())
+
+  await ensureStructuredMode(page, openSection, "filters", "list")
+  await page.getByTestId("filter-row").first().click()
+  const filterInput = page.getByTestId("filter-inline-input")
+  await filterInput.fill("")
+  await page.getByTestId("save-inline-filter").click()
+  await expect(page.locator(".structured_inline_validation"))
+    .toHaveText("Filter cannot be empty")
+  await capture("filters-validation")
+  await page.locator(".structured_row_editing")
+    .getByRole("button", { name: "Cancel" })
+    .evaluate(button => button.click())
+
+  await ensureStructuredMode(page, openSection, "filters", "text")
+  await capture("filters-text")
+
+  await ensureStructuredMode(page, openSection, "redirects", "list")
+  await page.getByTestId("add-redirect").click()
+  await expect(page.getByTestId("structured-item-form")).toBeVisible()
+  await capture("redirects-editor")
+  await page.getByTestId("structured-item-form")
+    .getByRole("button", { name: "Cancel" }).click()
+
+  await ensureStructuredMode(page, openSection, "redirects", "text")
+  await capture("redirects-text")
+
+  await openSection("swipe")
+  const advanced = page.getByTestId("swipe-advanced")
+  if (!(await advanced.evaluate(details => details.open))) {
+    await advanced.locator("summary").click()
+  }
+  await expect(advanced).toHaveAttribute("open", "")
+  await capture("swipe-advanced")
+}
+
+async function prepareDefaultSettingsStates(page, openSection) {
+  await ensureStructuredMode(page, openSection, "sources", "text")
+  await ensureStructuredMode(page, openSection, "filters", "list")
+  await ensureStructuredMode(page, openSection, "redirects", "list")
 }
 
 async function cancelSwipe(story) {
@@ -563,6 +698,7 @@ async function captureElectron(output, sourceRoot = repoRoot) {
   let electronApp
   let userData
   let page
+  let discoveredSettingsSections = null
   try {
     ;({ electronApp, userData, window: page } = await launchApp({
       appRoot: sourceRoot,
@@ -617,7 +753,8 @@ async function captureElectron(output, sourceRoot = repoRoot) {
         output,
         prefix
       )
-      await captureSettingsMatrix(
+      await prepareDefaultSettingsStates(page, openSection)
+      const capturedSections = await captureSettingsMatrix(
         page,
         output,
         prefix,
@@ -630,6 +767,18 @@ async function captureElectron(output, sourceRoot = repoRoot) {
           `${fixture.origin}/failure.rss`
         )
       )
+      if (discoveredSettingsSections) {
+        expect(capturedSections).toEqual(discoveredSettingsSections)
+      } else {
+        discoveredSettingsSections = capturedSections
+      }
+      await captureSettingsStateMatrix(
+        page,
+        output,
+        prefix,
+        openIndex,
+        openSection
+      )
 
       const address = page.locator("#urlfield")
       await address.fill(`once-reader://${fixture.origin}/article`)
@@ -640,6 +789,7 @@ async function captureElectron(output, sourceRoot = repoRoot) {
       )
       await screenshot(page, path.join(output, `${prefix}-reading.png`))
     }
+    return discoveredSettingsSections || []
   } finally {
     if (electronApp && userData) await closeApp(electronApp, userData)
     await fixture.close()
@@ -655,6 +805,7 @@ async function captureMobile(output, sourceRoot = repoRoot) {
     baseURL: `http://127.0.0.1:${started.port}/app/`
   })
   const page = await context.newPage()
+  let discoveredSettingsSections = null
   try {
     await gotoMobileApp(page)
     await openMobileSettingsSection(page, "theme")
@@ -725,7 +876,8 @@ async function captureMobile(output, sourceRoot = repoRoot) {
         output,
         prefix
       )
-      await captureSettingsMatrix(
+      await prepareDefaultSettingsStates(page, openSection)
+      const capturedSections = await captureSettingsMatrix(
         page,
         output,
         prefix,
@@ -737,6 +889,18 @@ async function captureMobile(output, sourceRoot = repoRoot) {
           sourceLines,
           `${mobileOrigin}/failure.rss`
         )
+      )
+      if (discoveredSettingsSections) {
+        expect(capturedSections).toEqual(discoveredSettingsSections)
+      } else {
+        discoveredSettingsSections = capturedSections
+      }
+      await captureSettingsStateMatrix(
+        page,
+        output,
+        prefix,
+        openIndex,
+        openSection
       )
 
       if (!readerInitialized) {
@@ -763,6 +927,7 @@ async function captureMobile(output, sourceRoot = repoRoot) {
       readerInitialized = true
       await screenshot(page, path.join(output, `${prefix}-reading.png`))
     }
+    return discoveredSettingsSections || []
   } finally {
     await context.close()
     await browser.close()
@@ -841,6 +1006,7 @@ function reportScript() {
 
 function reportHtml({
   baseline,
+  current = path.join(path.dirname(baseline), "current"),
   baselineHref = "baseline",
   baselineLabel = "Previous run",
   currentLabel = "Current built app",
@@ -849,8 +1015,12 @@ function reportHtml({
   const rows = imageNames
     .map(name => {
       const baselineExists = fs.existsSync(path.join(baseline, name))
+      const currentExists = fs.existsSync(path.join(current, name))
       const styles = styleSnapshotName(name)
       const baselineStylesExist = fs.existsSync(path.join(baseline, styles))
+      const currentStylesExist = fs.existsSync(
+        path.join(current, styles)
+      )
       const sample = name.replace(".png", "")
       return `<section data-sample="${sample}">
         <h2>${sample}</h2>
@@ -860,8 +1030,8 @@ function reportHtml({
             ${baselineStylesExist ? `<p><a href="${baselineHref}/${styles}">Previous computed styles JSON</a></p>` : ""}
           </figure>
           <figure class="current"><figcaption>${currentLabel}</figcaption>
-            <img src="current/${name}" alt="Current ${name}">
-            <p><a href="current/${styles}">Current computed styles JSON</a></p>
+            ${currentExists ? `<img src="current/${name}" alt="Current ${name}">` : "<p>Not present in the current build.</p>"}
+            ${currentStylesExist ? `<p><a href="current/${styles}">Current computed styles JSON</a></p>` : ""}
           </figure>
         </div>
       </section>`
@@ -899,8 +1069,8 @@ function printHelp() {
   console.log(`Usage: npm run visual:compare -- [options]
 
 Builds the real app targets, loads deterministic E2E data, and captures stories,
-reading, the settings index, and all nine settings panels in light and dark
-themes. The previous capture becomes the side-by-side baseline.
+reading, the settings index, and every rendered settings panel in light and
+dark themes. The previous capture becomes the side-by-side baseline.
 
   --skip-build      reuse existing Electron and mobile build outputs
   --electron-only   capture only the packaged Electron app
@@ -911,11 +1081,16 @@ themes. The previous capture becomes the side-by-side baseline.
 `)
 }
 
-function prepareHistoricalOutput(output, imageNames) {
+function prepareHistoricalOutput(output) {
   fs.mkdirSync(output, { recursive: true })
-  for (const name of imageNames) {
-    fs.rmSync(path.join(output, name), { force: true })
-    fs.rmSync(path.join(output, styleSnapshotName(name)), { force: true })
+  for (const entry of fs.readdirSync(output)) {
+    if (
+      entry === "manifest.json" ||
+      entry.endsWith(".png") ||
+      entry.endsWith(".styles.json")
+    ) {
+      fs.rmSync(path.join(output, entry), { force: true })
+    }
   }
 }
 
@@ -949,14 +1124,20 @@ function configureHistoricalInstallPolicy(worktree) {
 }
 
 async function captureTargets(options, output, sourceRoot) {
-  if (options.electron) await captureElectron(output, sourceRoot)
-  if (options.mobile) await captureMobile(output, sourceRoot)
+  const sectionsByTarget = {}
+  if (options.electron) {
+    sectionsByTarget.electron = await captureElectron(output, sourceRoot)
+  }
+  if (options.mobile) {
+    sectionsByTarget.mobile = await captureMobile(output, sourceRoot)
+  }
+  return sectionsByTarget
 }
 
-async function captureHistoricalRef(options, imageNames, sha) {
+async function captureHistoricalRef(options, sha, targets) {
   const runName = historicalRunName(sha)
   const runOutput = path.join(options.output, "runs", runName)
-  prepareHistoricalOutput(runOutput, imageNames)
+  prepareHistoricalOutput(runOutput)
   const tempParent = fs.mkdtempSync(path.join(os.tmpdir(), "once-visual-ref-"))
   const worktree = path.join(tempParent, "worktree")
   let added = false
@@ -982,8 +1163,10 @@ async function captureHistoricalRef(options, imageNames, sha) {
         worktree
       )
     }
-    await captureTargets(options, runOutput, worktree)
+    const sectionsByTarget = await captureTargets(options, runOutput, worktree)
+    const imageNames = buildImageNames(targets, sectionsByTarget)
     writeRunManifest(runOutput, {
+      matrixVersion: 3,
       ref: options.ref,
       sha,
       targets: [
@@ -992,7 +1175,7 @@ async function captureHistoricalRef(options, imageNames, sha) {
       ],
       imageNames
     })
-    return runOutput
+    return { imageNames, runOutput }
   } finally {
     if (added) {
       runGit(["worktree", "remove", "--force", worktree], { quiet: true })
@@ -1011,13 +1194,13 @@ async function main() {
     ...(options.electron ? ["electron"] : []),
     ...(options.mobile ? ["mobile"] : [])
   ]
-  const imageNames = buildImageNames(targets)
   if (options.refOnly && !options.ref) {
     throw new Error("--ref-only requires --ref REF")
   }
   let comparisonRoot = null
   let baselineHref = "baseline"
   let baselineLabel = "Previous run"
+  let comparisonImageNames = []
   if (options.ref) {
     const sha = resolveRef(options.ref)
     const runOutput = path.join(
@@ -1025,11 +1208,16 @@ async function main() {
       "runs",
       historicalRunName(sha)
     )
-    if (!options.refOnly && historicalRunComplete(runOutput, imageNames, sha)) {
+    if (!options.refOnly && historicalRunComplete(runOutput, sha, targets)) {
       comparisonRoot = runOutput
+      comparisonImageNames = JSON.parse(
+        fs.readFileSync(path.join(runOutput, "manifest.json"), "utf8")
+      ).imageNames
       console.log(`Reusing historical visual run: ${comparisonRoot}`)
     } else {
-      comparisonRoot = await captureHistoricalRef(options, imageNames, sha)
+      const captured = await captureHistoricalRef(options, sha, targets)
+      comparisonRoot = captured.runOutput
+      comparisonImageNames = captured.imageNames
     }
     baselineHref = `runs/${historicalRunName(sha)}`
     baselineLabel = `${options.ref} (${sha.slice(0, 12)})`
@@ -1038,19 +1226,29 @@ async function main() {
       return
     }
   }
-  const directories = prepareOutput(options.output, imageNames)
+  const directories = prepareOutput(options.output, targets)
   if (options.build && options.electron) runNpm(["run", "package:electron"])
   if (options.build && options.mobile) {
     runNpm(["run", "mobile", "--", "web", "--channel", "dev", "--e2e"])
   }
-  await captureTargets(options, directories.current, repoRoot)
+  const currentSections = await captureTargets(
+    options,
+    directories.current,
+    repoRoot
+  )
+  const currentImageNames = buildImageNames(targets, currentSections)
+  if (!options.ref) comparisonImageNames = directories.baselineImageNames
+  const imageNames = [
+    ...currentImageNames,
+    ...comparisonImageNames.filter(name => !currentImageNames.includes(name))
+  ]
   comparisonRoot ||= directories.baseline
   fs.writeFileSync(
     path.join(options.output, "index.html"),
     reportHtml({
       baseline: comparisonRoot,
-      baselineHref,
       current: directories.current,
+      baselineHref,
       baselineLabel,
       imageNames
     })

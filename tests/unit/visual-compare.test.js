@@ -5,6 +5,9 @@ const fs = require("node:fs")
 const os = require("node:os")
 const path = require("node:path")
 const test = require("node:test")
+const settingsSectionDefinitions = require(
+  "../../packages/ui-web/src/settings/settingsSectionDefinitions"
+)
 const {
   buildImageNames,
   historicalRunComplete,
@@ -64,14 +67,22 @@ test("complete historical runs can be reused", (t) => {
   const names = ["electron-light-stories.png"]
   fs.writeFileSync(
     path.join(output, "manifest.json"),
-    JSON.stringify({ sha })
+    JSON.stringify({
+      sha,
+      matrixVersion: 3,
+      targets: ["electron"],
+      imageNames: names
+    })
   )
   fs.writeFileSync(path.join(output, names[0]), "")
   fs.writeFileSync(path.join(output, styleSnapshotName(names[0])), "{}")
-  assert.equal(historicalRunComplete(output, names, sha), true)
-  assert.equal(historicalRunComplete(output, names, "b".repeat(40)), false)
+  assert.equal(historicalRunComplete(output, sha, ["electron"]), true)
+  assert.equal(
+    historicalRunComplete(output, "b".repeat(40), ["electron"]),
+    false
+  )
   fs.rmSync(path.join(output, styleSnapshotName(names[0])))
-  assert.equal(historicalRunComplete(output, names, sha), false)
+  assert.equal(historicalRunComplete(output, sha, ["electron"]), false)
 })
 
 test("visual comparison rejects unsupported switches", () => {
@@ -80,7 +91,8 @@ test("visual comparison rejects unsupported switches", () => {
 
 test("visual comparison covers both themes and every settings panel", () => {
   const names = buildImageNames(["electron", "mobile"])
-  assert.equal(names.length, 60)
+  const settingsSections = settingsSectionDefinitions.map(([key]) => key)
+  assert.equal(names.length, 100)
   for (const target of ["electron", "mobile"]) {
     for (const theme of ["light", "dark"]) {
       assert.ok(names.includes(`${target}-${theme}-stories.png`))
@@ -89,21 +101,44 @@ test("visual comparison covers both themes and every settings panel", () => {
       assert.ok(names.includes(`${target}-${theme}-swipe-right-stage2.png`))
       assert.ok(names.includes(`${target}-${theme}-settings-index.png`))
       assert.ok(names.includes(`${target}-${theme}-reading.png`))
-      for (const section of [
-        "sources", "filters", "redirects", "sync", "theme",
-        "swipe", "cache", "errors", "about"
-      ]) {
+      for (const section of settingsSections) {
         assert.ok(names.includes(
           `${target}-${theme}-settings-${section}.png`
+        ))
+      }
+      for (const state of [
+        "search-results",
+        "sources-structured",
+        "sources-add-source",
+        "sources-add-group",
+        "filters-inline",
+        "filters-validation",
+        "filters-text",
+        "redirects-editor",
+        "redirects-text",
+        "swipe-advanced"
+      ]) {
+        assert.ok(names.includes(
+          `${target}-${theme}-settings-state-${state}.png`
         ))
       }
     }
   }
 })
 
-test("visual report supports keyboard-controlled comparison order", () => {
+test("visual report supports keyboard-controlled comparison order", (t) => {
+  const output = fs.mkdtempSync(path.join(os.tmpdir(), "once-visual-report-"))
+  t.after(() => fs.rmSync(output, { recursive: true, force: true }))
+  const current = path.join(output, "current")
+  fs.mkdirSync(current)
+  fs.writeFileSync(path.join(current, "electron-light-stories.png"), "")
+  fs.writeFileSync(
+    path.join(current, "electron-light-stories.styles.json"),
+    "{}"
+  )
   const html = reportHtml({
-    baseline: "baseline",
+    baseline: path.join(output, "baseline"),
+    current,
     imageNames: ["electron-light-stories.png"]
   })
   assert.match(html, /event\.key === "ArrowLeft"/)
@@ -112,6 +147,29 @@ test("visual report supports keyboard-controlled comparison order", () => {
   assert.match(html, /class="current"/)
   assert.match(html, /Current left, previous right/)
   assert.match(html, /current\/electron-light-stories\.styles\.json/)
+})
+
+test("visual report retains samples present on only one side", (t) => {
+  const output = fs.mkdtempSync(path.join(os.tmpdir(), "once-visual-union-"))
+  t.after(() => fs.rmSync(output, { recursive: true, force: true }))
+  const baseline = path.join(output, "baseline")
+  const current = path.join(output, "current")
+  fs.mkdirSync(baseline)
+  fs.mkdirSync(current)
+  fs.writeFileSync(path.join(baseline, "electron-light-settings-old.png"), "")
+  fs.writeFileSync(path.join(current, "electron-light-settings-new.png"), "")
+  const html = reportHtml({
+    baseline,
+    current,
+    imageNames: [
+      "electron-light-settings-new.png",
+      "electron-light-settings-old.png"
+    ]
+  })
+  assert.match(html, /No previous run/)
+  assert.match(html, /Not present in the current build/)
+  assert.match(html, /current\/electron-light-settings-new\.png/)
+  assert.match(html, /baseline\/electron-light-settings-old\.png/)
 })
 
 test("visual report steps between samples with the vertical arrows", () => {

@@ -9,6 +9,9 @@ The default run covers both light and dark themes for:
 - the populated story list and mixed read/bookmarked states;
 - left and right story swipes held at intermediate stages;
 - the Settings index and every Settings section;
+- Settings search results, structured Sources, source/group forms, filter
+  editing and validation, Filters/Redirects text modes, the redirect editor,
+  and expanded Swipe advanced controls;
 - a real, expanded source-load failure in the Error Log; and
 - the populated Reader.
 
@@ -61,6 +64,11 @@ npm run visual:compare -- --ref 7f17cce
 A complete stored run is reused. Run `--ref-only` again when fixture behavior,
 the screenshot matrix, or the JSON schema changes and the retained revision
 needs to be recaptured.
+
+Each build discovers its own rendered Settings destinations. The report uses
+the union of the current and comparison artifact sets, so a newly added section
+shows `No previous run` and a removed section shows `Not present in the current
+build` instead of preventing the comparison.
 
 Historical builds use their own lockfile and may report old deprecations or
 audit findings. Installation policy changes needed by an old lockfile are
