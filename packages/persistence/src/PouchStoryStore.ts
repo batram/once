@@ -9,9 +9,6 @@ export interface PouchStoryDatabase {
   createIndex(
     options?: PouchDB.Find.CreateIndexOptions
   ): Promise<PouchDB.Find.CreateIndexResponse<object>>
-  getIndexes?(): Promise<PouchDB.Find.GetIndexesResponse<object>>
-  deleteIndex?(index: PouchDB.Find.DeleteIndexOptions): Promise<unknown>
-  viewCleanup?(): Promise<unknown>
   find(
     options: PouchDB.Find.FindRequest<object>,
     callback: PouchDB.Core.Callback<PouchDB.Find.FindResponse<object>>
@@ -29,7 +26,6 @@ export interface PouchStoryDatabase {
 
 export class PouchStoryStore<TStory extends Story> {
   private staredIndex?: Promise<unknown>
-  private staredIndexCleanup?: Promise<void>
   private diagnosticHandlers = new Set<(error: {
     severity: "warning" | "error"
     operation: string
@@ -98,17 +94,6 @@ export class PouchStoryStore<TStory extends Story> {
       selector: { stared: { $eq: true } },
       use_index: ["once-stared", "stared-only"]
     })
-    this.staredIndexCleanup ??= this.cleanupLegacyStaredIndexes().catch(
-      (error) => {
-        const message = error instanceof Error ? error.message : String(error)
-        this.diagnosticHandlers.forEach((handler) => handler({
-          severity: "warning",
-          operation: "story.index-cleanup",
-          message: "The obsolete starred-story index could not be removed",
-          details: message
-        }))
-      }
-    )
     return response.docs.map((doc) =>
       this.storyFromDocument(doc as unknown as Record<string, unknown>)
     )
@@ -187,24 +172,6 @@ export class PouchStoryStore<TStory extends Story> {
     return story
   }
 
-  private async cleanupLegacyStaredIndexes(): Promise<void> {
-    if (!this.db.getIndexes || !this.db.deleteIndex) return
-    const { indexes } = await this.db.getIndexes()
-    const legacy = indexes.filter((index) => {
-      if (!index.ddoc || index.ddoc === "_design/once-stared") return false
-      const fields = index.def?.fields ?? []
-      return fields.length === 1 && fieldName(fields[0]) === "stared"
-    })
-    for (const index of legacy) {
-      await this.db.deleteIndex({
-        ddoc: index.ddoc as string,
-        name: index.name,
-        type: index.type
-      })
-    }
-    if (legacy.length > 0) await this.db.viewCleanup?.()
-  }
-
   async deleteStory(url: string): Promise<void> {
     try {
       const doc = await this.db.get(this.storyId(url))
@@ -258,10 +225,6 @@ export class PouchStoryStore<TStory extends Story> {
       })
     }
   }
-}
-
-function fieldName(field: string | Record<string, string>): string {
-  return typeof field === "string" ? field : Object.keys(field)[0] ?? ""
 }
 
 function sameStoredStory(

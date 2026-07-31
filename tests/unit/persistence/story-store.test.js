@@ -120,30 +120,6 @@ test("loads stared stories through an indexed query", async () => {
   const store = new PouchStoryStore(
     {
       createIndex: async (options) => calls.push(["createIndex", options]),
-      getIndexes: async () => ({
-        indexes: [
-          {
-            ddoc: null,
-            name: "_all_docs",
-            type: "special",
-            def: { fields: [{ _id: "asc" }] }
-          },
-          {
-            ddoc: "_design/idx-legacy",
-            name: "idx-legacy",
-            type: "json",
-            def: { fields: [{ stared: "asc" }] }
-          },
-          {
-            ddoc: "_design/once-stared",
-            name: "stared-only",
-            type: "json",
-            def: { fields: [{ stared: "asc" }] }
-          }
-        ]
-      }),
-      deleteIndex: async (index) => calls.push(["deleteIndex", index]),
-      viewCleanup: async () => calls.push(["viewCleanup"]),
       find: async (options) => {
         calls.push(["find", options])
         return { docs: [stared.to_obj()] }
@@ -154,7 +130,6 @@ test("loads stared stories through an indexed query", async () => {
 
   const stories = await store.getStaredStories()
   await store.getStaredStories()
-  await new Promise((resolve) => setImmediate(resolve))
 
   assert.deepEqual(calls.filter(([name]) => name === "createIndex"), [[
     "createIndex",
@@ -177,14 +152,5 @@ test("loads stared stories through an indexed query", async () => {
       use_index: ["once-stared", "stared-only"]
     }]
   ])
-  assert.deepEqual(calls.filter(([name]) => name === "deleteIndex"), [[
-    "deleteIndex",
-    {
-      ddoc: "_design/idx-legacy",
-      name: "idx-legacy",
-      type: "json"
-    }
-  ]])
-  assert.ok(calls.some(([name]) => name === "viewCleanup"))
   assert.deepEqual(stories.map((story) => story.href), [stared.href])
 })
