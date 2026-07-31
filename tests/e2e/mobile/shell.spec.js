@@ -45,6 +45,13 @@ test("interactive navigation waits for a slow application startup", async ({
 
   await page.getByTestId("settings-menu").click()
   await expect(page.locator("#settings_search")).toBeVisible()
+  await page.locator("body").evaluate((body) => {
+    body.dataset.theme = "light"
+  })
+  await expect(page.locator("#settings_search")).toHaveCSS(
+    "background-color",
+    "rgb(255, 255, 255)"
+  )
 })
 
 test("mobile shell is responsive and hides unavailable capabilities", async ({ page }) => {

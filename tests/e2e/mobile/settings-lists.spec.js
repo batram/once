@@ -42,6 +42,24 @@ test("list settings are the default and expose structured add actions", async ({
   await expect(modeToggle).toHaveText("TXT")
   await expect(modeToggle).toHaveAttribute("aria-label", "Edit as text")
   await expect(modeToggle.locator("xpath=..")).toHaveClass(/\bbar\b/)
+  const toggleGeometry = await modeToggle.evaluate((toggle) => {
+    const bounds = toggle.getBoundingClientRect()
+    const before = getComputedStyle(toggle, "::before")
+    const after = getComputedStyle(toggle, "::after")
+    return {
+      innerHeight: bounds.height -
+        Number.parseFloat(getComputedStyle(toggle).borderTopWidth) -
+        Number.parseFloat(getComputedStyle(toggle).borderBottomWidth),
+      beforeHeight: Number.parseFloat(before.height),
+      afterHeight: Number.parseFloat(after.height),
+      beforeBorderRight: before.borderRightWidth,
+      beforeBackground: before.backgroundImage
+    }
+  })
+  expect(toggleGeometry.beforeHeight).toBe(toggleGeometry.innerHeight)
+  expect(toggleGeometry.afterHeight).toBe(toggleGeometry.innerHeight)
+  expect(toggleGeometry.beforeBorderRight).toBe("0px")
+  expect(toggleGeometry.beforeBackground).not.toBe("none")
   await expect(page.getByTestId("sources-structured-list")).toBeVisible()
   await expect(page.getByTestId("sources")).toBeHidden()
   const addSource = page.getByTestId("add-source")

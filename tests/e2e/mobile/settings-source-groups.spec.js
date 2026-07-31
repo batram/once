@@ -55,7 +55,9 @@ test("story source groups align with the settings panel and expose their handles
     return {
       viewportWidth: window.innerWidth,
       backLeft: back?.left,
+      backRight: back?.right,
       backCenterY: back && back.top + back.height / 2,
+      titleLeft: title?.left,
       titleCenterY: title && title.top + title.height / 2,
       searchLeft: search?.left,
       searchRight: search?.right,
@@ -66,6 +68,7 @@ test("story source groups align with the settings panel and expose their handles
     }
   })
   expect(alignment.backLeft).toBe(16)
+  expect(alignment.titleLeft - alignment.backRight).toBe(8)
   expect(alignment.searchLeft).toBe(16)
   expect(alignment.groupLeft).toBe(16)
   expect(alignment.searchRight).toBe(alignment.viewportWidth - 16)

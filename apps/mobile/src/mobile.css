@@ -1119,6 +1119,7 @@ body[data-theme="dark"] #reading_reader_toggle:not(.active) img {
 #settings_panel .bar {
   flex: 0 0 auto;
   align-items: center;
+  gap: var(--sp-2);
   min-height: var(--touch);
   height: auto;
   box-sizing: border-box;
@@ -1157,7 +1158,9 @@ body[data-theme="dark"] #reading_reader_toggle:not(.active) img {
 
 #settings_panel .structured_mode_toggle_topbar::before {
   content: "";
+  height: auto;
   flex: 0 0 40px;
+  border-right: 0;
   background-image:
     linear-gradient(var(--m-ink), var(--m-ink)), linear-gradient(var(--m-ink), var(--m-ink)),
     linear-gradient(var(--m-ink), var(--m-ink));
@@ -1174,6 +1177,7 @@ body[data-theme="dark"] #reading_reader_toggle:not(.active) img {
   content: "</>";
   display: grid;
   place-items: center;
+  height: auto;
   flex: 0 0 40px;
   border-left: var(--m-bw) solid var(--m-ink);
   color: var(--m-ink);
@@ -1238,6 +1242,7 @@ body[data-theme="dark"] #reading_reader_toggle:not(.active) img {
 #settings_search {
   min-height: var(--touch);
   padding: 0 var(--sp-3);
+  background: var(--input-bg-color);
 }
 
 .settings_section_row {
