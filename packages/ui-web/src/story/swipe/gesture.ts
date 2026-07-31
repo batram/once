@@ -35,9 +35,10 @@ function startPointerDrag(e: PointerEvent, tracker: SwipeTracker): boolean {
   // Touch has its own axis-locked path. Running both pointer and touch
   // handlers lets a vertical scroll/pull move the story as well.
   if (e.pointerType === "touch") return false
+  const target = e.target as HTMLElement
   if (
     e.button != 0 ||
-    (e.target as HTMLElement).getAttribute("draggable") == "false"
+    target.closest('[draggable="false"]')
   ) {
     e.stopPropagation()
     return false
