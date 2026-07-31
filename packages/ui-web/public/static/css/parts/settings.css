@@ -48,14 +48,15 @@
 }
 
 #settings_panel input:not([type]),
-#settings_panel input:is(
-  [type="email"],
-  [type="number"],
-  [type="password"],
-  [type="search"],
-  [type="text"],
-  [type="url"]
-) {
+#settings_panel
+  input:is(
+    [type="email"],
+    [type="number"],
+    [type="password"],
+    [type="search"],
+    [type="text"],
+    [type="url"]
+  ) {
   background: var(--input-bg-color);
 }
 
@@ -165,6 +166,8 @@
   flex-wrap: nowrap;
   gap: var(--sp-2);
   text-align: center;
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 #settings_panel .update_status {
@@ -825,13 +828,15 @@
 }
 
 #settings_panel
-  .button:not(:where(
-    .collapsebutton,
-    .button--icon,
-    .story .button,
-    .structured_inline_action,
-    .structured_mode_toggle_topbar
-  )) {
+  .button:not(
+    :where(
+      .collapsebutton,
+      .button--icon,
+      .story .button,
+      .structured_inline_action,
+      .structured_mode_toggle_topbar
+    )
+  ) {
   margin: 0;
   padding: 0 var(--sp-2);
 }
@@ -875,10 +880,10 @@
   width: var(--settings-back-icon-width, 11px);
   height: var(--settings-back-icon-height, 11px);
   background: var(--settings-back-icon-color, currentColor);
-  -webkit-mask: url("../../imgs/chevron-left.svg") center /
-    var(--settings-back-icon-scale, contain) no-repeat;
-  mask: url("../../imgs/chevron-left.svg") center /
-    var(--settings-back-icon-scale, contain) no-repeat;
+  -webkit-mask: url("../../imgs/chevron-left.svg") center / var(--settings-back-icon-scale, contain)
+    no-repeat;
+  mask: url("../../imgs/chevron-left.svg") center / var(--settings-back-icon-scale, contain)
+    no-repeat;
 }
 
 #settings_panel.settings_detail_open #settings_section_back {
@@ -891,9 +896,7 @@
 }
 
 #settings_panel .structured_mode_toggle_topbar {
-  --settings-mode-toggle-content-height: calc(
-    var(--toolbar-control-size) - 2 * var(--bw)
-  );
+  --settings-mode-toggle-content-height: calc(var(--toolbar-control-size) - 2 * var(--bw));
   order: 3;
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -931,10 +934,8 @@
   font-size: var(--fs-label);
 }
 
-#settings_panel
-  .structured_mode_toggle_topbar[aria-label="Edit as text"]::before,
-#settings_panel
-  .structured_mode_toggle_topbar[aria-label="Edit as list"]::after {
+#settings_panel .structured_mode_toggle_topbar[aria-label="Edit as text"]::before,
+#settings_panel .structured_mode_toggle_topbar[aria-label="Edit as list"]::after {
   background: var(--highlight-bg-color);
 }
 
@@ -1495,14 +1496,12 @@
   margin: 0;
 }
 
-.structured_form_actions
-  .structured_inline_action[aria-label="Save"] {
+.structured_form_actions .structured_inline_action[aria-label="Save"] {
   grid-row: 1;
   grid-column: 2;
 }
 
-.structured_form_actions
-  .structured_inline_action[aria-label="Cancel"] {
+.structured_form_actions .structured_inline_action[aria-label="Cancel"] {
   grid-row: 1;
   grid-column: 3;
 }
@@ -1675,10 +1674,8 @@
   display: none;
 }
 
-.settings_editor_block
-  > .settings_actions.structured_actions_empty,
-.settings_editor_block
-  > .settings_actions.structured_desktop_actions_empty {
+.settings_editor_block > .settings_actions.structured_actions_empty,
+.settings_editor_block > .settings_actions.structured_desktop_actions_empty {
   box-sizing: border-box;
   min-height: 0;
   height: 0;
