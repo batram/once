@@ -7,7 +7,7 @@
   justify-content: center;
   gap: var(--sp-1);
   margin: 0;
-  padding: calc(var(--sp-1) / 2);
+  padding: calc(var(--sp-1) / 2) var(--sp-2);
   border: var(--bw) solid black;
   border-radius: var(--radius-sm);
   color: inherit;
@@ -33,6 +33,7 @@
 
 .button--icon {
   aspect-ratio: 1;
+  padding-inline: calc(var(--sp-1) / 2);
 }
 
 .button--icon > img {

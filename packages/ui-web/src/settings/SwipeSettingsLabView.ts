@@ -35,7 +35,7 @@ function checkbox(
   id: string,
   labelText: string
 ): HTMLInputElement {
-  const row = element("p", "swipe_check_row")
+  const row = element("p", "swipe_check_row row")
   const input = element("input")
   input.type = "checkbox"
   input.id = id
@@ -121,7 +121,7 @@ function buildFooter(host: HTMLElement): {
   undo: HTMLButtonElement
   reset: HTMLButtonElement
 } {
-  const footer = element("div", "swipe_footer")
+  const footer = element("div", "swipe_footer row")
   const status = element("span", "swipe_save_status")
   status.dataset.testid = "swipe-save-status"
   status.setAttribute("role", "status")
@@ -284,8 +284,8 @@ export class SwipeSettingsLabView {
   }
 
   private buildDirection(direction: Direction): HTMLElement {
-    const block = element("section", `swipe_action_block swipe_action_${direction}`)
-    const heading = element("div", "swipe_action_heading")
+    const block = element("section", `swipe_action_block stack swipe_action_${direction}`)
+    const heading = element("div", "swipe_action_heading row")
     const title = element("strong")
     title.textContent = direction === "right" ? "Swipe right" : "Swipe left"
     const explanation = element("span")
@@ -301,7 +301,7 @@ export class SwipeSettingsLabView {
     block.append(heading)
 
     for (const stage of [0, 1] as const) {
-      const label = element("label", "swipe_action_field")
+      const label = element("label", "swipe_action_field row")
       label.dataset.stage = String(stage + 1)
       const stageLabel = element("span", "swipe_stage_label")
       stageLabel.textContent = stage === 0 ? "1st" : "2nd"

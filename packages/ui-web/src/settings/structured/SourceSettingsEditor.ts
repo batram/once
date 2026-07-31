@@ -186,7 +186,7 @@ export class SourceSettingsEditor {
     }
     this.host.prepareDetail(root)
     const dialog = document.createElement("div")
-    dialog.className = "structured_form"
+    dialog.className = "structured_form stack"
     dialog.setAttribute("role", "dialog")
     const title = document.createElement("h3")
     title.textContent = `Delete “${group.name}”?`
@@ -194,7 +194,7 @@ export class SourceSettingsEditor {
     explanation.textContent =
       "Choose what should happen to the sources in this group."
     const actions = document.createElement("div")
-    actions.className = "structured_form_actions"
+    actions.className = "structured_form_actions row"
     actions.append(
       createActionButton("Remove group and move sources to Default", () => {
         this.groups[0].sources.push(...group.sources)

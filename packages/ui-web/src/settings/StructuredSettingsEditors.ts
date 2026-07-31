@@ -182,7 +182,7 @@ export class StructuredSettingsEditors {
     if (!block || !input || !actions || !label) return
 
     const header = document.createElement("div")
-    header.className = "structured_settings_header"
+    header.className = "structured_settings_header row"
     label.replaceWith(header)
     header.append(label)
     this.headers.set(section, header)
@@ -212,7 +212,7 @@ export class StructuredSettingsEditors {
     root.after(status)
     installDragAutoScroll(root)
     const listActions = document.createElement("div")
-    listActions.className = "structured_list_actions"
+    listActions.className = "structured_list_actions row"
     listActions.dataset.structuredActions = section
     actions.classList.add(`structured_actions_${section}`)
     actions.prepend(listActions)

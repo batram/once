@@ -45,7 +45,7 @@ export function createInlineActionButton(
 
 export function createRowBody(...children: HTMLElement[]): HTMLElement {
   const body = document.createElement("div")
-  body.className = "structured_row_body"
+  body.className = "structured_row_body row"
   body.append(...children)
   return body
 }
@@ -76,7 +76,7 @@ export function createListCard(title: string, count: number): {
   const card = document.createElement("section")
   card.className = "structured_list_card"
   const header = document.createElement("div")
-  header.className = "structured_list_header"
+  header.className = "structured_list_header row"
   const name = document.createElement("strong")
   name.className = "structured_list_name"
   name.textContent = title
@@ -166,7 +166,7 @@ function appendFormField(
 export function showStructuredForm(options: StructuredFormOptions): void {
   if (!options.host) options.root.textContent = ""
   const form = document.createElement("form")
-  form.className = "structured_form"
+  form.className = "structured_form stack"
   if (options.createTester) form.classList.add("structured_redirect_form")
   form.dataset.testid = "structured-item-form"
   const title = document.createElement("h3")
@@ -183,7 +183,7 @@ export function showStructuredForm(options: StructuredFormOptions): void {
   error.className = "structured_validation"
   error.setAttribute("role", "alert")
   const actions = document.createElement("div")
-  actions.className = "structured_form_actions"
+  actions.className = "structured_form_actions row"
   const save = createInlineActionButton("Save", () => {
     if (!form.reportValidity()) return
     if (!options.save(inputs.map((input) => input.value))) {

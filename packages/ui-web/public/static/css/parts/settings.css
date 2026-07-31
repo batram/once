@@ -180,8 +180,6 @@
 }
 
 .settings_error_log_header {
-  align-items: center;
-  display: flex;
   justify-content: space-between;
   margin-bottom: var(--sp-2);
 }
@@ -355,14 +353,6 @@
 
 /* Structured list editors. The raw textarea remains immediately below this
    surface and is restored by the “Edit as text” control. */
-.structured_settings_header,
-.structured_list_actions,
-.structured_form_actions {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-}
-
 .structured_settings_header {
   justify-content: space-between;
   margin-bottom: var(--sp-2);
@@ -409,9 +399,6 @@
   position: sticky;
   z-index: 4;
   top: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
   box-sizing: border-box;
   width: 100%;
   --settings-structured_search-padding: 6px 0;
@@ -475,10 +462,7 @@
 }
 
 .structured_group > summary {
-  display: flex;
   min-height: 38px;
-  align-items: center;
-  gap: var(--sp-2);
   cursor: pointer;
 }
 
@@ -602,11 +586,8 @@
 /* Everything right of the badge column. It owns the row separator so the rule
    insets past the badge and the badges read as a column. */
 .structured_row_body {
-  display: flex;
   flex: 1 1 auto;
   min-width: 0;
-  align-items: center;
-  gap: var(--sp-2);
 }
 
 /* A row draws no box inside itself: the row is the tap target, and a nested
@@ -816,9 +797,7 @@
 }
 
 .structured_form {
-  display: flex;
   box-sizing: border-box;
-  flex-direction: column;
   gap: var(--sp-3);
   padding: var(--sp-2) 0;
 }
@@ -1322,10 +1301,7 @@
    The header is not a disclosure control, so it takes summary's layout but not
    its cursor. */
 .structured_list_header {
-  display: flex;
   min-height: 38px;
-  align-items: center;
-  gap: var(--sp-2);
 }
 
 /* The reference maps its near-black ink to --text-color; here that variable is
@@ -2027,10 +2003,7 @@
 }
 
 .swipe_action_block {
-  display: flex;
   min-width: 0;
-  flex-direction: column;
-  gap: var(--sp-2);
   box-sizing: border-box;
   --settings-swipe_action_block-padding: 10px var(--sp-3) var(--sp-3);
   padding: var(--settings-swipe_action_block-padding);
@@ -2051,7 +2024,6 @@
 }
 
 .swipe_action_heading {
-  display: flex;
   min-width: 0;
   align-items: baseline;
   --settings-swipe_action_heading-gap: 6px;
@@ -2072,10 +2044,7 @@
 }
 
 .swipe_action_field {
-  display: flex;
   min-width: 0;
-  align-items: center;
-  gap: var(--sp-2);
 }
 
 .swipe_stage_label {
@@ -2260,8 +2229,6 @@
 }
 
 .swipe_check_row {
-  display: flex;
-  align-items: center;
   --settings-swipe_check_row-gap: 6px;
   gap: var(--settings-swipe_check_row-gap);
   --settings-swipe_check_row-margin: 0 0 10px;
@@ -2306,9 +2273,6 @@
 }
 
 .swipe_footer {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
   padding: var(--sp-2) 0 var(--sp-3);
   border-top: 1px solid var(--border-color);
 }

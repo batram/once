@@ -143,6 +143,7 @@ export class SourceGroupView {
     index: number
   ): HTMLElement {
     const summary = document.createElement("summary")
+    summary.className = "row"
     const caret = document.createElement("span")
     caret.className = "structured_group_caret"
     caret.setAttribute("aria-hidden", "true")
@@ -183,7 +184,7 @@ export class SourceGroupView {
       return
     }
     const controls = document.createElement("span")
-    controls.className = "structured_group_actions"
+    controls.className = "structured_group_actions row"
     controls.addEventListener("click", (event) => event.preventDefault())
     const menu = document.createElement("button")
     menu.type = "button"

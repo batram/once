@@ -84,16 +84,12 @@ The product therefore exposes two clearly different contracts:
 
 ## Completed work
 
-The measured baseline, implementation history, and completed Phases 0–2 are
+The measured baseline, implementation history, and completed Phases 0–3 are
 archived in [`design-system-completed.md`](design-system-completed.md). This
 file contains only the governing architecture and remaining work.
 
 ### Remaining implementation notes
 
-- Decide `.button` padding during Phase 3. The primitive's
-  `calc(var(--sp-1) / 2)` is too tight for a text button and is why settings
-  buttons needed a skin. Icon buttons set `aspect-ratio: 1`, so horizontal
-  padding cannot simply be added.
 - Keep the visual comparison representative as later phases migrate ownership.
   The matrix captures live notification bubbles and the left-menu status dock
   on both web targets. Electron also captures the active reader `WebContents`
@@ -242,49 +238,6 @@ use:
 
 Primitives should be composable and low-specificity. Component CSS owns component geometry.
 Do not replace every flex/grid declaration merely to increase primitive adoption counts.
-
----
-
-## Phase 3 — Semantic primitives
-
-### 3.1 Button migration
-
-Land the native button primitive and migrate one component family at a time:
-
-1. search/reload/collapse controls;
-2. sidebar panel controls;
-3. settings actions, including `<input type="button">`;
-4. reader/TTS controls;
-5. dynamically built story and platform controls.
-
-Update event bindings and selectors with each family. Preserve stable `data-testid` hooks.
-Add accessible names and keyboard coverage before deleting compatibility styles.
-
-Delete `.btn` and `icon-btn` only after repository search proves zero callers.
-
-### 3.2 Layout primitives
-
-Introduce primitives from repeated proven patterns. Migrate settings in bounded component
-families rather than treating the entire large stylesheet as one change.
-
-Keep component geometry in component CSS. A `.row` should not encode story-, settings-, or
-platform-specific offsets.
-
-### 3.3 Contract lint
-
-Once migration is complete:
-
-- `.button` is valid only on `<button>`;
-- icon-only `.button` requires an accessible name;
-- prohibited legacy classes fail structure checks;
-- new clickable noninteractive markup fails semantic checks.
-
-### Phase 3 exit
-
-- no clickable `.btn`, `.sub`, or `icon-btn` alternatives remain;
-- no `<input type="button">` remains unless explicitly justified;
-- migrated controls pass keyboard, focus, and platform geometry tests;
-- button/icon nudges are removed rather than allowlisted.
 
 ---
 
@@ -496,7 +449,6 @@ verify their expected bundle stamp before running.
 
 | Phase | Depends on | Risk | Primary result |
 |---|---|---:|---|
-| 3 Semantic primitives | 1, 2 | medium | One control/layout contract |
 | 4 Icon system | 0, 3 | medium | Themeable, verified glyphs |
 | 5 Theming architecture | 1, 2, 3 | high | Supported tokens, explicit advanced-CSS risk |
 | 6 Design handoff | 1, 3 | low | Transferable design artifacts |

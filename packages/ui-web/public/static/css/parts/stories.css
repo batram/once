@@ -418,6 +418,7 @@
 .story .button {
   height: 16px;
   box-sizing: content-box;
+  padding: calc(var(--sp-1) / 2);
   white-space: nowrap;
 }
 

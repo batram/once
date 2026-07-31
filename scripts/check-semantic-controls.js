@@ -28,10 +28,10 @@ function semanticControlViolations(fileName, source) {
   const violations = []
   const extension = path.extname(fileName)
   const legacyClass = extension === ".css"
-    ? /(?:^|[,\s>+~])\.(?:btn|icon-btn)(?=$|[\s:,.#>+~{])/m
+    ? /(?:^|[,\s>+~])\.(?:btn|icon-btn|sub)(?=$|[\s:,.#>+~{])/m
     : extension === ".html"
-      ? /\bclass\s*=\s*["'][^"']*(?:^|\s)(?:btn|icon-btn)(?=\s|$)[^"']*["']/im
-      : /["'`](?:btn|icon-btn)["'`]|["'`][^"'`]*\.(?:btn|icon-btn)(?=$|[\s:,.#>+~])[^"'`]*["'`]/m
+      ? /\bclass\s*=\s*["'][^"']*\b(?:btn|icon-btn|sub)\b[^"']*["']/im
+      : /["'`](?:btn|icon-btn|sub)["'`]|["'`][^"'`]*\.(?:btn|icon-btn|sub)(?=$|[\s:,.#>+~])[^"'`]*["'`]/m
   if (legacyClass.test(source)) {
     violations.push(`${fileName} contains a prohibited legacy control class`)
   }
@@ -48,6 +48,24 @@ function semanticControlViolations(fileName, source) {
       const attributes = match[1]
       if (!/\btype\s*=\s*["'](?:button|submit)["']/i.test(attributes)) {
         violations.push(`${fileName} contains a button without an explicit type`)
+      }
+    }
+    for (const match of source.matchAll(/<([a-z][\w-]*)\b([^>]*)>/gi)) {
+      const tag = match[1].toLowerCase()
+      const attributes = match[2]
+      if (
+        !["button", "a", "input", "select", "textarea", "summary"].includes(tag) &&
+        (/\bonclick\s*=/i.test(attributes) ||
+          /\brole\s*=\s*["']button["']/i.test(attributes))
+      ) {
+        violations.push(`${fileName} contains clickable noninteractive <${tag}> markup`)
+      }
+    }
+    for (const match of source.matchAll(
+      /<button\b([^>]*\bclass\s*=\s*["'][^"']*\bbutton--icon\b[^"']*["'][^>]*)>/gi
+    )) {
+      if (!/\b(?:aria-label|aria-labelledby|title)\s*=\s*["'][^"']+["']/i.test(match[1])) {
+        violations.push(`${fileName} contains an icon-only button without an accessible name`)
       }
     }
   }

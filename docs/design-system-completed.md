@@ -93,7 +93,7 @@ the branch actually stands.
 | 0 Baselines | Landed. Six check scripts in `npm run check`; design-system Playwright project green |
 | 1 Tokens | **Complete.** Shared shell (including notifications, dialogs, and search), mobile, Electron, and the Electron error page are migrated; reader/presenter documents are explicitly excluded |
 | 2 Cascade layers | **Complete.** Ownership is explicit; platform-prefixed component rules are zero |
-| 3 Primitives | Button/semantic-control migration landed. Layout-primitive adoption remains component-by-component |
+| 3 Primitives | **Complete.** Native controls, bounded Settings layout families, and semantic lint use one enforced contract |
 
 ### Debt, counted honestly
 
@@ -164,6 +164,38 @@ The ownership rule for future work is:
    Phase 1 exit.
 
 ---
+
+---
+
+## Phase 3 — Semantic primitives — COMPLETE
+
+The native button migration has no remaining `.btn`, `.sub`, `icon-btn`, or
+`<input type="button">` callers. The `.button` primitive owns semantic control
+presentation, gives text buttons useful inline padding, and keeps icon-button
+padding square-compatible. Story actions retain their intentionally compact
+component-owned box.
+
+Repeated Settings layouts now adopt `.row`, `.stack`, `.cluster`, and
+`.toolbar` in bounded families: structured headers and actions, search, source
+groups and rows, structured forms, error-log actions, and swipe-settings
+controls. Component CSS still owns nonstandard gaps, alignment, and geometry.
+
+`check:semantic-controls` rejects legacy control classes, non-native `.button`
+markup, unnamed icon buttons, `<input type="button">`, missing explicit button
+types, and clickable noninteractive HTML. Unit tests cover each static
+contract; rendered tests cover dynamically built controls, keyboard focus,
+accessible names, platform touch geometry, and primitive alignment.
+
+Phase 3 closed with:
+
+- `npm run check`;
+- `npm run test:design-system` (21 tests);
+- `npm run test:design-system:electron` (4 tests);
+- `npm run test:design-system:mobile` (47 tests).
+
+No screenshot baseline changed. The migration preserved computed presentation,
+including the story-action box, so it did not trigger a native safe-area,
+keyboard, or touch-geometry release gate.
 
 ---
 

@@ -329,6 +329,14 @@ test("legacy control-semantic debt is explicit and cannot grow", async ({ page }
 
 test("button semantics, accessible names, keyboard focus, and layout primitives hold", async ({ page }) => {
   await page.goto(`${baseURL}/static/sidepanel.html`)
+  await page.locator("body").evaluate((body) => {
+    body.insertAdjacentHTML("beforeend", `
+      <div data-testid="row-contract" class="row"></div>
+      <div data-testid="stack-contract" class="stack"></div>
+      <div data-testid="cluster-contract" class="cluster"></div>
+      <div data-testid="toolbar-contract" class="toolbar"></div>
+    `)
+  })
 
   await expect(page.locator(".button").first()).toHaveJSProperty("tagName", "BUTTON")
   const unnamedIconButtons = await page.locator(".button--icon").evaluateAll((buttons) =>
@@ -344,12 +352,13 @@ test("button semantics, accessible names, keyboard focus, and layout primitives 
   await expect(focused).toHaveJSProperty("tagName", "BUTTON")
   await expect(focused).toHaveCSS("outline-style", "solid")
 
-  for (const selector of [".row", ".cluster", ".toolbar"]) {
-    const alignments = await page.locator(selector).evaluateAll((elements) =>
-      elements.map((element) => getComputedStyle(element).alignItems)
-    )
-    expect(alignments.every((value) => value === "center")).toBe(true)
-  }
+  await expect(page.getByTestId("row-contract")).toHaveCSS("flex-flow", "row nowrap")
+  await expect(page.getByTestId("row-contract")).toHaveCSS("align-items", "center")
+  await expect(page.getByTestId("stack-contract")).toHaveCSS("flex-flow", "column nowrap")
+  await expect(page.getByTestId("cluster-contract")).toHaveCSS("flex-flow", "row wrap")
+  await expect(page.getByTestId("cluster-contract")).toHaveCSS("align-items", "center")
+  await expect(page.getByTestId("toolbar-contract")).toHaveCSS("align-items", "center")
+  await expect(page.getByTestId("toolbar-contract")).toHaveCSS("justify-content", "flex-start")
 })
 
 test("ordinary desktop Settings actions share the dense button skin", async ({ page }) => {

@@ -35,7 +35,7 @@ export function renderStructuredSearch(
     redirects: "redirects"
   }
   const search = document.createElement("label")
-  search.className = "structured_search"
+  search.className = "structured_search row"
   const text = document.createElement("span")
   text.className = "visually_hidden"
   text.textContent = `Search ${labels[section]}`
