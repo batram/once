@@ -69,7 +69,7 @@ test("complete historical runs can be reused", (t) => {
     path.join(output, "manifest.json"),
     JSON.stringify({
       sha,
-      matrixVersion: 3,
+      matrixVersion: 4,
       targets: ["electron"],
       imageNames: names
     })
@@ -92,15 +92,19 @@ test("visual comparison rejects unsupported switches", () => {
 test("visual comparison covers both themes and every settings panel", () => {
   const names = buildImageNames(["electron", "mobile"])
   const settingsSections = settingsSectionDefinitions.map(([key]) => key)
-  assert.equal(names.length, 100)
+  assert.equal(names.length, 106)
   for (const target of ["electron", "mobile"]) {
     for (const theme of ["light", "dark"]) {
       assert.ok(names.includes(`${target}-${theme}-stories.png`))
       assert.ok(names.includes(`${target}-${theme}-story-states.png`))
+      assert.ok(names.includes(`${target}-${theme}-notifications.png`))
       assert.ok(names.includes(`${target}-${theme}-swipe-left-stage1.png`))
       assert.ok(names.includes(`${target}-${theme}-swipe-right-stage2.png`))
       assert.ok(names.includes(`${target}-${theme}-settings-index.png`))
       assert.ok(names.includes(`${target}-${theme}-reading.png`))
+      if (target === "electron") {
+        assert.ok(names.includes(`${target}-${theme}-browser-content.png`))
+      }
       for (const section of settingsSections) {
         assert.ok(names.includes(
           `${target}-${theme}-settings-${section}.png`

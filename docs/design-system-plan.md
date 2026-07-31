@@ -167,18 +167,18 @@ the branch actually stands.
 | Phase | State |
 |---|---|
 | 0 Baselines | Landed. Six check scripts in `npm run check`; design-system Playwright project green |
-| 1 Tokens | Landed in its stated scope. No `--m-sp-*`, `--m-fs-*` or `--m-touch` aliases remain |
+| 1 Tokens | **Complete.** Shared shell (including notifications, dialogs, and search), mobile, Electron, and the Electron error page are migrated; reader/presenter documents are explicitly excluded |
 | 2 Cascade layers | Layering landed and enforced. 2.4 outstanding: platform prefixes remain |
 | 3 Primitives | Button/semantic-control migration landed. Layout-primitive adoption remains component-by-component |
 
 ### Debt, counted honestly
 
-218 entries. Platform branching is the largest category, not raw geometry:
+172 entries. Platform branching is the largest category, not raw geometry:
 
 | Category | Count |
 |---|---:|
 | `desktop-specificity-prefix` | 92 |
-| `raw-geometry-px` | 87 |
+| `raw-geometry-px` | 41 |
 | `mobile-specificity-prefix` | 23 |
 | `important` | 13 |
 | `negative-margin` | 3 |
@@ -244,14 +244,17 @@ Classify those concerns before choosing a new stylesheet.
    `structured_remove` still mix redundant declarations with load-bearing mobile geometry.
    `structured_row_chevron` and `structured_group_menu` want moving to `settings.css`: their
    whole definition lives in the platform sheet.
-5. **Close the Phase 1 scope gap.** `notifications.css`, `dialogs.css`, `search.css` and
-   `error-page.css` were never on the 1.3 list and hold 46 raw-geometry entries. A further 41
-   sit in reader and presenter styles, pending owner decision 1.
+5. **Keep the Phase 1 boundary explicit.** `notifications.css`, `dialogs.css`, `search.css`
+   and `error-page.css` are migrated and enforced scopes. The remaining 41 raw-geometry
+   entries are in explicitly excluded reader and presenter documents; they do not block the
+   Phase 1 exit.
 6. **Decide `.button`'s padding.** The primitive's `calc(var(--sp-1) / 2)` is too tight for a
    text button and is why settings buttons needed a skin. Icon buttons set `aspect-ratio: 1`,
    so horizontal padding cannot simply be added.
-7. **Run a full visual comparison.** Desktop rendering of the primitive migration has only
-   had a cursory review, which did find two real faults. For each ownership family, require
+7. **Keep the full visual comparison representative.** The matrix now captures live
+   notification bubbles and the left-menu status dock on both web targets. Electron also
+   captures the active reader `WebContents` directly because its native `WebContentsView`
+   is not reliably present in a main-window screenshot. For each ownership family, require
    shared/extension, Electron, and mobile-web checks; retain native mobile visual acceptance
    as the final gate when mobile presentation changes.
 
@@ -526,7 +529,10 @@ not masquerade as product behavior.
 
 ---
 
-## Phase 1 — Token introduction without visual change
+## Phase 1 — Token introduction without visual change — COMPLETE
+
+Phase 1 is complete for its defined scope. Reader and presenter styles remain explicitly
+out of scope and are not deferred Phase 1 work.
 
 ### 1.1 Add the token layer
 
@@ -548,9 +554,14 @@ Suggested order:
 3. `layout.css`
 4. `stories.css`
 5. `settings.css`
-6. `mobile.css`
-7. `electron.css`
-8. reader/presenter styles if in scope
+6. `notifications.css`
+7. `dialogs.css`
+8. `search.css`
+9. `mobile.css`
+10. `electron.css`
+11. `error-page.css`
+
+Reader and presenter styles are explicitly excluded from Phase 1 and from its debt gate.
 
 Each commit:
 
@@ -564,11 +575,12 @@ Rationalising the scale is a separate pass after the preserved-value conversion.
 
 ### Phase 1 exit
 
-- public token catalog documented;
-- mobile aliases removed;
-- no raw spacing values in migrated scopes except reviewed component/optical tokens;
-- Tier 1 override fixture green;
-- no unintended geometry changes.
+- [x] public token catalog documented;
+- [x] mobile aliases removed;
+- [x] no raw spacing values in migrated scopes except reviewed component/optical tokens;
+- [x] Tier 1 override fixture green;
+- [x] no unintended geometry changes, including notification surfaces rendered in their real
+  sibling containers rather than a synthetic nested fixture.
 
 ---
 

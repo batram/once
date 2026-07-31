@@ -1,8 +1,10 @@
 const { test, expect } = require("@playwright/test")
+const fs = require("node:fs")
+const path = require("node:path")
 
 const known = require("./known-failures.json")
 const matrix = require("./renderer-matrix.json")
-const { createServer } = require("./static-server")
+const { createServer, root } = require("./static-server")
 
 let server
 let baseURL
@@ -194,6 +196,89 @@ test("tokenized shared and mobile geometry retains its measured values", async (
     "8px 12px"
   )
   await expect(page.locator("#reload_stories_btn")).toHaveCSS("height", "44px")
+})
+
+test("completed Phase 1 shell scopes preserve their measured geometry", async ({ page }) => {
+  await page.goto(`${baseURL}/static/sidepanel.html`)
+
+  await page.locator("body").evaluate((body) => {
+    body.insertAdjacentHTML("beforeend", `
+      <input id="urlfield">
+      <div id="status_surfaces">
+        <div id="status_bar"></div>
+        <div class="status_issue_bubble">
+          <button class="status_issue_content"></button>
+        </div>
+      </div>
+      <div id="status_dock"></div>
+      <div id="hover_url"></div>
+    `)
+  })
+  await expect(page.locator("#urlfield")).toHaveCSS("padding-left", "8px")
+  await expect(page.locator("#status_surfaces")).toHaveCSS("gap", "6px")
+  await expect(page.locator("#status_bar")).toHaveCSS("font-size", "11px")
+  await expect(page.locator("#status_bar")).toHaveCSS("padding", "5px 10px 5px 7px")
+  await expect(page.locator("#status_dock")).toHaveCSS("margin-bottom", "30px")
+  await expect(page.locator("#status_dock")).toHaveCSS(
+    "border-radius",
+    "14px 0px 0px 14px"
+  )
+  await expect(page.locator(".status_issue_bubble")).toHaveCSS("font-size", "11px")
+  await expect(page.locator(".status_issue_content")).toHaveCSS(
+    "padding",
+    "6px 7px 6px 9px"
+  )
+  await expect(page.locator("#hover_url")).toHaveCSS("font-size", "11px")
+
+  await page.locator("body").evaluate((body) => {
+    body.insertAdjacentHTML("beforeend", `
+      <div class="once-confirm-dialog">
+        <p>Confirm</p>
+        <input class="once-confirm-dialog__input">
+        <div class="once-confirm-dialog__actions">
+          <button type="button" class="button">OK</button>
+        </div>
+      </div>
+    `)
+  })
+  const dialog = page.locator(".once-confirm-dialog")
+  await expect(dialog).toHaveCSS("padding", "18px")
+  await expect(dialog).toHaveCSS("border-radius", "6px")
+  await expect(dialog.locator("p")).toHaveCSS("margin-bottom", "16px")
+  await expect(dialog.locator("input")).toHaveCSS("padding", "7px 9px")
+  await expect(dialog.locator(".once-confirm-dialog__actions")).toHaveCSS("gap", "6px")
+  await expect(dialog.locator("button")).toHaveCSS("padding", "5px 9px")
+})
+
+test("the standalone Electron error page preserves its measured geometry", async ({ page }) => {
+  const css = fs.readFileSync(
+    path.join(root, "apps", "electron", "src", "browser", "error-page.css"),
+    "utf8"
+  )
+  await page.setContent(`
+    <div class="error-card">
+      <div class="error-heading">
+        <span class="error-icon"></span>
+        <div>
+          <h1>Failed</h1>
+          <p class="error-message">Error</p>
+        </div>
+      </div>
+      <div class="url-box">https://example.test</div>
+      <a class="retry">Retry</a>
+    </div>
+  `)
+  await page.addStyleTag({ content: css })
+
+  await expect(page.locator("body")).toHaveCSS("padding", "24px")
+  await expect(page.locator(".error-card")).toHaveCSS("padding", "22px 24px 24px")
+  await expect(page.locator(".error-card")).toHaveCSS("border-radius", "3px")
+  await expect(page.locator(".error-heading")).toHaveCSS("gap", "12px")
+  await expect(page.locator(".error-heading")).toHaveCSS("margin-bottom", "16px")
+  await expect(page.locator("h1")).toHaveCSS("font-size", "17px")
+  await expect(page.locator(".error-message")).toHaveCSS("font-size", "12px")
+  await expect(page.locator(".url-box")).toHaveCSS("padding", "7px 9px")
+  await expect(page.locator(".retry")).toHaveCSS("padding", "5px 10px")
 })
 
 test("legacy control-semantic debt is explicit and cannot grow", async ({ page }) => {

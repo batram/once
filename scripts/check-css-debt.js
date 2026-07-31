@@ -13,8 +13,12 @@ const phaseOneMigratedScopes = [
   "packages/ui-web/public/static/css/parts/layout.css",
   "packages/ui-web/public/static/css/parts/stories.css",
   "packages/ui-web/public/static/css/parts/settings.css",
+  "packages/ui-web/public/static/css/parts/notifications.css",
+  "packages/ui-web/public/static/css/parts/dialogs.css",
+  "packages/ui-web/public/static/css/parts/search.css",
   "apps/mobile/src/mobile.css",
-  "apps/electron/src/electron.css"
+  "apps/electron/src/electron.css",
+  "apps/electron/src/browser/error-page.css"
 ]
 const geometryProperty = /^(?:margin|padding)(?:-|$)|^(?:gap|row-gap|column-gap|font-size|border-radius)$/
 const marginProperty = /^margin(?:-|$)/

@@ -62,6 +62,7 @@ function buildImageNames(targets, sectionsByTarget = {}) {
   return targets.flatMap(target => themes.flatMap(theme => [
     `${target}-${theme}-stories.png`,
     `${target}-${theme}-story-states.png`,
+    `${target}-${theme}-notifications.png`,
     `${target}-${theme}-swipe-left-stage1.png`,
     `${target}-${theme}-swipe-right-stage2.png`,
     `${target}-${theme}-settings-index.png`,
@@ -71,7 +72,10 @@ function buildImageNames(targets, sectionsByTarget = {}) {
     ...settingsStateNames.map(state =>
       `${target}-${theme}-settings-state-${state}.png`
     ),
-    `${target}-${theme}-reading.png`
+    `${target}-${theme}-reading.png`,
+    ...(target === "electron"
+      ? [`${target}-${theme}-browser-content.png`]
+      : [])
   ]))
 }
 
@@ -162,7 +166,7 @@ function historicalRunComplete(runOutput, sha, targets) {
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"))
     if (
       manifest.sha !== sha ||
-      manifest.matrixVersion !== 3 ||
+      manifest.matrixVersion !== 4 ||
       JSON.stringify(manifest.targets) !== JSON.stringify(targets) ||
       !Array.isArray(manifest.imageNames)
     ) return false
@@ -225,6 +229,16 @@ async function computedStyleSnapshot(page) {
       "#left_panel",
       "#menu",
       "#search_bar",
+      "#urlfield",
+      "#status_surfaces",
+      "#status_bar",
+      "#status_bar_message",
+      "#status_dock",
+      ".status_indicator",
+      ".status_issue_bubble",
+      ".status_issue_content",
+      ".status_issue_close",
+      "#hover_url",
       "#stories_panel",
       "#stories",
       "story-item",
@@ -482,6 +496,38 @@ async function screenshot(page, file) {
   })
 }
 
+async function screenshotElectronContent(electronApp, file) {
+  const capture = await electronApp.evaluate(async ({ webContents }) => {
+    const contents = webContents
+      .getAllWebContents()
+      .find(candidate => candidate.getURL().startsWith("once-reader://"))
+    if (!contents) throw new Error("Missing active reader webContents")
+    const image = await contents.capturePage()
+    const styles = await contents.executeJavaScript(`(() => {
+      const body = getComputedStyle(document.body)
+      return {
+        schemaVersion: 2,
+        document: { title: document.title, url: location.href },
+        body: {
+          color: body.color,
+          backgroundColor: body.backgroundColor,
+          fontFamily: body.fontFamily,
+          fontSize: body.fontSize,
+          lineHeight: body.lineHeight,
+          margin: body.margin,
+          maxWidth: body.maxWidth
+        }
+      }
+    })()`)
+    return { png: image.toPNG().toString("base64"), styles }
+  })
+  fs.writeFileSync(file, Buffer.from(capture.png, "base64"))
+  fs.writeFileSync(
+    file.replace(/\.png$/, ".styles.json"),
+    `${JSON.stringify(capture.styles, null, 2)}\n`
+  )
+}
+
 async function setTheme(page, theme, openSection) {
   await openSection("theme")
   await page.getByTestId("theme").selectOption(theme)
@@ -530,11 +576,28 @@ function visualErrorState(page, openSection, sourceLines, failingSource) {
     async clear() {
       await page.locator("#clear_error_log").evaluate(button => button.click())
       await expect(page.locator("#error_log .error_log_entry")).toHaveCount(0)
-      await expect(page.locator("#error_log .error_log_empty")).toBeVisible()
+      await expect(page.locator("#error_log .error_log_empty")).toHaveText(
+        "No errors recorded this session."
+      )
       await replaceVisualSources(page, openSection, sourceLines)
       await expect(page.locator("#status_bar")).toBeHidden({ timeout: 10_000 })
     }
   }
+}
+
+async function captureNotificationState(
+  page,
+  output,
+  prefix,
+  openStories,
+  errorState
+) {
+  await errorState.populate()
+  await openStories()
+  await expect(page.locator("#status_dock")).toBeVisible()
+  await expect(page.locator(".status_issue_bubble.error")).toHaveCount(1)
+  await screenshot(page, path.join(output, `${prefix}-notifications.png`))
+  await errorState.clear()
 }
 
 async function captureSettingsMatrix(
@@ -753,6 +816,19 @@ async function captureElectron(output, sourceRoot = repoRoot) {
         output,
         prefix
       )
+      const errorState = visualErrorState(
+        page,
+        openSection,
+        sourceLines,
+        `${fixture.origin}/failure.rss`
+      )
+      await captureNotificationState(
+        page,
+        output,
+        prefix,
+        () => openPanel(page, "stories"),
+        errorState
+      )
       await prepareDefaultSettingsStates(page, openSection)
       const capturedSections = await captureSettingsMatrix(
         page,
@@ -760,12 +836,7 @@ async function captureElectron(output, sourceRoot = repoRoot) {
         prefix,
         openIndex,
         openSection,
-        visualErrorState(
-          page,
-          openSection,
-          sourceLines,
-          `${fixture.origin}/failure.rss`
-        )
+        errorState
       )
       if (discoveredSettingsSections) {
         expect(capturedSections).toEqual(discoveredSettingsSections)
@@ -788,6 +859,10 @@ async function captureElectron(output, sourceRoot = repoRoot) {
         { timeout: 15_000 }
       )
       await screenshot(page, path.join(output, `${prefix}-reading.png`))
+      await screenshotElectronContent(
+        electronApp,
+        path.join(output, `${prefix}-browser-content.png`)
+      )
     }
     return discoveredSettingsSections || []
   } finally {
@@ -876,6 +951,19 @@ async function captureMobile(output, sourceRoot = repoRoot) {
         output,
         prefix
       )
+      const errorState = visualErrorState(
+        page,
+        openSection,
+        sourceLines,
+        `${mobileOrigin}/failure.rss`
+      )
+      await captureNotificationState(
+        page,
+        output,
+        prefix,
+        async () => page.getByTestId("stories-menu").click(),
+        errorState
+      )
       await prepareDefaultSettingsStates(page, openSection)
       const capturedSections = await captureSettingsMatrix(
         page,
@@ -883,12 +971,7 @@ async function captureMobile(output, sourceRoot = repoRoot) {
         prefix,
         openIndex,
         openSection,
-        visualErrorState(
-          page,
-          openSection,
-          sourceLines,
-          `${mobileOrigin}/failure.rss`
-        )
+        errorState
       )
       if (discoveredSettingsSections) {
         expect(capturedSections).toEqual(discoveredSettingsSections)
@@ -1166,7 +1249,7 @@ async function captureHistoricalRef(options, sha, targets) {
     const sectionsByTarget = await captureTargets(options, runOutput, worktree)
     const imageNames = buildImageNames(targets, sectionsByTarget)
     writeRunManifest(runOutput, {
-      matrixVersion: 3,
+      matrixVersion: 4,
       ref: options.ref,
       sha,
       targets: [

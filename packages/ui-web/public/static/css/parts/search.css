@@ -16,7 +16,7 @@
 }
 
 #urlfield {
-  padding-left: 8px;
+  padding-left: var(--sp-2);
 }
 
 body:not([data-platform="mobile"]) #search_bar {

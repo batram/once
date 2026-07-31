@@ -7,13 +7,16 @@ side-by-side visual review. It does not render a separate component gallery.
 The default run covers both light and dark themes for:
 
 - the populated story list and mixed read/bookmarked states;
+- live warning/error notification bubbles and the left-menu status dock;
 - left and right story swipes held at intermediate stages;
 - the Settings index and every Settings section;
 - Settings search results, structured Sources, source/group forms, filter
   editing and validation, Filters/Redirects text modes, the redirect editor,
   and expanded Swipe advanced controls;
 - a real, expanded source-load failure in the Error Log; and
-- the populated Reader.
+- the populated Reader; and
+- the Electron reader WebContents captured directly, because a main-window
+  screenshot does not reliably include the native `WebContentsView` surface.
 
 Each screenshot has a matching computed-style JSON file for automated or agent
 analysis.
@@ -96,12 +99,19 @@ Both targets load one JSON source and one RSS source containing the same varied
 story set. The matrix exercises normal, read, bookmarked, redirected, filtered,
 and mid-swipe states.
 
-Immediately before each Error Log screenshot, the harness adds
+Before both the Notifications and Error Log screenshots, the harness adds
 `/failure.rss`. The fixture server returns HTTP 503 through the normal source
 loading path, so the application creates a real error entry and action
-controls. The harness expands the entry and normalizes only volatile timestamp,
-port, and generated stack-location text. It then clears the error and restores
-the two valid sources so unrelated screenshots remain normal states.
+controls. The Notifications state captures the real issue bubble and dock on
+the Stories panel. The harness expands the Error Log entry and normalizes only
+volatile timestamp, port, and generated stack-location text. It then clears
+the error and restores the valid sources so unrelated screenshots remain
+normal states.
+
+Electron also writes a `browser-content` image by calling `capturePage()` on
+the active reader `WebContents`. This is a separate artifact from the
+main-window `reading` image so native child-surface omissions cannot turn into
+an apparently blank but passing comparison.
 
 ## Computed-style JSON
 

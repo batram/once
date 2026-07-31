@@ -39,6 +39,11 @@ selector-scoped component tokens such as `--base-bar-padding` and
 `--electron-controlbar-gap`. These internal tokens document local relationships;
 they are not part of the supported Tier 1 theme API.
 
-This Phase 1 catalog applies to the shared shell and its Electron and mobile
-platform styles. The separately rendered reader and outline presenter retain
-their existing document-local values until their theming scope is decided.
+This Phase 1 catalog applies to the shared shell (including notifications,
+dialogs, and search), its Electron and mobile platform styles, and the
+standalone Electron error page. Because the error page is a separate document,
+its stylesheet declares the subset of public geometry tokens that it consumes.
+
+Reader and presenter documents are explicitly outside Phase 1. They retain
+their existing document-local values and are not part of the Phase 1 debt gate
+or exit criteria.

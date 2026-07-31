@@ -2,6 +2,13 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 :root {
   color-scheme: light;
+  /* This is a standalone document, so it carries the subset of the public
+     geometry vocabulary that it consumes. */
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --fs-meta: 12px;
+  --radius-sm: 2px;
   --page-bg: #fff;
   --text: #111;
   --muted: #5f6368;
@@ -29,39 +36,51 @@ body {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  padding: 24px;
+  padding: var(--sp-5);
 }
 .error-card {
   max-width: 510px;
   width: 100%;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 3px;
-  padding: 22px 24px 24px;
+  --error-card-radius: 3px;
+  --error-card-padding: 22px var(--sp-5) var(--sp-5);
+  border-radius: var(--error-card-radius);
+  padding: var(--error-card-padding);
 }
-.error-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.error-heading { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-4); }
 .error-icon { flex: 0 0 auto; width: 34px; height: 34px; color: var(--error); }
-h1 { font-size: 17px; font-weight: 600; margin-bottom: 3px; color: var(--text); }
-.error-message { font-size: 12px; color: var(--error); line-height: 1.35; word-break: break-word; }
+h1 {
+  --error-heading-font-size: 17px;
+  --error-heading-margin-bottom: 3px;
+  font-size: var(--error-heading-font-size);
+  font-weight: 600;
+  margin-bottom: var(--error-heading-margin-bottom);
+  color: var(--text);
+}
+.error-message { font-size: var(--fs-meta); color: var(--error); line-height: 1.35; word-break: break-word; }
 .url-box {
   background: var(--page-bg);
   border: 1px solid var(--border);
-  border-radius: 2px;
-  padding: 7px 9px;
-  font-size: 12px;
+  border-radius: var(--radius-sm);
+  --error-url-padding: 7px 9px;
+  padding: var(--error-url-padding);
+  font-size: var(--fs-meta);
   color: var(--muted);
   word-break: break-all;
-  margin-bottom: 14px;
+  --error-url-margin-bottom: 14px;
+  margin-bottom: var(--error-url-margin-bottom);
   font-family: "SF Mono", Monaco, Consolas, monospace;
 }
 .retry {
   display: inline-block;
-  padding: 5px 10px;
-  border-radius: 2px;
+  --error-retry-padding: 5px 10px;
+  padding: var(--error-retry-padding);
+  border-radius: var(--radius-sm);
   border: 1px solid #111;
   background: var(--button-bg);
   color: var(--text);
-  font-size: 12px;
+  font-size: var(--fs-meta);
   cursor: pointer;
   text-decoration: none;
 }

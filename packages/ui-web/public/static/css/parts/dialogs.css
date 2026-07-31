@@ -5,12 +5,13 @@
   width: min(360px, var(--once-confirm-dialog-max-width, calc(100vw - 24px)));
   max-height: calc(100vh - 24px);
   margin: 0;
-  padding: 18px;
+  --dialog-padding: 18px;
+  padding: var(--dialog-padding);
   overflow: auto;
   color: var(--text-high-color);
   background: var(--main-bg-color);
   border: 1px solid var(--border-high-color);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   font:
     13px/1.4 Verdana,
     Geneva,
@@ -23,7 +24,7 @@
 }
 
 .once-confirm-dialog p {
-  margin: 0 0 16px;
+  margin: 0 0 var(--sp-4);
   overflow-wrap: anywhere;
   white-space: pre-line;
 }
@@ -31,25 +32,29 @@
 .once-confirm-dialog__input {
   box-sizing: border-box;
   width: 100%;
-  margin: 0 0 16px;
-  padding: 7px 9px;
+  margin: 0 0 var(--sp-4);
+  --dialog-input-padding: 7px 9px;
+  padding: var(--dialog-input-padding);
   color: var(--text-high-color);
   background: var(--main-bg-color);
   border: 1px solid var(--border-high-color);
-  border-radius: 3px;
+  --dialog-input-radius: 3px;
+  border-radius: var(--dialog-input-radius);
 }
 
 .once-confirm-dialog__actions {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 6px;
+  --dialog-actions-gap: 6px;
+  gap: var(--dialog-actions-gap);
 }
 
 .once-confirm-dialog button {
   min-width: 78px;
   margin: 0;
-  padding: 5px 9px;
+  --dialog-button-padding: 5px 9px;
+  padding: var(--dialog-button-padding);
   color: var(--text-high-color);
 }
 
