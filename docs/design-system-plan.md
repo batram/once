@@ -1,10 +1,10 @@
-# Design System Plan: verifiable CSS, primitives, and user theming
+# Design System Plan: refactor closeout
 
 Branch: `design-css-impro` · Reworked: 2026-07-30
 
 ## Goal
 
-Make layout, alignment, spacing, and theming in this codebase cheap to get right and
+Make layout, alignment, and spacing in this codebase cheap to get right and
 expensive to get wrong—for humans and for agents.
 
 The end state is:
@@ -14,8 +14,7 @@ The end state is:
    the platform where it runs.
 3. Design values use a small vocabulary of tokens without erasing intentional component
    geometry.
-4. User theming has an explicit public surface, recovery path, and security/privacy model.
-5. Existing alternatives are removed after their callers migrate.
+4. Existing alternatives are removed after their callers migrate.
 
 This plan does not assume that every visual property can be inferred from geometry. Box
 geometry, focus behavior, clipping, and token use are mechanically testable. Perceived icon
@@ -65,20 +64,11 @@ All products originate from `shell.html`, but they do not render identically:
 Shared primitive tests can run once. Platform override tests must run in each affected
 renderer.
 
-### User CSS is either constrained or explicitly unsafe
+### User theming is future product work
 
-CSS cascade layers organize trusted styles; they are not a sandbox. Arbitrary CSS can close
-an injected wrapper, create unlayered rules, use `!important`, hide recovery UI, and request
-remote resources permitted by CSP.
-
-The product therefore exposes two clearly different contracts:
-
-- **Tier 1: supported token themes.** A versioned set of custom properties. These are
-  validated before storage. Color themes are safe by construction; density values use
-  documented ranges. This is the promoted path.
-- **Tier 2: advanced custom CSS.** May break on update, obscure the UI, and make network
-  requests through permitted CSS URLs. It is either parsed and restricted, or labelled
-  explicitly as unrestricted. A cascade layer alone must never be described as containment.
+The cascade and token contracts reserve a safe extension point, but implementing user themes
+is not part of this refactor. Scope, persistence, validation, privacy, and recovery belong to
+the separate [`design-system-theming-plan.md`](design-system-theming-plan.md).
 
 ---
 
@@ -86,12 +76,17 @@ The product therefore exposes two clearly different contracts:
 
 The measured baseline, implementation history, and completed Phases 0–4 are
 archived in [`design-system-completed.md`](design-system-completed.md). This
-file contains only the governing architecture and remaining work.
+file retains the governing architecture and closeout criteria.
 
 What Phases 0–4 actually landed — layer order, sheet ownership, primitives,
 runtime-style rules, and the checks that enforce them — is documented as a
-working contract in [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md). Phases 5 and 6
-below extend that contract; they do not replace it.
+working contract in [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md).
+
+No additional design-handoff package is required. `DESIGN_SYSTEM.md`,
+`design-tokens.md`, `VISUAL_COMPARISON.md`, and `DEVELOPMENT.md` already provide
+the styling contract, token catalog, visual-review process, and verification
+commands. A separate `DESIGN_HANDOFF.md` and sample artifact would duplicate
+those sources and create another contract that could drift.
 
 ### Remaining implementation notes
 
@@ -244,143 +239,6 @@ use:
 Primitives should be composable and low-specificity. Component CSS owns component geometry.
 Do not replace every flex/grid declaration merely to increase primitive adoption counts.
 
----
-
-## Phase 5 — Theming architecture
-
-### 5.1 Decide scope
-
-Explicitly choose and document which surfaces are themed:
-
-- shell;
-- reader document;
-- outline presenter;
-- other presenter iframes;
-- Electron browser/error surfaces.
-
-Each included separate document needs its own token stylesheet and application/injection
-path. Excluded surfaces are stated as product limitations.
-
-### 5.2 Define the public token and selector API
-
-Document:
-
-- supported color tokens;
-- supported density/type tokens and accepted ranges;
-- stable `data-part` selectors;
-- versioning/deprecation policy;
-- unsupported internal class names.
-
-Add `data-part` only where a real public styling use case exists. First-party skins should
-exercise the same public surface.
-
-### 5.3 Extend settings and persistence deliberately
-
-Add typed APIs for theme mode and custom theme data across:
-
-- core settings types;
-- `OnceClient`;
-- settings persistence;
-- settings-change events;
-- platform theme adapters;
-- UI restore/save/subscription behavior.
-
-Do not cast `"custom"` to the existing `ThemeName` union.
-
-Decide whether custom theme data syncs through Pouch. Keep the emergency disable flag local
-to each installation so a broken synced skin cannot disable recovery everywhere.
-
-The settings UI requires explicit loading, ready, validation-error, save-error, reset, and
-preview states.
-
-### 5.4 Tier 1 supported themes
-
-Store a structured token map, not a CSS string. Validate:
-
-- token name is public;
-- color syntax is allowed;
-- numeric values fall within documented ranges;
-- URL-bearing values are rejected;
-- unknown tokens are preserved or rejected according to a documented forward-compatibility
-  policy.
-
-Render the validated map into `layer(user)`. Add tests proving overrides work on same-element
-defaults and across platform layers.
-
-Ship two or three first-party themes, including at least one density variation.
-
-### 5.5 Tier 2 advanced CSS
-
-Choose one model:
-
-**Restricted CSS**
-
-- parse with a real CSS parser;
-- reject `@import`, external `url()`, `@font-face`, unapproved at-rules, and disallowed
-  selectors/properties;
-- reconstruct the accepted AST inside `layer(user)`;
-- reject malformed input rather than interpolating it.
-
-**Unrestricted CSS**
-
-- state that layers are organizational, not containment;
-- warn that CSS can hide UI, break layout, and request remote resources permitted by CSP;
-- do not claim privacy isolation;
-- retain a local, out-of-band recovery mechanism.
-
-Do not interpolate an arbitrary string into `@layer user { ${css} }` and describe it as
-unable to escape.
-
-### 5.6 Recovery
-
-Provide all of:
-
-- live preview that is not persisted until explicit save;
-- automatic rollback of an unconfirmed preview;
-- a local “disable custom theme on next start” flag;
-- a keyboard recovery chord handled independently of styled controls;
-- a startup query/flag or platform menu recovery path where practical;
-- last-known-good theme data.
-
-“Reached interactive” is not sufficient health detection: a skin can leave the app running
-while hiding the settings entry point.
-
-### Phase 5 exit
-
-- typed settings path with no unsafe theme cast;
-- Tier 1 themes validated, synced according to the chosen policy, and tested;
-- Tier 2 security/privacy behavior accurately documented and tested;
-- hostile theme cannot permanently lock out recovery;
-- every in-scope document receives the intended theme;
-- first-party themes use only public tokens and `data-part` hooks.
-
----
-
-## Phase 6 — Design handoff rules
-
-Add `docs/DESIGN_HANDOFF.md` and point design-generation work at it.
-
-Rules:
-
-1. Reference tokens by name; never inline a resolved value.
-2. If a value has no token, propose a semantic token and explain its scope.
-3. Put classes in one stylesheet/style block, not hundreds of inline attributes.
-4. Produce one responsive artifact using container queries where the component owns the
-   responsive boundary.
-5. Use documented `data-part` hooks.
-6. Show all supported themes and representative density settings.
-7. Include “details that caused bugs” and a testable definition of done.
-8. Identify which checks are mechanical and which require visual approval.
-
-### Phase 6 exit
-
-- handoff document references the actual token catalog and primitives;
-- a sample generated artifact passes token/inline-style checks;
-- light/dark and narrow/wide review states are present;
-- its definition of done maps to repository test commands.
-
----
-
 ## Verification commands and release gates
 
 Add stable scripts rather than requiring contributors to remember raw Playwright commands:
@@ -410,15 +268,9 @@ verify their expected bundle stamp before running.
 
 ---
 
-## Sequencing
-
-| Phase | Depends on | Risk | Primary result |
-|---|---|---:|---|
-| 5 Theming architecture | 1, 2, 3 | high | Supported tokens, explicit advanced-CSS risk |
-| 6 Design handoff | 1, 3 | low | Transferable design artifacts |
-
-Phase 5 is not “small”: persistence, platform
-adapters, validation, privacy, and recovery make it a product architecture phase.
+User theming is tracked separately in
+[`design-system-theming-plan.md`](design-system-theming-plan.md). It is not a closeout gate
+for this refactor.
 
 ## Definition of done
 
@@ -429,18 +281,10 @@ adapters, validation, privacy, and recovery make it a product architecture phase
 - Icon integrity is mechanically tested and optical review is explicitly approved.
 - Required accessibility/reduced-motion utilities are documented and tested exceptions.
 - No icon color-filter hacks remain.
-- A first-party token theme changes color and density without internal class names.
-- Advanced CSS is either parsed/restricted or accurately labelled unrestricted.
-- A hostile or broken theme cannot permanently lock the user out.
-- Reader/presenter/theming scope is explicit rather than accidental.
 
-## Owner decisions
+## Non-blocking follow-up
 
-1. Which surfaces are in the theming contract: shell, reader, presenters, and Electron
-   auxiliary surfaces.
-2. Whether Tier 2 CSS is restricted through parsing or intentionally unrestricted.
-3. Whether custom theme data syncs; the recovery-disable flag should remain local.
-4. Allowed density ranges for Tier 1 tokens.
-5. Icon optical target and `story.svg` redraw after reviewing actual-size candidates.
-6. Which odd geometry values are intentional component/optical contracts.
-7. Whether to add axe-core to the design-system E2E harness.
+Adding axe-core or an equivalent semantic accessibility pass remains an optional harness
+enhancement, not a refactor closeout gate. The icon optical target and odd-geometry
+classification decisions were completed in Phases 4 and 1 respectively. The theming owner
+decisions moved to [`design-system-theming-plan.md`](design-system-theming-plan.md).

@@ -32,9 +32,11 @@ as an icon — a `⋮`, a `+`, a chevron — is icon geometry and takes an
 > but an external stylesheet referencing these names by their old values needs
 > updating.
 
-The existing color properties in `parts/vars.css` remain public theme inputs.
-Application defaults are loaded into `layer(tokens)`, so a supported theme can
-override a token on the same element from `layer(user)`.
+The existing color properties in `parts/vars.css` remain the public colour
+vocabulary. Application defaults are loaded into `layer(tokens)`, so the
+reserved future theme path can override a token on the same element from
+`layer(user)`. No supported user-theme API currently writes that layer; see
+[design-system-theming-plan.md](design-system-theming-plan.md).
 
 The current color catalog is:
 
@@ -59,8 +61,8 @@ relationship lives** and read by the rules that depend on it — for example
 and the `--status-glyph-size-*` family. Each of those is derived from something
 concrete (a control cluster's width, a floating button's position, the inner
 box of an 11px ring), so snapping it would break an alignment rather than
-adjust a spacing choice. These internal tokens are not part of the supported
-Tier 1 theme API.
+adjust a spacing choice. These internal tokens are not candidates for the
+future supported theme API.
 
 A custom property that is declared and read exactly once by the same rule is
 not a component token — it restates where the value already was while hiding it

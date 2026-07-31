@@ -7,8 +7,10 @@ enforce. Read this before adding CSS.
 Related pages:
 
 - [design-tokens.md](design-tokens.md) — the public token catalog.
-- [design-system-plan.md](design-system-plan.md) — remaining work (theming,
-  design handoff) and the governing principles behind these rules.
+- [design-system-plan.md](design-system-plan.md) — refactor closeout and the
+  governing principles behind these rules.
+- [design-system-theming-plan.md](design-system-theming-plan.md) — future user
+  theming product work; it is not part of the current refactor.
 - [design-system-completed.md](design-system-completed.md) — the implementation
   record. History, not guidance; do not treat it as the current contract.
 - [VISUAL_COMPARISON.md](VISUAL_COMPARISON.md) — screenshotting built apps when
@@ -58,7 +60,7 @@ Trusted CSS declares one layer order, in
 | `base` | `parts/base.css`, and the separate reader/outline documents |
 | `components` | Every shared part, plus runtime-generated trusted rules |
 | `platform` | `mobile.css`, `electron.css`, `error-page.css` |
-| `user` | Reserved for user theming (Phase 5); nothing writes it yet |
+| `user` | Reserved for future user theming; nothing writes it yet |
 
 Two properties this buys, both asserted by tests:
 
@@ -115,7 +117,7 @@ Platform and separate documents:
 
 Reader and presenter documents are **explicitly outside** the token migration
 and its debt gate. They are separate documents with their own values. Bringing
-them in is a Phase 5 scope decision, not deferred Phase 1 work.
+them into a theme contract is future product work, not deferred refactor work.
 
 ## Tokens
 
@@ -310,5 +312,5 @@ completeness:
   hosts the global `.visually_hidden` and `[hidden]` utilities, which are not
   settings concerns.
 - **User theming is not implemented.** `layer(user)` is reserved and the
-  override path is tested, but no settings surface writes it. See Phase 5 in the
-  plan.
+  override path is tested, but no settings surface writes it. See the separate
+  [future theming plan](design-system-theming-plan.md).
