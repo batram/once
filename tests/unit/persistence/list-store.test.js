@@ -25,3 +25,17 @@ test("rejects list database failures instead of silently using defaults", async 
     /database unavailable/
   )
 })
+
+test("does not create a revision when a stored list is unchanged", async () => {
+  let writes = 0
+  const store = new PouchListStore({
+    async get() {
+      return { _id: "filter_list", _rev: "4-current", list: ["one", "two"] }
+    },
+    async put() { writes++ }
+  })
+
+  await store.set("filter_list", ["one", "two"])
+
+  assert.equal(writes, 0)
+})

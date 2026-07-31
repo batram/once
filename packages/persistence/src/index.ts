@@ -1,4 +1,6 @@
 export * from "./PouchListStore"
+export * from "./PouchMaintenanceService"
 export * from "./PouchStoryStore"
 export * from "./PouchSyncService"
+export * from "./pouchOptions"
 export * from "./IndexedDbCacheStore"

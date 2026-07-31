@@ -3,7 +3,12 @@ export interface PouchEventChain {
   on(event: string, handler: (...args: unknown[]) => void): PouchEventChain
 }
 
-export interface PouchSyncDatabase {
+import {
+  PouchMaintenanceDatabase,
+  PouchMaintenanceService
+} from "./PouchMaintenanceService"
+
+export interface PouchSyncDatabase extends PouchMaintenanceDatabase {
   replicate: {
     from(
       target: string | PouchSyncDatabase,
@@ -165,6 +170,16 @@ export class PouchSyncService {
         if (this.generation !== generation) return
         this.initialReplication = undefined
         this.startLiveSync(remote, syncOps, initialChanges)
+        void new PouchMaintenanceService(
+          this.db,
+          (status) => this.updateStatus(status),
+          (error) => this.report(
+            "database.maintenance",
+            "Local database maintenance failed",
+            error
+          ),
+          () => this.generation === generation
+        ).run()
       })
       .catch((error) => {
         if (this.generation !== generation) return

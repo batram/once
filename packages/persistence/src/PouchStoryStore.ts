@@ -9,6 +9,9 @@ export interface PouchStoryDatabase {
   createIndex(
     options?: PouchDB.Find.CreateIndexOptions
   ): Promise<PouchDB.Find.CreateIndexResponse<object>>
+  getIndexes?(): Promise<PouchDB.Find.GetIndexesResponse<object>>
+  deleteIndex?(index: PouchDB.Find.DeleteIndexOptions): Promise<unknown>
+  viewCleanup?(): Promise<unknown>
   find(
     options: PouchDB.Find.FindRequest<object>,
     callback: PouchDB.Core.Callback<PouchDB.Find.FindResponse<object>>
@@ -26,6 +29,7 @@ export interface PouchStoryDatabase {
 
 export class PouchStoryStore<TStory extends Story> {
   private staredIndex?: Promise<unknown>
+  private staredIndexCleanup?: Promise<void>
   private diagnosticHandlers = new Set<(error: {
     severity: "warning" | "error"
     operation: string
@@ -94,6 +98,17 @@ export class PouchStoryStore<TStory extends Story> {
       selector: { stared: { $eq: true } },
       use_index: ["once-stared", "stared-only"]
     })
+    this.staredIndexCleanup ??= this.cleanupLegacyStaredIndexes().catch(
+      (error) => {
+        const message = error instanceof Error ? error.message : String(error)
+        this.diagnosticHandlers.forEach((handler) => handler({
+          severity: "warning",
+          operation: "story.index-cleanup",
+          message: "The obsolete starred-story index could not be removed",
+          details: message
+        }))
+      }
+    )
     return response.docs.map((doc) =>
       this.storyFromDocument(doc as unknown as Record<string, unknown>)
     )
@@ -142,7 +157,12 @@ export class PouchStoryStore<TStory extends Story> {
         story.sync_updated_at = reconciled.sync_updated_at
         story._id = doc._id as string
         story._rev = doc._rev as string
-        return await this.db.put(story.to_obj())
+        if (story["ingested_at"] === undefined && doc.ingested_at !== undefined) {
+          ;(story as Record<string, unknown>)["ingested_at"] = doc.ingested_at
+        }
+        const nextDocument = story.to_obj()
+        if (sameStoredStory(doc, nextDocument)) return { rev: story._rev }
+        return await this.db.put(nextDocument)
       } catch (err) {
         const status = (err as { status?: number }).status
         if (status === 404) {
@@ -165,6 +185,24 @@ export class PouchStoryStore<TStory extends Story> {
       story._rev = resp.rev
     }
     return story
+  }
+
+  private async cleanupLegacyStaredIndexes(): Promise<void> {
+    if (!this.db.getIndexes || !this.db.deleteIndex) return
+    const { indexes } = await this.db.getIndexes()
+    const legacy = indexes.filter((index) => {
+      if (!index.ddoc || index.ddoc === "_design/once-stared") return false
+      const fields = index.def?.fields ?? []
+      return fields.length === 1 && fieldName(fields[0]) === "stared"
+    })
+    for (const index of legacy) {
+      await this.db.deleteIndex({
+        ddoc: index.ddoc as string,
+        name: index.name,
+        type: index.type
+      })
+    }
+    if (legacy.length > 0) await this.db.viewCleanup?.()
   }
 
   async deleteStory(url: string): Promise<void> {
@@ -220,4 +258,33 @@ export class PouchStoryStore<TStory extends Story> {
       })
     }
   }
+}
+
+function fieldName(field: string | Record<string, string>): string {
+  return typeof field === "string" ? field : Object.keys(field)[0] ?? ""
+}
+
+function sameStoredStory(
+  stored: Record<string, unknown>,
+  incoming: Record<string, unknown>
+): boolean {
+  const withoutRevisionMetadata = (value: Record<string, unknown>) => {
+    const copy = { ...value }
+    delete copy._rev
+    delete copy._conflicts
+    delete copy._deleted_conflicts
+    return copy
+  }
+  return JSON.stringify(canonicalValue(withoutRevisionMetadata(stored))) ===
+    JSON.stringify(canonicalValue(withoutRevisionMetadata(incoming)))
+}
+
+function canonicalValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalValue)
+  if (!value || typeof value !== "object") return value
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, canonicalValue(entry)])
+  )
 }

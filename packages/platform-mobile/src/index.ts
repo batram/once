@@ -7,6 +7,7 @@ import { DatabaseChange, OncePlatformPorts, ThemeName } from "@once/app"
 import { Story } from "@once/core"
 import {
   IndexedDbCacheStore,
+  LOCAL_POUCH_OPTIONS,
   PouchListStore,
   PouchStoryStore,
   PouchSyncDatabase,
@@ -95,7 +96,7 @@ export function createMobilePlatform(
   bridge: MobileNativeBridge = createDefaultMobileNativeBridge(),
   database?: PouchDB.Database
 ): OncePlatformPorts {
-  const onceDb = database || new PouchDB("once_mobile_v1")
+  const onceDb = database || new PouchDB("once_mobile_v1", LOCAL_POUCH_OPTIONS)
   const listStore = new PouchListStore(onceDb)
   const storyStore = new PouchStoryStore(onceDb, (story) => Story.from_obj(story))
   const syncService = new PouchSyncService(

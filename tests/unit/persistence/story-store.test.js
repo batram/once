@@ -63,6 +63,30 @@ test("preserves newer synchronized state when saving a stale story snapshot", as
   assert.equal(saved._rev, "8-merged")
 })
 
+test("does not create a revision when the reconciled story is unchanged", async () => {
+  const stored = new Story("rss", "https://example.com/story", "A story")
+  stored._id = `sto_${stored.href}`
+  stored._rev = "7-current"
+  stored.read_state = "read"
+  stored.sync_updated_at = { read_state: 200 }
+  let writes = 0
+  const store = new PouchStoryStore(
+    {
+      get: async () => stored.to_obj(),
+      put: async () => {
+        writes++
+        return { rev: "unexpected" }
+      }
+    },
+    Story.from_obj.bind(Story)
+  )
+
+  const saved = await store.saveStory(Story.from_obj(stored.to_obj()))
+
+  assert.equal(writes, 0)
+  assert.equal(saved._rev, "7-current")
+})
+
 test("recovers a corrupted story and reports its stored document", async (t) => {
   t.mock.method(console, "error", () => {})
 
@@ -96,6 +120,30 @@ test("loads stared stories through an indexed query", async () => {
   const store = new PouchStoryStore(
     {
       createIndex: async (options) => calls.push(["createIndex", options]),
+      getIndexes: async () => ({
+        indexes: [
+          {
+            ddoc: null,
+            name: "_all_docs",
+            type: "special",
+            def: { fields: [{ _id: "asc" }] }
+          },
+          {
+            ddoc: "_design/idx-legacy",
+            name: "idx-legacy",
+            type: "json",
+            def: { fields: [{ stared: "asc" }] }
+          },
+          {
+            ddoc: "_design/once-stared",
+            name: "stared-only",
+            type: "json",
+            def: { fields: [{ stared: "asc" }] }
+          }
+        ]
+      }),
+      deleteIndex: async (index) => calls.push(["deleteIndex", index]),
+      viewCleanup: async () => calls.push(["viewCleanup"]),
       find: async (options) => {
         calls.push(["find", options])
         return { docs: [stared.to_obj()] }
@@ -106,16 +154,20 @@ test("loads stared stories through an indexed query", async () => {
 
   const stories = await store.getStaredStories()
   await store.getStaredStories()
+  await new Promise((resolve) => setImmediate(resolve))
 
-  assert.deepEqual(calls, [
-    ["createIndex", {
+  assert.deepEqual(calls.filter(([name]) => name === "createIndex"), [[
+    "createIndex",
+    {
       index: {
         fields: ["stared"],
         partial_filter_selector: { stared: { $eq: true } }
       },
       ddoc: "once-stared",
       name: "stared-only"
-    }],
+    }
+  ]])
+  assert.deepEqual(calls.filter(([name]) => name === "find"), [
     ["find", {
       selector: { stared: { $eq: true } },
       use_index: ["once-stared", "stared-only"]
@@ -125,5 +177,14 @@ test("loads stared stories through an indexed query", async () => {
       use_index: ["once-stared", "stared-only"]
     }]
   ])
+  assert.deepEqual(calls.filter(([name]) => name === "deleteIndex"), [[
+    "deleteIndex",
+    {
+      ddoc: "_design/idx-legacy",
+      name: "idx-legacy",
+      type: "json"
+    }
+  ]])
+  assert.ok(calls.some(([name]) => name === "viewCleanup"))
   assert.deepEqual(stories.map((story) => story.href), [stared.href])
 })

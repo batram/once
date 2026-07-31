@@ -10,7 +10,8 @@ import {
   PouchListStore,
   PouchStoryStore,
   PouchSyncService,
-  IndexedDbCacheStore
+  IndexedDbCacheStore,
+  LOCAL_POUCH_OPTIONS
 } from "@once/persistence"
 import { WebExtSyncStorage } from "./storage/WebExtSyncStorage"
 import { setDocumentTheme } from "./ui/WebExtTheme"
@@ -24,7 +25,7 @@ PouchDB.plugin(PouchDBFind)
 export function createWebExtPlatform(
   browserApi: typeof browser = browser
 ): OncePlatformPorts {
-  const onceDb = new PouchDB("once_db")
+  const onceDb = new PouchDB("once_db", LOCAL_POUCH_OPTIONS)
   const listStore = new PouchListStore(onceDb)
   const storyStore = new PouchStoryStore(onceDb, (story) =>
     Story.from_obj(story)

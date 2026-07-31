@@ -23,6 +23,7 @@ export class PouchListStore {
     const tryUpdate = async (retryCount = 0): Promise<void> => {
       try {
         const doc = await this.db.get(id)
+        if (storedValuesEqual(doc.list, value)) return
         doc.list = value
         await this.db.put(doc as Record<string, unknown>)
       } catch (err) {
@@ -44,4 +45,18 @@ export class PouchListStore {
 
     await tryUpdate()
   }
+}
+
+function storedValuesEqual(left: unknown, right: unknown): boolean {
+  return JSON.stringify(canonicalValue(left)) === JSON.stringify(canonicalValue(right))
+}
+
+function canonicalValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalValue)
+  if (!value || typeof value !== "object") return value
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, canonicalValue(entry)])
+  )
 }

@@ -4,6 +4,7 @@ import { DatabaseChange, OncePlatformPorts, ThemeName } from "@once/app"
 import { Story } from "@once/core"
 import {
   IndexedDbCacheStore,
+  LOCAL_POUCH_OPTIONS,
   PouchListStore,
   PouchStoryStore,
   PouchSyncDatabase,
@@ -31,7 +32,7 @@ export function createElectronPlatform(
     .addEventListener("change", syncWindowBackground)
   syncWindowBackground()
 
-  const onceDb = new PouchDB("once_electron_v2")
+  const onceDb = new PouchDB("once_electron_v2", LOCAL_POUCH_OPTIONS)
   const fetchThroughMain = (input: RequestInfo | URL, init?: RequestInit) =>
     bridgeFetch(bridge, input, init)
   const listStore = new PouchListStore(onceDb)
