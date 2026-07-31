@@ -34,9 +34,9 @@ export class PouchMaintenanceService {
     private readonly isCurrent: () => boolean = () => true
   ) {}
 
-  async run(): Promise<void> {
+  async run(): Promise<boolean> {
     if (!this.db.changes || !this.db.get || !this.db.put || !this.db.bulkDocs) {
-      return
+      return true
     }
     try {
       let since = await this.readMaintenanceSequence()
@@ -66,7 +66,7 @@ export class PouchMaintenanceService {
           { last_seq: since }
         )
       }
-      if (!this.isCurrent()) return
+      if (!this.isCurrent()) return false
       await this.compactLocalDatabaseOnce()
       this.updateStatus({
         state: "up-to-date",
@@ -75,13 +75,15 @@ export class PouchMaintenanceService {
           : "Up to date · database optimized",
         changes: resolved
       })
+      return true
     } catch (error) {
-      if (!this.isCurrent()) return
+      if (!this.isCurrent()) return false
       this.updateStatus({
         state: "error",
         message: "Local database maintenance failed; see the error log"
       })
       this.reportError(error)
+      return false
     }
   }
 

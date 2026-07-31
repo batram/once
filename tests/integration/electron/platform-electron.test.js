@@ -171,6 +171,7 @@ test("cancels old CouchDB work when the sync URL changes", async (t) => {
 test("syncs settings, newest stories, backlog, then starts live sync", async () => {
   const replications = []
   const syncs = []
+  const lifecycle = []
   const remote = {
     async createIndex(options) {
       assert.deepEqual(options.index.fields, ["ingested_at"])
@@ -189,7 +190,26 @@ test("syncs settings, newest stories, backlog, then starts live sync", async () 
         return chain
       }
     },
+    async changes(options) {
+      lifecycle.push("conflicts-checked")
+      assert.equal(options.conflicts, true)
+      return { results: [], last_seq: 0 }
+    },
+    async get(id) {
+      assert.ok(id.startsWith("_local/"))
+      throw { status: 404 }
+    },
+    async put() {
+      return { rev: "1-marker" }
+    },
+    async bulkDocs() {
+      return []
+    },
+    async compact() {
+      lifecycle.push("compacted")
+    },
     sync(target, options) {
+      lifecycle.push("live-sync-started")
       const chain = eventChain()
       syncs.push({ target, options, chain })
       return chain
@@ -251,35 +271,32 @@ test("syncs settings, newest stories, backlog, then starts live sync", async () 
   replications[3].chain.emit("complete", {})
   await nextTurn()
   assert.equal(syncs.length, 1)
+  assert.deepEqual(lifecycle, [
+    "conflicts-checked",
+    "compacted",
+    "live-sync-started"
+  ])
   assert.equal(syncs[0].target, remote)
   assert.equal(statuses.at(-1).state, "up-to-date")
   assert.equal(statuses.at(-1).changes, 4)
   assert.deepEqual(
-    remoteChanges.map(({ id, presentation, authoritative }) => ({
-      id,
-      presentation,
-      authoritative: authoritative ?? false
-    })),
+    remoteChanges.map(({ id, presentation }) => ({ id, presentation })),
     [
       {
         id: "sto_loaded",
-        presentation: "foreground",
-        authoritative: true
+        presentation: "foreground"
       },
       {
         id: "sto_newest",
-        presentation: "foreground",
-        authoritative: false
+        presentation: "foreground"
       },
       {
         id: "sto_next",
-        presentation: "foreground",
-        authoritative: false
+        presentation: "foreground"
       },
       {
         id: "sto_older",
-        presentation: "background",
-        authoritative: false
+        presentation: "background"
       }
     ]
   )

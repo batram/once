@@ -192,7 +192,6 @@ export interface DatabaseChange {
   id: string
   doc?: Record<string, unknown>
   presentation?: "foreground" | "background"
-  authoritative?: boolean
 }
 
 export interface OncePlatformPorts {

@@ -369,7 +369,7 @@ test("uses field timestamps to converge story state without repeated writes", as
   assert.equal((await app.client.findStoryByUrl(story.href)).read_state, "read")
 })
 
-test("accepts remote state as authoritative for the loaded-story refresh", async () => {
+test("does not erase newer offline edits during a foreground remote refresh", async () => {
   const story = new Story("rss", "https://example.com/story", "A story")
   story.read_state = "read"
   story.stared = true
@@ -398,19 +398,18 @@ test("accepts remote state as authoritative for the loaded-story refresh", async
         filter: 100
       }
     },
-    presentation: "foreground",
-    authoritative: true
+    presentation: "foreground"
   })
   await app.client.settledStoryWrites()
 
   const accepted = await app.client.findStoryByUrl(story.href)
-  assert.equal(accepted.read_state, "unread")
-  assert.equal(accepted.stared, false)
-  assert.equal(accepted.filter, "")
+  assert.equal(accepted.read_state, "read")
+  assert.equal(accepted.stared, true)
+  assert.equal(accepted.filter, "local")
   assert.deepEqual(accepted.sync_updated_at, {
-    read_state: 100,
-    stared: 100,
-    filter: 100
+    read_state: 300,
+    stared: 300,
+    filter: 300
   })
 })
 

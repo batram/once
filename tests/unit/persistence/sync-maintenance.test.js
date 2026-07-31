@@ -80,3 +80,96 @@ test("maintenance merges story conflicts, deletes losing leaves, and compacts on
   assert.match(statuses.at(-1).message, /1 database conflict consolidated/)
   assert.deepEqual(errors, [])
 })
+
+test("maintenance keeps established legacy remote state over a feed-created local default", async () => {
+  const localWinner = {
+    _id: "sto_https://example.com/legacy",
+    _rev: "1-local",
+    _conflicts: ["8-remote"],
+    type: "rss",
+    href: "https://example.com/legacy",
+    title: "Story",
+    timestamp: 1,
+    read_state: "unread",
+    stared: false,
+    filter: ""
+  }
+  const remoteLeaf = {
+    ...localWinner,
+    _rev: "8-remote",
+    _conflicts: undefined,
+    read_state: "skipped",
+    stared: true,
+    filter: "remote-filter"
+  }
+  const writes = []
+  let reads = 0
+  const db = {
+    async changes() {
+      reads++
+      return reads === 1
+        ? { results: [{ doc: localWinner }], last_seq: 2 }
+        : { results: [], last_seq: 2 }
+    },
+    async get(id, options) {
+      if (id.startsWith("_local/")) throw { status: 404 }
+      assert.equal(options.rev, remoteLeaf._rev)
+      return remoteLeaf
+    },
+    async put(doc) {
+      writes.push(doc)
+      return { rev: "saved" }
+    },
+    async bulkDocs(docs) {
+      return docs.map(() => ({ ok: true }))
+    },
+    async compact() {}
+  }
+
+  await new PouchMaintenanceService(db, () => {}, assert.fail).run()
+
+  const merged = writes.find((doc) => doc._id === localWinner._id)
+  assert.equal(merged.read_state, "skipped")
+  assert.equal(merged.stared, true)
+  assert.equal(merged.filter, "remote-filter")
+})
+
+test("maintenance scans a large existing database in bounded batches", async () => {
+  const batches = [
+    Array.from({ length: 100 }, (_, index) => ({
+      doc: { _id: `sto_local_${index}`, read_state: "unread" }
+    })),
+    Array.from({ length: 37 }, (_, index) => ({
+      doc: { _id: `sto_local_${index + 100}`, read_state: "unread" }
+    })),
+    []
+  ]
+  const requests = []
+  let batch = 0
+  const db = {
+    async changes(options) {
+      requests.push(options)
+      const results = batches[batch]
+      batch++
+      return { results, last_seq: batch * 100 }
+    },
+    async get() {
+      throw { status: 404 }
+    },
+    async put() {
+      return { rev: "saved" }
+    },
+    async bulkDocs() {
+      return []
+    },
+    async compact() {}
+  }
+
+  await new PouchMaintenanceService(db, () => {}, assert.fail).run()
+
+  assert.deepEqual(requests.map(({ since, limit }) => ({ since, limit })), [
+    { since: 0, limit: 100 },
+    { since: 100, limit: 100 },
+    { since: 200, limit: 100 }
+  ])
+})

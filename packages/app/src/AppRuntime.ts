@@ -16,11 +16,7 @@ import {
   SyncStatus
 } from "./types"
 import { LocalEventBus } from "./EventBus"
-import {
-  acceptRemoteStorySyncState,
-  mergeStorySyncState,
-  sameStorySyncState
-} from "./storySyncPolicy"
+import { mergeStorySyncState, sameStorySyncState } from "./storySyncPolicy"
 import { StoryWriteQueue } from "./StoryWriteQueue"
 import { StoryWorkingSet } from "./StoryWorkingSet"
 import { AppSettings } from "./AppSettings"
@@ -640,9 +636,10 @@ export class AppRuntime {
     const currentStory = this.workingSet.get(remoteStory.href)
     const localStory = await this.platform.storyStore.getStory(remoteStory.href)
     const mergeBase = localStory ?? currentStory ?? remoteStory
-    const merged = change.authoritative
-      ? acceptRemoteStorySyncState(mergeBase, remoteStory)
-      : mergeStorySyncState(mergeBase, remoteStory)
+    // Timestamped offline edits win by time. Untimestamped feed defaults use
+    // the legacy rank and therefore cannot replace an established read,
+    // skipped, starred, or filtered state.
+    const merged = mergeStorySyncState(mergeBase, remoteStory)
     let effectiveStory = localStory ?? remoteStory
 
     if (!sameStorySyncState(merged, effectiveStory)) {
