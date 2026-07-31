@@ -1117,6 +1117,7 @@ body[data-theme="dark"] #reading_reader_toggle:not(.active) img {
 }
 
 #settings_panel .settings_title {
+  order: 0;
   margin-top: 0;
   font-family: var(--m-sans);
   font-size: var(--fs-title);
@@ -1233,6 +1234,7 @@ body[data-theme="dark"] #reading_reader_toggle:not(.active) img {
 .settings_section_row {
   display: flex;
   width: 100%;
+  height: auto;
   min-height: var(--touch);
   margin: 0;
   border: 0;
@@ -1240,6 +1242,7 @@ body[data-theme="dark"] #reading_reader_toggle:not(.active) img {
   border-radius: 0;
   gap: var(--sp-2);
   align-items: center;
+  font-size: var(--fs-body);
 }
 
 .settings_section_row_text {
@@ -1255,6 +1258,7 @@ body[data-theme="dark"] #reading_reader_toggle:not(.active) img {
   overflow: hidden;
   margin-left: auto;
   color: var(--text-color);
+  font-size: var(--fs-body);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1264,6 +1268,11 @@ body[data-theme="dark"] #reading_reader_toggle:not(.active) img {
 .settings_section_row.has-warnings .settings_section_summary,
 .settings_section_row.has-errors .settings_section_summary {
   color: inherit;
+}
+
+.settings_section_arrow {
+  flex-basis: auto;
+  font-size: var(--fs-body);
 }
 
 .settings_section_row[data-settings-target="errors"].has-warnings {

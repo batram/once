@@ -846,15 +846,15 @@
   color: var(--error-color, #d33);
 }
 
-/* Dense desktop settings surface shared by Electron and both extensions.
-   Mobile deliberately owns its presentation in apps/mobile/src/mobile.css. */
-body:not([data-platform="mobile"]) #settings_panel {
+/* The component owns its normal shell and navigation presentation.
+   Mobile overrides its WebView-specific geometry in apps/mobile/src/mobile.css. */
+#settings_panel {
   overflow: hidden;
 }
 
 /* The shared titlebar owns vertical rhythm and control spacing. Settings keeps
    the tighter horizontal inset used by this dense surface. */
-body:not([data-platform="mobile"]) #settings_panel .bar {
+#settings_panel .bar {
   height: auto;
   min-height: 0;
   padding-inline: 0;
@@ -869,10 +869,11 @@ body:not([data-platform="mobile"]) .structured_search button,
 body:not([data-platform="mobile"]) #settings_search,
 /* Any settings button, rather than a list of containers a button had to sit in
    to be styled. The exclusions own a complete skin already: icon-only buttons,
-   the square inline glyph actions, and the segmented mode toggle. */
+   the square inline glyph actions, embedded story actions, and the segmented
+   mode toggle. */
 body:not([data-platform="mobile"])
   #settings_panel
-  .button:not(.button--icon):not(.structured_inline_action):not(
+  .button:not(.button--icon):not(.story .button):not(.structured_inline_action):not(
     .structured_mode_toggle_topbar
   ),
 body:not([data-platform="mobile"]) .structured_group_menu,
@@ -899,7 +900,7 @@ body:not([data-platform="mobile"]) .settings_editor_block > .settings_actions {
 
 body:not([data-platform="mobile"])
   #settings_panel
-  .button:not(.button--icon):not(.structured_inline_action):not(
+  .button:not(.button--icon):not(.story .button):not(.structured_inline_action):not(
     .structured_mode_toggle_topbar
   ) {
   margin: 0;
@@ -916,7 +917,7 @@ body:not([data-platform="mobile"]) .structured_remove {
   font-size: var(--settings-structured_remove-font-size);
 }
 
-body:not([data-platform="mobile"]) #settings_panel .settings_title {
+#settings_panel .settings_title {
   order: 1;
   min-width: 0;
   overflow: hidden;
@@ -927,7 +928,7 @@ body:not([data-platform="mobile"]) #settings_panel .settings_title {
   white-space: nowrap;
 }
 
-body:not([data-platform="mobile"]) #settings_panel #settings_section_back {
+#settings_panel #settings_section_back {
   order: 0;
   align-items: center;
   gap: var(--sp-1);
@@ -938,7 +939,7 @@ body:not([data-platform="mobile"]) #settings_panel #settings_section_back {
 
 /* A real icon, masked so it still takes the button's own colour. Flex centring
    against the label needs no vertical-align fudging. */
-body:not([data-platform="mobile"]) #settings_panel #settings_section_back::before {
+#settings_panel #settings_section_back::before {
   content: "";
   flex: 0 0 11px;
   width: 11px;
@@ -948,7 +949,7 @@ body:not([data-platform="mobile"]) #settings_panel #settings_section_back::befor
   mask: url("../../imgs/chevron-left.svg") center / contain no-repeat;
 }
 
-body:not([data-platform="mobile"]) #settings_panel.settings_detail_open #settings_section_back {
+#settings_panel.settings_detail_open #settings_section_back {
   display: inline-flex;
 }
 
@@ -996,13 +997,13 @@ body:not([data-platform="mobile"])
   background: var(--highlight-bg-color);
 }
 
-body:not([data-platform="mobile"]) .settings_container {
+.settings_container {
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
 }
 
-body:not([data-platform="mobile"]) #settings_index {
+#settings_index {
   box-sizing: border-box;
   flex: 1 1 auto;
   width: 100%;
@@ -1012,12 +1013,12 @@ body:not([data-platform="mobile"]) #settings_index {
   overflow: auto;
 }
 
-body:not([data-platform="mobile"]) #settings_panel.settings_detail_open #settings_index {
+#settings_panel.settings_detail_open #settings_index {
   flex: 0 0 300px;
   width: 300px;
 }
 
-body:not([data-platform="mobile"]) #settings_search {
+#settings_search {
   width: 100%;
   --settings-settings_search-margin: 0 0 7px;
   margin: var(--settings-settings_search-margin);
@@ -1025,7 +1026,7 @@ body:not([data-platform="mobile"]) #settings_search {
   padding: var(--settings-settings_search-padding);
 }
 
-body:not([data-platform="mobile"]) .settings_section_row {
+.settings_section_row {
   min-height: 28px;
   height: 28px;
   gap: var(--sp-2);
@@ -1036,23 +1037,23 @@ body:not([data-platform="mobile"]) .settings_section_row {
   font-size: var(--settings-settings_section_row-font-size);
 }
 
-body:not([data-platform="mobile"]) .settings_section_row:hover,
-body:not([data-platform="mobile"]) .settings_section_row:focus-visible,
-body:not([data-platform="mobile"]) .settings_section_row[aria-current="page"] {
+.settings_section_row:hover,
+.settings_section_row:focus-visible,
+.settings_section_row[aria-current="page"] {
   outline: 0;
   background: var(--highlight-bg-color);
 }
 
-body:not([data-platform="mobile"]) .settings_section_row_text {
+.settings_section_row_text {
   flex: 0 0 auto;
   min-width: max-content;
 }
 
-body:not([data-platform="mobile"]) .settings_section_row_text > span {
+.settings_section_row_text > span {
   white-space: nowrap;
 }
 
-body:not([data-platform="mobile"]) .settings_section_summary {
+.settings_section_summary {
   flex: 0 1 auto;
   min-width: 0;
   margin-left: auto;
@@ -1069,7 +1070,7 @@ body:not([data-platform="mobile"]) .structured_status_error {
   color: var(--m-error);
 }
 
-body:not([data-platform="mobile"]) .settings_section_arrow {
+.settings_section_arrow {
   flex: 0 0 6px;
   color: var(--text-color);
   --settings-settings_section_arrow-font-size: 20px;
@@ -1077,12 +1078,12 @@ body:not([data-platform="mobile"]) .settings_section_arrow {
   line-height: 1;
 }
 
-body:not([data-platform="mobile"]) .settings_section {
+.settings_section {
   min-height: 0;
   overflow: hidden;
 }
 
-body:not([data-platform="mobile"]) .settings_section.active {
+.settings_section.active {
   display: flex;
 }
 

@@ -169,15 +169,15 @@ the branch actually stands.
 | 0 Baselines | Landed. Six check scripts in `npm run check`; design-system Playwright project green |
 | 1 Tokens | Landed in its stated scope. No `--m-sp-*`, `--m-fs-*` or `--m-touch` aliases remain |
 | 2 Cascade layers | Layering landed and enforced. 2.4 outstanding: platform prefixes remain |
-| 3 Primitives | Landed. No `.btn`, `icon-btn`, `<input type="button">` or clickable `.sub` |
+| 3 Primitives | Button/semantic-control migration landed. Layout-primitive adoption remains component-by-component |
 
 ### Debt, counted honestly
 
-236 entries. Platform branching is the largest category, not raw geometry:
+218 entries. Platform branching is the largest category, not raw geometry:
 
 | Category | Count |
 |---|---:|
-| `desktop-specificity-prefix` | 110 |
+| `desktop-specificity-prefix` | 92 |
 | `raw-geometry-px` | 87 |
 | `mobile-specificity-prefix` | 23 |
 | `important` | 13 |
@@ -192,6 +192,7 @@ drag state.
 
 - a component-owned control keeps its box under `layer(platform)`;
 - the platform touch baseline reaches a control with no component box;
+- an embedded story keeps its component-owned action boxes when rendered inside Settings;
 - every native control adopts `.button` or is a reviewed exception, on the mobile web
   surface where controls built from settings data actually render.
 
@@ -211,15 +212,34 @@ The lesson worth keeping: a declaration that looks redundant against component C
 restoring what another platform rule turned off two rules earlier. Verify a removal by
 measuring the rendered control before and after, not by comparing declarations.
 
+The first Phase 2.4 family also exposed the inverse problem: a broad ancestor skin can replace
+the box of a complete component embedded inside that ancestor. The swipe preview renders a
+real story row, so its `.story .button` controls remain owned by `stories.css` and are
+explicitly outside the dense Settings action skin. Ownership tests cover both sides of that
+boundary.
+
 ### Open, in the order worth doing
 
-1. **Delete the negated guards.** Unguarded component rules become the default and
-   `mobile.css` overrides them through layer order, which is what the layer migration bought.
-   Blocked on nothing; each removal shows up as the baseline shrinking.
-2. **Decide the desktop platform sheet.** Either add one, or accept unguarded component CSS
-   as the desktop default. Item 1 depends on which.
-3. **Give the debt budget a direction.** The ratchet blocks growth but nothing drives
-   reduction, and the total sat flat while real dead code was removed.
+The immediate milestone is **Phase 2 closure: establish CSS ownership**. Do not add a generic
+desktop sheet merely to receive the negated rules. "Not mobile" currently conflates normal
+component presentation, available width, input capability, and Electron host behavior.
+Classify those concerns before choosing a new stylesheet.
+
+1. **Adopt the ownership rule.** Normal presentation stays unguarded beside the component;
+   space-driven differences use a media/container query there; mobile-native/WebView behavior
+   belongs in `mobile.css`; Electron host/window behavior belongs in `electron.css`; measured
+   geometry and transient state remain reviewed runtime styles. Add a desktop/capability sheet
+   only if the classification exposes a coherent cross-product contract that cannot use one
+   of those owners.
+2. **Remove negated guards by component family.** Settings panel shell/navigation is the
+   first completed family; continue with structured lists, editors/forms, menus/drag
+   affordances, status/error log, and the swipe lab; handle search and titlebar families
+   separately. Unguard rules that are the component default, add or retain a mobile override
+   only for a real mobile difference, and move genuine host rules to their platform owner. Do
+   not mechanically move the remaining entries into a desktop sheet.
+3. **Give the debt budget a direction.** Keep the non-growth ratchet, require the relevant
+   prefix category to shrink in every cleanup change, and replace line-number-based debt IDs
+   with stable rule/declaration identities before broad edits create baseline-only churn.
 4. **Finish unpicking the platform neutralizers.** `settings_section_row` and
    `structured_remove` still mix redundant declarations with load-bearing mobile geometry.
    `structured_row_chevron` and `structured_group_menu` want moving to `settings.css`: their
@@ -231,7 +251,9 @@ measuring the rendered control before and after, not by comparing declarations.
    text button and is why settings buttons needed a skin. Icon buttons set `aspect-ratio: 1`,
    so horizontal padding cannot simply be added.
 7. **Run a full visual comparison.** Desktop rendering of the primitive migration has only
-   had a cursory review, which did find two real faults.
+   had a cursory review, which did find two real faults. For each ownership family, require
+   shared/extension, Electron, and mobile-web checks; retain native mobile visual acceptance
+   as the final gate when mobile presentation changes.
 
 ---
 
@@ -599,9 +621,14 @@ counted it, so measure before assuming a scope is clean.
 
 The negated guard persists partly because there is no desktop platform sheet: mobile and
 Electron have one, the extension and desktop web shell do not, so "desktop only" has nowhere
-to live except a guard inside component CSS. Removing these prefixes therefore means either
-adding that sheet or letting unguarded component rules be the default that `mobile.css`
-overrides through layer order.
+to live except a guard inside component CSS. That does not by itself prove a desktop sheet is
+missing. Classify each bounded component family first: normal presentation becomes the
+unguarded component default; available-space differences stay with the component in a
+media/container query; mobile-native/WebView behavior belongs in `mobile.css`; Electron
+host/window behavior belongs in `electron.css`; and explicit platform selectors remain only
+where platform identity is the real condition. Add a narrowly named desktop/capability sheet
+only if that audit finds a substantial coherent rule set shared by Electron and extensions,
+excluded from mobile, and not expressible by those existing owners.
 
 ### 2.5 Audit `!important`
 
@@ -616,6 +643,8 @@ canonical hidden behavior, or visually-hidden accessibility utilities.
   properties;
 - no unlayered rule accidentally outranks user tokens;
 - mobile prefixes remain only where they express platform identity, not specificity;
+- every remaining platform prefix has a documented platform-identity reason;
+- the prefix baseline shrinks in each Phase 2.4 cleanup change;
 - component-specific `!important` debt is zero;
 - documented utility exceptions have direct tests;
 - extension, Electron, and mobile-web gates are green.

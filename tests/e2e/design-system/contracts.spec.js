@@ -268,6 +268,28 @@ test("ordinary desktop Settings actions share the dense button skin", async ({ p
   await expect(action).toHaveCSS("line-height", "20px")
 })
 
+test("an embedded story keeps its component-owned action boxes in Settings", async ({ page }) => {
+  await page.goto(`${baseURL}/static/sidepanel.html`)
+  await page.locator("#settings_panel").evaluate((panel) => {
+    panel.insertAdjacentHTML("beforeend", `
+      <article class="story">
+        <div class="button_group">
+          <button type="button" class="button filter_btn" aria-label="Filter">
+            <img src="imgs/filter.svg" alt="">
+          </button>
+          <button type="button" class="button read_btn" aria-label="Read"></button>
+        </div>
+      </article>
+    `)
+  })
+
+  for (const action of await page.locator("#settings_panel .story .button").all()) {
+    await expect(action).toHaveCSS("box-sizing", "content-box")
+    await expect(action).toHaveCSS("height", "16px")
+    await expect(action).toHaveCSS("padding", "2px")
+  }
+})
+
 test("mobile button controls retain the touch contract", async ({ page }) => {
   await page.goto(`${baseURL}/static/sidepanel.html?target=mobile`)
   const controls = page.locator(
@@ -276,6 +298,43 @@ test("mobile button controls retain the touch contract", async ({ page }) => {
   for (const control of await controls.all()) {
     await expect(control).toHaveCSS("min-height", "44px")
   }
+})
+
+test("Settings shell defaults yield to mobile navigation geometry", async ({ page }) => {
+  await page.goto(`${baseURL}/static/sidepanel.html`)
+  await page.locator("#settings_index").evaluate((index) => {
+    index.insertAdjacentHTML("beforeend", `
+      <button type="button" class="settings_section_row">
+        <span class="settings_section_row_text">Sources</span>
+        <span class="settings_section_summary">5 configured</span>
+        <span class="settings_section_arrow">â€º</span>
+      </button>
+    `)
+  })
+  const desktopRow = page.locator(".settings_section_row").first()
+  await expect(desktopRow).toHaveCSS("height", "28px")
+  await expect(desktopRow).toHaveCSS("font-size", "13px")
+  await expect(page.locator(".settings_container")).toHaveCSS("overflow", "hidden")
+  await expect(page.locator("#settings_index")).toHaveCSS("padding", "7px 8px")
+
+  await page.goto(`${baseURL}/static/sidepanel.html?target=mobile`)
+  await page.locator("#settings_index").evaluate((index) => {
+    index.insertAdjacentHTML("beforeend", `
+      <button type="button" class="settings_section_row">
+        <span class="settings_section_row_text">Sources</span>
+        <span class="settings_section_summary">5 configured</span>
+        <span class="settings_section_arrow">â€º</span>
+      </button>
+    `)
+  })
+  const mobileRow = page.locator(".settings_section_row").first()
+  await expect(mobileRow).toHaveCSS("height", "auto")
+  await expect(mobileRow).toHaveCSS("min-height", "44px")
+  await expect(mobileRow).toHaveCSS("font-size", "14px")
+  await expect(mobileRow.locator(".settings_section_summary")).toHaveCSS("font-size", "14px")
+  await expect(mobileRow.locator(".settings_section_arrow")).toHaveCSS("font-size", "14px")
+  await expect(page.locator(".settings_container")).toHaveCSS("overflow", "auto")
+  await expect(page.locator("#settings_index")).toHaveCSS("padding", "12px")
 })
 
 test("declared icon and button contracts have measurable geometry", async ({ page }) => {
