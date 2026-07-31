@@ -64,9 +64,17 @@ Then compare the current build with that stored run:
 npm run visual:compare -- --ref 7f17cce
 ```
 
-A complete stored run is reused. Run `--ref-only` again when fixture behavior,
-the screenshot matrix, or the JSON schema changes and the retained revision
-needs to be recaptured.
+A complete stored run is reused. Retained runs are immutable by default. When
+fixture behavior, the screenshot matrix, or the JSON schema changes and a
+retained revision must be replaced, opt in explicitly:
+
+```bash
+npm run visual:compare -- --ref 7f17cce --ref-only --refresh-ref
+```
+
+The replacement is captured in a temporary directory and published only after
+the complete capture and manifest have been written. A failed or interrupted
+capture leaves the retained run untouched.
 
 Each build discovers its own rendered Settings destinations. The report uses
 the union of the current and comparison artifact sets, so a newly added section
@@ -81,17 +89,20 @@ configuration are not changed.
 ## Options
 
 ```text
---skip-build      reuse existing Electron and mobile build outputs
+--skip-build      reuse current outputs and cached historical runs
 --electron-only   capture only the packaged Electron app
 --mobile-only     capture only the generated mobile web app
 --ref REF         compare with REF and retain results by full commit SHA
---ref-only        refresh and retain REF without capturing the current tree
+--ref-only        capture/reuse REF without capturing the current tree
+--refresh-ref     explicitly replace an existing retained REF after capture
 --output DIR      write the report and artifacts below a different directory
 ```
 
 Use `--skip-build` only when the existing app outputs are known to match the
-source being reviewed. Fixture and report code still run from the active
-checkout.
+source being reviewed. With `--ref`, it reuses a complete retained run and
+fails without touching artifacts if no complete run exists; it never installs
+or builds a historical checkout. Fixture and report code still run from the
+active checkout.
 
 ## Deterministic data and error coverage
 

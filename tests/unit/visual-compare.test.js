@@ -13,6 +13,7 @@ const {
   historicalRunComplete,
   historicalRunName,
   parseArgs,
+  publishHistoricalRun,
   reportHtml,
   structuralCollectorConfig,
   styleSnapshotName
@@ -54,6 +55,15 @@ test("visual comparison accepts a historical Git ref", () => {
   assert.equal(options.mobile, false)
 })
 
+test("historical refresh is explicit", () => {
+  const options = parseArgs(["--ref", "HEAD~3", "--refresh-ref"])
+  assert.equal(options.refreshRef, true)
+  assert.throws(
+    () => parseArgs(["--refresh-ref"]),
+    /--refresh-ref requires --ref REF/
+  )
+})
+
 test("historical visual runs use full immutable commit ids", () => {
   const sha = "A".repeat(40)
   assert.equal(historicalRunName(sha), "a".repeat(40))
@@ -83,6 +93,40 @@ test("complete historical runs can be reused", (t) => {
   )
   fs.rmSync(path.join(output, styleSnapshotName(names[0])))
   assert.equal(historicalRunComplete(output, sha, ["electron"]), false)
+})
+
+test("historical publication preserves existing runs by default", (t) => {
+  const output = fs.mkdtempSync(path.join(os.tmpdir(), "once-visual-publish-"))
+  t.after(() => fs.rmSync(output, { recursive: true, force: true }))
+  const runOutput = path.join(output, "retained")
+  const stagedOutput = path.join(output, "staged")
+  fs.mkdirSync(runOutput)
+  fs.mkdirSync(stagedOutput)
+  fs.writeFileSync(path.join(runOutput, "old.png"), "old")
+  fs.writeFileSync(path.join(stagedOutput, "new.png"), "new")
+
+  assert.throws(
+    () => publishHistoricalRun(stagedOutput, runOutput, false),
+    /will not be changed/
+  )
+  assert.equal(fs.readFileSync(path.join(runOutput, "old.png"), "utf8"), "old")
+  assert.equal(fs.readFileSync(path.join(stagedOutput, "new.png"), "utf8"), "new")
+})
+
+test("explicit historical refresh publishes the staged run", (t) => {
+  const output = fs.mkdtempSync(path.join(os.tmpdir(), "once-visual-refresh-"))
+  t.after(() => fs.rmSync(output, { recursive: true, force: true }))
+  const runOutput = path.join(output, "retained")
+  const stagedOutput = path.join(output, "staged")
+  fs.mkdirSync(runOutput)
+  fs.mkdirSync(stagedOutput)
+  fs.writeFileSync(path.join(runOutput, "old.png"), "old")
+  fs.writeFileSync(path.join(stagedOutput, "new.png"), "new")
+
+  publishHistoricalRun(stagedOutput, runOutput, true)
+
+  assert.equal(fs.existsSync(path.join(runOutput, "old.png")), false)
+  assert.equal(fs.readFileSync(path.join(runOutput, "new.png"), "utf8"), "new")
 })
 
 test("visual comparison rejects unsupported switches", () => {

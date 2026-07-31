@@ -90,7 +90,8 @@ function parseArgs(argv) {
     mobile: true,
     output: defaultOutput,
     ref: null,
-    refOnly: false
+    refOnly: false,
+    refreshRef: false
   }
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index]
@@ -102,6 +103,7 @@ function parseArgs(argv) {
       if (!options.ref) throw new Error("--ref requires a Git commit-ish")
     }
     else if (value === "--ref-only") options.refOnly = true
+    else if (value === "--refresh-ref") options.refreshRef = true
     else if (value === "--output") {
       const output = argv[++index]
       if (!output) throw new Error("--output requires a directory")
@@ -111,6 +113,12 @@ function parseArgs(argv) {
     } else {
       throw new Error(`Unknown option: ${value}`)
     }
+  }
+  if (options.refOnly && !options.ref) {
+    throw new Error("--ref-only requires --ref REF")
+  }
+  if (options.refreshRef && !options.ref) {
+    throw new Error("--refresh-ref requires --ref REF")
   }
   return options
 }
@@ -1155,25 +1163,39 @@ Builds the real app targets, loads deterministic E2E data, and captures stories,
 reading, the settings index, and every rendered settings panel in light and
 dark themes. The previous capture becomes the side-by-side baseline.
 
-  --skip-build      reuse existing Electron and mobile build outputs
+  --skip-build      reuse current outputs and cached historical runs
   --electron-only   capture only the packaged Electron app
   --mobile-only     capture only the generated mobile web app
   --ref REF         compare with REF and retain its results by commit SHA
-  --ref-only        prepare and retain REF without touching the current run
+  --ref-only        capture/reuse REF without touching the current run
+  --refresh-ref     explicitly replace an existing retained REF after capture
   --output DIR      write artifacts below DIR
 `)
 }
 
-function prepareHistoricalOutput(output) {
-  fs.mkdirSync(output, { recursive: true })
-  for (const entry of fs.readdirSync(output)) {
-    if (
-      entry === "manifest.json" ||
-      entry.endsWith(".png") ||
-      entry.endsWith(".styles.json")
-    ) {
-      fs.rmSync(path.join(output, entry), { force: true })
+function publishHistoricalRun(stagedOutput, runOutput, refresh) {
+  fs.mkdirSync(path.dirname(runOutput), { recursive: true })
+  if (!fs.existsSync(runOutput)) {
+    fs.renameSync(stagedOutput, runOutput)
+    return
+  }
+  if (!refresh) {
+    throw new Error(
+      `Historical visual run already exists and will not be changed: ${runOutput}\n` +
+      "Use --refresh-ref to replace it after a successful capture."
+    )
+  }
+  const backup = `${runOutput}.backup-${process.pid}-${Date.now()}`
+  fs.renameSync(runOutput, backup)
+  try {
+    fs.renameSync(stagedOutput, runOutput)
+    fs.rmSync(backup, { recursive: true, force: true })
+  } catch (error) {
+    if (fs.existsSync(runOutput)) {
+      fs.rmSync(runOutput, { recursive: true, force: true })
     }
+    fs.renameSync(backup, runOutput)
+    throw error
   }
 }
 
@@ -1220,9 +1242,9 @@ async function captureTargets(options, output, sourceRoot) {
 async function captureHistoricalRef(options, sha, targets) {
   const runName = historicalRunName(sha)
   const runOutput = path.join(options.output, "runs", runName)
-  prepareHistoricalOutput(runOutput)
   const tempParent = fs.mkdtempSync(path.join(os.tmpdir(), "once-visual-ref-"))
   const worktree = path.join(tempParent, "worktree")
+  const stagedOutput = path.join(tempParent, "capture")
   let added = false
   try {
     runGit(["worktree", "add", "--detach", worktree, sha], { quiet: true })
@@ -1246,9 +1268,10 @@ async function captureHistoricalRef(options, sha, targets) {
         worktree
       )
     }
-    const sectionsByTarget = await captureTargets(options, runOutput, worktree)
+    fs.mkdirSync(stagedOutput)
+    const sectionsByTarget = await captureTargets(options, stagedOutput, worktree)
     const imageNames = buildImageNames(targets, sectionsByTarget)
-    writeRunManifest(runOutput, {
+    writeRunManifest(stagedOutput, {
       matrixVersion: 4,
       ref: options.ref,
       sha,
@@ -1258,6 +1281,10 @@ async function captureHistoricalRef(options, sha, targets) {
       ],
       imageNames
     })
+    if (!historicalRunComplete(stagedOutput, sha, targets)) {
+      throw new Error(`Historical visual capture is incomplete: ${sha}`)
+    }
+    publishHistoricalRun(stagedOutput, runOutput, options.refreshRef)
     return { imageNames, runOutput }
   } finally {
     if (added) {
@@ -1277,9 +1304,6 @@ async function main() {
     ...(options.electron ? ["electron"] : []),
     ...(options.mobile ? ["mobile"] : [])
   ]
-  if (options.refOnly && !options.ref) {
-    throw new Error("--ref-only requires --ref REF")
-  }
   let comparisonRoot = null
   let baselineHref = "baseline"
   let baselineLabel = "Previous run"
@@ -1291,13 +1315,26 @@ async function main() {
       "runs",
       historicalRunName(sha)
     )
-    if (!options.refOnly && historicalRunComplete(runOutput, sha, targets)) {
+    if (!options.refreshRef && historicalRunComplete(runOutput, sha, targets)) {
       comparisonRoot = runOutput
       comparisonImageNames = JSON.parse(
         fs.readFileSync(path.join(runOutput, "manifest.json"), "utf8")
       ).imageNames
       console.log(`Reusing historical visual run: ${comparisonRoot}`)
     } else {
+      if (!options.build) {
+        throw new Error(
+          `No complete cached visual run for ${options.ref} (${sha.slice(0, 12)}).\n` +
+          "--skip-build does not install or build historical refs. " +
+          "Run again without --skip-build to capture it."
+        )
+      }
+      if (fs.existsSync(runOutput) && !options.refreshRef) {
+        throw new Error(
+          `Historical visual run exists but is incomplete and will not be changed: ${runOutput}\n` +
+          "Use --refresh-ref to replace it after a successful capture."
+        )
+      }
       const captured = await captureHistoricalRef(options, sha, targets)
       comparisonRoot = captured.runOutput
       comparisonImageNames = captured.imageNames
@@ -1351,6 +1388,7 @@ module.exports = {
   historicalRunComplete,
   historicalRunName,
   parseArgs,
+  publishHistoricalRun,
   reportHtml,
   structuralCollectorConfig,
   styleSnapshotName
