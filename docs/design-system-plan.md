@@ -88,6 +88,11 @@ The measured baseline, implementation history, and completed Phases 0–4 are
 archived in [`design-system-completed.md`](design-system-completed.md). This
 file contains only the governing architecture and remaining work.
 
+What Phases 0–4 actually landed — layer order, sheet ownership, primitives,
+runtime-style rules, and the checks that enforce them — is documented as a
+working contract in [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md). Phases 5 and 6
+below extend that contract; they do not replace it.
+
 ### Remaining implementation notes
 
 - Keep the visual comparison representative as later phases migrate ownership.

@@ -1,8 +1,10 @@
 # Design System Completed Work
 
 This document is the implementation record for completed design-system phases.
-The active roadmap and remaining work stay in
-[`design-system-plan.md`](design-system-plan.md).
+It is history, not guidance — do not read a rule out of it.
+
+- The current styling contract is [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md).
+- Remaining work stays in [`design-system-plan.md`](design-system-plan.md).
 
 ---
 
@@ -151,20 +153,17 @@ live in `mobile.css`; Electron host behavior remains in `electron.css`; and revi
 geometry/state remains inline. `check:css-debt` rejects any returned positive or negated
 platform prefix.
 
-The ownership rule for future work is:
+The ownership rule this produced is now maintained in
+[`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md), which is the current contract. Two
+closure decisions are recorded here because they explain the shape of the
+checks rather than instructing future work:
 
-1. **Normal presentation stays with the component.** Space-driven differences use a
-   media/container query there; mobile-native/WebView behavior belongs in `mobile.css`;
-   Electron host/window behavior belongs in `electron.css`; measured geometry and transient
-   state remain reviewed runtime styles.
-2. **Keep the debt budget directional.** The non-growth ratchet uses stable identities;
-   completed prefix categories are hard-zero checks rather than allowlisted debt.
-3. **Keep the Phase 1 boundary explicit.** `notifications.css`, `dialogs.css`, `search.css`
-   and `error-page.css` are migrated and enforced scopes. The remaining 41 raw-geometry
-   entries are in explicitly excluded reader and presenter documents; they do not block the
-   Phase 1 exit.
-
----
+- The non-growth ratchet uses stable identities, and completed prefix
+  categories became hard-zero checks rather than allowlisted debt.
+- `notifications.css`, `dialogs.css`, `search.css` and `error-page.css` are
+  migrated and enforced scopes. The remaining 41 raw-geometry entries are in
+  explicitly excluded reader and presenter documents; they did not block the
+  Phase 1 exit.
 
 ---
 

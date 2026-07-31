@@ -21,6 +21,7 @@ target lifecycle, permissions, native bridges, and packaging belong in an app.
 
 | Change | Start here | Related boundary |
 | --- | --- | --- |
+| Styling, tokens, primitives | `packages/ui-web/public/static/css` | [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) names the owner of every sheet |
 | Story model, comparison, filtering | `packages/core/src/story` | Platform-neutral and DOM-free |
 | Source parsing and collectors | `packages/collectors/src` | May depend only on core |
 | Loading, settings, story state | `packages/app/src/OnceApp.ts`, `packages/app/src/AppRuntime.ts` | Public facade and application service composition |

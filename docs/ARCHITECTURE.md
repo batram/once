@@ -66,6 +66,11 @@ lifecycles, background processes, native bridges, and packaging belong in
 canonical source in `packages/ui-web/public`; extension builds copy them into
 the target output beside only that target's manifest.
 
+Styling has its own ownership rules: a shared component sheet describes normal
+presentation, and platform sheets own platform behavior through a cascade layer
+rather than through selector specificity. See
+[DESIGN_SYSTEM.md](DESIGN_SYSTEM.md).
+
 ## Feature boundaries
 
 Package boundaries prevent invalid dependency directions; feature boundaries

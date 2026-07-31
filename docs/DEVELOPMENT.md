@@ -46,6 +46,40 @@ browser targets, Electron, and mobile. It does not run unit, collector,
 platform integration, or E2E test suites; run those separately as described
 below.
 
+## Styling
+
+Before changing CSS, read [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md). It states where
+a rule belongs, the cascade layer order, the button/icon/layout primitives, and
+the rules for inline and generated styles. The public token catalog is in
+[design-tokens.md](design-tokens.md).
+
+Four checks inside `npm run check` enforce those contracts and can be run
+alone while iterating:
+
+```bash
+npm run lint:css
+```
+
+```bash
+npm run check:css-debt
+```
+
+```bash
+npm run check:cascade
+```
+
+```bash
+npm run check:semantic-controls
+```
+
+Rendered geometry, keyboard semantics, icon integrity, and screenshot baselines
+are covered by `npm run test:design-system` and its `:electron` and `:mobile`
+variants. To inspect a rendered box while working:
+
+```bash
+npm run measure -- "<selector>"
+```
+
 ## Build commands
 
 ```bash
