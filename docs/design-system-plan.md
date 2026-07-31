@@ -168,25 +168,25 @@ the branch actually stands.
 |---|---|
 | 0 Baselines | Landed. Six check scripts in `npm run check`; design-system Playwright project green |
 | 1 Tokens | **Complete.** Shared shell (including notifications, dialogs, and search), mobile, Electron, and the Electron error page are migrated; reader/presenter documents are explicitly excluded |
-| 2 Cascade layers | Layering landed and enforced. 2.4 outstanding: platform prefixes remain |
+| 2 Cascade layers | **Complete.** Ownership is explicit; platform-prefixed component rules are zero |
 | 3 Primitives | Button/semantic-control migration landed. Layout-primitive adoption remains component-by-component |
 
 ### Debt, counted honestly
 
-172 entries. Platform branching is the largest category, not raw geometry:
+57 entries. Phase 2 platform branching is closed; the remaining debt is outside
+the Phase 2 ownership boundary:
 
 | Category | Count |
 |---|---:|
-| `desktop-specificity-prefix` | 92 |
 | `raw-geometry-px` | 41 |
-| `mobile-specificity-prefix` | 23 |
 | `important` | 13 |
 | `negative-margin` | 3 |
 
-The count rose from 126 when the script began counting the negated guard. Nothing regressed;
-110 rules had never been measured. The 13 `!important` declarations are all sanctioned
-utility exceptions under 2.5: reduced motion, visually hidden, canonical `[hidden]`, and one
-drag state.
+All 115 platform prefixes were removed or moved to their platform owner. The 13
+`!important` declarations are sanctioned utility exceptions under 2.5: reduced motion,
+visually hidden, canonical `[hidden]`, and one drag state. Direct browser tests assert each
+utility family. The debt baseline uses stable file, at-rule, selector, and declaration
+identities, so unrelated line movement no longer creates baseline churn.
 
 ### Contracts now asserted
 
@@ -218,40 +218,30 @@ real story row, so its `.story .button` controls remain owned by `stories.css` a
 explicitly outside the dense Settings action skin. Ownership tests cover both sides of that
 boundary.
 
-### Open, in the order worth doing
+### Phase 2 closure
 
-The immediate milestone is **Phase 2 closure: establish CSS ownership**. Do not add a generic
-desktop sheet merely to receive the negated rules. "Not mobile" currently conflates normal
-component presentation, available width, input capability, and Electron host behavior.
-Classify those concerns before choosing a new stylesheet.
+No generic desktop sheet was needed. Normal presentation is unguarded beside its component;
+space-driven differences stay in component queries; mobile-only filter and swipe-lab rules
+live in `mobile.css`; Electron host behavior remains in `electron.css`; and reviewed runtime
+geometry/state remains inline. `check:css-debt` rejects any returned positive or negated
+platform prefix.
 
-1. **Adopt the ownership rule.** Normal presentation stays unguarded beside the component;
-   space-driven differences use a media/container query there; mobile-native/WebView behavior
-   belongs in `mobile.css`; Electron host/window behavior belongs in `electron.css`; measured
-   geometry and transient state remain reviewed runtime styles. Add a desktop/capability sheet
-   only if the classification exposes a coherent cross-product contract that cannot use one
-   of those owners.
-2. **Remove negated guards by component family.** Settings panel shell/navigation is the
-   first completed family; continue with structured lists, editors/forms, menus/drag
-   affordances, status/error log, and the swipe lab; handle search and titlebar families
-   separately. Unguard rules that are the component default, add or retain a mobile override
-   only for a real mobile difference, and move genuine host rules to their platform owner. Do
-   not mechanically move the remaining entries into a desktop sheet.
-3. **Give the debt budget a direction.** Keep the non-growth ratchet, require the relevant
-   prefix category to shrink in every cleanup change, and replace line-number-based debt IDs
-   with stable rule/declaration identities before broad edits create baseline-only churn.
-4. **Finish unpicking the platform neutralizers.** `settings_section_row` and
-   `structured_remove` still mix redundant declarations with load-bearing mobile geometry.
-   `structured_row_chevron` and `structured_group_menu` want moving to `settings.css`: their
-   whole definition lives in the platform sheet.
-5. **Keep the Phase 1 boundary explicit.** `notifications.css`, `dialogs.css`, `search.css`
+The ownership rule for future work is:
+
+1. **Normal presentation stays with the component.** Space-driven differences use a
+   media/container query there; mobile-native/WebView behavior belongs in `mobile.css`;
+   Electron host/window behavior belongs in `electron.css`; measured geometry and transient
+   state remain reviewed runtime styles.
+2. **Keep the debt budget directional.** The non-growth ratchet uses stable identities;
+   completed prefix categories are hard-zero checks rather than allowlisted debt.
+3. **Keep the Phase 1 boundary explicit.** `notifications.css`, `dialogs.css`, `search.css`
    and `error-page.css` are migrated and enforced scopes. The remaining 41 raw-geometry
    entries are in explicitly excluded reader and presenter documents; they do not block the
    Phase 1 exit.
-6. **Decide `.button`'s padding.** The primitive's `calc(var(--sp-1) / 2)` is too tight for a
+4. **Decide `.button`'s padding.** The primitive's `calc(var(--sp-1) / 2)` is too tight for a
    text button and is why settings buttons needed a skin. Icon buttons set `aspect-ratio: 1`,
    so horizontal padding cannot simply be added.
-7. **Keep the full visual comparison representative.** The matrix now captures live
+5. **Keep the full visual comparison representative.** The matrix now captures live
    notification bubbles and the left-menu status dock on both web targets. Electron also
    captures the active reader `WebContents` directly because its native `WebContentsView`
    is not reliably present in a main-window screenshot. For each ownership family, require
@@ -584,7 +574,7 @@ Rationalising the scale is a separate pass after the preserved-value conversion.
 
 ---
 
-## Phase 2 — Cascade layers
+## Phase 2 — Cascade layers — COMPLETE
 
 This is the highest-blast-radius phase.
 

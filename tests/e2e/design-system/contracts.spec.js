@@ -156,6 +156,7 @@ test("the platform touch baseline reaches a control with no component box", asyn
 })
 
 test("documented priority utilities retain their contracts", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" })
   await page.goto(`${baseURL}/static/sidepanel.html?target=mobile`)
   const result = await page.evaluate(() => {
     const hidden = document.createElement("div")
@@ -164,11 +165,20 @@ test("documented priority utilities retain their contracts", async ({ page }) =>
     hidden.style.display = "block"
     const visuallyHidden = document.createElement("span")
     visuallyHidden.className = "visually_hidden"
-    document.body.append(hidden, visuallyHidden)
+    const dragRoot = document.createElement("div")
+    dragRoot.className = "active_drag"
+    const dragChild = document.createElement("span")
+    dragChild.style.pointerEvents = "auto"
+    dragRoot.append(dragChild)
+    const motionProbe = document.createElement("div")
+    motionProbe.style.transitionDuration = "10s"
+    document.body.append(hidden, visuallyHidden, dragRoot, motionProbe)
     const hiddenStyle = getComputedStyle(hidden)
     const visualStyle = getComputedStyle(visuallyHidden)
     return {
       hidden: hiddenStyle.display,
+      dragPointerEvents: getComputedStyle(dragChild).pointerEvents,
+      reducedTransition: getComputedStyle(motionProbe).transitionDuration,
       visual: [
         visualStyle.position,
         visualStyle.width,
@@ -178,6 +188,8 @@ test("documented priority utilities retain their contracts", async ({ page }) =>
     }
   })
   expect(result.hidden).toBe("none")
+  expect(result.dragPointerEvents).toBe("none")
+  expect(result.reducedTransition).toBe("1e-05s")
   expect(result.visual).toEqual(["absolute", "1px", "1px", "hidden"])
 })
 

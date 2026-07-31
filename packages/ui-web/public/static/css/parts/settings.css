@@ -860,24 +860,22 @@
   padding-inline: 0;
 }
 
-body:not([data-platform="mobile"])
-  #settings_panel
+#settings_panel
   .bar
   button:not(.collapsebutton),
-body:not([data-platform="mobile"]) .structured_search input,
-body:not([data-platform="mobile"]) .structured_search button,
-body:not([data-platform="mobile"]) #settings_search,
+.structured_search input,
+.structured_search button,
+#settings_search,
 /* Any settings button, rather than a list of containers a button had to sit in
    to be styled. The exclusions own a complete skin already: icon-only buttons,
    the square inline glyph actions, embedded story actions, and the segmented
    mode toggle. */
-body:not([data-platform="mobile"])
-  #settings_panel
+#settings_panel
   .button:not(.button--icon):not(.story .button):not(.structured_inline_action):not(
     .structured_mode_toggle_topbar
   ),
-body:not([data-platform="mobile"]) .structured_group_menu,
-body:not([data-platform="mobile"]) .structured_row_menu {
+.structured_group_menu,
+.structured_row_menu {
   box-sizing: border-box;
   height: 22px;
   min-height: 22px;
@@ -892,14 +890,13 @@ body:not([data-platform="mobile"]) .structured_row_menu {
     sans-serif;
 }
 
-body:not([data-platform="mobile"]) .settings_editor_block > .settings_actions {
+.settings_editor_block > .settings_actions {
   --settings-settings_editor_block-settings_actions-padding: 6px 0;
   padding: var(--settings-settings_editor_block-settings_actions-padding);
   background: var(--main-bg-color);
 }
 
-body:not([data-platform="mobile"])
-  #settings_panel
+#settings_panel
   .button:not(.button--icon):not(.story .button):not(.structured_inline_action):not(
     .structured_mode_toggle_topbar
   ) {
@@ -907,7 +904,7 @@ body:not([data-platform="mobile"])
   padding: 0 var(--sp-2);
 }
 
-body:not([data-platform="mobile"]) .structured_remove {
+.structured_remove {
   flex: 0 0 22px;
   width: 22px;
   min-height: 22px;
@@ -953,7 +950,7 @@ body:not([data-platform="mobile"]) .structured_remove {
   display: inline-flex;
 }
 
-body:not([data-platform="mobile"]) #settings_panel .structured_mode_toggle_topbar {
+#settings_panel .structured_mode_toggle_topbar {
   order: 3;
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -967,8 +964,8 @@ body:not([data-platform="mobile"]) #settings_panel .structured_mode_toggle_topba
   line-height: 20px;
 }
 
-body:not([data-platform="mobile"]) #settings_panel .structured_mode_toggle_topbar::before,
-body:not([data-platform="mobile"]) #settings_panel .structured_mode_toggle_topbar::after {
+#settings_panel .structured_mode_toggle_topbar::before,
+#settings_panel .structured_mode_toggle_topbar::after {
   display: block;
   height: 20px;
   font:
@@ -978,21 +975,19 @@ body:not([data-platform="mobile"]) #settings_panel .structured_mode_toggle_topba
   text-align: center;
 }
 
-body:not([data-platform="mobile"]) #settings_panel .structured_mode_toggle_topbar::before {
+#settings_panel .structured_mode_toggle_topbar::before {
   content: "☰";
   border-right: 1px solid var(--text-high-color);
 }
 
-body:not([data-platform="mobile"]) #settings_panel .structured_mode_toggle_topbar::after {
+#settings_panel .structured_mode_toggle_topbar::after {
   content: "</>";
   font-size: var(--fs-label);
 }
 
-body:not([data-platform="mobile"])
-  #settings_panel
+#settings_panel
   .structured_mode_toggle_topbar[aria-label="Edit as text"]::before,
-body:not([data-platform="mobile"])
-  #settings_panel
+#settings_panel
   .structured_mode_toggle_topbar[aria-label="Edit as list"]::after {
   background: var(--highlight-bg-color);
 }
@@ -1065,8 +1060,8 @@ body:not([data-platform="mobile"])
   white-space: nowrap;
 }
 
-body:not([data-platform="mobile"]) .settings_section_summary_error,
-body:not([data-platform="mobile"]) .structured_status_error {
+.settings_section_summary_error,
+.structured_status_error {
   color: var(--m-error);
 }
 
@@ -1087,7 +1082,7 @@ body:not([data-platform="mobile"]) .structured_status_error {
   display: flex;
 }
 
-body:not([data-platform="mobile"]) #settings_panel .settings_block {
+#settings_panel .settings_block {
   box-sizing: border-box;
   flex: 1 1 auto;
   min-width: 0;
@@ -1102,14 +1097,14 @@ body:not([data-platform="mobile"]) #settings_panel .settings_block {
 /* The structured list is the scroller, so this block must not carry a right
    inset — it would hold the scrollbar off the panel edge. The inset moves onto
    the scroller, where it pads the content but not the bar. */
-body:not([data-platform="mobile"]) #settings_panel .settings_editor_block {
+#settings_panel .settings_editor_block {
   display: flex;
   flex-direction: column;
   overflow: hidden;
   padding-right: 0;
 }
 
-body:not([data-platform="mobile"]) .structured_settings {
+.structured_settings {
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
@@ -1123,7 +1118,7 @@ body:not([data-platform="mobile"]) .structured_settings {
   padding-bottom: var(--sp-2);
 }
 
-body:not([data-platform="mobile"]) .structured_search {
+.structured_search {
   position: sticky;
   top: 0;
   z-index: 5;
@@ -1134,37 +1129,37 @@ body:not([data-platform="mobile"]) .structured_search {
   background: var(--main-bg-color);
 }
 
-body:not([data-platform="mobile"]) .structured_search input[type="search"] {
+.structured_search input[type="search"] {
   flex: 1 1 180px;
   min-width: 80px;
   --settings-structured_search-padding: 1px 7px;
   padding: var(--settings-structured_search-padding);
 }
 
-body:not([data-platform="mobile"]) .structured_search_status:empty {
+.structured_search_status:empty {
   display: none;
 }
 
-body:not([data-platform="mobile"]) .structured_list_actions {
+.structured_list_actions {
   display: flex;
   flex: 0 0 auto;
   --settings-structured_list_actions-gap: 6px;
   gap: var(--settings-structured_list_actions-gap);
 }
 
-body:not([data-platform="mobile"]) .structured_list_actions button {
+.structured_list_actions button {
   flex: 0 0 auto;
   padding: 0 var(--sp-2);
 }
 
-body:not([data-platform="mobile"]) #pick_source_button {
+#pick_source_button {
   flex: 0 0 auto;
   margin: 0;
   padding: 0 var(--sp-2);
 }
 
-body:not([data-platform="mobile"]) .structured_group,
-body:not([data-platform="mobile"]) .structured_list_card {
+.structured_group,
+.structured_list_card {
   position: relative;
   flex: 0 0 auto;
   margin: 0;
@@ -1174,8 +1169,8 @@ body:not([data-platform="mobile"]) .structured_list_card {
   overflow: clip;
 }
 
-body:not([data-platform="mobile"]) .structured_group > summary,
-body:not([data-platform="mobile"]) .structured_list_header {
+.structured_group > summary,
+.structured_list_header {
   box-sizing: border-box;
   min-height: 26px;
   height: 26px;
@@ -1186,11 +1181,11 @@ body:not([data-platform="mobile"]) .structured_list_header {
   background: var(--read-bg-color);
 }
 
-body:not([data-platform="mobile"]) .structured_group > summary::marker {
+.structured_group > summary::marker {
   content: "";
 }
 
-body:not([data-platform="mobile"]) .structured_group_caret {
+.structured_group_caret {
   display: inline-block;
   flex: 0 0 7px;
   width: 7px;
@@ -1200,12 +1195,12 @@ body:not([data-platform="mobile"]) .structured_group_caret {
   transform: rotate(45deg) translate(-1px, -1px);
 }
 
-body:not([data-platform="mobile"]) .structured_group:not([open]) .structured_group_caret {
+.structured_group:not([open]) .structured_group_caret {
   transform: rotate(-45deg);
 }
 
-body:not([data-platform="mobile"]) .structured_group_name,
-body:not([data-platform="mobile"]) .structured_list_name {
+.structured_group_name,
+.structured_list_name {
   flex: 1 1 auto;
   overflow: hidden;
   --settings-structured_group_name-structured_list_name-font-size: 10.5px;
@@ -1216,21 +1211,21 @@ body:not([data-platform="mobile"]) .structured_list_name {
   white-space: nowrap;
 }
 
-body:not([data-platform="mobile"]) .structured_group_drag_handle {
+.structured_group_drag_handle {
   display: none;
 }
 
-body:not([data-platform="mobile"]) .structured_group_count,
-body:not([data-platform="mobile"]) .structured_list_count {
+.structured_group_count,
+.structured_list_count {
   --settings-structured_group_count-structured_list_count-font-size: 11px;
   font-size: var(--settings-structured_group_count-structured_list_count-font-size);
 }
 
-body:not([data-platform="mobile"]) .structured_group_actions {
+.structured_group_actions {
   flex: 0 0 22px;
 }
 
-body:not([data-platform="mobile"]) .structured_group_menu {
+.structured_group_menu {
   width: 22px;
   min-width: 22px;
   padding: 0;
@@ -1242,18 +1237,18 @@ body:not([data-platform="mobile"]) .structured_group_menu {
   cursor: pointer;
 }
 
-body:not([data-platform="mobile"]) .structured_group > summary:hover .structured_group_menu,
-body:not([data-platform="mobile"]) .structured_group_menu:focus-visible,
-body:not([data-platform="mobile"]) .structured_group_menu[aria-expanded="true"] {
+.structured_group > summary:hover .structured_group_menu,
+.structured_group_menu:focus-visible,
+.structured_group_menu[aria-expanded="true"] {
   border-color: var(--text-high-color);
   opacity: 1;
 }
 
-body:not([data-platform="mobile"]) .structured_group_menu_spacer {
+.structured_group_menu_spacer {
   flex: 0 0 22px;
 }
 
-body:not([data-platform="mobile"]) .structured_row {
+.structured_row {
   position: relative;
   display: grid;
   grid-template-columns: 10px 20px minmax(0, 1fr);
@@ -1263,16 +1258,16 @@ body:not([data-platform="mobile"]) .structured_row {
   background: var(--input-bg-color);
 }
 
-body:not([data-platform="mobile"]) .structured_row_unbadged {
+.structured_row_unbadged {
   grid-template-columns: 10px minmax(0, 1fr);
 }
 
-body:not([data-platform="mobile"]) .structured_row_unbadged .structured_row_body {
+.structured_row_unbadged .structured_row_body {
   grid-column: 2;
   width: auto;
 }
 
-body:not([data-platform="mobile"]) .structured_row_editing {
+.structured_row_editing {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   height: auto;
@@ -1287,7 +1282,7 @@ body:not([data-platform="mobile"]) .structured_row_editing {
   box-shadow: inset 2px 0 var(--text-high-color);
 }
 
-body:not([data-platform="mobile"]) .structured_row_editing .structured_inline_validation {
+.structured_row_editing .structured_inline_validation {
   grid-column: 1 / -1;
 }
 
@@ -1296,8 +1291,8 @@ body:not([data-platform="mobile"]) .structured_row_editing .structured_inline_va
    Sized wherever the pair appears, not only inside an editing row — the
    source and group forms use it too, and without a size they stretch to the
    height of whatever row they land in. */
-body:not([data-platform="mobile"]) .structured_row_editing .structured_inline_input,
-body:not([data-platform="mobile"]) .structured_inline_action {
+.structured_row_editing .structured_inline_input,
+.structured_inline_action {
   box-sizing: border-box;
   width: 22px;
   min-width: 22px;
@@ -1305,7 +1300,7 @@ body:not([data-platform="mobile"]) .structured_inline_action {
   min-height: 22px;
 }
 
-body:not([data-platform="mobile"]) .structured_row_editing .structured_inline_input {
+.structured_row_editing .structured_inline_input {
   width: 100%;
   --settings-structured_row_editing-structured_inline_input-padding: 2px 5px;
   padding: var(--settings-structured_row_editing-structured_inline_input-padding);
@@ -1373,11 +1368,6 @@ body:not([data-platform="mobile"]) .structured_row_editing .structured_inline_in
   transform: translateY(-1.5px) rotate(-45deg);
 }
 
-body[data-platform="mobile"] section[data-settings-section="filters"] .glyph_check {
-  --settings-glyph_check-margin-left: -5px;
-  margin-left: var(--settings-glyph_check-margin-left);
-}
-
 /* The bars are longer than the check's arms because a rotated bar's ink spans
    only length x cos45: at 17px each bar draws ~12px across, which is what makes
    the cross measure the same as the check rather than two thirds of it. */
@@ -1385,11 +1375,6 @@ body[data-platform="mobile"] section[data-settings-section="filters"] .glyph_che
   position: relative;
   width: 17px;
   height: 17px;
-}
-
-body[data-platform="mobile"] section[data-settings-section="filters"] .glyph_cross {
-  --settings-glyph_cross-margin-left: -7px;
-  margin-left: var(--settings-glyph_cross-margin-left);
 }
 
 .structured_inline_action .glyph_cross::before,
@@ -1496,13 +1481,13 @@ body[data-platform="mobile"] section[data-settings-section="filters"] .glyph_cro
   box-shadow: none;
 }
 
-body:not([data-platform="mobile"]) [data-structured-section="filters"] .structured_row {
+[data-structured-section="filters"] .structured_row {
   grid-template-columns: minmax(0, 1fr);
   height: 26px;
   min-height: 26px;
 }
 
-body:not([data-platform="mobile"]) [data-structured-section="filters"] .structured_row_body {
+[data-structured-section="filters"] .structured_row_body {
   grid-column: 1;
   height: 26px;
   margin-left: 0;
@@ -1510,11 +1495,11 @@ body:not([data-platform="mobile"]) [data-structured-section="filters"] .structur
   padding-left: var(--settings-structured_row_body-padding-left);
 }
 
-body:not([data-platform="mobile"]) [data-structured-section="filters"] .structured_row_main {
+[data-structured-section="filters"] .structured_row_main {
   font: 12px/1 var(--m-mono, "Courier New", Courier, monospace);
 }
 
-body:not([data-platform="mobile"]) [data-structured-section="filters"] .structured_remove {
+[data-structured-section="filters"] .structured_remove {
   flex-basis: 20px;
   width: 20px;
   min-height: 20px;
@@ -1522,39 +1507,39 @@ body:not([data-platform="mobile"]) [data-structured-section="filters"] .structur
   margin-right: var(--settings-structured_remove-margin-right);
 }
 
-body:not([data-platform="mobile"]) [data-structured-section="filters"] .structured_row_editing {
+[data-structured-section="filters"] .structured_row_editing {
   grid-template-columns: minmax(0, 1fr) 22px 22px;
   min-height: 30px;
   --settings-structured_row_editing-padding: var(--sp-1) 6px var(--sp-1) 10px;
   padding: var(--settings-structured_row_editing-padding);
 }
 
-body:not([data-platform="mobile"]) .structured_redirect_editor {
+.structured_redirect_editor {
   display: block;
   height: auto;
   min-height: 0;
   padding: 0;
 }
 
-body:not([data-platform="mobile"]) .structured_redirect_form {
+.structured_redirect_form {
   gap: var(--sp-2);
   width: 100%;
   --settings-structured_redirect_form-padding: var(--sp-2) 10px;
   padding: var(--settings-structured_redirect_form-padding);
 }
 
-body:not([data-platform="mobile"]) .structured_redirect_form h3 {
+.structured_redirect_form h3 {
   display: none;
 }
 
-body:not([data-platform="mobile"]) .structured_redirect_form textarea {
+.structured_redirect_form textarea {
   min-height: 42px;
   --settings-structured_redirect_form-padding: var(--sp-1) 6px;
   padding: var(--settings-structured_redirect_form-padding);
   font-size: var(--fs-meta);
 }
 
-body:not([data-platform="mobile"]) .structured_redirect_form input {
+.structured_redirect_form input {
   min-height: 22px;
   height: 22px;
   --settings-structured_redirect_form-padding: 2px 5px;
@@ -1564,21 +1549,19 @@ body:not([data-platform="mobile"]) .structured_redirect_form input {
 
 /* Every structured form ends the same way: anything on the left, then the
    commit pair at the trailing edge. */
-body:not([data-platform="mobile"]) .structured_form .structured_form_actions {
+.structured_form .structured_form_actions {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 22px 22px;
   margin: 0;
 }
 
-body:not([data-platform="mobile"])
-  .structured_form_actions
+.structured_form_actions
   .structured_inline_action[aria-label="Save"] {
   grid-row: 1;
   grid-column: 2;
 }
 
-body:not([data-platform="mobile"])
-  .structured_form_actions
+.structured_form_actions
   .structured_inline_action[aria-label="Cancel"] {
   grid-row: 1;
   grid-column: 3;
@@ -1586,12 +1569,12 @@ body:not([data-platform="mobile"])
 
 /* An editing row carries its own tint and rail; the hover fill would bury
    both, and :focus-within is permanently true while the input has focus. */
-body:not([data-platform="mobile"]) .structured_row:not(.structured_row_editing):hover,
-body:not([data-platform="mobile"]) .structured_row:not(.structured_row_editing):focus-within {
+.structured_row:not(.structured_row_editing):hover,
+.structured_row:not(.structured_row_editing):focus-within {
   background: var(--selected_bg_color);
 }
 
-body:not([data-platform="mobile"]) .structured_source_drag_handle {
+.structured_source_drag_handle {
   align-self: center;
   width: 10px;
   overflow: hidden;
@@ -1600,16 +1583,16 @@ body:not([data-platform="mobile"]) .structured_source_drag_handle {
   opacity: 0;
 }
 
-body:not([data-platform="mobile"]) .structured_source_drag_handle::before {
+.structured_source_drag_handle::before {
   content: "⠿";
 }
 
-body:not([data-platform="mobile"]) .structured_row:hover .structured_source_drag_handle,
-body:not([data-platform="mobile"]) .structured_row_dragging .structured_source_drag_handle {
+.structured_row:hover .structured_source_drag_handle,
+.structured_row_dragging .structured_source_drag_handle {
   opacity: 1;
 }
 
-body:not([data-platform="mobile"]) .collector_badge {
+.collector_badge {
   box-sizing: border-box;
   align-self: center;
   width: 20px;
@@ -1623,7 +1606,7 @@ body:not([data-platform="mobile"]) .collector_badge {
   font-size: var(--fs-label);
 }
 
-body:not([data-platform="mobile"]) .structured_row_body {
+.structured_row_body {
   height: 40px;
   --settings-structured_row_body-margin-left: 10px;
   margin-left: var(--settings-structured_row_body-margin-left);
@@ -1632,25 +1615,25 @@ body:not([data-platform="mobile"]) .structured_row_body {
   border-bottom: 1px solid color-mix(in srgb, var(--sep-color) 38%, transparent);
 }
 
-body:not([data-platform="mobile"]) .structured_row:last-child .structured_row_body {
+.structured_row:last-child .structured_row_body {
   border-bottom: 0;
 }
 
-body:not([data-platform="mobile"]) .structured_row_primary {
+.structured_row_primary {
   font-size: var(--fs-meta);
 }
 
-body:not([data-platform="mobile"]) .structured_row_secondary {
+.structured_row_secondary {
   --settings-structured_row_secondary-font-size: 11px;
   font-size: var(--settings-structured_row_secondary-font-size);
 }
 
-body:not([data-platform="mobile"]) .structured_row_main:focus-visible {
+.structured_row_main:focus-visible {
   outline: 1px solid Highlight;
   outline-offset: 1px;
 }
 
-body:not([data-platform="mobile"]) .structured_issue {
+.structured_issue {
   display: grid;
   place-items: center;
   flex: 0 0 22px;
@@ -1667,18 +1650,18 @@ body:not([data-platform="mobile"]) .structured_issue {
    The base inset box-shadow is the touch presentation and is pinned to the
    top edge, so leaving it on paints a second indicator that points at the
    wrong gap for every after-drop. */
-body:not([data-platform="mobile"]) .structured_group_drop_before,
-body:not([data-platform="mobile"]) .structured_group_drop_after,
-body:not([data-platform="mobile"]) .structured_row_drop_target {
+.structured_group_drop_before,
+.structured_group_drop_after,
+.structured_row_drop_target {
   overflow: visible;
   box-shadow: none;
 }
 
-body:not([data-platform="mobile"]) .structured_group_drop_before::before,
-body:not([data-platform="mobile"]) .structured_group_drop_after::after,
-body:not([data-platform="mobile"]) .structured_source_drop_before::before,
-body:not([data-platform="mobile"]) .structured_source_drop_after::after,
-body:not([data-platform="mobile"]) .structured_row_drop_target::before {
+.structured_group_drop_before::before,
+.structured_group_drop_after::after,
+.structured_source_drop_before::before,
+.structured_source_drop_after::after,
+.structured_row_drop_target::before {
   content: "";
   position: absolute;
   z-index: 8;
@@ -1691,39 +1674,39 @@ body:not([data-platform="mobile"]) .structured_row_drop_target::before {
   pointer-events: none;
 }
 
-body:not([data-platform="mobile"]) .structured_group_drop_before::before {
+.structured_group_drop_before::before {
   top: -6px;
 }
 
-body:not([data-platform="mobile"]) .structured_group_drop_after::after {
+.structured_group_drop_after::after {
   bottom: -6px;
 }
 
-body:not([data-platform="mobile"]) .structured_source_drop_before::before,
-body:not([data-platform="mobile"]) .structured_row_drop_target::before {
+.structured_source_drop_before::before,
+.structured_row_drop_target::before {
   top: 0;
 }
 
-body:not([data-platform="mobile"]) .structured_row_drop_target.structured_row_drop_after::before {
+.structured_row_drop_target.structured_row_drop_after::before {
   top: auto;
   bottom: 0;
 }
 
-body:not([data-platform="mobile"]) .structured_source_drop_after::after {
+.structured_source_drop_after::after {
   bottom: 0;
 }
 
-body:not([data-platform="mobile"]) .structured_source_group_drop_target {
+.structured_source_group_drop_target {
   outline: 3px solid var(--text-high-color);
   outline-offset: -3px;
 }
 
-body:not([data-platform="mobile"]) .structured_source_group_title_drop_target > summary {
+.structured_source_group_title_drop_target > summary {
   outline: 3px solid var(--text-high-color);
   outline-offset: -3px;
 }
 
-body:not([data-platform="mobile"]) .structured_row_menu {
+.structured_row_menu {
   flex: 0 0 22px;
   width: 22px;
   margin-right: var(--sp-1);
@@ -1733,12 +1716,12 @@ body:not([data-platform="mobile"]) .structured_row_menu {
   opacity: 0;
 }
 
-body:not([data-platform="mobile"]) .structured_row:hover .structured_row_menu,
-body:not([data-platform="mobile"]) .structured_row_menu:focus-visible {
+.structured_row:hover .structured_row_menu,
+.structured_row_menu:focus-visible {
   opacity: 1;
 }
 
-body:not([data-platform="mobile"]) .structured_status_strip {
+.structured_status_strip {
   display: flex;
   flex: 0 0 24px;
   box-sizing: border-box;
@@ -1754,15 +1737,13 @@ body:not([data-platform="mobile"]) .structured_status_strip {
   font-size: var(--settings-structured_status_strip-font-size);
 }
 
-body:not([data-platform="mobile"]) .structured_settings[hidden] + .structured_status_strip {
+.structured_settings[hidden] + .structured_status_strip {
   display: none;
 }
 
-body:not([data-platform="mobile"])
-  .settings_editor_block
+.settings_editor_block
   > .settings_actions.structured_actions_empty,
-body:not([data-platform="mobile"])
-  .settings_editor_block
+.settings_editor_block
   > .settings_actions.structured_desktop_actions_empty {
   box-sizing: border-box;
   min-height: 0;
@@ -1771,13 +1752,13 @@ body:not([data-platform="mobile"])
   padding: 0;
 }
 
-body:not([data-platform="mobile"]) .once-anchored-menu-panel {
+.once-anchored-menu-panel {
   --settings-once-anchored-menu-panel-border-radius: 2px;
   border-radius: var(--settings-once-anchored-menu-panel-border-radius);
   box-shadow: 0 4px 14px rgb(0 0 0 / 28%);
 }
 
-body:not([data-platform="mobile"]) .once-anchored-menu-item {
+.once-anchored-menu-item {
   min-height: 24px;
   --settings-once-anchored-menu-item-padding: 3px var(--sp-2);
   padding: var(--settings-once-anchored-menu-item-padding);
@@ -1801,26 +1782,26 @@ body:not([data-platform="mobile"]) .once-anchored-menu-item {
   text-align: center;
 }
 
-body:not([data-platform="mobile"]) .settings_version {
+.settings_version {
   align-content: flex-start;
 }
 
-body:not([data-platform="mobile"]) .settings_version [data-testid="check-for-updates"] {
+.settings_version [data-testid="check-for-updates"] {
   flex: 0 0 auto;
 }
 
-body:not([data-platform="mobile"]) .settings_version .update_status {
+.settings_version .update_status {
   flex-basis: auto;
   width: 100%;
   text-align: center;
 }
 
 @container settings-panel (max-width: 420px) {
-  body:not([data-platform="mobile"]) .structured_search {
+  .structured_search {
     flex-wrap: wrap;
   }
 
-  body:not([data-platform="mobile"]) .structured_search input[type="search"] {
+  .structured_search input[type="search"] {
     flex-basis: 100%;
   }
 }
@@ -2339,118 +2320,4 @@ body:not([data-platform="mobile"]) .settings_version .update_status {
 
 .swipe_footer button:first-of-type {
   margin-left: auto;
-}
-
-@container settings-panel (max-width: 520px) {
-  body[data-platform="mobile"] .settings_swipe {
-    --swipe-handle-width: 22px;
-  }
-
-  body[data-platform="mobile"] .swipe_action_block {
-    --settings-swipe_action_block-gap: 10px;
-  gap: var(--settings-swipe_action_block-gap);
-    --settings-swipe_action_block-padding: var(--sp-3) var(--sp-3) 14px;
-  padding: var(--settings-swipe_action_block-padding);
-  }
-
-  body[data-platform="mobile"] .swipe_action_heading {
-    font-size: var(--fs-body);
-  }
-
-  body[data-platform="mobile"] .swipe_action_heading span {
-    display: none;
-  }
-
-  body[data-platform="mobile"] .swipe_action_field {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--sp-1);
-  }
-
-  body[data-platform="mobile"] .swipe_action_field::after {
-    position: absolute;
-    z-index: 1;
-    bottom: 0;
-    left: 0;
-    width: 3px;
-    height: 44px;
-    background: transparent;
-    border-radius: var(--radius-lg) 0 0 var(--radius-lg);
-    content: "";
-    pointer-events: none;
-  }
-
-  body[data-platform="mobile"] .swipe_action_field[data-action="open"]::after,
-  body[data-platform="mobile"] .swipe_action_field[data-action="open-browser"]::after,
-  body[data-platform="mobile"] .swipe_action_field[data-action="toggle-read"]::after {
-    background: rgb(0 128 0 / 72%);
-  }
-
-  body[data-platform="mobile"] .swipe_action_field[data-action="open-reader"]::after {
-    background: #4050ac;
-  }
-
-  body[data-platform="mobile"] .swipe_action_field[data-action="skip"]::after {
-    background: rgb(200 0 0 / 66%);
-  }
-
-  body[data-platform="mobile"] .swipe_action_field[data-action="filter"]::after {
-    background: #8f0000;
-  }
-
-  body[data-platform="mobile"] .swipe_action_field[data-action="toggle-bookmark"]::after {
-    background: #b8860b;
-  }
-
-  @supports (color: light-dark(black, white)) {
-    body[data-platform="mobile"] .swipe_action_field::after {
-      background: var(--swipe-action-color, transparent);
-    }
-  }
-
-  body[data-platform="mobile"] .swipe_action_left .swipe_action_field {
-    flex-direction: column-reverse;
-  }
-
-  body[data-platform="mobile"] .swipe_action_left .swipe_action_field::after {
-    right: 0;
-    left: auto;
-    border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
-  }
-
-  body[data-platform="mobile"] .swipe_stage_label {
-    flex-basis: auto;
-    --settings-swipe_stage_label-font-size: 11px;
-  font-size: var(--settings-swipe_stage_label-font-size);
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
-
-  body[data-platform="mobile"] .swipe_ruler {
-    height: 44px;
-    --settings-swipe_ruler-margin-bottom: 38px;
-  margin-bottom: var(--settings-swipe_ruler-margin-bottom);
-  }
-
-  body[data-platform="mobile"] #swipe_lab .swipe_ruler_handle {
-    height: 54px;
-    border-radius: var(--radius-md);
-  }
-
-  body[data-platform="mobile"] .swipe_ruler_value {
-    top: 55px;
-    --settings-swipe_ruler_value-font-size: 11px;
-  font-size: var(--settings-swipe_ruler_value-font-size);
-  }
-
-  body[data-platform="mobile"] .swipe_lab_scroller {
-    --settings-swipe_lab_scroller-padding-bottom: 26px;
-  padding-bottom: var(--settings-swipe_lab_scroller-padding-bottom);
-  }
-
-  body[data-platform="mobile"] .swipe_footer button {
-    min-height: 44px;
-  }
 }

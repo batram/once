@@ -74,7 +74,7 @@
   justify-content: flex-start;
 }
 
-body:not([data-platform="mobile"]) .panel_titlebar {
+.panel_titlebar {
   box-sizing: border-box;
   flex: 0 0 auto;
   min-height: 0;
@@ -82,7 +82,7 @@ body:not([data-platform="mobile"]) .panel_titlebar {
   gap: var(--toolbar-control-gap);
 }
 
-body:not([data-platform="mobile"]) .panel_titlebar > .collapsebutton {
+.panel_titlebar > .collapsebutton {
   order: -1;
   flex: 0 0 auto;
   height: var(--toolbar-control-size);

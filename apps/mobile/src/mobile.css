@@ -422,18 +422,24 @@ body.once-anchored-menu-open {
 
 #search_bar {
   align-items: center;
+  gap: var(--sp-2);
   padding: var(--sp-1) var(--sp-3);
   border-bottom: var(--m-bw) solid var(--m-ink);
 }
 
 .search_query {
+  position: static;
   display: flex;
   flex: 1 1 auto;
   min-width: 0;
+  height: auto;
   gap: 0;
 }
 
 #search_scope {
+  position: static;
+  inset: auto;
+  z-index: auto;
   flex: 0 0 auto;
   height: var(--touch);
   appearance: none;
@@ -469,6 +475,9 @@ body.once-anchored-menu-open {
 }
 
 #cancel_search_btn {
+  position: static;
+  inset: auto;
+  visibility: visible;
   box-sizing: border-box;
   flex: 0 0 var(--touch);
   width: var(--touch);
@@ -2382,13 +2391,137 @@ body.once-reader-open {
   border-radius: var(--m-radius);
 }
 
+section[data-settings-section="filters"] .glyph_check {
+  --settings-glyph_check-margin-left: -5px;
+  margin-left: var(--settings-glyph_check-margin-left);
+}
+
+section[data-settings-section="filters"] .glyph_cross {
+  --settings-glyph_cross-margin-left: -7px;
+  margin-left: var(--settings-glyph_cross-margin-left);
+}
+
+@container settings-panel (max-width: 520px) {
+  .settings_swipe {
+    --swipe-handle-width: 22px;
+  }
+
+  .swipe_action_block {
+    --settings-swipe_action_block-gap: 10px;
+    --settings-swipe_action_block-padding: var(--sp-3) var(--sp-3) 14px;
+    gap: var(--settings-swipe_action_block-gap);
+    padding: var(--settings-swipe_action_block-padding);
+  }
+
+  .swipe_action_heading {
+    font-size: var(--fs-body);
+  }
+
+  .swipe_action_heading span {
+    display: none;
+  }
+
+  .swipe_action_field {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sp-1);
+  }
+
+  .swipe_action_field::after {
+    position: absolute;
+    z-index: 1;
+    bottom: 0;
+    left: 0;
+    width: 3px;
+    height: 44px;
+    background: transparent;
+    border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+    content: "";
+    pointer-events: none;
+  }
+
+  .swipe_action_field[data-action="open"]::after,
+  .swipe_action_field[data-action="open-browser"]::after,
+  .swipe_action_field[data-action="toggle-read"]::after {
+    background: rgb(0 128 0 / 72%);
+  }
+
+  .swipe_action_field[data-action="open-reader"]::after {
+    background: #4050ac;
+  }
+
+  .swipe_action_field[data-action="skip"]::after {
+    background: rgb(200 0 0 / 66%);
+  }
+
+  .swipe_action_field[data-action="filter"]::after {
+    background: #8f0000;
+  }
+
+  .swipe_action_field[data-action="toggle-bookmark"]::after {
+    background: #b8860b;
+  }
+
+  @supports (color: light-dark(black, white)) {
+    .swipe_action_field::after {
+      background: var(--swipe-action-color, transparent);
+    }
+  }
+
+  .swipe_action_left .swipe_action_field {
+    flex-direction: column-reverse;
+  }
+
+  .swipe_action_left .swipe_action_field::after {
+    right: 0;
+    left: auto;
+    border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  }
+
+  .swipe_stage_label {
+    flex-basis: auto;
+    --settings-swipe_stage_label-font-size: 11px;
+    font-size: var(--settings-swipe_stage_label-font-size);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .swipe_ruler {
+    height: 44px;
+    --settings-swipe_ruler-margin-bottom: 38px;
+    margin-bottom: var(--settings-swipe_ruler-margin-bottom);
+  }
+
+  #swipe_lab .swipe_ruler_handle {
+    height: 54px;
+    border-radius: var(--radius-md);
+  }
+
+  .swipe_ruler_value {
+    top: 55px;
+    --settings-swipe_ruler_value-font-size: 11px;
+    font-size: var(--settings-swipe_ruler_value-font-size);
+  }
+
+  .swipe_lab_scroller {
+    --settings-swipe_lab_scroller-padding-bottom: 26px;
+    padding-bottom: var(--settings-swipe_lab_scroller-padding-bottom);
+  }
+
+  .swipe_footer button {
+    min-height: 44px;
+  }
+}
+
 :focus-visible {
   outline: 2px solid var(--highlight-color);
   outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body[data-platform="mobile"],
+  body,
   *,
   *::before,
   *::after {

@@ -50,10 +50,10 @@ const allowedImportant = new Set([
   "packages/ui-web/public/static/css/parts/settings.css|.visually_hidden|overflow",
   "packages/ui-web/public/static/css/parts/settings.css|.visually_hidden|clip",
   "packages/ui-web/public/static/css/parts/settings.css|.visually_hidden|white-space",
-  "apps/mobile/src/mobile.css|body[data-platform=\"mobile\"],*,*::before,*::after|scroll-behavior",
-  "apps/mobile/src/mobile.css|body[data-platform=\"mobile\"],*,*::before,*::after|transition-duration",
-  "apps/mobile/src/mobile.css|body[data-platform=\"mobile\"],*,*::before,*::after|animation-duration",
-  "apps/mobile/src/mobile.css|body[data-platform=\"mobile\"],*,*::before,*::after|animation-iteration-count"
+  "apps/mobile/src/mobile.css|body,*,*::before,*::after|scroll-behavior",
+  "apps/mobile/src/mobile.css|body,*,*::before,*::after|transition-duration",
+  "apps/mobile/src/mobile.css|body,*,*::before,*::after|animation-duration",
+  "apps/mobile/src/mobile.css|body,*,*::before,*::after|animation-iteration-count"
 ])
 
 const cssFiles = childProcess.execFileSync("git", ["ls-files", "*.css"], {

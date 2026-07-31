@@ -43,40 +43,69 @@ function normalized(value) {
   return value.trim().replace(/\s+/g, " ")
 }
 
-function debtId(kind, file, line, detail) {
-  return `${kind}|${file}:${line}|${normalized(detail)}`
+function ruleIdentity(container) {
+  const conditions = []
+  let owner = container
+  if (container.type !== "rule") {
+    conditions.push(`@${container.name} ${normalized(container.params || "")}`)
+    owner = container.parent
+  }
+  for (let parent = owner.parent; parent; parent = parent.parent) {
+    if (parent.type === "atrule") {
+      conditions.unshift(`@${parent.name} ${normalized(parent.params || "")}`)
+    }
+  }
+  if (owner.type === "rule") conditions.push(normalized(owner.selector))
+  return conditions.join(" > ")
+}
+
+function debtId(kind, file, owner, detail) {
+  return `${kind}|${file}|${normalized(owner)}|${normalized(detail)}`
+}
+
+function distinguishDuplicates(entries) {
+  const totals = new Map()
+  for (const entry of entries) {
+    totals.set(entry, (totals.get(entry) || 0) + 1)
+  }
+  const seen = new Map()
+  return entries.map((entry) => {
+    if (totals.get(entry) === 1) return entry
+    const occurrence = (seen.get(entry) || 0) + 1
+    seen.set(entry, occurrence)
+    return `${entry}|occurrence:${occurrence}`
+  })
 }
 
 function analyzeCss(file, source) {
   const debts = []
   const ast = postcss.parse(source, { from: file })
-  source.split(/\r?\n/).forEach((line, index) => {
-    for (const match of line.matchAll(mobileAlias)) {
-      debts.push(debtId("mobile-token-alias", file, index + 1, match[0]))
-    }
-  })
   ast.walkRules((rule) => {
+    const owner = ruleIdentity(rule)
     for (const [kind, pattern] of platformPrefixes) {
       if (pattern.test(rule.selector)) {
-        debts.push(debtId(kind, file, rule.source.start.line, rule.selector))
+        debts.push(debtId(kind, file, owner, "platform selector"))
       }
     }
   })
   ast.walkDecls((declaration) => {
-    const line = declaration.source.start.line
+    const owner = ruleIdentity(declaration.parent)
     const detail = `${declaration.prop}: ${declaration.value}` +
       (declaration.important ? " !important" : "")
+    for (const match of declaration.toString().matchAll(mobileAlias)) {
+      debts.push(debtId("mobile-token-alias", file, owner, match[0]))
+    }
     if (declaration.important) {
-      debts.push(debtId("important", file, line, detail))
+      debts.push(debtId("important", file, owner, detail))
     }
     if (geometryProperty.test(declaration.prop) && pxValue.test(declaration.value)) {
-      debts.push(debtId("raw-geometry-px", file, line, detail))
+      debts.push(debtId("raw-geometry-px", file, owner, detail))
     }
     if (marginProperty.test(declaration.prop) && negativeValue.test(declaration.value)) {
-      debts.push(debtId("negative-margin", file, line, detail))
+      debts.push(debtId("negative-margin", file, owner, detail))
     }
   })
-  return debts.sort()
+  return distinguishDuplicates(debts).sort()
 }
 
 function trackedCssFiles() {
@@ -104,10 +133,20 @@ function compareDebt(expected, actual) {
 
 function main() {
   const actual = currentDebt()
+  const platformPrefixDebt = actual.filter((entry) =>
+    entry.startsWith("mobile-specificity-prefix|") ||
+    entry.startsWith("desktop-specificity-prefix|")
+  )
+  if (platformPrefixDebt.length) {
+    console.error("Platform-prefixed component rules remain after Phase 2:")
+    for (const entry of platformPrefixDebt) console.error(`+ ${entry}`)
+    process.exitCode = 1
+    if (!process.argv.includes("--write-baseline")) return
+  }
   const phaseOneRawGeometry = actual.filter((entry) =>
     entry.startsWith("raw-geometry-px|") &&
     phaseOneMigratedScopes.some((file) =>
-      entry.startsWith(`raw-geometry-px|${file}:`)
+      entry.startsWith(`raw-geometry-px|${file}|`)
     )
   )
   if (phaseOneRawGeometry.length) {
@@ -119,13 +158,22 @@ function main() {
   if (process.argv.includes("--write-baseline")) {
     fs.writeFileSync(
       baselinePath,
-      `${JSON.stringify({ version: 1, entries: actual }, null, 2)}\n`
+      `${JSON.stringify({
+        version: 2,
+        identity: "file, at-rule context, selector, declaration",
+        entries: actual
+      }, null, 2)}\n`
     )
     console.log(`Wrote ${actual.length} CSS debt entries to ${path.relative(root, baselinePath)}.`)
     return
   }
 
   const baseline = JSON.parse(fs.readFileSync(baselinePath, "utf8"))
+  if (baseline.version !== 2) {
+    console.error("CSS debt baseline must use stable identity version 2.")
+    process.exitCode = 1
+    return
+  }
   const result = compareDebt(baseline.entries, actual)
   if (!result.added.length && !result.removed.length) {
     console.log(`CSS debt baseline matched (${actual.length} entries).`)
