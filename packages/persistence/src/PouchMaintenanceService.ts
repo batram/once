@@ -138,11 +138,24 @@ export class PouchMaintenanceService {
     } catch (error) {
       if ((error as { status?: number }).status !== 404) throw error
     }
-    this.updateStatus({ state: "syncing", message: "Compacting local database…" })
-    await this.db.compact()
-    await this.writeLocalMarker(PouchMaintenanceService.COMPACTION_MARKER_ID, {
-      completed_at: Date.now()
-    })
+    const startedAt = Date.now()
+    const publishProgress = () => {
+      const elapsedSeconds = Math.floor((Date.now() - startedAt) / 1000)
+      this.updateStatus({
+        state: "syncing",
+        message: `Compacting local database… ${elapsedSeconds}s elapsed`
+      })
+    }
+    publishProgress()
+    const progressTimer = setInterval(publishProgress, 1000)
+    try {
+      await this.db.compact()
+      await this.writeLocalMarker(PouchMaintenanceService.COMPACTION_MARKER_ID, {
+        completed_at: Date.now()
+      })
+    } finally {
+      clearInterval(progressTimer)
+    }
   }
 
   private async writeLocalMarker(

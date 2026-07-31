@@ -48,6 +48,39 @@ test("settings suppress the matching local database echo", async () => {
   assert.deepEqual(changed, ["sources"])
 })
 
+test("settings reject and do not persist a sync URL without an HTTP scheme", async () => {
+  const saved = []
+  const diagnostics = []
+  const settings = new AppSettings(
+    { get: async (_id, fallback) => fallback, set: async () => {} },
+    {
+      getSyncUrl: async () => "",
+      setSyncUrl: async (value) => saved.push(value),
+      getCacheTime: async () => 120,
+      setCacheTime: async () => {}
+    },
+    undefined,
+    { setTheme: () => {} },
+    {
+      publishChanged: () => {},
+      reportDiagnostic: (error) => diagnostics.push(error),
+      reloadStories: () => {},
+      refilterStories: () => {},
+      refreshRedirects: () => {},
+      updateSourceMenu: () => {},
+      loadedStoryIds: () => []
+    }
+  )
+
+  await assert.rejects(
+    settings.setSyncUrl("user:secret@example.test/once"),
+    /must start with http:\/\//
+  )
+  assert.deepEqual(saved, [])
+  assert.equal(diagnostics.at(-1).message, "The CouchDB URL is invalid")
+  assert.doesNotMatch(diagnostics.at(-1).details, /secret|example\.test/)
+})
+
 test("story write queue serializes each href but keeps hrefs independent", async () => {
   const queue = new StoryWriteQueue(() => {})
   const order = []

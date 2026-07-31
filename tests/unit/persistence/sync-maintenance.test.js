@@ -73,6 +73,9 @@ test("maintenance merges story conflicts, deletes losing leaves, and compacts on
     _deleted: true
   }])
   assert.equal(compactions, 1)
+  assert.ok(statuses.some((status) =>
+    status.message === "Compacting local database… 0s elapsed"
+  ))
   assert.ok(writes.some((doc) =>
     doc._id === "_local/once-conflict-maintenance-v1" && doc.last_seq === 42
   ))

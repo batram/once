@@ -2,6 +2,7 @@ import {
   defaultFilterList,
   defaultRedirectList,
   defaultSources,
+  normalizeSyncUrl,
   Redirect
 } from "@once/core"
 import {
@@ -93,9 +94,20 @@ export class AppSettings {
   }
 
   async setSyncUrl(syncUrl: string): Promise<void> {
-    if (syncUrl !== await this.getSyncUrl()) {
+    let normalizedUrl: string
+    try {
+      normalizedUrl = normalizeSyncUrl(syncUrl)
+    } catch (error) {
+      this.reportSaveError(
+        "settings.save.sync",
+        "The CouchDB URL is invalid",
+        error
+      )
+      throw error
+    }
+    if (normalizedUrl !== await this.getSyncUrl()) {
       try {
-        await this.syncStore.setSyncUrl(syncUrl)
+        await this.syncStore.setSyncUrl(normalizedUrl)
       } catch (error) {
         this.reportSaveError(
           "settings.save.sync",
@@ -104,7 +116,7 @@ export class AppSettings {
         )
         throw error
       }
-      this.startSync(syncUrl)
+      this.startSync(normalizedUrl)
     }
     this.actions.publishChanged("sync")
   }

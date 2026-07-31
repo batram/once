@@ -81,14 +81,6 @@ export function init(client: OnceClient): void {
   }
 }
 
-// Startup source loads need the network and can fail (offline, flaky mobile
-// radio); fall back to the persisted stories so local data is never hidden
-// behind an empty list.
-export async function showStoredStoriesIfEmpty(client: OnceClient): Promise<void> {
-  if (document.querySelector("#stories .story")) return
-  add_stories(await client.getStories())
-}
-
 function add_stories(stories: Story[], bucket = "stories") {
   stories.forEach((story: Story) => {
     add(story, bucket)

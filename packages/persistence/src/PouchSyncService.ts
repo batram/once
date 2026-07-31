@@ -1,12 +1,13 @@
-export interface PouchEventChain {
-  cancel?: () => void
-  on(event: string, handler: (...args: unknown[]) => void): PouchEventChain
-}
-
+import { normalizeSyncUrl } from "@once/core"
 import {
   PouchMaintenanceDatabase,
   PouchMaintenanceService
 } from "./PouchMaintenanceService"
+
+export interface PouchEventChain {
+  cancel?: () => void
+  on(event: string, handler: (...args: unknown[]) => void): PouchEventChain
+}
 
 export interface PouchSyncDatabase extends PouchMaintenanceDatabase {
   replicate: {
@@ -147,6 +148,17 @@ export class PouchSyncService {
       return
     }
 
+    try {
+      couchdbUrl = normalizeSyncUrl(couchdbUrl)
+    } catch (error) {
+      this.updateStatus({
+        state: "error",
+        message: "CouchDB URL must start with http:// or https://"
+      })
+      this.report("sync.configure", "The CouchDB URL is invalid", error)
+      return
+    }
+
     this.updateStatus({
       state: "connecting",
       message: "Connecting and checking for remote changes…"
@@ -260,7 +272,11 @@ export class PouchSyncService {
       )
     }
 
-    await replicateStage("Loading older stories…")
+    await replicateStage((stageChanges) =>
+      stageChanges > 0
+        ? `Loading older stories (${stageChanges} received)…`
+        : "Loading older stories…"
+    )
     return changes
   }
 

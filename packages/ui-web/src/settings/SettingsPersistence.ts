@@ -27,9 +27,11 @@ export class SettingsPersistence {
         status.dataset.state = current.state
         status.textContent = current.message
       },
-      () => {
+      (error) => {
         status.dataset.state = "error"
-        status.textContent = "The sync setting could not be saved"
+        status.textContent = error instanceof Error
+          ? error.message
+          : "The sync setting could not be saved"
       }
     )
   }

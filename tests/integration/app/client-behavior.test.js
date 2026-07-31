@@ -44,6 +44,20 @@ test("provides the current loaded-story ids to a new database sync", async () =>
   assert.deepEqual(getLoadedStoryIds(), [`sto_${story.href}`])
 })
 
+test("startup restores stared stories without presenting the stored archive", async () => {
+  const archived = new Story("rss", "https://example.com/archive", "Archived")
+  const stared = new Story("rss", "https://example.com/stared", "Stared")
+  stared.stared = true
+  const fake = createFakePlatform([archived, stared])
+  const app = createOnceApp(fake.ports)
+
+  await app.start()
+
+  assert.deepEqual(app.client.getStorySnapshot().map(({ href }) => href), [
+    stared.href
+  ])
+})
+
 test("persists rapid changes to one story in interaction order", async () => {
   const story = new Story("rss", "https://example.com/story", "A story")
   const fake = createFakePlatform([story])

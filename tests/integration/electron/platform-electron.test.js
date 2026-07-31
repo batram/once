@@ -79,6 +79,32 @@ test("serializes fetch requests through the preload bridge", async () => {
 
 const nextTurn = () => new Promise((resolve) => setImmediate(resolve))
 
+test("rejects a local-looking sync target before constructing PouchDB", () => {
+  let remoteCreations = 0
+  const statuses = []
+  const diagnostics = []
+  const service = new PouchSyncService(
+    {},
+    () => {},
+    () => {
+      remoteCreations++
+      return {}
+    }
+  )
+  service.onStatus((status) => statuses.push(status))
+  service.onDiagnostic((diagnostic) => diagnostics.push(diagnostic))
+
+  service.syncFrom("user:secret@example.test/once")
+
+  assert.equal(remoteCreations, 0)
+  assert.deepEqual(statuses.at(-1), {
+    state: "error",
+    message: "CouchDB URL must start with http:// or https://"
+  })
+  assert.equal(diagnostics.at(-1).operation, "sync.configure")
+  assert.doesNotMatch(diagnostics.at(-1).details, /secret|example\.test/)
+})
+
 test("cancels old CouchDB work when the sync URL changes", async (t) => {
   t.mock.method(console, "error", () => {})
 
@@ -268,6 +294,7 @@ test("syncs settings, newest stories, backlog, then starts live sync", async () 
   replications[3].chain.emit("change", {
     docs: [{ _id: "sto_older", href: "older" }]
   })
+  assert.equal(statuses.at(-1).message, "Loading older stories (1 received)…")
   replications[3].chain.emit("complete", {})
   await nextTurn()
   assert.equal(syncs.length, 1)
