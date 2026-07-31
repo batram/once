@@ -1,10 +1,10 @@
 {
   "version": 1,
   "entries": [
-    "important|apps/mobile/src/mobile.css:2391|scroll-behavior: auto !important",
-    "important|apps/mobile/src/mobile.css:2392|transition-duration: 0.01ms !important",
-    "important|apps/mobile/src/mobile.css:2393|animation-duration: 0.01ms !important",
-    "important|apps/mobile/src/mobile.css:2394|animation-iteration-count: 1 !important",
+    "important|apps/mobile/src/mobile.css:2381|scroll-behavior: auto !important",
+    "important|apps/mobile/src/mobile.css:2382|transition-duration: 0.01ms !important",
+    "important|apps/mobile/src/mobile.css:2383|animation-duration: 0.01ms !important",
+    "important|apps/mobile/src/mobile.css:2384|animation-iteration-count: 1 !important",
     "important|packages/ui-web/public/static/css/parts/base.css:17|pointer-events: none !important",
     "important|packages/ui-web/public/static/css/parts/settings.css:1820|position: absolute !important",
     "important|packages/ui-web/public/static/css/parts/settings.css:1821|width: 1px !important",
@@ -14,7 +14,7 @@
     "important|packages/ui-web/public/static/css/parts/settings.css:1825|white-space: nowrap !important",
     "important|packages/ui-web/public/static/css/parts/settings.css:447|display: none !important",
     "important|packages/ui-web/public/static/css/parts/settings.css:758|display: none !important",
-    "mobile-specificity-prefix|apps/mobile/src/mobile.css:2387|body[data-platform=\"mobile\"], *, *::before, *::after",
+    "mobile-specificity-prefix|apps/mobile/src/mobile.css:2377|body[data-platform=\"mobile\"], *, *::before, *::after",
     "mobile-specificity-prefix|packages/ui-web/public/static/css/parts/settings.css:1367|body[data-platform=\"mobile\"] section[data-settings-section=\"filters\"] .glyph_check",
     "mobile-specificity-prefix|packages/ui-web/public/static/css/parts/settings.css:1381|body[data-platform=\"mobile\"] section[data-settings-section=\"filters\"] .glyph_cross",
     "mobile-specificity-prefix|packages/ui-web/public/static/css/parts/settings.css:2336|body[data-platform=\"mobile\"] .settings_swipe",
