@@ -45,8 +45,7 @@ body {
 /* Generic Components */
 .bar {
   border-bottom: thin solid var(--border-high-color);
-  --base-bar-padding: 5px 15px;
-  padding: var(--base-bar-padding);
+  padding: var(--sp-1-5) var(--sp-4);
 }
 
 .bar input {

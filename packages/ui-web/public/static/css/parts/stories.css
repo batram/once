@@ -76,11 +76,9 @@
 .story {
   border-bottom: thin solid var(--border-color);
   border-top: thin solid var(--border-color);
-  --stories-story-margin-top: -1px;
-  margin-top: var(--stories-story-margin-top);
+  margin-top: calc(-1 * var(--sp-0-5));
   background: var(--unread-bg-color);
-  --stories-story-padding: 5px 15px;
-  padding: var(--stories-story-padding);
+  padding: var(--sp-1-5) var(--sp-4);
   display: flex;
   flex-wrap: wrap;
   width: 100%;
@@ -176,8 +174,7 @@
 }
 
 .bb_slide .swipe_left {
-  --stories-bb_slide-swipe_left-padding-left: 15px;
-  padding-left: var(--stories-bb_slide-swipe_left-padding-left);
+  padding-left: var(--sp-4);
   background-image: linear-gradient(
     45deg,
     var(--swipe-reveal-color),
@@ -191,8 +188,7 @@
 }
 
 .bb_slide .swipe_right {
-  --stories-bb_slide-swipe_right-padding-right: 15px;
-  padding-right: var(--stories-bb_slide-swipe_right-padding-right);
+  padding-right: var(--sp-4);
   text-align: right;
   background-image: linear-gradient(
     45deg,
@@ -367,8 +363,7 @@
 }
 
 .story .info {
-  --stories-story-info-margin: 5px 0;
-  margin: var(--stories-story-info-margin);
+  margin: var(--sp-1-5) 0;
 }
 
 .story .button_group {
@@ -394,19 +389,15 @@
 }
 
 .tags_container .tag {
-  --stories-tags_container-tag-padding: 1px var(--sp-1);
-  padding: var(--stories-tags_container-tag-padding);
-  --stories-tags_container-tag-margin: 2px;
-  margin: var(--stories-tags_container-tag-margin);
+  padding: var(--sp-0-5) var(--sp-1);
+  margin: var(--sp-0-5);
   border: thin solid var(--text-color);
-  --stories-tags_container-tag-border-radius: 2px;
-  border-radius: var(--stories-tags_container-tag-border-radius);
+  border-radius: var(--radius-sm);
   opacity: 0.8;
 }
 
 .tags_container .tag--icon {
-  --stories-tag-icon-padding-left: 17px;
-  padding-left: var(--stories-tag-icon-padding-left);
+  padding-left: var(--sp-4);
   background: var(--tag-icon) left top / var(--tag-icon-size, 16px) no-repeat;
 }
 
@@ -415,8 +406,7 @@
   display: inline-block;
   width: 20px;
   text-align: center;
-  --stories-story-type-padding: 1px;
-  padding: var(--stories-story-type-padding);
+  padding: var(--sp-0-5);
   border: thin solid white;
   opacity: var(--opacity);
 }

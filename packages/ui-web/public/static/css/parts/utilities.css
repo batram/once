@@ -1,0 +1,31 @@
+/* App-wide utilities. Neither of these belongs to a component: every sheet and
+   every platform depends on them, and their priority is the whole point, so
+   they live in layer(base) where an important declaration outranks every later
+   layer as well as inline styles. */
+
+/* The canonical hidden state. The UA sheet already says this, but at (0,1,0) it
+   loses to any component declaring `display` — `.story { display: flex }` and
+   `.status_indicator { display: inline-flex }` both used to leave a hidden
+   element in the layout, which is why fifteen sheets restated it per selector.
+   Declared important and first, this wins from anywhere: layer(components),
+   layer(platform), and an element's own inline style, all of which lose to an
+   important declaration in an earlier layer.
+
+   The corollary is that `hidden` now means hidden with no exceptions. A control
+   that must stay visible must not carry the attribute — drive it from a class,
+   the way the settings back chevron reads .settings_detail_open. */
+[hidden] {
+  display: none !important;
+}
+
+/* Content for assistive technology only: in the accessibility tree, absent from
+   the visual layout. Important because it has to survive whatever the component
+   or a runtime inline style declares for these six properties. */
+.visually_hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  white-space: nowrap !important;
+}

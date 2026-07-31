@@ -3,10 +3,8 @@
 }
 
 #menu .button {
-  --menu-menu-btn-margin: 2px var(--sp-2);
-  margin: var(--menu-menu-btn-margin);
-  --menu-menu-btn-padding: 2px;
-  padding: var(--menu-menu-btn-padding);
+  margin: var(--sp-0-5) var(--sp-2);
+  padding: var(--sp-0-5);
 }
 
 .sidebar_filter_list {
@@ -23,16 +21,14 @@
 }
 
 .bar_btn {
-  --menu-bar_btn-padding: 3px;
-  padding: var(--menu-bar_btn-padding);
+  padding: var(--sp-1);
   margin: 0;
 }
 
 #menu .sidebar_panel {
   border-top: thin solid var(--border-high-color);
   cursor: pointer;
-  --menu-menu-sub-font-size: 13px;
-  font-size: var(--menu-menu-sub-font-size);
+  font-size: var(--fs-dense);
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -53,8 +49,7 @@
   align-items: center;
   justify-content: flex-start;
   gap: var(--sp-1);
-  --menu-menu-heading-padding: 5px;
-  padding: var(--menu-menu-heading-padding);
+  padding: var(--sp-1-5);
   box-sizing: border-box;
   width: 100%;
   margin: 0;

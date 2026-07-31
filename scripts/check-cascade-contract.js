@@ -31,6 +31,41 @@ for (const [file, layer] of [
   }
 }
 
+// A separate document does not load parts/vars.css, so every public token it
+// consumes has to be declared inside it. An undeclared custom property is
+// invalid at computed-value time and collapses to the initial value, which
+// reads as a silently unstyled box rather than as an error.
+const publicTokens = new Set()
+postcss.parse(read("packages/ui-web/public/static/css/parts/vars.css"))
+  .walkDecls((declaration) => {
+    if (declaration.prop.startsWith("--")) publicTokens.add(declaration.prop)
+  })
+
+for (const file of [
+  "apps/electron/src/browser/error-page.css",
+  "packages/ui-web/src/reader/readerDocument.css",
+  "packages/ui-web/src/presenters/outline/outline_style.css"
+]) {
+  const source = read(file)
+  const ast = postcss.parse(source, { from: file })
+  const declared = new Set()
+  ast.walkDecls((declaration) => {
+    if (declaration.prop.startsWith("--")) declared.add(declaration.prop)
+  })
+  const missing = new Set()
+  ast.walkDecls((declaration) => {
+    for (const match of declaration.value.matchAll(/var\(\s*(--[\w-]+)\s*(\)|,)/g)) {
+      // A var() with a fallback survives an undeclared token, so only bare
+      // references matter here.
+      if (match[2] !== ")") continue
+      if (publicTokens.has(match[1]) && !declared.has(match[1])) missing.add(match[1])
+    }
+  })
+  for (const token of [...missing].sort()) {
+    failures.push(`${file} consumes ${token} without declaring it`)
+  }
+}
+
 for (const [file, marker] of [
   ["packages/ui-web/src/collectorStyles.ts", "style.textContent = `@layer components {"],
   ["packages/ui-web/src/picker/overlayStyles.ts", "`@layer components {"]
@@ -42,14 +77,13 @@ for (const [file, marker] of [
 
 const allowedImportant = new Set([
   "packages/ui-web/public/static/css/parts/base.css|.active_drag *|pointer-events",
-  "packages/ui-web/public/static/css/parts/settings.css|.structured_settings[hidden],.structured_group[hidden],.structured_row[hidden],.structured_empty[hidden],.input_container[hidden],.settings_actions > [hidden]|display",
-  "packages/ui-web/public/static/css/parts/settings.css|.structured_add_button[hidden],.structured_picker_status[hidden]|display",
-  "packages/ui-web/public/static/css/parts/settings.css|.visually_hidden|position",
-  "packages/ui-web/public/static/css/parts/settings.css|.visually_hidden|width",
-  "packages/ui-web/public/static/css/parts/settings.css|.visually_hidden|height",
-  "packages/ui-web/public/static/css/parts/settings.css|.visually_hidden|overflow",
-  "packages/ui-web/public/static/css/parts/settings.css|.visually_hidden|clip",
-  "packages/ui-web/public/static/css/parts/settings.css|.visually_hidden|white-space",
+  "packages/ui-web/public/static/css/parts/utilities.css|[hidden]|display",
+  "packages/ui-web/public/static/css/parts/utilities.css|.visually_hidden|position",
+  "packages/ui-web/public/static/css/parts/utilities.css|.visually_hidden|width",
+  "packages/ui-web/public/static/css/parts/utilities.css|.visually_hidden|height",
+  "packages/ui-web/public/static/css/parts/utilities.css|.visually_hidden|overflow",
+  "packages/ui-web/public/static/css/parts/utilities.css|.visually_hidden|clip",
+  "packages/ui-web/public/static/css/parts/utilities.css|.visually_hidden|white-space",
   "apps/mobile/src/mobile.css|body,*,*::before,*::after|scroll-behavior",
   "apps/mobile/src/mobile.css|body,*,*::before,*::after|transition-duration",
   "apps/mobile/src/mobile.css|body,*,*::before,*::after|animation-duration",

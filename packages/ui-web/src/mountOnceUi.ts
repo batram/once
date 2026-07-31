@@ -25,6 +25,12 @@ export interface MountOnceUiOptions {
   initialStoryLoad?: "network" | "cache" | "disabled"
   updater?: AppUpdater
   sourcePicker?: boolean
+  /**
+   * Leaves Settings entirely when the back chevron is pressed on the section
+   * index. Supplying it also keeps that chevron visible there — see
+   * SettingsPanelOptions.exitSettings.
+   */
+  exitSettings?: () => void
 }
 
 export async function mountOnceUi(
@@ -63,7 +69,9 @@ export async function mountOnceUi(
     })
   })
 
-  const settingsPanel = new SettingsPanel(client)
+  const settingsPanel = new SettingsPanel(client, {
+    exitSettings: options.exitSettings
+  })
   if (options.sourcePicker === false) {
     const picker = document.querySelector<HTMLElement>("#pick_source_button")
     if (picker) picker.hidden = true

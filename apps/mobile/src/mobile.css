@@ -4,7 +4,7 @@ body {
   --m-mono: "Courier New", ui-monospace, Menlo, monospace;
   /* flat chrome: thin ink borders, no shadows */
   --m-bw: var(--bw);
-  --m-radius: var(--radius-md);
+  --m-radius: var(--radius-lg);
   --m-ink: light-dark(#342b20, #9aa3c0);
   --m-pressed-bg: var(--second-bg-color);
   --m-accent-bg: var(--highlight-bg-color);
@@ -12,6 +12,11 @@ body {
   --m-warning: light-dark(#b96500, #ffb84d);
   --m-error: light-dark(#c83d3d, #ff6b6b);
   --m-tabbar-h: calc(48px + env(safe-area-inset-bottom));
+  /* Bottom runway a scroller must leave so a fixed overlay never covers its
+     last row. Both are derived from the overlay they clear — the floating +
+     and the form's fixed action bar — not from the spacing scale. */
+  --m-fab-clearance: 72px;
+  --m-form-actions-clearance: 76px;
   /* Card surfaces. --second-bg-color and --sep-color are full-strength UI
      colours (#ccc / rgb(114,100,100) in light); mixing them toward the page
      gives the quiet tints and hairlines the design asks for while both ends
@@ -49,8 +54,7 @@ body {
   z-index: 10000;
   width: 3px;
   min-height: 24px;
-  --mobile-mobile_scroll_indicator-border-radius: 999px;
-  border-radius: var(--mobile-mobile_scroll_indicator-border-radius);
+  border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--text-color) 55%, transparent);
   opacity: 1;
   pointer-events: none;
@@ -82,8 +86,7 @@ body {
   box-sizing: border-box;
   /* One physical boundary pixel keeps the last row above the tab-bar border
      without adding a visible content gutter. */
-  --mobile-stories-padding-bottom: 1px;
-  padding-bottom: var(--mobile-stories-padding-bottom);
+  padding-bottom: var(--sp-0-5);
 }
 
 #mobile_filter_chips {
@@ -103,8 +106,7 @@ body {
   flex: 0 0 auto;
   min-height: 24px;
   margin: 0;
-  --mobile-mobile_filter_chips-mobile_filter_chip-padding: 0 6px;
-  padding: var(--mobile-mobile_filter_chips-mobile_filter_chip-padding);
+  padding: 0 var(--sp-1-5);
   white-space: nowrap;
   color: var(--collector-color, inherit);
   background-color: var(--collector-bg, var(--main-bg-color));
@@ -166,7 +168,9 @@ input[type="submit"] {
    replaced geometry that components declare and no specificity could win it
    back — which is why eight families below had to restore their own box.
    Controls that are not the primitive keep the touch target and type above.
-   No `display` here: it must not defeat [hidden]. */
+   No `display` here: a platform-layer display on every button would decide
+   layout for boxes the components own. [hidden] is safe either way now — the
+   base utility in parts/utilities.css outranks this layer. */
 .button {
   padding: 0 var(--sp-4);
   border: var(--m-bw) solid var(--m-ink);
@@ -221,8 +225,7 @@ input[type="submit"] {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  --mobile-story-hostname-margin-left: -1px;
-  margin-left: var(--mobile-story-hostname-margin-left);
+  margin-left: calc(-1 * var(--sp-0-5));
 }
 
 .story .title {
@@ -284,8 +287,7 @@ input[type="submit"] {
   min-height: calc(var(--fs-meta) * 1.25 + 8px);
   align-content: flex-start;
   margin: 0;
-  --mobile-story-tags_container-margin-left: -1.65px;
-  margin-left: var(--mobile-story-tags_container-margin-left);
+  margin-left: calc(-1 * var(--sp-0-5));
 }
 
 /* actions live in the ⋮ menu instead */
@@ -311,8 +313,7 @@ input[type="submit"] {
   border: thin solid var(--text-color);
   border-radius: var(--m-radius);
   color: var(--text-color);
-  --mobile-story-menu_btn-font-size: 18px;
-  font-size: var(--mobile-story-menu_btn-font-size);
+  font-size: var(--icon-md);
   line-height: 1;
 }
 
@@ -363,10 +364,6 @@ input[type="submit"] {
   position: fixed;
   z-index: 900;
   inset: 0;
-}
-
-.once-anchored-menu[hidden] {
-  display: none;
 }
 
 .once-anchored-menu-backdrop {
@@ -618,8 +615,7 @@ body.once-anchored-menu-open {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  --mobile-menu-heading-gap: 2px;
-  gap: var(--mobile-menu-heading-gap);
+  gap: var(--sp-0-5);
   width: 100%;
   min-height: var(--touch);
   margin: 0;
@@ -634,10 +630,8 @@ body.once-anchored-menu-open {
   box-sizing: content-box;
   width: 20px;
   height: 20px;
-  --mobile-menu-heading-padding: 2px var(--sp-3);
-  padding: var(--mobile-menu-heading-padding);
-  --mobile-menu-heading-border-radius: 12px;
-  border-radius: var(--mobile-menu-heading-border-radius);
+  padding: var(--sp-0-5) var(--sp-3);
+  border-radius: var(--radius-pill);
 }
 
 #menu .heading p {
@@ -787,8 +781,11 @@ body.once-anchored-menu-open {
   margin-top: 0;
   touch-action: none;
   transform: translateY(var(--reading-story-drag, 0));
-  --mobile-reading_current_card-padding: 7px 10px;
-  padding: var(--mobile-reading_current_card-padding);
+  padding: var(--sp-2) var(--sp-3);
+  /* Runway the card's own controls occupy on the trailing edge. Text rows keep
+     clear of it. Derived from the control cluster's width, so it tracks that
+     cluster rather than the spacing scale. */
+  --reading-card-control-inset: 68px;
 }
 
 #reading_current_card.reading_story_dragging {
@@ -816,15 +813,13 @@ body.once-anchored-menu-open {
   border-radius: var(--m-radius);
   color: var(--text-color);
   background: var(--main-bg-color);
-  --mobile-reading_current_card-reading_story_control-font-size: 18px;
-  font-size: var(--mobile-reading_current_card-reading_story_control-font-size);
+  font-size: var(--icon-md);
   line-height: 1;
 }
 
 #reading_current_card #reading_story_meta,
 #reading_current_card .tags_container {
-  --mobile-reading_current_card-tags_container-padding-right: 68px;
-  padding-right: var(--mobile-reading_current_card-tags_container-padding-right);
+  padding-right: var(--reading-card-control-inset);
 }
 
 #reading_current_card.reading_story_collapsed #reading_story_time,
@@ -844,8 +839,7 @@ body.once-anchored-menu-open {
   gap: var(--sp-1);
   box-sizing: border-box;
   min-width: 0;
-  --mobile-reading_story_collapsed-data-padding-right: 68px;
-  padding-right: var(--mobile-reading_story_collapsed-data-padding-right);
+  padding-right: var(--reading-card-control-inset);
   overflow: hidden;
 }
 
@@ -882,12 +876,6 @@ body.once-anchored-menu-open {
   display: none;
 }
 
-/* `.story` sets display:flex, which otherwise overrides the HTML hidden
-   state and leaves an empty Reading row in the layout. */
-#reading_current_card[hidden] {
-  display: none;
-}
-
 #reading_comments {
   min-width: 0;
   min-height: 0;
@@ -914,10 +902,6 @@ body.once-anchored-menu-open {
   text-align: center;
 }
 
-#reading_empty[hidden] {
-  display: none;
-}
-
 #reading_reader_status {
   display: grid;
   position: absolute;
@@ -930,12 +914,6 @@ body.once-anchored-menu-open {
   color: var(--text-color);
   font-family: var(--m-sans);
   text-align: center;
-}
-
-#reading_reader_status[hidden],
-#reading_reader_loading[hidden],
-#reading_reader_failure[hidden] {
-  display: none;
 }
 
 #reading_reader_loading,
@@ -1014,10 +992,6 @@ body.once-anchored-menu-open {
   border-top: var(--m-bw) solid var(--m-ink);
   background: var(--m-card-bg);
   box-shadow: 0 -2px 8px rgb(0 0 0 / 10%);
-}
-
-#reader_tts_pill[hidden] {
-  display: none;
 }
 
 #reader_tts_pill > button,
@@ -1360,7 +1334,10 @@ body.once-anchored-menu-open {
 }
 
 /* Back chevron then the subpage title — the bar no longer says "Settings"
-   twice. */
+   twice. Settings participates in the same back stack as the native back
+   action, so the chevron stays visible on the section index too, where it
+   leaves the panel; the shared sheet reveals it only for an open section.
+   font-size: 0 drops the "Settings" label — main.ts names the icon instead. */
 #settings_section_back {
   display: grid;
   place-items: center start;
@@ -1371,39 +1348,17 @@ body.once-anchored-menu-open {
   background: transparent;
   box-shadow: none;
   font-size: 0;
+  /* Scale for the shared chevron in settings.css. A text "‹" sits high in its
+     em box and a rotated border box has no defined optical centre; an icon
+     sized here is centred by its own geometry. */
+  --settings-back-icon-width: 23px;
+  --settings-back-icon-height: 15px;
+  --settings-back-icon-scale: 70%;
+  --settings-back-icon-color: var(--m-ink);
 }
 
-#settings_section_back[hidden] {
-  display: none;
-}
-
-/* Settings itself participates in the same back stack as the native back
-   action, so its existing chevron remains available on the section index. */
-
-  #settings_panel:not(.settings_detail_open)
-  #settings_section_back[hidden] {
-  display: grid;
-}
-
-/* A real icon, masked so it still takes the theme's ink. A text "‹" sits high
-   in its em box and a rotated border box has no defined optical centre; an
-   icon in a square box is centred by its own geometry. */
 #settings_section_back::before {
-  content: "";
-  width: 20px;
-  height: 20px;
-  background: var(--m-ink);
-  -webkit-mask: url("imgs/chevron-left.svg") center / contain no-repeat;
-  mask: url("imgs/chevron-left.svg") center / contain no-repeat;
-  width: 23px;
-  height: 15px;
-  --mobile-settings_section_back-margin-top: 10px;
-  margin-top: var(--mobile-settings_section_back-margin-top);
-  mask-size: 70%;
-}
-
-#settings_panel.settings_detail_open #settings_section_back {
-  display: grid;
+  margin-top: var(--sp-3);
 }
 
 /* ---------- Full-screen editor inside a section ----------
@@ -1425,8 +1380,7 @@ body:has(#settings_panel.settings_form_open) #menu {
   min-height: 100%;
   box-sizing: border-box;
   gap: var(--sp-3);
-  --mobile-structured_form-padding: var(--sp-2) var(--sp-3) 76px;
-  padding: var(--mobile-structured_form-padding);
+  padding: var(--sp-2) var(--sp-3) var(--m-form-actions-clearance);
 }
 
 /* The header carries the title on a subpage, so the form's own heading would
@@ -1476,8 +1430,7 @@ body:has(#settings_panel.settings_form_open) #menu {
   box-sizing: border-box;
   height: 60px;
   margin: 0;
-  --mobile-structured_form-structured_form_actions-padding: 10px var(--sp-3);
-  padding: var(--mobile-structured_form-structured_form_actions-padding);
+  padding: var(--sp-3) var(--sp-3);
   gap: var(--sp-2);
   border-top: var(--m-bw) solid var(--text-high-color);
   background: var(--main-bg-color);
@@ -1560,8 +1513,7 @@ body:has(#settings_panel.settings_form_open) #menu {
 
 .settings_editor_block .structured_settings {
   /* The floating + must never cover the last row's chevron. */
-  --mobile-settings_editor_block-structured_settings-padding-bottom: 72px;
-  padding-bottom: var(--mobile-settings_editor_block-structured_settings-padding-bottom);
+  padding-bottom: var(--m-fab-clearance);
 }
 
 /* Sticky at the top of the scroller, inset with the block's own gutter. */
@@ -1671,8 +1623,7 @@ body:has(#settings_panel.settings_form_open) #menu {
   min-width: 0;
   min-height: 60px;
   align-items: center;
-  --mobile-structured_row_body-gap: 10px;
-  gap: var(--mobile-structured_row_body-gap);
+  gap: var(--sp-3);
   margin-left: var(--sp-3);
   padding: 0 var(--sp-3) 0 0;
   border: 0;
@@ -1709,8 +1660,7 @@ body:has(#settings_panel.settings_form_open) #menu {
 
 .structured_row_secondary {
   font-family: var(--m-mono);
-  --mobile-structured_row_secondary-font-size: 11px;
-  font-size: var(--mobile-structured_row_secondary-font-size);
+  font-size: var(--fs-caption);
   line-height: 1.35;
   color: var(--text-color);
   opacity: 1;
@@ -1739,8 +1689,7 @@ body:has(#settings_panel.settings_form_open) #menu {
    it covers the last row. */
 [data-structured-section="filters"],
 [data-structured-section="redirects"] {
-  --mobile-element-padding-bottom: 72px;
-  padding-bottom: var(--mobile-element-padding-bottom);
+  padding-bottom: var(--m-fab-clearance);
 }
 
 /* An open row is 56px: a 36px field with the 36px commit pair beside it. The
@@ -1751,8 +1700,7 @@ body:has(#settings_panel.settings_form_open) #menu {
   height: auto;
   min-height: 56px;
   gap: var(--sp-2);
-  --mobile-structured_row_editing-padding: 10px var(--sp-3) 10px var(--sp-4);
-  padding: var(--mobile-structured_row_editing-padding);
+  padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4);
 }
 
 /* The blanket mobile button margin (8px 8px 4px 0) is asymmetric top-to-bottom
@@ -1838,8 +1786,7 @@ body:has(#settings_panel.settings_form_open) #menu {
   margin: 0;
   border: var(--m-bw) solid var(--m-error);
   color: var(--m-error);
-  --mobile-structured_issue-font-size: 11px;
-  font-size: var(--mobile-structured_issue-font-size);
+  font-size: var(--fs-caption);
   font-weight: 700;
   line-height: 1;
 }
@@ -1847,8 +1794,7 @@ body:has(#settings_panel.settings_form_open) #menu {
 .structured_issue.warning {
   border-color: var(--m-warning);
   color: var(--m-warning);
-  --mobile-structured_issue-warning-padding-bottom: 1px;
-  padding-bottom: var(--mobile-structured_issue-warning-padding-bottom);
+  padding-bottom: var(--sp-0-5);
 }
 
 .structured_group_menu {
@@ -1942,8 +1888,7 @@ body:has(#settings_panel.settings_form_open) #menu {
   flex: 0 0 auto;
   width: 8px;
   height: 8px;
-  --mobile-structured_group_caret-margin-right: 10px;
-  margin-right: var(--mobile-structured_group_caret-margin-right);
+  margin-right: var(--sp-3);
   border-right: 1.5px solid var(--text-color);
   border-bottom: 1.5px solid var(--text-color);
   transform: rotate(-45deg);
@@ -1953,8 +1898,7 @@ body:has(#settings_panel.settings_form_open) #menu {
   flex: 0 0 10px;
   width: 10px;
   height: 18px;
-  --mobile-structured_group_drag_handle-margin: 0 10px 0 -2px;
-  margin: var(--mobile-structured_group_drag_handle-margin);
+  margin: 0 var(--sp-3) 0 calc(-1 * var(--sp-0-5));
   background-image: radial-gradient(
     circle,
     color-mix(in srgb, var(--m-ink) 55%, transparent) 1.4px,
@@ -1974,8 +1918,7 @@ body:has(#settings_panel.settings_form_open) #menu {
   min-width: 0;
   overflow: hidden;
   font-family: var(--m-sans);
-  --mobile-structured_group_name-structured_list_name-font-size: 11px;
-  font-size: var(--mobile-structured_group_name-structured_list_name-font-size);
+  font-size: var(--fs-caption);
   font-weight: 600;
   letter-spacing: 0.09em;
   text-transform: uppercase;
@@ -2012,8 +1955,7 @@ body:has(#settings_panel.settings_form_open) #menu {
   right: -1px;
   left: -1px;
   height: 3px;
-  --mobile-structured_group_drop_before-structured_group_drop_after-border-radius: 2px;
-  border-radius: var(--mobile-structured_group_drop_before-structured_group_drop_after-border-radius);
+  border-radius: var(--radius-sm);
   background: var(--m-ink);
   box-shadow: 0 0 0 1px var(--m-page-bg);
 }
@@ -2040,8 +1982,7 @@ body:has(#settings_panel.settings_form_open) #menu {
   right: var(--sp-3);
   left: var(--sp-3);
   height: 3px;
-  --mobile-structured_row_drop_target-border-radius: 2px;
-  border-radius: var(--mobile-structured_row_drop_target-border-radius);
+  border-radius: var(--radius-sm);
   background: var(--m-ink);
   box-shadow: 0 0 0 1px var(--m-page-bg);
 }
@@ -2067,8 +2008,7 @@ body:has(#settings_panel.settings_form_open) #menu {
   right: var(--sp-3);
   left: var(--sp-3);
   height: 3px;
-  --mobile-structured_source_drop_after-structured_source_group_drop_target-border-radius: 2px;
-  border-radius: var(--mobile-structured_source_drop_after-structured_source_group_drop_target-border-radius);
+  border-radius: var(--radius-sm);
   background: var(--m-ink);
   box-shadow: 0 0 0 1px var(--m-page-bg);
 }
@@ -2104,8 +2044,7 @@ body:has(#settings_panel.settings_form_open) #menu {
   bottom: -2px;
   left: var(--sp-3);
   height: 3px;
-  --mobile-structured_source_group_title_drop_target-border-radius: 2px;
-  border-radius: var(--mobile-structured_source_group_title_drop_target-border-radius);
+  border-radius: var(--radius-sm);
   background: var(--m-ink);
   box-shadow: 0 0 0 1px var(--m-page-bg);
 }
@@ -2113,8 +2052,7 @@ body:has(#settings_panel.settings_form_open) #menu {
 .structured_group_count,
 .structured_list_count {
   font-family: var(--m-mono);
-  --mobile-structured_group_count-structured_list_count-font-size: 11px;
-  font-size: var(--mobile-structured_group_count-structured_list_count-font-size);
+  font-size: var(--fs-caption);
   color: var(--text-color);
   opacity: 1;
 }
@@ -2140,8 +2078,7 @@ body:has(#settings_panel.settings_form_open) #menu {
   background: transparent;
   box-shadow: none;
   color: var(--m-ink);
-  --mobile-structured_group_menu-font-size: 18px;
-  font-size: var(--mobile-structured_group_menu-font-size);
+  font-size: var(--icon-md);
   line-height: 1;
 }
 
@@ -2189,8 +2126,7 @@ body:has(#settings_panel.settings_form_open) #menu {
 
 .structured_add_glyph {
   font-family: var(--m-sans);
-  --mobile-structured_add_glyph-font-size: 25px;
-  font-size: var(--mobile-structured_add_glyph-font-size);
+  font-size: var(--icon-lg);
   font-weight: 300;
   line-height: 1;
 }
@@ -2268,10 +2204,6 @@ body:has(#settings_panel.settings_form_open) #menu {
   background: var(--main-bg-color);
 }
 
-.once-reader-host[hidden] {
-  display: none;
-}
-
 .once-reader-host-close {
   min-height: 48px;
   margin: 0;
@@ -2320,6 +2252,13 @@ body.once-reader-open {
 }
 
 #status_dock {
+  /* An optical set, not scale steps. The error glyph sits inside an 11px ring
+     with a 1px border, so it cannot exceed the 9px inner box; the other two
+     are sized to read as the same weight beside it. Changing one means
+     re-checking all three against the ring. */
+  --status-glyph-size: 9px;
+  --status-glyph-size-warning: 13px;
+  --status-glyph-size-error: 7px;
   position: absolute;
   z-index: 1;
   top: -18px;
@@ -2345,14 +2284,12 @@ body.once-reader-open {
   min-width: 11px;
   height: 11px;
   padding: 0;
-  --mobile-status_dock-status_indicator-margin-right: 19px;
-  margin-right: var(--mobile-status_dock-status_indicator-margin-right);
+  margin-right: var(--sp-4);
   border-radius: 0;
 }
 
 #status_dock .warning .status_indicator_icon {
-  --mobile-warning-status_indicator_icon-font-size: 13px;
-  font-size: var(--mobile-warning-status_indicator_icon-font-size);
+  font-size: var(--status-glyph-size-warning);
 }
 
 #status_dock .status_indicator_icon {
@@ -2360,8 +2297,7 @@ body.once-reader-open {
   height: auto;
   border: 0;
   border-radius: 0;
-  --mobile-status_dock-status_indicator_icon-font-size: 9px;
-  font-size: var(--mobile-status_dock-status_indicator_icon-font-size);
+  font-size: var(--status-glyph-size);
   line-height: 1;
 }
 
@@ -2370,8 +2306,7 @@ body.once-reader-open {
   height: 11px;
   border: 1px solid currentColor;
   border-radius: 50%;
-  --mobile-error-status_indicator_icon-font-size: 7px;
-  font-size: var(--mobile-error-status_indicator_icon-font-size);
+  font-size: var(--status-glyph-size-error);
 }
 
 #status_dock .status_indicator_count {
@@ -2386,13 +2321,11 @@ body.once-reader-open {
 }
 
 section[data-settings-section="filters"] .glyph_check {
-  --settings-glyph_check-margin-left: -5px;
-  margin-left: var(--settings-glyph_check-margin-left);
+  margin-left: calc(-1 * var(--sp-1-5));
 }
 
 section[data-settings-section="filters"] .glyph_cross {
-  --settings-glyph_cross-margin-left: -7px;
-  margin-left: var(--settings-glyph_cross-margin-left);
+  margin-left: calc(-1 * var(--sp-2));
 }
 
 @container settings-panel (max-width: 520px) {
@@ -2401,9 +2334,8 @@ section[data-settings-section="filters"] .glyph_cross {
   }
 
   .swipe_action_block {
-    --settings-swipe_action_block-gap: 10px;
     --settings-swipe_action_block-padding: var(--sp-3) var(--sp-3) 14px;
-    gap: var(--settings-swipe_action_block-gap);
+    gap: var(--sp-3);
     padding: var(--settings-swipe_action_block-padding);
   }
 
@@ -2431,7 +2363,7 @@ section[data-settings-section="filters"] .glyph_cross {
     width: 3px;
     height: 44px;
     background: transparent;
-    border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+    border-radius: var(--radius-xl) 0 0 var(--radius-xl);
     content: "";
     pointer-events: none;
   }
@@ -2471,13 +2403,12 @@ section[data-settings-section="filters"] .glyph_cross {
   .swipe_action_left .swipe_action_field::after {
     right: 0;
     left: auto;
-    border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+    border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
   }
 
   .swipe_stage_label {
     flex-basis: auto;
-    --settings-swipe_stage_label-font-size: 11px;
-    font-size: var(--settings-swipe_stage_label-font-size);
+    font-size: var(--fs-caption);
     letter-spacing: 0.04em;
     text-transform: uppercase;
   }
@@ -2490,13 +2421,12 @@ section[data-settings-section="filters"] .glyph_cross {
 
   #swipe_lab .swipe_ruler_handle {
     height: 54px;
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
   }
 
   .swipe_ruler_value {
     top: 55px;
-    --settings-swipe_ruler_value-font-size: 11px;
-    font-size: var(--settings-swipe_ruler_value-font-size);
+    font-size: var(--fs-caption);
   }
 
   .swipe_lab_scroller {

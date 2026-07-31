@@ -1,27 +1,39 @@
 /* Modern theme system using color-scheme and light-dark() */
 :root {
-  /* Public platform-neutral geometry tokens. These values intentionally match
-     the pre-token UI; scale rationalisation is a separate design pass. */
+  /* Public platform-neutral geometry tokens. Spacing is a 2px-based scale;
+     the half-steps exist because 2px and 6px are load-bearing in dense
+     chrome, not as a courtesy to odd legacy values. */
+  --sp-0-5: 2px;
   --sp-1: 4px;
+  --sp-1-5: 6px;
   --sp-2: 8px;
   --sp-3: 12px;
   --sp-4: 16px;
   --sp-5: 24px;
   --sp-6: 32px;
 
-  --fs-title: 16px;
-  --fs-body: 14px;
-  --fs-meta: 12px;
+  /* Text sizes only. A font-size that sizes a glyph is icon geometry and
+     belongs on an icon or component token instead. */
   --fs-label: 10px;
+  --fs-caption: 11px;
+  --fs-meta: 12px;
+  --fs-dense: 13px;
+  --fs-body: 14px;
+  --fs-title: 16px;
 
   --icon-sm: 12px;
   --icon-md: 16px;
   --icon-lg: 24px;
   --touch: 44px;
 
+  /* 2/4/6/8 plus a pill. --radius-md and --radius-lg each moved down one step
+     when this scale was rationalised; their previous values are --radius-lg
+     and --radius-xl. */
   --radius-sm: 2px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 8px;
+  --radius-pill: 999px;
   --bw: 1px;
 
   /* Dense desktop chrome. Mobile components retain the --touch contract. */

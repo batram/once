@@ -46,13 +46,8 @@
   font-size: var(--status-small-font-size);
   line-height: 1.35;
   overflow: hidden;
-  --status-bar-padding: 5px 10px 5px 7px;
-  padding: var(--status-bar-padding);
+  padding: var(--sp-1-5) var(--sp-3) var(--sp-1-5) var(--sp-2);
   width: fit-content;
-}
-
-#status_bar[hidden] {
-  display: none;
 }
 
 #status_bar_message {
@@ -99,45 +94,33 @@
   flex: 0 0 auto;
   gap: 0;
   justify-content: center;
-  --status-dock-margin-bottom: 30px;
-  margin-bottom: var(--status-dock-margin-bottom);
+  margin-bottom: var(--sp-6);
   margin-top: auto;
   min-height: 29px;
   overflow: hidden;
-  --status-dock-padding: 2px 4px 2px 5px;
-  padding: var(--status-dock-padding);
-}
-
-#status_dock[hidden] {
-  display: none;
+  padding: var(--sp-0-5) var(--sp-1) var(--sp-0-5) var(--sp-1-5);
 }
 
 #menu.collapse #status_dock {
   flex-direction: column;
-  --status-dock-collapsed-padding: 4px 1px;
-  padding: var(--status-dock-collapsed-padding);
+  padding: var(--sp-1) var(--sp-0-5);
 }
 
 .status_indicator {
   align-items: center;
   background: transparent;
   border: 0;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   color: var(--text-color);
   cursor: pointer;
   display: inline-flex;
   font: inherit;
-  --status-indicator-gap: 2px;
-  gap: var(--status-indicator-gap);
+  gap: var(--sp-0-5);
   height: 24px;
   justify-content: center;
   line-height: 1;
   min-width: 18px;
   padding: calc(var(--sp-1) / 2);
-}
-
-.status_indicator[hidden] {
-  display: none;
 }
 
 .status_indicator:hover,
@@ -201,8 +184,7 @@
   flex-direction: column;
   font: inherit;
   min-width: 0;
-  --status-issue-content-padding: 6px 7px 6px 9px;
-  padding: var(--status-issue-content-padding);
+  padding: var(--sp-1-5) var(--sp-2) var(--sp-1-5) var(--sp-2);
   text-align: left;
 }
 
@@ -246,8 +228,7 @@
   font-size: var(--fs-title);
   justify-content: center;
   min-width: 27px;
-  --status-issue-close-padding: 0 7px 0 4px;
-  padding: var(--status-issue-close-padding);
+  padding: 0 var(--sp-2) 0 var(--sp-1);
 }
 
 .status_issue_close:hover,
@@ -259,20 +240,17 @@
   background: var(--main-bg-color);
   border: 1px solid var(--border-high-color);
   border-bottom: 0;
-  --hover-url-radius: 3px;
-  border-radius: var(--hover-url-radius) 0 0;
+  border-radius: var(--radius-md);
   border-right: 0;
   bottom: 0;
   box-sizing: border-box;
   color: var(--text-color);
-  --hover-url-font-size: 11px;
-  font-size: var(--hover-url-font-size);
+  font-size: var(--fs-caption);
   line-height: 1.35;
   max-width: calc(100% - 24px);
   opacity: 0;
   overflow: hidden;
-  --hover-url-padding: 4px 3px 2px 5px;
-  padding: var(--hover-url-padding);
+  padding: var(--sp-1) var(--sp-1) var(--sp-0-5) var(--sp-1-5);
   pointer-events: none;
   position: absolute;
   right: 0;

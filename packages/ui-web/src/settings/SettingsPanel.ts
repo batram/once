@@ -13,6 +13,17 @@ import { bindSyncSettingsControls } from "./syncSettingsControls"
 import { bindSettingsSubscriptions } from "./settingsSubscriptions"
 import settingsSectionDefinitions from "./settingsSectionDefinitions"
 
+export interface SettingsPanelOptions {
+  /**
+   * Last rung of the back chevron's chain, taken when the section index itself
+   * is showing and there is nothing left inside Settings to close. A shell that
+   * supplies one keeps the chevron visible on the index (mobile, where it is
+   * the software twin of the hardware back key); a shell that does not leaves
+   * the chevron hidden there and never reaches this.
+   */
+  exitSettings?: () => void
+}
+
 export class SettingsPanel {
   static instance: SettingsPanel
   readonly ready: Promise<void>
@@ -22,7 +33,10 @@ export class SettingsPanel {
   private sourcesReloadPending = false
   private persistence: SettingsPersistence
 
-  constructor(private client: OnceClient) {
+  constructor(
+    private client: OnceClient,
+    private options: SettingsPanelOptions = {}
+  ) {
     this.persistence = new SettingsPersistence(
       client,
       () => this.refreshSettingsSearch()
@@ -244,9 +258,17 @@ export class SettingsPanel {
       subtree: true
     })
     this.updateSettingsSummaries()
+    // One chain, innermost first: a full-screen editor, then the open section,
+    // then Settings itself. Visibility follows .settings_detail_open alone —
+    // the button carries no `hidden` attribute, so no platform has to undo one
+    // to keep the chevron live on the index.
     back.onclick = () => {
       if (this.structuredEditors?.handleBack(this.activeSettingsSection)) return
-      this.closeSettingsSection()
+      if (this.activeSettingsSection) {
+        this.closeSettingsSection()
+        return
+      }
+      this.options.exitSettings?.()
     }
     document.addEventListener("once-settings-index-requested", () => {
       this.showSettingsIndex()
@@ -372,7 +394,6 @@ export class SettingsPanel {
     })
     requireElement("#settings_panel").classList.add("settings_detail_open")
     const back = requireElement<HTMLButtonElement>("#settings_section_back")
-    back.hidden = false
     const label = this.settingsSectionButtons.get(key)?.dataset.settingsLabel
     requireElement("#settings_panel .settings_title").textContent = label || "Settings"
     this.structuredEditors?.setActiveSection(key)
@@ -428,7 +449,6 @@ export class SettingsPanel {
       section.classList.remove("active")
     })
     requireElement("#settings_panel").classList.remove("settings_detail_open")
-    requireElement<HTMLButtonElement>("#settings_section_back").hidden = true
     requireElement("#settings_panel .settings_title").textContent = "Settings"
     this.structuredEditors?.setActiveSection(null)
     if (previous) this.settingsSectionButtons.get(previous)?.focus()

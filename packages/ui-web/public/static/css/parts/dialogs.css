@@ -5,13 +5,12 @@
   width: min(360px, var(--once-confirm-dialog-max-width, calc(100vw - 24px)));
   max-height: calc(100vh - 24px);
   margin: 0;
-  --dialog-padding: 18px;
-  padding: var(--dialog-padding);
+  padding: var(--sp-4);
   overflow: auto;
   color: var(--text-high-color);
   background: var(--main-bg-color);
   border: 1px solid var(--border-high-color);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   font:
     13px/1.4 Verdana,
     Geneva,
@@ -33,28 +32,24 @@
   box-sizing: border-box;
   width: 100%;
   margin: 0 0 var(--sp-4);
-  --dialog-input-padding: 7px 9px;
-  padding: var(--dialog-input-padding);
+  padding: var(--sp-2) var(--sp-2);
   color: var(--text-high-color);
   background: var(--main-bg-color);
   border: 1px solid var(--border-high-color);
-  --dialog-input-radius: 3px;
-  border-radius: var(--dialog-input-radius);
+  border-radius: var(--radius-md);
 }
 
 .once-confirm-dialog__actions {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  --dialog-actions-gap: 6px;
-  gap: var(--dialog-actions-gap);
+  gap: var(--sp-1-5);
 }
 
 .once-confirm-dialog button {
   min-width: 78px;
   margin: 0;
-  --dialog-button-padding: 5px 9px;
-  padding: var(--dialog-button-padding);
+  padding: var(--sp-1-5) var(--sp-2);
   color: var(--text-high-color);
 }
 

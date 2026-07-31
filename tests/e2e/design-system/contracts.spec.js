@@ -159,10 +159,21 @@ test("documented priority utilities retain their contracts", async ({ page }) =>
   await page.emulateMedia({ reducedMotion: "reduce" })
   await page.goto(`${baseURL}/static/sidepanel.html?target=mobile`)
   const result = await page.evaluate(() => {
+    // One global rule replaced fifteen per-selector ones, so the probes are the
+    // three ways an element used to escape it: an inline style, a component
+    // declaring display in layer(components), and a platform sheet declaring it
+    // in layer(platform) — the last of which no specificity could beat.
     const hidden = document.createElement("div")
     hidden.className = "input_container"
     hidden.hidden = true
     hidden.style.display = "block"
+    const hiddenComponent = document.createElement("div")
+    hiddenComponent.className = "status_indicator"
+    hiddenComponent.hidden = true
+    const hiddenPlatform = document.createElement("div")
+    hiddenPlatform.className = "story"
+    hiddenPlatform.hidden = true
+    document.body.append(hiddenComponent, hiddenPlatform)
     const visuallyHidden = document.createElement("span")
     visuallyHidden.className = "visually_hidden"
     const dragRoot = document.createElement("div")
@@ -177,6 +188,8 @@ test("documented priority utilities retain their contracts", async ({ page }) =>
     const visualStyle = getComputedStyle(visuallyHidden)
     return {
       hidden: hiddenStyle.display,
+      hiddenComponent: getComputedStyle(hiddenComponent).display,
+      hiddenPlatform: getComputedStyle(hiddenPlatform).display,
       dragPointerEvents: getComputedStyle(dragChild).pointerEvents,
       reducedTransition: getComputedStyle(motionProbe).transitionDuration,
       visual: [
@@ -188,18 +201,20 @@ test("documented priority utilities retain their contracts", async ({ page }) =>
     }
   })
   expect(result.hidden).toBe("none")
+  expect(result.hiddenComponent).toBe("none")
+  expect(result.hiddenPlatform).toBe("none")
   expect(result.dragPointerEvents).toBe("none")
   expect(result.reducedTransition).toBe("1e-05s")
   expect(result.visual).toEqual(["absolute", "1px", "1px", "hidden"])
 })
 
-test("tokenized shared and mobile geometry retains its measured values", async ({ page }) => {
+test("tokenized shared and mobile geometry resolves to the public scale", async ({ page }) => {
   await page.goto(`${baseURL}/static/sidepanel.html`)
   // .bar first resolves to #search_bar, which cancels the bar's inline padding
   // so the collapse control can meet the menu panel edge (see search.css). The
   // block padding is the tokenized value; the inline value is deliberately 0.
   await expect(page.locator(".bar").first()).toHaveCSS("padding", "5px 0px")
-  await expect(page.locator("#menu .heading").first()).toHaveCSS("padding", "5px")
+  await expect(page.locator("#menu .heading").first()).toHaveCSS("padding", "6px")
 
   await page.goto(`${baseURL}/static/sidepanel.html?target=mobile`)
   await expect(page.locator("#mobile_filter_chips")).toHaveCSS("gap", "8px")
@@ -210,7 +225,7 @@ test("tokenized shared and mobile geometry retains its measured values", async (
   await expect(page.locator("#reload_stories_btn")).toHaveCSS("height", "44px")
 })
 
-test("completed Phase 1 shell scopes preserve their measured geometry", async ({ page }) => {
+test("shell scopes express their geometry through the public scale", async ({ page }) => {
   await page.goto(`${baseURL}/static/sidepanel.html`)
 
   await page.locator("body").evaluate((body) => {
@@ -229,8 +244,8 @@ test("completed Phase 1 shell scopes preserve their measured geometry", async ({
   await expect(page.locator("#urlfield")).toHaveCSS("padding-left", "8px")
   await expect(page.locator("#status_surfaces")).toHaveCSS("gap", "6px")
   await expect(page.locator("#status_bar")).toHaveCSS("font-size", "11px")
-  await expect(page.locator("#status_bar")).toHaveCSS("padding", "5px 10px 5px 7px")
-  await expect(page.locator("#status_dock")).toHaveCSS("margin-bottom", "30px")
+  await expect(page.locator("#status_bar")).toHaveCSS("padding", "6px 12px 6px 8px")
+  await expect(page.locator("#status_dock")).toHaveCSS("margin-bottom", "32px")
   await expect(page.locator("#status_dock")).toHaveCSS(
     "border-radius",
     "14px 0px 0px 14px"
@@ -238,7 +253,7 @@ test("completed Phase 1 shell scopes preserve their measured geometry", async ({
   await expect(page.locator(".status_issue_bubble")).toHaveCSS("font-size", "11px")
   await expect(page.locator(".status_issue_content")).toHaveCSS(
     "padding",
-    "6px 7px 6px 9px"
+    "6px 8px"
   )
   await expect(page.locator("#hover_url")).toHaveCSS("font-size", "11px")
 
@@ -254,15 +269,15 @@ test("completed Phase 1 shell scopes preserve their measured geometry", async ({
     `)
   })
   const dialog = page.locator(".once-confirm-dialog")
-  await expect(dialog).toHaveCSS("padding", "18px")
+  await expect(dialog).toHaveCSS("padding", "16px")
   await expect(dialog).toHaveCSS("border-radius", "6px")
   await expect(dialog.locator("p")).toHaveCSS("margin-bottom", "16px")
-  await expect(dialog.locator("input")).toHaveCSS("padding", "7px 9px")
+  await expect(dialog.locator("input")).toHaveCSS("padding", "8px")
   await expect(dialog.locator(".once-confirm-dialog__actions")).toHaveCSS("gap", "6px")
-  await expect(dialog.locator("button")).toHaveCSS("padding", "5px 9px")
+  await expect(dialog.locator("button")).toHaveCSS("padding", "6px 8px")
 })
 
-test("the standalone Electron error page preserves its measured geometry", async ({ page }) => {
+test("the standalone Electron error page uses the tokens it declares", async ({ page }) => {
   const css = fs.readFileSync(
     path.join(root, "apps", "electron", "src", "browser", "error-page.css"),
     "utf8"
@@ -283,14 +298,14 @@ test("the standalone Electron error page preserves its measured geometry", async
   await page.addStyleTag({ content: css })
 
   await expect(page.locator("body")).toHaveCSS("padding", "24px")
-  await expect(page.locator(".error-card")).toHaveCSS("padding", "22px 24px 24px")
-  await expect(page.locator(".error-card")).toHaveCSS("border-radius", "3px")
+  await expect(page.locator(".error-card")).toHaveCSS("padding", "24px")
+  await expect(page.locator(".error-card")).toHaveCSS("border-radius", "4px")
   await expect(page.locator(".error-heading")).toHaveCSS("gap", "12px")
   await expect(page.locator(".error-heading")).toHaveCSS("margin-bottom", "16px")
-  await expect(page.locator("h1")).toHaveCSS("font-size", "17px")
+  await expect(page.locator("h1")).toHaveCSS("font-size", "16px")
   await expect(page.locator(".error-message")).toHaveCSS("font-size", "12px")
-  await expect(page.locator(".url-box")).toHaveCSS("padding", "7px 9px")
-  await expect(page.locator(".retry")).toHaveCSS("padding", "5px 10px")
+  await expect(page.locator(".url-box")).toHaveCSS("padding", "8px")
+  await expect(page.locator(".retry")).toHaveCSS("padding", "6px 12px")
 })
 
 test("legacy control-semantic debt is explicit and cannot grow", async ({ page }) => {
@@ -421,7 +436,7 @@ test("Settings shell defaults yield to mobile navigation geometry", async ({ pag
   await expect(desktopRow).toHaveCSS("height", "28px")
   await expect(desktopRow).toHaveCSS("font-size", "13px")
   await expect(page.locator(".settings_container")).toHaveCSS("overflow", "hidden")
-  await expect(page.locator("#settings_index")).toHaveCSS("padding", "7px 8px")
+  await expect(page.locator("#settings_index")).toHaveCSS("padding", "8px")
 
   await page.goto(`${baseURL}/static/sidepanel.html?target=mobile`)
   await page.locator("#settings_index").evaluate((index) => {

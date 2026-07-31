@@ -111,7 +111,7 @@ test("mobile shell is responsive and hides unavailable capabilities", async ({ p
     tags.remove()
     return result
   })
-  expect(iconTag.paddingLeft).toBe("17px")
+  expect(iconTag.paddingLeft).toBe("16px")
   expect(iconTag.backgroundImage).toContain("reddit.svg")
 
   expect(await page.locator("#left_panel").evaluate((element) => element.scrollWidth <= window.innerWidth)).toBe(true)

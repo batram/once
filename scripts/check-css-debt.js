@@ -9,6 +9,7 @@ const root = path.resolve(__dirname, "..")
 const baselinePath = path.join(__dirname, "css-debt-baseline.json")
 const phaseOneMigratedScopes = [
   "packages/ui-web/public/static/css/parts/base.css",
+  "packages/ui-web/public/static/css/parts/utilities.css",
   "packages/ui-web/public/static/css/parts/menu.css",
   "packages/ui-web/public/static/css/parts/layout.css",
   "packages/ui-web/public/static/css/parts/stories.css",
@@ -41,6 +42,13 @@ const platformPrefixes = [
 
 function normalized(value) {
   return value.trim().replace(/\s+/g, " ")
+}
+
+// An env() fallback has to carry a unit — `env(titlebar-area-x, 0)` is a number
+// and cannot be subtracted from a length — so the px in one is a syntax
+// requirement rather than a spacing decision.
+function withoutEnvFallbacks(value) {
+  return value.replace(/env\([^()]*\)/g, "env()")
 }
 
 function ruleIdentity(container) {
@@ -98,7 +106,8 @@ function analyzeCss(file, source) {
     if (declaration.important) {
       debts.push(debtId("important", file, owner, detail))
     }
-    if (geometryProperty.test(declaration.prop) && pxValue.test(declaration.value)) {
+    if (geometryProperty.test(declaration.prop) &&
+        pxValue.test(withoutEnvFallbacks(declaration.value))) {
       debts.push(debtId("raw-geometry-px", file, owner, detail))
     }
     if (marginProperty.test(declaration.prop) && negativeValue.test(declaration.value)) {
@@ -106,6 +115,58 @@ function analyzeCss(file, source) {
     }
   })
   return distinguishDuplicates(debts).sort()
+}
+
+// A wrapper is a custom property declared in a component rule, read exactly
+// once, by that same rule. It reads as tokenisation but shares nothing: no
+// other rule can set it and no other rule reads it, so the name only restates
+// where the value already was. Either the value belongs to the public scale,
+// or it is component geometry that should be declared where the relationship
+// lives and read from the rules that depend on it.
+//
+// This lives here rather than in stylelint because stylelint sees one file at
+// a time. A token declared on a component in one sheet and read by a
+// descendant in another is legitimate, and a per-file rule would reject it.
+function findSingleUseWrappers(sources) {
+  const declarations = new Map()
+  const reads = new Map()
+  const record = (map, name, node) => {
+    if (!map.has(name)) map.set(name, [])
+    map.get(name).push(node)
+  }
+  for (const [file, source] of sources) {
+    const ast = postcss.parse(source, { from: file })
+    ast.walkDecls((declaration) => {
+      if (declaration.prop.startsWith("--")) {
+        record(declarations, declaration.prop, { file, declaration })
+      }
+      for (const match of declaration.value.matchAll(/var\(\s*(--[\w-]+)/g)) {
+        record(reads, match[1], { file, declaration })
+      }
+    })
+  }
+
+  const wrappers = []
+  for (const [name, declared] of declarations) {
+    if (declared.length !== 1) continue
+    const read = reads.get(name) || []
+    if (read.length !== 1) continue
+    const owner = declared[0].declaration.parent
+    // Object identity, so a selector repeated inside a media or container
+    // query is never confused with its unguarded twin.
+    if (owner !== read[0].declaration.parent) continue
+    if (!owner || owner.type !== "rule") continue
+    if (/^(:root|html|body)\b/.test(owner.selector.trim())) continue
+    wrappers.push({
+      file: declared[0].file,
+      line: declared[0].declaration.source.start.line,
+      selector: normalized(owner.selector),
+      name,
+      value: normalized(declared[0].declaration.value),
+      property: read[0].declaration.prop
+    })
+  }
+  return wrappers
 }
 
 function trackedCssFiles() {
@@ -133,6 +194,24 @@ function compareDebt(expected, actual) {
 
 function main() {
   const actual = currentDebt()
+  const wrappers = findSingleUseWrappers(
+    trackedCssFiles().map((file) => [file, fs.readFileSync(path.join(root, file), "utf8")])
+  )
+  if (wrappers.length) {
+    console.error(
+      "Single-use wrapper custom properties (declared and read once by the " +
+      "same rule). Use a public token, or declare the value where the " +
+      "relationship lives and read it from the rules that depend on it:"
+    )
+    for (const wrapper of wrappers) {
+      console.error(
+        `+ ${wrapper.file}:${wrapper.line} ${wrapper.selector} ` +
+        `{ ${wrapper.name}: ${wrapper.value} } -> ${wrapper.property}`
+      )
+    }
+    process.exitCode = 1
+    if (!process.argv.includes("--write-baseline")) return
+  }
   const platformPrefixDebt = actual.filter((entry) =>
     entry.startsWith("mobile-specificity-prefix|") ||
     entry.startsWith("desktop-specificity-prefix|")
@@ -196,5 +275,6 @@ module.exports = {
   analyzeCss,
   compareDebt,
   currentDebt,
+  findSingleUseWrappers,
   phaseOneMigratedScopes
 }

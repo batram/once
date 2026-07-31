@@ -84,8 +84,7 @@ body #titlebar-text {
   height: 30px;
   /* titlebar-area-width is the usable area, so derive the controls inset from
    * the viewport remainder rather than using that width as the inset itself. */
-  --electron-tab_dropzone-padding: 5px calc(var(--sp-1) + 100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw)) 0 var(--sp-1);
-  padding: var(--electron-tab_dropzone-padding);
+  padding: var(--sp-1-5) calc(var(--sp-1) + 100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw)) 0 var(--sp-1);
   border-bottom: 1px solid var(--border-high-color);
   overflow: hidden;
   app-region: drag;
@@ -120,8 +119,7 @@ body #titlebar-text {
   height: 24px;
   border: 1px solid var(--border-high-color);
   border-bottom: 0;
-  --electron-electron-tab-legacy-tab-button-border-radius: 2px 2px 0 0;
-  border-radius: var(--electron-electron-tab-legacy-tab-button-border-radius);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
   color: var(--text-color);
   background: var(--read-bg-color);
   cursor: pointer;
@@ -136,20 +134,15 @@ body #titlebar-text {
   flex: 0 0 var(--electron-tab-width, 220px);
   min-width: 140px;
   max-width: 220px;
-  --electron-electron-tab-margin-left: 2px;
-  margin-left: var(--electron-electron-tab-margin-left);
-  --electron-electron-tab-padding: 3px var(--sp-1);
-  padding: var(--electron-electron-tab-padding);
-  --electron-electron-tab-font-size: 13px;
-  font-size: var(--electron-electron-tab-font-size);
+  margin-left: var(--sp-0-5);
+  padding: var(--sp-1) var(--sp-1);
+  font-size: var(--fs-dense);
   outline: none;
-  --electron-electron-tab-margin-top: 3px;
-  margin-top: var(--electron-electron-tab-margin-top);
+  margin-top: var(--sp-1);
 }
 
 .electron-tab.active {
-  --electron-electron-tab-active-margin-top: 2px;
-  margin-top: var(--electron-electron-tab-active-margin-top);
+  margin-top: var(--sp-0-5);
   color: var(--text-high-color);
   background: var(--border-high-color);
 }
@@ -178,13 +171,11 @@ body #titlebar-text {
   justify-content: center;
   width: 18px;
   height: 18px;
-  --electron-electron-tab-close-electron-tab-media-padding: 1px;
-  padding: var(--electron-electron-tab-close-electron-tab-media-padding);
+  padding: var(--sp-0-5);
   color: inherit;
   background: transparent;
   border: 0;
-  --electron-electron-tab-close-electron-tab-media-border-radius: 2px;
-  border-radius: var(--electron-electron-tab-close-electron-tab-media-border-radius);
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 
@@ -237,10 +228,8 @@ body #titlebar-text {
 .legacy-tab-button {
   flex: 0 0 26px;
   min-width: 26px;
-  --electron-legacy-tab-button-margin-left: 2px;
-  margin-left: var(--electron-legacy-tab-button-margin-left);
-  --electron-legacy-tab-button-padding: 1px 6px;
-  padding: var(--electron-legacy-tab-button-padding);
+  margin-left: var(--sp-0-5);
+  padding: var(--sp-0-5) var(--sp-1-5);
   font-size: var(--fs-title);
 }
 
@@ -249,11 +238,9 @@ body #titlebar-text {
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  --electron-controlbar-gap: var(--toolbar-control-gap);
-  gap: var(--electron-controlbar-gap);
+  gap: var(--toolbar-control-gap);
   height: 34px;
-  --electron-controlbar-padding: var(--sp-1) 6px;
-  padding: var(--electron-controlbar-padding);
+  padding: var(--sp-1) var(--sp-1-5);
   border-bottom: 1px solid var(--border-high-color);
 }
 
@@ -265,16 +252,13 @@ body #titlebar-text {
   width: var(--toolbar-control-size);
   height: var(--toolbar-control-size);
   margin: 0;
-  --electron-browser-button-padding: 3px;
-  padding: var(--electron-browser-button-padding);
+  padding: var(--sp-1);
   color: var(--text-high-color);
   background: var(--btn-bg-color);
   border: 1px solid black;
-  --electron-browser-button-border-radius: 2px;
-  border-radius: var(--electron-browser-button-border-radius);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  --electron-browser-button-font-size: 15px;
-  font-size: var(--electron-browser-button-font-size);
+  font-size: var(--fs-title);
 }
 
 .browser-button img,
@@ -308,8 +292,7 @@ body #titlebar-text {
 }
 
 .stop-symbol {
-  --electron-stop-symbol-font-size: 19px;
-  font-size: var(--electron-stop-symbol-font-size);
+  font-size: var(--icon-md);
   line-height: 1;
 }
 
@@ -319,11 +302,9 @@ body #titlebar-text {
   height: var(--toolbar-control-size);
   box-sizing: border-box;
   margin: 0;
-  --electron-urlfield-padding: 2px var(--sp-2);
-  padding: var(--electron-urlfield-padding);
+  padding: var(--sp-0-5) var(--sp-2);
   border: 1px solid black;
-  --electron-urlfield-border-radius: 2px;
-  border-radius: var(--electron-urlfield-border-radius);
+  border-radius: var(--radius-sm);
 }
 
 #url_error {

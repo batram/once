@@ -3,12 +3,19 @@
 :root {
   color-scheme: light;
   /* This is a standalone document, so it carries the subset of the public
-     geometry vocabulary that it consumes. */
+     geometry vocabulary that it consumes. check:cascade fails if it consumes
+     a public token it does not declare here — an undeclared token is invalid
+     at computed-value time and silently collapses to the initial value. */
+  --sp-1: 4px;
+  --sp-1-5: 6px;
+  --sp-2: 8px;
   --sp-3: 12px;
   --sp-4: 16px;
   --sp-5: 24px;
   --fs-meta: 12px;
+  --fs-title: 16px;
   --radius-sm: 2px;
+  --radius-md: 4px;
   --page-bg: #fff;
   --text: #111;
   --muted: #5f6368;
@@ -43,19 +50,15 @@ body {
   width: 100%;
   background: var(--surface);
   border: 1px solid var(--border);
-  --error-card-radius: 3px;
-  --error-card-padding: 22px var(--sp-5) var(--sp-5);
-  border-radius: var(--error-card-radius);
-  padding: var(--error-card-padding);
+  border-radius: var(--radius-md);
+  padding: var(--sp-5) var(--sp-5) var(--sp-5);
 }
 .error-heading { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-4); }
 .error-icon { flex: 0 0 auto; width: 34px; height: 34px; color: var(--error); }
 h1 {
-  --error-heading-font-size: 17px;
-  --error-heading-margin-bottom: 3px;
-  font-size: var(--error-heading-font-size);
+  font-size: var(--fs-title);
   font-weight: 600;
-  margin-bottom: var(--error-heading-margin-bottom);
+  margin-bottom: var(--sp-1);
   color: var(--text);
 }
 .error-message { font-size: var(--fs-meta); color: var(--error); line-height: 1.35; word-break: break-word; }
@@ -63,19 +66,16 @@ h1 {
   background: var(--page-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  --error-url-padding: 7px 9px;
-  padding: var(--error-url-padding);
+  padding: var(--sp-2) var(--sp-2);
   font-size: var(--fs-meta);
   color: var(--muted);
   word-break: break-all;
-  --error-url-margin-bottom: 14px;
-  margin-bottom: var(--error-url-margin-bottom);
+  margin-bottom: var(--sp-4);
   font-family: "SF Mono", Monaco, Consolas, monospace;
 }
 .retry {
   display: inline-block;
-  --error-retry-padding: 5px 10px;
-  padding: var(--error-retry-padding);
+  padding: var(--sp-1-5) var(--sp-3);
   border-radius: var(--radius-sm);
   border: 1px solid #111;
   background: var(--button-bg);

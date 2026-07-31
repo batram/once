@@ -118,23 +118,14 @@ async function startMobileApp(): Promise<void> {
     buildChannel: __ONCE_BUILD_CHANNEL__,
     buildIdentifier: __ONCE_BUILD_IDENTIFIER__,
     sourcePicker: true,
-    initialStoryLoad: __ONCE_MOBILE_E2E__ ? "disabled" : "network"
+    initialStoryLoad: __ONCE_MOBILE_E2E__ ? "disabled" : "network",
+    // Settings participates in the same back stack as the hardware key, so the
+    // chevron stays live on the section index and leaves the panel from there.
+    exitSettings: () => void reading.handleBack()
   })
-  const settingsBack = document.querySelector<HTMLButtonElement>(
-    "#settings_section_back"
-  )
-  if (settingsBack) {
-    settingsBack.setAttribute("aria-label", "Back")
-    const closeSettingsSection = settingsBack.onclick
-    settingsBack.onclick = () => {
-      const settingsPanel = document.querySelector<HTMLElement>("#settings_panel")
-      if (settingsPanel?.classList.contains("settings_detail_open")) {
-        closeSettingsSection?.call(settingsBack, new PointerEvent("click"))
-        return
-      }
-      void reading.handleBack()
-    }
-  }
+  // The mobile header suppresses the button's label, so the icon needs a name.
+  document.querySelector<HTMLButtonElement>("#settings_section_back")
+    ?.setAttribute("aria-label", "Back")
   if (__ONCE_MOBILE_E2E__) {
     // Lets the e2e suite await queued story saves instead of pausing blindly.
     ;(window as { __onceE2E__?: unknown }).__onceE2E__ = {
