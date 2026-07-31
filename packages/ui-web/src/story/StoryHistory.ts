@@ -2,6 +2,8 @@ import { Story } from "@once/core"
 import { OnceClient } from "@once/app"
 import { getOnceClient } from "../client"
 
+export type ReadState = "unread" | "read" | "skipped"
+
 export class StoryHistory {
   undo_history: {
     story: Story
@@ -15,6 +17,7 @@ export class StoryHistory {
   }[]
   static instance: StoryHistory
   private stateListeners = new Set<() => void>()
+  private changeListeners = new Set<(story: Story, newState: ReadState) => void>()
 
   constructor(client: OnceClient = getOnceClient()) {
     StoryHistory.instance = this
@@ -63,6 +66,19 @@ export class StoryHistory {
     this.undo_history.push({ story, new_state, old_state })
     this.redo_history = []
     this.notifyStateChanged()
+    this.changeListeners.forEach((listener) => listener(story, new_state))
+  }
+
+  /**
+   * Fires only when a user action records a new undoable change — undo and redo
+   * move the same stack without notifying here, so a listener can offer to
+   * reverse a change without re-arming itself on the reversal.
+   */
+  onChangeRecorded(
+    listener: (story: Story, newState: ReadState) => void
+  ): () => void {
+    this.changeListeners.add(listener)
+    return () => this.changeListeners.delete(listener)
   }
 
   get canUndo(): boolean {

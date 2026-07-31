@@ -1,169 +1,169 @@
 @layer platform {
-body {
-  --m-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --m-mono: "Courier New", ui-monospace, Menlo, monospace;
-  /* flat chrome: thin ink borders, no shadows */
-  --m-bw: var(--bw);
-  --m-radius: var(--radius-lg);
-  --m-ink: light-dark(#342b20, #9aa3c0);
-  --m-pressed-bg: var(--second-bg-color);
-  --m-accent-bg: var(--highlight-bg-color);
-  --m-card-bg: var(--unread-bg-color);
-  --m-warning: light-dark(#b96500, #ffb84d);
-  --m-error: light-dark(#c83d3d, #ff6b6b);
-  --m-tabbar-h: calc(48px + env(safe-area-inset-bottom));
-  /* Bottom runway a scroller must leave so a fixed overlay never covers its
+  body {
+    --m-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --m-mono: "Courier New", ui-monospace, Menlo, monospace;
+    /* flat chrome: thin ink borders, no shadows */
+    --m-bw: var(--bw);
+    --m-radius: var(--radius-lg);
+    --m-ink: light-dark(#342b20, #9aa3c0);
+    --m-pressed-bg: var(--second-bg-color);
+    --m-accent-bg: var(--highlight-bg-color);
+    --m-card-bg: var(--unread-bg-color);
+    --m-warning: light-dark(#b96500, #ffb84d);
+    --m-error: light-dark(#c83d3d, #ff6b6b);
+    --m-tabbar-h: calc(48px + env(safe-area-inset-bottom));
+    /* Bottom runway a scroller must leave so a fixed overlay never covers its
      last row. Both are derived from the overlay they clear — the floating +
      and the form's fixed action bar — not from the spacing scale. */
-  --m-fab-clearance: 72px;
-  --m-form-actions-clearance: 76px;
-  /* Card surfaces. --second-bg-color and --sep-color are full-strength UI
+    --m-fab-clearance: 72px;
+    --m-form-actions-clearance: 76px;
+    /* Card surfaces. --second-bg-color and --sep-color are full-strength UI
      colours (#ccc / rgb(114,100,100) in light); mixing them toward the page
      gives the quiet tints and hairlines the design asks for while both ends
      still track the theme. */
-  --m-page-bg: color-mix(in srgb, var(--second-bg-color) 25%, var(--main-bg-color));
-  --m-head-bg: color-mix(in srgb, var(--second-bg-color) 12%, var(--main-bg-color));
-  --m-sep: color-mix(in srgb, var(--sep-color) 32%, transparent);
+    --m-page-bg: color-mix(in srgb, var(--second-bg-color) 25%, var(--main-bg-color));
+    --m-head-bg: color-mix(in srgb, var(--second-bg-color) 12%, var(--main-bg-color));
+    --m-sep: color-mix(in srgb, var(--sep-color) 32%, transparent);
 
-  min-width: 0;
-  padding-top: env(safe-area-inset-top);
-  padding-right: env(safe-area-inset-right);
-  padding-bottom: env(safe-area-inset-bottom);
-  padding-left: env(safe-area-inset-left);
-  overscroll-behavior: none;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-  -webkit-text-size-adjust: 100%;
-}
+    min-width: 0;
+    padding-top: env(safe-area-inset-top);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    -webkit-text-size-adjust: 100%;
+  }
 
-/* Mobile platforms use overlay scroll indicators: they do not reserve a
+  /* Mobile platforms use overlay scroll indicators: they do not reserve a
    gutter, appear only while content is moving, and then quietly fade away.
    This also neutralises the permanently painted desktop scrollbar from
    base.css inside the mobile WebView. */
-* {
-  scrollbar-width: none;
-  scrollbar-gutter: auto;
-}
+  * {
+    scrollbar-width: none;
+    scrollbar-gutter: auto;
+  }
 
-*::-webkit-scrollbar {
-  display: none;
-}
+  *::-webkit-scrollbar {
+    display: none;
+  }
 
-.mobile_scroll_indicator {
-  position: fixed;
-  z-index: 10000;
-  width: 3px;
-  min-height: 24px;
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--text-color) 55%, transparent);
-  opacity: 1;
-  pointer-events: none;
-  transition: opacity 180ms ease-out;
-}
+  .mobile_scroll_indicator {
+    position: fixed;
+    z-index: 10000;
+    width: 3px;
+    min-height: 24px;
+    border-radius: var(--radius-pill);
+    background: color-mix(in srgb, var(--text-color) 55%, transparent);
+    opacity: 1;
+    pointer-events: none;
+    transition: opacity 180ms ease-out;
+  }
 
-/* ---------- Shell layout ---------- */
+  /* ---------- Shell layout ---------- */
 
-#window_content,
-#left_panel,
-#left_panel_content,
-#left_main {
-  min-width: 0;
-  width: 100%;
-}
+  #window_content,
+  #left_panel,
+  #left_panel_content,
+  #left_main {
+    min-width: 0;
+    width: 100%;
+  }
 
-#left_panel_content {
-  position: relative;
-  display: block;
-}
+  #left_panel_content {
+    position: relative;
+    display: block;
+  }
 
-#left_main {
-  height: 100%;
-  box-sizing: border-box;
-  padding-bottom: var(--m-tabbar-h);
-}
+  #left_main {
+    height: 100%;
+    box-sizing: border-box;
+    padding-bottom: var(--m-tabbar-h);
+  }
 
-#stories {
-  box-sizing: border-box;
-  /* One physical boundary pixel keeps the last row above the tab-bar border
+  #stories {
+    box-sizing: border-box;
+    /* One physical boundary pixel keeps the last row above the tab-bar border
      without adding a visible content gutter. */
-  padding-bottom: var(--sp-0-5);
-}
+    padding-bottom: var(--sp-0-5);
+  }
 
-#mobile_filter_chips {
-  display: flex;
-  flex: 0 0 auto;
-  gap: var(--sp-2);
-  padding: var(--sp-2) var(--sp-3) var(--sp-2);
-  overflow-x: auto;
-  scrollbar-width: none;
-}
+  #mobile_filter_chips {
+    display: flex;
+    flex: 0 0 auto;
+    gap: var(--sp-2);
+    padding: var(--sp-2) var(--sp-3) var(--sp-2);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
 
-#mobile_filter_chips::-webkit-scrollbar {
-  display: none;
-}
+  #mobile_filter_chips::-webkit-scrollbar {
+    display: none;
+  }
 
-#mobile_filter_chips .mobile_filter_chip {
-  flex: 0 0 auto;
-  min-height: 24px;
-  margin: 0;
-  padding: 0 var(--sp-1-5);
-  white-space: nowrap;
-  color: var(--collector-color, inherit);
-  background-color: var(--collector-bg, var(--main-bg-color));
-}
+  #mobile_filter_chips .mobile_filter_chip {
+    flex: 0 0 auto;
+    min-height: 24px;
+    margin: 0;
+    padding: 0 var(--sp-1-5);
+    white-space: nowrap;
+    color: var(--collector-color, inherit);
+    background-color: var(--collector-bg, var(--main-bg-color));
+  }
 
-#menu #types,
-#menu #groups,
-.collapsebutton,
-#right_panel,
-#sep_slider {
-  display: none;
-}
+  #menu #types,
+  #menu #groups,
+  .collapsebutton,
+  #right_panel,
+  #sep_slider {
+    display: none;
+  }
 
-/* ---------- Form control baseline ---------- */
+  /* ---------- Form control baseline ---------- */
 
-button,
-input[type="button"],
-input[type="submit"],
-select {
-  min-height: var(--touch);
-}
+  button,
+  input[type="button"],
+  input[type="submit"],
+  select {
+    min-height: var(--touch);
+  }
 
-textarea,
-input {
-  font-size: var(--fs-title);
-  border: var(--m-bw) solid var(--m-ink);
-  border-radius: var(--m-radius);
-}
+  textarea,
+  input {
+    font-size: var(--fs-title);
+    border: var(--m-bw) solid var(--m-ink);
+    border-radius: var(--m-radius);
+  }
 
-select {
-  appearance: none;
-  padding: 0 var(--sp-5) 0 var(--sp-3);
-  background: var(--input-bg-color);
-  font-family: var(--m-sans);
-  /* caret to replace the native dropdown arrow */
-  background-image:
-    linear-gradient(45deg, transparent 50%, var(--m-ink) 50%),
-    linear-gradient(135deg, var(--m-ink) 50%, transparent 50%);
-  background-position:
-    calc(100% - 14px) 50%,
-    calc(100% - 8px) 50%;
-  background-size: 6px 6px;
-  background-repeat: no-repeat;
-}
+  select {
+    appearance: none;
+    padding: 0 var(--sp-5) 0 var(--sp-3);
+    background: var(--input-bg-color);
+    font-family: var(--m-sans);
+    /* caret to replace the native dropdown arrow */
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--m-ink) 50%),
+      linear-gradient(135deg, var(--m-ink) 50%, transparent 50%);
+    background-position:
+      calc(100% - 14px) 50%,
+      calc(100% - 8px) 50%;
+    background-size: 6px 6px;
+    background-repeat: no-repeat;
+  }
 
-/* Typography stays broad. A control that owns its box still reads as part of
+  /* Typography stays broad. A control that owns its box still reads as part of
    the app, and the UA default for a button is 13.333px Arial rather than an
    inherited font, so narrowing this to .button would drop hundreds of controls
    onto the system face. */
-button,
-input[type="button"],
-input[type="submit"] {
-  font-family: var(--m-sans);
-  font-size: var(--fs-body);
-}
+  button,
+  input[type="button"],
+  input[type="submit"] {
+    font-family: var(--m-sans);
+    font-size: var(--fs-body);
+  }
 
-/* The visual box belongs to the primitive, not to every native button.
+  /* The visual box belongs to the primitive, not to every native button.
    layer(platform) outranks layer(components), so matching the element here
    replaced geometry that components declare and no specificity could win it
    back — which is why eight families below had to restore their own box.
@@ -171,1429 +171,1482 @@ input[type="submit"] {
    No `display` here: a platform-layer display on every button would decide
    layout for boxes the components own. [hidden] is safe either way now — the
    base utility in parts/utilities.css outranks this layer. */
-.button {
-  padding: 0 var(--sp-4);
-  border: var(--m-bw) solid var(--m-ink);
-  border-radius: var(--m-radius);
-  background: var(--main-bg-color);
-  /* Longhands, not the shorthand: inline alignment remains the owning
+  .button {
+    padding: 0 var(--sp-4);
+    border: var(--m-bw) solid var(--m-ink);
+    border-radius: var(--m-radius);
+    background: var(--main-bg-color);
+    /* Longhands, not the shorthand: inline alignment remains the owning
      container's business rather than being reset by the button primitive. */
-  margin-block: var(--sp-2) var(--sp-1);
-  margin-inline-end: var(--sp-2);
-}
+    margin-block: var(--sp-2) var(--sp-1);
+    margin-inline-end: var(--sp-2);
+  }
 
-.button:active {
-  background: var(--m-pressed-bg);
-}
+  .button:active {
+    background: var(--m-pressed-bg);
+  }
 
-/* ---------- Story rows ---------- */
+  /* ---------- Story rows ---------- */
 
-.story {
-  padding: var(--sp-3) var(--sp-4);
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
-  /* keep vertical scrolling native, but deliver horizontal moves to the
+  .story {
+    padding: var(--sp-3) var(--sp-4);
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    /* keep vertical scrolling native, but deliver horizontal moves to the
      swipe handlers — Android otherwise cancels the touch to pan */
-  touch-action: pan-y;
-}
+    touch-action: pan-y;
+  }
 
-/* basis 0, not 100% or auto: the row wraps, so any basis wider than the free
+  /* basis 0, not 100% or auto: the row wraps, so any basis wider than the free
    space pushes the ⋮ button onto a line of its own instead of beside the text */
-.story .data {
-  flex: 1 1 0;
-  min-width: 0;
-  font-size: var(--fs-meta);
-}
+  .story .data {
+    flex: 1 1 0;
+    min-width: 0;
+    font-size: var(--fs-meta);
+  }
 
-/* Slot 1+2: (domain) is pulled onto its own line above the title. Reordering
+  /* Slot 1+2: (domain) is pulled onto its own line above the title. Reordering
    here rather than in story_html() keeps the Electron/extension row intact. */
-.story .title_line {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  min-width: 0;
-  column-gap: var(--sp-1);
-}
+  .story .title_line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    min-width: 0;
+    column-gap: var(--sp-1);
+  }
 
-.story .hostname {
-  order: -1;
-  flex: 0 1 100%;
-  max-width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-left: calc(-1 * var(--sp-0-5));
-}
+  .story .hostname {
+    order: -1;
+    flex: 0 1 100%;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-left: calc(-1 * var(--sp-0-5));
+  }
 
-.story .title {
-  flex: 1 1 100%;
-  font-size: var(--fs-title);
-  line-height: 1.3;
-}
+  .story .title {
+    flex: 1 1 100%;
+    font-size: var(--fs-title);
+    line-height: 1.3;
+  }
 
-.story .hostname,
-.story .og_href,
-.story .comment_url {
-  font-size: var(--fs-meta);
-  font-family: var(--m-mono);
-}
+  .story .hostname,
+  .story .og_href,
+  .story .comment_url {
+    font-size: var(--fs-meta);
+    font-family: var(--m-mono);
+  }
 
-/* Slot 3: type badge, [comments], time, star. Must wrap, or slot 4 collides. */
-.story .info {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--sp-1) var(--sp-2);
-  margin: var(--sp-1) 0 0;
-  font-size: var(--fs-meta);
-}
+  /* Slot 3: type badge, [comments], time, star. Must wrap, or slot 4 collides. */
+  .story .info {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--sp-1) var(--sp-2);
+    margin: var(--sp-1) 0 0;
+    font-size: var(--fs-meta);
+  }
 
-/* Two-letter badges keep their compact width; three-letter collectors such as
+  /* Two-letter badges keep their compact width; three-letter collectors such as
    RSS expand far enough that the final glyph does not touch the border. */
-.story .type {
-  width: auto;
-  min-width: 20px;
-}
+  .story .type {
+    width: auto;
+    min-width: 20px;
+  }
 
-/* Without both declarations "36 mins / ago" splits across lines and overlaps
+  /* Without both declarations "36 mins / ago" splits across lines and overlaps
    the tags — stories.css gives .time a 65px min-width that must not win here. */
-.info .time {
-  flex: 0 0 auto;
-  min-width: 0;
-  white-space: nowrap;
-  font-family: var(--m-mono);
-}
+  .info .time {
+    flex: 0 0 auto;
+    min-width: 0;
+    white-space: nowrap;
+    font-family: var(--m-mono);
+  }
 
-/* Bookmark indicator: the real toggle lives in the row menu, this is a glyph.
+  /* Bookmark indicator: the real toggle lives in the row menu, this is a glyph.
    Only the first substory carries it — the flag is per story, not per source. */
-.story.stared .substories .info:first-child::after {
-  content: "";
-  flex: 0 0 auto;
-  width: 12px;
-  height: 12px;
-  background: var(--text-high-color);
-  -webkit-mask: url("imgs/star_fill.svg") center / contain no-repeat;
-  mask: url("imgs/star_fill.svg") center / contain no-repeat;
-  opacity: 0.7;
-  /* the pseudo is the last DOM child; order pulls it back onto the meta line */
-  order: 0;
-}
+  .story.stared .substories .info:first-child::after {
+    content: "";
+    flex: 0 0 auto;
+    width: 12px;
+    height: 12px;
+    background: var(--text-high-color);
+    -webkit-mask: url("imgs/star_fill.svg") center / contain no-repeat;
+    mask: url("imgs/star_fill.svg") center / contain no-repeat;
+    opacity: 0.7;
+    /* the pseudo is the last DOM child; order pulls it back onto the meta line */
+    order: 0;
+  }
 
-/* Slot 4: tags always own their line, and reserve it even when empty so rows
+  /* Slot 4: tags always own their line, and reserve it even when empty so rows
    without tags stay the same height as rows with them. */
-.story .tags_container {
-  order: 1;
-  flex: 1 1 100%;
-  box-sizing: border-box;
-  padding-right: var(--sp-6);
-  /* one .tag box: its line box, plus 1px padding + 1px border + 2px margin
+  .story .tags_container {
+    order: 1;
+    flex: 1 1 100%;
+    box-sizing: border-box;
+    padding-right: var(--sp-6);
+    /* one .tag box: its line box, plus 1px padding + 1px border + 2px margin
      on each side. Keeps a tagless row exactly as tall as a tagged one. */
-  min-height: calc(var(--fs-meta) * 1.25 + 8px);
-  align-content: flex-start;
-  margin: 0;
-  margin-left: calc(-1 * var(--sp-0-5));
-}
+    min-height: calc(var(--fs-meta) * 1.25 + 8px);
+    align-content: flex-start;
+    margin: 0;
+    margin-left: calc(-1 * var(--sp-0-5));
+  }
 
-/* actions live in the ⋮ menu instead */
-.story .button_group {
-  display: none;
-}
+  /* actions live in the ⋮ menu instead */
+  .story .button_group {
+    display: none;
+  }
 
-/* ---------- Row ⋮ button ---------- */
+  /* ---------- Row ⋮ button ---------- */
 
-.story .menu_btn {
-  display: grid;
-  place-items: center;
-  position: absolute;
-  right: 12px;
-  bottom: 15px;
-  box-sizing: border-box;
-  width: 28px;
-  height: 28px;
-  min-width: 0;
-  min-height: 0;
-  margin: 0;
-  padding: 0;
-  border: thin solid var(--text-color);
-  border-radius: var(--m-radius);
-  color: var(--text-color);
-  font-size: var(--icon-md);
-  line-height: 1;
-}
+  .story .menu_btn {
+    display: grid;
+    place-items: center;
+    position: absolute;
+    right: 12px;
+    bottom: 15px;
+    box-sizing: border-box;
+    width: 28px;
+    height: 28px;
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: thin solid var(--text-color);
+    border-radius: var(--m-radius);
+    color: var(--text-color);
+    font-size: var(--icon-md);
+    line-height: 1;
+  }
 
-.stories_container .story .menu_btn {
-  right: 12px;
-  bottom: 15px;
-}
+  .stories_container .story .menu_btn {
+    right: 12px;
+    bottom: 15px;
+  }
 
-.story .menu_btn:active,
-.story.menu_open .menu_btn {
-  background: var(--m-accent-bg);
-  color: var(--text-high-color);
-}
+  .story .menu_btn:active,
+  .story.menu_open .menu_btn {
+    background: var(--m-accent-bg);
+    color: var(--text-high-color);
+  }
 
-/* ---------- Long-press progress ---------- */
+  /* ---------- Long-press progress ---------- */
 
-.story {
-  position: relative;
-}
+  .story {
+    position: relative;
+  }
 
-/* Tells the user a long-press is building before the menu appears. Not gated
+  /* Tells the user a long-press is building before the menu appears. Not gated
    on [animated] — it is feedback for a gesture, not decoration. */
-.story.press_building::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  width: 0;
-  height: 2px;
-  background: var(--m-accent-bg);
-  animation: once-press-progress 400ms linear 100ms forwards;
-  pointer-events: none;
-}
-
-@keyframes once-press-progress {
-  from {
+  .story.press_building::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: 0;
     width: 0;
+    height: 2px;
+    background: var(--m-accent-bg);
+    animation: once-press-progress 400ms linear 100ms forwards;
+    pointer-events: none;
   }
 
-  to {
+  @keyframes once-press-progress {
+    from {
+      width: 0;
+    }
+
+    to {
+      width: 100%;
+    }
+  }
+
+  /* ---------- Undo snackbar ---------- */
+
+  /* Sits above the tab bar (z-index 20) so it reads as belonging to the list it
+   is about, but below the anchored story menu, which is modal over everything.
+   Placed clear of the bar rather than over it: the tab targets stay reachable
+   while the offer is open, so nothing the user might reach for is blocked by a
+   thing that disappears on its own. */
+  .undo_snackbar {
+    position: fixed;
+    z-index: 21;
+    right: var(--sp-3);
+    bottom: calc(var(--m-tabbar-h) + var(--sp-2));
+    left: var(--sp-3);
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    overflow: hidden;
+    padding: var(--sp-1) var(--sp-1) var(--sp-1) var(--sp-3);
+    border: var(--m-bw) solid var(--m-ink);
+    border-radius: var(--m-radius);
+    background: var(--m-card-bg);
+  }
+
+  .undo_snackbar_message {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    color: var(--text-high-color);
+    font-family: var(--m-sans);
+    font-size: var(--fs-meta);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .undo_snackbar_action {
+    flex: 0 0 auto;
+    min-height: var(--touch);
+    margin: 0;
+    padding: 0 var(--sp-3);
+    color: var(--text-high-color);
+  }
+
+  /* The countdown is the only signal that the offer expires, so it is functional
+   rather than decorative and stays ungated by [animated]. Under reduced motion
+   the shared override collapses it; the JS timer still governs dismissal. */
+  .undo_snackbar_progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background: var(--m-accent-bg);
+    animation: once-undo-countdown 1s linear forwards;
+    pointer-events: none;
+  }
+
+  @keyframes once-undo-countdown {
+    from {
+      width: 100%;
+    }
+
+    to {
+      width: 0;
+    }
+  }
+
+  /* ---------- Anchored story menu ---------- */
+
+  .once-anchored-menu {
+    position: fixed;
+    z-index: 900;
+    inset: 0;
+  }
+
+  .once-anchored-menu-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgb(0 0 0 / 25%);
+  }
+
+  .once-anchored-menu-panel {
+    position: absolute;
+    min-width: 220px;
+    max-width: min(320px, calc(100vw - 16px));
+    padding: 0;
+    border: var(--m-bw) solid var(--m-ink);
+    border-radius: var(--m-radius);
+    background: var(--main-bg-color);
+    overflow: hidden;
+  }
+
+  .once-anchored-menu-item {
+    display: block;
     width: 100%;
+    min-height: var(--touch);
+    margin: 0;
+    padding: 0 var(--sp-4);
+    border: 0;
+    border-bottom: var(--m-bw) solid var(--border-high-color);
+    border-radius: 0;
+    background: var(--main-bg-color);
+    color: var(--text-high-color);
+    font-family: var(--m-sans);
+    font-size: var(--fs-body);
+    text-align: left;
   }
-}
 
-/* ---------- Anchored story menu ---------- */
+  .once-anchored-menu-item:last-child {
+    border-bottom: 0;
+  }
 
-.once-anchored-menu {
-  position: fixed;
-  z-index: 900;
-  inset: 0;
-}
+  .once-anchored-menu-item:active {
+    background: var(--m-pressed-bg);
+  }
 
-.once-anchored-menu-backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgb(0 0 0 / 25%);
-}
+  .once-anchored-menu-item:disabled {
+    color: var(--text-color);
+  }
 
-.once-anchored-menu-panel {
-  position: absolute;
-  min-width: 220px;
-  max-width: min(320px, calc(100vw - 16px));
-  padding: 0;
-  border: var(--m-bw) solid var(--m-ink);
-  border-radius: var(--m-radius);
-  background: var(--main-bg-color);
-  overflow: hidden;
-}
+  body.once-anchored-menu-open {
+    overflow: hidden;
+  }
 
-.once-anchored-menu-item {
-  display: block;
-  width: 100%;
-  min-height: var(--touch);
-  margin: 0;
-  padding: 0 var(--sp-4);
-  border: 0;
-  border-bottom: var(--m-bw) solid var(--border-high-color);
-  border-radius: 0;
-  background: var(--main-bg-color);
-  color: var(--text-high-color);
-  font-family: var(--m-sans);
-  font-size: var(--fs-body);
-  text-align: left;
-}
+  /* ---------- Top bar (search + reload) ---------- */
 
-.once-anchored-menu-item:last-child {
-  border-bottom: 0;
-}
+  #search_bar {
+    flex-basis: auto;
+    height: auto;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-1) var(--sp-3);
+    border-bottom: var(--m-bw) solid var(--m-ink);
+  }
 
-.once-anchored-menu-item:active {
-  background: var(--m-pressed-bg);
-}
+  .search_query {
+    position: static;
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    height: auto;
+    gap: 0;
+  }
 
-.once-anchored-menu-item:disabled {
-  color: var(--text-color);
-}
+  #search_scope {
+    position: static;
+    inset: auto;
+    z-index: auto;
+    flex: 0 0 auto;
+    height: var(--touch);
+    appearance: none;
+    border: var(--m-bw) solid var(--m-ink);
+    border-radius: var(--m-radius);
+    border-right: none;
+    border-radius: var(--m-radius) 0 0 var(--m-radius);
+    background: var(--input-bg-color);
+    font-family: var(--m-sans);
+    padding: 0 var(--sp-4) 0 var(--sp-2);
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--m-ink) 50%),
+      linear-gradient(135deg, var(--m-ink) 50%, transparent 50%);
+    background-position:
+      calc(100% - 10px) 50%,
+      calc(100% - 4px) 50%;
+    background-size: 6px 6px;
+    background-repeat: no-repeat;
+  }
 
-body.once-anchored-menu-open {
-  overflow: hidden;
-}
+  #searchfield {
+    position: static;
+    inset: auto;
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
+    box-sizing: border-box;
+    height: var(--touch);
+    margin-left: 0;
+    padding-left: var(--sp-3);
+    padding-right: var(--sp-3);
+    background: var(--input-bg-color);
+    font-family: var(--m-sans);
+    border-radius: 0;
+  }
 
-/* ---------- Top bar (search + reload) ---------- */
+  #cancel_search_btn {
+    position: static;
+    inset: auto;
+    visibility: visible;
+    box-sizing: border-box;
+    flex: 0 0 var(--touch);
+    width: var(--touch);
+    height: var(--touch);
+    margin: 0;
+    padding: 0;
+    display: none;
+    place-items: center;
+    border: var(--m-bw) solid var(--m-ink);
+    border-left: 0;
+    border-radius: 0 var(--m-radius) var(--m-radius) 0;
+    background: var(--input-bg-color);
+    box-shadow: none;
+  }
 
-#search_bar {
-  flex-basis: auto;
-  height: auto;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: var(--sp-1) var(--sp-3);
-  border-bottom: var(--m-bw) solid var(--m-ink);
-}
+  #cancel_search_btn.search-cancel-visible {
+    display: grid;
+  }
 
-.search_query {
-  position: static;
-  display: flex;
-  flex: 1 1 auto;
-  min-width: 0;
-  height: auto;
-  gap: 0;
-}
+  #cancel_search_btn .icon {
+    --icon-size: var(--icon-md);
+  }
 
-#search_scope {
-  position: static;
-  inset: auto;
-  z-index: auto;
-  flex: 0 0 auto;
-  height: var(--touch);
-  appearance: none;
-  border: var(--m-bw) solid var(--m-ink);
-  border-radius: var(--m-radius);
-  border-right: none;
-  border-radius: var(--m-radius) 0 0 var(--m-radius);
-  background: var(--input-bg-color);
-  font-family: var(--m-sans);
-  padding: 0 var(--sp-4) 0 var(--sp-2);
-  background-image:
-    linear-gradient(45deg, transparent 50%, var(--m-ink) 50%),
-    linear-gradient(135deg, var(--m-ink) 50%, transparent 50%);
-  background-position:
-    calc(100% - 10px) 50%,
-    calc(100% - 4px) 50%;
-  background-size: 6px 6px;
-  background-repeat: no-repeat;
-}
+  .search_query:not(:has(#cancel_search_btn.search-cancel-visible)) #searchfield {
+    border-radius: 0 var(--m-radius) var(--m-radius) 0;
+  }
 
-#searchfield {
-  position: static;
-  inset: auto;
-  flex: 1 1 auto;
-  min-width: 0;
-  width: auto;
-  box-sizing: border-box;
-  height: var(--touch);
-  margin-left: 0;
-  padding-left: var(--sp-3);
-  padding-right: var(--sp-3);
-  background: var(--input-bg-color);
-  font-family: var(--m-sans);
-  border-radius: 0;
-}
+  #reload_stories_btn,
+  #reading_navigate {
+    box-sizing: border-box;
+    width: var(--touch);
+    height: var(--touch);
+    padding: 0;
+    display: grid;
+    place-items: center;
+    border: var(--m-bw) solid var(--m-ink);
+    border-radius: var(--m-radius);
+    background: var(--main-bg-color);
+    color: var(--text-high-color);
+  }
 
-#cancel_search_btn {
-  position: static;
-  inset: auto;
-  visibility: visible;
-  box-sizing: border-box;
-  flex: 0 0 var(--touch);
-  width: var(--touch);
-  height: var(--touch);
-  margin: 0;
-  padding: 0;
-  display: none;
-  place-items: center;
-  border: var(--m-bw) solid var(--m-ink);
-  border-left: 0;
-  border-radius: 0 var(--m-radius) var(--m-radius) 0;
-  background: var(--input-bg-color);
-  box-shadow: none;
-}
+  #reload_stories_btn {
+    flex: 0 0 var(--touch);
+    margin: 0;
+  }
 
-#cancel_search_btn.search-cancel-visible {
-  display: grid;
-}
+  #reload_stories_btn:active,
+  #reading_navigate:active {
+    background: var(--m-pressed-bg);
+  }
 
-#cancel_search_btn .icon {
-  --icon-size: var(--icon-md);
-}
+  #reload_stories_btn > .icon--reload {
+    width: 20px;
+    height: 20px;
+  }
 
-.search_query:not(:has(#cancel_search_btn.search-cancel-visible)) #searchfield {
-  border-radius: 0 var(--m-radius) var(--m-radius) 0;
-}
+  #reading_navigate::before {
+    content: "";
+    width: 20px;
+    height: 20px;
+    display: block;
+    background: currentColor;
+    -webkit-mask: url("imgs/reload.svg") center / contain no-repeat;
+    mask: url("imgs/reload.svg") center / contain no-repeat;
+  }
 
-#reload_stories_btn,
-#reading_navigate {
-  box-sizing: border-box;
-  width: var(--touch);
-  height: var(--touch);
-  padding: 0;
-  display: grid;
-  place-items: center;
-  border: var(--m-bw) solid var(--m-ink);
-  border-radius: var(--m-radius);
-  background: var(--main-bg-color);
-  color: var(--text-high-color);
-}
+  #reload_stories_btn.disabled,
+  #reading_navigate:disabled {
+    opacity: 1;
+    color: var(--text-low-color);
+  }
 
-#reload_stories_btn {
-  flex: 0 0 var(--touch);
-  margin: 0;
-}
+  #reading_navigate.loading::before {
+    animation: rotating 2s linear infinite;
+  }
 
-#reload_stories_btn:active,
-#reading_navigate:active {
-  background: var(--m-pressed-bg);
-}
+  /* ---------- Bottom tab bar ---------- */
 
-#reload_stories_btn > .icon--reload {
-  width: 20px;
-  height: 20px;
-}
+  #menu {
+    position: fixed;
+    z-index: 20;
+    right: env(safe-area-inset-right);
+    bottom: 0;
+    left: env(safe-area-inset-left);
+    display: flex;
+    flex-direction: row;
+    width: auto;
+    height: var(--m-tabbar-h);
+    padding: 0 0 env(safe-area-inset-bottom);
+    border-top: var(--m-bw) solid var(--m-ink);
+    border-right: 0;
+    background: var(--main-bg-color);
+  }
 
-#reading_navigate::before {
-  content: "";
-  width: 20px;
-  height: 20px;
-  display: block;
-  background: currentColor;
-  -webkit-mask: url("imgs/reload.svg") center / contain no-repeat;
-  mask: url("imgs/reload.svg") center / contain no-repeat;
-}
+  #menu > .sidebar_panel {
+    display: flex;
+    flex: 1 1 33.333%;
+    min-width: 0;
+    min-height: var(--touch);
+    margin: 0;
+    padding: 0;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    opacity: 0.55;
+  }
 
-#reload_stories_btn.disabled,
-#reading_navigate:disabled {
-  opacity: 1;
-  color: var(--text-low-color);
-}
+  #reading_menu_btn {
+    display: flex;
+  }
 
-#reading_navigate.loading::before {
-  animation: rotating 2s linear infinite;
-}
+  #stories_menu_btn {
+    order: 1;
+  }
 
-/* ---------- Bottom tab bar ---------- */
+  #reading_menu_btn {
+    order: 2;
+  }
 
-#menu {
-  position: fixed;
-  z-index: 20;
-  right: env(safe-area-inset-right);
-  bottom: 0;
-  left: env(safe-area-inset-left);
-  display: flex;
-  flex-direction: row;
-  width: auto;
-  height: var(--m-tabbar-h);
-  padding: 0 0 env(safe-area-inset-bottom);
-  border-top: var(--m-bw) solid var(--m-ink);
-  border-right: 0;
-  background: var(--main-bg-color);
-}
+  #settings_menu_btn {
+    order: 3;
+  }
 
-#menu > .sidebar_panel {
-  display: flex;
-  flex: 1 1 33.333%;
-  min-width: 0;
-  min-height: var(--touch);
-  margin: 0;
-  padding: 0;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  opacity: 0.55;
-}
+  #settings_menu_btn.has-warnings,
+  #settings_menu_btn.has-errors {
+    opacity: 1;
+  }
 
-#reading_menu_btn {
-  display: flex;
-}
+  #menu .heading {
+    position: relative;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-0-5);
+    width: 100%;
+    min-height: var(--touch);
+    margin: 0;
+    padding: var(--sp-1);
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
 
-#stories_menu_btn {
-  order: 1;
-}
-
-#reading_menu_btn {
-  order: 2;
-}
-
-#settings_menu_btn {
-  order: 3;
-}
-
-#settings_menu_btn.has-warnings,
-#settings_menu_btn.has-errors {
-  opacity: 1;
-}
-
-#menu .heading {
-  position: relative;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--sp-0-5);
-  width: 100%;
-  min-height: var(--touch);
-  margin: 0;
-  padding: var(--sp-1);
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
-
-/* The mask stays a plain foreground glyph. The selected-tab pill is a
+  /* The mask stays a plain foreground glyph. The selected-tab pill is a
    separate heading layer so it cannot recolor or clip the icon. */
-#menu .heading > .icon {
-  position: relative;
-  z-index: 1;
-  width: 20px;
-  height: 20px;
-  border-radius: 0;
-}
+  #menu .heading > .icon {
+    position: relative;
+    z-index: 1;
+    width: 20px;
+    height: 20px;
+    border-radius: 0;
+  }
 
-#menu .heading p {
-  padding-left: 0;
-  font-family: var(--m-sans);
-  font-size: var(--fs-label);
-  font-weight: 500;
-}
+  #menu .heading p {
+    padding-left: 0;
+    font-family: var(--m-sans);
+    font-size: var(--fs-label);
+    font-weight: 500;
+  }
 
-#left_panel[active_panel="stories"] #menu .sidebar_panel[data-panel="stories"],
-#left_panel[active_panel="reading"] #menu .sidebar_panel[data-panel="reading"],
-#left_panel[active_panel="settings"] #menu .sidebar_panel[data-panel="settings"] {
-  opacity: 1;
-}
+  #left_panel[active_panel="stories"] #menu .sidebar_panel[data-panel="stories"],
+  #left_panel[active_panel="reading"] #menu .sidebar_panel[data-panel="reading"],
+  #left_panel[active_panel="settings"] #menu .sidebar_panel[data-panel="settings"] {
+    opacity: 1;
+  }
 
-#left_panel[active_panel="stories"] #menu
-  .sidebar_panel[data-panel="stories"] .heading::before,
-#left_panel[active_panel="reading"] #menu
-  .sidebar_panel[data-panel="reading"] .heading::before,
-#left_panel[active_panel="settings"] #menu
-  .sidebar_panel[data-panel="settings"] .heading::before {
-  content: "";
-  position: absolute;
-  z-index: 0;
-  top: 3px;
-  left: 50%;
-  width: 44px;
-  height: 24px;
-  border-radius: var(--radius-pill);
-  background: var(--m-accent-bg);
-  transform: translateX(-50%);
-}
+  #left_panel[active_panel="stories"] #menu .sidebar_panel[data-panel="stories"] .heading::before,
+  #left_panel[active_panel="reading"] #menu .sidebar_panel[data-panel="reading"] .heading::before,
+  #left_panel[active_panel="settings"]
+    #menu
+    .sidebar_panel[data-panel="settings"]
+    .heading::before {
+    content: "";
+    position: absolute;
+    z-index: 0;
+    top: 3px;
+    left: 50%;
+    width: 44px;
+    height: 24px;
+    border-radius: var(--radius-pill);
+    background: var(--m-accent-bg);
+    transform: translateX(-50%);
+  }
 
-/* ---------- Reading tab ---------- */
+  /* ---------- Reading tab ---------- */
 
-#reading_panel {
-  min-height: 0;
-  background: var(--main-bg-color);
-}
+  #reading_panel {
+    min-height: 0;
+    background: var(--main-bg-color);
+  }
 
-#reading_url_form {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: var(--sp-1) var(--sp-2);
-  background: var(--main-bg-color);
-}
+  #reading_url_form {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-1) var(--sp-2);
+    background: var(--main-bg-color);
+  }
 
-#reading_url_group {
-  display: flex;
-  flex: 1 1 auto;
-  min-width: 0;
-  align-items: stretch;
-  overflow: hidden;
-  border: var(--m-bw) solid var(--m-ink);
-  border-radius: var(--m-radius);
-  background: var(--input-bg-color);
-}
+  #reading_url_group {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    align-items: stretch;
+    overflow: hidden;
+    border: var(--m-bw) solid var(--m-ink);
+    border-radius: var(--m-radius);
+    background: var(--input-bg-color);
+  }
 
-#reading_url {
-  flex: 1 1 auto;
-  width: 0;
-  min-width: 0;
-  min-height: var(--touch);
-  box-sizing: border-box;
-  padding: 0 var(--sp-3);
-  border: 0;
-  border-radius: 0;
-  outline-offset: -2px;
-  background: transparent;
-  font-family: var(--m-mono);
-  font-size: var(--fs-meta);
-}
+  #reading_url {
+    flex: 1 1 auto;
+    width: 0;
+    min-width: 0;
+    min-height: var(--touch);
+    box-sizing: border-box;
+    padding: 0 var(--sp-3);
+    border: 0;
+    border-radius: 0;
+    outline-offset: -2px;
+    background: transparent;
+    font-family: var(--m-mono);
+    font-size: var(--fs-meta);
+  }
 
-#reading_reader_toggle,
-#reading_navigate {
-  min-width: var(--touch);
-  min-height: var(--touch);
-  margin: 0;
-  padding: 0 var(--sp-2);
-}
+  #reading_reader_toggle,
+  #reading_navigate {
+    min-width: var(--touch);
+    min-height: var(--touch);
+    margin: 0;
+    padding: 0 var(--sp-2);
+  }
 
-#reading_reader_toggle {
-  border: 0;
-  border-left: var(--m-bw) solid var(--m-ink);
-  border-radius: 0;
-  background: transparent;
-}
+  #reading_reader_toggle {
+    border: 0;
+    border-left: var(--m-bw) solid var(--m-ink);
+    border-radius: 0;
+    background: transparent;
+  }
 
-#reading_reader_toggle .icon {
-  display: block;
-  --icon-size: 20px;
-  margin: auto;
-  opacity: 0.75;
-}
+  #reading_reader_toggle .icon {
+    display: block;
+    --icon-size: 20px;
+    margin: auto;
+    opacity: 0.75;
+  }
 
-#reading_reader_toggle.active {
-  color: var(--highlight-color);
-  background: var(--highlight-bg-color);
-}
+  #reading_reader_toggle.active {
+    color: var(--highlight-color);
+    background: var(--highlight-bg-color);
+  }
 
-#reading_reader_toggle.active .icon {
-  opacity: 1;
-}
+  #reading_reader_toggle.active .icon {
+    opacity: 1;
+  }
 
-#reading_navigate {
-  flex: 0 0 auto;
-}
+  #reading_navigate {
+    flex: 0 0 auto;
+  }
 
-#reading_navigate span {
-  display: none;
-}
+  #reading_navigate span {
+    display: none;
+  }
 
-#reading_navigate.reading-go {
-  width: auto;
-  min-width: var(--touch);
-  padding: 0 var(--sp-2);
-}
+  #reading_navigate.reading-go {
+    width: auto;
+    min-width: var(--touch);
+    padding: 0 var(--sp-2);
+  }
 
-#reading_navigate.reading-go::before {
-  display: none;
-}
+  #reading_navigate.reading-go::before {
+    display: none;
+  }
 
-#reading_navigate.reading-go span {
-  display: block;
-}
+  #reading_navigate.reading-go span {
+    display: block;
+  }
 
-#reading_url_validation,
-#reading_error {
-  flex: 0 0 auto;
-  padding: var(--sp-1) var(--sp-4) var(--sp-2);
-  color: var(--error-color);
-  background: var(--main-bg-color);
-  font-family: var(--m-sans);
-  font-size: var(--fs-meta);
-}
+  #reading_url_validation,
+  #reading_error {
+    flex: 0 0 auto;
+    padding: var(--sp-1) var(--sp-4) var(--sp-2);
+    color: var(--error-color);
+    background: var(--main-bg-color);
+    font-family: var(--m-sans);
+    font-size: var(--fs-meta);
+  }
 
-#reading_current_card {
-  flex: 0 0 auto;
-  margin-top: 0;
-  touch-action: none;
-  transform: translateY(var(--reading-story-drag, 0));
-  padding: var(--sp-2) var(--sp-3);
-  /* Runway the card's own controls occupy on the trailing edge. Text rows keep
+  #reading_current_card {
+    flex: 0 0 auto;
+    margin-top: 0;
+    touch-action: none;
+    transform: translateY(var(--reading-story-drag, 0));
+    padding: var(--sp-2) var(--sp-3);
+    /* Runway the card's own controls occupy on the trailing edge. Text rows keep
      clear of it. Derived from the control cluster's width, so it tracks that
      cluster rather than the spacing scale. */
-  --reading-card-control-inset: 68px;
-}
-
-#reading_current_card.reading_story_dragging {
-  transition: none;
-}
-
-#reading_current_card.reading_story_collapsed > button {
-  bottom: 3px;
-}
-
-#reading_current_card .reading_story_control {
-  display: grid;
-  place-items: center;
-  position: absolute;
-  right: 42px;
-  bottom: 15px;
-  box-sizing: border-box;
-  width: 28px;
-  height: 28px;
-  min-width: 0;
-  min-height: 0;
-  margin: 0;
-  padding: 0;
-  border: var(--m-bw) solid var(--border-color);
-  border-radius: var(--m-radius);
-  color: var(--text-color);
-  background: var(--main-bg-color);
-  font-size: var(--icon-md);
-  line-height: 1;
-}
-
-#reading_current_card #reading_story_meta,
-#reading_current_card .tags_container {
-  padding-right: var(--reading-card-control-inset);
-}
-
-#reading_current_card.reading_story_collapsed #reading_story_time,
-#reading_current_card.reading_story_collapsed #reading_story_tags {
-  display: none;
-}
-
-#reading_current_card.reading_story_collapsed {
-  min-height: 36px;
-  padding-top: var(--sp-1);
-  padding-bottom: var(--sp-1);
-}
-
-#reading_current_card.reading_story_collapsed .data {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-1);
-  box-sizing: border-box;
-  min-width: 0;
-  padding-right: var(--reading-card-control-inset);
-  overflow: hidden;
-}
-
-#reading_current_card.reading_story_collapsed .title_line,
-#reading_current_card.reading_story_collapsed .substories,
-#reading_current_card.reading_story_collapsed #reading_story_meta {
-  display: contents;
-}
-
-#reading_current_card.reading_story_collapsed #reading_type {
-  order: 1;
-  flex: 0 0 auto;
-}
-
-#reading_current_card.reading_story_collapsed #reading_comments {
-  display: none;
-}
-
-#reading_current_card.reading_story_collapsed #reading_title {
-  order: 2;
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  font-size: var(--fs-meta);
-  line-height: 1.25;
-}
-
-
-  #reading_current_card.reading_story_collapsed.stared
-  .substories
-  .info:first-child::after {
-  display: none;
-}
-
-#reading_comments {
-  min-width: 0;
-  min-height: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-}
-
-#reading_content {
-  position: relative;
-  flex: 1 1 auto;
-  min-height: 0;
-  background: var(--main-bg-color);
-}
-
-#reading_empty {
-  margin: 0;
-  padding: var(--sp-5) var(--sp-4);
-  color: var(--text-color);
-  font-family: var(--m-sans);
-  font-size: var(--fs-body);
-  text-align: center;
-}
-
-#reading_reader_status {
-  display: grid;
-  position: absolute;
-  z-index: 2;
-  inset: 0;
-  place-items: center;
-  box-sizing: border-box;
-  padding: var(--sp-5) var(--sp-4);
-  background: var(--main-bg-color);
-  color: var(--text-color);
-  font-family: var(--m-sans);
-  text-align: center;
-}
-
-#reading_reader_loading,
-#reading_reader_failure {
-  max-width: 32rem;
-}
-
-#reading_reader_loading p,
-#reading_reader_failure p {
-  margin: var(--sp-3) 0 0;
-}
-
-.reading_status_spinner {
-  display: inline-block;
-  width: 24px;
-  height: 24px;
-  border: 3px solid var(--border-color);
-  border-top-color: var(--highlight-color);
-  border-radius: 50%;
-  animation: reading-status-spin 800ms linear infinite;
-}
-
-#reading_reader_error_message {
-  color: var(--error-color);
-}
-
-.reading_status_actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--sp-2);
-  margin-top: var(--sp-4);
-}
-
-.reading_status_actions button {
-  min-height: var(--touch);
-}
-
-@keyframes reading-status-spin {
-  to {
-    transform: rotate(1turn);
+    --reading-card-control-inset: 68px;
   }
-}
 
-@media (prefers-reduced-motion: reduce) {
+  #reading_current_card.reading_story_dragging {
+    transition: none;
+  }
+
+  #reading_current_card.reading_story_collapsed > button {
+    bottom: 3px;
+  }
+
+  #reading_current_card .reading_story_control {
+    display: grid;
+    place-items: center;
+    position: absolute;
+    right: 42px;
+    bottom: 15px;
+    box-sizing: border-box;
+    width: 28px;
+    height: 28px;
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: var(--m-bw) solid var(--border-color);
+    border-radius: var(--m-radius);
+    color: var(--text-color);
+    background: var(--main-bg-color);
+    font-size: var(--icon-md);
+    line-height: 1;
+  }
+
+  #reading_current_card #reading_story_meta,
+  #reading_current_card .tags_container {
+    padding-right: var(--reading-card-control-inset);
+  }
+
+  #reading_current_card.reading_story_collapsed #reading_story_time,
+  #reading_current_card.reading_story_collapsed #reading_story_tags {
+    display: none;
+  }
+
+  #reading_current_card.reading_story_collapsed {
+    min-height: 36px;
+    padding-top: var(--sp-1);
+    padding-bottom: var(--sp-1);
+  }
+
+  #reading_current_card.reading_story_collapsed .data {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-1);
+    box-sizing: border-box;
+    min-width: 0;
+    padding-right: var(--reading-card-control-inset);
+    overflow: hidden;
+  }
+
+  #reading_current_card.reading_story_collapsed .title_line,
+  #reading_current_card.reading_story_collapsed .substories,
+  #reading_current_card.reading_story_collapsed #reading_story_meta {
+    display: contents;
+  }
+
+  #reading_current_card.reading_story_collapsed #reading_type {
+    order: 1;
+    flex: 0 0 auto;
+  }
+
+  #reading_current_card.reading_story_collapsed #reading_comments {
+    display: none;
+  }
+
+  #reading_current_card.reading_story_collapsed #reading_title {
+    order: 2;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: var(--fs-meta);
+    line-height: 1.25;
+  }
+
+  #reading_current_card.reading_story_collapsed.stared .substories .info:first-child::after {
+    display: none;
+  }
+
+  #reading_comments {
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+  }
+
+  #reading_content {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    background: var(--main-bg-color);
+  }
+
+  #reading_empty {
+    margin: 0;
+    padding: var(--sp-5) var(--sp-4);
+    color: var(--text-color);
+    font-family: var(--m-sans);
+    font-size: var(--fs-body);
+    text-align: center;
+  }
+
+  #reading_reader_status {
+    display: grid;
+    position: absolute;
+    z-index: 2;
+    inset: 0;
+    place-items: center;
+    box-sizing: border-box;
+    padding: var(--sp-5) var(--sp-4);
+    background: var(--main-bg-color);
+    color: var(--text-color);
+    font-family: var(--m-sans);
+    text-align: center;
+  }
+
+  #reading_reader_loading,
+  #reading_reader_failure {
+    max-width: 32rem;
+  }
+
+  #reading_reader_loading p,
+  #reading_reader_failure p {
+    margin: var(--sp-3) 0 0;
+  }
+
   .reading_status_spinner {
-    animation: none;
-    border-top-color: var(--border-color);
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    border: 3px solid var(--border-color);
+    border-top-color: var(--highlight-color);
+    border-radius: 50%;
+    animation: reading-status-spin 800ms linear infinite;
   }
-}
 
-#reading_content .once-reader-host {
-  position: absolute;
-  z-index: 1;
-  inset: 0;
-  padding: 0;
-  pointer-events: auto;
-}
+  #reading_reader_error_message {
+    color: var(--error-color);
+  }
 
-#reading_content .once-reader-host-close {
-  display: none;
-}
+  .reading_status_actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--sp-2);
+    margin-top: var(--sp-4);
+  }
 
-#reader_tts_pill {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  flex: 0 0 auto;
-  min-height: var(--touch);
-  align-items: center;
-  justify-content: center;
-  gap: var(--sp-2);
-  box-sizing: border-box;
-  padding: var(--sp-1) var(--sp-2);
-  border: 0;
-  border-top: var(--m-bw) solid var(--m-ink);
-  background: var(--m-card-bg);
-  box-shadow: 0 -2px 8px rgb(0 0 0 / 10%);
-}
+  .reading_status_actions button {
+    min-height: var(--touch);
+  }
 
-#reader_tts_pill > button,
-#reader_tts_pill summary {
-  display: grid;
-  place-items: center;
-  min-width: 40px;
-  min-height: var(--touch);
-  margin: 0;
-  padding: 0 var(--sp-1);
-  border: 0;
-  border-radius: var(--m-radius);
-  background: transparent;
-  font-family: var(--m-sans);
-  font-size: var(--fs-body);
-}
+  @keyframes reading-status-spin {
+    to {
+      transform: rotate(1turn);
+    }
+  }
 
-#reader_tts_pill > button:active,
-#reader_tts_pill summary:active {
-  background: var(--m-pressed-bg);
-}
+  @media (prefers-reduced-motion: reduce) {
+    .reading_status_spinner {
+      animation: none;
+      border-top-color: var(--border-color);
+    }
+  }
 
-#reader_tts_pill .reader_tts_play {
-  color: var(--text-high-color);
-  background: var(--m-accent-bg);
-}
+  #reading_content .once-reader-host {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    padding: 0;
+    pointer-events: auto;
+  }
 
-#reader_tts_settings {
-  position: relative;
-}
+  #reading_content .once-reader-host-close {
+    display: none;
+  }
 
-#reader_tts_settings summary {
-  list-style: none;
-  font-variant-numeric: tabular-nums;
-}
+  #reader_tts_pill {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex: 0 0 auto;
+    min-height: var(--touch);
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-2);
+    box-sizing: border-box;
+    padding: var(--sp-1) var(--sp-2);
+    border: 0;
+    border-top: var(--m-bw) solid var(--m-ink);
+    background: var(--m-card-bg);
+    box-shadow: 0 -2px 8px rgb(0 0 0 / 10%);
+  }
 
-#reader_tts_settings summary::-webkit-details-marker {
-  display: none;
-}
+  #reader_tts_pill > button,
+  #reader_tts_pill summary {
+    display: grid;
+    place-items: center;
+    min-width: 40px;
+    min-height: var(--touch);
+    margin: 0;
+    padding: 0 var(--sp-1);
+    border: 0;
+    border-radius: var(--m-radius);
+    background: transparent;
+    font-family: var(--m-sans);
+    font-size: var(--fs-body);
+  }
 
-.reader_tts_settings_menu {
-  position: fixed;
-  z-index: 5;
-  right: var(--sp-4);
-  bottom: calc(var(--m-tabbar-h) + 60px);
-  left: var(--sp-4);
-  box-sizing: border-box;
-  display: grid;
-  gap: var(--sp-3);
-  padding: var(--sp-3);
-  border: var(--m-bw) solid var(--m-ink);
-  border-radius: var(--m-radius);
-  background: var(--main-bg-color);
-  box-shadow: 0 4px 18px rgb(0 0 0 / 24%);
-  font-family: var(--m-sans);
-  font-size: var(--fs-body);
-}
+  #reader_tts_pill > button:active,
+  #reader_tts_pill summary:active {
+    background: var(--m-pressed-bg);
+  }
 
-.reader_tts_settings_menu label {
-  display: grid;
-  gap: var(--sp-1);
-}
+  #reader_tts_pill .reader_tts_play {
+    color: var(--text-high-color);
+    background: var(--m-accent-bg);
+  }
 
-#reader_tts_voice {
-  width: 100%;
-}
+  #reader_tts_settings {
+    position: relative;
+  }
 
-#reader_tts_rates {
-  display: flex;
-  gap: var(--sp-1);
-}
+  #reader_tts_settings summary {
+    list-style: none;
+    font-variant-numeric: tabular-nums;
+  }
 
-.reader_tts_rate_setting {
-  display: grid;
-  gap: var(--sp-1);
-}
+  #reader_tts_settings summary::-webkit-details-marker {
+    display: none;
+  }
 
-#reader_tts_rates button {
-  flex: 1 1 0;
-  min-width: 0;
-  min-height: 36px;
-  margin: 0;
-  padding: 0 var(--sp-1);
-}
+  .reader_tts_settings_menu {
+    position: fixed;
+    z-index: 5;
+    right: var(--sp-4);
+    bottom: calc(var(--m-tabbar-h) + 60px);
+    left: var(--sp-4);
+    box-sizing: border-box;
+    display: grid;
+    gap: var(--sp-3);
+    padding: var(--sp-3);
+    border: var(--m-bw) solid var(--m-ink);
+    border-radius: var(--m-radius);
+    background: var(--main-bg-color);
+    box-shadow: 0 4px 18px rgb(0 0 0 / 24%);
+    font-family: var(--m-sans);
+    font-size: var(--fs-body);
+  }
 
-/* ---------- Settings panel ---------- */
+  .reader_tts_settings_menu label {
+    display: grid;
+    gap: var(--sp-1);
+  }
 
-#settings_panel .bar {
-  flex: 0 0 auto;
-  align-items: center;
-  gap: var(--sp-2);
-  min-height: var(--touch);
-  height: auto;
-  box-sizing: border-box;
-  padding: var(--sp-1) var(--sp-2);
-}
+  #reader_tts_voice {
+    width: 100%;
+  }
 
-#settings_panel .settings_title {
-  order: 0;
-  margin-top: 0;
-  font-family: var(--m-sans);
-  font-size: var(--fs-title);
-  font-weight: 600;
-}
+  #reader_tts_rates {
+    display: flex;
+    gap: var(--sp-1);
+  }
 
-/* Two-segment glyph pill: stacked rules for the list, </> for the raw text.
+  .reader_tts_rate_setting {
+    display: grid;
+    gap: var(--sp-1);
+  }
+
+  #reader_tts_rates button {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 36px;
+    margin: 0;
+    padding: 0 var(--sp-1);
+  }
+
+  /* ---------- Settings panel ---------- */
+
+  #settings_panel .bar {
+    flex: 0 0 auto;
+    align-items: center;
+    gap: var(--sp-2);
+    min-height: var(--touch);
+    height: auto;
+    box-sizing: border-box;
+    padding: var(--sp-1) var(--sp-2);
+  }
+
+  #settings_panel .settings_title {
+    order: 0;
+    margin-top: 0;
+    font-family: var(--m-sans);
+    font-size: var(--fs-title);
+    font-weight: 600;
+  }
+
+  /* Two-segment glyph pill: stacked rules for the list, </> for the raw text.
    The words stay in textContent, title and aria-label — they are the
    accessible name and what the tests read — but they are not drawn. */
-#settings_panel .structured_mode_toggle_topbar {
-  display: flex;
-  align-items: stretch;
-  box-sizing: border-box;
-  width: 80px;
-  height: 32px;
-  min-width: 0;
-  min-height: 0;
-  margin: 0 0 0 auto;
-  padding: 0;
-  overflow: hidden;
-  border: var(--m-bw) solid var(--m-ink);
-  border-radius: var(--m-radius);
-  background: transparent;
-  /* Hides the TXT / UI label without hiding it from assistive tech. */
-  font-size: 0;
-  line-height: 0;
-}
+  #settings_panel .structured_mode_toggle_topbar {
+    display: flex;
+    align-items: stretch;
+    box-sizing: border-box;
+    width: 80px;
+    height: 32px;
+    min-width: 0;
+    min-height: 0;
+    margin: 0 0 0 auto;
+    padding: 0;
+    overflow: hidden;
+    border: var(--m-bw) solid var(--m-ink);
+    border-radius: var(--m-radius);
+    background: transparent;
+    /* Hides the TXT / UI label without hiding it from assistive tech. */
+    font-size: 0;
+    line-height: 0;
+  }
 
-#settings_panel .structured_mode_toggle_topbar::before {
-  content: "";
-  height: auto;
-  flex: 0 0 40px;
-  border-right: 0;
-  background-image:
-    linear-gradient(var(--m-ink), var(--m-ink)), linear-gradient(var(--m-ink), var(--m-ink)),
-    linear-gradient(var(--m-ink), var(--m-ink));
-  background-repeat: no-repeat;
-  background-size: 14px 2px;
-  background-position:
-    center calc(50% - 5px),
-    center center,
-    center calc(50% + 5px);
-  opacity: 0.45;
-}
+  #settings_panel .structured_mode_toggle_topbar::before {
+    content: "";
+    height: auto;
+    flex: 0 0 40px;
+    border-right: 0;
+    background-image:
+      linear-gradient(var(--m-ink), var(--m-ink)), linear-gradient(var(--m-ink), var(--m-ink)),
+      linear-gradient(var(--m-ink), var(--m-ink));
+    background-repeat: no-repeat;
+    background-size: 14px 2px;
+    background-position:
+      center calc(50% - 5px),
+      center center,
+      center calc(50% + 5px);
+    opacity: 0.45;
+  }
 
-#settings_panel .structured_mode_toggle_topbar::after {
-  content: "</>";
-  display: grid;
-  place-items: center;
-  height: auto;
-  flex: 0 0 40px;
-  border-left: var(--m-bw) solid var(--m-ink);
-  color: var(--m-ink);
-  font-family: var(--m-mono);
-  font-size: var(--fs-meta);
-  font-weight: 600;
-  line-height: 1;
-  opacity: 0.45;
-}
+  #settings_panel .structured_mode_toggle_topbar::after {
+    content: "</>";
+    display: grid;
+    place-items: center;
+    height: auto;
+    flex: 0 0 40px;
+    border-left: var(--m-bw) solid var(--m-ink);
+    color: var(--m-ink);
+    font-family: var(--m-mono);
+    font-size: var(--fs-meta);
+    font-weight: 600;
+    line-height: 1;
+    opacity: 0.45;
+  }
 
-/* The label names the action, so it also names the mode that is showing:
+  /* The label names the action, so it also names the mode that is showing:
    "Edit as text" means the list is on screen. */
 
-  #settings_panel
-  .structured_mode_toggle_topbar[aria-label="Edit as text"]::before,
+  #settings_panel .structured_mode_toggle_topbar[aria-label="Edit as text"]::before,
+  #settings_panel .structured_mode_toggle_topbar[aria-label="Edit as list"]::after {
+    background-color: var(--m-accent-bg);
+    opacity: 1;
+  }
 
-  #settings_panel
-  .structured_mode_toggle_topbar[aria-label="Edit as list"]::after {
-  background-color: var(--m-accent-bg);
-  opacity: 1;
-}
+  #settings_panel .settings_block {
+    border: var(--m-bw) solid var(--m-ink);
+    border-radius: var(--m-radius);
+    background: var(--m-card-bg);
+    margin: var(--sp-3) var(--sp-4);
+    padding: var(--sp-3);
+    font-family: var(--m-sans);
+    font-size: var(--fs-body);
+  }
 
-#settings_panel .settings_block {
-  border: var(--m-bw) solid var(--m-ink);
-  border-radius: var(--m-radius);
-  background: var(--m-card-bg);
-  margin: var(--sp-3) var(--sp-4);
-  padding: var(--sp-3);
-  font-family: var(--m-sans);
-  font-size: var(--fs-body);
-}
+  #settings_panel .settings_container {
+    display: block;
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+    overflow: auto;
+  }
 
-#settings_panel .settings_container {
-  display: block;
-  flex: 1 1 auto;
-  min-height: 0;
-  height: auto;
-  overflow: auto;
-}
+  #settings_panel.settings_detail_open {
+    overflow: hidden;
+  }
 
-#settings_panel.settings_detail_open {
-  overflow: hidden;
-}
+  #settings_panel.settings_detail_open > .bar {
+    padding-right: var(--sp-4);
+    padding-left: var(--sp-4);
+  }
 
-#settings_panel.settings_detail_open > .bar {
-  padding-right: var(--sp-4);
-  padding-left: var(--sp-4);
-}
+  #settings_panel.settings_detail_open .settings_container {
+    display: flex;
+    overflow: hidden;
+  }
 
-#settings_panel.settings_detail_open .settings_container {
-  display: flex;
-  overflow: hidden;
-}
+  #settings_index {
+    box-sizing: border-box;
+    width: 100%;
+    padding: var(--sp-3);
+    border: 0;
+  }
 
-#settings_index {
-  box-sizing: border-box;
-  width: 100%;
-  padding: var(--sp-3);
-  border: 0;
-}
+  #settings_search {
+    min-height: var(--touch);
+    padding: 0 var(--sp-3);
+    background: var(--input-bg-color);
+  }
 
-#settings_search {
-  min-height: var(--touch);
-  padding: 0 var(--sp-3);
-  background: var(--input-bg-color);
-}
+  .settings_section_row {
+    display: flex;
+    width: 100%;
+    height: auto;
+    min-height: var(--touch);
+    margin: 0;
+    border: 0;
+    border-bottom: var(--m-bw) solid var(--sep-color);
+    border-radius: 0;
+    gap: var(--sp-2);
+    align-items: center;
+    font-size: var(--fs-body);
+  }
 
-.settings_section_row {
-  display: flex;
-  width: 100%;
-  height: auto;
-  min-height: var(--touch);
-  margin: 0;
-  border: 0;
-  border-bottom: var(--m-bw) solid var(--sep-color);
-  border-radius: 0;
-  gap: var(--sp-2);
-  align-items: center;
-  font-size: var(--fs-body);
-}
+  .settings_section_row_text {
+    flex: 0 0 auto;
+    min-width: max-content;
+  }
 
-.settings_section_row_text {
-  flex: 0 0 auto;
-  min-width: max-content;
-}
-
-/* The trailing value is supporting detail, not a second label — muted, the
+  /* The trailing value is supporting detail, not a second label — muted, the
    same separation the desktop index uses. */
-.settings_section_summary {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  margin-left: auto;
-  color: var(--text-color);
-  font-size: var(--fs-body);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+  .settings_section_summary {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    margin-left: auto;
+    color: var(--text-color);
+    font-size: var(--fs-body);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
-/* The error-log row tints its label and value together; there the value must
+  /* The error-log row tints its label and value together; there the value must
    keep the row's colour rather than drop back to muted. */
-.settings_section_row.has-warnings .settings_section_summary,
-.settings_section_row.has-errors .settings_section_summary {
-  color: inherit;
-}
+  .settings_section_row.has-warnings .settings_section_summary,
+  .settings_section_row.has-errors .settings_section_summary {
+    color: inherit;
+  }
 
-.settings_section_arrow {
-  flex-basis: auto;
-  font-size: var(--fs-body);
-}
+  .settings_section_arrow {
+    flex-basis: auto;
+    font-size: var(--fs-body);
+  }
 
-.settings_section_row[data-settings-target="errors"].has-warnings {
-  color: var(--m-warning);
-  background: color-mix(in srgb, var(--m-warning) 10%, transparent);
-}
+  .settings_section_row[data-settings-target="errors"].has-warnings {
+    color: var(--m-warning);
+    background: color-mix(in srgb, var(--m-warning) 10%, transparent);
+  }
 
-.settings_section_row[data-settings-target="errors"].has-errors {
-  color: var(--m-error);
-  background: color-mix(in srgb, var(--m-error) 10%, transparent);
-}
+  .settings_section_row[data-settings-target="errors"].has-errors {
+    color: var(--m-error);
+    background: color-mix(in srgb, var(--m-error) 10%, transparent);
+  }
 
-.settings_issue_badges {
-  display: none;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: var(--sp-2);
-  margin-left: auto;
-  padding-left: var(--sp-2);
-}
+  .settings_issue_badges {
+    display: none;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: var(--sp-2);
+    margin-left: auto;
+    padding-left: var(--sp-2);
+  }
 
-.settings_issue_badge {
-  font-size: var(--fs-label);
-  font-weight: 700;
-  line-height: 1;
-}
+  .settings_issue_badge {
+    font-size: var(--fs-label);
+    font-weight: 700;
+    line-height: 1;
+  }
 
-.settings_issue_badge.warning {
-  color: var(--m-warning);
-}
+  .settings_issue_badge.warning {
+    color: var(--m-warning);
+  }
 
-.settings_issue_badge.error {
-  color: var(--m-error);
-}
+  .settings_issue_badge.error {
+    color: var(--m-error);
+  }
 
-.settings_section_match {
-  width: 100%;
-  min-height: var(--touch);
-  margin: 0;
-  padding: 0 var(--sp-3);
-  border: 0;
-  border-bottom: var(--m-bw) solid var(--sep-color);
-  border-radius: 0;
-}
+  .settings_section_match {
+    width: 100%;
+    min-height: var(--touch);
+    margin: 0;
+    padding: 0 var(--sp-3);
+    border: 0;
+    border-bottom: var(--m-bw) solid var(--sep-color);
+    border-radius: 0;
+  }
 
-.settings_section {
-  display: none;
-  min-height: 0;
-  overflow: auto;
-}
+  .settings_section {
+    display: none;
+    min-height: 0;
+    overflow: auto;
+  }
 
-#settings_panel.settings_detail_open #settings_index {
-  display: none;
-}
+  #settings_panel.settings_detail_open #settings_index {
+    display: none;
+  }
 
-#settings_panel.settings_detail_open .settings_section.active {
-  display: flex;
-  flex: 1 1 auto;
-}
+  #settings_panel.settings_detail_open .settings_section.active {
+    display: flex;
+    flex: 1 1 auto;
+  }
 
+  #settings_panel.settings_detail_open .settings_section.active > .settings_block {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 100%;
+    margin: 0;
+    padding: var(--sp-3);
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
 
-  #settings_panel.settings_detail_open
-  .settings_section.active
-  > .settings_block {
-  box-sizing: border-box;
-  width: 100%;
-  min-height: 100%;
-  margin: 0;
-  padding: var(--sp-3);
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
-
-
-  #settings_panel.settings_detail_open
-  .settings_section.active
-  > .settings_editor_block {
-  /* The editor's scrolling box must reach the viewport edge so its scrollbar
+  #settings_panel.settings_detail_open .settings_section.active > .settings_editor_block {
+    /* The editor's scrolling box must reach the viewport edge so its scrollbar
      does too. Horizontal content gutters live inside that scroller instead. */
-  padding: 0;
-}
+    padding: 0;
+  }
 
-/* Back chevron then the subpage title — the bar no longer says "Settings"
+  /* Back chevron then the subpage title — the bar no longer says "Settings"
    twice. Settings participates in the same back stack as the native back
    action, so the chevron stays visible on the section index too, where it
    leaves the panel; the shared sheet reveals it only for an open section.
    font-size: 0 drops the "Settings" label — main.ts names the icon instead. */
-#settings_section_back {
-  display: grid;
-  place-items: center start;
-  order: -1;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-  font-size: 0;
-  /* Scale for the shared chevron in settings.css. A text "‹" sits high in its
+  #settings_section_back {
+    display: grid;
+    place-items: center start;
+    order: -1;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    font-size: 0;
+    /* Scale for the shared chevron in settings.css. A text "‹" sits high in its
      em box and a rotated border box has no defined optical centre; an icon
      sized here is centred by its own geometry. */
-  --settings-back-icon-width: 23px;
-  --settings-back-icon-height: 15px;
-  --settings-back-icon-scale: 70%;
-  --settings-back-icon-color: var(--m-ink);
-}
+    --settings-back-icon-width: 23px;
+    --settings-back-icon-height: 15px;
+    --settings-back-icon-scale: 70%;
+    --settings-back-icon-color: var(--m-ink);
+  }
 
-#settings_section_back::before {
-  margin-top: var(--sp-3);
-}
+  #settings_section_back::before {
+    margin-top: var(--sp-3);
+  }
 
-/* ---------- Full-screen editor inside a section ----------
+  /* ---------- Full-screen editor inside a section ----------
    A modal task, not navigation: the tab bar and the list's own mode toggle
    step aside, the header keeps only ‹ and the editor's title, and the commit
    pair moves into an action bar of its own at the bottom. */
 
-body:has(#settings_panel.settings_form_open) #menu {
-  display: none;
-}
+  body:has(#settings_panel.settings_form_open) #menu {
+    display: none;
+  }
 
-#settings_panel.settings_form_open .structured_mode_toggle_topbar {
-  display: none;
-}
+  #settings_panel.settings_form_open .structured_mode_toggle_topbar {
+    display: none;
+  }
 
-/* Every structured form is a full-screen subpage on touch, so they all take
+  /* Every structured form is a full-screen subpage on touch, so they all take
    the same shape: scrolling body, and one fixed action bar the body clears. */
-.structured_form {
-  min-height: 100%;
-  box-sizing: border-box;
-  gap: var(--sp-3);
-  padding: var(--sp-2) var(--sp-3) var(--m-form-actions-clearance);
-}
+  .structured_form {
+    min-height: 100%;
+    box-sizing: border-box;
+    gap: var(--sp-3);
+    padding: var(--sp-2) var(--sp-3) var(--m-form-actions-clearance);
+  }
 
-/* The header carries the title on a subpage, so the form's own heading would
+  /* The header carries the title on a subpage, so the form's own heading would
    say it twice. */
-.structured_form h3 {
-  display: none;
-}
+  .structured_form h3 {
+    display: none;
+  }
 
-.structured_form_field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-}
+  .structured_form_field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+  }
 
-.structured_form textarea {
-  min-height: 0;
-  padding: var(--sp-2);
-  resize: none;
-  font-size: var(--fs-body);
-}
+  .structured_form textarea {
+    min-height: 0;
+    padding: var(--sp-2);
+    resize: none;
+    font-size: var(--fs-body);
+  }
 
-.structured_form input,
-.structured_form select {
-  height: 40px;
-  min-height: 40px;
-  padding: 0 var(--sp-2);
-  font-size: var(--fs-body);
-}
+  .structured_form input,
+  .structured_form select {
+    height: 40px;
+    min-height: 40px;
+    padding: 0 var(--sp-2);
+    font-size: var(--fs-body);
+  }
 
-.structured_redirect_output {
-  min-height: 68px;
-  font-size: var(--fs-meta);
-}
+  .structured_redirect_output {
+    min-height: 68px;
+    font-size: var(--fs-meta);
+  }
 
-/* A modal task, not navigation: the commit pair sits in its own bar rather
+  /* A modal task, not navigation: the commit pair sits in its own bar rather
    than wrapping into the scrolling body. Explicit columns, so the pair keeps
    its place whatever order the form appends them in. */
-.structured_form .structured_form_actions {
-  position: fixed;
-  z-index: 20;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--touch) var(--touch);
-  align-items: center;
-  box-sizing: border-box;
-  height: 60px;
-  margin: 0;
-  padding: var(--sp-3) var(--sp-3);
-  gap: var(--sp-2);
-  border-top: var(--m-bw) solid var(--text-high-color);
-  background: var(--main-bg-color);
-}
+  .structured_form .structured_form_actions {
+    position: fixed;
+    z-index: 20;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--touch) var(--touch);
+    align-items: center;
+    box-sizing: border-box;
+    height: 60px;
+    margin: 0;
+    padding: var(--sp-3) var(--sp-3);
+    gap: var(--sp-2);
+    border-top: var(--m-bw) solid var(--text-high-color);
+    background: var(--main-bg-color);
+  }
 
-.structured_form_actions .structured_inline_action {
-  width: var(--touch);
-  min-width: var(--touch);
-  height: 40px;
-  min-height: 40px;
-  padding: 0;
-}
+  .structured_form_actions .structured_inline_action {
+    width: var(--touch);
+    min-width: var(--touch);
+    height: 40px;
+    min-height: 40px;
+    padding: 0;
+  }
 
-/* grid-row is pinned as well as the column: auto-placement runs in DOM order,
+  /* grid-row is pinned as well as the column: auto-placement runs in DOM order,
    so once Save claims column 3 the cursor is past column 2 and Cancel would be
    pushed onto a second row, off the bottom of the bar. */
 
-  .structured_form_actions
-  .structured_inline_action[aria-label="Cancel"] {
-  grid-row: 1;
-  grid-column: 2;
-}
+  .structured_form_actions .structured_inline_action[aria-label="Cancel"] {
+    grid-row: 1;
+    grid-column: 2;
+  }
 
-.structured_form_actions .structured_inline_action[aria-label="Save"] {
-  grid-row: 1;
-  grid-column: 3;
-}
+  .structured_form_actions .structured_inline_action[aria-label="Save"] {
+    grid-row: 1;
+    grid-column: 3;
+  }
 
-/* With no trailing column for a glyph, the destructive action can only be
+  /* With no trailing column for a glyph, the destructive action can only be
    told from cancel by language. */
-.structured_form_delete {
-  grid-row: 1;
-  grid-column: 1;
-  justify-self: start;
-  min-height: 40px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-  color: var(--m-error);
-  font: 600 var(--fs-body)/1 var(--m-sans);
-}
+  .structured_form_delete {
+    grid-row: 1;
+    grid-column: 1;
+    justify-self: start;
+    min-height: 40px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    color: var(--m-error);
+    font: 600 var(--fs-body)/1 var(--m-sans);
+  }
 
-.input_container {
-  width: 100%;
-  border-width: var(--m-bw);
-  border-color: var(--m-ink);
-  border-radius: var(--m-radius);
-}
+  .input_container {
+    width: 100%;
+    border-width: var(--m-bw);
+    border-color: var(--m-ink);
+    border-radius: var(--m-radius);
+  }
 
-.settings_editor_block {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-  overflow: hidden;
-}
+  .settings_editor_block {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    overflow: hidden;
+  }
 
-.settings_editor_block .structured_settings {
-  flex: 1 1 auto;
-  box-sizing: border-box;
-  min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding-right: var(--sp-4);
-  padding-left: var(--sp-4);
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-}
+  .settings_editor_block .structured_settings {
+    flex: 1 1 auto;
+    box-sizing: border-box;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-right: var(--sp-4);
+    padding-left: var(--sp-4);
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
 
-/* ---------- Structured settings lists ---------- */
+  /* ---------- Structured settings lists ---------- */
 
-/* The block is the page behind the cards: 12px gutters, 12px between cards. */
+  /* The block is the page behind the cards: 12px gutters, 12px between cards. */
 
-  #settings_panel.settings_detail_open
-  .settings_section.active
-  > .settings_editor_block {
-  background: var(--m-page-bg);
-}
+  #settings_panel.settings_detail_open .settings_section.active > .settings_editor_block {
+    background: var(--m-page-bg);
+  }
 
-.settings_editor_block .structured_settings {
-  /* The floating + must never cover the last row's chevron. */
-  padding-bottom: var(--m-fab-clearance);
-}
+  .settings_editor_block .structured_settings {
+    /* The floating + must never cover the last row's chevron. */
+    padding-bottom: var(--m-fab-clearance);
+  }
 
-/* Sticky at the top of the scroller, inset with the block's own gutter. */
-.structured_search {
-  gap: var(--sp-2);
-  padding: var(--sp-3) 0;
-  background: var(--m-page-bg);
-}
+  /* Sticky at the top of the scroller, inset with the block's own gutter. */
+  .structured_search {
+    gap: var(--sp-2);
+    padding: var(--sp-3) 0;
+    background: var(--m-page-bg);
+  }
 
-.structured_search input {
-  height: 40px;
-  min-height: 40px;
-  padding: 0 var(--sp-3);
-  /* The house radius, not a pill. */
-  border: var(--m-bw) solid var(--border-high-color);
-  border-radius: var(--m-radius);
-  background: var(--input-bg-color);
-  font-family: var(--m-sans);
-}
+  .structured_search input {
+    height: 40px;
+    min-height: 40px;
+    padding: 0 var(--sp-3);
+    /* The house radius, not a pill. */
+    border: var(--m-bw) solid var(--border-high-color);
+    border-radius: var(--m-radius);
+    background: var(--input-bg-color);
+    font-family: var(--m-sans);
+  }
 
-.structured_picker_status {
-  padding: 0 0 var(--sp-2);
-  font-family: var(--m-sans);
-  font-size: var(--fs-meta);
-}
+  .structured_picker_status {
+    padding: 0 0 var(--sp-2);
+    font-family: var(--m-sans);
+    font-size: var(--fs-meta);
+  }
 
-.structured_search_status:empty {
-  display: none;
-}
+  .structured_search_status:empty {
+    display: none;
+  }
 
-.settings_editor_block .structured_settings_header {
-  flex: 0 0 auto;
-}
+  .settings_editor_block .structured_settings_header {
+    flex: 0 0 auto;
+  }
 
-.settings_editor_block .settings_block_label {
-  flex: 0 0 auto;
-}
+  .settings_editor_block .settings_block_label {
+    flex: 0 0 auto;
+  }
 
-.settings_editor_block .input_container {
-  flex: 1 1 auto;
-  min-height: 0;
-  height: auto;
-  margin: 0;
-}
+  .settings_editor_block .input_container {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+    margin: 0;
+  }
 
-.settings_editor_block .settings_actions .button {
-  min-width: 88px;
-  margin: 0;
-  padding: 0 var(--sp-3);
-}
+  .settings_editor_block .settings_actions .button {
+    min-width: 88px;
+    margin: 0;
+    padding: 0 var(--sp-3);
+  }
 
-.structured_settings_header {
-  min-height: var(--touch);
-}
+  .structured_settings_header {
+    min-height: var(--touch);
+  }
 
-.structured_mode_toggle,
-.structured_list_actions button {
-  min-height: var(--touch);
-  padding: 0 var(--sp-3);
-}
+  .structured_mode_toggle,
+  .structured_list_actions button {
+    min-height: var(--touch);
+    padding: 0 var(--sp-3);
+  }
 
-.settings_editor_block .settings_actions {
-  display: flex;
-  position: relative;
-  z-index: 5;
-  bottom: auto;
-  flex: 0 0 auto;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-2);
-  min-height: var(--touch);
-  padding: var(--sp-2) 0 0;
-  background: var(--m-page-bg);
-}
+  .settings_editor_block .settings_actions {
+    display: flex;
+    position: relative;
+    z-index: 5;
+    bottom: auto;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-2);
+    min-height: var(--touch);
+    padding: var(--sp-2) 0 0;
+    background: var(--m-page-bg);
+  }
 
-/* List mode has no footer at all — the list scrolls to the tab bar. */
-.settings_editor_block .settings_actions.structured_actions_empty {
-  display: none;
-}
+  /* List mode has no footer at all — the list scrolls to the tab bar. */
+  .settings_editor_block .settings_actions.structured_actions_empty {
+    display: none;
+  }
 
-/* ---------- Row grid ----------
+  /* ---------- Row grid ----------
 
    16px | 30x20 badge | 12px | text block | 10px | trailing state | 12px
 
@@ -1601,928 +1654,927 @@ body:has(#settings_panel.settings_form_open) #menu {
    border, background or radius; the row is the tap target and only the
    chevron advertises it. */
 
-.structured_row {
-  display: flex;
-  align-items: center;
-  min-height: 60px;
-  padding-left: var(--sp-4);
-  /* The separator lives on the text block so it insets to 58px. */
-  border-top: 0;
-  background: var(--input-bg-color);
-}
+  .structured_row {
+    display: flex;
+    align-items: center;
+    min-height: 60px;
+    padding-left: var(--sp-4);
+    /* The separator lives on the text block so it insets to 58px. */
+    border-top: 0;
+    background: var(--input-bg-color);
+  }
 
-.structured_row:last-child {
-  border-bottom: 0;
-}
+  .structured_row:last-child {
+    border-bottom: 0;
+  }
 
-.structured_row_body {
-  display: flex;
-  flex: 1 1 auto;
-  box-sizing: border-box;
-  min-width: 0;
-  min-height: 60px;
-  align-items: center;
-  gap: var(--sp-3);
-  margin-left: var(--sp-3);
-  padding: 0 var(--sp-3) 0 0;
-  border: 0;
-  border-bottom: var(--m-bw) solid var(--m-sep);
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
+  .structured_row_body {
+    display: flex;
+    flex: 1 1 auto;
+    box-sizing: border-box;
+    min-width: 0;
+    min-height: 60px;
+    align-items: center;
+    gap: var(--sp-3);
+    margin-left: var(--sp-3);
+    padding: 0 var(--sp-3) 0 0;
+    border: 0;
+    border-bottom: var(--m-bw) solid var(--m-sep);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
 
-.structured_row:last-child .structured_row_body {
-  border-bottom: 0;
-}
+  .structured_row:last-child .structured_row_body {
+    border-bottom: 0;
+  }
 
-/* Filters and redirects have no badge cell: the text starts at the row inset. */
-.structured_row_unbadged .structured_row_body {
-  margin-left: 0;
-}
+  /* Filters and redirects have no badge cell: the text starts at the row inset. */
+  .structured_row_unbadged .structured_row_body {
+    margin-left: 0;
+  }
 
-/* The row body's box, type and colours come from settings.css; everything that
+  /* The row body's box, type and colours come from settings.css; everything that
    used to be repeated here existed only to outrank the button element rule.
    min-height opts out of the touch baseline, which is still declared broadly:
    the row itself is the tap target, not this. */
-.structured_row_main {
-  min-height: 0;
-  margin: 0;
-}
+  .structured_row_main {
+    min-height: 0;
+    margin: 0;
+  }
 
-.structured_row_primary {
-  font-family: var(--m-sans);
-  font-size: var(--fs-body);
-  line-height: 1.35;
-  color: var(--text-high-color);
-}
+  .structured_row_primary {
+    font-family: var(--m-sans);
+    font-size: var(--fs-body);
+    line-height: 1.35;
+    color: var(--text-high-color);
+  }
 
-.structured_row_secondary {
-  font-family: var(--m-mono);
-  font-size: var(--fs-caption);
-  line-height: 1.35;
-  color: var(--text-color);
-  opacity: 1;
-}
+  .structured_row_secondary {
+    font-family: var(--m-mono);
+    font-size: var(--fs-caption);
+    line-height: 1.35;
+    color: var(--text-color);
+    opacity: 1;
+  }
 
-/* A failure replaces the URL, and says so in the interface font. */
-.structured_row_secondary_error {
-  font-family: var(--m-sans);
-  color: var(--m-error);
-}
+  /* A failure replaces the URL, and says so in the interface font. */
+  .structured_row_secondary_error {
+    font-family: var(--m-sans);
+    color: var(--m-error);
+  }
 
-/* Filters carry no secondary line: one 48px row per expression, in mono. */
-[data-structured-section="filters"] .structured_row,
-[data-structured-section="filters"] .structured_row_body {
-  min-height: 48px;
-}
+  /* Filters carry no secondary line: one 48px row per expression, in mono. */
+  [data-structured-section="filters"] .structured_row,
+  [data-structured-section="filters"] .structured_row_body {
+    min-height: 48px;
+  }
 
-[data-structured-section="filters"] .structured_row_main {
-  justify-content: center;
-  font-family: var(--m-mono);
-  font-size: var(--fs-body);
-  color: var(--text-high-color);
-}
+  [data-structured-section="filters"] .structured_row_main {
+    justify-content: center;
+    font-family: var(--m-mono);
+    font-size: var(--fs-body);
+    color: var(--text-high-color);
+  }
 
-/* The floating + sits 70px up from the bottom; the scroller has to clear it or
+  /* The floating + sits 70px up from the bottom; the scroller has to clear it or
    it covers the last row. */
-[data-structured-section="filters"],
-[data-structured-section="redirects"] {
-  padding-bottom: var(--m-fab-clearance);
-}
+  [data-structured-section="filters"],
+  [data-structured-section="redirects"] {
+    padding-bottom: var(--m-fab-clearance);
+  }
 
-/* An open row is 56px: a 36px field with the 36px commit pair beside it. The
+  /* An open row is 56px: a 36px field with the 36px commit pair beside it. The
    edited row drops its remove button, so two cross glyphs never coexist. */
-.structured_row_editing {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px 36px;
-  height: auto;
-  min-height: 56px;
-  gap: var(--sp-2);
-  padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4);
-}
+  .structured_row_editing {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 36px 36px;
+    height: auto;
+    min-height: 56px;
+    gap: var(--sp-2);
+    padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4);
+  }
 
-/* Editing replaces .structured_row_body, which normally owns the inset row
+  /* Editing replaces .structured_row_body, which normally owns the inset row
    separator. Restore the same divider until the final row. */
-.structured_row_editing:not(:last-child)::after {
-  content: "";
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: var(--sp-4);
-  border-bottom: var(--m-bw) solid var(--m-sep);
-}
+  .structured_row_editing:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: var(--sp-4);
+    border-bottom: var(--m-bw) solid var(--m-sep);
+  }
 
-/* The blanket mobile button margin (8px 8px 4px 0) is asymmetric top-to-bottom
+  /* The blanket mobile button margin (8px 8px 4px 0) is asymmetric top-to-bottom
    and out-specifies the bare class, so it drops the commit pair 2px below the
    field it sits beside and eats into the grid gap. */
-.structured_inline_action {
-  margin: 0;
-}
-
-.structured_inline_action .glyph_check {
-  width: 12px;
-  height: 7px;
-  margin: 0;
-  border-width: 0 0 2px 2px;
-  transform: translateY(-1px) rotate(-45deg);
-}
-
-.structured_inline_action .glyph_cross {
-  width: 14px;
-  height: 14px;
-  margin: 0;
-}
-
-.structured_inline_action .glyph_cross::before,
-.structured_inline_action .glyph_cross::after {
-  top: 6px;
-  width: 14px;
-  height: 2px;
-}
-
-.structured_row_editing .structured_inline_input,
-.structured_row_editing .structured_inline_action {
-  width: 36px;
-  min-width: 36px;
-  height: 36px;
-  min-height: 36px;
-}
-
-.structured_row_editing .structured_inline_input {
-  width: 100%;
-  font-family: var(--m-mono);
-  font-size: var(--fs-body);
-}
-
-/* Always exactly 30x20, whatever the collector calls itself. */
-.collector_badge {
-  display: grid;
-  place-items: center;
-  box-sizing: border-box;
-  flex: 0 0 30px;
-  width: 30px;
-  height: 20px;
-  min-height: 0;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  border: var(--m-bw) solid white;
-  border-radius: 0;
-  font-family: var(--m-sans);
-  font-size: var(--fs-label);
-  font-weight: 600;
-  line-height: 1;
-  letter-spacing: 0.04em;
-}
-
-.structured_source_drag_handle {
-  flex: 0 0 10px;
-  width: 10px;
-  height: 18px;
-  margin-right: var(--sp-2);
-  opacity: 0.38;
-  background-image: radial-gradient(circle, var(--m-ink) 1.3px, transparent 1.5px);
-  background-position: 0 0;
-  background-size: 5px 6px;
-}
-
-.structured_row_chevron {
-  display: block;
-  flex: 0 0 auto;
-  width: 8px;
-  height: 8px;
-  min-height: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-top: 1.5px solid var(--border-high-color);
-  border-right: 1.5px solid var(--border-high-color);
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  transform: rotate(45deg);
-}
-
-/* Padding, radius and background come from settings.css; the type comes from
-   the platform typography rule. What is mobile-specific is the smaller badge,
-   the error palette and opting out of the touch baseline. */
-.structured_issue {
-  display: grid;
-  place-items: center;
-  flex: 0 0 18px;
-  width: 18px;
-  height: 18px;
-  min-height: 0;
-  margin: 0;
-  border: var(--m-bw) solid var(--m-error);
-  color: var(--m-error);
-  font-size: var(--fs-caption);
-  font-weight: 700;
-  line-height: 1;
-}
-
-.structured_issue.warning {
-  border-color: var(--m-warning);
-  color: var(--m-warning);
-  padding-bottom: var(--sp-0-5);
-}
-
-.structured_group_menu {
-  cursor: pointer;
-}
-
-.settings_version {
-  flex-direction: column;
-  align-content: flex-start;
-  justify-content: flex-start;
-  text-align: center;
-}
-
-.settings_about_logo {
-  width: 100%;
-  height: 144px;
-  margin: var(--sp-4) auto var(--sp-3);
-}
-
-.settings_about_title {
-  width: 100%;
-  text-align: center;
-}
-
-.settings_version .update_status {
-  width: 100%;
-  text-align: center;
-}
-
-@container settings-panel (max-width: 350px) {
-  .settings_section_summary {
-    display: none;
-  }
-}
-
-.structured_row_error,
-.structured_row.invalid {
-  box-shadow: inset 3px 0 var(--m-error);
-  background: color-mix(in srgb, var(--m-error) 6%, var(--input-bg-color));
-}
-
-.structured_row_warning {
-  box-shadow: inset 3px 0 var(--m-warning);
-  background: color-mix(in srgb, var(--m-warning) 6%, var(--input-bg-color));
-}
-
-/* ---------- Groups are cards, including Default ---------- */
-
-.structured_group,
-.structured_list_card {
-  margin-bottom: var(--sp-3);
-  overflow: hidden;
-  border: var(--m-bw) solid var(--border-color);
-  border-top: var(--m-bw) solid var(--border-color);
-  border-radius: var(--m-radius);
-  background: var(--input-bg-color);
-}
-
-.structured_group > summary,
-.structured_list_header {
-  display: flex;
-  align-items: center;
-  box-sizing: border-box;
-  height: 38px;
-  min-height: 38px;
-  padding: 0 var(--sp-4);
-  border-bottom: var(--m-bw) solid var(--m-sep);
-  background: var(--m-head-bg);
-  list-style: none;
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-/* A group summary ends in the ⋮ menu, which brings its own trailing inset. */
-.structured_group > summary {
-  padding-right: 0;
-}
-
-.structured_group_reorderable > summary {
-  /* A vertical move before the hold is ordinary page scrolling. The captured
-     pointer becomes a reorder only after the long-press timer activates. */
-  touch-action: pan-y;
-}
-
-.structured_group > summary::-webkit-details-marker {
-  display: none;
-}
-
-.structured_group_caret {
-  display: block;
-  flex: 0 0 auto;
-  width: 8px;
-  height: 8px;
-  margin-right: var(--sp-3);
-  border-right: 1.5px solid var(--text-color);
-  border-bottom: 1.5px solid var(--text-color);
-  transform: rotate(-45deg);
-}
-
-.structured_group_drag_handle {
-  flex: 0 0 10px;
-  width: 10px;
-  height: 18px;
-  margin: 0 var(--sp-3) 0 calc(-1 * var(--sp-0-5));
-  background-image: radial-gradient(
-    circle,
-    color-mix(in srgb, var(--m-ink) 55%, transparent) 1.4px,
-    transparent 1.6px
-  );
-  background-position: 0 0;
-  background-size: 5px 6px;
-}
-
-.structured_group[open] > summary .structured_group_caret {
-  transform: rotate(45deg) translate(-2px, -2px);
-}
-
-.structured_group_name,
-.structured_list_name {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  font-family: var(--m-sans);
-  font-size: var(--fs-caption);
-  font-weight: 600;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: color-mix(in srgb, var(--m-ink) 75%, transparent);
-}
-
-.structured_group_dragging {
-  position: relative;
-  z-index: 4;
-  opacity: 1;
-  transform: translateY(var(--structured-group-drag-y, 0));
-  transition: none;
-  pointer-events: none;
-}
-
-.structured_group_dragging > summary {
-  background: var(--m-accent-bg);
-}
-
-.structured_group_drop_before,
-.structured_group_drop_after {
-  position: relative;
-  box-shadow: none;
-  overflow: visible;
-}
-
-.structured_group_drop_before::before,
-.structured_group_drop_after::after {
-  content: "";
-  position: absolute;
-  z-index: 5;
-  right: -1px;
-  left: -1px;
-  height: 3px;
-  border-radius: var(--radius-sm);
-  background: var(--m-ink);
-  box-shadow: 0 0 0 1px var(--m-page-bg);
-}
-
-.structured_group_drop_before::before {
-  top: -7px;
-}
-
-.structured_group_drop_after::after {
-  bottom: -7px;
-}
-
-.structured_row_drop_target {
-  position: relative;
-  overflow: visible;
-  box-shadow: none;
-}
-
-.structured_row_drop_target::before {
-  content: "";
-  position: absolute;
-  z-index: 5;
-  top: -2px;
-  right: var(--sp-3);
-  left: var(--sp-3);
-  height: 3px;
-  border-radius: var(--radius-sm);
-  background: var(--m-ink);
-  box-shadow: 0 0 0 1px var(--m-page-bg);
-}
-
-
-  .structured_row_drop_target.structured_row_drop_after::before {
-  top: auto;
-  bottom: -2px;
-}
-
-.structured_source_drop_before,
-.structured_source_drop_after {
-  position: relative;
-  z-index: 1;
-}
-
-.structured_source_drop_before::before,
-.structured_source_drop_after::after,
-.structured_source_group_drop_target::after {
-  content: "";
-  position: absolute;
-  z-index: 5;
-  right: var(--sp-3);
-  left: var(--sp-3);
-  height: 3px;
-  border-radius: var(--radius-sm);
-  background: var(--m-ink);
-  box-shadow: 0 0 0 1px var(--m-page-bg);
-}
-
-.structured_source_drop_before::before {
-  top: -2px;
-}
-
-.structured_source_drop_after::after {
-  bottom: -2px;
-}
-
-.structured_source_group_drop_target {
-  position: relative;
-  outline: 0;
-}
-
-.structured_source_group_drop_target::after {
-  bottom: -2px;
-}
-
-.structured_source_group_title_drop_target > summary {
-  position: relative;
-  outline: 0;
-  background: var(--m-accent-bg);
-}
-
-.structured_source_group_title_drop_target > summary::after {
-  content: "";
-  position: absolute;
-  z-index: 5;
-  right: var(--sp-3);
-  bottom: -2px;
-  left: var(--sp-3);
-  height: 3px;
-  border-radius: var(--radius-sm);
-  background: var(--m-ink);
-  box-shadow: 0 0 0 1px var(--m-page-bg);
-}
-
-.structured_group_count,
-.structured_list_count {
-  font-family: var(--m-mono);
-  font-size: var(--fs-caption);
-  color: var(--text-color);
-  opacity: 1;
-}
-
-.structured_group_menu_spacer {
-  flex: 0 0 40px;
-  width: 40px;
-  height: 38px;
-}
-
-/* One 40px control, never taller than the 38px header. */
-.structured_group_menu {
-  display: grid;
-  place-items: center;
-  flex: 0 0 40px;
-  width: 40px;
-  height: 38px;
-  min-height: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  color: var(--m-ink);
-  font-size: var(--icon-md);
-  line-height: 1;
-  opacity: 1;
-}
-
-.structured_group_menu:active,
-.structured_group_menu.menu_open {
-  background: var(--m-accent-bg);
-}
-
-.structured_empty {
-  margin: 0;
-  padding: var(--sp-3) var(--sp-4);
-  font-family: var(--m-sans);
-  font-size: var(--fs-body);
-  color: var(--text-color);
-}
-
-/* ---------- Floating add ---------- */
-
-.structured_add_button {
-  display: grid;
-  place-items: center;
-  position: fixed;
-  z-index: 6;
-  right: var(--sp-4);
-  bottom: calc(var(--m-tabbar-h) + var(--sp-3));
-  box-sizing: border-box;
-  width: var(--touch);
-  height: var(--touch);
-  min-height: 0;
-  margin: 0;
-  padding: 0;
-  border: var(--m-bw) solid var(--m-ink);
-  border-radius: var(--m-radius);
-  /* The light surface: the tan is the pressed state, and a tan resting state
-     reads as already-selected. */
-  background: var(--m-card-bg);
-  box-shadow: 0 3px 10px rgb(0 0 0 / 20%);
-  color: var(--m-ink);
-}
-
-.structured_add_button:active,
-.structured_add_button.menu_open {
-  background: var(--m-accent-bg);
-}
-
-.structured_add_glyph {
-  font-family: var(--m-sans);
-  font-size: var(--icon-lg);
-  font-weight: 300;
-  line-height: 1;
-}
-
-/* Rotate the glyph, never the button — a rotated keyline is a diamond. */
-.structured_add_button.menu_open .structured_add_glyph {
-  transform: rotate(45deg);
-}
-
-.structured_status_strip {
-  display: none;
-}
-
-.structured_remove,
-.structured_inline_action,
-.structured_inline_input {
-  min-height: var(--touch);
-}
-
-.structured_remove {
-  flex: 0 0 var(--touch);
-  width: var(--touch);
-  margin: 0;
-  /* settings.css declares padding 0, but layer(platform) outranks it, so the
-     glyph target has to restore it here or the button baseline's 16px inline
-     padding leaves 12px of content box inside a 44px control. */
-  padding: 0;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-  color: var(--text-color);
-}
-
-/* textarea + backdrop + highlights must share metrics or error
-   highlights drift out of alignment */
-.input_container textarea,
-.input_container .backdrop,
-.input_container .highlights {
-  font-size: var(--fs-title);
-}
-
-#couch_input,
-.couch-highlights {
-  min-height: var(--touch);
-  border-width: var(--m-bw);
-}
-
-.couch-container {
-  --couch-toggle-inset: calc(var(--touch) + var(--sp-1));
-}
-
-#couch_toggle {
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: var(--touch);
-  height: auto;
-  min-height: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-left: var(--m-bw) solid var(--m-ink);
-  border-radius: 0;
-  box-shadow: none;
-  background: none;
-}
-
-#couch_toggle:active {
-  background: none;
-}
-
-/* ---------- Reader overlay ---------- */
-
-.once-reader-host {
-  position: fixed;
-  z-index: 1000;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
-    env(safe-area-inset-left);
-  background: var(--main-bg-color);
-}
-
-.once-reader-host-close {
-  min-height: 48px;
-  margin: 0;
-  padding: 0 var(--sp-4);
-  border: 0;
-  border-bottom: var(--m-bw) solid var(--m-ink);
-  border-radius: 0;
-  box-shadow: none;
-  color: inherit;
-  background: var(--main-bg-color);
-  text-align: left;
-  font-family: var(--m-sans);
-  font-size: var(--fs-body);
-  font-weight: 600;
-}
-
-.once-reader-host-close:active {
-  background: var(--m-pressed-bg);
-}
-
-.once-reader-host-close::before {
-  content: "‹ ";
-}
-
-.once-reader-host-frame {
-  flex: 1 1 auto;
-  width: 100%;
-  min-height: 0;
-  border: 0;
-  background: white;
-}
-
-body.once-reader-open {
-  overflow: hidden;
-}
-
-@media (min-width: 700px) {
-  #menu {
-    max-width: 700px;
-    margin-inline: auto;
-  }
-}
-
-#status_surfaces {
-  display: none;
-}
-
-#status_dock {
-  /* An optical set, not scale steps. The error glyph sits inside an 11px ring
-     with a 1px border, so it cannot exceed the 9px inner box; the other two
-     are sized to read as the same weight beside it. Changing one means
-     re-checking all three against the ring. */
-  --status-glyph-size: 9px;
-  --status-glyph-size-warning: 13px;
-  --status-glyph-size-error: 7px;
-  position: absolute;
-  z-index: 1;
-  top: -12px;
-  left: 0;
-  width: 100%;
-  height: 44px;
-  min-height: 0;
-  padding: 0;
-  margin: 0;
-  overflow: visible;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
-
-#status_bar_state {
-  display: none;
-}
-
-/* Only the status glyphs capture taps. The dock remains click-through so the
-   gear and the middle of the selected pill still open Settings. */
-#status_dock {
-  pointer-events: none;
-}
-
-#status_dock .status_indicator {
-  position: absolute;
-  top: 14px;
-  width: 16px;
-  min-width: 16px;
-  height: 16px;
-  min-height: 16px;
-  padding: 0;
-  margin: 0;
-  border-radius: 0;
-  background: transparent;
-  pointer-events: auto;
-}
-
-#status_bar_warnings {
-  left: calc(50% - 26px);
-}
-
-#status_bar_errors {
-  left: calc(50% + 10px);
-}
-
-#status_dock .status_indicator:hover,
-#status_dock .status_indicator:focus-visible {
-  background: transparent;
-}
-
-#status_dock .warning .status_indicator_icon {
-  position: relative;
-  font-size: var(--status-glyph-size-warning);
-}
-
-/* Fill the hollow warning with a smaller matching font triangle. Unlike a
-   clipped rectangle, it cannot protrude below the antialiased glyph. */
-#status_dock .warning .status_indicator_icon::before {
-  content: "▲";
-  position: absolute;
-  z-index: -1;
-  top: 50%;
-  left: 50%;
-  color: var(--main-bg-color);
-  font-size: var(--status-glyph-size);
-  line-height: 1;
-  transform: translate(-50%, -44%);
-}
-
-#status_dock .status_indicator_icon {
-  width: auto;
-  height: auto;
-  border: 0;
-  border-radius: 0;
-  font-size: var(--status-glyph-size);
-  line-height: 1;
-}
-
-#status_dock .status_indicator.error .status_indicator_icon {
-  width: 11px;
-  height: 11px;
-  border: 1px solid currentColor;
-  border-radius: 50%;
-  background: var(--main-bg-color);
-  font-size: var(--status-glyph-size-error);
-}
-
-#status_dock .status_indicator_count {
-  display: none;
-}
-
-.status_issue_bubble {
-  width: 100%;
-  min-height: var(--touch);
-  border: var(--m-bw) solid currentColor;
-  border-radius: var(--m-radius);
-}
-
-@container settings-panel (max-width: 520px) {
-  .settings_swipe {
-    --swipe-handle-width: 22px;
+  .structured_inline_action {
+    margin: 0;
   }
 
-  .swipe_action_block {
-    --settings-swipe_action_block-padding: var(--sp-3) var(--sp-3) 14px;
-    gap: var(--sp-3);
-    padding: var(--settings-swipe_action_block-padding);
+  .structured_inline_action .glyph_check {
+    width: 12px;
+    height: 7px;
+    margin: 0;
+    border-width: 0 0 2px 2px;
+    transform: translateY(-1px) rotate(-45deg);
   }
 
-  .swipe_action_heading {
+  .structured_inline_action .glyph_cross {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+  }
+
+  .structured_inline_action .glyph_cross::before,
+  .structured_inline_action .glyph_cross::after {
+    top: 6px;
+    width: 14px;
+    height: 2px;
+  }
+
+  .structured_row_editing .structured_inline_input,
+  .structured_row_editing .structured_inline_action {
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    min-height: 36px;
+  }
+
+  .structured_row_editing .structured_inline_input {
+    width: 100%;
+    font-family: var(--m-mono);
     font-size: var(--fs-body);
   }
 
-  .swipe_action_heading span {
-    display: none;
+  /* Always exactly 30x20, whatever the collector calls itself. */
+  .collector_badge {
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    flex: 0 0 30px;
+    width: 30px;
+    height: 20px;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    border: var(--m-bw) solid white;
+    border-radius: 0;
+    font-family: var(--m-sans);
+    font-size: var(--fs-label);
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0.04em;
   }
 
-  .swipe_action_field {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--sp-1);
+  .structured_source_drag_handle {
+    flex: 0 0 10px;
+    width: 10px;
+    height: 18px;
+    margin-right: var(--sp-2);
+    opacity: 0.38;
+    background-image: radial-gradient(circle, var(--m-ink) 1.3px, transparent 1.5px);
+    background-position: 0 0;
+    background-size: 5px 6px;
   }
 
-  .swipe_action_field::after {
-    position: absolute;
-    z-index: 1;
-    bottom: 0;
-    left: 0;
-    width: 3px;
-    height: 44px;
+  .structured_row_chevron {
+    display: block;
+    flex: 0 0 auto;
+    width: 8px;
+    height: 8px;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-top: 1.5px solid var(--border-high-color);
+    border-right: 1.5px solid var(--border-high-color);
+    border-radius: 0;
     background: transparent;
-    border-radius: var(--radius-xl) 0 0 var(--radius-xl);
-    content: "";
-    pointer-events: none;
+    box-shadow: none;
+    transform: rotate(45deg);
   }
 
-  .swipe_action_field[data-action="open"]::after,
-  .swipe_action_field[data-action="open-browser"]::after,
-  .swipe_action_field[data-action="toggle-read"]::after {
-    background: rgb(0 128 0 / 72%);
+  /* Padding, radius and background come from settings.css; the type comes from
+   the platform typography rule. What is mobile-specific is the smaller badge,
+   the error palette and opting out of the touch baseline. */
+  .structured_issue {
+    display: grid;
+    place-items: center;
+    flex: 0 0 18px;
+    width: 18px;
+    height: 18px;
+    min-height: 0;
+    margin: 0;
+    border: var(--m-bw) solid var(--m-error);
+    color: var(--m-error);
+    font-size: var(--fs-caption);
+    font-weight: 700;
+    line-height: 1;
   }
 
-  .swipe_action_field[data-action="open-reader"]::after {
-    background: #4050ac;
+  .structured_issue.warning {
+    border-color: var(--m-warning);
+    color: var(--m-warning);
+    padding-bottom: var(--sp-0-5);
   }
 
-  .swipe_action_field[data-action="skip"]::after {
-    background: rgb(200 0 0 / 66%);
+  .structured_group_menu {
+    cursor: pointer;
   }
 
-  .swipe_action_field[data-action="filter"]::after {
-    background: #8f0000;
+  .settings_version {
+    flex-direction: column;
+    align-content: flex-start;
+    justify-content: flex-start;
+    text-align: center;
   }
 
-  .swipe_action_field[data-action="toggle-bookmark"]::after {
-    background: #b8860b;
+  .settings_about_logo {
+    width: 100%;
+    height: 144px;
+    margin: var(--sp-4) auto var(--sp-3);
   }
 
-  @supports (color: light-dark(black, white)) {
-    .swipe_action_field::after {
-      background: var(--swipe-action-color, transparent);
+  .settings_about_title {
+    width: 100%;
+    text-align: center;
+  }
+
+  .settings_version .update_status {
+    width: 100%;
+    text-align: center;
+  }
+
+  @container settings-panel (max-width: 350px) {
+    .settings_section_summary {
+      display: none;
     }
   }
 
-  .swipe_action_left .swipe_action_field {
-    flex-direction: column-reverse;
+  .structured_row_error,
+  .structured_row.invalid {
+    box-shadow: inset 3px 0 var(--m-error);
+    background: color-mix(in srgb, var(--m-error) 6%, var(--input-bg-color));
   }
 
-  .swipe_action_left .swipe_action_field::after {
-    right: 0;
-    left: auto;
-    border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
+  .structured_row_warning {
+    box-shadow: inset 3px 0 var(--m-warning);
+    background: color-mix(in srgb, var(--m-warning) 6%, var(--input-bg-color));
   }
 
-  .swipe_stage_label {
-    flex-basis: auto;
+  /* ---------- Groups are cards, including Default ---------- */
+
+  .structured_group,
+  .structured_list_card {
+    margin-bottom: var(--sp-3);
+    overflow: hidden;
+    border: var(--m-bw) solid var(--border-color);
+    border-top: var(--m-bw) solid var(--border-color);
+    border-radius: var(--m-radius);
+    background: var(--input-bg-color);
+  }
+
+  .structured_group > summary,
+  .structured_list_header {
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+    height: 38px;
+    min-height: 38px;
+    padding: 0 var(--sp-4);
+    border-bottom: var(--m-bw) solid var(--m-sep);
+    background: var(--m-head-bg);
+    list-style: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* A group summary ends in the ⋮ menu, which brings its own trailing inset. */
+  .structured_group > summary {
+    padding-right: 0;
+  }
+
+  .structured_group_reorderable > summary {
+    /* A vertical move before the hold is ordinary page scrolling. The captured
+     pointer becomes a reorder only after the long-press timer activates. */
+    touch-action: pan-y;
+  }
+
+  .structured_group > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .structured_group_caret {
+    display: block;
+    flex: 0 0 auto;
+    width: 8px;
+    height: 8px;
+    margin-right: var(--sp-3);
+    border-right: 1.5px solid var(--text-color);
+    border-bottom: 1.5px solid var(--text-color);
+    transform: rotate(-45deg);
+  }
+
+  .structured_group_drag_handle {
+    flex: 0 0 10px;
+    width: 10px;
+    height: 18px;
+    margin: 0 var(--sp-3) 0 calc(-1 * var(--sp-0-5));
+    background-image: radial-gradient(
+      circle,
+      color-mix(in srgb, var(--m-ink) 55%, transparent) 1.4px,
+      transparent 1.6px
+    );
+    background-position: 0 0;
+    background-size: 5px 6px;
+  }
+
+  .structured_group[open] > summary .structured_group_caret {
+    transform: rotate(45deg) translate(-2px, -2px);
+  }
+
+  .structured_group_name,
+  .structured_list_name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    font-family: var(--m-sans);
     font-size: var(--fs-caption);
-    letter-spacing: 0.04em;
+    font-weight: 600;
+    letter-spacing: 0.09em;
     text-transform: uppercase;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: color-mix(in srgb, var(--m-ink) 75%, transparent);
   }
 
-  .swipe_ruler {
-    height: 44px;
-    --settings-swipe_ruler-margin-bottom: 38px;
-    margin-bottom: var(--settings-swipe_ruler-margin-bottom);
+  .structured_group_dragging {
+    position: relative;
+    z-index: 4;
+    opacity: 1;
+    transform: translateY(var(--structured-group-drag-y, 0));
+    transition: none;
+    pointer-events: none;
   }
 
-  #swipe_lab .swipe_ruler_handle {
-    height: 54px;
-    border-radius: var(--radius-lg);
+  .structured_group_dragging > summary {
+    background: var(--m-accent-bg);
   }
 
-  .swipe_ruler_value {
-    top: 55px;
+  .structured_group_drop_before,
+  .structured_group_drop_after {
+    position: relative;
+    box-shadow: none;
+    overflow: visible;
+  }
+
+  .structured_group_drop_before::before,
+  .structured_group_drop_after::after {
+    content: "";
+    position: absolute;
+    z-index: 5;
+    right: -1px;
+    left: -1px;
+    height: 3px;
+    border-radius: var(--radius-sm);
+    background: var(--m-ink);
+    box-shadow: 0 0 0 1px var(--m-page-bg);
+  }
+
+  .structured_group_drop_before::before {
+    top: -7px;
+  }
+
+  .structured_group_drop_after::after {
+    bottom: -7px;
+  }
+
+  .structured_row_drop_target {
+    position: relative;
+    overflow: visible;
+    box-shadow: none;
+  }
+
+  .structured_row_drop_target::before {
+    content: "";
+    position: absolute;
+    z-index: 5;
+    top: -2px;
+    right: var(--sp-3);
+    left: var(--sp-3);
+    height: 3px;
+    border-radius: var(--radius-sm);
+    background: var(--m-ink);
+    box-shadow: 0 0 0 1px var(--m-page-bg);
+  }
+
+  .structured_row_drop_target.structured_row_drop_after::before {
+    top: auto;
+    bottom: -2px;
+  }
+
+  .structured_source_drop_before,
+  .structured_source_drop_after {
+    position: relative;
+    z-index: 1;
+  }
+
+  .structured_source_drop_before::before,
+  .structured_source_drop_after::after,
+  .structured_source_group_drop_target::after {
+    content: "";
+    position: absolute;
+    z-index: 5;
+    right: var(--sp-3);
+    left: var(--sp-3);
+    height: 3px;
+    border-radius: var(--radius-sm);
+    background: var(--m-ink);
+    box-shadow: 0 0 0 1px var(--m-page-bg);
+  }
+
+  .structured_source_drop_before::before {
+    top: -2px;
+  }
+
+  .structured_source_drop_after::after {
+    bottom: -2px;
+  }
+
+  .structured_source_group_drop_target {
+    position: relative;
+    outline: 0;
+  }
+
+  .structured_source_group_drop_target::after {
+    bottom: -2px;
+  }
+
+  .structured_source_group_title_drop_target > summary {
+    position: relative;
+    outline: 0;
+    background: var(--m-accent-bg);
+  }
+
+  .structured_source_group_title_drop_target > summary::after {
+    content: "";
+    position: absolute;
+    z-index: 5;
+    right: var(--sp-3);
+    bottom: -2px;
+    left: var(--sp-3);
+    height: 3px;
+    border-radius: var(--radius-sm);
+    background: var(--m-ink);
+    box-shadow: 0 0 0 1px var(--m-page-bg);
+  }
+
+  .structured_group_count,
+  .structured_list_count {
+    font-family: var(--m-mono);
     font-size: var(--fs-caption);
+    color: var(--text-color);
+    opacity: 1;
   }
 
-  .swipe_lab_scroller {
-    --settings-swipe_lab_scroller-padding-bottom: 26px;
-    padding-bottom: var(--settings-swipe_lab_scroller-padding-bottom);
+  .structured_group_menu_spacer {
+    flex: 0 0 40px;
+    width: 40px;
+    height: 38px;
   }
 
-  .swipe_footer button {
-    min-height: 44px;
+  /* One 40px control, never taller than the 38px header. */
+  .structured_group_menu {
+    display: grid;
+    place-items: center;
+    flex: 0 0 40px;
+    width: 40px;
+    height: 38px;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: var(--m-ink);
+    font-size: var(--icon-md);
+    line-height: 1;
+    opacity: 1;
   }
-}
 
-:focus-visible {
-  outline: 2px solid var(--highlight-color);
-  outline-offset: 2px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  body,
-  *,
-  *::before,
-  *::after {
-    scroll-behavior: auto !important;
-    transition-duration: 0.01ms !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
+  .structured_group_menu:active,
+  .structured_group_menu.menu_open {
+    background: var(--m-accent-bg);
   }
-}
+
+  .structured_empty {
+    margin: 0;
+    padding: var(--sp-3) var(--sp-4);
+    font-family: var(--m-sans);
+    font-size: var(--fs-body);
+    color: var(--text-color);
+  }
+
+  /* ---------- Floating add ---------- */
+
+  .structured_add_button {
+    display: grid;
+    place-items: center;
+    position: fixed;
+    z-index: 6;
+    right: var(--sp-4);
+    bottom: calc(var(--m-tabbar-h) + var(--sp-3));
+    box-sizing: border-box;
+    width: var(--touch);
+    height: var(--touch);
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: var(--m-bw) solid var(--m-ink);
+    border-radius: var(--m-radius);
+    /* The light surface: the tan is the pressed state, and a tan resting state
+     reads as already-selected. */
+    background: var(--m-card-bg);
+    box-shadow: 0 3px 10px rgb(0 0 0 / 20%);
+    color: var(--m-ink);
+  }
+
+  .structured_add_button:active,
+  .structured_add_button.menu_open {
+    background: var(--m-accent-bg);
+  }
+
+  .structured_add_glyph {
+    font-family: var(--m-sans);
+    font-size: var(--icon-lg);
+    font-weight: 300;
+    line-height: 1;
+  }
+
+  /* Rotate the glyph, never the button — a rotated keyline is a diamond. */
+  .structured_add_button.menu_open .structured_add_glyph {
+    transform: rotate(45deg);
+  }
+
+  .structured_status_strip {
+    display: none;
+  }
+
+  .structured_remove,
+  .structured_inline_action,
+  .structured_inline_input {
+    min-height: var(--touch);
+  }
+
+  .structured_remove {
+    flex: 0 0 var(--touch);
+    width: var(--touch);
+    margin: 0;
+    /* settings.css declares padding 0, but layer(platform) outranks it, so the
+     glyph target has to restore it here or the button baseline's 16px inline
+     padding leaves 12px of content box inside a 44px control. */
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    color: var(--text-color);
+  }
+
+  /* textarea + backdrop + highlights must share metrics or error
+   highlights drift out of alignment */
+  .input_container textarea,
+  .input_container .backdrop,
+  .input_container .highlights {
+    font-size: var(--fs-title);
+  }
+
+  #couch_input,
+  .couch-highlights {
+    min-height: var(--touch);
+    border-width: var(--m-bw);
+  }
+
+  .couch-container {
+    --couch-toggle-inset: calc(var(--touch) + var(--sp-1));
+  }
+
+  #couch_toggle {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: var(--touch);
+    height: auto;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-left: var(--m-bw) solid var(--m-ink);
+    border-radius: 0;
+    box-shadow: none;
+    background: none;
+  }
+
+  #couch_toggle:active {
+    background: none;
+  }
+
+  /* ---------- Reader overlay ---------- */
+
+  .once-reader-host {
+    position: fixed;
+    z-index: 1000;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+      env(safe-area-inset-left);
+    background: var(--main-bg-color);
+  }
+
+  .once-reader-host-close {
+    min-height: 48px;
+    margin: 0;
+    padding: 0 var(--sp-4);
+    border: 0;
+    border-bottom: var(--m-bw) solid var(--m-ink);
+    border-radius: 0;
+    box-shadow: none;
+    color: inherit;
+    background: var(--main-bg-color);
+    text-align: left;
+    font-family: var(--m-sans);
+    font-size: var(--fs-body);
+    font-weight: 600;
+  }
+
+  .once-reader-host-close:active {
+    background: var(--m-pressed-bg);
+  }
+
+  .once-reader-host-close::before {
+    content: "‹ ";
+  }
+
+  .once-reader-host-frame {
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: 0;
+    border: 0;
+    background: white;
+  }
+
+  body.once-reader-open {
+    overflow: hidden;
+  }
+
+  @media (min-width: 700px) {
+    #menu {
+      max-width: 700px;
+      margin-inline: auto;
+    }
+  }
+
+  #status_surfaces {
+    display: none;
+  }
+
+  #status_dock {
+    /* An optical set, not scale steps. The error glyph sits inside an 11px ring
+     with a 1px border, so it cannot exceed the 9px inner box; the other two
+     are sized to read as the same weight beside it. Changing one means
+     re-checking all three against the ring. */
+    --status-glyph-size: 9px;
+    --status-glyph-size-warning: 13px;
+    --status-glyph-size-error: 7px;
+    position: absolute;
+    z-index: 1;
+    top: -12px;
+    left: 0;
+    width: 100%;
+    height: 44px;
+    min-height: 0;
+    padding: 0;
+    margin: 0;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  #status_bar_state {
+    display: none;
+  }
+
+  /* Only the status glyphs capture taps. The dock remains click-through so the
+   gear and the middle of the selected pill still open Settings. */
+  #status_dock {
+    pointer-events: none;
+  }
+
+  #status_dock .status_indicator {
+    position: absolute;
+    top: 14px;
+    width: 16px;
+    min-width: 16px;
+    height: 16px;
+    min-height: 16px;
+    padding: 0;
+    margin: 0;
+    border-radius: 0;
+    background: transparent;
+    pointer-events: auto;
+  }
+
+  #status_bar_warnings {
+    left: calc(50% - 26px);
+  }
+
+  #status_bar_errors {
+    left: calc(50% + 10px);
+  }
+
+  #status_dock .status_indicator:hover,
+  #status_dock .status_indicator:focus-visible {
+    background: transparent;
+  }
+
+  #status_dock .warning .status_indicator_icon {
+    position: relative;
+    font-size: var(--status-glyph-size-warning);
+  }
+
+  /* Fill the hollow warning with a smaller matching font triangle. Unlike a
+   clipped rectangle, it cannot protrude below the antialiased glyph. */
+  #status_dock .warning .status_indicator_icon::before {
+    content: "▲";
+    position: absolute;
+    z-index: -1;
+    top: 50%;
+    left: 50%;
+    color: var(--main-bg-color);
+    font-size: var(--status-glyph-size);
+    line-height: 1;
+    transform: translate(-50%, -44%);
+  }
+
+  #status_dock .status_indicator_icon {
+    width: auto;
+    height: auto;
+    border: 0;
+    border-radius: 0;
+    font-size: var(--status-glyph-size);
+    line-height: 1;
+  }
+
+  #status_dock .status_indicator.error .status_indicator_icon {
+    width: 11px;
+    height: 11px;
+    border: 1px solid currentColor;
+    border-radius: 50%;
+    background: var(--main-bg-color);
+    font-size: var(--status-glyph-size-error);
+  }
+
+  #status_dock .status_indicator_count {
+    display: none;
+  }
+
+  .status_issue_bubble {
+    width: 100%;
+    min-height: var(--touch);
+    border: var(--m-bw) solid currentColor;
+    border-radius: var(--m-radius);
+  }
+
+  @container settings-panel (max-width: 520px) {
+    .settings_swipe {
+      --swipe-handle-width: 22px;
+    }
+
+    .swipe_action_block {
+      --settings-swipe_action_block-padding: var(--sp-3) var(--sp-3) 14px;
+      gap: var(--sp-3);
+      padding: var(--settings-swipe_action_block-padding);
+    }
+
+    .swipe_action_heading {
+      font-size: var(--fs-body);
+    }
+
+    .swipe_action_heading span {
+      display: none;
+    }
+
+    .swipe_action_field {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--sp-1);
+    }
+
+    .swipe_action_field::after {
+      position: absolute;
+      z-index: 1;
+      bottom: 0;
+      left: 0;
+      width: 3px;
+      height: 44px;
+      background: transparent;
+      border-radius: var(--radius-xl) 0 0 var(--radius-xl);
+      content: "";
+      pointer-events: none;
+    }
+
+    .swipe_action_field[data-action="open"]::after,
+    .swipe_action_field[data-action="open-browser"]::after,
+    .swipe_action_field[data-action="toggle-read"]::after {
+      background: rgb(0 128 0 / 72%);
+    }
+
+    .swipe_action_field[data-action="open-reader"]::after {
+      background: #4050ac;
+    }
+
+    .swipe_action_field[data-action="skip"]::after {
+      background: rgb(200 0 0 / 66%);
+    }
+
+    .swipe_action_field[data-action="filter"]::after {
+      background: #8f0000;
+    }
+
+    .swipe_action_field[data-action="toggle-bookmark"]::after {
+      background: #b8860b;
+    }
+
+    @supports (color: light-dark(black, white)) {
+      .swipe_action_field::after {
+        background: var(--swipe-action-color, transparent);
+      }
+    }
+
+    .swipe_action_left .swipe_action_field {
+      flex-direction: column-reverse;
+    }
+
+    .swipe_action_left .swipe_action_field::after {
+      right: 0;
+      left: auto;
+      border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
+    }
+
+    .swipe_stage_label {
+      flex-basis: auto;
+      font-size: var(--fs-caption);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .swipe_ruler {
+      height: 44px;
+      --settings-swipe_ruler-margin-bottom: 38px;
+      margin-bottom: var(--settings-swipe_ruler-margin-bottom);
+    }
+
+    #swipe_lab .swipe_ruler_handle {
+      height: 54px;
+      border-radius: var(--radius-lg);
+    }
+
+    .swipe_ruler_value {
+      top: 55px;
+      font-size: var(--fs-caption);
+    }
+
+    .swipe_lab_scroller {
+      --settings-swipe_lab_scroller-padding-bottom: 26px;
+      padding-bottom: var(--settings-swipe_lab_scroller-padding-bottom);
+    }
+
+    .swipe_footer button {
+      min-height: 44px;
+    }
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--highlight-color);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    body,
+    *,
+    *::before,
+    *::after {
+      scroll-behavior: auto !important;
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+    }
+  }
 }

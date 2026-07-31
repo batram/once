@@ -11,7 +11,8 @@ import {
   PanelNavigation,
   ReaderDocumentHost,
   ReaderView,
-  SourcePickerView
+  SourcePickerView,
+  UndoSnackbar
 } from "@once/ui-web"
 import { installStoryMenu } from "./storyMenu"
 import { installReaderTtsHostBridge } from "./readerTtsHostBridge"
@@ -123,6 +124,10 @@ async function startMobileApp(): Promise<void> {
     // chevron stays live on the section index and leaves the panel from there.
     exitSettings: () => void reading.handleBack()
   })
+  // Touch has no keyboard shortcut, no mouse back button and no room left on
+  // the back gesture, so undo has to offer itself. Mounted here rather than in
+  // mountOnceUi so the desktop shells keep their existing affordances only.
+  UndoSnackbar.mount()
   // The mobile header suppresses the button's label, so the icon needs a name.
   document.querySelector<HTMLButtonElement>("#settings_section_back")
     ?.setAttribute("aria-label", "Back")
