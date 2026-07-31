@@ -255,6 +255,19 @@ test("button semantics, accessible names, keyboard focus, and layout primitives 
   }
 })
 
+test("ordinary desktop Settings actions share the dense button skin", async ({ page }) => {
+  await page.goto(`${baseURL}/static/sidepanel.html`)
+  const action = page.locator("#cache_time_save")
+  await expect(action).toHaveClass(/\bbutton\b/)
+  await expect(action).toHaveCSS("box-sizing", "border-box")
+  await expect(action).toHaveCSS("height", "22px")
+  await expect(action).toHaveCSS("min-height", "22px")
+  await expect(action).toHaveCSS("padding", "0px 8px")
+  await expect(action).toHaveCSS("border-width", "1px")
+  await expect(action).toHaveCSS("font-size", "12px")
+  await expect(action).toHaveCSS("line-height", "20px")
+})
+
 test("mobile button controls retain the touch contract", async ({ page }) => {
   await page.goto(`${baseURL}/static/sidepanel.html?target=mobile`)
   const controls = page.locator(

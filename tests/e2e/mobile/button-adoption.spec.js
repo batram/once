@@ -4,13 +4,15 @@ const { gotoMobileApp } = require("./helpers/mobile-app")
 const { openSettingsSection } = require("./helpers/settings")
 const exceptions = require("./button-adoption-exceptions.json")
 
-// The design-system fixture renders 33 buttons and every one already carries
-// .button, so a guard there passes while hundreds of real controls sit outside
-// the contract. The controls that matter are built in TypeScript from settings
-// data and only exist once a section has rendered, which is why this guard runs
-// on the mobile web surface rather than as a source lint or a shell fixture
-// check. Its coverage is therefore exactly the sections walked below.
-const sections = ["sources", "filters", "redirects", "swipe", "errors"]
+// The design-system fixture cannot see controls built from settings data. Walk
+// every destination exposed by the real Settings index so a newly added
+// section enters the primitive contract without maintaining a second list.
+async function settingsSections(page) {
+  await page.getByTestId("settings-menu").click()
+  return page.locator("[data-settings-target]").evaluateAll((rows) =>
+    [...new Set(rows.map((row) => row.dataset.settingsTarget).filter(Boolean))]
+  )
+}
 
 const entries = [...exceptions.boxOwning, ...exceptions.unclassified]
 const reviewed = new Set(entries.map(entry => entry.family))
@@ -37,6 +39,8 @@ test("reviewed button-adoption exceptions carry ownership and a deletion conditi
 
 test("every native control adopts .button or is a reviewed exception", async ({ page }) => {
   await gotoMobileApp(page)
+  const sections = await settingsSections(page)
+  expect(sections.length).toBeGreaterThan(0)
 
   const seen = new Map()
   const record = (counts) => {
@@ -57,10 +61,9 @@ test("every native control adopts .button or is a reviewed exception", async ({ 
     `Native controls outside the .button contract and not reviewed: ${unreviewed.join(", ")}`
   ).toEqual([])
 
-  // A family that no longer appears is debt that was paid; its entry must go so
-  // the list cannot quietly outlive the controls it excuses. Entries marked
-  // `conditional` render only in states these sections do not reach, so this
-  // guard cannot speak to them either way and says so rather than guessing.
+  // A family that no longer appears is debt that was paid; its entry must go.
+  // Conditional families need purpose-built state coverage before this guard
+  // can decide whether their exception is stale.
   const stale = [...entries]
     .filter(entry => !entry.conditional && !seen.has(entry.family))
     .map(entry => entry.family)

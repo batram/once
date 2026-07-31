@@ -148,6 +148,14 @@ test("status issues stack, dismiss, restore, and reset per reload", async (t) =>
     assert.equal(document.querySelectorAll(".status_issue_bubble").length, 4)
     assert.equal(document.querySelector("#status_bar_warnings .status_indicator_count").textContent, "2")
     assert.equal(document.querySelector("#status_bar_errors .status_indicator_count").textContent, "2")
+    for (const control of document.querySelectorAll(
+      ".error_log_copy, .error_log_show_source, .error_log_show_story"
+    )) {
+      assert.ok(
+        control.classList.contains("button"),
+        `${control.className} must adopt the button primitive`
+      )
+    }
     document.querySelector(".error_log_copy").click()
     await Promise.resolve()
     await Promise.resolve()
