@@ -867,15 +867,14 @@ body:not([data-platform="mobile"])
 body:not([data-platform="mobile"]) .structured_search input,
 body:not([data-platform="mobile"]) .structured_search button,
 body:not([data-platform="mobile"]) #settings_search,
-/* Every settings action row, not just the ones inside an editor block: the
-   scope was why the sync section's save and cancel kept the primitive's bare
-   2px padding while the identical pair under Story sources did not. */
-body:not([data-platform="mobile"]) .settings_actions .button,
-/* .structured_inline_action is excluded throughout: it is a square glyph box
-   with its own complete skin, and this one's text padding and border would
-   shove the glyph off centre and give it a border the inline rows don't have. */
+/* Any settings button, rather than a list of containers a button had to sit in
+   to be styled. The exclusions own a complete skin already: icon-only buttons,
+   the square inline glyph actions, and the segmented mode toggle. */
 body:not([data-platform="mobile"])
-  .structured_form_actions button:not(.structured_inline_action),
+  #settings_panel
+  .button:not(.button--icon):not(.structured_inline_action):not(
+    .structured_mode_toggle_topbar
+  ),
 body:not([data-platform="mobile"]) .structured_group_menu,
 body:not([data-platform="mobile"]) .structured_row_menu {
   box-sizing: border-box;
@@ -898,8 +897,11 @@ body:not([data-platform="mobile"]) .settings_editor_block > .settings_actions {
   background: var(--main-bg-color);
 }
 
-body:not([data-platform="mobile"]) .settings_actions .button,
-body:not([data-platform="mobile"]) .structured_form_actions button:not(.structured_inline_action) {
+body:not([data-platform="mobile"])
+  #settings_panel
+  .button:not(.button--icon):not(.structured_inline_action):not(
+    .structured_mode_toggle_topbar
+  ) {
   margin: 0;
   padding: 0 var(--sp-2);
 }

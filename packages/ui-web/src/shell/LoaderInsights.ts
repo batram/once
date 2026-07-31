@@ -339,7 +339,7 @@ export class LoaderInsights {
 
     const copyError = document.createElement("button")
     copyError.type = "button"
-    copyError.classList.add("error_log_copy")
+    copyError.classList.add("button", "error_log_copy")
     copyError.textContent = "Copy error text"
     copyError.setAttribute("aria-live", "polite")
     copyError.addEventListener("click", () => {
@@ -356,7 +356,7 @@ export class LoaderInsights {
     if (sourceUrl) {
       const showSource = document.createElement("button")
       showSource.type = "button"
-      showSource.classList.add("error_log_show_source")
+      showSource.classList.add("button", "error_log_show_source")
       showSource.textContent = "Show story source"
       showSource.addEventListener("click", () => {
         this.actions?.highlightSource(sourceUrl)
@@ -366,7 +366,7 @@ export class LoaderInsights {
     if (storyUrl) {
       const showStory = document.createElement("button")
       showStory.type = "button"
-      showStory.classList.add("error_log_show_story")
+      showStory.classList.add("button", "error_log_show_story")
       showStory.textContent = "Show story"
       showStory.addEventListener("click", () => {
         this.actions?.showStory(storyUrl)
