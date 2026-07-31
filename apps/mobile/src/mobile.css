@@ -1808,6 +1808,9 @@ body:has(#settings_panel.settings_form_open) #menu {
   transform: rotate(45deg);
 }
 
+/* Padding, radius and background come from settings.css; the type comes from
+   the platform typography rule. What is mobile-specific is the smaller badge,
+   the error palette and opting out of the touch baseline. */
 .structured_issue {
   display: grid;
   place-items: center;
@@ -1816,12 +1819,8 @@ body:has(#settings_panel.settings_form_open) #menu {
   height: 18px;
   min-height: 0;
   margin: 0;
-  padding: 0;
   border: var(--m-bw) solid var(--m-error);
-  border-radius: 50%;
-  background: transparent;
   color: var(--m-error);
-  font-family: var(--m-sans);
   --mobile-structured_issue-font-size: 11px;
   font-size: var(--mobile-structured_issue-font-size);
   font-weight: 700;
@@ -2321,6 +2320,9 @@ body.once-reader-open {
   display: none;
 }
 
+/* notifications.css already gives the indicator no border and no background;
+   the dock only shrinks it, drops the 2px padding and squares off the 6px
+   radius. */
 #status_dock .status_indicator {
   width: 11px;
   min-width: 11px;
@@ -2328,9 +2330,7 @@ body.once-reader-open {
   padding: 0;
   --mobile-status_dock-status_indicator-margin-right: 19px;
   margin-right: var(--mobile-status_dock-status_indicator-margin-right);
-  border: 0;
   border-radius: 0;
-  background: transparent;
 }
 
 #status_dock .warning .status_indicator_icon {
