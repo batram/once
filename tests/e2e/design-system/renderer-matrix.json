@@ -40,6 +40,6 @@
   },
   "readerAndPresenters": {
     "automated": false,
-    "releaseGate": "The theming scope must be decided in Phase 5"
+    "releaseGate": "This surface remains outside the shared token contract unless the future theming project explicitly includes it"
   }
 }

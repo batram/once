@@ -222,6 +222,107 @@ test("tokenized shared and mobile geometry resolves to the public scale", async 
   // so the collapse control can meet the menu panel edge (see search.css). The
   // block padding is the tokenized value; the inline value is deliberately 0.
   await expect(page.locator(".bar").first()).toHaveCSS("padding", "5px 0px")
+  await expect(page.locator("#search_bar")).toHaveCSS("height", "39px")
+  await expect(page.locator("#settings_panel .panel_titlebar")).toHaveCSS(
+    "height",
+    "39px"
+  )
+  await page.locator("#settings_panel .panel_titlebar").evaluate((bar) => {
+    const toggle = document.createElement("button")
+    toggle.className = "button structured_mode_toggle_topbar"
+    toggle.type = "button"
+    toggle.setAttribute("aria-label", "Edit as text")
+    bar.append(toggle)
+  })
+  for (const button of await page.locator(
+    "#settings_panel .panel_titlebar > button"
+  ).all()) {
+    await expect(button).toHaveCSS("height", "26px")
+    await expect(button).toHaveCSS("min-height", "26px")
+  }
+  expect(await page.locator(".structured_mode_toggle_topbar").evaluate(
+    (toggle) => ({
+      before: getComputedStyle(toggle, "::before").height,
+      after: getComputedStyle(toggle, "::after").height,
+      iconShadow: getComputedStyle(toggle, "::before").textShadow
+    })
+  )).toEqual({
+    before: "24px",
+    after: "24px",
+    iconShadow: "rgb(0, 0, 0) 0px 1px 0px"
+  })
+  await expect(page.locator("#search_bar .collapsebutton_icon")).toHaveCSS(
+    "color",
+    "rgb(107, 99, 87)"
+  )
+  for (const selector of [
+    "#search_bar .collapsebutton",
+    "#settings_panel .collapsebutton"
+  ]) {
+    await expect(page.locator(selector)).toHaveCSS("height", "26px")
+    await expect(page.locator(selector)).toHaveCSS("padding", "0px 2px")
+    await expect(page.locator(selector)).toHaveCSS(
+      "font-size",
+      "16px"
+    )
+    await expect(page.locator(selector)).toHaveCSS(
+      "border-top-color",
+      "rgb(179, 179, 179)"
+    )
+    await expect(page.locator(selector)).toHaveCSS(
+      "border-bottom-color",
+      "rgb(179, 179, 179)"
+    )
+  }
+  await page.locator("#settings_panel").evaluate((panel) => {
+    for (const section of ["sources", "filters", "redirects"]) {
+      const input = document.createElement("input")
+      input.type = "search"
+      input.dataset.testid = `${section}-list-search`
+      panel.append(input)
+    }
+  })
+  for (const selector of [
+    "#settings_search",
+    "#couch_input",
+    "#cache_time_input",
+    '[data-testid="sources-list-search"]',
+    '[data-testid="filters-list-search"]',
+    '[data-testid="redirects-list-search"]'
+  ]) {
+    await expect(page.locator(selector)).toHaveCSS(
+      "background-color",
+      "rgb(255, 255, 255)"
+    )
+  }
+  await expect(page.locator("#search_scope")).toHaveCSS("padding-left", "0px")
+  await expect(page.locator("#searchfield")).toHaveCSS("padding-left", "70px")
+  await expect(page.locator("#cancel_search_btn .icon")).toHaveCSS(
+    "width",
+    "9px"
+  )
+  await expect(page.locator("#couch_input")).toHaveCSS("padding-right", "35px")
+  await expect(page.locator(".couch-highlights")).toHaveCSS("right", "35px")
+  await expect.poll(async () => {
+    const scope = await page.locator("#search_scope").boundingBox()
+    const field = await page.locator("#searchfield").boundingBox()
+    return Math.round(scope.x - field.x)
+  }).toBe(8)
+  await page.goto(`${baseURL}/static/sidepanel.html?target=webext`)
+  await expect.poll(async () => {
+    const collapse = await page.locator(
+      "#search_bar > .collapsebutton"
+    ).boundingBox()
+    const field = await page.locator("#searchfield").boundingBox()
+    return Math.round(field.x - (collapse.x + collapse.width))
+  }).toBeGreaterThanOrEqual(0)
+  await expect(page.locator("#search_bar")).toHaveCSS("padding-right", "8px")
+  await expect.poll(async () => {
+    const bar = await page.locator("#search_bar").boundingBox()
+    const reload = await page.locator("#reload_stories_btn").boundingBox()
+    return Math.round(bar.x + bar.width - (reload.x + reload.width))
+  }).toBe(8)
+  await page.goto(`${baseURL}/static/sidepanel.html`)
   await expect(page.locator("#menu .heading").first()).toHaveCSS("padding", "6px")
 
   await page.goto(`${baseURL}/static/sidepanel.html?target=mobile`)
@@ -231,6 +332,15 @@ test("tokenized shared and mobile geometry resolves to the public scale", async 
     "8px 12px"
   )
   await expect(page.locator("#reload_stories_btn")).toHaveCSS("height", "44px")
+  await expect(page.locator("#search_bar")).not.toHaveCSS("height", "39px")
+  await expect(page.locator("#searchfield")).toHaveCSS("position", "static")
+  await expect(page.locator("#cancel_search_btn .icon")).toHaveCSS(
+    "width",
+    "16px"
+  )
+  await expect(page.locator("#couch_input")).toHaveCSS("padding-right", "48px")
+  await expect(page.locator(".couch-highlights")).toHaveCSS("right", "48px")
+  await expect(page.locator("#couch_toggle")).toHaveCSS("width", "44px")
 })
 
 test("shell scopes express their geometry through the public scale", async ({ page }) => {
@@ -395,6 +505,120 @@ test("ordinary desktop Settings actions share the dense button skin", async ({ p
   await expect(action).toHaveCSS("border-width", "1px")
   await expect(action).toHaveCSS("font-size", "12px")
   await expect(action).toHaveCSS("line-height", "20px")
+})
+
+test("structured Settings rows use their light highlight tint", async ({ page }) => {
+  await page.goto(`${baseURL}/static/sidepanel.html`)
+  await page.locator("body").evaluate((body) => {
+    body.insertAdjacentHTML(
+      "beforeend",
+      '<div class="structured_row"><button type="button">Example</button></div>'
+    )
+  })
+
+  const row = page.locator(".structured_row").last()
+  await row.hover()
+  const colours = await row.evaluate((element) => {
+    const probe = document.createElement("div")
+    probe.style.background = "var(--structured-row-highlight-bg-color)"
+    document.body.append(probe)
+    const result = {
+      row: getComputedStyle(element).backgroundColor,
+      preset: getComputedStyle(probe).backgroundColor,
+      old: getComputedStyle(document.documentElement)
+        .getPropertyValue("--selected_bg_color")
+        .trim()
+    }
+    probe.remove()
+    return result
+  })
+  expect(colours.row).toBe(colours.preset)
+  expect(colours.row).not.toBe(colours.old)
+})
+
+test("structured group and row menus share the compact desktop box", async ({ page }) => {
+  await page.goto(`${baseURL}/static/sidepanel.html`)
+  await page.locator("body").evaluate((body) => {
+    body.insertAdjacentHTML("beforeend", `
+      <details class="structured_group" open>
+        <summary>
+          <span class="structured_group_actions">
+            <button class="structured_group_menu" type="button">&#8942;</button>
+          </span>
+        </summary>
+      </details>
+      <div class="structured_row">
+        <button class="structured_row_menu" type="button">&#8942;</button>
+      </div>
+    `)
+  })
+
+  await page.locator(".structured_group > summary").hover()
+  const groupMenu = page.locator(".structured_group_menu").last()
+  const rowMenu = page.locator(".structured_row_menu").last()
+  for (const menu of [groupMenu, rowMenu]) {
+    await expect(menu).toHaveCSS("width", "22px")
+    await expect(menu).toHaveCSS("height", "22px")
+    await expect(menu).toHaveCSS("padding", "0px")
+    await expect(menu).toHaveCSS("border-width", "1px")
+    await expect(menu).toHaveCSS("border-radius", "2px")
+  }
+})
+
+test("shared inline save and cancel glyphs have balanced visual weight", async ({ page }) => {
+  await page.goto(`${baseURL}/static/sidepanel.html`)
+  await page.locator("body").evaluate((body) => {
+    body.insertAdjacentHTML("beforeend", `
+      <button class="structured_inline_action" type="button" aria-label="Save">
+        <span class="glyph_check" aria-hidden="true"></span>
+      </button>
+      <button class="structured_inline_action" type="button" aria-label="Cancel">
+        <span class="glyph_cross" aria-hidden="true"></span>
+      </button>
+    `)
+  })
+
+  const actions = page.locator(".structured_inline_action")
+  for (const action of await actions.all()) {
+    await expect(action).toHaveCSS("width", "22px")
+    await expect(action).toHaveCSS("height", "22px")
+    await expect(action).toHaveCSS("cursor", "pointer")
+  }
+  await expect(page.locator(".glyph_check").last()).toHaveCSS("width", "10.5px")
+  await expect(page.locator(".glyph_cross").last()).toHaveCSS("width", "11px")
+  await expect(page.locator(".glyph_cross").last()).toHaveCSS("height", "11px")
+  const crossBar = await page.locator(".glyph_cross").last().evaluate((glyph) => {
+    const style = getComputedStyle(glyph, "::before")
+    return { width: style.width, height: style.height }
+  })
+  expect(crossBar).toEqual({ width: "11px", height: "1px" })
+})
+
+test("the swipe footer keeps its action cluster on the right", async ({ page }) => {
+  await page.goto(`${baseURL}/static/sidepanel.html`)
+  await page.locator("body").evaluate((body) => {
+    body.insertAdjacentHTML("beforeend", `
+      <div class="swipe_footer row" style="width: 400px">
+        <span class="swipe_save_status">all changes saved</span>
+        <button class="button" type="button">undo</button>
+        <button class="button" type="button">reset to defaults</button>
+      </div>
+    `)
+  })
+
+  const positions = await page.locator(".swipe_footer").last().evaluate((footer) => {
+    const status = footer.querySelector(".swipe_save_status")
+    const undo = footer.querySelector("button")
+    const reset = footer.querySelector("button:last-child")
+    return {
+      gapAfterStatus:
+        undo.getBoundingClientRect().left - status.getBoundingClientRect().right,
+      resetAtRight:
+        footer.getBoundingClientRect().right - reset.getBoundingClientRect().right
+    }
+  })
+  expect(positions.gapAfterStatus).toBeGreaterThan(0)
+  expect(positions.resetAtRight).toBe(0)
 })
 
 test("an embedded story keeps its component-owned action boxes in Settings", async ({ page }) => {

@@ -8,6 +8,7 @@ const root = path.resolve(__dirname, "../../..")
 const uiPublic = path.join(root, "packages", "ui-web", "public")
 const mobileCss = path.join(root, "apps", "mobile", "src", "mobile.css")
 const electronCss = path.join(root, "apps", "electron", "src", "electron.css")
+const webextCss = path.join(root, "packages", "webext-shell", "src", "webext.css")
 
 const contentTypes = new Map([
   [".css", "text/css; charset=utf-8"],
@@ -35,6 +36,14 @@ function shell(target) {
         '    <link rel="stylesheet" href="/electron.css" />'
       )
       .replace("<body ", '<body class="electron-platform-win32" ')
+  } else if (target === "webext") {
+    html = html
+      .replace(
+        '<link rel="stylesheet" href="css/style.css" />',
+        '<link rel="stylesheet" href="css/style.css" />\n' +
+        '    <link rel="stylesheet" href="/webext.css" />'
+      )
+      .replace("<body ", '<body data-platform="webext" data-webext-target="chrome" ')
   }
   return html
 }
@@ -42,6 +51,7 @@ function shell(target) {
 function resolvedAsset(urlPath) {
   if (urlPath === "/mobile.css") return mobileCss
   if (urlPath === "/electron.css") return electronCss
+  if (urlPath === "/webext.css") return webextCss
   if (urlPath.startsWith("/imgs/")) {
     return path.join(uiPublic, "static", urlPath.slice(1))
   }

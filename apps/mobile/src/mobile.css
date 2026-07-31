@@ -176,10 +176,8 @@ input[type="submit"] {
   border: var(--m-bw) solid var(--m-ink);
   border-radius: var(--m-radius);
   background: var(--main-bg-color);
-  /* Longhands, not the shorthand: the shorthand also set margin-left: 0, and
-     from layer(platform) that beat containers positioning a button with
-     margin-left: auto — the swipe footer's undo and reset stopped hugging the
-     right edge. The inline start edge is the container's business. */
+  /* Longhands, not the shorthand: inline alignment remains the owning
+     container's business rather than being reset by the button primitive. */
   margin-block: var(--sp-2) var(--sp-1);
   margin-inline-end: var(--sp-2);
 }
@@ -418,6 +416,8 @@ body.once-anchored-menu-open {
 /* ---------- Top bar (search + reload) ---------- */
 
 #search_bar {
+  flex-basis: auto;
+  height: auto;
   align-items: center;
   gap: var(--sp-2);
   padding: var(--sp-1) var(--sp-3);
@@ -458,6 +458,8 @@ body.once-anchored-menu-open {
 }
 
 #searchfield {
+  position: static;
+  inset: auto;
   flex: 1 1 auto;
   min-width: 0;
   width: auto;
@@ -492,6 +494,10 @@ body.once-anchored-menu-open {
 
 #cancel_search_btn.search-cancel-visible {
   display: grid;
+}
+
+#cancel_search_btn .icon {
+  --icon-size: var(--icon-md);
 }
 
 .search_query:not(:has(#cancel_search_btn.search-cancel-visible)) #searchfield {
@@ -2174,12 +2180,19 @@ body:has(#settings_panel.settings_form_open) #menu {
   border-width: var(--m-bw);
 }
 
+.couch-container {
+  --couch-toggle-inset: calc(var(--touch) + var(--sp-1));
+}
+
 #couch_toggle {
   top: 2px;
+  right: 2px;
   bottom: 2px;
+  width: var(--touch);
   height: auto;
   min-height: 0;
   margin: 0;
+  padding: 0;
   border: 0;
   border-left: var(--m-bw) solid var(--m-ink);
   border-radius: 0;

@@ -19,6 +19,7 @@ entry.walkAtRules("import", (rule) => {
 for (const [file, layer] of [
   ["apps/electron/src/electron.css", "platform"],
   ["apps/mobile/src/mobile.css", "platform"],
+  ["packages/webext-shell/src/webext.css", "platform"],
   ["apps/electron/src/browser/error-page.css", "platform"],
   ["packages/ui-web/src/reader/readerDocument.css", "base"],
   ["packages/ui-web/src/presenters/outline/outline_style.css", "base"]
@@ -87,7 +88,8 @@ const allowedImportant = new Set([
   "apps/mobile/src/mobile.css|body,*,*::before,*::after|scroll-behavior",
   "apps/mobile/src/mobile.css|body,*,*::before,*::after|transition-duration",
   "apps/mobile/src/mobile.css|body,*,*::before,*::after|animation-duration",
-  "apps/mobile/src/mobile.css|body,*,*::before,*::after|animation-iteration-count"
+  "apps/mobile/src/mobile.css|body,*,*::before,*::after|animation-iteration-count",
+  "packages/webext-shell/src/webext.css|body[data-webext-target=\"chrome\"]|font-family"
 ])
 
 const cssFiles = childProcess.execFileSync("git", ["ls-files", "*.css"], {

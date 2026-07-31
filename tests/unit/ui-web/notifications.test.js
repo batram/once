@@ -156,6 +156,10 @@ test("status issues stack, dismiss, restore, and reset per reload", async (t) =>
         `${control.className} must adopt the button primitive`
       )
     }
+    for (const actions of document.querySelectorAll(".error_log_actions")) {
+      assert.ok(actions.classList.contains("cluster"))
+      assert.ok(actions.querySelectorAll(":scope > .button").length > 0)
+    }
     document.querySelector(".error_log_copy").click()
     await Promise.resolve()
     await Promise.resolve()

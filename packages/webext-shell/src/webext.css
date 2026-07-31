@@ -1,0 +1,16 @@
+@layer platform {
+  :root {
+    --search-field-inline-overhang: 0px;
+  }
+
+  #search_bar {
+    padding-right: var(--sp-2);
+  }
+
+  /* Chrome injects an unlayered Segoe UI rule into side-panel documents.
+     Important layered declarations outrank unlayered host declarations; keep
+     this exception target-specific so Firefox retains the normal cascade. */
+  body[data-webext-target="chrome"] {
+    font-family: Verdana, Geneva, sans-serif !important;
+  }
+}

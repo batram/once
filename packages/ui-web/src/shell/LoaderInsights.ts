@@ -337,6 +337,8 @@ export class LoaderInsights {
     body.textContent = `${new Date().toLocaleString()}\n${details}`
     entry.append(summary, body)
 
+    const actions = document.createElement("div")
+    actions.classList.add("cluster", "error_log_actions")
     const copyError = document.createElement("button")
     copyError.type = "button"
     copyError.classList.add("button", "error_log_copy")
@@ -351,7 +353,7 @@ export class LoaderInsights {
         }, COPY_FEEDBACK_DELAY)
       })
     })
-    entry.append(copyError)
+    actions.append(copyError)
 
     if (sourceUrl) {
       const showSource = document.createElement("button")
@@ -361,7 +363,7 @@ export class LoaderInsights {
       showSource.addEventListener("click", () => {
         this.actions?.highlightSource(sourceUrl)
       })
-      entry.append(showSource)
+      actions.append(showSource)
     }
     if (storyUrl) {
       const showStory = document.createElement("button")
@@ -371,8 +373,9 @@ export class LoaderInsights {
       showStory.addEventListener("click", () => {
         this.actions?.showStory(storyUrl)
       })
-      entry.append(showStory)
+      actions.append(showStory)
     }
+    entry.append(actions)
     log.append(entry)
     return logId
   }

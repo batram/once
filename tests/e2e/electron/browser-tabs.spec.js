@@ -74,6 +74,19 @@ test("launches a secure browser shell with legacy tab interactions", async () =>
     expect(new Set(controlBoxes.map((box) => box.height))).toEqual(new Set([26]))
     await expect(window.locator("#browser_back svg")).toHaveCount(1)
     await expect(window.locator("#browser_forward svg")).toHaveCount(1)
+    await expect(window.locator("#browser_reload .icon")).toHaveCSS(
+      "width",
+      "16px"
+    )
+    await expect(window.locator("#browser_close .icon")).toHaveCSS(
+      "width",
+      "9px"
+    )
+    for (const icon of await window.locator(
+      "#browser_reload .icon, #browser_close .icon"
+    ).all()) {
+      await expect(icon).toHaveCSS("opacity", "0.75")
+    }
 
     const address = window.locator("#urlfield")
     await address.fill("not a valid URL")

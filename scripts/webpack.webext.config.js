@@ -98,11 +98,22 @@ module.exports = (env = {}, argv = {}) => {
             to: "reader.css"
           },
           {
+            from: path.join(root, "packages", "webext-shell", "src", "webext.css"),
+            to: "static/css/webext.css"
+          },
+          {
             from: path.join(root, "packages", "ui-web", "public", "shell.html"),
             to: "static/sidepanel.html",
             transform(content) {
               return content
                 .toString()
+                .replace(
+                  '<link rel="stylesheet" href="css/style.css" />',
+                  [
+                    '<link rel="stylesheet" href="css/style.css" />',
+                    '    <link rel="stylesheet" href="css/webext.css" />'
+                  ].join("\n")
+                )
                 .replace(
                   "</body>",
                   [

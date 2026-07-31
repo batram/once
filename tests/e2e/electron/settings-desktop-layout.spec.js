@@ -3,8 +3,57 @@ const {
   closeApp,
   expectDocumentFocus,
   launchApp,
+  openPanel,
   openSettingsSection
 } = require("./electron-harness")
+
+test("keeps the story and settings titlebars at the original story height", async () => {
+  const { electronApp, userData, window } = await launchApp()
+  try {
+    const height = (selector) => window.locator(selector).evaluate((element) =>
+      Math.round(element.getBoundingClientRect().height)
+    )
+    const storyHeight = await height("#search_bar")
+    const storyCollapse = await window.locator(
+      "#search_bar .collapsebutton"
+    ).evaluate((element) => {
+      const bounds = element.getBoundingClientRect()
+      const style = getComputedStyle(element)
+      return {
+        width: Math.round(bounds.width),
+        height: Math.round(bounds.height),
+        padding: style.padding,
+        font: style.font,
+        borderTop: style.borderTop,
+        borderBottom: style.borderBottom
+      }
+    })
+    await openPanel(window, "settings")
+    const settingsHeight = await height("#settings_panel .panel_titlebar")
+    const settingsCollapse = await window.locator(
+      "#settings_panel .collapsebutton"
+    ).evaluate((element) => {
+      const bounds = element.getBoundingClientRect()
+      const style = getComputedStyle(element)
+      return {
+        width: Math.round(bounds.width),
+        height: Math.round(bounds.height),
+        padding: style.padding,
+        font: style.font,
+        borderTop: style.borderTop,
+        borderBottom: style.borderBottom
+      }
+    })
+
+    expect({ storyHeight, settingsHeight }).toEqual({
+      storyHeight: 39,
+      settingsHeight: 39
+    })
+    expect(settingsCollapse).toEqual(storyCollapse)
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
 
 test("scrolls a new filter editor clear of sticky settings controls", async () => {
   const { electronApp, userData, window } = await launchApp()
@@ -66,6 +115,10 @@ test("uses the dense desktop source-list geometry and toolbar", async () => {
     await expect.poll(() => window.evaluate(() => {
       const bounds = (selector) =>
         document.querySelector(selector).getBoundingClientRect()
+      const statusStrip = document.querySelector(
+        '.settings_section[data-settings-section="sources"]' +
+        " .structured_status_strip"
+      )
       return {
         search: Math.round(bounds(
           '[data-structured-section="sources"] .structured_search input'
@@ -84,17 +137,20 @@ test("uses the dense desktop source-list geometry and toolbar", async () => {
             '[data-structured-section="sources"] .collector_badge'
           ).height)
         ],
-        status: Math.round(bounds(
-          '.settings_section[data-settings-section="sources"]' +
-          " .structured_status_strip"
-        ).height)
+        status: Math.round(statusStrip.getBoundingClientRect().height),
+        statusRightInset: Math.round(
+          statusStrip.parentElement.getBoundingClientRect().right -
+          statusStrip.querySelector(".structured_status_saved")
+            .getBoundingClientRect().right
+        )
       }
     })).toEqual({
       search: 22,
       groupHeader: 26,
       row: 40,
-      badge: [20, 20],
-      status: 24
+      badge: [26, 17],
+      status: 24,
+      statusRightInset: 8
     })
   } finally {
     await closeApp(electronApp, userData)

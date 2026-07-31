@@ -115,7 +115,8 @@
 
 .panel_titlebar {
   box-sizing: border-box;
-  flex: 0 0 auto;
+  flex: 0 0 var(--panel-titlebar-block-size);
+  height: var(--panel-titlebar-block-size);
   min-height: 0;
   padding-block: var(--panel-titlebar-block-padding);
   gap: var(--toolbar-control-gap);
@@ -136,6 +137,7 @@
 .collapsebutton_icon {
   display: block;
   --icon-size: var(--icon-sm);
+  color: var(--text-muted-color);
 }
 
 .collapsebutton--collapsed .collapsebutton_icon {

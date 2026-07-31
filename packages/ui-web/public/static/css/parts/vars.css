@@ -37,11 +37,14 @@
   --bw: 1px;
 
   /* Dense desktop chrome. Mobile components retain the --touch contract. */
+  --panel-titlebar-block-size: 39px;
   --toolbar-control-size: 26px;
   --toolbar-control-gap: 3px;
   --panel-titlebar-block-padding: 5px;
   --search-titlebar-inline-start: 15px;
   --search-scope-inline-size: 70px;
+  --search-field-inline-overhang: 8px;
+  --source-badge-font-size: 6.9pt;
 
   /* Theme-aware variables using light-dark() directly */
   --main-bg-color: light-dark(rgb(246, 246, 239), #282a36);
@@ -62,6 +65,11 @@
      because --text-color is a mid grey here, and 3% of a mid grey against the
      input background is not a visible change in either theme. */
   --editing-bg-color: color-mix(
+    in srgb,
+    var(--text-high-color) 7%,
+    var(--input-bg-color)
+  );
+  --structured-row-highlight-bg-color: color-mix(
     in srgb,
     var(--text-high-color) 7%,
     var(--input-bg-color)

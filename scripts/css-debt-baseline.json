@@ -19,7 +19,7 @@
     "negative-margin|apps/mobile/src/mobile.css|@layer platform > .structured_group_drag_handle|margin: 0 var(--sp-3) 0 calc(-1 * var(--sp-0-5))",
     "negative-margin|apps/mobile/src/mobile.css|@layer platform > section[data-settings-section=\"filters\"] .glyph_check|margin-left: calc(-1 * var(--sp-1-5))",
     "negative-margin|apps/mobile/src/mobile.css|@layer platform > section[data-settings-section=\"filters\"] .glyph_cross|margin-left: calc(-1 * var(--sp-2))",
-    "negative-margin|packages/ui-web/public/static/css/parts/settings.css|.structured_status_strip|margin: 0 calc(-1 * var(--sp-2))",
+    "negative-margin|packages/ui-web/public/static/css/parts/settings.css|.structured_status_strip|margin: 0 0 0 calc(-1 * var(--sp-2))",
     "negative-margin|packages/ui-web/public/static/css/parts/settings.css|.swipe_advanced_description|margin: calc(-1 * var(--sp-1-5)) 0 var(--sp-3) var(--sp-4)",
     "negative-margin|packages/ui-web/public/static/css/parts/stories.css|.story|margin-top: calc(-1 * var(--sp-0-5))",
     "negative-margin|packages/ui-web/src/reader/readerDocument.css|@layer base > .toolbar|margin: 0 -20px",
