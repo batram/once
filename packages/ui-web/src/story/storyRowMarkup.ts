@@ -20,17 +20,17 @@ import type { StoryListItem } from "./StoryListItem"
 export function createIconButton(
   title: string,
   classname: string,
-  icon_src?: string
+  iconName?: string
 ): HTMLButtonElement {
   const btn = document.createElement("button")
   btn.type = "button"
   btn.classList.add("button")
   btn.classList.add(classname)
   btn.setAttribute("draggable", "false")
-  if (icon_src) {
-    const icon = document.createElement("img")
-    icon.setAttribute("draggable", "false")
-    icon.src = icon_src
+  if (iconName) {
+    const icon = document.createElement("span")
+    icon.classList.add("icon", "icon--chrome", `icon--${iconName}`)
+    icon.setAttribute("aria-hidden", "true")
     btn.appendChild(icon)
   }
   btn.title = title
@@ -115,7 +115,7 @@ export function buildTitleLine(
  * to the rule in settings rather than an editable input.
  */
 export function buildFilterButton(row: StoryListItem): HTMLElement {
-  const filter_btn = createIconButton("filter", "filter_btn", "imgs/filter.svg")
+  const filter_btn = createIconButton("filter", "filter_btn", "filter")
   if (!row.story.filter) return filter_btn
 
   filter_btn.title = "filtered"

@@ -9,6 +9,7 @@ const iconDirectory = path.resolve(
   __dirname,
   "../../../packages/ui-web/public/static/imgs"
 )
+const repositoryRoot = path.resolve(__dirname, "../../..")
 
 test("SVG icons stay nonempty, unclipped, bounded, and on the audited grid", {
   timeout: 30_000
@@ -74,5 +75,39 @@ test("SVG icons stay nonempty, unclipped, bounded, and on the audited grid", {
     assert.deepEqual(failures, [])
   } finally {
     await browser.close()
+  }
+})
+
+test("UI glyph callers use the mask primitive without color filters", () => {
+  const sourceFiles = [
+    "packages/ui-web/public/shell.html",
+    "packages/ui-web/src/story/storyRowMarkup.ts",
+    "packages/ui-web/src/presenters/outline.ts",
+    "apps/electron/src/browser/browser-shell.html",
+    "apps/electron/src/BrowserShell.ts"
+  ]
+  const uiGlyph = /imgs\/(?!icons\/)[a-z_-]+\.svg/
+  for (const relativePath of sourceFiles) {
+    const source = fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8")
+    assert.doesNotMatch(
+      source,
+      new RegExp(`<img[^>]+${uiGlyph.source}|(?:src|icon\\.src)\\s*=.*${uiGlyph.source}`),
+      `${relativePath} consumes a UI glyph outside the icon primitive`
+    )
+  }
+
+  const stylesheets = [
+    "packages/ui-web/public/static/css/parts/base.css",
+    "packages/ui-web/public/static/css/parts/vars.css",
+    "packages/ui-web/public/static/css/parts/animations.css",
+    "apps/mobile/src/mobile.css"
+  ]
+  for (const relativePath of stylesheets) {
+    const source = fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8")
+    assert.doesNotMatch(
+      source,
+      /(?:\.icon|>\s*img|\.active\s+img)[^{]*\{[^}]*\bfilter\s*:/s,
+      `${relativePath} contains an icon color-filter hack`
+    )
   }
 })

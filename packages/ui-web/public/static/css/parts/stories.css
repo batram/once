@@ -269,8 +269,14 @@
 }
 
 .read_btn::after {
-  content: url(../../imgs/read.svg);
+  --icon: url("../../imgs/read.svg");
+  content: "";
   display: block;
+  width: var(--icon-md);
+  height: var(--icon-md);
+  background-color: currentcolor;
+  -webkit-mask: var(--icon) center / contain no-repeat;
+  mask: var(--icon) center / contain no-repeat;
   opacity: 0.6;
 }
 
@@ -281,20 +287,24 @@
 }
 
 .read:not(.skipped) .read_btn::after {
-  content: url(../../imgs/real_read.svg);
-  display: block;
+  --icon: url("../../imgs/real_read.svg");
   opacity: 0.6;
 }
 
 .skipped .read_btn::after {
-  content: url(../../imgs/skipped_read.svg);
-  display: block;
+  --icon: url("../../imgs/skipped_read.svg");
   opacity: 0.6;
 }
 
 .star_btn::after {
-  content: url(../../imgs/star.svg);
+  --icon: url("../../imgs/star.svg");
+  content: "";
   display: block;
+  width: var(--icon-md);
+  height: var(--icon-md);
+  background-color: currentcolor;
+  -webkit-mask: var(--icon) center / contain no-repeat;
+  mask: var(--icon) center / contain no-repeat;
   opacity: 0.6;
 }
 
@@ -312,14 +322,19 @@
 }
 
 .stared .star_btn::after {
-  content: url(../../imgs/star.svg);
-  display: block;
+  --icon: url("../../imgs/star.svg");
   opacity: 0.6;
 }
 
 .stared .star_btn::before {
-  content: url(../../imgs/star_fill.svg);
+  --icon: url("../../imgs/star_fill.svg");
+  content: "";
   display: block;
+  width: var(--icon-md);
+  height: var(--icon-md);
+  background-color: currentcolor;
+  -webkit-mask: var(--icon) center / contain no-repeat;
+  mask: var(--icon) center / contain no-repeat;
   opacity: 0.6;
 }
 

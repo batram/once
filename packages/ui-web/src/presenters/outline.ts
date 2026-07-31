@@ -22,14 +22,14 @@ export function story_elem_button(story: Story): HTMLElement {
   const outline_btn = createIconButton(
     "outline",
     "outline_btn",
-    "imgs/article.svg"
+    "article"
   )
   outline_btn.dataset.testid = "story-reader"
   outline_btn.classList.add("outline_button")
 
   if (story.has_content()) {
-    const img = requireElement<HTMLImageElement>("img", outline_btn)
-    img.src = "imgs/stored_content.svg"
+    const icon = requireElement<HTMLElement>(".icon", outline_btn)
+    icon.className = "icon icon--chrome icon--stored-content"
   }
 
   //prevent scroll, but fire interaction only on mouseup

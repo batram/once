@@ -10,13 +10,11 @@
 
 @keyframes death_spin {
   0% {
-    content: url(../../imgs/star_fill.svg);
     transform: rotate(0deg);
   }
 
   100% {
     transform: rotate(360deg) scale(0.2);
-    content: url(../../imgs/star_fill.svg);
   }
 }
 
@@ -90,7 +88,6 @@ body[animated="true"] #menu .button:active {
 }
 
 body[animated="true"] #menu .button:active {
-  filter: saturate(40%) contrast(100%);
   border-color: var(--border-high-color);
 }
 

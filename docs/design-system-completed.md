@@ -94,6 +94,7 @@ the branch actually stands.
 | 1 Tokens | **Complete.** Shared shell (including notifications, dialogs, and search), mobile, Electron, and the Electron error page are migrated; reader/presenter documents are explicitly excluded |
 | 2 Cascade layers | **Complete.** Ownership is explicit; platform-prefixed component rules are zero |
 | 3 Primitives | **Complete.** Native controls, bounded Settings layout families, and semantic lint use one enforced contract |
+| 4 Icon system | **Complete.** UI glyphs use mask/current-color primitives on a normalized 16×16 grid |
 
 ### Debt, counted honestly
 
@@ -164,6 +165,37 @@ The ownership rule for future work is:
    Phase 1 exit.
 
 ---
+
+---
+
+## Phase 4 — Icon system — COMPLETE
+
+Shipped UI glyphs now use the `.icon` mask/current-color primitive and named
+per-icon classes. Static shell controls, dynamic story and presenter controls,
+story-state pseudo-elements, and Electron browser chrome share that contract.
+The titlebar and About Once marks remain `<img>` because they are branded logos.
+
+The comparison sheet was reviewed in light and dark at 12, 16, and 24px. The
+86% gross-extent candidates were accepted for the clear outliers:
+`chevron-left`, `collapse`, `pause`, `play`, `volume`, and `x`. `story.svg`
+was redrawn directly on the 16 grid with the accepted 1.5-unit stroke and 83%
+extent. Other icons retained their existing geometry because the extent audit
+did not identify a gross error.
+
+The icon audit now rejects off-grid, empty, clipped, oversized, or grossly
+undersized SVGs. It also rejects UI-glyph `<img>` consumption and the icon
+color-filter patterns removed in this phase. The Phase 0 `story.svg`
+known-failure entry is gone. Shared, Electron, and mobile visual baselines were
+reviewed and updated for the intentional glyph rendering changes.
+
+Phase 4 closed with:
+
+- `npm run lint:css`;
+- `node --test tests/e2e/design-system/icon-audit.test.js`;
+- `npm run test:design-system`;
+- `npm run test:design-system:electron`;
+- `npm run test:design-system:mobile`;
+- `npm run check`.
 
 ---
 

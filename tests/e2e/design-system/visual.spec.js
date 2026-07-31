@@ -60,7 +60,7 @@ async function prepareStories(page, target = "") {
         </div>
         <div class="button_group">
           <button type="button" class="button filter_btn" aria-label="Filter">
-            <img src="imgs/filter.svg" alt="">
+            <span class="icon icon--chrome icon--filter" aria-hidden="true"></span>
           </button>
           <button type="button" class="button star_btn" aria-label="Star"></button>
           <button type="button" class="button read_btn" aria-label="Read"></button>

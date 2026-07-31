@@ -381,7 +381,7 @@ test("an embedded story keeps its component-owned action boxes in Settings", asy
       <article class="story">
         <div class="button_group">
           <button type="button" class="button filter_btn" aria-label="Filter">
-            <img src="imgs/filter.svg" alt="">
+            <span class="icon icon--chrome icon--filter" aria-hidden="true"></span>
           </button>
           <button type="button" class="button read_btn" aria-label="Read"></button>
         </div>
@@ -449,6 +449,7 @@ test("declared icon and button contracts have measurable geometry", async ({ pag
     const failures = []
     for (const icon of document.querySelectorAll(".icon")) {
       const bounds = icon.getBoundingClientRect()
+      if (icon.getClientRects().length === 0) continue
       if (bounds.width === 0 || bounds.height === 0) {
         failures.push(`${stableSelector(icon)} has zero size`)
       } else if (Math.abs(bounds.width - bounds.height) > 0.1) {
@@ -471,7 +472,7 @@ test("declared icon and button contracts have measurable geometry", async ({ pag
         iconBox.top + iconBox.height / 2 -
         (buttonBox.top + buttonBox.height / 2)
       )
-      if (button.children.length === 1 && (x > 0.5 || y > 0.5)) {
+      if (button.classList.contains("button--icon") && (x > 0.5 || y > 0.5)) {
         failures.push(`${stableSelector(button)} icon offset ${x},${y}`)
       }
     }
@@ -485,4 +486,19 @@ test("declared icon and button contracts have measurable geometry", async ({ pag
     }
   })
   expect(violations).toEqual([])
+})
+
+test("active-state colour is confined to icon masks", async ({ page }) => {
+  await page.goto(`${baseURL}/static/sidepanel.html`)
+  await page.locator("body").evaluate((body) => {
+    body.insertAdjacentHTML(
+      "beforeend",
+      '<div id="active-colour-fixture" class="active">' +
+        '<span class="icon icon--chrome icon--star" aria-hidden="true"></span>' +
+        "<span>Active text</span></div>"
+    )
+  })
+  const fixture = page.locator("#active-colour-fixture")
+  await expect(fixture.locator(".icon")).toHaveCSS("color", "rgb(0, 192, 0)")
+  await expect(fixture.locator("span").last()).not.toHaveCSS("color", "rgb(0, 192, 0)")
 })

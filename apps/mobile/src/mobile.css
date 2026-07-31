@@ -734,10 +734,9 @@ body.once-anchored-menu-open {
   background: transparent;
 }
 
-#reading_reader_toggle img {
+#reading_reader_toggle .icon {
   display: block;
-  width: 20px;
-  height: 20px;
+  --icon-size: 20px;
   margin: auto;
   opacity: 0.75;
 }
@@ -747,18 +746,8 @@ body.once-anchored-menu-open {
   background: var(--highlight-bg-color);
 }
 
-#reading_reader_toggle.active img {
+#reading_reader_toggle.active .icon {
   opacity: 1;
-}
-
-@media (prefers-color-scheme: dark) {
-  body:not([data-theme="light"]) #reading_reader_toggle:not(.active) img {
-    filter: contrast(0%);
-  }
-}
-
-body[data-theme="dark"] #reading_reader_toggle:not(.active) img {
-  filter: contrast(0%);
 }
 
 #reading_navigate {

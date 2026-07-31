@@ -84,7 +84,7 @@ The product therefore exposes two clearly different contracts:
 
 ## Completed work
 
-The measured baseline, implementation history, and completed Phases 0–3 are
+The measured baseline, implementation history, and completed Phases 0–4 are
 archived in [`design-system-completed.md`](design-system-completed.md). This
 file contains only the governing architecture and remaining work.
 
@@ -238,46 +238,6 @@ use:
 
 Primitives should be composable and low-specificity. Component CSS owns component geometry.
 Do not replace every flex/grid declaration merely to increase primitive adoption counts.
-
----
-
-## Phase 4 — Icon system
-
-### 4.1 Convert consumption to masks
-
-Replace UI glyph `<img>` elements with the icon primitive and per-icon classes. Keep actual
-content images and branded logos as `<img>`.
-
-Call sites include:
-
-- `shell.html`;
-- builders in `packages/ui-web/src`;
-- mobile/electron-specific builders;
-- reader/presenter surfaces if in scope.
-
-Delete icon color filters as their callers migrate. Active and hover states become `color`
-changes.
-
-### 4.2 Normalize gross geometry
-
-Move all UI glyphs to the 16×16 grid. Rescale clear extent outliers around the center without
-redrawing paths where possible. Verify that mask rendering does not clip.
-
-### 4.3 Review optical balance
-
-Use `docs/tmp-icons/icon-comparison.html` and generated candidates for the owner decision.
-The proposed ~86% extent is a starting point, not a mechanical definition of optical
-equality. Review at actual 12, 16, and 24px rendered sizes in both themes.
-
-Redraw `story.svg` on the 16 grid only after that review.
-
-### Phase 4 exit
-
-- UI glyphs use masks/current color;
-- no icon color-filter hacks;
-- grid/nonempty/clipping/file-size tests green;
-- comparison sheet approved for both themes and supported sizes;
-- content images and logos remain semantically correct.
 
 ---
 
@@ -449,7 +409,6 @@ verify their expected bundle stamp before running.
 
 | Phase | Depends on | Risk | Primary result |
 |---|---|---:|---|
-| 4 Icon system | 0, 3 | medium | Themeable, verified glyphs |
 | 5 Theming architecture | 1, 2, 3 | high | Supported tokens, explicit advanced-CSS risk |
 | 6 Design handoff | 1, 3 | low | Transferable design artifacts |
 

@@ -256,9 +256,11 @@ export class BrowserShell {
         media.type = "button"
         media.title = tab.muted ? "Unmute tab" : "Mute tab"
         media.setAttribute("aria-label", media.title)
-        const icon = document.createElement("img")
-        icon.src = tab.muted ? "imgs/volume-mute.svg" : "imgs/volume.svg"
-        icon.alt = ""
+        const icon = document.createElement("span")
+        icon.className = `icon icon--chrome icon--${
+          tab.muted ? "volume-mute" : "volume"
+        }`
+        icon.setAttribute("aria-hidden", "true")
         media.append(icon)
         media.onclick = (event) => {
           event.stopPropagation()
@@ -325,14 +327,14 @@ export class BrowserShell {
       }
       this.backButton.disabled = !active.canGoBack
       this.forwardButton.disabled = !active.canGoForward
-      const reloadContent = document.createElement(active.loading ? "span" : "img")
+      const reloadContent = document.createElement("span")
       if (active.loading) {
         reloadContent.className = "stop-symbol"
         reloadContent.setAttribute("aria-hidden", "true")
         reloadContent.textContent = "×"
       } else {
-        reloadContent.setAttribute("src", "imgs/reload.svg")
-        reloadContent.setAttribute("alt", "")
+        reloadContent.className = "icon icon--chrome icon--reload"
+        reloadContent.setAttribute("aria-hidden", "true")
       }
       this.reloadButton.replaceChildren(reloadContent)
       this.reloadButton.title = active.loading ? "Stop" : "Reload"

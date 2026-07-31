@@ -1,10 +1,8 @@
 # Icon investigation — working material
 
-Scratch material behind Phase 4 of [design-system-plan.md](../design-system-plan.md).
-**Nothing here is wired into the app.** It exists so the icon decisions can be reviewed
-before any call site changes.
-
-Delete this directory once Phase 4 lands and the audit has moved into
+Archived review material behind completed Phase 4 of
+[design-system-completed.md](../design-system-completed.md). The shipped icons
+now use the accepted candidates; the mechanical audit lives in
 `tests/e2e/design-system/`.
 
 ## Contents
@@ -59,11 +57,11 @@ and mis-stated the set's shape.
 Render each SVG at exactly its viewBox size so 1 user unit = 1 CSS px, then use
 `getBoundingClientRect()` — that includes transforms and stroke.
 
-## Open decisions
+## Accepted decisions
 
-1. **Target fill for the rescaled icons** (currently `TARGET_FILL = 0.86` in
-   `build-icon-compare.js`). Sits just above the lower cluster rather than at the 100% mode,
-   on the reasoning that a sparse mark at full extent reads heavier than a dense one.
-2. **`story-candidate.svg` proportions** — check angle and rule lengths are a taste call.
+1. **Target fill for clear outliers is 86%.** This sits just above the lower
+   cluster rather than at the 100% mode because sparse marks at full extent read
+   heavier than dense marks.
+2. **`story-candidate.svg` was accepted** at 1.5-unit stroke and 83% extent.
 
-Neither is settled. Regenerate after changing either.
+The sheet was reviewed at actual 12, 16, and 24px sizes in both themes.

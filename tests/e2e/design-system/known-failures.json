@@ -1,12 +1,5 @@
 {
   "platformOwnership": [],
   "controlSemantics": [],
-  "iconViewBox": [
-    {
-      "file": "story.svg",
-      "reason": "The only shipped UI glyph using a 20 by 20 grid",
-      "phase": "4.2",
-      "removeWhen": "The approved story glyph is redrawn on the 16 by 16 grid"
-    }
-  ]
+  "iconViewBox": []
 }
