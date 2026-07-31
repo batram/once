@@ -2364,7 +2364,7 @@ body.once-reader-open {
   top: 50%;
   left: 50%;
   color: var(--main-bg-color);
-  font-size: 9px;
+  font-size: var(--status-glyph-size);
   line-height: 1;
   transform: translate(-50%, -44%);
 }
