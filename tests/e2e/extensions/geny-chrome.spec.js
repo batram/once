@@ -45,7 +45,7 @@ test("Chrome genymatch extracts innerText from fetched HTML", async () => {
     await page.getByTestId("sources-mode-toggle").click()
     await page.getByTestId("sources").fill(fixture.source)
     await page.getByTestId("save-sources").click()
-    await page.getByTestId("stories-menu").locator(":scope > .heading").click()
+    await page.getByTestId("stories-menu").click()
     await page.locator("#searchfield").fill("")
 
     const story = page.locator(

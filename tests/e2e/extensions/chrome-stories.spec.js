@@ -95,7 +95,7 @@ function storyItem(page, href) {
 }
 
 async function openStories(page) {
-  await page.getByTestId("stories-menu").locator(":scope > .heading").click()
+  await page.getByTestId("stories-menu").click()
   await page.locator("#searchfield").fill("")
 }
 

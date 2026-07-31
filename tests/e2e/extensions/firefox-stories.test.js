@@ -89,7 +89,7 @@ test(
         .findElement(By.css('[data-testid="save-sources"]'))
         .click()
       await driver
-        .findElement(By.css('[data-testid="stories-menu"] > .heading'))
+        .findElement(By.css('[data-testid="stories-menu"]'))
         .click()
       await driver.findElement(By.css("#searchfield")).clear()
       await driver.wait(
@@ -138,12 +138,12 @@ test(
       panelHandle = await reopenExtensionPanel(driver, extensionUuid)
       await driver.wait(
         until.elementLocated(
-          By.css('[data-testid="stories-menu"] > .heading')
+          By.css('[data-testid="stories-menu"]')
         ),
         15_000
       )
       await driver
-        .findElement(By.css('[data-testid="stories-menu"] > .heading'))
+        .findElement(By.css('[data-testid="stories-menu"]'))
         .click()
       await driver.findElement(By.css("#searchfield")).clear()
       await driver
