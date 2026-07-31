@@ -118,3 +118,22 @@ test("mobile release package commands select production native artifacts", () =>
   assert.match(mobileCli, /"-destination", "generic\/platform=iOS"/)
   assert.match(mobileCli, /"CODE_SIGNING_ALLOWED=NO", "archive"/)
 })
+
+test("mobile startup exposes progress, failure, and retry state in the shell", () => {
+  const root = path.resolve(__dirname, "../../..")
+  const shell = fs.readFileSync(
+    path.join(root, "packages/ui-web/public/shell.html"),
+    "utf8"
+  )
+  const main = fs.readFileSync(
+    path.join(root, "apps/mobile/src/main.ts"),
+    "utf8"
+  )
+
+  assert.match(shell, /id="startup_status" role="status" aria-live="polite"/)
+  assert.match(shell, /id="startup_retry"/)
+  assert.match(main, /showStartupState\("Opening saved stories and settings…"\)/)
+  assert.match(main, /showStartupState\("Loading stories…"\)/)
+  assert.match(main, /showStartupState\("Once could not finish starting\."\s*,\s*"error"\)/)
+  assert.match(main, /setAttribute\("active_panel", "stories"\)/)
+})

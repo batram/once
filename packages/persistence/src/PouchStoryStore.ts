@@ -1,4 +1,4 @@
-import { Story } from "@once/core"
+import { mergeStorySyncState, Story } from "@once/core"
 
 export interface PouchStoryDatabase {
   allDocs(options: Record<string, unknown>): Promise<{ rows: { doc?: unknown }[] }>
@@ -25,6 +25,7 @@ export interface PouchStoryDatabase {
 }
 
 export class PouchStoryStore<TStory extends Story> {
+  private staredIndex?: Promise<unknown>
   private diagnosticHandlers = new Set<(error: {
     severity: "warning" | "error"
     operation: string
@@ -74,9 +75,24 @@ export class PouchStoryStore<TStory extends Story> {
   }
 
   async getStaredStories(): Promise<TStory[]> {
-    await this.db.createIndex({ index: { fields: ["stared"] } })
+    const indexOptions = {
+      index: {
+        fields: ["stared"],
+        partial_filter_selector: { stared: { $eq: true } }
+      },
+      ddoc: "once-stared",
+      name: "stared-only"
+    } as PouchDB.Find.CreateIndexOptions & { ddoc: string; name: string }
+    this.staredIndex ??= this.db.createIndex(indexOptions)
+    try {
+      await this.staredIndex
+    } catch (error) {
+      this.staredIndex = undefined
+      throw error
+    }
     const response = await this.db.find({
-      selector: { stared: { $eq: true } }
+      selector: { stared: { $eq: true } },
+      use_index: ["once-stared", "stared-only"]
     })
     return response.docs.map((doc) =>
       this.storyFromDocument(doc as unknown as Record<string, unknown>)
@@ -116,6 +132,14 @@ export class PouchStoryStore<TStory extends Story> {
     const trySave = async (retryCount = 0): Promise<{ rev?: string }> => {
       try {
         const doc = await this.db.get(this.storyId(story.href))
+        const reconciled = mergeStorySyncState(
+          this.storyFromDocument(doc),
+          story
+        )
+        story.read_state = reconciled.read_state
+        story.stared = reconciled.stared
+        story.filter = reconciled.filter
+        story.sync_updated_at = reconciled.sync_updated_at
         story._id = doc._id as string
         story._rev = doc._rev as string
         return await this.db.put(story.to_obj())

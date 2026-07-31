@@ -27,6 +27,7 @@ import { AppSettings } from "./AppSettings"
 import { SourceLoader } from "./SourceLoader"
 import { DiagnosticLog, errorDetails } from "./DiagnosticLog"
 import { fetchDocument } from "./fetchDocument"
+import { waitForStartupStorage } from "./startupStorage"
 
 export class AppRuntime {
   readonly client: OnceClient
@@ -142,39 +143,24 @@ export class AppRuntime {
       ).catch(() => undefined)
     })
 
-    try {
-      const staredStories = await this.platform.storyStore.getStaredStories()
-      staredStories.forEach((story) => this.workingSet.set(story.href, story, true))
-    } catch (error) {
-      this.reportDiagnostic({
-        severity: "error",
-        operation: "story.load-stared",
-        message: "Stared stories could not be loaded",
-        details: errorDetails(error)
-      })
-    }
+    await Promise.all([
+      this.waitForStartupStorage("stared stories", async () => {
+        const staredStories = await this.platform.storyStore.getStaredStories()
+        staredStories.forEach((story) => this.workingSet.add(story))
+      }),
+      this.waitForStartupStorage("animation", async () => {
+        this.settings.animated = await this.settings.getAnimation()
+      }),
+      this.waitForStartupStorage("theme", async () => {
+        this.platform.theme.setTheme(await this.settings.getTheme())
+      }),
+      this.waitForStartupStorage("redirects", () => this.refreshRedirects())
+    ])
 
-    try {
-      this.settings.animated = await this.settings.getAnimation()
-    } catch (error) {
-      this.reportStartupSettingError("animation", error)
-    }
-    try {
-      this.platform.theme.setTheme(await this.settings.getTheme())
-    } catch (error) {
-      this.reportStartupSettingError("theme", error)
-    }
-    try {
-      await this.refreshRedirects()
-    } catch (error) {
-      this.reportStartupSettingError("redirects", error)
-    }
-    try {
+    await this.waitForStartupStorage("sync", async () => {
       const syncUrl = await this.settings.getSyncUrl()
       this.settings.startSync(syncUrl)
-    } catch (error) {
-      this.reportStartupSettingError("sync", error)
-    }
+    })
 
     this.platform.activeTab?.onSelectedUrlChanged((url) => {
       this.client.selectUrl(url)
@@ -586,6 +572,24 @@ export class AppRuntime {
 
   private reportStartupSettingError(setting: string, error: unknown): void {
     this.diagnostics.reportSettingLoad(setting, error)
+  }
+
+  private async waitForStartupStorage(
+    label: string,
+    operation: () => Promise<void>
+  ): Promise<void> {
+    return waitForStartupStorage(label, operation, {
+      timedOut: (timedOutLabel) => this.reportDiagnostic({
+        severity: "warning",
+        operation: `startup.${timedOutLabel.replaceAll(" ", "-")}`,
+        message: `Still loading ${timedOutLabel}; startup is continuing`,
+        details:
+          "The local database did not respond during the startup window. " +
+          "The operation is continuing in the background."
+      }),
+      failed: (failedLabel, error) =>
+        this.reportStartupSettingError(failedLabel, error)
+    })
   }
 
   private async handleObservedStoryChange(

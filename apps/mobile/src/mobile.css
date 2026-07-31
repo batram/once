@@ -646,6 +646,38 @@
     background: var(--main-bg-color);
   }
 
+  #startup_status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-3);
+    min-height: var(--touch);
+    padding: var(--sp-3);
+    border-bottom: var(--m-bw) solid var(--m-ink);
+    background: var(--input-bg-color);
+    font-family: var(--m-sans);
+  }
+
+  #startup_status[data-state="loading"]::before {
+    content: "";
+    width: 0.9em;
+    height: 0.9em;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: once-startup-spin 0.8s linear infinite;
+  }
+
+  #startup_status[data-state="error"] {
+    color: var(--m-error);
+  }
+
+  @keyframes once-startup-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
   #menu > .sidebar_panel {
     display: flex;
     flex: 1 1 33.333%;

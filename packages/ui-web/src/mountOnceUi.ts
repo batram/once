@@ -59,9 +59,17 @@ export async function mountOnceUi(
     LoaderInsights.showErrorMessage(message, details)
   )
 
-  // Rows read the swipe config at gesture time, so it has to be current
-  // before the first row can be dragged — and after any settings change.
-  SwipeConfig.current = await client.getSwipeSettings()
+  // Rows read the swipe config at gesture time. The built-in defaults are
+  // safe while storage opens, and later settings changes refresh it. A delayed
+  // IndexedDB read must not prevent the shell and its error UI from mounting.
+  void client.getSwipeSettings().then((settings) => {
+    SwipeConfig.current = settings
+  }).catch((error) => {
+    LoaderInsights.showErrorMessage(
+      "Swipe settings could not be loaded; using defaults",
+      error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+    )
+  })
   client.subscribe("settingsChanged", ({ section }) => {
     if (section !== "swipe") return
     void client.getSwipeSettings().then((settings) => {
@@ -93,7 +101,12 @@ export async function mountOnceUi(
   if (options.showHoveredLinks) HoverUrlIndicator.mount()
   StorySearch.init()
   addCollectorColorStyles()
-  await settingsPanel.ready
+  void settingsPanel.ready.catch((error) => {
+    LoaderInsights.showErrorMessage(
+      "Settings could not be loaded",
+      error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+    )
+  })
 
   client.subscribe("selectedUrlChanged", ({ url }) => {
     updateSelected(client, url)
@@ -104,6 +117,7 @@ export async function mountOnceUi(
 
   const initialStoryLoad = options.initialStoryLoad || "network"
   if (initialStoryLoad !== "disabled") {
+    await StoryList.showStoredStoriesIfEmpty(client)
     await client.reloadStories(initialStoryLoad === "cache")
     await StoryList.showStoredStoriesIfEmpty(client)
   }

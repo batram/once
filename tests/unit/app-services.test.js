@@ -5,6 +5,7 @@ const { AppSettings } = require("../../packages/app/dist/AppSettings")
 const { StoryWorkingSet } = require("../../packages/app/dist/StoryWorkingSet")
 const { StoryWriteQueue } = require("../../packages/app/dist/StoryWriteQueue")
 const { SourceLoader } = require("../../packages/app/dist/SourceLoader")
+const { waitForStartupStorage } = require("../../packages/app/dist/startupStorage")
 const {
   acceptRemoteStorySyncState,
   mergeStorySyncState
@@ -132,4 +133,19 @@ test("source loader rejects expired cache before fetching", async () => {
   )
   assert.equal(requests, 1)
   assert.deepEqual(errors, [])
+})
+
+test("startup storage timeout reports and continues while work stays pending", async () => {
+  const events = []
+  await waitForStartupStorage(
+    "stared stories",
+    () => new Promise(() => {}),
+    {
+      timedOut: (label) => events.push(["timeout", label]),
+      failed: (label, error) => events.push(["failed", label, error])
+    },
+    5
+  )
+
+  assert.deepEqual(events, [["timeout", "stared stories"]])
 })

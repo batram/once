@@ -401,9 +401,9 @@
    below. Icons are square, so that height doubles as the width the text has to
    clear — plus one gap. */
 .tags_container .tag--icon {
-  --tag-icon-box: calc(1lh + var(--sp-1) + 2px);
-
-  padding-left: calc(var(--tag-icon-box) + var(--sp-1) - 1px);
+  /* Icon width == tag border-box height (1lh + block padding + both borders),
+     measured from inside the left border, then one --sp-1 gap to the text. */
+  padding-left: calc(1lh + var(--sp-1) + var(--bw) + var(--sp-1));
   background: var(--tag-icon) left top / auto 100% no-repeat border-box;
 }
 

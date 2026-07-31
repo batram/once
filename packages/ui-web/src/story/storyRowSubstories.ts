@@ -33,10 +33,6 @@ function tagElement(tag: NonNullable<SubStory["tags"]>[number]): HTMLElement {
   if (tag.icon) {
     tag_el.classList.add("tag--icon")
     tag_el.style.setProperty("--tag-icon", `url(${tag.icon})`)
-    tag_el.style.setProperty(
-      "--tag-icon-size",
-      document.body.dataset.platform === "mobile" ? "16px" : "13px"
-    )
   }
 
   return tag_el

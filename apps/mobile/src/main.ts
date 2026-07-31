@@ -30,6 +30,23 @@ declare const __ONCE_MOBILE_E2E__: boolean
 
 const MOBILE_SCROLLBAR_IDLE_DELAY_MS = 650
 
+function showStartupState(
+  message: string,
+  state: "loading" | "error" | "ready" = "loading"
+): void {
+  document.querySelector<HTMLElement>("#left_panel")
+    ?.setAttribute("active_panel", "stories")
+  const status = document.querySelector<HTMLElement>("#startup_status")
+  const text = document.querySelector<HTMLElement>("#startup_status_text")
+  const retry = document.querySelector<HTMLButtonElement>("#startup_retry")
+  if (!status || !text || !retry) return
+  status.dataset.state = state
+  status.hidden = state === "ready"
+  text.textContent = message
+  retry.hidden = state !== "error"
+  retry.onclick = state === "error" ? () => location.reload() : null
+}
+
 function installTransientScrollbars(): void {
   const idleTimers = new WeakMap<Element, ReturnType<typeof setTimeout>>()
   const indicators = new WeakMap<Element, HTMLElement>()
@@ -76,6 +93,7 @@ async function startMobileApp(): Promise<void> {
   document.body.dataset.platform = "mobile"
   document.body.dataset.buildChannel = __ONCE_BUILD_CHANNEL__
   document.body.dataset.onceStage = "platform"
+  showStartupState("Preparing the Android application…")
   installTransientScrollbars()
 
   const nativeBridge = createDefaultMobileNativeBridge()
@@ -112,8 +130,10 @@ async function startMobileApp(): Promise<void> {
   }
 
   document.body.dataset.onceStage = "app-start"
+  showStartupState("Opening saved stories and settings…")
   await app.start()
   document.body.dataset.onceStage = "ui-mount"
+  showStartupState("Loading stories…")
   await mountOnceUi(app.client, {
     appVersion: __ONCE_APP_VERSION__,
     buildChannel: __ONCE_BUILD_CHANNEL__,
@@ -140,12 +160,14 @@ async function startMobileApp(): Promise<void> {
   }
   document.body.dataset.onceStage = "ready"
   document.body.dataset.onceReady = "true"
+  showStartupState("Ready", "ready")
 }
 
 document.addEventListener("DOMContentLoaded", () => {
   void startMobileApp().catch((error) => {
     document.body.dataset.onceStage = "error"
     document.body.dataset.onceError = error instanceof Error ? error.message : String(error)
+    showStartupState("Once could not finish starting.", "error")
     console.error("Failed to start Once mobile", error)
   })
 })

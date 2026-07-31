@@ -30,6 +30,39 @@ test("rejects PouchDB save failures instead of reporting success", async () => {
   await assert.rejects(store.saveStory(story), /disk full/)
 })
 
+test("preserves newer synchronized state when saving a stale story snapshot", async () => {
+  const stored = new Story("rss", "https://example.com/story", "A story")
+  stored._id = `sto_${stored.href}`
+  stored._rev = "7-remote"
+  stored.read_state = "skipped"
+  stored.sync_updated_at = { read_state: 200 }
+  const incoming = Story.from_obj({
+    ...stored.to_obj(),
+    _rev: "1-stale",
+    read_state: "unread",
+    sync_updated_at: undefined,
+    tags: [{ class: "group", text: "*new", href: "search:*new" }]
+  })
+  let written
+  const store = new PouchStoryStore(
+    {
+      get: async () => stored.to_obj(),
+      put: async (doc) => {
+        written = doc
+        return { rev: "8-merged" }
+      }
+    },
+    Story.from_obj.bind(Story)
+  )
+
+  const saved = await store.saveStory(incoming)
+
+  assert.equal(written.read_state, "skipped")
+  assert.deepEqual(written.sync_updated_at, { read_state: 200 })
+  assert.deepEqual(written.tags, incoming.tags)
+  assert.equal(saved._rev, "8-merged")
+})
+
 test("recovers a corrupted story and reports its stored document", async (t) => {
   t.mock.method(console, "error", () => {})
 
@@ -72,10 +105,25 @@ test("loads stared stories through an indexed query", async () => {
   )
 
   const stories = await store.getStaredStories()
+  await store.getStaredStories()
 
   assert.deepEqual(calls, [
-    ["createIndex", { index: { fields: ["stared"] } }],
-    ["find", { selector: { stared: { $eq: true } } }]
+    ["createIndex", {
+      index: {
+        fields: ["stared"],
+        partial_filter_selector: { stared: { $eq: true } }
+      },
+      ddoc: "once-stared",
+      name: "stared-only"
+    }],
+    ["find", {
+      selector: { stared: { $eq: true } },
+      use_index: ["once-stared", "stared-only"]
+    }],
+    ["find", {
+      selector: { stared: { $eq: true } },
+      use_index: ["once-stared", "stared-only"]
+    }]
   ])
   assert.deepEqual(stories.map((story) => story.href), [stared.href])
 })
