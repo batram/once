@@ -1,7 +1,27 @@
-*.ts	text	eol=lf
-*.js	text	eol=lf
-*.mjs	text	eol=lf
-*.html	text	eol=lf
-*.json	text	eol=lf
-*.css	text	eol=lf
-*.gradle	text	eol=lf
+# Normalize everything to LF, in the index and in the working tree, so the repo
+# behaves the same on Windows regardless of the user's core.autocrlf setting.
+* text=auto eol=lf
+
+# Windows-only scripts must keep CRLF to stay usable by cmd.exe
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary assets: never convert
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.icns binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.mp3 binary
+*.mp4 binary
+*.pdf binary
+*.zip binary
+*.jar binary
+*.keystore binary
+*.jks binary
