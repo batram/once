@@ -65,7 +65,7 @@
   display: flex;
 }
 
-#reading_menu_btn {
+#menu > #reading_menu_btn {
   display: none;
 }
 

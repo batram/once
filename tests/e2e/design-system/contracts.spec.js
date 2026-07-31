@@ -89,6 +89,14 @@ test("the platform layer overrides components without important", async ({ page 
   await expect(page.locator("#reading_menu_btn")).toHaveCSS("display", "flex")
 })
 
+test("only the mobile platform exposes the Reading menu", async ({ page }) => {
+  await page.goto(`${baseURL}/static/sidepanel.html`)
+  await expect(page.locator("#reading_menu_btn")).toBeHidden()
+
+  await page.goto(`${baseURL}/static/sidepanel.html?target=electron`)
+  await expect(page.locator("#reading_menu_btn")).toBeHidden()
+})
+
 // The test above proves the platform layer can win. It must not win over a
 // component that declares its own box: layer order beats specificity, so a
 // platform rule matching the `button` element silently replaces geometry the

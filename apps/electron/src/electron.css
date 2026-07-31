@@ -55,10 +55,6 @@ body #titlebar-text {
   flex-direction: column;
 }
 
-#reading_menu_btn {
-  display: none;
-}
-
 #left_panel_content {
   display: flex;
   flex-direction: row;
