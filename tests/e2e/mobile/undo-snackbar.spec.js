@@ -1,4 +1,7 @@
 const { test, expect } = require("@playwright/test")
+const {
+  UNDO_SNACKBAR_VISIBLE_MS
+} = require("../../../packages/ui-web/dist/story/undoSnackbarTiming")
 const { openStoryMenu, seedFixtureStories } = require("./helpers/stories")
 const { dragStory } = require("./helpers/swipe")
 
@@ -41,10 +44,16 @@ test("the offer expires on its own", async ({ page }) => {
 
   await swipeToSkip(page, story)
   await expect(page.getByTestId("undo-snackbar")).toBeVisible()
+  await expect(page.locator(".undo_snackbar_progress")).toHaveCSS(
+    "animation-duration",
+    `${UNDO_SNACKBAR_VISIBLE_MS / 1000}s`
+  )
 
-  // Outlives the 5s countdown. The row must stay skipped: letting the bar go is
-  // how the user accepts the change.
-  await expect(page.getByTestId("undo-snackbar")).toBeHidden({ timeout: 8000 })
+  // The row must stay skipped: letting the bar go is how the user accepts the
+  // change. Keep runner slack separate from the product countdown duration.
+  await expect(page.getByTestId("undo-snackbar")).toBeHidden({
+    timeout: UNDO_SNACKBAR_VISIBLE_MS + 3000
+  })
   await expect(story).toHaveClass(/skipped/)
 })
 

@@ -1,5 +1,6 @@
 import { Story } from "@once/core"
 import { ReadState, StoryHistory } from "./StoryHistory"
+import { UNDO_SNACKBAR_VISIBLE_MS } from "./undoSnackbarTiming"
 
 /**
  * Transient "Skipped … / Undo" bar for touch platforms.
@@ -15,8 +16,6 @@ import { ReadState, StoryHistory } from "./StoryHistory"
  * mis-swipe this exists for usually happens in a run. The bar then undoes the
  * whole run, which is what "that wasn't what I meant" means in that moment.
  */
-const VISIBLE_MS = 1000
-
 export class UndoSnackbar {
   private static instance?: UndoSnackbar
   private readonly root: HTMLElement
@@ -90,8 +89,12 @@ export class UndoSnackbar {
     this.progress = document.createElement("div")
     this.progress.classList.add("undo_snackbar_progress")
     this.progress.setAttribute("aria-hidden", "true")
+    this.progress.style.setProperty(
+      "--undo-snackbar-duration",
+      `${UNDO_SNACKBAR_VISIBLE_MS}ms`
+    )
     this.root.append(this.progress)
-    this.hideTimer = setTimeout(() => this.dismiss(), VISIBLE_MS)
+    this.hideTimer = setTimeout(() => this.dismiss(), UNDO_SNACKBAR_VISIBLE_MS)
   }
 
   private undoPending(history: StoryHistory): void {

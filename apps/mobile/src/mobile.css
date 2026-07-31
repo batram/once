@@ -417,7 +417,7 @@
     width: 0;
     height: 2px;
     background: var(--m-accent-bg);
-    animation: once-undo-countdown 1s linear forwards;
+    animation: once-undo-countdown var(--undo-snackbar-duration) linear forwards;
     pointer-events: none;
   }
 
