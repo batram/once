@@ -28,6 +28,10 @@
   white-space: pre-line;
 }
 
+.once-confirm-dialog h3 {
+  margin: 0 0 var(--sp-2);
+}
+
 .once-confirm-dialog__input {
   box-sizing: border-box;
   width: 100%;
@@ -44,6 +48,11 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--sp-1-5);
+}
+
+.once-confirm-dialog__choices {
+  flex-direction: column;
+  align-items: stretch;
 }
 
 .once-confirm-dialog button {

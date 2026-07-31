@@ -82,14 +82,7 @@ export class StructuredSettingsEditors {
       openMenu: (anchor, items) => this.openMenu(anchor, items),
       listActions: () => this.listActions("sources"),
       showForm: (root, title, fields, save, remove, choices) =>
-        this.showForm(root, title, fields, save, remove, choices),
-      prepareDetail: (root) => {
-        this.preserveDesktopActions("sources", root)
-        this.listActions("sources")
-        root.textContent = ""
-        this.detailSections.add("sources")
-        this.updateAddButton("sources")
-      }
+        this.showForm(root, title, fields, save, remove, choices)
     })
     this.addButtons = new StructuredAddButtons({
       mode: (section) => this.modes.get(section) || "list",

@@ -1,6 +1,7 @@
 import { SourceError } from "@once/app"
+import { showChoiceDialog, showConfirmDialog } from "../../confirmDialog"
 import { AnchoredMenuItem } from "../../menu/storyAnchoredMenu"
-import { createActionButton, StructuredFormField } from "./form"
+import { StructuredFormField } from "./form"
 import { SourceGroupView } from "./SourceGroupView"
 import {
   parseSourceGroups,
@@ -26,7 +27,6 @@ export interface SourceSettingsHost {
     remove?: { label: string; action: () => void },
     choices?: Array<[string, string]>
   ): void
-  prepareDetail(root: HTMLElement): void
 }
 
 export class SourceSettingsEditor {
@@ -175,7 +175,7 @@ export class SourceSettingsEditor {
     })
   }
 
-  deleteGroup(root: HTMLElement, groupIndex: number): void {
+  async deleteGroup(root: HTMLElement, groupIndex: number): Promise<void> {
     const group = this.groups[groupIndex]
     if (!group.sources.length) {
       if (window.confirm(`Delete group “${group.name}”?`)) {
@@ -184,34 +184,32 @@ export class SourceSettingsEditor {
       }
       return
     }
-    this.host.prepareDetail(root)
-    const dialog = document.createElement("div")
-    dialog.className = "structured_form stack"
-    dialog.setAttribute("role", "dialog")
-    const title = document.createElement("h3")
-    title.textContent = `Delete “${group.name}”?`
-    const explanation = document.createElement("p")
-    explanation.textContent =
-      "Choose what should happen to the sources in this group."
-    const actions = document.createElement("div")
-    actions.className = "structured_form_actions row"
-    actions.append(
-      createActionButton("Remove group and move sources to Default", () => {
-        this.groups[0].sources.push(...group.sources)
-        this.groups.splice(groupIndex, 1)
-        this.save()
-      }),
-      createActionButton("Remove group and its sources", () => {
-        if (!window.confirm(
-          `Permanently delete ${group.sources.length} sources?`
-        )) return
-        this.groups.splice(groupIndex, 1)
-        this.save()
-      }),
-      createActionButton("Cancel", () => this.host.render())
-    )
-    dialog.append(title, explanation, actions)
-    root.append(dialog)
+    const choice = await showChoiceDialog({
+      title: `Delete “${group.name}”?`,
+      message: "Choose what should happen to the sources in this group.",
+      choices: [
+        {
+          label: "Remove group and move sources to Default",
+          value: "move"
+        },
+        { label: "Remove group and its sources", value: "remove" }
+      ],
+      positionWithin: root
+    })
+    if (choice === "move") {
+      this.groups[0].sources.push(...group.sources)
+    } else if (choice === "remove") {
+      const confirmed = await showConfirmDialog({
+        message: `Permanently delete ${group.sources.length} sources?`,
+        confirmLabel: "Delete",
+        positionWithin: root
+      })
+      if (!confirmed) return
+    } else {
+      return
+    }
+    this.groups.splice(groupIndex, 1)
+    this.save()
   }
 
   save(reloadStories = true): void {

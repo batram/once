@@ -20,6 +20,9 @@ const {
 const {
   SourceGroupView
 } = require("../../../packages/ui-web/dist/settings/structured/SourceGroupView")
+const {
+  SourceSettingsEditor
+} = require("../../../packages/ui-web/dist/settings/structured/SourceSettingsEditor")
 const { parseHTML } = require("linkedom")
 
 function withDom(html, callback) {
@@ -49,9 +52,7 @@ function withDom(html, callback) {
   globalThis.cancelAnimationFrame = () => {}
   globalThis.CSS = { escape: (value) => value }
   window.HTMLElement.prototype.scrollIntoView = () => {}
-  try {
-    return callback(window)
-  } finally {
+  const restore = () => {
     for (const [name, value] of Object.entries(previous)) {
       if (value === undefined) Reflect.deleteProperty(globalThis, name)
       else globalThis[name] = value
@@ -69,6 +70,18 @@ function withDom(html, callback) {
     if (previousCss === undefined) Reflect.deleteProperty(globalThis, "CSS")
     else globalThis.CSS = previousCss
   }
+  let result
+  try {
+    result = callback(window)
+  } catch (error) {
+    restore()
+    throw error
+  }
+  if (result && typeof result.finally === "function") {
+    return result.finally(restore)
+  }
+  restore()
+  return result
 }
 
 test("story source groups round-trip order, duplicates, and empty groups", () => {
@@ -348,6 +361,61 @@ test("source group view preserves expansion state across renders", () => {
     root.textContent = ""
     view.render(root)
     assert.equal(root.querySelector("[data-group-id='alpha']").open, false)
+  })
+})
+
+test("deleting a populated source group opens a modal overlay", async () => {
+  await withDom("<main></main>", async (window) => {
+    const root = window.document.querySelector("main")
+    const saved = []
+    const previousResizeObserver = globalThis.ResizeObserver
+    globalThis.ResizeObserver = class {
+      observe() {}
+      disconnect() {}
+    }
+    window.HTMLElement.prototype.showModal = function () {
+      this.open = true
+    }
+    window.HTMLElement.prototype.close = function () {
+      this.open = false
+      this.dispatchEvent(new window.Event("close"))
+    }
+    try {
+      const editor = new SourceSettingsEditor({
+        onTouch: () => false,
+        getText: () => "",
+        setText: () => {},
+        render: () => {},
+        root: () => root,
+        saveSources: (values) => saved.push(values),
+        showSourceError: () => {},
+        openMenu: () => {},
+        listActions: () => null,
+        showForm: () => {}
+      })
+      editor.read("\n*Example\nhttps://example.test")
+      const deletion = editor.deleteGroup(root, 1)
+
+      const dialog = window.document.querySelector(
+        '[data-testid="choice-dialog"]'
+      )
+      assert.equal(dialog.tagName, "DIALOG")
+      assert.equal(dialog.open, true)
+      assert.equal(dialog.parentElement, window.document.body)
+      assert.match(dialog.textContent, /Delete “Example”\?/)
+
+      dialog.querySelector("button").click()
+      await deletion
+      assert.deepEqual(editor.groups.map((group) => group.name), ["Default"])
+      assert.deepEqual(editor.groups[0].sources, ["https://example.test"])
+      assert.equal(saved.length, 1)
+    } finally {
+      if (previousResizeObserver === undefined) {
+        Reflect.deleteProperty(globalThis, "ResizeObserver")
+      } else {
+        globalThis.ResizeObserver = previousResizeObserver
+      }
+    }
   })
 })
 
