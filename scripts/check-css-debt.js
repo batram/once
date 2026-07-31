@@ -21,6 +21,19 @@ const marginProperty = /^margin(?:-|$)/
 const pxValue = /(?:^|[^\w.-])-?(?:\d*\.)?\d+px\b/i
 const negativeValue = /(?:^|[\s,(])-(?:0*\.)?[1-9]\d*(?:\.\d+)?(?:px|%|em|rem|vh|vw)\b|calc\([^)]*-\s*(?:\d|\.)/i
 const mobileAlias = /--m-(?:sp-\d+|fs-(?:title|body|meta|label)|touch)\b/g
+// Both forms are the same debt: a shared component sheet deciding what it looks
+// like per platform. The negated guard is the larger half and went uncounted,
+// so it could grow freely. layer(platform) is what should express this.
+const platformPrefixes = [
+  [
+    "mobile-specificity-prefix",
+    /body\[data-platform=(?:"mobile"|'mobile')\]/
+  ],
+  [
+    "desktop-specificity-prefix",
+    /body:not\(\[data-platform=(?:"mobile"|'mobile')\]\)/
+  ]
+]
 
 function normalized(value) {
   return value.trim().replace(/\s+/g, " ")
@@ -39,13 +52,10 @@ function analyzeCss(file, source) {
     }
   })
   ast.walkRules((rule) => {
-    if (/body\[data-platform=(?:"mobile"|'mobile')\]/.test(rule.selector)) {
-      debts.push(debtId(
-        "mobile-specificity-prefix",
-        file,
-        rule.source.start.line,
-        rule.selector
-      ))
+    for (const [kind, pattern] of platformPrefixes) {
+      if (pattern.test(rule.selector)) {
+        debts.push(debtId(kind, file, rule.source.start.line, rule.selector))
+      }
     }
   })
   ast.walkDecls((declaration) => {

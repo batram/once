@@ -509,9 +509,21 @@ writes.
 
 ### 2.4 Remove specificity prefixes separately
 
-Strip `body[data-platform="mobile"]` prefixes only after the equivalent platform-layer rule
-is measured and tested. Prefix removal is not part of the same commit that first moves a
-sheet into a layer.
+Strip platform prefixes only after the equivalent platform-layer rule is measured and
+tested. Prefix removal is not part of the same commit that first moves a sheet into a
+layer.
+
+Both forms count. `body[data-platform="mobile"]` is how a sheet says "mobile" and
+`body:not([data-platform="mobile"])` is how it says "everything else"; both are a shared
+component sheet deciding its own appearance per platform, which `layer(platform)` exists to
+express. The negated form is the larger half and was untracked until the debt script
+counted it, so measure before assuming a scope is clean.
+
+The negated guard persists partly because there is no desktop platform sheet: mobile and
+Electron have one, the extension and desktop web shell do not, so "desktop only" has nowhere
+to live except a guard inside component CSS. Removing these prefixes therefore means either
+adding that sheet or letting unguarded component rules be the default that `mobile.css`
+overrides through layer order.
 
 ### 2.5 Audit `!important`
 

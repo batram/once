@@ -26,6 +26,24 @@ body[data-platform="mobile"] .toolbar {
   ])
 })
 
+// The negated guard is how a shared sheet says "desktop", and it went uncounted
+// while being the larger half of the platform-branching debt.
+test("CSS debt analysis counts the negated platform guard", () => {
+  const source = `
+body:not([data-platform="mobile"]) .settings_actions .button {
+  color: red;
+}
+
+.unguarded {
+  color: red;
+}
+`
+  assert.deepEqual(analyzeCss("sample.css", source), [
+    "desktop-specificity-prefix|sample.css:2|" +
+      "body:not([data-platform=\"mobile\"]) .settings_actions .button"
+  ])
+})
+
 test("CSS debt comparison reports both additions and stale baseline entries", () => {
   assert.deepEqual(compareDebt(["kept", "removed"], ["kept", "added"]), {
     added: ["added"],
