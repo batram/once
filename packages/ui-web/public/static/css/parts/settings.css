@@ -376,8 +376,12 @@
   display: none;
 }
 
+/* A segmented control, not a button with contents: its two halves must meet.
+   The .button primitive contributes a gap, which pushed the second half past
+   the fixed width and under the overflow clip. */
 #settings_panel .structured_mode_toggle_topbar {
   box-sizing: border-box;
+  gap: 0;
   min-width: 38px;
   min-height: 30px;
   margin-left: auto;

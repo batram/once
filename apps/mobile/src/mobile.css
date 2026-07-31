@@ -172,7 +172,12 @@ input[type="submit"] {
   border: var(--m-bw) solid var(--m-ink);
   border-radius: var(--m-radius);
   background: var(--main-bg-color);
-  margin: var(--sp-2) var(--sp-2) var(--sp-1) 0;
+  /* Longhands, not the shorthand: the shorthand also set margin-left: 0, and
+     from layer(platform) that beat containers positioning a button with
+     margin-left: auto — the swipe footer's undo and reset stopped hugging the
+     right edge. The inline start edge is the container's business. */
+  margin-block: var(--sp-2) var(--sp-1);
+  margin-inline-end: var(--sp-2);
 }
 
 .button:active {
