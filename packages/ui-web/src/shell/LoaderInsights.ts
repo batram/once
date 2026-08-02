@@ -161,6 +161,7 @@ export class LoaderInsights {
     this.processing = items
 
     if (starting) {
+      this.recordReload()
       this.wasProcessing = true
       this.statusCollapsed = false
       this.infoMessage = ""
@@ -172,6 +173,22 @@ export class LoaderInsights {
     }
 
     this.render()
+  }
+
+  private static recordReload(): void {
+    const log = document.querySelector<HTMLElement>("#error_log")
+    if (!log?.querySelector(".error_log_entry")) return
+    if (log.lastElementChild?.classList.contains("error_log_reload")) return
+
+    const separator = document.createElement("div")
+    separator.classList.add("error_log_reload")
+    separator.setAttribute("role", "separator")
+
+    const line = document.createElement("hr")
+    const label = document.createElement("span")
+    label.textContent = `Reload ${new Date().toLocaleString()}`
+    separator.append(line, label, document.createElement("hr"))
+    log.append(separator)
   }
 
   private static updateSourceErrors(errors: SourceError[]): void {

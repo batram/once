@@ -136,6 +136,7 @@ test("status issues stack, dismiss, restore, and reset per reload", async (t) =>
     assert.ok(document.querySelector("#status_bar_activity").classList.contains("spinning"))
     document.querySelector("#status_bar_state").click()
     assert.ok(document.querySelector("#status_bar").hidden)
+    subscriptions.get("loaderChanged")({ processing: [] })
 
     const errors = [
       { url: "warning:one", title: "Warning one", message: "one", type: "warning" },
@@ -148,6 +149,27 @@ test("status issues stack, dismiss, restore, and reset per reload", async (t) =>
     assert.equal(document.querySelectorAll(".status_issue_bubble").length, 4)
     assert.equal(document.querySelector("#status_bar_warnings .status_indicator_count").textContent, "2")
     assert.equal(document.querySelector("#status_bar_errors .status_indicator_count").textContent, "2")
+
+    subscriptions.get("loaderChanged")({
+      processing: [{ domain: "reload.example", parserType: "RSS" }]
+    })
+    const reloadMarker = document.querySelector(".error_log_reload")
+    assert.ok(reloadMarker)
+    assert.match(reloadMarker.textContent, /^Reload /)
+    assert.equal(reloadMarker.querySelectorAll("hr").length, 2)
+    subscriptions.get("loaderChanged")({ processing: [] })
+    subscriptions.get("loaderChanged")({
+      processing: [{ domain: "reload-again.example", parserType: "RSS" }]
+    })
+    assert.equal(document.querySelectorAll(".error_log_reload").length, 1)
+    const errorAfterReload = document.createElement("details")
+    errorAfterReload.className = "error_log_entry"
+    document.querySelector("#error_log").append(errorAfterReload)
+    subscriptions.get("loaderChanged")({ processing: [] })
+    subscriptions.get("loaderChanged")({
+      processing: [{ domain: "third-reload.example", parserType: "RSS" }]
+    })
+    assert.equal(document.querySelectorAll(".error_log_reload").length, 2)
     for (const control of document.querySelectorAll(
       ".error_log_copy, .error_log_show_source, .error_log_show_story"
     )) {
