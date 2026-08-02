@@ -142,6 +142,56 @@ test("opens stories via title click, middle click, and comment links", async () 
   }
 })
 
+test("lets the user place the current story below the address bar", async () => {
+  const { electronApp, userData, window } = await launchApp(STORY_ENV)
+  try {
+    await seedLocalSource(window, storyFixture.sourceLine(origin), urls.alpha)
+    await storyItem(window, urls.alpha).locator("a.title").click()
+
+    const selected = window.locator("#selected_container")
+    await expect(selected.locator("story-item")).toHaveCount(1)
+    await expect.poll(() => selected.evaluate((element) => element.parentElement?.id))
+      .toBe("stories_panel")
+
+    const position = await openSettingsSection(
+      window,
+      "electron-layout",
+      "#electron_story_position"
+    )
+    await expect(window.locator("#electron_story_position_description"))
+      .toContainText("below the address bar")
+    await expect(position).toHaveAttribute(
+      "aria-describedby",
+      "electron_story_position_description"
+    )
+    await position.selectOption("browser")
+    await expect(position).toHaveValue("browser")
+    await expect.poll(() => selected.evaluate((element) => element.parentElement?.id))
+      .toBe("right_panel")
+    await expect.poll(() => window.evaluate(() => ({
+      addressBottom: document.querySelector("#controlbar").getBoundingClientRect().bottom,
+      storyTop: document.querySelector("#selected_container").getBoundingClientRect().top,
+      storyBottom: document.querySelector("#selected_container").getBoundingClientRect().bottom,
+      contentTop: document.querySelector("#tab_content").getBoundingClientRect().top,
+      stored: localStorage.getItem("once-electron-story-position")
+    }))).toMatchObject({ stored: "browser" })
+    const bounds = await window.evaluate(() => ({
+      addressBottom: document.querySelector("#controlbar").getBoundingClientRect().bottom,
+      storyTop: document.querySelector("#selected_container").getBoundingClientRect().top,
+      storyBottom: document.querySelector("#selected_container").getBoundingClientRect().bottom,
+      contentTop: document.querySelector("#tab_content").getBoundingClientRect().top
+    }))
+    expect(bounds.storyTop).toBeGreaterThanOrEqual(bounds.addressBottom)
+    expect(bounds.storyBottom).toBeLessThanOrEqual(bounds.contentTop)
+
+    await position.selectOption("sidebar")
+    await expect.poll(() => selected.evaluate((element) => element.parentElement?.id))
+      .toBe("stories_panel")
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
 test("stacks, dismisses, restores, and opens source issues through the error log", async () => {
   const { electronApp, userData, window } = await launchApp(STORY_ENV)
   try {

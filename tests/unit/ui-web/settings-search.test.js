@@ -94,6 +94,18 @@ test("indexes canonical text settings without duplicating structured rows", () =
   })
 })
 
+test("filters mobile-only copy using the section document", () => {
+  withDom(`
+    <html><body data-platform="electron"><section>
+      <span>Shared swipe copy</span>
+      <span class="swipe_mobile_only">Mobile-only swipe copy</span>
+    </section></body></html>
+  `, (section) => {
+    assert.ok(matchSettingsSection(section, "Swipe actions", "shared"))
+    assert.equal(matchSettingsSection(section, "Swipe actions", "mobile-only"), null)
+  })
+})
+
 test("never indexes the CouchDB URL or its masking presentation", () => {
   withDom(`
     <section>

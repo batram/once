@@ -4,6 +4,8 @@ import browserShellMarkup from "./browser/browser-shell.html"
 
 const TAB_MIME = "application/x-once-tab"
 const SPLIT_RATIO_KEY = "once-electron-split-ratio"
+const STORY_POSITION_KEY = "once-electron-story-position"
+type StoryPosition = "sidebar" | "browser"
 
 export class BrowserShell {
   private tabs: ElectronTabState[] = []
@@ -53,6 +55,8 @@ export class BrowserShell {
     this.readerButton = required<HTMLButtonElement>("#browser_reader")
     this.closeButton = required<HTMLButtonElement>("#browser_close")
 
+    this.bindStoryPosition()
+
     this.bindControls()
     this.bindTabs()
     this.bindLayout()
@@ -70,6 +74,34 @@ export class BrowserShell {
   setLeftCollapsed(collapsed: boolean): void {
     document.body.classList.toggle("electron-left-collapsed", collapsed)
     this.reportBounds()
+  }
+
+  private bindStoryPosition(): void {
+    const settings = required<HTMLElement>("#electron_layout_settings")
+    const select = required<HTMLSelectElement>("#electron_story_position")
+    settings.hidden = false
+    const stored = localStorage.getItem(STORY_POSITION_KEY)
+    const position: StoryPosition = stored === "browser" ? "browser" : "sidebar"
+    select.value = position
+    this.setStoryPosition(position)
+    select.addEventListener("change", () => {
+      const next: StoryPosition = select.value === "browser" ? "browser" : "sidebar"
+      localStorage.setItem(STORY_POSITION_KEY, next)
+      this.setStoryPosition(next)
+    })
+  }
+
+  private setStoryPosition(position: StoryPosition): void {
+    const selected = required<HTMLElement>("#selected_container")
+    if (position === "browser") {
+      this.rightPanel.insertBefore(selected, this.tabContent)
+    } else {
+      required<HTMLElement>("#stories_panel").insertBefore(
+        selected,
+        required<HTMLElement>("#stories")
+      )
+    }
+    document.body.dataset.electronStoryPosition = position
   }
 
   private bindControls(): void {

@@ -31,6 +31,13 @@
   border-bottom: thin solid var(--border-color);
 }
 
+.settings_description {
+  max-width: 60ch;
+  margin: var(--sp-2) 0;
+  color: var(--text-color);
+  line-height: 1.4;
+}
+
 .settings_actions {
   display: contents;
 }

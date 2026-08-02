@@ -337,6 +337,13 @@ body #titlebar-text {
   min-height: 0;
 }
 
+body[data-electron-story-position="browser"] #selected_container {
+  flex: 0 0 auto;
+  max-height: 35vh;
+  overflow-y: auto;
+  border-top: 0;
+}
+
 #sep_slider {
   position: static;
   flex: 0 0 4px;

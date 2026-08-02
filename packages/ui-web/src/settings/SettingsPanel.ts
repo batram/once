@@ -191,6 +191,9 @@ export class SettingsPanel {
     for (const [key, label, selector] of settingsSectionDefinitions) {
       const control = requireElement<HTMLElement>(selector)
       const block = requireClosestElement<HTMLElement>(control, ".settings_block")
+      // Platform-owned settings stay in the shared shell, but their platform
+      // reveals them before SettingsPanel builds its navigation.
+      if (block.hidden) continue
       const section = document.createElement("section")
       section.className = "settings_section"
       section.dataset.settingsSection = key

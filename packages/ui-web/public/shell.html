@@ -256,6 +256,22 @@
                     <label for="anim_checkbox">Animations</label>
                   </p>
                 </div>
+                <div class="settings_block" id="electron_layout_settings" hidden>
+                  <label class="settings_panel_heading" for="electron_story_position">
+                    Current story position:
+                  </label>
+                  <p class="settings_description" id="electron_story_position_description">
+                    Choose where the selected story is shown in Electron. Keep it
+                    above the story list in the sidebar, or place it below the
+                    address bar so it stays beside the page content. This choice
+                    is remembered on this device.
+                  </p>
+                  <select id="electron_story_position" data-testid="electron-story-position"
+                    aria-describedby="electron_story_position_description">
+                    <option value="sidebar">Above the story list</option>
+                    <option value="browser">Below the address bar</option>
+                  </select>
+                </div>
                 <div class="settings_block settings_swipe">
                   <div id="swipe_lab" data-testid="swipe-lab"></div>
                 </div>

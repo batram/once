@@ -66,7 +66,7 @@ export function settingsSearchSegments(section: HTMLElement): SearchSegment[] {
       element.remove()
     })
 
-  if (document.body.dataset.platform !== "mobile") {
+  if (section.ownerDocument.body.dataset.platform !== "mobile") {
     copy.querySelectorAll(".swipe_mobile_only").forEach((element) => {
       element.remove()
     })

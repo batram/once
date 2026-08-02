@@ -37,6 +37,11 @@ export function updateSettingsSummaries(
         "Not configured"
     },
     theme: { text: `${theme[0]?.toUpperCase()}${theme.slice(1)} · ${animation}` },
+    "electron-layout": {
+      text: value("#electron_story_position") === "browser"
+        ? "Below address bar"
+        : "Above story list"
+    },
     swipe: { text: `${swipeRight} · ${swipeLeft}` },
     cache: { text: `${value("#cache_time_input") || "30"} min` },
     errors: {

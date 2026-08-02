@@ -34,7 +34,9 @@ const settingsSectionDefinitions = require(
 const repoRoot = path.resolve(__dirname, "..")
 const defaultOutput = path.join(repoRoot, "artifacts", "app-visual-review")
 const themes = ["light", "dark"]
-const settingsSections = settingsSectionDefinitions.map(([key]) => key)
+const settingsSectionsForTarget = target => settingsSectionDefinitions
+  .filter(([, , , platform]) => !platform || platform === target)
+  .map(([key]) => key)
 const settingsStateNames = [
   "search-results",
   "sources-structured",
@@ -66,7 +68,7 @@ function buildImageNames(targets, sectionsByTarget = {}) {
     `${target}-${theme}-swipe-left-stage1.png`,
     `${target}-${theme}-swipe-right-stage2.png`,
     `${target}-${theme}-settings-index.png`,
-    ...(sectionsByTarget[target] || settingsSections).map(section =>
+    ...(sectionsByTarget[target] || settingsSectionsForTarget(target)).map(section =>
       `${target}-${theme}-settings-${section}.png`
     ),
     ...settingsStateNames.map(state =>
