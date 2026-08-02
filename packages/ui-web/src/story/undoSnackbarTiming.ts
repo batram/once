@@ -1,2 +1,5 @@
-/** How long the mobile undo offer remains actionable. */
-export const UNDO_SNACKBAR_VISIBLE_MS = 1000
+import { DEFAULT_SWIPE_SETTINGS } from "@once/app"
+
+/** Default used by timing-sensitive shell tests and older integrations. */
+export const UNDO_SNACKBAR_VISIBLE_MS =
+  DEFAULT_SWIPE_SETTINGS.undoSnackbarDurationMs

@@ -1,6 +1,6 @@
 import { Story } from "@once/core"
 import { ReadState, StoryHistory } from "./StoryHistory"
-import { UNDO_SNACKBAR_VISIBLE_MS } from "./undoSnackbarTiming"
+import { SwipeConfig } from "./swipe/geometry"
 
 /**
  * Transient "Skipped … / Undo" bar for touch platforms.
@@ -66,6 +66,10 @@ export class UndoSnackbar {
   }
 
   private show(story: Story, newState: ReadState): void {
+    if (!SwipeConfig.current.undoSnackbarEnabled) {
+      this.dismiss()
+      return
+    }
     this.pending += 1
     this.pendingStories.add(story.href)
     const stories = this.pendingStories.size
@@ -84,6 +88,7 @@ export class UndoSnackbar {
    * express without a forced reflow.
    */
   private restartCountdown(): void {
+    const duration = SwipeConfig.current.undoSnackbarDurationMs
     clearTimeout(this.hideTimer)
     this.progress?.remove()
     this.progress = document.createElement("div")
@@ -91,10 +96,10 @@ export class UndoSnackbar {
     this.progress.setAttribute("aria-hidden", "true")
     this.progress.style.setProperty(
       "--undo-snackbar-duration",
-      `${UNDO_SNACKBAR_VISIBLE_MS}ms`
+      `${duration}ms`
     )
     this.root.append(this.progress)
-    this.hideTimer = setTimeout(() => this.dismiss(), UNDO_SNACKBAR_VISIBLE_MS)
+    this.hideTimer = setTimeout(() => this.dismiss(), duration)
   }
 
   private undoPending(history: StoryHistory): void {

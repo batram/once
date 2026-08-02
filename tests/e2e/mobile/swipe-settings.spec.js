@@ -39,6 +39,60 @@ test("swipe settings autosave, undo, and reset without submit controls", async (
   await waitForSwipeSettings(page)
 })
 
+test("mobile undo snackbar settings autosave", async ({ page }) => {
+  await gotoMobileApp(page)
+  await openSettingsSection(page, "swipe")
+  await openSwipeAdvanced(page)
+
+  const enabled = page.locator("#swipe_undo_snackbar")
+  const duration = page.locator("#swipe_undo_snackbar_duration")
+  await expect(enabled).toBeVisible()
+  await expect(enabled).toBeChecked()
+  await expect(duration).toHaveValue("5000")
+
+  await enabled.uncheck()
+  await expect(duration).toBeDisabled()
+  await waitForSwipeSettings(page)
+
+  await enabled.check()
+  await duration.fill("3000")
+  await expect(duration.locator("xpath=following-sibling::output"))
+    .toHaveText("3 s")
+  await waitForSwipeSettings(page)
+})
+
+test("swipe settings fit the mobile viewport without horizontal clipping", async ({
+  page
+}) => {
+  await gotoMobileApp(page)
+  await openSettingsSection(page, "swipe")
+
+  const measurements = await page.locator("#swipe_lab").evaluate((lab) => {
+    const scroller = lab.querySelector(".swipe_lab_scroller")
+    const inner = lab.querySelector(".swipe_lab_inner")
+    return {
+      labWidth: lab.getBoundingClientRect().width,
+      scrollerClientWidth: scroller.clientWidth,
+      scrollerScrollWidth: scroller.scrollWidth,
+      innerWidth: inner.getBoundingClientRect().width
+    }
+  })
+  expect(measurements.scrollerScrollWidth).toBe(measurements.scrollerClientWidth)
+  expect(measurements.innerWidth).toBe(measurements.labWidth)
+  const ruler = await page.getByTestId("swipe-ruler").boundingBox()
+  const rightStage2 = await page.getByTestId("swipe-handle-right-2").boundingBox()
+  const leftStage2 = await page.getByTestId("swipe-handle-left-2").boundingBox()
+  expect(ruler).not.toBeNull()
+  expect(rightStage2).not.toBeNull()
+  expect(leftStage2).not.toBeNull()
+  expect(rightStage2.x).toBeGreaterThanOrEqual(ruler.x)
+  expect(leftStage2.x + leftStage2.width).toBeLessThanOrEqual(
+    ruler.x + ruler.width
+  )
+  await expect(page.getByTestId("swipe-handle-right-2"))
+    .toHaveAttribute("aria-valuenow", "200")
+})
+
 test("swipe settings retune action thresholds without a reload", async ({ page }) => {
   const story = await seedFixtureStories(page)
 

@@ -2482,6 +2482,10 @@
     border-radius: var(--m-radius);
   }
 
+  .swipe_mobile_only {
+    display: block;
+  }
+
   @container settings-panel (max-width: 520px) {
     .settings_swipe {
       --swipe-handle-width: 22px;

@@ -19,6 +19,8 @@ test("defaults match the redesign's plateaus and actions", () => {
   assert.equal(DEFAULT_SWIPE_SETTINGS.stickyStrength, 65)
   assert.equal(DEFAULT_SWIPE_SETTINGS.fastSwipeMode, false)
   assert.equal(DEFAULT_SWIPE_SETTINGS.stage2LockInMs, 175)
+  assert.equal(DEFAULT_SWIPE_SETTINGS.undoSnackbarEnabled, true)
+  assert.equal(DEFAULT_SWIPE_SETTINGS.undoSnackbarDurationMs, 5000)
 })
 
 test("missing or malformed settings fall back to the defaults", () => {
@@ -115,5 +117,30 @@ test("fast swipe protection is opt-in and lock-in time is normalized", () => {
   assert.equal(
     normalizeSwipeSettings({ stage2LockInMs: "invalid" }).stage2LockInMs,
     DEFAULT_SWIPE_SETTINGS.stage2LockInMs
+  )
+})
+
+test("mobile undo snackbar settings are normalized", () => {
+  assert.equal(
+    normalizeSwipeSettings({ undoSnackbarEnabled: false }).undoSnackbarEnabled,
+    false
+  )
+  assert.equal(
+    normalizeSwipeSettings({ undoSnackbarEnabled: "no" }).undoSnackbarEnabled,
+    true
+  )
+  assert.equal(
+    normalizeSwipeSettings({ undoSnackbarDurationMs: 2750 })
+      .undoSnackbarDurationMs,
+    3000
+  )
+  assert.equal(
+    normalizeSwipeSettings({ undoSnackbarDurationMs: 100 }).undoSnackbarDurationMs,
+    1000
+  )
+  assert.equal(
+    normalizeSwipeSettings({ undoSnackbarDurationMs: 20000 })
+      .undoSnackbarDurationMs,
+    10000
   )
 })

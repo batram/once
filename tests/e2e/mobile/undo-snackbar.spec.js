@@ -3,6 +3,11 @@ const {
   UNDO_SNACKBAR_VISIBLE_MS
 } = require("../../../packages/ui-web/dist/story/undoSnackbarTiming")
 const { openStoryMenu, seedFixtureStories } = require("./helpers/stories")
+const {
+  openSettingsSection,
+  openSwipeAdvanced,
+  waitForSwipeSettings
+} = require("./helpers/settings")
 const { dragStory } = require("./helpers/swipe")
 
 // Mobile hides the row's read button, so the menu is how a read state is
@@ -55,6 +60,18 @@ test("the offer expires on its own", async ({ page }) => {
     timeout: UNDO_SNACKBAR_VISIBLE_MS + 3000
   })
   await expect(story).toHaveClass(/skipped/)
+})
+
+test("the snackbar can be disabled in mobile settings", async ({ page }) => {
+  const story = await seedFixtureStories(page)
+  await openSettingsSection(page, "swipe")
+  await openSwipeAdvanced(page)
+  await page.locator("#swipe_undo_snackbar").uncheck()
+  await waitForSwipeSettings(page)
+  await page.getByTestId("stories-menu").click()
+
+  await swipeToSkip(page, story)
+  await expect(page.getByTestId("undo-snackbar")).toBeHidden()
 })
 
 // The mis-swipe this exists for arrives in runs, so a second change has to widen

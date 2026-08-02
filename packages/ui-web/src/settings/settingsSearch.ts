@@ -66,6 +66,12 @@ export function settingsSearchSegments(section: HTMLElement): SearchSegment[] {
       element.remove()
     })
 
+  if (document.body.dataset.platform !== "mobile") {
+    copy.querySelectorAll(".swipe_mobile_only").forEach((element) => {
+      element.remove()
+    })
+  }
+
   for (const element of [copy, ...copy.querySelectorAll<HTMLElement>("*")]) {
     if (element.matches("textarea, input, select")) continue
     const targetId =

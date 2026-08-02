@@ -36,6 +36,10 @@ export interface SwipeStageSetting {
 }
 
 export interface SwipeSettings {
+  /** whether touch shells offer recent story changes in an undo snackbar */
+  undoSnackbarEnabled: boolean
+  /** how long the touch undo snackbar remains actionable */
+  undoSnackbarDurationMs: number
   /** false collapses the gesture to a single stage */
   twoStage: boolean
   /** magnetically settles the row around each active stage threshold */
@@ -52,6 +56,8 @@ export interface SwipeSettings {
 }
 
 export const DEFAULT_SWIPE_SETTINGS: SwipeSettings = {
+  undoSnackbarEnabled: true,
+  undoSnackbarDurationMs: 5000,
   twoStage: true,
   stickyStages: false,
   stickyStrength: 65,
@@ -77,6 +83,8 @@ const MIN_STICKY_STRENGTH = 1
 const MAX_STICKY_STRENGTH = 100
 const MIN_STAGE_2_LOCK_IN_MS = 75
 const MAX_STAGE_2_LOCK_IN_MS = 500
+const MIN_UNDO_SNACKBAR_DURATION_MS = 1000
+const MAX_UNDO_SNACKBAR_DURATION_MS = 10000
 
 export function isSwipeActionId(value: unknown): value is SwipeActionId {
   return typeof value === "string" && value in SWIPE_ACTION_LABELS
@@ -111,6 +119,16 @@ function clampStage2LockIn(value: unknown, fallback: number): number {
     Math.max(MIN_STAGE_2_LOCK_IN_MS, parsed)
   )
   return Math.round(clamped / 25) * 25
+}
+
+function clampUndoSnackbarDuration(value: unknown, fallback: number): number {
+  const parsed = typeof value === "number" ? value : Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  const clamped = Math.min(
+    MAX_UNDO_SNACKBAR_DURATION_MS,
+    Math.max(MIN_UNDO_SNACKBAR_DURATION_MS, parsed)
+  )
+  return Math.round(clamped / 500) * 500
 }
 
 /**
@@ -150,6 +168,11 @@ export function normalizeSwipeSettings(value: unknown): SwipeSettings {
   ): SwipeActionId => (isSwipeActionId(raw) ? raw : fallback)
 
   return {
+    undoSnackbarEnabled: source.undoSnackbarEnabled !== false,
+    undoSnackbarDurationMs: clampUndoSnackbarDuration(
+      source.undoSnackbarDurationMs,
+      defaults.undoSnackbarDurationMs
+    ),
     twoStage: source.twoStage !== false,
     stickyStages: source.stickyStages === true,
     stickyStrength: clampStickyStrength(

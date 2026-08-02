@@ -2177,6 +2177,10 @@
   padding-top: var(--sp-3);
 }
 
+.swipe_mobile_only {
+  display: none;
+}
+
 .swipe_check_row {
   gap: var(--sp-1-5);
   margin: 0 0 var(--sp-3);

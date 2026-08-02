@@ -21,6 +21,9 @@ function element<K extends keyof HTMLElementTagNameMap>(
 }
 
 interface AdvancedControls {
+  undoSnackbar: HTMLInputElement
+  undoSnackbarDuration: HTMLInputElement
+  undoSnackbarDurationOutput: HTMLOutputElement
   twoStage: HTMLInputElement
   sticky: HTMLInputElement
   stickyStrength: HTMLInputElement
@@ -82,9 +85,23 @@ function buildAdvancedControls(host: HTMLElement): AdvancedControls {
   const advanced = element("details", "swipe_advanced")
   advanced.dataset.testid = "swipe-advanced"
   const summary = element("summary")
-  summary.textContent = "Advanced — stage feel"
+  summary.textContent = "Advanced"
   const body = element("div", "swipe_advanced_body")
   advanced.append(summary, body)
+
+  const mobileUndo = element("div", "swipe_mobile_only")
+  const undoSnackbar = checkbox(
+    mobileUndo,
+    "swipe_undo_snackbar",
+    "Show mobile undo snackbar"
+  )
+  mobileUndo.append(description(
+    "Offers to reverse recent story changes at the bottom of the mobile screen."
+  ))
+  const [undoSnackbarDuration, undoSnackbarDurationOutput] = slider(
+    mobileUndo, "swipe_undo_snackbar_duration", "Undo time", 1000, 10000, 500
+  )
+  body.append(mobileUndo)
 
   const twoStage = checkbox(body, "swipe_two_stage", "Two-stage swipe")
   body.append(description(
@@ -106,6 +123,9 @@ function buildAdvancedControls(host: HTMLElement): AdvancedControls {
   )
   host.append(advanced)
   return {
+    undoSnackbar,
+    undoSnackbarDuration,
+    undoSnackbarDurationOutput,
     twoStage,
     sticky,
     stickyStrength,
@@ -159,6 +179,9 @@ export class SwipeSettingsLabView {
   private readonly handles = new Map<string, HTMLButtonElement>()
   private readonly zones = new Map<string, HTMLElement>()
   private readonly twoStage: HTMLInputElement
+  private readonly undoSnackbar: HTMLInputElement
+  private readonly undoSnackbarDuration: HTMLInputElement
+  private readonly undoSnackbarDurationOutput: HTMLOutputElement
   private readonly sticky: HTMLInputElement
   private readonly stickyStrength: HTMLInputElement
   private readonly stickyOutput: HTMLOutputElement
@@ -248,6 +271,9 @@ export class SwipeSettingsLabView {
     })
 
     const controls = buildAdvancedControls(host)
+    this.undoSnackbar = controls.undoSnackbar
+    this.undoSnackbarDuration = controls.undoSnackbarDuration
+    this.undoSnackbarDurationOutput = controls.undoSnackbarDurationOutput
     this.twoStage = controls.twoStage
     this.sticky = controls.sticky
     this.stickyStrength = controls.stickyStrength
@@ -262,6 +288,12 @@ export class SwipeSettingsLabView {
 
     this.twoStage.addEventListener("change", () =>
       this.actions.update({ twoStage: this.twoStage.checked }))
+    this.undoSnackbar.addEventListener("change", () =>
+      this.actions.update({ undoSnackbarEnabled: this.undoSnackbar.checked }))
+    this.undoSnackbarDuration.addEventListener("input", () =>
+      this.actions.update({
+        undoSnackbarDurationMs: Number(this.undoSnackbarDuration.value)
+      }))
     this.sticky.addEventListener("change", () =>
       this.actions.update({ stickyStages: this.sticky.checked }))
     this.stickyStrength.addEventListener("input", () =>
@@ -344,9 +376,12 @@ export class SwipeSettingsLabView {
   ): void {
     const setFromClientX = (clientX: number): void => {
       const box = this.track.getBoundingClientRect()
-      const raw =
+      const displayed =
         direction === "right" ? clientX - box.left : box.right - clientX
-      this.setThreshold(stage, Math.round(raw))
+      this.setThreshold(
+        stage,
+        Math.round(displayed / this.presentationScale(box.width))
+      )
     }
     handle.addEventListener("pointerdown", (event) => {
       event.preventDefault()
@@ -370,7 +405,9 @@ export class SwipeSettingsLabView {
           ? MIN_THRESHOLD
           : this.state.settings.stages[0].threshold + MIN_STAGE_GAP
       } else if (event.key === "End") {
-        next = Math.round(this.track.clientWidth / 2)
+        next = Math.round(
+          this.track.clientWidth / 2 / this.presentationScale()
+        )
       }
       if (next === undefined) return
       event.preventDefault()
@@ -381,7 +418,9 @@ export class SwipeSettingsLabView {
   private setThreshold(stage: StageIndex, raw: number): void {
     const stages = this.state.settings.stages.map((value) => ({ ...value })) as
       SwipeSettings["stages"]
-    const maximum = Math.round(this.track.clientWidth / 2)
+    const maximum = Math.round(
+      this.track.clientWidth / 2 / this.presentationScale()
+    )
     if (stage === 0) {
       stages[0].threshold = Math.min(
         Math.max(MIN_THRESHOLD, raw),
@@ -403,6 +442,15 @@ export class SwipeSettingsLabView {
 
   private render(): void {
     const current = this.state.settings
+    this.undoSnackbar.checked = current.undoSnackbarEnabled
+    this.undoSnackbarDuration.value = String(current.undoSnackbarDurationMs)
+    this.undoSnackbarDurationOutput.value =
+      `${current.undoSnackbarDurationMs / 1000} s`
+    this.undoSnackbarDuration.disabled = !current.undoSnackbarEnabled
+    this.undoSnackbarDuration.closest("p")?.classList.toggle(
+      "disabled",
+      !current.undoSnackbarEnabled
+    )
     this.twoStage.checked = current.twoStage
     this.sticky.checked = current.stickyStages
     this.stickyStrength.value = String(current.stickyStrength)
@@ -435,9 +483,9 @@ export class SwipeSettingsLabView {
         if (field) field.dataset.action = select.value
       }
     }
-    // width: 100% supplies the presentation minimum. Only make the lab wider
-    // than its viewport when exact 1px-per-pixel threshold geometry requires
-    // it; a fixed minimum needlessly clipped ordinary settings on Android.
+    // Desktop keeps exact 1px-per-pixel ruler geometry. Mobile scales the
+    // presentation when necessary so its settings never require horizontal
+    // scrolling; the saved thresholds remain real gesture distances.
     this.syncInnerMinWidth()
     this.renderStatus()
     requestAnimationFrame(() => this.layout())
@@ -461,11 +509,14 @@ export class SwipeSettingsLabView {
     const half = Math.round(width / 2)
     const current = this.state.settings
     const [first, second] = current.stages.map((stage) => stage.threshold)
+    const scale = this.presentationScale(width)
+    const firstPosition = first * scale
+    const scaledSecond = second * scale
     // On an odd-width ruler, mirroring the rounded maximum puts the two
     // stage-2 handles one pixel apart (for example 252px and 251px in 503px).
     // Once stage 2 reaches that maximum, give both sides the same geometric
     // centre so the handles and zone seam paint on precisely the same pixel.
-    const secondPosition = second >= half ? width / 2 : second
+    const secondPosition = scaledSecond >= half ? width / 2 : scaledSecond
     const zone = (
       key: string,
       from: number,
@@ -488,7 +539,7 @@ export class SwipeSettingsLabView {
         label.textContent = ""
       }
     }
-    zone("right-dead", 0, first, "none")
+    zone("right-dead", 0, firstPosition, "none")
     zone(
       "right-2",
       current.twoStage ? secondPosition : half,
@@ -498,7 +549,7 @@ export class SwipeSettingsLabView {
     )
     zone(
       "right-1",
-      first,
+      firstPosition,
       current.twoStage ? secondPosition : half,
       current.right[0]
     )
@@ -509,11 +560,11 @@ export class SwipeSettingsLabView {
       current.left[1],
       !current.twoStage
     )
-    zone("left-dead", width - first, width, "none")
+    zone("left-dead", width - firstPosition, width, "none")
     zone(
       "left-1",
       width - (current.twoStage ? secondPosition : half),
-      width - first,
+      width - firstPosition,
       current.left[0]
     )
 
@@ -522,7 +573,7 @@ export class SwipeSettingsLabView {
         const handle = this.handles.get(`${direction}-${stage}`)
         if (!handle) continue
         const threshold = current.stages[stage].threshold
-        const position = stage === 1 ? secondPosition : threshold
+        const position = stage === 1 ? secondPosition : threshold * scale
         const x = direction === "right" ? position : width - position
         handle.style.left = `${Math.round(x)}px`
         handle.classList.toggle(
@@ -533,7 +584,7 @@ export class SwipeSettingsLabView {
         handle.setAttribute("aria-valuemin", String(
           stage === 0 ? MIN_THRESHOLD : first + MIN_STAGE_GAP
         ))
-        handle.setAttribute("aria-valuemax", String(half))
+        handle.setAttribute("aria-valuemax", String(Math.round(half / scale)))
         handle.setAttribute("aria-valuenow", String(threshold))
         const value = handle.querySelector<HTMLElement>(".swipe_ruler_value")
         if (value) {
@@ -542,7 +593,9 @@ export class SwipeSettingsLabView {
         }
       }
     }
-    const markerX = this.travel >= 0 ? this.travel : width + this.travel
+    const markerX = this.travel >= 0
+      ? this.travel * scale
+      : width + this.travel * scale
     this.marker.style.left = `${Math.round(markerX)}px`
     this.marker.classList.toggle("active", this.travel !== 0)
   }
@@ -556,12 +609,19 @@ export class SwipeSettingsLabView {
     // wider than its viewport. Treat that rounding residue as a fit so it
     // cannot create document overflow or revive the horizontal scrollbar.
     const minWidth =
-      available > 0 && required <= available + 1
+      document.body.dataset.platform === "mobile" ||
+      (available > 0 && required <= available + 1)
         ? "100%"
         : `${required}px`
     if (this.inner.style.minWidth !== minWidth) {
       this.inner.style.minWidth = minWidth
     }
+  }
+
+  private presentationScale(width = this.track.clientWidth): number {
+    if (document.body.dataset.platform !== "mobile") return 1
+    const required = this.state.settings.stages[1].threshold * 2
+    return required > 0 ? Math.min(1, width / required) : 1
   }
 
   private handleWidth(): number {
