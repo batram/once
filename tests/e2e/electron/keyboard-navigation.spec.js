@@ -236,6 +236,20 @@ test("a shortcut can be cleared away entirely", async () => {
     await openSettingsSection(window, "keyboard", "#keyboard_shortcuts")
     await expect(window.getByTestId("keybinding-story.cursor-next-0"))
       .toHaveText("Not set")
+
+    // The clear cross lives inside the box and keeps its space when there is
+    // nothing to clear, so bound and unbound slots stay the same size and the
+    // column lines up down the list.
+    const boxes = await window.evaluate(() => {
+      const slotOf = (testid) => document
+        .querySelector(`[data-testid="${testid}"]`)
+        .closest(".keybinding_slot")
+        .getBoundingClientRect()
+      const unset = slotOf("keybinding-story.cursor-next-0")
+      const bound = slotOf("keybinding-story.cursor-prev-0")
+      return { unset: [unset.width, unset.left], bound: [bound.width, bound.left] }
+    })
+    expect(boxes.unset).toEqual(boxes.bound)
   } finally {
     await closeApp(electronApp, userData)
     await server.close()

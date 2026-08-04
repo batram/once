@@ -82,9 +82,7 @@ export class KeyboardSettingsView {
 
     const slots = element("span", "keybinding_slots")
     for (let index = 0; index < MAX_CHORD_SLOTS; index += 1) {
-      const chord = chords[index] ?? ""
-      slots.append(this.slot(command, chord, index))
-      if (chord) slots.append(this.clearButton(command, chord, index))
+      slots.append(this.slot(command, chords[index] ?? "", index))
     }
     row.append(slots)
 
@@ -102,11 +100,18 @@ export class KeyboardSettingsView {
     return row
   }
 
+  /**
+   * One chord slot: the box carries the border, and the capture control and
+   * its clear cross sit inside it. The cross keeps its space when there is
+   * nothing to clear, so a "Not set" slot is exactly as wide as a bound one
+   * and the columns line up down the list.
+   */
   private slot(
     command: KeyCommandDefinition,
     chord: string,
     index: number
-  ): HTMLButtonElement {
+  ): HTMLElement {
+    const slot = element("span", "keybinding_slot")
     const button = element("button", "keybinding_capture")
     button.type = "button"
     button.dataset.command = command.id
@@ -114,7 +119,8 @@ export class KeyboardSettingsView {
     button.dataset.testid = `keybinding-${command.id}-${index}`
     setChordText(button, command, chord)
     button.addEventListener("click", () => this.startCapture(button, command, index))
-    return button
+    slot.append(button, this.clearButton(command, chord, index))
+    return slot
   }
 
   /** Unsets one chord. Backspace during capture does the same thing. */
@@ -126,9 +132,16 @@ export class KeyboardSettingsView {
     const button = element("button", "keybinding_clear")
     button.type = "button"
     button.textContent = "×"
+    button.dataset.testid = `keybinding-clear-${command.id}-${index}`
+    if (!chord) {
+      // Present but inert, so the slot keeps its width.
+      button.disabled = true
+      button.setAttribute("aria-hidden", "true")
+      button.tabIndex = -1
+      return button
+    }
     button.title = `Clear ${chord} from ${command.label}`
     button.setAttribute("aria-label", button.title)
-    button.dataset.testid = `keybinding-clear-${command.id}-${index}`
     button.addEventListener("click", () => {
       this.setChord(command.id, index, null)
       this.announce(`${chord} cleared. ${command.label} has no shortcut.`, false)
@@ -144,6 +157,7 @@ export class KeyboardSettingsView {
     if (this.capturing) this.stopCapture()
     this.capturing = button
     button.setAttribute("aria-pressed", "true")
+    button.parentElement?.classList.add("keybinding_slot--capturing")
     button.textContent = "Press a key…"
     this.announce("Escape cancels. Backspace clears the shortcut.", false)
     // The dispatcher would otherwise run whatever the user presses.
@@ -228,6 +242,7 @@ export class KeyboardSettingsView {
   private stopCapture(listener = this.captureListener): void {
     if (listener) window.removeEventListener("keydown", listener, true)
     this.captureListener = null
+    this.capturing?.parentElement?.classList.remove("keybinding_slot--capturing")
     this.capturing = null
     getKeyboardDispatcher().resume()
   }

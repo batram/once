@@ -2262,23 +2262,41 @@
   gap: var(--sp-1);
 }
 
-.keybinding_capture {
-  min-width: 7em;
-  padding: var(--sp-1) var(--sp-2);
+/* The box: border and background live here so the chord text and its clear
+   cross share one control, and an unset slot is the same size as a bound one. */
+.keybinding_slot {
+  display: inline-flex;
+  align-items: center;
+  min-width: 8em;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   background: var(--input-bg-color);
+}
+
+.keybinding_slot--capturing {
+  border-color: var(--text-high-color);
+}
+
+.keybinding_slot:focus-within {
+  outline: 2px solid var(--text-high-color);
+  outline-offset: 2px;
+}
+
+.keybinding_capture {
+  flex: 1;
+  padding: var(--sp-1) var(--sp-2);
+  border: 0;
+  background: none;
   color: var(--text-high-color);
   font-family: monospace;
+  text-align: center;
   cursor: pointer;
 }
 
 .keybinding_capture[aria-pressed="true"] {
-  border-color: var(--text-high-color);
   font-style: italic;
 }
 
-.keybinding_capture:focus-visible,
 .keybinding_reset:focus-visible,
 .keybinding_reset_all:focus-visible {
   outline: 2px solid var(--text-high-color);
@@ -2301,7 +2319,9 @@
 }
 
 .keybinding_clear {
-  padding: 0 var(--sp-1);
+  flex: 0 0 auto;
+  /* A little air on the left so the cross does not crowd a long chord. */
+  padding: 0 var(--sp-1-5) 0 var(--sp-0-5);
   border: 0;
   background: none;
   color: var(--text-color);
@@ -2314,9 +2334,18 @@
   color: var(--error-color);
 }
 
+/* Holds its space on an unset slot so every box is the same width. */
+.keybinding_clear:disabled {
+  visibility: hidden;
+  cursor: default;
+}
+
 /* The chord that was refused, and the command that already holds it. */
-.keybinding_refused .keybinding_capture {
+.keybinding_refused .keybinding_slot {
   border-color: var(--error-color);
+}
+
+.keybinding_refused .keybinding_capture {
   color: var(--error-color);
 }
 
