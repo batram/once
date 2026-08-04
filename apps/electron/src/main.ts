@@ -16,7 +16,7 @@ import {
 import { SecureSettings } from "./SecureSettings"
 import { registerIpcHandlers } from "./IpcHandlers"
 import { BrowserCoordinator } from "./TabManager"
-import { isBackgroundMode } from "./browser/WindowLifecycle"
+import { OFFSCREEN_TEST_POSITION, isBackgroundMode } from "./browser/WindowLifecycle"
 import {
   configureReaderProtocol,
   registerReaderScheme
@@ -165,17 +165,17 @@ function createShellWindow(bounds?: Rectangle): BrowserWindow {
         app.getAppPath(),
         "../../packages/ui-web/public/static/imgs/icons/mipmap-mdpi/ic_launcher_dev.ico"
       ),
-    x: bounds?.x,
-    y: bounds?.y,
+    // Off-screen in test runs so the window never lands on the developer's
+    // virtual desktop; see showWindow().
+    x: isBackgroundMode() ? OFFSCREEN_TEST_POSITION.x : bounds?.x,
+    y: isBackgroundMode() ? OFFSCREEN_TEST_POSITION.y : bounds?.y,
     width: bounds?.width || 1280,
     height: bounds?.height || 800,
     minWidth: 760,
     minHeight: 480,
     show: false,
-    // Test runs must never pull the foreground away from the developer.
-    // showInactive() alone is not enough on Windows: webContents.focus() keeps
-    // reactivating the window. WS_EX_NOACTIVATE settles it, and injected input
-    // (CDP / sendInputEvent) still reaches the app without OS focus.
+    // WS_EX_NOACTIVATE stops webContents.focus(), which tab activation calls,
+    // from pulling the foreground away from the developer.
     focusable: !isBackgroundMode(),
     autoHideMenuBar: true,
     titleBarStyle: "hidden",

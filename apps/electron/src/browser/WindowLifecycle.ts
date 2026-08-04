@@ -3,17 +3,32 @@ import { ELECTRON_IPC, ElectronRect } from "@once/platform-electron/bridge"
 import { NativeMenus } from "./NativeMenus"
 import { TabEntry, WindowEntry } from "./BrowserState"
 
-// Test runs launch a real window, which normally steals OS focus from whatever
-// the developer is doing. ONCE_ELECTRON_TEST_BACKGROUND keeps the window
-// visible and rendering, but never activates it.
+// Test runs otherwise put a real window on whatever virtual desktop the
+// developer is working on, and take the focus with it.
+//
+// ONCE_ELECTRON_TEST_BACKGROUND shows the window without activating it, off
+// the side of every monitor. Never showing it at all would be tidier, but on
+// Windows a hidden window stops compositing and requestAnimationFrame never
+// fires — backgroundThrottling: false does not cover the hidden case there
+// (electron/electron#31016) — and the shell reports its browser bounds from
+// rAF, so the suite crawls. An off-screen window is out of sight and still
+// composites at full speed.
 export function isBackgroundMode(): boolean {
   return process.env.ONCE_ELECTRON_TEST_BACKGROUND === "1"
 }
 
+/** Far outside any plausible monitor arrangement. */
+export const OFFSCREEN_TEST_POSITION = { x: -32000, y: -32000 }
+
 export function showWindow(window: BrowserWindow): void {
   if (window.isDestroyed()) return
-  if (isBackgroundMode()) window.showInactive()
-  else window.show()
+  if (!isBackgroundMode()) {
+    window.show()
+    return
+  }
+  window.setSkipTaskbar(true)
+  window.showInactive()
+  window.setPosition(OFFSCREEN_TEST_POSITION.x, OFFSCREEN_TEST_POSITION.y)
 }
 
 interface WindowLifecycleActions {

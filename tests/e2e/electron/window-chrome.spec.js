@@ -1,8 +1,12 @@
 const { test, expect } = require("@playwright/test")
 const { closeApp, launchApp } = require("./electron-harness")
 
-test("keeps the title bar draggable and interactive controls no-drag", async () => {
-  const { electronApp, userData, window } = await launchApp()
+test("keeps the title bar draggable and interactive controls no-drag @interactive", async () => {
+  // Window manipulation needs a normal, on-screen window: the background
+  // mode used everywhere else parks the window off every monitor, and a
+  // maximize restores onto a monitor rather than back to where it was.
+  // Safe here because @interactive specs only run on CI.
+  const { electronApp, userData, window } = await launchApp({ background: false })
   try {
     // The OS handles app-region dragging natively, so synthetic mouse events
     // cannot move the window. Assert the effective region at the points a
@@ -52,9 +56,13 @@ test("keeps the title bar draggable and interactive controls no-drag", async () 
   }
 })
 
-test("keeps browser contents within the window after restoring from maximized", async () => {
+test("keeps browser contents within the window after restoring from maximized @interactive", async () => {
   test.skip(process.platform !== "win32", "Windows maximize/restore regression")
-  const { electronApp, userData, window } = await launchApp()
+  // Window manipulation needs a normal, on-screen window: the background
+  // mode used everywhere else parks the window off every monitor, and a
+  // maximize restores onto a monitor rather than back to where it was.
+  // Safe here because @interactive specs only run on CI.
+  const { electronApp, userData, window } = await launchApp({ background: false })
   try {
     const normalBounds = await electronApp.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()[0].getBounds()
@@ -120,8 +128,12 @@ test("keeps browser contents within the window after restoring from maximized", 
   }
 })
 
-test("keeps the icon rail and restores either sidebar panel", async () => {
-  const { electronApp, userData, window } = await launchApp()
+test("keeps the icon rail and restores either sidebar panel @interactive", async () => {
+  // Window manipulation needs a normal, on-screen window: the background
+  // mode used everywhere else parks the window off every monitor, and a
+  // maximize restores onto a monitor rather than back to where it was.
+  // Safe here because @interactive specs only run on CI.
+  const { electronApp, userData, window } = await launchApp({ background: false })
   try {
     const collapse = window.locator("#stories_panel .collapsebutton")
     const dividerGap = await window.evaluate(() => {

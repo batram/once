@@ -13,8 +13,12 @@ test.afterAll(async () => {
   await pageServer.close()
 })
 
-test("enters and leaves fullscreen from an HTML video", async () => {
-  const { electronApp, userData, window } = await launchApp()
+test("enters and leaves fullscreen from an HTML video @interactive", async () => {
+  // Window manipulation needs a normal, on-screen window: the background
+  // mode used everywhere else parks the window off every monitor, and a
+  // maximize restores onto a monitor rather than back to where it was.
+  // Safe here because @interactive specs only run on CI.
+  const { electronApp, userData, window } = await launchApp({ background: false })
   const videoUrl = `${origin}/video`
 
   try {
