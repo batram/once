@@ -11,13 +11,15 @@ import { defaultKeybindings } from "../keyboard/keybindingStore"
 import { chordsFor } from "../keyboard/KeyboardDispatcher"
 import { getKeyboardDispatcher, getKeybindings, updateKeybindings } from "../keyboard"
 
+// Order is the reading order of the settings section. Story actions sit last:
+// it is the longest group and the one nothing is bound in by default.
 const GROUP_LABELS: Record<KeyCommandGroup, string> = {
   stories: "Story list",
-  actions: "Story actions",
   browser: "Tabs and windows",
   panes: "Panes and window",
   search: "Search",
-  history: "Undo"
+  history: "Undo",
+  actions: "Story actions"
 }
 
 const MAX_CHORD_SLOTS = 2
@@ -32,6 +34,9 @@ const MAX_CHORD_SLOTS = 2
 export class KeyboardSettingsView {
   private capturing: HTMLButtonElement | null = null
   private readonly status: HTMLParagraphElement
+  // Every binding change re-renders the list, so which groups the user folded
+  // away has to be remembered here or it springs back open on each edit.
+  private readonly collapsed = new Set<KeyCommandGroup>()
 
   constructor(
     private readonly host: HTMLElement,
@@ -57,12 +62,7 @@ export class KeyboardSettingsView {
     for (const group of Object.keys(GROUP_LABELS) as KeyCommandGroup[]) {
       const commands = keyCommands().filter((command) => command.group === group)
       if (commands.length === 0) continue
-      const groupHeading = element("h4", "keybinding_group")
-      groupHeading.textContent = GROUP_LABELS[group]
-      this.host.append(groupHeading)
-      for (const command of commands) {
-        this.host.append(this.row(command, bindings.get(command.id) ?? []))
-      }
+      this.host.append(this.group(group, commands, bindings))
     }
 
     const resetAll = element("button", "button keybinding_reset_all")
@@ -71,6 +71,31 @@ export class KeyboardSettingsView {
     resetAll.dataset.testid = "keybindings-reset-all"
     resetAll.addEventListener("click", () => this.commit(defaultKeybindings()))
     this.host.append(resetAll)
+  }
+
+  /** One boxed, foldable group of commands. */
+  private group(
+    group: KeyCommandGroup,
+    commands: readonly KeyCommandDefinition[],
+    bindings: Map<KeyCommandId, string[]>
+  ): HTMLElement {
+    const box = element("details", "keybinding_group")
+    box.dataset.group = group
+    box.open = !this.collapsed.has(group)
+    const title = element("summary", "keybinding_group_title")
+    title.textContent = GROUP_LABELS[group]
+    box.append(title)
+
+    const rows = element("div", "keybinding_group_rows")
+    for (const command of commands) {
+      rows.append(this.row(command, bindings.get(command.id) ?? []))
+    }
+    box.append(rows)
+    box.addEventListener("toggle", () => {
+      if (box.open) this.collapsed.delete(group)
+      else this.collapsed.add(group)
+    })
+    return box
   }
 
   private row(command: KeyCommandDefinition, chords: string[]): HTMLElement {

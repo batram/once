@@ -256,6 +256,39 @@ test("a shortcut can be cleared away entirely", async () => {
   }
 })
 
+test("shortcut groups are boxed, foldable, and keep their state", async () => {
+  const server = await startPageServer()
+  const { electronApp, userData, window } = await launchApp()
+  try {
+    await openSettingsSection(window, "keyboard", "#keyboard_shortcuts")
+
+    // Story actions is the longest group and nothing is bound in it, so it
+    // reads last.
+    const groups = await window.evaluate(() =>
+      [...document.querySelectorAll("#keyboard_shortcuts .keybinding_group")]
+        .map((group) => group.dataset.group))
+    expect(groups[0]).toBe("stories")
+    expect(groups.at(-1)).toBe("actions")
+
+    const actions = window.locator('.keybinding_group[data-group="actions"]')
+    await expect(actions).toHaveAttribute("open", "")
+    await actions.locator("summary").click()
+    await expect(actions).not.toHaveAttribute("open", "")
+
+    // Editing a binding re-renders the whole list; a folded group must not
+    // spring back open underneath the user.
+    const slot = window.getByTestId("keybinding-story.open-0")
+    await slot.click()
+    await window.keyboard.press("Control+Alt+o")
+    await expect(slot).toHaveText("Ctrl+Alt+O")
+    await expect(window.locator('.keybinding_group[data-group="actions"]'))
+      .not.toHaveAttribute("open", "")
+  } finally {
+    await closeApp(electronApp, userData)
+    await server.close()
+  }
+})
+
 test("story menu actions are offered as bindable shortcuts", async () => {
   const server = await startPageServer()
   const { electronApp, userData, window } = await launchApp(STORY_ENV)

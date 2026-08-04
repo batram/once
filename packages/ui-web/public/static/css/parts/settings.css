@@ -2239,10 +2239,38 @@
   font-size: 0.85em;
 }
 
+/* Each group is its own box, so a long list of rows reads as several short
+   ones rather than one wall. Native <details> keeps folding keyboard
+   accessible without a custom control. */
 .keybinding_group {
-  margin: var(--sp-3) 0 var(--sp-2);
-  font-size: 0.9em;
-  color: var(--text-color);
+  margin: var(--sp-3) 0;
+  /* --border-color matches --main-bg-color in the dark theme, so the box would
+     be invisible there; the high-contrast border is the one that reads. */
+  border: 1px solid var(--border-high-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.keybinding_group_title {
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--second-bg-color);
+  color: var(--text-high-color);
+  font-weight: bold;
+  cursor: pointer;
+  user-select: none;
+}
+
+.keybinding_group_title:focus-visible {
+  outline: 2px solid var(--text-high-color);
+  outline-offset: -2px;
+}
+
+.keybinding_group[open] .keybinding_group_title {
+  border-bottom: 1px solid var(--border-high-color);
+}
+
+.keybinding_group_rows {
+  padding: var(--sp-2) var(--sp-3);
 }
 
 .keybinding_row {
