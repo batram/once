@@ -230,6 +230,37 @@ test("the highlight tracks clicks and shows which pane owns the keyboard", async
   }
 })
 
+test("Enter opens the story under the cursor without being a shortcut", async () => {
+  const server = await startPageServer()
+  const { electronApp, userData, window } = await launchApp(STORY_ENV)
+  try {
+    await seedStories(window, server.origin)
+    await window.keyboard.press("ArrowDown")
+    const href = await cursorHref(window)
+    assertHref(href)
+
+    await window.keyboard.press("Enter")
+    await expect.poll(async () =>
+      (await window.evaluate(async () => window.onceElectron.tabs.getAll()))
+        .find((tab) => tab.active)?.url
+    ).toContain("/story/")
+
+    // Enter stays the property of whatever has focus: the address bar still
+    // navigates with it, which a global binding would have swallowed.
+    await window.keyboard.press("Control+l")
+    await expectDocumentFocus(window.locator("#urlfield"))
+    await window.locator("#urlfield").fill(`${server.origin}/one`)
+    await window.keyboard.press("Enter")
+    await expect.poll(async () =>
+      (await window.evaluate(async () => window.onceElectron.tabs.getAll()))
+        .find((tab) => tab.active)?.url
+    ).toContain("/one")
+  } finally {
+    await closeApp(electronApp, userData)
+    await server.close()
+  }
+})
+
 test("opening a story hands the highlight to the tab it opened in", async () => {
   const server = await startPageServer()
   const { electronApp, userData, window } = await launchApp(STORY_ENV)

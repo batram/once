@@ -102,6 +102,16 @@ export class StoryListItem extends HTMLElement {
     if (add_listeners) {
       attachStorySwipe(this)
 
+      // Enter opens the row the keyboard cursor is on. Scoped to the row
+      // itself rather than bound as a shortcut: Enter belongs to whatever has
+      // focus, so a link or button inside the row keeps its own behaviour, and
+      // the address bar and settings editors keep theirs.
+      this.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" || event.target !== this) return
+        event.preventDefault()
+        this.openStory("_self")
+      })
+
       this.addEventListener(
         "data_change",
         (event) => {
