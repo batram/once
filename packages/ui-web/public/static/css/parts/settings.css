@@ -2295,6 +2295,36 @@
   font-size: 0.9em;
 }
 
+.keybinding_status--error {
+  color: var(--error-color);
+  font-weight: bold;
+}
+
+.keybinding_clear {
+  padding: 0 var(--sp-1);
+  border: 0;
+  background: none;
+  color: var(--text-color);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.keybinding_clear:hover,
+.keybinding_clear:focus-visible {
+  color: var(--error-color);
+}
+
+/* The chord that was refused, and the command that already holds it. */
+.keybinding_refused .keybinding_capture {
+  border-color: var(--error-color);
+  color: var(--error-color);
+}
+
+.keybinding_holder {
+  outline: 2px solid var(--error-color);
+  outline-offset: 2px;
+}
+
 .keybinding_reset_all {
   margin-top: var(--sp-3);
 }

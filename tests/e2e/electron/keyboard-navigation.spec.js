@@ -183,7 +183,7 @@ test("a remapped shortcut takes effect immediately", async () => {
   }
 })
 
-test("a shortcut already in use is refused with an explanation", async () => {
+test("a shortcut already in use is refused, and says where it went", async () => {
   const server = await startPageServer()
   const { electronApp, userData, window } = await launchApp()
   try {
@@ -192,11 +192,100 @@ test("a shortcut already in use is refused with an explanation", async () => {
     await slot.click()
     await window.keyboard.press("Control+f")
 
-    await expect(window.locator(".keybinding_status"))
-      .toContainText("already used by")
+    const status = window.locator(".keybinding_status")
+    await expect(status).toContainText("already used by")
+    await expect(status).toHaveClass(/keybinding_status--error/)
     await expect(slot).toHaveText("O")
-    // The command that owns the chord keeps it.
+    // Both ends of the clash are marked, so "already used by" does not send
+    // the user hunting down the list for it.
+    await expect(window.locator('.keybinding_row[data-command="story.open"]'))
+      .toHaveClass(/keybinding_refused/)
+    await expect(window.locator('.keybinding_row[data-command="search.focus"]'))
+      .toHaveClass(/keybinding_holder/)
     await expect(window.getByTestId("keybinding-search.focus-0")).toHaveText("Ctrl+F")
+
+    // A reserved chord is refused the same way, with advice rather than a bare no.
+    await slot.click()
+    await window.keyboard.press("Enter")
+    await expect(status).toContainText("reserved")
+    await expect(status).toContainText("Ctrl, Alt or Shift")
+  } finally {
+    await closeApp(electronApp, userData)
+    await server.close()
+  }
+})
+
+test("a shortcut can be cleared away entirely", async () => {
+  const server = await startPageServer()
+  const { electronApp, userData, window } = await launchApp()
+  try {
+    await openSettingsSection(window, "keyboard", "#keyboard_shortcuts")
+    const slot = window.getByTestId("keybinding-story.cursor-next-0")
+    await expect(slot).toHaveText("ArrowDown")
+
+    await window.getByTestId("keybinding-clear-story.cursor-next-0").click()
+    // The remaining chord slides down; both have to go for a true unset.
+    await expect(slot).toHaveText("S")
+    await window.getByTestId("keybinding-clear-story.cursor-next-0").click()
+    await expect(slot).toHaveText("Not set")
+    await expect(window.locator(".keybinding_status")).toContainText("no shortcut")
+
+    // Unset means unset: the default must not creep back after a reload.
+    await window.reload()
+    await expect(window.locator("body")).toHaveAttribute("data-once-ready", "true")
+    await openSettingsSection(window, "keyboard", "#keyboard_shortcuts")
+    await expect(window.getByTestId("keybinding-story.cursor-next-0"))
+      .toHaveText("Not set")
+  } finally {
+    await closeApp(electronApp, userData)
+    await server.close()
+  }
+})
+
+test("story menu actions are offered as bindable shortcuts", async () => {
+  const server = await startPageServer()
+  const { electronApp, userData, window } = await launchApp(STORY_ENV)
+  try {
+    const urls = await seedStories(window, server.origin)
+    await openSettingsSection(window, "keyboard", "#keyboard_shortcuts")
+
+    // Registered actions start unbound; the user picks what they use.
+    const slot = window.getByTestId("keybinding-story-action.toggle-bookmark-0")
+    await expect(slot).toHaveText("Not set")
+    await slot.click()
+    await window.keyboard.press("Control+Alt+b")
+    await expect(slot).toHaveText("Ctrl+Alt+B")
+
+    await showAllStories(window)
+    await window.locator("#searchfield").blur()
+    await window.keyboard.press("ArrowDown")
+    expect(await cursorHref(window)).toBe(urls.alpha)
+    await window.keyboard.press("Control+Alt+b")
+    await expect(window.locator(`#stories story-item[data-href="${urls.alpha}"]`))
+      .toHaveClass(/\bstared\b/)
+  } finally {
+    await closeApp(electronApp, userData)
+    await server.close()
+  }
+})
+
+test("a new tab puts the cursor in the address bar", async () => {
+  const server = await startPageServer()
+  const { electronApp, userData, window } = await launchApp()
+  try {
+    await window.keyboard.press("Control+t")
+    await expect.poll(async () =>
+      (await window.evaluate(async () => window.onceElectron.tabs.getAll())).length
+    ).toBe(2)
+    await expectDocumentFocus(window.locator("#urlfield"))
+
+    // The + button is the same path, so it behaves the same way.
+    await window.evaluate(() => document.querySelector("#urlfield").blur())
+    await window.locator("#new_tab_btn").click()
+    await expect.poll(async () =>
+      (await window.evaluate(async () => window.onceElectron.tabs.getAll())).length
+    ).toBe(3)
+    await expectDocumentFocus(window.locator("#urlfield"))
   } finally {
     await closeApp(electronApp, userData)
     await server.close()

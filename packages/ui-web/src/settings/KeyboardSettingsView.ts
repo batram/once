@@ -1,6 +1,6 @@
 import { isReservedChord } from "@once/core"
 import {
-  KEY_COMMANDS,
+  keyCommands,
   KeyCommandDefinition,
   KeyCommandGroup,
   KeyCommandId,
@@ -13,6 +13,7 @@ import { getKeyboardDispatcher, getKeybindings, updateKeybindings } from "../key
 
 const GROUP_LABELS: Record<KeyCommandGroup, string> = {
   stories: "Story list",
+  actions: "Story actions",
   browser: "Tabs and windows",
   panes: "Panes and window",
   search: "Search",
@@ -54,7 +55,7 @@ export class KeyboardSettingsView {
     this.host.append(heading, description, this.status)
 
     for (const group of Object.keys(GROUP_LABELS) as KeyCommandGroup[]) {
-      const commands = KEY_COMMANDS.filter((command) => command.group === group)
+      const commands = keyCommands().filter((command) => command.group === group)
       if (commands.length === 0) continue
       const groupHeading = element("h4", "keybinding_group")
       groupHeading.textContent = GROUP_LABELS[group]
@@ -81,7 +82,9 @@ export class KeyboardSettingsView {
 
     const slots = element("span", "keybinding_slots")
     for (let index = 0; index < MAX_CHORD_SLOTS; index += 1) {
-      slots.append(this.slot(command, chords[index] ?? "", index))
+      const chord = chords[index] ?? ""
+      slots.append(this.slot(command, chord, index))
+      if (chord) slots.append(this.clearButton(command, chord, index))
     }
     row.append(slots)
 
@@ -114,6 +117,25 @@ export class KeyboardSettingsView {
     return button
   }
 
+  /** Unsets one chord. Backspace during capture does the same thing. */
+  private clearButton(
+    command: KeyCommandDefinition,
+    chord: string,
+    index: number
+  ): HTMLButtonElement {
+    const button = element("button", "keybinding_clear")
+    button.type = "button"
+    button.textContent = "×"
+    button.title = `Clear ${chord} from ${command.label}`
+    button.setAttribute("aria-label", button.title)
+    button.dataset.testid = `keybinding-clear-${command.id}-${index}`
+    button.addEventListener("click", () => {
+      this.setChord(command.id, index, null)
+      this.announce(`${chord} cleared. ${command.label} has no shortcut.`, false)
+    })
+    return button
+  }
+
   private startCapture(
     button: HTMLButtonElement,
     command: KeyCommandDefinition,
@@ -123,7 +145,7 @@ export class KeyboardSettingsView {
     this.capturing = button
     button.setAttribute("aria-pressed", "true")
     button.textContent = "Press a key…"
-    this.status.textContent = "Escape cancels. Backspace clears the shortcut."
+    this.announce("Escape cancels. Backspace clears the shortcut.", false)
     // The dispatcher would otherwise run whatever the user presses.
     getKeyboardDispatcher().suspend()
 
@@ -161,20 +183,46 @@ export class KeyboardSettingsView {
     if (!chord) return
     this.stopCapture(listener)
     if (isReservedChord(chord)) {
-      this.refuse(`${chord} is reserved by the app and cannot be reassigned.`)
+      this.refuse(
+        `${chord} is reserved by the app and cannot be reassigned. ` +
+        "Try adding Ctrl, Alt or Shift.",
+        command.id
+      )
       return
     }
     const clash = conflictingCommand(getKeybindings(), command.id, chord)
     if (clash) {
-      this.refuse(`${chord} is already used by "${keyCommand(clash)?.label}".`)
+      this.refuse(
+        `${chord} is already used by "${keyCommand(clash)?.label}". ` +
+        "Clear it there first, or pick another key.",
+        command.id,
+        clash
+      )
       return
     }
     this.setChord(command.id, index, chord)
   }
 
-  private refuse(message: string): void {
+  /**
+   * Says no, and shows where. The refused row and the command already holding
+   * the chord both light up, so "already used by" does not send the user
+   * hunting through the list for it.
+   */
+  private refuse(message: string, refusedId: string, holderId?: string): void {
     this.render()
+    this.announce(message, true)
+    for (const id of [refusedId, holderId]) {
+      if (!id) continue
+      const row = this.host.querySelector<HTMLElement>(
+        `.keybinding_row[data-command="${CSS.escape(id)}"]`
+      )
+      row?.classList.add(id === refusedId ? "keybinding_refused" : "keybinding_holder")
+    }
+  }
+
+  private announce(message: string, isError: boolean): void {
     this.status.textContent = message
+    this.status.classList.toggle("keybinding_status--error", isError)
   }
 
   private stopCapture(listener = this.captureListener): void {

@@ -10,8 +10,13 @@ const {
   saveKeybindings
 } = require("../../../packages/ui-web/dist/keyboard/keybindingStore")
 const {
-  KEY_COMMANDS
+  keyCommand,
+  keyCommands,
+  registerKeyCommand
 } = require("../../../packages/ui-web/dist/keyboard/commands")
+// Registers the story actions as a side effect of import, which is how a
+// plugin will add its own.
+require("../../../packages/ui-web/dist/keyboard/storyActionCommands")
 const {
   findKeybindingConflicts,
   conflictingCommand,
@@ -32,10 +37,50 @@ test("the shipped defaults do not conflict with each other", () => {
   assert.deepEqual(findKeybindingConflicts(defaultKeybindings()), [])
 })
 
-test("every command has at least one default chord", () => {
-  for (const command of KEY_COMMANDS) {
+test("built-in commands ship bound; registered actions start unbound", () => {
+  const builtins = keyCommands().filter((command) => !command.id.startsWith("story-action."))
+  for (const command of builtins) {
     assert.ok(command.defaultKeys.length > 0, command.id)
   }
+  // Story actions exist so a user can bind what they use, without the app
+  // guessing at a dozen more default chords.
+  const actions = keyCommands().filter((command) => command.id.startsWith("story-action."))
+  assert.ok(actions.length > 0)
+  for (const command of actions) {
+    assert.deepEqual(command.defaultKeys, [], command.id)
+  }
+})
+
+test("a command can be registered and withdrawn again", () => {
+  const definition = {
+    id: "plugin.example",
+    label: "Example plugin action",
+    group: "actions",
+    context: "stories",
+    defaultKeys: [],
+    allowInTextEntry: "never"
+  }
+  const remove = registerKeyCommand(definition)
+  assert.equal(keyCommand("plugin.example"), definition)
+  assert.ok(keyCommands().some((command) => command.id === "plugin.example"))
+  // A second registration of the same id is a bug in the registering code,
+  // not something to resolve silently.
+  assert.throws(() => registerKeyCommand(definition), /Duplicate key command/)
+
+  remove()
+  assert.equal(keyCommand("plugin.example"), undefined)
+})
+
+test("a command can be left with no shortcut at all", () => {
+  const storage = fakeStorage()
+  const bindings = defaultKeybindings()
+  bindings.set("story.open", [])
+  saveKeybindings(bindings, storage)
+
+  // An unset command must survive a reload rather than falling back to its
+  // default, which is the whole point of clearing it.
+  assert.deepEqual(loadKeybindings(storage).get("story.open"), [])
+  assert.equal(customizedCommandCount(loadKeybindings(storage)), 1)
 })
 
 test("stored overrides merge over the defaults", () => {

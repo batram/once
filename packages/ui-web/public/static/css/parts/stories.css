@@ -356,6 +356,17 @@ body[data-pane-focus="stories"] story-item.cursor {
   background: var(--cursor-bg-color);
 }
 
+/* A read or skipped row keeps looking dealt-with while the cursor is on it. */
+story-item.cursor.read,
+story-item.cursor.skipped {
+  background: var(--cursor-idle-done-bg-color);
+}
+
+body[data-pane-focus="stories"] story-item.cursor.read,
+body[data-pane-focus="stories"] story-item.cursor.skipped {
+  background: var(--cursor-done-bg-color);
+}
+
 story-item.story:focus {
   outline: none;
 }

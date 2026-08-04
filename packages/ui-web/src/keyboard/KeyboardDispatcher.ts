@@ -1,6 +1,6 @@
 import { chordFromKey, chordFromParts } from "@once/core"
 import {
-  KEY_COMMANDS,
+  keyCommands,
   KeyCommandContext,
   KeyCommandId,
   TextEntryReach,
@@ -208,7 +208,7 @@ function reaches(allowed: TextEntryReach, entry: TextEntryKind): boolean {
 }
 
 export function defaultBindings(): Map<string, KeyCommandId[]> {
-  return bindingsFrom(new Map(KEY_COMMANDS.map((command) => [
+  return bindingsFrom(new Map(keyCommands().map((command) => [
     command.id,
     [...command.defaultKeys]
   ])))
@@ -217,7 +217,7 @@ export function defaultBindings(): Map<string, KeyCommandId[]> {
 /** Inverts an id → chords map into the chord → ids map the dispatcher reads. */
 export function bindingsFrom(byCommand: Map<KeyCommandId, string[]>): Map<string, KeyCommandId[]> {
   const bindings = new Map<string, KeyCommandId[]>()
-  for (const command of KEY_COMMANDS) {
+  for (const command of keyCommands()) {
     for (const chord of byCommand.get(command.id) ?? []) {
       const existing = bindings.get(chord)
       if (existing) existing.push(command.id)

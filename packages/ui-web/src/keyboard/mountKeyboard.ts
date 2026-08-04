@@ -3,6 +3,7 @@ import { StoryHistory } from "../story/StoryHistory"
 import { isSourcePickerOpen } from "../picker/sourcePicker"
 import { isStoryAnchoredMenuOpen } from "../menu/storyAnchoredMenu"
 import { initPaneFocus } from "../shell/paneFocus"
+import { registerStoryActionHandlers } from "./storyActionCommands"
 import { getKeyboardDispatcher } from "./index"
 
 /** Installs the shell-wide keyboard commands and the story cursor. */
@@ -25,6 +26,9 @@ export function mountKeyboard(history: StoryHistory): StoryCursor {
   keyboard.register("story.action-right", () => cursor.runSwipeAction(1))
   keyboard.register("story.open", () => cursor.run((row) => row.openStory("_self")))
   keyboard.register("story.open-comments", () => cursor.run((row) => row.openComments()))
+  // Everything the story context menu can do is bindable too, unbound until
+  // the user picks a key. See storyActionCommands.ts.
+  registerStoryActionHandlers(cursor, (id, handler) => keyboard.register(id, handler))
   keyboard.mount()
   return cursor
 }

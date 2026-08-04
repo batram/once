@@ -1,4 +1,4 @@
-import { KEY_COMMANDS, KeyCommandContext, KeyCommandId, keyCommand } from "./commands"
+import { KeyCommandContext, KeyCommandId, keyCommand, keyCommands } from "./commands"
 
 export interface KeybindingConflict {
   chord: string
@@ -20,7 +20,7 @@ export function findKeybindingConflicts(
 ): KeybindingConflict[] {
   const conflicts: KeybindingConflict[] = []
   const claims = new Map<string, KeyCommandId[]>()
-  for (const command of KEY_COMMANDS) {
+  for (const command of keyCommands()) {
     for (const chord of byCommand.get(command.id) ?? []) {
       const holders = claims.get(chord)
       if (!holders) {
@@ -49,7 +49,7 @@ export function conflictingCommand(
 ): KeyCommandId | null {
   const command = keyCommand(target)
   if (!command) return null
-  for (const other of KEY_COMMANDS) {
+  for (const other of keyCommands()) {
     if (other.id === target) continue
     if (!(byCommand.get(other.id) ?? []).includes(chord)) continue
     if (contextsOverlap(command.context, other.context)) return other.id

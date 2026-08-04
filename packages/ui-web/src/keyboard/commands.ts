@@ -1,9 +1,12 @@
-// The catalogue of everything the keyboard can drive. A command exists here
-// whether or not anything has registered a handler for it: the settings UI
-// lists the full catalogue, and shells register only the commands they can
-// actually perform.
+// The catalogue of everything the keyboard can drive.
+//
+// It is a registry rather than a fixed list: the built-ins below are seeded at
+// import time, and anything else — the story actions, and plugins later — calls
+// registerKeyCommand(). A command exists here whether or not anything has
+// registered a handler for it, so the settings UI can offer it while each shell
+// registers only the commands it can actually perform.
 
-export type KeyCommandId =
+export type BuiltinKeyCommandId =
   | "search.focus"
   | "history.undo"
   | "history.redo"
@@ -25,10 +28,21 @@ export type KeyCommandId =
   | "window.toggle-fullscreen"
   | "window.exit-fullscreen"
 
+/**
+ * Built-in ids keep their autocomplete; registered ones are ordinary strings.
+ */
+export type KeyCommandId = BuiltinKeyCommandId | (string & Record<never, never>)
+
 /** See KeyCommandDefinition.allowInTextEntry. */
 export type TextEntryReach = "never" | "field" | "always"
 
-export type KeyCommandGroup = "stories" | "browser" | "panes" | "history" | "search"
+export type KeyCommandGroup =
+  | "stories"
+  | "actions"
+  | "browser"
+  | "panes"
+  | "history"
+  | "search"
 
 /**
  * Where a command is allowed to fire.
@@ -59,7 +73,7 @@ export interface KeyCommandDefinition {
   platform?: "electron"
 }
 
-export const KEY_COMMANDS: readonly KeyCommandDefinition[] = Object.freeze([
+const BUILTIN_KEY_COMMANDS: readonly KeyCommandDefinition[] = Object.freeze([
   {
     id: "search.focus",
     label: "Focus story search",
@@ -237,14 +251,39 @@ export const KEY_COMMANDS: readonly KeyCommandDefinition[] = Object.freeze([
   }
 ] as const)
 
-const BY_ID = new Map<string, KeyCommandDefinition>(
-  KEY_COMMANDS.map((command) => [command.id, command])
+// Insertion ordered, so the settings UI lists built-ins before anything a
+// plugin adds later.
+const registry = new Map<string, KeyCommandDefinition>(
+  BUILTIN_KEY_COMMANDS.map((command) => [command.id, command])
 )
 
+/**
+ * Adds a command the user can bind a key to. Returns a function that removes
+ * it again, for a plugin being unloaded.
+ *
+ * Registration has to happen before the keybinding store loads, or a stored
+ * override for the command is discarded as unknown; importing the module that
+ * registers is enough, since the dispatcher is built lazily on first use.
+ */
+export function registerKeyCommand(command: KeyCommandDefinition): () => void {
+  if (registry.has(command.id)) {
+    throw new Error(`Duplicate key command: ${command.id}`)
+  }
+  registry.set(command.id, command)
+  return () => {
+    if (registry.get(command.id) === command) registry.delete(command.id)
+  }
+}
+
+/** Every command currently on offer, in registration order. */
+export function keyCommands(): readonly KeyCommandDefinition[] {
+  return [...registry.values()]
+}
+
 export function keyCommand(id: string): KeyCommandDefinition | undefined {
-  return BY_ID.get(id)
+  return registry.get(id)
 }
 
 export function isKeyCommandId(value: unknown): value is KeyCommandId {
-  return typeof value === "string" && BY_ID.has(value)
+  return typeof value === "string" && registry.has(value)
 }

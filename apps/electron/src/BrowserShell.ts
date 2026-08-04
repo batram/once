@@ -112,9 +112,7 @@ export class BrowserShell {
   }
 
   private bindControls(): void {
-    this.newTabButton.onclick = () => {
-      void this.bridge.tabs.create("about:blank", true)
-    }
+    this.newTabButton.onclick = () => this.openBlankTab()
     this.backButton.onclick = () => this.withActive((tab) => this.bridge.tabs.back(tab.id))
     this.forwardButton.onclick = () => this.withActive((tab) => this.bridge.tabs.forward(tab.id))
     this.reloadButton.onclick = () => {
@@ -273,9 +271,7 @@ export class BrowserShell {
    */
   private bindKeyboardCommands(): void {
     const keyboard = getKeyboardDispatcher()
-    keyboard.register("browser.new-tab", () => {
-      void this.bridge.tabs.create("about:blank", true)
-    })
+    keyboard.register("browser.new-tab", () => this.openBlankTab())
     keyboard.register("browser.close-tab", () =>
       this.withActive((tab) => this.bridge.tabs.close(tab.id)))
     keyboard.register("browser.restore-closed-tab", () => {
@@ -319,6 +315,17 @@ export class BrowserShell {
   /** Keeps the main process in step with whatever the user has bound. */
   publishForwardedKeys(): void {
     void this.bridge.window.setForwardedKeys(getKeyboardDispatcher().boundChords())
+  }
+
+  /**
+   * A blank tab has nothing to read, so the address bar takes focus and the
+   * user can just type. Creating the tab activates it, which focuses the page,
+   * so the shell has to take focus back afterwards.
+   */
+  private openBlankTab(): void {
+    void this.bridge.tabs.create("about:blank", true)
+      .then(() => this.bridge.window.focusShell())
+      .then(() => this.address.focus())
   }
 
   private focusContent(): void {

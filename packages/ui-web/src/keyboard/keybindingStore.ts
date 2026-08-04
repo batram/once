@@ -1,5 +1,5 @@
 import { isReservedChord, isValidChord } from "@once/core"
-import { KEY_COMMANDS, KeyCommandId, isKeyCommandId } from "./commands"
+import { KeyCommandId, isKeyCommandId, keyCommands } from "./commands"
 
 // Keybindings are device-local: keyboards and layouts differ per machine, so
 // they are deliberately not part of the synced settings document.
@@ -14,7 +14,7 @@ interface StoredKeybindings {
 }
 
 export function defaultKeybindings(): Map<KeyCommandId, string[]> {
-  return new Map(KEY_COMMANDS.map((command) => [command.id, [...command.defaultKeys]]))
+  return new Map(keyCommands().map((command) => [command.id, [...command.defaultKeys]]))
 }
 
 /**
@@ -70,7 +70,7 @@ export function saveKeybindings(
 ): void {
   if (!storage) return
   const overrides: Record<string, string[]> = {}
-  for (const command of KEY_COMMANDS) {
+  for (const command of keyCommands()) {
     const chords = bindings.get(command.id) ?? []
     if (sameChords(chords, command.defaultKeys)) continue
     overrides[command.id] = [...chords]
@@ -89,7 +89,7 @@ export function saveKeybindings(
 
 export function customizedCommandCount(bindings: Map<KeyCommandId, string[]>): number {
   let count = 0
-  for (const command of KEY_COMMANDS) {
+  for (const command of keyCommands()) {
     if (!sameChords(bindings.get(command.id) ?? [], command.defaultKeys)) count += 1
   }
   return count
