@@ -342,6 +342,24 @@
   background: var(--selected_bg_color);
 }
 
+/*
+ * The keyboard cursor. Distinct from .selected, which marks the story the
+ * content pane is showing: the two are often, but not always, the same row.
+ * Carried by background rather than an outline so it reads as a highlighted
+ * row instead of a boxed one; it therefore has to outrank .read and .selected.
+ */
+story-item.cursor {
+  background: var(--cursor-idle-bg-color);
+}
+
+body[data-pane-focus="stories"] story-item.cursor {
+  background: var(--cursor-bg-color);
+}
+
+story-item.story:focus {
+  outline: none;
+}
+
 .story .title {
   display: inline;
   font-size: medium;

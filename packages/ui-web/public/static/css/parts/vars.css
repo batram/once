@@ -53,6 +53,12 @@
   --border-color: light-dark(#b3b3b3, #282a36);
   --border-high-color: light-dark(#b3b3b3, #373f6e);
   --selected_bg_color: light-dark(#b3b3b3, #4a517be0);
+  /* Where the keyboard is. The same colour marks the story cursor and the
+     active browser tab, so one glance says which pane the keys will reach.
+     The idle variant keeps the spot findable once focus moves to the other
+     pane, without competing with it. */
+  --cursor-bg-color: light-dark(#c3d3f2, #3d4d96);
+  --cursor-idle-bg-color: light-dark(#dfe6f6, #333a63);
   --sep-color: light-dark(rgb(114, 100, 100), rgb(114, 100, 100));
   --btn-bg-color: light-dark(#383a5900, #383a59);
   --input-bg-color: light-dark(white, #383a59);

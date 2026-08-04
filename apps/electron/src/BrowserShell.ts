@@ -1,5 +1,11 @@
 import { ElectronBridge, ElectronTabState } from "@once/platform-electron/bridge"
-import { revealElement } from "@once/ui-web"
+import {
+  focusStoryList,
+  getKeyboardDispatcher,
+  refreshPaneFocus,
+  revealElement,
+  setPaneFocus
+} from "@once/ui-web"
 import browserShellMarkup from "./browser/browser-shell.html"
 
 const TAB_MIME = "application/x-once-tab"
@@ -61,6 +67,7 @@ export class BrowserShell {
     this.bindTabs()
     this.bindLayout()
     this.bindWindowState()
+    this.bindKeyboardCommands()
     this.bridge.tabs.onChanged((tabs) => this.render(tabs))
     this.bridge.tabs.onRegenerateReader((sourceUrl) => {
       this.setAddressError("")
@@ -250,21 +257,82 @@ export class BrowserShell {
       document.body.classList.toggle("electron-fullscreen", fullscreen)
       this.reportBounds()
     })
-    window.addEventListener("keydown", (event) => {
-      if (event.repeat) return
-      if (event.key === "F11") {
-        event.preventDefault()
-        void this.bridge.window.setFullscreen(
-          !document.body.classList.contains("electron-fullscreen")
-        )
-      } else if (
-        event.key === "Escape" &&
-        document.body.classList.contains("electron-fullscreen")
-      ) {
-        event.preventDefault()
-        void this.bridge.window.setFullscreen(false)
-      }
+    // Native focus is the authority on which pane the keys reach. Opening a
+    // story hands focus to the page without any DOM event the shell can see,
+    // so main reports it instead of the shell guessing.
+    this.bridge.window.onNativeFocusChanged((surface) => {
+      if (surface === "browser") setPaneFocus("browser")
+      else refreshPaneFocus()
     })
+  }
+
+  /**
+   * Browser commands. Keys pressed while a page has focus never reach this
+   * renderer, so the bound chords are handed to the main process, which steals
+   * them from the page and sends them back as key commands.
+   */
+  private bindKeyboardCommands(): void {
+    const keyboard = getKeyboardDispatcher()
+    keyboard.register("browser.new-tab", () => {
+      void this.bridge.tabs.create("about:blank", true)
+    })
+    keyboard.register("browser.close-tab", () =>
+      this.withActive((tab) => this.bridge.tabs.close(tab.id)))
+    keyboard.register("browser.restore-closed-tab", () => {
+      void this.bridge.tabs.restoreClosed()
+    })
+    keyboard.register("browser.new-window", () => {
+      void this.bridge.window.create()
+    })
+    keyboard.register("browser.next-tab", () => this.cycleTab(1))
+    keyboard.register("browser.prev-tab", () => this.cycleTab(-1))
+    // A renderer-side focus() is silently ignored while a WebContentsView owns
+    // native focus, so anything aiming at the shell has to take it back first.
+    keyboard.register("browser.focus-urlbar", () => {
+      void this.bridge.window.focusShell().then(() => this.address.focus())
+    })
+    keyboard.register("panes.focus-right", () => this.focusContent())
+    keyboard.register("panes.focus-left", () => {
+      setPaneFocus("stories")
+      void this.bridge.window.focusShell().then(() => focusStoryList())
+    })
+    keyboard.register("window.toggle-fullscreen", () => {
+      void this.bridge.window.setFullscreen(
+        !document.body.classList.contains("electron-fullscreen")
+      )
+    })
+    keyboard.register("window.exit-fullscreen", () => {
+      if (!document.body.classList.contains("electron-fullscreen")) return
+      void this.bridge.window.setFullscreen(false)
+    })
+
+    // The chord was pressed inside a page, so native focus sits in the
+    // WebContentsView. A renderer-side focus() is silently ignored there, which
+    // is why every forwarded command takes the shell back first; commands that
+    // want the page focused (next tab, focus content) hand it straight on.
+    this.bridge.window.onKeyCommand((chord) => {
+      void this.bridge.window.focusShell().then(() => keyboard.dispatchChord(chord))
+    })
+    this.publishForwardedKeys()
+  }
+
+  /** Keeps the main process in step with whatever the user has bound. */
+  publishForwardedKeys(): void {
+    void this.bridge.window.setForwardedKeys(getKeyboardDispatcher().boundChords())
+  }
+
+  private focusContent(): void {
+    setPaneFocus("browser")
+    void this.bridge.tabs.focusContent()
+  }
+
+  private cycleTab(delta: number): void {
+    if (this.tabs.length < 2) return
+    const index = this.tabs.findIndex((tab) => tab.active)
+    if (index < 0) return
+    const next = (index + delta + this.tabs.length) % this.tabs.length
+    setPaneFocus("browser")
+    void this.bridge.tabs.activate(this.tabs[next].id)
   }
 
   private render(tabs: ElectronTabState[]): void {

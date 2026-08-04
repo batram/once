@@ -163,3 +163,33 @@ test("points error-log text matches at the containing expandable entry", () => {
     })
   })
 })
+
+test("finds a shortcut by its command name and by its chord", () => {
+  // The capture control is a button, not an input, so its chord has to reach
+  // the index through the button's own text, aria-label and title.
+  withDom(`
+    <section>
+      <div class="keybinding_row">
+        <span class="keybinding_label">New tab</span>
+        <button
+          class="keybinding_capture"
+          title="Shortcut for New tab: Ctrl+T"
+          aria-label="Shortcut for New tab: Ctrl+T"
+        >Ctrl+T</button>
+      </div>
+    </section>
+  `, (section) => {
+    assert.equal(
+      matchSettingsSection(section, "Keyboard shortcuts", "new tab").totalMatches > 0,
+      true
+    )
+    assert.equal(
+      matchSettingsSection(section, "Keyboard shortcuts", "Ctrl+T").totalMatches > 0,
+      true
+    )
+    assert.equal(
+      matchSettingsSection(section, "Keyboard shortcuts", "nonexistent"),
+      null
+    )
+  })
+})

@@ -3,6 +3,7 @@ import {
   ELECTRON_IPC,
   ElectronBridge,
   ElectronFetchRequest,
+  ElectronFocusSurface,
   ElectronPoint,
   ElectronRect,
   ElectronRedirectRule,
@@ -70,6 +71,8 @@ const bridge: ElectronBridge = {
       ipcRenderer.invoke(ELECTRON_IPC.tabsShowMenu, id, point),
     setBounds: (bounds: ElectronRect) =>
       ipcRenderer.invoke(ELECTRON_IPC.tabsSetBounds, bounds),
+    restoreClosed: () => ipcRenderer.invoke(ELECTRON_IPC.tabsRestoreClosed),
+    focusContent: () => ipcRenderer.invoke(ELECTRON_IPC.tabsFocusContent),
     onChanged(handler: (tabs: ElectronTabState[]) => void) {
       const listener = (_event: Electron.IpcRendererEvent, tabs: ElectronTabState[]) =>
         handler(tabs)
@@ -95,6 +98,25 @@ const bridge: ElectronBridge = {
   window: {
     setFullscreen: (fullscreen) =>
       ipcRenderer.invoke(ELECTRON_IPC.windowSetFullscreen, fullscreen),
+    create: () => ipcRenderer.invoke(ELECTRON_IPC.windowCreate),
+    focusShell: () => ipcRenderer.invoke(ELECTRON_IPC.windowFocusShell),
+    setForwardedKeys: (chords: string[]) =>
+      ipcRenderer.invoke(ELECTRON_IPC.windowSetForwardedKeys, chords),
+    onNativeFocusChanged(handler: (surface: ElectronFocusSurface) => void) {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        surface: ElectronFocusSurface
+      ) => handler(surface)
+      ipcRenderer.on(ELECTRON_IPC.windowNativeFocusChanged, listener)
+      return () =>
+        ipcRenderer.removeListener(ELECTRON_IPC.windowNativeFocusChanged, listener)
+    },
+    onKeyCommand(handler: (chord: string) => void) {
+      const listener = (_event: Electron.IpcRendererEvent, chord: string) =>
+        handler(chord)
+      ipcRenderer.on(ELECTRON_IPC.windowKeyCommand, listener)
+      return () => ipcRenderer.removeListener(ELECTRON_IPC.windowKeyCommand, listener)
+    },
     setRedirects: (redirects: ElectronRedirectRule[]) =>
       ipcRenderer.invoke(ELECTRON_IPC.windowSetRedirects, redirects),
     setBackgroundColor: (color) =>

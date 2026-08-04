@@ -16,6 +16,7 @@ import {
 import { SecureSettings } from "./SecureSettings"
 import { registerIpcHandlers } from "./IpcHandlers"
 import { BrowserCoordinator } from "./TabManager"
+import { isBackgroundMode } from "./browser/WindowLifecycle"
 import {
   configureReaderProtocol,
   registerReaderScheme
@@ -171,6 +172,11 @@ function createShellWindow(bounds?: Rectangle): BrowserWindow {
     minWidth: 760,
     minHeight: 480,
     show: false,
+    // Test runs must never pull the foreground away from the developer.
+    // showInactive() alone is not enough on Windows: webContents.focus() keeps
+    // reactivating the window. WS_EX_NOACTIVATE settles it, and injected input
+    // (CDP / sendInputEvent) still reaches the app without OS focus.
+    focusable: !isBackgroundMode(),
     autoHideMenuBar: true,
     titleBarStyle: "hidden",
     titleBarOverlay: process.platform !== "darwin" ? {

@@ -3,6 +3,19 @@ import { ELECTRON_IPC, ElectronRect } from "@once/platform-electron/bridge"
 import { NativeMenus } from "./NativeMenus"
 import { TabEntry, WindowEntry } from "./BrowserState"
 
+// Test runs launch a real window, which normally steals OS focus from whatever
+// the developer is doing. ONCE_ELECTRON_TEST_BACKGROUND keeps the window
+// visible and rendering, but never activates it.
+export function isBackgroundMode(): boolean {
+  return process.env.ONCE_ELECTRON_TEST_BACKGROUND === "1"
+}
+
+export function showWindow(window: BrowserWindow): void {
+  if (window.isDestroyed()) return
+  if (isBackgroundMode()) window.showInactive()
+  else window.show()
+}
+
 interface WindowLifecycleActions {
   activeEntry(owner: WindowEntry): TabEntry | undefined
   back(owner: WindowEntry, id: string): void
@@ -31,7 +44,8 @@ export class WindowLifecycle {
       bounds: { x: 0, y: 0, width: 0, height: 0 },
       normalBounds: null,
       fullscreen: false,
-      closing: false
+      closing: false,
+      forwardedKeys: new Set()
     }
   }
 
@@ -51,6 +65,10 @@ export class WindowLifecycle {
         this.actions.forward(owner, owner.activeId)
       }
     })
+    window.webContents.on("focus", () => {
+      if (window.isDestroyed()) return
+      window.webContents.send(ELECTRON_IPC.windowNativeFocusChanged, "shell")
+    })
     window.on("enter-full-screen", () => {
       owner.fullscreen = true
       this.sendFullscreen(owner, true)
@@ -65,9 +83,13 @@ export class WindowLifecycle {
   focus(owner: WindowEntry): void {
     if (owner.window.isDestroyed()) return
     if (owner.window.isMinimized()) owner.window.restore()
-    owner.window.show()
-    owner.window.moveTop()
-    owner.window.focus()
+    showWindow(owner.window)
+    // In-app focus still moves so focus assertions stay meaningful; only the
+    // OS-level window activation is skipped.
+    if (!isBackgroundMode()) {
+      owner.window.moveTop()
+      owner.window.focus()
+    }
     this.actions.activeEntry(owner)?.view.webContents.focus()
   }
 

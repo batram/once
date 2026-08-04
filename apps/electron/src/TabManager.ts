@@ -10,6 +10,7 @@ import {
   ElectronOpenTarget,
   ElectronPoint,
   ElectronRect,
+  ElectronFocusSurface,
   ElectronRedirectRule,
   ElectronTabState
 } from "@once/platform-electron/bridge"
@@ -28,7 +29,12 @@ import { NavigationErrors } from "./browser/NavigationErrors"
 import { SourcePicker } from "./browser/SourcePicker"
 import { TabEvents } from "./browser/TabEvents"
 import { TabOwnership } from "./browser/TabOwnership"
-import { WindowLifecycle } from "./browser/WindowLifecycle"
+import { WindowLifecycle, showWindow } from "./browser/WindowLifecycle"
+import { ClosedTabRecord } from "./browser/ClosedTabs"
+import { isModifiedChord } from "@once/core"
+
+/** A generous ceiling; the real list is one chord per bound command. */
+const MAX_FORWARDED_KEYS = 100
 
 interface CreateWindowOptions {
   url?: string
@@ -106,7 +112,7 @@ export class BrowserCoordinator {
     const state = this.windowLifecycle.createState(window)
     this.ownership.addWindow(state)
     this.windowLifecycle.bind(state)
-    window.once("ready-to-show", () => window.show())
+    window.once("ready-to-show", () => showWindow(window))
 
     try {
       await window.loadURL(this.shellEntry)
@@ -177,7 +183,8 @@ export class BrowserCoordinator {
       errorPageUrl: null,
       errorPages: new Map(),
       htmlFullscreen: false,
-      pickerSession: null
+      pickerSession: null,
+      historySnapshot: null
     }
     this.ownership.addTab(state, entry)
     this.tabEvents.bind(entry)
@@ -197,13 +204,25 @@ export class BrowserCoordinator {
     const disposition = resolveOpenDisposition(target)
     if (disposition === "background") {
       await this.createTab(state, normalized, false)
-    } else if (disposition === "foreground") {
+      return
+    }
+    if (disposition === "foreground") {
       await this.createTab(state, normalized, true)
     } else if (!state.activeId) {
       await this.createTab(state, normalized, true)
     } else {
       await this.navigate(state, state.activeId, normalized)
     }
+    // Opening a story in the foreground is a hand-off: the page takes the
+    // keyboard, so the shell must stop showing the story cursor as active.
+    // Reported here rather than left to the page's own focus event, which the
+    // OS withholds while the window is not focusable.
+    this.reportNativeFocus(state, "browser")
+  }
+
+  reportNativeFocus(state: WindowEntry, surface: ElectronFocusSurface): void {
+    if (state.window.isDestroyed()) return
+    state.window.webContents.send(ELECTRON_IPC.windowNativeFocusChanged, surface)
   }
 
   showStoryMenu(
@@ -275,6 +294,58 @@ export class BrowserCoordinator {
     if (!entry.view.webContents.isDestroyed()) {
       entry.view.webContents.close({ waitForBeforeUnload: true })
     }
+  }
+
+  /** Reopens the most recently closed tab, newest from this window first. */
+  async restoreClosedTab(state: WindowEntry): Promise<string | null> {
+    const record = this.ownership.closedTabs.take(state)
+    if (!record) return null
+    const id = await this.createTab(state, record.url, true)
+    const before = state.tabs[record.index]
+    if (before && before !== id) this.ownership.reorder(state, id, before)
+    this.restoreTabHistory(id, record)
+    return id
+  }
+
+  private restoreTabHistory(id: string, record: ClosedTabRecord): void {
+    const history = record.history
+    if (!history || history.entries.length < 2) return
+    const entry = this.ownership.get(id)
+    if (!entry || entry.view.webContents.isDestroyed()) return
+    try {
+      entry.view.webContents.navigationHistory.restore({
+        entries: history.entries,
+        index: history.index
+      })
+    } catch {
+      // The tab is already open at the right URL; back/forward is a bonus.
+    }
+  }
+
+  focusContent(state: WindowEntry): void {
+    const entry = state.activeId ? this.ownership.get(state.activeId) : undefined
+    if (!entry || entry.view.webContents.isDestroyed()) return
+    entry.view.webContents.focus()
+    this.reportNativeFocus(state, "browser")
+  }
+
+  focusShell(state: WindowEntry): void {
+    if (state.window.isDestroyed()) return
+    state.window.webContents.focus()
+    this.reportNativeFocus(state, "shell")
+  }
+
+  /**
+   * Chords the renderer wants stolen from focused pages. Only modified chords
+   * qualify, so a binding on a bare letter can never swallow typing on a page.
+   */
+  setForwardedKeys(state: WindowEntry, chords: string[]): void {
+    if (!Array.isArray(chords)) throw new Error("Invalid forwarded keys")
+    state.forwardedKeys = new Set(
+      chords.slice(0, MAX_FORWARDED_KEYS).filter(
+        (chord) => typeof chord === "string" && isModifiedChord(chord)
+      )
+    )
   }
 
   async duplicate(state: WindowEntry, id: string): Promise<string> {

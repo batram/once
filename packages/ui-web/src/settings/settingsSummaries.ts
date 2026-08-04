@@ -1,3 +1,5 @@
+import { customizedCommandCount } from "../keyboard/keybindingStore"
+import { getKeybindings } from "../keyboard"
 export function updateSettingsSummaries(
   sectionButtons: ReadonlyMap<string, HTMLButtonElement>,
   sourceFailures: number
@@ -42,6 +44,7 @@ export function updateSettingsSummaries(
         ? "Below address bar"
         : "Above story list"
     },
+    keyboard: { text: keyboardSummary() },
     swipe: { text: `${swipeRight} · ${swipeLeft}` },
     cache: { text: `${value("#cache_time_input") || "30"} min` },
     errors: {
@@ -66,4 +69,10 @@ export function updateSettingsSummaries(
       Boolean(summary.error)
     )
   }
+}
+
+function keyboardSummary(): string {
+  const customized = customizedCommandCount(getKeybindings())
+  if (customized === 0) return "Default"
+  return `${customized} customised`
 }

@@ -180,6 +180,13 @@ async function launchApp(options = {}) {
     "main",
     "index.js"
   )
+  // Windows launch non-focusable by default so a test run never steals OS focus
+  // from whatever the developer is doing; Playwright drives the app through CDP
+  // and sendInputEvent, neither of which needs an activated window. Pass
+  // background: false, or set ONCE_ELECTRON_E2E_INTERACTIVE=1 for the whole run,
+  // when you want to watch and click the app yourself.
+  const background =
+    options.background !== false && process.env.ONCE_ELECTRON_E2E_INTERACTIVE !== "1"
   const electronApp = await electron.launch({
     executablePath,
     args: [appPath],
@@ -188,6 +195,7 @@ async function launchApp(options = {}) {
       ONCE_ELECTRON_TEST_USER_DATA: userData,
       ONCE_ELECTRON_DISABLE_STORY_LOADING: "1",
       ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "1",
+      ...(background ? { ONCE_ELECTRON_TEST_BACKGROUND: "1" } : {}),
       ...options.env
     }
   })

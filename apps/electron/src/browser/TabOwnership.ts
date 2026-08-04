@@ -2,6 +2,7 @@ import { ELECTRON_IPC, ElectronTabState } from "@once/platform-electron/bridge"
 import { releaseErrorPages } from "./ErrorPageProtocol"
 import { NavigationErrors } from "./NavigationErrors"
 import { TabEntry, WindowEntry } from "./BrowserState"
+import { ClosedTabs } from "./ClosedTabs"
 
 interface TabOwnershipActions {
   createBlankTab(owner: WindowEntry): Promise<unknown>
@@ -10,6 +11,7 @@ interface TabOwnershipActions {
 export class TabOwnership {
   readonly tabs = new Map<string, TabEntry>()
   readonly windows = new Map<number, WindowEntry>()
+  readonly closedTabs = new ClosedTabs()
 
   constructor(
     private readonly errors: NavigationErrors,
@@ -117,6 +119,8 @@ export class TabOwnership {
     if (!owner) return
     const index = owner.tabs.indexOf(entry.id)
     if (index < 0) return
+    // Recorded before the splice so the tab can be reopened where it was.
+    this.closedTabs.record(entry, owner, index)
     if (owner.activeId === entry.id) {
       owner.window.contentView.removeChildView(entry.view)
       owner.activeId = null
@@ -135,9 +139,12 @@ export class TabOwnership {
 
   closeWindow(owner: WindowEntry): void {
     this.removeWindow(owner)
-    for (const id of [...owner.tabs]) {
+    for (const [index, id] of [...owner.tabs].entries()) {
       const entry = this.tabs.get(id)
       this.tabs.delete(id)
+      // Closing a window is a bulk close: its tabs belong in the reopen stack
+      // too, so Ctrl+Shift+T brings them back one at a time.
+      if (entry) this.closedTabs.record(entry, owner, index)
       if (entry) releaseErrorPages(entry.errorPages.keys())
       if (entry && !entry.view.webContents.isDestroyed()) {
         entry.view.webContents.close({ waitForBeforeUnload: false })

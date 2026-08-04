@@ -14,7 +14,10 @@ import { SwipeConfig } from "./story/swipe/geometry"
 import { ReaderView } from "./reader/ReaderView"
 import { SourcePickerView } from "./picker/SourcePickerView"
 import { bindMenuCollapseControls } from "./shell/menuCollapse"
+import { getKeyboardDispatcher } from "./keyboard"
+import { mountKeyboard } from "./keyboard/mountKeyboard"
 import { AppUpdater, bindAppUpdateControls } from "./settings/appUpdateControls"
+import { KeyboardSettingsView } from "./settings/KeyboardSettingsView"
 
 export interface MountOnceUiOptions {
   appVersion: string
@@ -31,6 +34,12 @@ export interface MountOnceUiOptions {
    * SettingsPanelOptions.exitSettings.
    */
   exitSettings?: () => void
+  /**
+   * Called with every bound chord whenever the user edits their shortcuts.
+   * The Electron shell forwards these to the main process so keys pressed
+   * inside a page still reach the shell.
+   */
+  onKeyBindingsChanged?: (chords: string[]) => void
 }
 
 export async function mountOnceUi(
@@ -77,6 +86,15 @@ export async function mountOnceUi(
     })
   })
 
+  // Unhidden before SettingsPanel constructs: it skips blocks that are still
+  // hidden, which is how a section stays out of the shells that lack it. The
+  // rows themselves are built afterwards, once there is a panel to refresh.
+  const shortcutsHost = document.querySelector<HTMLElement>("#keyboard_shortcuts")
+  const shortcutsBlock = document.querySelector<HTMLElement>("#keyboard_settings")
+  const wantsShortcuts = Boolean(shortcutsHost) && Boolean(shortcutsBlock) &&
+    document.body.dataset.platform !== "mobile"
+  if (wantsShortcuts && shortcutsBlock) shortcutsBlock.hidden = false
+
   const settingsPanel = new SettingsPanel(client, {
     exitSettings: options.exitSettings
   })
@@ -88,7 +106,14 @@ export async function mountOnceUi(
   } else {
     SourcePickerView.mount(client)
   }
-  new StoryHistory(client)
+  mountKeyboard(new StoryHistory(client))
+  if (wantsShortcuts && shortcutsHost) {
+    new KeyboardSettingsView(shortcutsHost, () => {
+      options.onKeyBindingsChanged?.(getKeyboardDispatcher().boundChords())
+      settingsPanel.refreshSettingsSearch()
+    })
+  }
+
   StoryList.init(client)
   PanelNavigation.init()
   SidebarFilters.init(client)

@@ -7,6 +7,7 @@ import { URLRedirect } from "@once/core"
 import { requireElement } from "../dom"
 import { attachPullToRefresh } from "../gesture/pullToRefresh"
 import { connectStoryListSync } from "./storyListSync"
+import { visibleStoryElements } from "./storyVisibility"
 
 export class DataChangeEvent extends Event {
   detail: StoryChangeDetail
@@ -228,16 +229,7 @@ export function sortStories(bucket = "stories"): void {
 
 /** Current rendered order, excluding rows hidden by search or filtering. */
 export function visibleStories(bucket = "stories"): Story[] {
-  const container = requireElement("#" + bucket)
-  return Array.from(
-    container.querySelectorAll<StoryListItem>("story-item.story")
-  )
-    .filter((row) =>
-      !row.classList.contains("nomatch") &&
-      !row.classList.contains("filtered") &&
-      getComputedStyle(row).display !== "none"
-    )
-    .map((row) => row.story)
+  return visibleStoryElements(bucket).map((row) => row.story)
 }
 
 function refilter(): void {

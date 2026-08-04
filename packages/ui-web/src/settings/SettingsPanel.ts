@@ -323,7 +323,8 @@ export class SettingsPanel {
       matchCount !== 0
   }
 
-  private refreshSettingsSearch(): void {
+  /** Also called from outside after a keybinding change re-labels its rows. */
+  refreshSettingsSearch(): void {
     if (this.settingsSectionButtons.size === 0) return
     this.updateSettingsSummaries()
     const search = document.querySelector<HTMLInputElement>("#settings_search")

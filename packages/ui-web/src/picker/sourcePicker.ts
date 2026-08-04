@@ -547,6 +547,11 @@ class PickerOverlay {
 
 let activeSession: Promise<SourcePickResult | null> | null = null
 
+/** The keyboard dispatcher stands down while the picker owns the keyboard. */
+export function isSourcePickerOpen(): boolean {
+  return activeSession !== null
+}
+
 // Starts the picker overlay, or returns the already running session so a
 // second injection focuses the existing overlay instead of stacking one.
 export function startSourcePicker(): Promise<SourcePickResult | null> {

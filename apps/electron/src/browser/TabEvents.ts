@@ -1,6 +1,7 @@
 import { dialog } from "electron"
 import { ELECTRON_IPC } from "@once/platform-electron/bridge"
 import { normalizeBrowserUrl } from "@once/platform-electron/navigation"
+import { chordFromKey, chordFromParts, isModifiedChord } from "@once/core"
 import { NativeMenus } from "./NativeMenus"
 import { NavigationErrors, sameUrl } from "./NavigationErrors"
 import { TabEntry, WindowEntry } from "./BrowserState"
@@ -95,7 +96,24 @@ class TabNavigationEvents {
       return
     }
     this.reset(entry, url)
+    this.snapshotHistory(entry)
     changed()
+  }
+
+  // Taken here rather than at close time: finalizeClosed runs on "destroyed",
+  // when the webContents can no longer be read.
+  private snapshotHistory(entry: TabEntry): void {
+    const contents = entry.view.webContents
+    if (contents.isDestroyed()) return
+    try {
+      entry.historySnapshot = {
+        entries: contents.navigationHistory.getAllEntries()
+          .map(({ url, title }) => ({ url, title })),
+        index: contents.navigationHistory.getActiveIndex()
+      }
+    } catch {
+      // A snapshot is a nicety; losing one only costs back/forward on reopen.
+    }
   }
 
   private reset(entry: TabEntry, url: string): void {
@@ -139,24 +157,24 @@ class TabWindowInteractionEvents {
       })
       if (choice === 0) event.preventDefault()
     })
+    // The shell cannot see focus entering a WebContentsView, so main says so.
+    // Opening a story from the keyboard lands here, and without it the story
+    // cursor would keep claiming a keyboard that has moved to the page.
+    contents.on("focus", () => {
+      const owner = this.actions.ownerFor(entry)
+      if (!owner || owner.activeId !== entry.id || owner.window.isDestroyed()) return
+      owner.window.webContents.send(ELECTRON_IPC.windowNativeFocusChanged, "browser")
+    })
     contents.on("enter-html-full-screen", () => this.enterFullscreen(entry))
     contents.on("leave-html-full-screen", () => this.leaveFullscreen(entry))
+    // One listener only: browser-ownership.test.js asserts the count, and a
+    // second registration would double-handle every key.
     contents.on("before-input-event", (event, input) => {
       if (input.type !== "keyDown" || input.isAutoRepeat) return
       const owner = this.actions.ownerFor(entry)
       if (!owner) return
-      if (input.key === "F11") {
-        event.preventDefault()
-        if (entry.htmlFullscreen) void contents.executeJavaScript("document.exitFullscreen()")
-        else this.actions.setFullscreen(owner, !owner.window.isFullScreen())
-      } else if (
-        input.key === "Escape" &&
-        owner.window.isFullScreen() &&
-        !entry.htmlFullscreen
-      ) {
-        event.preventDefault()
-        this.actions.setFullscreen(owner, false)
-      }
+      if (this.handleFullscreenKey(event, input, entry, owner)) return
+      this.forwardShellChord(event, input, owner)
     })
     contents.setWindowOpenHandler(({ url, disposition }) => {
       const owner = this.actions.ownerFor(entry)
@@ -174,6 +192,59 @@ class TabWindowInteractionEvents {
       const owner = this.actions.ownerFor(entry)
       if (owner) this.menus.showContentsMenu(owner, contents, params)
     })
+  }
+
+  /** Handled in main so fullscreen works without a renderer round-trip. */
+  private handleFullscreenKey(
+    event: Electron.Event,
+    input: Electron.Input,
+    entry: TabEntry,
+    owner: WindowEntry
+  ): boolean {
+    const contents = entry.view.webContents
+    if (input.key === "F11") {
+      event.preventDefault()
+      if (entry.htmlFullscreen) void contents.executeJavaScript("document.exitFullscreen()")
+      else this.actions.setFullscreen(owner, !owner.window.isFullScreen())
+      return true
+    }
+    if (input.key === "Escape" && owner.window.isFullScreen() && !entry.htmlFullscreen) {
+      event.preventDefault()
+      this.actions.setFullscreen(owner, false)
+      return true
+    }
+    return false
+  }
+
+  /**
+   * Sends a shortcut pressed inside a page up to the shell renderer, which owns
+   * the keybinding config. Only chords the renderer registered are taken, and
+   * only modified ones — otherwise a binding on a bare letter would swallow
+   * ordinary typing on every site.
+   */
+  private forwardShellChord(
+    event: Electron.Event,
+    input: Electron.Input,
+    owner: WindowEntry
+  ): void {
+    if (owner.forwardedKeys.size === 0 || owner.window.isDestroyed()) return
+    const parts = {
+      code: input.code,
+      ctrl: input.control,
+      alt: input.alt,
+      shift: input.shift,
+      meta: input.meta
+    }
+    // Same order the renderer resolves in: what the keycap says, then where
+    // the key sits. Ctrl+Z on a German layout must not arrive as Ctrl+Y.
+    const candidates = [chordFromKey({ ...parts, key: input.key }), chordFromParts(parts)]
+    const chord = candidates.find(
+      (candidate) => candidate && isModifiedChord(candidate) &&
+        owner.forwardedKeys.has(candidate)
+    )
+    if (!chord) return
+    event.preventDefault()
+    owner.window.webContents.send(ELECTRON_IPC.windowKeyCommand, chord)
   }
 
   private enterFullscreen(entry: TabEntry): void {

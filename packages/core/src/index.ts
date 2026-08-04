@@ -1,3 +1,4 @@
+export * from "./keyboard/keyChord"
 export * from "./settings/defaults"
 export * from "./settings/sourceGroups"
 export * from "./settings/syncUrl"

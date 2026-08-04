@@ -76,6 +76,8 @@ export interface ElectronUpdateStatus {
   message?: string
 }
 
+export type ElectronFocusSurface = "browser" | "shell"
+
 export interface ElectronBridge {
   app: {
     getBuildInfo(): Promise<ElectronBuildInfo>
@@ -114,6 +116,8 @@ export interface ElectronBridge {
     startSourcePicker(url?: string): Promise<string | null>
     showMenu(id: string, point: ElectronPoint): Promise<void>
     setBounds(bounds: ElectronRect): Promise<void>
+    restoreClosed(): Promise<string | null>
+    focusContent(): Promise<void>
     onChanged(handler: (tabs: ElectronTabState[]) => void): () => void
     onRegenerateReader(handler: (sourceUrl: string) => void): () => void
   }
@@ -127,6 +131,13 @@ export interface ElectronBridge {
   }
   window: {
     setFullscreen(fullscreen: boolean): Promise<void>
+    create(): Promise<void>
+    focusShell(): Promise<void>
+    /** Chords the main process should steal from a focused page and forward. */
+    setForwardedKeys(chords: string[]): Promise<void>
+    onKeyCommand(handler: (chord: string) => void): () => void
+    /** Where native focus actually went: a browser tab, or the shell itself. */
+    onNativeFocusChanged(handler: (surface: ElectronFocusSurface) => void): () => void
     setRedirects(redirects: ElectronRedirectRule[]): Promise<void>
     setBackgroundColor(color: string): Promise<void>
     onTargetUrlChanged(handler: (url: string) => void): () => void
@@ -165,12 +176,19 @@ export const ELECTRON_IPC = {
   tabsStartSourcePicker: "once:tabs:start-source-picker",
   tabsShowMenu: "once:tabs:show-menu",
   tabsSetBounds: "once:tabs:set-bounds",
+  tabsRestoreClosed: "once:tabs:restore-closed",
+  tabsFocusContent: "once:tabs:focus-content",
   tabsChanged: "once:tabs:changed",
   tabsRegenerateReader: "once:tabs:regenerate-reader",
   storyMenuShow: "once:story-menu:show",
   storyMenuOpenExternal: "once:story-menu:open-external",
   storyMenuOpenWindow: "once:story-menu:open-window",
   windowSetFullscreen: "once:window:set-fullscreen",
+  windowCreate: "once:window:create",
+  windowFocusShell: "once:window:focus-shell",
+  windowSetForwardedKeys: "once:window:set-forwarded-keys",
+  windowKeyCommand: "once:window:key-command",
+  windowNativeFocusChanged: "once:window:native-focus-changed",
   windowSetRedirects: "once:window:set-redirects",
   windowSetBackgroundColor: "once:window:set-background-color",
   windowTargetUrlChanged: "once:window:target-url-changed",

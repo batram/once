@@ -427,4 +427,14 @@ body .video_btn,
 body #video_webview_btn {
   display: none;
 }
+
+/*
+ * Where the keyboard is. The active tab picks up the same highlight the story
+ * cursor uses, so the two panes read as one keyboard position rather than two
+ * competing "selected" states.
+ */
+body[data-pane-focus="browser"] .electron-tab.active {
+  color: var(--text-high-color);
+  background: var(--cursor-bg-color);
+}
 }

@@ -106,8 +106,8 @@ test("searches settings content without changing the open detail", async () => {
     await expect(rows.filter({ visible: true })).toHaveCount(0)
 
     await search.fill("")
-    await expect(rows).toHaveCount(10)
-    await expect(rows.filter({ visible: true })).toHaveCount(10)
+    await expect(rows).toHaveCount(11)
+    await expect(rows.filter({ visible: true })).toHaveCount(11)
 
     const errorId = "error-log-settings-search-e2e"
     await window.locator("#error_log").evaluate((log, id) => {
@@ -197,10 +197,10 @@ test("settings menu always resets to a clean section index", async () => {
     )
     await expect(window.locator(".settings_section.active")).toHaveCount(0)
     await expect(window.locator("#settings_search")).toHaveValue("")
-    await expect(window.locator(".settings_section_row")).toHaveCount(10)
+    await expect(window.locator(".settings_section_row")).toHaveCount(11)
     await expect(window.locator(".settings_section_row").filter({
       visible: true
-    })).toHaveCount(10)
+    })).toHaveCount(11)
     await expect(
       window.locator('[data-settings-target="sources"] .settings_section_summary')
     ).toHaveText("5")

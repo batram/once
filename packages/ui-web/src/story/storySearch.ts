@@ -7,6 +7,7 @@ import {
 } from "@once/collectors"
 import { applyStoryFilters } from "@once/core"
 import { getOnceClient } from "../client"
+import { getKeyboardDispatcher } from "../keyboard"
 import { requireElement } from "../dom"
 import { searchableStoryElements } from "./storySearchScope"
 
@@ -18,11 +19,10 @@ export function init(): void {
   const cancel_search_btn =
     requireElement<HTMLElement>("#cancel_search_btn")
 
-  window.addEventListener("keyup", (e) => {
-    //CTRL + F
-    if (e.key == "f" && e.ctrlKey) {
-      searchfield.focus()
-    }
+  // Ctrl+F arrives through the keyboard dispatcher; see keyboard/commands.ts.
+  getKeyboardDispatcher().register("search.focus", () => {
+    searchfield.focus()
+    searchfield.select()
   })
 
   searchfield.addEventListener("input", () => {
@@ -35,6 +35,16 @@ export function init(): void {
     if (searchfield.value != "") {
       searchStories(searchfield.value)
     }
+  })
+
+  // Arrow-down out of the search box and into the results, the way every
+  // search field behaves. The global arrow bindings deliberately do not fire
+  // while a text field has focus, so without this the list is unreachable from
+  // here without the mouse.
+  searchfield.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowDown") return
+    e.preventDefault()
+    getKeyboardDispatcher().run("story.cursor-next")
   })
 
   searchfield.addEventListener("keyup", (e) => {

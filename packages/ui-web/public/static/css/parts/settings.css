@@ -2238,3 +2238,63 @@
   color: var(--text-color);
   font-size: 0.85em;
 }
+
+.keybinding_group {
+  margin: var(--sp-3) 0 var(--sp-2);
+  font-size: 0.9em;
+  color: var(--text-color);
+}
+
+.keybinding_row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) 0;
+}
+
+.keybinding_label {
+  flex: 1;
+  min-width: 0;
+}
+
+.keybinding_slots {
+  display: flex;
+  gap: var(--sp-1);
+}
+
+.keybinding_capture {
+  min-width: 7em;
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--input-bg-color);
+  color: var(--text-high-color);
+  font-family: monospace;
+  cursor: pointer;
+}
+
+.keybinding_capture[aria-pressed="true"] {
+  border-color: var(--text-high-color);
+  font-style: italic;
+}
+
+.keybinding_capture:focus-visible,
+.keybinding_reset:focus-visible,
+.keybinding_reset_all:focus-visible {
+  outline: 2px solid var(--text-high-color);
+  outline-offset: 2px;
+}
+
+.keybinding_status:empty {
+  display: none;
+}
+
+.keybinding_status {
+  padding: var(--sp-1) 0;
+  color: var(--text-color);
+  font-size: 0.9em;
+}
+
+.keybinding_reset_all {
+  margin-top: var(--sp-3);
+}

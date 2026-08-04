@@ -69,7 +69,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     )
       ? "disabled"
       : "network",
-    onMenuCollapsedChanged
+    onMenuCollapsedChanged,
+    // The renderer owns the keybinding config; main only mirrors the chords it
+    // must steal from focused pages.
+    onKeyBindingsChanged: (chords) => {
+      void window.onceElectron.window.setForwardedKeys(chords)
+    }
   })
   document.addEventListener("contextmenu", (event) => {
     const story = storyFromTarget(event.target)

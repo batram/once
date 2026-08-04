@@ -196,6 +196,10 @@ function registerTabLifecycle(coordinator: BrowserCoordinator): void {
       return coordinator[action](current.window, id)
     })
   }
+  ipcMain.handle(ELECTRON_IPC.tabsRestoreClosed, (event) => {
+    const current = browser(event, coordinator)
+    return coordinator.restoreClosedTab(current.window)
+  })
   ipcMain.handle(ELECTRON_IPC.tabsReorder, (event, id: string, beforeId?: string) => {
     const current = browser(event, coordinator)
     return coordinator.reorder(current.window, id, beforeId)
@@ -227,6 +231,10 @@ function registerTabTools(coordinator: BrowserCoordinator): void {
     const current = browser(event, coordinator)
     return coordinator.setBounds(current.window, bounds)
   })
+  ipcMain.handle(ELECTRON_IPC.tabsFocusContent, (event) => {
+    const current = browser(event, coordinator)
+    return coordinator.focusContent(current.window)
+  })
 }
 
 function registerStoryAndWindowHandlers(options: IpcHandlerOptions): void {
@@ -245,6 +253,18 @@ function registerStoryAndWindowHandlers(options: IpcHandlerOptions): void {
   ipcMain.handle(ELECTRON_IPC.storyMenuOpenWindow, (event, url: string) => {
     trusted(event, coordinator)
     return coordinator.createWindow({ url: externalUrl(url) }).then(() => undefined)
+  })
+  ipcMain.handle(ELECTRON_IPC.windowCreate, (event) => {
+    trusted(event, coordinator)
+    return coordinator.createWindow().then(() => undefined)
+  })
+  ipcMain.handle(ELECTRON_IPC.windowFocusShell, (event) => {
+    const current = browser(event, coordinator)
+    return coordinator.focusShell(current.window)
+  })
+  ipcMain.handle(ELECTRON_IPC.windowSetForwardedKeys, (event, chords: string[]) => {
+    const current = browser(event, coordinator)
+    return coordinator.setForwardedKeys(current.window, chords)
   })
   ipcMain.handle(ELECTRON_IPC.windowSetFullscreen, (event, fullscreen: boolean) => {
     const current = browser(event, coordinator)

@@ -7,6 +7,7 @@ module.exports = Object.freeze([
   ["sync", "CouchDB Sync", "#couch_input"],
   ["theme", "Theme & animations", "#theme_select"],
   ["electron-layout", "Electron layout", "#electron_story_position", "electron"],
+  ["keyboard", "Keyboard shortcuts", "#keyboard_shortcuts", "electron"],
   ["swipe", "Swipe actions", "#swipe_lab"],
   ["cache", "Cache timing", "#cache_time_input"],
   ["errors", "Error log", "#error_log"],

@@ -33,22 +33,8 @@ export class StoryHistory {
       return true
     })
 
-    window.addEventListener(
-      "keydown",
-      (e) => {
-        console.log("left_panel keydown", e)
-        if (e.ctrlKey) {
-          if (e.key == "z") {
-            this.undo()
-          } else if (e.key == "y") {
-            this.redo()
-          }
-        }
-        return true
-      },
-      true
-    )
-
+    // Ctrl+Z / Ctrl+Y arrive through the keyboard dispatcher; see
+    // keyboard/commands.ts.
     client.subscribe("historyCommand", ({ action }) => {
       if (action === "undo") {
         this.undo()
