@@ -36,7 +36,7 @@ The existing color properties in `parts/vars.css` remain the public colour
 vocabulary. Application defaults are loaded into `layer(tokens)`, so the
 reserved future theme path can override a token on the same element from
 `layer(user)`. No supported user-theme API currently writes that layer; see
-[design-system-theming-plan.md](design-system-theming-plan.md).
+[design-system-theming-plan.md](plans/design-system-theming-plan.md).
 
 The current color catalog is:
 

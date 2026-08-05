@@ -28,6 +28,7 @@ target lifecycle, permissions, native bridges, and packaging belong in an app.
 | Loading, settings, story state | `packages/app/src/OnceApp.ts`, `packages/app/src/AppRuntime.ts` | Public facade and application service composition |
 | PouchDB storage and sync | `packages/persistence/src` | Storage implementations |
 | Story list and actions | `packages/ui-web/src/story` | Shared DOM UI |
+| Keyboard commands and story cursor | `packages/ui-web/src/keyboard`, `story/storyCursor.ts`, `shell/paneFocus.ts` | Core owns chord syntax; shared UI owns bindings, conflicts, dispatch, and position |
 | Story and settings popup menus | `packages/ui-web/src/menu` | Action model plus anchored renderer |
 | Panel navigation and status surfaces | `packages/ui-web/src/shell` | Sidebar, panels, overlays |
 | Touch and drag gestures | `packages/ui-web/src/gesture` | Shared gesture plumbing |
@@ -35,6 +36,7 @@ target lifecycle, permissions, native bridges, and packaging belong in an app.
 | Reader extraction and display | `packages/ui-web/src/reader` | Shared reader runtime |
 | Source picker | `packages/ui-web/src/picker` | Shared picker plus platform injection |
 | Electron tabs and windows | `apps/electron/src/TabManager.ts`, `apps/electron/src/browser/TabOwnership.ts`, `WindowLifecycle.ts` | Main-process orchestration and ownership |
+| Recently closed Electron tabs | `apps/electron/src/browser/ClosedTabs.ts` | Bounded main-process history used by the command layer |
 | Mobile reading view | `apps/mobile/src/readingController.ts` | Current-story DOM interaction |
 | Mobile reading surface | `apps/mobile/src/readingSurfaceCoordinator.ts` | Native session and surface lifecycle |
 | Native browser bridge | `packages/platform-mobile/src/InAppBrowserSurface.ts` | Capacitor-facing adapter |

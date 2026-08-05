@@ -1,5 +1,7 @@
 # Future plan: user theming
 
+Status: proposed; implementation has not started.
+
 This work is intentionally outside the completed design-system refactor. The refactor
 establishes the token and cascade contracts that make theming possible; it does not ship a
 user-theme product.

@@ -167,6 +167,13 @@ are denied by default. Sync URLs are protected through Electron `safeStorage`.
 Electron reader mode fetches through the validated bridge and serves sanitized
 documents from the isolated `once-reader://` protocol.
 
+Desktop keyboard behavior is command-driven rather than a collection of DOM
+shortcuts. Shared code owns canonical chords, configurable bindings, conflict
+checks, shell dispatch, pane focus, and the durable story cursor. Electron's
+main process forwards registered page keystrokes into that command layer and
+owns recently closed tab history; shells only advertise commands they can
+actually deliver.
+
 ## Migration history
 
 The Firefox, Chrome, and Electron repositories have been consolidated into this

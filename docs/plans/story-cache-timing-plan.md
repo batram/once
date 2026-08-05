@@ -1,7 +1,7 @@
 # Per-source cache timing and cache behavior
 
-Status: approved, implementation pending. Depends on the typed-source persistence and object-native
-UI work in [story-source-model-plan.md](story-source-model-plan.md).
+Status: approved, implementation pending. Depends on the completed typed-source persistence and
+object-native UI work recorded in [HISTORY.md](../HISTORY.md).
 
 ## Context and boundary
 

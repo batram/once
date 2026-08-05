@@ -7,7 +7,7 @@ enforce. Read this before adding CSS.
 Related pages:
 
 - [design-tokens.md](design-tokens.md) — the public token catalog.
-- [design-system-theming-plan.md](design-system-theming-plan.md) — future user
+- [design-system-theming-plan.md](plans/design-system-theming-plan.md) — future user
   theming product work; it is not part of the current refactor.
 - [VISUAL_COMPARISON.md](VISUAL_COMPARISON.md) — screenshotting built apps when
   a change is meant to look different.
@@ -311,4 +311,4 @@ completeness:
   settings concerns.
 - **User theming is not implemented.** `layer(user)` is reserved and the
   override path is tested, but no settings surface writes it. See the separate
-  [future theming plan](design-system-theming-plan.md).
+  [future theming plan](plans/design-system-theming-plan.md).
