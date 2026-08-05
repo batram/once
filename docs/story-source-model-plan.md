@@ -195,12 +195,13 @@ ranges per source id without a JSON source map.
 
 ## Phases
 
-Phases are independently **verifiable**, not independently shippable. There are two shipped
-checkpoints:
+Phases are independently **verifiable**. Most are also independently shippable; one pair is not:
 
-- **Phases 1–2 together.** `check:dead-code` (knip with `includeEntryExports`) fails an export with no
-  consumer, so the model cannot land a release ahead of its first consumer. Neither phase changes
-  persisted data.
+- **Phases 1 and 2 stand alone.** This was expected to fail `check:dead-code`, on the grounds that
+  knip with `includeEntryExports` rejects an export with no consumer. Measured: it passes, because
+  knip resolves the root test suite's `packages/*/dist/…` requires back to the workspace, so a
+  test-only consumer counts. A phase whose only consumer is its own tests can therefore ship.
+  Neither phase changes persisted data.
 - **Phases 3–4 together.** Phase 3 changes `getStorySources()` from `string[]` to a document while
   `AppRuntime`, the editor, the error surfaces and the picker still expect lines; the repository cannot
   operate between them without an object→legacy adapter, which would be write-only throwaway code
@@ -430,8 +431,11 @@ Notes for that phase:
 - **Nothing evicts the cache.** `WebCacheStore.set` has no `try`/`catch` around `setItem`, so a full
   quota surfaces only as a `console.log` from `parser.ts:148-152`.
 - `story_sources` lingers as a pre-cutover copy and drifts from reality the moment sources are edited.
-- `check:dead-code` (knip, `includeEntryExports`) flags exports with no consumer, so each phase must
-  land its consumers with its exports.
+- The strict reader refuses a whole record on any fault, which is the point, but it means one bad
+  hand-edit blocks the save rather than partially applying — the reports name every fault at once so
+  that stays workable.
+- `repairStorySources` drops an entry it cannot represent (no url, not an object) rather than
+  inventing one. Reports name it, and the pre-cutover legacy copy still holds the original.
 
 ## Verification
 
