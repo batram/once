@@ -42,7 +42,8 @@ These are data-contract decisions, not implementation details, and everything be
 | Groups | Preserved exactly, including **empty groups and duplicate names**, both of which round-trip today (`parseSourceGroups:13-19`). Modelled explicitly. |
 | Duplicate URLs | Legal and representable; two sources may share a URL with different configs. |
 | Source id | Opaque, minted once, **never re-derived**. Preserved across URL, group, collector, config and order changes. |
-| Id grammar | `/^[A-Za-z0-9_-]{8,64}$/`. "Valid id" cannot mean UUID-only: legacy-derived ids are hashes, not UUIDs, and both must pass. |
+| Id grammar | `/^(src|grp)_[A-Za-z0-9]{8,58}$/`, plus the single reserved literal `group_default`. Prefixed and zero-padded so a 32-bit FNV-1a value is always exactly 8 characters and a legacy-derived id is indistinguishable in shape from a minted one. "Valid id" can never mean UUID-only. |
+| Default group | **Implicit.** `groupId` absent means Default, so no Default object is stored in `groups`; the editor synthesizes the row using the reserved id `group_default`, which must never appear in `groups`. |
 | Sync configured but offline | Migration stays **pending**; legacy sources keep serving from memory. An unreachable remote is never evidence that a remote `sources` document is absent. |
 | Unknown schema version | Fails visibly. Never normalized into an empty or downgraded document; never overwritten. |
 | Cache key | The normalized request URL only. Deliberate payload-cache policy: `select` is applied *after* the fetch, so two sources sharing a URL may safely share the body. |
@@ -82,30 +83,41 @@ source order, or later group metadata — and it makes a rename touch every memb
 array order; group order is the `groups` array. Group identity follows the same rules as source
 identity, and for the same reason — independent migrations must converge on **both**:
 
-- migrated group id = `hash(canonicalHeaderText + "\n" + groupOccurrence)`; the default group takes a
-  fixed literal id;
-- a group created later gets one from the injected random generator;
+- migrated group id = `grp_` + `hash(canonicalHeaderText + "\n" + groupOccurrence)`. The Default group
+  is not migrated at all, because it is implicit — its members simply have no `groupId`;
+- a group created later gets `grp_` + a value from the injected random generator;
 - group ids survive rename and reorder — a rename changes `name` only;
 - `groupId` references are validated on every normalize. A dangling reference is reassigned to the
   default group **and reported**, never silently dropped;
 - deleting a non-empty group must either move its sources to the default group or be rejected. It may
   never leave dangling references.
 
+**`enabled === false` means not loaded, and that has menu consequences.** A disabled source is skipped
+by `reloadStories` entirely — no fetch, no cache read or write, no `processingSources` entry, no
+source error. It also contributes **neither its collector type nor its group** to `menuChanged`, since
+that menu exists to filter stories that can actually appear; a group whose every source is disabled
+therefore drops out of the sidebar and the mobile chips. Both halves are tested explicitly rather than
+left to fall out of the implementation.
+
 **Identity is two separate concepts:**
 
-- `id` — minted once via an injected generator (defaults to `crypto.randomUUID()`; injected so tests
-  are deterministic). Normalization **preserves any valid id** regardless of what else changed.
-  Nothing re-derives it, so nothing shifts when a duplicate is inserted or rows are reordered.
+- `id` — `src_` + a value from an injected generator (defaults to `crypto.randomUUID()` with the
+  dashes stripped; injected so tests are deterministic). Minted once. Normalization **preserves any
+  valid id** regardless of what else changed. Nothing re-derives it, so nothing shifts when a
+  duplicate is inserted or rows are reordered.
 - `legacyMigrationKey` — used *only* during legacy conversion, to derive each source's initial id so
   two devices converting the same line list converge:
-  `hash(canonicalLegacyLine + "\n" + occurrenceWithinLegacyDocument)`. A synchronous
+  `src_` + `hash(canonicalLegacyLine + "\n" + occurrenceWithinLegacyDocument)`, zero-padded to 8
+  characters so short hash values cannot fall under the grammar's minimum. A synchronous
   dependency-free hash (FNV-1a) is sufficient — convergence is the requirement, not collision
   resistance, and cryptographic hashing in core would force async `crypto.subtle` or a Node-only
   dependency. Collisions are resolved by appending a deterministic disambiguator until unique.
 
 **Canonical legacy encoding**, shared by the migration keys and by `migratedFrom.digest`, so neither
-depends on platform newline style or stray whitespace: normalize CRLF and CR to LF, strip trailing
-whitespace from each line, drop blank lines, join with LF. The digest is FNV-1a over that string.
+depends on platform newline style or stray whitespace: normalize CRLF and CR to LF, **trim each line
+at both ends** — matching what the live parsers already do (`core/settings/sourceGroups.ts` trims each
+entry, `parseSourceGroups:11` does `raw.trim()`), so the digest agrees with how a line is actually
+interpreted — drop blank lines, join with LF. The digest is FNV-1a over that string.
 `migratedFrom.digest` is not decoration — it is what detects a post-cutover legacy edit: when
 `story_sources` changes, re-canonicalize it and compare. A difference is the diagnostic.
 
@@ -152,10 +164,10 @@ ranges per source id without a JSON source map.
 ```json
 {
   "version": 2,
-  "groups": [{"id":"g-news","name":"news"}],
+  "groups": [{"id":"grp_1f4a9c02","name":"news"}],
   "sources": [
-    {"id":"7c1e…","url":"https://news.ycombinator.com/","groupId":"g-news","cacheMinutes":4},
-    {"id":"b40a…","url":"https://old.reddit.com/r/netsec/.rss","label":"Netsec"}
+    {"id":"src_7c1e0b3a","url":"https://news.ycombinator.com/","groupId":"grp_1f4a9c02","cacheMinutes":4},
+    {"id":"src_b40a55d1","url":"https://old.reddit.com/r/netsec/.rss","label":"Netsec"}
   ]
 }
 ```
@@ -183,9 +195,17 @@ ranges per source id without a JSON source map.
 
 ## Phases
 
-Each phase is independently **verifiable**, not independently shippable: `check:dead-code` (knip with
-`includeEntryExports`) fails an export with no consumer, so phases 1–2 land as one shipped
-checkpoint. Neither changes persisted data.
+Phases are independently **verifiable**, not independently shippable. There are two shipped
+checkpoints:
+
+- **Phases 1–2 together.** `check:dead-code` (knip with `includeEntryExports`) fails an export with no
+  consumer, so the model cannot land a release ahead of its first consumer. Neither phase changes
+  persisted data.
+- **Phases 3–4 together.** Phase 3 changes `getStorySources()` from `string[]` to a document while
+  `AppRuntime`, the editor, the error surfaces and the picker still expect lines; the repository cannot
+  operate between them without an object→legacy adapter, which would be write-only throwaway code
+  pointing the wrong way. They keep separate internal verification boundaries — 3 is green on its own
+  unit and integration suites before 4 starts — but land as one commit range.
 
 Step 0 is this document: the frozen contracts live in the repo rather than only in a session plan.
 
@@ -216,7 +236,7 @@ collisions, reorder, URL edits, repeated normalization (idempotence), and unknow
   pre-load validation point. A runtime adapter still converts legacy lines into resolved sources in
   memory, so nothing depends on the storage cutover yet.
 
-### 3. Persistence cutover — the risky phase, alone
+### 3. Persistence cutover — the risky phase, isolated from behaviour changes
 
 - New list-store document id `sources` holding `StorySourceDocument`. **Both** `sources` and
   `story_sources` go into `PouchSyncService.SETTINGS_DOCUMENT_IDS:49-56`.
@@ -229,6 +249,11 @@ can currently await the settings stage. Add one signal and one small state machi
   `PouchSyncService` fires it once per generation, immediately after the awaited
   `replicateStage("Syncing settings…", { doc_ids: … })` resolves, guarded by the same
   `this.generation !== generation` check the other callbacks use. It never fires on error or offline.
+  **It is replayable within a generation**: the service records that the stage completed, and a handler
+  registered afterwards is invoked immediately. `AppSettings` also subscribes before it ever calls
+  `syncFrom` (it owns that call, in `startSync`). Both, deliberately — the subscription order is the
+  intent, and the replay means a fast local replication cannot win the race and strand the migration
+  in `"pending"` forever.
 - `AppSettings` tracks `sourcesState: "pending" | "resolved"`:
   - **No sync URL configured** (`getSyncUrl()` empty, status `"disabled"`) — local-only, so resolve
     and migrate immediately.
@@ -293,7 +318,10 @@ handling from the collectors and update `docs/COLLECTORS.md` (`:24,45,64,89,100,
 ### 6. Per-source cache timing — no behaviour change beyond the override
 
 Deliberately conservative: **keeps the existing 120-minute global default, the existing
-network-only startup, and the existing refresh gestures.**
+network-only startup, and the existing refresh gestures.** Nothing here changes what any source does
+until the user sets an override — which is why the shipped per-collector defaults are *not* in this
+phase. Giving Hacker News 4 minutes out of the box changes request counts with no user action, so it
+belongs in phase 7 with the other behaviour changes and its own evidence.
 
 - `cacheMinutes` is already a field on the source. Per-collector overrides go in a small new
   document `cache_timing: { version: 1, collectors: Record<collectorId, number> }` — versioned from
@@ -301,11 +329,14 @@ network-only startup, and the existing refresh gestures.**
   scoped to timing: the per-collector parsing knobs currently held as module-global mutable state
   (`options.settings`: `min_points`, `filter_ads`, `time_cut_off`) are parsing configuration, not
   cache policy, and belong in a separately versioned `collector_settings` document keyed by collector
-  id if they are ever exposed.
-- Shipped defaults as a typed field on the collector, not inside the untyped `options.settings` bag:
-  Hacker News 4, Reddit JSON 4, Reddit RSS 4, Lobsters 10; geny, jsonselect, RSS and Nitter ship
-  nothing. Named `cache_minutes` there to match that package's `resolve_url` / `global_search` /
-  `min_points`; `cacheMinutes` everywhere in core/app/ui-web. Deliberate, per-package consistency.
+  id if they are ever exposed. `cache_timing` joins `PouchSyncService.SETTINGS_DOCUMENT_IDS` and gets a
+  `case "cache_timing"` in `AppSettings.handleObservedChange` that publishes `"cache"` and deliberately
+  does **not** reload.
+- The collector field `cache_minutes` is *declared* here so the precedence chain is complete and
+  testable, but **no collector ships a value yet** — every collector inherits the global. It is a typed
+  field on the collector rather than an entry in the untyped `options.settings` bag, and it is named
+  `cache_minutes` to match that package's `resolve_url` / `global_search` / `min_points`, while core,
+  app and ui-web use `cacheMinutes`. Deliberate, per-package consistency.
 - Precedence: `source.cacheMinutes` → `collectors[id]` → collector shipped default → global.
   Vocabulary: absent/blank = inherit, `0` = always refetch, integer `0..525600` otherwise, anything
   else rejected. `0` needs an explicit skip-the-read branch — `minsOld > 0` is false for a
@@ -315,12 +346,15 @@ network-only startup, and the existing refresh gestures.**
 - Resolver `effectiveCacheMinutes` in `packages/app/src/cacheTiming.ts` (needs the registry, so not
   `core`; `check-boundaries.js` has no rule for `app`). Read the document **once per reload pass** —
   `reloadStories:248-265` fans out over every source concurrently.
-- Acceptance: existing refresh request counts are unchanged except where an override was set.
+- Acceptance: with no override set anywhere, **every** request count is byte-for-byte what it was before
+  this phase. That is only true because no collector ships a default here.
 
 ### 7. Cache UX and behaviour changes — each on its own evidence
 
-Independently observable, so none of these rides along with the format cutover: global default
-120 → 60; cache-first startup (today every shell passes `initialStoryLoad: "network"`, so the cache
+Independently observable, so none of these rides along with the format cutover: **shipped per-collector
+defaults** (Hacker News 4, Reddit JSON 4, Reddit RSS 4, Lobsters 10; geny, jsonselect, RSS and Nitter
+keep inheriting) — the field exists from phase 6, this is the step that populates it and accepts the
+request-count change; global default 120 → 60; cache-first startup (today every shell passes `initialStoryLoad: "network"`, so the cache
 is written every launch and read only by in-session reloads, which makes short windows nearly
 inert); pull-to-refresh forcing a fetch rather than silently no-opping inside a 4-minute window;
 **stale-on-error** (serve an expired entry with a warning when the network fails, instead of
@@ -363,6 +397,12 @@ Notes for that phase:
 - Empty groups and duplicate group names survive exactly, or are rejected before save.
 - No `groupId` can dangle: a missing group reassigns to default with a report, and deleting a
   non-empty group either moves its sources or is rejected.
+- Every generated and migrated id matches the declared grammar, including the shortest possible hash
+  output; `group_default` never appears in `groups`.
+- A handler subscribed to `onSettingsReplicated` after the stage completed is still invoked, so a fast
+  replication cannot strand the migration in `"pending"`.
+- A disabled source is never fetched and contributes neither its collector type nor its group to the
+  menu; a group whose sources are all disabled drops out of the sidebar and the mobile chips.
 - Malformed JSON in text mode reports a JSON error and never falls through to the legacy parser.
 - A legacy import containing an unrecognized line saves nothing.
 - Reformatted JSON still navigates to the right source after save, because save canonicalizes.
