@@ -26,13 +26,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     (html, sourceUrl, target) =>
       window.onceElectron.tabs.openReader(html, sourceUrl, target)
   )
+  // Reader requests raised by the browser shell carry their own delivery
+  // callback, which is what lets the shell keep them tied to one tab.
+  const runReaderRequest = (
+    url: string,
+    deliver: (html: string, sourceUrl: string) => Promise<void>
+  ): Promise<void> =>
+    ReaderView.openWith(url, "_self", (html, sourceUrl) => deliver(html, sourceUrl))
   SourcePickerView.mount(app.client, (url) =>
     window.onceElectron.tabs.startSourcePicker(url)
   )
-  const browserShell = new BrowserShell(
-    window.onceElectron,
-    (url) => ReaderView.open(url)
-  )
+  const browserShell = new BrowserShell(window.onceElectron, runReaderRequest)
   const onMenuCollapsedChanged = (collapsed: boolean): void =>
     browserShell.setLeftCollapsed(collapsed)
   bindMenuCollapseControls(onMenuCollapsedChanged)

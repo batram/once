@@ -13,6 +13,13 @@ test.afterAll(async () => {
   await pageServer.close()
 })
 
+// Chromium parses once-reader:// as a standard scheme, so the source URL's own
+// scheme colon is dropped once the tab has navigated. The address bar still
+// shows the readable form.
+function readerUrl(sourceUrl) {
+  return `once-reader://${sourceUrl.replace("://", "//")}`
+}
+
 test("duplicates a reader tab into a second reader tab", async () => {
   const { electronApp, userData, window } = await launchApp()
   try {
@@ -72,6 +79,67 @@ test("duplicates a reader tab into a second reader tab", async () => {
       text: expect.stringContaining("Reader mode failed: Network fetches are disabled"),
       retryCount: 1
     })
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
+test("reads an article served as application/xhtml+xml", async () => {
+  const { electronApp, userData, window } = await launchApp({
+    env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0" }
+  })
+  try {
+    const address = window.locator("#urlfield")
+    await address.fill(`${origin}/article.xhtml`)
+    await address.press("Enter")
+    await expect(window.locator(".electron-tab-title")).toHaveText("XHTML Article")
+
+    await window.locator("#browser_reader").click()
+    await expect.poll(() => window.evaluate(async () => {
+      const active = (await window.onceElectron.tabs.getAll()).find((tab) => tab.active)
+      return active && { url: active.url, title: active.title, loadError: active.loadError }
+    })).toEqual({
+      url: readerUrl(`${origin}/article.xhtml`),
+      title: "XHTML Article",
+      loadError: null
+    })
+    await expect(window.locator("#url_error")).toBeHidden()
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
+test("keeps a reader request on the tab that asked for it", async () => {
+  const { electronApp, userData, window } = await launchApp({
+    env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0" }
+  })
+  try {
+    const address = window.locator("#urlfield")
+    await address.fill(`${origin}/slow-article`)
+    await address.press("Enter")
+    // Reader mode is asked for while the page is still on its way, then the
+    // user moves to another tab before the article has been extracted.
+    await window.locator("#browser_reader").click()
+    await expect(window.locator("#browser_reader")).toHaveClass(/pending/)
+    const second = await window.evaluate(() =>
+      window.onceElectron.tabs.create("about:blank", true))
+
+    await expect.poll(() => window.evaluate(async () =>
+      (await window.onceElectron.tabs.getAll()).map((tab) => ({
+        url: tab.url,
+        active: tab.active,
+        loadError: tab.loadError
+      }))
+    ), { timeout: 15_000 }).toEqual([
+      {
+        url: readerUrl(`${origin}/slow-article`),
+        active: false,
+        loadError: null
+      },
+      { url: "about:blank", active: true, loadError: null }
+    ])
+    expect(second).toBeTruthy()
+    await expect(window.locator("#url_error")).toBeHidden()
   } finally {
     await closeApp(electronApp, userData)
   }

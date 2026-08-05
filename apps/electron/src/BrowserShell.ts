@@ -6,6 +6,7 @@ import {
   revealElement,
   setPaneFocus
 } from "@once/ui-web"
+import { ReaderRequests, ReaderRequestRunner } from "./ReaderRequests"
 import browserShellMarkup from "./browser/browser-shell.html"
 
 const TAB_MIME = "application/x-once-tab"
@@ -34,11 +35,19 @@ export class BrowserShell {
   private activeTabElement: HTMLElement | null = null
   private renderedAddressTabId: string | null = null
   private renderedAddressUrl = ""
+  private readonly readerRequests: ReaderRequests
 
   constructor(
     private readonly bridge: ElectronBridge,
-    private readonly openReader: (url: string) => Promise<void>
+    openReader: ReaderRequestRunner
   ) {
+    this.readerRequests = new ReaderRequests(openReader, {
+      hasTab: (tabId) => this.tabs.some((tab) => tab.id === tabId),
+      deliver: (tabId, html, sourceUrl) =>
+        this.bridge.tabs.openReader(html, sourceUrl, "_self", tabId),
+      fail: (tabId, url, error) => this.showReaderError(tabId, url, error),
+      changed: () => this.renderControls()
+    })
     const windowContent = required<HTMLElement>("#window_content")
     this.leftPanel = required<HTMLElement>("#left_panel")
 
@@ -69,11 +78,9 @@ export class BrowserShell {
     this.bindWindowState()
     this.bindKeyboardCommands()
     this.bridge.tabs.onChanged((tabs) => this.render(tabs))
-    this.bridge.tabs.onRegenerateReader((sourceUrl) => {
+    this.bridge.tabs.onRegenerateReader((sourceUrl, tabId) => {
       this.setAddressError("")
-      void this.openReader(sourceUrl).catch((error) => {
-        this.showReaderError(sourceUrl, error)
-      })
+      this.readerRequests.start(tabId, sourceUrl)
     })
     void this.bridge.tabs.getAll().then((tabs) => this.render(tabs))
   }
@@ -113,28 +120,31 @@ export class BrowserShell {
 
   private bindControls(): void {
     this.newTabButton.onclick = () => this.openBlankTab()
-    this.backButton.onclick = () => this.withActive((tab) => this.bridge.tabs.back(tab.id))
-    this.forwardButton.onclick = () => this.withActive((tab) => this.bridge.tabs.forward(tab.id))
-    this.reloadButton.onclick = () => {
-      this.withActive((tab) =>
-        tab.loading ? this.bridge.tabs.stop(tab.id) : this.bridge.tabs.reload(tab.id)
-      )
-    }
+    // Each of these is the user steering the tab elsewhere, so a reader
+    // document still being fetched for it must not land on top of the result.
+    const steer = (action: (tab: ElectronTabState) => Promise<unknown>) => () =>
+      this.withActive((tab) => {
+        this.readerRequests.cancel(tab.id)
+        return action(tab)
+      })
+    this.backButton.onclick = steer((tab) => this.bridge.tabs.back(tab.id))
+    this.forwardButton.onclick = steer((tab) => this.bridge.tabs.forward(tab.id))
+    this.reloadButton.onclick = steer((tab) =>
+      tab.loading ? this.bridge.tabs.stop(tab.id) : this.bridge.tabs.reload(tab.id))
     this.readerButton.onclick = () => {
       const active = this.activeTab()
       if (!active) return
       this.setAddressError("")
       const readerSource = sourceUrlFromReaderUrl(active.url)
       if (readerSource) {
+        this.readerRequests.cancel(active.id)
         void this.bridge.tabs.navigate(active.id, readerSource).catch((error) => {
           this.setAddressError(readerErrorMessage(error))
         })
         return
       }
       if (!isReadableUrl(active.url)) return
-      void this.openReader(active.url).catch((error) => {
-        this.showReaderError(active.url, error)
-      })
+      this.readerRequests.start(active.id, active.url)
     }
     this.closeButton.onclick = () => this.withActive((tab) => this.bridge.tabs.close(tab.id))
 
@@ -146,6 +156,7 @@ export class BrowserShell {
       if (!active) return
       const url = this.address.value
       this.address.blur()
+      this.readerRequests.cancel(active.id)
       try {
         this.setAddressError("")
         await this.bridge.tabs.navigate(active.id, url)
@@ -422,7 +433,11 @@ export class BrowserShell {
 
     this.layoutTabs()
     this.scrollActiveTabIntoView()
+    this.readerRequests.retainTabs(tabs.map((tab) => tab.id))
+    this.renderControls()
+  }
 
+  private renderControls(): void {
     const active = this.activeTab()
     if (active) {
       const addressUrl = displayBrowserUrl(active.url)
@@ -449,9 +464,14 @@ export class BrowserShell {
       this.reloadButton.setAttribute("aria-label", this.reloadButton.title)
       this.reloadButton.disabled = false
       const readerActive = sourceUrlFromReaderUrl(active.url) != null
+      const readerPending = this.readerRequests.isPending(active.id)
       this.readerButton.disabled = !readerActive && !isReadableUrl(active.url)
       this.readerButton.classList.toggle("active", readerActive)
-      this.readerButton.title = readerActive ? "Exit reader mode" : "Reader mode"
+      this.readerButton.classList.toggle("pending", readerPending)
+      this.readerButton.toggleAttribute("aria-busy", readerPending)
+      this.readerButton.title = readerPending
+        ? "Preparing reader mode…"
+        : readerActive ? "Exit reader mode" : "Reader mode"
       this.readerButton.setAttribute("aria-label", this.readerButton.title)
       this.closeButton.disabled = false
     } else {
@@ -461,7 +481,8 @@ export class BrowserShell {
       this.forwardButton.disabled = true
       this.reloadButton.disabled = true
       this.readerButton.disabled = true
-      this.readerButton.classList.remove("active")
+      this.readerButton.classList.remove("active", "pending")
+      this.readerButton.removeAttribute("aria-busy")
       this.closeButton.disabled = true
     }
     this.reportBounds()
@@ -591,10 +612,10 @@ export class BrowserShell {
     this.reportBounds()
   }
 
-  private showReaderError(sourceUrl: string, error: unknown): void {
+  private showReaderError(tabId: string, sourceUrl: string, error: unknown): void {
     this.setAddressError("")
     void this.bridge.tabs
-      .showReaderError(sourceUrl, readerErrorMessage(error))
+      .showReaderError(sourceUrl, readerErrorMessage(error), tabId)
       .catch((reportError) => {
         console.error("Failed to display the reader error page", reportError)
       })

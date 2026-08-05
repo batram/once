@@ -135,7 +135,11 @@ export interface OnceClient {
   ): Promise<Story | undefined>
   purgeStory(href: string): Promise<void>
   addFilter(filter: string): Promise<void>
-  fetchDocument(url: string): Promise<{ html: string; url: string }>
+  fetchDocument(url: string): Promise<{
+    html: string
+    url: string
+    mediaType: string
+  }>
   /** See ActiveTabPort.openUrl for what the targets mean. */
   openUrl(
     url: string,

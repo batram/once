@@ -41,7 +41,7 @@ export class ReaderView {
     }
     if (!ReaderView.client) throw new Error("ReaderView has not been mounted")
     const fetched = await ReaderView.client.fetchDocument(url)
-    const article = extractArticle(fetched.html, fetched.url)
+    const article = extractArticle(fetched.html, fetched.url, fetched.mediaType)
     const html = readerDocument(article, currentTheme())
     if (openDocument) {
       // Keep the requested story URL as reader identity even when fetching

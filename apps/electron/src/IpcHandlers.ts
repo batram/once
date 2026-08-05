@@ -151,16 +151,16 @@ function registerTabNavigation(coordinator: BrowserCoordinator): void {
   })
   ipcMain.handle(
     ELECTRON_IPC.tabsOpenReader,
-    (event, html: string, sourceUrl: string, target: string) => {
+    (event, html: string, sourceUrl: string, target: string, tabId?: string) => {
       const current = browser(event, coordinator)
-      return coordinator.openReader(current.window, html, sourceUrl, target)
+      return coordinator.openReader(current.window, html, sourceUrl, target, tabId)
     }
   )
   ipcMain.handle(
     ELECTRON_IPC.tabsShowReaderError,
-    (event, sourceUrl: string, error: string) => {
+    (event, sourceUrl: string, error: string, tabId?: string) => {
       const current = browser(event, coordinator)
-      return coordinator.showReaderError(current.window, sourceUrl, error)
+      return coordinator.showReaderError(current.window, sourceUrl, error, tabId)
     }
   )
   ipcMain.handle(ELECTRON_IPC.tabsNavigate, (event, id: string, url: string) => {

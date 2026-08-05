@@ -40,10 +40,21 @@ const bridge: ElectronBridge = {
     getAll: () => ipcRenderer.invoke(ELECTRON_IPC.tabsGetAll),
     openUrl: (url, target) =>
       ipcRenderer.invoke(ELECTRON_IPC.tabsOpenUrl, url, target),
-    openReader: (html, sourceUrl, target) =>
-      ipcRenderer.invoke(ELECTRON_IPC.tabsOpenReader, html, sourceUrl, target),
-    showReaderError: (sourceUrl, error) =>
-      ipcRenderer.invoke(ELECTRON_IPC.tabsShowReaderError, sourceUrl, error),
+    openReader: (html, sourceUrl, target, tabId) =>
+      ipcRenderer.invoke(
+        ELECTRON_IPC.tabsOpenReader,
+        html,
+        sourceUrl,
+        target,
+        tabId
+      ),
+    showReaderError: (sourceUrl, error, tabId) =>
+      ipcRenderer.invoke(
+        ELECTRON_IPC.tabsShowReaderError,
+        sourceUrl,
+        error,
+        tabId
+      ),
     create: (url, active) =>
       ipcRenderer.invoke(ELECTRON_IPC.tabsCreate, url, active),
     activate: (id) => ipcRenderer.invoke(ELECTRON_IPC.tabsActivate, id),
@@ -79,9 +90,12 @@ const bridge: ElectronBridge = {
       ipcRenderer.on(ELECTRON_IPC.tabsChanged, listener)
       return () => ipcRenderer.removeListener(ELECTRON_IPC.tabsChanged, listener)
     },
-    onRegenerateReader(handler: (sourceUrl: string) => void) {
-      const listener = (_event: Electron.IpcRendererEvent, sourceUrl: string) =>
-        handler(sourceUrl)
+    onRegenerateReader(handler: (sourceUrl: string, tabId: string) => void) {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        sourceUrl: string,
+        tabId: string
+      ) => handler(sourceUrl, tabId)
       ipcRenderer.on(ELECTRON_IPC.tabsRegenerateReader, listener)
       return () =>
         ipcRenderer.removeListener(ELECTRON_IPC.tabsRegenerateReader, listener)

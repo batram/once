@@ -290,6 +290,18 @@ body #titlebar-text {
   border-color: var(--text-high-color);
 }
 
+/* Fetching and extracting an article takes as long as loading the page does,
+   so the button says the work is under way. */
+#browser_reader.pending > .icon {
+  animation: browser-reader-pending 1.2s ease-in-out infinite;
+}
+
+@keyframes browser-reader-pending {
+  50% {
+    opacity: 0.25;
+  }
+}
+
 .browser-button:disabled {
   cursor: default;
   opacity: 0.4;

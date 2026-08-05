@@ -97,8 +97,17 @@ export interface ElectronBridge {
   tabs: {
     getAll(): Promise<ElectronTabState[]>
     openUrl(url: string, target: ElectronOpenTarget): Promise<void>
-    openReader(html: string, sourceUrl: string, target: ElectronOpenTarget): Promise<void>
-    showReaderError(sourceUrl: string, error: string): Promise<void>
+    /**
+     * `tabId` names the tab that asked for the document. Without it the active
+     * tab is used, which is only correct when nothing can have moved on since.
+     */
+    openReader(
+      html: string,
+      sourceUrl: string,
+      target: ElectronOpenTarget,
+      tabId?: string
+    ): Promise<void>
+    showReaderError(sourceUrl: string, error: string, tabId?: string): Promise<void>
     create(url?: string, active?: boolean): Promise<string>
     activate(id: string): Promise<void>
     close(id: string): Promise<void>
@@ -119,7 +128,9 @@ export interface ElectronBridge {
     restoreClosed(): Promise<string | null>
     focusContent(): Promise<void>
     onChanged(handler: (tabs: ElectronTabState[]) => void): () => void
-    onRegenerateReader(handler: (sourceUrl: string) => void): () => void
+    onRegenerateReader(
+      handler: (sourceUrl: string, tabId: string) => void
+    ): () => void
   }
   storyMenu: {
     show(

@@ -1,7 +1,17 @@
+/**
+ * Media types the reader can extract from. XHTML is included because sites that
+ * serve `application/xhtml+xml` (build2.org, for one) are ordinary articles;
+ * only the declared type differs.
+ */
+const READABLE_MEDIA_TYPES = new Set([
+  "text/html",
+  "application/xhtml+xml"
+])
+
 export async function fetchDocument(
   fetch: typeof globalThis.fetch,
   url: string
-): Promise<{ html: string; url: string }> {
+): Promise<{ html: string; url: string; mediaType: string }> {
   const parsed = new URL(url)
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new Error("Reader mode only supports HTTP and HTTPS pages")
@@ -19,10 +29,15 @@ export async function fetchDocument(
     )
   }
   const contentType = response.headers.get("content-type") || ""
-  if (!contentType.toLowerCase().includes("text/html")) {
+  const mediaType = contentType.split(";")[0].trim().toLowerCase()
+  if (!READABLE_MEDIA_TYPES.has(mediaType)) {
     throw new Error(
       `Reader mode cannot display ${contentType || "this content type"}`
     )
   }
-  return { html: await response.text(), url: response.url || parsed.toString() }
+  return {
+    html: await response.text(),
+    url: response.url || parsed.toString(),
+    mediaType
+  }
 }

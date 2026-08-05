@@ -8,11 +8,15 @@ export interface ReaderArticle {
   sourceUrl: string
 }
 
-export function extractArticle(html: string, sourceUrl: string): ReaderArticle {
-  const doc = new DOMParser().parseFromString(html, "text/html")
+export function extractArticle(
+  html: string,
+  sourceUrl: string,
+  mediaType = "text/html"
+): ReaderArticle {
+  const doc = parseDocument(html, mediaType)
   const base = doc.createElement("base")
   base.href = sourceUrl
-  doc.head.prepend(base)
+  head(doc).prepend(base)
 
   const parsed = new Readability(doc, {
     charThreshold: 140,
@@ -31,6 +35,34 @@ export function extractArticle(html: string, sourceUrl: string): ReaderArticle {
     content: content.body.innerHTML,
     sourceUrl
   }
+}
+
+/**
+ * Readability needs an HTML document: it builds its output with createElement,
+ * which in an XML document would produce namespace-less elements. XHTML is
+ * therefore parsed as XML — so `<div/>` and friends mean what the author wrote
+ * — and the resulting tree is imported into an HTML document. Elements keep the
+ * XHTML namespace either way, so the import yields real HTMLElements.
+ */
+function parseDocument(html: string, mediaType: string): Document {
+  if (mediaType === "application/xhtml+xml") {
+    const xml = new DOMParser().parseFromString(html, "application/xhtml+xml")
+    const root = xml.documentElement
+    if (root && !xml.querySelector("parsererror")) {
+      const doc = document.implementation.createHTMLDocument("")
+      doc.replaceChild(doc.importNode(root, true), doc.documentElement)
+      return doc
+    }
+    // Ill-formed XHTML still reads fine through the forgiving HTML parser.
+  }
+  return new DOMParser().parseFromString(html, "text/html")
+}
+
+function head(doc: Document): HTMLHeadElement {
+  if (doc.head) return doc.head
+  const created = doc.createElement("head")
+  doc.documentElement.prepend(created)
+  return created
 }
 
 function sanitize(doc: Document, baseUrl: string): void {

@@ -253,22 +253,28 @@ export class BrowserCoordinator {
     state: WindowEntry,
     html: string,
     sourceUrl: string,
-    target: ElectronOpenTarget
+    target: ElectronOpenTarget,
+    tabId?: string
   ): Promise<void> {
     if (typeof html !== "string" || html.length < 20 || html.length > 20_000_000) {
       throw new Error("Invalid reader document")
     }
     const readerUrl = storeReaderDocument(sourceUrl, html)
     const disposition = resolveOpenDisposition(target)
-    if (disposition === "current" && state.activeId) {
-      this.navigationErrors.load(this.ownership.requireOwned(state, state.activeId), readerUrl)
-      return
+    if (disposition === "current") {
+      const entry = this.readerTarget(state, tabId)
+      if (entry) this.navigationErrors.load(entry, readerUrl)
+      if (entry || tabId) return
     }
     await this.createTab(state, readerUrl, disposition !== "background")
   }
 
-  showReaderError(state: WindowEntry, sourceUrl: string, error: string): void {
-    if (!state.activeId) throw new Error("There is no active tab for the reader error")
+  showReaderError(
+    state: WindowEntry,
+    sourceUrl: string,
+    error: string,
+    tabId?: string
+  ): void {
     if (typeof error !== "string" || error.length === 0 || error.length > 10_000) {
       throw new Error("Invalid reader error")
     }
@@ -276,13 +282,29 @@ export class BrowserCoordinator {
     if (source.protocol !== "http:" && source.protocol !== "https:") {
       throw new Error("Reader source must use HTTP or HTTPS")
     }
-    const entry = this.ownership.requireOwned(state, state.activeId)
+    const entry = this.readerTarget(state, tabId)
+    if (!entry) {
+      if (tabId) return
+      throw new Error("There is no active tab for the reader error")
+    }
     this.navigationErrors.handleFailure(
       entry,
       `once-reader://${source.toString()}`,
       error,
       true
     )
+  }
+
+  // The tab a reader request belongs to. Fetching an article takes as long as
+  // loading the page does, so by the time one arrives its tab may be gone; the
+  // result is then dropped rather than pushed onto whatever is active now.
+  private readerTarget(state: WindowEntry, tabId?: string): TabEntry | null {
+    if (tabId) {
+      const entry = this.ownership.get(tabId)
+      return entry && this.ownership.ownerFor(entry) === state ? entry : null
+    }
+    if (!state.activeId) return null
+    return this.ownership.requireOwned(state, state.activeId)
   }
 
   activate(state: WindowEntry, id: string): void {
@@ -450,7 +472,8 @@ export class BrowserCoordinator {
       if (readerSource && !hasReaderDocument(readerSource)) {
         state.window.webContents.send(
           ELECTRON_IPC.tabsRegenerateReader,
-          readerSource
+          readerSource,
+          entry.id
         )
         return
       }

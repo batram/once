@@ -16,7 +16,7 @@ export class NavigationErrors {
     entry.errorPageUrl = null
     this.host.notify(entry)
     entry.view.webContents.loadURL(url).catch((error) => {
-      if (error?.code === "ERR_ABORTED" || entry.view.webContents.isDestroyed()) return
+      if (isAborted(error) || entry.view.webContents.isDestroyed()) return
       if (!sameUrl(entry.displayedUrl, url) || entry.loadError) return
       this.handleFailure(entry, url, error?.message || String(error), true)
     })
@@ -100,6 +100,17 @@ export class NavigationErrors {
       // A navigation away from the error page can race this theme update.
     })
   }
+}
+
+/**
+ * An aborted load is what every replaced navigation looks like — switching to
+ * reader mode while a page is still loading, most visibly. Electron names the
+ * rejection after the Chromium error description, which arrives empty for some
+ * aborts, so the numeric errno decides.
+ */
+function isAborted(error: unknown): boolean {
+  const failure = error as { code?: unknown; errno?: unknown } | null
+  return failure?.code === "ERR_ABORTED" || failure?.errno === -3
 }
 
 export function sameUrl(left: string, right: string): boolean {

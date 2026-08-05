@@ -5,6 +5,38 @@ const os = require("node:os")
 const path = require("node:path")
 const storyFixture = require("../shared/story-fixture")
 
+const ARTICLE_PARAGRAPH =
+  "The reader pipeline extracts long-form content from ordinary pages. " +
+  "This paragraph exists so the readability heuristics find enough article text to accept the page. " +
+  "It repeats a few times to comfortably clear the extraction thresholds used by the application."
+
+function articlePage(title) {
+  return `<!doctype html>
+        <title>${title}</title>
+        <article>
+          <h1>${title}</h1>
+          <p>${ARTICLE_PARAGRAPH}</p>
+          <p>${ARTICLE_PARAGRAPH}</p>
+          <p>${ARTICLE_PARAGRAPH}</p>
+        </article>`
+}
+
+function xhtmlArticlePage(title) {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head><title>${title}</title></head>
+  <body>
+    <article>
+      <h1>${title}</h1>
+      <p>${ARTICLE_PARAGRAPH}</p>
+      <p>${ARTICLE_PARAGRAPH}</p>
+      <p>${ARTICLE_PARAGRAPH}</p>
+      <hr/>
+    </article>
+  </body>
+</html>`
+}
+
 async function startPageServer(options = {}) {
   let origin = ""
   const server = http.createServer((request, response) => {
@@ -97,18 +129,25 @@ async function startPageServer(options = {}) {
       return
     }
     if (request.url === "/article") {
-      const paragraph = "The reader pipeline extracts long-form content from ordinary pages. " +
-        "This paragraph exists so the readability heuristics find enough article text to accept the page. " +
-        "It repeats a few times to comfortably clear the extraction thresholds used by the application."
       response.writeHead(200, { "content-type": "text/html; charset=utf-8" })
-      response.end(`<!doctype html>
-        <title>Regenerated Article</title>
-        <article>
-          <h1>Regenerated Article</h1>
-          <p>${paragraph}</p>
-          <p>${paragraph}</p>
-          <p>${paragraph}</p>
-        </article>`)
+      response.end(articlePage("Regenerated Article"))
+      return
+    }
+    // Served the way sites such as build2.org serve their posts: an XML media
+    // type the reader has to accept and parse as XML.
+    if (request.url === "/article.xhtml") {
+      response.writeHead(200, { "content-type": "application/xhtml+xml" })
+      response.end(xhtmlArticlePage("XHTML Article"))
+      return
+    }
+    // Arrives slowly enough that the tab is still loading when a test reaches
+    // for reader mode.
+    if (request.url === "/slow-article") {
+      setTimeout(() => {
+        if (response.writableEnded) return
+        response.writeHead(200, { "content-type": "text/html; charset=utf-8" })
+        response.end(articlePage("Slow Article"))
+      }, 1500)
       return
     }
     if (request.url === "/stories") {
