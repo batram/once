@@ -1,5 +1,5 @@
 import { SourceError } from "@once/app"
-import { Redirect } from "@once/core"
+import { Redirect, StorySourceDocument } from "@once/core"
 import { AnchoredMenuItem, openAnchoredMenu } from "../menu/storyAnchoredMenu"
 import {
   applyStructuredSearch,
@@ -12,7 +12,6 @@ import {
 } from "./structured/form"
 import { createRedirectTester } from "./structured/redirectTester"
 import { installDragAutoScroll } from "../gesture/dragReorder"
-import { revealElement } from "../scrollReveal"
 import { FlatSettingsEditors } from "./structured/FlatSettingsEditors"
 import { SourceSettingsEditor } from "./structured/SourceSettingsEditor"
 import { StructuredAddButtons } from "./structured/StructuredAddButtons"
@@ -30,7 +29,7 @@ export {
 type Section = StructuredSettingsSection
 
 export interface StructuredSettingsOptions {
-  saveSources(values: string[], reloadStories?: boolean): void | Promise<void>
+  saveSources(values: StorySourceDocument, reloadStories?: boolean): void | Promise<void>
   saveFilters(values: string[]): void
   saveRedirects(values: Redirect[]): void
   showSourceError(source: string): void
@@ -408,39 +407,18 @@ export class StructuredSettingsEditors {
     if (!root) return true
 
     if (section === "sources") {
-      let groupIndex = 0
-      let sourceIndex = 0
-      for (let lineIndex = 0; lineIndex <= targetLine; lineIndex++) {
-        const line = lines[lineIndex].trim()
-        if (!line) continue
-        if (line.startsWith("*")) {
-          if (lineIndex === targetLine) {
-            const group = root.querySelector<HTMLDetailsElement>(
-              `[data-group-index="${groupIndex + 1}"]`
-            )
-            if (group) {
-              group.open = true
-              const summary = group.querySelector<HTMLElement>("summary")
-              summary?.focus({ preventScroll: true })
-              if (summary) revealElement(summary, { block: "center" })
-              summary?.classList.add("structured_row_target")
-              window.setTimeout(
-                () => summary?.classList.remove("structured_row_target"),
-                1600
-              )
-            }
-            return true
+      try {
+        const value = JSON.parse(lines[targetLine].trim().replace(/,$/, ""))
+        if (typeof value?.id === "string" && value.id.startsWith("src_")) {
+          const groupIndex = this.sourceEditor.groups.findIndex((group) =>
+            group.sources.some((source) => source.id === value.id))
+          const sourceIndex = this.sourceEditor.groups[groupIndex]?.sources
+            .findIndex((source) => source.id === value.id)
+          if (groupIndex >= 0 && sourceIndex >= 0) {
+            this.sourceEditor.editSource(root, groupIndex, sourceIndex)
           }
-          groupIndex++
-          sourceIndex = 0
-          continue
         }
-        if (lineIndex === targetLine) {
-          this.sourceEditor.editSource(root, groupIndex, sourceIndex)
-          return true
-        }
-        sourceIndex++
-      }
+      } catch { /* envelope and group lines open no row editor */ }
       return true
     }
 
@@ -600,10 +578,13 @@ export class StructuredSettingsEditors {
     showStructuredForm({
       root,
       title: titleText,
-      fields,
+      fields: choices && fields.length
+        ? fields.map((field, index) => index === fields.length - 1
+          ? [field[0], field[1], { ...field[2], kind: "select" as const, choices }]
+          : field)
+        : fields,
       save,
       remove,
-      choices,
       host: presentation?.host,
       createTester: presentation?.redirectTester
         ? (inputs) => createRedirectTester(

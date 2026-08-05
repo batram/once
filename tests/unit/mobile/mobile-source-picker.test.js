@@ -68,7 +68,9 @@ test("runs the injected picker contract and sanitizes its result", async () => {
 
   const source = await context.picker.pick("")
 
-  assert.match(source, /https:\/\/example\.test\/news$/)
+  assert.equal(source.url, "https://example.test/news")
+  assert.equal(source.collector, "geny")
+  assert.deepEqual(source.select, conf)
   assert.deepEqual(context.activations, ["reading"])
   assert.deepEqual(surface.calls[0], ["visible", true])
   assert.equal(surface.calls[1][1], "picker injection")

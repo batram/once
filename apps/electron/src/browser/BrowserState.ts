@@ -26,7 +26,7 @@ export interface TabEntry {
   errorPageUrl: string | null
   errorPages: Map<string, ErrorPageState>
   htmlFullscreen: boolean
-  pickerSession: Promise<string | null> | null
+  pickerSession: Promise<import("@once/core").StorySource | null> | null
   /**
    * Refreshed on navigation so reopening a closed tab can restore its history.
    * It cannot be read at close time: the webContents is destroyed by then.

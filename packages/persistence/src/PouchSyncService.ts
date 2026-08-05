@@ -47,6 +47,7 @@ export interface PouchRemoteChange {
 export class PouchSyncService {
   private static readonly INITIAL_STORY_LIMIT = 50
   private static readonly SETTINGS_DOCUMENT_IDS = [
+    "sources",
     "story_sources",
     "filter_list",
     "redirect_list",
@@ -57,6 +58,8 @@ export class PouchSyncService {
   private syncHandler?: PouchEventChain
   private initialReplication?: PouchEventChain
   private generation = 0
+  private settingsReplicatedGeneration = 0
+  private settingsReplicatedHandlers = new Set<() => void>()
   private diagnosticHandlers = new Set<(error: {
     severity: "warning" | "error"
     operation: string
@@ -106,6 +109,14 @@ export class PouchSyncService {
     return () => this.remoteChangeHandlers.delete(handler)
   }
 
+  onSettingsReplicated(handler: () => void): () => void {
+    this.settingsReplicatedHandlers.add(handler)
+    if (this.settingsReplicatedGeneration === this.generation && this.generation > 0) {
+      queueMicrotask(handler)
+    }
+    return () => this.settingsReplicatedHandlers.delete(handler)
+  }
+
   private updateStatus(status: PouchSyncStatus): void {
     this.status = status
     this.statusHandlers.forEach((handler) => handler(status))
@@ -135,6 +146,7 @@ export class PouchSyncService {
     }
 
     const generation = ++this.generation
+    this.settingsReplicatedGeneration = 0
     this.initialReplication?.cancel?.()
     this.syncHandler?.cancel?.()
     this.initialReplication = undefined
@@ -252,6 +264,9 @@ export class PouchSyncService {
     await replicateStage("Syncing settings…", {
       doc_ids: PouchSyncService.SETTINGS_DOCUMENT_IDS
     })
+    if (this.generation !== generation) return changes
+    this.settingsReplicatedGeneration = generation
+    this.settingsReplicatedHandlers.forEach((handler) => handler())
 
     const loadedStoryIds = Array.from(new Set(getLoadedStoryIds?.() ?? []))
     if (loadedStoryIds.length > 0) {

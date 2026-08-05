@@ -11,8 +11,8 @@ import {
 } from "./selectorPolicy"
 import {
   buildPickerConf,
-  parseSourceLine,
-  serializeSourceLine
+  parsePickerConf,
+  serializePickerConf
 } from "./sourceLinePolicy"
 import { OVERLAY_STYLES } from "./overlayStyles"
 
@@ -426,7 +426,7 @@ class PickerOverlay {
   }
 
   private buildSourceLine(conf: GenySelectorConf): string {
-    return serializeSourceLine(conf, location.href)
+    return serializePickerConf(conf)
   }
 
   private renderSourceLine(): void {
@@ -461,7 +461,7 @@ class PickerOverlay {
   // Parses an edited source line back into the form fields. Returns a
   // warning when the configuration parses but the collector would reject it.
   private applySourceLine(raw: string): string {
-    const parsed = parseSourceLine(raw)
+    const parsed = parsePickerConf(raw)
     this.baseConf = parsed.state.baseConf
     this.components.clear()
     for (const [field, component] of parsed.state.components) {

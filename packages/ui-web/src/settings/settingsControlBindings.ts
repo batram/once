@@ -38,7 +38,12 @@ export function bindSourceTextarea(
   const render = () => {
     highlights.textContent = ""
     for (const line of textarea.value.split("\n")) {
-      const sourceError = sourceErrors().get(line.trim())
+      let sourceId = ""
+      try {
+        const value = JSON.parse(line.trim().replace(/,$/, ""))
+        if (typeof value?.id === "string") sourceId = value.id
+      } catch { /* structural lines are not source rows */ }
+      const sourceError = sourceErrors().get(sourceId)
       const lineContainer = document.createElement("div")
       lineContainer.classList.add("line-mirrored")
       if (sourceError) {
@@ -51,7 +56,7 @@ export function bindSourceTextarea(
           ? "Click for warning details"
           : "Click for error details"
         icon.classList.add("settings_highlight_icon")
-        icon.onclick = () => showSourceError(sourceError.url)
+        icon.onclick = () => showSourceError(sourceError.sourceId)
         lineContainer.append(icon)
         const mark = document.createElement("mark")
         mark.textContent = line || " "

@@ -2,10 +2,11 @@ import { readFileSync } from "node:fs"
 import path from "node:path"
 import { WebContents } from "electron"
 import { build_source, sanitize_selector_conf } from "@once/collectors/geny"
+import { StorySource } from "@once/core"
 import { TabEntry } from "./BrowserState"
 
 export class SourcePicker {
-  start(entry: TabEntry): Promise<string | null> {
+  start(entry: TabEntry): Promise<StorySource | null> {
     if (entry.pickerSession) return entry.pickerSession
     const url = entry.view.webContents.getURL()
     if (!url.startsWith("http://") && !url.startsWith("https://")) {
@@ -17,7 +18,7 @@ export class SourcePicker {
     return entry.pickerSession
   }
 
-  private async run(entry: TabEntry): Promise<string | null> {
+  private async run(entry: TabEntry): Promise<StorySource | null> {
     const contents = entry.view.webContents
     let cleanup = (): void => undefined
     const cancelled = new Promise<null>((resolve) => {

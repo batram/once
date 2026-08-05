@@ -466,7 +466,9 @@ test("publishes settings, database, reload, and history events", async () => {
   app.client.subscribe("sourceErrorsChanged", ({ errors }) => sourceErrors.push(errors))
   app.client.subscribe("historyCommand", ({ action }) => history.push(action))
   await app.start()
-  await app.client.saveStorySources(["https://invalid.example/unknown"])
+  await app.client.saveStorySources({ version: 2, groups: [], sources: [
+    { id: "src_00000001", url: "https://invalid.example/unknown" }
+  ] })
   fake.emitDatabaseChange({ id: "theme", doc: { list: "light" } })
   fake.emitDatabaseChange({ id: "swipe", doc: { list: { twoStage: false } } })
   fake.emitHistory("undo")

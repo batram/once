@@ -122,7 +122,7 @@ export interface ElectronBridge {
     detach(id: string, point?: ElectronPoint): Promise<void>
     toggleMuted(id: string): Promise<void>
     openDroppedUrls(urls: string[]): Promise<void>
-    startSourcePicker(url?: string): Promise<string | null>
+    startSourcePicker(url?: string): Promise<import("@once/core").StorySource | null>
     showMenu(id: string, point: ElectronPoint): Promise<void>
     setBounds(bounds: ElectronRect): Promise<void>
     restoreClosed(): Promise<string | null>

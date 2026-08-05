@@ -1,4 +1,3 @@
-import { LEGACY_SEPARATOR } from "@once/core"
 import {
   GenySelector,
   GenySelectorConf,
@@ -53,23 +52,15 @@ export function buildPickerConf(state: SourceLineState): GenySelectorConf {
   return JSON.parse(JSON.stringify(conf)) as GenySelectorConf
 }
 
-export function serializeSourceLine(conf: GenySelectorConf, url: string): string {
-  return `geny:${LEGACY_SEPARATOR}${JSON.stringify(conf)}` +
-    `${LEGACY_SEPARATOR}${url}`
+export function serializePickerConf(conf: GenySelectorConf): string {
+  return JSON.stringify(conf)
 }
 
-export function parseSourceLine(raw: string): {
+export function parsePickerConf(raw: string): {
   state: SourceLineState
   warning: string
 } {
-  const separator = LEGACY_SEPARATOR
-  const parts = raw.trim().split(separator)
-  if (!parts[0].startsWith("geny:") || parts.length < 3) {
-    throw new Error(
-      `expected geny:${separator}{"stories":…}${separator}https://example.com/…`
-    )
-  }
-  const parsed: unknown = JSON.parse(parts[1])
+  const parsed: unknown = JSON.parse(raw)
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
     throw new Error("the configuration must be a JSON object")
   }

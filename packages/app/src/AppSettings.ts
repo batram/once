@@ -2,7 +2,11 @@ import {
   defaultFilterList,
   defaultRedirectList,
   defaultSources,
+  convertLegacySourceLines,
+  legacySourceDigest,
   normalizeSyncUrl,
+  parseStorySources,
+  StorySourceDocument,
   Redirect
 } from "@once/core"
 import {
@@ -37,12 +41,15 @@ export interface AppSettingsActions {
   reloadStories(): Promise<void> | void
   refilterStories(): Promise<void> | void
   refreshRedirects(): Promise<void> | void
-  updateSourceMenu(sources: string[]): void
+  updateSourceMenu(sources: StorySourceDocument): void
   loadedStoryIds(): string[]
 }
 
 export class AppSettings {
   private readonly pendingWrites = new Map<string, string>()
+  private sourcesState: "pending" | "resolved" = "pending"
+  private sourcesDocument?: StorySourceDocument
+  private legacyDigest?: string
   animated: AnimationSetting = true
 
   constructor(
@@ -51,15 +58,29 @@ export class AppSettings {
     private readonly syncService: SyncServicePort | undefined,
     private readonly theme: ThemePort,
     private readonly actions: AppSettingsActions
-  ) {}
-
-  getStorySources(): Promise<string[]> {
-    return this.getList("story_sources", defaultSources)
+  ) {
+    this.syncService?.onSettingsReplicated?.(() => {
+      void this.resolveStorySources(true)
+    })
   }
 
-  async saveStorySources(sources: string[], reload = true): Promise<void> {
-    await this.setList("story_sources", sources)
-    this.actions.updateSourceMenu(sources)
+  async getStorySources(): Promise<StorySourceDocument> {
+    if (this.sourcesState === "resolved" && this.sourcesDocument) {
+      return structuredClone(this.sourcesDocument)
+    }
+    const legacy = await this.getList("story_sources", defaultSources)
+    return convertLegacySourceLines(legacy).doc
+  }
+
+  async saveStorySources(sources: StorySourceDocument, reload = true): Promise<void> {
+    const parsed = parseStorySources(sources)
+    if (!parsed.ok) {
+      throw new Error(parsed.reports.map((item) => `${item.path}: ${item.message}`).join("\n"))
+    }
+    await this.setList("sources", parsed.doc)
+    this.sourcesDocument = parsed.doc
+    this.sourcesState = "resolved"
+    this.actions.updateSourceMenu(parsed.doc)
     this.actions.publishChanged("sources")
     if (reload) await this.actions.reloadStories()
   }
@@ -122,6 +143,7 @@ export class AppSettings {
   }
 
   startSync(syncUrl: string): void {
+    if (!syncUrl.trim()) void this.resolveStorySources(false)
     this.syncService?.syncFrom(syncUrl, () => this.actions.loadedStoryIds())
   }
 
@@ -198,9 +220,11 @@ export class AppSettings {
       return
     }
     switch (change.id) {
+      case "sources":
+        void this.resolveStorySources(true)
+        break
       case "story_sources":
-        this.actions.publishChanged("sources")
-        void this.actions.reloadStories()
+        if (this.sourcesState === "resolved") void this.reportLegacyDivergence()
         break
       case "filter_list":
         this.actions.publishChanged("filters")
@@ -224,6 +248,56 @@ export class AppSettings {
         this.actions.publishChanged("swipe")
         break
     }
+  }
+
+  private async resolveStorySources(reload: boolean): Promise<void> {
+    const legacy = await this.getList("story_sources", defaultSources)
+    const stored = await this.getList<unknown>("sources", null)
+    let document: StorySourceDocument
+    if (stored !== null) {
+      const parsed = parseStorySources(stored)
+      if (!parsed.ok) {
+        this.actions.reportDiagnostic({
+          severity: "error",
+          operation: "settings.load.sources",
+          message: "The story source document is invalid; legacy sources remain active",
+          details: parsed.reports.map((item) => `${item.path}: ${item.message}`).join("\n")
+        })
+        return
+      }
+      document = parsed.doc
+    } else {
+      document = convertLegacySourceLines(legacy).doc
+      await this.setList("sources", document)
+    }
+    const previous = this.sourcesDocument
+    this.sourcesDocument = document
+    this.sourcesState = "resolved"
+    this.legacyDigest = legacySourceDigest(legacy)
+    if (document.migratedFrom && document.migratedFrom.digest !== this.legacyDigest) {
+      this.reportSplitBrain(document.migratedFrom.digest, this.legacyDigest)
+    }
+    if (!previous || JSON.stringify(previous) !== JSON.stringify(document)) {
+      this.actions.updateSourceMenu(document)
+      this.actions.publishChanged("sources")
+      if (reload) await this.actions.reloadStories()
+    }
+  }
+
+  private async reportLegacyDivergence(): Promise<void> {
+    const legacy = await this.getList("story_sources", defaultSources)
+    const digest = legacySourceDigest(legacy)
+    if (digest !== this.legacyDigest) this.reportSplitBrain(this.legacyDigest, digest)
+  }
+
+  private reportSplitBrain(expected: string | undefined, actual: string): void {
+    this.actions.reportDiagnostic({
+      severity: "warning",
+      operation: "settings.sources.legacy-diverged",
+      message: "Legacy story sources changed after the typed-source cutover",
+      details: `Expected legacy digest ${expected ?? "unknown"}; observed ${actual}. The sources document remains authoritative.`,
+      documentId: "story_sources"
+    })
   }
 
   private async setList<T>(id: string, value: T): Promise<void> {

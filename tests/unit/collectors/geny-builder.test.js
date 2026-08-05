@@ -4,11 +4,6 @@ const {
   build_source,
   sanitize_selector_conf
 } = require("../../../packages/collectors/dist/collectors/genyMatch")
-const {
-  readLegacySourceLine
-} = require("../../../packages/core/dist/settings/legacySourceLines")
-
-const separator = "§§"
 
 const validConf = {
   stories: { sel: "article.story", all: true },
@@ -50,20 +45,12 @@ test("rejects configurations with unknown or malformed fields", () => {
   )
 })
 
-test("builds a legacy line that core reads back to the same source", () => {
-  // The builder is the last writer of the legacy format and core is its only
-  // reader, so the pair has to agree; this is the test that says so.
+test("builds an object-native configured source", () => {
   const source = build_source(validConf, "https://example.com/news")
-  const parts = source.split(separator)
-  assert.equal(parts.length, 3)
-  assert.equal(parts[0], "geny:")
-  assert.deepEqual(JSON.parse(parts[1]), validConf)
-
-  assert.deepEqual(readLegacySourceLine(source), {
-    url: "https://example.com/news",
-    collector: "geny",
-    select: validConf
-  })
+  assert.match(source.id, /^src_/)
+  assert.equal(source.url, "https://example.com/news")
+  assert.equal(source.collector, "geny")
+  assert.deepEqual(source.select, validConf)
 })
 
 test("rejects source URLs that are not HTTP or HTTPS", () => {
@@ -71,10 +58,8 @@ test("rejects source URLs that are not HTTP or HTTPS", () => {
   assert.throws(() => build_source(validConf, "not a url"))
 })
 
-test("rejects configurations containing the source separator", () => {
-  const conf = {
-    ...validConf,
-    stories: { sel: `article${separator}.story` }
-  }
-  assert.throws(() => build_source(conf, "https://example.com/"), /separator/)
+test("configuration no longer reserves a legacy separator", () => {
+  const conf = { ...validConf, stories: { sel: "article§§.story", all: true } }
+  assert.equal(build_source(conf, "https://example.com/").select.stories.sel,
+    "article§§.story")
 })

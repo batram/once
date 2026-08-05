@@ -1,6 +1,6 @@
 # Typed story sources
 
-Status: in progress. Phases 1 and 2 complete; phases 3–5 pending.
+Status: in progress. Phases 1–4 complete; phase 5 pending.
 
 ## Context
 
@@ -231,7 +231,7 @@ collisions, reorder, URL edits, repeated normalization (idempotence), and unknow
   pre-load validation point. A runtime adapter still converts legacy lines into resolved sources in
   memory, so nothing depends on the storage cutover yet.
 
-### 3. Persistence cutover — the risky phase, isolated from behaviour changes
+### 3. Persistence cutover — complete
 
 - New list-store document id `sources` holding `StorySourceDocument`. **Both** `sources` and
   `story_sources` go into `PouchSyncService.SETTINGS_DOCUMENT_IDS:49-56`.
@@ -277,7 +277,7 @@ Tests: local-only, remote-only, both present, delayed remote arrival, conflictin
 malformed new document, old-client legacy edit, and identical initial ids from two independent
 migrations of the same input.
 
-### 4. Object-native app, editor and picker
+### 4. Object-native app, editor and picker — complete
 
 - Identity plumbing: `SourceError` (`app/types.ts:12-18`) gains `sourceId`; re-key
   `AppRuntime.processingSources:251` and `sourceErrors:301`, `SettingsPanel.setSourceErrors:623`,
@@ -347,6 +347,19 @@ is already documented; this gate removes only the transitional line-format guida
   inventing one. Reports name it, and the pre-cutover legacy copy still holds the original.
 
 ## Verification
+
+Phase 3–4 completion evidence (2026-08-05):
+
+- `npm run check` passed, including lint, type checking, dead-code and boundary checks, both
+  extension development bundles, Electron type checking, and the mobile development bundle.
+- `npm run test:unit` passed 368/368 tests. The migration state machine has focused coverage for
+  local-only, configured/pending, delayed remote arrival, both documents with a mismatched digest,
+  malformed `sources`, post-cutover legacy edits, and late-subscriber replay.
+- `npm run test:electron` passed 49/49 app and Electron integration tests, including disabled-source
+  fetch/menu exclusion and the settings replication signal.
+- The packaged Electron source-picker E2E passed 5/5 after `npm run package:electron`, covering the
+  full settings-button flow, click picking, editable config, cancellation, and non-HTTP rejection.
+- Phase 5 remains deliberately open: no real-profile migration or second-client sync gate was run.
 
 - `npm run test:unit` — legacy converter against real old lines (groups, empty groups, duplicate
   names, `geny:§§`, `json:§§`, plain, blanks, duplicate URLs) asserting deterministic, idempotent

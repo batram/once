@@ -276,24 +276,26 @@ function sourceRowHost(window, groups, saved, overrides = {}) {
 test("source row rendering keeps edit and error callbacks on the host", () => {
   withDom("<main></main>", (window) => {
     const root = window.document.querySelector("main")
-    const groups = [{ id: "default", name: "Default", sources: ["bad.test"] }]
+    const source = { id: "src_00000001", url: "bad.test" }
+    const groups = [{ id: "default", name: "Default", sources: [source] }]
     const calls = []
     const host = sourceRowHost(window, groups, calls, {
-      errors: new Map([["bad.test", {
+      errors: new Map([[source.id, {
+        sourceId: source.id,
         url: "bad.test",
         type: "error",
         title: "Unavailable",
         message: "The source is unavailable"
       }]])
     })
-    root.append(renderSourceRow(root, host, "bad.test", 0, 0, "source-1"))
+    root.append(renderSourceRow(root, host, source, 0, 0))
 
     root.querySelector("[data-testid='source-row']").click()
     root.querySelector("[data-testid='source-error']").click()
 
     assert.deepEqual(calls, [
       ["edit", 0, 0],
-      ["error", "bad.test"]
+      ["error", source.id]
     ])
     assert.equal(
       root.querySelector(".structured_row_secondary").textContent,
@@ -407,7 +409,8 @@ test("deleting a populated source group opens a modal overlay", async () => {
       dialog.querySelector("button").click()
       await deletion
       assert.deepEqual(editor.groups.map((group) => group.name), ["Default"])
-      assert.deepEqual(editor.groups[0].sources, ["https://example.test"])
+      assert.deepEqual(editor.groups[0].sources.map((source) => source.url),
+        ["https://example.test"])
       assert.equal(saved.length, 1)
     } finally {
       if (previousResizeObserver === undefined) {

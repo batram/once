@@ -39,7 +39,6 @@ export class SourceGroupView {
    */
   private generation = 0
   // Labels rendered rows as `data-row-key`; no caller reads it yet.
-  private rowSequence = 0
   /**
    * Expansion state by group id, not by index: group order changes under a
    * reorder, and `SourceSettingsEditor.read` carries ids across a reparse so a
@@ -88,7 +87,7 @@ export class SourceGroupView {
     )
     const failing = this.host.groups.reduce((total, group) =>
       total + group.sources.filter(
-        (source) => this.host.errors.has(source.trim())
+        (source) => this.host.errors.has(source.id)
       ).length, 0)
     const status = root.parentElement?.querySelector<HTMLElement>(
       ".structured_status_counts"
@@ -231,8 +230,7 @@ export class SourceGroupView {
         this.host,
         source,
         groupIndex,
-        sourceIndex,
-        `source-${++this.rowSequence}`
+        sourceIndex
       ))
     })
     if (!group.sources.length) {

@@ -15,7 +15,7 @@ const COPY_FEEDBACK_DELAY = 1500
 
 export interface LoaderInsightsActions {
   clearSourceErrors(): void
-  highlightSource(sourceUrl: string): void
+  highlightSource(sourceId: string): void
   showErrorLog(logId: string): void
   showStory(storyUrl: string): void
 }
@@ -223,7 +223,9 @@ export class LoaderInsights {
           this.recordError(
             error.title,
             `${error.details || error.message}\n\nStory source: ${error.url}`,
-            error.url
+            error.url,
+            undefined,
+            error.sourceId
           )
         )
       }
@@ -244,7 +246,7 @@ export class LoaderInsights {
   }
 
   private static issueId(error: SourceError): string {
-    return `source:${error.type}:${error.url}`
+    return `source:${error.type}:${error.sourceId}`
   }
 
   private static toggleIssues(type: IssueType): void {
@@ -276,6 +278,7 @@ export class LoaderInsights {
     const logId = this.recordError(message, details)
     const issue: UiIssue = {
       id: `generic:error:${++this.genericIssueId}`,
+      sourceId: "",
       url: "",
       title: message,
       message,
@@ -309,6 +312,7 @@ export class LoaderInsights {
     const id = `generic:${error.severity}:${++this.genericIssueId}`
     this.genericErrors.push({
       id,
+      sourceId: "",
       url: error.sourceUrl || error.storyUrl || "",
       title: error.message,
       message: error.message,
@@ -326,7 +330,7 @@ export class LoaderInsights {
   }
 
   static showError(error: SourceError): void {
-    const remaining = this.sourceErrors.filter((item) => item.url !== error.url)
+    const remaining = this.sourceErrors.filter((item) => item.sourceId !== error.sourceId)
     this.updateSourceErrors([...remaining, error])
   }
 
@@ -334,7 +338,8 @@ export class LoaderInsights {
     title: string,
     details: string,
     sourceUrl?: string,
-    storyUrl?: string
+    storyUrl?: string,
+    sourceId?: string
   ): string {
     const logId = `error-log-${++this.errorLogId}`
     const log = document.querySelector<HTMLElement>("#error_log")
@@ -378,7 +383,7 @@ export class LoaderInsights {
       showSource.classList.add("button", "error_log_show_source")
       showSource.textContent = "Show story source"
       showSource.addEventListener("click", () => {
-        this.actions?.highlightSource(sourceUrl)
+        if (sourceId) this.actions?.highlightSource(sourceId)
       })
       actions.append(showSource)
     }
@@ -603,7 +608,7 @@ export class LoaderInsights {
         })
       } else if (issue.sourceIssue) {
         content.addEventListener("click", () => {
-          this.actions?.highlightSource(issue.url)
+          this.actions?.highlightSource(issue.sourceId)
         })
       }
 

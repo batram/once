@@ -174,7 +174,9 @@ test("loads a saved source once when PouchDB echoes the local setting change", a
   const app = createOnceApp(fake.ports)
 
   await app.start()
-  await app.client.saveStorySources([sourceUrl])
+  await app.client.saveStorySources({ version: 2, groups: [], sources: [
+    { id: "src_00000001", url: sourceUrl }
+  ] })
 
   assert.equal(requests, 1)
 })
@@ -227,12 +229,9 @@ test("serializes duplicate story writes while preserving substories", async () =
 test("publishes configurable parser failures as source errors", async (t) => {
   t.mock.method(console, "error", () => {})
 
-  const {
-    LEGACY_SEPARATOR: separator
-  } = require("../../../packages/core/dist/settings/legacySourceLines")
-  const sourceUrl = `geny:${separator}{bad${separator}https://example.com/`
+  const sourceUrl = "https://example.com/"
   const fake = createFakePlatform([], {
-    storySources: [sourceUrl],
+    storySources: [],
     fetch: async () => new Response("<main></main>", { status: 200 })
   })
   const app = createOnceApp(fake.ports)
@@ -242,13 +241,16 @@ test("publishes configurable parser failures as source errors", async (t) => {
   })
 
   await app.start()
+  await app.client.saveStorySources({ version: 2, groups: [], sources: [{
+    id: "src_00000001", url: sourceUrl, collector: "geny", select: { bad: true }
+  }] }, false)
   await app.client.reloadStories(false)
 
   // Caught while resolving the source now, so no request is made at all — this
   // used to be fetched first and then fail in the DOM parser.
   const error = sourceErrors.at(-1)[0]
   assert.equal(error.title, "Config Error")
-  assert.match(error.message, /unreadable selector configuration/)
+  assert.match(error.message, /known field|missing stories/)
 })
 
 test("publishes story persistence failures as source errors", async (t) => {
@@ -281,4 +283,25 @@ test("publishes story persistence failures as source errors", async (t) => {
   assert.ok(diagnostic)
   assert.equal(diagnostic.storyUrl, "https://example.com/reddit")
   assert.match(diagnostic.details, /disk full/)
+})
+
+test("disabled sources are neither loaded nor exposed through the menu", async () => {
+  let requests = 0
+  const fake = createFakePlatform([], { fetch: async () => {
+    requests += 1
+    return new Response("", { status: 200 })
+  } })
+  const app = createOnceApp(fake.ports)
+  const menus = []
+  app.client.subscribe("menuChanged", (menu) => menus.push(menu))
+  await app.start()
+  await app.client.saveStorySources({
+    version: 2,
+    groups: [{ id: "grp_00000001", name: "Disabled" }],
+    sources: [{ id: "src_00000001", url: "https://news.ycombinator.com/",
+      groupId: "grp_00000001", enabled: false }]
+  })
+  assert.equal(requests, 0)
+  assert.equal(menus.at(-1).groups.includes("Disabled"), false)
+  assert.equal(menus.at(-1).types.includes("HN"), false)
 })

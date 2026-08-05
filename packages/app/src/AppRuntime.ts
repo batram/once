@@ -1,7 +1,8 @@
 import {
   applyStoryFilter,
   applyStoryFilters,
-  groupStorySources,
+  enabledStorySources,
+  groupedStorySources,
   Story,
   URLRedirect
 } from "@once/core"
@@ -240,26 +241,26 @@ export class AppRuntime {
     this.sourceErrors.clear()
     this.emitSourceErrors()
     const storySources = await this.settings.getStorySources()
-    const groupedSources = groupStorySources(storySources)
+    const groupedSources = groupedStorySources(storySources)
     this.updateSourceMenu(storySources)
     const processingSources = new Map<string, ProcessingSource>()
     const promises: Promise<void>[] = []
 
-    for (const groupName in groupedSources) {
-      for (const sourceUrl of groupedSources[groupName]) {
-        const sourceInfo = this.sourceLoader.describe(sourceUrl)
-        processingSources.set(sourceUrl, sourceInfo)
+    for (const group of groupedSources) {
+      for (const source of group.sources.filter((item) => item.enabled !== false)) {
+        const sourceInfo = this.sourceLoader.describe(source)
+        processingSources.set(source.id, sourceInfo)
         this.emitLoader(processingSources)
         promises.push(
-          this.sourceLoader.load(sourceUrl, tryCache)
+          this.sourceLoader.load(source, tryCache)
             .then(async (stories) => {
-              await this.processStoryInput(stories, groupName)
+              await this.processStoryInput(stories, group.name)
             })
             .catch((error) => {
-              this.sourceLoader.reportLoadFailure(sourceUrl, error)
+              this.sourceLoader.reportLoadFailure(source, error)
             })
             .finally(() => {
-              processingSources.delete(sourceUrl)
+              processingSources.delete(source.id)
               this.emitLoader(processingSources)
             })
         )
@@ -298,7 +299,7 @@ export class AppRuntime {
   }
 
   private setSourceError(error: SourceError): void {
-    this.sourceErrors.set(error.url, error)
+    this.sourceErrors.set(error.sourceId, error)
     this.emitSourceErrors()
   }
 
@@ -322,17 +323,20 @@ export class AppRuntime {
     })
   }
 
-  private updateSourceMenu(storySources: string[]): void {
-    const groupedSources = groupStorySources(storySources)
+  private updateSourceMenu(storySources: import("@once/core").StorySourceDocument): void {
+    const groupedSources = groupedStorySources(storySources)
     this.menuGroups.clear()
     this.menuTypes.clear()
     for (const type of ["ALL", "filtered", "stared", "new"]) {
       this.menuTypes.add(type)
     }
-    for (const groupName of Object.keys(groupedSources)) {
-      this.menuGroups.add(groupName)
-      for (const sourceUrl of groupedSources[groupName]) {
-        const sourceInfo = this.sourceLoader.describe(sourceUrl)
+    const enabled = new Set(enabledStorySources(storySources).map((source) => source.id))
+    for (const group of groupedSources) {
+      const sources = group.sources.filter((source) => enabled.has(source.id))
+      if (!sources.length) continue
+      this.menuGroups.add(group.name)
+      for (const source of sources) {
+        const sourceInfo = this.sourceLoader.describe(source)
         if (sourceInfo.parserType !== "Unknown") {
           this.menuTypes.add(sourceInfo.parserType)
         }

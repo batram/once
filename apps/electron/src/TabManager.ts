@@ -419,7 +419,7 @@ export class BrowserCoordinator {
   async startSourcePicker(
     state: WindowEntry,
     requestedUrl?: string
-  ): Promise<string | null> {
+  ): Promise<import("@once/core").StorySource | null> {
     if (requestedUrl) {
       const normalized = this.normalizeTabUrl(requestedUrl)
       const id = await this.createTab(state, normalized, true)

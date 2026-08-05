@@ -139,10 +139,10 @@ test("status issues stack, dismiss, restore, and reset per reload", async (t) =>
     subscriptions.get("loaderChanged")({ processing: [] })
 
     const errors = [
-      { url: "warning:one", title: "Warning one", message: "one", type: "warning" },
-      { url: "warning:two", title: "Warning two", message: "two", type: "warning" },
-      { url: "error:one", title: "Error one", message: "one", type: "error" },
-      { url: "error:two", title: "Error two", message: "two", type: "error" }
+      { sourceId: "src_warning1", url: "warning:one", title: "Warning one", message: "one", type: "warning" },
+      { sourceId: "src_warning2", url: "warning:two", title: "Warning two", message: "two", type: "warning" },
+      { sourceId: "src_error001", url: "error:one", title: "Error one", message: "one", type: "error" },
+      { sourceId: "src_error002", url: "error:two", title: "Error two", message: "two", type: "error" }
     ]
     subscriptions.get("sourceErrorsChanged")({ errors })
     assert.ok(!document.querySelector("#status_dock").hidden)
@@ -193,7 +193,7 @@ test("status issues stack, dismiss, restore, and reset per reload", async (t) =>
     t.mock.timers.tick(1500)
     assert.equal(document.querySelector(".error_log_copy").textContent, "Copy error text")
     document.querySelector(".error_log_show_source").click()
-    assert.deepEqual(actionCalls.shift(), ["highlightSource", "warning:one"])
+    assert.deepEqual(actionCalls.shift(), ["highlightSource", "src_warning1"])
     document.querySelector(".status_issue_content").click()
     assert.match(actionCalls.shift()[0], /showErrorLog/)
 

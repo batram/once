@@ -1,4 +1,4 @@
-import { Story } from "@once/core"
+import { Story, StorySource } from "@once/core"
 import * as StoryParser from "@once/collectors"
 import { CacheStorePort, ProcessingSource, SourceError } from "./types"
 
@@ -11,17 +11,18 @@ export class SourceLoader {
   ) {}
 
   async load(
-    sourceUrl: string,
+    source: StorySource,
     tryCache = true
   ): Promise<Story[] | undefined> {
     // Resolved before anything else, because the URL to fetch is also the cache
     // key. Reading the cache under the source line while writing it under the
     // resolved URL is why a configurable source never once hit its cache.
-    const resolved = StoryParser.resolveLegacySourceLine(sourceUrl)
+    const resolved = StoryParser.resolveStorySource(source)
     if (!StoryParser.isResolved(resolved)) {
       const noHandler = resolved.kind === "no-handler"
       this.reportError({
-        url: sourceUrl,
+        sourceId: source.id,
+        url: source.url,
         title: noHandler ? "No Handler" : "Config Error",
         message: noHandler
           ? `${resolved.problem}. You may need to add a custom parser.`
@@ -61,9 +62,9 @@ export class SourceLoader {
     }) || []
   }
 
-  describe(sourceUrl: string): ProcessingSource {
-    const resolved = StoryParser.resolveLegacySourceLine(sourceUrl)
-    const url = StoryParser.isResolved(resolved) ? resolved.url : sourceUrl
+  describe(source: StorySource): ProcessingSource {
+    const resolved = StoryParser.resolveStorySource(source)
+    const url = StoryParser.isResolved(resolved) ? resolved.url : source.url
     let domain = "source"
     try {
       domain = new URL(url).hostname.replace("www.", "")
@@ -78,7 +79,7 @@ export class SourceLoader {
     }
   }
 
-  reportLoadFailure(sourceUrl: string, error: unknown): void {
+  reportLoadFailure(source: StorySource, error: unknown): void {
     console.error(error)
     const detail = error instanceof Error ? error.message : String(error)
     let title = "Failed"
@@ -102,7 +103,8 @@ export class SourceLoader {
       title = "HTTP Error"
     }
     this.reportError({
-      url: sourceUrl,
+      sourceId: source.id,
+      url: source.url,
       title,
       message,
       type: "error",

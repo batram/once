@@ -1,5 +1,6 @@
 import { OnceClient, SourceError } from "@once/app"
-import { parseRedirectList, presentRedirectList } from "@once/core"
+import { parseRedirectList, parseStorySourceText, presentRedirectList,
+  serializeStorySourceDocument } from "@once/core"
 import { requireClosestElement, requireElement } from "../dom"
 import { revealElement } from "../scrollReveal"
 import * as panelNavigation from "../shell/panelNavigation"
@@ -482,7 +483,9 @@ export class SettingsPanel {
     })
   }
 
-  showSourceErrorLog(sourceUrl: string): void {
+  showSourceErrorLog(sourceId: string): void {
+    const sourceUrl = this.sourceErrors.get(sourceId)?.url
+    if (!sourceUrl) return
     panelNavigation.open_panel("settings")
     this.openSettingsSection("errors")
     requestAnimationFrame(() => {
@@ -567,7 +570,7 @@ export class SettingsPanel {
     const sources_area =
       requireElement<HTMLTextAreaElement>("#sources_area")
     const story_sources = await this.client.getStorySources()
-    sources_area.value = story_sources.join("\n")
+    sources_area.value = serializeStorySourceDocument(story_sources)
     // Trigger input event to update highlights
     sources_area.dispatchEvent(new Event("input"))
     this.structuredEditors?.sync("sources")
@@ -577,13 +580,16 @@ export class SettingsPanel {
   async save_sources_settings(): Promise<void> {
     const sources_area =
       requireElement<HTMLTextAreaElement>("#sources_area")
-    const story_sources = sources_area.value.split("\n").filter((x) => {
-      return x.trim() != ""
-    })
+    const existing = await this.client.getStorySources()
+    const parsed = parseStorySourceText(sources_area.value, existing)
+    if (!parsed.ok || !parsed.doc) {
+      throw new Error(parsed.reports.map((item) => `${item.path}: ${item.message}`).join("\n"))
+    }
+    sources_area.value = serializeStorySourceDocument(parsed.doc)
 
     await this.sourcesSaveChain
     this.sourcesReloadPending = false
-    await this.client.saveStorySources(story_sources)
+    await this.client.saveStorySources(parsed.doc)
   }
 
   async set_filter_area(): Promise<void> {
@@ -624,7 +630,7 @@ export class SettingsPanel {
 
   private setSourceErrors(errors: SourceError[]): void {
     this.sourceErrors = new Map(
-      errors.map((error) => [error.url.trim(), error])
+      errors.map((error) => [error.sourceId, error])
     )
     this.updateSourcesDisplay()
     this.structuredEditors?.setErrors(errors)
@@ -653,20 +659,13 @@ export class SettingsPanel {
     )
   }
 
-  public highlightSource(sourceUrl: string): void {
+  public highlightSource(sourceId: string): void {
     this.openSettingsSection("sources")
     // openSettingsSection queues its default section focus for the next frame.
     // Reveal the requested source afterwards so that default focus cannot
     // immediately steal focus back from the highlighted row.
     requestAnimationFrame(() => {
-      if (this.structuredEditors?.focusSource(sourceUrl)) return
-      highlightTextareaContent(
-        "sources_area",
-        sourceUrl,
-        true,
-        true,
-        () => panelNavigation.open_panel("settings")
-      )
+      if (this.structuredEditors?.focusSource(sourceId)) return
     })
   }
 

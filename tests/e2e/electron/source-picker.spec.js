@@ -72,17 +72,17 @@ test("builds a geny source from picked selectors and saves it", async () => {
         .shadowRoot.querySelector("#actions .save").click()
     `)
 
-    // The sanitized source line lands in the story sources settings.
+    // The sanitized source object lands in the story sources document.
     await expect.poll(() =>
       window.evaluate(() => document.querySelector("#sources_area").value)
-    ).toContain("geny:§§")
+    ).toContain('"collector":"geny"')
     const sources = await window.evaluate(
       () => document.querySelector("#sources_area").value
     )
-    const line = sources.split("\n").find((entry) => entry.startsWith("geny:"))
-    const [, confJson, url] = line.split("§§")
-    expect(url).toBe(`${origin}/stories`)
-    expect(JSON.parse(confJson)).toEqual({
+    const source = JSON.parse(sources).sources.find((entry) =>
+      entry.collector === "geny")
+    expect(source.url).toBe(`${origin}/stories`)
+    expect(source.select).toEqual({
       stories: { sel: "li.story", all: true },
       link: { sel: "a.title", component: "href" },
       title: { sel: "a.title", component: "innerText", processors: ["trim"] },
@@ -145,9 +145,10 @@ test("picks stories, link, and title by clicking page elements", async () => {
       document.querySelector("once-source-picker")
         .shadowRoot.querySelector("#actions .save").click()
     `)
-    const line = await window.evaluate(() => window.__oncePickResult)
-    expect(line).toContain("geny:§§")
-    expect(JSON.parse(line.split("§§")[1])).toEqual({
+    const source = await window.evaluate(() => window.__oncePickResult)
+    expect(source.collector).toBe("geny")
+    expect(source.url).toBe(`${origin}/stories`)
+    expect(source.select).toEqual({
       stories: { sel: "li.story", all: true },
       link: { sel: "a.title", component: "href" },
       title: { sel: "a.title", component: "innerText", processors: ["trim"] }
@@ -186,9 +187,8 @@ test("cross updates the selector fields and the editable source line", async () 
       })()
     `)
     expect(lineFromFields).toContain('"stories":{"all":true,"sel":"li.story"}')
-    expect(lineFromFields.endsWith(`§§${origin}/stories`)).toBe(true)
 
-    // A pasted source line feeds the fields, the preview, and keeps extras
+    // Pasted config feeds the fields, the preview, and keeps extras
     // (comment_href has no form field) through the save round trip.
     const pastedConf = {
       stories: { sel: "ul.stories > li", all: true },
@@ -202,9 +202,7 @@ test("cross updates the selector fields and the editable source line", async () 
         const shadow = document.querySelector("once-source-picker").shadowRoot
         const textarea = shadow.querySelector("#source textarea")
         textarea.focus()
-        textarea.value = ${JSON.stringify(
-          `geny:§§${JSON.stringify(pastedConf)}§§https://example.com/ignored`
-        )}
+        textarea.value = ${JSON.stringify(JSON.stringify(pastedConf))}
         textarea.dispatchEvent(new Event("input"))
         await new Promise((resolve) => setTimeout(resolve, 700))
         return {
@@ -227,10 +225,9 @@ test("cross updates the selector fields and the editable source line", async () 
       document.querySelector("once-source-picker")
         .shadowRoot.querySelector("#actions .save").click()
     `)
-    const line = await window.evaluate(() => window.__oncePickResult)
-    expect(JSON.parse(line.split("§§")[1])).toEqual(pastedConf)
-    // The settings entry always uses the tab's real URL, not the edited one.
-    expect(line.endsWith(`§§${origin}/stories`)).toBe(true)
+    const source = await window.evaluate(() => window.__oncePickResult)
+    expect(source.select).toEqual(pastedConf)
+    expect(source.url).toBe(`${origin}/stories`)
   } finally {
     await closeApp(electronApp, userData)
   }

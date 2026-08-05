@@ -94,7 +94,13 @@ export type FormField = HTMLInputElement | HTMLSelectElement | HTMLTextAreaEleme
 export type StructuredFormField = [
   string,
   string,
-  { multiline?: boolean; hint?: string }?
+  {
+    kind?: "text" | "multiline" | "number" | "select" | "checkbox"
+    hint?: string
+    choices?: Array<[string, string]>
+    optional?: boolean
+    multiline?: boolean
+  }?
 ]
 
 export interface StructuredFormOptions {
@@ -105,7 +111,6 @@ export interface StructuredFormOptions {
   dismiss(): void
   onTouch: boolean
   remove?: { label: string; action: () => void }
-  choices?: Array<[string, string]>
   host?: HTMLElement
   createTester?(inputs: FormField[]): {
     element: HTMLElement
@@ -121,25 +126,29 @@ function createFormInput(
   field: StructuredFormField,
   index: number
 ): FormField {
-  const choices = options.choices && index === options.fields.length - 1
+  const kind = field[2]?.kind ?? (field[2]?.multiline ? "multiline" : "text")
   let input: FormField
-  if (choices) {
+  if (kind === "select") {
     input = document.createElement("select")
-    options.choices?.forEach(([value, label]) => {
+    field[2]?.choices?.forEach(([value, label]) => {
       const option = document.createElement("option")
       option.value = value
       option.textContent = label
       input.append(option)
     })
-  } else if (field[2]?.multiline) {
+  } else if (kind === "multiline") {
     input = document.createElement("textarea")
     input.rows = options.onTouch && index === 0 ? 3 : 2
   } else {
     input = document.createElement("input")
-    input.type = "text"
+    input.type = kind === "checkbox" ? "checkbox" : kind
   }
-  input.value = field[1]
-  input.required = true
+  if (input instanceof HTMLInputElement && input.type === "checkbox") {
+    input.checked = field[1] !== "false"
+    input.value = input.checked ? "true" : "false"
+    input.addEventListener("change", () => { input.value = input.checked ? "true" : "false" })
+  } else input.value = field[1]
+  input.required = !field[2]?.optional && kind !== "checkbox"
   return input
 }
 

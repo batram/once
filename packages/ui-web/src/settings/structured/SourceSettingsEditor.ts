@@ -1,37 +1,31 @@
 import { SourceError } from "@once/app"
+import { get_active } from "@once/collectors"
+import { DEFAULT_GROUP_ID, emptyStorySourceDocument, mintStorySourceGroupId,
+  mintStorySourceId, parseStorySourceText, serializeStorySourceDocument,
+  StorySourceDocument } from "@once/core"
 import { showChoiceDialog, showConfirmDialog } from "../../confirmDialog"
 import { AnchoredMenuItem } from "../../menu/storyAnchoredMenu"
-import { StructuredFormField } from "./form"
 import { revealElement } from "../../scrollReveal"
+import { StructuredFormField } from "./form"
 import { SourceGroupView } from "./SourceGroupView"
-import {
-  parseSourceGroups,
-  SourceGroup,
-  serializeSourceGroups
-} from "./sourceGroups"
+import { documentFromGroups, groupsFromDocument, SourceGroup } from "./sourceGroups"
 
 export interface SourceSettingsHost {
-  onTouch(): boolean
-  getText(): string
-  setText(text: string): void
-  render(): void
-  root(): HTMLElement | undefined
-  saveSources(values: string[], reloadStories?: boolean): void | Promise<void>
-  showSourceError(source: string): void
+  onTouch(): boolean; getText(): string; setText(text: string): void
+  render(): void; root(): HTMLElement | undefined
+  saveSources(value: StorySourceDocument, reloadStories?: boolean): void | Promise<void>
+  showSourceError(sourceId: string): void
   openMenu(anchor: HTMLElement, items: AnchoredMenuItem[]): void
   listActions(): HTMLElement | null
-  showForm(
-    root: HTMLElement,
-    title: string,
-    fields: StructuredFormField[],
+  showForm(root: HTMLElement, title: string, fields: StructuredFormField[],
     save: (values: string[]) => boolean,
     remove?: { label: string; action: () => void },
-    choices?: Array<[string, string]>
-  ): void
+    choices?: Array<[string, string]>): void
 }
 
 export class SourceSettingsEditor {
   readonly groups: SourceGroup[] = []
+  private document = emptyStorySourceDocument()
   private errors = new Map<string, SourceError>()
   private saveState: "saved" | "saving" | "failed" = "saved"
   private revealSource: string | null = null
@@ -39,208 +33,123 @@ export class SourceSettingsEditor {
   private view: SourceGroupView
 
   constructor(private host: SourceSettingsHost) {
-    this.view = new SourceGroupView({
-      groups: this.groups,
-      errors: this.errors,
+    this.view = new SourceGroupView({ groups: this.groups, errors: this.errors,
       onTouch: () => this.host.onTouch(),
       edit: (root, group, source) => this.editSource(root, group, source),
       editGroup: (root, group) => this.editGroup(root, group),
       deleteGroup: (root, group) => this.deleteGroup(root, group),
       save: (reload) => this.save(reload),
-      showError: (source) => this.host.showSourceError(source),
+      showError: (id) => this.host.showSourceError(id),
       openMenu: (anchor, items) => this.host.openMenu(anchor, items),
-      listActions: () => this.host.listActions()
-    })
+      listActions: () => this.host.listActions() })
   }
 
   read(text = this.host.getText()): void {
-    const previous = [...this.groups]
-    const parsed = parseSourceGroups(text.split("\n"))
-    const used = new Set<number>()
-    parsed.slice(1).forEach((group) => {
-      let match = previous.findIndex((candidate, index) =>
-        index > 0 && !used.has(index) &&
-        candidate.name === group.name &&
-        candidate.sources.length === group.sources.length &&
-        candidate.sources.every((source, sourceIndex) =>
-          source === group.sources[sourceIndex])
-      )
-      if (match < 0) {
-        match = previous.findIndex((candidate, index) =>
-          index > 0 && !used.has(index) && candidate.name === group.name)
-      }
-      if (match > 0) {
-        group.id = previous[match].id
-        used.add(match)
-      }
-    })
-    this.groups.splice(0, this.groups.length, ...parsed)
+    const parsed = parseStorySourceText(text, this.document)
+    if (parsed.ok && parsed.doc) this.setDocument(parsed.doc)
   }
-
-  render(root: HTMLElement): void {
-    this.view.render(root)
-    this.renderSaveState(root)
+  setDocument(document: StorySourceDocument): void {
+    this.document = structuredClone(document)
+    this.groups.splice(0, this.groups.length, ...groupsFromDocument(this.document))
   }
-
+  render(root: HTMLElement): void { this.view.render(root); this.renderSaveState(root) }
   setErrors(errors: SourceError[]): void {
-    this.errors.clear()
-    errors.forEach((error) => this.errors.set(error.url.trim(), error))
+    this.errors.clear(); errors.forEach((error) => this.errors.set(error.sourceId, error))
   }
-
-  contains(source: string): boolean {
-    return this.groups.some((group) =>
-      group.sources.some((entry) => entry.trim() === source.trim()))
-  }
-
-  reveal(source: string): void {
-    const value = source.trim()
-    const group = this.groups.find((entry) =>
-      entry.sources.some((item) => item.trim() === value))
-    if (!group) return
-    this.revealSource = value
-    this.view.expand(group.id)
-    this.applyReveal()
-  }
-
-  applyReveal(): void {
-    const source = this.revealSource
+  contains(id: string): boolean { return this.document.sources.some((source) => source.id === id) }
+  reveal(id: string): void {
+    const source = this.document.sources.find((item) => item.id === id)
     if (!source) return
+    this.revealSource = id; this.view.expand(source.groupId ?? DEFAULT_GROUP_ID); this.applyReveal()
+  }
+  applyReveal(): void {
+    const id = this.revealSource; if (!id) return
     if (this.revealTimer !== null) window.clearTimeout(this.revealTimer)
     requestAnimationFrame(() => {
-      if (this.revealSource !== source) return
-      const root = this.host.root()
-      const target = Array.from(root?.querySelectorAll<HTMLButtonElement>(
-        "[data-source-value]"
-      ) || []).find((button) => button.dataset.sourceValue === source)
+      const target = this.host.root()?.querySelector<HTMLButtonElement>(`[data-source-id="${CSS.escape(id)}"]`)
       const details = target?.closest<HTMLDetailsElement>(".structured_group")
-      if (!target || !details) return
-      details.open = true
-      target.focus({ preventScroll: true })
-      revealElement(target, { block: "center" })
-      target.classList.add("structured_row_target")
+      if (!target || !details || this.revealSource !== id) return
+      details.open = true; target.focus({ preventScroll: true })
+      revealElement(target, { block: "center" }); target.classList.add("structured_row_target")
       this.revealTimer = window.setTimeout(() => {
-        if (this.revealSource !== source) return
-        this.revealSource = null
-        this.revealTimer = null
+        this.revealSource = null; this.revealTimer = null
         target.classList.remove("structured_row_target")
       }, 1600)
     })
   }
 
-  editSource(
-    root: HTMLElement,
-    groupIndex = 0,
-    sourceIndex?: number
-  ): void {
-    const current = sourceIndex === undefined
-      ? "" : this.groups[groupIndex].sources[sourceIndex]
+  editSource(root: HTMLElement, groupIndex = 0, sourceIndex?: number): void {
+    const current = sourceIndex === undefined ? undefined : this.groups[groupIndex].sources[sourceIndex]
+    const collectors: Array<[string, string]> = [["", "Auto-detect"],
+      ...get_active().map((parser) => [parser.options.id, parser.options.description] as [string, string])]
+    const groups = this.groups.map((group) => [group.id, group.name] as [string, string])
     this.host.showForm(root, "Source", [
-      ["Source", current],
-      ["Group", String(groupIndex)]
+      ["URL", current?.url ?? ""],
+      ["Label", current?.label ?? "", { optional: true }],
+      ["Collector", current?.collector ?? "", { kind: "select", choices: collectors, optional: true }],
+      ["Enabled", String(current?.enabled !== false), { kind: "checkbox", optional: true }],
+      ["Group", this.groups[groupIndex]?.id ?? DEFAULT_GROUP_ID, { kind: "select", choices: groups }]
     ], (values) => {
-      const value = values[0].trim()
-      const target = Number(values[1])
-      if (!value || !this.groups[target]) return false
-      if (sourceIndex !== undefined) {
+      const [url, label, collector, enabled, groupId] = values
+      if (!url.trim()) return false
+      const source = { ...(current ?? { id: mintStorySourceId(), url: "" }), url: url.trim() }
+      if (label.trim()) source.label = label.trim(); else delete source.label
+      if (collector) source.collector = collector; else delete source.collector
+      source.enabled = enabled !== "false"
+      if (groupId === DEFAULT_GROUP_ID) delete source.groupId; else source.groupId = groupId
+      if (current && sourceIndex !== undefined) {
         this.groups[groupIndex].sources.splice(sourceIndex, 1)
       }
-      if (sourceIndex !== undefined && target === groupIndex) {
-        this.groups[target].sources.splice(sourceIndex, 0, value)
-      } else {
-        this.groups[target].sources.push(value)
-      }
-      this.save()
-      return true
-    }, sourceIndex === undefined ? undefined : {
-      label: "Delete source",
-      action: () => {
-        if (!window.confirm("Delete this story source?")) return
-        this.groups[groupIndex].sources.splice(sourceIndex, 1)
+      ;(this.groups.find((group) => group.id === groupId) ?? this.groups[0]).sources.push(source)
+      this.save(); return true
+    }, current ? { label: "Delete source", action: () => {
+      if (window.confirm("Delete this story source?")) {
+        if (sourceIndex !== undefined) {
+          this.groups[groupIndex].sources.splice(sourceIndex, 1)
+        }
         this.save()
       }
-    }, this.groups.map((group, index) => [String(index), group.name]))
+    } } : undefined)
   }
 
   editGroup(root: HTMLElement, groupIndex?: number): void {
     const current = groupIndex === undefined ? "" : this.groups[groupIndex].name
     this.host.showForm(root, "Group", [["Group name", current]], (values) => {
-      const name = values[0].trim()
-      if (!name) return false
-      if (groupIndex === undefined) {
-        this.groups.push({ id: `group-${Date.now()}`, name, sources: [] })
-      } else {
-        this.groups[groupIndex].name = name
-      }
-      this.save()
-      return true
+      const name = values[0].trim(); if (!name) return false
+      if (groupIndex === undefined) this.groups.push({ id: mintStorySourceGroupId(), name, sources: [] })
+      else this.groups[groupIndex].name = name
+      this.save(); return true
     })
   }
-
   async deleteGroup(root: HTMLElement, groupIndex: number): Promise<void> {
     const group = this.groups[groupIndex]
     if (!group.sources.length) {
-      if (window.confirm(`Delete group “${group.name}”?`)) {
-        this.groups.splice(groupIndex, 1)
-        this.save()
-      }
+      if (window.confirm(`Delete group “${group.name}”?`)) { this.groups.splice(groupIndex, 1); this.save() }
       return
     }
-    const choice = await showChoiceDialog({
-      title: `Delete “${group.name}”?`,
+    const choice = await showChoiceDialog({ title: `Delete “${group.name}”?`,
       message: "Choose what should happen to the sources in this group.",
-      choices: [
-        {
-          label: "Remove group and move sources to Default",
-          value: "move"
-        },
-        { label: "Remove group and its sources", value: "remove" }
-      ],
-      positionWithin: root
-    })
-    if (choice === "move") {
-      this.groups[0].sources.push(...group.sources)
-    } else if (choice === "remove") {
-      const confirmed = await showConfirmDialog({
-        message: `Permanently delete ${group.sources.length} sources?`,
-        confirmLabel: "Delete",
-        positionWithin: root
-      })
-      if (!confirmed) return
-    } else {
-      return
-    }
-    this.groups.splice(groupIndex, 1)
-    this.save()
+      choices: [{ label: "Remove group and move sources to Default", value: "move" },
+        { label: "Remove group and its sources", value: "remove" }], positionWithin: root })
+    if (choice === "move") this.groups[0].sources.push(...group.sources)
+    else if (choice === "remove") {
+      if (!await showConfirmDialog({ message: `Permanently delete ${group.sources.length} sources?`,
+        confirmLabel: "Delete", positionWithin: root })) return
+    } else return
+    this.groups.splice(groupIndex, 1); this.save()
   }
-
   save(reloadStories = true): void {
-    const values = serializeSourceGroups(this.groups)
-    this.host.setText(values.join("\n"))
-    this.saveState = "saving"
-    this.host.render()
-    Promise.resolve(this.host.saveSources(values, reloadStories)).then(
-      () => {
-        this.saveState = "saved"
-        this.renderSaveState(this.host.root())
-      },
-      () => {
-        this.saveState = "failed"
-        this.renderSaveState(this.host.root())
-      }
-    )
+    this.document = documentFromGroups(this.groups, this.document)
+    this.host.setText(serializeStorySourceDocument(this.document))
+    this.saveState = "saving"; this.host.render()
+    Promise.resolve(this.host.saveSources(this.document, reloadStories)).then(
+      () => { this.saveState = "saved"; this.renderSaveState(this.host.root()) },
+      () => { this.saveState = "failed"; this.renderSaveState(this.host.root()) })
   }
-
   private renderSaveState(root?: HTMLElement): void {
-    const saved = root?.parentElement?.querySelector<HTMLElement>(
-      ".structured_status_saved"
-    )
+    const saved = root?.parentElement?.querySelector<HTMLElement>(".structured_status_saved")
     if (!saved) return
-    saved.classList.toggle(
-      "structured_status_error",
-      this.saveState === "failed"
-    )
-    saved.textContent = this.saveState === "saving"
-      ? "Saving…"
-      : this.saveState === "failed" ? "Save failed" : "Saved"
+    saved.classList.toggle("structured_status_error", this.saveState === "failed")
+    saved.textContent = this.saveState === "saving" ? "Saving…" : this.saveState === "failed" ? "Save failed" : "Saved"
   }
 }

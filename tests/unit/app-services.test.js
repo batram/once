@@ -42,7 +42,9 @@ test("settings suppress the matching local database echo", async () => {
     }
   )
 
-  await settings.saveStorySources(["https://example.com/feed"], false)
+  await settings.saveStorySources({ version: 2, groups: [], sources: [
+    { id: "src_00000001", url: "https://example.com/feed" }
+  ] }, false)
   settings.handleObservedChange(observed)
 
   assert.deepEqual(changed, ["sources"])
@@ -161,7 +163,7 @@ test("source loader rejects expired cache before fetching", async () => {
   )
 
   await assert.rejects(
-    loader.load("https://old.reddit.com/r/netsec/.json"),
+    loader.load({ id: "src_00000001", url: "https://old.reddit.com/r/netsec/.json" }),
     /HTTP 404/
   )
   assert.equal(requests, 1)

@@ -1,4 +1,4 @@
-import { Redirect, Story } from "@once/core"
+import { Redirect, Story, StorySourceDocument } from "@once/core"
 import { SwipeSettings } from "./swipeSettings"
 
 export type ThemeName = "system" | "light" | "dark"
@@ -10,6 +10,7 @@ export interface ProcessingSource {
 }
 
 export interface SourceError {
+  sourceId: string
   url: string
   title: string
   message: string
@@ -104,9 +105,9 @@ export type OnceEventHandler<T extends OnceEventName> = (
 export interface OnceClient {
   getDiagnostics(): DiagnosticError[]
   getSyncStatus(): SyncStatus
-  getStorySources(): Promise<string[]>
+  getStorySources(): Promise<StorySourceDocument>
   saveStorySources(
-    storySources: string[],
+    storySources: StorySourceDocument,
     reloadStories?: boolean
   ): Promise<void>
   getFilterList(): Promise<string[]>
@@ -170,6 +171,7 @@ export interface StoryStorePort {
 
 export interface SyncServicePort {
   syncFrom(couchdbUrl: string, getLoadedStoryIds?: () => string[]): void
+  onSettingsReplicated?(handler: () => void): () => void
   onDiagnostic?(handler: (error: DiagnosticError) => void): () => void
   onStatus?(handler: (status: SyncStatus) => void): () => void
   onRemoteChange?(handler: (change: DatabaseChange) => void): () => void

@@ -1,5 +1,6 @@
 import { customizedCommandCount } from "../keyboard/keybindingStore"
 import { getKeybindings } from "../keyboard"
+import { parseStorySourceText } from "@once/core"
 export function updateSettingsSummaries(
   sectionButtons: ReadonlyMap<string, HTMLButtonElement>,
   sourceFailures: number
@@ -10,9 +11,8 @@ export function updateSettingsSummaries(
       HTMLSelectElement>(selector)?.value || ""
   const lineCount = (text: string) =>
     text.split("\n").filter((line) => line.trim()).length
-  const sourceLines = value("#sources_area").split("\n")
-    .map((line) => line.trim()).filter(Boolean)
-  const sourceCount = sourceLines.filter((line) => !line.startsWith("*")).length
+  const parsedSources = parseStorySourceText(value("#sources_area"))
+  const sourceCount = parsedSources.doc?.sources.length ?? 0
   const filterCount = lineCount(value("#filter_area"))
   const redirectCount = lineCount(value("#redirect_area"))
   const animation = document.querySelector<HTMLInputElement>("#anim_checkbox")

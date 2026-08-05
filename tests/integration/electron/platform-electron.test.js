@@ -252,6 +252,7 @@ test("syncs settings, newest stories, backlog, then starts live sync", async () 
     () => ["sto_loaded", "sto_loaded", "sto_visible"]
   )
   assert.deepEqual(replications[0].options.doc_ids, [
+    "sources",
     "story_sources",
     "filter_list",
     "redirect_list",
@@ -262,6 +263,10 @@ test("syncs settings, newest stories, backlog, then starts live sync", async () 
 
   replications[0].chain.emit("complete", {})
   await nextTurn()
+  let replayed = 0
+  service.onSettingsReplicated(() => { replayed += 1 })
+  await nextTurn()
+  assert.equal(replayed, 1)
   assert.deepEqual(replications[1].options.doc_ids, [
     "sto_loaded",
     "sto_visible"

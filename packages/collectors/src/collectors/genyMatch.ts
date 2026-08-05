@@ -10,7 +10,7 @@ export const options = {
   settings: {}
 }
 
-import { LEGACY_SEPARATOR, Story, StoryTag } from "@once/core"
+import { mintStorySourceId, Story, StorySource, StoryTag } from "@once/core"
 import { ParseContext } from "../registry"
 import { sanitizeSelectorConf } from "../selectorConf"
 
@@ -187,14 +187,11 @@ export function sanitize_selector_conf(raw: unknown): GenySelectorConf {
  * writes source objects; the separator now comes from core, which owns the one
  * remaining definition of the legacy format.
  */
-export function build_source(conf: GenySelectorConf, url: string): string {
+export function build_source(conf: GenySelectorConf, url: string): StorySource {
   const parsed = new URL(url)
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new Error("geny_match sources must use HTTP or HTTPS")
   }
-  const serialized = JSON.stringify(sanitize_selector_conf(conf))
-  if (serialized.includes(LEGACY_SEPARATOR)) {
-    throw new Error("geny_match config must not contain the source separator")
-  }
-  return `geny:${LEGACY_SEPARATOR}${serialized}${LEGACY_SEPARATOR}${parsed.toString()}`
+  return { id: mintStorySourceId(), url: parsed.toString(), collector: "geny",
+    select: sanitize_selector_conf(conf) }
 }

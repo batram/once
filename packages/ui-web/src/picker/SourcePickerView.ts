@@ -1,5 +1,6 @@
 import { OnceClient } from "@once/app"
 import { build_source, sanitize_selector_conf } from "@once/collectors/geny"
+import { StorySource } from "@once/core"
 import { SettingsPanel } from "../settings/SettingsPanel"
 import { LoaderInsights } from "../shell/LoaderInsights"
 import { showTextInputDialog } from "../confirmDialog"
@@ -28,13 +29,13 @@ interface PickedMessage {
 export class SourcePickerView {
   private static client: OnceClient | null = null
   private static startPicker:
-    ((url?: string) => Promise<string | null>) | null = null
+    ((url?: string) => Promise<StorySource | null>) | null = null
   private static listening = false
   private static busy = false
 
   static mount(
     client: OnceClient,
-    startPicker?: (url?: string) => Promise<string | null>
+    startPicker?: (url?: string) => Promise<StorySource | null>
   ): void {
     SourcePickerView.client = client
     if (startPicker) SourcePickerView.startPicker = startPicker
@@ -72,7 +73,7 @@ export class SourcePickerView {
     button.disabled = true
     button.value = "picking…"
     try {
-      let source: string | null
+      let source: StorySource | null
       if (SourcePickerView.startPicker) {
         source = await SourcePickerView.startPicker()
       } else {
@@ -141,15 +142,15 @@ export class SourcePickerView {
     await SourcePickerView.addSource(build_source(conf, url))
   }
 
-  private static async addSource(source: string): Promise<void> {
+  private static async addSource(source: StorySource): Promise<void> {
     const client = SourcePickerView.client
     if (!client) throw new Error("SourcePickerView has not been mounted")
     const sources = await client.getStorySources()
-    if (!sources.includes(source)) {
-      await client.saveStorySources([...sources, source])
+    if (!sources.sources.some((item) => item.url === source.url && item.collector === source.collector)) {
+      await client.saveStorySources({ ...sources, sources: [...sources.sources, source] })
     }
     SourcePickerView.setStatus("")
-    SettingsPanel.instance?.highlightSource(source)
+    SettingsPanel.instance?.highlightSource(source.id)
   }
 
   private static webExtensionRuntime(): NonNullable<typeof browser.runtime> | undefined {

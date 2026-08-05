@@ -2,8 +2,8 @@ const test = require("node:test")
 const assert = require("node:assert/strict")
 const {
   buildPickerConf,
-  parseSourceLine,
-  serializeSourceLine
+  parsePickerConf,
+  serializePickerConf
 } = require("../../../packages/ui-web/dist/picker/sourceLinePolicy")
 
 function state(overrides = {}) {
@@ -48,15 +48,15 @@ test("preserves hand-edited selector details while their selectors are unchanged
   assert.deepEqual(built.tags, baseConf.tags)
 })
 
-test("parses and serializes source lines without losing extra configuration", () => {
+test("parses and serializes picker configuration without losing fields", () => {
   const conf = {
     stories: { all: true, sel: "li.story" },
     link: { sel: "a", component: "href" },
     title: { sel: "h2", component: "innerText", processors: ["trim"] },
     comment_href: { sel: "a.comments", component: "href" }
   }
-  const line = serializeSourceLine(conf, "https://example.test/news")
-  const parsed = parseSourceLine(line)
+  const line = serializePickerConf(conf)
+  const parsed = parsePickerConf(line)
 
   assert.equal(parsed.warning, "")
   assert.equal(parsed.state.values.stories, "li.story")
@@ -64,15 +64,14 @@ test("parses and serializes source lines without losing extra configuration", ()
   assert.deepEqual(parsed.state.baseConf.comment_href, conf.comment_href)
 })
 
-test("rejects malformed source lines and reports invalid selector configurations", () => {
-  assert.throws(() => parseSourceLine("not a source"), /expected geny:/)
+test("rejects malformed configuration and reports invalid selectors", () => {
+  assert.throws(() => parsePickerConf("not config"), /Unexpected token/)
   assert.throws(
-    () => parseSourceLine(serializeSourceLine([], "https://example.test")),
+    () => parsePickerConf(serializePickerConf([])),
     /configuration must be a JSON object/
   )
-  const invalid = parseSourceLine(serializeSourceLine(
-    { stories: { sel: ".story" } },
-    "https://example.test"
+  const invalid = parsePickerConf(serializePickerConf(
+    { stories: { sel: ".story" } }
   ))
   assert.notEqual(invalid.warning, "")
 })

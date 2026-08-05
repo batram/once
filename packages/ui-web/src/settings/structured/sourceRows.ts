@@ -1,5 +1,6 @@
 import { SourceError } from "@once/app"
-import { get_parser_for_url, StoryParser } from "@once/collectors"
+import { resolveStorySource, isResolved, StoryParser } from "@once/collectors"
+import { StorySource } from "@once/core"
 import { AnchoredMenuItem } from "../../menu/storyAnchoredMenu"
 import {
   createActionButton,
@@ -8,23 +9,22 @@ import {
 } from "./form"
 import { SourceGroup } from "./sourceGroups"
 
-function collectorFor(source: string): StoryParser | undefined {
-  try {
-    return get_parser_for_url(source)
-  } catch {
-    return undefined
-  }
+function asSource(source: StorySource | string): StorySource {
+  return typeof source === "string" ? { id: `src_test${"0".repeat(8)}`, url: source } : source
 }
 
-function sourceLabel(source: string): string {
+function collectorFor(source: StorySource | string): StoryParser | undefined {
+  const resolved = resolveStorySource(asSource(source))
+  return isResolved(resolved) ? resolved.collector : undefined
+}
+
+function sourceLabel(sourceValue: StorySource | string): string {
+  const source = asSource(sourceValue)
+  if (source.label) return source.label
   try {
-    if (source.startsWith("geny:")) {
-      const parts = source.split("§§")
-      return new URL(parts.at(-1) || source).hostname
-    }
-    return new URL(source).hostname
+    return new URL(source.url).hostname
   } catch {
-    return source.length > 42 ? `${source.slice(0, 39)}…` : source
+    return source.url.length > 42 ? `${source.url.slice(0, 39)}…` : source.url
   }
 }
 
@@ -183,18 +183,19 @@ function appendRowActions(
   row: HTMLElement,
   root: HTMLElement,
   host: SourceRowHost,
-  source: string,
+  sourceValue: StorySource | string,
   groupIndex: number,
   sourceIndex: number
 ): void {
+  const source = asSource(sourceValue)
   const edit = () => host.edit(root, groupIndex, sourceIndex)
-  body.append(createRowChevron(`Edit ${source}`, edit))
+  body.append(createRowChevron(`Edit ${source.url}`, edit))
   if (host.onTouch()) return
   const menu = document.createElement("button")
   menu.type = "button"
   menu.className = "structured_row_menu"
   menu.textContent = "⋮"
-  menu.title = `Actions for ${source}`
+  menu.title = `Actions for ${source.url}`
   menu.setAttribute("aria-label", menu.title)
   const open = () => host.openMenu(menu, [
     { id: "edit-source", label: "Edit source", select: edit },
@@ -219,19 +220,19 @@ function appendRowActions(
 export function renderSourceRow(
   root: HTMLElement,
   host: SourceRowHost,
-  source: string,
+  sourceValue: StorySource | string,
   groupIndex: number,
-  sourceIndex: number,
-  rowKey: string
+  sourceIndex: number
 ): HTMLElement {
+  const source = asSource(sourceValue)
   const row = document.createElement("div")
   row.className = "structured_row"
   row.draggable = true
-  row.dataset.rowKey = rowKey
+  row.dataset.rowKey = source.id
   row.dataset.groupIndex = String(groupIndex)
   row.dataset.sourceIndex = String(sourceIndex)
   const parser = collectorFor(source)
-  row.dataset.searchValue = [source, sourceLabel(source), parser?.options.type]
+  row.dataset.searchValue = [source.id, source.url, sourceLabel(source), parser?.options.type]
     .filter(Boolean).join(" ").toLowerCase()
   const badge = document.createElement("span")
   badge.className = "collector_badge"
@@ -248,18 +249,18 @@ export function renderSourceRow(
   const open = document.createElement("button")
   open.type = "button"
   open.className = "structured_row_main"
-  open.dataset.sourceValue = source.trim()
+  open.dataset.sourceId = source.id
   open.dataset.testid = "source-row"
-  open.title = source
-  open.setAttribute("aria-label", `Edit ${source}`)
+  open.title = source.url
+  open.setAttribute("aria-label", `Edit ${source.url}`)
   const primary = document.createElement("span")
   primary.className = "structured_row_primary"
   primary.textContent = sourceLabel(source)
   primary.dataset.searchText = primary.textContent
   const secondary = document.createElement("span")
   secondary.className = "structured_row_secondary"
-  const error = host.errors.get(source.trim())
-  secondary.textContent = error ? error.title || error.message : source
+  const error = host.errors.get(source.id)
+  secondary.textContent = error ? error.title || error.message : source.url
   secondary.dataset.searchText = secondary.textContent
   if (error) secondary.classList.add("structured_row_secondary_error")
   open.append(primary, secondary)
@@ -269,7 +270,7 @@ export function renderSourceRow(
     row.classList.add(`structured_row_${error.type}`)
     const issue = createActionButton(
       error.type === "warning" ? "⚠" : "!",
-      () => host.showError(source),
+      () => host.showError(source.id),
       "source-error"
     )
     issue.className = `structured_issue ${error.type}`
@@ -278,6 +279,7 @@ export function renderSourceRow(
   }
   appendRowActions(body, row, root, host, source, groupIndex, sourceIndex)
   row.append(handle, badge, body)
+  row.classList.toggle("structured_row_disabled", source.enabled === false)
   installRowDrag(row, root, host, groupIndex, sourceIndex)
   return row
 }
