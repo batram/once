@@ -69,14 +69,72 @@ interface KeyCommandDefinition {
   context: "global" | "stories" | "browser"
   defaultKeys: string[]          // two entries where arrows + WASD both apply
   allowInTextEntry: boolean
-  platform?: "electron"
+  shells?: readonly ShellId[]     // omitted = every shell; see below
 }
 ```
+
+### Shell availability
+
+`shells` is the answer to "can this shell even do that?", and it is enforced, not
+decorative: `availableKeyCommands()` filters by the shell named in `mountOnceUi({ shell })`,
+and `KeyboardSettingsView`, `defaultKeybindings()`, `bindingsFrom()` and `conflicts.ts` all
+read that rather than `keyCommands()`. So an unavailable command has no settings row, holds
+no chord, and blocks nobody from taking one.
+
+The `browser`, `panes` and `window` commands are `["electron"]` because a sidepanel extension
+cannot deliver them at all — not merely because nothing registered a handler:
+
+- Its `keydown` listener only fires while focus is inside the panel document, and the browser
+  consumes `Ctrl+T/W/N/Shift+T/Tab`, `Ctrl+L` and `F11` before it ever gets there. `tabs.*`,
+  `windows.create` and `sessions.restore` exist, but only on chords a user would have to
+  invent, so they were left out rather than half-wired.
+- There is no API in either browser to focus the address bar, and no second pane to focus.
+
+The only shortcut that reaches Once while a *page* has focus is a manifest `commands` entry:
+Firefox's built-in `_execute_sidebar_action`, and `open-side-panel` in the Chrome manifest,
+whose background handler calls `chrome.sidePanel.open({ windowId })` — permitted because a
+keyboard command is the user gesture that API demands, and taken from the tab the listener is
+handed rather than an awaited lookup that would outlive the gesture. Both suggest `Ctrl+Shift+Y`.
+The browser owns those keys, so the sidepanel reads the live values with `commands.getAll()` and
+lists them read-only (`MountOnceUiOptions.browserShortcuts`) alongside
+`chrome://extensions/shortcuts` / `about:addons`. Neither address can be linked to from an
+extension page, so both are offered as copyable text; Chrome additionally allows
+`tabs.create` for its own settings page, so there the address gets an Open button too.
+
+### Switching between a story and its comments
+
+`story.toggle-comments` (`Alt+Shift+C`) acts on **the open page**, not the keyboard cursor:
+`story/selectedStoryToggle.ts` reads the row already mirrored into `#selected_container` and
+picks the other side with `Story.matches_comment_url()` / `matches_story_url()`. It returns null
+when the open URL matches neither — a mirror that lags the tab must not navigate the user
+somewhere they never asked for. The last selected URL is kept in that module because the
+mirrored row says *which* story is open, not which of its two URLs.
+
+It navigates through the new `"current"` open target rather than `openStoryUrl`, which marks
+the URL it is handed as read — that key is a story href, and half the time this passes a
+comments URL. In Electron `"current"` is `resolveOpenDisposition`'s existing in-place branch;
+in the extensions it is `tabs.update` on the active tab, because there `"_self"` means a new tab.
+
+The extensions declare it as a manifest command as well, since the whole point is that the user
+is reading the page and the panel does not have the keyboard. The background cannot answer it —
+it has no story database — so `keyCommandBackground.ts` relays it to the panel, which runs the
+command through `dispatcher.run()`. With the panel closed nothing happens, which is correct:
+no panel, no selected story.
+
+**Chrome's manifest command is `Alt+Shift+K`, not `Alt+Shift+C`.** Chrome silently declines to
+assign `Alt+Shift+C`: the manifest loads without complaint and `commands.getAll()` simply
+reports no shortcut. Measured against a loaded extension, it rejects `Ctrl+Shift+C` as well
+while accepting `Alt+Shift+K`, `Ctrl+Shift+K`, `Alt+Shift+1` and a bare `Alt+C` — so it is the
+letter under Shift that is reserved (`Ctrl+Shift+C` is DevTools' inspect-element), not the
+modifier pattern. Firefox takes `Alt+Shift+C` without objection, and so does the in-app binding
+in every shell, since that is an ordinary DOM keydown rather than a browser command. The
+divergence is Chrome's alone and the `chrome.spec.js` assertion pins it, a silent refusal having
+no other symptom.
 
 - **Exactly one** `window.addEventListener("keydown", handler, true)`, installed from `mountOnceUi`. Capture, matching what `StoryHistory` does today.
 - `register(id, handler): () => void` — feature modules attach behaviour; an unhandled command is inert but still listed in settings.
 - `dispatchChord(chord)` — second entry point used by the Electron main→renderer forwarding path (§5).
-- **Text-entry guard** `isTextEntryTarget()`: `textarea`, `select`, non-checkbox/radio/range/button `input`, `[contenteditable]`, `[role="slider"]`. The `role="slider"` clause is what preserves `SwipeSettingsLabView.ts:395`'s arrow-key slider. A command fires there only when `allowInTextEntry` (Ctrl+F/L/T yes; bare WASD and Ctrl+Arrow **no**, so word-navigation in `#urlfield` survives).
+- **Text-entry guard** `isTextEntryTarget()`: `textarea`, `select`, non-checkbox/radio/range/button `input`, `[contenteditable]`, `[role="slider"]`. The `role="slider"` clause is what preserves `SwipeSettingsLabView.ts:395`'s arrow-key slider. A command fires there only when `allowInTextEntry` (Ctrl+F/L/T yes; bare WASD **no**, and the pane jumps only in one-line fields, so word-navigation in `#urlfield` survives).
 - **Blockers** `registerBlocker(() => boolean)`. Ordering trap: `window` capture fires *before* the `document` capture handlers in `menu/storyAnchoredMenu.ts:125` and `picker/sourcePicker.ts:131`, so the dispatcher must stand down while those overlays are open. Wire both blockers in the same change; the settings key-capture control reuses the mechanism via `suspend()`/`resume()`.
 - **Context resolution**: ordered set from `#left_panel[active_panel]`, whether `document.activeElement` is inside `#right_panel`, plus `"global"` last. First binding matching chord + active context wins. `preventDefault()`/`stopPropagation()` **only when a handler ran**.
 
@@ -241,7 +299,8 @@ The original design read every chord from `event.code` alone, on the reasoning t
 - **Clicking a story adopts it as the cursor**, and focuses the row unless the click landed on a link or button inside it.
 - **The highlight is a background, not an outline** — `--cursor-bg-color` / `--cursor-idle-bg-color` in `vars.css`, outranking `.read` and `.selected`.
 - **`body[data-pane-focus]`** (`shell/paneFocus.ts`) says which pane the keyboard is driving. The active Electron tab takes the same highlight when it is "browser", so one colour answers "where will my keys land"; the story cursor drops to the idle tint.
-- **`allowInTextEntry` became a three-level reach** (`never` / `field` / `always`). `Ctrl+Arrow` pane jumps now reach single-line inputs — otherwise the search box was a keyboard dead end — while textareas, sliders and contenteditable keep word navigation.
+- **`allowInTextEntry` became a three-level reach** (`never` / `field` / `always`). The pane jumps reach single-line inputs — otherwise the search box was a keyboard dead end — while textareas, sliders and contenteditable keep word navigation.
+- **The pane jumps are `Alt+Shift+Arrow`, not `Ctrl+Arrow`.** `Ctrl+←/→` is Mission Control's switch-a-space on macOS, which an app cannot win; on Windows and Linux it is only a text-editing convention, so the collision was survivable but the Mac one is not. `Alt+Shift+Arrow` is unclaimed by both browsers and by every window manager we care about. It is not free everywhere either — it is word-select in macOS text fields, and Left Alt+Shift is the Windows input-language toggle on machines with two layouts — which is why these stay `field`-level and never reach a textarea.
 - **Main reports focus hand-offs** over `once:window:native-focus-changed`. Opening a story moves native focus into the page with no DOM event the shell can observe, so the story cursor would otherwise keep claiming a keyboard that had already left. `openUrl` (foreground dispositions only), `focusContent` and `focusShell` report it deterministically; a `webContents` `focus` listener catches the rest, such as clicking into a page. The deterministic reports are what make it testable — a non-focusable window in background test mode never fires the OS-level focus event.
 - **Enter opens the cursor row, and stays reserved.** The handler lives on `story-item` and only fires when the row itself is the event target, mirroring the tab strip. Enter is not a bindable chord: the dispatcher listens in the capture phase, so a global binding would shadow the address bar, the search field, the inline settings editors and every button — including the shortcut-capture control.
 - **Every forwarded chord reclaims shell focus first.** A renderer-side `focus()` is ignored while a `WebContentsView` owns native focus, which is why `Ctrl+F` from a page appeared to do nothing while `Ctrl+L` worked; `panes.focus-left` and `browser.focus-urlbar` do the same for keys pressed in the shell.

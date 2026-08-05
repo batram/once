@@ -135,6 +135,7 @@ async function startMobileApp(): Promise<void> {
   document.body.dataset.onceStage = "ui-mount"
   showStartupState("Loading stories…")
   await mountOnceUi(app.client, {
+    shell: "mobile",
     appVersion: __ONCE_APP_VERSION__,
     buildChannel: __ONCE_BUILD_CHANNEL__,
     buildIdentifier: __ONCE_BUILD_IDENTIFIER__,

@@ -43,6 +43,38 @@ test("installed Chrome extension loads, collects, persists settings, and opens a
     expect(testPageUnexpectedRequests, "initial test-mode load must stay offline").toEqual([])
     await expect(page.getByTestId("stories-menu")).toBeVisible()
     await page.getByTestId("settings-menu").click()
+    // A sidepanel cannot cycle tabs, focus an address bar or own a second
+    // pane, so those shortcuts must not be offered at all. The one key that
+    // does reach it from a page is the extension command, which only Chrome
+    // can rebind — listed, but read-only.
+    await page.locator('[data-settings-target="keyboard"]').click()
+    const shortcuts = page.getByTestId("keyboard-shortcuts")
+    await expect(shortcuts.locator('[data-group="stories"]')).toBeVisible()
+    await expect(shortcuts.locator('[data-group="browser"]')).toHaveCount(0)
+    await expect(shortcuts.locator('[data-group="panes"]')).toHaveCount(0)
+    // K, not the C that Once uses in-app and that Firefox takes: Chrome
+    // refuses to assign Alt+Shift+C and says so only by leaving the command
+    // unbound, the manifest loading without complaint. Measured — it rejects
+    // Ctrl+Shift+C too, while taking Alt+Shift+K, Ctrl+Shift+K, Alt+Shift+1
+    // and a bare Alt+C — so it is the letter with Shift, not the modifier
+    // pattern. Asserted here because a silent refusal has no other symptom.
+    await expect(
+      shortcuts.locator('[data-group="browser-managed"] .keybinding_managed_chord')
+    ).toHaveText(["Ctrl+Shift+Y", "Alt+Shift+K"])
+    await expect(
+      shortcuts.locator('[data-group="browser-managed"] .keybinding_label')
+    ).toHaveText(["Open the Once panel", "Switch between story and comments"])
+    await expect(page.getByTestId("keybinding-managed-url").first())
+      .toHaveText("chrome://extensions/shortcuts")
+    // Chrome lets an extension open chrome:// pages, so the address is not
+    // merely copyable here.
+    const shortcutsTab = context.waitForEvent("page")
+    await page.getByTestId("keybinding-managed-open").first().click()
+    const shortcutsPage = await shortcutsTab
+    expect(shortcutsPage.url()).toBe("chrome://extensions/shortcuts")
+    await shortcutsPage.close()
+
+    await page.getByTestId("settings-menu").click()
     await expect(page.getByTestId("sources")).toBeHidden()
     await page.locator('[data-settings-target="sources"]').click()
     const modeToggle = page.getByTestId("sources-mode-toggle")

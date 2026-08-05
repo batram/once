@@ -26,6 +26,11 @@ function cursorHref(window) {
     document.querySelector("#stories story-item.cursor")?.dataset.href ?? null)
 }
 
+async function activeTabUrl(window) {
+  const tabs = await window.evaluate(async () => window.onceElectron.tabs.getAll())
+  return tabs.find((tab) => tab.active)?.url ?? null
+}
+
 test("arrow keys move a cursor through the story list", async () => {
   const server = await startPageServer()
   const { electronApp, userData, window } = await launchApp(STORY_ENV)
@@ -353,13 +358,61 @@ test("the highlight tracks clicks and shows which pane owns the keyboard", async
     await expect(body).toHaveAttribute("data-pane-focus", "stories")
 
     // Moving to the browser pane hands the highlight over to the active tab.
-    await window.keyboard.press("Control+ArrowRight")
+    await window.keyboard.press("Alt+Shift+ArrowRight")
     await expect(body).toHaveAttribute("data-pane-focus", "browser")
     await expect(window.locator(".electron-tab.active")).toHaveCount(1)
 
-    await window.keyboard.press("Control+ArrowLeft")
+    await window.keyboard.press("Alt+Shift+ArrowLeft")
     await expect(body).toHaveAttribute("data-pane-focus", "stories")
     expect(await cursorHref(window)).toBe(urls.beta)
+  } finally {
+    await closeApp(electronApp, userData)
+    await server.close()
+  }
+})
+
+test("Alt+Shift+C switches the open page between story and comments", async () => {
+  const server = await startPageServer()
+  const { electronApp, userData, window } = await launchApp(STORY_ENV)
+  try {
+    const urls = await seedStories(window, server.origin)
+
+    // Beta is the fixture story that has comments.
+    await window.locator(`#stories story-item[data-href="${urls.beta}"]`)
+      .locator(storyFixture.SELECTORS.title).click()
+    await expect.poll(() => activeTabUrl(window)).toBe(urls.beta)
+    // The command reads the mirrored row, so it has to be there first.
+    await expect(window.locator(storyFixture.SELECTORS.selected)).toHaveCount(1)
+
+    await window.keyboard.press("Alt+Shift+C")
+    await expect.poll(() => activeTabUrl(window)).toBe(urls.betaComments)
+    // Replaced in place: switching sides is not a second tab.
+    expect(await window.evaluate(async () =>
+      (await window.onceElectron.tabs.getAll()).length)).toBe(1)
+
+    await window.keyboard.press("Alt+Shift+C")
+    await expect.poll(() => activeTabUrl(window)).toBe(urls.beta)
+  } finally {
+    await closeApp(electronApp, userData)
+    await server.close()
+  }
+})
+
+test("Alt+Shift+C does nothing on a page with no story behind it", async () => {
+  const server = await startPageServer()
+  const { electronApp, userData, window } = await launchApp(STORY_ENV)
+  try {
+    const urls = await seedStories(window, server.origin)
+
+    // Alpha has no comments URL, so there is no other side to switch to.
+    await window.locator(`#stories story-item[data-href="${urls.alpha}"]`)
+      .locator(storyFixture.SELECTORS.title).click()
+    await expect.poll(() => activeTabUrl(window)).toBe(urls.alpha)
+
+    await window.keyboard.press("Alt+Shift+C")
+    // Nothing to poll for, so give the navigation a chance to happen wrongly.
+    await window.waitForTimeout(300)
+    expect(await activeTabUrl(window)).toBe(urls.alpha)
   } finally {
     await closeApp(electronApp, userData)
     await server.close()
@@ -416,7 +469,7 @@ test("opening a story hands the highlight to the tab it opened in", async () => 
     ).toContain("/story/")
     await expect(body).toHaveAttribute("data-pane-focus", "browser")
 
-    await window.keyboard.press("Control+ArrowLeft")
+    await window.keyboard.press("Alt+Shift+ArrowLeft")
     await expect(body).toHaveAttribute("data-pane-focus", "stories")
     void urls
   } finally {

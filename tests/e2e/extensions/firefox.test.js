@@ -35,6 +35,52 @@ test("installed Firefox extension loads, collects, persists settings, and opens 
     assert.equal(installResult.result.extension, expectedAddonId)
 
     await openExtensionPanel(driver, extensionUuid)
+    // A sidepanel cannot cycle tabs, focus an address bar or own a second
+    // pane, so those shortcuts must not be offered at all. The one key that
+    // does reach it from a page is the sidebar command, which only Firefox can
+    // rebind — listed, but read-only.
+    await openSettingsSection(driver, "keyboard", '[data-testid="keyboard-shortcuts"]')
+    const shortcuts = await driver.findElement(
+      By.css('[data-testid="keyboard-shortcuts"]')
+    )
+    for (const group of ["browser", "panes"]) {
+      assert.equal(
+        (await shortcuts.findElements(By.css(`[data-group="${group}"]`))).length,
+        0,
+        `the ${group} shortcuts cannot work in a sidepanel`
+      )
+    }
+    assert.equal(
+      (await shortcuts.findElements(By.css('[data-group="stories"]'))).length,
+      1
+    )
+    const managedChords = await Promise.all(
+      (await shortcuts.findElements(
+        By.css('[data-group="browser-managed"] .keybinding_managed_chord')
+      )).map((chord) => chord.getText())
+    )
+    assert.deepEqual(managedChords, ["Ctrl+Shift+Y", "Alt+Shift+C"])
+    // Firefox refuses about:addons from tabs.create, so the address is offered
+    // to copy rather than to open.
+    assert.equal(
+      await driver.findElement(
+        By.css('[data-testid="keybinding-managed-url"]')
+      ).getText(),
+      "about:addons"
+    )
+    assert.equal(
+      (await driver.findElements(
+        By.css('[data-testid="keybinding-managed-open"]')
+      )).length,
+      0
+    )
+    assert.equal(
+      (await driver.findElements(
+        By.css('[data-testid="keybinding-managed-copy"]')
+      )).length,
+      2
+    )
+
     let sources = await openSettingsSection(
       driver,
       "sources",

@@ -1,5 +1,5 @@
 import { isReservedChord, isValidChord } from "@once/core"
-import { KeyCommandId, isKeyCommandId, keyCommands } from "./commands"
+import { KeyCommandId, availableKeyCommands, isKeyCommandId } from "./commands"
 
 // Keybindings are device-local: keyboards and layouts differ per machine, so
 // they are deliberately not part of the synced settings document.
@@ -13,14 +13,21 @@ interface StoredKeybindings {
   bindings: Record<string, string[]>
 }
 
+// Only what this shell can run: a command it cannot perform must not hold a
+// chord, or it would block the user from binding that chord to something the
+// shell does offer. See availableKeyCommands().
 export function defaultKeybindings(): Map<KeyCommandId, string[]> {
-  return new Map(keyCommands().map((command) => [command.id, [...command.defaultKeys]]))
+  return new Map(availableKeyCommands().map(
+    (command) => [command.id, [...command.defaultKeys]]
+  ))
 }
 
 /**
  * Merges stored overrides over the defaults. Everything read back is treated as
  * untrusted: unknown ids, malformed chords, reserved chords, duplicates, and
  * non-array values are dropped rather than allowed to break the dispatcher.
+ * Ids this shell cannot run are dropped too — they are absent from the defaults
+ * the overrides are merged onto, so re-adding them would smuggle a chord back.
  */
 export function mergeKeybindings(stored: unknown): Map<KeyCommandId, string[]> {
   const bindings = defaultKeybindings()
@@ -28,6 +35,7 @@ export function mergeKeybindings(stored: unknown): Map<KeyCommandId, string[]> {
   if (!overrides) return bindings
   for (const [id, chords] of Object.entries(overrides)) {
     if (!isKeyCommandId(id) || !Array.isArray(chords)) continue
+    if (!bindings.has(id)) continue
     const cleaned: string[] = []
     for (const chord of chords) {
       if (typeof chord !== "string") continue
@@ -70,7 +78,7 @@ export function saveKeybindings(
 ): void {
   if (!storage) return
   const overrides: Record<string, string[]> = {}
-  for (const command of keyCommands()) {
+  for (const command of availableKeyCommands()) {
     const chords = bindings.get(command.id) ?? []
     if (sameChords(chords, command.defaultKeys)) continue
     overrides[command.id] = [...chords]
@@ -89,7 +97,7 @@ export function saveKeybindings(
 
 export function customizedCommandCount(bindings: Map<KeyCommandId, string[]>): number {
   let count = 0
-  for (const command of keyCommands()) {
+  for (const command of availableKeyCommands()) {
     if (!sameChords(bindings.get(command.id) ?? [], command.defaultKeys)) count += 1
   }
   return count

@@ -35,7 +35,10 @@ function withDefaultScheme(value: string): string {
 export function resolveOpenDisposition(
   target: ElectronOpenTarget
 ): TabOpenDisposition {
-  if (target === "_self") return "current"
+  // "_self" is a story being opened into the pane; "current" is the open page
+  // being replaced in place, which the extensions have to distinguish because
+  // there "_self" means a new tab. Both land on the active tab here.
+  if (target === "_self" || target === "current") return "current"
   if (target === "middle") return "background"
   return "foreground"
 }

@@ -30,5 +30,19 @@
       "48": "static/imgs/icons/mipmap-mdpi/ic_launcher.png"
     },
     "default_title": "Click to open panel"
+  },
+  "commands": {
+    "open-side-panel": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Y"
+      },
+      "description": "Open the Once side panel"
+    },
+    "toggle-comments": {
+      "suggested_key": {
+        "default": "Alt+Shift+K"
+      },
+      "description": "Switch between story and comments"
+    }
   }
 }

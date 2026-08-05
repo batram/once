@@ -2290,6 +2290,50 @@
   gap: var(--sp-1);
 }
 
+/* The browser's own shortcut. It wraps rather than sitting on one line: the
+   hint naming the browser's settings page is a sentence, not a chip. */
+.keybinding_row--readonly {
+  flex-wrap: wrap;
+}
+
+/* Reads like a bound slot so the chord is recognisable, without the input
+   background that would suggest it can be edited here. */
+.keybinding_managed_chord {
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-high-color);
+}
+
+.keybinding_managed_hint {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--text-color);
+  font-size: 0.85em;
+}
+
+/* The address is the thing to be taken away, by button or by selection, so it
+   is set apart from the sentence around it and selectable on its own. */
+.keybinding_managed_url {
+  font-family: monospace;
+  color: var(--text-high-color);
+  user-select: all;
+  overflow-wrap: anywhere;
+}
+
+.keybinding_managed_url:focus-visible {
+  outline: 2px solid var(--text-high-color);
+  outline-offset: 2px;
+}
+
+.keybinding_managed_action {
+  padding: 0 var(--sp-2);
+  font-size: inherit;
+}
+
 /* The box: border and background live here so the chord text and its clear
    cross share one control, and an unset slot is the same size as a bound one. */
 .keybinding_slot {

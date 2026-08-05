@@ -17,13 +17,13 @@ import { KeyCommandDefinition, registerKeyCommand } from "./commands"
 const BINDABLE_STORY_ACTIONS: {
   id: StoryMenuActionId
   label: string
-  platform?: KeyCommandDefinition["platform"]
+  shells?: KeyCommandDefinition["shells"]
 }[] = [
   { id: "open-browser", label: "Open story in browser" },
   { id: "open-new-tab", label: "Open story in a new tab" },
   { id: "open-background-tab", label: "Open story in a background tab" },
-  { id: "open-new-window", label: "Open story in a new window", platform: "electron" },
-  { id: "open-external", label: "Open story in the default browser", platform: "electron" },
+  { id: "open-new-window", label: "Open story in a new window", shells: ["electron"] },
+  { id: "open-external", label: "Open story in the default browser", shells: ["electron"] },
   { id: "open-original", label: "Open the original URL" },
   { id: "open-reader", label: "Open story in reader" },
   { id: "toggle-read", label: "Toggle read state" },
@@ -45,7 +45,7 @@ for (const action of BINDABLE_STORY_ACTIONS) {
     context: "stories",
     defaultKeys: [],
     allowInTextEntry: "never",
-    platform: action.platform
+    shells: action.shells
   })
 }
 

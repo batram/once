@@ -1,6 +1,6 @@
 import { isReservedChord } from "@once/core"
 import {
-  keyCommands,
+  availableKeyCommands,
   KeyCommandDefinition,
   KeyCommandGroup,
   KeyCommandId,
@@ -25,6 +25,28 @@ const GROUP_LABELS: Record<KeyCommandGroup, string> = {
 const MAX_CHORD_SLOTS = 2
 
 /**
+ * A shortcut the host browser owns rather than Once — the extension command
+ * that opens the side panel. It is the only shortcut that works while a web
+ * page has focus, so it belongs in this list even though nothing here can
+ * change it; the settings page that can is offered instead.
+ */
+export interface BrowserManagedShortcut {
+  label: string
+  /** Null when the user cleared the browser's binding. */
+  chord: string | null
+  /** Where the browser lets the user change it, e.g. "about:addons". */
+  settingsUrl: string
+  /** Anything else the user needs after arriving there. */
+  hint?: string
+  /**
+   * Opens `settingsUrl`. Supplied only where the browser permits it: Chrome
+   * lets an extension open chrome://extensions/shortcuts in a tab, Firefox
+   * refuses about:addons, so there the address is copyable and nothing more.
+   */
+  openSettings?: () => void
+}
+
+/**
  * Per-command shortcut editor.
  *
  * Chords are shown as the direct text of a real <button>, with a matching
@@ -40,7 +62,8 @@ export class KeyboardSettingsView {
 
   constructor(
     private readonly host: HTMLElement,
-    private readonly onChanged: () => void
+    private readonly onChanged: () => void,
+    private readonly browserShortcuts: readonly BrowserManagedShortcut[] = []
   ) {
     this.status = element("p", "keybinding_status")
     this.status.setAttribute("role", "alert")
@@ -58,9 +81,13 @@ export class KeyboardSettingsView {
       "Pick a shortcut, then press the keys you want. Shortcuts are remembered " +
       "on this device. Shortcuts without a modifier only work in the sidebar."
     this.host.append(heading, description, this.status)
+    const browserBox = this.browserManagedGroup()
+    if (browserBox) this.host.append(browserBox)
 
     for (const group of Object.keys(GROUP_LABELS) as KeyCommandGroup[]) {
-      const commands = keyCommands().filter((command) => command.group === group)
+      const commands = availableKeyCommands().filter(
+        (command) => command.group === group
+      )
       if (commands.length === 0) continue
       this.host.append(this.group(group, commands, bindings))
     }
@@ -71,6 +98,90 @@ export class KeyboardSettingsView {
     resetAll.dataset.testid = "keybindings-reset-all"
     resetAll.addEventListener("click", () => this.commit(defaultKeybindings()))
     this.host.append(resetAll)
+  }
+
+  /**
+   * The browser's own shortcuts, shown but not editable. Deliberately spans
+   * and not capture buttons: nothing here can be recorded, and a control that
+   * looks like the ones above would invite the user to try. The label and the
+   * chord stay real text so settings search still finds them.
+   */
+  private browserManagedGroup(): HTMLElement | null {
+    if (this.browserShortcuts.length === 0) return null
+    const box = element("details", "keybinding_group")
+    box.dataset.group = "browser-managed"
+    box.open = true
+    const title = element("summary", "keybinding_group_title")
+    title.textContent = "Managed by your browser"
+    box.append(title)
+
+    const rows = element("div", "keybinding_group_rows")
+    for (const shortcut of this.browserShortcuts) {
+      const row = element("div", "keybinding_row keybinding_row--readonly")
+      const label = element("span", "keybinding_label")
+      label.textContent = shortcut.label
+      const chord = element("span", "keybinding_managed_chord")
+      chord.textContent = shortcut.chord || "Not set"
+      row.append(label, chord, this.settingsPointer(shortcut))
+      rows.append(row)
+    }
+    box.append(rows)
+    return box
+  }
+
+  /**
+   * How to reach the page that can change it. The address is real selectable
+   * text rather than prose, since a browser settings URL cannot be a link from
+   * an extension page — it is typed or pasted into the address bar. Chrome will
+   * open it for us, so there it also gets a button.
+   */
+  private settingsPointer(shortcut: BrowserManagedShortcut): HTMLElement {
+    const hint = element("span", "keybinding_managed_hint")
+    const lead = element("span", "keybinding_managed_hint_text")
+    lead.textContent = "Change it at"
+    const url = element("span", "keybinding_managed_url")
+    url.textContent = shortcut.settingsUrl
+    // Selectable on its own, so a double-click or drag takes the address and
+    // nothing around it.
+    url.tabIndex = 0
+    url.dataset.testid = "keybinding-managed-url"
+    hint.append(lead, url)
+
+    if (shortcut.openSettings) {
+      const open = element("button", "button keybinding_managed_action")
+      open.type = "button"
+      open.textContent = "Open"
+      open.title = `Open ${shortcut.settingsUrl}`
+      open.setAttribute("aria-label", open.title)
+      open.dataset.testid = "keybinding-managed-open"
+      open.addEventListener("click", () => shortcut.openSettings?.())
+      hint.append(open)
+    }
+
+    const copy = element("button", "button keybinding_managed_action")
+    copy.type = "button"
+    copy.textContent = "Copy"
+    copy.title = `Copy ${shortcut.settingsUrl}`
+    copy.setAttribute("aria-label", copy.title)
+    copy.dataset.testid = "keybinding-managed-copy"
+    copy.addEventListener("click", () => {
+      navigator.clipboard.writeText(shortcut.settingsUrl).then(
+        () => this.announce(`${shortcut.settingsUrl} copied.`, false),
+        () => this.announce(
+          `${shortcut.settingsUrl} could not be copied. Select it and copy it ` +
+          "by hand.",
+          true
+        )
+      )
+    })
+    hint.append(copy)
+
+    if (shortcut.hint) {
+      const rest = element("span", "keybinding_managed_hint_text")
+      rest.textContent = shortcut.hint
+      hint.append(rest)
+    }
+    return hint
   }
 
   /** One boxed, foldable group of commands. */

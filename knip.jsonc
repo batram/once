@@ -147,6 +147,7 @@
     },
     "packages/webext-shell": {
       "entry": [
+        "src/keyCommandBackground.ts",
         "src/pickerBackground.ts",
         "src/readerBackground.ts",
         "src/storyMenuBackground.ts"

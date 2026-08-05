@@ -10,9 +10,11 @@ const {
   saveKeybindings
 } = require("../../../packages/ui-web/dist/keyboard/keybindingStore")
 const {
+  availableKeyCommands,
   keyCommand,
   keyCommands,
-  registerKeyCommand
+  registerKeyCommand,
+  setShell
 } = require("../../../packages/ui-web/dist/keyboard/commands")
 // Registers the story actions as a side effect of import, which is how a
 // plugin will add its own.
@@ -158,6 +160,55 @@ test("the customised count drives the settings summary", () => {
   bindings.set("story.open", ["K"])
   bindings.set("story.cursor-next", [])
   assert.equal(customizedCommandCount(bindings), 2)
+})
+
+// The shell is module state, so anything that changes it puts it back. Electron
+// is the default and sees the whole catalogue.
+test("a sidepanel is offered only the commands it can run", (t) => {
+  t.after(() => setShell("electron"))
+  setShell("webext")
+
+  const offered = availableKeyCommands().map((command) => command.id)
+  // The browser swallows Ctrl+T and friends before the panel document sees
+  // them, there is no second pane to focus and no API for the address bar.
+  for (const id of offered) {
+    assert.ok(
+      !id.startsWith("browser.") && !id.startsWith("panes.") &&
+      !id.startsWith("window."),
+      `${id} cannot work in a sidepanel`
+    )
+  }
+  assert.ok(offered.includes("story.open"))
+  assert.ok(offered.includes("search.focus"))
+  // Electron-only story actions go the same way as the built-ins.
+  assert.ok(!offered.includes("story-action.open-external"))
+  assert.ok(offered.includes("story-action.copy-link"))
+
+  const bindings = defaultKeybindings()
+  assert.equal(bindings.has("browser.new-tab"), false)
+  // And the chord it used to hold is free for something the panel can do.
+  assert.equal(conflictingCommand(bindings, "story.open", "Ctrl+T"), null)
+  assert.deepEqual(findKeybindingConflicts(bindings), [])
+})
+
+test("an override for a command this shell cannot run is discarded", (t) => {
+  t.after(() => setShell("electron"))
+  setShell("webext")
+
+  const merged = mergeKeybindings({
+    version: 1,
+    bindings: { "browser.new-tab": ["Ctrl+Alt+T"], "story.open": ["K"] }
+  })
+  assert.equal(merged.has("browser.new-tab"), false)
+  assert.deepEqual(merged.get("story.open"), ["K"])
+})
+
+test("electron keeps the full catalogue", () => {
+  const ids = availableKeyCommands().map((command) => command.id)
+  assert.ok(ids.includes("browser.new-tab"))
+  assert.ok(ids.includes("panes.focus-left"))
+  assert.ok(ids.includes("story-action.open-external"))
+  assert.equal(ids.length, keyCommands().length)
 })
 
 test("contexts overlap only where both commands can fire at once", () => {

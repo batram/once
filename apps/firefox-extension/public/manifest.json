@@ -50,6 +50,12 @@
       "suggested_key": {
         "default": "Ctrl+Shift+Y"
       }
+    },
+    "toggle-comments": {
+      "suggested_key": {
+        "default": "Alt+Shift+C"
+      },
+      "description": "Switch between story and comments"
     }
   }
 }

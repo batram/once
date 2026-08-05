@@ -233,6 +233,26 @@ test("remapped bindings replace the defaults", () => {
   })
 })
 
+test("a command this shell cannot run holds no chord", (t) => {
+  const { setShell } = require("../../../packages/ui-web/dist/keyboard/commands")
+  t.after(() => setShell("electron"))
+  withShell(({ window, KeyboardDispatcher, bindingsFrom }) => {
+    setShell("webext")
+    // Even asked for explicitly: Ctrl+T never reaches a sidepanel document, so
+    // binding it would only shadow whatever the user does bind it to later.
+    const dispatcher = new KeyboardDispatcher(
+      bindingsFrom(new Map([["browser.new-tab", ["Ctrl+T"]]]))
+    )
+    let opened = 0
+    dispatcher.register("browser.new-tab", () => { opened += 1 })
+    dispatcher.mount(window)
+
+    press(window, { code: "KeyT", ctrlKey: true })
+    assert.equal(opened, 0)
+    assert.deepEqual(dispatcher.boundChords(), [])
+  })
+})
+
 test("pane jumps escape a one-line field but leave editors alone", () => {
   withShell(({ window, KeyboardDispatcher, defaultBindings }) => {
     const dispatcher = new KeyboardDispatcher(defaultBindings())
@@ -243,15 +263,18 @@ test("pane jumps escape a one-line field but leave editors alone", () => {
     // Otherwise the search box is a keyboard dead end.
     press(window, {
       code: "ArrowRight",
-      ctrlKey: true,
+      altKey: true,
+      shiftKey: true,
       target: window.document.querySelector("#searchfield")
     })
     assert.equal(jumps, 1)
 
-    // In a textarea Ctrl+Arrow is word navigation and must stay that way.
+    // In a textarea a modified arrow is selection or word navigation, and must
+    // stay that way.
     const event = press(window, {
       code: "ArrowRight",
-      ctrlKey: true,
+      altKey: true,
+      shiftKey: true,
       target: window.document.querySelector("#sources_area")
     })
     assert.equal(jumps, 1)

@@ -393,6 +393,50 @@ test("adds and removes a story filter", async () => {
   }
 })
 
+test("the browser command switches the open tab between story and comments", async () => {
+  const harness = await launchStoryExtension()
+  const { context, page, source } = harness
+  try {
+    // Beta is the fixture story with comments. Opening it makes it the active
+    // tab, which is the arrangement this command exists for: the panel no
+    // longer has the keyboard, so only a manifest command can reach Once.
+    const betaPage = await waitForOpenedPage(context, "beta story link", () =>
+      storyItem(page, source.urls.beta)
+        .locator(storyFixture.SELECTORS.title).click()
+    )
+    await expect(betaPage).toHaveURL(source.urls.beta)
+    const selected = page.locator(storyFixture.SELECTORS.selected)
+    await expect.poll(() => selected.getAttribute("data-href"))
+      .toBe(source.urls.beta)
+
+    // The key press itself is delivered by the browser to the background and
+    // no driver can simulate it; everything after that is under test.
+    const relay = async () => {
+      const [worker] = context.serviceWorkers()
+      // globalThis, because `chrome` is only defined inside the worker.
+      await worker.evaluate(() => globalThis.chrome.runtime.sendMessage({
+        onceCommand: "key-command",
+        command: "toggle-comments"
+      }).catch(() => undefined))
+    }
+
+    // The persistent context carries its own start page besides the panel and
+    // the story, so what matters is that this count does not grow.
+    const openPages = context.pages().length
+
+    await relay()
+    await expect(betaPage).toHaveURL(source.urls.betaComments)
+    // Replaced in place rather than opened alongside.
+    expect(context.pages().length).toBe(openPages)
+
+    await relay()
+    await expect(betaPage).toHaveURL(source.urls.beta)
+    expectCleanHarness(harness)
+  } finally {
+    await closeStoryExtension(harness)
+  }
+})
+
 test("tracks selected stories opened through original and rewritten URLs", async () => {
   const harness = await launchStoryExtension()
   const { context, page, source } = harness

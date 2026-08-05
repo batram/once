@@ -1,6 +1,6 @@
 import { chordFromKey, chordFromParts } from "@once/core"
 import {
-  keyCommands,
+  availableKeyCommands,
   KeyCommandContext,
   KeyCommandId,
   TextEntryReach,
@@ -180,7 +180,7 @@ const TEXT_INPUT_TYPES = new Set([
  * - `editor`: multi-line or gestural editing, where arrow keys do real work.
  *   Sliders count, because the swipe lab and the structured settings editors
  *   drive ARIA sliders with the arrows.
- * - `field`: a single-line input; losing Ctrl+Arrow word-jump here is a small
+ * - `field`: a single-line input; losing a modified arrow chord here is a small
  *   price for being able to leave the field with the keyboard.
  */
 export type TextEntryKind = null | "field" | "editor"
@@ -208,16 +208,19 @@ function reaches(allowed: TextEntryReach, entry: TextEntryKind): boolean {
 }
 
 export function defaultBindings(): Map<string, KeyCommandId[]> {
-  return bindingsFrom(new Map(keyCommands().map((command) => [
+  return bindingsFrom(new Map(availableKeyCommands().map((command) => [
     command.id,
     [...command.defaultKeys]
   ])))
 }
 
-/** Inverts an id → chords map into the chord → ids map the dispatcher reads. */
+/**
+ * Inverts an id → chords map into the chord → ids map the dispatcher reads.
+ * Commands this shell cannot run are skipped, so their chords stay free.
+ */
 export function bindingsFrom(byCommand: Map<KeyCommandId, string[]>): Map<string, KeyCommandId[]> {
   const bindings = new Map<string, KeyCommandId[]>()
-  for (const command of keyCommands()) {
+  for (const command of availableKeyCommands()) {
     for (const chord of byCommand.get(command.id) ?? []) {
       const existing = bindings.get(chord)
       if (existing) existing.push(command.id)

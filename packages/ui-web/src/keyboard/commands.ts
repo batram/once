@@ -5,6 +5,12 @@
 // registerKeyCommand(). A command exists here whether or not anything has
 // registered a handler for it, so the settings UI can offer it while each shell
 // registers only the commands it can actually perform.
+//
+// What a shell *cannot* perform is a different matter, and is declared up front
+// as `shells`. The sidepanel extensions have no tabs to cycle, no address bar to
+// focus and no second pane, and the browser swallows Ctrl+T and friends before
+// the panel document ever sees them — so those commands are not merely unhandled
+// there, they are unofferable. See availableKeyCommands().
 
 export type BuiltinKeyCommandId =
   | "search.focus"
@@ -16,6 +22,7 @@ export type BuiltinKeyCommandId =
   | "story.action-right"
   | "story.open"
   | "story.open-comments"
+  | "story.toggle-comments"
   | "browser.new-tab"
   | "browser.close-tab"
   | "browser.restore-closed-tab"
@@ -52,6 +59,9 @@ export type KeyCommandGroup =
  */
 export type KeyCommandContext = "global" | "stories" | "browser"
 
+/** The shells the UI runs in, as far as command availability is concerned. */
+export type ShellId = "electron" | "webext" | "mobile"
+
 export interface KeyCommandDefinition {
   id: KeyCommandId
   /** Shown in settings, and harvested by the settings search index. */
@@ -64,14 +74,19 @@ export interface KeyCommandDefinition {
    * - "never": anything a typist would lose, such as bare letters and arrows.
    * - "field": reaches single-line inputs, but not textareas, sliders or
    *   contenteditable, where the same keys are doing real editing work. This
-   *   is what lets Ctrl+Arrow leave the search box while still jumping words
-   *   in the settings editors.
+   *   is what lets the pane jumps leave the search box while the arrow keys
+   *   still navigate text in the settings editors.
    * - "always": modified chords no editor claims.
    */
   allowInTextEntry: TextEntryReach
-  /** Restricts the command, and its settings row, to one shell. */
-  platform?: "electron"
+  /**
+   * Restricts the command, and its settings row, to the shells that can
+   * actually run it. Omitted means every shell.
+   */
+  shells?: readonly ShellId[]
 }
+
+const ELECTRON_ONLY: readonly ShellId[] = Object.freeze(["electron"])
 
 const BUILTIN_KEY_COMMANDS: readonly KeyCommandDefinition[] = Object.freeze([
   {
@@ -151,13 +166,24 @@ const BUILTIN_KEY_COMMANDS: readonly KeyCommandDefinition[] = Object.freeze([
     allowInTextEntry: "never"
   },
   {
+    id: "story.toggle-comments",
+    label: "Switch between story and comments",
+    group: "stories",
+    // Global, not "stories": it acts on the page that is open, so it has to
+    // fire while the content pane holds the keyboard as well.
+    context: "global",
+    defaultKeys: ["Alt+Shift+C"],
+    allowInTextEntry: "always",
+    shells: ["electron", "webext"]
+  },
+  {
     id: "browser.new-tab",
     label: "New tab",
     group: "browser",
     context: "global",
     defaultKeys: ["Ctrl+T"],
     allowInTextEntry: "always",
-    platform: "electron"
+    shells: ELECTRON_ONLY
   },
   {
     id: "browser.close-tab",
@@ -166,7 +192,7 @@ const BUILTIN_KEY_COMMANDS: readonly KeyCommandDefinition[] = Object.freeze([
     context: "browser",
     defaultKeys: ["Ctrl+W"],
     allowInTextEntry: "always",
-    platform: "electron"
+    shells: ELECTRON_ONLY
   },
   {
     id: "browser.restore-closed-tab",
@@ -175,7 +201,7 @@ const BUILTIN_KEY_COMMANDS: readonly KeyCommandDefinition[] = Object.freeze([
     context: "global",
     defaultKeys: ["Ctrl+Shift+T"],
     allowInTextEntry: "always",
-    platform: "electron"
+    shells: ELECTRON_ONLY
   },
   {
     id: "browser.new-window",
@@ -184,7 +210,7 @@ const BUILTIN_KEY_COMMANDS: readonly KeyCommandDefinition[] = Object.freeze([
     context: "global",
     defaultKeys: ["Ctrl+N"],
     allowInTextEntry: "always",
-    platform: "electron"
+    shells: ELECTRON_ONLY
   },
   {
     id: "browser.focus-urlbar",
@@ -193,7 +219,7 @@ const BUILTIN_KEY_COMMANDS: readonly KeyCommandDefinition[] = Object.freeze([
     context: "global",
     defaultKeys: ["Ctrl+L"],
     allowInTextEntry: "always",
-    platform: "electron"
+    shells: ELECTRON_ONLY
   },
   {
     id: "browser.next-tab",
@@ -202,7 +228,7 @@ const BUILTIN_KEY_COMMANDS: readonly KeyCommandDefinition[] = Object.freeze([
     context: "global",
     defaultKeys: ["Ctrl+Tab"],
     allowInTextEntry: "always",
-    platform: "electron"
+    shells: ELECTRON_ONLY
   },
   {
     id: "browser.prev-tab",
@@ -211,25 +237,25 @@ const BUILTIN_KEY_COMMANDS: readonly KeyCommandDefinition[] = Object.freeze([
     context: "global",
     defaultKeys: ["Ctrl+Shift+Tab"],
     allowInTextEntry: "always",
-    platform: "electron"
+    shells: ELECTRON_ONLY
   },
   {
     id: "panes.focus-left",
     label: "Focus story list",
     group: "panes",
     context: "global",
-    defaultKeys: ["Ctrl+ArrowLeft"],
+    defaultKeys: ["Alt+Shift+ArrowLeft"],
     allowInTextEntry: "field",
-    platform: "electron"
+    shells: ELECTRON_ONLY
   },
   {
     id: "panes.focus-right",
     label: "Focus content pane",
     group: "panes",
     context: "global",
-    defaultKeys: ["Ctrl+ArrowRight"],
+    defaultKeys: ["Alt+Shift+ArrowRight"],
     allowInTextEntry: "field",
-    platform: "electron"
+    shells: ELECTRON_ONLY
   },
   {
     id: "window.toggle-fullscreen",
@@ -238,7 +264,7 @@ const BUILTIN_KEY_COMMANDS: readonly KeyCommandDefinition[] = Object.freeze([
     context: "global",
     defaultKeys: ["F11"],
     allowInTextEntry: "always",
-    platform: "electron"
+    shells: ELECTRON_ONLY
   },
   {
     id: "window.exit-fullscreen",
@@ -247,7 +273,7 @@ const BUILTIN_KEY_COMMANDS: readonly KeyCommandDefinition[] = Object.freeze([
     context: "global",
     defaultKeys: ["Escape"],
     allowInTextEntry: "never",
-    platform: "electron"
+    shells: ELECTRON_ONLY
   }
 ] as const)
 
@@ -275,9 +301,34 @@ export function registerKeyCommand(command: KeyCommandDefinition): () => void {
   }
 }
 
-/** Every command currently on offer, in registration order. */
+/** Every registered command, in registration order, whatever the shell. */
 export function keyCommands(): readonly KeyCommandDefinition[] {
   return [...registry.values()]
+}
+
+// Electron is the default so a host that never declares itself keeps the full
+// catalogue, which is what every caller got before shells existed.
+let shell: ShellId = "electron"
+
+/**
+ * Names the shell the UI is mounted in. Must run before the dispatcher is first
+ * built: getKeyboardDispatcher() loads the stored bindings on first use, and
+ * those are filtered against the shell.
+ */
+export function setShell(next: ShellId): void {
+  shell = next
+}
+
+/**
+ * The commands this shell can actually run. Everything the user is offered, and
+ * everything that may hold a chord, comes from here rather than keyCommands():
+ * a command the shell cannot perform must not appear in settings, must not
+ * claim a default chord, and must not block another command from taking one.
+ */
+export function availableKeyCommands(): readonly KeyCommandDefinition[] {
+  return keyCommands().filter(
+    (command) => !command.shells || command.shells.includes(shell)
+  )
 }
 
 export function keyCommand(id: string): KeyCommandDefinition | undefined {

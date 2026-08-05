@@ -54,6 +54,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     void updateRedirects(redirects)
   })
   await mountOnceUi(app.client, {
+    shell: "electron",
     appVersion: buildInfo.version,
     buildChannel: buildInfo.channel,
     buildIdentifier: buildInfo.buildIdentifier,

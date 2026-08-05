@@ -8,6 +8,7 @@ import * as StorySearch from "./story/storySearch"
 import { setOnceClient } from "./client"
 import { SettingsPanel } from "./settings/SettingsPanel"
 import { StoryHistory } from "./story/StoryHistory"
+import { setSelectedUrl } from "./story/selectedStoryToggle"
 import * as StoryList from "./story/storyList"
 import { StoryListItem } from "./story/StoryListItem"
 import { SwipeConfig } from "./story/swipe/geometry"
@@ -15,11 +16,21 @@ import { ReaderView } from "./reader/ReaderView"
 import { SourcePickerView } from "./picker/SourcePickerView"
 import { bindMenuCollapseControls } from "./shell/menuCollapse"
 import { getKeyboardDispatcher } from "./keyboard"
+import { ShellId, setShell } from "./keyboard/commands"
 import { mountKeyboard } from "./keyboard/mountKeyboard"
 import { AppUpdater, bindAppUpdateControls } from "./settings/appUpdateControls"
-import { KeyboardSettingsView } from "./settings/KeyboardSettingsView"
+import {
+  BrowserManagedShortcut,
+  KeyboardSettingsView
+} from "./settings/KeyboardSettingsView"
 
 export interface MountOnceUiOptions {
+  /**
+   * Which shell is mounting. Decides which keyboard commands exist at all —
+   * the sidepanel extensions cannot cycle tabs or focus an address bar, so
+   * those never reach their settings. Defaults to the full Electron catalogue.
+   */
+  shell?: ShellId
   appVersion: string
   buildChannel: "release" | "dev"
   buildIdentifier?: string
@@ -40,12 +51,21 @@ export interface MountOnceUiOptions {
    * inside a page still reach the shell.
    */
   onKeyBindingsChanged?: (chords: string[]) => void
+  /**
+   * Shortcuts the host owns, listed read-only alongside Once's own. The
+   * extensions pass their manifest command here: it is the only shortcut that
+   * reaches Once while a web page has focus, and only the browser can rebind it.
+   */
+  browserShortcuts?: readonly BrowserManagedShortcut[]
 }
 
 export async function mountOnceUi(
   client: OnceClient,
   options: MountOnceUiOptions
 ): Promise<void> {
+  // Before anything touches the keyboard: getKeyboardDispatcher() loads the
+  // stored bindings on first use, and those are filtered against the shell.
+  setShell(options.shell ?? "electron")
   setOnceClient(client)
   StoryListItem.devToolsEnabled = options.buildChannel === "dev"
   ReaderView.mount(client)
@@ -111,7 +131,7 @@ export async function mountOnceUi(
     new KeyboardSettingsView(shortcutsHost, () => {
       options.onKeyBindingsChanged?.(getKeyboardDispatcher().boundChords())
       settingsPanel.refreshSettingsSearch()
-    })
+    }, options.browserShortcuts ?? [])
   }
 
   StoryList.init(client)
@@ -134,6 +154,8 @@ export async function mountOnceUi(
   })
 
   client.subscribe("selectedUrlChanged", ({ url }) => {
+    // Which of the story's two URLs is open, which the mirrored row cannot say.
+    setSelectedUrl(url)
     updateSelected(client, url)
   })
   client.subscribe("searchRequested", ({ query }) => {

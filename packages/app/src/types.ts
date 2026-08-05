@@ -136,7 +136,11 @@ export interface OnceClient {
   purgeStory(href: string): Promise<void>
   addFilter(filter: string): Promise<void>
   fetchDocument(url: string): Promise<{ html: string; url: string }>
-  openUrl(url: string, target: "_self" | "middle" | "blank" | string): void
+  /** See ActiveTabPort.openUrl for what the targets mean. */
+  openUrl(
+    url: string,
+    target: "_self" | "current" | "middle" | "blank" | string
+  ): void
   selectUrl(url: string): Promise<void>
   subscribe<T extends OnceEventName>(
     event: T,
@@ -184,7 +188,17 @@ export interface ThemePort {
 }
 
 export interface ActiveTabPort {
-  openUrl(url: string, target: "_self" | "middle" | "blank" | string): void
+  /**
+   * `target` is a link target with two additions. "_self" means "wherever this
+   * shell shows a story" — the Electron content pane, a new tab in the
+   * extensions, since the panel is not one. "current" means "replace the page
+   * the user is looking at", which is a different thing in the extensions and
+   * the same thing in Electron.
+   */
+  openUrl(
+    url: string,
+    target: "_self" | "current" | "middle" | "blank" | string
+  ): void
   onSelectedUrlChanged(handler: (url: string) => void): () => void
 }
 

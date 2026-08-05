@@ -6,6 +6,18 @@ export function createWebExtActiveTab(
 ): OncePlatformPorts["activeTab"] {
   return {
     openUrl(url, target) {
+      // "current" replaces what the active tab is showing. The panel is not a
+      // tab, so unlike "_self" — which opens the story in a new one — there is
+      // nothing here to navigate except the page the user is looking at.
+      if (target === "current") {
+        void browserApi.tabs
+          .query({ active: true, currentWindow: true })
+          .then((tabs) => {
+            const id = tabs[0]?.id
+            if (id !== undefined) return browserApi.tabs.update(id, { url })
+          })
+        return
+      }
       if (target === "middle" || target === "_self") {
         void browserApi.tabs.create({ url, active: target === "_self" })
         return
