@@ -101,6 +101,21 @@ lists them read-only (`MountOnceUiOptions.browserShortcuts`) alongside
 extension page, so both are offered as copyable text; Chrome additionally allows
 `tabs.create` for its own settings page, so there the address gets an Open button too.
 
+**Opening the panel and focusing it are separate things.** Measured by hand, since no driver
+can dispatch a browser-level accelerator: `Ctrl+Shift+Y` in Chrome opens the side panel *and*
+gives it the keyboard, while in Firefox it opens the sidebar and leaves focus in the page.
+That is [bug 1502713](https://bugzilla.mozilla.org/show_bug.cgi?id=1502713), still open — a
+`sidebarAction.open({ focus: true })` patch was proposed and never landed — so do not assume
+the panel has the keyboard after summoning it in Firefox.
+
+Moving focus the other way, from the panel back to the page, has no API at all in either
+browser; [w3c/webextensions#693](https://github.com/w3c/webextensions/issues/693) requests one
+and carries supportive labels from Chrome, Firefox and Safari. The browsers' own `F6` /
+`Shift+F6` cycles between the content area and the panel (Windows and Linux; on macOS
+⌘+Option+Up/Down reaches only the sidebar switcher). That is the answer for both directions in
+Firefox, and it is why no Once command tries to do it — everything available would be a
+fudge that closes the panel or flickers a tab round-trip.
+
 ### Switching between a story and its comments
 
 `story.toggle-comments` (`Alt+Shift+C`) acts on **the open page**, not the keyboard cursor:
