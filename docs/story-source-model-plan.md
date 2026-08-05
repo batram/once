@@ -1,6 +1,12 @@
 # Typed story sources
 
-Status: in progress. Phases 1–4 complete; phase 5 pending.
+Status: **complete**. Phases 1–5 implemented and verified on 2026-08-05.
+
+This is migration history, not an active roadmap. Descriptions of legacy
+conversion, pending migration state, and split-brain diagnostics below record
+the temporary v0.3.0 cutover behavior. Phase 5 subsequently removed those
+runtime paths after every in-scope client migrated successfully. Current
+behavior is summarized under **Final state**.
 
 ## Context
 
@@ -28,7 +34,7 @@ Giving sources durable identity and typed configuration fixes the underlying mod
 The risk is the format cutover, so this plan isolates identity, migration, and object-native UI from
 network and cache behaviour. The cache plan starts only after this one establishes stable sources.
 
-## Contracts, decided up front
+## Migration contracts, decided up front
 
 These are data-contract decisions, not implementation details, and everything below depends on them.
 
@@ -170,10 +176,10 @@ ranges per source id without a JSON source map.
   non-whitespace character is `{` or `[` is JSON: it is strictly parsed and JSON errors are reported
   as JSON errors. It never falls through to the legacy parser — otherwise malformed JSON quietly
   becomes malformed sources.
-- The legacy path accepts **only** blank lines, `*group` headers, valid http(s) URLs, and recognized
-  legacy `geny:` / `json:` forms, then runs import reconciliation so a pasted URL list keeps existing
-  ids and settings. Anything else **rejects the entire import and saves nothing**. No partial import
-  unless the UI previews it and lists every skipped entry explicitly.
+- During the migration, the legacy path accepted **only** blank lines, `*group` headers, valid
+  http(s) URLs, and recognized legacy `geny:` / `json:` forms. Phase 5 removed that decoder.
+  Current plain-text import accepts HTTP(S) URL lists and group headers only; collector
+  configuration comes from typed JSON or the picker.
 - Save: strict parse and validate; on failure the previous document is untouched and the error
   surfaces in the existing `.structured_validation` / status strip.
 - **On a successful save, canonicalize immediately**: re-serialize, replace the textarea content, and
@@ -204,17 +210,16 @@ Phases are independently **verifiable**. Most are also independently shippable; 
 
 Step 0 is this document: the frozen contracts live in the repo rather than only in a session plan.
 
-### 1. Domain model and converters — complete
+### 1. Domain model and migration converter — complete, converter retired
 
-`core/settings/storySource.ts` (model, id minting, strict + tolerant normalizers, group helpers,
-import reconciliation) and `core/settings/legacySourceLines.ts` (line→document converter, the right
-home for the legacy `§§` separator once collectors drop it). Nothing reads or writes the new
-document yet.
+`core/settings/storySource.ts` introduced the model, id minting, strict and tolerant normalizers,
+group helpers, and import reconciliation. `core/settings/legacySourceLines.ts` provided the
+temporary line-to-document converter and was deleted after the Phase 5 gate.
 
 Tests: malformed `§§` configs, duplicate URLs, duplicate group names, **empty groups**, id
 collisions, reorder, URL edits, repeated normalization (idempotence), and unknown future versions.
 
-### 2. Collector contract — complete, legacy lines still decodable
+### 2. Collector contract — complete, legacy adapter retired
 
 - `StoryParser.options` gains a required unique `id` (`geny`, `hackernews`, `jsonselect`,
   `lobsters`, `redditjson`, `redditrss`, `nitter`, `rss`). `options.type` cannot serve — `redditJson`
@@ -228,17 +233,17 @@ collisions, reorder, URL edits, repeated normalization (idempotence), and unknow
   filter = true)` currently receives the URL as `filter` and works only because a non-empty string is
   truthy. `parse_response` loses `og_url` too.
 - Collector-owned config codecs and registry lookup by id; `ResolvedStorySource` as the single
-  pre-load validation point. A runtime adapter still converts legacy lines into resolved sources in
-  memory, so nothing depends on the storage cutover yet.
+  pre-load validation point. The runtime legacy adapter used during the cutover was removed after
+  Phase 5.
 
-### 3. Persistence cutover — complete
+### 3. Persistence cutover — complete, transitional behavior retired
 
-- New list-store document id `sources` holding `StorySourceDocument`. **Both** `sources` and
-  `story_sources` go into `PouchSyncService.SETTINGS_DOCUMENT_IDS:49-56`.
+- The cutover introduced list-store document id `sources` holding `StorySourceDocument` and
+  temporarily synchronized both source documents. Current synchronization includes only `sources`.
 
-**The gate needs an interface, because none exists today.** `syncFrom` is fire-and-forget
+**The gate needed an interface, because none existed yet.** `syncFrom` was fire-and-forget
 (`PouchSyncService.ts:130-179` returns `void` and runs `void this.runInitialSync(...)`), so nothing
-can currently await the settings stage. Add one signal and one small state machine:
+could await the settings stage. The implementation added one signal and one small state machine:
 
 - `SyncServicePort` (`app/types.ts:171-176`) gains `onSettingsReplicated?(handler): () => void`.
   `PouchSyncService` fires it once per generation, immediately after the awaited
@@ -311,7 +316,11 @@ handling from core and the picker, remove the legacy-format sections from
 `docs/COLLECTORS.md`, and update `ARCHITECTURE.md` and `CODEMAP.md`. The current collector contract
 is already documented; this gate removes only the transitional line-format guidance.
 
-## Cutover acceptance criteria — complete
+## Migration-time acceptance criteria — met
+
+These criteria governed the v0.3.0 conversion window. Requirements referring to legacy serving,
+conversion, or diagnostics were intentionally retired after the real-profile gate; they are not
+claims about the current runtime.
 
 - No migration write occurs before initial settings replication finishes when sync is enabled.
 - Sync configured but offline leaves migration pending and keeps serving legacy sources; it never
@@ -336,6 +345,19 @@ is already documented; this gate removes only the transitional line-format guida
 - Invalid JSON or a failed import leaves the previous document untouched.
 - A legacy-document change after cutover produces a visible diagnostic.
 - Search, error-log navigation, loader issues and row highlighting all resolve by source id.
+
+## Final state
+
+- `sources` version 2 is the sole runtime source document and the sole source
+  document synchronized with CouchDB.
+- `story_sources` may remain in existing databases as untouched historical
+  data. The application neither reads, writes, synchronizes, nor diagnoses it.
+- Runtime and import paths no longer decode `§§`. Plain HTTP(S) URL-list import
+  remains available; typed JSON and the picker carry collector configuration.
+- Every in-scope Electron, Firefox, Chrome, Android, and installed Windows
+  profile passed through v0.3.0 and retained the verified typed document.
+- Mixed-version operation and direct upgrade from an unconverted pre-v0.3.0
+  profile remain outside this completed cutover's declared scope.
 
 ## Deliberately not done, and known edges
 
@@ -425,3 +447,23 @@ Post-cutover cleanup verification (2026-08-05):
 - `npm run test:mobile:web` passed 54/54 tests.
 - `npm run package:electron` completed, and the complete packaged Electron E2E
   suite passed its current 56/56 tests.
+
+## Closure
+
+Phase 5 is finished. Commit `3d8ba09` removed the transitional runtime and
+optimized stale-checkpoint replication with bounded 1,000-document batches and
+receiving-side checkpoints. Firefox and Chrome HARs established the original
+failure mode; the Chrome capture measured 22,644 revision checks, 1,076 remote
+checkpoint requests, and only 51 document writes over roughly 14 minutes.
+
+An exact post-fix replay against the original stale profiles is unavailable:
+all real clients completed catch-up before the fix was implemented, and no
+pre-catch-up IndexedDB snapshot was retained. The implementation is covered by
+replication-option integration tests and the complete cross-client validation
+matrix above. A synthetic recreation would not be equivalent live evidence and
+is not a condition of this migration's completion.
+
+No immediate v0.3.1 release is planned solely for clients whose checkpoints are
+already current. The optimization remains on `main` for the next release. This
+document is closed; subsequent source-cache work belongs to
+[story-cache-timing-plan.md](story-cache-timing-plan.md).
