@@ -5,6 +5,10 @@ package owns source matching, response decoding, source-specific parsing, and
 the registry of available collectors. Application code is responsible for
 fetching, caching, grouping, filtering, and persisting the resulting stories.
 
+The line-based source format described below, including the `§§` embedded-config
+form, is scheduled to be replaced by typed source objects — see
+[story-source-model-plan.md](story-source-model-plan.md).
+
 ## How a source is loaded
 
 Each non-empty line in the Sources setting is either a source or a group
