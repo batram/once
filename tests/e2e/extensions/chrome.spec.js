@@ -102,7 +102,12 @@ test("installed Chrome extension loads, collects, persists settings, and opens a
     await expect(page.getByTestId("sources")).toBeHidden()
     await page.locator('[data-settings-target="sources"]').click()
     await page.getByTestId("sources-mode-toggle").click()
-    await expect(page.getByTestId("sources")).toHaveValue(source.source)
+    const persistedSources = JSON.parse(await page.getByTestId("sources").inputValue())
+    expect(persistedSources.sources).toHaveLength(1)
+    expect(persistedSources.sources[0]).toMatchObject({
+      url: `${source.origin}/feed.json`,
+      collector: "jsonselect"
+    })
     await page.getByTestId("stories-menu").click()
     await page.locator("#searchfield").fill("")
     await page.getByTestId("reload-stories").click()

@@ -3,7 +3,7 @@ export class WebExtSyncStorage {
 
   async getSyncUrl(): Promise<string> {
     const data = await this.browserApi.storage.sync.get("sync_url")
-    return data ? data.sync_url : ""
+    return typeof data?.sync_url === "string" ? data.sync_url : ""
   }
 
   async setSyncUrl(syncUrl: string): Promise<void> {

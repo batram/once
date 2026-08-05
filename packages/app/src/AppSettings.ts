@@ -49,6 +49,7 @@ export class AppSettings {
   private readonly pendingWrites = new Map<string, string>()
   private sourcesState: "pending" | "resolved" = "pending"
   private sourcesDocument?: StorySourceDocument
+  private localSourcesResolution?: Promise<void>
   private legacyDigest?: string
   animated: AnimationSetting = true
 
@@ -65,6 +66,9 @@ export class AppSettings {
   }
 
   async getStorySources(): Promise<StorySourceDocument> {
+    if (this.sourcesState === "pending" && this.localSourcesResolution) {
+      await this.localSourcesResolution
+    }
     if (this.sourcesState === "resolved" && this.sourcesDocument) {
       return structuredClone(this.sourcesDocument)
     }
@@ -137,13 +141,16 @@ export class AppSettings {
         )
         throw error
       }
-      this.startSync(normalizedUrl)
+      await this.startSync(normalizedUrl)
     }
     this.actions.publishChanged("sync")
   }
 
-  startSync(syncUrl: string): void {
-    if (!syncUrl.trim()) void this.resolveStorySources(false)
+  async startSync(syncUrl: string): Promise<void> {
+    if (!syncUrl.trim()) {
+      this.localSourcesResolution ??= this.resolveStorySources(false)
+      await this.localSourcesResolution
+    }
     this.syncService?.syncFrom(syncUrl, () => this.actions.loadedStoryIds())
   }
 
@@ -221,7 +228,11 @@ export class AppSettings {
     }
     switch (change.id) {
       case "sources":
-        void this.resolveStorySources(true)
+        // Initial replication writes pulled documents into the live local
+        // database before the settings stage announces completion. Keep the
+        // legacy adapter authoritative until that signal establishes absence
+        // or presence of the remote document.
+        if (this.sourcesState === "resolved") void this.resolveStorySources(true)
         break
       case "story_sources":
         if (this.sourcesState === "resolved") void this.reportLegacyDivergence()

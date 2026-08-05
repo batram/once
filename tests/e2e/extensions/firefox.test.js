@@ -104,7 +104,10 @@ test("installed Firefox extension loads, collects, persists settings, and opens 
       "sources",
       '[data-testid="sources"]'
     )
-    assert.equal(await sources.getAttribute("value"), source.source)
+    const persistedSources = JSON.parse(await sources.getAttribute("value"))
+    assert.equal(persistedSources.sources.length, 1)
+    assert.equal(persistedSources.sources[0].url, `${source.origin}/feed.json`)
+    assert.equal(persistedSources.sources[0].collector, "jsonselect")
     await driver.findElement(By.css('[data-testid="stories-menu"]')).click()
     await driver.findElement(By.css("#searchfield")).clear()
     await driver.findElement(By.css('[data-testid="reload-stories"]')).click()

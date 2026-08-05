@@ -68,6 +68,7 @@ export class AppRuntime {
     state: "disabled",
     message: "Sync is not configured"
   }
+  private sourceSettingsReady: Promise<void> = Promise.resolve()
 
   constructor(private platform: OncePlatformPorts) {
     this.settings = new AppSettings(
@@ -154,10 +155,9 @@ export class AppRuntime {
       this.waitForStartupStorage("redirects", () => this.refreshRedirects())
     ])
 
-    await this.waitForStartupStorage("sync", async () => {
-      const syncUrl = await this.settings.getSyncUrl()
-      this.settings.startSync(syncUrl)
-    })
+    this.sourceSettingsReady = this.settings.getSyncUrl()
+      .then((syncUrl) => this.settings.startSync(syncUrl))
+    await this.waitForStartupStorage("sync", () => this.sourceSettingsReady)
 
     this.platform.activeTab?.onSelectedUrlChanged((url) => {
       this.client.selectUrl(url)
@@ -172,7 +172,8 @@ export class AppRuntime {
     return {
       getDiagnostics: () => this.diagnostics.snapshot(),
       getSyncStatus: () => this.syncStatus,
-      getStorySources: () => this.settings.getStorySources(),
+      getStorySources: () => this.sourceSettingsReady
+        .then(() => this.settings.getStorySources()),
       saveStorySources: (storySources, reloadStories) =>
         this.settings.saveStorySources(storySources, reloadStories),
       getFilterList: () => this.settings.getFilterList(),

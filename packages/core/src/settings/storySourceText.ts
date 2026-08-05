@@ -12,6 +12,16 @@ export interface StorySourceTextResult {
   reports: StorySourceReport[]
 }
 
+export interface StorySourceTextRange {
+  start: number
+  end: number
+}
+
+export interface SerializedStorySourceDocument {
+  text: string
+  sourceRanges: ReadonlyMap<string, StorySourceTextRange>
+}
+
 export function parseStorySourceText(
   text: string,
   existing?: StorySourceDocument
@@ -44,12 +54,23 @@ export function parseStorySourceText(
 }
 
 export function serializeStorySourceDocument(doc: StorySourceDocument): string {
+  return serializeStorySourceDocumentWithRanges(doc).text
+}
+
+export function serializeStorySourceDocumentWithRanges(
+  doc: StorySourceDocument
+): SerializedStorySourceDocument {
   const lines = ["{", `  "version": ${doc.version},`]
   if (doc.migratedFrom) lines.push(`  "migratedFrom": ${JSON.stringify(doc.migratedFrom)},`)
   lines.push(`  "groups": ${JSON.stringify(doc.groups)},`, '  "sources": [')
+  const sourceRanges = new Map<string, StorySourceTextRange>()
   doc.sources.forEach((source, index) => {
-    lines.push(`    ${JSON.stringify(source)}${index < doc.sources.length - 1 ? "," : ""}`)
+    const prefixLength = lines.join("\n").length + 1
+    const serialized = JSON.stringify(source)
+    const start = prefixLength + 4
+    sourceRanges.set(source.id, { start, end: start + serialized.length })
+    lines.push(`    ${serialized}${index < doc.sources.length - 1 ? "," : ""}`)
   })
   lines.push("  ]", "}")
-  return lines.join("\n")
+  return { text: lines.join("\n"), sourceRanges }
 }

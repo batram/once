@@ -1,3 +1,5 @@
+import { parseStorySourceText,
+  serializeStorySourceDocumentWithRanges } from "@once/core"
 import { requireElement } from "../dom"
 import { revealElement } from "../scrollReveal"
 
@@ -67,4 +69,21 @@ export function highlightTextareaContent(
   textarea.focus({ preventScroll: true })
   textarea.setSelectionRange(startIndex, startIndex + searchText.length)
   scrollTextareaSelectionIntoView(textarea, startIndex)
+}
+
+export function highlightStorySourceTextarea(sourceId: string): boolean {
+  const textarea = document.querySelector<HTMLTextAreaElement>("#sources_area")
+  if (!textarea) return false
+  const parsed = parseStorySourceText(textarea.value)
+  if (!parsed.ok || !parsed.doc) return false
+  const serialized = serializeStorySourceDocumentWithRanges(parsed.doc)
+  // Successful saves canonicalize immediately. Refuse stale offsets if a user
+  // has since reformatted the JSON instead of guessing by substring.
+  if (serialized.text !== textarea.value) return false
+  const range = serialized.sourceRanges.get(sourceId)
+  if (!range) return false
+  textarea.focus({ preventScroll: true })
+  textarea.setSelectionRange(range.start, range.end)
+  scrollTextareaSelectionIntoView(textarea, range.start)
+  return true
 }

@@ -227,13 +227,14 @@ test("story source groups collapse while dragging and restore afterward", async 
     "Beta",
     "Alpha"
   ])
-  await expect(page.getByTestId("sources")).toHaveValue([
-    fixture,
-    "*Beta",
-    `${fixture}?group=beta`,
-    "*Alpha",
-    `${fixture}?group=alpha`
-  ].join("\n"))
+  const persisted = JSON.parse(await page.getByTestId("sources").inputValue())
+  expect(persisted.groups.map((group) => group.name)).toEqual(["Beta", "Alpha"])
+  expect(persisted.sources.map((source) => source.url)).toEqual([
+    fixture, `${fixture}?group=beta`, `${fixture}?group=alpha`
+  ])
+  expect(persisted.sources.map((source) => source.groupId ?? null)).toEqual([
+    null, persisted.groups[0].id, persisted.groups[1].id
+  ])
   await expect(groups.nth(0)).toHaveAttribute("open", "")
   await expect(groups.nth(1)).toHaveAttribute("open", "")
   await expect(groups.nth(2)).not.toHaveAttribute("open", "")

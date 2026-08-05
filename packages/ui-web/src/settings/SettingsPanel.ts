@@ -9,7 +9,8 @@ import { SwipeSettingsLab } from "./SwipeSettingsLab"
 import { StructuredSettingsEditors } from "./StructuredSettingsEditors"
 import { SettingsPersistence } from "./SettingsPersistence"
 import { updateSettingsSummaries } from "./settingsSummaries"
-import { highlightTextareaContent, scrollTextareaSelectionIntoView } from "./textareaHighlight"
+import { highlightStorySourceTextarea, highlightTextareaContent,
+  scrollTextareaSelectionIntoView } from "./textareaHighlight"
 import * as settingsControls from "./settingsControlBindings"
 import { bindSyncSettingsControls } from "./syncSettingsControls"
 import { bindSettingsSubscriptions } from "./settingsSubscriptions"
@@ -666,6 +667,7 @@ export class SettingsPanel {
     // immediately steal focus back from the highlighted row.
     requestAnimationFrame(() => {
       if (this.structuredEditors?.focusSource(sourceId)) return
+      highlightStorySourceTextarea(sourceId)
     })
   }
 

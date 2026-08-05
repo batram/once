@@ -352,11 +352,17 @@ Phase 3–4 completion evidence (2026-08-05):
 
 - `npm run check` passed, including lint, type checking, dead-code and boundary checks, both
   extension development bundles, Electron type checking, and the mobile development bundle.
-- `npm run test:unit` passed 368/368 tests. The migration state machine has focused coverage for
+- `npm run test:unit` passed 378/378 tests. The migration state machine has focused coverage for
   local-only, configured/pending, delayed remote arrival, both documents with a mismatched digest,
-  malformed `sources`, post-cutover legacy edits, and late-subscriber replay.
+  malformed `sources`, post-cutover legacy edits, a pending observed `sources` write, and
+  late-subscriber replay. Local source reads also join source/sync initialization after the general
+  startup timeout, and the WebExtension adapter normalizes an unset sync URL to the empty string.
 - `npm run test:electron` passed 49/49 app and Electron integration tests, including disabled-source
   fetch/menu exclusion and the settings replication signal.
+- `npm run test:extensions` passed 2/2 artifact checks, 10/10 Chrome E2E tests, and 3/3 Firefox E2E
+  tests, including typed-source persistence and story state across a full extension-page reload.
+- `npm run test:mobile:web` passed 54/54 tests, including object-native source group reorder and
+  persistence.
 - The packaged Electron source-picker E2E passed 5/5 after `npm run package:electron`, covering the
   full settings-button flow, click picking, editable config, cancellation, and non-HTTP rejection.
 - Phase 5 remains deliberately open: no real-profile migration or second-client sync gate was run.
