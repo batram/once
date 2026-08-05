@@ -1,4 +1,5 @@
 export const options = {
+  id: "redditrss",
   type: "re",
   description:
     "Collect stories from Reddit (https://old.reddit.com/) by parsing the RSS feed of subreddits",

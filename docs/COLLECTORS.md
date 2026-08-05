@@ -5,8 +5,10 @@ package owns source matching, response decoding, source-specific parsing, and
 the registry of available collectors. Application code is responsible for
 fetching, caching, grouping, filtering, and persisting the resulting stories.
 
-The line-based source format described below, including the `§§` embedded-config
-form, is scheduled to be replaced by typed source objects — see
+Sources are still persisted in the line-based format described below. The
+runtime converts each line to a typed source before selecting a collector, and
+the persisted format, including the `§§` embedded-config form, is scheduled
+to be replaced by typed source objects — see
 [story-source-model-plan.md](story-source-model-plan.md).
 
 ## How a source is loaded
@@ -24,18 +26,19 @@ https://old.reddit.com/r/netsec/.rss
 
 For every source, Once:
 
-1. finds the first registered collector whose `options.pattern` matches the
-   source line;
-2. calls the collector's optional `resolve_url` function to obtain the URL to
-   fetch;
-3. fetches or reads a cached response;
-4. decodes the response according to `options.collects` (`dom`, `json`, or
+1. converts the legacy line in memory, then resolves it once up front;
+   `resolveStorySource` in `packages/collectors/src/resolveSource.ts` picks the
+   collector by an explicit id or by matching `options.pattern` against the URL,
+   and asks configurable collectors to validate their configuration;
+2. fetches or reads a cached response, keyed on the resolved URL;
+3. decodes the response according to `options.collects` (`dom`, `json`, or
    `xml`); and
-5. calls `parse(input, resolvedUrl, originalSource)`.
+4. calls `parse(input, { url, config })`.
 
-The original source is deliberately retained. Configurable collectors such as
-Geny Match store their parsing configuration in that value while fetching a
-normal HTTP or HTTPS URL.
+Resolving first is what lets the cache work: the URL to fetch is also the cache
+key, and it has to be known before anything is read. It is also the single point
+where configuration is validated, so `parse` can trust what it is handed and a
+bad selector set becomes a source error instead of a parse-time surprise.
 
 Collector order in `packages/collectors/src/registry.ts` matters because the
 first match wins. Pattern matching supports exact prefixes and one `*`
@@ -44,16 +47,26 @@ check.
 
 ## Built-in collectors
 
-| Collector | Source pattern | Input | Story type | Search support |
-| --- | --- | --- | --- | --- |
-| Geny Match | `geny:*` | HTML DOM | `GY` | none |
-| Hacker News | `https://news.ycombinator.com/` | HTML DOM | `HN` | global and domain |
-| JSON Select | `json:*` | JSON | `JX` | none |
-| Lobsters | `https://lobste.rs/` | HTML DOM | `LO` | global and domain |
-| Reddit JSON | `https://old.reddit.com/*.json` | JSON | `re` | global and domain |
-| Reddit RSS | `https://old.reddit.com/*.rss` | DOM | `re` | none |
-| Nitter | `https://nitter.net/` | HTML DOM | `tw` | none |
-| RSS/Atom | `*.rss` | XML DOM | `RSS` | none |
+| Collector | Id | Source pattern | Input | Story type | Search support |
+| --- | --- | --- | --- | --- | --- |
+| Geny Match | `geny` | named only | HTML DOM | `GY` | none |
+| Hacker News | `hackernews` | `https://news.ycombinator.com/` | HTML DOM | `HN` | global and domain |
+| JSON Select | `jsonselect` | named only | JSON | `JX` | none |
+| Lobsters | `lobsters` | `https://lobste.rs/` | HTML DOM | `LO` | global and domain |
+| Reddit JSON | `redditjson` | `https://old.reddit.com/*.json` | JSON | `re` | global and domain |
+| Reddit RSS | `redditrss` | `https://old.reddit.com/*.rss` | DOM | `re` | none |
+| Nitter | `nitter` | `https://nitter.net/` | HTML DOM | `tw` | none |
+| RSS/Atom | `rss` | `*.rss` | XML DOM | `RSS` | none |
+
+`options.id` is a **public persistence identifier**: a source that names its
+collector stores this string, so renaming one needs an alias and a migration of
+stored sources. `tests/unit/collectors/registry-ids.test.js` freezes the set —
+note that `type` cannot serve the same purpose, since the two Reddit collectors
+deliberately share the `re` badge.
+
+The two configurable collectors have no URL pattern. Their selectors cannot be
+guessed from an address, so converted legacy lines name them explicitly and
+carry their validated configuration in the typed source's `select` field.
 
 Source-specific settings, colors, and descriptions live in each module's
 exported `options` object under `packages/collectors/src/collectors`.
@@ -65,10 +78,11 @@ collector supports RSS 1.0, RSS 2.0, and Atom, applies `time_cut_off`, and can
 discard entries without timestamps. Reddit's Atom-shaped `.rss` response has
 its own collector and is registered before the general `*.rss` pattern.
 
-JSON Select is the JSON counterpart to Geny Match. Its source line uses the
-same three-part idea with a `json:` prefix, but selectors address object keys
-instead of CSS selectors. It currently exposes `parse` and `resolve_url`
-directly; unlike Geny Match, it has no public builder and sanitizer entry point.
+JSON Select is the JSON counterpart to Geny Match. Its legacy source line uses
+the same three-part idea with a `json:` prefix, but selectors address object
+keys instead of CSS selectors. Both configurable collectors use the shared
+validation machinery in `packages/collectors/src/selectorConf.ts`; JSON Select
+has no public builder entry point.
 
 ### Collector output
 
@@ -98,15 +112,17 @@ collection, even if it was visible when configuring the page in the picker.
 
 ### Source format
 
-A Geny source contains three parts separated by `options.separator`:
+A legacy Geny source contains three parts separated by the core-owned
+`LEGACY_SEPARATOR`:
 
 ```text
 geny:<separator><selector JSON><separator><page URL>
 ```
 
-Do not assemble this string in application code. Import the supported Geny
-entry point and use `build_source`, which validates the configuration, accepts
-only HTTP(S) page URLs, and rejects separator collisions.
+Do not assemble this string in application code. Until the picker writes typed
+source objects, import the supported Geny entry point and use `build_source`,
+which validates the configuration, accepts only HTTP(S) page URLs, and rejects
+separator collisions.
 
 ```ts
 import { build_source, type GenySelectorConf } from "@once/collectors/geny"
@@ -133,8 +149,10 @@ const conf: GenySelectorConf = {
 const source = build_source(conf, "https://example.com/news")
 ```
 
-`resolve_url(source)` performs the inverse operation needed by the loader: it
-returns the page URL from a Geny source line.
+Core's `readLegacySourceLine` performs the inverse operation needed by the
+runtime bridge. It returns the page URL, collector id, and selector
+configuration; the collector no longer parses configuration out of the source
+line.
 
 ### Configuration shape
 
@@ -209,17 +227,24 @@ automatically. Validation:
 - limits the configuration to 10 tag selectors and 20 elements per tag; and
 - requires `stories`, `link`, and `title`.
 
-The collector returns an empty array for a source that is not a complete Geny
-source line. It throws a descriptive error for malformed JSON, missing required
-configuration, unknown processors, invalid selectors, or empty required story
-values. The application surfaces these as source parsing errors.
+The collector returns an empty array when no configuration is supplied. Legacy
+line conversion and source resolution reject malformed JSON or invalid
+configuration before fetching. Parsing throws a descriptive error for invalid
+selectors or empty required story values, and the application surfaces those
+as source errors.
 
 ## Developing collectors
 
-A collector module exports `options` plus at least `parse`. It may also export
-`resolve_url`, `global_search`, or `domain_search`. Add the module to
-`get_active()` in `packages/collectors/src/registry.ts`, taking overlap and
-first-match ordering into account.
+A collector module exports `options` plus at least `parse(input, context)`. Its
+options require a stable, unique `id`, a `collects` input type, and either one
+or more URL `pattern` values or an empty pattern list for explicitly named
+collectors. It may also export `global_search` or `domain_search`. A collector
+with source-specific configuration exports a validator and registers it as
+`normalizeConfig` in `packages/collectors/src/registry.ts`.
+
+Add the module to `get_active()`, taking overlap and first-match ordering into
+account, and add its public id to the frozen registry-id test. Renaming an id
+requires a persisted-source alias and migration.
 
 Keep parsing deterministic and avoid network requests inside `parse`. Search
 functions are the exception: they are explicitly asynchronous providers.

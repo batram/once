@@ -382,8 +382,7 @@ class PickerOverlay {
     }
     let parsed
     try {
-      const source = this.buildSourceLine(conf)
-      parsed = genyParse(document, location.href, source)
+      parsed = genyParse(document, { url: location.href, config: conf })
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error)
       this.setStatus(`Preview failed: ${detail}`)

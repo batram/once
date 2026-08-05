@@ -8,10 +8,29 @@ import * as redditRss from "./collectors/redditRss"
 import * as twitterHtml from "./collectors/twitterHtml"
 import * as vanillaRss from "./collectors/vanillaRss"
 
+/** Everything a collector needs to know about the source being parsed. */
+export interface ParseContext {
+  /** The URL that was fetched. */
+  url: string
+  /**
+   * Collector configuration, already validated by the collector's own
+   * `normalizeConfig`. Only the configurable collectors read it.
+   */
+  config?: unknown
+}
+
 export declare interface StoryParser {
   options: {
+    /**
+     * Stable identifier, and a public one: it is stored in every source that
+     * names its collector explicitly. Renaming one needs an alias and a
+     * migration of stored sources. `type` cannot serve this purpose — the two
+     * Reddit collectors deliberately share `re`.
+     */
+    id: string
     type: string
     description: string
+    /** URL patterns for detecting this collector. Empty means never detected. */
     pattern: string | string[]
     collects: "dom" | "json" | "xml"
     colors: [string, string]
@@ -20,12 +39,16 @@ export declare interface StoryParser {
 
   parse: (
     input: Document | Record<string, unknown>,
-    url?: string,
-    og_url?: string
+    context: ParseContext
   ) => Story[]
+  /**
+   * Validates untrusted configuration and returns a copy holding only known
+   * fields, or throws. One path for the picker, an import, and a converted
+   * legacy line, so nothing reaches `parse` unchecked.
+   */
+  normalizeConfig?: (raw: unknown) => unknown
   global_search?: (needle: string) => Promise<Story[]>
   domain_search?: (needle: string) => Promise<Story[]>
-  resolve_url?: (entry: string) => string
 }
 
 export type GlobalSearchProvider = StoryParser &
@@ -33,12 +56,21 @@ export type GlobalSearchProvider = StoryParser &
 export type DomainSearchProvider = StoryParser &
   Required<Pick<StoryParser, "domain_search">>
 
+/**
+ * The cast stays. Each collector's `parse` takes the input type it actually
+ * handles — a `Document` or a JSON record — which is narrower than the union
+ * declared above, and under `strictFunctionTypes` that is not assignable. The
+ * alternative is widening all eight signatures and narrowing inside each one,
+ * which buys nothing. The cast does mean a missing or duplicated `id` would not
+ * be a type error, so `tests/unit/collectors/registry-ids.test.js` asserts the
+ * ids instead — and that test doubles as the guard against renaming one.
+ */
 export function get_active(): StoryParser[] {
   return [
     {
       options: genyMatch.options,
       parse: genyMatch.parse,
-      resolve_url: genyMatch.resolve_url
+      normalizeConfig: genyMatch.sanitize_selector_conf
     },
     {
       options: hackerNewsHtml.options,
@@ -49,7 +81,7 @@ export function get_active(): StoryParser[] {
     {
       options: jsonSelect.options,
       parse: jsonSelect.parse,
-      resolve_url: jsonSelect.resolve_url
+      normalizeConfig: jsonSelect.sanitize_selector_conf
     },
     {
       options: lobstersHtml.options,
@@ -82,6 +114,11 @@ export function get_parser(): StoryParser[] {
   return get_active().filter((parser: StoryParser) => {
     return Object.prototype.hasOwnProperty.call(parser, "parse")
   })
+}
+
+/** Looks a collector up by the id a stored source named. */
+export function get_parser_by_id(id: string): StoryParser | undefined {
+  return get_parser().find((parser) => parser.options.id === id)
 }
 
 export function global_search_providers(): GlobalSearchProvider[] {

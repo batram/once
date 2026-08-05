@@ -1,6 +1,6 @@
 # Typed story sources, then per-source cache timing
 
-Status: approved, implementation not started.
+Status: in progress. Phases 1 and 2 complete; phases 3–7 pending.
 
 ## Context
 
@@ -210,7 +210,7 @@ Phases are independently **verifiable**. Most are also independently shippable; 
 
 Step 0 is this document: the frozen contracts live in the repo rather than only in a session plan.
 
-### 1. Domain model and converters — no persistence or UI change
+### 1. Domain model and converters — complete
 
 `core/settings/storySource.ts` (model, id minting, strict + tolerant normalizers, group helpers,
 import reconciliation) and `core/settings/legacySourceLines.ts` (line→document converter, the right
@@ -220,7 +220,7 @@ document yet.
 Tests: malformed `§§` configs, duplicate URLs, duplicate group names, **empty groups**, id
 collisions, reorder, URL edits, repeated normalization (idempotence), and unknown future versions.
 
-### 2. Collector contract — legacy lines still decodable
+### 2. Collector contract — complete, legacy lines still decodable
 
 - `StoryParser.options` gains a required unique `id` (`geny`, `hackernews`, `jsonselect`,
   `lobsters`, `redditjson`, `redditrss`, `nitter`, `rss`). `options.type` cannot serve — `redditJson`
@@ -313,8 +313,9 @@ metadata (`_rev`, not just the `list` payload — a restore without it cannot be
 convert a real profile; compare ordered sources, groups, collector selection and configurable
 selectors; load every source or produce an explicit per-source failure inventory; relaunch and sync
 from a second updated client; confirm no legacy document changed unexpectedly. Only then remove `§§`
-handling from the collectors and update `docs/COLLECTORS.md` (`:24,45,64,89,100,133,209`),
-`ARCHITECTURE.md`, `CODEMAP.md`.
+handling from core and the picker, remove the legacy-format sections from
+`docs/COLLECTORS.md`, and update `ARCHITECTURE.md` and `CODEMAP.md`. The current collector contract
+is already documented; this gate removes only the transitional line-format guidance.
 
 ### 6. Per-source cache timing — no behaviour change beyond the override
 
@@ -336,7 +337,7 @@ belongs in phase 7 with the other behaviour changes and its own evidence.
 - The collector field `cache_minutes` is *declared* here so the precedence chain is complete and
   testable, but **no collector ships a value yet** — every collector inherits the global. It is a typed
   field on the collector rather than an entry in the untyped `options.settings` bag, and it is named
-  `cache_minutes` to match that package's `resolve_url` / `global_search` / `min_points`, while core,
+  `cache_minutes` to match that package's `global_search` / `min_points`, while core,
   app and ui-web use `cacheMinutes`. Deliberate, per-package consistency.
 - Precedence: `source.cacheMinutes` → `collectors[id]` → collector shipped default → global.
   Vocabulary: absent/blank = inherit, `0` = always refetch, integer `0..525600` otherwise, anything

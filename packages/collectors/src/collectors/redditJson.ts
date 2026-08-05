@@ -1,4 +1,5 @@
 export const options = {
+  id: "redditjson",
   type: "re",
   description:
     "Collect stories from Reddit (https://old.reddit.com/) by parsing JSON from subreddits",
@@ -33,7 +34,17 @@ interface RedditJSONData {
   }
 }
 
-export function parse(json: RedditJSONData, filter = true): Story[] {
+/**
+ * The score threshold used to be switchable through a second positional
+ * argument, which `parse_response` unwittingly filled with the source URL — a
+ * non-empty string, so filtering was always on and the switch was unreachable.
+ * It is now simply always on, which is what the app has always actually done.
+ */
+export function parse(json: RedditJSONData): Story[] {
+  return parse_listing(json, true)
+}
+
+function parse_listing(json: RedditJSONData, filter: boolean): Story[] {
   if (json.kind == "Listing") {
     return json.data.children
       .map((story) => {
@@ -82,7 +93,9 @@ export async function global_search(needle: string): Promise<Story[]> {
   const res = await fetch(search_url + encodeURIComponent(needle))
   if (res.ok) {
     const json_response = await res.json()
-    return parse(json_response, false)
+    // Search results are what the user asked for by name, so the subreddit
+    // score threshold does not apply to them.
+    return parse_listing(json_response, false)
   }
   return []
 }

@@ -7,8 +7,19 @@ const {
   parse_response,
   parse_xml
 } = require("../../../packages/collectors/dist/parser")
+const {
+  resolveStorySource
+} = require("../../../packages/collectors/dist/resolveSource")
 
 installDomGlobals()
+
+// parse_response no longer looks a collector up itself: resolution does that,
+// and validates the configuration at the same time.
+function resolve(url, source = {}) {
+  const resolved = resolveStorySource({ url, ...source })
+  if (resolved.problem) throw new Error(resolved.problem)
+  return resolved
+}
 
 test("matches exact prefixes and one-wildcard collector patterns", () => {
   assert.equal(patternMatches("https://news.ycombinator.com/newest", ["https://news.ycombinator.com/"]), true)
@@ -34,8 +45,7 @@ test("parses and caches JSON responses while cache failures stay non-fatal", asy
   const cached = []
   const stories = await parse_response(
     new Response(JSON.stringify(fixture)),
-    "https://old.reddit.com/r/netsec/.json",
-    "https://old.reddit.com/r/netsec/.json",
+    resolve("https://old.reddit.com/r/netsec/.json"),
     { cacheResult: async (url, content) => cached.push({ url, content }) }
   )
   assert.equal(stories.length, 1)
@@ -43,8 +53,7 @@ test("parses and caches JSON responses while cache failures stay non-fatal", asy
 
   const again = await parse_response(
     new Response(JSON.stringify(fixture)),
-    "https://old.reddit.com/r/netsec/.json",
-    "https://old.reddit.com/r/netsec/.json",
+    resolve("https://old.reddit.com/r/netsec/.json"),
     { cacheResult: async () => { throw new Error("disk full") } }
   )
   assert.equal(again.length, 1)
@@ -70,7 +79,16 @@ test("adds an HTML base element and rejects unrecoverable XML", () => {
   }
 })
 
-test("wraps unsupported and malformed response failures with useful context", async () => {
-  await assert.rejects(() => parse_response(new Response("{}"), "https://invalid/", "https://invalid/"), /no parser found/)
-  await assert.rejects(() => parse_response(new Response("not json"), "https://old.reddit.com/r/x/.json", "https://old.reddit.com/r/x/.json"), /JSON parsing failed/)
+test("wraps malformed response failures with useful context", async () => {
+  await assert.rejects(
+    () => parse_response(new Response("not json"), resolve("https://old.reddit.com/r/x/.json")),
+    /JSON parsing failed/
+  )
+})
+
+test("an unhandled source is refused at resolution, before any fetch", () => {
+  // Previously this surfaced as "no parser found" from parse_response, i.e.
+  // after the request had already been made.
+  const resolved = resolveStorySource({ url: "https://unsupported.example/" })
+  assert.match(resolved.problem, /no handler available/)
 })

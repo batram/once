@@ -14,33 +14,36 @@ export class SourceLoader {
     sourceUrl: string,
     tryCache = true
   ): Promise<Story[] | undefined> {
-    let url = sourceUrl
-    let cached: unknown = tryCache ? await this.getCached(sourceUrl) : null
-    const parser = StoryParser.get_parser_for_url(url)
-    if (!parser) {
+    // Resolved before anything else, because the URL to fetch is also the cache
+    // key. Reading the cache under the source line while writing it under the
+    // resolved URL is why a configurable source never once hit its cache.
+    const resolved = StoryParser.resolveLegacySourceLine(sourceUrl)
+    if (!StoryParser.isResolved(resolved)) {
+      const noHandler = resolved.kind === "no-handler"
       this.reportError({
         url: sourceUrl,
-        title: "No Handler",
-        message:
-          "No handler available for this source type. You may need to add a custom parser.",
-        type: "warning"
+        title: noHandler ? "No Handler" : "Config Error",
+        message: noHandler
+          ? `${resolved.problem}. You may need to add a custom parser.`
+          : resolved.problem,
+        type: noHandler ? "warning" : "error"
       })
       return
     }
 
-    const originalUrl = url
-    if (parser.resolve_url) url = parser.resolve_url(url)
+    const { collector, url } = resolved
+    const context = { url, config: resolved.config }
+    let cached: unknown = tryCache ? await this.getCached(url) : null
     if (cached != null) {
       try {
-        if (parser.options.collects == "dom") {
+        if (collector.options.collects == "dom") {
           cached = StoryParser.parse_dom(cached as string, url)
-        } else if (parser.options.collects == "xml") {
+        } else if (collector.options.collects == "xml") {
           cached = StoryParser.parse_xml(cached as string)
         }
-        return parser.parse(
+        return collector.parse(
           cached as Record<string, unknown> | Document,
-          url,
-          originalUrl
+          context
         ) || []
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error)
@@ -52,22 +55,27 @@ export class SourceLoader {
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
     }
-    return StoryParser.parse_response(response, url, originalUrl, {
+    return StoryParser.parse_response(response, resolved, {
       cacheResult: (cacheUrl, content) =>
         this.cache?.set(cacheUrl, content) || Promise.resolve()
     }) || []
   }
 
   describe(sourceUrl: string): ProcessingSource {
-    const parser = StoryParser.get_parser_for_url(sourceUrl)
-    const resolvedUrl = parser?.resolve_url?.(sourceUrl) ?? sourceUrl
+    const resolved = StoryParser.resolveLegacySourceLine(sourceUrl)
+    const url = StoryParser.isResolved(resolved) ? resolved.url : sourceUrl
     let domain = "source"
     try {
-      domain = new URL(resolvedUrl).hostname.replace("www.", "")
+      domain = new URL(url).hostname.replace("www.", "")
     } catch {
-      domain = resolvedUrl.substring(0, 20)
+      domain = url.substring(0, 20)
     }
-    return { domain, parserType: parser?.options.type || "Unknown" }
+    return {
+      domain,
+      parserType: StoryParser.isResolved(resolved)
+        ? resolved.collector.options.type
+        : "Unknown"
+    }
   }
 
   reportLoadFailure(sourceUrl: string, error: unknown): void {

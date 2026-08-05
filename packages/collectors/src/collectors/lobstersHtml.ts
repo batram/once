@@ -1,4 +1,5 @@
 export const options = {
+  id: "lobsters",
   type: "LO",
   colors: ["rgba(143, 0, 0, 0.56)", "white"],
   description:

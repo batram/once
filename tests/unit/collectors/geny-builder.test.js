@@ -2,9 +2,11 @@ const test = require("node:test")
 const assert = require("node:assert/strict")
 const {
   build_source,
-  sanitize_selector_conf,
-  resolve_url
+  sanitize_selector_conf
 } = require("../../../packages/collectors/dist/collectors/genyMatch")
+const {
+  readLegacySourceLine
+} = require("../../../packages/core/dist/settings/legacySourceLines")
 
 const separator = "§§"
 
@@ -48,13 +50,20 @@ test("rejects configurations with unknown or malformed fields", () => {
   )
 })
 
-test("builds a geny source line that resolves back to the page URL", () => {
+test("builds a legacy line that core reads back to the same source", () => {
+  // The builder is the last writer of the legacy format and core is its only
+  // reader, so the pair has to agree; this is the test that says so.
   const source = build_source(validConf, "https://example.com/news")
   const parts = source.split(separator)
   assert.equal(parts.length, 3)
   assert.equal(parts[0], "geny:")
   assert.deepEqual(JSON.parse(parts[1]), validConf)
-  assert.equal(resolve_url(source), "https://example.com/news")
+
+  assert.deepEqual(readLegacySourceLine(source), {
+    url: "https://example.com/news",
+    collector: "geny",
+    select: validConf
+  })
 })
 
 test("rejects source URLs that are not HTTP or HTTPS", () => {

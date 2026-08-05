@@ -1,4 +1,5 @@
 export const options = {
+  id: "rss",
   type: "RSS",
   description: "Collect stories from RSS feed",
   pattern: "*.rss",

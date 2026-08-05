@@ -146,8 +146,12 @@ interface LegacySourceLine {
  * legacy builder refused to emit one, but a hand-written line was never checked.
  */
 export function readLegacySourceLine(
-  line: string
+  raw: string
 ): LegacySourceLine | { problem: string } {
+  // Trimmed here as well as in the canonical encoding, because this is also
+  // called with a single line straight from storage, and surrounding whitespace
+  // would otherwise defeat the URL pattern that picks the collector.
+  const line = raw.trim()
   const prefix = Object.keys(LEGACY_COLLECTORS).find((candidate) =>
     line.startsWith(candidate)
   )

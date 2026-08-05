@@ -1,5 +1,6 @@
 import { Story } from "@once/core"
 import * as collectors from "./registry"
+import { ResolvedStorySource } from "./resolveSource"
 
 export interface ParserLookupOptions {
   onParserMatched?: (parserType: string) => void
@@ -50,45 +51,47 @@ export function get_parser_for_url(
   return undefined
 }
 
+/**
+ * Decodes a response and hands it to the collector that was already resolved
+ * for this source. It no longer looks the collector up itself: resolution
+ * validates the configuration too, and doing it once up front is what keeps a
+ * source's config from being re-parsed out of a string here.
+ */
 export async function parse_response(
   resp: Response,
-  url: string,
-  og_url: string,
+  resolved: ResolvedStorySource,
   options: ParseResponseOptions = {}
 ): Promise<Story[]> {
-  const parser = get_parser_for_url(og_url, options)
+  const { collector, url } = resolved
+  const context = { url, config: resolved.config }
 
-  if (!parser) {
-    throw new Error(`no parser found for: ${og_url}`)
-  }
-
-  if (parser.options.collects == "json") {
+  if (collector.options.collects == "json") {
     try {
       const json_content = await resp.json()
       await cache_result(options, url, [Date.now(), json_content])
-      return parser.parse(json_content, url, og_url)
+      return collector.parse(json_content, context)
     } catch (parseError) {
       const detail =
         parseError instanceof Error ? parseError.message : String(parseError)
       throw new Error(`JSON parsing failed: ${detail}`)
     }
-  } else if (parser.options.collects == "dom") {
+  } else if (collector.options.collects == "dom") {
     try {
       const text_content = await resp.text()
       await cache_result(options, url, [Date.now(), text_content])
       const doc = parse_dom(text_content, url)
-      return parser.parse(doc, url, og_url)
+      return collector.parse(doc, context)
     } catch (parseError) {
       const detail =
         parseError instanceof Error ? parseError.message : String(parseError)
       throw new Error(`DOM parsing failed: ${detail}`)
     }
-  } else if (parser.options.collects == "xml") {
+  } else if (collector.options.collects == "xml") {
     try {
       const text_content = await resp.text()
       await cache_result(options, url, [Date.now(), text_content])
       const doc = parse_xml(text_content)
-      return parser.parse(doc, url, og_url)
+      return collector.parse(doc, context)
     } catch (parseError) {
       const detail =
         parseError instanceof Error ? parseError.message : String(parseError)
@@ -97,7 +100,7 @@ export async function parse_response(
   }
 
   throw new Error(
-    `unsupported collects type "${parser.options.collects}" for: ${og_url}`
+    `unsupported collects type "${collector.options.collects}" for: ${url}`
   )
 }
 

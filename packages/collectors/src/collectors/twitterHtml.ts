@@ -1,4 +1,5 @@
 export const options = {
+  id: "nitter",
   type: "tw",
   description:
     "Collect tweets from a specific Twitter user (https://nitter.net/) by parsing HTML",

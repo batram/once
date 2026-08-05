@@ -1,4 +1,5 @@
 export const options = {
+  id: "hackernews",
   type: "HN",
   description:
     "Collect stories from HackerNews (https://news.ycombinator.com/) by parsing HTML",

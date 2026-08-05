@@ -32,6 +32,46 @@ test("loads a faked story source once and reuses its cached response", async () 
   assert.equal(loaded.at(-1)[0].title, "Accepted Reddit story")
 })
 
+test("a configurable source now reuses its cached response too", async () => {
+  // The regression this guards: the cache was read under the whole source line
+  // but written under the resolved URL, so a json:/geny: source refetched on
+  // every single reload no matter what the cache setting said. Before the
+  // resolver landed, this asked for two requests and got two.
+  const {
+    LEGACY_SEPARATOR: separator
+  } = require("../../../packages/core/dist/settings/legacySourceLines")
+  const feedUrl = "https://example.com/feed.json"
+  const config = {
+    stories: { sel: "items", all: true },
+    link: { sel: "href" },
+    title: { sel: "title" }
+  }
+  const sourceUrl = `json:${separator}${JSON.stringify(config)}${separator}${feedUrl}`
+  let requests = 0
+  const fake = createFakePlatform([], {
+    storySources: [sourceUrl],
+    fetch: async (url) => {
+      requests += 1
+      // Fetched by the resolved URL, not by the line that carries the config.
+      assert.equal(url, feedUrl)
+      return new Response(
+        JSON.stringify({ items: [{ href: "https://example.com/a", title: "Configured story" }] }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      )
+    }
+  })
+  const app = createOnceApp(fake.ports)
+  const loaded = []
+  app.client.subscribe("storiesChanged", ({ stories }) => loaded.push(stories))
+
+  await app.start()
+  await app.client.reloadStories(false)
+  await app.client.reloadStories(true)
+
+  assert.equal(requests, 1, "the second reload must come from cache")
+  assert.equal(loaded.at(-1)[0].title, "Configured story")
+})
+
 test("registers stored source stories before synchronized updates arrive", async () => {
   const sourceUrl = "https://old.reddit.com/r/netsec/.json"
   const stored = new Story(
@@ -187,7 +227,9 @@ test("serializes duplicate story writes while preserving substories", async () =
 test("publishes configurable parser failures as source errors", async (t) => {
   t.mock.method(console, "error", () => {})
 
-  const { separator } = require("../../../packages/collectors/dist/collectors/genyMatch").options
+  const {
+    LEGACY_SEPARATOR: separator
+  } = require("../../../packages/core/dist/settings/legacySourceLines")
   const sourceUrl = `geny:${separator}{bad${separator}https://example.com/`
   const fake = createFakePlatform([], {
     storySources: [sourceUrl],
@@ -202,9 +244,11 @@ test("publishes configurable parser failures as source errors", async (t) => {
   await app.start()
   await app.client.reloadStories(false)
 
+  // Caught while resolving the source now, so no request is made at all — this
+  // used to be fetched first and then fail in the DOM parser.
   const error = sourceErrors.at(-1)[0]
-  assert.equal(error.title, "DOM Error")
-  assert.match(error.message, /geny_match config is invalid JSON/)
+  assert.equal(error.title, "Config Error")
+  assert.match(error.message, /unreadable selector configuration/)
 })
 
 test("publishes story persistence failures as source errors", async (t) => {

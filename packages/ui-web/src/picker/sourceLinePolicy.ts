@@ -1,7 +1,7 @@
+import { LEGACY_SEPARATOR } from "@once/core"
 import {
   GenySelector,
   GenySelectorConf,
-  options as genyOptions,
   sanitize_selector_conf
 } from "@once/collectors/geny"
 
@@ -54,15 +54,15 @@ export function buildPickerConf(state: SourceLineState): GenySelectorConf {
 }
 
 export function serializeSourceLine(conf: GenySelectorConf, url: string): string {
-  return `geny:${genyOptions.separator}${JSON.stringify(conf)}` +
-    `${genyOptions.separator}${url}`
+  return `geny:${LEGACY_SEPARATOR}${JSON.stringify(conf)}` +
+    `${LEGACY_SEPARATOR}${url}`
 }
 
 export function parseSourceLine(raw: string): {
   state: SourceLineState
   warning: string
 } {
-  const separator = genyOptions.separator
+  const separator = LEGACY_SEPARATOR
   const parts = raw.trim().split(separator)
   if (!parts[0].startsWith("geny:") || parts.length < 3) {
     throw new Error(

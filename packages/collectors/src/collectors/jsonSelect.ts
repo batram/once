@@ -1,14 +1,18 @@
 export const options = {
+  id: "jsonselect",
   type: "JX",
   colors: ["#868686", "white"],
   description: "Collect stories by selecting from JSON",
-  pattern: "json:*",
-  separator: "§§",
+  // Never detected from a URL: a source using this collector names it, and
+  // carries its selectors in `select`.
+  pattern: [] as string[],
   collects: "json",
   settings: {}
 }
 
 import { Story, StoryTag } from "@once/core"
+import { ParseContext } from "../registry"
+import { sanitizeSelectorConf } from "../selectorConf"
 
 export interface JsonSelector {
   sel?: string
@@ -86,28 +90,26 @@ function process_templates(story: Story): Story {
   return story
 }
 
+/**
+ * Validates untrusted selector configuration and returns a copy containing only
+ * known fields. Until now this collector had none: its configuration arrived as
+ * JSON embedded in a source line and went straight to the selector engine.
+ */
+export function sanitize_selector_conf(raw: unknown): JsonSelectorConf {
+  return sanitizeSelectorConf(raw, {
+    label: "json_select config",
+    processors: processor_functions
+  }) as JsonSelectorConf
+}
+
 export function parse(
   json: Record<string, unknown>,
-  url?: string,
-  og_url?: string
+  context: ParseContext
 ): Story[] {
-  let selectors: JsonSelectorConf = {}
-
-  if (
-    og_url &&
-    og_url.startsWith("json:") &&
-    og_url.split(options.separator).length >= 3
-  ) {
-    const split = og_url.split(options.separator, 3)
-    try {
-      selectors = JSON.parse(split[1])
-    } catch (e) {
-      const detail = e instanceof Error ? e.message : String(e)
-      throw new Error(`json_select config is invalid JSON: ${detail}`)
-    }
-  } else {
-    return []
-  }
+  // Nothing to select with is not an error: an unconfigured source simply has
+  // no stories in it. Configuration that is present but wrong does throw.
+  if (context.config === undefined) return []
+  const selectors = sanitize_selector_conf(context.config)
 
   const { stories: stories_sel, link: link_sel, title: title_sel } = selectors
   if (!stories_sel || !link_sel || !title_sel) {
@@ -189,15 +191,4 @@ function parse_tag(
     }
   }
   return new_tag
-}
-
-export function resolve_url(entry: string): string {
-  if (entry.startsWith("json:") && entry.split(options.separator).length >= 3) {
-    const split = entry.split(options.separator, 3)
-    //const conf = split[1]
-    const url = split[2]
-    return url
-  } else {
-    return entry
-  }
 }
