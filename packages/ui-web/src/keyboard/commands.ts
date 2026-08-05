@@ -23,6 +23,8 @@ export type BuiltinKeyCommandId =
   | "story.open"
   | "story.open-comments"
   | "story.toggle-comments"
+  | "stories.reload"
+  | "stories.reload-uncached"
   | "browser.new-tab"
   | "browser.close-tab"
   | "browser.restore-closed-tab"
@@ -174,6 +176,33 @@ const BUILTIN_KEY_COMMANDS: readonly KeyCommandDefinition[] = Object.freeze([
     context: "global",
     defaultKeys: ["Alt+Shift+C"],
     allowInTextEntry: "always",
+    shells: ["electron", "webext"]
+  },
+  {
+    id: "stories.reload",
+    label: "Reload stories",
+    group: "stories",
+    context: "stories",
+    // A bare letter on purpose. Ctrl+R is reserved — it reloads the page the
+    // shell itself is drawn on — and Alt+R opens a menu in both browsers the
+    // sidepanel runs in. R joins the O/C/WASD family: it only fires while the
+    // story list is the active panel, never in text entry, and main never
+    // forwards unmodified keys out of a focused page, so a page keeps its R.
+    defaultKeys: ["R"],
+    allowInTextEntry: "never",
+    // Mobile pulls to refresh and has no shortcut settings to rebind this in.
+    shells: ["electron", "webext"]
+  },
+  {
+    id: "stories.reload-uncached",
+    label: "Reload stories, skipping the cache",
+    group: "stories",
+    context: "stories",
+    // What double-clicking the reload button does. Shift is the usual "and mean
+    // it" modifier on a reload, and it leaves the key unmodified as far as the
+    // Electron main process is concerned, so a page keeps Shift+R too.
+    defaultKeys: ["Shift+R"],
+    allowInTextEntry: "never",
     shells: ["electron", "webext"]
   },
   {

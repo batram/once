@@ -99,6 +99,65 @@ test("a swipe action runs on the cursor row and then steps past it", async () =>
   }
 })
 
+test("R reloads the story list, Shift+R refetches, and both type", async () => {
+  // The two reloads differ only in whether the source cache is consulted, so
+  // the fixture server counts feed fetches to tell them apart. The RSS source
+  // is the one that can be cached at all: SourceLoader looks the cache up under
+  // the source line but stores it under the URL a parser resolved, so a source
+  // with a resolve_url — the json one seedStories uses — never hits it.
+  let feedFetches = 0
+  const server = await startPageServer({
+    onRequest: ({ phase, url }) => {
+      if (phase === "request" && url.split("?")[0] === "/feed.rss") feedFetches += 1
+    }
+  })
+  const { electronApp, userData, window } = await launchApp(STORY_ENV)
+  try {
+    await seedLocalSource(
+      window,
+      storyFixture.rssSourceLine(server.origin),
+      storyFixture.storyUrls(server.origin).alpha
+    )
+    await showAllStories(window)
+    await expect(window.locator("#stories story-item.story").first()).toBeVisible()
+    // A reload rebuilds the rows, so a mark left on the current ones is how the
+    // test sees that it happened rather than racing the spinner.
+    const mark = () => window.evaluate(() => {
+      const rows = [...document.querySelectorAll("#stories story-item.story")]
+      rows.forEach((row) => { row.dataset.beforeReload = "1" })
+      return rows.length
+    })
+    const marked = () => window.locator("#stories story-item[data-before-reload]").count()
+
+    // showAllStories leaves the search field focused, where R is a letter.
+    expect(await mark()).toBeGreaterThan(0)
+    await window.keyboard.press("KeyR")
+    await window.keyboard.press("Shift+KeyR")
+    await expect(window.locator("#searchfield")).toHaveValue("rR")
+    expect(await marked()).toBeGreaterThan(0)
+
+    await window.locator("#searchfield").fill("")
+    await window.locator("#searchfield").blur()
+
+    // The feed was cached by the seeding load and the default cache time is two
+    // hours, so a plain reload has nothing to fetch.
+    const cachedAt = feedFetches
+    await window.keyboard.press("KeyR")
+    await expect.poll(marked).toBe(0)
+    await expect(window.locator("#stories story-item.story").first()).toBeVisible()
+    expect(feedFetches).toBe(cachedAt)
+
+    await mark()
+    await window.keyboard.press("Shift+KeyR")
+    await expect.poll(marked).toBe(0)
+    await expect(window.locator("#stories story-item.story").first()).toBeVisible()
+    await expect.poll(() => feedFetches).toBe(cachedAt + 1)
+  } finally {
+    await closeApp(electronApp, userData)
+    await server.close()
+  }
+})
+
 test("browser shortcuts open, cycle, close and reopen tabs", async () => {
   const server = await startPageServer()
   const { electronApp, userData, window } = await launchApp()

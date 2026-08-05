@@ -8,6 +8,7 @@ import { requireElement } from "../dom"
 import { attachPullToRefresh } from "../gesture/pullToRefresh"
 import { connectStoryListSync } from "./storyListSync"
 import { visibleStoryElements } from "./storyVisibility"
+import { getKeyboardDispatcher } from "../keyboard"
 
 export class DataChangeEvent extends Event {
   detail: StoryChangeDetail
@@ -47,6 +48,18 @@ export function init(client: OnceClient): void {
       reload(false)
     }
   }
+
+  // The two reloads the button already offers, without the click timer that
+  // has to tell one from the other: a plain key is the single click, and the
+  // shifted key the double. The disabled class is the in-flight guard, so
+  // holding a key cannot stack reloads any more than clicking fast can.
+  const keyboard = getKeyboardDispatcher()
+  const reloadFromKeyboard = (try_cache: boolean) => () => {
+    if (reload_stories_btn?.classList.contains("disabled")) return
+    void reload(try_cache)
+  }
+  keyboard.register("stories.reload", reloadFromKeyboard(true))
+  keyboard.register("stories.reload-uncached", reloadFromKeyboard(false))
 
   connectStoryListSync(client, {
     addStories(stories, bucket, replace) {

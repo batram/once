@@ -145,6 +145,41 @@ test("story commands only fire while the stories panel is active", () => {
   })
 })
 
+test("R reloads the story list, Shift+R skips the cache, neither types", () => {
+  withShell(({ window, KeyboardDispatcher, defaultBindings }) => {
+    const dispatcher = new KeyboardDispatcher(defaultBindings())
+    let reloads = 0
+    let uncached = 0
+    dispatcher.register("stories.reload", () => { reloads += 1 })
+    dispatcher.register("stories.reload-uncached", () => { uncached += 1 })
+    dispatcher.mount(window)
+
+    press(window, { code: "KeyR", target: window.document.querySelector("#stories") })
+    assert.deepEqual([reloads, uncached], [1, 0])
+
+    // The shifted chord is its own binding, so the plain one must not also see
+    // it — that would fire both reloads off one key press.
+    press(window, {
+      code: "KeyR",
+      shiftKey: true,
+      target: window.document.querySelector("#stories")
+    })
+    assert.deepEqual([reloads, uncached], [1, 1])
+
+    // Ctrl+R is reserved for the shell document's own reload, so a bare key is
+    // the whole shortcut — which means the search field has to keep both.
+    const field = window.document.querySelector("#searchfield")
+    press(window, { code: "KeyR", target: field })
+    press(window, { code: "KeyR", shiftKey: true, target: field })
+    assert.deepEqual([reloads, uncached], [1, 1])
+
+    window.document.querySelector("#left_panel").setAttribute("active_panel", "settings")
+    press(window, { code: "KeyR" })
+    press(window, { code: "KeyR", shiftKey: true })
+    assert.deepEqual([reloads, uncached], [1, 1], "settings has no list to reload")
+  })
+})
+
 test("a blocker stands the dispatcher down entirely", () => {
   withShell(({ window, KeyboardDispatcher, defaultBindings }) => {
     const dispatcher = new KeyboardDispatcher(defaultBindings())
