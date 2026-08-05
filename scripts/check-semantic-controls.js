@@ -79,8 +79,7 @@ function main() {
     const fileName = relative(file)
     if (
       !textExtensions.has(path.extname(file)) ||
-      ignored.some((pattern) => pattern.test(fileName)) ||
-      fileName.startsWith("docs/tmp-icons/")
+      ignored.some((pattern) => pattern.test(fileName))
     ) continue
     violations.push(...semanticControlViolations(fileName, fs.readFileSync(file, "utf8")))
   }
