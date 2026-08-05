@@ -369,6 +369,16 @@ Phase 3–4 completion evidence (2026-08-05):
   drag persistence and error-log navigation resolved through durable source ids.
 - Phase 5 remains deliberately open: no real-profile migration or second-client sync gate was run.
 
+Phase 5 progress (2026-08-05):
+
+- **Complete physical CouchDB backup passed.** The backup resolved the deployment's
+  `/opt/couchdb/data` symlink to `/var/lib/couchdb`, stopped and restarted CouchDB, downloaded
+  `couchdb-couchdb-free-1-20260805T195329Z.tar.gz`, and verified SHA-256
+  `E538E1C7E647ADADC632E2944F021382BCD17D21FE253ACB0CB1D14220E86209`. Archive inspection found
+  both `once` database shards, CouchDB system databases, configuration, and the generated manifest.
+- The revision-preserving `sources` / `story_sources` export, real-profile conversion, per-source
+  load inventory, relaunch, and second-client sync checks remain pending.
+
 - `npm run test:unit` — legacy converter against real old lines (groups, empty groups, duplicate
   names, `geny:§§`, `json:§§`, plain, blanks, duplicate URLs) asserting deterministic, idempotent
   ids; strict vs tolerant normalizer behaviour including unknown versions; import reconciliation
