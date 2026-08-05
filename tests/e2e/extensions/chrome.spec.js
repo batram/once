@@ -4,6 +4,13 @@ const os = require("node:os")
 const path = require("node:path")
 const { startLocalSource } = require("./local-source")
 
+// chrome.commands.getAll() reports shortcuts as they are presented on the
+// host OS. Chromium uses the conventional modifier glyphs on macOS, while
+// Windows and Linux retain the manifest's textual modifier names.
+const browserManagedChords = process.platform === "darwin"
+  ? ["⇧⌘Y", "⌥⇧K"]
+  : ["Ctrl+Shift+Y", "Alt+Shift+K"]
+
 test("installed Chrome extension loads, collects, persists settings, and opens a story", async () => {
   const extensionPath = path.resolve(__dirname, "../../../apps/chrome-extension/dist/release")
   const userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "once-chrome-e2e-"))
@@ -60,7 +67,7 @@ test("installed Chrome extension loads, collects, persists settings, and opens a
     // pattern. Asserted here because a silent refusal has no other symptom.
     await expect(
       shortcuts.locator('[data-group="browser-managed"] .keybinding_managed_chord')
-    ).toHaveText(["Ctrl+Shift+Y", "Alt+Shift+K"])
+    ).toHaveText(browserManagedChords)
     await expect(
       shortcuts.locator('[data-group="browser-managed"] .keybinding_label')
     ).toHaveText(["Open the Once panel", "Switch between story and comments"])
