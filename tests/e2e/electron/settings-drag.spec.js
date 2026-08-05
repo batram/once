@@ -69,15 +69,18 @@ test("reorders story source groups with a native Electron drag", async () => {
       getComputedStyle(element).getPropertyValue("app-region")
     )).toBe("drag")
     await expect(names).toHaveText(["Default", "Beta", "Alpha"])
-    await expect(sources).toHaveValue([
+    const persisted = JSON.parse(await sources.inputValue())
+    expect(persisted.groups.map((group) => group.name)).toEqual(["Beta", "Alpha"])
+    expect(persisted.sources.map((source) => source.url)).toEqual([
       "https://example.test/default.xml",
-      "*Beta",
       "https://example.test/beta.xml",
-      "*Alpha",
       "https://example.test/alpha.xml"
-    ].join("\n"))
+    ])
+    expect(persisted.sources.map((source) => source.groupId ?? null)).toEqual([
+      null, persisted.groups[0].id, persisted.groups[1].id
+    ])
     await expect.poll(() => window.locator("#menu #groups > .button")
-      .allTextContents()).toEqual(["*default", "*Beta", "*Alpha"])
+      .allTextContents()).toEqual(["*Default", "*Beta", "*Alpha"])
 
     await window.getByTestId("sources-mode-toggle").click()
     await sources.fill([
@@ -89,7 +92,7 @@ test("reorders story source groups with a native Electron drag", async () => {
     ].join("\n"))
     await save.click()
     await expect.poll(() => window.locator("#menu #groups > .button")
-      .allTextContents()).toEqual(["*default", "*Beta", "*Gamma"])
+      .allTextContents()).toEqual(["*Default", "*Beta", "*Gamma"])
   } finally {
     await closeApp(electronApp, userData)
   }

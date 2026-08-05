@@ -253,8 +253,13 @@ test("stacks, dismisses, restores, and opens source issues through the error log
       "sources",
       '[data-testid="sources-structured-list"]'
     )
+    const sourceDocument = JSON.parse(await sources.inputValue())
+    const failingSourceId = sourceDocument.sources.find(
+      (source) => source.url === failingSource
+    )?.id
+    expect(failingSourceId).toBeTruthy()
     const failingSourceButton = window.locator(
-      `[data-source-value="${failingSource}"]`
+      `[data-source-id="${failingSourceId}"]`
     )
     await failingSourceButton.click()
     await expect(window.getByTestId("structured-item-form")).toBeVisible()

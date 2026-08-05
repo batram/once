@@ -365,6 +365,8 @@ Phase 3–4 completion evidence (2026-08-05):
   persistence.
 - The packaged Electron source-picker E2E passed 5/5 after `npm run package:electron`, covering the
   full settings-button flow, click picking, editable config, cancellation, and non-HTTP rejection.
+- The complete packaged Electron E2E suite passed 60/60 in CI mode, including typed source-group
+  drag persistence and error-log navigation resolved through durable source ids.
 - Phase 5 remains deliberately open: no real-profile migration or second-client sync gate was run.
 
 - `npm run test:unit` — legacy converter against real old lines (groups, empty groups, duplicate
