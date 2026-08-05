@@ -53,13 +53,18 @@ async function startLocalSource() {
   return {
     origin,
     requests,
-    source: `json:§§${JSON.stringify({
-      stories: { sel: "items", all: true },
-      link: { sel: "href" },
-      title: { sel: "title" },
-      timestamp: { sel: "published" },
-      tags: []
-    })}§§${origin}/feed.json`,
+    source: JSON.stringify({ version: 2, groups: [], sources: [{
+      id: "src_smoketest1",
+      url: `${origin}/feed.json`,
+      collector: "jsonselect",
+      select: {
+        stories: { sel: "items", all: true },
+        link: { sel: "href" },
+        title: { sel: "title" },
+        timestamp: { sel: "published" },
+        tags: []
+      }
+    }] }),
     close: () => new Promise((resolve) => server.close(resolve))
   }
 }

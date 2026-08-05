@@ -26,19 +26,19 @@ test("canonical source ranges resolve structurally by source id", () => {
   assert.equal(serialized.sourceRanges.has("src_missing00"), false)
 })
 
-test("malformed JSON never falls through to legacy import", () => {
+test("malformed JSON never falls through to URL-list import", () => {
   const parsed = parseStorySourceText('{"version":2')
   assert.equal(parsed.ok, false)
   assert.equal(parsed.reports[0].path, "JSON")
 })
 
-test("an invalid legacy import rejects the whole input", () => {
+test("an invalid URL-list import rejects the whole input", () => {
   const parsed = parseStorySourceText("https://example.test/feed\nnot a url", doc)
   assert.equal(parsed.ok, false)
   assert.equal(parsed.doc, undefined)
 })
 
-test("legacy import reconciliation preserves identity and omitted settings", () => {
+test("URL-list import reconciliation preserves identity and omitted settings", () => {
   const parsed = parseStorySourceText("https://example.test/feed", doc)
   assert.equal(parsed.ok, true)
   assert.equal(parsed.doc.sources[0].id, "src_00000001")

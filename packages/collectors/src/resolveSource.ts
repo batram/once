@@ -11,14 +11,13 @@
  * but written under the resolved URL.
  */
 
-import { StorySource, readLegacySourceLine } from "@once/core"
+import { StorySource } from "@once/core"
 import { StoryParser, get_parser_by_id } from "./registry"
 import { get_parser_for_url } from "./parser"
 
 /**
  * Only the fields resolution needs. The generic preserves the complete source
- * (including its identity) when a stored StorySource is supplied, while the
- * legacy bridge can still use the smaller converted shape during the cutover.
+ * (including its identity) when a stored StorySource is supplied.
  */
 export type ResolvableSource = Pick<StorySource, "url" | "collector" | "select">
 
@@ -88,15 +87,4 @@ export function resolveStorySource<TSource extends ResolvableSource>(
     const detail = error instanceof Error ? error.message : String(error)
     return { kind: "configuration", problem: detail }
   }
-}
-
-/**
- * Resolves one line of the legacy format. This is the bridge that lets the app
- * keep loading what is already stored while sources are still lines; it goes
- * away once the stored format is objects.
- */
-export function resolveLegacySourceLine(line: string): StorySourceResolution {
-  const parsed = readLegacySourceLine(line)
-  if ("problem" in parsed) return { kind: "configuration", ...parsed }
-  return resolveStorySource(parsed)
 }

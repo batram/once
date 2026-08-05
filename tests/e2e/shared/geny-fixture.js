@@ -5,24 +5,29 @@ const STORY_PATH = "/OpenCut-app/OpenCut"
 const STORY_TITLE = `[OpenCut-app/OpenCut] ${DESCRIPTION}`
 
 function sourceLine(origin) {
-  return `geny:§§${JSON.stringify({
-    stories: { sel: "article", all: true },
-    link: { sel: "h2 a", component: "href" },
-    title: {
-      sel: "p",
-      component: "innerText",
-      processors: ["trim", "show_path"],
-      fallback: " "
-    },
-    tags: [{
-      elements: {
-        text: {
-          sel: "span[itemprop=programmingLanguage]",
-          component: "innerText"
+  return JSON.stringify({ version: 2, groups: [], sources: [{
+    id: "src_genytest1",
+    url: `${origin}/trending`,
+    collector: "geny",
+    select: {
+      stories: { sel: "article", all: true },
+      link: { sel: "h2 a", component: "href" },
+      title: {
+        sel: "p",
+        component: "innerText",
+        processors: ["trim", "show_path"],
+        fallback: " "
+      },
+      tags: [{
+        elements: {
+          text: {
+            sel: "span[itemprop=programmingLanguage]",
+            component: "innerText"
+          }
         }
-      }
-    }]
-  })}§§${origin}/trending`
+      }]
+    }
+  }] })
 }
 
 async function startGenyFixture() {

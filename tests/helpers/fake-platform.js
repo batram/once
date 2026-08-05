@@ -1,6 +1,15 @@
 function createFakePlatform(stories = [], options = {}) {
   const lists = new Map()
-  if (options.storySources) lists.set("story_sources", options.storySources)
+  if (options.storySources) {
+    const sources = Array.isArray(options.storySources)
+      ? options.storySources.map((source, index) => typeof source === "string"
+        ? { id: `src_test${String(index).padStart(8, "0")}`, url: source }
+        : source)
+      : options.storySources.sources
+    lists.set("sources", Array.isArray(options.storySources)
+      ? { version: 2, groups: [], sources }
+      : options.storySources)
+  }
   const savedStories = new Map(stories.map((story) => [story.href, story]))
   const cachedResponses = new Map(options.cachedResponses || [])
   let databaseHandler

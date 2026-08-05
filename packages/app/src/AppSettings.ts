@@ -1,9 +1,7 @@
 import {
   defaultFilterList,
   defaultRedirectList,
-  defaultSources,
-  convertLegacySourceLines,
-  legacySourceDigest,
+  defaultStorySources,
   normalizeSyncUrl,
   parseStorySources,
   StorySourceDocument,
@@ -50,7 +48,6 @@ export class AppSettings {
   private sourcesState: "pending" | "resolved" = "pending"
   private sourcesDocument?: StorySourceDocument
   private localSourcesResolution?: Promise<void>
-  private legacyDigest?: string
   animated: AnimationSetting = true
 
   constructor(
@@ -72,8 +69,7 @@ export class AppSettings {
     if (this.sourcesState === "resolved" && this.sourcesDocument) {
       return structuredClone(this.sourcesDocument)
     }
-    const legacy = await this.getList("story_sources", defaultSources)
-    return convertLegacySourceLines(legacy).doc
+    return structuredClone(this.sourcesDocument ?? defaultStorySources)
   }
 
   async saveStorySources(sources: StorySourceDocument, reload = true): Promise<void> {
@@ -230,12 +226,9 @@ export class AppSettings {
       case "sources":
         // Initial replication writes pulled documents into the live local
         // database before the settings stage announces completion. Keep the
-        // legacy adapter authoritative until that signal establishes absence
+        // current document authoritative until that signal establishes absence
         // or presence of the remote document.
         if (this.sourcesState === "resolved") void this.resolveStorySources(true)
-        break
-      case "story_sources":
-        if (this.sourcesState === "resolved") void this.reportLegacyDivergence()
         break
       case "filter_list":
         this.actions.publishChanged("filters")
@@ -262,7 +255,6 @@ export class AppSettings {
   }
 
   private async resolveStorySources(reload: boolean): Promise<void> {
-    const legacy = await this.getList("story_sources", defaultSources)
     const stored = await this.getList<unknown>("sources", null)
     let document: StorySourceDocument
     if (stored !== null) {
@@ -271,44 +263,26 @@ export class AppSettings {
         this.actions.reportDiagnostic({
           severity: "error",
           operation: "settings.load.sources",
-          message: "The story source document is invalid; legacy sources remain active",
+          message: "The story source document is invalid; the previous sources remain active",
           details: parsed.reports.map((item) => `${item.path}: ${item.message}`).join("\n")
         })
+        this.sourcesDocument ??= structuredClone(defaultStorySources)
+        this.sourcesState = "resolved"
         return
       }
       document = parsed.doc
     } else {
-      document = convertLegacySourceLines(legacy).doc
+      document = structuredClone(defaultStorySources)
       await this.setList("sources", document)
     }
     const previous = this.sourcesDocument
     this.sourcesDocument = document
     this.sourcesState = "resolved"
-    this.legacyDigest = legacySourceDigest(legacy)
-    if (document.migratedFrom && document.migratedFrom.digest !== this.legacyDigest) {
-      this.reportSplitBrain(document.migratedFrom.digest, this.legacyDigest)
-    }
     if (!previous || JSON.stringify(previous) !== JSON.stringify(document)) {
       this.actions.updateSourceMenu(document)
       this.actions.publishChanged("sources")
       if (reload) await this.actions.reloadStories()
     }
-  }
-
-  private async reportLegacyDivergence(): Promise<void> {
-    const legacy = await this.getList("story_sources", defaultSources)
-    const digest = legacySourceDigest(legacy)
-    if (digest !== this.legacyDigest) this.reportSplitBrain(this.legacyDigest, digest)
-  }
-
-  private reportSplitBrain(expected: string | undefined, actual: string): void {
-    this.actions.reportDiagnostic({
-      severity: "warning",
-      operation: "settings.sources.legacy-diverged",
-      message: "Legacy story sources changed after the typed-source cutover",
-      details: `Expected legacy digest ${expected ?? "unknown"}; observed ${actual}. The sources document remains authoritative.`,
-      documentId: "story_sources"
-    })
   }
 
   private async setList<T>(id: string, value: T): Promise<void> {

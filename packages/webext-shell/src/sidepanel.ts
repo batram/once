@@ -81,7 +81,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (testMode) {
     const state = await browser.storage.local.get("onceE2ESeeded")
     if (!state.onceE2ESeeded) {
-      await platform.listStore.set("story_sources", [])
+      await platform.listStore.set("sources", {
+        version: 2,
+        groups: [],
+        sources: []
+      })
       await browser.storage.local.set({ onceE2ESeeded: true })
     }
   }

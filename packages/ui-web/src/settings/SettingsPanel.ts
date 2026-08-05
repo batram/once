@@ -570,8 +570,8 @@ export class SettingsPanel {
   async set_sources_area(): Promise<void> {
     const sources_area =
       requireElement<HTMLTextAreaElement>("#sources_area")
-    const story_sources = await this.client.getStorySources()
-    sources_area.value = serializeStorySourceDocument(story_sources)
+    const storySources = await this.client.getStorySources()
+    sources_area.value = serializeStorySourceDocument(storySources)
     // Trigger input event to update highlights
     sources_area.dispatchEvent(new Event("input"))
     this.structuredEditors?.sync("sources")

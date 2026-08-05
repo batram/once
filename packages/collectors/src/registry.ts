@@ -44,7 +44,7 @@ export declare interface StoryParser {
   /**
    * Validates untrusted configuration and returns a copy holding only known
    * fields, or throws. One path for the picker, an import, and a converted
-   * legacy line, so nothing reaches `parse` unchecked.
+   * typed source, so nothing reaches `parse` unchecked.
    */
   normalizeConfig?: (raw: unknown) => unknown
   /**

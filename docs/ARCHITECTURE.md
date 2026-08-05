@@ -137,6 +137,18 @@ synchronization uses the configured CouchDB-compatible endpoint. Reader mode
 fetches the source, extracts readable content with Mozilla Readability,
 sanitizes the generated document, and opens it using extension APIs.
 
+Story sources are stored only in the versioned `sources` document as typed
+objects with durable source and group ids. `AppSettings` waits for the initial
+settings replication signal before creating local defaults, so an absent local
+document cannot overwrite a remote one. Collector configuration is validated
+once by `resolveStorySource`; no shell decodes collector configuration from
+source strings.
+
+Initial and live CouchDB replication use bounded 1,000-document batches with
+at most two batches in memory. Directional checkpoints live on the receiving
+side (pull locally and push remotely), avoiding redundant remote checkpoint
+round trips when an existing client must reconcile a long changes history.
+
 ### Electron
 
 Electron has three trust zones:

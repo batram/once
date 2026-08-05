@@ -152,7 +152,11 @@ test("cancels old CouchDB work when the sync URL changes", async (t) => {
   })
   replications[1].chain.emit("complete", {})
   await nextTurn()
-  assert.deepEqual(replications[2].options, undefined)
+  assert.deepEqual(replications[2].options, {
+    batch_size: 1000,
+    batches_limit: 2,
+    checkpoint: "target"
+  })
   replications[2].chain.emit("complete", {})
   await nextTurn()
   assert.equal(syncs.length, 1)
@@ -253,13 +257,15 @@ test("syncs settings, newest stories, backlog, then starts live sync", async () 
   )
   assert.deepEqual(replications[0].options.doc_ids, [
     "sources",
-    "story_sources",
     "filter_list",
     "redirect_list",
     "theme",
     "animation",
     "swipe"
   ])
+  assert.equal(replications[0].options.batch_size, 1000)
+  assert.equal(replications[0].options.batches_limit, 2)
+  assert.equal(replications[0].options.checkpoint, "target")
 
   replications[0].chain.emit("complete", {})
   await nextTurn()
@@ -293,7 +299,11 @@ test("syncs settings, newest stories, backlog, then starts live sync", async () 
   assert.equal(statuses.at(-1).message, "Loading newest stories (2/2)…")
   replications[2].chain.emit("complete", {})
   await nextTurn()
-  assert.equal(replications[3].options, undefined)
+  assert.deepEqual(replications[3].options, {
+    batch_size: 1000,
+    batches_limit: 2,
+    checkpoint: "target"
+  })
   assert.equal(statuses.at(-1).message, "Loading older stories…")
 
   replications[3].chain.emit("change", {
@@ -309,6 +319,13 @@ test("syncs settings, newest stories, backlog, then starts live sync", async () 
     "live-sync-started"
   ])
   assert.equal(syncs[0].target, remote)
+  assert.deepEqual(syncs[0].options, {
+    batch_size: 1000,
+    batches_limit: 2,
+    checkpoint: "target",
+    live: true,
+    retry: true
+  })
   assert.equal(statuses.at(-1).state, "up-to-date")
   assert.equal(statuses.at(-1).changes, 4)
   assert.deepEqual(

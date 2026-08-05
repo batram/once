@@ -10,7 +10,7 @@ test("returns a missing list fallback without persisting a settings change", asy
   })
   const fallback = ["https://example.com/default"]
 
-  assert.deepEqual(await store.get("story_sources", fallback), fallback)
+  assert.deepEqual(await store.get("sources", fallback), fallback)
   assert.deepEqual(writes, [])
 })
 
@@ -21,7 +21,7 @@ test("rejects list database failures instead of silently using defaults", async 
   })
 
   await assert.rejects(
-    store.get("story_sources", []),
+    store.get("sources", []),
     /database unavailable/
   )
 })

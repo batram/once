@@ -10,8 +10,8 @@
  * Identity rules, which the rest of the app depends on:
  * - `id` is opaque. Nothing computes it from the content, so inserting a
  *   duplicate or reordering rows cannot shift anybody's id.
- * - ids are prefixed and padded, so a value derived during legacy conversion is
- *   indistinguishable in shape from a freshly minted one.
+ * - ids are prefixed and padded, so persisted and freshly minted ids share one
+ *   grammar.
  * - the Default group is implicit: a source with no `groupId` is in it. No
  *   Default entry is ever stored in `groups`.
  *
@@ -64,7 +64,7 @@ export interface StorySource {
 
 export interface StorySourceDocument {
   version: number
-  /** Provenance of a one-way conversion, and how a later legacy edit is spotted. */
+  /** Historical provenance retained by documents created during the cutover. */
   migratedFrom?: {
     /** list-store id the sources were converted from. */
     docId: string

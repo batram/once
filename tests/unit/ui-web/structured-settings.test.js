@@ -2,8 +2,6 @@ const test = require("node:test")
 const assert = require("node:assert/strict")
 
 const {
-  parseSourceGroups,
-  serializeSourceGroups,
   parseFilterRows,
   parseRedirectRows,
   serializeRedirectRows
@@ -83,17 +81,6 @@ function withDom(html, callback) {
   restore()
   return result
 }
-
-test("story source groups round-trip order, duplicates, and empty groups", () => {
-  const lines = [
-    "https://one.test/",
-    "*news",
-    "geny:§§{\"stories\":{\"sel\":\"article\"}}§§https://two.test/",
-    "https://two.test/",
-    "*empty"
-  ]
-  assert.deepEqual(serializeSourceGroups(parseSourceGroups(lines)), lines)
-})
 
 test("filter rows preserve exact nonblank values, duplicates, and order", () => {
   assert.deepEqual(parseFilterRows("  first.test\n\nfirst.test\n second.test "), [

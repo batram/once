@@ -300,7 +300,7 @@ migrations of the same input.
 - Settings search must be preserved deliberately: add source-id / object-range search tests,
   including navigation from the index-first Sources section.
 
-### 5. Real-profile migration gate
+### 5. Real-profile migration gate — complete
 
 Before legacy runtime support is deleted: back up **both** documents including their Pouch revision
 metadata (`_rev`, not just the `list` payload — a restore without it cannot be written back cleanly);
@@ -311,7 +311,7 @@ handling from core and the picker, remove the legacy-format sections from
 `docs/COLLECTORS.md`, and update `ARCHITECTURE.md` and `CODEMAP.md`. The current collector contract
 is already documented; this gate removes only the transitional line-format guidance.
 
-## Acceptance criteria
+## Cutover acceptance criteria — complete
 
 - No migration write occurs before initial settings replication finishes when sync is enabled.
 - Sync configured but offline leaves migration pending and keeps serving legacy sources; it never
@@ -339,12 +339,13 @@ is already documented; this gate removes only the transitional line-format guida
 
 ## Deliberately not done, and known edges
 
-- `story_sources` lingers as a pre-cutover copy and drifts from reality the moment sources are edited.
+- Existing databases retain `story_sources` as untouched historical data; no
+  current runtime path reads, writes, synchronizes, or diagnoses it.
 - The strict reader refuses a whole record on any fault, which is the point, but it means one bad
   hand-edit blocks the save rather than partially applying — the reports name every fault at once so
   that stays workable.
 - `repairStorySources` drops an entry it cannot represent (no url, not an object) rather than
-  inventing one. Reports name it, and the pre-cutover legacy copy still holds the original.
+  inventing one. Reports name it so corruption is visible.
 
 ## Verification
 
@@ -367,7 +368,7 @@ Phase 3–4 completion evidence (2026-08-05):
   full settings-button flow, click picking, editable config, cancellation, and non-HTTP rejection.
 - The complete packaged Electron E2E suite passed 60/60 in CI mode, including typed source-group
   drag persistence and error-log navigation resolved through durable source ids.
-- Phase 5 remains deliberately open: no real-profile migration or second-client sync gate was run.
+- Phase 5 completed against the real Electron and Firefox profiles; evidence follows.
 
 Phase 5 progress (2026-08-05):
 
@@ -376,32 +377,51 @@ Phase 5 progress (2026-08-05):
   `couchdb-couchdb-free-1-20260805T195329Z.tar.gz`, and verified SHA-256
   `E538E1C7E647ADADC632E2944F021382BCD17D21FE253ACB0CB1D14220E86209`. Archive inspection found
   both `once` database shards, CouchDB system databases, configuration, and the generated manifest.
-- The revision-preserving `sources` / `story_sources` export, real-profile conversion, per-source
-  load inventory, relaunch, and second-client sync checks remain pending.
+- **Revision-preserving logical backup passed.**
+  `docs/tmp/migrate/once-source-docs-before-v0.3.0-20260805-213323.json` captured
+  winning `story_sources` revision `264-1b08b086b930db7a420b738c8bc2aeb5`
+  with all 34 legacy lines and confirmed `sources` was absent before cutover.
+- **Real Electron conversion passed.** Release v0.3.0 created typed revision
+  `1-b50e9add2df33f2923b5824e8f2e0f5f`, digest `ff74aa8e`, 30 sources and four
+  ordered groups (`panton`, `sec`, `trends`, `blogs`). Reconstructing the
+  expected document from the backup produced exact JSON equality, including
+  every id, URL, group assignment, collector and selector configuration.
+- **Load and relaunch gates passed.** All 30 sources were attempted; 29 loaded
+  and the sole Reddit failure is the established cookie/account rejection in
+  Electron, not a migration regression. A full Electron process relaunch kept
+  the same revision and exact document with no console warnings or errors.
+- **Second-client Firefox gate passed.** The existing Firefox extension was
+  upgraded in place to v0.3.0, reached Up to date, retained the same typed
+  digest/counts and left `story_sources` at the exact backup revision/content.
+  Electron then observed the same exact typed document, one typed revision leaf,
+  and no new legacy conflict leaf or write.
+- Firefox's first post-update live sync took about five minutes, and the same
+  behavior was then observed once on Chrome, Android, and installed Windows.
+  The saved HAR under `docs/tmp/slow_sync/` showed why: replication resumed at
+  remote sequence 4,207 and walked to 59,838 in the default 100-document
+  batches. It issued 224 `_revs_diff` batches for all 22,389 local documents
+  plus hundreds of remote checkpoint reads and writes, although only dozens of
+  revisions required transfer. This was safe but unacceptably slow, and was a
+  shared replication catch-up problem rather than a Firefox update quirk.
+- The post-cutover fix uses bounded 1,000-document batches with at most two in
+  memory, and stores each directional checkpoint only on its receiving side
+  (pull locally, push remotely). That preserves resumability while eliminating
+  redundant remote pull-checkpoint traffic and reducing a full 22,389-document
+  reconciliation from 224 batches to about 23.
+- With the gate complete, runtime reads/writes of `story_sources`, core `§§`
+  decoding, and transitional line-format documentation were removed. Plain
+  HTTP(S) URL-list import remains a supported convenience; collector
+  configuration must be supplied as typed JSON or through the picker.
 
-- `npm run test:unit` — legacy converter against real old lines (groups, empty groups, duplicate
-  names, `geny:§§`, `json:§§`, plain, blanks, duplicate URLs) asserting deterministic, idempotent
-  ids; strict vs tolerant normalizer behaviour including unknown versions; import reconciliation
-  including the ambiguous case; collector id presence/uniqueness/frozen list; `parse(input, context)`
-  from a typed `select`; config codecs rejecting junk; JSON text-mode round-trip plus the URL-list
-  fallback preserving ids and settings.
-  Rewrite `tests/unit/collectors/configurable.test.js`, `geny-builder.test.js`,
-  `picker/source-line-policy.test.js`, `ui-web/structured-settings.test.js` (~15 `SourceGroup`
-  literals), `settings-helpers.test.js`, `app-services.test.js:45`.
-- `npm run test:electron` — the phase-3 migration matrix above, driven by a fake
-  `onSettingsReplicated` so the pending/offline/resolved transitions are all exercised, plus the
-  inconsistent-digest case and an observed `sources` change reloading.
-- `npm run test:electron:e2e` — `source-picker.spec.js:78-233` is the most format-coupled suite in
-  the repo (asserts the `geny:§§` prefix and splits on it) and moves to objects.
-- `npm run test:extensions`, `npm run test:mobile:web` — `settings-source-groups.spec.js:19-291`
-  asserts joined-line textarea values throughout and moves to JSON; `button-adoption.spec.js` covers
-  new buttons automatically.
-- Test helpers change first, and most specs follow: `tests/helpers/fake-platform.js:3`,
-  `tests/e2e/shared/story-fixture.js:126`, `tests/e2e/shared/geny-fixture.js:7`,
-  `tests/e2e/electron/electron-harness.js:323`, `tests/e2e/mobile/helpers/settings.js` and
-  `helpers/stories.js`. Also `scripts/visual-compare.js:42-44,548-555`, `tests/live/source-cases.js`,
-  `scripts/refresh-collector-fixture.js`.
-- `npm run check` — especially `check:structure` (keep the two near-limit files out of it),
-  `check:dead-code`, `check:boundaries`, `check:css-debt`, `check:cascade`,
-  `check:semantic-controls`.
-- Manual gate at phase 5, per the real-profile checklist above.
+Post-cutover cleanup verification (2026-08-05):
+
+- `npm run check` passed the complete static gate, including lint, type checking,
+  dead-code and boundary checks, and all client development builds.
+- `npm run test:unit` passed 357/357 current unit tests, after removing the
+  legacy-converter-only suite.
+- `npm run test:electron` passed 49/49 app and Electron integration tests.
+- `npm run test:extensions` passed 2/2 artifact checks, 10/10 Chrome E2E tests,
+  3/3 Firefox E2E tests, and `web-ext` lint with no errors.
+- `npm run test:mobile:web` passed 54/54 tests.
+- `npm run package:electron` completed, and the complete packaged Electron E2E
+  suite passed its current 56/56 tests.

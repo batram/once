@@ -57,9 +57,3 @@ test("rejects source URLs that are not HTTP or HTTPS", () => {
   assert.throws(() => build_source(validConf, "file:///etc/passwd"), /HTTP or HTTPS/)
   assert.throws(() => build_source(validConf, "not a url"))
 })
-
-test("configuration no longer reserves a legacy separator", () => {
-  const conf = { ...validConf, stories: { sel: "article§§.story", all: true } }
-  assert.equal(build_source(conf, "https://example.com/").select.stories.sel,
-    "article§§.story")
-})

@@ -46,9 +46,17 @@ export interface PouchRemoteChange {
 
 export class PouchSyncService {
   private static readonly INITIAL_STORY_LIMIT = 50
+  // Story documents are small. Larger bounded batches avoid turning a stale
+  // checkpoint into hundreds of serial CouchDB round trips on higher-latency
+  // connections. Each direction keeps its checkpoint on the receiving side:
+  // pull locally, push remotely.
+  private static readonly REPLICATION_OPTIONS = {
+    batch_size: 1000,
+    batches_limit: 2,
+    checkpoint: "target"
+  }
   private static readonly SETTINGS_DOCUMENT_IDS = [
     "sources",
-    "story_sources",
     "filter_list",
     "redirect_list",
     "theme",
@@ -140,9 +148,9 @@ export class PouchSyncService {
 
   syncFrom(couchdbUrl: string, getLoadedStoryIds?: () => string[]): void {
     const syncOps = {
+      ...PouchSyncService.REPLICATION_OPTIONS,
       live: true,
-      retry: true,
-      batch_size: 100
+      retry: true
     }
 
     const generation = ++this.generation
@@ -246,7 +254,7 @@ export class PouchSyncService {
       })
       await this.replicateOnce(
         remote,
-        options,
+        { ...PouchSyncService.REPLICATION_OPTIONS, ...options },
         generation,
         presentation,
         (count) => {

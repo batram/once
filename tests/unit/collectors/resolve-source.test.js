@@ -3,11 +3,9 @@ const assert = require("node:assert/strict")
 
 const {
   isResolved,
-  resolveLegacySourceLine,
   resolveStorySource
 } = require("../../../packages/collectors/dist/resolveSource")
 
-const separator = "§§"
 const CONFIG = {
   stories: { sel: "article", all: true },
   link: { sel: "a", component: "href" },
@@ -65,32 +63,4 @@ test("an unknown collector id and an unmatched url both say why", () => {
   const unmatched = resolveStorySource({ url: "https://a.test/" })
   assert.equal(isResolved(unmatched), false)
   assert.match(unmatched.problem, /no handler available/)
-})
-
-test("a legacy line resolves to its real url, not the line", () => {
-  // This is the bug that kept a configurable source from ever hitting cache:
-  // the cache was read under the line and written under the resolved url.
-  const line = `geny:${separator}${JSON.stringify(CONFIG)}${separator}https://a.test/news`
-  const resolved = resolveLegacySourceLine(line)
-  assert.ok(isResolved(resolved))
-  assert.equal(resolved.url, "https://a.test/news")
-  assert.deepEqual(resolved.source, {
-    url: "https://a.test/news",
-    collector: "geny",
-    select: CONFIG
-  })
-  assert.equal(resolved.collector.options.id, "geny")
-  assert.deepEqual(resolved.config, CONFIG)
-})
-
-test("a plain legacy line resolves like any url", () => {
-  const resolved = resolveLegacySourceLine("  https://lobste.rs/  ")
-  assert.ok(isResolved(resolved))
-  assert.equal(resolved.collector.options.id, "lobsters")
-})
-
-test("a malformed legacy line is a problem, not a crash", () => {
-  const resolved = resolveLegacySourceLine(`geny:${separator}{bad${separator}https://a.test/`)
-  assert.equal(isResolved(resolved), false)
-  assert.match(resolved.problem, /unreadable selector configuration/)
 })

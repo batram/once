@@ -182,11 +182,7 @@ export function sanitize_selector_conf(raw: unknown): GenySelectorConf {
   }) as GenySelectorConf
 }
 
-/**
- * Builds the legacy source line the picker still stores. Kept until the picker
- * writes source objects; the separator now comes from core, which owns the one
- * remaining definition of the legacy format.
- */
+/** Builds the validated typed source returned by each source picker. */
 export function build_source(conf: GenySelectorConf, url: string): StorySource {
   const parsed = new URL(url)
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {

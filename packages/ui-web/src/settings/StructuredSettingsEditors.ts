@@ -21,11 +21,6 @@ export {
   parseRedirectRows,
   serializeRedirectRows
 } from "./structured/redirects"
-export {
-  parseSourceGroups,
-  serializeSourceGroups
-} from "./structured/sourceGroups"
-
 type Section = StructuredSettingsSection
 
 export interface StructuredSettingsOptions {

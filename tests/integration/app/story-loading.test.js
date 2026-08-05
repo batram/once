@@ -33,23 +33,23 @@ test("loads a faked story source once and reuses its cached response", async () 
 })
 
 test("a configurable source now reuses its cached response too", async () => {
-  // The regression this guards: the cache was read under the whole source line
-  // but written under the resolved URL, so a json:/geny: source refetched on
-  // every single reload no matter what the cache setting said. Before the
-  // resolver landed, this asked for two requests and got two.
-  const {
-    LEGACY_SEPARATOR: separator
-  } = require("../../../packages/core/dist/settings/legacySourceLines")
+  // The regression this guards: configurable sources must use their fetch URL
+  // as the cache key rather than any serialized representation of the source.
   const feedUrl = "https://example.com/feed.json"
   const config = {
     stories: { sel: "items", all: true },
     link: { sel: "href" },
     title: { sel: "title" }
   }
-  const sourceUrl = `json:${separator}${JSON.stringify(config)}${separator}${feedUrl}`
+  const source = {
+    id: "src_testjson1",
+    url: feedUrl,
+    collector: "jsonselect",
+    select: config
+  }
   let requests = 0
   const fake = createFakePlatform([], {
-    storySources: [sourceUrl],
+    storySources: [source],
     fetch: async (url) => {
       requests += 1
       // Fetched by the resolved URL, not by the line that carries the config.
@@ -183,9 +183,9 @@ test("loads a saved source once when PouchDB echoes the local setting change", a
 
 test("serializes duplicate story writes while preserving substories", async () => {
   const origin = "https://fixture.example"
-  const sourceUrl = storyFixture.sourceLine(origin)
+  const sourceDocument = JSON.parse(storyFixture.sourceLine(origin))
   const fake = createFakePlatform([], {
-    storySources: [sourceUrl],
+    storySources: sourceDocument,
     fetch: async (url) => {
       assert.equal(url, `${origin}/feed.json`)
       return new Response(JSON.stringify(storyFixture.feedJson(origin)), {

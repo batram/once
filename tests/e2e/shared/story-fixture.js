@@ -124,18 +124,23 @@ function feedJson(origin) {
 }
 
 function sourceLine(origin, feedPath = "/feed.json") {
-  return `json:§§${JSON.stringify({
-    stories: { sel: "items", all: true },
-    link: { sel: "href" },
-    title: { sel: "title" },
-    timestamp: { sel: "published" },
-    comment_href: { sel: "comments" },
-    tags: [
-      { elements: { class: { sel: "authorClass" }, text: { sel: "author" } } },
-      { elements: { class: { sel: "channelClass" }, text: { sel: "channel" } } },
-      { elements: { class: { sel: "topicClass" }, text: { sel: "topic" } } }
-    ]
-  })}§§${origin}${feedPath}`
+  return JSON.stringify({ version: 2, groups: [], sources: [{
+    id: "src_fixture01",
+    url: `${origin}${feedPath}`,
+    collector: "jsonselect",
+    select: {
+      stories: { sel: "items", all: true },
+      link: { sel: "href" },
+      title: { sel: "title" },
+      timestamp: { sel: "published" },
+      comment_href: { sel: "comments" },
+      tags: [
+        { elements: { class: { sel: "authorClass" }, text: { sel: "author" } } },
+        { elements: { class: { sel: "channelClass" }, text: { sel: "channel" } } },
+        { elements: { class: { sel: "topicClass" }, text: { sel: "topic" } } }
+      ]
+    }
+  }] })
 }
 
 function rssSourceLine(origin, feedPath = "/feed.rss") {

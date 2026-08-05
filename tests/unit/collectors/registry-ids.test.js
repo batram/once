@@ -6,9 +6,6 @@ const {
   get_parser,
   get_parser_by_id
 } = require("../../../packages/collectors/dist/registry")
-const {
-  readLegacySourceLine
-} = require("../../../packages/core/dist/settings/legacySourceLines")
 
 /**
  * Collector ids are public persistence identifiers: they are stored in every
@@ -54,14 +51,6 @@ test("a collector can be looked up by the id a source names", () => {
     assert.equal(get_parser_by_id(id)?.options.id, id, id)
   }
   assert.equal(get_parser_by_id("nope"), undefined)
-})
-
-test("the ids the legacy converter emits exist in the registry", () => {
-  // The converter hardcodes these, because core cannot import the registry.
-  for (const prefix of ["geny", "json"]) {
-    const parsed = readLegacySourceLine(`${prefix}:§§{}§§https://a.test/`)
-    assert.ok(get_parser_by_id(parsed.collector), `${prefix}: -> ${parsed.collector}`)
-  }
 })
 
 test("only the configurable collectors own configuration codecs", () => {

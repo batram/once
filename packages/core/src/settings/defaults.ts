@@ -1,12 +1,17 @@
 import { Redirect } from "../story/URLRedirect"
+import { StorySourceDocument } from "./storySource"
 
-export const defaultSources = [
-  "https://news.ycombinator.com/",
-  "https://news.ycombinator.com/news?p=2",
-  "https://news.ycombinator.com/news?p=3",
-  "https://lobste.rs/",
-  "https://old.reddit.com/r/netsec/.rss"
-]
+export const defaultStorySources: StorySourceDocument = {
+  version: 2,
+  groups: [],
+  sources: [
+    { id: "src_05c15ad4", url: "https://news.ycombinator.com/" },
+    { id: "src_5ef04b53", url: "https://news.ycombinator.com/news?p=2" },
+    { id: "src_87d89ef4", url: "https://news.ycombinator.com/news?p=3" },
+    { id: "src_fc314bd3", url: "https://lobste.rs/" },
+    { id: "src_c73b5b63", url: "https://old.reddit.com/r/netsec/.rss" }
+  ]
+}
 
 export const defaultFilterList = `bbc.co.uk
   bbc.com

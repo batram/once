@@ -23,7 +23,8 @@ target lifecycle, permissions, native bridges, and packaging belong in an app.
 | --- | --- | --- |
 | Styling, tokens, primitives | `packages/ui-web/public/static/css` | [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) names the owner of every sheet |
 | Story model, comparison, filtering | `packages/core/src/story` | Platform-neutral and DOM-free |
-| Source parsing and collectors | `packages/collectors/src` | May depend only on core |
+| Typed source schema and text import | `packages/core/src/settings/storySource.ts`, `storySourceText.ts` | Platform-neutral schema, strict JSON, and URL-list reconciliation |
+| Source resolution and collectors | `packages/collectors/src/resolveSource.ts`, `registry.ts` | May depend only on core; collector configuration is validated here |
 | Loading, settings, story state | `packages/app/src/OnceApp.ts`, `packages/app/src/AppRuntime.ts` | Public facade and application service composition |
 | PouchDB storage and sync | `packages/persistence/src` | Storage implementations |
 | Story list and actions | `packages/ui-web/src/story` | Shared DOM UI |
@@ -93,6 +94,8 @@ All paths below are under `packages/ui-web/src`.
   `SourceGroupView.ts` for group rendering and reordering and `sourceRows.ts`
   for one source row. `SourceDropController.ts` owns source-row drop targeting
   and moves between groups.
+- `packages/app/src/AppSettings.ts` owns the versioned `sources` document and
+  waits for initial settings replication before establishing typed defaults.
 - `gesture/dragReorder.ts` owns reusable row reordering and drag-edge
   scrolling, shared with the story list rather than owned by settings.
 

@@ -1,5 +1,7 @@
-import { convertLegacySourceLines, readLegacySourceLine } from "./legacySourceLines"
 import {
+  emptyStorySourceDocument,
+  mintStorySourceGroupId,
+  mintStorySourceId,
   reconcileStorySources,
   StorySourceDocument,
   StorySourceReport,
@@ -35,22 +37,57 @@ export function parseStorySourceText(
     const read = parseStorySources(value)
     return read.ok ? { ok: true, doc: read.doc, reports: read.reports } : read
   }
-  const lines = text.replace(/\r\n?/g, "\n").split("\n")
-  const invalid = lines.map((line) => line.trim()).filter(Boolean).find((line) => {
-    if (line.startsWith("*")) return line.length === 1
-    const parsed = readLegacySourceLine(line)
-    if ("problem" in parsed) return true
-    try { return !["http:", "https:"].includes(new URL(parsed.url).protocol) } catch { return true }
-  })
-  if (invalid) return { ok: false, reports: [{ path: "legacy", message: `Invalid source line: ${invalid}` }] }
-  const converted = convertLegacySourceLines(lines)
-  if (!existing) return { ok: true, doc: converted.doc, reports: converted.reports }
-  const reconciled = reconcileStorySources(converted.doc.sources, existing.sources)
+  const imported = importUrlList(text, existing)
+  if (!imported.ok) return imported
+  if (!existing) return imported
+  const reconciled = reconcileStorySources(imported.doc.sources, existing.sources)
   return {
     ok: true,
-    doc: { ...existing, groups: converted.doc.groups, sources: reconciled.sources },
-    reports: [...converted.reports, ...reconciled.reports]
+    doc: { ...existing, groups: imported.doc.groups, sources: reconciled.sources },
+    reports: [...imported.reports, ...reconciled.reports]
   }
+}
+
+function importUrlList(
+  text: string,
+  existing?: StorySourceDocument
+): { ok: true; doc: StorySourceDocument; reports: StorySourceReport[] } |
+   { ok: false; reports: StorySourceReport[] } {
+  const doc = emptyStorySourceDocument()
+  const existingGroups = new Map<string, typeof doc.groups>()
+  for (const group of existing?.groups ?? []) {
+    const matches = existingGroups.get(group.name)
+    if (matches) matches.push(group)
+    else existingGroups.set(group.name, [group])
+  }
+  const claimedGroups = new Set<string>()
+  let groupId: string | undefined
+  const lines = text.replace(/\r\n?/g, "\n").split("\n")
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index].trim()
+    if (!line) continue
+    if (line.startsWith("*")) {
+      const name = line.slice(1).trim()
+      if (!name) {
+        return { ok: false, reports: [{ path: `lines[${index}]`, message: "Group name is empty" }] }
+      }
+      const matched = (existingGroups.get(name) ?? [])
+        .find((candidate) => !claimedGroups.has(candidate.id))
+      groupId = matched?.id ?? mintStorySourceGroupId()
+      claimedGroups.add(groupId)
+      doc.groups.push({ id: groupId, name })
+      continue
+    }
+    let url: URL
+    try { url = new URL(line) } catch {
+      return { ok: false, reports: [{ path: `lines[${index}]`, message: `Invalid source URL: ${line}` }] }
+    }
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return { ok: false, reports: [{ path: `lines[${index}]`, message: `Invalid source URL: ${line}` }] }
+    }
+    doc.sources.push({ id: mintStorySourceId(), url: line, ...(groupId ? { groupId } : {}) })
+  }
+  return { ok: true, doc, reports: [] }
 }
 
 export function serializeStorySourceDocument(doc: StorySourceDocument): string {

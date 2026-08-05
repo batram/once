@@ -121,7 +121,7 @@ function sanitizeTagSelector(
 
 /**
  * Validates untrusted selector configuration — from the in-page picker, an
- * imported record, or a converted legacy line — and returns a copy containing
+ * imported record or picker result — and returns a copy containing
  * only known fields.
  */
 export function sanitizeSelectorConf(

@@ -5,29 +5,16 @@ package owns source matching, response decoding, source-specific parsing, and
 the registry of available collectors. Application code is responsible for
 fetching, caching, grouping, filtering, and persisting the resulting stories.
 
-Sources are still persisted in the line-based format described below. The
-runtime converts each line to a typed source before selecting a collector, and
-the persisted format, including the `§§` embedded-config form, is scheduled
-to be replaced by typed source objects — see
-[story-source-model-plan.md](story-source-model-plan.md).
+Sources are persisted as a versioned `StorySourceDocument`. Each source has a
+durable id, URL, optional group and collector id, and optional validated
+collector configuration in `select`.
 
 ## How a source is loaded
 
-Each non-empty line in the Sources setting is either a source or a group
-heading. A heading starts with `*`; subsequent sources belong to that group.
-
-```text
-*tech
-https://news.ycombinator.com/
-https://lobste.rs/
-*security
-https://old.reddit.com/r/netsec/.rss
-```
-
 For every source, Once:
 
-1. converts the legacy line in memory, then resolves it once up front;
-   `resolveStorySource` in `packages/collectors/src/resolveSource.ts` picks the
+1. resolves the typed source once up front; `resolveStorySource` in
+   `packages/collectors/src/resolveSource.ts` picks the
    collector by an explicit id or by matching `options.pattern` against the URL,
    and asks configurable collectors to validate their configuration;
 2. fetches or reads a cached response, keyed on the resolved URL;
@@ -65,8 +52,8 @@ note that `type` cannot serve the same purpose, since the two Reddit collectors
 deliberately share the `re` badge.
 
 The two configurable collectors have no URL pattern. Their selectors cannot be
-guessed from an address, so converted legacy lines name them explicitly and
-carry their validated configuration in the typed source's `select` field.
+guessed from an address, so their typed sources name them explicitly and carry
+validated configuration in the `select` field.
 
 Source-specific settings, colors, and descriptions live in each module's
 exported `options` object under `packages/collectors/src/collectors`.
@@ -78,9 +65,8 @@ collector supports RSS 1.0, RSS 2.0, and Atom, applies `time_cut_off`, and can
 discard entries without timestamps. Reddit's Atom-shaped `.rss` response has
 its own collector and is registered before the general `*.rss` pattern.
 
-JSON Select is the JSON counterpart to Geny Match. Its legacy source line uses
-the same three-part idea with a `json:` prefix, but selectors address object
-keys instead of CSS selectors. Both configurable collectors use the shared
+JSON Select is the JSON counterpart to Geny Match; its selectors address
+object keys instead of CSS selectors. Both configurable collectors use the shared
 validation machinery in `packages/collectors/src/selectorConf.ts`; JSON Select
 has no public builder entry point.
 
@@ -104,25 +90,17 @@ collector or usable feed.
 The Source Picker is the normal way to create a Geny source. Open the page in
 Once's browser, start the picker from the Sources settings, and select or enter
 selectors for the repeated story element, link, title, timestamp, and optional
-tag. The picker previews parsed stories and saves the generated source line.
+tag. The picker previews parsed stories and saves the generated typed source.
 
 The collector parses the response body returned by the server. Content that
 only appears after page JavaScript runs will not be present during ordinary
 collection, even if it was visible when configuring the page in the picker.
 
-### Source format
+### Source construction
 
-A legacy Geny source contains three parts separated by the core-owned
-`LEGACY_SEPARATOR`:
-
-```text
-geny:<separator><selector JSON><separator><page URL>
-```
-
-Do not assemble this string in application code. Until the picker writes typed
-source objects, import the supported Geny entry point and use `build_source`,
-which validates the configuration, accepts only HTTP(S) page URLs, and rejects
-separator collisions.
+Use the supported Geny `build_source` entry point. It validates the
+configuration, accepts only HTTP(S) page URLs, and returns a typed source with
+`collector: "geny"` and the sanitized configuration in `select`.
 
 ```ts
 import { build_source, type GenySelectorConf } from "@once/collectors/geny"
@@ -148,11 +126,6 @@ const conf: GenySelectorConf = {
 
 const source = build_source(conf, "https://example.com/news")
 ```
-
-Core's `readLegacySourceLine` performs the inverse operation needed by the
-runtime bridge. It returns the page URL, collector id, and selector
-configuration; the collector no longer parses configuration out of the source
-line.
 
 ### Configuration shape
 
