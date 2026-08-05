@@ -15,7 +15,18 @@ import { StorySource, readLegacySourceLine } from "@once/core"
 import { StoryParser, get_parser_by_id } from "./registry"
 import { get_parser_for_url } from "./parser"
 
-export interface ResolvedStorySource {
+/**
+ * Only the fields resolution needs. The generic preserves the complete source
+ * (including its identity) when a stored StorySource is supplied, while the
+ * legacy bridge can still use the smaller converted shape during the cutover.
+ */
+export type ResolvableSource = Pick<StorySource, "url" | "collector" | "select">
+
+export interface ResolvedStorySource<
+  TSource extends ResolvableSource = ResolvableSource
+> {
+  /** The source that was resolved; a stored source keeps its id and metadata. */
+  source: TSource
   /** What gets fetched, and what the cache is keyed on. */
   url: string
   collector: StoryParser
@@ -34,23 +45,19 @@ export interface UnresolvedStorySource {
   problem: string
 }
 
-export type StorySourceResolution = ResolvedStorySource | UnresolvedStorySource
+export type StorySourceResolution<
+  TSource extends ResolvableSource = ResolvableSource
+> = ResolvedStorySource<TSource> | UnresolvedStorySource
 
-export function isResolved(
-  resolution: StorySourceResolution
-): resolution is ResolvedStorySource {
+export function isResolved<TSource extends ResolvableSource>(
+  resolution: StorySourceResolution<TSource>
+): resolution is ResolvedStorySource<TSource> {
   return !("problem" in resolution)
 }
 
-/**
- * Only the fields resolution needs, so this serves both a stored source and a
- * converted legacy line without either having to fake the rest.
- */
-export type ResolvableSource = Pick<StorySource, "url" | "collector" | "select">
-
-export function resolveStorySource(
-  source: ResolvableSource
-): StorySourceResolution {
+export function resolveStorySource<TSource extends ResolvableSource>(
+  source: TSource
+): StorySourceResolution<TSource> {
   const collector = source.collector
     ? get_parser_by_id(source.collector)
     : get_parser_for_url(source.url)
@@ -64,12 +71,13 @@ export function resolveStorySource(
   }
 
   if (!collector.normalizeConfig) {
-    return { url: source.url, collector }
+    return { source, url: source.url, collector }
   }
   // A collector that takes configuration is asked to vet it here, so a bad
   // selector set is a source error rather than a parse-time surprise.
   try {
     return {
+      source,
       url: source.url,
       collector,
       config: source.select === undefined

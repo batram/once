@@ -453,7 +453,7 @@ export function reconcileStorySources(
 }
 
 function shapeKey(source: StorySource): string {
-  return `${source.url} ${source.collector ?? ""}`
+  return `${source.url}\0${source.collector ?? ""}`
 }
 
 /**

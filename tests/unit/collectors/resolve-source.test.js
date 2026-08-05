@@ -15,8 +15,14 @@ const CONFIG = {
 }
 
 test("a plain url resolves by pattern, with no configuration", () => {
-  const resolved = resolveStorySource({ url: "https://news.ycombinator.com/" })
+  const source = {
+    id: "src_11111111",
+    url: "https://news.ycombinator.com/",
+    label: "HN"
+  }
+  const resolved = resolveStorySource(source)
   assert.ok(isResolved(resolved))
+  assert.equal(resolved.source, source, "resolution preserves source identity and metadata")
   assert.equal(resolved.collector.options.id, "hackernews")
   assert.equal(resolved.url, "https://news.ycombinator.com/")
   assert.equal(resolved.config, undefined)
@@ -68,6 +74,11 @@ test("a legacy line resolves to its real url, not the line", () => {
   const resolved = resolveLegacySourceLine(line)
   assert.ok(isResolved(resolved))
   assert.equal(resolved.url, "https://a.test/news")
+  assert.deepEqual(resolved.source, {
+    url: "https://a.test/news",
+    collector: "geny",
+    select: CONFIG
+  })
   assert.equal(resolved.collector.options.id, "geny")
   assert.deepEqual(resolved.config, CONFIG)
 })

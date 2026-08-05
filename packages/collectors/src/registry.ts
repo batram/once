@@ -47,6 +47,12 @@ export declare interface StoryParser {
    * legacy line, so nothing reaches `parse` unchecked.
    */
   normalizeConfig?: (raw: unknown) => unknown
+  /**
+   * Produces the canonical JSON-safe form stored in a typed source. Keeping
+   * this beside normalization gives editors and importers one collector-owned
+   * codec instead of teaching them selector shapes.
+   */
+  serializeConfig?: (config: unknown) => unknown
   global_search?: (needle: string) => Promise<Story[]>
   domain_search?: (needle: string) => Promise<Story[]>
 }
@@ -70,7 +76,8 @@ export function get_active(): StoryParser[] {
     {
       options: genyMatch.options,
       parse: genyMatch.parse,
-      normalizeConfig: genyMatch.sanitize_selector_conf
+      normalizeConfig: genyMatch.sanitize_selector_conf,
+      serializeConfig: genyMatch.sanitize_selector_conf
     },
     {
       options: hackerNewsHtml.options,
@@ -81,7 +88,8 @@ export function get_active(): StoryParser[] {
     {
       options: jsonSelect.options,
       parse: jsonSelect.parse,
-      normalizeConfig: jsonSelect.sanitize_selector_conf
+      normalizeConfig: jsonSelect.sanitize_selector_conf,
+      serializeConfig: jsonSelect.sanitize_selector_conf
     },
     {
       options: lobstersHtml.options,

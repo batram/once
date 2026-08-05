@@ -64,11 +64,27 @@ test("the ids the legacy converter emits exist in the registry", () => {
   }
 })
 
-test("only the configurable collectors validate configuration", () => {
+test("only the configurable collectors own configuration codecs", () => {
   const configurable = get_parser()
     .filter((collector) => collector.normalizeConfig)
     .map((collector) => collector.options.id)
   assert.deepEqual(configurable.sort(), ["geny", "jsonselect"])
+
+  for (const id of configurable) {
+    const collector = get_parser_by_id(id)
+    assert.equal(typeof collector.serializeConfig, "function", id)
+    const config = {
+      stories: { sel: "items", all: true },
+      link: { sel: "url" },
+      title: { sel: "title" }
+    }
+    assert.deepEqual(collector.serializeConfig(config), config)
+  }
+  assert.deepEqual(
+    get_parser().filter((collector) => collector.serializeConfig)
+      .map((collector) => collector.options.id).sort(),
+    ["geny", "jsonselect"]
+  )
 })
 
 test("the configurable collectors are never detected from a URL", () => {

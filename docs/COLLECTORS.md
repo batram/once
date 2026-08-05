@@ -239,8 +239,9 @@ A collector module exports `options` plus at least `parse(input, context)`. Its
 options require a stable, unique `id`, a `collects` input type, and either one
 or more URL `pattern` values or an empty pattern list for explicitly named
 collectors. It may also export `global_search` or `domain_search`. A collector
-with source-specific configuration exports a validator and registers it as
-`normalizeConfig` in `packages/collectors/src/registry.ts`.
+with source-specific configuration exports its codec and registers it as
+`normalizeConfig` and `serializeConfig` in
+`packages/collectors/src/registry.ts`.
 
 Add the module to `get_active()`, taking overlap and first-match ordering into
 account, and add its public id to the frozen registry-id test. Renaming an id
