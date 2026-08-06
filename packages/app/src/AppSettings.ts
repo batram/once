@@ -18,6 +18,14 @@ import {
   ThemePort
 } from "./types"
 import {
+  CACHE_TIMING_DOCUMENT_ID,
+  CACHE_TIMING_VERSION,
+  CacheTimedSource,
+  CacheTimingDocument,
+  effectiveCacheMinutes,
+  readCacheTimingDocument
+} from "./cacheTiming"
+import {
   DEFAULT_SWIPE_SETTINGS,
   normalizeSwipeSettings,
   SwipeSettings
@@ -177,6 +185,38 @@ export class AppSettings {
     this.actions.publishChanged("cache")
   }
 
+  /**
+   * The per-collector windows. Read tolerantly on every call rather than
+   * cached: a reload pass reads it once anyway, and another client's write
+   * arrives through the observed change below without a cache to invalidate.
+   */
+  async getCacheTiming(): Promise<CacheTimingDocument> {
+    return readCacheTimingDocument(
+      await this.getList<unknown>(CACHE_TIMING_DOCUMENT_ID, null)
+    )
+  }
+
+  /**
+   * The windows for one reload pass. Resolved from a single read of both the
+   * timing document and the global default, so every source in the pass judges
+   * its body against the same policy even if a write lands mid-fan-out.
+   */
+  async cacheWindows(): Promise<(source: CacheTimedSource) => number> {
+    const [timing, globalMinutes] = await Promise.all([
+      this.getCacheTiming(),
+      this.getCacheTime()
+    ])
+    return (source) => effectiveCacheMinutes(source, timing, globalMinutes)
+  }
+
+  async setCacheTiming(timing: CacheTimingDocument): Promise<void> {
+    await this.setList(
+      CACHE_TIMING_DOCUMENT_ID,
+      readCacheTimingDocument({ ...timing, version: CACHE_TIMING_VERSION })
+    )
+    this.actions.publishChanged("cache")
+  }
+
   getTheme(): Promise<ThemeName> {
     return this.getList("theme", "dark" as ThemeName)
   }
@@ -247,6 +287,11 @@ export class AppSettings {
           this.animated = animated
           this.actions.publishChanged("animation")
         })
+        break
+      case CACHE_TIMING_DOCUMENT_ID:
+        // Timing decides how old a cached body may be, never what is on
+        // screen, so nothing is reloaded and no request is made here.
+        this.actions.publishChanged("cache")
         break
       case "swipe":
         this.actions.publishChanged("swipe")

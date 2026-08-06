@@ -1,6 +1,6 @@
 # Per-source cache timing and cache behavior
 
-Status: approved, implementation pending. Depends on the completed typed-source persistence and
+Status: phase 1 landed; phase 2 pending. Depends on the completed typed-source persistence and
 object-native UI work recorded in [HISTORY.md](../HISTORY.md).
 
 ## Context and boundary
@@ -30,7 +30,7 @@ resolving a line before reading cache. That completed compatibility fix is not p
 | Existing refresh behavior | Before behavior changes: `R`/click and pull are cache-first, `Shift+R`/double-click are forced, and startup is network-only, as committed in `c5d7bc7`. |
 | Shared body policy | Each source judges the shared timestamp against its own window. The shortest active window therefore determines how often the shared body is refreshed. |
 
-## Phase 1: timing overrides without unrelated behavior changes
+## Phase 1: timing overrides without unrelated behavior changes — landed
 
 Keep the existing 120-minute global default, network-only startup, and refresh gestures. Nothing
 changes until a user sets an override; no collector ships a default in this phase.
@@ -52,6 +52,12 @@ changes until a user sets an override; no collector ships a default in this phas
 - Add Cache minutes to the source form introduced by the source-model plan.
 
 Acceptance: with no override anywhere, request counts are identical to the pre-phase baseline.
+
+As landed, `effectiveCacheMinutes` is reached through `AppSettings.cacheWindows()`, which reads the
+timing document and the global default once and returns the resolver a reload pass uses for every
+source. `OnceClient` gained `getCacheTiming`/`setCacheTiming`; no panel writes them yet. The source
+form's Cache minutes field refuses anything that is not blank or a whole number rather than coercing
+it (`readCacheMinutesInput` in core).
 
 ## Phase 2: cache UX and behavior changes
 

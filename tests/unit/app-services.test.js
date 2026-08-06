@@ -158,12 +158,14 @@ test("source loader rejects expired cache before fetching", async () => {
       get: async () => [Date.now() - 10 * 60 * 1000, "{}"],
       set: async () => {}
     },
-    async () => 5,
     (error) => errors.push(error)
   )
 
   await assert.rejects(
-    loader.load({ id: "src_00000001", url: "https://old.reddit.com/r/netsec/.json" }),
+    loader.load(
+      { id: "src_00000001", url: "https://old.reddit.com/r/netsec/.json" },
+      { policy: "cache-first", cacheMinutes: 5 }
+    ),
     /HTTP 404/
   )
   assert.equal(requests, 1)

@@ -1,8 +1,8 @@
 import { SourceError } from "@once/app"
 import { get_active } from "@once/collectors"
 import { DEFAULT_GROUP_ID, emptyStorySourceDocument, mintStorySourceGroupId,
-  mintStorySourceId, parseStorySourceText, serializeStorySourceDocument,
-  StorySourceDocument } from "@once/core"
+  mintStorySourceId, parseStorySourceText, readCacheMinutesInput,
+  serializeStorySourceDocument, StorySourceDocument } from "@once/core"
 import { showChoiceDialog, showConfirmDialog } from "../../confirmDialog"
 import { AnchoredMenuItem } from "../../menu/storyAnchoredMenu"
 import { revealElement } from "../../scrollReveal"
@@ -86,14 +86,22 @@ export class SourceSettingsEditor {
     this.host.showForm(root, "Source", [
       ["URL", current?.url ?? ""],
       ["Label", current?.label ?? "", { optional: true }],
+      ["Cache minutes", current?.cacheMinutes === undefined ? "" : String(current.cacheMinutes),
+        { optional: true, hint: "Blank inherits; 0 always refetches" }],
       ["Collector", current?.collector ?? "", { kind: "select", choices: collectors, optional: true }],
       ["Enabled", String(current?.enabled !== false), { kind: "checkbox", optional: true }],
       ["Group", this.groups[groupIndex]?.id ?? DEFAULT_GROUP_ID, { kind: "select", choices: groups }]
     ], (values) => {
-      const [url, label, collector, enabled, groupId] = values
+      const [url, label, cacheMinutes, collector, enabled, groupId] = values
       if (!url.trim()) return false
+      // Refused rather than clamped or coerced, so a typo cannot quietly
+      // become a cache window nobody chose.
+      const cacheWindow = readCacheMinutesInput(cacheMinutes)
+      if (!cacheWindow.ok) return false
       const source = { ...(current ?? { id: mintStorySourceId(), url: "" }), url: url.trim() }
       if (label.trim()) source.label = label.trim(); else delete source.label
+      if (cacheWindow.minutes === undefined) delete source.cacheMinutes
+      else source.cacheMinutes = cacheWindow.minutes
       if (collector) source.collector = collector; else delete source.collector
       source.enabled = enabled !== "false"
       if (groupId === DEFAULT_GROUP_ID) delete source.groupId; else source.groupId = groupId

@@ -1,8 +1,16 @@
 import { Redirect, Story, StorySourceDocument } from "@once/core"
+import { CacheTimingDocument } from "./cacheTiming"
 import { SwipeSettings } from "./swipeSettings"
 
 export type ThemeName = "system" | "light" | "dark"
 export type AnimationSetting = boolean
+
+/**
+ * What a load is allowed to do about the cache. Named rather than boolean
+ * because "true" read as both "prefer the cache" and "the cache is valid" at
+ * different call sites, and only one of those is the caller's to decide.
+ */
+export type CachePolicy = "cache-first" | "network-only"
 
 export interface ProcessingSource {
   domain: string
@@ -118,13 +126,15 @@ export interface OnceClient {
   setSyncUrl(syncUrl: string): Promise<void>
   getCacheTime(): Promise<number>
   setCacheTime(cacheTime: string): Promise<void>
+  getCacheTiming(): Promise<CacheTimingDocument>
+  setCacheTiming(timing: CacheTimingDocument): Promise<void>
   getTheme(): Promise<ThemeName>
   setTheme(theme: ThemeName): Promise<void>
   getAnimation(): Promise<AnimationSetting>
   setAnimation(animated: AnimationSetting): Promise<void>
   getSwipeSettings(): Promise<SwipeSettings>
   setSwipeSettings(settings: SwipeSettings): Promise<void>
-  reloadStories(tryCache?: boolean): Promise<void>
+  reloadStories(policy?: CachePolicy): Promise<void>
   getStories(): Promise<Story[]>
   getStorySnapshot(): Story[]
   findStoryByUrl(url: string): Promise<Story | null>

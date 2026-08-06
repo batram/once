@@ -1,7 +1,7 @@
 import { Story, SortableStory } from "@once/core"
 import { StoryListItem } from "./StoryListItem"
 import { applyStoryFilter } from "@once/core"
-import { StoryChangeDetail, OnceClient } from "@once/app"
+import { CachePolicy, StoryChangeDetail, OnceClient } from "@once/app"
 import * as StorySearch from "./storySearch"
 import { URLRedirect } from "@once/core"
 import { requireElement } from "../dom"
@@ -34,7 +34,7 @@ export function init(client: OnceClient): void {
       console.log("reload_stories_btn clicked")
       if (clickTimeout) clearTimeout(clickTimeout)
       clickTimeout = setTimeout(() => {
-        reload(true)
+        reload("cache-first")
         clickTimeout = null
       }, 250)
     }
@@ -45,7 +45,7 @@ export function init(client: OnceClient): void {
         clearTimeout(clickTimeout)
         clickTimeout = null
       }
-      reload(false)
+      reload("network-only")
     }
   }
 
@@ -54,12 +54,15 @@ export function init(client: OnceClient): void {
   // shifted key the double. The disabled class is the in-flight guard, so
   // holding a key cannot stack reloads any more than clicking fast can.
   const keyboard = getKeyboardDispatcher()
-  const reloadFromKeyboard = (try_cache: boolean) => () => {
+  const reloadFromKeyboard = (policy: CachePolicy) => () => {
     if (reload_stories_btn?.classList.contains("disabled")) return
-    void reload(try_cache)
+    void reload(policy)
   }
-  keyboard.register("stories.reload", reloadFromKeyboard(true))
-  keyboard.register("stories.reload-uncached", reloadFromKeyboard(false))
+  keyboard.register("stories.reload", reloadFromKeyboard("cache-first"))
+  keyboard.register(
+    "stories.reload-uncached",
+    reloadFromKeyboard("network-only")
+  )
 
   connectStoryListSync(client, {
     addStories(stories, bucket, replace) {
@@ -91,7 +94,7 @@ export function init(client: OnceClient): void {
   // pointer users, who still have the reload button above).
   const stories_el = document.querySelector<HTMLElement>("#stories")
   if (stories_el) {
-    attachPullToRefresh(stories_el, () => reload(true))
+    attachPullToRefresh(stories_el, () => reload("cache-first"))
   }
 }
 
@@ -268,8 +271,8 @@ function refilter(): void {
     })
 }
 
-async function reload(try_cache = true): Promise<void> {
-  console.log("reload called, try_cache:", try_cache)
+async function reload(policy: CachePolicy = "cache-first"): Promise<void> {
+  console.log("reload called, policy:", policy)
   const btn = document.querySelector("#reload_stories_btn")
   const btnIcon = btn?.querySelector(".icon--reload")
   btn?.classList.add("disabled")
@@ -280,7 +283,7 @@ async function reload(try_cache = true): Promise<void> {
       x.outerHTML = ""
     })
 
-    await onceClient.reloadStories(try_cache)
+    await onceClient.reloadStories(policy)
   } finally {
     btn?.classList.remove("disabled")
     btnIcon?.classList.remove("rotating")

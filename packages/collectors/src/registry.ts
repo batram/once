@@ -34,6 +34,14 @@ export declare interface StoryParser {
     pattern: string | string[]
     collects: "dom" | "json" | "xml"
     colors: [string, string]
+    /**
+     * How long a fetched body stays fresh for sources this collector handles,
+     * in minutes. Absent means the collector has no opinion and the global
+     * default applies. A user override, per collector or per source, still
+     * wins. Kept out of `settings`, which holds parsing knobs a collector reads
+     * itself; this one is read by the loader.
+     */
+    cache_minutes?: number
     settings?: Record<string, unknown>
   }
 

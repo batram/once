@@ -130,6 +130,25 @@ export function isCacheMinutes(value: unknown): value is number {
     value <= MAX_CACHE_MINUTES
 }
 
+/**
+ * What the user typed into a cache-minutes field. Blank means inherit, which is
+ * why absence is a success rather than a fault. Anything that is not a plain
+ * whole number is refused instead of coerced: `parseInt` would happily read
+ * "5 minutes" as five and "1e3" as one, and a silently invented cache policy is
+ * worse than a rejected edit.
+ */
+export type CacheMinutesInput =
+  | { ok: true; minutes?: number }
+  | { ok: false }
+
+export function readCacheMinutesInput(text: string): CacheMinutesInput {
+  const trimmed = text.trim()
+  if (!trimmed) return { ok: true }
+  if (!/^\d+$/.test(trimmed)) return { ok: false }
+  const minutes = Number(trimmed)
+  return isCacheMinutes(minutes) ? { ok: true, minutes } : { ok: false }
+}
+
 /** Sources that can actually produce stories. */
 export function enabledStorySources(doc: StorySourceDocument): StorySource[] {
   return doc.sources.filter((source) => source.enabled !== false)

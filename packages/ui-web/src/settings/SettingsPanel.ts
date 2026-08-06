@@ -448,7 +448,7 @@ export class SettingsPanel {
     if (previous === "sources" && this.sourcesReloadPending) {
       this.sourcesReloadPending = false
       const pending = this.sourcesSaveChain
-      void pending.then(() => this.client.reloadStories(true)).catch((error) => {
+      void pending.then(() => this.client.reloadStories("cache-first")).catch((error) => {
         console.error("Failed to save story-source ordering", error)
       })
     }

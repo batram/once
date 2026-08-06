@@ -144,6 +144,14 @@ document cannot overwrite a remote one. Collector configuration is validated
 once by `resolveStorySource`; no shell decodes collector configuration from
 source strings.
 
+How long a fetched body stays fresh is answered per source. `effectiveCacheMinutes`
+in `packages/app/src/cacheTiming.ts` resolves the source override, then the user's
+per-collector override from the versioned `cache_timing` document, then a shipped
+collector default, then the global default; `0` means always refetch and an
+absent value means inherit. A reload pass resolves every window from one read,
+and each load states its own policy — `cache-first` or `network-only` — rather
+than passing a boolean the caller and the loader read differently.
+
 Initial and live CouchDB replication use bounded 1,000-document batches with
 at most two batches in memory. Directional checkpoints live on the receiving
 side (pull locally and push remotely), avoiding redundant remote checkpoint

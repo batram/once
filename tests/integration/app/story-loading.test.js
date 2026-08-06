@@ -25,8 +25,8 @@ test("loads a faked story source once and reuses its cached response", async () 
   app.client.subscribe("storiesChanged", ({ stories }) => loaded.push(stories))
 
   await app.start()
-  await app.client.reloadStories(false)
-  await app.client.reloadStories(true)
+  await app.client.reloadStories("network-only")
+  await app.client.reloadStories("cache-first")
 
   assert.equal(requests, 1)
   assert.equal(loaded.at(-1)[0].title, "Accepted Reddit story")
@@ -65,8 +65,8 @@ test("a configurable source now reuses its cached response too", async () => {
   app.client.subscribe("storiesChanged", ({ stories }) => loaded.push(stories))
 
   await app.start()
-  await app.client.reloadStories(false)
-  await app.client.reloadStories(true)
+  await app.client.reloadStories("network-only")
+  await app.client.reloadStories("cache-first")
 
   assert.equal(requests, 1, "the second reload must come from cache")
   assert.equal(loaded.at(-1)[0].title, "Configured story")
@@ -93,7 +93,7 @@ test("registers stored source stories before synchronized updates arrive", async
   app.client.subscribe("storyChanged", (change) => changes.push(change))
 
   await app.start()
-  await app.client.reloadStories(false)
+  await app.client.reloadStories("network-only")
 
   assert.equal(app.client.getStorySnapshot()[0]._rev, "6-stored")
 
@@ -149,7 +149,7 @@ test("includes stored stared stories when a source fills the visible list", asyn
   app.client.subscribe("storiesChanged", ({ stories }) => batches.push(stories))
 
   await app.start()
-  await app.client.reloadStories(false)
+  await app.client.reloadStories("network-only")
 
   assert.equal(
     batches.at(-1).some((story) => story.href === stared.href),
@@ -217,7 +217,7 @@ test("serializes duplicate story writes while preserving substories", async () =
   })
 
   await app.start()
-  await app.client.reloadStories(false)
+  await app.client.reloadStories("network-only")
 
   const beta = batches.at(-1).find(
     (story) => story.href === storyFixture.storyUrls(origin).beta
@@ -244,7 +244,7 @@ test("publishes configurable parser failures as source errors", async (t) => {
   await app.client.saveStorySources({ version: 2, groups: [], sources: [{
     id: "src_00000001", url: sourceUrl, collector: "geny", select: { bad: true }
   }] }, false)
-  await app.client.reloadStories(false)
+  await app.client.reloadStories("network-only")
 
   // Caught while resolving the source now, so no request is made at all — this
   // used to be fetched first and then fail in the DOM parser.
@@ -272,7 +272,7 @@ test("publishes story persistence failures as source errors", async (t) => {
   })
 
   await app.start()
-  await app.client.reloadStories(false)
+  await app.client.reloadStories("network-only")
 
   const error = sourceErrors.at(-1)[0]
   assert.equal(error.title, "Failed")
@@ -304,4 +304,74 @@ test("disabled sources are neither loaded nor exposed through the menu", async (
   assert.equal(requests, 0)
   assert.equal(menus.at(-1).groups.includes("Disabled"), false)
   assert.equal(menus.at(-1).types.includes("HN"), false)
+})
+
+test("a collector override expires a body the global default would still serve", async () => {
+  const sourceUrl = "https://old.reddit.com/r/netsec/.json"
+  let requests = 0
+  const fake = createFakePlatform([], {
+    storySources: [sourceUrl],
+    cachedResponses: [[sourceUrl, [Date.now() - 10 * 60 * 1000, cachedRedditSource]]],
+    fetch: async () => {
+      requests += 1
+      return new Response(JSON.stringify(cachedRedditSource), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      })
+    }
+  })
+  const app = createOnceApp(fake.ports)
+
+  await app.start()
+  // Ten minutes old against the 120-minute global default: a hit.
+  await app.client.reloadStories("cache-first")
+  assert.equal(requests, 0)
+
+  await app.client.setCacheTiming({ version: 1, collectors: { redditjson: 5 } })
+  await app.client.reloadStories("cache-first")
+  assert.equal(requests, 1, "the collector's window has passed")
+})
+
+test("a source override beats the collector override", async () => {
+  const sourceUrl = "https://old.reddit.com/r/netsec/.json"
+  let requests = 0
+  const fake = createFakePlatform([], {
+    storySources: [{ id: "src_testcache1", url: sourceUrl, cacheMinutes: 60 }],
+    cachedResponses: [[sourceUrl, [Date.now() - 10 * 60 * 1000, cachedRedditSource]]],
+    fetch: async () => {
+      requests += 1
+      return new Response(JSON.stringify(cachedRedditSource), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      })
+    }
+  })
+  const app = createOnceApp(fake.ports)
+
+  await app.start()
+  await app.client.setCacheTiming({ version: 1, collectors: { redditjson: 5 } })
+  await app.client.reloadStories("cache-first")
+  assert.equal(requests, 0, "the source's own hour-long window applies")
+})
+
+test("a zero window always refetches, whichever layer sets it", async () => {
+  const sourceUrl = "https://old.reddit.com/r/netsec/.json"
+  let requests = 0
+  const fake = createFakePlatform([], {
+    storySources: [{ id: "src_testcache2", url: sourceUrl, cacheMinutes: 0 }],
+    // Written a moment ago, so nothing but a zero window would refetch it.
+    cachedResponses: [[sourceUrl, [Date.now(), cachedRedditSource]]],
+    fetch: async () => {
+      requests += 1
+      return new Response(JSON.stringify(cachedRedditSource), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      })
+    }
+  })
+  const app = createOnceApp(fake.ports)
+
+  await app.start()
+  await app.client.reloadStories("cache-first")
+  assert.equal(requests, 1)
 })

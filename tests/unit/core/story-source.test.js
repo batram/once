@@ -14,6 +14,7 @@ const {
   mintStorySourceGroupId,
   mintStorySourceId,
   parseStorySources,
+  readCacheMinutesInput,
   reconcileStorySources,
   repairStorySources
 } = require("../../../packages/core/dist/settings/storySource")
@@ -267,4 +268,25 @@ test("an import never emits a duplicate or an unusable id", () => {
 test("the schema version is what the readers accept", () => {
   assert.equal(SOURCES_SCHEMA_VERSION, 2)
   assert.equal(emptyStorySourceDocument().version, SOURCES_SCHEMA_VERSION)
+})
+
+test("a typed cache window is read, not coerced", () => {
+  assert.deepEqual(readCacheMinutesInput(""), { ok: true })
+  assert.deepEqual(readCacheMinutesInput("   "), { ok: true }, "blank inherits")
+  assert.deepEqual(readCacheMinutesInput("0"), { ok: true, minutes: 0 })
+  assert.deepEqual(readCacheMinutesInput(" 45 "), { ok: true, minutes: 45 })
+  assert.deepEqual(
+    readCacheMinutesInput(String(MAX_CACHE_MINUTES)),
+    { ok: true, minutes: MAX_CACHE_MINUTES }
+  )
+  for (const rejected of [
+    "-5",
+    "5.5",
+    "1e3",
+    "45 minutes",
+    "abc",
+    String(MAX_CACHE_MINUTES + 1)
+  ]) {
+    assert.deepEqual(readCacheMinutesInput(rejected), { ok: false }, rejected)
+  }
 })

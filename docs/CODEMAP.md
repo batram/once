@@ -96,8 +96,12 @@ All paths below are under `packages/ui-web/src`.
   `SourceGroupView.ts` for group rendering and reordering and `sourceRows.ts`
   for one source row. `SourceDropController.ts` owns source-row drop targeting
   and moves between groups.
-- `packages/app/src/AppSettings.ts` owns the versioned `sources` document and
-  waits for initial settings replication before establishing typed defaults.
+- `packages/app/src/AppSettings.ts` owns the versioned `sources` and
+  `cache_timing` documents and waits for initial settings replication before
+  establishing typed defaults.
+- `packages/app/src/cacheTiming.ts` owns the cache-timing document and the
+  precedence that turns it into one source's window; `SourceLoader` owns the
+  expiry boundary and the cache-first/network-only policy.
 - `gesture/dragReorder.ts` owns reusable row reordering and drag-edge
   scrolling, shared with the story list rather than owned by settings.
 

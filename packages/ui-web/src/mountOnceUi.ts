@@ -164,7 +164,9 @@ export async function mountOnceUi(
 
   const initialStoryLoad = options.initialStoryLoad || "network"
   if (initialStoryLoad !== "disabled") {
-    await client.reloadStories(initialStoryLoad === "cache")
+    await client.reloadStories(
+      initialStoryLoad === "cache" ? "cache-first" : "network-only"
+    )
   }
 }
 

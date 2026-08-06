@@ -1,18 +1,35 @@
 import { Story, StorySource } from "@once/core"
 import * as StoryParser from "@once/collectors"
-import { CacheStorePort, ProcessingSource, SourceError } from "./types"
+import {
+  CachePolicy,
+  CacheStorePort,
+  ProcessingSource,
+  SourceError
+} from "./types"
+import { DEFAULT_CACHE_MINUTES } from "./cacheTiming"
+
+export interface SourceLoadOptions {
+  /** "network-only" skips the cache read; it still writes what it fetches. */
+  policy: CachePolicy
+  /** This source's window, already resolved through the timing precedence. */
+  cacheMinutes: number
+}
 
 export class SourceLoader {
   constructor(
     private readonly fetch: typeof globalThis.fetch,
     private readonly cache: CacheStorePort | undefined,
-    private readonly getCacheTime: () => Promise<number>,
-    private readonly reportError: (error: SourceError) => void
+    private readonly reportError: (error: SourceError) => void,
+    /** Injected so the expiry boundary is testable without waiting for it. */
+    private readonly now: () => number = () => Date.now()
   ) {}
 
   async load(
     source: StorySource,
-    tryCache = true
+    options: SourceLoadOptions = {
+      policy: "cache-first",
+      cacheMinutes: DEFAULT_CACHE_MINUTES
+    }
   ): Promise<Story[] | undefined> {
     // Resolved before anything else, because the URL to fetch is also the cache
     // key. Reading the cache under the source line while writing it under the
@@ -34,7 +51,9 @@ export class SourceLoader {
 
     const { collector, url } = resolved
     const context = { url, config: resolved.config }
-    let cached: unknown = tryCache ? await this.getCached(url) : null
+    let cached: unknown = options.policy === "cache-first"
+      ? await this.getCached(url, options.cacheMinutes)
+      : null
     if (cached != null) {
       try {
         if (collector.options.collects == "dom") {
@@ -112,16 +131,26 @@ export class SourceLoader {
     })
   }
 
-  private async getCached(url: string): Promise<unknown> {
+  private async getCached(url: string, cacheMinutes: number): Promise<unknown> {
     if (!this.cache) return null
+    // A zero window means always refetch, so the entry is not even read. The
+    // old comparison asked whether the entry was older than the window, which
+    // an entry written milliseconds ago is not, so zero used to serve a hit.
+    if (cacheMinutes <= 0) return null
     const cached = await this.cache.get(url)
     if (!cached) return null
     try {
       if (!Array.isArray(cached)) throw new Error("cached entry is not Array")
       if (cached.length != 2) throw new Error("cached entry not length 2")
-      const minsOld = (Date.now() - cached[0]) / (60 * 1000)
-      if (minsOld > await this.getCacheTime()) {
-        throw new Error(`cached entry out of date ${minsOld}`)
+      const stamped = cached[0]
+      if (typeof stamped !== "number" || !Number.isFinite(stamped)) {
+        throw new Error(`cached entry has no timestamp: ${String(stamped)}`)
+      }
+      // Integer milliseconds, and the boundary belongs to the expired side: an
+      // entry exactly N minutes old is out of date.
+      const ageMs = this.now() - stamped
+      if (!(ageMs < cacheMinutes * 60_000)) {
+        throw new Error(`cached entry out of date ${ageMs / 60_000}`)
       }
     } catch (error) {
       console.log("cache error: ", error)

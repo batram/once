@@ -257,6 +257,7 @@ test("syncs settings, newest stories, backlog, then starts live sync", async () 
   )
   assert.deepEqual(replications[0].options.doc_ids, [
     "sources",
+    "cache_timing",
     "filter_list",
     "redirect_list",
     "theme",

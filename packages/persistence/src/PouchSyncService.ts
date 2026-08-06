@@ -57,6 +57,7 @@ export class PouchSyncService {
   }
   private static readonly SETTINGS_DOCUMENT_IDS = [
     "sources",
+    "cache_timing",
     "filter_list",
     "redirect_list",
     "theme",

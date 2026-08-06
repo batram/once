@@ -7,6 +7,7 @@ import {
   URLRedirect
 } from "@once/core"
 import {
+  CachePolicy,
   DatabaseChange,
   DiagnosticError,
   OnceClient,
@@ -26,6 +27,9 @@ import { DiagnosticLog, errorDetails } from "./DiagnosticLog"
 import { fetchDocument } from "./fetchDocument"
 import { waitForStartupStorage } from "./startupStorage"
 
+/** Always offered, whatever the sources currently produce. */
+const DEFAULT_MENU_TYPES = ["ALL", "filtered", "stared", "new"]
+
 export class AppRuntime {
   readonly client: OnceClient
   private readonly events = new LocalEventBus()
@@ -44,12 +48,7 @@ export class AppRuntime {
     (error) => this.events.publish("diagnosticError", error)
   )
   private readonly menuGroups = new Set<string>()
-  private readonly menuTypes = new Set<string>([
-    "ALL",
-    "filtered",
-    "stared",
-    "new"
-  ])
+  private readonly menuTypes = new Set<string>(DEFAULT_MENU_TYPES)
   private readonly storyWrites = new StoryWriteQueue(
     (href, failure, error) => {
       console.error(`${failure.message}: ${href}`, error)
@@ -80,7 +79,7 @@ export class AppRuntime {
         publishChanged: (section) =>
           this.events.publish("settingsChanged", { section }),
         reportDiagnostic: (error) => this.reportDiagnostic(error),
-        reloadStories: () => this.reloadStories(true),
+        reloadStories: () => this.reloadStories("cache-first"),
         refilterStories: () => this.refilterStories(),
         refreshRedirects: () => this.refreshRedirects(),
         updateSourceMenu: (sources) => this.updateSourceMenu(sources),
@@ -93,7 +92,6 @@ export class AppRuntime {
     this.sourceLoader = new SourceLoader(
       platform.fetch,
       platform.cacheStore,
-      () => this.settings.getCacheTime(),
       (error) => this.setSourceError(error)
     )
     this.client = this.createClient()
@@ -185,13 +183,15 @@ export class AppRuntime {
       setSyncUrl: (syncUrl) => this.settings.setSyncUrl(syncUrl),
       getCacheTime: () => this.settings.getCacheTime(),
       setCacheTime: (cacheTime) => this.settings.setCacheTime(cacheTime),
+      getCacheTiming: () => this.settings.getCacheTiming(),
+      setCacheTiming: (timing) => this.settings.setCacheTiming(timing),
       getTheme: () => this.settings.getTheme(),
       setTheme: (theme) => this.settings.setTheme(theme),
       getAnimation: () => this.settings.getAnimation(),
       setAnimation: (animated) => this.settings.setAnimation(animated),
       getSwipeSettings: () => this.settings.getSwipeSettings(),
       setSwipeSettings: (settings) => this.settings.setSwipeSettings(settings),
-      reloadStories: (tryCache = true) => this.reloadStories(tryCache),
+      reloadStories: (policy = "cache-first") => this.reloadStories(policy),
       getStories: () => this.getWorkingStories(),
       getStorySnapshot: () => this.workingSet.snapshot(),
       findStoryByUrl: async (url) => this.findStoryByUrl(url),
@@ -238,10 +238,13 @@ export class AppRuntime {
     }
   }
 
-  private async reloadStories(tryCache = true): Promise<void> {
+  private async reloadStories(policy: CachePolicy = "cache-first"): Promise<void> {
     this.sourceErrors.clear()
     this.emitSourceErrors()
     const storySources = await this.settings.getStorySources()
+    // Resolved once, before the fan-out below, so a settings write cannot make
+    // one half of a reload disagree with the other about how stale is stale.
+    const cacheWindow = await this.settings.cacheWindows()
     const groupedSources = groupedStorySources(storySources)
     this.updateSourceMenu(storySources)
     const processingSources = new Map<string, ProcessingSource>()
@@ -253,7 +256,7 @@ export class AppRuntime {
         processingSources.set(source.id, sourceInfo)
         this.emitLoader(processingSources)
         promises.push(
-          this.sourceLoader.load(source, tryCache)
+          this.sourceLoader.load(source, { policy, cacheMinutes: cacheWindow(source) })
             .then(async (stories) => {
               await this.processStoryInput(stories, group.name)
             })
@@ -328,9 +331,7 @@ export class AppRuntime {
     const groupedSources = groupedStorySources(storySources)
     this.menuGroups.clear()
     this.menuTypes.clear()
-    for (const type of ["ALL", "filtered", "stared", "new"]) {
-      this.menuTypes.add(type)
-    }
+    DEFAULT_MENU_TYPES.forEach((type) => this.menuTypes.add(type))
     const enabled = new Set(enabledStorySources(storySources).map((source) => source.id))
     for (const group of groupedSources) {
       const sources = group.sources.filter((source) => enabled.has(source.id))
