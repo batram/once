@@ -74,13 +74,11 @@ export class KeyboardSettingsView {
     const bindings = getKeybindings()
     this.host.replaceChildren()
 
-    const heading = element("h3", "settings_panel_heading")
-    heading.textContent = "Keyboard shortcuts"
     const description = element("p", "settings_description")
     description.textContent =
       "Pick a shortcut, then press the keys you want. Shortcuts are remembered " +
       "on this device. Shortcuts without a modifier only work in the sidebar."
-    this.host.append(heading, description, this.status)
+    this.host.append(description, this.status)
     const browserBox = this.browserManagedGroup()
     if (browserBox) this.host.append(browserBox)
 

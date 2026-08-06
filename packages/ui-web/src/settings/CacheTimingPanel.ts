@@ -186,11 +186,9 @@ function describeWindow(source: SourceCacheStatus): string {
   return `${policy} · ${fetched}`
 }
 
-// Not `.settings_panel_heading`: that class is hidden, because the panel header
-// shows the section's own title. These are headings inside the section.
 function heading(text: string): HTMLElement {
   const element = document.createElement("h4")
-  element.className = "cache_timing_heading"
+  element.className = "settings_subheading"
   element.textContent = text
   return element
 }

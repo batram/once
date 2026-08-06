@@ -136,9 +136,6 @@
                   <nav id="settings_sections" aria-label="Settings sections"></nav>
                 </div>
                 <div class="settings_block settings_editor_block">
-                  <div class="settings_block_label settings_panel_heading">
-                    Story sources:
-                  </div>
                   <div class="input_container">
                     <div class="backdrop"></div>
                     <textarea
@@ -167,9 +164,6 @@
                   </div>
                 </div>
                 <div class="settings_block settings_editor_block">
-                  <div class="settings_block_label settings_panel_heading">
-                    Filters:
-                  </div>
                   <div class="input_container">
                     <textarea
                       id="filter_area"
@@ -188,9 +182,6 @@
                   </div>
                 </div>
                 <div class="settings_block settings_editor_block">
-                  <div class="settings_block_label settings_panel_heading">
-                    Redirects:
-                  </div>
                   <div class="input_container">
                     <textarea
                       id="redirect_area"
@@ -209,7 +200,6 @@
                   </div>
                 </div>
                 <div class="settings_block">
-                  <span class="settings_panel_heading">CouchDB Sync:</span>
                   <div class="couch-container masked">
                     <div class="couch-highlights"></div>
                     <input
@@ -244,7 +234,6 @@
                   </div>
                 </div>
                 <div class="settings_block">
-                  <span class="settings_panel_heading">Theme:</span>
                   <select id="theme_select" data-testid="theme" aria-label="Theme">
                     <option value="dark">Dark</option>
                     <option value="light">Light</option>
@@ -257,7 +246,7 @@
                   </p>
                 </div>
                 <div class="settings_block" id="electron_layout_settings" hidden>
-                  <label class="settings_panel_heading" for="electron_story_position">
+                  <label class="settings_field_label" for="electron_story_position">
                     Current story position:
                   </label>
                   <p class="settings_description" id="electron_story_position_description">
@@ -289,7 +278,6 @@
                 </div>
                 <div class="settings_block settings_error_log">
                   <div class="settings_error_log_header row">
-                    <span class="settings_panel_heading">Error log:</span>
                     <div class="settings_actions cluster">
                       <button type="button" class="button" id="clear_error_log">Clear</button>
                     </div>

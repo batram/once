@@ -166,13 +166,14 @@ export class StructuredSettingsEditors {
     const block = textarea.closest<HTMLElement>(".settings_editor_block")
     const input = textarea.closest<HTMLElement>(".input_container")
     const actions = block?.querySelector<HTMLElement>(".settings_actions")
-    const label = block?.querySelector<HTMLElement>(".settings_block_label")
-    if (!block || !input || !actions || !label) return
+    if (!block || !input || !actions) return
 
+    // The header carries the mode toggle and nothing else. It used to be built
+    // around the block's own title, which duplicated the section header and was
+    // hidden for exactly that reason.
     const header = document.createElement("div")
     header.className = "structured_settings_header row"
-    label.replaceWith(header)
-    header.append(label)
+    input.before(header)
     this.headers.set(section, header)
     const toggle = document.createElement("button")
     toggle.type = "button"

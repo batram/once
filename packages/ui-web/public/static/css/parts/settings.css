@@ -370,8 +370,20 @@
   white-space: nowrap;
 }
 
-.settings_panel_heading {
-  display: none;
+/* A heading inside a settings section. The section's own title lives in the
+   panel header, so these name something narrower: a group of rows within it. */
+.settings_subheading {
+  margin: var(--sp-3) 0 var(--sp-1);
+  font-size: var(--fs-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted-color);
+}
+
+/* Names one control, and is the control's accessible name through `for`. */
+.settings_field_label {
+  display: block;
+  margin-bottom: var(--sp-1);
 }
 
 /* A segmented control, not a button with contents: its two halves must meet.
@@ -2435,14 +2447,6 @@
    under the global cache-timing field. */
 #cache_timing_panel {
   margin-top: var(--sp-3);
-}
-
-.cache_timing_heading {
-  margin: var(--sp-3) 0 var(--sp-1);
-  font-size: var(--fs-meta);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted-color);
 }
 
 .cache_timing_note {

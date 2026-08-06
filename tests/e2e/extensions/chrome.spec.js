@@ -88,11 +88,11 @@ test("installed Chrome extension loads, collects, persists settings, and opens a
     await expect(modeToggle).toHaveText("TXT")
     await expect(modeToggle).toHaveAttribute("aria-label", "Edit as text")
     await expect(modeToggle.locator("xpath=..")).toHaveClass(/\bbar\b/)
+    // The panel header names the section, so the section itself must not
+    // repeat that name — it used to, and the duplicate was hidden in CSS.
     await expect(
-      page.locator(
-        '[data-settings-section="sources"] .settings_panel_heading'
-      )
-    ).toBeHidden()
+      page.locator('[data-settings-section="sources"]')
+    ).not.toContainText("Story sources:")
     await page.getByTestId("sources-mode-toggle").click()
     await page.getByTestId("sources").fill(source.source)
     await page.getByTestId("save-sources").click()

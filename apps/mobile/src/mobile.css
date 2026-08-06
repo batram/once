@@ -1632,10 +1632,6 @@
     flex: 0 0 auto;
   }
 
-  .settings_editor_block .settings_block_label {
-    flex: 0 0 auto;
-  }
-
   .settings_editor_block .input_container {
     flex: 1 1 auto;
     min-height: 0;

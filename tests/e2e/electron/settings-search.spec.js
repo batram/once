@@ -28,11 +28,11 @@ test("searches settings content without changing the open detail", async () => {
     await expect(modeToggle).toHaveText("TXT")
     await expect(modeToggle).toHaveAttribute("aria-label", "Edit as text")
     await expect(modeToggle.locator("xpath=..")).toHaveClass(/\bbar\b/)
+    // The panel header names the section, so the section itself must not
+    // repeat that name — it used to, and the duplicate was hidden in CSS.
     await expect(
-      window.locator(
-        '[data-settings-section="sources"] .settings_panel_heading'
-      )
-    ).toBeHidden()
+      window.locator('[data-settings-section="sources"]')
+    ).not.toContainText("Story sources:")
     await window.getByTestId("sources-mode-toggle").click()
     const search = window.locator("#settings_search")
     const sources = window.locator("#sources_area")
