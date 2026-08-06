@@ -164,6 +164,14 @@ the timestamp), a full clear, and eviction of what a deleted source leaves
 behind — skipping any URL a remaining source still fetches, since the cache is
 keyed on the URL and two sources can share one.
 
+Known limits of that design, all deliberate: there is no in-flight
+deduplication, so two sources sharing a URL can miss, fetch, and write
+together; two sources sharing a body each judge it against their own window, so
+the shorter one effectively wins; a forced request re-stamps the entry; and
+nothing schedules a refetch, so a window only decides what the next reload
+does. `IndexedDbCacheStore` still has no `onblocked` handling, which would
+matter if the store ever gained a version.
+
 Initial and live CouchDB replication use bounded 1,000-document batches with
 at most two batches in memory. Directional checkpoints live on the receiving
 side (pull locally and push remotely), avoiding redundant remote checkpoint

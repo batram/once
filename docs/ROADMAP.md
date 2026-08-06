@@ -3,7 +3,6 @@
 Detailed active implementation plans live in [`plans/`](plans/). Completed
 plans are summarized in [HISTORY.md](HISTORY.md) and retained in Git history.
 
-- [Per-source cache timing and behavior](plans/story-cache-timing-plan.md)
 - [Future user theming](plans/design-system-theming-plan.md)
 
 ## Near term
