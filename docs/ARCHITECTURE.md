@@ -147,10 +147,22 @@ source strings.
 How long a fetched body stays fresh is answered per source. `effectiveCacheMinutes`
 in `packages/app/src/cacheTiming.ts` resolves the source override, then the user's
 per-collector override from the versioned `cache_timing` document, then a shipped
-collector default, then the global default; `0` means always refetch and an
-absent value means inherit. A reload pass resolves every window from one read,
-and each load states its own policy — `cache-first` or `network-only` — rather
-than passing a boolean the caller and the loader read differently.
+collector default (Hacker News, both Reddit collectors 4 minutes; Lobsters 10),
+then the global default of an hour; `0` means always refetch and an absent value
+means inherit. A reload pass resolves every window from one read, and each load
+states its own policy — `cache-first` or `network-only` — rather than passing a
+boolean the caller and the loader read differently.
+
+Launching is cache-first, so opening the app is not a fetch of every feed at
+once; the reload gestures still separate the two policies (a click, `R`, and
+pull-to-refresh against a double-click or `Shift+R`, which force the network).
+When a request fails, `SourceLoader` falls back to the cached body however old
+it is and reports an "Offline Copy" warning, so being offline shows stale
+stories rather than none. Cache upkeep lives in `cacheMaintenance.ts`: what is
+cached and when it was fetched (read from the payload, which already carries
+the timestamp), a full clear, and eviction of what a deleted source leaves
+behind — skipping any URL a remaining source still fetches, since the cache is
+keyed on the URL and two sources can share one.
 
 Initial and live CouchDB replication use bounded 1,000-document batches with
 at most two batches in memory. Directional checkpoints live on the receiving

@@ -1,4 +1,5 @@
 import { app, safeStorage } from "electron"
+import { DEFAULT_CACHE_MINUTES } from "@once/core"
 import { promises as fs } from "fs"
 import * as path from "path"
 
@@ -42,7 +43,7 @@ export class SecureSettings {
     const cacheTime = settings.cacheTime
     return typeof cacheTime === "number" && Number.isFinite(cacheTime)
       ? cacheTime
-      : 120
+      : DEFAULT_CACHE_MINUTES
   }
 
   async setCacheTime(cacheTime: string): Promise<void> {

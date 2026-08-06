@@ -6,6 +6,8 @@ export const options = {
     "Collect stories from Lobsters (https://lobste.rs/) by parsing HTML",
   pattern: "https://lobste.rs/",
   collects: "dom",
+  // A quieter front page than the other two aggregators.
+  cache_minutes: 10,
   settings: {}
 }
 

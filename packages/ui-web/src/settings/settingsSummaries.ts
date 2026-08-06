@@ -1,6 +1,6 @@
 import { customizedCommandCount } from "../keyboard/keybindingStore"
 import { getKeybindings } from "../keyboard"
-import { parseStorySourceText } from "@once/core"
+import { DEFAULT_CACHE_MINUTES, parseStorySourceText } from "@once/core"
 export function updateSettingsSummaries(
   sectionButtons: ReadonlyMap<string, HTMLButtonElement>,
   sourceFailures: number
@@ -46,7 +46,7 @@ export function updateSettingsSummaries(
     },
     keyboard: { text: keyboardSummary() },
     swipe: { text: `${swipeRight} · ${swipeLeft}` },
-    cache: { text: `${value("#cache_time_input") || "30"} min` },
+    cache: { text: `${value("#cache_time_input") || DEFAULT_CACHE_MINUTES} min` },
     errors: {
       text: errorCount || warningCount
         ? `${errorCount} error${errorCount === 1 ? "" : "s"} · ` +

@@ -1,4 +1,4 @@
-import { Story, StorySource } from "@once/core"
+import { DEFAULT_CACHE_MINUTES, Story, StorySource } from "@once/core"
 import * as StoryParser from "@once/collectors"
 import {
   CachePolicy,
@@ -6,7 +6,6 @@ import {
   ProcessingSource,
   SourceError
 } from "./types"
-import { DEFAULT_CACHE_MINUTES } from "./cacheTiming"
 
 export interface SourceLoadOptions {
   /** "network-only" skips the cache read; it still writes what it fetches. */
@@ -49,36 +48,81 @@ export class SourceLoader {
       return
     }
 
-    const { collector, url } = resolved
-    const context = { url, config: resolved.config }
-    let cached: unknown = options.policy === "cache-first"
+    const { url } = resolved
+    const cached = options.policy === "cache-first"
       ? await this.getCached(url, options.cacheMinutes)
       : null
-    if (cached != null) {
-      try {
-        if (collector.options.collects == "dom") {
-          cached = StoryParser.parse_dom(cached as string, url)
-        } else if (collector.options.collects == "xml") {
-          cached = StoryParser.parse_xml(cached as string)
-        }
-        return collector.parse(
-          cached as Record<string, unknown> | Document,
-          context
-        ) || []
-      } catch (error) {
-        const detail = error instanceof Error ? error.message : String(error)
-        throw new Error(`Parsing failed: ${detail}`)
-      }
-    }
+    if (cached != null) return this.parseCached(cached, resolved)
 
-    const response = await this.fetch(url)
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    try {
+      const response = await this.fetch(url)
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      return StoryParser.parse_response(response, resolved, {
+        cacheResult: (cacheUrl, content) =>
+          this.cache?.set(cacheUrl, content) || Promise.resolve()
+      }) || []
+    } catch (error) {
+      const stale = await this.serveStale(source, resolved, error)
+      if (stale) return stale.stories
+      throw error
     }
-    return StoryParser.parse_response(response, resolved, {
-      cacheResult: (cacheUrl, content) =>
-        this.cache?.set(cacheUrl, content) || Promise.resolve()
-    }) || []
+  }
+
+  /**
+   * An expired body is still better than an empty list when the network is
+   * gone, so a failed request falls back to whatever is cached and says so.
+   * The warning is what keeps this honest: stories on screen would otherwise
+   * claim the fetch succeeded. A body that will not parse is no fallback at
+   * all, so the original network failure is the one the caller sees.
+   */
+  private async serveStale(
+    source: StorySource,
+    resolved: StoryParser.ResolvedStorySource,
+    error: unknown
+  ): Promise<{ stories: Story[] } | null> {
+    const entry = await this.readEntry(resolved.url)
+    if (!entry) return null
+    let stories: Story[]
+    try {
+      stories = this.parseCached(entry.body, resolved)
+    } catch {
+      return null
+    }
+    const minutes = Math.round((this.now() - entry.timestamp) / 60_000)
+    this.reportError({
+      sourceId: source.id,
+      url: source.url,
+      title: "Offline Copy",
+      message: `Showing a cached copy from ${minutes} minutes ago; ` +
+        "the request failed",
+      type: "warning",
+      details: errorDetails(error)
+    })
+    return { stories }
+  }
+
+  private parseCached(
+    body: unknown,
+    resolved: StoryParser.ResolvedStorySource
+  ): Story[] {
+    const { collector, url } = resolved
+    let input = body
+    try {
+      if (collector.options.collects == "dom") {
+        input = StoryParser.parse_dom(input as string, url)
+      } else if (collector.options.collects == "xml") {
+        input = StoryParser.parse_xml(input as string)
+      }
+      return collector.parse(
+        input as Record<string, unknown> | Document,
+        { url, config: resolved.config }
+      ) || []
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error)
+      throw new Error(`Parsing failed: ${detail}`)
+    }
   }
 
   describe(source: StorySource): ProcessingSource {
@@ -132,31 +176,39 @@ export class SourceLoader {
   }
 
   private async getCached(url: string, cacheMinutes: number): Promise<unknown> {
-    if (!this.cache) return null
     // A zero window means always refetch, so the entry is not even read. The
     // old comparison asked whether the entry was older than the window, which
     // an entry written milliseconds ago is not, so zero used to serve a hit.
     if (cacheMinutes <= 0) return null
-    const cached = await this.cache.get(url)
-    if (!cached) return null
+    const entry = await this.readEntry(url)
+    if (!entry) return null
+    // Integer milliseconds, and the boundary belongs to the expired side: an
+    // entry exactly N minutes old is out of date.
+    const ageMs = this.now() - entry.timestamp
+    if (ageMs < cacheMinutes * 60_000) return entry.body
+    console.log(`cached entry out of date ${ageMs / 60_000}`)
+    return null
+  }
+
+  /** The stored pair, age not considered. Absent or unreadable reads as none. */
+  private async readEntry(
+    url: string
+  ): Promise<{ timestamp: number; body: unknown } | null> {
+    if (!this.cache) return null
     try {
+      const cached = await this.cache.get(url)
+      if (!cached) return null
       if (!Array.isArray(cached)) throw new Error("cached entry is not Array")
       if (cached.length != 2) throw new Error("cached entry not length 2")
-      const stamped = cached[0]
-      if (typeof stamped !== "number" || !Number.isFinite(stamped)) {
-        throw new Error(`cached entry has no timestamp: ${String(stamped)}`)
+      const timestamp = cached[0]
+      if (typeof timestamp !== "number" || !Number.isFinite(timestamp)) {
+        throw new Error(`cached entry has no timestamp: ${String(timestamp)}`)
       }
-      // Integer milliseconds, and the boundary belongs to the expired side: an
-      // entry exactly N minutes old is out of date.
-      const ageMs = this.now() - stamped
-      if (!(ageMs < cacheMinutes * 60_000)) {
-        throw new Error(`cached entry out of date ${ageMs / 60_000}`)
-      }
+      return { timestamp, body: cached[1] }
     } catch (error) {
       console.log("cache error: ", error)
       return null
     }
-    return cached[1]
   }
 }
 

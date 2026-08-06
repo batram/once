@@ -1,6 +1,6 @@
 # Per-source cache timing and cache behavior
 
-Status: phase 1 landed; phase 2 pending. Depends on the completed typed-source persistence and
+Status: both phases landed; pending a close-out into HISTORY.md. Depends on the completed typed-source persistence and
 object-native UI work recorded in [HISTORY.md](../HISTORY.md).
 
 ## Context and boundary
@@ -59,7 +59,7 @@ source. `OnceClient` gained `getCacheTiming`/`setCacheTiming`; no panel writes t
 form's Cache minutes field refuses anything that is not blank or a whole number rather than coercing
 it (`readCacheMinutesInput` in core).
 
-## Phase 2: cache UX and behavior changes
+## Phase 2: cache UX and behavior changes — landed
 
 Land each independently observable behavior with its own request-count evidence:
 
@@ -74,6 +74,11 @@ Land each independently observable behavior with its own request-count evidence:
 - deleted-source eviction.
 
 Per-source `Refetch now` forces a request but must not delete an entry shared by another source.
+
+As landed, timestamps are read from the cached payload and no `DB_VERSION` bump was needed, so
+`IndexedDbCacheStore`'s `onblocked` gap remains open and is now the only item below still pending.
+`CacheStorePort` gained `delete` and `clear`; the panel lives in `settings/CacheTimingPanel.ts`,
+mounted into `#cache_timing_panel` inside the existing cache block.
 
 Measure timestamp display before adding another IndexedDB store. The payload already carries the
 timestamp; a sidecar is useful only to avoid parsing an entire feed per settings row. If a

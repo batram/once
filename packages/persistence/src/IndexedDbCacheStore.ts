@@ -58,6 +58,22 @@ export class IndexedDbCacheStore {
     }
   }
 
+  static async delete(url: string): Promise<void> {
+    try {
+      const db = await this.getDB()
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction(this.STORE_NAME, "readwrite")
+        const store = transaction.objectStore(this.STORE_NAME)
+        const request = store.delete(url)
+
+        request.onerror = () => reject(request.error)
+        request.onsuccess = () => resolve()
+      })
+    } catch (error) {
+      console.error("IndexedDbCacheStore.delete error", error)
+    }
+  }
+
   static async clear(): Promise<void> {
     try {
       const db = await this.getDB()

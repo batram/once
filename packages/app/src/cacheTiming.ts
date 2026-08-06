@@ -17,14 +17,11 @@
  * a source needs the collector registry.
  */
 
-import { isCacheMinutes, StorySource } from "@once/core"
+import { DEFAULT_CACHE_MINUTES, isCacheMinutes, StorySource } from "@once/core"
 import { get_parser_by_id, get_parser_for_url } from "@once/collectors"
 
 export const CACHE_TIMING_DOCUMENT_ID = "cache_timing"
 export const CACHE_TIMING_VERSION = 1
-
-/** The global default, and the fallback when a stored one is unreadable. */
-export const DEFAULT_CACHE_MINUTES = 120
 
 export interface CacheTimingDocument {
   version: number

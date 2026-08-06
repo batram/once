@@ -87,6 +87,8 @@ export interface OnceAppEvents {
       | "sync"
       | "swipe"
   }
+  /** Something changed what the cache holds: a reload, a refetch, a clear. */
+  cacheStatusChanged: Record<string, never>
   redirectsChanged: {
     redirects: Redirect[]
   }
@@ -135,6 +137,14 @@ export interface OnceClient {
   getSwipeSettings(): Promise<SwipeSettings>
   setSwipeSettings(settings: SwipeSettings): Promise<void>
   reloadStories(policy?: CachePolicy): Promise<void>
+  /**
+   * Refetches one source, ignoring its window. It never deletes the cached
+   * body first: another source may share the URL, and the fetch replaces the
+   * entry anyway.
+   */
+  refetchSource(sourceId: string): Promise<void>
+  getSourceCacheStatus(): Promise<SourceCacheStatus[]>
+  clearCachedFeeds(): Promise<void>
   getStories(): Promise<Story[]>
   getStorySnapshot(): Story[]
   findStoryByUrl(url: string): Promise<Story | null>
@@ -161,6 +171,21 @@ export interface OnceClient {
     event: T,
     handler: OnceEventHandler<T>
   ): () => void
+}
+
+/** One source's cache position, for the settings rows that report on it. */
+export interface SourceCacheStatus {
+  sourceId: string
+  /** What the user calls it: its label, or the host it fetches from. */
+  name: string
+  /** The URL the body is cached under, which two sources can share. */
+  url: string
+  collectorId?: string
+  cacheMinutes: number
+  /** False when the window comes from a collector or the global default. */
+  ownWindow: boolean
+  /** When the cached body was fetched; absent means nothing is cached. */
+  fetchedAt?: number
 }
 
 export interface ListStorePort {
@@ -190,6 +215,10 @@ export interface SyncServicePort {
 export interface CacheStorePort {
   get(url: string): Promise<unknown>
   set(url: string, content: unknown): Promise<void>
+  /** Removes one entry. Keyed on the fetched URL, like everything else here. */
+  delete(url: string): Promise<void>
+  /** Removes every cached feed body, and nothing else the store may hold. */
+  clear(): Promise<void>
 }
 
 export interface SyncSettingsStorePort {

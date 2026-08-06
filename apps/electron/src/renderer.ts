@@ -73,7 +73,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       "disableStoryLoading"
     )
       ? "disabled"
-      : "network",
+      : "cache",
     onMenuCollapsedChanged,
     // The renderer owns the keybinding config; main only mirrors the chords it
     // must steal from focused pages.

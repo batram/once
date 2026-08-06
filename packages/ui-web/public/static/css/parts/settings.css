@@ -2429,3 +2429,57 @@
 .keybinding_reset_all {
   margin-top: var(--sp-3);
 }
+
+/* Cache section: a window per collector, then a row per source saying when it
+   last fetched. Both lists sit inside the one settings block the section owns,
+   under the global cache-timing field. */
+#cache_timing_panel {
+  margin-top: var(--sp-3);
+}
+
+.cache_timing_heading {
+  margin: var(--sp-3) 0 var(--sp-1);
+  font-size: var(--fs-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted-color);
+}
+
+.cache_timing_note {
+  margin: 0 0 var(--sp-2);
+  max-width: 60ch;
+  font-size: var(--fs-caption);
+  color: var(--text-muted-color);
+}
+
+.cache_timing_row,
+.cache_source_row {
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) 0;
+}
+
+.cache_timing_name,
+.cache_source_name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cache_timing_input {
+  flex: 0 0 auto;
+  width: 7ch;
+  text-align: right;
+}
+
+.cache_timing_input[aria-invalid="true"] {
+  border-color: var(--error-color);
+}
+
+.cache_source_meta {
+  flex: 0 0 auto;
+  font-size: var(--fs-caption);
+  color: var(--text-muted-color);
+}

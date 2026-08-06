@@ -101,10 +101,10 @@ test("a swipe action runs on the cursor row and then steps past it", async () =>
 
 test("R reloads the story list, Shift+R refetches, and both type", async () => {
   // The two reloads differ only in whether the source cache is consulted, so
-  // the fixture server counts feed fetches to tell them apart. The RSS source
-  // is the one that can be cached at all: SourceLoader looks the cache up under
-  // the source line but stores it under the URL a parser resolved, so a source
-  // with a resolve_url — the json one seedStories uses — never hits it.
+  // the fixture server counts feed fetches to tell them apart. Both source
+  // kinds cache correctly now that the loader resolves the fetch URL before it
+  // reads; the RSS one is used here because its collector ships no window of
+  // its own, leaving the global default in charge.
   let feedFetches = 0
   const server = await startPageServer({
     onRequest: ({ phase, url }) => {
@@ -139,8 +139,8 @@ test("R reloads the story list, Shift+R refetches, and both type", async () => {
     await window.locator("#searchfield").fill("")
     await window.locator("#searchfield").blur()
 
-    // The feed was cached by the seeding load and the default cache time is two
-    // hours, so a plain reload has nothing to fetch.
+    // The feed was cached by the seeding load and the global default is an
+    // hour, so a plain reload has nothing to fetch.
     const cachedAt = feedFetches
     await window.keyboard.press("KeyR")
     await expect.poll(marked).toBe(0)

@@ -38,6 +38,7 @@ test("settings suppress the matching local database echo", async () => {
       refilterStories: () => {},
       refreshRedirects: () => {},
       updateSourceMenu: () => {},
+      evictRemovedSources: () => {},
       loadedStoryIds: () => []
     }
   )
@@ -70,6 +71,7 @@ test("settings reject and do not persist a sync URL without an HTTP scheme", asy
       refilterStories: () => {},
       refreshRedirects: () => {},
       updateSourceMenu: () => {},
+      evictRemovedSources: () => {},
       loadedStoryIds: () => []
     }
   )

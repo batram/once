@@ -6,6 +6,9 @@ export const options = {
   pattern: "https://news.ycombinator.com/",
   collects: "dom",
   colors: ["rgba(255, 102, 0, 0.56)", "white"],
+  // The front page turns over fast enough that an hour-old copy is a
+  // different page; four minutes is close to how often it actually changes.
+  cache_minutes: 4,
   settings: {
     filter_ads: {
       value: true,

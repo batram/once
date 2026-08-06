@@ -6,6 +6,7 @@ export const options = {
   pattern: "https://old.reddit.com/*.rss",
   collects: "dom",
   colors: ["#cee3f8", "black"],
+  cache_minutes: 4,
   settings: {}
 }
 

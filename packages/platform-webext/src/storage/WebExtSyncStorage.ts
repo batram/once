@@ -1,3 +1,5 @@
+import { DEFAULT_CACHE_MINUTES } from "@once/core"
+
 export class WebExtSyncStorage {
   constructor(private browserApi: typeof browser = browser) {}
 
@@ -13,7 +15,7 @@ export class WebExtSyncStorage {
   async getCacheTime(): Promise<number> {
     const data = await this.browserApi.storage.sync.get("cache_time")
     const time = parseInt(data.cache_time)
-    return data && !Number.isNaN(time) ? time : 120
+    return data && !Number.isNaN(time) ? time : DEFAULT_CACHE_MINUTES
   }
 
   async setCacheTime(cacheTime: string): Promise<void> {

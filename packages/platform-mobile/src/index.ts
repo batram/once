@@ -4,7 +4,7 @@ import { Browser } from "@capacitor/browser"
 import { Capacitor, registerPlugin } from "@capacitor/core"
 import { StatusBar, Style } from "@capacitor/status-bar"
 import { DatabaseChange, OncePlatformPorts, ThemeName } from "@once/app"
-import { Story } from "@once/core"
+import { DEFAULT_CACHE_MINUTES, Story } from "@once/core"
 import {
   IndexedDbCacheStore,
   LOCAL_POUCH_OPTIONS,
@@ -46,7 +46,7 @@ class MobileSyncSettingsStore {
   async getCacheTime(): Promise<number> {
     const stored = window.localStorage.getItem("once:mobile:cache-time")
     const value = Number.parseInt(stored || "", 10)
-    return Number.isFinite(value) ? value : 120
+    return Number.isFinite(value) ? value : DEFAULT_CACHE_MINUTES
   }
 
   async setCacheTime(cacheTime: string): Promise<void> {

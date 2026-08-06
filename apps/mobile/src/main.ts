@@ -140,7 +140,7 @@ async function startMobileApp(): Promise<void> {
     buildChannel: __ONCE_BUILD_CHANNEL__,
     buildIdentifier: __ONCE_BUILD_IDENTIFIER__,
     sourcePicker: true,
-    initialStoryLoad: __ONCE_MOBILE_E2E__ ? "disabled" : "network",
+    initialStoryLoad: __ONCE_MOBILE_E2E__ ? "disabled" : "cache",
     // Settings participates in the same back stack as the hardware key, so the
     // chevron stays live on the section index and leaves the panel from there.
     exitSettings: () => void reading.handleBack()

@@ -6,6 +6,7 @@ export const options = {
   pattern: "https://old.reddit.com/*.json",
   collects: "json",
   colors: ["#cee3f8", "black"],
+  cache_minutes: 4,
   settings: {
     min_points: 35
   }

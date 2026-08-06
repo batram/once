@@ -100,7 +100,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     buildChannel: __ONCE_BUILD_CHANNEL__,
     buildIdentifier: __ONCE_BUILD_IDENTIFIER__,
     showHoveredLinks: __ONCE_WEBEXT_TARGET__ === "chrome",
-    initialStoryLoad: testMode ? "disabled" : "network"
+    initialStoryLoad: testMode ? "disabled" : "cache"
   })
   // A manifest command pressed while the page had focus. It arrives as a
   // message because only the background is delivered browser-level keys.

@@ -101,7 +101,13 @@ All paths below are under `packages/ui-web/src`.
   establishing typed defaults.
 - `packages/app/src/cacheTiming.ts` owns the cache-timing document and the
   precedence that turns it into one source's window; `SourceLoader` owns the
-  expiry boundary and the cache-first/network-only policy.
+  expiry boundary, the cache-first/network-only policy, and the stale-on-error
+  fallback. `cacheMaintenance.ts` owns cache status, clearing, and eviction.
+- `settings/CacheTimingPanel.ts` renders the per-collector windows and the
+  per-source cache rows inside the existing cache settings block, wired from
+  `SettingsPersistence.ts`.
+- `packages/app/src/sourceMenu.ts` derives the group and type menu from a
+  source document.
 - `gesture/dragReorder.ts` owns reusable row reordering and drag-edge
   scrolling, shared with the story list rather than owned by settings.
 

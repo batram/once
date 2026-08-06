@@ -94,7 +94,7 @@ export function init(client: OnceClient): void {
   // pointer users, who still have the reload button above).
   const stories_el = document.querySelector<HTMLElement>("#stories")
   if (stories_el) {
-    attachPullToRefresh(stories_el, () => reload("cache-first"))
+    attachPullToRefresh(stories_el, () => reload("network-only"))
   }
 }
 

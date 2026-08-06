@@ -162,7 +162,10 @@ export async function mountOnceUi(
     StorySearch.searchStories(query)
   })
 
-  const initialStoryLoad = options.initialStoryLoad || "network"
+  // Cache-first: a launch shows what is already stored and only fetches the
+  // sources whose window has passed, so opening the app is not a thundering
+  // herd on every feed the user follows.
+  const initialStoryLoad = options.initialStoryLoad || "cache"
   if (initialStoryLoad !== "disabled") {
     await client.reloadStories(
       initialStoryLoad === "cache" ? "cache-first" : "network-only"

@@ -306,7 +306,31 @@ test("disabled sources are neither loaded nor exposed through the menu", async (
   assert.equal(menus.at(-1).types.includes("HN"), false)
 })
 
-test("a collector override expires a body the global default would still serve", async () => {
+test("the shipped collector window expires a body the global default would serve", async () => {
+  const sourceUrl = "https://old.reddit.com/r/netsec/.json"
+  let requests = 0
+  const fake = createFakePlatform([], {
+    storySources: [sourceUrl],
+    cachedResponses: [[sourceUrl, [Date.now() - 10 * 60 * 1000, cachedRedditSource]]],
+    cacheTime: 120,
+    fetch: async () => {
+      requests += 1
+      return new Response(JSON.stringify(cachedRedditSource), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      })
+    }
+  })
+  const app = createOnceApp(fake.ports)
+
+  await app.start()
+  // Ten minutes old. The global default would still serve it; Reddit's own
+  // four-minute window is what sends this back to the network.
+  await app.client.reloadStories("cache-first")
+  assert.equal(requests, 1)
+})
+
+test("a user collector override outranks the shipped window", async () => {
   const sourceUrl = "https://old.reddit.com/r/netsec/.json"
   let requests = 0
   const fake = createFakePlatform([], {
@@ -323,13 +347,9 @@ test("a collector override expires a body the global default would still serve",
   const app = createOnceApp(fake.ports)
 
   await app.start()
-  // Ten minutes old against the 120-minute global default: a hit.
+  await app.client.setCacheTiming({ version: 1, collectors: { redditjson: 60 } })
   await app.client.reloadStories("cache-first")
-  assert.equal(requests, 0)
-
-  await app.client.setCacheTiming({ version: 1, collectors: { redditjson: 5 } })
-  await app.client.reloadStories("cache-first")
-  assert.equal(requests, 1, "the collector's window has passed")
+  assert.equal(requests, 0, "an hour-long override keeps the ten-minute body")
 })
 
 test("a source override beats the collector override", async () => {
@@ -374,4 +394,145 @@ test("a zero window always refetches, whichever layer sets it", async () => {
   await app.start()
   await app.client.reloadStories("cache-first")
   assert.equal(requests, 1)
+})
+
+test("a failed request falls back to the cached copy and warns", async () => {
+  const sourceUrl = "https://old.reddit.com/r/netsec/.json"
+  const fake = createFakePlatform([], {
+    storySources: [sourceUrl],
+    // Far outside any window, so only the fallback can produce a story.
+    cachedResponses: [[sourceUrl, [Date.now() - 24 * 60 * 60 * 1000, cachedRedditSource]]],
+    fetch: async () => {
+      throw new TypeError("Failed to fetch")
+    }
+  })
+  const app = createOnceApp(fake.ports)
+  const errors = []
+  const loaded = []
+  app.client.subscribe("sourceErrorsChanged", ({ errors: list }) => errors.push(list))
+  app.client.subscribe("storiesChanged", ({ stories }) => loaded.push(stories))
+
+  await app.start()
+  await app.client.reloadStories("cache-first")
+
+  assert.equal(loaded.at(-1)[0].title, "Accepted Reddit story")
+  const warning = errors.at(-1).find((error) => error.title === "Offline Copy")
+  assert.ok(warning, "the stale copy must be reported")
+  assert.equal(warning.type, "warning")
+})
+
+test("refetching one source forces it and leaves the others alone", async () => {
+  const first = "https://old.reddit.com/r/netsec/.json"
+  const second = "https://old.reddit.com/r/programming/.json"
+  const requests = new Map()
+  const fresh = Date.now()
+  const fake = createFakePlatform([], {
+    storySources: [
+      { id: "src_testfirst", url: first },
+      { id: "src_testsecond", url: second }
+    ],
+    cachedResponses: [
+      [first, [fresh, cachedRedditSource]],
+      [second, [fresh, cachedRedditSource]]
+    ],
+    fetch: async (url) => {
+      requests.set(url, (requests.get(url) || 0) + 1)
+      return new Response(JSON.stringify(cachedRedditSource), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      })
+    }
+  })
+  const app = createOnceApp(fake.ports)
+
+  await app.start()
+  await app.client.reloadStories("cache-first")
+  assert.equal(requests.size, 0, "both bodies are fresh")
+
+  await app.client.refetchSource("src_testfirst")
+  assert.deepEqual([...requests.entries()], [[first, 1]])
+  assert.ok(fake.cachedResponses.has(second), "a shared or sibling entry survives")
+})
+
+test("clearing cached feeds sends the next reload back to the network", async () => {
+  const sourceUrl = "https://old.reddit.com/r/netsec/.json"
+  let requests = 0
+  const fake = createFakePlatform([], {
+    storySources: [sourceUrl],
+    cachedResponses: [[sourceUrl, [Date.now(), cachedRedditSource]]],
+    fetch: async () => {
+      requests += 1
+      return new Response(JSON.stringify(cachedRedditSource), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      })
+    }
+  })
+  const app = createOnceApp(fake.ports)
+
+  await app.start()
+  await app.client.reloadStories("cache-first")
+  assert.equal(requests, 0)
+
+  await app.client.clearCachedFeeds()
+  assert.equal(fake.cachedResponses.size, 0)
+  await app.client.reloadStories("cache-first")
+  assert.equal(requests, 1)
+})
+
+test("deleting a source evicts its body unless another source shares it", async () => {
+  const shared = "https://old.reddit.com/r/netsec/.json"
+  const lonely = "https://old.reddit.com/r/programming/.json"
+  const sources = [
+    { id: "src_testshared1", url: shared },
+    { id: "src_testshared2", url: shared },
+    { id: "src_testlonely1", url: lonely }
+  ]
+  const fake = createFakePlatform([], {
+    storySources: sources,
+    cachedResponses: [
+      [shared, [Date.now(), cachedRedditSource]],
+      [lonely, [Date.now(), cachedRedditSource]]
+    ],
+    fetch: async () => new Response(JSON.stringify(cachedRedditSource), {
+      status: 200,
+      headers: { "content-type": "application/json" }
+    })
+  })
+  const app = createOnceApp(fake.ports)
+
+  await app.start()
+  await app.client.saveStorySources(
+    { version: 2, groups: [], sources: [sources[1]] },
+    false
+  )
+
+  assert.ok(fake.cachedResponses.has(shared), "the surviving source still uses it")
+  assert.equal(fake.cachedResponses.has(lonely), false)
+})
+
+test("cache status reports each source's window and last fetch", async () => {
+  const sourceUrl = "https://old.reddit.com/r/netsec/.json"
+  const fetchedAt = Date.now() - 60_000
+  const fake = createFakePlatform([], {
+    storySources: [
+      { id: "src_teststatus1", url: sourceUrl, label: "Netsec" },
+      { id: "src_teststatus2", url: "https://lobste.rs/", cacheMinutes: 30 }
+    ],
+    cachedResponses: [[sourceUrl, [fetchedAt, cachedRedditSource]]],
+    fetch: async () => new Response(JSON.stringify(cachedRedditSource), {
+      status: 200,
+      headers: { "content-type": "application/json" }
+    })
+  })
+  const app = createOnceApp(fake.ports)
+
+  await app.start()
+  const status = await app.client.getSourceCacheStatus()
+
+  assert.deepEqual(status.map((row) => row.name), ["Netsec", "lobste.rs"])
+  assert.deepEqual(status.map((row) => row.cacheMinutes), [4, 30])
+  assert.deepEqual(status.map((row) => row.ownWindow), [false, true])
+  assert.equal(status[0].fetchedAt, fetchedAt)
+  assert.equal(status[1].fetchedAt, undefined, "nothing cached yet")
 })

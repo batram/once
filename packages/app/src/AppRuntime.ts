@@ -1,9 +1,9 @@
 import {
   applyStoryFilter,
   applyStoryFilters,
-  enabledStorySources,
   groupedStorySources,
   Story,
+  StorySourceDocument,
   URLRedirect
 } from "@once/core"
 import {
@@ -22,13 +22,16 @@ import { mergeStorySyncState, sameStorySyncState } from "./storySyncPolicy"
 import { StoryWriteQueue } from "./StoryWriteQueue"
 import { StoryWorkingSet } from "./StoryWorkingSet"
 import { AppSettings } from "./AppSettings"
+import { CacheMaintenance } from "./cacheMaintenance"
+import {
+  DEFAULT_MENU_TYPES,
+  SourceMenu,
+  sourceMenuFromDocument
+} from "./sourceMenu"
 import { SourceLoader } from "./SourceLoader"
 import { DiagnosticLog, errorDetails } from "./DiagnosticLog"
 import { fetchDocument } from "./fetchDocument"
 import { waitForStartupStorage } from "./startupStorage"
-
-/** Always offered, whatever the sources currently produce. */
-const DEFAULT_MENU_TYPES = ["ALL", "filtered", "stared", "new"]
 
 export class AppRuntime {
   readonly client: OnceClient
@@ -47,8 +50,7 @@ export class AppRuntime {
   private readonly diagnostics = new DiagnosticLog(
     (error) => this.events.publish("diagnosticError", error)
   )
-  private readonly menuGroups = new Set<string>()
-  private readonly menuTypes = new Set<string>(DEFAULT_MENU_TYPES)
+  private menu: SourceMenu = { groups: [], types: DEFAULT_MENU_TYPES }
   private readonly storyWrites = new StoryWriteQueue(
     (href, failure, error) => {
       console.error(`${failure.message}: ${href}`, error)
@@ -62,6 +64,7 @@ export class AppRuntime {
     }
   )
   private readonly settings: AppSettings
+  private readonly cacheMaintenance: CacheMaintenance
   private readonly sourceLoader: SourceLoader
   private syncStatus: SyncStatus = {
     state: "disabled",
@@ -83,11 +86,18 @@ export class AppRuntime {
         refilterStories: () => this.refilterStories(),
         refreshRedirects: () => this.refreshRedirects(),
         updateSourceMenu: (sources) => this.updateSourceMenu(sources),
+        evictRemovedSources: (previous, current) =>
+          this.cacheMaintenance.evictRemoved(previous, current),
         loadedStoryIds: () =>
           this.workingSet.hrefs().map((href) =>
             this.platform.storyStore.storyId(href)
           )
       }
+    )
+    this.cacheMaintenance = new CacheMaintenance(
+      this.settings,
+      platform.cacheStore,
+      () => this.events.publish("cacheStatusChanged", {})
     )
     this.sourceLoader = new SourceLoader(
       platform.fetch,
@@ -192,6 +202,9 @@ export class AppRuntime {
       getSwipeSettings: () => this.settings.getSwipeSettings(),
       setSwipeSettings: (settings) => this.settings.setSwipeSettings(settings),
       reloadStories: (policy = "cache-first") => this.reloadStories(policy),
+      refetchSource: (sourceId) => this.reloadStories("network-only", sourceId),
+      getSourceCacheStatus: () => this.cacheMaintenance.status(),
+      clearCachedFeeds: () => this.cacheMaintenance.clear(),
       getStories: () => this.getWorkingStories(),
       getStorySnapshot: () => this.workingSet.snapshot(),
       findStoryByUrl: async (url) => this.findStoryByUrl(url),
@@ -238,8 +251,16 @@ export class AppRuntime {
     }
   }
 
-  private async reloadStories(policy: CachePolicy = "cache-first"): Promise<void> {
-    this.sourceErrors.clear()
+  /**
+   * One reload pass. `only` narrows it to a single source, which is what a
+   * per-source refetch is: the same pass, forced, for one row. Its errors are
+   * cleared alone so a refetch cannot wipe another source's reported failure.
+   */
+  private async reloadStories(
+    policy: CachePolicy = "cache-first",
+    only?: string
+  ): Promise<void> {
+    if (only) this.sourceErrors.delete(only); else this.sourceErrors.clear()
     this.emitSourceErrors()
     const storySources = await this.settings.getStorySources()
     // Resolved once, before the fan-out below, so a settings write cannot make
@@ -251,7 +272,9 @@ export class AppRuntime {
     const promises: Promise<void>[] = []
 
     for (const group of groupedSources) {
-      for (const source of group.sources.filter((item) => item.enabled !== false)) {
+      const loadable = group.sources.filter((item) => item.enabled !== false &&
+        (!only || item.id === only))
+      for (const source of loadable) {
         const sourceInfo = this.sourceLoader.describe(source)
         processingSources.set(source.id, sourceInfo)
         this.emitLoader(processingSources)
@@ -272,6 +295,7 @@ export class AppRuntime {
     }
 
     await Promise.all(promises)
+    if (promises.length) this.events.publish("cacheStatusChanged", {})
     this.events.publish("loaderChanged", {
       processing: [],
       visible: false
@@ -321,29 +345,13 @@ export class AppRuntime {
   }
 
   private emitMenuChanged(): void {
-    this.events.publish("menuChanged", {
-      groups: Array.from(this.menuGroups),
-      types: Array.from(this.menuTypes)
-    })
+    this.events.publish("menuChanged", { ...this.menu })
   }
 
-  private updateSourceMenu(storySources: import("@once/core").StorySourceDocument): void {
-    const groupedSources = groupedStorySources(storySources)
-    this.menuGroups.clear()
-    this.menuTypes.clear()
-    DEFAULT_MENU_TYPES.forEach((type) => this.menuTypes.add(type))
-    const enabled = new Set(enabledStorySources(storySources).map((source) => source.id))
-    for (const group of groupedSources) {
-      const sources = group.sources.filter((source) => enabled.has(source.id))
-      if (!sources.length) continue
-      this.menuGroups.add(group.name)
-      for (const source of sources) {
-        const sourceInfo = this.sourceLoader.describe(source)
-        if (sourceInfo.parserType !== "Unknown") {
-          this.menuTypes.add(sourceInfo.parserType)
-        }
-      }
-    }
+  private updateSourceMenu(storySources: StorySourceDocument): void {
+    const menu = sourceMenuFromDocument(storySources, (source) =>
+      this.sourceLoader.describe(source).parserType)
+    this.menu = menu
     this.emitMenuChanged()
   }
 

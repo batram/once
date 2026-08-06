@@ -34,6 +34,14 @@ export const DEFAULT_GROUP_NAME = "Default"
 /** One year. Longer is indistinguishable from "never" and reads as a typo. */
 export const MAX_CACHE_MINUTES = 525_600
 
+/**
+ * What a source falls back to when neither it, the user, nor its collector has
+ * an opinion. An hour: long enough that reopening the app all day costs almost
+ * nothing, short enough that a feed nobody has taught the app about is not a
+ * day stale. Every shell reads it from here so the four stores cannot drift.
+ */
+export const DEFAULT_CACHE_MINUTES = 60
+
 const ID_SUFFIX = "[A-Za-z0-9]{8,58}"
 const SOURCE_ID = new RegExp(`^src_${ID_SUFFIX}$`)
 const GROUP_ID = new RegExp(`^grp_${ID_SUFFIX}$`)

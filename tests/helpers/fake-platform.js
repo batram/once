@@ -24,6 +24,7 @@ function createFakePlatform(stories = [], options = {}) {
     emitDatabaseChange(change) { databaseHandler?.(change) },
     emitRemoteDatabaseChange(change) { remoteDatabaseHandler?.(change) },
     emitHistory(action) { historyHandler?.(action) },
+    cachedResponses,
     ports: {
       listStore: {
         async get(id, fallback) {
@@ -58,7 +59,7 @@ function createFakePlatform(stories = [], options = {}) {
       syncSettingsStore: {
         async getSyncUrl() { return "" },
         async setSyncUrl() {},
-        async getCacheTime() { return 120 },
+        async getCacheTime() { return options.cacheTime ?? 60 },
         async setCacheTime() {}
       },
       syncService: {
@@ -75,7 +76,9 @@ function createFakePlatform(stories = [], options = {}) {
       },
       cacheStore: {
         async get(url) { return cachedResponses.get(url) || null },
-        async set(url, value) { cachedResponses.set(url, value) }
+        async set(url, value) { cachedResponses.set(url, value) },
+        async delete(url) { cachedResponses.delete(url) },
+        async clear() { cachedResponses.clear() }
       },
       fetch: options.fetch || (async (url) => { throw new Error(`Unexpected network request in test: ${url}`) }),
       onDatabaseChange(handler) {

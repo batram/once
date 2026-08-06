@@ -1,4 +1,4 @@
-import { Story } from "@once/core"
+import { DEFAULT_CACHE_MINUTES, Story } from "@once/core"
 import { OncePlatformPorts, ThemeName } from "@once/app"
 
 class WebListStore {
@@ -62,14 +62,31 @@ class WebStoryStore {
   }
 }
 
+const CACHE_PREFIX = "once:cache:"
+
 class WebCacheStore {
   async get(url: string): Promise<unknown> {
-    const stored = window.localStorage.getItem(`once:cache:${url}`)
+    const stored = window.localStorage.getItem(`${CACHE_PREFIX}${url}`)
     return stored ? JSON.parse(stored) : null
   }
 
   async set(url: string, content: unknown): Promise<void> {
-    window.localStorage.setItem(`once:cache:${url}`, JSON.stringify(content))
+    window.localStorage.setItem(`${CACHE_PREFIX}${url}`, JSON.stringify(content))
+  }
+
+  async delete(url: string): Promise<void> {
+    window.localStorage.removeItem(`${CACHE_PREFIX}${url}`)
+  }
+
+  async clear(): Promise<void> {
+    // localStorage also holds settings for this shell, so the prefix decides
+    // what a cache clear is allowed to touch.
+    const keys: string[] = []
+    for (let index = 0; index < window.localStorage.length; index++) {
+      const key = window.localStorage.key(index)
+      if (key?.startsWith(CACHE_PREFIX)) keys.push(key)
+    }
+    keys.forEach((key) => window.localStorage.removeItem(key))
   }
 }
 
@@ -84,7 +101,7 @@ class WebSyncSettingsStore {
 
   async getCacheTime(): Promise<number> {
     const time = parseInt(window.localStorage.getItem("once:cache_time") ?? "")
-    return Number.isNaN(time) ? 120 : time
+    return Number.isNaN(time) ? DEFAULT_CACHE_MINUTES : time
   }
 
   async setCacheTime(cacheTime: string): Promise<void> {

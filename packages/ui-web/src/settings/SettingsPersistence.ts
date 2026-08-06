@@ -1,11 +1,16 @@
 import { OnceClient, ThemeName } from "@once/app"
 import { requireElement } from "../dom"
+import { CacheTimingPanel } from "./CacheTimingPanel"
 
 export class SettingsPersistence {
+  private readonly cachePanel: CacheTimingPanel
+
   constructor(
     private client: OnceClient,
     private settingsChanged: () => void
-  ) {}
+  ) {
+    this.cachePanel = new CacheTimingPanel(client)
+  }
 
   async restoreSync(): Promise<void> {
     const input = requireElement<HTMLInputElement>("#couch_input")
@@ -77,6 +82,9 @@ export class SettingsPersistence {
   async restoreCache(): Promise<void> {
     const input = requireElement<HTMLInputElement>("#cache_time_input")
     input.value = (await this.client.getCacheTime()).toString()
+    // The per-collector rows show the global value as their inherited
+    // placeholder, so they are rebuilt whenever it is restored.
+    await this.cachePanel.refresh()
     this.settingsChanged()
   }
 

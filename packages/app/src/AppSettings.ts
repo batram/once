@@ -1,4 +1,5 @@
 import {
+  DEFAULT_CACHE_MINUTES,
   defaultFilterList,
   defaultRedirectList,
   defaultStorySources,
@@ -48,6 +49,11 @@ export interface AppSettingsActions {
   refilterStories(): Promise<void> | void
   refreshRedirects(): Promise<void> | void
   updateSourceMenu(sources: StorySourceDocument): void
+  /** Drops what sources present in `previous` but gone from `current` cached. */
+  evictRemovedSources(
+    previous: StorySourceDocument,
+    current: StorySourceDocument
+  ): Promise<void> | void
   loadedStoryIds(): string[]
 }
 
@@ -86,8 +92,12 @@ export class AppSettings {
       throw new Error(parsed.reports.map((item) => `${item.path}: ${item.message}`).join("\n"))
     }
     await this.setList("sources", parsed.doc)
+    const previous = this.sourcesDocument
     this.sourcesDocument = parsed.doc
     this.sourcesState = "resolved"
+    // A deleted source leaves its body behind otherwise, and nothing else ever
+    // asks for that URL again.
+    if (previous) await this.actions.evictRemovedSources(previous, parsed.doc)
     this.actions.updateSourceMenu(parsed.doc)
     this.actions.publishChanged("sources")
     if (reload) await this.actions.reloadStories()
@@ -163,7 +173,7 @@ export class AppSettings {
       return await this.syncStore.getCacheTime()
     } catch (error) {
       this.reportLoadError("cache", error)
-      return 120
+      return DEFAULT_CACHE_MINUTES
     }
   }
 
@@ -324,6 +334,7 @@ export class AppSettings {
     this.sourcesDocument = document
     this.sourcesState = "resolved"
     if (!previous || JSON.stringify(previous) !== JSON.stringify(document)) {
+      if (previous) await this.actions.evictRemovedSources(previous, document)
       this.actions.updateSourceMenu(document)
       this.actions.publishChanged("sources")
       if (reload) await this.actions.reloadStories()

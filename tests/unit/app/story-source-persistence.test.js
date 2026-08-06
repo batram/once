@@ -22,7 +22,8 @@ function harness(initial = {}, configured = false) {
     syncService, { setTheme() {} }, {
       publishChanged: (section) => events.push(section),
       reportDiagnostic: (error) => diagnostics.push(error), reloadStories: () => events.push("reload"),
-      refilterStories() {}, refreshRedirects() {}, updateSourceMenu() {}, loadedStoryIds: () => []
+      refilterStories() {}, refreshRedirects() {}, updateSourceMenu() {},
+      evictRemovedSources() {}, loadedStoryIds: () => []
     })
   return { settings, values, diagnostics, events,
     replicate: () => settingsReplicated?.() }
