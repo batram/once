@@ -168,9 +168,7 @@ export class StructuredSettingsEditors {
     const actions = block?.querySelector<HTMLElement>(".settings_actions")
     if (!block || !input || !actions) return
 
-    // The header carries the mode toggle and nothing else. It used to be built
-    // around the block's own title, which duplicated the section header and was
-    // hidden for exactly that reason.
+    // Sits above the list and carries the mode toggle.
     const header = document.createElement("div")
     header.className = "structured_settings_header row"
     input.before(header)

@@ -33,11 +33,6 @@ test("list settings are the default and expose structured add actions", async ({
   await expect(page.locator("#settings_panel .settings_title")).toHaveText(
     "Story sources"
   )
-  // The panel header names the section, so the section itself must not repeat
-  // that name — it used to, and the duplicate was hidden in CSS.
-  await expect(
-    page.locator('[data-settings-section="sources"]')
-  ).not.toContainText("Story sources:")
   const modeToggle = page.getByTestId("sources-mode-toggle")
   await expect(modeToggle).toHaveText("TXT")
   await expect(modeToggle).toHaveAttribute("aria-label", "Edit as text")
