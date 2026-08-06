@@ -133,7 +133,11 @@ function runNpm(npmArgs, cwd = repoRoot, env = process.env) {
     cwd,
     env,
     stdio: "inherit",
-    windowsHide: true
+    windowsHide: true,
+    // Node refuses to spawn a .cmd without a shell, which is the path taken
+    // when this script is run directly rather than through npm. The arguments
+    // are script names from this file, never user input.
+    shell: command === "npm.cmd"
   })
   if (result.error) throw result.error
   if (result.status !== 0) {
@@ -544,26 +548,33 @@ async function setTheme(page, theme, openSection) {
   await expect(page.locator("body")).toHaveAttribute("data-theme", theme)
 }
 
-async function replaceVisualSources(page, openSection, sourceLines) {
+/** The same source document with one more source in it. */
+function withSource(document, url) {
+  const parsed = JSON.parse(document)
+  parsed.sources.push({ id: "src_visualfail", url })
+  return JSON.stringify(parsed)
+}
+
+async function replaceVisualSources(page, openSection, sourceText) {
   await openSection("sources")
   const sources = page.getByTestId("sources")
   await sources.evaluate((textarea, value) => {
     textarea.value = value
     textarea.dispatchEvent(new Event("input", { bubbles: true }))
-  }, sourceLines)
-  await expect(sources).toHaveValue(sourceLines)
+  }, sourceText)
+  await expect(sources).toHaveValue(sourceText)
   const save = page.getByTestId("save-sources")
   await save.evaluate(button => button.click())
   await expect(save).toBeEnabled()
 }
 
-function visualErrorState(page, openSection, sourceLines, failingSource) {
+function visualErrorState(page, openSection, sources, failingSource) {
   return {
     async populate() {
       await replaceVisualSources(
         page,
         openSection,
-        `${sourceLines}\n${failingSource}`
+        withSource(sources, failingSource)
       )
       const entries = page.locator("#error_log .error_log_entry")
       await expect(entries).toHaveCount(1, { timeout: 10_000 })
@@ -589,7 +600,7 @@ function visualErrorState(page, openSection, sourceLines, failingSource) {
       await expect(page.locator("#error_log .error_log_empty")).toHaveText(
         "No errors recorded this session."
       )
-      await replaceVisualSources(page, openSection, sourceLines)
+      await replaceVisualSources(page, openSection, sources)
       await expect(page.locator("#status_bar")).toBeHidden({ timeout: 10_000 })
     }
   }
@@ -783,11 +794,8 @@ async function captureElectron(output, sourceRoot = repoRoot) {
       const window = BrowserWindow.getAllWindows()[0]
       window.setBounds({ x: 0, y: 0, width: 1280, height: 800 })
     })
-    const sourceLines = [
-      storyFixture.sourceLine(fixture.origin),
-      storyFixture.rssSourceLine(fixture.origin)
-    ].join("\n")
-    await seedLocalSource(page, sourceLines, urls.alpha)
+    const sources = storyFixture.sourceDocument(fixture.origin)
+    await seedLocalSource(page, sources, urls.alpha)
     await expect(page.getByTestId("story")).toHaveCount(10)
     const electronReadStory = page.locator(
       `story-item[data-href="${urls.beta}"]`
@@ -829,7 +837,7 @@ async function captureElectron(output, sourceRoot = repoRoot) {
       const errorState = visualErrorState(
         page,
         openSection,
-        sourceLines,
+        sources,
         `${fixture.origin}/failure.rss`
       )
       await captureNotificationState(
@@ -898,15 +906,12 @@ async function captureMobile(output, sourceRoot = repoRoot) {
     if (await animation.isChecked()) await animation.uncheck()
 
     const mobileOrigin = new URL(page.url()).origin
-    const sourceLines = [
-      storyFixture.sourceLine(
-        mobileOrigin,
-        "/fixtures/visual-feed.json"
-      ),
-      storyFixture.rssSourceLine(mobileOrigin)
-    ].join("\n")
+    const sources = storyFixture.sourceDocument(
+      mobileOrigin,
+      "/fixtures/visual-feed.json"
+    )
     await openMobileSettingsSection(page, "sources")
-    await page.getByTestId("sources").fill(sourceLines)
+    await page.getByTestId("sources").fill(sources)
     await saveSourcesAndWait(page)
     await reloadMobileApp(page)
     await page.getByTestId("stories-menu").click()
@@ -964,7 +969,7 @@ async function captureMobile(output, sourceRoot = repoRoot) {
       const errorState = visualErrorState(
         page,
         openSection,
-        sourceLines,
+        sources,
         `${mobileOrigin}/failure.rss`
       )
       await captureNotificationState(

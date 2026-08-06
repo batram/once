@@ -147,6 +147,17 @@ function rssSourceLine(origin, feedPath = "/feed.rss") {
   return `${origin}${feedPath}`
 }
 
+/**
+ * One typed document holding both fixture feeds. Sources are read as a JSON
+ * document or as a plain URL list, never as a mixture, so a harness that wants
+ * both feeds has to say so in one document.
+ */
+function sourceDocument(origin, feedPath = "/feed.json", rssPath = "/feed.rss") {
+  const document = JSON.parse(sourceLine(origin, feedPath))
+  document.sources.push({ id: "src_fixture02", url: `${origin}${rssPath}` })
+  return JSON.stringify(document)
+}
+
 function feedRss(origin) {
   const urls = storyUrls(origin)
   const keys = [
@@ -254,6 +265,7 @@ module.exports = {
   handleRequest,
   redirectRule,
   sourceLine,
+  sourceDocument,
   rssSourceLine,
   storyUrls
 }
