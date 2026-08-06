@@ -1,8 +1,7 @@
 export const options = {
   id: "redditrss",
   type: "re",
-  description:
-    "Collect stories from Reddit (https://old.reddit.com/) by parsing the RSS feed of subreddits",
+  description: "RSS Reddit (old.reddit.com)",
   pattern: "https://old.reddit.com/*.rss",
   collects: "dom",
   colors: ["#cee3f8", "black"],
@@ -32,13 +31,7 @@ export function parse(doc: Document): Story[] {
     const timestamp = Date.parse(updated)
 
     return [
-      new Story(
-        options.type,
-        href,
-        title,
-        story.querySelector("link")?.href ?? "",
-        timestamp
-      )
+      new Story(options.type, href, title, story.querySelector("link")?.href ?? "", timestamp)
     ]
   })
 }

@@ -2,7 +2,7 @@ export const options = {
   id: "geny",
   type: "GY",
   colors: ["rgba(123, 123, 0, 0.56)", "white"],
-  description: "Collect stories by parsing HTML and matching selectors",
+  description: "HTML geny match",
   // Never detected from a URL: a source using this collector names it, and
   // carries its selectors in `select`.
   pattern: [] as string[],
@@ -45,9 +45,7 @@ const processor_functions: Record<string, (arg0: string) => string> = {
 
 function selecti(selector: GenySelector, parent_el: HTMLElement): unknown {
   let ret: unknown = null
-  const elem = selector.sel
-    ? parent_el.querySelectorAll<HTMLElement>(selector.sel)
-    : []
+  const elem = selector.sel ? parent_el.querySelectorAll<HTMLElement>(selector.sel) : []
   if (selector.all) {
     ret = elem
   } else {
@@ -117,13 +115,7 @@ export function parse(doc: Document, context: ParseContext): Story[] {
         ? Date.parse(selecti(selectors.timestamp, story_el) as string)
         : Date.now()
 
-      const new_story = new Story(
-        options.type,
-        href,
-        title,
-        comment_href,
-        timestamp
-      )
+      const new_story = new Story(options.type, href, title, comment_href, timestamp)
 
       selectors.tags?.forEach((tag_sel) => {
         let tag_els = [story_el]
@@ -143,17 +135,12 @@ export function parse(doc: Document, context: ParseContext): Story[] {
     .filter((x) => x != null)
 }
 
-function parse_tag(
-  tag_sel: TagSelector,
-  story: HTMLElement
-): StoryTag | undefined {
+function parse_tag(tag_sel: TagSelector, story: HTMLElement): StoryTag | undefined {
   const elements = tag_sel.elements
   if (!elements?.text) {
     throw new Error("geny_match tag config is missing elements.text")
   }
-  const tclass = elements.class
-    ? (selecti(elements.class, story) as string)
-    : "category"
+  const tclass = elements.class ? (selecti(elements.class, story) as string) : "category"
   const text = selecti(elements.text, story) as string
   if (!text) {
     return undefined
@@ -188,6 +175,10 @@ export function build_source(conf: GenySelectorConf, url: string): StorySource {
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new Error("geny_match sources must use HTTP or HTTPS")
   }
-  return { id: mintStorySourceId(), url: parsed.toString(), collector: "geny",
-    select: sanitize_selector_conf(conf) }
+  return {
+    id: mintStorySourceId(),
+    url: parsed.toString(),
+    collector: "geny",
+    select: sanitize_selector_conf(conf)
+  }
 }

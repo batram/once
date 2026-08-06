@@ -1,7 +1,7 @@
 export const options = {
   id: "rss",
   type: "RSS",
-  description: "Collect stories from RSS feed",
+  description: "RSS feed collector",
   pattern: "*.rss",
   collects: "xml",
   colors: ["#f98e31", "white"],
@@ -54,11 +54,7 @@ function parse_rss_2(doc: Document) {
     story_tag: "item",
     title_tag: "title",
     timestamp_tags: ["pubDate", "pubdate", "dc:date"],
-    link_tags: [
-      "feedburner:origLink",
-      "link",
-      { tag: "guid", startsWith: "http" }
-    ],
+    link_tags: ["feedburner:origLink", "link", { tag: "guid", startsWith: "http" }],
     content_tags: [
       { tag: "content:encoded", minLength: 1000 },
       { tag: "description", minLength: 0 }
@@ -121,12 +117,7 @@ function get_feed_value(
           value = null
         }
 
-        if (
-          tag_format.minLength &&
-          value &&
-          value.length &&
-          value.length < tag_format.minLength
-        ) {
+        if (tag_format.minLength && value && value.length && value.length < tag_format.minLength) {
           value = null
         }
       }
@@ -147,10 +138,7 @@ function common_rss_parser(doc: Document, def: FeedFormat) {
   const main_link = get_feed_value(doc.documentElement, def.main_link)
 
   const stories = Array.from(items).map((story) => {
-    let timestamp: string | number | undefined = get_feed_value(
-      story,
-      def.timestamp_tags
-    )
+    let timestamp: string | number | undefined = get_feed_value(story, def.timestamp_tags)
     if (timestamp) {
       timestamp = Date.parse(timestamp)
       if (!Number.isFinite(timestamp)) {

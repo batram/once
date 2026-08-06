@@ -2,7 +2,7 @@ export const options = {
   id: "jsonselect",
   type: "JX",
   colors: ["#868686", "white"],
-  description: "Collect stories by selecting from JSON",
+  description: "JSON collector",
   // Never detected from a URL: a source using this collector names it, and
   // carries its selectors in `select`.
   pattern: [] as string[],
@@ -43,10 +43,7 @@ const processor_functions: Record<string, (arg0: string) => string> = {
   }
 }
 
-function selecti(
-  selector: JsonSelector,
-  json: Record<string, unknown>
-): unknown {
+function selecti(selector: JsonSelector, json: Record<string, unknown>): unknown {
   let ret: unknown = null
   if (!selector.sel) return null
   const elem = json[selector.sel]
@@ -102,10 +99,7 @@ export function sanitize_selector_conf(raw: unknown): JsonSelectorConf {
   }) as JsonSelectorConf
 }
 
-export function parse(
-  json: Record<string, unknown>,
-  context: ParseContext
-): Story[] {
+export function parse(json: Record<string, unknown>, context: ParseContext): Story[] {
   // Nothing to select with is not an error: an unconfigured source simply has
   // no stories in it. Configuration that is present but wrong does throw.
   if (context.config === undefined) return []
@@ -116,9 +110,7 @@ export function parse(
     throw new Error("json_select config is missing stories, link, or title")
   }
 
-  const stories = Array.from(
-    selecti(stories_sel, json) as Record<string, unknown>[]
-  )
+  const stories = Array.from(selecti(stories_sel, json) as Record<string, unknown>[])
 
   return stories
     .map((story_el: Record<string, unknown>) => {
@@ -137,21 +129,12 @@ export function parse(
         ? Date.parse(selecti(selectors.timestamp, story_el) as string)
         : Date.now()
 
-      const new_story = new Story(
-        options.type,
-        href,
-        title,
-        comment_href,
-        timestamp
-      )
+      const new_story = new Story(options.type, href, title, comment_href, timestamp)
 
       selectors.tags?.forEach((tag_sel) => {
         let tag_els = [story_el]
         if (tag_sel.group_el) {
-          tag_els = selecti(tag_sel.group_el, story_el) as Record<
-            string,
-            unknown
-          >[]
+          tag_els = selecti(tag_sel.group_el, story_el) as Record<string, unknown>[]
         }
         tag_els.forEach((tag_el: Record<string, unknown>) => {
           const new_tag = parse_tag(tag_sel, tag_el)
@@ -166,17 +149,12 @@ export function parse(
     .filter((x) => x != null)
 }
 
-function parse_tag(
-  tag_sel: TagSelector,
-  story: Record<string, unknown>
-): StoryTag | undefined {
+function parse_tag(tag_sel: TagSelector, story: Record<string, unknown>): StoryTag | undefined {
   const elements = tag_sel.elements
   if (!elements?.text) {
     throw new Error("json_select tag config is missing elements.text")
   }
-  const tclass = elements.class
-    ? (selecti(elements.class, story) as string)
-    : "category"
+  const tclass = elements.class ? (selecti(elements.class, story) as string) : "category"
   const text = selecti(elements.text, story) as string
   if (!text) {
     return undefined

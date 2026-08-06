@@ -1,8 +1,7 @@
 export const options = {
   id: "hackernews",
   type: "HN",
-  description:
-    "Collect stories from HackerNews (https://news.ycombinator.com/) by parsing HTML",
+  description: "HTML HackerNews (news.ycombinator.com)",
   pattern: "https://news.ycombinator.com/",
   collects: "dom",
   colors: ["rgba(255, 102, 0, 0.56)", "white"],
@@ -28,8 +27,7 @@ export function parse(doc: Document): Story[] {
   const stories = Array.from(doc.querySelectorAll<HTMLElement>(".athing"))
 
   return stories.flatMap((story_el) => {
-    const story_link =
-      story_el.querySelector<HTMLAnchorElement>(".titleline > a")
+    const story_link = story_el.querySelector<HTMLAnchorElement>(".titleline > a")
     const subtext = story_el.nextElementSibling
 
     if (!story_link || !story_link.href || !story_link.innerText || !subtext) {
@@ -41,8 +39,7 @@ export function parse(doc: Document): Story[] {
       story_link.href = curl + id
     }
 
-    const time =
-      subtext.querySelector<HTMLAnchorElement>(".age a")?.innerText ?? ""
+    const time = subtext.querySelector<HTMLAnchorElement>(".age a")?.innerText ?? ""
     const timestamp = parseHumanTime(time)
     if (!time || !Number.isFinite(timestamp)) {
       return []

@@ -1,8 +1,7 @@
 export const options = {
   id: "nitter",
   type: "tw",
-  description:
-    "Collect tweets from a specific Twitter user (https://nitter.net/) by parsing HTML",
+  description: "HTML tweets by user (via nitter.net)",
   pattern: "https://nitter.net/",
   collects: "dom",
   colors: ["rgba(29, 161, 242, 0.56)", "white"],
@@ -22,8 +21,7 @@ export function parse(doc: Document): Story[] {
   const stories = Array.from(doc.querySelectorAll<HTMLElement>(".timeline-item"))
 
   return stories.flatMap((story_el) => {
-    const story_link =
-      story_el.querySelector<HTMLAnchorElement>(".tweet-date a")
+    const story_link = story_el.querySelector<HTMLAnchorElement>(".tweet-date a")
 
     if (!story_link) {
       return []
@@ -36,12 +34,9 @@ export function parse(doc: Document): Story[] {
     }
 
     const user_id =
-      story_el
-        .querySelector<HTMLAnchorElement>(".tweet-avatar")
-        ?.href.substring(1) ?? ""
+      story_el.querySelector<HTMLAnchorElement>(".tweet-avatar")?.href.substring(1) ?? ""
 
-    const story_text =
-      story_el.querySelector<HTMLDivElement>(".tweet-content")?.innerText ?? ""
+    const story_text = story_el.querySelector<HTMLDivElement>(".tweet-content")?.innerText ?? ""
     if (!story_link.href || !story_text) {
       return []
     }

@@ -2,8 +2,7 @@ export const options = {
   id: "lobsters",
   type: "LO",
   colors: ["rgba(143, 0, 0, 0.56)", "white"],
-  description:
-    "Collect stories from Lobsters (https://lobste.rs/) by parsing HTML",
+  description: "HTML Lobsters (https://lobste.rs/)",
   pattern: "https://lobste.rs/",
   collects: "dom",
   // A quieter front page than the other two aggregators.
@@ -47,8 +46,10 @@ export function parse(doc: Document): Story[] {
         timestamp
       )
 
-      const user_links = Array.from(story.querySelectorAll<HTMLAnchorElement>(".byline a[href^='/~']"))
-      const user_el = user_links.find(el => el.innerText.trim().length > 0)
+      const user_links = Array.from(
+        story.querySelectorAll<HTMLAnchorElement>(".byline a[href^='/~']")
+      )
+      const user_el = user_links.find((el) => el.innerText.trim().length > 0)
       if (user_el) {
         const username = user_el.innerText.trim()
         new_story.tags.push({

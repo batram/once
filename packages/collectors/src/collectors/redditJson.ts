@@ -1,8 +1,7 @@
 export const options = {
   id: "redditjson",
   type: "re",
-  description:
-    "Collect stories from Reddit (https://old.reddit.com/) by parsing JSON from subreddits",
+  description: "JSON Reddit (old.reddit.com)",
   pattern: "https://old.reddit.com/*.json",
   collects: "json",
   colors: ["#cee3f8", "black"],
@@ -63,8 +62,7 @@ function parse_listing(json: RedditJSONData, filter: boolean): Story[] {
         const user_tag = {
           class: "user",
           text: story.data.author,
-          href:
-            "https://old.reddit.com/user/" + story.data.author + "/submitted/"
+          href: "https://old.reddit.com/user/" + story.data.author + "/submitted/"
         }
         new_story.tags.push(user_tag)
 
