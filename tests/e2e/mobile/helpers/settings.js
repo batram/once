@@ -83,7 +83,7 @@ async function openSwipeAdvanced(page) {
 
 async function waitForSwipeSettings(page) {
   await expect(page.getByTestId("swipe-save-status"))
-    .toHaveText("all changes saved")
+    .toHaveText("Saved")
 }
 
 module.exports = {

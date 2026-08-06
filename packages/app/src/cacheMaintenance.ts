@@ -54,7 +54,12 @@ export function cacheKeyFor(source: StorySource): string | undefined {
 function nameFor(source: StorySource): string {
   if (source.label?.trim()) return source.label.trim()
   try {
-    return new URL(source.url).hostname.replace("www.", "")
+    // Host and path, because two feeds on one host are common — a subreddit
+    // and its RSS twin, two sections of one site — and the host alone would
+    // print the same name for both.
+    const url = new URL(source.url)
+    const path = url.pathname === "/" ? "" : url.pathname
+    return `${url.hostname.replace("www.", "")}${path}`
   } catch {
     return source.url
   }

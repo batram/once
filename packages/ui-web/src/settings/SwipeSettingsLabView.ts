@@ -51,7 +51,7 @@ function checkbox(
 }
 
 function description(text: string): HTMLElement {
-  const node = element("p", "swipe_advanced_description")
+  const node = element("p", "swipe_advanced_description field_hint")
   node.textContent = text
   return node
 }
@@ -84,7 +84,7 @@ function slider(
 function buildAdvancedControls(host: HTMLElement): AdvancedControls {
   const advanced = element("details", "swipe_advanced")
   advanced.dataset.testid = "swipe-advanced"
-  const summary = element("summary")
+  const summary = element("summary", "settings_subheading")
   summary.textContent = "Advanced"
   const body = element("div", "swipe_advanced_body")
   advanced.append(summary, body)
@@ -142,17 +142,17 @@ function buildFooter(host: HTMLElement): {
   reset: HTMLButtonElement
 } {
   const footer = element("div", "swipe_footer row")
-  const status = element("span", "swipe_save_status")
+  const status = element("span", "swipe_save_status settings_status")
   status.dataset.testid = "swipe-save-status"
   status.setAttribute("role", "status")
   status.setAttribute("aria-live", "polite")
   const undo = element("button", "button")
   undo.type = "button"
-  undo.textContent = "undo"
+  undo.textContent = "Undo"
   undo.dataset.testid = "undo-swipe"
   const reset = element("button", "button")
   reset.type = "button"
-  reset.textContent = "reset to defaults"
+  reset.textContent = "Reset to defaults"
   reset.dataset.testid = "reset-swipe"
   footer.append(status, undo, reset)
   host.append(footer)
@@ -493,11 +493,11 @@ export class SwipeSettingsLabView {
 
   private renderStatus(): void {
     if (this.state.status === "failed") {
-      this.status.textContent = "changes not saved — edit to retry"
+      this.status.textContent = "Could not save — edit to retry"
     } else if (this.state.status === "saving") {
-      this.status.textContent = "saving…"
+      this.status.textContent = "Saving…"
     } else {
-      this.status.textContent = "all changes saved"
+      this.status.textContent = "Saved"
     }
     this.undo.disabled = !this.state.canUndo
   }

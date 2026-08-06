@@ -78,7 +78,7 @@ export function createListCard(title: string, count: number): {
   const header = document.createElement("div")
   header.className = "structured_list_header row"
   const name = document.createElement("strong")
-  name.className = "structured_list_name"
+  name.className = "structured_list_name settings_subheading"
   name.textContent = title
   const total = document.createElement("span")
   total.className = "structured_list_count"
@@ -158,14 +158,14 @@ function appendFormField(
   field: StructuredFormField
 ): void {
   const label = document.createElement("label")
-  label.className = "structured_form_field"
+  label.className = "structured_form_field field"
   const name = document.createElement("span")
-  name.className = "structured_form_label"
+  name.className = "field_label"
   name.textContent = field[0]
   label.append(name, input)
   if (field[2]?.hint) {
     const hint = document.createElement("span")
-    hint.className = "structured_form_hint"
+    hint.className = "field_hint"
     hint.textContent = field[2].hint
     label.append(hint)
   }
@@ -175,7 +175,7 @@ function appendFormField(
 export function showStructuredForm(options: StructuredFormOptions): void {
   if (!options.host) options.root.textContent = ""
   const form = document.createElement("form")
-  form.className = "structured_form stack"
+  form.className = "structured_form"
   if (options.createTester) form.classList.add("structured_redirect_form")
   form.dataset.testid = "structured-item-form"
   const title = document.createElement("h3")

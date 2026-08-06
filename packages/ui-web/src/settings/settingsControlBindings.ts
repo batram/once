@@ -74,22 +74,19 @@ export function bindSourceTextarea(
   render()
 }
 
+/**
+ * The default cache window saves the moment it changes, like every other
+ * single-value control. Escape still restores the stored value, which is what
+ * the cancel button used to be for.
+ */
 export function bindCacheControls(
   restore: () => void | Promise<void>,
   save: () => void | Promise<void>
 ): void {
   const input = requireElement<HTMLInputElement>("#cache_time_input")
-  const block = requireClosestElement<HTMLElement>(input, ".settings_block")
-  requireElement<HTMLButtonElement>("#cache_time_save", block)
-    .addEventListener("click", () => void save())
-  requireElement<HTMLButtonElement>("#cache_time_cancel", block)
-    .addEventListener("click", () => void restore())
+  input.addEventListener("change", () => void save())
   input.addEventListener("keydown", (event) => {
-    if (event.keyCode === 27) {
-      void restore()
-    } else if (event.key === "s" && event.ctrlKey) {
-      void save()
-    }
+    if (event.keyCode === 27) void restore()
   })
 }
 

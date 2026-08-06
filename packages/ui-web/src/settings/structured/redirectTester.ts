@@ -46,9 +46,9 @@ export function createRedirectTester(
   const element = document.createElement("section")
   element.className = "structured_redirect_tester"
   const testLabel = document.createElement("label")
-  testLabel.className = "structured_form_field"
+  testLabel.className = "structured_form_field field"
   const testLabelName = document.createElement("span")
-  testLabelName.className = "structured_form_label"
+  testLabelName.className = "field_label"
   testLabelName.textContent = "Test a URL"
   const testInput = document.createElement("input")
   testInput.type = "url"

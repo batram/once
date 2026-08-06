@@ -1,4 +1,4 @@
-import { requireElement } from "../dom"
+import { requireClosestElement, requireElement } from "../dom"
 
 export function bindSyncSettingsControls(
   reset: () => Promise<void>,
@@ -16,12 +16,10 @@ export function bindSyncSettingsControls(
     container
   )
   const toggle = requireElement<HTMLButtonElement>("#couch_toggle", container)
-  const actions = container.parentElement
-  if (!actions) {
-    throw new Error(
-      "Settings are unavailable because the sync actions are missing"
-    )
-  }
+  // Scoped to the block rather than walked up from the input: the field around
+  // the input is presentation, and presentation must not decide what this can
+  // still find.
+  const block = requireClosestElement<HTMLElement>(input, ".settings_block")
 
   const render = () => {
     const value = input.value
@@ -62,8 +60,8 @@ export function bindSyncSettingsControls(
   })
   input.addEventListener("input", render)
   void reset().then(render)
-  requireElement<HTMLButtonElement>('button[data-action="save"]', actions)
+  requireElement<HTMLButtonElement>('button[data-action="save"]', block)
     .addEventListener("click", save)
-  requireElement<HTMLButtonElement>('button[data-action="cancel"]', actions)
+  requireElement<HTMLButtonElement>('button[data-action="cancel"]', block)
     .addEventListener("click", () => void reset().then(render))
 }

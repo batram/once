@@ -24,6 +24,42 @@
   outline-offset: 2px;
 }
 
+/* Every other control the app renders. Only the mobile sheet used to give
+   these a box, so every other shell showed raw OS widgets beside styled
+   buttons. Appearance belongs to the component layer; a platform sheet keeps
+   sizing. Checkboxes and radios are excluded — their intrinsic box is the
+   control, and a width or height applied to one turns it into a slab. */
+input:where(:not([type="checkbox"], [type="radio"])),
+select,
+textarea {
+  box-sizing: border-box;
+  padding: var(--sp-1) var(--sp-1-5);
+  border: var(--bw) solid var(--border-high-color);
+  border-radius: var(--radius-md);
+  color: inherit;
+  background: var(--input-bg-color);
+  font: inherit;
+}
+
+select {
+  appearance: none;
+  padding-right: var(--sp-5);
+  /* The caret the native widget no longer draws. */
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentcolor 50%),
+    linear-gradient(135deg, currentcolor 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) 50%,
+    calc(100% - 8px) 50%;
+  background-size: 6px 6px;
+  background-repeat: no-repeat;
+}
+
+:where(input, select, textarea):focus-visible {
+  outline: 2px solid var(--text-high-color);
+  outline-offset: 1px;
+}
+
 .button:disabled,
 .button.disabled {
   cursor: default;
@@ -102,11 +138,33 @@
   gap: var(--sp-2);
 }
 
+/**
+ * One labelled control: the name in a column that fits it, the control in what
+ * is left, and an optional hint under the control. A `<label>` may carry this
+ * class directly, which is how a field names its control without an id.
+ */
 .field {
   display: grid;
   grid-template-columns: minmax(max-content, auto) minmax(0, 1fr);
   align-items: center;
-  gap: var(--sp-2);
+  gap: var(--sp-1) var(--sp-2);
+}
+
+.field_label {
+  color: var(--text-muted-color);
+  font-size: var(--fs-caption);
+}
+
+/* A control that has its own width sits at the start of its column rather
+   than in the middle of it. */
+.field :is(input[type="checkbox"], input[type="radio"]) {
+  justify-self: start;
+}
+
+.field_hint {
+  grid-column: 2;
+  color: var(--text-muted-color);
+  font-size: var(--fs-caption);
 }
 
 .toolbar {

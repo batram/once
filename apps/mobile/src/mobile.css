@@ -120,7 +120,10 @@
     display: none;
   }
 
-  /* ---------- Form control baseline ---------- */
+  /* ---------- Form control baseline ----------
+   Sizing and type only. What a control looks like — its border, radius, fill
+   and the select caret — belongs to parts/primitives.css, so every shell gets
+   the same control instead of this sheet being the only one that styles them. */
 
   button,
   input[type="button"],
@@ -130,26 +133,14 @@
   }
 
   textarea,
-  input {
+  input,
+  select {
     font-size: var(--fs-title);
-    border: var(--m-bw) solid var(--m-ink);
-    border-radius: var(--m-radius);
   }
 
   select {
-    appearance: none;
     padding: 0 var(--sp-5) 0 var(--sp-3);
-    background: var(--input-bg-color);
     font-family: var(--m-sans);
-    /* caret to replace the native dropdown arrow */
-    background-image:
-      linear-gradient(45deg, transparent 50%, var(--m-ink) 50%),
-      linear-gradient(135deg, var(--m-ink) 50%, transparent 50%);
-    background-position:
-      calc(100% - 14px) 50%,
-      calc(100% - 8px) 50%;
-    background-size: 6px 6px;
-    background-repeat: no-repeat;
   }
 
   /* Typography stays broad. A control that owns its box still reads as part of
@@ -1420,6 +1411,11 @@
     padding: 0;
   }
 
+  /* Anything that is not in that scroller therefore carries its own gutter. */
+  .settings_editor_block > .settings_description {
+    padding-inline: var(--sp-3);
+  }
+
   /* Back chevron then the subpage title — the bar no longer says "Settings"
    twice. Settings participates in the same back stack as the native back
    action, so the chevron stays visible on the section index too, where it
@@ -1474,12 +1470,6 @@
    say it twice. */
   .structured_form h3 {
     display: none;
-  }
-
-  .structured_form_field {
-    display: flex;
-    flex-direction: column;
-    gap: var(--sp-1);
   }
 
   .structured_form textarea {

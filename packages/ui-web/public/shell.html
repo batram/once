@@ -136,6 +136,10 @@
                   <nav id="settings_sections" aria-label="Settings sections"></nav>
                 </div>
                 <div class="settings_block settings_editor_block">
+                  <p class="settings_description">
+                    Feeds Once collects stories from. Add one per row, group
+                    them, or paste a list of addresses.
+                  </p>
                   <div class="input_container">
                     <div class="backdrop"></div>
                     <textarea
@@ -151,19 +155,23 @@
                       class="button"
                       data-action="save"
                       data-testid="save-sources"
-                    >save</button>
-                    <button type="button" class="button" data-action="cancel">cancel</button>
+                    >Save</button>
+                    <button type="button" class="button" data-action="cancel">Cancel</button>
                     <button
                       type="button"
                       class="button"
                       id="pick_source_button"
                       title="Build a source by picking story elements on the current page"
                       data-testid="pick-source"
-                    >pick from page</button>
+                    >Pick from page</button>
                     <span id="pick_source_status" role="status"></span>
                   </div>
                 </div>
                 <div class="settings_block settings_editor_block">
+                  <p class="settings_description">
+                    Keywords that move a story out of the list. Matching
+                    stories stay reachable under Filtered.
+                  </p>
                   <div class="input_container">
                     <textarea
                       id="filter_area"
@@ -177,11 +185,15 @@
                       class="button"
                       data-action="save"
                       data-testid="save-filters"
-                    >save</button>
-                    <button type="button" class="button" data-action="cancel">cancel</button>
+                    >Save</button>
+                    <button type="button" class="button" data-action="cancel">Cancel</button>
                   </div>
                 </div>
                 <div class="settings_block settings_editor_block">
+                  <p class="settings_description">
+                    Rules that rewrite a story address before it opens, for
+                    mirrors and reader-friendly hosts.
+                  </p>
                   <div class="input_container">
                     <textarea
                       id="redirect_area"
@@ -195,12 +207,18 @@
                       class="button"
                       data-action="save"
                       data-testid="save-redirects"
-                    >save</button>
-                    <button type="button" class="button" data-action="cancel">cancel</button>
+                    >Save</button>
+                    <button type="button" class="button" data-action="cancel">Cancel</button>
                   </div>
                 </div>
                 <div class="settings_block">
-                  <div class="couch-container masked">
+                  <p class="settings_description">
+                    Synchronise stories and settings with a CouchDB database.
+                    Leave it empty to keep everything on this device.
+                  </p>
+                  <div class="field">
+                    <label class="field_label" for="couch_input">Database URL</label>
+                    <div class="couch-container masked">
                     <div class="couch-highlights"></div>
                     <input
                       id="couch_input"
@@ -217,10 +235,11 @@
                     >
                       👁️
                     </button>
+                    </div>
                   </div>
                   <div class="settings_actions cluster">
-                    <button type="button" class="button" data-action="save" data-testid="save-sync">save</button>
-                    <button type="button" class="button" data-action="cancel">cancel</button>
+                    <button type="button" class="button" data-action="save" data-testid="save-sync">Save</button>
+                    <button type="button" class="button" data-action="cancel">Cancel</button>
                   </div>
                   <div
                     id="couch_status"
@@ -234,49 +253,79 @@
                   </div>
                 </div>
                 <div class="settings_block">
-                  <select id="theme_select" data-testid="theme" aria-label="Theme">
-                    <option value="dark">Dark</option>
-                    <option value="light">Light</option>
-                    <option value="system">System</option>
-                    <option value="custom">TODO: Custom</option>
-                  </select>
-                  <p>
-                    <input type="checkbox" id="anim_checkbox" />
-                    <label for="anim_checkbox">Animations</label>
+                  <p class="settings_description">
+                    How Once looks on this device.
                   </p>
+                  <div class="field">
+                    <label class="field_label" for="theme_select">Colour theme</label>
+                    <select id="theme_select" data-testid="theme">
+                      <option value="dark">Dark</option>
+                      <option value="light">Light</option>
+                      <option value="system">System</option>
+                      <option value="custom">TODO: Custom</option>
+                    </select>
+                    <label class="field_label" for="anim_checkbox">Animations</label>
+                    <input type="checkbox" id="anim_checkbox" />
+                    <span class="field_hint">
+                      Move rows when they are read, sorted, or removed.
+                    </span>
+                  </div>
                 </div>
                 <div class="settings_block" id="electron_layout_settings" hidden>
-                  <label class="settings_field_label" for="electron_story_position">
-                    Current story position:
-                  </label>
                   <p class="settings_description" id="electron_story_position_description">
-                    Choose where the selected story is shown in Electron. Keep it
-                    above the story list in the sidebar, or place it below the
-                    address bar so it stays beside the page content. This choice
-                    is remembered on this device.
+                    Where the selected story is shown. Keep it above the story
+                    list in the sidebar, or place it below the address bar so it
+                    stays beside the page content. Remembered on this device.
                   </p>
-                  <select id="electron_story_position" data-testid="electron-story-position"
-                    aria-describedby="electron_story_position_description">
-                    <option value="sidebar">Above the story list</option>
-                    <option value="browser">Below the address bar</option>
-                  </select>
+                  <div class="field">
+                    <label class="field_label" for="electron_story_position">
+                      Current story
+                    </label>
+                    <select id="electron_story_position" data-testid="electron-story-position"
+                      aria-describedby="electron_story_position_description">
+                      <option value="sidebar">Above the story list</option>
+                      <option value="browser">Below the address bar</option>
+                    </select>
+                  </div>
                 </div>
                 <div class="settings_block" id="keyboard_settings" hidden>
+                  <p class="settings_description">
+                    Pick a shortcut, then press the keys you want. Shortcuts are
+                    remembered on this device. Shortcuts without a modifier only
+                    work in the sidebar.
+                  </p>
                   <div id="keyboard_shortcuts" data-testid="keyboard-shortcuts"></div>
                 </div>
                 <div class="settings_block settings_swipe">
+                  <p class="settings_description">
+                    What dragging a story row left or right does. Try the
+                    gesture on the example row below.
+                  </p>
                   <div id="swipe_lab" data-testid="swipe-lab"></div>
                 </div>
                 <div class="settings_block">
-                  Cache timing (minutes):
-                  <input type="text" id="cache_time_input" />
-                  <div class="settings_actions cluster">
-                    <button type="button" class="button" id="cache_time_save">save</button>
-                    <button type="button" class="button" id="cache_time_cancel">cancel</button>
+                  <p class="settings_description">
+                    How long a fetched feed stays fresh before Once asks for it
+                    again. A collector or a single source can override this.
+                  </p>
+                  <h4 class="settings_subheading">Timing</h4>
+                  <p class="field_hint">Blank inherits. 0 always refetches.</p>
+                  <div class="cache_timing_rows" id="cache_timing_rows">
+                    <div class="field cache_timing_row">
+                      <label class="field_label" for="cache_time_input">
+                        Default (all collectors)
+                      </label>
+                      <input type="text" id="cache_time_input" inputmode="numeric"
+                        class="cache_timing_input" />
+                    </div>
                   </div>
                   <div id="cache_timing_panel" data-testid="cache-timing-panel"></div>
                 </div>
                 <div class="settings_block settings_error_log">
+                  <p class="settings_description">
+                    Problems Once ran into this session: sources that failed to
+                    load, and settings that could not be saved.
+                  </p>
                   <div class="settings_error_log_header row">
                     <div class="settings_actions cluster">
                       <button type="button" class="button" id="clear_error_log">Clear</button>
@@ -287,6 +336,9 @@
                   </div>
                 </div>
                 <div class="settings_block settings_version">
+                  <p class="settings_description">
+                    Which build of Once this is.
+                  </p>
                   <img
                     class="settings_about_logo"
                     src="imgs/icons/icon.svg"

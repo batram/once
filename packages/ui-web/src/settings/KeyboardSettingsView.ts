@@ -74,11 +74,7 @@ export class KeyboardSettingsView {
     const bindings = getKeybindings()
     this.host.replaceChildren()
 
-    const description = element("p", "settings_description")
-    description.textContent =
-      "Pick a shortcut, then press the keys you want. Shortcuts are remembered " +
-      "on this device. Shortcuts without a modifier only work in the sidebar."
-    this.host.append(description, this.status)
+    this.host.append(this.status)
     const browserBox = this.browserManagedGroup()
     if (browserBox) this.host.append(browserBox)
 
@@ -109,7 +105,7 @@ export class KeyboardSettingsView {
     const box = element("details", "keybinding_group")
     box.dataset.group = "browser-managed"
     box.open = true
-    const title = element("summary", "keybinding_group_title")
+    const title = element("summary", "keybinding_group_title settings_subheading")
     title.textContent = "Managed by your browser"
     box.append(title)
 
@@ -134,8 +130,8 @@ export class KeyboardSettingsView {
    * open it for us, so there it also gets a button.
    */
   private settingsPointer(shortcut: BrowserManagedShortcut): HTMLElement {
-    const hint = element("span", "keybinding_managed_hint")
-    const lead = element("span", "keybinding_managed_hint_text")
+    const hint = element("span", "keybinding_managed_hint field_hint")
+    const lead = document.createElement("span")
     lead.textContent = "Change it at"
     const url = element("span", "keybinding_managed_url")
     url.textContent = shortcut.settingsUrl
@@ -175,7 +171,7 @@ export class KeyboardSettingsView {
     hint.append(copy)
 
     if (shortcut.hint) {
-      const rest = element("span", "keybinding_managed_hint_text")
+      const rest = document.createElement("span")
       rest.textContent = shortcut.hint
       hint.append(rest)
     }
@@ -191,7 +187,7 @@ export class KeyboardSettingsView {
     const box = element("details", "keybinding_group")
     box.dataset.group = group
     box.open = !this.collapsed.has(group)
-    const title = element("summary", "keybinding_group_title")
+    const title = element("summary", "keybinding_group_title settings_subheading")
     title.textContent = GROUP_LABELS[group]
     box.append(title)
 

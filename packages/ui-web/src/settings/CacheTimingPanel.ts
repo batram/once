@@ -11,8 +11,10 @@
 import { OnceClient, SourceCacheStatus } from "@once/app"
 import { get_active } from "@once/collectors"
 import { humanTime, readCacheMinutesInput } from "@once/core"
+import { reportSettingsStatus, trackSettingsSave } from "./settingsStatus"
 
 const HOST_ID = "cache_timing_panel"
+const ROWS_ID = "cache_timing_rows"
 
 export class CacheTimingPanel {
   private subscribed = false
@@ -32,14 +34,9 @@ export class CacheTimingPanel {
       this.client.getCacheTime(),
       this.client.getSourceCacheStatus()
     ])
+    this.renderCollectorRows(timing.collectors, globalMinutes)
     host.textContent = ""
     host.append(
-      heading("Per-collector timing"),
-      note(
-        "Blank inherits the value above. 0 always refetches. " +
-        "A source can still override its own collector."
-      ),
-      this.collectorRows(timing.collectors, globalMinutes),
       heading("Cached feeds"),
       this.sourceRows(status),
       this.clearButton()
@@ -56,18 +53,25 @@ export class CacheTimingPanel {
     return host
   }
 
-  private collectorRows(
+  /**
+   * Collectors are further rows of the list the markup starts, whose first row
+   * is the default window. Only the generated rows are replaced: the default
+   * row is shell markup, because the section is resolved by that control's id
+   * before this panel has rendered anything.
+   */
+  private renderCollectorRows(
     overrides: Record<string, number>,
     globalMinutes: number
-  ): HTMLElement {
-    const list = document.createElement("div")
-    list.className = "cache_timing_rows stack"
+  ): void {
+    const list = document.getElementById(ROWS_ID)
+    if (!list) return
+    list.querySelectorAll("[data-collector]").forEach((row) => row.remove())
     for (const collector of get_active()) {
       const { id, description, cache_minutes: shipped } = collector.options
       const row = document.createElement("label")
-      row.className = "cache_timing_row row"
+      row.className = "cache_timing_row field"
       const name = document.createElement("span")
-      name.className = "cache_timing_name"
+      name.className = "field_label"
       // Labelled by description: both Reddit collectors carry the badge "re",
       // so the badge cannot tell one row from the other.
       name.textContent = description
@@ -81,12 +85,11 @@ export class CacheTimingPanel {
       // The inherited value is shown as a placeholder, so an empty field still
       // says what will happen without claiming the user chose it.
       input.placeholder = String(shipped ?? globalMinutes)
-      input.setAttribute("aria-label", `Cache minutes for ${description}`)
       input.addEventListener("change", () => void this.saveCollector(input))
       row.append(name, input)
+      row.dataset.collector = id
       list.append(row)
     }
-    return list
   }
 
   private async saveCollector(input: HTMLInputElement): Promise<void> {
@@ -95,17 +98,20 @@ export class CacheTimingPanel {
     const parsed = readCacheMinutesInput(input.value)
     if (!parsed.ok) {
       input.setAttribute("aria-invalid", "true")
+      reportSettingsStatus(input, "failed")
       return
     }
     input.removeAttribute("aria-invalid")
-    const timing = await this.client.getCacheTiming()
-    // Rebuilt without the row's key rather than deleted from a copy: blank
-    // means "no override", which is an absent entry, not a stored zero.
-    const collectors = Object.fromEntries(
-      Object.entries(timing.collectors).filter(([key]) => key !== id)
-    )
-    if (parsed.minutes !== undefined) collectors[id] = parsed.minutes
-    await this.client.setCacheTiming({ ...timing, collectors })
+    await trackSettingsSave(input, async () => {
+      const timing = await this.client.getCacheTiming()
+      // Rebuilt without the row key rather than deleted from a copy: blank
+      // means "no override", which is an absent entry, not a stored zero.
+      const collectors = Object.fromEntries(
+        Object.entries(timing.collectors).filter(([key]) => key !== id)
+      )
+      if (parsed.minutes !== undefined) collectors[id] = parsed.minutes
+      await this.client.setCacheTiming({ ...timing, collectors })
+    })
   }
 
   private sourceRows(status: SourceCacheStatus[]): HTMLElement {
@@ -114,7 +120,7 @@ export class CacheTimingPanel {
     list.dataset.testid = "cache-source-rows"
     if (!status.length) {
       const empty = document.createElement("p")
-      empty.className = "cache_timing_note"
+      empty.className = "settings_description"
       empty.textContent = "No story sources yet."
       list.append(empty)
       return list
@@ -189,13 +195,6 @@ function describeWindow(source: SourceCacheStatus): string {
 function heading(text: string): HTMLElement {
   const element = document.createElement("h4")
   element.className = "settings_subheading"
-  element.textContent = text
-  return element
-}
-
-function note(text: string): HTMLElement {
-  const element = document.createElement("p")
-  element.className = "cache_timing_note"
   element.textContent = text
   return element
 }

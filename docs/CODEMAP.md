@@ -106,6 +106,8 @@ All paths below are under `packages/ui-web/src`.
 - `settings/CacheTimingPanel.ts` renders the per-collector windows and the
   per-source cache rows inside the existing cache settings block, wired from
   `SettingsPersistence.ts`.
+- `settings/settingsStatus.ts` owns the one line per block that says whether the
+  last change reached storage; every instant-saving control reports through it.
 - `packages/app/src/sourceMenu.ts` derives the group and type menu from a
   source document.
 - `gesture/dragReorder.ts` owns reusable row reordering and drag-edge

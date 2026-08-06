@@ -18,7 +18,7 @@ test("swipe settings autosave, undo, and reset without submit controls", async (
   await expect(page.getByTestId("save-swipe")).toHaveCount(0)
   await expect(page.getByTestId("undo-swipe")).toBeDisabled()
   await page.getByTestId("swipe-right-1").selectOption("toggle-bookmark")
-  await expect(page.getByTestId("swipe-save-status")).toHaveText("saving…")
+  await expect(page.getByTestId("swipe-save-status")).toHaveText("Saving…")
   await waitForSwipeSettings(page)
   await expect(page.getByTestId("undo-swipe")).toBeEnabled()
 

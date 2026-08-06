@@ -249,7 +249,10 @@ test("filters edit inline and expose a row remove button", async ({ page }) => {
       dividerLeft: divider.left
     }
   })
-  expect(editMetrics.centers.every(({ dx, dy }) => dx <= 1 && dy <= 1))
+  // Rounded to a tenth: the check glyph is a rotated box, so its measured
+  // centre carries float noise from wherever the row happens to land.
+  const offBy = (value) => Math.round(value * 10) / 10
+  expect(editMetrics.centers.every(({ dx, dy }) => offBy(dx) <= 1 && offBy(dy) <= 1))
     .toBe(true)
   expect(editMetrics.dividerWidth).toBe("1px")
   expect(editMetrics.dividerLeft).toBe("16px")

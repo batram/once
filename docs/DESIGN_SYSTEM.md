@@ -176,6 +176,23 @@ recorded in
 [`button-adoption-exceptions.json`](../tests/e2e/mobile/button-adoption-exceptions.json)
 with a reason and a removal condition, or the guard fails.
 
+### Form controls
+
+`input`, `select`, and `textarea` take their box from the primitive sheet:
+border, radius, fill, inherited typography, and the caret a `select` needs once
+`appearance: none` removes the native one. Checkboxes and radios are excluded —
+their intrinsic box *is* the control.
+
+The selector is deliberately weak (`input:where(:not(...))`), so any component
+rule outranks it. A component that wants a different box declares one; a
+component that sets `background` shorthand drops the select caret and must
+restate it or set `background-color` instead.
+
+Platform sheets own sizing, not appearance. `mobile.css` raises controls to
+`--touch` and shifts the type scale; it no longer decides what a control looks
+like, which is what used to leave every other shell with raw OS widgets beside
+styled buttons.
+
 ### Icon
 
 ```html
@@ -205,8 +222,13 @@ CSS still owns nonstandard gaps, alignment, and geometry.
 | `.row` | Non-wrapping inline axis, centered cross-axis, `--sp-2` gap |
 | `.stack` | Block axis, `--sp-2` gap |
 | `.cluster` | Wrapping inline grouping, centered, `--sp-2` gap |
-| `.field` | Label/control grid pair |
+| `.field` | Label/control grid pair, with `.field_label` and `.field_hint` |
 | `.toolbar` | `.row` starting at the inline start |
+
+A list of fields shares one label column so its controls line up: the list is
+the grid and each `.field` inside it is `display: contents`. Settings does this
+for the item editors and the cache windows, and collapses to a single column
+under the panel's 420px container query.
 
 Adopting a primitive is not a goal in itself. Do not replace a working flex
 declaration to raise an adoption count.

@@ -1,6 +1,7 @@
 import { OnceClient, ThemeName } from "@once/app"
 import { requireElement } from "../dom"
 import { CacheTimingPanel } from "./CacheTimingPanel"
+import { trackSettingsSave } from "./settingsStatus"
 
 export class SettingsPersistence {
   private readonly cachePanel: CacheTimingPanel
@@ -49,7 +50,8 @@ export class SettingsPersistence {
   }
 
   saveTheme(name: string): void {
-    this.client.setTheme(name as ThemeName)
+    const select = requireElement<HTMLSelectElement>("#theme_select")
+    void trackSettingsSave(select, () => this.client.setTheme(name as ThemeName))
     this.applyTheme(name)
   }
 
@@ -70,8 +72,9 @@ export class SettingsPersistence {
   }
 
   saveAnimation(checked: boolean): void {
-    this.client.setAnimation(checked)
-    requireElement<HTMLInputElement>("#anim_checkbox").checked = checked
+    const box = requireElement<HTMLInputElement>("#anim_checkbox")
+    void trackSettingsSave(box, () => this.client.setAnimation(checked))
+    box.checked = checked
     this.applyAnimation(checked)
   }
 
@@ -90,6 +93,6 @@ export class SettingsPersistence {
 
   async saveCache(): Promise<void> {
     const input = requireElement<HTMLInputElement>("#cache_time_input")
-    await this.client.setCacheTime(input.value)
+    await trackSettingsSave(input, () => this.client.setCacheTime(input.value))
   }
 }

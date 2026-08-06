@@ -496,7 +496,7 @@ test("button semantics, accessible names, keyboard focus, and layout primitives 
 
 test("ordinary desktop Settings actions share the dense button skin", async ({ page }) => {
   await page.goto(`${baseURL}/static/sidepanel.html`)
-  const action = page.locator("#cache_time_save")
+  const action = page.getByTestId("save-sources")
   await expect(action).toHaveClass(/\bbutton\b/)
   await expect(action).toHaveCSS("box-sizing", "border-box")
   await expect(action).toHaveCSS("height", "22px")
@@ -599,9 +599,9 @@ test("the swipe footer keeps its action cluster on the right", async ({ page }) 
   await page.locator("body").evaluate((body) => {
     body.insertAdjacentHTML("beforeend", `
       <div class="swipe_footer row" style="width: 400px">
-        <span class="swipe_save_status">all changes saved</span>
-        <button class="button" type="button">undo</button>
-        <button class="button" type="button">reset to defaults</button>
+        <span class="swipe_save_status settings_status">Saved</span>
+        <button class="button" type="button">Undo</button>
+        <button class="button" type="button">Reset to defaults</button>
       </div>
     `)
   })
