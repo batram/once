@@ -155,11 +155,11 @@ test("lets the user place the current story below the address bar", async () => 
 
     const position = await openSettingsSection(
       window,
-      "electron-layout",
+      "theme",
       "#electron_story_position"
     )
     await expect(window.locator("#electron_story_position_description"))
-      .toContainText("below the address bar")
+      .toContainText("Below the address bar keeps the story beside the page")
     await expect(position).toHaveAttribute(
       "aria-describedby",
       "electron_story_position_description"

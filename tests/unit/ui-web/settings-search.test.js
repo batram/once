@@ -127,13 +127,58 @@ test("never indexes the CouchDB URL or its masking presentation", () => {
   })
 })
 
+test("skips a platform-only group the current platform keeps hidden", () => {
+  withDom(`
+    <section>
+      <h4>Theme</h4>
+      <label for="theme_select">Colour theme</label>
+      <select id="theme_select"><option selected>Dark</option></select>
+      <section id="electron_layout_settings" data-platform-only="electron" hidden>
+        <h4>Layout</h4>
+        <label for="electron_story_position">Current story</label>
+        <select id="electron_story_position">
+          <option selected>Above the story list</option>
+        </select>
+      </section>
+    </section>
+  `, (section) => {
+    const searchText = settingsSearchSegments(section)
+      .map((segment) => segment.text)
+      .join(" ")
+    assert.match(searchText, /Theme/)
+    assert.match(searchText, /Colour theme/)
+    // The heading is inside the hidden group, so it goes with it rather than
+    // standing in the results over nothing.
+    assert.doesNotMatch(searchText, /Layout|Current story|Above the story list/)
+    assert.equal(matchSettingsSection(section, "Appearance", "current story"), null)
+  })
+})
+
+// `hidden` on its own means "not showing right now", which is also true of the
+// text-mode textarea behind an open structured editor. Its lines are still the
+// section's own content and still have to be findable.
+test("still indexes a control hidden by a mode switch rather than by platform", () => {
+  withDom(`
+    <section>
+      <div hidden>
+        <textarea id="sources_area"></textarea>
+      </div>
+    </section>
+  `, (section) => {
+    section.querySelector("#sources_area").value = "news.example.test/news?p=2"
+    const match = matchSettingsSection(section, "Story sources", "news?p=2")
+    assert.equal(match.matches[0].text, "news.example.test/news?p=2")
+    assert.equal(match.matches[0].controlId, "sources_area")
+  })
+})
+
 test("returns no match for unrelated text and no details for a title match", () => {
   withDom("<section><span>Animation enabled</span></section>", (section) => {
     assert.deepEqual(
-      matchSettingsSection(section, "Theme & animations", "THEME"),
+      matchSettingsSection(section, "Appearance", "APPEAR"),
       { matches: [], totalMatches: 0 }
     )
-    assert.equal(matchSettingsSection(section, "Theme & animations", "redirect"), null)
+    assert.equal(matchSettingsSection(section, "Appearance", "redirect"), null)
   })
 })
 

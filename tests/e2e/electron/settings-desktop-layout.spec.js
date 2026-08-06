@@ -197,6 +197,17 @@ test("keeps every structured desktop editor usable", async () => {
     await window.getByTestId("add-source").click()
     await expect(window.getByTestId("structured-item-form")).toBeVisible()
     await expect(window.getByTestId("structured-save")).toBeVisible()
+    // A pointer has room for the words: the commit pair is named here, and the
+    // glyph pair belongs to the phone's action bar.
+    await expect(window.getByTestId("structured-save")).toHaveText("Save")
+    await expect(
+      window.getByTestId("structured-item-form")
+        .locator(".structured_inline_action")
+    ).toHaveCount(0)
+    // Its own switch, in the header rather than among the rows.
+    await expect(
+      window.locator(".structured_form_header .structured_form_toggle .switch")
+    ).toHaveCount(1)
     await expect(
       window.getByTestId("structured-item-form")
         .getByRole("button", { name: "Cancel" })

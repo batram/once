@@ -100,6 +100,12 @@ export type StructuredFormField = [
     choices?: Array<[string, string]>
     optional?: boolean
     multiline?: boolean
+    /**
+     * Names the run of rows this field belongs to. Consecutive fields sharing
+     * a group are rendered under one subheading; fields without one open the
+     * form in an unnamed run.
+     */
+    group?: string
   }?
 ]
 
@@ -144,6 +150,7 @@ function createFormInput(
     input.type = kind === "checkbox" ? "checkbox" : kind
   }
   if (input instanceof HTMLInputElement && input.type === "checkbox") {
+    input.className = "switch"
     input.checked = field[1] !== "false"
     input.value = input.checked ? "true" : "false"
     input.addEventListener("change", () => { input.value = input.checked ? "true" : "false" })
@@ -152,30 +159,49 @@ function createFormInput(
   return input
 }
 
+/**
+ * One settings row: the field's name, its hint under the name, and the control
+ * beside them. The same three-part row the shell's own settings use, so a form
+ * opened inside a section lines up with the section around it.
+ */
 function appendFormField(
-  form: HTMLElement,
+  rows: HTMLElement,
   input: FormField,
   field: StructuredFormField
 ): void {
   const label = document.createElement("label")
-  const check = input instanceof HTMLInputElement && input.type === "checkbox"
-  label.className = check
-    ? "structured_form_field field_check"
-    : "structured_form_field field"
+  label.className = "structured_form_field settings_row"
   const name = document.createElement("span")
-  name.className = "field_label"
+  name.className = "settings_row_name"
   name.textContent = field[0]
-  // A tick reads as its name plus a box, in that order; every other control
-  // is named first and answered below or beside.
-  if (check) label.append(input, name)
-  else label.append(name, input)
+  label.append(name)
   if (field[2]?.hint) {
     const hint = document.createElement("span")
-    hint.className = "field_hint"
+    hint.className = "settings_row_hint"
     hint.textContent = field[2].hint
     label.append(hint)
   }
-  form.append(label)
+  label.append(input)
+  rows.append(label)
+}
+
+/**
+ * The switch a form carries in its header rather than among its rows: one
+ * question about the whole record — is this thing on — which belongs beside the
+ * title it applies to, not in the list of the record's parts.
+ */
+function appendHeaderToggle(
+  header: HTMLElement,
+  input: FormField,
+  field: StructuredFormField
+): void {
+  const label = document.createElement("label")
+  label.className = "structured_form_toggle"
+  const name = document.createElement("span")
+  name.className = "field_label"
+  name.textContent = field[0]
+  label.append(name, input)
+  header.append(label)
 }
 
 export function showStructuredForm(options: StructuredFormOptions): void {
@@ -184,12 +210,37 @@ export function showStructuredForm(options: StructuredFormOptions): void {
   form.className = "structured_form"
   if (options.createTester) form.classList.add("structured_redirect_form")
   form.dataset.testid = "structured-item-form"
+  const header = document.createElement("div")
+  header.className = "structured_form_header row"
   const title = document.createElement("h3")
   title.textContent = options.title
-  form.append(title)
+  header.append(title)
+  form.append(header)
+  // Consecutive fields naming the same group share one run of rows. Tracking
+  // the last name rather than collecting by name keeps the caller's field
+  // order authoritative: a run ends where the caller stopped naming it.
+  let rows: HTMLElement | null = null
+  let openGroup: string | undefined
   const inputs = options.fields.map((field, index) => {
     const input = createFormInput(options, field, index)
-    appendFormField(form, input, field)
+    if (input instanceof HTMLInputElement && input.type === "checkbox") {
+      appendHeaderToggle(header, input, field)
+      return input
+    }
+    const group = field[2]?.group
+    if (!rows || group !== openGroup) {
+      rows = document.createElement("section")
+      rows.className = "settings_rows"
+      if (group) {
+        const heading = document.createElement("h4")
+        heading.className = "settings_subheading"
+        heading.textContent = group
+        rows.append(heading)
+      }
+      form.append(rows)
+      openGroup = group
+    }
+    appendFormField(rows, input, field)
     return input
   })
   const tester = options.createTester?.(inputs)
@@ -199,13 +250,26 @@ export function showStructuredForm(options: StructuredFormOptions): void {
   error.setAttribute("role", "alert")
   const actions = document.createElement("div")
   actions.className = "structured_form_actions row"
-  const save = createInlineActionButton("Save", () => {
+  // A pointer has room for the words and nothing to gain from decoding a
+  // glyph; a phone's action bar does not, and its two icons are already the
+  // gesture people know there. Same buttons, named where naming is free.
+  const commit = (
+    label: "Save" | "Cancel",
+    action: () => void,
+    testid?: string
+  ) => {
+    if (options.onTouch) return createInlineActionButton(label, action, testid)
+    const button = createActionButton(label, action, testid)
+    button.className = "button"
+    return button
+  }
+  const save = commit("Save", () => {
     if (!form.reportValidity()) return
     if (!options.save(inputs.map((input) => input.value))) {
       error.textContent = "Complete all required fields."
     }
   }, "structured-save")
-  const cancel = createInlineActionButton("Cancel", options.dismiss)
+  const cancel = commit("Cancel", options.dismiss)
   options.setOpenEditor(options.dismiss)
   if (tester) {
     if (options.onTouch) tester.element.append(tester.corpus)

@@ -18,6 +18,15 @@ export function updateSettingsSummaries(
   const animation = document.querySelector<HTMLInputElement>("#anim_checkbox")
     ?.checked ? "animated" : "still"
   const theme = value("#theme_select") || "system"
+  // Only Electron reveals the story-position control, so only Electron's
+  // summary carries it.
+  const storyPosition =
+    document.querySelector<HTMLElement>("#electron_layout_settings")
+      ?.hidden === false
+      ? value("#electron_story_position") === "browser"
+        ? " · below address bar"
+        : " · above story list"
+      : ""
   const swipeRight = document.querySelector<HTMLSelectElement>(
     '[data-swipe="right-0"]'
   )?.selectedOptions[0]?.textContent || "Read"
@@ -38,11 +47,9 @@ export function updateSettingsSummaries(
       text: document.querySelector("#couch_status")?.textContent?.trim() ||
         "Not configured"
     },
-    theme: { text: `${theme[0]?.toUpperCase()}${theme.slice(1)} · ${animation}` },
-    "electron-layout": {
-      text: value("#electron_story_position") === "browser"
-        ? "Below address bar"
-        : "Above story list"
+    theme: {
+      text: `${theme[0]?.toUpperCase()}${theme.slice(1)} · ${animation}` +
+        storyPosition
     },
     keyboard: { text: keyboardSummary() },
     swipe: { text: `${swipeRight} · ${swipeLeft}` },

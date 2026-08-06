@@ -85,6 +85,13 @@
     var(--text-high-color) 7%,
     var(--input-bg-color)
   );
+  /* A switch that is on. Not --highlight-bg-color: its light-theme khaki sits
+     too close to the cream background, so an on switch read as an off one. */
+  --switch-on-color: light-dark(#4050ac, #5a68c8);
+  /* The rule between two settings in a list. --sep-color at full strength is a
+     structural edge — panel borders, titlebars — and reads as a heavy black
+     line when it is only telling one row from the next. */
+  --divider-color: color-mix(in srgb, var(--sep-color) 28%, transparent);
   --error-color: light-dark(#c83d3d, #ff6b6b);
   /* Was only ever referenced through a var() fallback, so dark mode silently
      used the light theme's muddy amber. */

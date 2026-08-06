@@ -42,6 +42,85 @@
   display: contents;
 }
 
+/**
+ * A run of settings that belong together, named by one subheading and divided
+ * by hairlines rather than boxed. Several runs in a section read as one
+ * continuous list this way, which is what a section of plain preferences wants
+ * — unlike the boxed .settings_group, which suits a run that folds away or
+ * carries a table.
+ *
+ * A run is also the unit a platform hides: a group only its platform owns keeps
+ * its heading inside the run, so hiding one element takes the heading with it
+ * rather than leaving it standing over nothing.
+ */
+.settings_rows > .settings_subheading {
+  margin: var(--sp-4) 0 0;
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--divider-color);
+}
+
+.settings_rows:first-child > .settings_subheading {
+  margin-top: var(--sp-2);
+}
+
+/* Name and hint together on one side, the control on the other. The columns are
+   a ratio rather than a width: the control keeps the same share of a wide panel
+   as of a narrow one, and the name never loses its room to a fixed control. */
+.settings_row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr);
+  grid-template-areas:
+    "name control"
+    "hint control";
+  align-items: center;
+  gap: var(--sp-1) var(--sp-4);
+  padding: var(--sp-3) 0;
+  border-bottom: 1px solid var(--divider-color);
+}
+
+.settings_row_name {
+  grid-area: name;
+  align-self: center;
+  color: var(--text-high-color);
+  font-weight: 700;
+}
+
+/* A name with a hint under it leans down onto the hint so the two read as one
+   block; a name on its own has nothing to lean towards and stays centred. The
+   test is "something follows me before the control" — spanning rows instead
+   would place the name across the stacked layout's control row and hide it
+   behind the control. */
+.settings_row_name:not(:nth-last-child(2)) {
+  align-self: end;
+}
+
+.settings_row_hint {
+  grid-area: hint;
+  align-self: start;
+  margin: 0;
+  color: var(--text-muted-color);
+  font-size: var(--fs-caption);
+  line-height: 1.4;
+}
+
+.settings_row > :is(select, input, textarea) {
+  grid-area: control;
+}
+
+.settings_row > :is(select, input, textarea):not(.switch) {
+  width: 100%;
+}
+
+/* A switch is small enough to stay beside its name at any width, so its column
+   is only as wide as it is and the row never stacks. */
+.settings_row_inline {
+  grid-template-columns: minmax(0, 1fr) max-content;
+}
+
+.settings_row_inline > .switch {
+  justify-self: end;
+}
+
 #settings_index {
   flex: 0 0 240px;
   padding: var(--sp-2);
@@ -819,12 +898,32 @@
   color: var(--text-color);
 }
 
+/* A stack of runs, not a grid: each .settings_row carries its own two columns,
+   which is what lets a form opened inside a section line up with the section's
+   own rows rather than with the other fields of the form. */
 .structured_form {
-  display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   align-content: start;
+}
+
+/* The record's title, and beside it the one switch that applies to the whole
+   record rather than to any field of it. */
+.structured_form_header {
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+/* Pushed to the trailing edge rather than spaced against the title, because a
+   platform that shows the record's name in its own subpage header hides the
+   title here — and space-between would then park the switch on the left,
+   away from every other switch in settings. */
+.structured_form_toggle {
+  display: flex;
   align-items: center;
   gap: var(--sp-2);
+  margin-left: auto;
+  cursor: pointer;
 }
 
 /* Name on the left, a short window on the right: these are list rows, and they
@@ -839,12 +938,10 @@
 
 /* A row of a shared grid rather than a grid of its own: one label column for
    the whole list is what makes the controls line up. */
-.structured_form .field,
 .cache_timing_rows .field {
   display: contents;
 }
 
-.structured_form > :not(.field),
 .cache_timing_rows > :not(.field) {
   grid-column: 1 / -1;
 }
@@ -896,10 +993,6 @@
 .structured_form select,
 .structured_form textarea {
   width: 100%;
-}
-
-.structured_form input[type="checkbox"] {
-  justify-self: start;
 }
 
 .structured_validation {
@@ -1599,21 +1692,22 @@
 }
 
 /* Every structured form ends the same way: anything on the left, then the
-   commit pair at the trailing edge. */
+   commit pair at the trailing edge. The pair is named here and iconic on a
+   phone, so the track it needs is whatever the words come to rather than two
+   glyph-wide columns; mobile.css sets its own. */
 .structured_form .structured_form_actions {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 22px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-2);
   margin: 0;
+  padding-top: var(--sp-3);
 }
 
-.structured_form_actions .structured_inline_action[aria-label="Save"] {
-  grid-row: 1;
-  grid-column: 2;
-}
-
-.structured_form_actions .structured_inline_action[aria-label="Cancel"] {
-  grid-row: 1;
-  grid-column: 3;
+/* Anything a form puts before the commit pair — a delete, a redirect's test
+   corpus — keeps the leading edge and pushes the pair to the trailing one. */
+.structured_form_actions > :first-child:not(.button) {
+  margin-right: auto;
 }
 
 /* An editing row carries its own tint and rail; the hover fill would bury
@@ -1862,6 +1956,23 @@
 
   #settings_panel .field_hint {
     grid-column: 1;
+  }
+
+  /* Too narrow for a name column beside the control: the control takes its own
+     line. The hint follows it rather than the name, so the reader meets the
+     choice first and the explanation second. A switch row is exempt — it never
+     needed the width. */
+  .settings_row:not(.settings_row_inline) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "name"
+      "control"
+      "hint";
+  }
+
+  /* Finger-sized rather than pointer-sized. */
+  .switch {
+    --switch-size: 30px;
   }
 }
 

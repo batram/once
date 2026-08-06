@@ -101,8 +101,8 @@ test("searches settings content without changing the open detail", async () => {
     await expect(rows.filter({ visible: true })).toHaveCount(0)
 
     await search.fill("")
-    await expect(rows).toHaveCount(11)
-    await expect(rows.filter({ visible: true })).toHaveCount(11)
+    await expect(rows).toHaveCount(10)
+    await expect(rows.filter({ visible: true })).toHaveCount(10)
 
     const errorId = "error-log-settings-search-e2e"
     await window.locator("#error_log").evaluate((log, id) => {
@@ -158,8 +158,9 @@ test("opens structured entries from settings search results", async () => {
     await expect(sourceMatch).toHaveCount(1)
     await sourceMatch.click()
     await expect(window.getByTestId("structured-item-form")).toBeVisible()
-    await expect(window.getByTestId("structured-item-form").locator("input").first())
-      .toHaveValue("https://news.ycombinator.com/news?p=2")
+    await expect(
+      window.getByTestId("structured-item-form").getByLabel("URL", { exact: true })
+    ).toHaveValue("https://news.ycombinator.com/news?p=2")
 
     await window.locator("#settings_section_back").click()
     await window.locator("#settings_section_back").click()
@@ -192,10 +193,10 @@ test("settings menu always resets to a clean section index", async () => {
     )
     await expect(window.locator(".settings_section.active")).toHaveCount(0)
     await expect(window.locator("#settings_search")).toHaveValue("")
-    await expect(window.locator(".settings_section_row")).toHaveCount(11)
+    await expect(window.locator(".settings_section_row")).toHaveCount(10)
     await expect(window.locator(".settings_section_row").filter({
       visible: true
-    })).toHaveCount(11)
+    })).toHaveCount(10)
     await expect(
       window.locator('[data-settings-target="sources"] .settings_section_summary')
     ).toHaveText("5")

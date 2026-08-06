@@ -17,6 +17,13 @@ interface SearchSegment extends SettingsSearchMatch {
 
 export const MAX_SETTINGS_MATCHES = 8
 
+/**
+ * A setting only one platform owns, on a platform that does not. The attribute
+ * names the owner and never moves; `hidden` is the part the owning platform
+ * clears at startup, so the pair together means "not mine".
+ */
+const PLATFORM_ONLY_HIDDEN = "[data-platform-only][hidden]"
+
 const normalize = (value: string): string =>
   value.replace(/\s+/g, " ").trim()
 
@@ -66,6 +73,15 @@ export function settingsSearchSegments(section: HTMLElement): SearchSegment[] {
       element.remove()
     })
 
+  // A platform that does not own a setting hides it in place rather than
+  // removing it from the shared shell. Searching must not reach past that.
+  // `hidden` alone cannot be the test: it also marks the text-mode textarea
+  // behind a structured editor, whose content is still the section's own and
+  // still has to be findable.
+  copy.querySelectorAll(PLATFORM_ONLY_HIDDEN).forEach((element) => {
+    element.remove()
+  })
+
   if (section.ownerDocument.body.dataset.platform !== "mobile") {
     copy.querySelectorAll(".swipe_mobile_only").forEach((element) => {
       element.remove()
@@ -95,6 +111,9 @@ export function settingsSearchSegments(section: HTMLElement): SearchSegment[] {
       if (control.id === "couch_input" || control.closest(".couch-container")) {
         return
       }
+      // Live values are read from the section itself rather than the pruned
+      // copy, so the subtrees dropped above have to be skipped again.
+      if (control.closest(PLATFORM_ONLY_HIDDEN)) return
       if (control instanceof HTMLTextAreaElement) {
         let lineStart = 0
         for (const line of control.value.split("\n")) {

@@ -194,8 +194,15 @@ export class SettingsPanel {
     for (const [key, label, selector] of settingsSectionDefinitions) {
       const control = requireElement<HTMLElement>(selector)
       const block = requireClosestElement<HTMLElement>(control, ".settings_block")
-      // Platform-owned settings stay in the shared shell, but their platform
-      // reveals them before SettingsPanel builds its navigation.
+      // Platform-owned settings stay in the shared shell, marked
+      // `data-platform-only` and hidden until their platform reveals them —
+      // which it does before SettingsPanel builds its navigation. A setting
+      // that owns a whole section hides its `.settings_block`, and staying
+      // hidden drops the section entirely (#keyboard_settings). A setting that
+      // only adds a group to a shared section hides that group inside the block
+      // instead (#electron_layout_settings); the section itself always shows,
+      // and settingsSearch prunes the still-hidden group so neither it nor its
+      // heading is reachable where it does not apply.
       if (block.hidden) continue
       const section = document.createElement("section")
       section.className = "settings_section"

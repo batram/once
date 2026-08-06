@@ -42,11 +42,7 @@
                 <p>Reading</p>
               </span>
             </button>
-            <section
-              class="sidebar_panel"
-              id="stories_menu_btn"
-              data-panel="stories"
-            >
+            <section class="sidebar_panel" id="stories_menu_btn" data-panel="stories">
               <button
                 type="button"
                 class="button heading"
@@ -97,26 +93,18 @@
               </div>
               <div id="startup_status" role="status" aria-live="polite" hidden>
                 <span id="startup_status_text">Starting Once…</span>
-                <button id="startup_retry" type="button" class="button" hidden>
-                  Retry
-                </button>
+                <button id="startup_retry" type="button" class="button" hidden>Retry</button>
               </div>
               <div id="mobile_filter_chips" aria-label="Story filters"></div>
               <div class="stories_container" id="selected_container"></div>
-              <div
-                class="stories_container"
-                id="stories"
-                data-testid="stories"
-              ></div>
+              <div class="stories_container" id="stories" data-testid="stories"></div>
               <div class="stories_container" id="global_search_results"></div>
               <div class="stories_container" id="filtered_stories"></div>
             </div>
             <div id="settings_panel" class="panel" data-panel="settings">
               <div class="bar toolbar panel_titlebar">
                 <div class="settings_title">Settings</div>
-                <button type="button" class="button" id="settings_section_back">
-                  Settings
-                </button>
+                <button type="button" class="button" id="settings_section_back">Settings</button>
                 <button
                   type="button"
                   class="button bar_btn collapsebutton"
@@ -136,17 +124,9 @@
                   <nav id="settings_sections" aria-label="Settings sections"></nav>
                 </div>
                 <div class="settings_block settings_editor_block">
-                  <p class="settings_description">
-                    Feeds Once collects stories from. Add one per row, group
-                    them, or paste a list of addresses.
-                  </p>
                   <div class="input_container">
                     <div class="backdrop"></div>
-                    <textarea
-                      id="sources_area"
-                      spellcheck="false"
-                      data-testid="sources"
-                    ></textarea>
+                    <textarea id="sources_area" spellcheck="false" data-testid="sources"></textarea>
                     <div class="highlights"></div>
                   </div>
                   <div class="settings_actions cluster">
@@ -155,7 +135,9 @@
                       class="button"
                       data-action="save"
                       data-testid="save-sources"
-                    >Save</button>
+                    >
+                      Save
+                    </button>
                     <button type="button" class="button" data-action="cancel">Cancel</button>
                     <button
                       type="button"
@@ -163,21 +145,15 @@
                       id="pick_source_button"
                       title="Build a source by picking story elements on the current page"
                       data-testid="pick-source"
-                    >Pick from page</button>
+                    >
+                      Pick from page
+                    </button>
                     <span id="pick_source_status" role="status"></span>
                   </div>
                 </div>
                 <div class="settings_block settings_editor_block">
-                  <p class="settings_description">
-                    Keywords that move a story out of the list. Matching
-                    stories stay reachable under Filtered.
-                  </p>
                   <div class="input_container">
-                    <textarea
-                      id="filter_area"
-                      spellcheck="false"
-                      data-testid="filters"
-                    ></textarea>
+                    <textarea id="filter_area" spellcheck="false" data-testid="filters"></textarea>
                   </div>
                   <div class="settings_actions cluster">
                     <button
@@ -185,15 +161,13 @@
                       class="button"
                       data-action="save"
                       data-testid="save-filters"
-                    >Save</button>
+                    >
+                      Save
+                    </button>
                     <button type="button" class="button" data-action="cancel">Cancel</button>
                   </div>
                 </div>
                 <div class="settings_block settings_editor_block">
-                  <p class="settings_description">
-                    Rules that rewrite a story address before it opens, for
-                    mirrors and reader-friendly hosts.
-                  </p>
                   <div class="input_container">
                     <textarea
                       id="redirect_area"
@@ -207,38 +181,38 @@
                       class="button"
                       data-action="save"
                       data-testid="save-redirects"
-                    >Save</button>
+                    >
+                      Save
+                    </button>
                     <button type="button" class="button" data-action="cancel">Cancel</button>
                   </div>
                 </div>
                 <div class="settings_block">
-                  <p class="settings_description">
-                    Synchronise stories and settings with a CouchDB database.
-                    Leave it empty to keep everything on this device.
-                  </p>
                   <div class="field">
                     <label class="field_label" for="couch_input">Database URL</label>
                     <div class="couch-container masked">
-                    <div class="couch-highlights"></div>
-                    <input
-                      id="couch_input"
-                      data-testid="sync-url"
-                      type="text"
-                      spellcheck="false"
-                      placeholder="https://cred:entials@couchdb.example.org/once"
-                    />
-                    <button
-                      id="couch_toggle"
-                      type="button"
-                      class="button button--icon"
-                      aria-label="Toggle password visibility"
-                    >
-                      👁️
-                    </button>
+                      <div class="couch-highlights"></div>
+                      <input
+                        id="couch_input"
+                        data-testid="sync-url"
+                        type="text"
+                        spellcheck="false"
+                        placeholder="https://cred:entials@couchdb.example.org/once"
+                      />
+                      <button
+                        id="couch_toggle"
+                        type="button"
+                        class="button button--icon"
+                        aria-label="Toggle password visibility"
+                      >
+                        👁️
+                      </button>
                     </div>
                   </div>
                   <div class="settings_actions cluster">
-                    <button type="button" class="button" data-action="save" data-testid="save-sync">Save</button>
+                    <button type="button" class="button" data-action="save" data-testid="save-sync">
+                      Save
+                    </button>
                     <button type="button" class="button" data-action="cancel">Cancel</button>
                   </div>
                   <div
@@ -253,75 +227,92 @@
                   </div>
                 </div>
                 <div class="settings_block">
-                  <p class="settings_description">
-                    How Once looks on this device.
-                  </p>
-                  <div class="field">
-                    <label class="field_label" for="theme_select">Colour theme</label>
-                    <select id="theme_select" data-testid="theme">
-                      <option value="dark">Dark</option>
-                      <option value="light">Light</option>
-                      <option value="system">System</option>
-                      <option value="custom">TODO: Custom</option>
-                    </select>
-                    <span class="field_check">
-                      <input type="checkbox" id="anim_checkbox" />
-                      <label class="field_label" for="anim_checkbox">Animations</label>
-                    </span>
-                    <span class="field_hint">
-                      Move rows when they are read, sorted, or removed.
-                    </span>
-                  </div>
+                  <section class="settings_rows">
+                    <h4 class="settings_subheading">Theme</h4>
+                    <div class="settings_row">
+                      <label class="settings_row_name" for="theme_select">Colour theme</label>
+                      <p class="settings_row_hint" id="theme_select_hint">
+                        System follows this device's light or dark setting.
+                      </p>
+                      <select
+                        id="theme_select"
+                        data-testid="theme"
+                        aria-describedby="theme_select_hint"
+                      >
+                        <option value="dark">Dark</option>
+                        <option value="light">Light</option>
+                        <option value="system">System</option>
+                        <option value="custom">TODO: Custom</option>
+                      </select>
+                    </div>
+                    <div class="settings_row settings_row_inline">
+                      <label class="settings_row_name" for="anim_checkbox">Animations</label>
+                      <p class="settings_row_hint" id="anim_checkbox_hint">
+                        Rows slide when they are read, sorted, or removed.
+                      </p>
+                      <input
+                        type="checkbox"
+                        class="switch"
+                        id="anim_checkbox"
+                        aria-describedby="anim_checkbox_hint"
+                      />
+                    </div>
+                  </section>
+                  <section
+                    class="settings_rows"
+                    id="electron_layout_settings"
+                    data-platform-only="electron"
+                    hidden
+                  >
+                    <h4 class="settings_subheading">Layout</h4>
+                    <div class="settings_row">
+                      <label class="settings_row_name" for="electron_story_position">
+                        Current story
+                      </label>
+                      <p class="settings_row_hint" id="electron_story_position_description">
+                        Below the address bar keeps the story beside the page. Remembered on
+                        this device.
+                      </p>
+                      <select
+                        id="electron_story_position"
+                        data-testid="electron-story-position"
+                        aria-describedby="electron_story_position_description"
+                      >
+                        <option value="sidebar">Above the story list</option>
+                        <option value="browser">Below the address bar</option>
+                      </select>
+                    </div>
+                  </section>
                 </div>
-                <div class="settings_block" id="electron_layout_settings" hidden>
-                  <p class="settings_description" id="electron_story_position_description">
-                    Where the selected story is shown. Keep it above the story
-                    list in the sidebar, or place it below the address bar so it
-                    stays beside the page content. Remembered on this device.
-                  </p>
-                  <div class="field">
-                    <label class="field_label" for="electron_story_position">
-                      Current story
-                    </label>
-                    <select id="electron_story_position" data-testid="electron-story-position"
-                      aria-describedby="electron_story_position_description">
-                      <option value="sidebar">Above the story list</option>
-                      <option value="browser">Below the address bar</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="settings_block" id="keyboard_settings" hidden>
+                <div
+                  class="settings_block"
+                  id="keyboard_settings"
+                  data-platform-only="electron"
+                  hidden
+                >
                   <p class="settings_description">
-                    Pick a shortcut, then press the keys you want. Shortcuts are
-                    remembered on this device. Shortcuts without a modifier only
-                    work in the sidebar.
+                    Shortcuts are remembered on this device. Shortcuts without a modifier only work
+                    in the sidebar.
                   </p>
                   <div id="keyboard_shortcuts" data-testid="keyboard-shortcuts"></div>
                 </div>
                 <div class="settings_block settings_swipe">
-                  <p class="settings_description">
-                    What dragging a story row left or right does. Try the
-                    gesture on the example row below.
-                  </p>
                   <div id="swipe_lab" data-testid="swipe-lab"></div>
                 </div>
                 <div class="settings_block">
-                  <p class="settings_description">
-                    How long a fetched feed stays fresh before Once asks for it
-                    again. A collector or a single source can override this.
-                  </p>
                   <section class="settings_group">
                     <h4 class="settings_group_title settings_subheading">Timing</h4>
-                    <p class="settings_group_hint">
-                      Blank inherits. 0 always refetches.
-                    </p>
-                    <div class="cache_timing_rows settings_group_body"
-                      id="cache_timing_rows">
+                    <p class="settings_group_hint">Blank inherits. 0 always refetches.</p>
+                    <div class="cache_timing_rows settings_group_body" id="cache_timing_rows">
                       <label class="field cache_timing_row">
                         <span class="cache_timing_name">Default (all collectors)</span>
-                        <input type="text" id="cache_time_input" inputmode="numeric"
+                        <input
+                          type="text"
+                          id="cache_time_input"
+                          inputmode="numeric"
                           class="cache_timing_input"
-                          aria-label="Default cache minutes" />
+                          aria-label="Default cache minutes"
+                        />
                       </label>
                     </div>
                   </section>
@@ -330,19 +321,24 @@
                       Cached feeds
                       <span class="settings_group_columns">window · last fetch</span>
                     </h4>
-                    <div class="settings_group_body" id="cache_timing_panel"
-                      data-testid="cache-timing-panel"></div>
+                    <div
+                      class="settings_group_body"
+                      id="cache_timing_panel"
+                      data-testid="cache-timing-panel"
+                    ></div>
                   </section>
                   <div class="settings_actions cluster">
-                    <button type="button" class="button" id="clear_cached_feeds"
-                      data-testid="clear-cached-feeds">Clear cached feeds</button>
+                    <button
+                      type="button"
+                      class="button"
+                      id="clear_cached_feeds"
+                      data-testid="clear-cached-feeds"
+                    >
+                      Clear cached feeds
+                    </button>
                   </div>
                 </div>
                 <div class="settings_block settings_error_log">
-                  <p class="settings_description">
-                    Problems Once ran into this session: sources that failed to
-                    load, and settings that could not be saved.
-                  </p>
                   <div class="settings_error_log_header row">
                     <div class="settings_actions cluster">
                       <button type="button" class="button" id="clear_error_log">Clear</button>
@@ -353,23 +349,13 @@
                   </div>
                 </div>
                 <div class="settings_block settings_version">
-                  <p class="settings_description">
-                    Which build of Once this is.
-                  </p>
-                  <img
-                    class="settings_about_logo"
-                    src="imgs/icons/icon.svg"
-                    alt="Once"
-                  />
+                  <img class="settings_about_logo" src="imgs/icons/icon.svg" alt="Once" />
                   <h2 class="settings_about_title">Once</h2>
                   <span>Version: <span data-testid="app-version"></span></span>
                   <div class="settings_actions cluster">
-                    <button
-                      type="button"
-                      class="button"
-                      data-testid="check-for-updates"
-                      hidden
-                    >Check for updates</button>
+                    <button type="button" class="button" data-testid="check-for-updates" hidden>
+                      Check for updates
+                    </button>
                   </div>
                   <span
                     class="update_status"
@@ -383,21 +369,50 @@
             <div id="reading_panel" class="panel" data-panel="reading">
               <form id="reading_url_form" data-testid="reading-url-form" novalidate>
                 <div id="reading_url_group">
-                  <input id="reading_url" data-testid="reading-url-input" type="url"
-                    inputmode="url" enterkeyhint="go" autocomplete="url"
-                    autocapitalize="none" spellcheck="false" aria-label="Address"
-                    placeholder="Enter a URL" />
-                  <button type="button" class="button button--icon" id="reading_reader_toggle" aria-label="Toggle reader mode">
+                  <input
+                    id="reading_url"
+                    data-testid="reading-url-input"
+                    type="url"
+                    inputmode="url"
+                    enterkeyhint="go"
+                    autocomplete="url"
+                    autocapitalize="none"
+                    spellcheck="false"
+                    aria-label="Address"
+                    placeholder="Enter a URL"
+                  />
+                  <button
+                    type="button"
+                    class="button button--icon"
+                    id="reading_reader_toggle"
+                    aria-label="Toggle reader mode"
+                  >
                     <span class="icon icon--chrome icon--article" aria-hidden="true"></span>
                   </button>
                 </div>
-                <button type="submit" class="button" id="reading_navigate" data-testid="reading-url-action"
-                  aria-label="Reload"><span>Go</span></button>
+                <button
+                  type="submit"
+                  class="button"
+                  id="reading_navigate"
+                  data-testid="reading-url-action"
+                  aria-label="Reload"
+                >
+                  <span>Go</span>
+                </button>
               </form>
-              <div id="reading_url_validation" data-testid="reading-url-validation"
-                role="status" aria-live="polite" hidden></div>
-              <section id="reading_current_card" class="story" data-testid="reading-current-card"
-                aria-label="Current page">
+              <div
+                id="reading_url_validation"
+                data-testid="reading-url-validation"
+                role="status"
+                aria-live="polite"
+                hidden
+              ></div>
+              <section
+                id="reading_current_card"
+                class="story"
+                data-testid="reading-current-card"
+                aria-label="Current page"
+              >
                 <div class="data">
                   <div class="title_line">
                     <a id="reading_title" class="title" href="">Reading</a>
@@ -405,26 +420,50 @@
                   <div class="substories">
                     <div id="reading_story_meta" class="info">
                       <p id="reading_type" class="type" role="link" tabindex="0"></p>
-                      <button type="button" class="button" id="reading_comments"
-                        class="comment_url">[comments]</button>
+                      <button
+                        type="button"
+                        class="button"
+                        id="reading_comments"
+                        class="comment_url"
+                      >
+                        [comments]
+                      </button>
                       <div id="reading_story_time" class="time"></div>
                       <div id="reading_story_tags" class="tags_container"></div>
                     </div>
                   </div>
                 </div>
-                <button type="button" id="reading_story_collapse"
-                  data-testid="reading-story-collapse" class="button reading_story_control"
-                  aria-label="Collapse current story" aria-expanded="true">⌃</button>
-                <button type="button" id="reading_story_menu" class="button button--icon menu_btn"
-                  aria-label="Story actions">⋮</button>
+                <button
+                  type="button"
+                  id="reading_story_collapse"
+                  data-testid="reading-story-collapse"
+                  class="button reading_story_control"
+                  aria-label="Collapse current story"
+                  aria-expanded="true"
+                >
+                  ⌃
+                </button>
+                <button
+                  type="button"
+                  id="reading_story_menu"
+                  class="button button--icon menu_btn"
+                  aria-label="Story actions"
+                >
+                  ⋮
+                </button>
               </section>
               <div id="reading_error" role="status" aria-live="polite" hidden></div>
               <div id="reading_content" aria-label="Reading content">
                 <p id="reading_empty" data-testid="reading-empty">
                   Open a story or enter a URL above to start reading.
                 </p>
-                <section id="reading_reader_status" data-testid="reading-reader-status"
-                  role="status" aria-live="polite" hidden>
+                <section
+                  id="reading_reader_status"
+                  data-testid="reading-reader-status"
+                  role="status"
+                  aria-live="polite"
+                  hidden
+                >
                   <div id="reading_reader_loading" data-testid="reading-reader-loading" hidden>
                     <span class="reading_status_spinner" aria-hidden="true"></span>
                     <p>Preparing Reader mode&hellip;</p>
@@ -433,28 +472,63 @@
                     <strong>Reader mode couldn&rsquo;t open this page</strong>
                     <p id="reading_reader_error_message"></p>
                     <div class="reading_status_actions">
-                      <button type="button" class="button" id="reading_reader_retry">Try again</button>
-                      <button type="button" class="button" id="reading_reader_open_page">Open page instead</button>
+                      <button type="button" class="button" id="reading_reader_retry">
+                        Try again
+                      </button>
+                      <button type="button" class="button" id="reading_reader_open_page">
+                        Open page instead
+                      </button>
                     </div>
                   </div>
                 </section>
               </div>
-              <div id="reader_tts_pill" data-testid="reader-tts-bar"
-                role="group" aria-label="Text to speech" hidden>
-                <button type="button" class="button button--icon" data-host-tts="prev"
-                  aria-label="Previous segment">|◀</button>
-                <button type="button" class="button button--icon reader_tts_play" data-host-tts="play"
-                  aria-label="Play article">▶</button>
-                <button type="button" class="button button--icon" data-host-tts="next"
-                  aria-label="Next segment">▶|</button>
-                <button type="button" class="button button--icon" data-host-tts="stop"
-                  aria-label="Stop reading">■</button>
+              <div
+                id="reader_tts_pill"
+                data-testid="reader-tts-bar"
+                role="group"
+                aria-label="Text to speech"
+                hidden
+              >
+                <button
+                  type="button"
+                  class="button button--icon"
+                  data-host-tts="prev"
+                  aria-label="Previous segment"
+                >
+                  |◀
+                </button>
+                <button
+                  type="button"
+                  class="button button--icon reader_tts_play"
+                  data-host-tts="play"
+                  aria-label="Play article"
+                >
+                  ▶
+                </button>
+                <button
+                  type="button"
+                  class="button button--icon"
+                  data-host-tts="next"
+                  aria-label="Next segment"
+                >
+                  ▶|
+                </button>
+                <button
+                  type="button"
+                  class="button button--icon"
+                  data-host-tts="stop"
+                  aria-label="Stop reading"
+                >
+                  ■
+                </button>
                 <details id="reader_tts_settings">
                   <summary><span id="reader_tts_rate_label">1.0×</span></summary>
                   <div class="reader_tts_settings_menu">
                     <label>
                       Voice
-                      <select id="reader_tts_voice"><option value="">Default voice</option></select>
+                      <select id="reader_tts_voice">
+                        <option value="">Default voice</option>
+                      </select>
                     </label>
                     <div class="reader_tts_rate_setting">
                       <span>Speed</span>

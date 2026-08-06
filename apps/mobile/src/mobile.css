@@ -129,8 +129,11 @@
     min-height: var(--touch);
   }
 
+  /* .switch is excluded for the same reason the button box below is: a control
+     that draws its own shape does not want a text field's border and corner
+     radius stamped over it. */
   textarea,
-  input {
+  input:not(.switch) {
     font-size: var(--fs-title);
     border: var(--m-bw) solid var(--m-ink);
     border-radius: var(--m-radius);
@@ -1488,7 +1491,10 @@
     font-size: var(--fs-body);
   }
 
-  .structured_form input,
+  /* Text-field geometry, so .switch is excluded: it is sized by the primitive
+     from --switch-size, and a forced height with no matching width squashes
+     the pill into an oval. */
+  .structured_form input:not(.switch),
   .structured_form select {
     height: 40px;
     min-height: 40px;

@@ -73,6 +73,18 @@
 }
 
 /* Animation Classes */
+
+/* The switch that turns this very setting off is the one place the knob must
+   still land where it was aimed, so the slide is the property that animates
+   and the colour follows it. */
+body[animated="true"] .switch {
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+body[animated="true"] .switch::after {
+  transition: translate 0.15s ease;
+}
+
 body[animated="true"] #left_panel .pseudo_active .bar {
   animation: roll_gadient 2s cubic-bezier(0, 0, 0.15, 0.99);
   background: radial-gradient(

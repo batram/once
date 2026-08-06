@@ -390,3 +390,76 @@ test("mobile text settings use the detail panel as an editor workspace", async (
   expect(layout.editorHeight).toBeGreaterThan(layout.sectionHeight * 0.65)
   expect(layout.actionsBottom).toBeLessThanOrEqual(layout.sectionBottom)
 })
+
+test("the source form stacks its rows and keeps the iconic commit pair", async ({
+  page
+}) => {
+  await gotoMobileApp(page)
+  await openSettingsSection(page, "sources")
+  // openSettingsSection leaves sources in text mode; the form is behind the
+  // structured list.
+  await page.getByTestId("sources-mode-toggle").click()
+  await expect(page.getByTestId("sources-structured-list")).toBeVisible()
+  await page.getByTestId("add-source").click()
+  await page.getByTestId("add-source-entry").click()
+  const form = page.getByTestId("structured-item-form")
+  await expect(form).toBeVisible()
+
+  // The whole-record switch sits in the header beside the title, not among the
+  // field rows.
+  const toggle = page.locator(".structured_form_header .structured_form_toggle")
+  await expect(toggle.locator(".switch")).toHaveCount(1)
+  await expect(form.locator(".settings_row .switch")).toHaveCount(0)
+
+  const layout = await form.evaluate((element) => {
+    const row = (name) => [...element.querySelectorAll(".settings_row")]
+      .find((candidate) =>
+        candidate.querySelector(".settings_row_name")?.textContent === name)
+    const measure = (name) => {
+      const found = row(name)
+      const label = found.querySelector(".settings_row_name")
+        .getBoundingClientRect()
+      const control = found
+        .querySelector("input, select, textarea").getBoundingClientRect()
+      return { labelBottom: label.bottom, labelWidth: label.width,
+        controlTop: control.top, controlWidth: control.width }
+    }
+    const track = element.querySelector(".structured_form_toggle .switch")
+    const trackBox = track.getBoundingClientRect()
+    return {
+      groups: [...element.querySelectorAll(".settings_subheading")]
+        .map((heading) => heading.textContent),
+      url: measure("URL"),
+      collector: measure("Collector"),
+      switchRadius: getComputedStyle(track).borderTopLeftRadius,
+      switchSize: Number.parseFloat(
+        getComputedStyle(track).getPropertyValue("--switch-size")
+      ),
+      switchWidth: Math.round(trackBox.width),
+      switchHeight: Math.round(trackBox.height)
+    }
+  })
+
+  expect(layout.groups).toEqual(["Feed", "Handling"])
+  // Stacked, not side by side: the name sits above its control rather than
+  // behind it, and both take the row's single column. Side by side they would
+  // share a line and split the width.
+  for (const field of [layout.url, layout.collector]) {
+    expect(field.labelBottom).toBeLessThanOrEqual(field.controlTop)
+    expect(field.controlWidth).toBe(field.labelWidth)
+  }
+  // The primitive's own shape, not a text field's box: --switch-size drives
+  // both axes, so the ratio is what pins it. "Wider than tall" would pass a
+  // pill squashed by a platform's forced input height.
+  expect(Number.parseFloat(layout.switchRadius))
+    .toBeGreaterThanOrEqual(layout.switchHeight / 2)
+  expect(layout.switchWidth / layout.switchHeight).toBeCloseTo(1.8, 1)
+  expect(layout.switchHeight).toBe(layout.switchSize)
+
+  await expect(
+    page.locator(".structured_form_actions .structured_inline_action")
+  ).toHaveCount(2)
+  await expect(
+    page.locator(".structured_form_actions .button")
+  ).toHaveCount(0)
+})

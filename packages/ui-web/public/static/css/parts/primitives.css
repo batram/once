@@ -148,6 +148,61 @@
   font-size: var(--fs-caption);
 }
 
+/**
+ * A checkbox drawn as a switch. It stays a real `input[type="checkbox"]`, so
+ * the label association, the keyboard behaviour and the checked value are the
+ * platform's; only the box is redrawn. Everything is derived from
+ * --switch-size, which is the one number a caller changes to resize it.
+ */
+.switch {
+  --switch-size: 22px;
+  --switch-inset: calc(var(--switch-size) * 0.1);
+  --switch-knob: calc(var(--switch-size) * 0.7);
+  --switch-travel: calc(var(--switch-size) * 0.8);
+  appearance: none;
+  position: relative;
+  box-sizing: border-box;
+  flex: none;
+  width: calc(var(--switch-size) * 1.8);
+  height: var(--switch-size);
+  border: 1px solid var(--border-high-color);
+  border-radius: var(--radius-pill);
+  background: var(--input-bg-color);
+  cursor: pointer;
+}
+
+/* The knob. Its inset is a share of the track's own height, so the gap around
+   it stays proportional when --switch-size changes. */
+.switch::after {
+  content: "";
+  position: absolute;
+  box-sizing: border-box;
+  top: var(--switch-inset);
+  left: var(--switch-inset);
+  width: var(--switch-knob);
+  height: var(--switch-knob);
+  border-radius: var(--radius-pill);
+  background: var(--main-bg-color);
+  border: 1px solid var(--border-high-color);
+}
+
+.switch:focus-visible {
+  outline: 2px solid var(--text-high-color);
+  outline-offset: 2px;
+}
+
+.switch:checked {
+  background: var(--switch-on-color);
+  border-color: var(--switch-on-color);
+}
+
+/* On a coloured track the knob reads as the light shape, in both themes. */
+.switch:checked::after {
+  translate: var(--switch-travel);
+  background: white;
+  border-color: var(--switch-on-color);
+}
+
 .toolbar {
   justify-content: flex-start;
 }

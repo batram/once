@@ -84,13 +84,18 @@ export class SourceSettingsEditor {
       ...get_active().map((parser) => [parser.options.id, parser.options.description] as [string, string])]
     const groups = this.groups.map((group) => [group.id, group.name] as [string, string])
     this.host.showForm(root, "Source", [
-      ["URL", current?.url ?? ""],
-      ["Label", current?.label ?? "", { optional: true }],
+      // Where the stories come from, then what Once does with them. This order
+      // is also the order `values` arrives in below, so Enabled keeps its place
+      // here even though the form renders it in the header rather than a row.
+      ["URL", current?.url ?? "", { group: "Feed" }],
+      ["Label", current?.label ?? "", { optional: true, group: "Feed" }],
       ["Cache minutes", current?.cacheMinutes === undefined ? "" : String(current.cacheMinutes),
-        { optional: true, hint: "Blank inherits; 0 always refetches" }],
-      ["Collector", current?.collector ?? "", { kind: "select", choices: collectors, optional: true }],
+        { optional: true, hint: "Blank inherits; 0 always refetches", group: "Feed" }],
+      ["Collector", current?.collector ?? "",
+        { kind: "select", choices: collectors, optional: true, group: "Handling" }],
       ["Enabled", String(current?.enabled !== false), { kind: "checkbox", optional: true }],
-      ["Group", this.groups[groupIndex]?.id ?? DEFAULT_GROUP_ID, { kind: "select", choices: groups }]
+      ["Group", this.groups[groupIndex]?.id ?? DEFAULT_GROUP_ID,
+        { kind: "select", choices: groups, group: "Handling" }]
     ], (values) => {
       const [url, label, cacheMinutes, collector, enabled, groupId] = values
       if (!url.trim()) return false
