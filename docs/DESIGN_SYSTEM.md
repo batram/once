@@ -178,20 +178,27 @@ with a reason and a removal condition, or the guard fails.
 
 ### Form controls
 
-`input`, `select`, and `textarea` take their box from the primitive sheet:
-border, radius, fill, inherited typography, and the caret a `select` needs once
-`appearance: none` removes the native one. Checkboxes and radios are excluded —
-their intrinsic box *is* the control.
+A control gets its border, radius, fill and text colour from one element rule
+in [`parts/vars.css`](../packages/ui-web/public/static/css/parts/vars.css).
+Everything else about it belongs to whatever owns the control:
 
-The selector is deliberately weak (`input:where(:not(...))`), so any component
-rule outranks it. A component that wants a different box declares one; a
-component that sets `background` shorthand drops the select caret and must
-restate it or set `background-color` instead.
+| Who | Owns |
+| --- | --- |
+| `parts/vars.css` | Border, radius, fill, colour, for every control in the app |
+| `parts/settings.css` | The settings box: padding, inherited type, and the drawn `select` caret |
+| `mobile.css` | Touch sizing and the mobile type scale |
+| The bar a control sits in | Toolbar and window chrome — search field, scope, address bar |
 
-Platform sheets own sizing, not appearance. `mobile.css` raises controls to
-`--touch` and shifts the type scale; it no longer decides what a control looks
-like, which is what used to leave every other shell with raw OS widgets beside
-styled buttons.
+The settings rules are written at zero specificity
+(`:where(#settings_panel) :where(input, select, textarea)`), so any component
+rule beats them: they fill gaps rather than decide anything.
+
+**Do not restyle controls globally.** A rule matching `input` or `select`
+outside `vars.css` reaches the search field, the address bar and the reader,
+which own their look and are sized to the bars they sit in. A settings change
+that alters those bars is a bug, and the three shell snapshots in
+`tests/e2e/design-system/visual.spec.js-snapshots` are what catches it — they
+must not be updated to accommodate one.
 
 ### Icon
 

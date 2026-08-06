@@ -64,19 +64,14 @@
   --icon-size: 9px;
 }
 
-/* Sits inside the search field rather than beside it, so it declares the
-   flush box the shared control skin would otherwise give it. */
 #search_scope {
   position: absolute;
   inset: 0 auto 0 0;
   height: 100%;
   z-index: 2;
-  padding: 0 var(--sp-4) 0 0;
   border: none;
   border-right: thin solid black;
-  border-radius: 0;
-  /* Colour only: the shorthand would drop the caret the control skin draws. */
-  background-color: transparent;
+  background: none;
 }
 
 #reload_stories_btn {

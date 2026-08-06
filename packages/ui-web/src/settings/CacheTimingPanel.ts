@@ -152,7 +152,7 @@ export class CacheTimingPanel {
     name.type = "button"
     name.className = "cache_source_name"
     name.textContent = source.name
-    name.title = `${source.url}\nEdit this source`
+    name.title = source.url
     name.dataset.testid = `cache-source-${source.sourceId}`
     name.addEventListener("click", () =>
       this.actions.showSource(source.sourceId))

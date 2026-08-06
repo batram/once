@@ -67,6 +67,32 @@
   background: var(--input-bg-color);
 }
 
+/* Settings controls take one box. The border, radius and fill are the app's
+   already (parts/vars.css); this is the room and the type they share, so a
+   field reads the same whichever section it is in. Toolbar and window chrome
+   are deliberately out of scope: those controls belong to their bars. */
+:where(#settings_panel)
+  :where(input:not([type="checkbox"], [type="radio"]), select, textarea) {
+  box-sizing: border-box;
+  padding: var(--sp-1) var(--sp-1-5);
+  font: inherit;
+}
+
+/* A select drops the platform caret so the closed control matches the fields
+   above and below it, and draws the same mark instead. */
+:where(#settings_panel) select {
+  appearance: none;
+  padding-right: var(--sp-5);
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentcolor 50%),
+    linear-gradient(135deg, currentcolor 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) 50%,
+    calc(100% - 8px) 50%;
+  background-size: 6px 6px;
+  background-repeat: no-repeat;
+}
+
 #settings_sections {
   display: flex;
   flex-direction: column;

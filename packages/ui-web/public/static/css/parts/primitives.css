@@ -24,42 +24,6 @@
   outline-offset: 2px;
 }
 
-/* Every other control the app renders. Only the mobile sheet used to give
-   these a box, so every other shell showed raw OS widgets beside styled
-   buttons. Appearance belongs to the component layer; a platform sheet keeps
-   sizing. Checkboxes and radios are excluded — their intrinsic box is the
-   control, and a width or height applied to one turns it into a slab. */
-input:where(:not([type="checkbox"], [type="radio"])),
-select,
-textarea {
-  box-sizing: border-box;
-  padding: var(--sp-1) var(--sp-1-5);
-  border: var(--bw) solid var(--border-high-color);
-  border-radius: var(--radius-md);
-  color: inherit;
-  background: var(--input-bg-color);
-  font: inherit;
-}
-
-select {
-  appearance: none;
-  padding-right: var(--sp-5);
-  /* The caret the native widget no longer draws. */
-  background-image:
-    linear-gradient(45deg, transparent 50%, currentcolor 50%),
-    linear-gradient(135deg, currentcolor 50%, transparent 50%);
-  background-position:
-    calc(100% - 14px) 50%,
-    calc(100% - 8px) 50%;
-  background-size: 6px 6px;
-  background-repeat: no-repeat;
-}
-
-:where(input, select, textarea):focus-visible {
-  outline: 2px solid var(--text-high-color);
-  outline-offset: 1px;
-}
-
 .button:disabled,
 .button.disabled {
   cursor: default;
