@@ -102,14 +102,14 @@ export class KeyboardSettingsView {
    */
   private browserManagedGroup(): HTMLElement | null {
     if (this.browserShortcuts.length === 0) return null
-    const box = element("details", "keybinding_group")
+    const box = element("details", "keybinding_group settings_group")
     box.dataset.group = "browser-managed"
     box.open = true
-    const title = element("summary", "keybinding_group_title settings_subheading")
+    const title = element("summary", "keybinding_group_title settings_group_title settings_subheading")
     title.textContent = "Managed by your browser"
     box.append(title)
 
-    const rows = element("div", "keybinding_group_rows")
+    const rows = element("div", "keybinding_group_rows settings_group_body")
     for (const shortcut of this.browserShortcuts) {
       const row = element("div", "keybinding_row keybinding_row--readonly")
       const label = element("span", "keybinding_label")
@@ -184,14 +184,14 @@ export class KeyboardSettingsView {
     commands: readonly KeyCommandDefinition[],
     bindings: Map<KeyCommandId, string[]>
   ): HTMLElement {
-    const box = element("details", "keybinding_group")
+    const box = element("details", "keybinding_group settings_group")
     box.dataset.group = group
     box.open = !this.collapsed.has(group)
-    const title = element("summary", "keybinding_group_title settings_subheading")
+    const title = element("summary", "keybinding_group_title settings_group_title settings_subheading")
     title.textContent = GROUP_LABELS[group]
     box.append(title)
 
-    const rows = element("div", "keybinding_group_rows")
+    const rows = element("div", "keybinding_group_rows settings_group_body")
     for (const command of commands) {
       rows.append(this.row(command, bindings.get(command.id) ?? []))
     }

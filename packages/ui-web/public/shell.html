@@ -264,8 +264,10 @@
                       <option value="system">System</option>
                       <option value="custom">TODO: Custom</option>
                     </select>
-                    <label class="field_label" for="anim_checkbox">Animations</label>
-                    <input type="checkbox" id="anim_checkbox" />
+                    <span class="field_check">
+                      <input type="checkbox" id="anim_checkbox" />
+                      <label class="field_label" for="anim_checkbox">Animations</label>
+                    </span>
                     <span class="field_hint">
                       Move rows when they are read, sorted, or removed.
                     </span>
@@ -308,18 +310,33 @@
                     How long a fetched feed stays fresh before Once asks for it
                     again. A collector or a single source can override this.
                   </p>
-                  <h4 class="settings_subheading">Timing</h4>
-                  <p class="field_hint">Blank inherits. 0 always refetches.</p>
-                  <div class="cache_timing_rows" id="cache_timing_rows">
-                    <div class="field cache_timing_row">
-                      <label class="field_label" for="cache_time_input">
-                        Default (all collectors)
+                  <section class="settings_group">
+                    <h4 class="settings_group_title settings_subheading">Timing</h4>
+                    <p class="settings_group_hint">
+                      Blank inherits. 0 always refetches.
+                    </p>
+                    <div class="cache_timing_rows settings_group_body"
+                      id="cache_timing_rows">
+                      <label class="field cache_timing_row">
+                        <span class="cache_timing_name">Default (all collectors)</span>
+                        <input type="text" id="cache_time_input" inputmode="numeric"
+                          class="cache_timing_input"
+                          aria-label="Default cache minutes" />
                       </label>
-                      <input type="text" id="cache_time_input" inputmode="numeric"
-                        class="cache_timing_input" />
                     </div>
+                  </section>
+                  <section class="settings_group">
+                    <h4 class="settings_group_title settings_subheading row">
+                      Cached feeds
+                      <span class="settings_group_columns">window · last fetch</span>
+                    </h4>
+                    <div class="settings_group_body" id="cache_timing_panel"
+                      data-testid="cache-timing-panel"></div>
+                  </section>
+                  <div class="settings_actions cluster">
+                    <button type="button" class="button" id="clear_cached_feeds"
+                      data-testid="clear-cached-feeds">Clear cached feeds</button>
                   </div>
-                  <div id="cache_timing_panel" data-testid="cache-timing-panel"></div>
                 </div>
                 <div class="settings_block settings_error_log">
                   <p class="settings_description">

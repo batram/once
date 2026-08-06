@@ -48,13 +48,13 @@ test("the cache section reports each source and refetches one on demand", async 
     await openSettingsSection(window, "cache", "#cache_time_input")
 
     const row = window.locator(".cache_source_row").first()
-    // The RSS collector ships no window of its own, so this row inherits the
-    // global default and says so.
-    await expect(row).toContainText("60 min (inherited)")
-    await expect(row).toContainText("fetched")
+    // The RSS collector ships no window of its own, so this row shows the
+    // inherited default, quietly.
+    await expect(row.locator(".cache_source_inherited")).toHaveText("60 min")
+    await expect(row.locator(".cache_source_fetched")).not.toHaveText("never")
 
     const cachedAt = counter.fetches
-    await row.getByRole("button", { name: "Refetch now" }).click()
+    await row.getByRole("button", { name: "Refetch" }).click()
     await expect.poll(() => counter.fetches).toBe(cachedAt + 1)
   } finally {
     await closeApp(electronApp, userData)
@@ -74,11 +74,11 @@ test("clearing cached feeds sends the next reload back to the network", async ()
     )
     await openSettingsSection(window, "cache", "#cache_time_input")
     const row = window.locator(".cache_source_row").first()
-    await expect(row).toContainText("fetched")
+    await expect(row.locator(".cache_source_fetched")).not.toHaveText("never")
 
     const cachedAt = counter.fetches
     await window.getByTestId("clear-cached-feeds").click()
-    await expect(row).toContainText("not cached")
+    await expect(row.locator(".cache_source_fetched")).toHaveText("never")
 
     await showAllStories(window)
     await window.getByTestId("reload-stories").click()
@@ -111,8 +111,8 @@ test("a per-collector window of zero refetches on every plain reload", async () 
 
     await openSettingsSection(window, "cache", "#cache_time_input")
     await setFieldValue(window.getByTestId("cache-timing-rss"), "0")
-    await expect(window.locator(".cache_source_row").first())
-      .toContainText("always refetch")
+    await expect(window.locator(".cache_source_row .cache_source_window").first())
+      .toHaveText("always")
 
     await showAllStories(window)
     await window.getByTestId("reload-stories").click()
@@ -177,5 +177,38 @@ test("the cache controls stay findable through settings search", async () => {
       .toHaveCount(1)
   } finally {
     await closeApp(electronApp, userData)
+  }
+})
+
+test("a cached feed opens the source it names", async () => {
+  const server = await startPageServer()
+  const { electronApp, userData, window } = await launchApp(STORY_ENV)
+  try {
+    await seedLocalSource(
+      window,
+      storyFixture.rssSourceLine(server.origin),
+      storyFixture.storyUrls(server.origin).alpha
+    )
+    // Seeding leaves the sources editor in text mode; the rows a user sees are
+    // the structured ones, so put it back before asking to be sent there.
+    await openSettingsSection(window, "sources", '[data-testid="sources"]')
+    await window.getByTestId("sources-mode-toggle").click()
+    await expect(window.getByTestId("sources-structured-list")).toBeVisible()
+
+    await openSettingsSection(window, "cache", "#cache_time_input")
+    const name = window.locator(".cache_source_name").first()
+    const sourceId = (await name.getAttribute("data-testid"))
+      ?.replace("cache-source-", "")
+    expect(sourceId).toBeTruthy()
+    await name.click()
+
+    await expect(window.locator("#settings_panel .settings_title"))
+      .toHaveText("Story sources")
+    // The section opens on the source that row names, not just on the list.
+    await expect(window.locator(`[data-source-id="${sourceId}"]`))
+      .toBeVisible()
+  } finally {
+    await closeApp(electronApp, userData)
+    await server.close()
   }
 })

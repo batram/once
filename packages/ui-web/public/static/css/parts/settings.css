@@ -793,12 +793,22 @@
   color: var(--text-color);
 }
 
-.structured_form,
-.cache_timing_rows {
+.structured_form {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
+  align-content: start;
   align-items: center;
   gap: var(--sp-2);
+}
+
+/* Name on the left, a short window on the right: these are list rows, and they
+   keep both columns at every width because the control is six digits wide. */
+.cache_timing_rows {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-content: start;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-2);
 }
 
 /* A row of a shared grid rather than a grid of its own: one label column for
@@ -813,6 +823,37 @@
   grid-column: 1 / -1;
 }
 
+/* One group of a settings section. Each group is its own box, so a long
+   section reads as several short ones rather than one wall; the keyboard
+   shortcuts fold theirs with a native <details>, which is why the header is a
+   separate element rather than a border on the body. */
+.settings_group {
+  margin: var(--sp-3) 0;
+  /* --border-color matches --main-bg-color in the dark theme, so the box would
+     be invisible there; the high-contrast border is the one that reads. */
+  border: 1px solid var(--border-high-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.settings_group_title {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border-high-color);
+  background: var(--second-bg-color);
+}
+
+.settings_group_body {
+  padding: var(--sp-2) var(--sp-3);
+}
+
+.settings_group_hint {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3) 0;
+  color: var(--text-muted-color);
+  font-size: var(--fs-caption);
+}
+
 .structured_form {
   box-sizing: border-box;
   padding: var(--sp-2) 0;
@@ -825,16 +866,6 @@
 
 /* The control fills its column; a checkbox keeps its own size and sits at the
    start of that column rather than being stretched across it. */
-/* The item editors keep their small-caps field names: they label short,
-   fixed things (URL, Label, Group) rather than sentences. */
-.structured_form .field_label,
-.structured_redirect_tester .field_label {
-  font-size: var(--fs-label);
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
 .structured_form input:not([type="checkbox"]),
 .structured_form select,
 .structured_form textarea {
@@ -1788,10 +1819,19 @@
   }
 
   /* Too narrow for a label column: the label goes above its control. */
-  #settings_panel .field,
-  .structured_form,
-  .cache_timing_rows {
+  #settings_panel .field:not(.cache_timing_row),
+  .structured_form {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* A feed name would be an ellipsis beside its window and its button, so it
+     takes the first line and they share the second. */
+  .cache_source_row {
+    flex-wrap: wrap;
+  }
+
+  .cache_source_name {
+    flex: 1 0 100%;
   }
 
   #settings_panel .field_hint {
@@ -2273,22 +2313,7 @@
   font-size: 0.85em;
 }
 
-/* Each group is its own box, so a long list of rows reads as several short
-   ones rather than one wall. Native <details> keeps folding keyboard
-   accessible without a custom control. */
-.keybinding_group {
-  margin: var(--sp-3) 0;
-  /* --border-color matches --main-bg-color in the dark theme, so the box would
-     be invisible there; the high-contrast border is the one that reads. */
-  border: 1px solid var(--border-high-color);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-}
-
 .keybinding_group_title {
-  margin: 0;
-  padding: var(--sp-2) var(--sp-3);
-  background: var(--second-bg-color);
   cursor: pointer;
   user-select: none;
 }
@@ -2298,12 +2323,9 @@
   outline-offset: -2px;
 }
 
-.keybinding_group[open] .keybinding_group_title {
-  border-bottom: 1px solid var(--border-high-color);
-}
-
-.keybinding_group_rows {
-  padding: var(--sp-2) var(--sp-3);
+/* Folded away, the header is the whole box and has nothing to divide from. */
+.keybinding_group:not([open]) .settings_group_title {
+  border-bottom: 0;
 }
 
 .keybinding_row {
@@ -2468,36 +2490,73 @@
   margin-top: var(--sp-3);
 }
 
-.cache_timing_row,
 .cache_source_row {
-  align-items: center;
+  align-items: baseline;
   gap: var(--sp-2);
   padding: var(--sp-1) 0;
 }
 
+.cache_timing_name,
 .cache_source_name {
-  flex: 1 1 auto;
+  flex: 1 1 12ch;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* The name is a control: it opens the source it names. */
+.cache_source_name {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--text-high-color);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.cache_source_name:hover,
+.cache_source_name:focus-visible {
+  text-decoration-style: solid;
+}
+
+.cache_source_window,
+.cache_source_fetched {
+  flex: 0 0 auto;
+  font-size: var(--fs-caption);
+}
+
+.cache_source_fetched {
+  color: var(--text-muted-color);
+}
+
+/* A window nobody set here is stated more quietly than one that was. */
+.cache_source_inherited {
+  color: var(--text-muted-color);
+}
+
+/* What the two values in each row are, said once. */
+.settings_group_columns {
+  margin-left: auto;
+  color: var(--text-muted-color);
+  font-size: var(--fs-caption);
+  letter-spacing: normal;
+  text-transform: none;
+}
+
 /* A window is at most six digits, so the control does not need the column. */
 .cache_timing_input {
-  justify-self: start;
+  justify-self: end;
   width: 8ch;
   text-align: right;
 }
 
 .cache_timing_input[aria-invalid="true"] {
   border-color: var(--error-color);
-}
-
-.cache_source_meta {
-  flex: 0 0 auto;
-  font-size: var(--fs-caption);
-  color: var(--text-muted-color);
 }
 
 .cache_source_row .button {

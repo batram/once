@@ -49,6 +49,12 @@
       "reason": "An 11px dock dot inside #status_dock with no button visuals",
       "phase": "3.1",
       "removeWhen": "This control is redesigned to present as a primitive button rather than a dock dot. It uses <button> for semantics, not for appearance, so the entry is a recorded decision rather than pending debt."
+    },
+    {
+      "family": "cache_source_name",
+      "reason": "The name of a cached feed, which opens the source it names. It is the row title rather than an action beside one, so it presents as text with a dotted underline and owns no button box",
+      "phase": "3.1",
+      "removeWhen": "The cached-feed rows gain a separate edit control and the name stops being interactive. It uses <button> for semantics, not for appearance, so the entry is a recorded decision rather than pending debt."
     }
   ],
   "unclassified": []

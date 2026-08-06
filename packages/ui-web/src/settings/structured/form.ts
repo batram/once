@@ -158,11 +158,17 @@ function appendFormField(
   field: StructuredFormField
 ): void {
   const label = document.createElement("label")
-  label.className = "structured_form_field field"
+  const check = input instanceof HTMLInputElement && input.type === "checkbox"
+  label.className = check
+    ? "structured_form_field field_check"
+    : "structured_form_field field"
   const name = document.createElement("span")
   name.className = "field_label"
   name.textContent = field[0]
-  label.append(name, input)
+  // A tick reads as its name plus a box, in that order; every other control
+  // is named first and answered below or beside.
+  if (check) label.append(input, name)
+  else label.append(name, input)
   if (field[2]?.hint) {
     const hint = document.createElement("span")
     hint.className = "field_hint"

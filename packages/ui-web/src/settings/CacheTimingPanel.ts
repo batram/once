@@ -1,11 +1,14 @@
 /**
- * The cache section below the global cache-timing field: a window per
- * collector, and a row per source saying when it last fetched.
+ * The rows of the cache section: a window per collector, and a row per source
+ * saying when it last fetched.
  *
- * It lives beside `#cache_time_input` inside the one `.settings_block` the
- * section already owns, because `installSettingsNavigation` treats a block as
- * one unit. It deliberately does not use `.structured_settings`, which settings
- * search strips out of its index — these rows are worth finding.
+ * The section markup owns the two groups, the default-window row and the clear
+ * action; this fills them in. Structure that must exist before the panel first
+ * renders cannot be generated here — the section is resolved by
+ * `#cache_time_input` while SettingsPanel is still constructing.
+ *
+ * It deliberately does not use `.structured_settings`, which settings search
+ * strips out of its index — these rows are worth finding.
  */
 
 import { OnceClient, SourceCacheStatus } from "@once/app"
@@ -16,10 +19,18 @@ import { reportSettingsStatus, trackSettingsSave } from "./settingsStatus"
 const HOST_ID = "cache_timing_panel"
 const ROWS_ID = "cache_timing_rows"
 
+export interface CacheTimingPanelActions {
+  /** Opens the sources section on one source, for editing its own window. */
+  showSource(sourceId: string): void
+}
+
 export class CacheTimingPanel {
   private subscribed = false
 
-  constructor(private readonly client: OnceClient) {}
+  constructor(
+    private readonly client: OnceClient,
+    private readonly actions: CacheTimingPanelActions
+  ) {}
 
   /**
    * Rebuilds the rows. Called whenever the section is restored and whenever
@@ -36,11 +47,7 @@ export class CacheTimingPanel {
     ])
     this.renderCollectorRows(timing.collectors, globalMinutes)
     host.textContent = ""
-    host.append(
-      heading("Cached feeds"),
-      this.sourceRows(status),
-      this.clearButton()
-    )
+    host.append(this.sourceRows(status))
   }
 
   private mount(): HTMLElement | undefined {
@@ -49,6 +56,7 @@ export class CacheTimingPanel {
     if (!this.subscribed) {
       this.subscribed = true
       this.client.subscribe("cacheStatusChanged", () => void this.refresh())
+      this.bindClear()
     }
     return host
   }
@@ -71,7 +79,7 @@ export class CacheTimingPanel {
       const row = document.createElement("label")
       row.className = "cache_timing_row field"
       const name = document.createElement("span")
-      name.className = "field_label"
+      name.className = "cache_timing_name"
       // Labelled by description: both Reddit collectors carry the badge "re",
       // so the badge cannot tell one row from the other.
       name.textContent = description
@@ -137,17 +145,38 @@ export class CacheTimingPanel {
     // Not `data-source-id`: that attribute means "a row in the sources editor",
     // and the error log clicks it by id from anywhere in the panel.
     row.dataset.cacheSourceId = source.sourceId
-    const name = document.createElement("span")
+
+    // The name is both the subject of the row and the way to its own window,
+    // which lives on the source rather than here.
+    const name = document.createElement("button")
+    name.type = "button"
     name.className = "cache_source_name"
     name.textContent = source.name
-    name.title = source.url
-    const meta = document.createElement("span")
-    meta.className = "cache_source_meta"
-    meta.textContent = describeWindow(source)
+    name.title = `${source.url}\nEdit this source`
+    name.dataset.testid = `cache-source-${source.sourceId}`
+    name.addEventListener("click", () =>
+      this.actions.showSource(source.sourceId))
+
+    const policy = document.createElement("span")
+    policy.className = "cache_source_window"
+    policy.textContent = source.cacheMinutes === 0
+      ? "always"
+      : `${source.cacheMinutes} min`
+    if (!source.ownWindow) {
+      policy.classList.add("cache_source_inherited")
+      policy.title = "Inherited from the collector or the default"
+    }
+
+    const fetched = document.createElement("span")
+    fetched.className = "cache_source_fetched"
+    fetched.textContent = source.fetchedAt === undefined
+      ? "never"
+      : humanTime(source.fetchedAt)
+
     const refetch = document.createElement("button")
     refetch.type = "button"
     refetch.className = "button"
-    refetch.textContent = "Refetch now"
+    refetch.textContent = "Refetch"
     refetch.dataset.testid = `refetch-${source.sourceId}`
     refetch.addEventListener("click", () => {
       refetch.disabled = true
@@ -157,44 +186,23 @@ export class CacheTimingPanel {
         refetch.disabled = false
       })
     })
-    row.append(name, meta, refetch)
+
+    row.append(name, policy, fetched, refetch)
     return row
   }
 
-  private clearButton(): HTMLElement {
-    const actions = document.createElement("div")
-    actions.className = "settings_actions cluster"
-    const clear = document.createElement("button")
-    clear.type = "button"
-    clear.className = "button"
-    clear.id = "clear_cached_feeds"
-    clear.dataset.testid = "clear-cached-feeds"
-    clear.textContent = "Clear cached feeds"
+  /** The action is section markup; only its behaviour belongs here. */
+  private bindClear(): void {
+    const clear = document.getElementById("clear_cached_feeds")
+    if (!(clear instanceof HTMLButtonElement)) return
     clear.addEventListener("click", () => {
       clear.disabled = true
       void this.client.clearCachedFeeds().finally(() => {
         clear.disabled = false
       })
     })
-    actions.append(clear)
-    return actions
   }
 
 }
 
-function describeWindow(source: SourceCacheStatus): string {
-  const policy = source.cacheMinutes === 0
-    ? "always refetch"
-    : `${source.cacheMinutes} min${source.ownWindow ? "" : " (inherited)"}`
-  const fetched = source.fetchedAt === undefined
-    ? "not cached"
-    : `fetched ${humanTime(source.fetchedAt)}`
-  return `${policy} · ${fetched}`
-}
 
-function heading(text: string): HTMLElement {
-  const element = document.createElement("h4")
-  element.className = "settings_subheading"
-  element.textContent = text
-  return element
-}

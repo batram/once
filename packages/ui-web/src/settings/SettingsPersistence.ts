@@ -8,9 +8,10 @@ export class SettingsPersistence {
 
   constructor(
     private client: OnceClient,
-    private settingsChanged: () => void
+    private settingsChanged: () => void,
+    showSource: (sourceId: string) => void = () => {}
   ) {
-    this.cachePanel = new CacheTimingPanel(client)
+    this.cachePanel = new CacheTimingPanel(client, { showSource })
   }
 
   async restoreSync(): Promise<void> {

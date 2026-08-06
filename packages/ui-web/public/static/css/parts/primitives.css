@@ -146,13 +146,30 @@ select {
 .field {
   display: grid;
   grid-template-columns: minmax(max-content, auto) minmax(0, 1fr);
+  align-content: start;
   align-items: center;
   gap: var(--sp-1) var(--sp-2);
 }
 
 .field_label {
   color: var(--text-muted-color);
-  font-size: var(--fs-caption);
+  font-size: var(--fs-label);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* A checkbox is small enough to stay beside its name at any width, so it takes
+   the whole row rather than leaving a control column with a tick alone in it. */
+.field_check {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.field_check .field_label {
+  cursor: pointer;
 }
 
 /* A control that has its own width sits at the start of its column rather

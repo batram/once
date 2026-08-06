@@ -42,7 +42,8 @@ export class SettingsPanel {
   ) {
     this.persistence = new SettingsPersistence(
       client,
-      () => this.refreshSettingsSearch()
+      () => this.refreshSettingsSearch(),
+      (sourceId) => this.highlightSource(sourceId)
     )
     SettingsPanel.instance = this
     bindSettingsSubscriptions(client, {
@@ -633,18 +634,11 @@ export class SettingsPanel {
     this.sourceErrors = new Map(
       errors.map((error) => [error.sourceId, error])
     )
-    this.updateSourcesDisplay()
+    // The mirrored highlight layer redraws from the textarea's own input event.
+    document.querySelector<HTMLTextAreaElement>("#sources_area")
+      ?.dispatchEvent(new Event("input"))
     this.structuredEditors?.setErrors(errors)
     this.refreshSettingsSearch()
-  }
-
-  private updateSourcesDisplay(): void {
-    const sources_area =
-      document.querySelector<HTMLTextAreaElement>("#sources_area")
-    if (sources_area) {
-      // Trigger input event to update highlights
-      sources_area.dispatchEvent(new Event("input"))
-    }
   }
 
   public highlight_filter(filter: string, shouldOpenPanel = true): void {
