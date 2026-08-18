@@ -1,4 +1,5 @@
 import { protocol, Session } from "electron"
+import { sourceUrlFromReaderUrl } from "./browser/reader-url"
 
 const documents = new Map<string, string>()
 
@@ -44,15 +45,4 @@ export function storeReaderDocument(sourceUrl: string, html: string): string {
 
 export function hasReaderDocument(sourceUrl: string): boolean {
   return documents.has(sourceUrl)
-}
-
-export function sourceUrlFromReaderUrl(readerUrl: string): string | null {
-  if (!readerUrl.startsWith("once-reader://")) return null
-  try {
-    const parsed = new URL(readerUrl)
-    if (parsed.hostname !== "http" && parsed.hostname !== "https") return null
-    return new URL(`${parsed.hostname}:${parsed.pathname}${parsed.search}${parsed.hash}`).toString()
-  } catch {
-    return null
-  }
 }

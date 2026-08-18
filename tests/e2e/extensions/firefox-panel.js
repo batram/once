@@ -25,9 +25,17 @@ const OPEN_TAB = `const url = arguments[0]
   win.gBrowser.selectedTab = tab`
 
 async function waitForPanelReady(driver) {
+  // driver.wait aborts on a condition that throws, and the fresh tab may not
+  // have parsed a body yet (NoSuchElementError), so misses must return false.
   await driver.wait(
-    async () =>
-      (await driver.findElement(By.css("body")).getAttribute("data-once-ready")) === "true",
+    async () => {
+      try {
+        const body = await driver.findElement(By.css("body"))
+        return (await body.getAttribute("data-once-ready")) === "true"
+      } catch {
+        return false
+      }
+    },
     15_000,
     "extension panel did not become ready"
   )

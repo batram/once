@@ -18,11 +18,8 @@ import {
   normalizeBrowserUrl,
   resolveOpenDisposition
 } from "@once/platform-electron/navigation"
-import {
-  hasReaderDocument,
-  sourceUrlFromReaderUrl,
-  storeReaderDocument
-} from "./ReaderProtocol"
+import { hasReaderDocument, storeReaderDocument } from "./ReaderProtocol"
+import { sourceUrlFromReaderUrl } from "./browser/reader-url"
 import { TabEntry, WindowEntry } from "./browser/BrowserState"
 import { NativeMenus } from "./browser/NativeMenus"
 import { NavigationErrors } from "./browser/NavigationErrors"

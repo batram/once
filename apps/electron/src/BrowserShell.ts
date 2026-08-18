@@ -8,6 +8,12 @@ import {
 } from "@once/ui-web"
 import { ReaderRequests, ReaderRequestRunner } from "./ReaderRequests"
 import browserShellMarkup from "./browser/browser-shell.html"
+import {
+  displayBrowserUrl,
+  isReadableUrl,
+  readerErrorMessage,
+  sourceUrlFromReaderUrl
+} from "./browser/reader-url"
 
 const TAB_MIME = "application/x-once-tab"
 const SPLIT_RATIO_KEY = "once-electron-split-ratio"
@@ -645,31 +651,6 @@ export class BrowserShell {
         height: Math.round(rect.height)
       })
     })
-  }
-}
-
-function isReadableUrl(url: string): boolean {
-  return url.startsWith("http://") || url.startsWith("https://")
-}
-
-function readerErrorMessage(error: unknown): string {
-  const detail = error instanceof Error ? error.message : String(error)
-  return `Reader mode failed: ${detail}`
-}
-
-function displayBrowserUrl(url: string): string {
-  const source = sourceUrlFromReaderUrl(url)
-  return source ? `once-reader://${source}` : url
-}
-
-function sourceUrlFromReaderUrl(url: string): string | null {
-  if (!url.startsWith("once-reader://")) return null
-  try {
-    const parsed = new URL(url)
-    if (parsed.hostname !== "http" && parsed.hostname !== "https") return null
-    return new URL(`${parsed.hostname}:${parsed.pathname}${parsed.search}${parsed.hash}`).toString()
-  } catch {
-    return null
   }
 }
 
