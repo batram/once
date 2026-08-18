@@ -366,6 +366,15 @@ export class BrowserShell {
       element.setAttribute("aria-selected", String(tab.active))
       element.tabIndex = tab.active ? 0 : -1
       element.title = tab.title
+      // Chromium spells the audio state into a playing tab's accessible name, and
+      // assistive tech and tools that hunt for "which tab is making that noise" read it
+      // there. Mirroring the wording means they find our tabs too, without knowing
+      // anything about this app.
+      const label = tab.title || "New tab"
+      element.setAttribute(
+        "aria-label",
+        tab.audible ? `${label} - Audio playing` : label
+      )
       element.draggable = true
       element.dataset.tabId = tab.id
 

@@ -206,9 +206,21 @@ function configureBrowserSession(): void {
   })
 }
 
+// Chromium only builds an accessibility tree when it is asked to, and unlike Chrome
+// itself, Electron does not switch it on when a client comes knocking: without this the
+// window exposes a handful of nodes and nothing of the UI inside it. Turning it on is
+// what lets screen readers - and tools looking for the tab that is playing audio - see
+// the tab strip at all. It costs memory per renderer, so ONCE_DISABLE_ACCESSIBILITY=1
+// opts out.
+function configureAccessibility(): void {
+  if (process.env.ONCE_DISABLE_ACCESSIBILITY === "1") return
+  app.setAccessibilitySupportEnabled(true)
+}
+
 app
   .whenReady()
   .then(async () => {
+    configureAccessibility()
     configureBrowserSession()
     browserCoordinator = new BrowserCoordinator(
       createShellWindow,
