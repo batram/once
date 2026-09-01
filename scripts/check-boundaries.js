@@ -91,7 +91,9 @@ const expected = baseline.disallowedImports
 const errors = []
 
 const coreSourceRoot = path.join(root, "packages", "core", "src")
-const domPattern = /\b(?:document|window|DOMParser|Document|Element|HTMLElement|HTML[A-Za-z]+Element)\b/
+// A hyphenated token such as the userscript `document-start` phase is a word,
+// not an API reference, so a `-` on either side does not count.
+const domPattern = /(?<!-)\b(?:document|window|DOMParser|Document|Element|HTMLElement|HTML[A-Za-z]+Element)\b(?!-)/
 for (const file of walk(coreSourceRoot)) {
   const relativeFile = toPosix(path.relative(root, file))
   const source = fs.readFileSync(file, "utf8")
