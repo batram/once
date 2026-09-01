@@ -64,6 +64,7 @@
         "src/renderer.ts",
         "src/pickerInjection.ts",
         "src/extensions/extensionPreload.ts",
+        "src/extensions/contentPreload.ts",
         "forge.config.js",
         "webpack.*.config.js",
         "scripts/*.js"

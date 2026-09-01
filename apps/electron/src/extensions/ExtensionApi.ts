@@ -4,18 +4,24 @@
 
 import { app } from "electron"
 import { getLocaleMessage } from "@once/core"
-import { ExtensionContexts, ContextEntry } from "./ExtensionContexts"
+import { ExtensionContexts, ContextEntry, EventTarget } from "./ExtensionContexts"
+import { ExtensionPorts } from "./ExtensionPorts"
 import { extensionUrl } from "./ExtensionScheme"
 import { ExtensionStorage } from "./ExtensionStorage"
 import { LoadedExtension } from "./LoadedExtension"
+import { ExtensionFiles } from "./contentScripts"
+import { INTERNAL_API } from "./protocol"
 import { ExtensionShellHooks, TabSnapshot, TabUpdateProps, platformOs } from "./runtimeTypes"
 
 const MESSAGE_REPLY_TIMEOUT_MS = 30_000
+const SCRIPT_RESULT_TIMEOUT_MS = 10_000
 
 export interface ApiHost {
   readonly extension: LoadedExtension
   readonly contexts: ExtensionContexts
+  readonly ports: ExtensionPorts
   readonly storage: ExtensionStorage
+  readonly files: ExtensionFiles
   readonly hooks: ExtensionShellHooks
   readonly action: BrowserActionState
   readonly alarms: AlarmScheduler
@@ -190,17 +196,41 @@ function windowSnapshot(host: ApiHost, id: number): Record<string, unknown> {
   }
 }
 
-function senderDescriptor(host: ApiHost, sender: ContextEntry): Record<string, unknown> {
-  return {
+/** `MessageSender`: who sent a message or opened a port. */
+export function senderDescriptor(host: ApiHost, sender: ContextEntry): Record<string, unknown> {
+  const descriptor: Record<string, unknown> = {
     id: host.extension.id,
-    url: sender.contents.isDestroyed() ? "" : sender.contents.getURL(),
-    frameId: 0
+    url: sender.url(),
+    frameId: sender.frameId
   }
+  if (sender.kind === "content") {
+    descriptor.tab = host.hooks.tabs().find((tab) => tab.id === sender.tabId)
+  }
+  return descriptor
 }
 
 function substitutionList(value: unknown): string[] {
   if (value === undefined) return []
   return Array.isArray(value) ? value.map(String) : [String(value)]
+}
+
+async function firstReply(host: ApiHost, targets: EventTarget[], args: unknown[]): Promise<unknown> {
+  for (const target of targets) {
+    const results = await host.contexts.request(
+      target, "runtime", "onMessage", args, MESSAGE_REPLY_TIMEOUT_MS
+    )
+    const reply = results.find((result) => result !== undefined)
+    if (reply !== undefined) return reply
+  }
+  return undefined
+}
+
+/** The content-script contexts of one tab, optionally one frame of it. */
+function frameContexts(host: ApiHost, tabId: number, frameId?: number, allFrames = false): ContextEntry[] {
+  return host.contexts.all().filter((entry) =>
+    entry.kind === "content" && entry.tabId === tabId && !entry.isDestroyed() &&
+    (frameId !== undefined ? entry.frameId === frameId : allFrames || entry.frameId === 0)
+  )
 }
 
 function runtimeHandlers(): Handlers {
@@ -215,21 +245,16 @@ function runtimeHandlers(): Handlers {
       version: "128.0",
       buildID: "20240101000000"
     }),
-    "runtime.sendMessage": async ({ host, sender }, message) => {
-      const descriptor = senderDescriptor(host, sender)
-      for (const target of host.contexts.targets("runtime", "onMessage", () => true, sender.id)) {
-        const results = await host.contexts.request(
-          target, "runtime", "onMessage", [message, descriptor], MESSAGE_REPLY_TIMEOUT_MS
-        )
-        const reply = results.find((result) => result !== undefined)
-        if (reply !== undefined) return reply
-      }
-      return undefined
-    },
+    // Reaches the extension's pages, never its content scripts (Firefox).
+    "runtime.sendMessage": ({ host, sender }, message) => firstReply(
+      host,
+      host.contexts.targets("runtime", "onMessage", (_spec, entry) => entry.kind !== "content", sender.id),
+      [message, senderDescriptor(host, sender)]
+    ),
     "runtime.openOptionsPage": async ({ host }) => {
       const options = host.extension.manifest.optionsUi
       if (!options) throw new Error("This extension has no options page")
-      await host.hooks.openExtensionPage(extensionUrl(host.extension.host, options.page))
+      await host.hooks.createTab(extensionUrl(host.extension.host, options.page), true)
     },
     "runtime.reload": () => undefined,
     "runtime.setUninstallURL": () => undefined,
@@ -276,13 +301,11 @@ function storageHandlers(): Handlers {
 }
 
 function tabHandlers(): Handlers {
-  const unavailable = (name: string): ApiHandler => () => {
-    throw new Error(`tabs.${name} is not available yet`)
-  }
   return {
     "tabs.query": ({ host }, info) => queryTabs(host, asRecord(info)),
     "tabs.get": ({ host }, id) => requireTab(host, requireTabId(id)),
-    "tabs.getCurrent": () => undefined,
+    "tabs.getCurrent": ({ host, sender }) =>
+      sender.kind === "content" ? requireTab(host, sender.tabId) : undefined,
     "tabs.create": ({ host }, props) => {
       const { url, active } = asRecord(props)
       return host.hooks.createTab(typeof url === "string" ? url : "about:blank", active !== false)
@@ -304,13 +327,20 @@ function tabHandlers(): Handlers {
     },
     "tabs.reload": ({ host }, id) =>
       host.hooks.reloadTab(typeof id === "number" ? id : activeTabId(host)),
-    "tabs.sendMessage": () => {
-      throw new Error("Could not establish connection. Receiving end does not exist.")
+    "tabs.sendMessage": ({ host, sender }, tabId, message, options) => {
+      const { frameId } = asRecord(options)
+      const targets = host.contexts.targets("runtime", "onMessage", (_spec, entry) =>
+        entry.kind === "content" && entry.tabId === requireTabId(tabId) &&
+        (typeof frameId !== "number" || entry.frameId === frameId)
+      )
+      if (targets.length === 0) {
+        throw new Error("Could not establish connection. Receiving end does not exist.")
+      }
+      return firstReply(host, targets, [message, senderDescriptor(host, sender)])
     },
-    "tabs.executeScript": unavailable("executeScript"),
-    "tabs.insertCSS": unavailable("insertCSS"),
-    "tabs.removeCSS": unavailable("removeCSS"),
-    "tabs.captureVisibleTab": unavailable("captureVisibleTab"),
+    "tabs.captureVisibleTab": () => {
+      throw new Error("tabs.captureVisibleTab is not available")
+    },
     "webNavigation.getFrame": ({ host }, details) => {
       const { tabId, frameId } = asRecord(details)
       const tab = requireTab(host, requireTabId(tabId))
@@ -336,6 +366,54 @@ function tabHandlers(): Handlers {
       return tab ? windowSnapshot(host, tab.windowId) : null
     },
     "windows.update": () => undefined
+  }
+}
+
+/** tabs.executeScript, insertCSS, removeCSS: reach into a tab's frames. */
+function injectionHandlers(): Handlers {
+  interface Injection {
+    tabId: number
+    frames: ContextEntry[]
+    details: Record<string, unknown>
+    code: string
+  }
+  const resolve = (host: ApiHost, first: unknown, second: unknown, key: "code" | "css"): Injection => {
+    const hasId = typeof first === "number"
+    const tabId = hasId ? first : activeTabId(host)
+    const details = asRecord(hasId ? second : first)
+    const code = typeof details[key === "css" ? "code" : "code"] === "string"
+      ? details.code as string
+      : typeof details.file === "string" ? host.files.read(details.file) : null
+    if (code === null) throw new Error("Either code or file is required")
+    const frames = frameContexts(host, tabId, optionalTabId(details.frameId), details.allFrames === true)
+    return { tabId, frames, details, code }
+  }
+  return {
+    "tabs.executeScript": async ({ host }, first, second) => {
+      const { frames, details, code } = resolve(host, first, second, "code")
+      const url = typeof details.file === "string" ? extensionUrl(host.extension.host, details.file) : undefined
+      const results: unknown[] = []
+      for (const frame of frames) {
+        const [result] = await host.contexts.request(
+          { entry: frame, listenerIds: [] },
+          INTERNAL_API.content, "executeScript", [{ code, url }], SCRIPT_RESULT_TIMEOUT_MS
+        )
+        results.push(result)
+      }
+      return results
+    },
+    "tabs.insertCSS": ({ host }, first, second) => {
+      const { frames, code } = resolve(host, first, second, "css")
+      for (const frame of frames) {
+        frame.send({ api: INTERNAL_API.content, event: "insertCSS", args: [{ css: code }] })
+      }
+    },
+    "tabs.removeCSS": ({ host }, first, second) => {
+      const { frames, code } = resolve(host, first, second, "css")
+      for (const frame of frames) {
+        frame.send({ api: INTERNAL_API.content, event: "removeCSS", args: [{ css: code }] })
+      }
+    }
   }
 }
 
@@ -387,11 +465,36 @@ function actionHandlers(): Handlers {
   }
 }
 
+/** `runtime.connect` / `tabs.connect` and the port traffic that follows. */
+function portHandlers(): Handlers {
+  return {
+    [`${INTERNAL_API.port}.connect`]: ({ host, sender }, details) => {
+      const { name, tabId, frameId } = asRecord(details)
+      return host.ports.connect(
+        sender,
+        typeof name === "string" ? name : "",
+        { tabId: optionalTabId(tabId), frameId: optionalTabId(frameId) },
+        senderDescriptor(host, sender)
+      )
+    },
+    [`${INTERNAL_API.port}.post`]: ({ host, sender }, details) => {
+      const { portId, message } = asRecord(details)
+      if (typeof portId === "number") host.ports.post(sender.id, portId, message)
+    },
+    [`${INTERNAL_API.port}.disconnect`]: ({ host, sender }, details) => {
+      const { portId } = asRecord(details)
+      if (typeof portId === "number") host.ports.disconnect(sender.id, portId)
+    }
+  }
+}
+
 export function createApiHandlers(): Handlers {
   return {
     ...runtimeHandlers(),
     ...storageHandlers(),
     ...tabHandlers(),
-    ...actionHandlers()
+    ...injectionHandlers(),
+    ...actionHandlers(),
+    ...portHandlers()
   }
 }

@@ -1,6 +1,5 @@
 import { dialog } from "electron"
 import { ELECTRON_IPC } from "@once/platform-electron/bridge"
-import { normalizeBrowserUrl } from "@once/platform-electron/navigation"
 import { chordFromKey, chordFromParts, isModifiedChord } from "@once/core"
 import { NativeMenus } from "./NativeMenus"
 import { NavigationErrors, sameUrl } from "./NavigationErrors"
@@ -13,6 +12,8 @@ interface TabOwnerAccess {
 
 interface NavigationActions extends TabOwnerAccess {
   applyRedirects(url: string): string
+  /** What a tab may show: HTTP(S), reader, and extension URLs; throws otherwise. */
+  normalizeUrl(url: string): string
 }
 
 class TabNavigationEvents {
@@ -76,11 +77,11 @@ class TabNavigationEvents {
     })
     contents.on("will-navigate", (event, url) => {
       try {
-        const normalized = normalizeBrowserUrl(url)
+        const normalized = this.actions.normalizeUrl(url)
         const redirected = this.actions.applyRedirects(normalized)
         if (redirected !== normalized) {
           event.preventDefault()
-          this.errors.load(entry, normalizeBrowserUrl(redirected))
+          this.errors.load(entry, this.actions.normalizeUrl(redirected))
         }
       } catch {
         event.preventDefault()
@@ -127,6 +128,7 @@ class TabNavigationEvents {
 interface WindowInteractionActions extends TabOwnerAccess {
   createTab(owner: WindowEntry, url: string, active: boolean): Promise<string>
   createWindow(url: string): Promise<void>
+  normalizeUrl(url: string): string
   setFullscreen(owner: WindowEntry, fullscreen: boolean): void
 }
 
@@ -180,7 +182,7 @@ class TabWindowInteractionEvents {
       const owner = this.actions.ownerFor(entry)
       if (!owner) return { action: "deny" }
       try {
-        const normalized = normalizeBrowserUrl(url)
+        const normalized = this.actions.normalizeUrl(url)
         if (disposition === "new-window") void this.actions.createWindow(normalized)
         else void this.actions.createTab(owner, normalized, disposition !== "background-tab")
       } catch {

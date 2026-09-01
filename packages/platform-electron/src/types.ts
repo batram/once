@@ -78,6 +78,20 @@ export interface ElectronUpdateStatus {
 
 export type ElectronFocusSurface = "browser" | "shell"
 
+/** One loaded extension as the toolbar shows it. */
+export interface ElectronExtensionInfo {
+  /** Opaque, stable per extension; what the popup call names. */
+  host: string
+  name: string
+  title: string
+  badgeText: string
+  badgeBackgroundColor: string | null
+  /** Data URL of the toolbar icon, when the extension ships one. */
+  icon: string | null
+  enabled: boolean
+  hasPopup: boolean
+}
+
 export interface ElectronBridge {
   app: {
     getBuildInfo(): Promise<ElectronBuildInfo>
@@ -139,6 +153,12 @@ export interface ElectronBridge {
     ): Promise<string | null>
     openExternal(url: string): Promise<void>
     openWindow(url: string): Promise<void>
+  }
+  extensions: {
+    list(): Promise<ElectronExtensionInfo[]>
+    /** Toggles the extension's popup under the toolbar button at `anchor`. */
+    openPopup(host: string, anchor: ElectronRect): Promise<void>
+    onChanged(handler: () => void): () => void
   }
   window: {
     setFullscreen(fullscreen: boolean): Promise<void>
@@ -203,7 +223,10 @@ export const ELECTRON_IPC = {
   windowSetRedirects: "once:window:set-redirects",
   windowSetBackgroundColor: "once:window:set-background-color",
   windowTargetUrlChanged: "once:window:target-url-changed",
-  windowFullscreenChanged: "once:window:fullscreen-changed"
+  windowFullscreenChanged: "once:window:fullscreen-changed",
+  extensionsList: "once:extensions:list",
+  extensionsOpenPopup: "once:extensions:open-popup",
+  extensionsChanged: "once:extensions:changed"
 } as const
 
 declare global {

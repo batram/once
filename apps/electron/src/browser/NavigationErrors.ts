@@ -16,7 +16,10 @@ export class NavigationErrors {
     entry.errorPageUrl = null
     this.host.notify(entry)
     entry.view.webContents.loadURL(url).catch((error) => {
-      if (isAborted(error) || entry.view.webContents.isDestroyed()) return
+      // A tab replaced while loading (an extension page taking its place)
+      // has no webContents left by the time the load reports back.
+      const contents = entry.view.webContents
+      if (isAborted(error) || !contents || contents.isDestroyed()) return
       if (!sameUrl(entry.displayedUrl, url) || entry.loadError) return
       this.handleFailure(entry, url, error?.message || String(error), true)
     })

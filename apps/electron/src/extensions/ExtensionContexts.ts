@@ -1,4 +1,4 @@
-import { WebContents } from "electron"
+import { WebContents, WebFrameMain } from "electron"
 import { EXTENSION_IPC, ExtensionContextKind, ExtensionEvent, ExtensionReply } from "./protocol"
 import { WebRequestListenerSpec } from "./webRequestDetails"
 
@@ -6,11 +6,16 @@ import { WebRequestListenerSpec } from "./webRequestDetails"
 export type ListenerRecord = WebRequestListenerSpec | null
 
 export interface ContextEntry {
-  readonly id: number
+  readonly id: string
   readonly kind: ExtensionContextKind
-  readonly contents: WebContents
+  /** The tab a content-script context lives in; -1 for extension pages. */
+  readonly tabId: number
+  readonly frameId: number
   /** `api.event` → listener id → spec. */
   readonly listeners: Map<string, Map<number, ListenerRecord>>
+  url(): string
+  isDestroyed(): boolean
+  send(message: ExtensionEvent): void
 }
 
 interface PendingReply {
@@ -23,53 +28,108 @@ export interface EventTarget {
   listenerIds: number[]
 }
 
+export function pageContextId(contents: WebContents): string {
+  return String(contents.id)
+}
+
+export function frameContextId(contents: WebContents, frame: WebFrameMain): string {
+  return `${contents.id}:${frame.routingId}`
+}
+
 /**
- * The pages one extension currently has open (background, popup, options),
- * which of them listen to what, and the request/reply channel main uses when
- * an event needs an answer: a blocking webRequest decision or a message
- * response.
+ * The places one extension currently runs (background, popup, options, and
+ * one entry per frame that hosts its content scripts), which of them listen
+ * to what, and the request/reply channel main uses when an event needs an
+ * answer: a blocking webRequest decision or a message response.
  */
 export class ExtensionContexts {
-  private readonly entries = new Map<number, ContextEntry>()
+  private readonly entries = new Map<string, ContextEntry>()
   private readonly pending = new Map<number, PendingReply>()
+  private readonly removed = new Set<(entry: ContextEntry) => void>()
   private nextToken = 1
 
+  /** An extension page in its own webContents. */
   add(contents: WebContents, kind: ExtensionContextKind): ContextEntry {
-    const entry: ContextEntry = {
-      id: contents.id,
+    const entry = this.insert({
+      id: pageContextId(contents),
       kind,
-      contents,
-      listeners: new Map()
-    }
-    this.entries.set(entry.id, entry)
+      tabId: -1,
+      frameId: 0,
+      listeners: new Map(),
+      url: () => (contents.isDestroyed() ? "" : contents.getURL()),
+      isDestroyed: () => contents.isDestroyed(),
+      send: (message) => {
+        if (!contents.isDestroyed()) contents.send(EXTENSION_IPC.event, message)
+      }
+    })
     contents.once("destroyed", () => this.remove(entry.id))
     return entry
   }
 
-  remove(id: number): void {
-    this.entries.delete(id)
+  /** A context with its own transport; replaces any entry with the same id. */
+  addEntry(entry: ContextEntry): ContextEntry {
+    return this.insert(entry)
   }
 
-  get(id: number): ContextEntry | undefined {
-    return this.entries.get(id)
+  /** This extension's content-script world inside one frame of a tab. */
+  addFrame(
+    contents: WebContents,
+    frame: WebFrameMain,
+    host: string,
+    tabId: number,
+    frameId: number
+  ): ContextEntry {
+    const id = frameContextId(contents, frame)
+    const alive = () => !contents.isDestroyed() && !frame.detached
+    return this.insert({
+      id,
+      kind: "content",
+      tabId,
+      frameId,
+      listeners: new Map(),
+      url: () => (alive() ? frame.url : ""),
+      isDestroyed: () => !alive(),
+      send: (message) => {
+        if (alive()) frame.send(EXTENSION_IPC.event, { ...message, host })
+      }
+    })
+  }
+
+  private insert(entry: ContextEntry): ContextEntry {
+    const existing = this.entries.get(entry.id)
+    if (existing) this.remove(existing.id)
+    this.entries.set(entry.id, entry)
+    return entry
+  }
+
+  remove(id: string): void {
+    const entry = this.entries.get(id)
+    if (!entry) return
+    this.entries.delete(id)
+    for (const listener of this.removed) listener(entry)
+  }
+
+  /** Runs when a context goes away, so ports and pending work can close. */
+  onRemoved(listener: (entry: ContextEntry) => void): void {
+    this.removed.add(listener)
+  }
+
+  get(id: string | number): ContextEntry | undefined {
+    return this.entries.get(String(id))
   }
 
   all(): ContextEntry[] {
     return [...this.entries.values()]
   }
 
-  background(): ContextEntry | undefined {
-    return this.all().find((entry) => entry.kind === "background")
-  }
-
   addListener(
-    contextId: number,
+    contextId: string | number,
     api: string,
     event: string,
     listenerId: number,
     spec: ListenerRecord
   ): void {
-    const entry = this.entries.get(contextId)
+    const entry = this.entries.get(String(contextId))
     if (!entry) return
     const key = `${api}.${event}`
     let listeners = entry.listeners.get(key)
@@ -80,25 +140,26 @@ export class ExtensionContexts {
     listeners.set(listenerId, spec)
   }
 
-  removeListener(contextId: number, api: string, event: string, listenerId: number): void {
-    this.entries.get(contextId)?.listeners.get(`${api}.${event}`)?.delete(listenerId)
+  removeListener(contextId: string | number, api: string, event: string, listenerId: number): void {
+    this.entries.get(String(contextId))?.listeners.get(`${api}.${event}`)?.delete(listenerId)
   }
 
   /** Contexts with at least one listener for the event, and which listeners. */
   targets(
     api: string,
     event: string,
-    select: (spec: ListenerRecord) => boolean = () => true,
-    exclude?: number
+    select: (spec: ListenerRecord, entry: ContextEntry) => boolean = () => true,
+    exclude?: string | number
   ): EventTarget[] {
     const key = `${api}.${event}`
+    const excluded = exclude === undefined ? undefined : String(exclude)
     const targets: EventTarget[] = []
     for (const entry of this.entries.values()) {
-      if (entry.id === exclude || entry.contents.isDestroyed()) continue
+      if (entry.id === excluded || entry.isDestroyed()) continue
       const listeners = entry.listeners.get(key)
       if (!listeners) continue
       const listenerIds = [...listeners.entries()]
-        .filter(([, spec]) => select(spec))
+        .filter(([, spec]) => select(spec, entry))
         .map(([id]) => id)
       if (listenerIds.length > 0) targets.push({ entry, listenerIds })
     }
@@ -106,7 +167,7 @@ export class ExtensionContexts {
   }
 
   /** Fire and forget to every listening context. */
-  emit(api: string, event: string, args: unknown[], exclude?: number): void {
+  emit(api: string, event: string, args: unknown[], exclude?: string | number): void {
     for (const target of this.targets(api, event, () => true, exclude)) {
       this.emitTo(target, api, event, args)
     }
@@ -114,7 +175,7 @@ export class ExtensionContexts {
 
   /** Fire and forget to one context's selected listeners. */
   emitTo(target: EventTarget, api: string, event: string, args: unknown[]): void {
-    this.send(target, { api, event, args, listeners: target.listenerIds })
+    target.entry.send({ api, event, args, listeners: target.listenerIds })
   }
 
   /**
@@ -136,12 +197,12 @@ export class ExtensionContexts {
         resolve([])
       }, timeoutMs)
       this.pending.set(token, { resolve, timer })
-      this.send(target, { api, event, args, token, listeners: target.listenerIds })
+      target.entry.send({ api, event, args, token, listeners: target.listenerIds })
     })
   }
 
-  handleReply(senderId: number, reply: ExtensionReply): void {
-    if (!this.entries.has(senderId)) return
+  handleReply(senderId: string | number, reply: ExtensionReply): void {
+    if (!this.entries.has(String(senderId))) return
     const pending = this.pending.get(reply.token)
     if (!pending) return
     clearTimeout(pending.timer)
@@ -155,14 +216,6 @@ export class ExtensionContexts {
       pending.resolve([])
     }
     this.pending.clear()
-    for (const entry of this.entries.values()) {
-      if (!entry.contents.isDestroyed()) entry.contents.close()
-    }
-    this.entries.clear()
-  }
-
-  private send(target: EventTarget, message: ExtensionEvent & { listeners: number[] }): void {
-    if (target.entry.contents.isDestroyed()) return
-    target.entry.contents.send(EXTENSION_IPC.event, message)
+    for (const id of [...this.entries.keys()]) this.remove(id)
   }
 }

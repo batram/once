@@ -26,6 +26,8 @@ export interface TabEntry {
   errorPageUrl: string | null
   errorPages: Map<string, ErrorPageState>
   htmlFullscreen: boolean
+  /** Created in an extension's session to show one of its pages. */
+  extensionPage: boolean
   pickerSession: Promise<import("@once/core").StorySource | null> | null
   /**
    * Refreshed on navigation so reopening a closed tab can restore its history.

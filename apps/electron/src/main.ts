@@ -234,14 +234,6 @@ app
         : MAIN_WINDOW_WEBPACK_ENTRY
     )
     startAutoUpdates()
-    registerIpcHandlers(new SecureSettings(), {
-      buildChannel: __ONCE_BUILD_CHANNEL__,
-      buildIdentifier: __ONCE_BUILD_IDENTIFIER__,
-      coordinator: browserCoordinator,
-      getUpdateStatus: () => updateStatus,
-      setUpdateStatus,
-      updatesStarted: () => autoUpdatesStarted
-    })
     // Installed before the first window so its webRequest hooks see every
     // request a tab ever makes; the extensions themselves load after the
     // window is up so startup is not held for their background pages.
@@ -249,9 +241,25 @@ app
       browserSession,
       storageRoot: path.join(app.getPath("userData"), "extensions"),
       preloadPath: path.join(__dirname, "extension-preload.js"),
+      contentPreloadPath: path.join(__dirname, "content-preload.js"),
       hooks: browserCoordinator.extensionHooks()
     })
     extensions.install()
+    browserCoordinator.setPageProfileResolver((url) => extensions.pageProfile(url))
+    registerIpcHandlers(new SecureSettings(), {
+      buildChannel: __ONCE_BUILD_CHANNEL__,
+      buildIdentifier: __ONCE_BUILD_IDENTIFIER__,
+      coordinator: browserCoordinator,
+      extensions,
+      getUpdateStatus: () => updateStatus,
+      setUpdateStatus,
+      updatesStarted: () => autoUpdatesStarted
+    })
+    extensions.onChanged(() => {
+      for (const window of BrowserWindow.getAllWindows()) {
+        if (!window.isDestroyed()) window.webContents.send(ELECTRON_IPC.extensionsChanged)
+      }
+    })
     await browserCoordinator.createWindow()
     void extensions.loadConfigured()
 

@@ -1,17 +1,24 @@
 # Plan: Firefox extensions and userscripts in the embedded browsers
 
-Status: in progress. Steps 1 and 2 are done. uBlock Origin 1.74.0's Firefox
-build boots on the runtime, downloads and compiles its default lists, and
-strict-blocks a navigation to an ad host (verified 2026-09-01 through the
-`ONCE_ELECTRON_EXTENSIONS` dev path). Step 3 is next; it also has to let a
-tab navigate to `once-ext://` so uBlock's own document-blocked page can show,
-and to add `runtime.connect` ports for the popup.
+Status: in progress. Steps 1 to 3 are done. uBlock Origin 1.74.0's Firefox
+build boots on the runtime, downloads and compiles its default lists,
+strict-blocks a navigation to an ad host and shows its own blocked-page in
+the tab, hides elements through generic cosmetic filters, injects its
+scriptlets into pages, and its popup opens from the toolbar and reports on
+the active tab (all verified 2026-09-01 through the `ONCE_ELECTRON_EXTENSIONS`
+dev path). Step 4 (Violentmonkey) is next.
 
-Findings from the uBlock run worth keeping: Firefox accepts `file://*/*` as
+Findings from the uBlock runs worth keeping: Firefox accepts `file://*/*` as
 a match pattern; extension pages need CORS bypassed for permitted hosts or
 list downloads fail; uBlock reads `webRequest.ResourceType`, `TAB_ID_NONE`,
 `privacy.websites.*`, and subscribes to `onSendHeaders`, `onResponseStarted`,
 `onBeforeRedirect`, `onCreatedNavigationTarget`, and `onUpdateAvailable`.
+Its pages add helpers onto `browser.i18n`, so the `browser` object must be
+extensible, which a raw `contextBridge` copy is not. Its scriptlet injector
+confirms main-world execution through Firefox's `wrappedJSObject`; the
+content preload answers that with a proxy over
+`contextBridge.executeInMainWorld`. It probes `browser.contentScripts` and
+falls back to `tabs.executeScript` when absent, which is what runs today.
 
 Once embeds a browser on Electron (`WebContentsView` tabs), Android (`android.webkit.WebView`
 inside `InAppBrowserSurfacePlugin`), and iOS (`WKWebView` inside the same plugin). Users want

@@ -2,6 +2,8 @@
 // shell (BrowserCoordinator) implements the hooks; the runtime never reaches
 // into tab ownership directly.
 
+import { WebContents } from "electron"
+
 /** A browser tab as `browser.tabs` describes it. `id` is the webContents id. */
 export interface TabSnapshot {
   id: number
@@ -32,8 +34,14 @@ export interface ExtensionShellHooks {
   reloadTab(id: number): Promise<void>
   /** Called whenever the tab list, order, or activation changes. */
   onTabsChanged(listener: () => void): () => void
-  /** Opens an extension page (options, dashboard) as a shell tab. */
-  openExtensionPage(url: string): Promise<void>
+  /** Called with every tab's webContents as soon as the tab exists. */
+  onTabCreated(listener: (contents: WebContents) => void): () => void
+}
+
+/** How a tab must be created to show a given URL; null for ordinary pages. */
+export interface PageProfile {
+  session: Electron.Session
+  preload: string
 }
 
 export type ExtensionPlatformOs = "win" | "mac" | "linux"

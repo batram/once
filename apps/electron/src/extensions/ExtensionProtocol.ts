@@ -12,6 +12,15 @@ import {
 
 export type ExtensionLookup = (host: string) => LoadedExtension | undefined
 
+export interface ExtensionProtocolOptions {
+  /**
+   * Serve only `web_accessible_resources`. This is the browser session's
+   * view of an extension: pages may load what the manifest exposes, never
+   * the extension's own UI or scripts.
+   */
+  webAccessibleOnly?: boolean
+}
+
 function notFound(reason: string): Response {
   return new Response(reason, {
     status: 404,
@@ -19,14 +28,29 @@ function notFound(reason: string): Response {
   })
 }
 
+function globToRegExp(glob: string): RegExp {
+  const normalized = glob.startsWith("/") ? glob : `/${glob}`
+  const escaped = normalized.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*")
+  return new RegExp(`^${escaped}$`)
+}
+
+export function isWebAccessible(extension: LoadedExtension, path: string): boolean {
+  return extension.manifest.webAccessibleResources.some((glob) => globToRegExp(glob).test(path))
+}
+
 export async function serveExtensionRequest(
   url: string,
-  lookup: ExtensionLookup
+  lookup: ExtensionLookup,
+  options: ExtensionProtocolOptions = {}
 ): Promise<Response> {
   const parts = parseExtensionUrl(url)
   if (!parts) return notFound("Not an extension URL")
   const extension = lookup(parts.host)
   if (!extension) return notFound("Unknown extension")
+
+  if (options.webAccessibleOnly && !isWebAccessible(extension, parts.path)) {
+    return notFound("Not a web accessible resource")
+  }
 
   if (parts.path === GENERATED_BACKGROUND_PAGE) {
     const background = extension.manifest.background
@@ -56,9 +80,10 @@ export async function serveExtensionRequest(
 /** Serves `once-ext://<host>/<path>` from the extension's directory. */
 export function configureExtensionProtocol(
   targetSession: Session,
-  lookup: ExtensionLookup
+  lookup: ExtensionLookup,
+  options: ExtensionProtocolOptions = {}
 ): void {
   targetSession.protocol.handle(EXTENSION_SCHEME, (request) =>
-    serveExtensionRequest(request.url, lookup)
+    serveExtensionRequest(request.url, lookup, options)
   )
 }

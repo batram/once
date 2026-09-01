@@ -1,14 +1,17 @@
+import { promises as fs } from "node:fs"
 import path from "node:path"
 import { BrowserWindow, Session, WebContents, session as electronSession } from "electron"
 import { MatchPatternSet } from "@once/core"
 import { ExtensionContexts } from "./ExtensionContexts"
 import { AlarmScheduler, ApiHost, BrowserActionState } from "./ExtensionApi"
+import { ExtensionPorts } from "./ExtensionPorts"
 import { configureExtensionProtocol } from "./ExtensionProtocol"
 import { extensionUrl } from "./ExtensionScheme"
 import { ExtensionStorage } from "./ExtensionStorage"
-import { LoadedExtension } from "./LoadedExtension"
+import { LoadedExtension, mimeTypeFor, resolveExtensionFile } from "./LoadedExtension"
+import { ExtensionFiles } from "./contentScripts"
 import { ExtensionContextKind } from "./protocol"
-import { ExtensionShellHooks } from "./runtimeTypes"
+import { ExtensionShellHooks, PageProfile } from "./runtimeTypes"
 
 // uBlock decides which browser it is running in from the user agent as well
 // as from `runtime.getBrowserInfo`, so extension pages present as Firefox.
@@ -19,31 +22,39 @@ export interface ExtensionHostOptions {
   extension: LoadedExtension
   storageRoot: string
   preloadPath: string
+  worldId: number
   hooks: ExtensionShellHooks
   lookup: (host: string) => LoadedExtension | undefined
 }
 
 /**
  * One loaded extension: its own session partition, its background page,
- * storage, and the pages it has open. The browser session's webRequest hooks
- * live in the runtime and consult every host in turn.
+ * storage, files, ports, and the contexts it runs in. The browser session's
+ * webRequest hooks live in the runtime and consult every host in turn.
  */
 export class ExtensionHost implements ApiHost {
   readonly extension: LoadedExtension
   readonly contexts = new ExtensionContexts()
+  readonly ports: ExtensionPorts
   readonly storage: ExtensionStorage
+  readonly files: ExtensionFiles
   readonly hooks: ExtensionShellHooks
   readonly action: BrowserActionState
   readonly alarms: AlarmScheduler
   readonly session: Session
+  readonly worldId: number
   private backgroundWindow: BrowserWindow | null = null
+  private icon: Promise<string | null> | null = null
 
   constructor(private readonly options: ExtensionHostOptions) {
     this.extension = options.extension
     this.hooks = options.hooks
+    this.worldId = options.worldId
     this.storage = new ExtensionStorage(
       path.join(options.storageRoot, this.extension.host, "storage.json")
     )
+    this.files = new ExtensionFiles(this.extension)
+    this.ports = new ExtensionPorts(this.contexts)
     this.action = new BrowserActionState(this.extension.manifest.browserAction?.defaultTitle ?? null)
     this.alarms = new AlarmScheduler((alarm) => this.contexts.emit("alarms", "onAlarm", [alarm]))
     this.session = electronSession.fromPartition(`persist:once-ext:${this.extension.host}`)
@@ -104,7 +115,8 @@ export class ExtensionHost implements ApiHost {
     })
   }
 
-  private webPreferences(): Electron.WebPreferences {
+  /** How any page of this extension must be created, wherever it is shown. */
+  webPreferences(): Electron.WebPreferences {
     return {
       preload: this.options.preloadPath,
       nodeIntegration: false,
@@ -116,9 +128,42 @@ export class ExtensionHost implements ApiHost {
     }
   }
 
+  profile(): PageProfile {
+    return { session: this.session, preload: this.options.preloadPath }
+  }
+
   /** A page of this extension the shell opened (popup, options, dashboard). */
   register(contents: WebContents, kind: ExtensionContextKind): void {
     this.contexts.add(contents, kind)
+  }
+
+  popupUrl(): string | null {
+    const popup = this.extension.manifest.browserAction?.defaultPopup
+    return popup ? extensionUrl(this.extension.host, popup) : null
+  }
+
+  /** The largest toolbar icon at or under 32px, as a data URL. */
+  iconDataUrl(): Promise<string | null> {
+    this.icon ??= (async () => {
+      const icons = {
+        ...this.extension.manifest.icons,
+        ...this.extension.manifest.browserAction?.defaultIcon
+      }
+      const sizes = Object.keys(icons)
+        .map(Number)
+        .filter((size) => Number.isFinite(size) && size <= 32)
+        .sort((a, b) => b - a)
+      const chosen = sizes[0] !== undefined ? icons[String(sizes[0])] : icons.default
+      const file = chosen ? resolveExtensionFile(this.extension, chosen) : null
+      if (!file) return null
+      try {
+        const body = await fs.readFile(file)
+        return `data:${mimeTypeFor(file)};base64,${body.toString("base64")}`
+      } catch {
+        return null
+      }
+    })()
+    return this.icon
   }
 
   async dispose(): Promise<void> {

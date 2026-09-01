@@ -52,15 +52,17 @@ export class TabOwnership {
     return owner.tabs.flatMap((id) => {
       const entry = this.tabs.get(id)
       if (!entry) return []
+      // A destroyed view has no webContents; the entry lingers until the
+      // close is finalized, so treat it as one that cannot navigate.
       const contents = entry.view.webContents
+      const alive = Boolean(contents) && !contents.isDestroyed()
       return [{
         id,
         url: entry.displayedUrl,
         title: entry.title || "New tab",
         loading: entry.loading,
-        canGoBack: !contents.isDestroyed() && this.errors.backTargetIndex(entry) >= 0,
-        canGoForward:
-          !contents.isDestroyed() && contents.navigationHistory.canGoForward(),
+        canGoBack: alive && this.errors.backTargetIndex(entry) >= 0,
+        canGoForward: alive && contents.navigationHistory.canGoForward(),
         audible: entry.audible,
         hasPlayedAudio: entry.hasPlayedAudio,
         muted: entry.muted,

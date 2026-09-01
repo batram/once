@@ -1,23 +1,30 @@
-// The contract between the main-process extension runtime and the preload
-// that builds `browser.*` inside extension pages. Kept free of Electron
-// imports so the preload bundle and unit tests can share it.
+// The contract between the main-process extension runtime and the preloads
+// that build `browser.*` inside extension pages and content-script worlds.
+// Kept free of Electron imports so the preload bundles and unit tests can
+// share it.
 
-import { LocaleMessages } from "@once/core"
+import { ContentScriptRunAt, LocaleMessages } from "@once/core"
 
 export const EXTENSION_SCHEME = "once-ext"
 
 export const EXTENSION_IPC = {
-  /** Renderer → main, `ipcRenderer.invoke`: one API call. */
+  /** Extension page → main, `ipcRenderer.invoke`: one API call. */
   invoke: "once-ext:invoke",
-  /** Renderer → main, `ipcRenderer.invoke`: what this page is and may do. */
+  /** Extension page → main, `sendSync`: what this page is and may do. */
   init: "once-ext:init",
-  /** Main → renderer: an API event, optionally expecting a reply. */
+  /** Main → any context: an API event, optionally expecting a reply. */
   event: "once-ext:event",
-  /** Renderer → main, `ipcRenderer.send`: the reply to an event with a token. */
-  reply: "once-ext:reply"
+  /** Extension page → main, `ipcRenderer.send`: the reply to an event with a token. */
+  reply: "once-ext:reply",
+  /** Tab frame → main, `sendSync`: which content scripts run here. */
+  contentInit: "once-ext:content-init",
+  /** Tab frame → main, `ipcRenderer.invoke`: one API call from a content script. */
+  contentInvoke: "once-ext:content-invoke",
+  /** Tab frame → main, `ipcRenderer.send`: a content script's reply. */
+  contentReply: "once-ext:content-reply"
 } as const
 
-export type ExtensionContextKind = "background" | "popup" | "options" | "page"
+export type ExtensionContextKind = "background" | "popup" | "options" | "page" | "content"
 
 export interface ExtensionContextInit {
   id: string
@@ -29,10 +36,25 @@ export interface ExtensionContextInit {
   uiLanguage: string
 }
 
+export interface ContentScriptBatch {
+  runAt: ContentScriptRunAt
+  js: { url: string; code: string }[]
+  css: string[]
+}
+
+/** One extension's share of a frame: its identity plus what to inject. */
+export interface ContentFrameInit extends ExtensionContextInit {
+  /** The isolated world this extension's content scripts run in. */
+  worldId: number
+  scripts: ContentScriptBatch[]
+}
+
 export interface ExtensionInvoke {
   api: string
   method: string
   args: unknown[]
+  /** Set by content-script contexts, which share a frame between extensions. */
+  host?: string
 }
 
 export interface ExtensionEvent {
@@ -41,23 +63,37 @@ export interface ExtensionEvent {
   args: unknown[]
   /** Present when main waits for the listeners' result. */
   token?: number
+  /** Which registered listeners to run; all when absent. */
+  listeners?: number[]
+  /** Set for content-script contexts so the frame routes to one extension. */
+  host?: string
 }
 
 export interface ExtensionReply {
   token: number
   result: unknown
+  host?: string
+}
+
+/** Internal API namespaces the preloads use; never exposed to pages. */
+export const INTERNAL_API = {
+  listeners: "__listeners",
+  port: "__port",
+  content: "__content"
+} as const
+
+export interface ApiSurface {
+  readonly methods: readonly string[]
+  readonly events: readonly string[]
 }
 
 /**
- * Every namespace the preload materialises, with the methods it forwards to
- * main and the events main can raise. A method or event missing here does
- * not exist in the extension's `browser` object, which is how the runtime
- * stays an allowlist rather than a general implementation.
+ * Every namespace the extension-page preload materialises, with the methods
+ * it forwards to main and the events main can raise. A method or event
+ * missing here does not exist in the extension's `browser` object, which is
+ * how the runtime stays an allowlist rather than a general implementation.
  */
-export const EXTENSION_API_SURFACE: Readonly<Record<string, {
-  readonly methods: readonly string[]
-  readonly events: readonly string[]
-}>> = {
+export const EXTENSION_API_SURFACE: Readonly<Record<string, ApiSurface>> = {
   runtime: {
     methods: [
       "getURL", "getManifest", "getPlatformInfo", "getBrowserInfo",
@@ -80,7 +116,7 @@ export const EXTENSION_API_SURFACE: Readonly<Record<string, {
   tabs: {
     methods: [
       "query", "get", "getCurrent", "create", "update", "remove", "reload",
-      "sendMessage", "executeScript", "insertCSS", "removeCSS", "captureVisibleTab"
+      "sendMessage", "connect", "executeScript", "insertCSS", "removeCSS", "captureVisibleTab"
     ],
     events: ["onCreated", "onUpdated", "onRemoved", "onActivated", "onReplaced"]
   },
@@ -111,6 +147,21 @@ export const EXTENSION_API_SURFACE: Readonly<Record<string, {
   menus: { methods: ["create", "update", "remove", "removeAll"], events: ["onClicked"] },
   management: { methods: ["getSelf"], events: [] },
   alarms: { methods: ["create", "clear", "clearAll", "get", "getAll"], events: ["onAlarm"] }
+}
+
+/** What a content script may reach: messaging, storage, and i18n. */
+export const CONTENT_API_SURFACE: Readonly<Record<string, ApiSurface>> = {
+  runtime: {
+    methods: ["getURL", "getManifest", "sendMessage"],
+    events: ["onMessage", "onConnect"]
+  },
+  "storage.local": {
+    methods: ["get", "set", "remove", "clear", "getBytesInUse"],
+    events: []
+  },
+  storage: { methods: [], events: ["onChanged"] },
+  i18n: { methods: ["getMessage", "getUILanguage"], events: [] },
+  extension: { methods: ["getURL"], events: [] }
 }
 
 /**

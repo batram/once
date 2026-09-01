@@ -109,6 +109,16 @@ const bridge: ElectronBridge = {
     openWindow: (url) =>
       ipcRenderer.invoke(ELECTRON_IPC.storyMenuOpenWindow, url)
   },
+  extensions: {
+    list: () => ipcRenderer.invoke(ELECTRON_IPC.extensionsList),
+    openPopup: (host: string, anchor: ElectronRect) =>
+      ipcRenderer.invoke(ELECTRON_IPC.extensionsOpenPopup, host, anchor),
+    onChanged(handler: () => void) {
+      const listener = () => handler()
+      ipcRenderer.on(ELECTRON_IPC.extensionsChanged, listener)
+      return () => ipcRenderer.removeListener(ELECTRON_IPC.extensionsChanged, listener)
+    }
+  },
   window: {
     setFullscreen: (fullscreen) =>
       ipcRenderer.invoke(ELECTRON_IPC.windowSetFullscreen, fullscreen),

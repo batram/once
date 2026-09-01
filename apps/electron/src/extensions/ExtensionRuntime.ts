@@ -1,6 +1,7 @@
 import path from "node:path"
 import {
   app,
+  BrowserWindow,
   ipcMain,
   IpcMainEvent,
   IpcMainInvokeEvent,
@@ -9,26 +10,37 @@ import {
   WebFrameMain,
   webFrameMain
 } from "electron"
-import { ContextEntry } from "./ExtensionContexts"
+import { ElectronExtensionInfo, ElectronRect } from "@once/platform-electron/bridge"
+import { ContentScriptSpec } from "@once/core"
+import { ContextEntry, frameContextId } from "./ExtensionContexts"
 import { ApiHandler, createApiHandlers } from "./ExtensionApi"
 import { ExtensionHost } from "./ExtensionHost"
+import { ExtensionPopup } from "./ExtensionPopup"
+import { configureExtensionProtocol } from "./ExtensionProtocol"
 import { LoadedExtension, loadUnpackedExtension } from "./LoadedExtension"
-import { parseExtensionUrl } from "./ExtensionScheme"
+import { extensionUrl, parseExtensionUrl } from "./ExtensionScheme"
 import { WebRequestRouter } from "./WebRequestRouter"
+import { CONTENT_WORLD_BASE, contentScriptsFor } from "./contentScripts"
 import {
+  ApiSurface,
+  CONTENT_API_SURFACE,
+  ContentFrameInit,
+  ContentScriptBatch,
   EXTENSION_API_SURFACE,
   EXTENSION_IPC,
   ExtensionContextInit,
   ExtensionInvoke,
-  ExtensionReply
+  ExtensionReply,
+  INTERNAL_API
 } from "./protocol"
-import { ExtensionShellHooks, TabSnapshot } from "./runtimeTypes"
+import { ExtensionShellHooks, PageProfile, TabSnapshot } from "./runtimeTypes"
 import { WebRequestListenerSpec } from "./webRequestDetails"
 
 export interface ExtensionRuntimeOptions {
   browserSession: Session
   storageRoot: string
   preloadPath: string
+  contentPreloadPath: string
   hooks: ExtensionShellHooks
 }
 
@@ -74,18 +86,38 @@ function extensionDirectories(configured: string | undefined): string[] {
     .filter((entry) => entry.length > 0)
 }
 
+/** Content scripts grouped by phase, in manifest order, as code. */
+function batches(host: ExtensionHost, specs: ContentScriptSpec[]): ContentScriptBatch[] {
+  const byPhase = new Map<ContentScriptBatch["runAt"], ContentScriptBatch>()
+  for (const spec of specs) {
+    let batch = byPhase.get(spec.runAt)
+    if (!batch) {
+      batch = { runAt: spec.runAt, js: [], css: [] }
+      byPhase.set(spec.runAt, batch)
+    }
+    for (const file of spec.css) batch.css.push(host.files.read(file))
+    for (const file of spec.js) {
+      batch.js.push({ url: extensionUrl(host.extension.host, file), code: host.files.read(file) })
+    }
+  }
+  return [...byPhase.values()]
+}
+
 /**
  * Loads unpacked Firefox-style extensions, hosts their pages, owns the
- * browser session's webRequest listeners, and turns tab lifecycle into
- * `tabs` and `webNavigation` events. One instance per app.
+ * browser session's webRequest listeners and frame preload, and turns tab
+ * lifecycle into `tabs` and `webNavigation` events. One instance per app.
  */
 export class ExtensionRuntime {
   private readonly hosts = new Map<string, ExtensionHost>()
   private readonly contextOwner = new Map<number, ExtensionHost>()
+  private readonly popups = new Map<string, ExtensionPopup>()
   private readonly handlers: Record<string, ApiHandler> = createApiHandlers()
   private readonly router: WebRequestRouter
   private readonly tabContents = new Map<number, WebContents>()
+  private readonly changed = new Set<() => void>()
   private lastActive = new Map<number, number>()
+  private nextWorldId = CONTENT_WORLD_BASE
   private installed = false
 
   constructor(private readonly options: ExtensionRuntimeOptions) {
@@ -100,10 +132,18 @@ export class ExtensionRuntime {
     if (this.installed) return
     this.installed = true
     this.router.install()
-    this.registerIpc()
-    app.on("web-contents-created", (_event, contents) => {
-      if (contents.session === this.options.browserSession) this.trackTab(contents)
+    this.registerPageIpc()
+    this.registerContentIpc()
+    this.options.browserSession.registerPreloadScript({
+      type: "frame",
+      filePath: this.options.contentPreloadPath
     })
+    configureExtensionProtocol(
+      this.options.browserSession,
+      (host) => this.hosts.get(host)?.extension,
+      { webAccessibleOnly: true }
+    )
+    this.options.hooks.onTabCreated((contents) => this.trackTab(contents))
     this.options.hooks.onTabsChanged(() => this.tabsChanged())
     app.on("before-quit", () => {
       for (const host of this.hosts.values()) void host.storage.flush()
@@ -126,11 +166,6 @@ export class ExtensionRuntime {
     }
   }
 
-  private hostForUrl(url: string): ExtensionHost | undefined {
-    const parts = parseExtensionUrl(url)
-    return parts ? this.hosts.get(parts.host) : undefined
-  }
-
   async load(directory: string): Promise<LoadedExtension> {
     const extension = await loadUnpackedExtension(directory, app.getLocale())
     const existing = this.hosts.get(extension.host)
@@ -139,10 +174,12 @@ export class ExtensionRuntime {
       extension,
       storageRoot: this.options.storageRoot,
       preloadPath: this.options.preloadPath,
+      worldId: this.nextWorldId++,
       hooks: this.options.hooks,
       lookup: (candidate) => this.hosts.get(candidate)?.extension
     })
     this.hosts.set(extension.host, host)
+    host.action.onChanged(() => this.notifyChanged())
     try {
       await host.start()
     } catch (error) {
@@ -150,6 +187,7 @@ export class ExtensionRuntime {
       await host.dispose()
       throw error
     }
+    this.notifyChanged()
     return extension
   }
 
@@ -157,13 +195,75 @@ export class ExtensionRuntime {
     const host = this.hosts.get(extensionHost)
     if (!host) return
     this.hosts.delete(extensionHost)
+    this.popups.get(extensionHost)?.close()
+    this.popups.delete(extensionHost)
     for (const [id, owner] of this.contextOwner) {
       if (owner === host) this.contextOwner.delete(id)
     }
     await host.dispose()
+    this.notifyChanged()
   }
 
-  private registerIpc(): void {
+  /** How a tab showing this URL must be created; null for ordinary pages. */
+  pageProfile(url: string): PageProfile | null {
+    return this.hostForUrl(url)?.profile() ?? null
+  }
+
+  /** What the shell's toolbar shows for each loaded extension. */
+  async extensionInfos(activeTabId?: number): Promise<ElectronExtensionInfo[]> {
+    const infos: ElectronExtensionInfo[] = []
+    for (const host of this.hosts.values()) {
+      const action = host.action.snapshot(activeTabId)
+      infos.push({
+        host: host.extension.host,
+        name: host.extension.name,
+        title: action.title ?? host.extension.name,
+        badgeText: action.badgeText,
+        badgeBackgroundColor: action.badgeBackgroundColor,
+        icon: await host.iconDataUrl(),
+        enabled: action.enabled,
+        hasPopup: host.popupUrl() !== null
+      })
+    }
+    return infos
+  }
+
+  /** Runs when the toolbar should re-read `extensionInfos`. */
+  onChanged(listener: () => void): void {
+    this.changed.add(listener)
+  }
+
+  /** The toolbar button was pressed: show the popup, or tell the extension. */
+  openPopup(window: BrowserWindow, extensionHost: string, anchor: ElectronRect): void {
+    const host = this.hosts.get(extensionHost)
+    if (!host) throw new Error("Unknown extension")
+    let popup = this.popups.get(extensionHost)
+    if (popup?.isOpen()) {
+      popup.close()
+      return
+    }
+    if (!host.popupUrl()) {
+      const active = this.options.hooks.tabs().find((tab) => tab.active)
+      host.contexts.emit("browserAction", "onClicked", [active])
+      return
+    }
+    if (!popup) {
+      popup = new ExtensionPopup(host)
+      this.popups.set(extensionHost, popup)
+    }
+    popup.open(window, anchor)
+  }
+
+  private notifyChanged(): void {
+    for (const listener of this.changed) listener()
+  }
+
+  private hostForUrl(url: string): ExtensionHost | undefined {
+    const parts = parseExtensionUrl(url)
+    return parts ? this.hosts.get(parts.host) : undefined
+  }
+
+  private registerPageIpc(): void {
     // Synchronous: the preload must have `browser` ready before any page
     // script runs, so it blocks on this one answer.
     ipcMain.on(EXTENSION_IPC.init, (event) => {
@@ -184,7 +284,7 @@ export class ExtensionRuntime {
     })
     ipcMain.handle(EXTENSION_IPC.invoke, (event, message: ExtensionInvoke) => {
       const { host, entry } = this.requireContext(event)
-      return this.invoke(host, entry, message)
+      return this.invoke(host, entry, message, EXTENSION_API_SURFACE)
     })
     ipcMain.on(EXTENSION_IPC.reply, (event, reply: ExtensionReply) => {
       const host = this.contextOwner.get(event.sender.id)
@@ -192,6 +292,59 @@ export class ExtensionRuntime {
         host.contexts.handleReply(event.sender.id, reply)
       }
     })
+  }
+
+  private registerContentIpc(): void {
+    ipcMain.on(EXTENSION_IPC.contentInit, (event) => {
+      try {
+        event.returnValue = this.contentInit(event)
+      } catch (error) {
+        console.error("Content script setup failed", error)
+        event.returnValue = null
+      }
+    })
+    ipcMain.handle(EXTENSION_IPC.contentInvoke, (event, message: ExtensionInvoke) => {
+      const { host, entry } = this.requireContentContext(event, message?.host)
+      return this.invoke(host, entry, message, CONTENT_API_SURFACE)
+    })
+    ipcMain.on(EXTENSION_IPC.contentReply, (event, reply: ExtensionReply) => {
+      if (typeof reply?.token !== "number" || !event.senderFrame) return
+      const host = typeof reply.host === "string" ? this.hosts.get(reply.host) : undefined
+      host?.contexts.handleReply(frameContextId(event.sender, event.senderFrame), reply)
+    })
+  }
+
+  /**
+   * A frame of a tab is starting: every extension with matching content
+   * scripts gets a context in it and its scripts as code.
+   */
+  private contentInit(event: IpcMainEvent): ContentFrameInit[] {
+    const contents = event.sender
+    const frame = event.senderFrame
+    if (!frame || !this.tabContents.has(contents.id)) return []
+    const identity = {
+      url: frame.url,
+      topUrl: frame.top?.url ?? frame.url,
+      isTop: frame.parent === null
+    }
+    const ids = frameIdsOf(frame)
+    const inits: ContentFrameInit[] = []
+    for (const host of this.hosts.values()) {
+      const specs = contentScriptsFor(host.extension.manifest, identity)
+      if (specs.length === 0) continue
+      host.contexts.addFrame(contents, frame, host.extension.host, contents.id, ids.frameId)
+      inits.push({
+        id: host.extension.id,
+        host: host.extension.host,
+        kind: "content",
+        manifest: host.extension.rawManifest,
+        messages: host.extension.messages,
+        uiLanguage: app.getLocale(),
+        worldId: host.worldId,
+        scripts: batches(host, specs)
+      })
+    }
+    return inits
   }
 
   private requireContext(
@@ -205,41 +358,71 @@ export class ExtensionRuntime {
     return { host, entry }
   }
 
+  private requireContentContext(
+    event: IpcMainInvokeEvent,
+    extensionHost: unknown
+  ): { host: ExtensionHost; entry: ContextEntry } {
+    const host = typeof extensionHost === "string" ? this.hosts.get(extensionHost) : undefined
+    const frame = event.senderFrame
+    const entry = host && frame && this.tabContents.has(event.sender.id)
+      ? host.contexts.get(frameContextId(event.sender, frame))
+      : undefined
+    if (!host || !entry) throw new Error("Untrusted content script IPC sender")
+    return { host, entry }
+  }
+
   // Pages the host created register themselves; pages the shell opened at an
   // extension URL are adopted on first contact, provided they really are at
   // that URL and inside the extension's own session.
   private adoptContext(sender: WebContents): ExtensionHost | undefined {
-    const host = this.hostForUrl(sender.getURL())
+    const url = sender.getURL()
+    const host = this.hostForUrl(url)
     if (!host || sender.session !== host.session) return undefined
-    if (!host.contexts.get(sender.id)) host.register(sender, "page")
+    if (!host.contexts.get(sender.id)) {
+      const options = host.extension.manifest.optionsUi
+      const isOptions = options !== null && url.startsWith(extensionUrl(host.extension.host, options.page))
+      host.register(sender, isOptions ? "options" : "page")
+    }
     this.contextOwner.set(sender.id, host)
     sender.once("destroyed", () => this.contextOwner.delete(sender.id))
     return host
   }
 
-  private invoke(host: ExtensionHost, entry: ContextEntry, message: ExtensionInvoke): unknown {
+  private invoke(
+    host: ExtensionHost,
+    entry: ContextEntry,
+    message: ExtensionInvoke,
+    surface: Readonly<Record<string, ApiSurface>>
+  ): unknown {
     if (!message || typeof message.api !== "string" || typeof message.method !== "string" ||
       !Array.isArray(message.args)) {
       throw new Error("Invalid extension API call")
     }
-    if (message.api === "__listeners") return this.listenerChange(host, entry, message)
-    const surface = EXTENSION_API_SURFACE[message.api]
-    if (!surface || !surface.methods.includes(message.method)) {
-      throw new Error(`browser.${message.api}.${message.method} is not available`)
+    if (message.api === INTERNAL_API.listeners) return this.listenerChange(host, entry, message, surface)
+    if (message.api !== INTERNAL_API.port) {
+      const known = surface[message.api]
+      if (!known || !known.methods.includes(message.method)) {
+        throw new Error(`browser.${message.api}.${message.method} is not available`)
+      }
     }
     const handler = this.handlers[`${message.api}.${message.method}`]
     if (!handler) throw new Error(`browser.${message.api}.${message.method} is not implemented`)
     return handler({ host, sender: entry }, ...message.args)
   }
 
-  private listenerChange(host: ExtensionHost, entry: ContextEntry, message: ExtensionInvoke): void {
+  private listenerChange(
+    host: ExtensionHost,
+    entry: ContextEntry,
+    message: ExtensionInvoke,
+    surface: Readonly<Record<string, ApiSurface>>
+  ): void {
     const change = message.args[0] as ListenerChange | undefined
     if (!change || typeof change.api !== "string" || typeof change.event !== "string" ||
       typeof change.id !== "number") {
       throw new Error("Invalid listener registration")
     }
-    const surface = EXTENSION_API_SURFACE[change.api]
-    if (!surface || !surface.events.includes(change.event)) {
+    const known = surface[change.api]
+    if (!known || !known.events.includes(change.event)) {
       throw new Error(`browser.${change.api}.${change.event} is not available`)
     }
     if (message.method === "add") {
@@ -319,8 +502,14 @@ export class ExtensionRuntime {
     contents.once("destroyed", () => {
       const windowId = this.snapshot(id)?.windowId ?? -1
       this.tabContents.delete(id)
-      for (const host of this.hosts.values()) host.action.forgetTab(id)
+      for (const host of this.hosts.values()) {
+        host.action.forgetTab(id)
+        for (const entry of host.contexts.all()) {
+          if (entry.kind === "content" && entry.tabId === id) host.contexts.remove(entry.id)
+        }
+      }
       this.emit("tabs", "onRemoved", [id, { windowId, isWindowClosing: false }])
+      this.notifyChanged()
     })
   }
 
@@ -329,12 +518,15 @@ export class ExtensionRuntime {
     for (const tab of this.options.hooks.tabs()) {
       if (tab.active) active.set(tab.windowId, tab.id)
     }
+    let activation = false
     for (const [windowId, tabId] of active) {
       const previous = this.lastActive.get(windowId)
       if (previous !== tabId) {
+        activation = true
         this.emit("tabs", "onActivated", [{ tabId, previousTabId: previous, windowId }])
       }
     }
     this.lastActive = active
+    if (activation) this.notifyChanged()
   }
 }

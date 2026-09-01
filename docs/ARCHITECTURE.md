@@ -188,9 +188,12 @@ Electron has three trust zones:
   IndexedDB-backed PouchDB database.
 
 The local renderer uses context isolation and sandboxing without Node.js
-integration. Remote pages receive no preload, Node.js access, or Once bridge.
-They run in a persistent, main-process-owned session whose permission requests
-are denied by default. Sync URLs are protected through Electron `safeStorage`.
+integration. Remote pages receive no Node.js access and no Once bridge. They
+run in a persistent, main-process-owned session whose permission requests are
+denied by default. The one preload that session registers for every frame is
+the extension content-script runner: it exposes nothing to the page's own
+world, and gives each loaded extension an isolated world with its own
+`browser` object. Sync URLs are protected through Electron `safeStorage`.
 
 Electron reader mode fetches through the validated bridge and serves sanitized
 documents from the isolated `once-reader://` protocol.
@@ -202,9 +205,14 @@ loaded extension is a fourth trust zone: its pages run in their own persistent
 session at `once-ext://<host>/`, with a sandboxed preload that builds
 `browser.*` over a single typed IPC channel and no access to the Once bridge.
 The runtime owns the browser session's one `webRequest` listener per event
-and fans requests out to every extension's blocking listeners. Extension
-directories are named in `ONCE_ELECTRON_EXTENSIONS` for now; packaging and an
-allowlist are later plan steps.
+and fans requests out to every extension's blocking listeners. Content
+scripts run in per-extension isolated worlds inside tabs, reached only
+through the runtime's frame preload; ports join them to the background page.
+An extension's own pages (popup, dashboard, its blocked-page) open as tabs
+or popup views created in the extension's session, and pages may load only
+its `web_accessible_resources`. Extension directories are named in
+`ONCE_ELECTRON_EXTENSIONS` for now; packaging and an allowlist are later plan
+steps.
 
 Desktop keyboard behavior is command-driven rather than a collection of DOM
 shortcuts. Shared code owns canonical chords, configurable bindings, conflict

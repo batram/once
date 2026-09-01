@@ -307,6 +307,40 @@ body #titlebar-text {
   opacity: 0.4;
 }
 
+#extension_actions {
+  display: flex;
+  align-items: center;
+  gap: var(--toolbar-control-gap);
+}
+
+#extension_actions:empty {
+  display: none;
+}
+
+.extension-action {
+  position: relative;
+  font-size: var(--fs-small);
+}
+
+.extension-action img {
+  opacity: 1;
+}
+
+/* The badge is the extension's own count; it sits over the icon's corner
+   like it does in a browser toolbar. */
+.extension-action__badge {
+  position: absolute;
+  right: calc(-1 * var(--sp-0-5));
+  bottom: calc(-1 * var(--sp-0-5));
+  padding: 0 var(--sp-0-5);
+  font-size: var(--fs-caption);
+  line-height: 1.1;
+  color: #fff;
+  background: #6a6a6a;
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+}
+
 .stop-symbol {
   font-size: var(--icon-md);
   line-height: 1;

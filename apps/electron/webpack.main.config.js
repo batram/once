@@ -14,7 +14,10 @@ module.exports = {
     },
     // Sandboxed preload for extension pages (background, popup, options);
     // it builds the `browser` object those pages call.
-    "extension-preload": "./src/extensions/extensionPreload.ts"
+    "extension-preload": "./src/extensions/extensionPreload.ts",
+    // Frame preload for browser tabs; runs extension content scripts in
+    // isolated worlds and exposes nothing to the page's own world.
+    "content-preload": "./src/extensions/contentPreload.ts"
   },
   output: {
     filename: "[name].js"

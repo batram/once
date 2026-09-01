@@ -19,11 +19,13 @@ import {
 } from "@once/platform-electron/bridge"
 import { SecureSettings } from "./SecureSettings"
 import { BrowserCoordinator } from "./TabManager"
+import { ExtensionRuntime } from "./extensions/ExtensionRuntime"
 
 interface IpcHandlerOptions {
   buildChannel: "release" | "dev"
   buildIdentifier: string
   coordinator: BrowserCoordinator
+  extensions: ExtensionRuntime
   getUpdateStatus: () => ElectronUpdateStatus
   setUpdateStatus: (status: ElectronUpdateStatus) => void
   updatesStarted: () => boolean
@@ -280,11 +282,34 @@ function registerStoryAndWindowHandlers(options: IpcHandlerOptions): void {
   })
 }
 
+function registerExtensionHandlers(options: IpcHandlerOptions): void {
+  const { coordinator, extensions } = options
+  ipcMain.handle(ELECTRON_IPC.extensionsList, (event) => {
+    const current = browser(event, coordinator)
+    const active = current.window.activeId
+      ? coordinator.activeTabContentsId(current.window)
+      : undefined
+    return extensions.extensionInfos(active)
+  })
+  ipcMain.handle(
+    ELECTRON_IPC.extensionsOpenPopup,
+    (event, host: string, anchor: ElectronRect) => {
+      const current = browser(event, coordinator)
+      if (typeof host !== "string" || !anchor ||
+        ![anchor.x, anchor.y, anchor.width, anchor.height].every(Number.isFinite)) {
+        throw new Error("Invalid popup request")
+      }
+      extensions.openPopup(current.window.window, host, anchor)
+    }
+  )
+}
+
 export function registerIpcHandlers(
   settings: SecureSettings,
   options: IpcHandlerOptions
 ): void {
   registerAppHandlers(options)
+  registerExtensionHandlers(options)
   registerSettingsHandlers(settings, options.coordinator)
   registerTabNavigation(options.coordinator)
   registerTabLifecycle(options.coordinator)

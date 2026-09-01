@@ -3,6 +3,7 @@ import {
   BrowserWindow,
   IpcMainInvokeEvent,
   Rectangle,
+  WebContents,
   WebContentsView
 } from "electron"
 import {
@@ -28,7 +29,9 @@ import { TabEvents } from "./browser/TabEvents"
 import { TabOwnership } from "./browser/TabOwnership"
 import { WindowLifecycle, showWindow } from "./browser/WindowLifecycle"
 import { ClosedTabRecord } from "./browser/ClosedTabs"
-import { ExtensionShellHooks, TabSnapshot } from "./extensions/runtimeTypes"
+import { activeTabContentsId, createExtensionTabHooks } from "./browser/ExtensionTabHooks"
+import { parseExtensionUrl } from "./extensions/ExtensionScheme"
+import { ExtensionShellHooks, PageProfile } from "./extensions/runtimeTypes"
 import { isModifiedChord } from "@once/core"
 
 /** A generous ceiling; the real list is one chord per bound command. */
@@ -54,6 +57,8 @@ export class BrowserCoordinator {
   private readonly tabEvents: TabEvents
   private readonly ownership: TabOwnership
   private readonly windowLifecycle: WindowLifecycle
+  private readonly tabCreated = new Set<(contents: WebContents) => void>()
+  private pageProfile: (url: string) => PageProfile | null = () => null
   private redirects: CompiledRedirect[] = []
 
   constructor(
@@ -90,10 +95,12 @@ export class BrowserCoordinator {
     }
     this.tabEvents = new TabEvents(this.navigationErrors, this.menus, {
       applyRedirects: (url) => this.applyRedirects(url),
+      normalizeUrl: (url) => this.normalizeTabUrl(url),
       ...ownerAccess
     }, {
       createTab: (owner, url, active) => this.createTab(owner, url, active),
       createWindow: async (url) => { await this.createWindow({ url }) },
+      normalizeUrl: (url) => this.normalizeTabUrl(url),
       setFullscreen: (owner, fullscreen) => this.setFullscreen(owner, fullscreen),
       ...ownerAccess
     }, {
@@ -153,6 +160,11 @@ export class BrowserCoordinator {
     active = true
   ): Promise<string> {
     const normalized = this.normalizeTabUrl(url)
+    // An extension page lives in that extension's session with its preload;
+    // everything else is a remote page in the browser session, where the
+    // frame preload registered on the session needs the sub-frame flag to
+    // reach iframes (it grants no Node access; the tab stays sandboxed).
+    const profile = this.pageProfile(normalized)
     const view = new WebContentsView({
       webPreferences: {
         nodeIntegration: false,
@@ -160,10 +172,13 @@ export class BrowserCoordinator {
         sandbox: true,
         webSecurity: true,
         disableHtmlFullscreenWindowResize: true,
-        partition: "persist:once-browser-v2"
+        ...(profile
+          ? { session: profile.session, preload: profile.preload }
+          : { partition: "persist:once-browser-v2", nodeIntegrationInSubFrames: true })
       }
     })
     view.setBackgroundColor(state.backgroundColor)
+    for (const listener of this.tabCreated) listener(view.webContents)
 
     const id = randomUUID()
     const entry: TabEntry = {
@@ -181,6 +196,7 @@ export class BrowserCoordinator {
       errorPageUrl: null,
       errorPages: new Map(),
       htmlFullscreen: false,
+      extensionPage: profile !== null,
       pickerSession: null,
       historySnapshot: null
     }
@@ -463,6 +479,17 @@ export class BrowserCoordinator {
     const entry = this.ownership.requireOwned(state, id)
     try {
       const normalized = this.normalizeTabUrl(url)
+      // A webContents cannot change session, so crossing between an
+      // extension page and a remote page means a new tab in the old one's
+      // place. History does not carry over; that is the cost of the isolation.
+      const profile = this.pageProfile(normalized)
+      const crossesSession = profile
+        ? !entry.extensionPage || entry.view.webContents.session !== profile.session
+        : entry.extensionPage
+      if (crossesSession) {
+        await this.replaceTab(state, entry, normalized)
+        return
+      }
       const readerSource = sourceUrlFromReaderUrl(normalized)
       // Reader documents only live for the current session, so a typed or
       // bookmarked reader URL may reference a document we no longer hold.
@@ -480,6 +507,13 @@ export class BrowserCoordinator {
       const message = error instanceof Error ? error.message : String(error)
       this.navigationErrors.handleFailure(entry, url.trim(), message, false)
     }
+  }
+
+  private async replaceTab(state: WindowEntry, entry: TabEntry, url: string): Promise<void> {
+    const active = state.activeId === entry.id
+    const id = await this.createTab(state, url, active)
+    if (state.tabs.includes(entry.id)) this.ownership.reorder(state, id, entry.id)
+    this.close(state, entry.id)
   }
 
   back(state: WindowEntry, id: string): void {
@@ -558,89 +592,25 @@ export class BrowserCoordinator {
     }
   }
 
-  /**
-   * What the extension runtime may know and do about tabs. Extensions see
-   * webContents ids, the shell keeps its own ids; this is where they meet.
-   */
+  /** What the extension runtime may know and do about tabs. */
   extensionHooks(): ExtensionShellHooks {
-    const find = (id: number): [WindowEntry, TabEntry] | null => {
-      for (const entry of this.ownership.tabs.values()) {
-        const contents = entry.view.webContents
-        if (contents.isDestroyed() || contents.id !== id) continue
-        const owner = this.ownership.ownerFor(entry)
-        return owner ? [owner, entry] : null
-      }
-      return null
-    }
-    const require = (id: number): [WindowEntry, TabEntry] => {
-      const found = find(id)
-      if (!found) throw new Error(`Invalid tab ID: ${id}`)
-      return found
-    }
-    const snapshotOf = (id: number): TabSnapshot | null =>
-      this.tabSnapshots().find((tab) => tab.id === id) ?? null
-    return {
-      tabs: () => this.tabSnapshots(),
-      createTab: async (url, active) => {
-        const owner = this.preferredWindow()
-        if (!owner) return null
-        const entry = this.ownership.get(await this.createTab(owner, url, active))
-        return entry ? snapshotOf(entry.view.webContents.id) : null
-      },
-      updateTab: async (id, props) => {
-        const [owner, entry] = require(id)
-        if (props.url !== undefined) await this.navigate(owner, entry.id, props.url)
-        if (props.active) this.ownership.activate(owner, entry.id)
-        if (props.muted !== undefined && props.muted !== entry.muted) {
-          this.toggleMuted(owner, entry.id)
-        }
-        return snapshotOf(id)
-      },
-      removeTab: async (id) => {
-        const [owner, entry] = require(id)
-        this.close(owner, entry.id)
-      },
-      reloadTab: async (id) => {
-        const [owner, entry] = require(id)
-        this.reload(owner, entry.id)
-      },
-      onTabsChanged: (listener) => this.ownership.observe(listener),
-      openExtensionPage: async () => {
-        throw new Error("Extension pages cannot open as tabs yet")
-      }
-    }
+    return createExtensionTabHooks({
+      ownership: this.ownership,
+      createTab: (owner, url, active) => this.createTab(owner, url, active),
+      navigate: (owner, id, url) => this.navigate(owner, id, url),
+      toggleMuted: (owner, id) => this.toggleMuted(owner, id),
+      close: (owner, id) => this.close(owner, id),
+      reload: (owner, id) => this.reload(owner, id)
+    }, this.tabCreated)
   }
 
-  private tabSnapshots(): TabSnapshot[] {
-    const snapshots: TabSnapshot[] = []
-    for (const owner of this.ownership.windows.values()) {
-      owner.tabs.forEach((id, index) => {
-        const entry = this.ownership.get(id)
-        if (!entry || entry.view.webContents.isDestroyed()) return
-        const active = owner.activeId === id
-        snapshots.push({
-          id: entry.view.webContents.id,
-          windowId: owner.window.webContents.id,
-          index,
-          url: entry.displayedUrl,
-          title: entry.title || "New tab",
-          active,
-          status: entry.loading ? "loading" : "complete",
-          audible: entry.audible,
-          mutedInfo: { muted: entry.muted },
-          incognito: false,
-          highlighted: active,
-          pinned: false
-        })
-      })
-    }
-    return snapshots
+  activeTabContentsId(state: WindowEntry): number | undefined {
+    return activeTabContentsId(this.ownership, state)
   }
 
-  private preferredWindow(): WindowEntry | undefined {
-    const focused = BrowserWindow.getFocusedWindow()
-    const state = focused ? this.ownership.windows.get(focused.webContents.id) : undefined
-    return state ?? this.ownership.windows.values().next().value
+  /** Lets the extension runtime say which URLs need an extension session. */
+  setPageProfileResolver(resolver: (url: string) => PageProfile | null): void {
+    this.pageProfile = resolver
   }
 
   private validatePoint(point: ElectronPoint): void {
@@ -656,11 +626,13 @@ export class BrowserCoordinator {
     return url
   }
 
-  // Reader URLs reference documents we stored ourselves, so they skip the
-  // HTTP-only normalization applied to other navigable input.
+  // Reader URLs reference documents we stored ourselves, and extension URLs
+  // are served by the runtime, so both skip the HTTP-only normalization
+  // applied to other navigable input.
   private normalizeTabUrl(url: string): string {
     const trimmed = url.trim()
-    return sourceUrlFromReaderUrl(trimmed) ? trimmed : normalizeBrowserUrl(trimmed)
+    if (sourceUrlFromReaderUrl(trimmed) || parseExtensionUrl(trimmed)) return trimmed
+    return normalizeBrowserUrl(trimmed)
   }
 
   private tryNormalizeUrl(url: string): string | null {

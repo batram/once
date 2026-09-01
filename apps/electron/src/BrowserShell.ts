@@ -6,6 +6,7 @@ import {
   revealElement,
   setPaneFocus
 } from "@once/ui-web"
+import { bindExtensionToolbar } from "./ExtensionToolbar"
 import { ReaderRequests, ReaderRequestRunner } from "./ReaderRequests"
 import browserShellMarkup from "./browser/browser-shell.html"
 import {
@@ -79,6 +80,7 @@ export class BrowserShell {
     this.bindStoryPosition()
 
     this.bindControls()
+    bindExtensionToolbar(this.bridge, required<HTMLElement>("#extension_actions"))
     this.bindTabs()
     this.bindLayout()
     this.bindWindowState()
