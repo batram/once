@@ -1,0 +1,11 @@
+{
+  "manifest_version": 2,
+  "name": "__MSG_extName__",
+  "version": "1.0.0",
+  "description": "Blocks any blocked.txt request; a fixture for the Once extension runtime",
+  "default_locale": "en",
+  "browser_specific_settings": { "gecko": { "id": "blocker@once.test" } },
+  "background": { "scripts": ["background.js"] },
+  "browser_action": { "default_title": "Blocker" },
+  "permissions": ["storage", "webRequest", "webRequestBlocking", "<all_urls>"]
+}

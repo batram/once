@@ -3,6 +3,7 @@ import {
   autoUpdater,
   BrowserWindow,
   Rectangle,
+  Session,
   session
 } from "electron"
 import started from "electron-squirrel-startup"
@@ -29,6 +30,8 @@ import {
   installedAppUserModelId,
   windowsInstanceIdentity
 } from "./WindowsInstanceIdentity"
+import { ExtensionRuntime } from "./extensions/ExtensionRuntime"
+import { registerExtensionScheme } from "./extensions/ExtensionScheme"
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string
@@ -42,6 +45,7 @@ app.userAgentFallback = app.userAgentFallback.replace(/\sElectron\/[^\s]+/, "") 
 
 registerReaderScheme()
 registerErrorPageScheme()
+registerExtensionScheme()
 
 if (process.env.ONCE_ELECTRON_TEST_USER_DATA) {
   app.setPath("userData", process.env.ONCE_ELECTRON_TEST_USER_DATA)
@@ -194,7 +198,7 @@ function createShellWindow(bounds?: Rectangle): BrowserWindow {
   })
 }
 
-function configureBrowserSession(): void {
+function configureBrowserSession(): Session {
   const browserSession = session.fromPartition("persist:once-browser-v2")
   configureReaderProtocol(browserSession)
   configureErrorPageProtocol(browserSession)
@@ -204,6 +208,7 @@ function configureBrowserSession(): void {
   browserSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     callback(permission === "fullscreen")
   })
+  return browserSession
 }
 
 // Chromium only builds an accessibility tree when it is asked to, and unlike Chrome
@@ -221,7 +226,7 @@ app
   .whenReady()
   .then(async () => {
     configureAccessibility()
-    configureBrowserSession()
+    const browserSession = configureBrowserSession()
     browserCoordinator = new BrowserCoordinator(
       createShellWindow,
       process.env.ONCE_ELECTRON_DISABLE_STORY_LOADING === "1"
@@ -237,7 +242,18 @@ app
       setUpdateStatus,
       updatesStarted: () => autoUpdatesStarted
     })
+    // Installed before the first window so its webRequest hooks see every
+    // request a tab ever makes; the extensions themselves load after the
+    // window is up so startup is not held for their background pages.
+    const extensions = new ExtensionRuntime({
+      browserSession,
+      storageRoot: path.join(app.getPath("userData"), "extensions"),
+      preloadPath: path.join(__dirname, "extension-preload.js"),
+      hooks: browserCoordinator.extensionHooks()
+    })
+    extensions.install()
     await browserCoordinator.createWindow()
+    void extensions.loadConfigured()
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {

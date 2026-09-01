@@ -28,6 +28,7 @@ import { TabEvents } from "./browser/TabEvents"
 import { TabOwnership } from "./browser/TabOwnership"
 import { WindowLifecycle, showWindow } from "./browser/WindowLifecycle"
 import { ClosedTabRecord } from "./browser/ClosedTabs"
+import { ExtensionShellHooks, TabSnapshot } from "./extensions/runtimeTypes"
 import { isModifiedChord } from "@once/core"
 
 /** A generous ceiling; the real list is one chord per bound command. */
@@ -555,6 +556,91 @@ export class BrowserCoordinator {
       width: current?.width || 900,
       height: current?.height || 700
     }
+  }
+
+  /**
+   * What the extension runtime may know and do about tabs. Extensions see
+   * webContents ids, the shell keeps its own ids; this is where they meet.
+   */
+  extensionHooks(): ExtensionShellHooks {
+    const find = (id: number): [WindowEntry, TabEntry] | null => {
+      for (const entry of this.ownership.tabs.values()) {
+        const contents = entry.view.webContents
+        if (contents.isDestroyed() || contents.id !== id) continue
+        const owner = this.ownership.ownerFor(entry)
+        return owner ? [owner, entry] : null
+      }
+      return null
+    }
+    const require = (id: number): [WindowEntry, TabEntry] => {
+      const found = find(id)
+      if (!found) throw new Error(`Invalid tab ID: ${id}`)
+      return found
+    }
+    const snapshotOf = (id: number): TabSnapshot | null =>
+      this.tabSnapshots().find((tab) => tab.id === id) ?? null
+    return {
+      tabs: () => this.tabSnapshots(),
+      createTab: async (url, active) => {
+        const owner = this.preferredWindow()
+        if (!owner) return null
+        const entry = this.ownership.get(await this.createTab(owner, url, active))
+        return entry ? snapshotOf(entry.view.webContents.id) : null
+      },
+      updateTab: async (id, props) => {
+        const [owner, entry] = require(id)
+        if (props.url !== undefined) await this.navigate(owner, entry.id, props.url)
+        if (props.active) this.ownership.activate(owner, entry.id)
+        if (props.muted !== undefined && props.muted !== entry.muted) {
+          this.toggleMuted(owner, entry.id)
+        }
+        return snapshotOf(id)
+      },
+      removeTab: async (id) => {
+        const [owner, entry] = require(id)
+        this.close(owner, entry.id)
+      },
+      reloadTab: async (id) => {
+        const [owner, entry] = require(id)
+        this.reload(owner, entry.id)
+      },
+      onTabsChanged: (listener) => this.ownership.observe(listener),
+      openExtensionPage: async () => {
+        throw new Error("Extension pages cannot open as tabs yet")
+      }
+    }
+  }
+
+  private tabSnapshots(): TabSnapshot[] {
+    const snapshots: TabSnapshot[] = []
+    for (const owner of this.ownership.windows.values()) {
+      owner.tabs.forEach((id, index) => {
+        const entry = this.ownership.get(id)
+        if (!entry || entry.view.webContents.isDestroyed()) return
+        const active = owner.activeId === id
+        snapshots.push({
+          id: entry.view.webContents.id,
+          windowId: owner.window.webContents.id,
+          index,
+          url: entry.displayedUrl,
+          title: entry.title || "New tab",
+          active,
+          status: entry.loading ? "loading" : "complete",
+          audible: entry.audible,
+          mutedInfo: { muted: entry.muted },
+          incognito: false,
+          highlighted: active,
+          pinned: false
+        })
+      })
+    }
+    return snapshots
+  }
+
+  private preferredWindow(): WindowEntry | undefined {
+    const focused = BrowserWindow.getFocusedWindow()
+    const state = focused ? this.ownership.windows.get(focused.webContents.id) : undefined
+    return state ?? this.ownership.windows.values().next().value
   }
 
   private validatePoint(point: ElectronPoint): void {

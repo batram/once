@@ -11,7 +11,10 @@ module.exports = {
     "picker-injection": {
       import: "./src/pickerInjection.ts",
       library: { type: "var", name: "__oncePickerInjectionBundle" }
-    }
+    },
+    // Sandboxed preload for extension pages (background, popup, options);
+    // it builds the `browser` object those pages call.
+    "extension-preload": "./src/extensions/extensionPreload.ts"
   },
   output: {
     filename: "[name].js"

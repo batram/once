@@ -1,6 +1,10 @@
 # Plan: Firefox extensions and userscripts in the embedded browsers
 
-Status: proposed; implementation has not started.
+Status: in progress. Step 1 (core parsing) is done. Step 2 (Electron network
+blocking) has landed the runtime, background page host, `webRequest` router,
+storage, messaging, and the tab and navigation events; `runtime.connect`
+ports and opening extension pages as tabs are deferred to step 3, and the
+uBlock acceptance run has not happened yet.
 
 Once embeds a browser on Electron (`WebContentsView` tabs), Android (`android.webkit.WebView`
 inside `InAppBrowserSurfacePlugin`), and iOS (`WKWebView` inside the same plugin). Users want

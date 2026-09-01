@@ -12,6 +12,7 @@ export class TabOwnership {
   readonly tabs = new Map<string, TabEntry>()
   readonly windows = new Map<number, WindowEntry>()
   readonly closedTabs = new ClosedTabs()
+  private readonly observers = new Set<() => void>()
 
   constructor(
     private readonly errors: NavigationErrors,
@@ -162,6 +163,15 @@ export class TabOwnership {
   notify(owner: WindowEntry): void {
     if (!owner.window.isDestroyed()) {
       owner.window.webContents.send(ELECTRON_IPC.tabsChanged, this.getAll(owner))
+    }
+    for (const observer of this.observers) observer()
+  }
+
+  /** Runs after every tab-list change, whichever window it happened in. */
+  observe(observer: () => void): () => void {
+    this.observers.add(observer)
+    return () => {
+      this.observers.delete(observer)
     }
   }
 

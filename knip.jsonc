@@ -22,6 +22,9 @@
   // hint calling some of those entries redundant. Keep them anyway — removing
   // one makes that config file itself report as unused.
   "webpack": false,
+  // Fixture WebExtensions are loaded by the Electron runtime at test time,
+  // not imported by any module.
+  "ignore": ["tests/fixtures/extensions/**"],
   "workspaces": {
     ".": {
       "entry": [
@@ -60,6 +63,7 @@
         "src/preload.ts",
         "src/renderer.ts",
         "src/pickerInjection.ts",
+        "src/extensions/extensionPreload.ts",
         "forge.config.js",
         "webpack.*.config.js",
         "scripts/*.js"

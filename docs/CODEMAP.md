@@ -37,6 +37,8 @@ target lifecycle, permissions, native bridges, and packaging belong in an app.
 | Source picker | `packages/ui-web/src/picker` | Shared picker plus platform injection |
 | Electron tabs and windows | `apps/electron/src/TabManager.ts`, `apps/electron/src/browser/TabOwnership.ts`, `WindowLifecycle.ts` | Main-process orchestration and ownership |
 | Recently closed Electron tabs | `apps/electron/src/browser/ClosedTabs.ts` | Bounded main-process history used by the command layer |
+| WebExtension manifests, match patterns, userscript headers | `packages/core/src/webext` | Platform-neutral parsing and matching |
+| Electron extension runtime | `apps/electron/src/extensions/ExtensionRuntime.ts`, `WebRequestRouter.ts`, `extensionPreload.ts` | Main-process hosting of Firefox-style extensions; `protocol.ts` is the preload/IPC contract |
 | Mobile reading view | `apps/mobile/src/readingController.ts` | Current-story DOM interaction |
 | Mobile reading surface | `apps/mobile/src/readingSurfaceCoordinator.ts` | Native session and surface lifecycle |
 | Native browser bridge | `packages/platform-mobile/src/InAppBrowserSurface.ts` | Capacitor-facing adapter |
