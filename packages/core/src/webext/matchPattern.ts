@@ -63,7 +63,11 @@ export function parseMatchPattern(source: string): MatchPattern {
   let host = hostPart
   let subdomains = false
   if (scheme === "file") {
-    if (hostPart !== "") throw new MatchPatternError(source, "file patterns have no host")
+    // Firefox accepts both `file:///*` and `file://*/*`; uBlock ships the latter.
+    if (hostPart !== "" && hostPart !== "*") {
+      throw new MatchPatternError(source, "file patterns have no host")
+    }
+    host = "*"
   } else if (hostPart === "") {
     throw new MatchPatternError(source, "missing host")
   } else if (hostPart === "*") {

@@ -123,6 +123,31 @@ export class WebRequestRouter {
     this.session.webRequest.onHeadersReceived(filter, (details, callback) => {
       void this.headersReceived(details).then(callback)
     })
+    this.session.webRequest.onSendHeaders(filter, (details) => {
+      this.notify("onSendHeaders", buildWebRequestDetails({
+        ...this.baseInput(details),
+        requestHeaders: details.requestHeaders
+      }))
+    })
+    this.session.webRequest.onResponseStarted(filter, (details) => {
+      this.notify("onResponseStarted", buildWebRequestDetails({
+        ...this.baseInput(details),
+        responseHeaders: details.responseHeaders ?? {},
+        statusLine: details.statusLine,
+        statusCode: details.statusCode,
+        fromCache: details.fromCache
+      }))
+    })
+    this.session.webRequest.onBeforeRedirect(filter, (details) => {
+      this.notify("onBeforeRedirect", buildWebRequestDetails({
+        ...this.baseInput(details),
+        responseHeaders: details.responseHeaders ?? {},
+        statusLine: details.statusLine,
+        statusCode: details.statusCode,
+        redirectUrl: details.redirectURL,
+        fromCache: details.fromCache
+      }))
+    })
     this.session.webRequest.onCompleted(filter, (details) => {
       this.notify("onCompleted", buildWebRequestDetails({
         ...this.baseInput(details),
@@ -180,7 +205,8 @@ export class WebRequestRouter {
   private notify(event: string, details: WebRequestDetails): void {
     for (const source of this.options.sources()) {
       for (const target of this.matchingTargets(source, event, details)) {
-        source.contexts.emitTo(target, "webRequest", event, [details])
+        const payload = payloadFor(details, capabilities(target, event))
+        source.contexts.emitTo(target, "webRequest", event, [payload])
       }
     }
   }

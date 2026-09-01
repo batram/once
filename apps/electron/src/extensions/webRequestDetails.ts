@@ -92,6 +92,8 @@ export interface WebRequestDetailsInput {
   statusLine?: string
   statusCode?: number
   error?: string
+  redirectUrl?: string
+  fromCache?: boolean
 }
 
 export interface WebRequestDetails {
@@ -113,6 +115,8 @@ export interface WebRequestDetails {
   statusLine?: string
   statusCode?: number
   error?: string
+  redirectUrl?: string
+  fromCache?: boolean
 }
 
 function registrableDomain(hostname: string): string {
@@ -159,6 +163,8 @@ export function buildWebRequestDetails(input: WebRequestDetailsInput): WebReques
   if (input.statusLine !== undefined) details.statusLine = input.statusLine
   if (input.statusCode !== undefined) details.statusCode = input.statusCode
   if (input.error !== undefined) details.error = input.error
+  if (input.redirectUrl !== undefined) details.redirectUrl = input.redirectUrl
+  if (input.fromCache !== undefined) details.fromCache = input.fromCache
   return details
 }
 

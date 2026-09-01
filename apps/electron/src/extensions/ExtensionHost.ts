@@ -1,5 +1,6 @@
 import path from "node:path"
 import { BrowserWindow, Session, WebContents, session as electronSession } from "electron"
+import { MatchPatternSet } from "@once/core"
 import { ExtensionContexts } from "./ExtensionContexts"
 import { AlarmScheduler, ApiHost, BrowserActionState } from "./ExtensionApi"
 import { configureExtensionProtocol } from "./ExtensionProtocol"
@@ -53,6 +54,7 @@ export class ExtensionHost implements ApiHost {
     configureExtensionProtocol(this.session, this.options.lookup)
     this.session.setUserAgent(EXTENSION_PAGE_USER_AGENT)
     this.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
+    this.grantCrossOriginReads()
     const page = this.extension.backgroundPage
     if (!page) return
     const window = new BrowserWindow({
@@ -72,6 +74,34 @@ export class ExtensionHost implements ApiHost {
     })
     await window.loadURL(extensionUrl(this.extension.host, page))
     this.contexts.emit("runtime", "onStartup", [])
+  }
+
+  /**
+   * Firefox lets extension pages read cross-origin responses from any host
+   * they hold a permission for; uBlock downloads its filter lists that way.
+   * This session carries only the extension's own requests, so answering
+   * with permissive CORS headers for permitted hosts is the same grant.
+   */
+  private grantCrossOriginReads(): void {
+    const permitted = new MatchPatternSet(this.extension.manifest.hostPermissions)
+    if (permitted.size === 0) return
+    const origin = extensionUrl(this.extension.host, "/").slice(0, -1)
+    this.session.webRequest.onHeadersReceived({ urls: ["<all_urls>"] }, (details, callback) => {
+      if (!/^https?:/.test(details.url) || !permitted.matches(details.url)) {
+        callback({})
+        return
+      }
+      const headers: Record<string, string | string[]> = {}
+      for (const [name, value] of Object.entries(details.responseHeaders ?? {})) {
+        if (!name.toLowerCase().startsWith("access-control-")) headers[name] = value
+      }
+      headers["Access-Control-Allow-Origin"] = origin
+      headers["Access-Control-Allow-Credentials"] = "true"
+      headers["Access-Control-Allow-Headers"] = "*"
+      headers["Access-Control-Allow-Methods"] = "*"
+      headers["Access-Control-Expose-Headers"] = "*"
+      callback({ responseHeaders: headers })
+    })
   }
 
   private webPreferences(): Electron.WebPreferences {

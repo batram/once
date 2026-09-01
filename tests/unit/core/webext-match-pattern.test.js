@@ -46,8 +46,9 @@ test("hosts are compared case-insensitively", () => {
   assert.equal(matches("https://Example.ORG/*", "https://example.org/"), true)
 })
 
-test("file patterns carry no host", () => {
+test("file patterns carry no host, spelled either way Firefox allows", () => {
   assert.equal(matches("file:///home/*", "file:///home/me/x.html"), true)
+  assert.equal(matches("file://*/*", "file:///home/me/x.html"), true)
   assert.throws(() => parseMatchPattern("file://host/x"), MatchPatternError)
 })
 

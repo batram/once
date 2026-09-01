@@ -1,10 +1,17 @@
 # Plan: Firefox extensions and userscripts in the embedded browsers
 
-Status: in progress. Step 1 (core parsing) is done. Step 2 (Electron network
-blocking) has landed the runtime, background page host, `webRequest` router,
-storage, messaging, and the tab and navigation events; `runtime.connect`
-ports and opening extension pages as tabs are deferred to step 3, and the
-uBlock acceptance run has not happened yet.
+Status: in progress. Steps 1 and 2 are done. uBlock Origin 1.74.0's Firefox
+build boots on the runtime, downloads and compiles its default lists, and
+strict-blocks a navigation to an ad host (verified 2026-09-01 through the
+`ONCE_ELECTRON_EXTENSIONS` dev path). Step 3 is next; it also has to let a
+tab navigate to `once-ext://` so uBlock's own document-blocked page can show,
+and to add `runtime.connect` ports for the popup.
+
+Findings from the uBlock run worth keeping: Firefox accepts `file://*/*` as
+a match pattern; extension pages need CORS bypassed for permitted hosts or
+list downloads fail; uBlock reads `webRequest.ResourceType`, `TAB_ID_NONE`,
+`privacy.websites.*`, and subscribes to `onSendHeaders`, `onResponseStarted`,
+`onBeforeRedirect`, `onCreatedNavigationTarget`, and `onUpdateAvailable`.
 
 Once embeds a browser on Electron (`WebContentsView` tabs), Android (`android.webkit.WebView`
 inside `InAppBrowserSurfacePlugin`), and iOS (`WKWebView` inside the same plugin). Users want

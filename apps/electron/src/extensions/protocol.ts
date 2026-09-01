@@ -63,7 +63,7 @@ export const EXTENSION_API_SURFACE: Readonly<Record<string, {
       "getURL", "getManifest", "getPlatformInfo", "getBrowserInfo",
       "sendMessage", "openOptionsPage", "reload", "setUninstallURL"
     ],
-    events: ["onMessage", "onInstalled", "onStartup", "onConnect"]
+    events: ["onMessage", "onInstalled", "onStartup", "onConnect", "onUpdateAvailable"]
   },
   "storage.local": {
     methods: ["get", "set", "remove", "clear", "getBytesInUse"],
@@ -73,8 +73,8 @@ export const EXTENSION_API_SURFACE: Readonly<Record<string, {
   webRequest: {
     methods: ["handlerBehaviorChanged"],
     events: [
-      "onBeforeRequest", "onBeforeSendHeaders", "onHeadersReceived",
-      "onErrorOccurred", "onCompleted"
+      "onBeforeRequest", "onBeforeSendHeaders", "onSendHeaders", "onHeadersReceived",
+      "onResponseStarted", "onBeforeRedirect", "onErrorOccurred", "onCompleted"
     ]
   },
   tabs: {
@@ -86,7 +86,10 @@ export const EXTENSION_API_SURFACE: Readonly<Record<string, {
   },
   webNavigation: {
     methods: ["getFrame", "getAllFrames"],
-    events: ["onBeforeNavigate", "onCommitted", "onDOMContentLoaded", "onCompleted"]
+    events: [
+      "onBeforeNavigate", "onCommitted", "onDOMContentLoaded", "onCompleted",
+      "onCreatedNavigationTarget"
+    ]
   },
   windows: {
     methods: ["get", "getCurrent", "getAll", "create", "update"],
@@ -106,16 +109,30 @@ export const EXTENSION_API_SURFACE: Readonly<Record<string, {
   extension: { methods: ["getURL", "isAllowedIncognitoAccess"], events: [] },
   contextMenus: { methods: ["create", "update", "remove", "removeAll"], events: ["onClicked"] },
   menus: { methods: ["create", "update", "remove", "removeAll"], events: ["onClicked"] },
-  "privacy.network": { methods: [], events: [] },
   management: { methods: ["getSelf"], events: [] },
   alarms: { methods: ["create", "clear", "clearAll", "get", "getAll"], events: ["onAlarm"] }
 }
 
-/** `privacy.network.*` are settings objects, not methods; listed for the preload. */
-export const PRIVACY_NETWORK_SETTINGS = [
-  "networkPredictionEnabled",
-  "webRTCIPHandlingPolicy",
-  "peerConnectionEnabled",
-  "httpsOnlyMode",
-  "globalPrivacyControl"
-] as const
+/**
+ * `privacy.*` entries are settings objects with get/set/clear, not methods.
+ * Values are Firefox defaults; nothing here is controllable from an extension.
+ */
+export const PRIVACY_SETTINGS: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
+  network: {
+    networkPredictionEnabled: true,
+    webRTCIPHandlingPolicy: "default",
+    peerConnectionEnabled: true,
+    httpsOnlyMode: "never",
+    globalPrivacyControl: false
+  },
+  websites: {
+    hyperlinkAuditingEnabled: true,
+    firstPartyIsolate: false,
+    resistFingerprinting: false,
+    trackingProtectionMode: "private_browsing",
+    cookieConfig: { behavior: "reject_trackers", nonPersistentCookies: false }
+  },
+  services: {
+    passwordSavingEnabled: true
+  }
+}

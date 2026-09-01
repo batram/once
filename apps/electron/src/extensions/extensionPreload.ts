@@ -13,7 +13,7 @@ import {
   EXTENSION_SCHEME,
   ExtensionContextInit,
   ExtensionEvent,
-  PRIVACY_NETWORK_SETTINGS
+  PRIVACY_SETTINGS
 } from "./protocol"
 
 type Listener = (...args: unknown[]) => unknown
@@ -171,15 +171,34 @@ function inertEvent(): Record<string, unknown> {
   }
 }
 
-function privacySetting(name: string, value: unknown): Record<string, unknown> {
+// A setting the extension may "control": the value is remembered for the
+// page's lifetime and read back, but nothing in the browser changes. uBlock
+// sets a few of these at startup and treats a rejection as an error.
+function privacySetting(initial: unknown): Record<string, unknown> {
+  let value = initial
   return {
-    get: async () => ({ value, levelOfControl: "not_controllable" }),
-    set: async () => {
-      throw new Error(`privacy.network.${name} cannot be changed here`)
+    get: async () => ({ value, levelOfControl: "controllable_by_this_extension" }),
+    set: async (details: unknown) => {
+      const record = details as { value?: unknown } | null
+      if (record && "value" in record) value = record.value
     },
-    clear: async () => undefined,
+    clear: async () => {
+      value = initial
+    },
     onChange: inertEvent()
   }
+}
+
+function privacyNamespace(): Record<string, unknown> {
+  const privacy: Record<string, unknown> = {}
+  for (const [group, settings] of Object.entries(PRIVACY_SETTINGS)) {
+    const namespace: Record<string, unknown> = {}
+    for (const [name, value] of Object.entries(settings)) {
+      namespace[name] = privacySetting(value)
+    }
+    privacy[group] = namespace
+  }
+  return privacy
 }
 
 function buildBrowser(): Record<string, unknown> {
@@ -196,6 +215,20 @@ function buildBrowser(): Record<string, unknown> {
     throw new Error("runtime.connect is not available yet")
   }
 
+  const webRequest = browser.webRequest as Record<string, unknown>
+  webRequest.ResourceType = Object.freeze({
+    MAIN_FRAME: "main_frame", SUB_FRAME: "sub_frame", STYLESHEET: "stylesheet",
+    SCRIPT: "script", IMAGE: "image", FONT: "font", OBJECT: "object",
+    XMLHTTPREQUEST: "xmlhttprequest", PING: "ping", CSP_REPORT: "csp_report",
+    MEDIA: "media", WEBSOCKET: "websocket", OTHER: "other"
+  })
+  webRequest.MAX_HANDLER_BEHAVIOR_CHANGED_CALLS_PER_10_MINUTES = 20
+  const tabs = browser.tabs as Record<string, unknown>
+  tabs.TAB_ID_NONE = -1
+  const windows = browser.windows as Record<string, unknown>
+  windows.WINDOW_ID_NONE = -1
+  windows.WINDOW_ID_CURRENT = -2
+
   const extension = browser.extension as Record<string, unknown>
   extension.getURL = getURL
   extension.inIncognitoContext = false
@@ -210,16 +243,7 @@ function buildBrowser(): Record<string, unknown> {
   }
   i18n.getUILanguage = () => init.uiLanguage
 
-  const network: Record<string, unknown> = {}
-  const defaults: Record<string, unknown> = {
-    networkPredictionEnabled: true,
-    webRTCIPHandlingPolicy: "default",
-    peerConnectionEnabled: true,
-    httpsOnlyMode: "never",
-    globalPrivacyControl: false
-  }
-  for (const name of PRIVACY_NETWORK_SETTINGS) network[name] = privacySetting(name, defaults[name])
-  browser.privacy = { network }
+  browser.privacy = privacyNamespace()
 
   return browser
 }
