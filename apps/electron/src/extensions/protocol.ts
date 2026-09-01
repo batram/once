@@ -5,7 +5,10 @@
 
 import { ContentScriptRunAt, LocaleMessages } from "@once/core"
 
-export const EXTENSION_SCHEME = "once-ext"
+// Named as Firefox names it: extensions decide "is this Firefox?" from the
+// scheme of their own URLs (Violentmonkey tests for a `moz-` prefix), and
+// the Firefox code paths are the ones this runtime implements.
+export const EXTENSION_SCHEME = "moz-extension"
 
 export const EXTENSION_IPC = {
   /** Extension page → main, `ipcRenderer.invoke`: one API call. */
@@ -40,6 +43,17 @@ export interface ContentScriptBatch {
   runAt: ContentScriptRunAt
   js: { url: string; code: string }[]
   css: string[]
+}
+
+/** What `contentScripts.register` accepts, as the preload forwards it. */
+export interface RegisterContentScriptOptions {
+  matches: string[]
+  excludeMatches?: string[]
+  js?: { file?: string; code?: string }[]
+  css?: { file?: string; code?: string }[]
+  runAt?: ContentScriptRunAt
+  allFrames?: boolean
+  matchAboutBlank?: boolean
 }
 
 /** One extension's share of a frame: its identity plus what to inject. */
@@ -142,11 +156,28 @@ export const EXTENSION_API_SURFACE: Readonly<Record<string, ApiSurface>> = {
     ],
     events: ["onClicked"]
   },
-  extension: { methods: ["getURL", "isAllowedIncognitoAccess"], events: [] },
+  extension: {
+    methods: ["getURL", "isAllowedIncognitoAccess", "isAllowedFileSchemeAccess"],
+    events: []
+  },
+  permissions: {
+    methods: ["contains", "getAll", "request", "remove"],
+    events: ["onAdded", "onRemoved"]
+  },
   contextMenus: { methods: ["create", "update", "remove", "removeAll"], events: ["onClicked"] },
   menus: { methods: ["create", "update", "remove", "removeAll"], events: ["onClicked"] },
   management: { methods: ["getSelf"], events: [] },
-  alarms: { methods: ["create", "clear", "clearAll", "get", "getAll"], events: ["onAlarm"] }
+  alarms: { methods: ["create", "clear", "clearAll", "get", "getAll"], events: ["onAlarm"] },
+  cookies: {
+    methods: ["get", "getAll", "set", "remove", "getAllCookieStores"],
+    events: ["onChanged"]
+  },
+  notifications: {
+    methods: ["create", "clear", "getAll", "update"],
+    events: ["onClicked", "onClosed", "onButtonClicked"]
+  },
+  commands: { methods: ["getAll"], events: ["onCommand"] },
+  contentScripts: { methods: ["register", "unregister"], events: [] }
 }
 
 /** What a content script may reach: messaging, storage, and i18n. */

@@ -9,7 +9,13 @@ import { ExtensionPorts } from "./ExtensionPorts"
 import { extensionUrl } from "./ExtensionScheme"
 import { ExtensionStorage } from "./ExtensionStorage"
 import { LoadedExtension } from "./LoadedExtension"
-import { ExtensionFiles } from "./contentScripts"
+import { ContentScript, ExtensionFiles } from "./contentScripts"
+import {
+  contentScriptHandlers,
+  cookieHandlers,
+  inertHandlers,
+  permissionHandlers
+} from "./apiExtras"
 import { INTERNAL_API } from "./protocol"
 import { ExtensionShellHooks, TabSnapshot, TabUpdateProps, platformOs } from "./runtimeTypes"
 
@@ -25,6 +31,9 @@ export interface ApiHost {
   readonly hooks: ExtensionShellHooks
   readonly action: BrowserActionState
   readonly alarms: AlarmScheduler
+  readonly cookies: Electron.Cookies
+  readonly registeredScripts: Map<number, ContentScript>
+  registerContentScript(script: ContentScript): number
 }
 
 export interface ApiCall {
@@ -495,6 +504,10 @@ export function createApiHandlers(): Handlers {
     ...tabHandlers(),
     ...injectionHandlers(),
     ...actionHandlers(),
-    ...portHandlers()
+    ...portHandlers(),
+    ...cookieHandlers(),
+    ...contentScriptHandlers(),
+    ...permissionHandlers(),
+    ...inertHandlers()
   }
 }

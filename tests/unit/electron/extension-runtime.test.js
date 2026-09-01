@@ -58,7 +58,7 @@ function fakeContents(id) {
     contents.destroyed = true
     contents.emit("destroyed")
   }
-  contents.getURL = () => `once-ext://host${id}/page.html`
+  contents.getURL = () => `moz-extension://host${id}/page.html`
   return contents
 }
 
@@ -139,9 +139,9 @@ test("extension ids become stable opaque hosts and URLs parse back", () => {
   assert.equal(host, scheme.hostForExtensionId("uBlock0@raymondhill.net"))
   assert.notEqual(host, scheme.hostForExtensionId("other@example.org"))
   const url = scheme.extensionUrl(host, "js/a b.js")
-  assert.equal(url, `once-ext://${host}/js/a b.js`)
+  assert.equal(url, `moz-extension://${host}/js/a b.js`)
   assert.deepEqual(scheme.parseExtensionUrl(url), { host, path: "/js/a b.js" })
-  assert.deepEqual(scheme.parseExtensionUrl(`once-ext://${host}/x?y#z`), { host, path: "/x" })
+  assert.deepEqual(scheme.parseExtensionUrl(`moz-extension://${host}/x?y#z`), { host, path: "/x" })
   assert.equal(scheme.parseExtensionUrl("https://example.org/"), null)
 })
 
@@ -172,7 +172,7 @@ test("the protocol serves extension files, the generated page, and nothing outsi
 
   assert.equal((await serve("../package.json")).status, 404)
   assert.equal((await serve("missing.js")).status, 404)
-  assert.equal((await extensionProtocol.serveExtensionRequest("once-ext://nobody/x", lookup)).status, 404)
+  assert.equal((await extensionProtocol.serveExtensionRequest("moz-extension://nobody/x", lookup)).status, 404)
 })
 
 test("storage.local keeps items, reports changes, and survives a reload", async () => {

@@ -63,6 +63,14 @@ webRequest.ResourceType = Object.freeze({
   MEDIA: "media", WEBSOCKET: "websocket", OTHER: "other"
 })
 webRequest.MAX_HANDLER_BEHAVIOR_CHANGED_CALLS_PER_10_MINUTES = 20
+// Firefox has no EXTRA_HEADERS; extensions filter the undefined entry out.
+webRequest.OnBeforeRequestOptions = Object.freeze({ BLOCKING: "blocking", REQUEST_BODY: "requestBody" })
+webRequest.OnBeforeSendHeadersOptions = Object.freeze({ BLOCKING: "blocking", REQUEST_HEADERS: "requestHeaders" })
+webRequest.OnSendHeadersOptions = Object.freeze({ REQUEST_HEADERS: "requestHeaders" })
+webRequest.OnHeadersReceivedOptions = Object.freeze({ BLOCKING: "blocking", RESPONSE_HEADERS: "responseHeaders" })
+webRequest.OnResponseStartedOptions = Object.freeze({ RESPONSE_HEADERS: "responseHeaders" })
+webRequest.OnBeforeRedirectOptions = Object.freeze({ RESPONSE_HEADERS: "responseHeaders" })
+webRequest.OnCompletedOptions = Object.freeze({ RESPONSE_HEADERS: "responseHeaders" })
 ;(browser.tabs as Record<string, unknown>).TAB_ID_NONE = -1
 const windows = browser.windows as Record<string, unknown>
 windows.WINDOW_ID_NONE = -1

@@ -1,12 +1,28 @@
 # Plan: Firefox extensions and userscripts in the embedded browsers
 
-Status: in progress. Steps 1 to 3 are done. uBlock Origin 1.74.0's Firefox
+Status: in progress. Steps 1 to 4 are done. uBlock Origin 1.74.0's Firefox
 build boots on the runtime, downloads and compiles its default lists,
 strict-blocks a navigation to an ad host and shows its own blocked-page in
 the tab, hides elements through generic cosmetic filters, injects its
 scriptlets into pages, and its popup opens from the toolbar and reports on
-the active tab (all verified 2026-09-01 through the `ONCE_ELECTRON_EXTENSIONS`
-dev path). Step 4 (Violentmonkey) is next.
+the active tab. Violentmonkey 2.48.0 boots beside it, installs a userscript
+through its dashboard, and a `@run-at document-start` script runs while the
+document is still `loading` on wikipedia.org (all verified 2026-09-01
+through the `ONCE_ELECTRON_EXTENSIONS` dev path). Step 5 (shared settings
+documents) is next.
+
+Findings from the Violentmonkey run: it reaches synchronous APIs through
+the `chrome` global and calls some of them Chrome-style with a trailing
+callback, so `chrome` aliases `browser` and every method accepts a callback;
+it decides "this is Firefox" from a `moz-` prefix on its own URLs, so the
+runtime's scheme is `moz-extension`; it wants `cookies`, `notifications`,
+`permissions`, `commands`, the `webRequest.On*Options` constants, and
+`contentScripts.register`, which is how it delivers document-start on a
+host's second visit once its `ffInject` option is on (the option is off by
+default; a user turns it on in its settings). Two runtime faults it exposed:
+the frame preload runs before `<html>` exists, so `document_start` now waits
+for the root element, and frame contexts are keyed by frame-tree node id so
+a navigation replaces the previous document's context.
 
 Findings from the uBlock runs worth keeping: Firefox accepts `file://*/*` as
 a match pattern; extension pages need CORS bypassed for permitted hosts or
@@ -79,7 +95,7 @@ preload stays sandboxed and context-isolated.
 | Extension need | Runtime provides | Where |
 | --- | --- | --- |
 | Manifest, match patterns, `i18n` message lookup | Platform-neutral parsing and matching | `packages/core/src/webext` |
-| Background page | Hidden `WebContents` at `once-ext://<id>/<page>`; preload implements `browser.*` over IPC to main | `apps/electron/src/extensions/` |
+| Background page | Hidden `WebContents` at `moz-extension://<id>/<page>`; preload implements `browser.*` over IPC to main | `apps/electron/src/extensions/` |
 | Extension pages, popup, dashboard | Served by `protocol.handle` on the browser session from the unpacked extension directory; scheme registered standard and secure so storage and fetch behave; popup as an anchored `WebContentsView`, dashboard/options as an ordinary tab | `ReaderProtocol`/`ErrorPageProtocol` siblings; `TabManager` |
 | Blocking `webRequest` | One main-process listener per event on `persist:once-browser-v2`, dispatching to every extension in order; `tabId` mapped from `webContentsId` through `TabOwnership`; `cancel`, `redirectURL`, request/response header edits | `apps/electron/src/extensions/webRequest.ts`, wired beside `configureBrowserSession` in `main.ts` |
 | Content scripts at `document_start`, `document_end`, `document_idle`, all frames | Frame preload registered on the session; per-extension isolated world via `webFrame.executeJavaScriptInIsolatedWorld`; scriptlets via `contextBridge.executeInMainWorld` | New webpack entry beside `picker-injection` |
@@ -169,7 +185,7 @@ background logger shows it. Integration test under `tests/integration/electron`.
 ### 3. Electron: content scripts and UI
 
 Session frame preload, isolated worlds, scriptlet injection, `browserAction` toolbar button and
-popup, dashboard as a tab, `once-ext://` protocol. Rewrite the ARCHITECTURE.md trust-zone
+popup, dashboard as a tab, `moz-extension://` protocol. Rewrite the ARCHITECTURE.md trust-zone
 paragraph in the same commit. Acceptance: cosmetic filters hide elements on a fixture page;
 the popup opens and toggles per-site blocking.
 

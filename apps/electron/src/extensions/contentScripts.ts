@@ -1,9 +1,10 @@
-// Which manifest content scripts apply to a frame, and the file cache that
-// turns their paths into code. Matching is pure so tests drive it directly.
+// Which content scripts apply to a frame, and the file cache that turns
+// their paths into code. Matching is pure so tests drive it directly.
 
 import { readFileSync } from "node:fs"
-import { ContentScriptSpec, MatchPatternSet, WebExtensionManifest } from "@once/core"
+import { ContentScriptRunAt, ContentScriptSpec, MatchPatternSet, isMatchPattern } from "@once/core"
 import { LoadedExtension, resolveExtensionFile } from "./LoadedExtension"
+import { RegisterContentScriptOptions } from "./protocol"
 
 export interface FrameIdentity {
   url: string
@@ -12,8 +13,20 @@ export interface FrameIdentity {
   isTop: boolean
 }
 
+/**
+ * A content script from the manifest or from `contentScripts.register`.
+ * File entries are extension paths; inline entries are code as given.
+ */
+export interface ContentScript {
+  readonly spec: ContentScriptSpec
+  readonly inlineJs: readonly string[]
+  readonly inlineCss: readonly string[]
+}
+
 /** Isolated worlds start here; each loaded extension gets the next slot. */
 export const CONTENT_WORLD_BASE = 1000
+
+const RUN_AT: ReadonlySet<string> = new Set(["document_start", "document_end", "document_idle"])
 
 const compiled = new WeakMap<ContentScriptSpec, { matches: MatchPatternSet; excludes: MatchPatternSet }>()
 
@@ -29,12 +42,56 @@ function patterns(spec: ContentScriptSpec): { matches: MatchPatternSet; excludes
   return sets
 }
 
+export function manifestContentScripts(specs: readonly ContentScriptSpec[]): ContentScript[] {
+  return specs.map((spec) => ({ spec, inlineJs: [], inlineCss: [] }))
+}
+
+/** Validates a `contentScripts.register` request the way Firefox would. */
+export function registeredContentScript(options: unknown): ContentScript {
+  const record = (typeof options === "object" && options !== null ? options : {}) as
+    Partial<RegisterContentScriptOptions>
+  const matches = Array.isArray(record.matches) ? record.matches : []
+  if (matches.length === 0 || !matches.every((entry) => typeof entry === "string" && isMatchPattern(entry))) {
+    throw new Error("contentScripts.register needs valid match patterns")
+  }
+  const excludeMatches = Array.isArray(record.excludeMatches) ? record.excludeMatches : []
+  const runAt = record.runAt ?? "document_idle"
+  if (!RUN_AT.has(runAt)) throw new Error("contentScripts.register: unknown runAt")
+  const split = (entries: { file?: string; code?: string }[] | undefined) => {
+    const files: string[] = []
+    const inline: string[] = []
+    for (const entry of entries ?? []) {
+      if (typeof entry?.file === "string") files.push(entry.file)
+      else if (typeof entry?.code === "string") inline.push(entry.code)
+    }
+    return { files, inline }
+  }
+  const js = split(record.js)
+  const css = split(record.css)
+  if (js.files.length + js.inline.length + css.files.length + css.inline.length === 0) {
+    throw new Error("contentScripts.register needs js or css")
+  }
+  return {
+    spec: {
+      matches,
+      excludeMatches,
+      js: js.files,
+      css: css.files,
+      runAt: runAt as ContentScriptRunAt,
+      allFrames: record.allFrames === true,
+      matchAboutBlank: record.matchAboutBlank === true
+    },
+    inlineJs: js.inline,
+    inlineCss: css.inline
+  }
+}
+
 export function contentScriptsFor(
-  manifest: WebExtensionManifest,
+  scripts: readonly ContentScript[],
   frame: FrameIdentity
-): ContentScriptSpec[] {
+): ContentScript[] {
   const blank = frame.url === "about:blank" || frame.url === ""
-  return manifest.contentScripts.filter((spec) => {
+  return scripts.filter(({ spec }) => {
     if (!frame.isTop && !spec.allFrames) return false
     let subject = frame.url
     if (blank) {

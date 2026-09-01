@@ -32,8 +32,10 @@ export function pageContextId(contents: WebContents): string {
   return String(contents.id)
 }
 
+// The frame-tree node id survives navigations of the same frame, so a new
+// document replaces the previous document's context instead of joining it.
 export function frameContextId(contents: WebContents, frame: WebFrameMain): string {
-  return `${contents.id}:${frame.routingId}`
+  return `${contents.id}:${frame.frameTreeNodeId}`
 }
 
 /**

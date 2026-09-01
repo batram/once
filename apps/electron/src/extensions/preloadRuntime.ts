@@ -35,8 +35,15 @@ export function adoptBridge(): void {
     for (const name of Object.keys(source)) out[name] = copy(source[name])
     return out
   }
+  const browser = copy(staged)
   Object.defineProperty(globalThis, "browser", {
-    value: copy(staged), writable: true, configurable: true, enumerable: false
+    value: browser, writable: true, configurable: true, enumerable: false
+  })
+  // Chromium's own `window.chrome` is replaced by the same object: generic
+  // WebExtension builds reach synchronous APIs such as runtime.getURL
+  // through `chrome`, and Firefox offers it as an alias too.
+  Object.defineProperty(globalThis, "chrome", {
+    value: browser, writable: true, configurable: true, enumerable: false
   })
   delete scope.__onceExtensionApi
 }
@@ -155,6 +162,18 @@ export class PreloadApi {
       }
     }
 
+    // Firefox hands back a handle; the id stays on this side of the bridge.
+    if (browser.contentScripts) {
+      const contentScripts = browser.contentScripts as Record<string, unknown>
+      contentScripts.register = async (options: unknown) => {
+        const id = await this.transport.invoke("contentScripts", "register", [options])
+        return {
+          unregister: () => this.transport.invoke("contentScripts", "unregister", [id])
+        }
+      }
+      delete contentScripts.unregister
+    }
+
     const extension = (browser.extension ??= {}) as Record<string, unknown>
     extension.getURL = (path: unknown) => this.getURL(path)
     extension.inIncognitoContext = false
@@ -206,7 +225,30 @@ export class PreloadApi {
   private namespace(api: string): Record<string, unknown> {
     const object: Record<string, unknown> = {}
     for (const name of this.surface[api].methods) {
-      object[name] = (...args: unknown[]) => this.transport.invoke(api, name, args)
+      object[name] = (...args: unknown[]) => {
+        // `chrome` is the same object, so a trailing function is a Chrome
+        // style callback rather than an argument for main.
+        const callback = typeof args[args.length - 1] === "function"
+          ? args.pop() as Listener
+          : null
+        const result = this.transport.invoke(api, name, args).catch((error) => {
+          // Arguments cross to main by structured clone; say which call an
+          // extension made with something that cannot.
+          if (error instanceof Error && /could not be cloned/.test(error.message)) {
+            console.error(`browser.${api}.${name}: an argument is not cloneable`, args)
+          }
+          throw error
+        })
+        if (!callback) return result
+        result.then(
+          (value) => callback(value),
+          (error) => {
+            console.error(`browser.${api}.${name} failed`, error)
+            callback()
+          }
+        )
+        return undefined
+      }
     }
     for (const name of this.surface[api].events) object[name] = this.eventObject(api, name)
     return object

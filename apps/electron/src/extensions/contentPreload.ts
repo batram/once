@@ -63,9 +63,26 @@ function whenDocumentIdle(run: () => void): void {
   }
 }
 
+// The preload runs before the parser has created <html>. Browsers define
+// document_start as "the root element exists, nothing else does", and
+// content scripts rely on it, so wait for that one node and no more. The
+// observer's microtask runs before the parser executes any page script.
+function whenDocumentStart(run: () => void): void {
+  if (document.documentElement) {
+    run()
+    return
+  }
+  const observer = new MutationObserver(() => {
+    if (!document.documentElement) return
+    observer.disconnect()
+    run()
+  })
+  observer.observe(document, { childList: true })
+}
+
 function schedule(world: ContentWorld, batch: ContentScriptBatch): void {
   const run = () => runScripts(world, batch)
-  if (batch.runAt === "document_start") run()
+  if (batch.runAt === "document_start") whenDocumentStart(run)
   else if (batch.runAt === "document_end") whenDocumentEnd(run)
   else whenDocumentIdle(run)
 }

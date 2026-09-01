@@ -11,7 +11,6 @@ import {
   webFrameMain
 } from "electron"
 import { ElectronExtensionInfo, ElectronRect } from "@once/platform-electron/bridge"
-import { ContentScriptSpec } from "@once/core"
 import { ContextEntry, frameContextId } from "./ExtensionContexts"
 import { ApiHandler, createApiHandlers } from "./ExtensionApi"
 import { ExtensionHost } from "./ExtensionHost"
@@ -20,7 +19,7 @@ import { configureExtensionProtocol } from "./ExtensionProtocol"
 import { LoadedExtension, loadUnpackedExtension } from "./LoadedExtension"
 import { extensionUrl, parseExtensionUrl } from "./ExtensionScheme"
 import { WebRequestRouter } from "./WebRequestRouter"
-import { CONTENT_WORLD_BASE, contentScriptsFor } from "./contentScripts"
+import { CONTENT_WORLD_BASE, ContentScript, contentScriptsFor } from "./contentScripts"
 import {
   ApiSurface,
   CONTENT_API_SURFACE,
@@ -86,18 +85,22 @@ function extensionDirectories(configured: string | undefined): string[] {
     .filter((entry) => entry.length > 0)
 }
 
-/** Content scripts grouped by phase, in manifest order, as code. */
-function batches(host: ExtensionHost, specs: ContentScriptSpec[]): ContentScriptBatch[] {
+/** Content scripts grouped by phase, in registration order, as code. */
+function batches(host: ExtensionHost, scripts: ContentScript[]): ContentScriptBatch[] {
   const byPhase = new Map<ContentScriptBatch["runAt"], ContentScriptBatch>()
-  for (const spec of specs) {
+  for (const { spec, inlineJs, inlineCss } of scripts) {
     let batch = byPhase.get(spec.runAt)
     if (!batch) {
       batch = { runAt: spec.runAt, js: [], css: [] }
       byPhase.set(spec.runAt, batch)
     }
     for (const file of spec.css) batch.css.push(host.files.read(file))
+    batch.css.push(...inlineCss)
     for (const file of spec.js) {
       batch.js.push({ url: extensionUrl(host.extension.host, file), code: host.files.read(file) })
+    }
+    for (const code of inlineJs) {
+      batch.js.push({ url: extensionUrl(host.extension.host, "_registered_content_script.js"), code })
     }
   }
   return [...byPhase.values()]
@@ -145,6 +148,14 @@ export class ExtensionRuntime {
     )
     this.options.hooks.onTabCreated((contents) => this.trackTab(contents))
     this.options.hooks.onTabsChanged(() => this.tabsChanged())
+    this.options.browserSession.cookies.on("changed", (_event, cookie, cause, removed) => {
+      this.emit("cookies", "onChanged", [{
+        removed,
+        cookie: { ...cookie, storeId: "0" },
+        cause: cause === "explicit" ? "explicit" : cause === "overwrite" ? "overwrite"
+          : cause === "expired" || cause === "expired-overwrite" ? "expired" : "evicted"
+      }])
+    })
     app.on("before-quit", () => {
       for (const host of this.hosts.values()) void host.storage.flush()
     })
@@ -175,6 +186,7 @@ export class ExtensionRuntime {
       storageRoot: this.options.storageRoot,
       preloadPath: this.options.preloadPath,
       worldId: this.nextWorldId++,
+      cookies: this.options.browserSession.cookies,
       hooks: this.options.hooks,
       lookup: (candidate) => this.hosts.get(candidate)?.extension
     })
@@ -330,7 +342,7 @@ export class ExtensionRuntime {
     const ids = frameIdsOf(frame)
     const inits: ContentFrameInit[] = []
     for (const host of this.hosts.values()) {
-      const specs = contentScriptsFor(host.extension.manifest, identity)
+      const specs = contentScriptsFor(host.contentScripts(), identity)
       if (specs.length === 0) continue
       host.contexts.addFrame(contents, frame, host.extension.host, contents.id, ids.frameId)
       inits.push({

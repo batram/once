@@ -32,7 +32,9 @@ test.after(() => {
 const root = path.resolve(__dirname, "../../..")
 const extensionsDir = path.join(root, "apps/electron/src/extensions")
 const load = (name) => require(path.join(extensionsDir, `${name}.ts`))
-const { contentScriptsFor, ExtensionFiles } = load("contentScripts")
+const {
+  contentScriptsFor, manifestContentScripts, registeredContentScript, ExtensionFiles
+} = load("contentScripts")
 const { isWebAccessible, serveExtensionRequest } = load("ExtensionProtocol")
 const { loadUnpackedExtension } = load("LoadedExtension")
 const { extensionUrl } = load("ExtensionScheme")
@@ -78,14 +80,33 @@ test("content scripts match the frame's URL, frame position, and about:blank rul
     spec({ all_frames: true, exclude_matches: ["https://admin.site.test/*"] }),
     spec({ match_about_blank: true, all_frames: true })
   ])
+  const scripts = manifestContentScripts(m.contentScripts)
   const top = { url: "https://www.site.test/x", topUrl: "https://www.site.test/x", isTop: true }
-  assert.equal(contentScriptsFor(m, top).length, 3)
+  assert.equal(contentScriptsFor(scripts, top).length, 3)
   const child = { url: "https://admin.site.test/x", topUrl: "https://www.site.test/x", isTop: false }
-  assert.deepEqual(contentScriptsFor(m, child).map((s) => s.matchAboutBlank), [true])
+  assert.deepEqual(contentScriptsFor(scripts, child).map((s) => s.spec.matchAboutBlank), [true])
   const blank = { url: "about:blank", topUrl: "https://www.site.test/x", isTop: false }
-  assert.deepEqual(contentScriptsFor(m, blank).map((s) => s.matchAboutBlank), [true])
+  assert.deepEqual(contentScriptsFor(scripts, blank).map((s) => s.spec.matchAboutBlank), [true])
   const elsewhere = { url: "https://other.test/", topUrl: "https://other.test/", isTop: true }
-  assert.equal(contentScriptsFor(m, elsewhere).length, 0)
+  assert.equal(contentScriptsFor(scripts, elsewhere).length, 0)
+})
+
+test("contentScripts.register requests are validated and keep inline code apart", () => {
+  const script = registeredContentScript({
+    matches: ["*://*.site.test/*"],
+    js: [{ code: "1+1" }, { file: "a.js" }],
+    css: [{ code: "body{}" }],
+    runAt: "document_start",
+    allFrames: true
+  })
+  assert.deepEqual(script.spec.js, ["a.js"])
+  assert.deepEqual(script.inlineJs, ["1+1"])
+  assert.deepEqual(script.inlineCss, ["body{}"])
+  assert.equal(script.spec.runAt, "document_start")
+  assert.equal(script.spec.allFrames, true)
+  assert.throws(() => registeredContentScript({ matches: ["nope"], js: [{ code: "1" }] }), /match patterns/)
+  assert.throws(() => registeredContentScript({ matches: ["<all_urls>"] }), /js or css/)
+  assert.throws(() => registeredContentScript({ matches: ["<all_urls>"], js: [{ code: "1" }], runAt: "now" }), /runAt/)
 })
 
 test("extension files are read once and never from outside the directory", async () => {

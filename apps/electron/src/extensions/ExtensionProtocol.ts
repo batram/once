@@ -77,7 +77,7 @@ export async function serveExtensionRequest(
   }
 }
 
-/** Serves `once-ext://<host>/<path>` from the extension's directory. */
+/** Serves `moz-extension://<host>/<path>` from the extension's directory. */
 export function configureExtensionProtocol(
   targetSession: Session,
   lookup: ExtensionLookup,

@@ -202,7 +202,8 @@ Electron also hosts Firefox-style WebExtensions through its own runtime in
 `apps/electron/src/extensions` rather than Chromium's extension subsystem; see
 [plans/firefox-extensions-plan.md](plans/firefox-extensions-plan.md). Each
 loaded extension is a fourth trust zone: its pages run in their own persistent
-session at `once-ext://<host>/`, with a sandboxed preload that builds
+session at `moz-extension://<host>/` (named as Firefox names it, because
+extensions branch on that prefix), with a sandboxed preload that builds
 `browser.*` over a single typed IPC channel and no access to the Once bridge.
 The runtime owns the browser session's one `webRequest` listener per event
 and fans requests out to every extension's blocking listeners. Content

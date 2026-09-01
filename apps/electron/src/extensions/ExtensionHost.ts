@@ -9,7 +9,7 @@ import { configureExtensionProtocol } from "./ExtensionProtocol"
 import { extensionUrl } from "./ExtensionScheme"
 import { ExtensionStorage } from "./ExtensionStorage"
 import { LoadedExtension, mimeTypeFor, resolveExtensionFile } from "./LoadedExtension"
-import { ExtensionFiles } from "./contentScripts"
+import { ContentScript, ExtensionFiles, manifestContentScripts } from "./contentScripts"
 import { ExtensionContextKind } from "./protocol"
 import { ExtensionShellHooks, PageProfile } from "./runtimeTypes"
 
@@ -23,6 +23,8 @@ export interface ExtensionHostOptions {
   storageRoot: string
   preloadPath: string
   worldId: number
+  /** The browser session's cookie jar, for `browser.cookies`. */
+  cookies: Electron.Cookies
   hooks: ExtensionShellHooks
   lookup: (host: string) => LoadedExtension | undefined
 }
@@ -43,6 +45,10 @@ export class ExtensionHost implements ApiHost {
   readonly alarms: AlarmScheduler
   readonly session: Session
   readonly worldId: number
+  readonly cookies: Electron.Cookies
+  /** `contentScripts.register` entries, by the id handed back. */
+  readonly registeredScripts = new Map<number, ContentScript>()
+  private nextScriptId = 1
   private backgroundWindow: BrowserWindow | null = null
   private icon: Promise<string | null> | null = null
 
@@ -50,6 +56,7 @@ export class ExtensionHost implements ApiHost {
     this.extension = options.extension
     this.hooks = options.hooks
     this.worldId = options.worldId
+    this.cookies = options.cookies
     this.storage = new ExtensionStorage(
       path.join(options.storageRoot, this.extension.host, "storage.json")
     )
@@ -130,6 +137,20 @@ export class ExtensionHost implements ApiHost {
 
   profile(): PageProfile {
     return { session: this.session, preload: this.options.preloadPath }
+  }
+
+  /** Manifest content scripts first, then whatever the background registered. */
+  contentScripts(): ContentScript[] {
+    return [
+      ...manifestContentScripts(this.extension.manifest.contentScripts),
+      ...this.registeredScripts.values()
+    ]
+  }
+
+  registerContentScript(script: ContentScript): number {
+    const id = this.nextScriptId++
+    this.registeredScripts.set(id, script)
+    return id
   }
 
   /** A page of this extension the shell opened (popup, options, dashboard). */
