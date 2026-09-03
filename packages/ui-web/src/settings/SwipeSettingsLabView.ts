@@ -1,8 +1,10 @@
 import {
-  SWIPE_ACTION_LABELS,
+  onSwipeActionsChanged,
+  swipeActionLabel,
   SwipeActionId,
   SwipeSettings
 } from "@once/app"
+import { syncSwipeActionOptions } from "./swipeActionOptions"
 import { installSwipePreview } from "./swipePreviewRow"
 
 const MIN_THRESHOLD = 16
@@ -207,6 +209,7 @@ export class SwipeSettingsLabView {
       canUndo: false
     }
     host.textContent = ""
+    onSwipeActionsChanged(() => this.render())
 
     this.scroller = element("div", "swipe_lab_scroller")
     this.inner = element("div", "swipe_lab_inner")
@@ -344,12 +347,7 @@ export class SwipeSettingsLabView {
         "aria-label",
         `Stage ${stage + 1} swipe ${direction} action`
       )
-      for (const [id, text] of Object.entries(SWIPE_ACTION_LABELS)) {
-        const option = element("option")
-        option.value = id
-        option.textContent = text
-        select.append(option)
-      }
+      syncSwipeActionOptions(select,this.state.settings[direction][stage])
       select.addEventListener("change", () => {
         const values = [...this.state.settings[direction]] as [
           SwipeActionId,
@@ -440,6 +438,7 @@ export class SwipeSettingsLabView {
     this.render()
   }
 
+
   private render(): void {
     const current = this.state.settings
     this.undoSnackbar.checked = current.undoSnackbarEnabled
@@ -475,6 +474,7 @@ export class SwipeSettingsLabView {
       for (const stage of [0, 1] as const) {
         const select = this.selects.get(`${direction}-${stage}`)
         if (!select) continue
+        syncSwipeActionOptions(select,current[direction][stage])
         select.value = current[direction][stage]
         select.disabled = stage === 1 && !current.twoStage
         select.dataset.action = select.value
@@ -530,7 +530,7 @@ export class SwipeSettingsLabView {
       node.style.width = `${Math.max(0, Math.round(to - from))}px`
       node.dataset.action = action
       node.classList.toggle("disabled", disabled)
-      const text = SWIPE_ACTION_LABELS[action]
+      const text = swipeActionLabel(action)
       const label = node.querySelector<HTMLElement>(".swipe_ruler_zone_label")
       if (!label) return
       label.textContent = text

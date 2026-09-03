@@ -15,6 +15,7 @@ import {
   ProcessingSource,
   SourceError,
   StoryChangeDetail,
+  StoryChangeValue,
   SyncStatus
 } from "./types"
 import { LocalEventBus } from "./EventBus"
@@ -495,7 +496,7 @@ export class AppRuntime {
   private async persistStoryChange(
     href: string,
     path: string,
-    value: Story | string | boolean
+    value: StoryChangeValue
   ): Promise<Story | undefined> {
     let story = this.workingSet.get(href)
     if (!story) {

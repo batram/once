@@ -5,6 +5,7 @@ type SettingsClientMethods = Pick<
   OnceClient,
   | "getFilterList" | "saveFilterList" | "getRedirectList" | "saveRedirectList"
   | "getFilterLists" | "saveFilterLists" | "getUserscripts" | "saveUserscripts"
+  | "getAddons" | "saveAddons"
   | "getSyncUrl" | "setSyncUrl" | "getCacheTime" | "setCacheTime"
   | "getCacheTiming" | "setCacheTiming" | "getTheme" | "setTheme"
   | "getAnimation" | "setAnimation" | "getSwipeSettings" | "setSwipeSettings"
@@ -22,6 +23,8 @@ export function settingsClientMethods(settings: AppSettings): SettingsClientMeth
     saveFilterLists: (doc) => settings.saveFilterLists(doc),
     getUserscripts: () => settings.getUserscripts(),
     saveUserscripts: (doc) => settings.saveUserscripts(doc),
+    getAddons: () => settings.getAddons(),
+    saveAddons: (doc) => settings.saveAddons(doc),
     getSyncUrl: () => settings.getSyncUrl(),
     setSyncUrl: (syncUrl) => settings.setSyncUrl(syncUrl),
     getCacheTime: () => settings.getCacheTime(),

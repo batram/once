@@ -1,7 +1,17 @@
 # Plan: Once add-ons on every platform
 
-Status: proposal, nothing implemented. Supersedes the earlier story-only
-draft in this file.
+Status: in progress. Steps 1 to 3 are done: the row element, story action,
+and swipe action registries are open (the outline button is the first
+built-in contribution, the Firefox `menus` mirror creates items for ids it
+has not seen); the protocol's declarative half lives in
+`packages/core/src/addons` (manifest validation, conditions, templates, the
+story view, the `addons` document and its editor text); and the Add-ons
+settings section saves manifests that contribute row buttons, badges, lines,
+and actions on the menu, swipe, and key surfaces. Verified by unit tests and
+an Electron e2e that saves a manifest, sees its button and badge on a row,
+opens its templated URL, finds the action in the swipe lab and the keybinding
+editor, and watches everything leave when the add-on is switched off.
+Manifests with a `script` are refused until step 4.
 
 ## Decision
 

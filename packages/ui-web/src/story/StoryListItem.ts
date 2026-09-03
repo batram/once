@@ -1,6 +1,8 @@
 import * as StoryFilterView from "./storyFilterView"
 import { Story } from "@once/core"
-import * as presenters from "../presenters/registry"
+// Registers the built-in outline button; imported for that side effect.
+import "../presenters/registry"
+import { applyStoryElements } from "./storyElements"
 import { DataChangeEvent, resortSingle } from "./storyList"
 import { URLRedirect } from "@once/core"
 import { StoryHistory } from "./StoryHistory"
@@ -26,6 +28,7 @@ export class StoryListItem extends HTMLElement {
   animated = false
   // assigned in story_html(), which the constructor always calls
   link!: HTMLAnchorElement
+  title_line!: HTMLElement
   button_group!: HTMLElement
   read_btn!: HTMLElement
   filter_btn!: HTMLElement
@@ -66,6 +69,7 @@ export class StoryListItem extends HTMLElement {
 
     const title_line = document.createElement("div")
     title_line.classList.add("title_line")
+    this.title_line = title_line
     this.link = buildTitleLine(this, title_line, redirected_url)
 
     this.substories_el = document.createElement("div")
@@ -95,8 +99,8 @@ export class StoryListItem extends HTMLElement {
       this.button_group.appendChild(buildPurgeButton(this))
     }
 
-    presenters.add_story_elem_buttons(this, this.story)
     this.add_menu_button()
+    applyStoryElements(this)
     this.button_events()
 
     if (add_listeners) {

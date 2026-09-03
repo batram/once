@@ -130,7 +130,16 @@ All paths below are under `packages/ui-web/src/story`.
   rather than containing them.
 - `storyRowMarkup.ts` builds the title line and the filter and purge buttons,
   and exports `createIconButton`, the row's shared button shape — presenters
-  use it so a collector-specific action looks like the built-in ones.
+  and add-ons use it so a contributed action looks like the built-in ones.
+- `storyElements.ts` is the registry of elements a row shows beyond its own:
+  buttons beside the built-in ones, badges on the title line, lines under it.
+  `presenters/registry.ts` registers the reader's outline button through it;
+  `addons/mountAddons.ts` registers what the `addons` document contributes,
+  and `refreshStoryElements` re-renders rows already on screen when that
+  set changes.
+- `menu/storyActionRegistry.ts` holds story actions that are not built-in
+  menu entries; one registration reaches the ⋮ menu descriptors, the swipe
+  lab's choices (`app/src/swipeActions.ts`), and the keybinding editor.
 - `storyRowSubstories.ts` builds the per-source lines under the title.
 - `storyLinks.ts` owns anchor behaviour on a row: claiming clicks and
   middle-clicks from the browser, and marking a story read when its URL opens.

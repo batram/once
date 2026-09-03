@@ -8,7 +8,7 @@
  * instead of running it against a made-up story.
  */
 
-import { SWIPE_ACTION_LABELS, SwipeActionId, SwipeSettings } from "@once/app"
+import { swipeActionLabel, SwipeActionId, SwipeSettings } from "@once/app"
 import { Story } from "@once/core"
 import { StoryListItem } from "../story/StoryListItem"
 import { createSwipeGeometry, SwipeStage } from "../story/swipe/geometry"
@@ -66,7 +66,7 @@ function describe(action: SwipeActionId, stage: SwipeStage): string {
   if (action === "none") {
     return `Stage ${stage} — set to “Nothing”, so nothing would run.`
   }
-  return `Stage ${stage} → ${SWIPE_ACTION_LABELS[action]}`
+  return `Stage ${stage} → ${swipeActionLabel(action)}`
 }
 
 /**

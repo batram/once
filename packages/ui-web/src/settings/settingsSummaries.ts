@@ -53,6 +53,7 @@ export function updateSettingsSummaries(
     },
     keyboard: { text: keyboardSummary() },
     swipe: { text: `${swipeRight} · ${swipeLeft}` },
+    addons: { text: addonsSummary(value("#addons_area")) },
     cache: { text: `${value("#cache_time_input") || DEFAULT_CACHE_MINUTES} min` },
     errors: {
       text: errorCount || warningCount
@@ -75,6 +76,23 @@ export function updateSettingsSummaries(
       "settings_section_summary_error",
       Boolean(summary.error)
     )
+  }
+}
+
+// The editor holds the document's JSON; a half-edited text is still a count
+// of whatever parses, and an empty one is "None".
+function addonsSummary(text: string): string {
+  if (!text.trim()) return "None"
+  try {
+    const parsed: unknown = JSON.parse(text)
+    const entries = Array.isArray(parsed) ? parsed : [parsed]
+    const enabled = entries.filter((entry) =>
+      typeof entry === "object" && entry !== null &&
+      (entry as { enabled?: unknown }).enabled !== false
+    ).length
+    return `${enabled} of ${entries.length} enabled`
+  } catch {
+    return "Unsaved edits"
   }
 }
 

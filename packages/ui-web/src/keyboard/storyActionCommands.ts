@@ -1,4 +1,5 @@
 import { StoryMenuActionId, executeStoryMenuAction } from "../menu/storyContextMenu"
+import { setStoryActionKeyBinder } from "../menu/storyActionRegistry"
 import type { StoryCursor } from "../story/storyCursor"
 import { KeyCommandDefinition, registerKeyCommand } from "./commands"
 
@@ -60,4 +61,12 @@ export function registerStoryActionHandlers(
       if (row) void executeStoryMenuAction(action.id, row)
     })
   }
+  // Add-on actions arrive later and leave again; the registry binds them
+  // through the same cursor as they come.
+  setStoryActionKeyBinder((id, run) =>
+    register(storyActionCommandId(id), () => {
+      const row = cursor.current()
+      if (row) void run(row)
+    })
+  )
 }

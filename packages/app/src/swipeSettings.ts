@@ -7,26 +7,9 @@
  * — only the actions differ by direction.
  */
 
-export type SwipeActionId =
-  | "none"
-  | "open"
-  | "open-browser"
-  | "open-reader"
-  | "skip"
-  | "toggle-read"
-  | "toggle-bookmark"
-  | "filter"
+import { SwipeActionId, isSwipeActionId } from "./swipeActions"
 
-export const SWIPE_ACTION_LABELS: Record<SwipeActionId, string> = {
-  "none": "Nothing",
-  "open": "Read · open",
-  "open-browser": "Open in browser",
-  "open-reader": "Open in reader",
-  "skip": "Skip",
-  "toggle-read": "Toggle read state",
-  "toggle-bookmark": "Toggle bookmark",
-  "filter": "Filter source"
-}
+export type { SwipeActionId }
 
 export interface SwipeStageSetting {
   /** drag distance in px at which this stage engages */
@@ -85,10 +68,6 @@ const MIN_STAGE_2_LOCK_IN_MS = 75
 const MAX_STAGE_2_LOCK_IN_MS = 500
 const MIN_UNDO_SNACKBAR_DURATION_MS = 1000
 const MAX_UNDO_SNACKBAR_DURATION_MS = 10000
-
-export function isSwipeActionId(value: unknown): value is SwipeActionId {
-  return typeof value === "string" && value in SWIPE_ACTION_LABELS
-}
 
 function clamp(
   value: unknown,

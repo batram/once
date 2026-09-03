@@ -52,9 +52,23 @@ export function installStoryMenuBackground(browserApi: typeof browser): void {
   }
   const pagePattern = browserApi.runtime.getURL("/static/sidepanel.html") + "*"
   let menuContextId: string | undefined
+  // Menu items exist for the built-in actions from install time; add-on
+  // actions arrive with the panel's state and get their item on first sight.
+  const created = new Set<string>()
+  const createItem = (id: string, title: string): void => {
+    created.add(id)
+    menus.create({
+      id: prefix + id,
+      title,
+      contexts: ["all"],
+      documentUrlPatterns: [pagePattern],
+      visible: false
+    })
+  }
 
   const createMenus = async (): Promise<void> => {
     await menus.removeAll()
+    created.clear()
     let group = ""
     for (const [id, title, nextGroup] of defaults) {
       if (group && group !== nextGroup) {
@@ -67,13 +81,7 @@ export function installStoryMenuBackground(browserApi: typeof browser): void {
         })
       }
       group = nextGroup
-      menus.create({
-        id: prefix + id,
-        title,
-        contexts: ["all"],
-        documentUrlPatterns: [pagePattern],
-        visible: false
-      })
+      createItem(id, title)
     }
   }
 
@@ -96,10 +104,13 @@ export function installStoryMenuBackground(browserApi: typeof browser): void {
     void (async () => {
       const state = new Map(items.map((item) => [item.id, item]))
       const updates: Promise<void>[] = []
-      for (const [id, title] of defaults) {
+      for (const item of items) {
+        if (!created.has(item.id)) createItem(item.id, item.label)
+      }
+      for (const id of created) {
         const item = state.get(id)
         updates.push(menus.update(prefix + id, {
-          title: item?.label ?? title,
+          title: item?.label ?? defaults.find(([known]) => known === id)?.[1] ?? id,
           enabled: item?.enabled ?? false,
           visible: item?.visible ?? false
         }))

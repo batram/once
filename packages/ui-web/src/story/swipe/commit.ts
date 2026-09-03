@@ -50,5 +50,10 @@ export function commitSwipeAction(
       return
     case "filter":
       void executeStoryMenuAction("filter", row)
+      return
+    default:
+      // An add-on action, registered under the same id on the menu surface;
+      // unknown ids (an add-on missing on this device) run nothing there.
+      void executeStoryMenuAction(action, row)
   }
 }

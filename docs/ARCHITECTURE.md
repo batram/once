@@ -228,6 +228,15 @@ extension's pages. The extensions that ship are an explicit list in
 and travel as packaged resources. `ONCE_ELECTRON_EXTENSIONS` adds
 directories in unpackaged builds only.
 
+Add-ons are a separate concept from those extensions: additions to Once
+itself, described by manifests in the synced `addons` settings document
+(`packages/core/src/addons`) and rendered by the shared UI through its
+element and action registries. The manifests are declarative — URL and text
+templates over an allow-listed view of a story, with conditions Once evaluates
+— so no add-on code runs anywhere yet. When scripted add-ons arrive they run
+in a sandboxed frame the UI owns and become a fifth trust zone; see
+[plans/story-addons-plan.md](plans/story-addons-plan.md).
+
 Desktop keyboard behavior is command-driven rather than a collection of DOM
 shortcuts. Shared code owns canonical chords, configurable bindings, conflict
 checks, shell dispatch, pane focus, and the durable story cursor. Electron's

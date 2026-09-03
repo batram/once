@@ -510,3 +510,19 @@ story-item.story:focus {
 .read_btn {
   order: 4;
 }
+
+/* Add-on contributions: a badge beside the title, a line under it. The
+   button variant reuses .button from the row and needs nothing here. */
+.story .addon_badge {
+  display: inline;
+  margin-left: 0.4em;
+  color: var(--text-color);
+  font-size: var(--source-badge-font-size);
+  opacity: 0.8;
+}
+
+.story .addon_line {
+  color: var(--text-color);
+  font-size: var(--source-badge-font-size);
+  opacity: 0.8;
+}

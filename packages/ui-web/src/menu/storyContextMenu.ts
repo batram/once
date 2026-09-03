@@ -2,8 +2,9 @@ import { URLRedirect } from "@once/core"
 import { StoryHistory } from "../story/StoryHistory"
 import type { StoryListItem } from "../story/StoryListItem"
 import { getOnceClient } from "../client"
+import { findStoryAction, registeredStoryActions } from "./storyActionRegistry"
 
-export type StoryMenuActionId =
+export type BuiltinStoryMenuActionId =
   | "open"
   | "open-comments"
   | "open-browser"
@@ -23,6 +24,9 @@ export type StoryMenuActionId =
   | "redo"
   | "purge"
   | "inspect"
+
+/** A built-in id, or an add-on action's `addon:<addon>/<action>` id. */
+export type StoryMenuActionId = BuiltinStoryMenuActionId | (string & Record<never, never>)
 
 export type StoryMenuPlatform = "electron" | "firefox" | "chrome" | "mobile"
 
@@ -137,6 +141,15 @@ export function describeStoryMenu(
     )
   }
 
+  // Add-on actions sit after the built-ins of their group's neighbours: the
+  // renderers group by the `group` field, so order here is within-group only.
+  if (story) {
+    for (const action of registeredStoryActions()) {
+      if (!action.surfaces.includes("menu")) continue
+      items.push(item(action.id, action.label, action.group, true, action.appliesTo(story)))
+    }
+  }
+
   items.push(
     item("undo", "Undo", "history", history?.canUndo ?? false, !touch),
     item("redo", "Redo", "history", history?.canRedo ?? false, !touch)
@@ -224,6 +237,9 @@ export async function executeStoryMenuAction(
       await story.confirmPurge()
       return
     default:
+      // Add-on actions; an id nothing registered (an add-on missing on this
+      // device, or a stale binding) does nothing.
+      await findStoryAction(id)?.run(story)
       return
   }
 }

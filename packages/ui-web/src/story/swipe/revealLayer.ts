@@ -1,4 +1,4 @@
-import { SWIPE_ACTION_LABELS } from "@once/app"
+import { swipeActionLabel } from "@once/app"
 import { SwipeGeometry, SwipeStage } from "./geometry"
 import { SWIPE_QUIET_MS, SwipeLockPhase } from "./stageLock"
 
@@ -130,9 +130,9 @@ export function createSwipeRevealLayer(
         lockPhase === "handoff" &&
         pendingAction !== action
 
-      primary.innerText = direction === 0 ? "" : SWIPE_ACTION_LABELS[action]
+      primary.innerText = direction === 0 ? "" : swipeActionLabel(action)
       secondary.innerText =
-        showHandoff ? `Hold → ${SWIPE_ACTION_LABELS[pendingAction]}` : ""
+        showHandoff ? `Hold → ${swipeActionLabel(pendingAction)}` : ""
       secondary.dataset.action = showHandoff ? pendingAction : "none"
       revealed.dataset.stage = String(revealedStage)
       revealed.dataset.lock = lockState

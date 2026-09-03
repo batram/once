@@ -129,3 +129,42 @@ test("story-list background exposes only history actions", () => {
   assert.deepEqual(items.map((item) => item.id), ["undo", "redo"])
   assert.ok(items.every((item) => !item.enabled))
 })
+
+test("a registered add-on action joins the menu for the rows it applies to and runs from it", async () => {
+  const { describeStoryMenu, executeStoryMenuAction } = loadMenuModule()
+  const { registerStoryAction } = require("../../../packages/ui-web/dist/menu/storyActionRegistry")
+  const ran = []
+  const remove = registerStoryAction({
+    id: "addon:archive-today/open-archive",
+    label: "Open archived copy",
+    group: "navigation",
+    surfaces: ["menu", "swipe"],
+    appliesTo: (row) => row.story.href.startsWith("https://"),
+    run: (row) => { ran.push(row.story.href) }
+  })
+  try {
+    const shown = describeStoryMenu({ platform: "electron", buildChannel: "release", story: fakeStory() })
+    const entry = shown.find((item) => item.id === "addon:archive-today/open-archive")
+    assert.deepEqual(entry, {
+      id: "addon:archive-today/open-archive", label: "Open archived copy",
+      group: "navigation", enabled: true, visible: true
+    })
+    const hidden = describeStoryMenu({
+      platform: "electron", buildChannel: "release", story: fakeStory({ href: "http://plain.example/x" })
+    }).find((item) => item.id === "addon:archive-today/open-archive")
+    assert.equal(hidden.visible, false)
+
+    const row = fakeStory()
+    await executeStoryMenuAction("addon:archive-today/open-archive", row)
+    assert.deepEqual(ran, ["https://example.com/story"])
+    await executeStoryMenuAction("addon:nobody/home", row)
+    assert.equal(ran.length, 1)
+  } finally {
+    remove()
+  }
+  assert.equal(
+    describeStoryMenu({ platform: "electron", buildChannel: "release", story: fakeStory() })
+      .some((item) => item.id.startsWith("addon:")),
+    false
+  )
+})

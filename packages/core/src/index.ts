@@ -1,3 +1,4 @@
+export * from "./addons"
 export * from "./keyboard/keyChord"
 export * from "./settings/defaults"
 export * from "./settings/extensionSettings"

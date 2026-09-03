@@ -11,6 +11,7 @@ export interface SettingsSubscriptionActions {
   sync(): void
   swipe(): void
   extensions(): void
+  addons(): void
   sourceErrors(errors: SourceError[]): void
   summaries(): void
 }

@@ -3,9 +3,9 @@ const assert = require("node:assert/strict")
 
 const {
   DEFAULT_SWIPE_SETTINGS,
-  normalizeSwipeSettings,
-  isSwipeActionId
+  normalizeSwipeSettings
 } = require("../../../packages/app/dist/swipeSettings")
+const { isSwipeActionId } = require("../../../packages/app/dist/swipeActions")
 
 test("defaults match the redesign's plateaus and actions", () => {
   assert.deepEqual(DEFAULT_SWIPE_SETTINGS.stages, [

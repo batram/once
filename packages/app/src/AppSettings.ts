@@ -1,4 +1,6 @@
 import {
+  ADDONS_DOCUMENT_ID,
+  AddonsDocument,
   DEFAULT_CACHE_MINUTES,
   defaultFilterList,
   defaultRedirectList,
@@ -7,6 +9,7 @@ import {
   FilterListsDocument,
   normalizeSyncUrl,
   parseStorySources,
+  readAddonsDocument,
   readFilterListsDocument,
   readUserscriptsDocument,
   StorySourceDocument,
@@ -48,6 +51,7 @@ type SettingsSection =
   | "sync"
   | "swipe"
   | "extensions"
+  | "addons"
 
 export interface AppSettingsActions {
   publishChanged(section: SettingsSection): void
@@ -151,6 +155,16 @@ export class AppSettings {
     await this.setList(USERSCRIPTS_DOCUMENT_ID, readUserscriptsDocument(document))
     await this.actions.refreshExtensionSettings()
     this.actions.publishChanged("extensions")
+  }
+
+  /** The installed add-ons: manifests plus enabled flags, validated on read. */
+  async getAddons(): Promise<AddonsDocument> {
+    return readAddonsDocument(await this.getList<unknown>(ADDONS_DOCUMENT_ID, null))
+  }
+
+  async saveAddons(document: AddonsDocument): Promise<void> {
+    await this.setList(ADDONS_DOCUMENT_ID, readAddonsDocument(document))
+    this.actions.publishChanged("addons")
   }
 
   async getSyncUrl(): Promise<string> {
@@ -322,6 +336,9 @@ export class AppSettings {
       case USERSCRIPTS_DOCUMENT_ID:
         void this.actions.refreshExtensionSettings()
         this.actions.publishChanged("extensions")
+        break
+      case ADDONS_DOCUMENT_ID:
+        this.actions.publishChanged("addons")
         break
       case "theme":
         void this.getTheme().then((theme) => this.theme.setTheme(theme))

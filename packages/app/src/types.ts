@@ -1,8 +1,10 @@
 import {
+  AddonsDocument,
   FilterListsDocument,
   Redirect,
   Story,
   StorySourceDocument,
+  StoryTag,
   UserscriptsDocument
 } from "@once/core"
 import { CacheTimingDocument } from "./cacheTiming"
@@ -54,6 +56,9 @@ export interface SyncStatus {
   changes?: number
 }
 
+/** What one story field may be set to through the client. */
+export type StoryChangeValue = Story | string | boolean | StoryTag[]
+
 export interface StoryChangeDetail {
   story: Story
   path: string[] | string
@@ -93,6 +98,7 @@ export interface OnceAppEvents {
       | "sync"
       | "swipe"
       | "extensions"
+      | "addons"
   }
   /** Something changed what the cache holds: a reload, a refetch, a clear. */
   cacheStatusChanged: Record<string, never>
@@ -138,6 +144,8 @@ export interface OnceClient {
   saveRedirectList(redirectList: Redirect[]): Promise<void>
   getFilterLists(): Promise<FilterListsDocument>
   saveFilterLists(document: FilterListsDocument): Promise<void>
+  getAddons(): Promise<AddonsDocument>
+  saveAddons(document: AddonsDocument): Promise<void>
   getUserscripts(): Promise<UserscriptsDocument>
   saveUserscripts(document: UserscriptsDocument): Promise<void>
   getSyncUrl(): Promise<string>
@@ -168,7 +176,7 @@ export interface OnceClient {
   persistStoryChange(
     href: string,
     path: string,
-    value: Story | string | boolean
+    value: StoryChangeValue
   ): Promise<Story | undefined>
   purgeStory(href: string): Promise<void>
   addFilter(filter: string): Promise<void>

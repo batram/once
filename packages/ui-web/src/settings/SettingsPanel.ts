@@ -58,6 +58,7 @@ export class SettingsPanel {
       sync: () => void this.reset_couch_settings(),
       swipe: () => this.swipeLab?.externalSettingsChanged(),
       extensions: () => this.extensionEditors?.refresh(),
+      addons: () => this.extensionEditors?.refresh(),
       sourceErrors: (errors) => this.setSourceErrors(errors),
       summaries: () => this.updateSettingsSummaries()
     })

@@ -1,7 +1,9 @@
 import { OnceClient } from "@once/app"
 import {
+  parseAddonsText,
   parseFilterListsText,
   parseUserscriptsText,
+  presentAddons,
   presentFilterLists,
   presentUserscripts
 } from "@once/core"
@@ -67,10 +69,18 @@ export function bindExtensionSettingsEditors(
     present: async () => presentUserscripts(await client.getUserscripts()),
     save: (text) => client.saveUserscripts(parseUserscriptsText(text))
   }, onChanged)
+  // Add-ons are their own thing, not browser extensions, but the editor is
+  // the same shape: a JSON list of manifests in, a validated document out.
+  const restoreAddons = bindTextDocument({
+    textareaId: "addons_area",
+    present: async () => presentAddons(await client.getAddons()),
+    save: (text) => client.saveAddons(parseAddonsText(text))
+  }, onChanged)
   return {
     refresh: () => {
       void restoreLists()
       void restoreScripts()
+      void restoreAddons()
     }
   }
 }

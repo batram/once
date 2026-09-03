@@ -1,4 +1,5 @@
 export * from "./types"
 export * from "./cacheTiming"
+export * from "./swipeActions"
 export * from "./swipeSettings"
 export * from "./OnceApp"

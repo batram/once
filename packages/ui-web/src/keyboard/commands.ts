@@ -325,8 +325,28 @@ export function registerKeyCommand(command: KeyCommandDefinition): () => void {
     throw new Error(`Duplicate key command: ${command.id}`)
   }
   registry.set(command.id, command)
+  notifyCommandsChanged()
   return () => {
-    if (registry.get(command.id) === command) registry.delete(command.id)
+    if (registry.get(command.id) !== command) return
+    registry.delete(command.id)
+    notifyCommandsChanged()
+  }
+}
+
+const commandListeners = new Set<() => void>()
+
+function notifyCommandsChanged(): void {
+  for (const listener of [...commandListeners]) listener()
+}
+
+/**
+ * Runs when a command is registered or removed after start-up, which add-on
+ * actions do; the keybinding editor re-renders its rows from it.
+ */
+export function onKeyCommandsChanged(listener: () => void): () => void {
+  commandListeners.add(listener)
+  return () => {
+    commandListeners.delete(listener)
   }
 }
 

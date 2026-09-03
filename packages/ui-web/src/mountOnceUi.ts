@@ -1,4 +1,5 @@
 import { OnceClient } from "@once/app"
+import { mountAddons } from "./addons/mountAddons"
 import { addCollectorColorStyles } from "./collectorStyles"
 import { LoaderInsights } from "./shell/LoaderInsights"
 import { HoverUrlIndicator } from "./shell/HoverUrlIndicator"
@@ -69,6 +70,7 @@ export async function mountOnceUi(
   setOnceClient(client)
   StoryListItem.devToolsEnabled = options.buildChannel === "dev"
   ReaderView.mount(client)
+  mountAddons(client)
 
   const version = document.querySelector<HTMLElement>(
     "[data-testid='app-version']"

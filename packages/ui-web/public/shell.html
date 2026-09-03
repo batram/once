@@ -229,6 +229,27 @@
                     <button type="button" class="button" data-action="cancel">Cancel</button>
                   </div>
                 </div>
+                <div class="settings_block settings_editor_block">
+                  <div class="input_container">
+                    <textarea
+                      id="addons_area"
+                      spellcheck="false"
+                      data-testid="addons"
+                      placeholder="Paste add-on manifests here as a JSON list; add &quot;enabled&quot;: false to switch one off"
+                    ></textarea>
+                  </div>
+                  <div class="settings_actions cluster">
+                    <button
+                      type="button"
+                      class="button"
+                      data-action="save"
+                      data-testid="save-addons"
+                    >
+                      Save
+                    </button>
+                    <button type="button" class="button" data-action="cancel">Cancel</button>
+                  </div>
+                </div>
                 <div class="settings_block">
                   <div class="field">
                     <label class="field_label" for="couch_input">Database URL</label>

@@ -1,6 +1,7 @@
 import { isReservedChord } from "@once/core"
 import {
   availableKeyCommands,
+  onKeyCommandsChanged,
   KeyCommandDefinition,
   KeyCommandGroup,
   KeyCommandId,
@@ -68,6 +69,7 @@ export class KeyboardSettingsView {
     this.status = element("p", "keybinding_status")
     this.status.setAttribute("role", "alert")
     this.render()
+    onKeyCommandsChanged(() => this.render())
   }
 
   private render(): void {
