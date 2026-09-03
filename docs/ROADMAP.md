@@ -5,6 +5,7 @@ plans are summarized in [HISTORY.md](HISTORY.md) and retained in Git history.
 
 - [Future user theming](plans/design-system-theming-plan.md)
 - [Firefox extensions and userscripts in the embedded browsers](plans/firefox-extensions-plan.md)
+- [Once add-ons on every platform](plans/story-addons-plan.md)
 
 ## Near term
 
