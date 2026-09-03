@@ -1,6 +1,6 @@
 # Plan: Firefox extensions and userscripts in the embedded browsers
 
-Status: in progress. Steps 1 to 4 are done. uBlock Origin 1.74.0's Firefox
+Status: complete. Steps 1 to 4 are done. uBlock Origin 1.74.0's Firefox
 build boots on the runtime, downloads and compiles its default lists,
 strict-blocks a navigation to an ad host and shows its own blocked-page in
 the tab, hides elements through generic cosmetic filters, injects its
@@ -23,16 +23,34 @@ its generic cosmetic filters hid probe elements. Step 8 is done: one
 pinned, hash-checked fetch feeds both Electron (as packaged resources) and
 Android (as built-in assets), the Electron runtime loads only its listed
 extensions and refuses a bundle whose id differs, and RELEASING.md carries
-the update procedure. Step 7 (iOS) remains and needs the Mac toolchain;
-nothing for it has been written, since Swift changes cannot be built or
-verified on the Windows machine this work was done on.
+the update procedure. Step 7 is done: iOS receives the same settings event,
+fetches enabled lists, converts their supported ABP/uBlock rules to WebKit
+content-blocker JSON, compiles and attaches the result, and injects parsed
+enabled userscripts with the documented small GM shim. The simulator target
+builds for arm64 and x86_64. The iOS e2e suite verifies network blocking,
+cosmetic hiding, `document-start`, and the GM shim as part of all seven passing
+mobile scenarios (verified 2026-09-03).
 
-Open on Android after step 6: the settings hand-off. The Electron applier
-talks to an extension's background page as one of its own pages; GeckoView
-gives the host no such channel to a third-party extension's background, so
-Once's `filter_lists` and `userscripts` documents do not reach uBlock or
-Violentmonkey there yet. Violentmonkey's `ffInject` setting likewise has to
-be switched on in its own dashboard, which the surface can show.
+Findings from step 7: the startup settings publication happens before the mobile
+subscriber and normally before the surface exists, so iOS reads the documents
+once after startup, subscribes for later changes, and retains rules/scripts for
+the future configuration. List downloads and WebKit compilation are async, so a
+generation counter prevents an older compile from replacing newer settings.
+Successful list downloads are cached for offline/restart fallback.
+`WKUserContentController.removeAllUserScripts()` only changes future documents;
+live changes take effect on the next navigation. WebKit has no representation
+for uBlock scriptlets or procedural cosmetic selectors, so those are skipped.
+
+Android's settings hand-off is also complete. GeckoView does not expose a host
+channel into third-party extension background pages, so Once sends the parsed
+documents over trusted native messaging to its own built-in bridge extension.
+That bridge adds supported network and cosmetic rules through `webRequest` and
+dynamic content scripts and registers enabled userscripts itself. The bundled
+uBlock Origin and Violentmonkey retain their independent defaults, dashboards,
+and full extension behavior; synced additions do not mutate their private
+storage. The API 36 Android e2e suite verifies network blocking, cosmetic
+hiding, `document-start`, and the GM shim as part of all seven passing mobile
+scenarios (verified 2026-09-03).
 
 Findings from step 6: GeckoView 154 and later need compileSdk 37 and Android
 Gradle plugin 9.1, so the app pins 153; GeckoView's `minSdk` is 26 (Android
@@ -46,6 +64,8 @@ and a native-app name without hyphens. An extension navigating "its tab"
 honours through a session tab delegate. Extensions must be installed before
 the first page loads, since a content script cannot join a document that
 began earlier, so the engine starts with the app rather than with the first
+page. Native-message delegates are split too: session delegates receive
+content scripts, while the extension-wide delegate receives the background
 page.
 
 Findings from step 5: `addListener` must register synchronously, as it does
@@ -159,6 +179,12 @@ preload stays sandboxed and context-isolated.
   listeners; the reader and error-page protocols already configure the same session, so all
   session configuration converges in one module.
 - `chrome.storage.sync` and `managed` are not provided.
+- iOS and Android's synced-list bridges intentionally implement the portable
+  ABP subset (network URL filters and basic cosmetic selectors), not uBlock
+  scriptlets, procedural cosmetics, or every option/exception form.
+- iOS supplies only `GM_addStyle`, `GM_getValue`, and `GM_setValue`; it is not a
+  general userscript manager. Values use WebKit page storage and are therefore
+  origin-scoped.
 
 ### Boundaries
 
@@ -208,9 +234,9 @@ accessibility, so most flows should survive).
   (subscriptions with URL, enabled flag, last fetched) and `userscripts` (source text, enabled
   flag). Owned by `AppSettings`, replicated like the others.
 - Settings UI beside the redirect editor in `packages/ui-web/src/settings/structured`.
-- On Electron and Android the lists are handed to uBlock through its `storage.local` seeding;
-  on iOS they drive the content-rule compile. Userscripts feed Violentmonkey on Electron and
-  Android and the `WKUserScript` path on iOS.
+- On Electron the lists are handed to uBlock through its `storage.local` seeding. Android's
+  trusted bridge extension applies synced additions beside bundled uBlock/Violentmonkey; on
+  iOS they drive the content-rule compile and `WKUserScript` path.
 - List fetching reuses the existing fetch cache and cache-timing precedence rather than a new
   scheduler.
 

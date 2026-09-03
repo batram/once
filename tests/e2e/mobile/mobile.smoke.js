@@ -45,6 +45,20 @@ async function settledStoryWrites() {
   })
 }
 
+async function evaluateSurface(script) {
+  const encoded = await browser.executeAsync((source, done) => {
+    window.__onceE2E__.evaluateSurface(source).then(done, error => done({ error: String(error) }))
+  }, script)
+  if (encoded && typeof encoded === "object" && encoded.error) throw new Error(encoded.error)
+  return JSON.parse(encoded ?? "null")
+}
+
+async function applyExtensionSettings() {
+  await browser.executeAsync(done => {
+    window.__onceE2E__.applyExtensionSettings().then(() => done(), error => done(String(error)))
+  })
+}
+
 // The per-story action buttons are hidden on mobile; a long-press on the story
 // opens the menu built from describeStoryMenu. Installed apps present it
 // natively, while the web harness retains the DOM anchored-menu fallback. The
@@ -141,7 +155,7 @@ async function selectNativeStoryMenuAction(action, platform) {
     }
     for (const label of labels) {
       const selector = platform === "ios"
-        ? `-ios predicate string:name == "${label}"`
+        ? `-ios predicate string:name == "${label}" OR label == "${label}" OR value == "${label}"`
         : `android=new UiSelector().text("${label}")`
       const candidate = await $(selector)
       if (await candidate.isDisplayed()) {
@@ -187,7 +201,7 @@ describe("Once mobile", () => {
   let platform
   let baseUrl
 
-  before(() => {
+  before(async () => {
     platform = String(browser.capabilities.platformName).toLowerCase()
     const port = process.env.ONCE_MOBILE_TEST_PORT || "3211"
     baseUrl = process.env.ONCE_MOBILE_TEST_URL ||
@@ -196,6 +210,7 @@ describe("Once mobile", () => {
 
   it("attaches to the Capacitor WebView and finishes startup", async () => {
     await switchToWebView()
+    await browser.setTimeout({ script: 30_000 })
     const body = await $("body")
     await body.waitForExist({ timeout: 30_000 })
     try {
@@ -242,6 +257,27 @@ describe("Once mobile", () => {
     }
     await $("[data-testid='theme']").selectByAttribute("value", "light")
     await expect($("body")).toHaveAttribute("data-theme", "light")
+    await clickWeb(await $("#settings_section_back"), platform)
+    await clickWeb(await $("[data-settings-target='filterlists']"), platform)
+    await setWebValue(
+      await $("[data-testid='filter-lists']"),
+      `${baseUrl}/fixtures/mobile-filter-list.txt`
+    )
+    await clickWeb(await $("[data-testid='save-filter-lists']"), platform)
+    await clickWeb(await $("#settings_section_back"), platform)
+    await clickWeb(await $("[data-settings-target='userscripts']"), platform)
+    await setWebValue(await $("[data-testid='userscripts']"), `// ==UserScript==
+// @name Mobile e2e probe
+// @namespace once-e2e
+// @match <all_urls>
+// @run-at document-start
+// ==/UserScript==
+document.documentElement.dataset.onceUserscriptStart = document.readyState;
+GM_addStyle('#once-userscript-target { display: none !important; }');
+    GM_setValue('ran', true);
+    document.documentElement.dataset.onceGmValue = String(GM_getValue('ran', false));`)
+    await clickWeb(await $("[data-testid='save-userscripts']"), platform)
+    await applyExtensionSettings()
   })
 
   it("loads fixture stories and opens one in the embedded browser", async () => {
@@ -267,6 +303,17 @@ describe("Once mobile", () => {
     expect(await $("#reading_url").getProperty("value")).toBe(
       `${baseUrl}/fixtures/article.html`
     )
+    await browser.pause(500)
+    const extensionResult = await evaluateSurface(`({
+      start: document.documentElement.dataset.onceUserscriptStart || null,
+      gm: document.documentElement.dataset.onceGmValue || null,
+      userHidden: getComputedStyle(document.querySelector('#once-userscript-target')).display,
+      filterHidden: getComputedStyle(document.querySelector('.once-filter-hide')).display,
+      ad: document.querySelector('#once-ad-probe').dataset.result || null
+    })`)
+    expect(extensionResult).toEqual({
+      start: "loading", gm: "true", userHidden: "none", filterHidden: "none", ad: "blocked"
+    })
     await clickWeb(await $("[data-testid='stories-menu']"), platform)
     await readingContent.waitForDisplayed({ timeout: 10_000, reverse: true })
   })

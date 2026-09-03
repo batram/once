@@ -1,4 +1,6 @@
 import { Capacitor, PluginListenerHandle, registerPlugin } from "@capacitor/core"
+import type { FilterListsDocument, UserscriptsDocument } from "@once/core"
+import { parseUserscript } from "@once/core"
 
 export interface BrowserSurfaceBounds {
   /** CSS viewport pixels. Native implementations perform scale conversion. */
@@ -71,6 +73,10 @@ export interface InAppBrowserSurface {
   showMenu(options: NativeOverlayMenuOptions): Promise<string | null>
   showPrompt(options: NativeOverlayPromptOptions): Promise<string | null>
   evaluateJavaScript(script: string): Promise<string | null>
+  applyExtensionSettings(
+    filterLists: FilterListsDocument,
+    userscripts: UserscriptsDocument
+  ): Promise<void>
   close(): Promise<void>
   addListener<K extends BrowserSurfaceEventName>(
     event: K,
@@ -90,11 +96,56 @@ interface NativeInAppBrowserPlugin {
     options: NativeOverlayPromptOptions
   ): Promise<{ value?: string }>
   evaluateJavaScript(options: { script: string }): Promise<{ value?: string }>
+  applyExtensionSettings(options: NativeExtensionSettings): Promise<void>
   close(): Promise<void>
   addListener(
     event: BrowserSurfaceEventName,
     listener: (payload: unknown) => void
   ): Promise<PluginListenerHandle>
+}
+
+interface NativeExtensionSettings {
+  filterLists: FilterListsDocument
+  userscripts: {
+    version: number
+    scripts: Array<{
+      id: string
+      name: string
+      body: string
+      enabled: boolean
+      matches: readonly string[]
+      includes: readonly string[]
+      excludes: readonly string[]
+      runAt: string
+      noFrames: boolean
+    }>
+  }
+}
+
+function nativeExtensionSettings(
+  filterLists: FilterListsDocument,
+  userscripts: UserscriptsDocument
+): NativeExtensionSettings {
+  return {
+    filterLists,
+    userscripts: {
+      version: userscripts.version,
+      scripts: userscripts.scripts.map((script) => {
+        const parsed = parseUserscript(script.source)
+        return {
+          id: script.id,
+          name: script.name,
+          body: parsed.body,
+          enabled: script.enabled,
+          matches: parsed.metadata.matches,
+          includes: parsed.metadata.includes,
+          excludes: parsed.metadata.excludes,
+          runAt: parsed.metadata.runAt,
+          noFrames: parsed.metadata.noFrames
+        }
+      })
+    }
+  }
 }
 
 const NativeInAppBrowser =
@@ -160,6 +211,10 @@ export function createNativeInAppBrowserSurface(): InAppBrowserSurface {
       const result = await NativeInAppBrowser.evaluateJavaScript({ script })
       return result?.value ?? null
     },
+    applyExtensionSettings: (filterLists, userscripts) =>
+      NativeInAppBrowser.applyExtensionSettings(
+        nativeExtensionSettings(filterLists, userscripts)
+      ),
     close: () => NativeInAppBrowser.close(),
     async addListener(event, listener) {
       const handle = await NativeInAppBrowser.addListener(
@@ -213,6 +268,7 @@ export function createFallbackInAppBrowserSurface(
     showMenu: async () => null,
     showPrompt: async () => null,
     evaluateJavaScript: async () => null,
+    applyExtensionSettings: async () => undefined,
     close: async () => {
       currentUrl = ""
     },

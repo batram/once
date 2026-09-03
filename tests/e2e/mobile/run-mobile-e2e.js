@@ -42,6 +42,7 @@ function stalenessReason() {
     path.join(appRoot, "webpack.config.js"),
     path.join(appRoot, "capacitor.config.ts"),
     path.join(appRoot, platform === "android" ? "android" : "ios"),
+    ...(platform === "android" ? [path.join(appRoot, "extensions")] : []),
     ...packageSources()
   ]
   if (sources.some((source) => newestSourceTime(source) > stamp.builtAt)) {

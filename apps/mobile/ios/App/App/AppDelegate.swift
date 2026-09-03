@@ -74,6 +74,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         CAPPluginMethod(name: "setVisible", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "showMenu", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "showPrompt", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "evaluateJavaScript", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "applyExtensionSettings", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "close", returnType: CAPPluginReturnPromise)
     ]
 
@@ -81,6 +83,9 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     private var refreshControl: UIRefreshControl?
     private var navigationSequence = 0
     private var activeNavigation = 0
+    private var extensionSettingsGeneration = 0
+    private var contentRuleList: WKContentRuleList?
+    private var extensionUserScripts: [WKUserScript] = []
 
     private func embeddable(_ raw: String?) -> URL? {
         guard let raw, let url = URL(string: raw),
@@ -94,6 +99,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         guard let shell = bridge?.webView, let parent = shell.superview else { return nil }
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
+        if let contentRuleList { configuration.userContentController.add(contentRuleList) }
+        for script in extensionUserScripts { configuration.userContentController.addUserScript(script) }
         let view = WKWebView(frame: .zero, configuration: configuration)
         view.navigationDelegate = self
         view.uiDelegate = self
@@ -268,6 +275,139 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         }
     }
 
+    @objc func applyExtensionSettings(_ call: CAPPluginCall) {
+        guard let filterLists = call.getObject("filterLists"),
+              let userscripts = call.getObject("userscripts") else {
+            call.reject("filterLists and userscripts are required")
+            return
+        }
+        extensionSettingsGeneration += 1
+        let generation = extensionSettingsGeneration
+        installUserscripts(userscripts)
+
+        let entries = (filterLists["lists"] as? [JSObject] ?? []).compactMap { entry -> URL? in
+            guard entry["enabled"] as? Bool != false,
+                  let raw = entry["url"] as? String,
+                  let url = URL(string: raw),
+                  url.scheme == "https" || url.scheme == "http" else { return nil }
+            return url
+        }
+        Task {
+            do {
+                let texts = try await fetchFilterLists(entries)
+                let encodedRules = try IOSContentBlockerExporter.export(texts.joined(separator: "\n"))
+                try await compileAndInstallRules(encodedRules, generation: generation)
+                if generation == extensionSettingsGeneration { call.resolve() }
+                else { call.resolve() }
+            } catch {
+                if generation == extensionSettingsGeneration { call.reject(error.localizedDescription) }
+                else { call.resolve() }
+            }
+        }
+    }
+
+    @objc func evaluateJavaScript(_ call: CAPPluginCall) {
+        guard let script = call.getString("script"), !script.isEmpty else {
+            call.reject("JavaScript source is required")
+            return
+        }
+        DispatchQueue.main.async {
+            guard let surface = self.surface else {
+                call.reject("There is no open page")
+                return
+            }
+            surface.evaluateJavaScript(script) { value, error in
+                if let error {
+                    call.reject("The script failed: \(error.localizedDescription)")
+                    return
+                }
+                if value == nil || value is NSNull {
+                    call.resolve(["value": "null"])
+                } else if JSONSerialization.isValidJSONObject([value!]),
+                          let data = try? JSONSerialization.data(withJSONObject: value!, options: [.fragmentsAllowed]) {
+                    call.resolve(["value": String(decoding: data, as: UTF8.self)])
+                } else {
+                    call.resolve(["value": "null"])
+                }
+            }
+        }
+    }
+
+    private func fetchFilterLists(_ urls: [URL]) async throws -> [String] {
+        try await withThrowingTaskGroup(of: String.self) { group in
+            for url in urls {
+                group.addTask {
+                    let cacheKey = "once.filter-list." + Data(url.absoluteString.utf8).base64EncodedString()
+                    do {
+                        var request = URLRequest(url: url)
+                        request.timeoutInterval = 30
+                        request.setValue("Once iOS content blocker", forHTTPHeaderField: "User-Agent")
+                        let (data, response) = try await URLSession.shared.data(for: request)
+                        guard let http = response as? HTTPURLResponse,
+                              (200..<300).contains(http.statusCode),
+                              let text = String(data: data, encoding: .utf8) else {
+                            throw NSError(domain: "OnceContentBlocker", code: 1,
+                                          userInfo: [NSLocalizedDescriptionKey: "Unable to download \(url.absoluteString)"])
+                        }
+                        UserDefaults.standard.set(text, forKey: cacheKey)
+                        return text
+                    } catch {
+                        if let cached = UserDefaults.standard.string(forKey: cacheKey) { return cached }
+                        throw error
+                    }
+                }
+            }
+            var result: [String] = []
+            for try await text in group { result.append(text) }
+            return result
+        }
+    }
+
+    @MainActor
+    private func compileAndInstallRules(_ encodedRules: String, generation: Int) async throws {
+        guard generation == extensionSettingsGeneration else { return }
+        let identifier = "once-synced-filter-lists"
+        let list = try await withCheckedThrowingContinuation {
+                (continuation: CheckedContinuation<WKContentRuleList, Error>) in
+                WKContentRuleListStore.default().compileContentRuleList(
+                    forIdentifier: identifier,
+                    encodedContentRuleList: encodedRules
+                ) { list, error in
+                    if let list { continuation.resume(returning: list) }
+                    else { continuation.resume(throwing: error ?? NSError(
+                        domain: "OnceContentBlocker", code: 2,
+                        userInfo: [NSLocalizedDescriptionKey: "WebKit did not compile the content rules"]
+                    )) }
+                }
+            }
+        guard generation == extensionSettingsGeneration else { return }
+        if let previous = contentRuleList {
+            surface?.configuration.userContentController.remove(previous)
+        }
+        surface?.configuration.userContentController.add(list)
+        contentRuleList = list
+    }
+
+    private func installUserscripts(_ document: JSObject) {
+        let controller = surface?.configuration.userContentController
+        controller?.removeAllUserScripts()
+        extensionUserScripts = []
+        for entry in document["scripts"] as? [JSObject] ?? [] {
+            guard entry["enabled"] as? Bool != false,
+                  let id = entry["id"] as? String,
+                  let body = entry["body"] as? String else { continue }
+            let source = UserscriptInjection.source(id: id, body: body, metadata: entry)
+            let runAt = entry["runAt"] as? String
+            let script = WKUserScript(
+                source: source,
+                injectionTime: runAt == "document-start" ? .atDocumentStart : .atDocumentEnd,
+                forMainFrameOnly: entry["noFrames"] as? Bool ?? false
+            )
+            extensionUserScripts.append(script)
+            controller?.addUserScript(script)
+        }
+    }
+
     @objc func close(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             self.surface?.stopLoading()
@@ -276,6 +416,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             self.surface?.removeFromSuperview()
             self.surface = nil
             self.refreshControl = nil
+            self.contentRuleList = nil
             call.resolve()
         }
     }
@@ -374,6 +515,154 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     ) -> WKWebView? {
         if let url = navigationAction.request.url { UIApplication.shared.open(url) }
         return nil
+    }
+}
+
+private enum UserscriptInjection {
+    private static func json(_ value: Any) -> String {
+        guard JSONSerialization.isValidJSONObject(value),
+              let data = try? JSONSerialization.data(withJSONObject: value),
+              let result = String(data: data, encoding: .utf8) else { return "[]" }
+        return result
+    }
+
+    static func source(id: String, body: String, metadata: JSObject) -> String {
+        let matches = metadata["matches"] as? [String] ?? []
+        let includes = metadata["includes"] as? [String] ?? []
+        let excludes = metadata["excludes"] as? [String] ?? []
+        return """
+        (() => {
+          const matchPattern = (pattern, url) => {
+            if (pattern === '<all_urls>') return /^(https?|file|ftp):/.test(url.protocol);
+            const found = /^(\\*|http|https|file|ftp):\\/\\/([^/]*)(\\/.*)$/.exec(pattern);
+            if (!found || (found[1] !== '*' && found[1] !== url.protocol.slice(0, -1))) return false;
+            const host = found[2];
+            if (host !== '*' && !(host.startsWith('*.')
+              ? (url.hostname === host.slice(2) || url.hostname.endsWith('.' + host.slice(2)))
+              : url.hostname === host)) return false;
+            const escaped = found[3].replace(/[.+?^${}()|[\\]\\\\]/g, '\\$&').replace(/\\*/g, '.*');
+            return new RegExp('^' + escaped + '$').test(url.pathname + url.search);
+          };
+          const glob = (pattern, value) => {
+            if (pattern.length > 2 && pattern[0] === '/' && pattern.at(-1) === '/') {
+              try { return new RegExp(pattern.slice(1, -1)).test(value); } catch { return false; }
+            }
+            const escaped = pattern.replace(/[.+?^${}()|[\\]\\\\]/g, '\\$&').replace(/\\*/g, '.*');
+            return new RegExp('^' + escaped + '$').test(value);
+          };
+          const url = new URL(location.href);
+          const matches = \(json(matches));
+          const includes = \(json(includes));
+          const excludes = \(json(excludes));
+          if (excludes.some(value => glob(value, url.href))) return;
+          if (matches.length || includes.length) {
+            if (!matches.some(value => matchPattern(value, url)) &&
+                !includes.some(value => glob(value, url.href))) return;
+          }
+          const prefix = 'once.userscript.\(id).';
+          const GM_addStyle = css => {
+            const style = document.createElement('style');
+            style.textContent = String(css);
+            (document.head || document.documentElement).append(style);
+            return style;
+          };
+          const GM_getValue = (key, fallback) => {
+            const stored = localStorage.getItem(prefix + key);
+            if (stored === null) return fallback;
+            try { return JSON.parse(stored); } catch { return fallback; }
+          };
+          const GM_setValue = (key, value) => {
+            localStorage.setItem(prefix + key, JSON.stringify(value));
+          };
+          try { \(body) } catch (error) { console.error('Once userscript \(id) failed', error); }
+        })();
+        """
+    }
+}
+
+/// Converts the ABP/uBlock subset accepted by WebKit to Safari content-blocker JSON.
+/// The rule shapes and ordering mirror adblock-rust's `content-blocking` export: ordinary
+/// rules first and `ignore-previous-rules` exceptions last. Unsupported scriptlets and
+/// procedural cosmetics are intentionally omitted because WKContentRuleList cannot run them.
+private enum IOSContentBlockerExporter {
+    static func export(_ list: String) throws -> String {
+        var rules: [[String: Any]] = []
+        var exceptions: [[String: Any]] = []
+        for raw in list.split(whereSeparator: { $0.isNewline }) {
+            var line = String(raw).trimmingCharacters(in: .whitespacesAndNewlines)
+            if line.isEmpty || line.hasPrefix("!") || line.hasPrefix("[") { continue }
+            let exception = line.hasPrefix("@@")
+            if exception { line.removeFirst(2) }
+            if let marker = line.range(of: exception ? "#@#" : "##") {
+                let domains = String(line[..<marker.lowerBound])
+                let selector = String(line[marker.upperBound...])
+                if selector.isEmpty || selector.contains("+js(") || selector.contains(":has-text(") { continue }
+                var trigger: [String: Any] = ["url-filter": ".*"]
+                let included = domains.split(separator: ",").filter { !$0.hasPrefix("~") }.map(String.init)
+                if !included.isEmpty { trigger["if-domain"] = included.map { "*\($0)" } }
+                let action: [String: Any] = exception
+                    ? ["type": "ignore-previous-rules"]
+                    : ["type": "css-display-none", "selector": selector]
+                if exception { exceptions.append(["trigger": trigger, "action": action]) }
+                else { rules.append(["trigger": trigger, "action": action]) }
+                continue
+            }
+            let pieces = line.split(separator: "$", maxSplits: 1, omittingEmptySubsequences: false)
+            let pattern = String(pieces[0])
+            if pattern.isEmpty ||
+               (pattern.count > 1 && pattern.hasPrefix("/") && pattern.hasSuffix("/")) ||
+               pattern.contains("##") { continue }
+            var trigger: [String: Any] = ["url-filter": urlFilter(pattern)]
+            if pieces.count == 2 { applyOptions(String(pieces[1]), to: &trigger) }
+            let action = ["type": exception ? "ignore-previous-rules" : "block"]
+            if exception { exceptions.append(["trigger": trigger, "action": action]) }
+            else { rules.append(["trigger": trigger, "action": action]) }
+        }
+        rules.append(contentsOf: exceptions)
+        let data = try JSONSerialization.data(withJSONObject: rules)
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    private static func urlFilter(_ pattern: String) -> String {
+        var value = pattern
+        var prefix = ""
+        if value.hasPrefix("||") {
+            value.removeFirst(2)
+            prefix = "^[^:]+:(?://)?(?:[^/]+\\.)?"
+        } else if value.hasPrefix("|") {
+            value.removeFirst(); prefix = "^"
+        }
+        let anchored = value.hasSuffix("|")
+        if anchored { value.removeLast() }
+        let escaped = NSRegularExpression.escapedPattern(for: value)
+            .replacingOccurrences(of: "\\*", with: ".*")
+            .replacingOccurrences(of: "\\^", with: "(?:[^A-Za-z0-9_.%-]|$)")
+        return prefix + escaped + (anchored ? "$" : "")
+    }
+
+    private static func applyOptions(_ options: String, to trigger: inout [String: Any]) {
+        let resourceMap = [
+            "script": "script", "image": "image", "stylesheet": "style-sheet",
+            "font": "font", "media": "media", "document": "document",
+            "subdocument": "document", "xmlhttprequest": "raw", "websocket": "raw"
+        ]
+        var resources: [String] = []
+        var ifDomains: [String] = []
+        var unlessDomains: [String] = []
+        for option in options.split(separator: ",").map(String.init) {
+            if let mapped = resourceMap[option] { resources.append(mapped) }
+            else if option == "third-party" { trigger["load-type"] = ["third-party"] }
+            else if option == "~third-party" { trigger["load-type"] = ["first-party"] }
+            else if option.hasPrefix("domain=") {
+                for domain in option.dropFirst(7).split(separator: "|").map(String.init) {
+                    if domain.hasPrefix("~") { unlessDomains.append("*" + domain.dropFirst()) }
+                    else { ifDomains.append("*" + domain) }
+                }
+            }
+        }
+        if !resources.isEmpty { trigger["resource-type"] = resources }
+        if !ifDomains.isEmpty { trigger["if-domain"] = ifDomains }
+        if !unlessDomains.isEmpty { trigger["unless-domain"] = unlessDomains }
     }
 }
 

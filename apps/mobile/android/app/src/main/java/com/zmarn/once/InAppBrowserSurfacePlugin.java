@@ -73,6 +73,8 @@ public class InAppBrowserSurfacePlugin extends Plugin {
     private boolean sawRequestedPage;
 
     private WebExtension.Port bridgePort;
+    private WebExtension.Port settingsPort;
+    private JSONObject extensionSettings;
     private final AtomicLong evaluationSequence = new AtomicLong();
     private final Map<Long, PluginCall> pendingEvaluations = new HashMap<>();
 
@@ -280,6 +282,18 @@ public class InAppBrowserSurfacePlugin extends Plugin {
     }
 
     @PluginMethod
+    public void applyExtensionSettings(PluginCall call) {
+        JSONObject data = call.getData();
+        if (!data.has("filterLists") || !data.has("userscripts")) {
+            call.reject("filterLists and userscripts are required");
+            return;
+        }
+        extensionSettings = data;
+        sendExtensionSettings();
+        call.resolve();
+    }
+
+    @PluginMethod
     public void close(PluginCall call) {
         getActivity().runOnUiThread(() -> {
             destroySurface();
@@ -434,12 +448,28 @@ public class InAppBrowserSurfacePlugin extends Plugin {
             new WebExtension.MessageDelegate() {
                 @Override
                 public void onConnect(WebExtension.Port port) {
-                    if (!port.sender.isTopLevel()) return;
-                    bridgePort = port;
-                    port.setDelegate(new BridgePort());
+                    if (port.sender.environmentType == WebExtension.MessageSender.ENV_TYPE_CONTENT_SCRIPT
+                        && port.sender.isTopLevel()) {
+                        bridgePort = port;
+                        port.setDelegate(new BridgePort());
+                    }
                 }
             },
             BRIDGE_NATIVE_APP
+        );
+        // Background pages use the extension-wide delegate; the session
+        // controller above sees content-script connections for this page.
+        bridgeExtension.setMessageDelegate(
+            new WebExtension.MessageDelegate() {
+                @Override
+                public void onConnect(WebExtension.Port port) {
+                    if (port.sender.environmentType == WebExtension.MessageSender.ENV_TYPE_EXTENSION) {
+                        settingsPort = port;
+                        port.setDelegate(new SettingsPort());
+                        sendExtensionSettings();
+                    }
+                }
+            }, BRIDGE_NATIVE_APP
         );
     }
 
@@ -452,6 +482,7 @@ public class InAppBrowserSurfacePlugin extends Plugin {
         if (session != null) session.close();
         failPendingEvaluations("The page was closed");
         bridgePort = null;
+        settingsPort = null;
         pageRequested = false;
         initialBlank = false;
         sawRequestedPage = false;
@@ -578,6 +609,25 @@ public class InAppBrowserSurfacePlugin extends Plugin {
         public void onDisconnect(WebExtension.Port port) {
             if (bridgePort == port) bridgePort = null;
             failPendingEvaluations("The page navigated away");
+        }
+    }
+
+    private void sendExtensionSettings() {
+        if (settingsPort == null || extensionSettings == null) return;
+        try {
+            JSONObject message = new JSONObject();
+            message.put("type", "extension-settings");
+            message.put("value", extensionSettings);
+            settingsPort.postMessage(message);
+        } catch (Exception error) {
+            Log.e(TAG, "Unable to send extension settings", error);
+        }
+    }
+
+    private final class SettingsPort implements WebExtension.PortDelegate {
+        @Override
+        public void onDisconnect(WebExtension.Port port) {
+            if (settingsPort == port) settingsPort = null;
         }
     }
 

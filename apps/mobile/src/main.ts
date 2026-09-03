@@ -132,6 +132,26 @@ async function startMobileApp(): Promise<void> {
   document.body.dataset.onceStage = "app-start"
   showStartupState("Opening saved stories and settings…")
   await app.start()
+  if (Capacitor.isNativePlatform()) {
+    const applyExtensionSettings = async (settings?: {
+      filterLists: Awaited<ReturnType<typeof app.client.getFilterLists>>
+      userscripts: Awaited<ReturnType<typeof app.client.getUserscripts>>
+    }): Promise<void> => {
+      try {
+        await browserSurface.applyExtensionSettings(
+          settings?.filterLists ?? await app.client.getFilterLists(),
+          settings?.userscripts ?? await app.client.getUserscripts()
+        )
+      } catch (error) {
+        console.error("Failed to apply mobile extension settings", error)
+      }
+    }
+    // AppRuntime's startup publication precedes this subscription.
+    await applyExtensionSettings()
+    app.client.subscribe("extensionSettingsChanged", (settings) => {
+      void applyExtensionSettings(settings)
+    })
+  }
   document.body.dataset.onceStage = "ui-mount"
   showStartupState("Loading stories…")
   await mountOnceUi(app.client, {
@@ -156,7 +176,12 @@ async function startMobileApp(): Promise<void> {
     // Lets the e2e suite await queued story saves instead of pausing blindly.
     ;(window as { __onceE2E__?: unknown }).__onceE2E__ = {
       settledStoryWrites: () => app.client.settledStoryWrites(),
-      handleBack: () => reading.handleBack()
+      handleBack: () => reading.handleBack(),
+      evaluateSurface: (script: string) => browserSurface.evaluateJavaScript(script),
+      applyExtensionSettings: async () => browserSurface.applyExtensionSettings(
+        await app.client.getFilterLists(),
+        await app.client.getUserscripts()
+      )
     }
   }
   document.body.dataset.onceStage = "ready"

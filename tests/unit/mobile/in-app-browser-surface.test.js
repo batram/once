@@ -132,11 +132,53 @@ test("native embedded browsers support pull-to-refresh", () => {
   ), "utf8")
 
   assert.match(android, /new SwipeRefreshLayout/)
-  assert.match(android, /setOnRefreshListener\(surface::reload\)/)
+  assert.match(android, /setOnRefreshListener\(\(\) -> session\.reload\(\)\)/)
   assert.match(android, /refreshSurface\.setRefreshing\(false\)/)
   assert.match(ios, /view\.scrollView\.refreshControl = refreshControl/)
   assert.match(ios, /@objc private func refreshBrowser/)
   assert.match(ios, /refreshControl\?\.endRefreshing\(\)/)
+})
+
+test("iOS installs synced content rules and parsed userscripts", () => {
+  const root = path.resolve(__dirname, "../../..")
+  const adapter = fs.readFileSync(path.join(
+    root, "packages/platform-mobile/src/InAppBrowserSurface.ts"
+  ), "utf8")
+  const mobile = fs.readFileSync(path.join(root, "apps/mobile/src/main.ts"), "utf8")
+  const ios = fs.readFileSync(path.join(
+    root, "apps/mobile/ios/App/App/AppDelegate.swift"
+  ), "utf8")
+
+  assert.match(adapter, /parseUserscript\(script\.source\)/)
+  assert.match(adapter, /NativeInAppBrowser\.applyExtensionSettings/)
+  assert.match(mobile, /subscribe\("extensionSettingsChanged"/)
+  assert.match(ios, /compileContentRuleList/)
+  assert.match(ios, /configuration\.userContentController\.add\(contentRuleList\)/)
+  assert.match(ios, /runAt == "document-start" \? \.atDocumentStart : \.atDocumentEnd/)
+  assert.match(ios, /const GM_addStyle/)
+  assert.match(ios, /const GM_getValue/)
+  assert.match(ios, /const GM_setValue/)
+})
+
+test("Android hands synced settings to its trusted Gecko bridge", () => {
+  const root = path.resolve(__dirname, "../../..")
+  const android = fs.readFileSync(path.join(
+    root,
+    "apps/mobile/android/app/src/main/java/com/zmarn/once/InAppBrowserSurfacePlugin.java"
+  ), "utf8")
+  const manifest = JSON.parse(fs.readFileSync(path.join(
+    root, "apps/mobile/extensions/once-surface/manifest.json"
+  ), "utf8"))
+  const background = fs.readFileSync(path.join(
+    root, "apps/mobile/extensions/once-surface/background.js"
+  ), "utf8")
+
+  assert.match(android, /public void applyExtensionSettings\(PluginCall call\)/)
+  assert.match(android, /settingsPort\.postMessage\(message\)/)
+  assert.deepEqual(manifest.background.scripts, ["background.js"])
+  assert.ok(manifest.permissions.includes("webRequestBlocking"))
+  assert.match(background, /browser\.webRequest\.onBeforeRequest\.addListener/)
+  assert.match(background, /browser\.contentScripts\.register/)
 })
 
 test("native embedded browsers present menus and prompts above web content", () => {

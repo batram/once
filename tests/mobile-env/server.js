@@ -84,6 +84,18 @@ app.get("/fixtures/feed.rss", (request, response) => {
     <guid>${baseUrl}/fixtures/article.html</guid><pubDate>Mon, 15 Jul 2030 10:00:00 GMT</pubDate></item>
     </channel></rss>`)
 })
+app.get("/fixtures/mobile-filter-list.txt", (_request, response) => {
+  response.type("text/plain").send([
+    "/fixtures/blocked-ad.png$image",
+    "##.once-filter-hide"
+  ].join("\n"))
+})
+app.get("/fixtures/blocked-ad.png", (_request, response) => {
+  response.type("image/png").send(Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+    "base64"
+  ))
+})
 app.get("/fixtures/visual-feed.rss", (request, response) => {
   const baseUrl = `${request.protocol}://${request.get("host")}`
   const stories = [
@@ -123,7 +135,13 @@ app.get([
     "It verifies that the sanitized in-app reader can preserve useful prose while discarding page chrome and scripts. "
   response.type("text/html").send(
     `<!doctype html><html><head><title>${title}</title></head><body>` +
-    `<article><h1>${title}</h1><p>${paragraph.repeat(8)}</p></article></body></html>`
+    `<article><h1>${title}</h1><p>${paragraph.repeat(8)}</p>` +
+    "<div class=\"once-filter-hide\">filter probe</div>" +
+    "<div id=\"once-userscript-target\">userscript probe</div>" +
+    "<img id=\"once-ad-probe\" src=\"/fixtures/blocked-ad.png\" " +
+    "onload=\"this.dataset.result=&quot;loaded&quot;\" " +
+    "onerror=\"this.dataset.result=&quot;blocked&quot;\">" +
+    "</article></body></html>"
   )
 })
 
