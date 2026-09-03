@@ -78,6 +78,11 @@ export interface ElectronUpdateStatus {
 
 export type ElectronFocusSurface = "browser" | "shell"
 
+export interface ElectronExtensionSettings {
+  filterLists: import("@once/core").FilterListsDocument
+  userscripts: import("@once/core").UserscriptsDocument
+}
+
 /** One loaded extension as the toolbar shows it. */
 export interface ElectronExtensionInfo {
   /** Opaque, stable per extension; what the popup call names. */
@@ -159,6 +164,8 @@ export interface ElectronBridge {
     /** Toggles the extension's popup under the toolbar button at `anchor`. */
     openPopup(host: string, anchor: ElectronRect): Promise<void>
     onChanged(handler: () => void): () => void
+    /** Hands the synced documents to the extensions that act on them. */
+    applySettings(settings: ElectronExtensionSettings): Promise<void>
   }
   window: {
     setFullscreen(fullscreen: boolean): Promise<void>
@@ -226,7 +233,8 @@ export const ELECTRON_IPC = {
   windowFullscreenChanged: "once:window:fullscreen-changed",
   extensionsList: "once:extensions:list",
   extensionsOpenPopup: "once:extensions:open-popup",
-  extensionsChanged: "once:extensions:changed"
+  extensionsChanged: "once:extensions:changed",
+  extensionsApplySettings: "once:extensions:apply-settings"
 } as const
 
 declare global {

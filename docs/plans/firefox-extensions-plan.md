@@ -8,8 +8,23 @@ scriptlets into pages, and its popup opens from the toolbar and reports on
 the active tab. Violentmonkey 2.48.0 boots beside it, installs a userscript
 through its dashboard, and a `@run-at document-start` script runs while the
 document is still `loading` on wikipedia.org (all verified 2026-09-01
-through the `ONCE_ELECTRON_EXTENSIONS` dev path). Step 5 (shared settings
-documents) is next.
+through the `ONCE_ELECTRON_EXTENSIONS` dev path). Step 5 is done: the
+`filter_lists` and `userscripts` documents sync like every other setting,
+have text editors in the shared settings panel, and on Electron reach the
+extensions through their own message APIs. Saving a list URL in Once added
+it to uBlock's selection without touching its defaults, and a userscript
+saved in Once ran through Violentmonkey (verified 2026-09-03). Step 6
+(Android on GeckoView) is next.
+
+Findings from step 5: `addListener` must register synchronously, as it does
+in Firefox; with async IPC a background page's listeners were still in
+flight when its load event resolved, so anything acting on load could miss
+them. uBlock registers its port handler while its modules evaluate;
+Violentmonkey registers `onMessage` after awaiting its storage, so a
+hand-off waits for the listener to appear rather than for the page to load.
+Once's filter lists are additions to the extension's own selection, never a
+replacement: the applier reads uBlock's list table, maps a URL to its stock
+key where one exists, and imports the rest.
 
 Findings from the Violentmonkey run: it reaches synchronous APIs through
 the `chrome` global and calls some of them Chrome-style with a trailing

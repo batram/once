@@ -10,7 +10,12 @@ import {
   WebFrameMain,
   webFrameMain
 } from "electron"
-import { ElectronExtensionInfo, ElectronRect } from "@once/platform-electron/bridge"
+import {
+  ElectronExtensionInfo,
+  ElectronExtensionSettings,
+  ElectronRect
+} from "@once/platform-electron/bridge"
+import { applySettingsToExtension } from "./extensionSettingsApply"
 import { ContextEntry, frameContextId } from "./ExtensionContexts"
 import { ApiHandler, createApiHandlers } from "./ExtensionApi"
 import { ExtensionHost } from "./ExtensionHost"
@@ -30,7 +35,8 @@ import {
   ExtensionContextInit,
   ExtensionInvoke,
   ExtensionReply,
-  INTERNAL_API
+  INTERNAL_API,
+  ListenerChange
 } from "./protocol"
 import { ExtensionShellHooks, PageProfile, TabSnapshot } from "./runtimeTypes"
 import { WebRequestListenerSpec } from "./webRequestDetails"
@@ -41,13 +47,6 @@ export interface ExtensionRuntimeOptions {
   preloadPath: string
   contentPreloadPath: string
   hooks: ExtensionShellHooks
-}
-
-interface ListenerChange {
-  api: string
-  event: string
-  id: number
-  spec?: WebRequestListenerSpec
 }
 
 interface FrameIds {
@@ -122,6 +121,7 @@ export class ExtensionRuntime {
   private lastActive = new Map<number, number>()
   private nextWorldId = CONTENT_WORLD_BASE
   private installed = false
+  private settings: ElectronExtensionSettings | null = null
 
   constructor(private readonly options: ExtensionRuntimeOptions) {
     this.router = new WebRequestRouter(options.browserSession, {
@@ -200,7 +200,29 @@ export class ExtensionRuntime {
       throw error
     }
     this.notifyChanged()
+    if (this.settings) await this.applyTo(host, this.settings)
     return extension
+  }
+
+  /**
+   * The shell's synced filter-list and userscript documents. Applied to every
+   * loaded extension that takes them, and to any that loads afterwards.
+   */
+  async applySettings(settings: ElectronExtensionSettings): Promise<void> {
+    if (!settings || typeof settings !== "object" ||
+      !Array.isArray(settings.filterLists?.lists) || !Array.isArray(settings.userscripts?.scripts)) {
+      throw new Error("Invalid extension settings")
+    }
+    this.settings = settings
+    for (const host of this.hosts.values()) await this.applyTo(host, settings)
+  }
+
+  private async applyTo(host: ExtensionHost, settings: ElectronExtensionSettings): Promise<void> {
+    try {
+      await applySettingsToExtension(host, settings, this.options.storageRoot)
+    } catch (error) {
+      console.error(`Settings could not be handed to ${host.extension.name}`, error)
+    }
   }
 
   async unload(extensionHost: string): Promise<void> {
@@ -298,6 +320,16 @@ export class ExtensionRuntime {
       const { host, entry } = this.requireContext(event)
       return this.invoke(host, entry, message, EXTENSION_API_SURFACE)
     })
+    ipcMain.on(EXTENSION_IPC.listeners, (event, change: ListenerChange) => {
+      try {
+        const { host, entry } = this.requireContext(event)
+        this.listenerChange(host, entry, change, EXTENSION_API_SURFACE)
+        event.returnValue = true
+      } catch (error) {
+        console.error("Listener registration refused", error)
+        event.returnValue = false
+      }
+    })
     ipcMain.on(EXTENSION_IPC.reply, (event, reply: ExtensionReply) => {
       const host = this.contextOwner.get(event.sender.id)
       if (host && typeof reply?.token === "number") {
@@ -318,6 +350,16 @@ export class ExtensionRuntime {
     ipcMain.handle(EXTENSION_IPC.contentInvoke, (event, message: ExtensionInvoke) => {
       const { host, entry } = this.requireContentContext(event, message?.host)
       return this.invoke(host, entry, message, CONTENT_API_SURFACE)
+    })
+    ipcMain.on(EXTENSION_IPC.contentListeners, (event, change: ListenerChange) => {
+      try {
+        const { host, entry } = this.requireContentContext(event, change?.host)
+        this.listenerChange(host, entry, change, CONTENT_API_SURFACE)
+        event.returnValue = true
+      } catch (error) {
+        console.error("Content listener registration refused", error)
+        event.returnValue = false
+      }
     })
     ipcMain.on(EXTENSION_IPC.contentReply, (event, reply: ExtensionReply) => {
       if (typeof reply?.token !== "number" || !event.senderFrame) return
@@ -371,7 +413,7 @@ export class ExtensionRuntime {
   }
 
   private requireContentContext(
-    event: IpcMainInvokeEvent,
+    event: IpcMainInvokeEvent | IpcMainEvent,
     extensionHost: unknown
   ): { host: ExtensionHost; entry: ContextEntry } {
     const host = typeof extensionHost === "string" ? this.hosts.get(extensionHost) : undefined
@@ -410,7 +452,6 @@ export class ExtensionRuntime {
       !Array.isArray(message.args)) {
       throw new Error("Invalid extension API call")
     }
-    if (message.api === INTERNAL_API.listeners) return this.listenerChange(host, entry, message, surface)
     if (message.api !== INTERNAL_API.port) {
       const known = surface[message.api]
       if (!known || !known.methods.includes(message.method)) {
@@ -425,10 +466,9 @@ export class ExtensionRuntime {
   private listenerChange(
     host: ExtensionHost,
     entry: ContextEntry,
-    message: ExtensionInvoke,
+    change: ListenerChange | undefined,
     surface: Readonly<Record<string, ApiSurface>>
   ): void {
-    const change = message.args[0] as ListenerChange | undefined
     if (!change || typeof change.api !== "string" || typeof change.event !== "string" ||
       typeof change.id !== "number") {
       throw new Error("Invalid listener registration")
@@ -437,9 +477,12 @@ export class ExtensionRuntime {
     if (!known || !known.events.includes(change.event)) {
       throw new Error(`browser.${change.api}.${change.event} is not available`)
     }
-    if (message.method === "add") {
-      host.contexts.addListener(entry.id, change.api, change.event, change.id, change.spec ?? null)
-    } else if (message.method === "remove") {
+    if (change.action === "add") {
+      // The filter's shape is checked where it is compiled; a bad one simply
+      // never matches a request.
+      const spec = change.spec ? change.spec as WebRequestListenerSpec : null
+      host.contexts.addListener(entry.id, change.api, change.event, change.id, spec)
+    } else if (change.action === "remove") {
       host.contexts.removeListener(entry.id, change.api, change.event, change.id)
     } else {
       throw new Error("Invalid listener change")

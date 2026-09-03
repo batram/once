@@ -48,6 +48,7 @@ export class ExtensionContexts {
   private readonly entries = new Map<string, ContextEntry>()
   private readonly pending = new Map<number, PendingReply>()
   private readonly removed = new Set<(entry: ContextEntry) => void>()
+  private readonly listenerWaiters = new Set<() => void>()
   private nextToken = 1
 
   /** An extension page in its own webContents. */
@@ -140,6 +141,32 @@ export class ExtensionContexts {
       entry.listeners.set(key, listeners)
     }
     listeners.set(listenerId, spec)
+    for (const waiter of this.listenerWaiters) waiter()
+  }
+
+  /**
+   * Resolves once some context listens to the event, which for a background
+   * page can be well after its document loaded: extensions register their
+   * handlers at the end of an asynchronous start-up.
+   */
+  whenListening(api: string, event: string, timeoutMs: number): Promise<void> {
+    if (this.targets(api, event).length > 0) return Promise.resolve()
+    return new Promise((resolve, reject) => {
+      const check = () => {
+        if (this.targets(api, event).length === 0) return
+        cleanup()
+        resolve()
+      }
+      const timer = setTimeout(() => {
+        cleanup()
+        reject(new Error(`No page listens to ${api}.${event}`))
+      }, timeoutMs)
+      const cleanup = () => {
+        clearTimeout(timer)
+        this.listenerWaiters.delete(check)
+      }
+      this.listenerWaiters.add(check)
+    })
   }
 
   removeListener(contextId: string | number, api: string, event: string, listenerId: number): void {

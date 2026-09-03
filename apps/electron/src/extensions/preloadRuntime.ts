@@ -9,7 +9,8 @@ import {
   EXTENSION_SCHEME,
   ExtensionContextInit,
   ExtensionEvent,
-  INTERNAL_API
+  INTERNAL_API,
+  ListenerChange
 } from "./protocol"
 
 export type Listener = (...args: unknown[]) => unknown
@@ -54,6 +55,8 @@ export const ADOPT_BRIDGE_SOURCE = `(${adoptBridge.toString()})()`
 export interface ApiTransport {
   invoke(api: string, method: string, args: unknown[]): Promise<unknown>
   reply(token: number, result: unknown[]): void
+  /** Synchronous: the listener is registered in main when this returns. */
+  listen(change: ListenerChange): void
 }
 
 interface Registered {
@@ -276,9 +279,9 @@ export class PreloadApi {
         registered.push({ listener, id })
         this.listeners.set(key, registered)
         const spec = api === "webRequest"
-          ? { filter, extraInfoSpec: Array.isArray(extraInfoSpec) ? extraInfoSpec : [] }
+          ? { filter, extraInfoSpec: Array.isArray(extraInfoSpec) ? extraInfoSpec.map(String) : [] }
           : undefined
-        void this.transport.invoke(INTERNAL_API.listeners, "add", [{ api, event, id, spec }])
+        this.transport.listen({ action: "add", api, event, id, spec })
       },
       removeListener: (listener: Listener) => {
         const registered = this.listeners.get(key)
@@ -286,7 +289,7 @@ export class PreloadApi {
         const index = registered.findIndex((entry) => entry.listener === listener)
         if (index < 0) return
         const [removed] = registered.splice(index, 1)
-        void this.transport.invoke(INTERNAL_API.listeners, "remove", [{ api, event, id: removed.id }])
+        this.transport.listen({ action: "remove", api, event, id: removed.id })
       },
       hasListener: (listener: Listener) =>
         (this.listeners.get(key) ?? []).some((entry) => entry.listener === listener),

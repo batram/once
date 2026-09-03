@@ -211,7 +211,10 @@ scripts run in per-extension isolated worlds inside tabs, reached only
 through the runtime's frame preload; ports join them to the background page.
 An extension's own pages (popup, dashboard, its blocked-page) open as tabs
 or popup views created in the extension's session, and pages may load only
-its `web_accessible_resources`. Extension directories are named in
+its `web_accessible_resources`. The synced `filter_lists` and `userscripts`
+documents are handed to uBlock Origin and Violentmonkey through their own
+message APIs, from a main-process context that behaves like one of the
+extension's pages. Extension directories are named in
 `ONCE_ELECTRON_EXTENSIONS` for now; packaging and an allowlist are later plan
 steps.
 

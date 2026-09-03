@@ -187,6 +187,48 @@
                     <button type="button" class="button" data-action="cancel">Cancel</button>
                   </div>
                 </div>
+                <div class="settings_block settings_editor_block">
+                  <div class="input_container">
+                    <textarea
+                      id="filter_lists_area"
+                      spellcheck="false"
+                      data-testid="filter-lists"
+                      placeholder="One filter list URL per line; start a line with # to keep a list switched off"
+                    ></textarea>
+                  </div>
+                  <div class="settings_actions cluster">
+                    <button
+                      type="button"
+                      class="button"
+                      data-action="save"
+                      data-testid="save-filter-lists"
+                    >
+                      Save
+                    </button>
+                    <button type="button" class="button" data-action="cancel">Cancel</button>
+                  </div>
+                </div>
+                <div class="settings_block settings_editor_block">
+                  <div class="input_container">
+                    <textarea
+                      id="userscripts_area"
+                      spellcheck="false"
+                      data-testid="userscripts"
+                      placeholder="Paste userscripts here, each starting with its // ==UserScript== header"
+                    ></textarea>
+                  </div>
+                  <div class="settings_actions cluster">
+                    <button
+                      type="button"
+                      class="button"
+                      data-action="save"
+                      data-testid="save-userscripts"
+                    >
+                      Save
+                    </button>
+                    <button type="button" class="button" data-action="cancel">Cancel</button>
+                  </div>
+                </div>
                 <div class="settings_block">
                   <div class="field">
                     <label class="field_label" for="couch_input">Database URL</label>

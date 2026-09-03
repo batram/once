@@ -3,10 +3,16 @@ import {
   defaultFilterList,
   defaultRedirectList,
   defaultStorySources,
+  FILTER_LISTS_DOCUMENT_ID,
+  FilterListsDocument,
   normalizeSyncUrl,
   parseStorySources,
+  readFilterListsDocument,
+  readUserscriptsDocument,
   StorySourceDocument,
-  Redirect
+  Redirect,
+  USERSCRIPTS_DOCUMENT_ID,
+  UserscriptsDocument
 } from "@once/core"
 import {
   AnimationSetting,
@@ -41,6 +47,7 @@ type SettingsSection =
   | "cache"
   | "sync"
   | "swipe"
+  | "extensions"
 
 export interface AppSettingsActions {
   publishChanged(section: SettingsSection): void
@@ -48,6 +55,7 @@ export interface AppSettingsActions {
   reloadStories(): Promise<void> | void
   refilterStories(): Promise<void> | void
   refreshRedirects(): Promise<void> | void
+  refreshExtensionSettings(): Promise<void> | void
   updateSourceMenu(sources: StorySourceDocument): void
   /** Drops what sources present in `previous` but gone from `current` cached. */
   evictRemovedSources(
@@ -121,6 +129,28 @@ export class AppSettings {
     await this.setList("redirect_list", redirects)
     await this.actions.refreshRedirects()
     this.actions.publishChanged("redirects")
+  }
+
+  // Both documents are read tolerantly and written normalized, like cache
+  // timing: another client may have written them with a newer build.
+  async getFilterLists(): Promise<FilterListsDocument> {
+    return readFilterListsDocument(await this.getList<unknown>(FILTER_LISTS_DOCUMENT_ID, null))
+  }
+
+  async saveFilterLists(document: FilterListsDocument): Promise<void> {
+    await this.setList(FILTER_LISTS_DOCUMENT_ID, readFilterListsDocument(document))
+    await this.actions.refreshExtensionSettings()
+    this.actions.publishChanged("extensions")
+  }
+
+  async getUserscripts(): Promise<UserscriptsDocument> {
+    return readUserscriptsDocument(await this.getList<unknown>(USERSCRIPTS_DOCUMENT_ID, null))
+  }
+
+  async saveUserscripts(document: UserscriptsDocument): Promise<void> {
+    await this.setList(USERSCRIPTS_DOCUMENT_ID, readUserscriptsDocument(document))
+    await this.actions.refreshExtensionSettings()
+    this.actions.publishChanged("extensions")
   }
 
   async getSyncUrl(): Promise<string> {
@@ -287,6 +317,11 @@ export class AppSettings {
       case "redirect_list":
         void this.actions.refreshRedirects()
         this.actions.publishChanged("redirects")
+        break
+      case FILTER_LISTS_DOCUMENT_ID:
+      case USERSCRIPTS_DOCUMENT_ID:
+        void this.actions.refreshExtensionSettings()
+        this.actions.publishChanged("extensions")
         break
       case "theme":
         void this.getTheme().then((theme) => this.theme.setTheme(theme))

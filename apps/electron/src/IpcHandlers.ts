@@ -9,6 +9,7 @@ import {
 import {
   ELECTRON_IPC,
   ElectronBuildInfo,
+  ElectronExtensionSettings,
   ElectronFetchRequest,
   ElectronFetchResponse,
   ElectronPoint,
@@ -300,6 +301,13 @@ function registerExtensionHandlers(options: IpcHandlerOptions): void {
         throw new Error("Invalid popup request")
       }
       extensions.openPopup(current.window.window, host, anchor)
+    }
+  )
+  ipcMain.handle(
+    ELECTRON_IPC.extensionsApplySettings,
+    (event, settings: ElectronExtensionSettings) => {
+      trusted(event, coordinator)
+      return extensions.applySettings(settings)
     }
   )
 }

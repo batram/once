@@ -1,4 +1,5 @@
 import { createOnceApp } from "@once/app"
+import { FilterListsDocument, UserscriptsDocument } from "@once/core"
 import { createElectronPlatform } from "@once/platform-electron"
 import { ElectronRedirectRule } from "@once/platform-electron/bridge"
 import {
@@ -56,6 +57,24 @@ document.addEventListener("DOMContentLoaded", async () => {
   await updateRedirects()
   app.client.subscribe("redirectsChanged", ({ redirects }) => {
     void updateRedirects(redirects)
+  })
+  // The startup publish happened before this subscription existed, so the
+  // first hand-off reads the documents directly.
+  const applyExtensionSettings = async (
+    settings?: { filterLists: FilterListsDocument; userscripts: UserscriptsDocument }
+  ): Promise<void> => {
+    try {
+      await window.onceElectron.extensions.applySettings(settings ?? {
+        filterLists: await app.client.getFilterLists(),
+        userscripts: await app.client.getUserscripts()
+      })
+    } catch (error) {
+      console.error("Failed to hand settings to the extensions", error)
+    }
+  }
+  void applyExtensionSettings()
+  app.client.subscribe("extensionSettingsChanged", (settings) => {
+    void applyExtensionSettings(settings)
   })
   await mountOnceUi(app.client, {
     shell: "electron",

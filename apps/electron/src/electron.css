@@ -336,7 +336,7 @@ body #titlebar-text {
   font-size: var(--fs-caption);
   line-height: 1.1;
   color: #fff;
-  background: #6a6a6a;
+  background: var(--extension-badge-background, #6a6a6a);
   border-radius: var(--radius-sm);
   pointer-events: none;
 }

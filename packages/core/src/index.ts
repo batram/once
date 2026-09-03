@@ -1,5 +1,6 @@
 export * from "./keyboard/keyChord"
 export * from "./settings/defaults"
+export * from "./settings/extensionSettings"
 export * from "./settings/storySource"
 export * from "./settings/storySourceText"
 export * from "./settings/syncUrl"

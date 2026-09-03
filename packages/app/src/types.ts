@@ -1,4 +1,10 @@
-import { Redirect, Story, StorySourceDocument } from "@once/core"
+import {
+  FilterListsDocument,
+  Redirect,
+  Story,
+  StorySourceDocument,
+  UserscriptsDocument
+} from "@once/core"
 import { CacheTimingDocument } from "./cacheTiming"
 import { SwipeSettings } from "./swipeSettings"
 
@@ -86,11 +92,17 @@ export interface OnceAppEvents {
       | "cache"
       | "sync"
       | "swipe"
+      | "extensions"
   }
   /** Something changed what the cache holds: a reload, a refetch, a clear. */
   cacheStatusChanged: Record<string, never>
   redirectsChanged: {
     redirects: Redirect[]
+  }
+  /** The filter-list and userscript documents, for whatever runs them here. */
+  extensionSettingsChanged: {
+    filterLists: FilterListsDocument
+    userscripts: UserscriptsDocument
   }
   menuChanged: {
     groups: string[]
@@ -124,6 +136,10 @@ export interface OnceClient {
   saveFilterList(filterList: string[]): Promise<void>
   getRedirectList(): Promise<Redirect[]>
   saveRedirectList(redirectList: Redirect[]): Promise<void>
+  getFilterLists(): Promise<FilterListsDocument>
+  saveFilterLists(document: FilterListsDocument): Promise<void>
+  getUserscripts(): Promise<UserscriptsDocument>
+  saveUserscripts(document: UserscriptsDocument): Promise<void>
   getSyncUrl(): Promise<string>
   setSyncUrl(syncUrl: string): Promise<void>
   getCacheTime(): Promise<number>

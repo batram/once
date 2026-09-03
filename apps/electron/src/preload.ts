@@ -117,7 +117,9 @@ const bridge: ElectronBridge = {
       const listener = () => handler()
       ipcRenderer.on(ELECTRON_IPC.extensionsChanged, listener)
       return () => ipcRenderer.removeListener(ELECTRON_IPC.extensionsChanged, listener)
-    }
+    },
+    applySettings: (settings) =>
+      ipcRenderer.invoke(ELECTRON_IPC.extensionsApplySettings, settings)
   },
   window: {
     setFullscreen: (fullscreen) =>

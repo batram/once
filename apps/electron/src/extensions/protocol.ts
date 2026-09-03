@@ -19,6 +19,14 @@ export const EXTENSION_IPC = {
   event: "once-ext:event",
   /** Extension page → main, `ipcRenderer.send`: the reply to an event with a token. */
   reply: "once-ext:reply",
+  /**
+   * Extension page → main, `sendSync`: a listener added or removed. Synchronous
+   * because `addListener` returns having registered in Firefox, and main must
+   * see a background page's listeners before the page's load event resolves.
+   */
+  listeners: "once-ext:listeners",
+  /** Tab frame → main, `sendSync`: a content script's listener change. */
+  contentListeners: "once-ext:content-listeners",
   /** Tab frame → main, `sendSync`: which content scripts run here. */
   contentInit: "once-ext:content-init",
   /** Tab frame → main, `ipcRenderer.invoke`: one API call from a content script. */
@@ -91,10 +99,19 @@ export interface ExtensionReply {
 
 /** Internal API namespaces the preloads use; never exposed to pages. */
 export const INTERNAL_API = {
-  listeners: "__listeners",
   port: "__port",
   content: "__content"
 } as const
+
+/** What a listener registration carries; webRequest ones bring their filter. */
+export interface ListenerChange {
+  action: "add" | "remove"
+  api: string
+  event: string
+  id: number
+  spec?: { filter: unknown; extraInfoSpec: string[] }
+  host?: string
+}
 
 export interface ApiSurface {
   readonly methods: readonly string[]

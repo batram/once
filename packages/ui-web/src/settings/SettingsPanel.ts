@@ -14,6 +14,7 @@ import { highlightStorySourceTextarea, highlightTextareaContent,
 import * as settingsControls from "./settingsControlBindings"
 import { bindSyncSettingsControls } from "./syncSettingsControls"
 import { bindSettingsSubscriptions } from "./settingsSubscriptions"
+import { bindExtensionSettingsEditors, ExtensionSettingsEditors } from "./extensionSettingsEditors"
 import settingsSectionDefinitions from "./settingsSectionDefinitions"
 
 export interface SettingsPanelOptions {
@@ -32,6 +33,7 @@ export class SettingsPanel {
   readonly ready: Promise<void>
   private structuredEditors?: StructuredSettingsEditors
   private swipeLab?: SwipeSettingsLab
+  private extensionEditors?: ExtensionSettingsEditors
   private sourcesSaveChain = Promise.resolve()
   private sourcesReloadPending = false
   private persistence: SettingsPersistence
@@ -55,6 +57,7 @@ export class SettingsPanel {
       cache: () => void this.restore_cache_settings(),
       sync: () => void this.reset_couch_settings(),
       swipe: () => this.swipeLab?.externalSettingsChanged(),
+      extensions: () => this.extensionEditors?.refresh(),
       sourceErrors: (errors) => this.setSourceErrors(errors),
       summaries: () => this.updateSettingsSummaries()
     })
@@ -125,6 +128,8 @@ export class SettingsPanel {
       save: () => this.save_redirect_settings(),
       escape: () => this.set_filter_area()
     })
+
+    this.extensionEditors = bindExtensionSettingsEditors(this.client, () => this.refreshSettingsSearch())
 
     this.swipeLab = new SwipeSettingsLab(
       requireElement<HTMLElement>("#swipe_lab"),
@@ -634,6 +639,7 @@ export class SettingsPanel {
     const redirect_list = parseRedirectList(redirect_area.value)
     this.client.saveRedirectList(redirect_list)
   }
+
 
   private sourceErrors = new Map<string, SourceError>()
 

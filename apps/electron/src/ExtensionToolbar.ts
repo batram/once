@@ -19,7 +19,10 @@ function actionButton(bridge: ElectronBridge, info: ElectronExtensionInfo): HTML
     const badge = document.createElement("span")
     badge.className = "extension-action__badge"
     badge.textContent = info.badgeText
-    if (info.badgeBackgroundColor) badge.style.background = info.badgeBackgroundColor
+    // The colour is the extension's own; the sheet reads it through a token.
+    if (info.badgeBackgroundColor) {
+      badge.style.setProperty("--extension-badge-background", info.badgeBackgroundColor)
+    }
     button.append(badge)
   }
   button.onclick = () => {

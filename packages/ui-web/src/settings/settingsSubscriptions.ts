@@ -10,6 +10,7 @@ export interface SettingsSubscriptionActions {
   cache(): void
   sync(): void
   swipe(): void
+  extensions(): void
   sourceErrors(errors: SourceError[]): void
   summaries(): void
 }

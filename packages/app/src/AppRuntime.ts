@@ -22,6 +22,7 @@ import { mergeStorySyncState, sameStorySyncState } from "./storySyncPolicy"
 import { StoryWriteQueue } from "./StoryWriteQueue"
 import { StoryWorkingSet } from "./StoryWorkingSet"
 import { AppSettings } from "./AppSettings"
+import { settingsClientMethods } from "./settingsClient"
 import { CacheMaintenance } from "./cacheMaintenance"
 import {
   DEFAULT_MENU_TYPES,
@@ -85,6 +86,7 @@ export class AppRuntime {
         reloadStories: () => this.reloadStories("cache-first"),
         refilterStories: () => this.refilterStories(),
         refreshRedirects: () => this.refreshRedirects(),
+        refreshExtensionSettings: () => this.refreshExtensionSettings(),
         updateSourceMenu: (sources) => this.updateSourceMenu(sources),
         evictRemovedSources: (previous, current) =>
           this.cacheMaintenance.evictRemoved(previous, current),
@@ -160,7 +162,8 @@ export class AppRuntime {
       this.waitForStartupStorage("theme", async () => {
         this.platform.theme.setTheme(await this.settings.getTheme())
       }),
-      this.waitForStartupStorage("redirects", () => this.refreshRedirects())
+      this.waitForStartupStorage("redirects", () => this.refreshRedirects()),
+      this.waitForStartupStorage("extensions", () => this.refreshExtensionSettings())
     ])
 
     this.sourceSettingsReady = this.settings.getSyncUrl()
@@ -184,23 +187,7 @@ export class AppRuntime {
         .then(() => this.settings.getStorySources()),
       saveStorySources: (storySources, reloadStories) =>
         this.settings.saveStorySources(storySources, reloadStories),
-      getFilterList: () => this.settings.getFilterList(),
-      saveFilterList: (filterList) => this.settings.saveFilterList(filterList),
-      getRedirectList: () => this.settings.getRedirectList(),
-      saveRedirectList: (redirectList) =>
-        this.settings.saveRedirectList(redirectList),
-      getSyncUrl: () => this.settings.getSyncUrl(),
-      setSyncUrl: (syncUrl) => this.settings.setSyncUrl(syncUrl),
-      getCacheTime: () => this.settings.getCacheTime(),
-      setCacheTime: (cacheTime) => this.settings.setCacheTime(cacheTime),
-      getCacheTiming: () => this.settings.getCacheTiming(),
-      setCacheTiming: (timing) => this.settings.setCacheTiming(timing),
-      getTheme: () => this.settings.getTheme(),
-      setTheme: (theme) => this.settings.setTheme(theme),
-      getAnimation: () => this.settings.getAnimation(),
-      setAnimation: (animated) => this.settings.setAnimation(animated),
-      getSwipeSettings: () => this.settings.getSwipeSettings(),
-      setSwipeSettings: (settings) => this.settings.setSwipeSettings(settings),
+      ...settingsClientMethods(this.settings),
       reloadStories: (policy = "cache-first") => this.reloadStories(policy),
       refetchSource: (sourceId) => this.reloadStories("network-only", sourceId),
       getSourceCacheStatus: () => this.cacheMaintenance.status(),
@@ -212,7 +199,6 @@ export class AppRuntime {
       persistStoryChange: (href, path, value) =>
         this.persistStoryChange(href, path, value),
       purgeStory: (href) => this.purgeStory(href),
-      addFilter: (filter) => this.settings.addFilter(filter),
       fetchDocument: (url) => fetchDocument(this.platform.fetch, url),
       openUrl: (url, target) => {
         if (url.startsWith("search:")) {
@@ -238,6 +224,15 @@ export class AppRuntime {
       URLRedirect.redirect_url(story.href)
     }
     this.events.publish("redirectsChanged", { redirects })
+  }
+
+  /** Whatever runs extensions on this target listens for this. */
+  private async refreshExtensionSettings(): Promise<void> {
+    const [filterLists, userscripts] = await Promise.all([
+      this.settings.getFilterLists(),
+      this.settings.getUserscripts()
+    ])
+    this.events.publish("extensionSettingsChanged", { filterLists, userscripts })
   }
 
   private async refilterStories(): Promise<void> {

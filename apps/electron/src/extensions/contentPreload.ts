@@ -172,7 +172,10 @@ function createWorld(init: ContentFrameInit): ContentWorld {
   const api = new PreloadApi(init, CONTENT_API_SURFACE, {
     invoke: (namespace, method, args) =>
       ipcRenderer.invoke(EXTENSION_IPC.contentInvoke, { host: init.host, api: namespace, method, args }),
-    reply: (token, result) => reply(world, token, result)
+    reply: (token, result) => reply(world, token, result),
+    listen: (change) => {
+      ipcRenderer.sendSync(EXTENSION_IPC.contentListeners, { ...change, host: init.host })
+    }
   })
   const world: ContentWorld = { init, api, styles: new Map() }
   contextBridge.exposeInIsolatedWorld(init.worldId, BRIDGE_STAGING_KEY, api.build())

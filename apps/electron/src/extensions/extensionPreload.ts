@@ -50,7 +50,10 @@ const init = requireInit()
 const api = new PreloadApi(init, EXTENSION_API_SURFACE, {
   invoke: (namespace, method, args) =>
     ipcRenderer.invoke(EXTENSION_IPC.invoke, { api: namespace, method, args }),
-  reply: (token, result) => ipcRenderer.send(EXTENSION_IPC.reply, { token, result })
+  reply: (token, result) => ipcRenderer.send(EXTENSION_IPC.reply, { token, result }),
+  listen: (change) => {
+    ipcRenderer.sendSync(EXTENSION_IPC.listeners, change)
+  }
 })
 ipcRenderer.on(EXTENSION_IPC.event, (_ipcEvent, message: ExtensionEvent) => api.handleEvent(message))
 

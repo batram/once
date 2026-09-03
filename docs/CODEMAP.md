@@ -41,6 +41,7 @@ target lifecycle, permissions, native bridges, and packaging belong in an app.
 | Electron extension runtime | `apps/electron/src/extensions/ExtensionRuntime.ts`, `WebRequestRouter.ts`, `ExtensionApi.ts` | Main-process hosting of Firefox-style extensions; `protocol.ts` is the preload/IPC contract |
 | Extension pages, content scripts, ports | `apps/electron/src/extensions/extensionPreload.ts`, `contentPreload.ts`, `preloadRuntime.ts`, `ExtensionPorts.ts` | Sandboxed preloads build `browser.*`; the content preload owns isolated worlds |
 | Extension toolbar and popup | `apps/electron/src/ExtensionToolbar.ts`, `extensions/ExtensionPopup.ts`, `browser/ExtensionTabHooks.ts` | Renderer buttons; main-process popup view; the tab view extensions see |
+| Filter lists and userscripts settings | `packages/core/src/settings/extensionSettings.ts`, `packages/ui-web/src/settings/extensionSettingsEditors.ts`, `apps/electron/src/extensions/extensionSettingsApply.ts` | Synced documents and their text form; the editors; the Electron hand-off to uBlock and Violentmonkey |
 | Mobile reading view | `apps/mobile/src/readingController.ts` | Current-story DOM interaction |
 | Mobile reading surface | `apps/mobile/src/readingSurfaceCoordinator.ts` | Native session and surface lifecycle |
 | Native browser bridge | `packages/platform-mobile/src/InAppBrowserSurface.ts` | Capacitor-facing adapter |
