@@ -329,6 +329,16 @@ function tabHandlers(): Handlers {
       if (typeof props.muted === "boolean") update.muted = props.muted
       return host.hooks.updateTab(id, update)
     },
+    // Windows are not crossed: `windowId` is accepted and ignored.
+    "tabs.move": async ({ host }, ids, props) => {
+      const { index } = asRecord(props)
+      const target = typeof index === "number" ? index : -1
+      const moved: unknown[] = []
+      for (const id of Array.isArray(ids) ? ids : [ids]) {
+        moved.push(await host.hooks.moveTab(requireTabId(id), target))
+      }
+      return Array.isArray(ids) ? moved : moved[0]
+    },
     "tabs.remove": async ({ host }, ids) => {
       for (const id of Array.isArray(ids) ? ids : [ids]) {
         await host.hooks.removeTab(requireTabId(id))

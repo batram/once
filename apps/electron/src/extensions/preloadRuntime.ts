@@ -308,10 +308,14 @@ export class PreloadApi {
       object: {}
     }
     let closed = false
-    const close = () => {
+    // `notify` is for the other end going away (or never existing): a port's
+    // own `disconnect()` fires onDisconnect on the far side only. uBlock's
+    // dashboard panes idle their port out with disconnect() and would treat
+    // a local echo as the page being torn down.
+    const close = (notify: boolean) => {
       if (closed) return
       closed = true
-      fire(end.onDisconnect, end.object)
+      if (notify) fire(end.onDisconnect, end.object)
       void ready.then((id) => {
         if (id !== null) this.ports.delete(id)
       })
@@ -332,11 +336,11 @@ export class PreloadApi {
         void ready.then((id) => {
           if (id !== null) void this.transport.invoke(INTERNAL_API.port, "disconnect", [{ portId: id }])
         })
-        close()
+        close(false)
       }
     }
     void ready.then((id) => {
-      if (id === null) close()
+      if (id === null) close(true)
       else if (!closed) this.ports.set(id, end)
     })
     return end

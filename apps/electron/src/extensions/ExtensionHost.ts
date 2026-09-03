@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs"
 import path from "node:path"
-import { BrowserWindow, Session, WebContents, session as electronSession } from "electron"
+import { Session, WebContents, WebContentsView, session as electronSession } from "electron"
 import { MatchPatternSet } from "@once/core"
 import { ExtensionContexts } from "./ExtensionContexts"
 import { AlarmScheduler, ApiHost, BrowserActionState } from "./ExtensionApi"
@@ -49,7 +49,7 @@ export class ExtensionHost implements ApiHost {
   /** `contentScripts.register` entries, by the id handed back. */
   readonly registeredScripts = new Map<number, ContentScript>()
   private nextScriptId = 1
-  private backgroundWindow: BrowserWindow | null = null
+  private backgroundView: WebContentsView | null = null
   private icon: Promise<string | null> | null = null
 
   constructor(private readonly options: ExtensionHostOptions) {
@@ -75,22 +75,23 @@ export class ExtensionHost implements ApiHost {
     this.grantCrossOriginReads()
     const page = this.extension.backgroundPage
     if (!page) return
-    const window = new BrowserWindow({
-      show: false,
-      webPreferences: this.webPreferences()
-    })
-    this.backgroundWindow = window
-    this.register(window.webContents, "background")
+    // A view attached to nothing, not a hidden BrowserWindow: a window would
+    // count in `BrowserWindow.getAllWindows()`, keep the app alive after the
+    // last shell window closes, and be what tests and menus find first.
+    const view = new WebContentsView({ webPreferences: this.webPreferences() })
+    this.backgroundView = view
+    const contents = view.webContents
+    this.register(contents, "background")
     // Errors and warnings always reach the main log; set
     // ONCE_ELECTRON_EXTENSION_LOG=1 to see everything an extension prints.
-    window.webContents.on("console-message", (event) => {
+    contents.on("console-message", (event) => {
       if (event.level === "error" || event.level === "warning") {
         console.error(`[${this.extension.name}]`, event.message)
       } else if (process.env.ONCE_ELECTRON_EXTENSION_LOG === "1") {
         console.log(`[${this.extension.name}]`, event.message)
       }
     })
-    await window.loadURL(extensionUrl(this.extension.host, page))
+    await contents.loadURL(extensionUrl(this.extension.host, page))
     this.contexts.emit("runtime", "onStartup", [])
   }
 
@@ -127,6 +128,9 @@ export class ExtensionHost implements ApiHost {
     return {
       preload: this.options.preloadPath,
       nodeIntegration: false,
+      // The preload must also run in iframes that show the extension's own
+      // pages; it grants no Node access, the page stays sandboxed.
+      nodeIntegrationInSubFrames: true,
       contextIsolation: true,
       sandbox: true,
       webSecurity: true,
@@ -190,10 +194,9 @@ export class ExtensionHost implements ApiHost {
   async dispose(): Promise<void> {
     this.alarms.clearAll()
     this.contexts.dispose()
-    if (this.backgroundWindow && !this.backgroundWindow.isDestroyed()) {
-      this.backgroundWindow.destroy()
-    }
-    this.backgroundWindow = null
+    const contents = this.backgroundView?.webContents
+    if (contents && !contents.isDestroyed()) contents.close()
+    this.backgroundView = null
     await this.storage.flush()
   }
 }

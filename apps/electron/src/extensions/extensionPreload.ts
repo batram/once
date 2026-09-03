@@ -1,6 +1,7 @@
-// Runs in every page of a loaded extension (background, popup, options) and
-// builds the `browser` object those pages expect. Synchronous APIs answer
-// here from the init payload; everything else is one IPC call to main.
+// Runs in every frame of a loaded extension's pages (background, popup,
+// options, and iframes showing the extension's own pages) and builds the
+// `browser` object those pages expect. Synchronous APIs answer here from the
+// init payload; everything else is one IPC call to main.
 
 import { contextBridge, ipcRenderer } from "electron"
 import { BRIDGE_STAGING_KEY, PreloadApi, adoptBridge, localEvent } from "./preloadRuntime"
@@ -12,9 +13,15 @@ import {
   PRIVACY_SETTINGS
 } from "./protocol"
 
-function requireInit(): ExtensionContextInit {
+// An iframe that shows something other than this extension's own pages gets
+// no API and no complaint, and neither does the initial blank document a
+// view carries before its first load; a top-level page with no context is a
+// bug.
+function requireInit(): ExtensionContextInit | null {
   const init = ipcRenderer.sendSync(EXTENSION_IPC.init) as ExtensionContextInit | null
-  if (!init) throw new Error("This page is not a registered extension context")
+  if (!init && process.isMainFrame && window.location.href !== "about:blank") {
+    throw new Error("This page is not a registered extension context")
+  }
   return init
 }
 
@@ -46,42 +53,46 @@ function privacyNamespace(): Record<string, unknown> {
   return privacy
 }
 
+function expose(init: ExtensionContextInit): void {
+  const api = new PreloadApi(init, EXTENSION_API_SURFACE, {
+    invoke: (namespace, method, args) =>
+      ipcRenderer.invoke(EXTENSION_IPC.invoke, { api: namespace, method, args }),
+    reply: (token, result) => ipcRenderer.send(EXTENSION_IPC.reply, { token, result }),
+    listen: (change) => {
+      ipcRenderer.sendSync(EXTENSION_IPC.listeners, change)
+    }
+  })
+  ipcRenderer.on(EXTENSION_IPC.event, (_ipcEvent, message: ExtensionEvent) => api.handleEvent(message))
+
+  const browser = api.build()
+  const webRequest = browser.webRequest as Record<string, unknown>
+  webRequest.ResourceType = Object.freeze({
+    MAIN_FRAME: "main_frame", SUB_FRAME: "sub_frame", STYLESHEET: "stylesheet",
+    SCRIPT: "script", IMAGE: "image", FONT: "font", OBJECT: "object",
+    XMLHTTPREQUEST: "xmlhttprequest", PING: "ping", CSP_REPORT: "csp_report",
+    MEDIA: "media", WEBSOCKET: "websocket", OTHER: "other"
+  })
+  webRequest.MAX_HANDLER_BEHAVIOR_CHANGED_CALLS_PER_10_MINUTES = 20
+  // Firefox has no EXTRA_HEADERS; extensions filter the undefined entry out.
+  webRequest.OnBeforeRequestOptions = Object.freeze({ BLOCKING: "blocking", REQUEST_BODY: "requestBody" })
+  webRequest.OnBeforeSendHeadersOptions = Object.freeze({ BLOCKING: "blocking", REQUEST_HEADERS: "requestHeaders" })
+  webRequest.OnSendHeadersOptions = Object.freeze({ REQUEST_HEADERS: "requestHeaders" })
+  webRequest.OnHeadersReceivedOptions = Object.freeze({ BLOCKING: "blocking", RESPONSE_HEADERS: "responseHeaders" })
+  webRequest.OnResponseStartedOptions = Object.freeze({ RESPONSE_HEADERS: "responseHeaders" })
+  webRequest.OnBeforeRedirectOptions = Object.freeze({ RESPONSE_HEADERS: "responseHeaders" })
+  webRequest.OnCompletedOptions = Object.freeze({ RESPONSE_HEADERS: "responseHeaders" })
+  ;(browser.tabs as Record<string, unknown>).TAB_ID_NONE = -1
+  const windows = browser.windows as Record<string, unknown>
+  windows.WINDOW_ID_NONE = -1
+  windows.WINDOW_ID_CURRENT = -2
+  browser.privacy = privacyNamespace()
+
+  // Only `browser`: Chromium already defines `window.chrome` in every page and
+  // the bridge refuses to bind over it. Firefox builds use `browser` anyway.
+  // Staged under a private key, then adopted as an extensible copy in the page.
+  contextBridge.exposeInMainWorld(BRIDGE_STAGING_KEY, browser)
+  contextBridge.executeInMainWorld({ func: adoptBridge })
+}
+
 const init = requireInit()
-const api = new PreloadApi(init, EXTENSION_API_SURFACE, {
-  invoke: (namespace, method, args) =>
-    ipcRenderer.invoke(EXTENSION_IPC.invoke, { api: namespace, method, args }),
-  reply: (token, result) => ipcRenderer.send(EXTENSION_IPC.reply, { token, result }),
-  listen: (change) => {
-    ipcRenderer.sendSync(EXTENSION_IPC.listeners, change)
-  }
-})
-ipcRenderer.on(EXTENSION_IPC.event, (_ipcEvent, message: ExtensionEvent) => api.handleEvent(message))
-
-const browser = api.build()
-const webRequest = browser.webRequest as Record<string, unknown>
-webRequest.ResourceType = Object.freeze({
-  MAIN_FRAME: "main_frame", SUB_FRAME: "sub_frame", STYLESHEET: "stylesheet",
-  SCRIPT: "script", IMAGE: "image", FONT: "font", OBJECT: "object",
-  XMLHTTPREQUEST: "xmlhttprequest", PING: "ping", CSP_REPORT: "csp_report",
-  MEDIA: "media", WEBSOCKET: "websocket", OTHER: "other"
-})
-webRequest.MAX_HANDLER_BEHAVIOR_CHANGED_CALLS_PER_10_MINUTES = 20
-// Firefox has no EXTRA_HEADERS; extensions filter the undefined entry out.
-webRequest.OnBeforeRequestOptions = Object.freeze({ BLOCKING: "blocking", REQUEST_BODY: "requestBody" })
-webRequest.OnBeforeSendHeadersOptions = Object.freeze({ BLOCKING: "blocking", REQUEST_HEADERS: "requestHeaders" })
-webRequest.OnSendHeadersOptions = Object.freeze({ REQUEST_HEADERS: "requestHeaders" })
-webRequest.OnHeadersReceivedOptions = Object.freeze({ BLOCKING: "blocking", RESPONSE_HEADERS: "responseHeaders" })
-webRequest.OnResponseStartedOptions = Object.freeze({ RESPONSE_HEADERS: "responseHeaders" })
-webRequest.OnBeforeRedirectOptions = Object.freeze({ RESPONSE_HEADERS: "responseHeaders" })
-webRequest.OnCompletedOptions = Object.freeze({ RESPONSE_HEADERS: "responseHeaders" })
-;(browser.tabs as Record<string, unknown>).TAB_ID_NONE = -1
-const windows = browser.windows as Record<string, unknown>
-windows.WINDOW_ID_NONE = -1
-windows.WINDOW_ID_CURRENT = -2
-browser.privacy = privacyNamespace()
-
-// Only `browser`: Chromium already defines `window.chrome` in every page and
-// the bridge refuses to bind over it. Firefox builds use `browser` anyway.
-// Staged under a private key, then adopted as an extensible copy in the page.
-contextBridge.exposeInMainWorld(BRIDGE_STAGING_KEY, browser)
-contextBridge.executeInMainWorld({ func: adoptBridge })
+if (init) expose(init)

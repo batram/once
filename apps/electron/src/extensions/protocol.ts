@@ -146,7 +146,7 @@ export const EXTENSION_API_SURFACE: Readonly<Record<string, ApiSurface>> = {
   },
   tabs: {
     methods: [
-      "query", "get", "getCurrent", "create", "update", "remove", "reload",
+      "query", "get", "getCurrent", "create", "update", "move", "remove", "reload",
       "sendMessage", "connect", "executeScript", "insertCSS", "removeCSS", "captureVisibleTab"
     ],
     events: ["onCreated", "onUpdated", "onRemoved", "onActivated", "onReplaced"]

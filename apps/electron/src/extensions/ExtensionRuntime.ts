@@ -322,7 +322,7 @@ export class ExtensionRuntime {
     // script runs, so it blocks on this one answer.
     ipcMain.on(EXTENSION_IPC.init, (event) => {
       try {
-        const { host, entry } = this.requireContext(event)
+        const { host, entry } = this.requireContext(event, true)
         const init: ExtensionContextInit = {
           id: host.extension.id,
           host: host.extension.host,
@@ -351,9 +351,12 @@ export class ExtensionRuntime {
       }
     })
     ipcMain.on(EXTENSION_IPC.reply, (event, reply: ExtensionReply) => {
-      const host = this.contextOwner.get(event.sender.id)
-      if (host && typeof reply?.token === "number") {
-        host.contexts.handleReply(event.sender.id, reply)
+      if (typeof reply?.token !== "number") return
+      try {
+        const { host, entry } = this.requireContext(event)
+        host.contexts.handleReply(entry.id, reply)
+      } catch {
+        // Not a context of any extension; nothing waits on its answer.
       }
     })
   }
@@ -421,14 +424,33 @@ export class ExtensionRuntime {
     return inits
   }
 
+  /**
+   * The context an extension-page IPC comes from. The main frame is the page
+   * itself; an iframe counts only when it shows one of the same extension's
+   * pages, and then it is its own context (registered at `init`, when
+   * `registerFrame` is set, and looked up afterwards).
+   */
   private requireContext(
-    event: IpcMainInvokeEvent | IpcMainEvent
+    event: IpcMainInvokeEvent | IpcMainEvent,
+    registerFrame = false
   ): { host: ExtensionHost; entry: ContextEntry } {
-    const host = this.contextOwner.get(event.sender.id) ?? this.adoptContext(event.sender)
-    const entry = host?.contexts.get(event.sender.id)
-    if (!host || !entry || event.senderFrame !== event.sender.mainFrame) {
+    const contents = event.sender
+    const frame = event.senderFrame
+    // Pages a host registered itself (its background view) are found through
+    // the host: their first document is the initial blank one, which no URL
+    // could identify yet.
+    const host = this.contextOwner.get(contents.id) ?? this.registeredOwner(contents) ??
+      this.adoptContext(contents)
+    const page = host?.contexts.get(contents.id)
+    if (!host || !page || !frame) throw new Error("Untrusted extension IPC sender")
+    if (frame === contents.mainFrame) return { host, entry: page }
+    if (parseExtensionUrl(frame.url)?.host !== host.extension.host) {
       throw new Error("Untrusted extension IPC sender")
     }
+    const entry = registerFrame
+      ? host.contexts.addPageFrame(contents, frame, page.kind)
+      : host.contexts.get(frameContextId(contents, frame))
+    if (!entry) throw new Error("Untrusted extension IPC sender")
     return { host, entry }
   }
 
@@ -443,6 +465,17 @@ export class ExtensionRuntime {
       : undefined
     if (!host || !entry) throw new Error("Untrusted content script IPC sender")
     return { host, entry }
+  }
+
+  private registeredOwner(sender: WebContents): ExtensionHost | undefined {
+    for (const host of this.hosts.values()) {
+      if (host.contexts.get(sender.id)) {
+        this.contextOwner.set(sender.id, host)
+        sender.once("destroyed", () => this.contextOwner.delete(sender.id))
+        return host
+      }
+    }
+    return undefined
   }
 
   // Pages the host created register themselves; pages the shell opened at an

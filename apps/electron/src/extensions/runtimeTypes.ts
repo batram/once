@@ -30,6 +30,8 @@ export interface ExtensionShellHooks {
   tabs(): TabSnapshot[]
   createTab(url: string, active: boolean): Promise<TabSnapshot | null>
   updateTab(id: number, props: TabUpdateProps): Promise<TabSnapshot | null>
+  /** Reorders within the tab's window; -1 or past the end means last. */
+  moveTab(id: number, index: number): Promise<TabSnapshot | null>
   removeTab(id: number): Promise<void>
   reloadTab(id: number): Promise<void>
   /** Called whenever the tab list, order, or activation changes. */

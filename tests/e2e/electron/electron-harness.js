@@ -112,6 +112,22 @@ async function startPageServer(options = {}) {
     if (storyFixture.handleRequest(request, response, origin)) {
       return
     }
+    // A userscript, served the way script hosts serve them: navigating here
+    // is what makes Violentmonkey open its install page.
+    if (request.url === "/once-test.user.js") {
+      response.writeHead(200, { "content-type": "text/javascript; charset=utf-8" })
+      response.end(`// ==UserScript==
+// @name        Once Harness Script
+// @namespace   once-e2e
+// @version     1.0
+// @description Marks pages it runs on.
+// @match       ${origin}/*
+// @grant       none
+// ==/UserScript==
+document.documentElement.dataset.onceHarnessScript = "ran"
+`)
+      return
+    }
     if (request.url === "/redirect") {
       response.writeHead(302, { location: `${origin}/redirected` })
       response.end()

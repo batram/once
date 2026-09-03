@@ -115,6 +115,13 @@ test("listener filters decide by URL, type, and tab; extraInfoSpec sets capabili
   assert.equal(filter.wantsRequestHeaders, true)
   assert.equal(filter.wantsResponseHeaders, false)
   assert.throws(() => new details.CompiledRequestFilter({ filter: { urls: [] }, extraInfoSpec: [] }))
+  // Violentmonkey's installer filter names its own scheme alongside web
+  // ones; the whole filter used to be discarded for it.
+  const installer = new details.CompiledRequestFilter({
+    filter: { urls: ["*://*/*.user.js", "moz-extension://abc/*.user.js"], types: ["main_frame"] },
+    extraInfoSpec: ["blocking"]
+  })
+  assert.equal(installer.matches({ url: "http://127.0.0.1:1/once.user.js", type: "main_frame", tabId: 1 }), true)
 })
 
 test("blocking responses merge with Firefox precedence", () => {
@@ -235,6 +242,38 @@ test("contexts route events to the listeners that asked and collect replies", as
   assert.equal(contexts.targets("runtime", "onMessage").length, 0)
 })
 
+test("an iframe of an extension page is its own context, reached through the frame", () => {
+  const contexts = new ExtensionContexts()
+  const page = fakeContents(3)
+  const frame = { frameTreeNodeId: 7, detached: false, url: "moz-extension://abc/settings.html", sent: [] }
+  frame.send = (channel, message) => frame.sent.push({ channel, message })
+  contexts.add(page, "options")
+  const entry = contexts.addPageFrame(page, frame, "options")
+  assert.deepEqual(
+    { id: entry.id, kind: entry.kind, tabId: entry.tabId, frameId: entry.frameId, url: entry.url() },
+    { id: "3:7", kind: "options", tabId: -1, frameId: 7, url: frame.url }
+  )
+
+  contexts.addListener(entry.id, "runtime", "onMessage", 12, null)
+  contexts.emit("runtime", "onMessage", ["hi"])
+  assert.equal(page.sent.length, 0)
+  assert.deepEqual(frame.sent, [{
+    channel: EXTENSION_IPC.event,
+    message: { api: "runtime", event: "onMessage", args: ["hi"], listeners: [12] }
+  }])
+
+  // The same frame navigating registers again: a fresh context, no listeners.
+  contexts.addPageFrame(page, frame, "options")
+  assert.equal(contexts.targets("runtime", "onMessage").length, 0)
+  assert.notEqual(contexts.get("3:7"), undefined)
+
+  frame.detached = true
+  assert.equal(contexts.get("3:7").isDestroyed(), true)
+  page.close()
+  assert.equal(contexts.get("3:7"), undefined)
+  assert.equal(contexts.get("3"), undefined)
+})
+
 test("API handlers answer tabs, messages, i18n, and storage change events", async () => {
   const handlers = api.createApiHandlers()
   const extension = await loaded.loadUnpackedExtension(fixture, "en")
@@ -254,7 +293,7 @@ test("API handlers answer tabs, messages, i18n, and storage change events", asyn
     extension,
     contexts,
     storage: new ExtensionStorage(path.join(dir, "storage.json")),
-    hooks: { tabs: () => tabs },
+    hooks: { tabs: () => tabs, moveTab: async (id, index) => ({ moved: [id, index] }) },
     action: new api.BrowserActionState("Blocker"),
     alarms: new api.AlarmScheduler(() => undefined)
   }
@@ -265,6 +304,11 @@ test("API handlers answer tabs, messages, i18n, and storage change events", asyn
     assert.deepEqual(handlers["tabs.query"](call(1), { audible: true, status: "loading" }).map((tab) => tab.id), [31])
     assert.equal(handlers["tabs.get"](call(1), 30).title, "A")
     assert.throws(() => handlers["tabs.get"](call(1), 99), /Invalid tab ID/)
+    // uBlock moves its own pages after `tabs.update`; -1 means the end.
+    assert.deepEqual(await handlers["tabs.move"](call(1), 30, { index: -1 }), { moved: [30, -1] })
+    assert.deepEqual(await handlers["tabs.move"](call(1), [30, 31], { index: 0 }), [
+      { moved: [30, 0] }, { moved: [31, 0] }
+    ])
 
     assert.equal(handlers["i18n.getMessage"](call(1), "extName"), "Once Test Blocker")
     assert.equal(handlers["i18n.getMessage"](call(1), "nope"), "")

@@ -120,7 +120,7 @@ export class UserscriptMatcher {
   private readonly matches: MatchPattern[]
 
   constructor(private readonly metadata: UserscriptMetadata) {
-    this.matches = metadata.matches.map(parseMatchPattern)
+    this.matches = metadata.matches.map((source) => parseMatchPattern(source))
   }
 
   /**

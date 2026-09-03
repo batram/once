@@ -66,6 +66,18 @@ test("malformed patterns are rejected", () => {
   }
 })
 
+test("restrictSchemes off admits any scheme, the way Firefox does for webRequest filters", () => {
+  const loose = { restrictSchemes: false }
+  const pattern = parseMatchPattern("moz-extension://abc/*.user.js", loose)
+  assert.equal(matchPatternMatches(pattern, new URL("moz-extension://abc/x.user.js")), true)
+  assert.equal(matchPatternMatches(pattern, new URL("https://abc/x.user.js")), false)
+  assert.equal(matchPatternMatches(parseMatchPattern("*://*/*.user.js", loose), new URL("moz-extension://abc/x.user.js")), false)
+  assert.throws(() => parseMatchPattern("not a scheme://abc/*", loose), MatchPatternError)
+  const set = new MatchPatternSet(["*://*/*.user.js", "moz-extension://abc/*.user.js"], loose)
+  assert.equal(set.matches("http://127.0.0.1:1/once.user.js"), true)
+  assert.equal(set.matches("moz-extension://abc/once.user.js"), true)
+})
+
 test("a pattern set answers for any of its members and tolerates bad URLs", () => {
   const set = new MatchPatternSet(["*://a.test/*", "https://b.test/x*"])
   assert.equal(set.size, 2)

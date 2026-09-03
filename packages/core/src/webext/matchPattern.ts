@@ -35,7 +35,18 @@ function globToRegExp(glob: string): RegExp {
   return new RegExp(`^${escaped}$`)
 }
 
-export function parseMatchPattern(source: string): MatchPattern {
+export interface MatchPatternOptions {
+  /**
+   * Firefox's `restrictSchemes`: on by default, so only web schemes parse.
+   * Off for `webRequest` filters, where Firefox lets an extension name any
+   * scheme (Violentmonkey filters on `moz-extension://…/*.user.js`).
+   */
+  restrictSchemes?: boolean
+}
+
+const SCHEME_SYNTAX = /^[a-z][a-z0-9+.-]*$/
+
+export function parseMatchPattern(source: string, options: MatchPatternOptions = {}): MatchPattern {
   if (source === ALL_URLS) {
     return {
       source,
@@ -50,7 +61,10 @@ export function parseMatchPattern(source: string): MatchPattern {
   const separator = source.indexOf("://")
   if (separator < 0) throw new MatchPatternError(source, "missing scheme separator")
   const scheme = source.slice(0, separator)
-  if (!PATTERN_SCHEMES.has(scheme)) {
+  const schemeAllowed = options.restrictSchemes === false
+    ? PATTERN_SCHEMES.has(scheme) || SCHEME_SYNTAX.test(scheme)
+    : PATTERN_SCHEMES.has(scheme)
+  if (!schemeAllowed) {
     throw new MatchPatternError(source, `unsupported scheme "${scheme}"`)
   }
 
@@ -117,8 +131,8 @@ export function matchPatternMatches(pattern: MatchPattern, url: URL): boolean {
 export class MatchPatternSet {
   private readonly patterns: MatchPattern[]
 
-  constructor(sources: readonly string[]) {
-    this.patterns = sources.map(parseMatchPattern)
+  constructor(sources: readonly string[], options: MatchPatternOptions = {}) {
+    this.patterns = sources.map((source) => parseMatchPattern(source, options))
   }
 
   get size(): number {

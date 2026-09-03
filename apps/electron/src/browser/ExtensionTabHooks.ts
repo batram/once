@@ -100,6 +100,14 @@ export function createExtensionTabHooks(
       }
       return snapshotOf(id)
     },
+    moveTab: async (id, index) => {
+      const [owner, entry] = require(id)
+      const others = owner.tabs.filter((candidate) => candidate !== entry.id)
+      // `tabs.move` indexes the list with this tab removed; -1 means the end.
+      const target = index < 0 || index >= others.length ? undefined : others[index]
+      if (target !== entry.id) ownership.reorder(owner, entry.id, target)
+      return snapshotOf(id)
+    },
     removeTab: async (id) => {
       const [owner, entry] = require(id)
       access.close(owner, entry.id)

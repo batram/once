@@ -69,6 +69,31 @@ export class ExtensionContexts {
     return entry
   }
 
+  /**
+   * An iframe of an extension page that shows another page of the same
+   * extension (uBlock's dashboard loads each pane that way). It has its own
+   * `browser` object, so events and port traffic must target the frame:
+   * `contents.send` only reaches the main frame.
+   */
+  addPageFrame(contents: WebContents, frame: WebFrameMain, kind: ExtensionContextKind): ContextEntry {
+    const id = frameContextId(contents, frame)
+    const alive = () => !contents.isDestroyed() && !frame.detached
+    const entry = this.insert({
+      id,
+      kind,
+      tabId: -1,
+      frameId: frame.frameTreeNodeId,
+      listeners: new Map(),
+      url: () => (alive() ? frame.url : ""),
+      isDestroyed: () => !alive(),
+      send: (message) => {
+        if (alive()) frame.send(EXTENSION_IPC.event, message)
+      }
+    })
+    contents.once("destroyed", () => this.remove(id))
+    return entry
+  }
+
   /** A context with its own transport; replaces any entry with the same id. */
   addEntry(entry: ContextEntry): ContextEntry {
     return this.insert(entry)

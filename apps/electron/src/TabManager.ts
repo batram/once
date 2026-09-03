@@ -161,20 +161,21 @@ export class BrowserCoordinator {
   ): Promise<string> {
     const normalized = this.normalizeTabUrl(url)
     // An extension page lives in that extension's session with its preload;
-    // everything else is a remote page in the browser session, where the
-    // frame preload registered on the session needs the sub-frame flag to
-    // reach iframes (it grants no Node access; the tab stays sandboxed).
+    // everything else is a remote page in the browser session with the frame
+    // preload registered on the session. Either preload needs the sub-frame
+    // flag to reach iframes (it grants no Node access; the tab stays sandboxed).
     const profile = this.pageProfile(normalized)
     const view = new WebContentsView({
       webPreferences: {
         nodeIntegration: false,
+        nodeIntegrationInSubFrames: true,
         contextIsolation: true,
         sandbox: true,
         webSecurity: true,
         disableHtmlFullscreenWindowResize: true,
         ...(profile
           ? { session: profile.session, preload: profile.preload }
-          : { partition: "persist:once-browser-v2", nodeIntegrationInSubFrames: true })
+          : { partition: "persist:once-browser-v2" })
       }
     })
     view.setBackgroundColor(state.backgroundColor)

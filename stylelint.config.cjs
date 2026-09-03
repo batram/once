@@ -6,6 +6,8 @@ module.exports = {
     "**/dist/**",
     "**/.webpack/**",
     "**/build/**",
+    // Forge's packaged app, which carries the vendored extensions' CSS.
+    "apps/electron/out/**",
     "**/node_modules/**",
     "apps/mobile/android/app/src/main/assets/public/**",
     "apps/mobile/ios/App/App/public/**"

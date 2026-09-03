@@ -191,7 +191,9 @@ export class CompiledRequestFilter {
     if (!Array.isArray(spec.filter?.urls) || spec.filter.urls.length === 0) {
       throw new Error("webRequest listeners need a urls filter")
     }
-    this.urls = new MatchPatternSet(spec.filter.urls)
+    // Any scheme, as Firefox allows here; a pattern for a scheme the browser
+    // session never carries simply matches nothing.
+    this.urls = new MatchPatternSet(spec.filter.urls, { restrictSchemes: false })
     this.types = spec.filter.types ? new Set(spec.filter.types) : null
     this.tabId = typeof spec.filter.tabId === "number" ? spec.filter.tabId : null
     const extra = new Set(spec.extraInfoSpec ?? [])

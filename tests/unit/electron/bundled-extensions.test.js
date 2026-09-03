@@ -31,9 +31,26 @@ test("the vendor root is resources/extensions when packaged and vendor/extension
     bundledExtensionRoot({ isPackaged: true, resourcesPath: "/app/resources", appPath: "/app/resources/app.asar" }),
     path.join("/app/resources", "extensions")
   )
+  const vendor = path.join(root, "vendor", "extensions")
+  const checkout = { isPackaged: false, resourcesPath: "/unused" }
+  const onlyVendor = (directory) => directory === vendor
   assert.equal(
-    bundledExtensionRoot({ isPackaged: false, resourcesPath: "/unused", appPath: path.join(root, "apps", "electron") }),
-    path.join(root, "vendor", "extensions")
+    bundledExtensionRoot({ ...checkout, appPath: path.join(root, "apps", "electron") }, onlyVendor),
+    vendor
+  )
+  // The e2e harness runs the webpack output directly, so the app path is
+  // deeper; the walk still finds the checkout's vendor directory.
+  assert.equal(
+    bundledExtensionRoot(
+      { ...checkout, appPath: path.join(root, "apps", "electron", ".webpack", "x64", "main") },
+      onlyVendor
+    ),
+    vendor
+  )
+  // Nothing fetched yet: the conventional spot, so the warning names it.
+  assert.equal(
+    bundledExtensionRoot({ ...checkout, appPath: path.join(root, "apps", "electron") }, () => false),
+    vendor
   )
 })
 
