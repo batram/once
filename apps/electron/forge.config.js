@@ -56,6 +56,13 @@ module.exports = {
             preload: {
               js: "./src/preload.ts"
             }
+          },
+          // The add-on sandbox page: loaded by the renderer in a sandboxed
+          // iframe, with no preload and therefore no bridge of any kind.
+          {
+            html: "../../packages/ui-web/public/addon-sandbox.html",
+            js: "./src/addonSandbox.ts",
+            name: "addon_sandbox"
           }
         ]
       }

@@ -33,6 +33,7 @@ import {
 import { ExtensionRuntime } from "./extensions/ExtensionRuntime"
 import { bundledExtensionRoot, resolveBundledExtensions } from "./extensions/bundledExtensions"
 import { registerExtensionScheme } from "./extensions/ExtensionScheme"
+import { configureAddonSandboxProtocol, registerAddonSandboxScheme } from "./AddonSandboxProtocol"
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string
@@ -47,6 +48,7 @@ app.userAgentFallback = app.userAgentFallback.replace(/\sElectron\/[^\s]+/, "") 
 registerReaderScheme()
 registerErrorPageScheme()
 registerExtensionScheme()
+registerAddonSandboxScheme()
 
 if (process.env.ONCE_ELECTRON_TEST_USER_DATA) {
   app.setPath("userData", process.env.ONCE_ELECTRON_TEST_USER_DATA)
@@ -228,6 +230,9 @@ app
   .then(async () => {
     configureAccessibility()
     const browserSession = configureBrowserSession()
+    // The shell window runs in the default session; its add-on sandbox frames
+    // load their page from this scheme.
+    configureAddonSandboxProtocol(session.defaultSession, MAIN_WINDOW_WEBPACK_ENTRY)
     browserCoordinator = new BrowserCoordinator(
       createShellWindow,
       process.env.ONCE_ELECTRON_DISABLE_STORY_LOADING === "1"

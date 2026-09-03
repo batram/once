@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!--
+      The add-on sandbox page. Once loads it in an <iframe sandbox="allow-scripts">,
+      so it has an opaque origin; this policy is the rest of its grant: its own
+      runtime script, add-on code as a blob module, and no network, images, or
+      styles at all. The runtime receives the add-on's code over postMessage.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' blob:; connect-src 'none'; img-src 'none'; style-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>Once add-on sandbox</title>
+  </head>
+  <body></body>
+</html>

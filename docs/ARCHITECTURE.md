@@ -231,11 +231,18 @@ directories in unpackaged builds only.
 Add-ons are a separate concept from those extensions: additions to Once
 itself, described by manifests in the synced `addons` settings document
 (`packages/core/src/addons`) and rendered by the shared UI through its
-element and action registries. The manifests are declarative — URL and text
-templates over an allow-listed view of a story, with conditions Once evaluates
-— so no add-on code runs anywhere yet. When scripted add-ons arrive they run
-in a sandboxed frame the UI owns and become a fifth trust zone; see
-[plans/story-addons-plan.md](plans/story-addons-plan.md).
+element and action registries. Declarative contributions are URL and text
+templates over an allow-listed view of a story, with conditions Once
+evaluates. A manifest may also name a script, pinned by sha256 and fetched
+per device, never synced; that code runs in a fifth trust zone, a hidden
+`<iframe sandbox="allow-scripts">` on an opaque origin whose page carries its
+own policy (`packages/ui-web/public/addon-sandbox.html`: its runtime, add-on
+code as a blob module, no network). The frame speaks a validated
+`postMessage` protocol, every operation it asks for is scoped to the story
+the user acted on, and requests time out. On Electron main serves the page
+over `once-addon://` because an opaque origin may not load `file:`
+subresources; platforms without a serving path run declarative add-ons only.
+See [plans/story-addons-plan.md](plans/story-addons-plan.md).
 
 Desktop keyboard behavior is command-driven rather than a collection of DOM
 shortcuts. Shared code owns canonical chords, configurable bindings, conflict

@@ -62,6 +62,7 @@
         "src/main.ts",
         "src/preload.ts",
         "src/renderer.ts",
+        "src/addonSandbox.ts",
         "src/pickerInjection.ts",
         "src/extensions/extensionPreload.ts",
         "src/extensions/contentPreload.ts",

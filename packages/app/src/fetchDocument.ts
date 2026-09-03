@@ -41,3 +41,26 @@ export async function fetchDocument(
     mediaType
   }
 }
+
+/** Add-on code is small; anything past this is not a script we want to run. */
+const MAX_TEXT_BYTES = 1024 * 1024
+
+/** Fetches a text resource, http(s) only, without credentials and within a size cap. */
+export async function fetchText(
+  fetch: typeof globalThis.fetch,
+  url: string
+): Promise<string> {
+  const parsed = new URL(url)
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("Only HTTP and HTTPS resources can be fetched")
+  }
+  const response = await fetch(parsed.toString(), { credentials: "omit" })
+  if (!response.ok) {
+    throw new Error(`The request failed with HTTP ${response.status}`)
+  }
+  const length = Number(response.headers.get("content-length") ?? 0)
+  if (length > MAX_TEXT_BYTES) throw new Error("The resource is too large")
+  const text = await response.text()
+  if (text.length > MAX_TEXT_BYTES) throw new Error("The resource is too large")
+  return text
+}

@@ -1,5 +1,7 @@
 const { test, expect } = require("@playwright/test")
+const crypto = require("node:crypto")
 const {
+  ADDON_SCRIPT,
   closeApp,
   launchApp,
   openSettingsSection,
@@ -93,6 +95,58 @@ test("a declarative add-on contributes a row button, a badge, a swipe action, an
     await showAllStories(window)
     await expect(alpha.locator(".addon_btn")).toHaveCount(0)
     await expect(alpha.locator(".addon_badge")).toHaveCount(0)
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
+// A scripted add-on: its code is fetched, hash-checked, and run in the sandbox
+// frame. The badge is computed by the script, the button hands the invocation
+// to it, and an operation on a story it was not asked about is refused.
+const SCRIPTED_MANIFEST = (origin) => [{
+  protocol: 1,
+  id: "harness-script",
+  name: "Harness Script",
+  version: "1.0.0",
+  script: {
+    url: `${origin}/addon/main.js`,
+    integrity: `sha256-${crypto.createHash("sha256").update(ADDON_SCRIPT, "utf8").digest("base64")}`
+  },
+  contributions: [
+    { kind: "action", id: "visit", label: "Visit from add-on", surfaces: ["button"], run: { message: "visit" } },
+    { kind: "action", id: "sneak", label: "Sneak elsewhere", surfaces: ["button"], run: { message: "sneak" } },
+    { kind: "badge", id: "len", compute: "len" }
+  ]
+}]
+
+test("a scripted add-on runs in the sandbox: computed badges, message actions, scoped operations", async () => {
+  const { electronApp, userData, window } = await launchApp(STORY_ENV)
+  try {
+    await seedLocalSource(window, storyFixture.sourceLine(origin), urls.alpha)
+    const editor = await openSettingsSection(window, "addons", "#addons_area")
+    await editor.evaluate((textarea, value) => {
+      textarea.value = value
+    }, JSON.stringify(SCRIPTED_MANIFEST(origin), null, 2))
+    await window.getByTestId("save-addons").evaluate((button) => button.click())
+    await expect(window.locator('[data-settings-target="addons"] .settings_section_summary'))
+      .toHaveText("1 of 1 enabled")
+
+    await showAllStories(window)
+    const alpha = window.locator(`#stories story-item[data-href="${urls.alpha}"]`)
+    const title = await alpha.locator("a.title").innerText()
+    await expect(alpha.locator('.addon_badge[data-addon-badge="len"]')).toHaveText(`len ${title.length}`)
+    expect(await window.locator("iframe[data-addon-sandbox]").count()).toBe(1)
+
+    await alpha.locator('.addon_btn[data-story-element="addon:harness-script/visit"]').click()
+    await expect.poll(async () =>
+      (await window.evaluate(() => window.onceElectron.tabs.getAll())).map((tab) => tab.url)
+    ).toContainEqual(urls.alpha.replace(/\/[^/]*$/, "/from-addon"))
+
+    await alpha.locator('.addon_btn[data-story-element="addon:harness-script/sneak"]').click()
+    await openSettingsSection(window, "errors", "#error_log")
+    await expect(window.locator("#error_log")).toContainText(/not asked about/)
+    const tabs = await window.evaluate(() => window.onceElectron.tabs.getAll())
+    expect(tabs.some((tab) => tab.url.startsWith("https://elsewhere.test"))).toBe(false)
   } finally {
     await closeApp(electronApp, userData)
   }

@@ -11,7 +11,13 @@ and actions on the menu, swipe, and key surfaces. Verified by unit tests and
 an Electron e2e that saves a manifest, sees its button and badge on a row,
 opens its templated URL, finds the action in the swipe lab and the keybinding
 editor, and watches everything leave when the add-on is switched off.
-Manifests with a `script` are refused until step 4.
+Step 4 is done on Electron: a manifest may pin a script by sha256, the
+code is fetched per device and run in a sandboxed frame served over
+`once-addon://`, `message` actions and computed badges reach it over the
+validated protocol, operations are scoped to the invoked story, and three
+failures switch an add-on off. Verified by session unit tests and an
+Electron e2e with a fixture script. Firefox has no serving path yet (see the
+table below); Chrome and mobile serving are steps 5 and 6's neighbours.
 
 ## Decision
 
@@ -156,8 +162,9 @@ a static `addon-sandbox.html` from a place where it carries its own policy:
 
 | Target | Serving | Notes |
 | --- | --- | --- |
-| Firefox, Chrome | Manifest `sandbox.pages: ["static/addon-sandbox.html"]` | The platforms' own mechanism for exactly this: an opaque-origin page with a separate `content_security_policy.sandbox` that permits `blob:` scripts, no extension APIs, no access to the opener. |
-| Electron | `once-addon://<id>/addon-sandbox.html` via `protocol.handle` | Sibling of `once-reader://`; the response carries `Content-Security-Policy: sandbox allow-scripts; script-src 'self' blob:`. The renderer's `frame-src` gains the scheme. |
+| Chrome | Manifest `sandbox.pages: ["static/addon-sandbox.html"]` | Chrome's own mechanism for exactly this: an opaque-origin page with a separate `content_security_policy.sandbox` that permits `blob:` scripts, no extension APIs, no access to the opener. |
+| Firefox | Open | Firefox does not implement the manifest `sandbox` key, and MV3 forbids `blob:` or `unsafe-eval` script sources on extension pages, so no page under the extension's origin may run add-on code. The options are a hosted sandbox page on an origin Once controls, or declarative add-ons only on Firefox. Undecided; the panel reports scripted add-ons as unavailable there. |
+| Electron | `once-addon://sandbox/index.html`, served by main from the second Forge renderer entry (`addon_sandbox`) | The frame's opaque origin may not load `file:` subresources (tried: the page loaded, its script was refused), so the page and its runtime come through a privileged scheme, a sibling of `once-reader://`. The shell CSP's `frame-src` names the scheme. |
 | Android, iOS | A route on the app's local server (`/once-addon/sandbox.html`) answered by the Capacitor plugin with the same CSP header | Android through `shouldInterceptRequest` in the existing plugin, iOS through Capacitor's scheme handler. The route serves the static page only; add-on code still arrives by `postMessage`. |
 
 The add-on's code reaches the sandbox as text over `postMessage`; the

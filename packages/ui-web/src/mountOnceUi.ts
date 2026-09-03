@@ -58,6 +58,12 @@ export interface MountOnceUiOptions {
    * reaches Once while a web page has focus, and only the browser can rebind it.
    */
   browserShortcuts?: readonly BrowserManagedShortcut[]
+  /**
+   * Where this platform serves the add-on sandbox page (`addon-sandbox.html`
+   * with the sandbox runtime). Absent means scripted add-ons cannot run here;
+   * declarative ones still do.
+   */
+  addonSandboxUrl?: string
 }
 
 export async function mountOnceUi(
@@ -70,7 +76,7 @@ export async function mountOnceUi(
   setOnceClient(client)
   StoryListItem.devToolsEnabled = options.buildChannel === "dev"
   ReaderView.mount(client)
-  mountAddons(client)
+  mountAddons(client, { sandboxUrl: options.addonSandboxUrl })
 
   const version = document.querySelector<HTMLElement>(
     "[data-testid='app-version']"

@@ -37,6 +37,44 @@ function xhtmlArticlePage(title) {
 </html>`
 }
 
+// The fixture add-on: one message action that opens a page derived from the
+// story, and one computed badge. Exported so a spec can hash it.
+const ADDON_SCRIPT = `export default function activate(once) {
+  once.onInvoke((action, story) => {
+    if (action === "visit") once.openUrl(story, story.href.replace(/\\/[^/]*$/, "/from-addon"), "blank")
+    if (action === "sneak") once.openUrl({ href: "https://elsewhere.test/" }, "https://elsewhere.test/", "blank")
+  })
+  once.onBadges((contribution, stories) => stories.map((story) => contribution + " " + story.title.length))
+}
+`
+
+// The scripts the extension and add-on specs install: a scripted Once add-on
+// (its manifest pins this exact text by hash, so specs compute the integrity
+// from ADDON_SCRIPT) and a userscript served the way script hosts serve them,
+// which is what makes Violentmonkey open its install page.
+function serveFixtureScript(request, response, origin) {
+  if (request.url === "/addon/main.js") {
+    response.writeHead(200, { "content-type": "text/javascript; charset=utf-8" })
+    response.end(ADDON_SCRIPT)
+    return true
+  }
+  if (request.url === "/once-test.user.js") {
+    response.writeHead(200, { "content-type": "text/javascript; charset=utf-8" })
+    response.end(`// ==UserScript==
+// @name        Once Harness Script
+// @namespace   once-e2e
+// @version     1.0
+// @description Marks pages it runs on.
+// @match       ${origin}/*
+// @grant       none
+// ==/UserScript==
+document.documentElement.dataset.onceHarnessScript = "ran"
+`)
+    return true
+  }
+  return false
+}
+
 async function startPageServer(options = {}) {
   let origin = ""
   const server = http.createServer((request, response) => {
@@ -112,20 +150,7 @@ async function startPageServer(options = {}) {
     if (storyFixture.handleRequest(request, response, origin)) {
       return
     }
-    // A userscript, served the way script hosts serve them: navigating here
-    // is what makes Violentmonkey open its install page.
-    if (request.url === "/once-test.user.js") {
-      response.writeHead(200, { "content-type": "text/javascript; charset=utf-8" })
-      response.end(`// ==UserScript==
-// @name        Once Harness Script
-// @namespace   once-e2e
-// @version     1.0
-// @description Marks pages it runs on.
-// @match       ${origin}/*
-// @grant       none
-// ==/UserScript==
-document.documentElement.dataset.onceHarnessScript = "ran"
-`)
+    if (serveFixtureScript(request, response, origin)) {
       return
     }
     if (request.url === "/redirect") {
@@ -438,6 +463,7 @@ async function transferTab(electronApp, windowId, action, tabId) {
 }
 
 module.exports = {
+  ADDON_SCRIPT,
   closeApp,
   expectDocumentFocus,
   getLiveContentsState,

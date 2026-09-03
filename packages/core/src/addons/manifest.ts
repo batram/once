@@ -25,13 +25,27 @@ export const STORY_MENU_GROUPS: readonly StoryMenuGroup[] = Object.freeze([
 export type StoryActionSurface = "button" | "menu" | "swipe" | "key"
 const SURFACES: readonly StoryActionSurface[] = Object.freeze(["button", "menu", "swipe", "key"])
 
-/** What a declarative action does; exactly one of the keys is present. */
+/**
+ * What an action does; exactly one of the keys is present. `message` hands
+ * the invocation to the add-on's script and is only valid when there is one.
+ */
 export type AddonRun =
   | { open: string; target?: "_self" | "blank" | "middle" }
   | { copy: string }
   | { search: string }
   | { tag: string }
   | { setReadState: "unread" | "read" | "skipped" }
+  | { message: string }
+
+/** The add-on's code: fetched per device and pinned by hash, never synced. */
+export interface AddonScript {
+  url: string
+  /** `sha256-<base64>` of the exact bytes at `url`. */
+  integrity: string
+}
+
+const MESSAGE_NAME = /^[a-zA-Z_][a-zA-Z0-9_-]{0,39}$/
+const INTEGRITY = /^sha256-[A-Za-z0-9+/]{43}=$/
 
 export interface StoryActionContribution {
   kind: "action"
@@ -44,10 +58,12 @@ export interface StoryActionContribution {
   run: AddonRun
 }
 
+/** A badge shows `text` rendered from the story, or what the script computes. */
 export interface StoryBadgeContribution {
   kind: "badge"
   id: string
-  text: string
+  text?: string
+  compute?: string
   when?: AddonCondition
 }
 
@@ -70,7 +86,16 @@ export interface AddonManifest {
   version: string
   author?: string
   homepage?: string
+  script?: AddonScript
   contributions: readonly StoryContribution[]
+}
+
+/** True when any contribution hands work to the add-on's script. */
+export function manifestNeedsScript(contributions: readonly StoryContribution[]): boolean {
+  return contributions.some((contribution) =>
+    (contribution.kind === "action" && "message" in contribution.run) ||
+    (contribution.kind === "badge" && contribution.compute !== undefined)
+  )
 }
 
 export interface AddonReport {
@@ -177,9 +202,17 @@ class Reader {
   run(value: unknown, path: string): AddonRun | undefined {
     if (!isRecord(value)) return this.fail(path, "must be an object")
     const keys = Object.keys(value).filter((key) => key !== "target")
-    if (keys.length !== 1) return this.fail(path, "must have exactly one of open, copy, search, tag, setReadState")
+    if (keys.length !== 1) {
+      return this.fail(path, "must have exactly one of open, copy, search, tag, setReadState, message")
+    }
     const [key] = keys
     switch (key) {
+      case "message": {
+        const message = this.string(value.message, `${path}.message`, 40)
+        if (message === undefined) return undefined
+        if (!MESSAGE_NAME.test(message)) return this.fail(`${path}.message`, "must be a simple identifier")
+        return { message }
+      }
       case "open": {
         let open = this.template(value.open, `${path}.open`)
         // The scheme is static text in front of the first placeholder, so it
@@ -239,11 +272,24 @@ class Reader {
           surfaces: [...new Set(surfaces as StoryActionSurface[])], when, run
         }
       }
-      case "badge":
+      case "badge": {
+        if (value.compute !== undefined) {
+          if (value.text !== undefined) return this.fail(path, "has both text and compute")
+          const compute = this.string(value.compute, `${path}.compute`, 40)
+          if (compute !== undefined && !MESSAGE_NAME.test(compute)) {
+            return this.fail(`${path}.compute`, "must be a simple identifier")
+          }
+          if (id === undefined || compute === undefined) return undefined
+          return { kind: "badge", id, compute, when }
+        }
+        const text = this.template(value.text, `${path}.text`)
+        if (id === undefined || text === undefined) return undefined
+        return { kind: "badge", id, text, when }
+      }
       case "line": {
         const text = this.template(value.text, `${path}.text`)
         if (id === undefined || text === undefined) return undefined
-        return { kind: value.kind, id, text, when }
+        return { kind: "line", id, text, when }
       }
       default:
         return this.fail(`${path}.kind`, "must be action, badge, or line")
@@ -258,8 +304,19 @@ export function readAddonManifest(value: unknown): AddonManifestRead {
   if (value.protocol !== ADDON_PROTOCOL) {
     reader.fail("protocol", `must be ${ADDON_PROTOCOL}`)
   }
+  let script: AddonScript | undefined
   if (value.script !== undefined && value.script !== null) {
-    reader.fail("script", "scripted add-ons are not supported yet")
+    if (!isRecord(value.script)) {
+      reader.fail("script", "must be an object with url and integrity")
+    } else {
+      const url = reader.string(value.script.url, "script.url", ADDON_LIMITS.template)
+      if (url !== undefined && !/^https?:\/\//i.test(url)) reader.fail("script.url", "must be http(s)")
+      const integrity = reader.string(value.script.integrity, "script.integrity", 80)
+      if (integrity !== undefined && !INTEGRITY.test(integrity)) {
+        reader.fail("script.integrity", "must be sha256-<base64> of the script")
+      }
+      if (url !== undefined && integrity !== undefined) script = { url, integrity }
+    }
   }
   const id = reader.string(value.id, "id", 40)
   if (id !== undefined && !ADDON_LIMITS.idPattern.test(id)) {
@@ -286,12 +343,15 @@ export function readAddonManifest(value: unknown): AddonManifestRead {
       contributions.push(contribution)
     })
   }
+  if (script === undefined && manifestNeedsScript(contributions)) {
+    reader.fail("script", "is required: a contribution uses message or compute")
+  }
   if (reader.reports.length > 0 || id === undefined || name === undefined || version === undefined) {
     return { ok: false, reports: reader.reports }
   }
   return {
     ok: true,
     reports: [],
-    manifest: { protocol: ADDON_PROTOCOL, id, name, version, author, homepage, contributions }
+    manifest: { protocol: ADDON_PROTOCOL, id, name, version, author, homepage, script, contributions }
   }
 }

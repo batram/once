@@ -133,6 +133,40 @@ test("a manifest with any problem is rejected whole, and every problem is named"
   assert.equal(readAddonManifest({ ...manifest(), protocol: 2 }).ok, false)
 })
 
+test("scripted contributions need a pinned script, and message names are identifiers", () => {
+  const { readSandboxMessage, readBadgeTexts } = require("../../../packages/core/dist/addons")
+  const scripted = manifest()
+  scripted.contributions = [
+    { kind: "action", id: "ping", label: "Ping", run: { message: "ping" } },
+    { kind: "badge", id: "score", compute: "score" }
+  ]
+  const missing = readAddonManifest(scripted)
+  assert.equal(missing.ok, false)
+  assert.deepEqual(missing.reports.map((report) => report.path), ["script"])
+
+  scripted.script = { url: "https://addons.example/main.js", integrity: "sha256-" + "A".repeat(43) + "=" }
+  const read = readAddonManifest(scripted)
+  assert.equal(read.ok, true)
+  assert.deepEqual(read.manifest.script, scripted.script)
+  assert.deepEqual(read.manifest.contributions[1], { kind: "badge", id: "score", compute: "score", when: undefined })
+
+  scripted.contributions[0].run = { message: "not an identifier" }
+  scripted.script.integrity = "md5-nope"
+  const bad = readAddonManifest(scripted)
+  assert.equal(bad.ok, false)
+  const paths = bad.reports.map((report) => report.path)
+  assert.ok(paths.includes("contributions[0].run.message"), paths.join())
+  assert.ok(paths.includes("script.integrity"), paths.join())
+
+  assert.deepEqual(readSandboxMessage({ type: "ready", protocol: 1 }), { type: "ready", protocol: 1 })
+  assert.equal(readSandboxMessage({ type: "op", op: { name: "openUrl", href: "https://a/", url: "file:///x" } }), null)
+  assert.deepEqual(
+    readSandboxMessage({ type: "op", requestId: 3, op: { name: "addTag", href: "https://a/", tag: "  paywall " } }),
+    { type: "op", requestId: 3, op: { name: "addTag", href: "https://a/", tag: "paywall" } }
+  )
+  assert.deepEqual(readBadgeTexts(["a", 1], 3), ["a", "", ""])
+})
+
 test("defaults fill in: action group navigation, surfaces button and menu", () => {
   const read = readAddonManifest({
     ...manifest(),

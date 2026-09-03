@@ -16,6 +16,10 @@ import {
 import { BrowserShell } from "./BrowserShell"
 import "./electron.css"
 
+// Served by main from the Forge output: a sandboxed frame has an opaque origin
+// and may not load file: subresources, so the add-on sandbox page needs a scheme.
+const ADDON_SANDBOX_URL = "once-addon://sandbox/index.html"
+
 document.addEventListener("DOMContentLoaded", async () => {
   const buildInfo = await window.onceElectron.app.getBuildInfo()
   document.body.classList.add(`electron-platform-${buildInfo.platform}`)
@@ -73,11 +77,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
   void applyExtensionSettings()
-  app.client.subscribe("extensionSettingsChanged", (settings) => {
-    void applyExtensionSettings(settings)
-  })
+  app.client.subscribe("extensionSettingsChanged", (settings) => void applyExtensionSettings(settings))
   await mountOnceUi(app.client, {
     shell: "electron",
+    addonSandboxUrl: ADDON_SANDBOX_URL,
     appVersion: buildInfo.version,
     buildChannel: buildInfo.channel,
     buildIdentifier: buildInfo.buildIdentifier,

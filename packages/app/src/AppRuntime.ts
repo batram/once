@@ -32,7 +32,7 @@ import {
 } from "./sourceMenu"
 import { SourceLoader } from "./SourceLoader"
 import { DiagnosticLog, errorDetails } from "./DiagnosticLog"
-import { fetchDocument } from "./fetchDocument"
+import { fetchDocument, fetchText } from "./fetchDocument"
 import { waitForStartupStorage } from "./startupStorage"
 
 export class AppRuntime {
@@ -201,6 +201,7 @@ export class AppRuntime {
         this.persistStoryChange(href, path, value),
       purgeStory: (href) => this.purgeStory(href),
       fetchDocument: (url) => fetchDocument(this.platform.fetch, url),
+      fetchText: (url) => fetchText(this.platform.fetch, url),
       openUrl: (url, target) => {
         if (url.startsWith("search:")) {
           this.events.publish("searchRequested", {

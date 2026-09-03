@@ -185,6 +185,8 @@ export interface OnceClient {
     url: string
     mediaType: string
   }>
+  /** A small http(s) text resource through the platform's fetch: add-on code. */
+  fetchText(url: string): Promise<string>
   /** See ActiveTabPort.openUrl for what the targets mean. */
   openUrl(
     url: string,

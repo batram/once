@@ -25,6 +25,10 @@
       "types": "./dist/reader/readerTts.d.ts",
       "default": "./dist/reader/readerTts.js"
     },
+    "./addons/sandboxRuntime": {
+      "types": "./dist/addons/sandboxRuntime.d.ts",
+      "default": "./dist/addons/sandboxRuntime.js"
+    },
     "./picker/sourcePicker": {
       "types": "./dist/picker/sourcePicker.d.ts",
       "default": "./dist/picker/sourcePicker.js"

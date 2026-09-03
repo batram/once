@@ -140,6 +140,21 @@ All paths below are under `packages/ui-web/src/story`.
 - `menu/storyActionRegistry.ts` holds story actions that are not built-in
   menu entries; one registration reaches the ⋮ menu descriptors, the swipe
   lab's choices (`app/src/swipeActions.ts`), and the keybinding editor.
+
+`addons/` (under `packages/ui-web/src`) is the add-on host:
+
+- `mountAddons.ts` reads the `addons` document and registers contributions;
+  it fetches and hash-checks a manifest's script and owns the host side of
+  every operation a script may ask for.
+- `AddonSandboxSession.ts` is the DOM-free conversation with one sandbox:
+  load, requests with timeouts, message validation, operation scoping, and
+  the failure count that switches an add-on off. Tests drive it directly.
+- `AddonSandbox.ts` owns the hidden sandboxed iframe the session speaks to.
+- `sandboxRuntime.ts` runs inside that frame and nowhere else: it imports the
+  add-on's code as a blob module and hands it the `once` object. Bundled on
+  its own into `public/addon-sandbox.html` (Electron: the `addon_sandbox`
+  Forge entry, served by `apps/electron/src/AddonSandboxProtocol.ts`).
+- `badgeScheduler.ts` batches computed-badge requests per tick.
 - `storyRowSubstories.ts` builds the per-source lines under the title.
 - `storyLinks.ts` owns anchor behaviour on a row: claiming clicks and
   middle-clicks from the browser, and marking a story read when its URL opens.
