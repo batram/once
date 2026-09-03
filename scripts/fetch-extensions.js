@@ -1,8 +1,13 @@
-// Downloads the pinned extension bundles the Android app builds in as
-// GeckoView built-ins, verifies them against their recorded hashes, and
-// unpacks them under apps/mobile/extensions/vendor. The bundles are
-// third-party code and stay out of the repository; this script is the
-// record of exactly which builds the app ships.
+// Downloads the pinned extension bundles that Electron ships as packaged
+// resources and the Android app builds in as GeckoView built-ins, verifies
+// them against their recorded hashes, and unpacks them under
+// vendor/extensions. The bundles are third-party code and stay out of the
+// repository; this script is the record of exactly which builds ship, and
+// bumping a version here (with its new hash) is how an update is released.
+//
+// uBlock's Firefox build is Mozilla-signed (META-INF/mozilla.rsa); the pin
+// here is the hash of that signed archive as published, so what ships is
+// exactly what Mozilla signed. Violentmonkey publishes an unsigned zip.
 
 const crypto = require("node:crypto")
 const fs = require("node:fs")
@@ -10,7 +15,7 @@ const path = require("node:path")
 const AdmZip = require("adm-zip")
 
 const root = path.resolve(__dirname, "..")
-const vendorRoot = path.join(root, "apps", "mobile", "extensions", "vendor")
+const vendorRoot = path.join(root, "vendor", "extensions")
 
 const BUNDLES = [
   {

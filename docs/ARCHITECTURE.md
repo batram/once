@@ -222,9 +222,11 @@ or popup views created in the extension's session, and pages may load only
 its `web_accessible_resources`. The synced `filter_lists` and `userscripts`
 documents are handed to uBlock Origin and Violentmonkey through their own
 message APIs, from a main-process context that behaves like one of the
-extension's pages. Extension directories are named in
-`ONCE_ELECTRON_EXTENSIONS` for now; packaging and an allowlist are later plan
-steps.
+extension's pages. The extensions that ship are an explicit list in
+`apps/electron/src/extensions/bundledExtensions.ts`; their bundles come from
+`scripts/fetch-extensions.js` against pinned hashes into `vendor/extensions`
+and travel as packaged resources. `ONCE_ELECTRON_EXTENSIONS` adds
+directories in unpackaged builds only.
 
 Desktop keyboard behavior is command-driven rather than a collection of DOM
 shortcuts. Shared code owns canonical chords, configurable bindings, conflict

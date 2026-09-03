@@ -15,8 +15,8 @@ apps/mobile/ios/build/
 test-results/
 playwright-report/
 web-ext-artifacts/
-# Third-party extension bundles the Android app builds in; scripts/fetch-extensions.js
-apps/mobile/extensions/vendor/
+# Third-party extension bundles Electron and Android ship; scripts/fetch-extensions.js
+vendor/extensions/
 
 # Logs
 npm-debug.log*

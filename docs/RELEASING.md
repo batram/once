@@ -24,6 +24,28 @@ fans that version out to:
 
 Never hand-edit the per-product versions; bump the root and let the hook sync.
 
+## Extension bundles
+
+Electron and the Android app ship uBlock Origin and Violentmonkey. Their
+bundles are not in the repository: [`scripts/fetch-extensions.js`](../scripts/fetch-extensions.js)
+records the exact release URL and SHA-256 of each and unpacks them into
+`vendor/extensions/`, which the Electron package, make, and start scripts and
+the Android package command run first. Electron carries them as
+`resources/extensions`; Android builds them into the APK's assets.
+
+uBlock's Firefox build is Mozilla-signed; the pinned hash is that of the
+signed archive as published, so what ships is what Mozilla signed.
+Violentmonkey publishes an unsigned zip, so its pin is the only check.
+
+To update an extension: change its `version`, `url`, and `sha256` in the
+fetch script (compute the hash from the downloaded file yourself, never copy
+it from a page), run `npm run fetch:extensions`, then run the Electron smoke
+with `ONCE_ELECTRON_EXTENSION_LOG=1` and the Android package, and read the
+extension's console output for APIs the runtime does not yet provide. The
+list of what may load at all is `apps/electron/src/extensions/bundledExtensions.ts`
+and the Android plugin's built-in table; a bundle whose manifest id does not
+match its listed id is refused.
+
 ## Cutting a release
 
 Work from a clean, green `main`.

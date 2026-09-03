@@ -31,6 +31,7 @@ import {
   windowsInstanceIdentity
 } from "./WindowsInstanceIdentity"
 import { ExtensionRuntime } from "./extensions/ExtensionRuntime"
+import { bundledExtensionRoot, resolveBundledExtensions } from "./extensions/bundledExtensions"
 import { registerExtensionScheme } from "./extensions/ExtensionScheme"
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string
@@ -261,7 +262,11 @@ app
       }
     })
     await browserCoordinator.createWindow()
-    void extensions.loadConfigured()
+    void extensions.loadBundled(resolveBundledExtensions(bundledExtensionRoot({
+      isPackaged: app.isPackaged,
+      resourcesPath: process.resourcesPath,
+      appPath: app.getAppPath()
+    })))
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {

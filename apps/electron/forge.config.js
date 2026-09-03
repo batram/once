@@ -23,7 +23,10 @@ module.exports = {
     buildVersion: version,
     name: isDevChannel ? "Once Dev" : "Once",
     executableName: isDevChannel ? "once-dev" : "once",
-    icon: iconBase
+    icon: iconBase,
+    // The vendored extension bundles (scripts/fetch-extensions.js) travel
+    // beside the asar as resources/extensions, where the runtime reads them.
+    extraResource: [path.resolve(__dirname, "../../vendor/extensions")]
   },
   makers: [
     {

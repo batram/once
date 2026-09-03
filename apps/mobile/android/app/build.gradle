@@ -29,10 +29,10 @@ android {
     }
     sourceSets {
         main {
-            // The built-in extensions: Once's own bridge and the vendored bundles
-            // that scripts/fetch-extensions.js unpacks. GeckoView loads them from
-            // resource://android/assets/<name>/.
-            assets.srcDirs += ['../../extensions']
+            // The built-in extensions: Once's own bridge, and the vendored bundles
+            // that scripts/fetch-extensions.js unpacks for every target. GeckoView
+            // loads them from resource://android/assets/<name>/.
+            assets.srcDirs += ['../../extensions', '../../../../vendor/extensions']
         }
     }
     flavorDimensions += "environment"

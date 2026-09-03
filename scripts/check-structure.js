@@ -16,7 +16,7 @@ const ignored = [
   /^apps\/mobile\/android\/app\/src\/main\/res\//,
   /^apps\/mobile\/android\/app\/src\/main\/assets\/public\//,
   // Third-party extension bundles unpacked by scripts/fetch-extensions.js.
-  /^apps\/mobile\/extensions\/vendor\//,
+  /^vendor\/extensions\//,
   /^apps\/mobile\/ios\/App\/App\.xcodeproj\//,
   /^apps\/mobile\/ios\/App\/App\/public\//,
   /\.min\.js$/

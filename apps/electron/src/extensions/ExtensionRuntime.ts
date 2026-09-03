@@ -16,6 +16,7 @@ import {
   ElectronRect
 } from "@once/platform-electron/bridge"
 import { applySettingsToExtension } from "./extensionSettingsApply"
+import { BundledExtensionSource } from "./bundledExtensions"
 import { ContextEntry, frameContextId } from "./ExtensionContexts"
 import { ApiHandler, createApiHandlers } from "./ExtensionApi"
 import { ExtensionHost } from "./ExtensionHost"
@@ -162,23 +163,42 @@ export class ExtensionRuntime {
   }
 
   /**
-   * Loads every directory named in `ONCE_ELECTRON_EXTENSIONS`, separated
-   * like PATH. A failure is logged and the others still load; there is no
-   * allowlist yet, so this is the development entry point (plan step 8).
+   * Loads the shipped extensions from the vendor root, each checked against
+   * the id it is listed under, so a swapped bundle does not load as one of
+   * them. A development checkout without the fetched bundles loads none and
+   * says so. `ONCE_ELECTRON_EXTENSIONS`, PATH-style, adds directories in
+   * unpackaged builds only, for fixtures and trying an extension out.
    */
-  async loadConfigured(configured = process.env.ONCE_ELECTRON_EXTENSIONS): Promise<void> {
-    for (const directory of extensionDirectories(configured)) {
-      try {
-        const extension = await this.load(directory)
-        console.log(`Loaded extension ${extension.name} ${extension.manifest.version}`)
-      } catch (error) {
-        console.error("Extension failed to load", directory, error)
+  async loadBundled(
+    sources: BundledExtensionSource[],
+    extra = process.env.ONCE_ELECTRON_EXTENSIONS
+  ): Promise<void> {
+    for (const source of sources) {
+      if (!source.present) {
+        console.warn(`Bundled extension ${source.id} is not present; run npm run fetch:extensions`)
+        continue
       }
+      await this.loadLogged(source.directory, source.id)
+    }
+    if (!app.isPackaged) {
+      for (const directory of extensionDirectories(extra)) await this.loadLogged(directory)
     }
   }
 
-  async load(directory: string): Promise<LoadedExtension> {
+  private async loadLogged(directory: string, expectedId?: string): Promise<void> {
+    try {
+      const extension = await this.load(directory, expectedId)
+      console.log(`Loaded extension ${extension.name} ${extension.manifest.version}`)
+    } catch (error) {
+      console.error("Extension failed to load", directory, error)
+    }
+  }
+
+  async load(directory: string, expectedId?: string): Promise<LoadedExtension> {
     const extension = await loadUnpackedExtension(directory, app.getLocale())
+    if (expectedId !== undefined && extension.id !== expectedId) {
+      throw new Error(`${directory} is ${extension.id}, not the listed ${expectedId}`)
+    }
     const existing = this.hosts.get(extension.host)
     if (existing) await this.unload(extension.host)
     const host = new ExtensionHost({

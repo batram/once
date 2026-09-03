@@ -21,7 +21,7 @@ export default tseslint.config(
       "apps/mobile/android/**/build/",
       "apps/mobile/android/app/src/main/assets/",
       // third-party extension bundles unpacked by scripts/fetch-extensions.js
-      "apps/mobile/extensions/vendor/",
+      "vendor/extensions/",
       "apps/mobile/ios/build/",
       "apps/mobile/ios/App/App/public/"
     ]

@@ -19,7 +19,13 @@ uBlock Origin, Violentmonkey, and Once's own bridge extension built in from
 the APK's assets, and the existing surface events, source picker, menus, and
 pull-to-refresh work over it. Verified on the API 36 emulator: uBlock
 strict-blocked an ad host and showed its blocked-page in the surface, and
-its generic cosmetic filters hid probe elements. Step 7 (iOS) is next.
+its generic cosmetic filters hid probe elements. Step 8 is done: one
+pinned, hash-checked fetch feeds both Electron (as packaged resources) and
+Android (as built-in assets), the Electron runtime loads only its listed
+extensions and refuses a bundle whose id differs, and RELEASING.md carries
+the update procedure. Step 7 (iOS) remains and needs the Mac toolchain;
+nothing for it has been written, since Swift changes cannot be built or
+verified on the Windows machine this work was done on.
 
 Open on Android after step 6: the settings hand-off. The Electron applier
 talks to an extension's background page as one of its own pages; GeckoView

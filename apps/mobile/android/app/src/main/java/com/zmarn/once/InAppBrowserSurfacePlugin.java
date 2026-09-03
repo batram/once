@@ -46,8 +46,8 @@ public class InAppBrowserSurfacePlugin extends Plugin {
     private static final String BRIDGE_NATIVE_APP = "once_surface";
     private static final String[][] BUILT_IN_EXTENSIONS = {
         { "resource://android/assets/once-surface/", BRIDGE_EXTENSION_ID },
-        { "resource://android/assets/vendor/ublock-origin/", "uBlock0@raymondhill.net" },
-        { "resource://android/assets/vendor/violentmonkey/", "{aecec67f-0d10-4fa7-b7c7-609a2db280cf}" }
+        { "resource://android/assets/ublock-origin/", "uBlock0@raymondhill.net" },
+        { "resource://android/assets/violentmonkey/", "{aecec67f-0d10-4fa7-b7c7-609a2db280cf}" }
     };
 
     /** One engine per process; sessions come and go with the surface. */
