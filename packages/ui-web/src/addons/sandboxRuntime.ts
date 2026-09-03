@@ -8,8 +8,16 @@ import type { HostToSandbox, SandboxOperation, SandboxToHost, StoryView } from "
 type InvokeHandler = (action: string, story: StoryView) => unknown
 type BadgesHandler = (contribution: string, stories: readonly StoryView[]) => unknown
 
+/** What an add-on collector implements; `parse` gets the body as the manifest's `collects` says. */
+interface CollectorHandlers {
+  parse(body: string | Record<string, unknown>, context: { url: string; config: unknown }): unknown
+  globalSearch?(needle: string): unknown
+  domainSearch?(needle: string): unknown
+}
+
 interface OnceApi {
   readonly settings: Readonly<Record<string, unknown>>
+  readonly collectors: { register(id: string, handlers: CollectorHandlers): void }
   onInvoke(handler: InvokeHandler): void
   onBadges(handler: BadgesHandler): void
   onSettings(handler: (settings: Readonly<Record<string, unknown>>) => void): void
@@ -29,6 +37,7 @@ export function startSandboxRuntime(scope: Window): void {
   let invoke: InvokeHandler | null = null
   let badges: BadgesHandler | null = null
   let settings: Record<string, unknown> = {}
+  const collectors = new Map<string, CollectorHandlers>()
   const settingsListeners: ((settings: Readonly<Record<string, unknown>>) => void)[] = []
   let currentRequest: number | undefined
   let loaded = false
@@ -37,6 +46,12 @@ export function startSandboxRuntime(scope: Window): void {
   const api: OnceApi = {
     get settings() {
       return settings
+    },
+    collectors: {
+      register: (id, handlers) => {
+        if (typeof handlers?.parse !== "function") throw new Error(`Collector ${id} needs a parse function`)
+        collectors.set(id, handlers)
+      }
     },
     onInvoke: (handler) => { invoke = handler },
     onBadges: (handler) => { badges = handler },
@@ -108,6 +123,21 @@ export function startSandboxRuntime(scope: Window): void {
       case "settings":
         settings = { ...message.settings }
         for (const listener of settingsListeners) listener(settings)
+        break
+      case "collector.parse":
+        void answer(message.requestId, () => {
+          const collector = collectors.get(message.collector)
+          if (!collector) throw new Error(`The add-on registered no collector named ${message.collector}`)
+          return collector.parse(message.body, { url: message.url, config: message.config })
+        })
+        break
+      case "collector.search":
+        void answer(message.requestId, () => {
+          const collector = collectors.get(message.collector)
+          const search = message.kind === "global" ? collector?.globalSearch : collector?.domainSearch
+          if (!search) throw new Error(`Collector ${message.collector} has no ${message.kind} search`)
+          return search.call(collector, message.needle)
+        })
         break
     }
   })

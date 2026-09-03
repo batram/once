@@ -50,6 +50,16 @@ export declare interface StoryParser {
     context: ParseContext
   ) => Story[]
   /**
+   * A collector that decodes the body itself, elsewhere: add-on collectors
+   * run in a sandbox and get the fetched text (or the parsed JSON value for
+   * `collects: "json"`), not a Document. When present the loader calls this
+   * instead of `parse`, which such a collector implements as a throw.
+   */
+  parseBody?: (
+    body: string | Record<string, unknown>,
+    context: ParseContext
+  ) => Promise<Story[]>
+  /**
    * Validates untrusted configuration and returns a copy holding only known
    * fields, or throws. One path for the picker, an import, and a converted
    * typed source, so nothing reaches `parse` unchecked.
@@ -79,7 +89,27 @@ export type DomainSearchProvider = StoryParser &
  * be a type error, so `tests/unit/collectors/registry-ids.test.js` asserts the
  * ids instead — and that test doubles as the guard against renaming one.
  */
+// Collectors add-ons contributed, after the built-ins so their URL patterns
+// never capture a source a built-in handles. Ids are `addon:<addon>/<id>`.
+const registered = new Map<string, StoryParser>()
+
+/** Adds an add-on collector; the id must be namespaced and the badge unused. */
+export function registerCollector(parser: StoryParser): () => void {
+  const { id, type } = parser.options
+  if (!id.startsWith("addon:")) throw new Error(`Add-on collectors must use addon: ids, got ${id}`)
+  const clash = builtinCollectors().find((builtin) => builtin.options.type === type)
+  if (clash) throw new Error(`Type badge ${type} belongs to the built-in ${clash.options.id} collector`)
+  registered.set(id, parser)
+  return () => {
+    if (registered.get(id) === parser) registered.delete(id)
+  }
+}
+
 export function get_active(): StoryParser[] {
+  return [...builtinCollectors(), ...registered.values()]
+}
+
+function builtinCollectors(): StoryParser[] {
   return [
     {
       options: genyMatch.options,

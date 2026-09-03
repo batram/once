@@ -152,6 +152,48 @@ test("a scripted add-on runs in the sandbox: computed badges, message actions, s
   }
 })
 
+// A collector add-on: the script parses a JSON feed Once fetched and cached,
+// its stories carry the collector's badge, and a plain URL line in the sources
+// is enough because the manifest's pattern matches it.
+const COLLECTOR_MANIFEST = (origin) => [{
+  ...SCRIPTED_MANIFEST(origin)[0],
+  id: "harness-collector",
+  name: "Harness Collector",
+  contributions: [],
+  collectors: [{
+    id: "json", type: "HX", description: "Harness JSON feed", collects: "json",
+    pattern: [`${origin}/api/*`], colors: ["#336699", "white"]
+  }]
+}]
+
+test("a collector add-on turns a JSON feed into stories with its own badge", async () => {
+  const { electronApp, userData, window } = await launchApp(STORY_ENV)
+  try {
+    const editor = await openSettingsSection(window, "addons", "#addons_area")
+    await editor.evaluate((textarea, value) => {
+      textarea.value = value
+    }, JSON.stringify(COLLECTOR_MANIFEST(origin), null, 2))
+    await window.getByTestId("save-addons").evaluate((button) => button.click())
+    await expect(window.locator('[data-settings-target="addons"] .settings_section_summary'))
+      .toHaveText("1 of 1 enabled")
+
+    // The fixture's sources document plus one plain source; the collector is
+    // detected from the add-on's pattern, not named.
+    const sources = JSON.parse(storyFixture.sourceLine(origin))
+    sources.sources.push({ id: "src_addon0001", url: `${origin}/api/stories.json` })
+    await seedLocalSource(window, JSON.stringify(sources), urls.alpha)
+    await showAllStories(window)
+    const one = window.locator(`#stories story-item[data-href="${origin}/api-story/1"]`)
+    await expect(one).toBeVisible({ timeout: 15_000 })
+    await expect(one).toHaveAttribute("data-type", "[HX]")
+    await expect(one.locator("a.title")).toHaveText("Addon One (/api/stories.json)")
+    await expect(one).toHaveAttribute("data-comment_url", `${origin}/api-comments/1`)
+    await expect(window.locator(`#stories story-item[data-href="${origin}/api-story/2"]`)).toBeVisible()
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
 test("a manifest with a problem is refused with the problem named, and nothing changes", async () => {
   const { electronApp, userData, window } = await launchApp()
   try {

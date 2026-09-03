@@ -95,6 +95,23 @@ export class AddonSandboxSession {
     return readBadgeTexts(value, stories.length)
   }
 
+  /** A collector's parse: the body goes in, plain story objects come back. */
+  collectorParse(collector: string, url: string, body: string | Record<string, unknown>, config: unknown): Promise<unknown> {
+    return this.request(
+      (requestId) => ({ type: "collector.parse", requestId, collector, url, body, config }),
+      new Set(),
+      SANDBOX_TIMEOUTS.parseMs
+    )
+  }
+
+  collectorSearch(collector: string, kind: "global" | "domain", needle: string): Promise<unknown> {
+    return this.request(
+      (requestId) => ({ type: "collector.search", requestId, collector, kind, needle }),
+      new Set(),
+      SANDBOX_TIMEOUTS.searchMs
+    )
+  }
+
   /** Every message from the frame lands here, already known to be from it. */
   receive(data: unknown): void {
     const message = readSandboxMessage(data)

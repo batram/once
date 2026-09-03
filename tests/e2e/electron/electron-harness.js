@@ -45,8 +45,23 @@ const ADDON_SCRIPT = `export default function activate(once) {
     if (action === "sneak") once.openUrl({ href: "https://elsewhere.test/" }, "https://elsewhere.test/", "blank")
   })
   once.onBadges((contribution, stories) => stories.map((story) => contribution + " " + story.title.length))
+  once.collectors.register("json", {
+    parse(body, context) {
+      return body.items.map((item) => ({
+        href: item.url, title: item.title + " (" + new URL(context.url).pathname + ")",
+        comment_url: item.comments, timestamp: item.at, tags: [{ text: item.tag }]
+      }))
+    }
+  })
 }
 `
+
+const ADDON_API_STORIES = (origin) => ({
+  items: [
+    { url: `${origin}/api-story/1`, title: "Addon One", comments: `${origin}/api-comments/1`, at: 1700000000000, tag: "api" },
+    { url: `${origin}/api-story/2`, title: "Addon Two", comments: "", at: 1700000001000, tag: "api" }
+  ]
+})
 
 // The scripts the extension and add-on specs install: a scripted Once add-on
 // (its manifest pins this exact text by hash, so specs compute the integrity
@@ -56,6 +71,12 @@ function serveFixtureScript(request, response, origin) {
   if (request.url === "/addon/main.js") {
     response.writeHead(200, { "content-type": "text/javascript; charset=utf-8" })
     response.end(ADDON_SCRIPT)
+    return true
+  }
+  // The feed the fixture add-on's collector reads.
+  if (request.url === "/api/stories.json") {
+    response.writeHead(200, { "content-type": "application/json; charset=utf-8" })
+    response.end(JSON.stringify(ADDON_API_STORIES(origin)))
     return true
   }
   if (request.url === "/once-test.user.js") {

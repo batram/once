@@ -167,6 +167,59 @@ test("scripted contributions need a pinned script, and message names are identif
   assert.deepEqual(readBadgeTexts(["a", 1], 3), ["a", "", ""])
 })
 
+test("collectors need a script, a 2–4 character badge, and a readable config schema", () => {
+  const { readConfigSchema, validateConfig, readAddonStories } = require("../../../packages/core/dist/addons")
+  const withCollector = manifest()
+  withCollector.contributions = []
+  withCollector.collectors = [{
+    id: "json", type: "DJ", description: "Demo JSON", collects: "json",
+    pattern: ["https://demo.test/api/*"], colors: ["#123456", "white"], cacheMinutes: 30,
+    config: { type: "object", properties: { minPoints: { type: "number", minimum: 0, default: 0 } } },
+    search: ["global"]
+  }]
+  assert.deepEqual(readAddonManifest(withCollector).reports.map((r) => r.path), ["script"])
+  withCollector.script = { url: "https://addons.example/main.js", integrity: "sha256-" + "A".repeat(43) + "=" }
+  const read = readAddonManifest(withCollector)
+  assert.equal(read.ok, true)
+  assert.equal(read.manifest.collectors[0].type, "DJ")
+  assert.deepEqual(read.manifest.collectors[0].search, ["global"])
+  assert.equal(read.manifest.collectors[0].cacheMinutes, 30)
+
+  withCollector.collectors[0].type = "toolong"
+  withCollector.collectors[0].config = { type: "object", properties: { "bad name": { type: "string" } } }
+  const bad = readAddonManifest(withCollector)
+  const paths = bad.reports.map((r) => r.path)
+  assert.ok(paths.includes("collectors[0].type"), paths.join())
+  assert.ok(paths.includes("collectors[0].config"), paths.join())
+
+  const schema = readConfigSchema({
+    type: "object",
+    properties: {
+      minPoints: { type: "number", minimum: 0, default: 5 },
+      mode: { type: "string", enum: ["hot", "new"] },
+      tags: { type: "array", items: { type: "string", maxLength: 10 }, maxItems: 3 }
+    },
+    required: ["mode"]
+  })
+  assert.deepEqual(validateConfig(schema, { mode: "hot", tags: ["a"], extra: 1 }), { minPoints: 5, mode: "hot", tags: ["a"] })
+  assert.throws(() => validateConfig(schema, {}), /config\.mode is required/)
+  assert.throws(() => validateConfig(schema, { mode: "warm" }), /one of hot, new/)
+  assert.throws(() => validateConfig(schema, { mode: "hot", minPoints: -1 }), /at least 0/)
+
+  const stories = readAddonStories([
+    { href: "https://a.test/1", title: "  One ", comment_url: "https://a.test/c", score: 3, nested: {}, type: "XX" },
+    { href: "ftp://a.test/2", title: "Two" },
+    { href: "https://a.test/3", title: "" },
+    "junk",
+    { href: "https://a.test/4", title: "Four", tags: [{ text: "t", href: "javascript:x" }, "no"], timestamp: "2024-01-01" }
+  ], "DJ")
+  assert.deepEqual(stories.map((s) => [s.type, s.href, s.title]), [["DJ", "https://a.test/1", "One"], ["DJ", "https://a.test/4", "Four"]])
+  assert.equal(stories[0].score, 3)
+  assert.equal("nested" in stories[0], false)
+  assert.deepEqual(stories[1].tags, [{ class: "category", text: "t" }])
+  assert.throws(() => readAddonStories({}, "DJ"), /list of stories/)
+})
+
 test("defaults fill in: action group navigation, surfaces button and menu", () => {
   const read = readAddonManifest({
     ...manifest(),

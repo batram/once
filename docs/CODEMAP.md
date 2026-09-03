@@ -155,6 +155,9 @@ All paths below are under `packages/ui-web/src/story`.
   its own into `public/addon-sandbox.html` (Electron: the `addon_sandbox`
   Forge entry, served by `apps/electron/src/AddonSandboxProtocol.ts`).
 - `badgeScheduler.ts` batches computed-badge requests per tick.
+- `addonCollectors.ts` wraps a manifest's collectors as `StoryParser`s
+  (`parseBody` into the sandbox, config validated by the declared schema)
+  and registers them with `@once/collectors`, after the built-ins.
 - `storyRowSubstories.ts` builds the per-source lines under the title.
 - `storyLinks.ts` owns anchor behaviour on a row: claiming clicks and
   middle-clicks from the browser, and marking a story read when its URL opens.

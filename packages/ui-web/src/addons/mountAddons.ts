@@ -19,7 +19,9 @@ import { registerStoryElement, refreshStoryElements } from "../story/storyElemen
 import { createIconButton } from "../story/storyRowMarkup"
 import { searchStories } from "../story/storySearch"
 import { LoaderInsights } from "../shell/LoaderInsights"
+import { addCollectorColorStyles } from "../collectorStyles"
 import { AddonSandbox } from "./AddonSandbox"
+import { registerAddonCollector } from "./addonCollectors"
 import { BadgeScheduler } from "./badgeScheduler"
 
 export interface MountAddonsOptions {
@@ -37,14 +39,24 @@ export interface MountAddonsOptions {
  */
 export function mountAddons(client: OnceClient, options: MountAddonsOptions = {}): void {
   const release: (() => void)[] = []
+  let collectorsSeen = false
   const apply = async (): Promise<void> => {
     for (const fn of release.splice(0)) fn()
     const doc = await client.getAddons()
+    let collectorsNow = false
     for (const entry of doc.addons) {
       if (!entry.enabled) continue
       release.push(...await registerManifest(client, entry.manifest, options))
+      collectorsNow ||= entry.manifest.collectors.length > 0 && entry.manifest.script !== undefined
     }
     refreshStoryElements()
+    // Sources naming an add-on collector resolve against the registry at
+    // load time, so a change in the set is a reason to load again.
+    if (collectorsNow || collectorsSeen) {
+      addCollectorColorStyles()
+      void client.reloadStories("cache-first")
+    }
+    collectorsSeen = collectorsNow
   }
   void apply().catch((error) => report("Add-ons could not be loaded", error))
   client.subscribe("settingsChanged", ({ section }) => {
@@ -79,6 +91,15 @@ async function registerManifest(
   const sandbox = await sandboxFor(client, manifest, options)
   if (sandbox) releases.push(() => sandbox.dispose())
   const scheduler = sandbox ? new BadgeScheduler(sandbox, viewOf) : null
+  if (sandbox) {
+    for (const collector of manifest.collectors) {
+      try {
+        releases.push(registerAddonCollector(manifest, collector, sandbox))
+      } catch (error) {
+        report(`Add-on ${manifest.name} could not register collector ${collector.id}`, error)
+      }
+    }
+  }
 
   for (const contribution of manifest.contributions) {
     const id = addonContributionId(manifest.id, contribution.id)

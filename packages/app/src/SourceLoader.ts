@@ -86,7 +86,7 @@ export class SourceLoader {
     if (!entry) return null
     let stories: Story[]
     try {
-      stories = this.parseCached(entry.body, resolved)
+      stories = await this.parseCached(entry.body, resolved)
     } catch {
       return null
     }
@@ -103,13 +103,19 @@ export class SourceLoader {
     return { stories }
   }
 
-  private parseCached(
+  private async parseCached(
     body: unknown,
     resolved: StoryParser.ResolvedStorySource
-  ): Story[] {
+  ): Promise<Story[]> {
     const { collector, url } = resolved
     let input = body
     try {
+      if (collector.parseBody) {
+        return await collector.parseBody(
+          input as string | Record<string, unknown>,
+          { url, config: resolved.config }
+        )
+      }
       if (collector.options.collects == "dom") {
         input = StoryParser.parse_dom(input as string, url)
       } else if (collector.options.collects == "xml") {

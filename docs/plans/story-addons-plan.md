@@ -17,7 +17,18 @@ code is fetched per device and run in a sandboxed frame served over
 validated protocol, operations are scoped to the invoked story, and three
 failures switch an add-on off. Verified by session unit tests and an
 Electron e2e with a fixture script. Firefox has no serving path yet (see the
-table below); Chrome and mobile serving are steps 5 and 6's neighbours.
+table below); Chrome and mobile serving are step 6's neighbours.
+
+Step 5 is done: a manifest may declare `collectors` (badge, description,
+detection patterns tried after every built-in, `collects`, colours, a cache
+window, a config schema subset, which searches it offers). Each becomes a
+`StoryParser` in the shared registry whose `parseBody` crosses into the
+sandbox with the fetched body and returns vetted stories carrying the
+declared badge; fetching, caching, resolution, and the search box are
+unchanged. Verified by registry and result-validation unit tests and an
+Electron e2e where a plain URL line becomes stories with the add-on's badge.
+The schema-driven configuration form in the source editor is not built yet;
+configuration is validated when a typed source names the collector.
 
 ## Decision
 

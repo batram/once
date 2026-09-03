@@ -65,6 +65,14 @@ export async function parse_response(
   const { collector, url } = resolved
   const context = { url, config: resolved.config }
 
+  if (collector.parseBody) {
+    const body = collector.options.collects == "json"
+      ? (await resp.json()) as Record<string, unknown>
+      : await resp.text()
+    await cache_result(options, url, [Date.now(), body])
+    return collector.parseBody(body, context)
+  }
+
   if (collector.options.collects == "json") {
     try {
       const json_content = await resp.json()

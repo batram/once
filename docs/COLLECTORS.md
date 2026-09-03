@@ -206,6 +206,27 @@ configuration before fetching. Parsing throws a descriptive error for invalid
 selectors or empty required story values, and the application surfaces those
 as source errors.
 
+## Add-on collectors
+
+A Once add-on with a script may declare collectors in its manifest
+(`collectors: [{ id, type, description, pattern, collects, colors,
+cacheMinutes, config, search }]`; see `docs/plans/story-addons-plan.md`).
+Each is registered with the shared registry as `addon:<addon>/<id>`, after
+every built-in, so its detection patterns never capture a source a built-in
+handles. Loading is unchanged from the user's side: Once resolves the source,
+fetches, and caches as for any collector, then calls the collector's
+`parseBody` with the fetched text (or the parsed value for `collects: "json"`)
+instead of `parse`. That call crosses into the add-on's sandbox, where the
+script's `once.collectors.register(id, { parse(body, { url, config }) })`
+handler runs and returns plain story objects. The host vets them
+(`readAddonStories`): http(s) URLs only, the collector's declared `type`, caps
+on count and lengths, scalar extras only. A `config` schema, a small JSON
+Schema subset, becomes the collector's `normalizeConfig`, so a typed source
+naming the collector has its `select` validated before fetching. `search`
+lists the searches the script implements (`globalSearch`, `domainSearch`).
+Built-in ids and type badges stay reserved: registering a clashing badge is
+refused.
+
 ## Developing collectors
 
 A collector module exports `options` plus at least `parse(input, context)`. Its

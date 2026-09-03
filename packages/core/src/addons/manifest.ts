@@ -4,6 +4,7 @@
 // Only declarative contributions are accepted yet; a `script` is refused.
 
 import { AddonCondition, CONDITION_KEYS } from "./conditions"
+import { ConfigSchema, readConfigSchema } from "./configSchema"
 import { isKnownPlaceholder, templatePlaceholders } from "./templates"
 
 export const ADDON_PROTOCOL = 1
@@ -79,6 +80,24 @@ export type StoryContribution =
   | StoryBadgeContribution
   | StoryLineContribution
 
+/**
+ * A collector the add-on's script implements. Fetching and caching stay with
+ * Once; the script receives the body and returns stories. `type` is the badge
+ * shown on rows and must not be one a built-in collector uses.
+ */
+export interface AddonCollector {
+  id: string
+  type: string
+  description: string
+  /** URL patterns for detection, tried after every built-in; empty means named only. */
+  pattern: readonly string[]
+  collects: "dom" | "json" | "xml"
+  colors: [string, string]
+  cacheMinutes?: number
+  config?: ConfigSchema
+  search: readonly ("global" | "domain")[]
+}
+
 export interface AddonManifest {
   protocol: number
   id: string
@@ -88,15 +107,22 @@ export interface AddonManifest {
   homepage?: string
   script?: AddonScript
   contributions: readonly StoryContribution[]
+  collectors: readonly AddonCollector[]
 }
 
-/** True when any contribution hands work to the add-on's script. */
-export function manifestNeedsScript(contributions: readonly StoryContribution[]): boolean {
-  return contributions.some((contribution) =>
+/** True when any contribution or collector hands work to the add-on's script. */
+export function manifestNeedsScript(
+  contributions: readonly StoryContribution[],
+  collectors: readonly AddonCollector[] = []
+): boolean {
+  return collectors.length > 0 || contributions.some((contribution) =>
     (contribution.kind === "action" && "message" in contribution.run) ||
     (contribution.kind === "badge" && contribution.compute !== undefined)
   )
 }
+
+const TYPE_BADGE = /^[A-Za-z0-9]{2,4}$/
+const COLOR = /^(#[0-9a-fA-F]{3,8}|[a-zA-Z]{3,20})$/
 
 export interface AddonReport {
   path: string
@@ -245,6 +271,51 @@ class Reader {
     }
   }
 
+  collector(value: unknown, path: string): AddonCollector | undefined {
+    if (!isRecord(value)) return this.fail(path, "must be an object")
+    const id = this.string(value.id, `${path}.id`, 40)
+    if (id !== undefined && !ADDON_LIMITS.idPattern.test(id)) {
+      this.fail(`${path}.id`, "must be 3–40 lower-case letters, digits, or dashes")
+    }
+    const type = this.string(value.type, `${path}.type`, 4)
+    if (type !== undefined && !TYPE_BADGE.test(type)) this.fail(`${path}.type`, "must be 2–4 letters or digits")
+    const description = this.string(value.description, `${path}.description`, ADDON_LIMITS.label)
+    const pattern = value.pattern === undefined ? [] : this.stringList(value.pattern, `${path}.pattern`)
+    if (!["dom", "json", "xml"].includes(String(value.collects))) {
+      this.fail(`${path}.collects`, "must be dom, json, or xml")
+    }
+    let colors: [string, string] = ["#888888", "white"]
+    if (value.colors !== undefined) {
+      const list = this.stringList(value.colors, `${path}.colors`)
+      if (list && (list.length !== 2 || !list.every((color) => COLOR.test(color)))) {
+        this.fail(`${path}.colors`, "must be two colour names or hex values")
+      } else if (list) colors = [list[0], list[1]]
+    }
+    let cacheMinutes: number | undefined
+    if (value.cacheMinutes !== undefined) {
+      if (typeof value.cacheMinutes !== "number" || value.cacheMinutes < 0 || value.cacheMinutes > 60 * 24 * 7) {
+        this.fail(`${path}.cacheMinutes`, "must be a number of minutes up to a week")
+      } else cacheMinutes = Math.round(value.cacheMinutes)
+    }
+    let config: ConfigSchema | undefined
+    if (value.config !== undefined) {
+      try {
+        config = readConfigSchema(value.config, `${path}.config`)
+      } catch (error) {
+        this.fail(`${path}.config`, error instanceof Error ? error.message : String(error))
+      }
+    }
+    const search = value.search === undefined ? [] : this.stringList(value.search, `${path}.search`)
+    if (search && !search.every((kind) => kind === "global" || kind === "domain")) {
+      this.fail(`${path}.search`, "may list global and domain")
+    }
+    if (id === undefined || type === undefined || description === undefined || pattern === undefined) return undefined
+    return {
+      id, type, description, pattern, collects: value.collects as AddonCollector["collects"],
+      colors, cacheMinutes, config, search: (search ?? []) as ("global" | "domain")[]
+    }
+  }
+
   contribution(value: unknown, path: string): StoryContribution | undefined {
     if (!isRecord(value)) return this.fail(path, "must be an object")
     const id = this.string(value.id, `${path}.id`, 40)
@@ -343,8 +414,25 @@ export function readAddonManifest(value: unknown): AddonManifestRead {
       contributions.push(contribution)
     })
   }
-  if (script === undefined && manifestNeedsScript(contributions)) {
-    reader.fail("script", "is required: a contribution uses message or compute")
+  const collectors: AddonCollector[] = []
+  if (value.collectors !== undefined) {
+    if (!Array.isArray(value.collectors)) {
+      reader.fail("collectors", "must be a list")
+    } else if (value.collectors.length > ADDON_LIMITS.contributions) {
+      reader.fail("collectors", `has more than ${ADDON_LIMITS.contributions} entries`)
+    } else {
+      const seen = new Set<string>()
+      value.collectors.forEach((entry, index) => {
+        const collector = reader.collector(entry, `collectors[${index}]`)
+        if (!collector) return
+        if (seen.has(collector.id)) reader.fail(`collectors[${index}].id`, "is used twice")
+        seen.add(collector.id)
+        collectors.push(collector)
+      })
+    }
+  }
+  if (script === undefined && manifestNeedsScript(contributions, collectors)) {
+    reader.fail("script", "is required: a contribution uses message or compute, or the add-on has collectors")
   }
   if (reader.reports.length > 0 || id === undefined || name === undefined || version === undefined) {
     return { ok: false, reports: reader.reports }
@@ -352,6 +440,6 @@ export function readAddonManifest(value: unknown): AddonManifestRead {
   return {
     ok: true,
     reports: [],
-    manifest: { protocol: ADDON_PROTOCOL, id, name, version, author, homepage, script, contributions }
+    manifest: { protocol: ADDON_PROTOCOL, id, name, version, author, homepage, script, contributions, collectors }
   }
 }

@@ -97,13 +97,15 @@ export function parseAddonsText(text: string): AddonsDocument {
 export function presentAddons(doc: AddonsDocument): string {
   if (doc.addons.length === 0) return ""
   const entries = doc.addons.map(({ enabled, manifest }) => {
-    const { protocol, id, name, version, author, homepage, contributions } = manifest
+    const { protocol, id, name, version, author, homepage, script, contributions, collectors } = manifest
     return {
       ...(enabled ? {} : { enabled: false }),
       protocol, id, name, version,
       ...(author ? { author } : {}),
       ...(homepage ? { homepage } : {}),
-      contributions
+      ...(script ? { script } : {}),
+      contributions,
+      ...(collectors.length > 0 ? { collectors } : {})
     }
   })
   return JSON.stringify(entries, null, 2)

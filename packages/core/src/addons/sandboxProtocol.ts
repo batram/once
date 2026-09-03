@@ -10,7 +10,9 @@ export const SANDBOX_PROTOCOL = 1
 export const SANDBOX_TIMEOUTS = Object.freeze({
   loadMs: 5_000,
   invokeMs: 3_000,
-  badgesMs: 5_000
+  badgesMs: 5_000,
+  parseMs: 20_000,
+  searchMs: 15_000
 })
 
 export const SANDBOX_LIMITS = Object.freeze({
@@ -28,6 +30,16 @@ export type HostToSandbox =
   | { type: "invoke"; requestId: number; action: string; story: StoryView }
   | { type: "badges"; requestId: number; contribution: string; stories: readonly StoryView[] }
   | { type: "settings"; settings: Readonly<Record<string, unknown>> }
+  | {
+    type: "collector.parse"
+    requestId: number
+    collector: string
+    url: string
+    /** The fetched text, or the parsed value for a JSON collector. */
+    body: string | Record<string, unknown>
+    config: unknown
+  }
+  | { type: "collector.search"; requestId: number; collector: string; kind: "global" | "domain"; needle: string }
 
 /** The operations a script may ask of the host. Each names the story it is about. */
 export type SandboxOperation =

@@ -1,6 +1,12 @@
 import { get_parser } from "@once/collectors"
 
+/**
+ * One style rule per collector badge. Rebuilds from the current registry
+ * each time, so calling it again after add-on collectors registered adds
+ * theirs and drops the ones that left.
+ */
 export function addCollectorColorStyles(): void {
+  for (const stale of document.head.querySelectorAll("style.type_style")) stale.remove()
   for (const parser of get_parser()) {
     const colors = parser.options.colors
     if (!colors || colors[0] === "") continue
