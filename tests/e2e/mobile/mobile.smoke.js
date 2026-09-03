@@ -59,6 +59,65 @@ async function applyExtensionSettings() {
   })
 }
 
+// Saves a fixture filter list and a probing userscript from the settings
+// index, then hands both to the native extension runtime. The article fixture
+// carries the elements these rules and the script act on.
+async function saveExtensionSettings(baseUrl, platform) {
+  await clickWeb(await $("[data-settings-target='filterlists']"), platform)
+  await setWebValue(
+    await $("[data-testid='filter-lists']"),
+    `${baseUrl}/fixtures/mobile-filter-list.txt`
+  )
+  await clickWeb(await $("[data-testid='save-filter-lists']"), platform)
+  await clickWeb(await $("#settings_section_back"), platform)
+  await clickWeb(await $("[data-settings-target='userscripts']"), platform)
+  await setWebValue(await $("[data-testid='userscripts']"), `// ==UserScript==
+// @name Mobile e2e probe
+// @namespace once-e2e
+// @match <all_urls>
+// @run-at document-start
+// ==/UserScript==
+document.documentElement.dataset.onceUserscriptStart = document.readyState;
+GM_addStyle('#once-userscript-target { display: none !important; }');
+    GM_setValue('ran', true);
+    document.documentElement.dataset.onceGmValue = String(GM_getValue('ran', false));`)
+  await clickWeb(await $("[data-testid='save-userscripts']"), platform)
+  await applyExtensionSettings()
+}
+
+// The reader frame is opaque-origin, so automation cannot reach into it.
+// Observe the TTS bridge traffic (readerTtsPolyfill -> readerTtsHostBridge)
+// from the host page instead: the frame must request the native voices.
+async function observeReaderTts() {
+  await browser.execute(() => {
+    window.__onceTtsSeen = []
+    window.addEventListener("message", (event) => {
+      const data = event.data
+      if (data && data.channel === "once-reader-tts") {
+        window.__onceTtsSeen.push({
+          type: data.type,
+          fromReader: event.source ===
+            document.querySelector(".once-reader-host-frame")?.contentWindow,
+          hasSource: Boolean(event.source)
+        })
+      }
+    })
+  })
+}
+
+async function expectExtensionsApplied() {
+  const extensionResult = await evaluateSurface(`({
+    start: document.documentElement.dataset.onceUserscriptStart || null,
+    gm: document.documentElement.dataset.onceGmValue || null,
+    userHidden: getComputedStyle(document.querySelector('#once-userscript-target')).display,
+    filterHidden: getComputedStyle(document.querySelector('.once-filter-hide')).display,
+    ad: document.querySelector('#once-ad-probe').dataset.result || null
+  })`)
+  expect(extensionResult).toEqual({
+    start: "loading", gm: "true", userHidden: "none", filterHidden: "none", ad: "blocked"
+  })
+}
+
 // The per-story action buttons are hidden on mobile; a long-press on the story
 // opens the menu built from describeStoryMenu. Installed apps present it
 // natively, while the web harness retains the DOM anchored-menu fallback. The
@@ -258,26 +317,7 @@ describe("Once mobile", () => {
     await $("[data-testid='theme']").selectByAttribute("value", "light")
     await expect($("body")).toHaveAttribute("data-theme", "light")
     await clickWeb(await $("#settings_section_back"), platform)
-    await clickWeb(await $("[data-settings-target='filterlists']"), platform)
-    await setWebValue(
-      await $("[data-testid='filter-lists']"),
-      `${baseUrl}/fixtures/mobile-filter-list.txt`
-    )
-    await clickWeb(await $("[data-testid='save-filter-lists']"), platform)
-    await clickWeb(await $("#settings_section_back"), platform)
-    await clickWeb(await $("[data-settings-target='userscripts']"), platform)
-    await setWebValue(await $("[data-testid='userscripts']"), `// ==UserScript==
-// @name Mobile e2e probe
-// @namespace once-e2e
-// @match <all_urls>
-// @run-at document-start
-// ==/UserScript==
-document.documentElement.dataset.onceUserscriptStart = document.readyState;
-GM_addStyle('#once-userscript-target { display: none !important; }');
-    GM_setValue('ran', true);
-    document.documentElement.dataset.onceGmValue = String(GM_getValue('ran', false));`)
-    await clickWeb(await $("[data-testid='save-userscripts']"), platform)
-    await applyExtensionSettings()
+    await saveExtensionSettings(baseUrl, platform)
   })
 
   it("loads fixture stories and opens one in the embedded browser", async () => {
@@ -304,16 +344,7 @@ GM_addStyle('#once-userscript-target { display: none !important; }');
       `${baseUrl}/fixtures/article.html`
     )
     await browser.pause(500)
-    const extensionResult = await evaluateSurface(`({
-      start: document.documentElement.dataset.onceUserscriptStart || null,
-      gm: document.documentElement.dataset.onceGmValue || null,
-      userHidden: getComputedStyle(document.querySelector('#once-userscript-target')).display,
-      filterHidden: getComputedStyle(document.querySelector('.once-filter-hide')).display,
-      ad: document.querySelector('#once-ad-probe').dataset.result || null
-    })`)
-    expect(extensionResult).toEqual({
-      start: "loading", gm: "true", userHidden: "none", filterHidden: "none", ad: "blocked"
-    })
+    await expectExtensionsApplied()
     await clickWeb(await $("[data-testid='stories-menu']"), platform)
     await readingContent.waitForDisplayed({ timeout: 10_000, reverse: true })
   })
@@ -321,23 +352,7 @@ GM_addStyle('#once-userscript-target { display: none !important; }');
   it("opens the reader from the native story menu and bridges TTS to the host", async () => {
     const story = await $("[data-testid='story']")
     await story.waitForDisplayed({ timeout: 30_000 })
-    // The reader frame is opaque-origin, so automation cannot reach into it.
-    // Observe the TTS bridge traffic (readerTtsPolyfill -> readerTtsHostBridge)
-    // from the host page instead: the frame must request the native voices.
-    await browser.execute(() => {
-      window.__onceTtsSeen = []
-      window.addEventListener("message", (event) => {
-        const data = event.data
-        if (data && data.channel === "once-reader-tts") {
-          window.__onceTtsSeen.push({
-            type: data.type,
-            fromReader: event.source ===
-              document.querySelector(".once-reader-host-frame")?.contentWindow,
-            hasSource: Boolean(event.source)
-          })
-        }
-      })
-    })
+    await observeReaderTts()
     await storyMenuAction(story, "open-reader", platform, { viaLongPress: true })
     await $("#reading_content").waitForDisplayed({ timeout: 30_000 })
     await browser.waitUntil(async () =>

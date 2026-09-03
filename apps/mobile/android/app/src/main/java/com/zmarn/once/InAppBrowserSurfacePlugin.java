@@ -443,34 +443,27 @@ public class InAppBrowserSurfacePlugin extends Plugin {
             }, error -> Log.e(TAG, "Bridge extension unavailable", error));
             return;
         }
-        session.getWebExtensionController().setMessageDelegate(
-            bridgeExtension,
-            new WebExtension.MessageDelegate() {
-                @Override
-                public void onConnect(WebExtension.Port port) {
-                    if (port.sender.environmentType == WebExtension.MessageSender.ENV_TYPE_CONTENT_SCRIPT
-                        && port.sender.isTopLevel()) {
-                        bridgePort = port;
-                        port.setDelegate(new BridgePort());
-                    }
-                }
-            },
-            BRIDGE_NATIVE_APP
-        );
-        // Background pages use the extension-wide delegate; the session
-        // controller above sees content-script connections for this page.
-        bridgeExtension.setMessageDelegate(
-            new WebExtension.MessageDelegate() {
-                @Override
-                public void onConnect(WebExtension.Port port) {
-                    if (port.sender.environmentType == WebExtension.MessageSender.ENV_TYPE_EXTENSION) {
-                        settingsPort = port;
-                        port.setDelegate(new SettingsPort());
-                        sendExtensionSettings();
-                    }
-                }
-            }, BRIDGE_NATIVE_APP
-        );
+        // The session controller sees this page's content-script connections;
+        // background pages arrive through the extension-wide delegate.
+        WebExtension.MessageDelegate router = new PortRouter();
+        session.getWebExtensionController().setMessageDelegate(bridgeExtension, router, BRIDGE_NATIVE_APP);
+        bridgeExtension.setMessageDelegate(router, BRIDGE_NATIVE_APP);
+    }
+
+    private final class PortRouter implements WebExtension.MessageDelegate {
+        @Override
+        public void onConnect(WebExtension.Port port) {
+            int environment = port.sender.environmentType;
+            if (environment == WebExtension.MessageSender.ENV_TYPE_EXTENSION) {
+                settingsPort = port;
+                port.setDelegate(new SettingsPort());
+                sendExtensionSettings();
+            } else if (environment == WebExtension.MessageSender.ENV_TYPE_CONTENT_SCRIPT
+                && port.sender.isTopLevel()) {
+                bridgePort = port;
+                port.setDelegate(new BridgePort());
+            }
+        }
     }
 
     private void destroySurface() {

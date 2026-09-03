@@ -148,6 +148,9 @@ test("iOS installs synced content rules and parsed userscripts", () => {
   const ios = fs.readFileSync(path.join(
     root, "apps/mobile/ios/App/App/AppDelegate.swift"
   ), "utf8")
+  const iosSupport = fs.readFileSync(path.join(
+    root, "apps/mobile/ios/App/App/ExtensionSupport.swift"
+  ), "utf8")
 
   assert.match(adapter, /parseUserscript\(script\.source\)/)
   assert.match(adapter, /NativeInAppBrowser\.applyExtensionSettings/)
@@ -155,9 +158,9 @@ test("iOS installs synced content rules and parsed userscripts", () => {
   assert.match(ios, /compileContentRuleList/)
   assert.match(ios, /configuration\.userContentController\.add\(contentRuleList\)/)
   assert.match(ios, /runAt == "document-start" \? \.atDocumentStart : \.atDocumentEnd/)
-  assert.match(ios, /const GM_addStyle/)
-  assert.match(ios, /const GM_getValue/)
-  assert.match(ios, /const GM_setValue/)
+  assert.match(iosSupport, /const GM_addStyle/)
+  assert.match(iosSupport, /const GM_getValue/)
+  assert.match(iosSupport, /const GM_setValue/)
 })
 
 test("Android hands synced settings to its trusted Gecko bridge", () => {
