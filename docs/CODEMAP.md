@@ -45,6 +45,7 @@ target lifecycle, permissions, native bridges, and packaging belong in an app.
 | Mobile reading view | `apps/mobile/src/readingController.ts` | Current-story DOM interaction |
 | Mobile reading surface | `apps/mobile/src/readingSurfaceCoordinator.ts` | Native session and surface lifecycle |
 | Native browser bridge | `packages/platform-mobile/src/InAppBrowserSurface.ts` | Capacitor-facing adapter |
+| Android reading surface | `apps/mobile/android/app/src/main/java/com/zmarn/once/InAppBrowserSurfacePlugin.java`, `apps/mobile/extensions/once-surface`, `scripts/fetch-extensions.js` | GeckoView with built-in extensions; the bridge extension; the pinned bundle fetch |
 
 ## Source classifications
 

@@ -55,6 +55,14 @@ uses Capacitor's native HTTP patch for collector and CouchDB requests, and
 opens ordinary links in the platform browser. Reader documents stay inside a
 sandboxed local reader surface.
 
+On Android the reading surface itself is a GeckoView, Firefox's engine,
+beside the Capacitor shell's WebView. It runs the same Firefox-style
+extensions as Electron (uBlock Origin, Violentmonkey) as GeckoView
+built-ins from the APK's assets, which `scripts/fetch-extensions.js` unpacks
+against pinned hashes, plus a bridge extension of Once's own that carries
+script evaluation for the source picker over native messaging. The surface
+adapter's contract in `@once/platform-mobile` is unchanged.
+
 The sync URL can contain credentials, so mobile stores it outside the WebView:
 iOS uses Keychain and Android encrypts an app-private preference with an
 Android Keystore key. Development and release installs use separate bundle IDs

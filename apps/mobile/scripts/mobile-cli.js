@@ -388,6 +388,9 @@ else if (command === "run") {
 } else if (command === "package") {
   sync(platform, channel)
   if (platform === "android") {
+    // The built-in extension bundles are not in the repository; they are
+    // fetched against pinned hashes before the APK that carries them is built.
+    run(process.execPath, [path.join(root, "scripts", "fetch-extensions.js")])
     const android = androidEnvironment(channel)
     const gradleTask = channel === "release"
       ? "bundleProductionRelease"

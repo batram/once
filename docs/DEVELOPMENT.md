@@ -193,7 +193,9 @@ npm run mobile -- open ios --channel dev
 npm run mobile -- serve android --channel dev
 npm run mobile -- serve ios --channel dev
 
-# Internal QA artifacts (debug APK or unsigned simulator app)
+# Internal QA artifacts (debug APK or unsigned simulator app). The Android
+# package first runs scripts/fetch-extensions.js, which downloads the pinned
+# uBlock Origin and Violentmonkey bundles the GeckoView surface builds in.
 npm run mobile -- package android --channel dev
 npm run mobile -- package ios --channel dev
 

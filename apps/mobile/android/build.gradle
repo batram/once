@@ -21,6 +21,8 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        // GeckoView is published by Mozilla, not on Maven Central.
+        maven { url "https://maven.mozilla.org/maven2/" }
     }
 }
 

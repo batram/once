@@ -20,6 +20,8 @@ export default tseslint.config(
       "apps/electron/.webpack/",
       "apps/mobile/android/**/build/",
       "apps/mobile/android/app/src/main/assets/",
+      // third-party extension bundles unpacked by scripts/fetch-extensions.js
+      "apps/mobile/extensions/vendor/",
       "apps/mobile/ios/build/",
       "apps/mobile/ios/App/App/public/"
     ]

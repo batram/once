@@ -2,20 +2,12 @@ package com.zmarn.once;
 
 import android.app.AlertDialog;
 import android.content.Intent;
-import android.graphics.Color;
 import android.net.Uri;
-import android.net.http.SslError;
-import android.os.Message;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
-import android.webkit.DownloadListener;
-import android.webkit.SslErrorHandler;
-import android.webkit.WebChromeClient;
-import android.webkit.WebResourceError;
-import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
-import android.webkit.WebViewClient;
 import android.widget.EditText;
 import android.widget.PopupMenu;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
@@ -25,16 +17,74 @@ import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import org.json.JSONObject;
+import org.mozilla.geckoview.AllowOrDeny;
+import org.mozilla.geckoview.GeckoResult;
+import org.mozilla.geckoview.GeckoRuntime;
+import org.mozilla.geckoview.GeckoRuntimeSettings;
+import org.mozilla.geckoview.GeckoSession;
+import org.mozilla.geckoview.GeckoView;
+import org.mozilla.geckoview.WebExtension;
+import org.mozilla.geckoview.WebRequestError;
+import org.mozilla.geckoview.WebResponse;
 
+/**
+ * The reading surface: a GeckoView beside the Capacitor shell. Firefox's
+ * engine runs the built-in extensions (uBlock Origin, Violentmonkey) the way
+ * Firefox for Android does, and a small bridge extension of Once's own
+ * carries script evaluation for the source picker, which GeckoView has no
+ * direct API for.
+ */
 @CapacitorPlugin(name = "InAppBrowserSurface")
 public class InAppBrowserSurfacePlugin extends Plugin {
-    private WebView surface;
+    private static final String TAG = "OnceSurface";
+    private static final String BRIDGE_EXTENSION_ID = "once-surface@zmarn.com";
+    private static final String BRIDGE_NATIVE_APP = "once_surface";
+    private static final String[][] BUILT_IN_EXTENSIONS = {
+        { "resource://android/assets/once-surface/", BRIDGE_EXTENSION_ID },
+        { "resource://android/assets/vendor/ublock-origin/", "uBlock0@raymondhill.net" },
+        { "resource://android/assets/vendor/violentmonkey/", "{aecec67f-0d10-4fa7-b7c7-609a2db280cf}" }
+    };
+
+    /** One engine per process; sessions come and go with the surface. */
+    private static GeckoRuntime runtime;
+    private static WebExtension bridgeExtension;
+    /** Every built-in that installed, by id; each gets tab delegates on the session. */
+    private static final Map<String, WebExtension> installedExtensions = new HashMap<>();
+    private static InAppBrowserSurfacePlugin activePlugin;
+
+    private GeckoView surface;
+    private GeckoSession session;
     private SwipeRefreshLayout refreshSurface;
     private final AtomicLong navigationSequence = new AtomicLong();
     private long activeNavigation;
+    private String currentUrl = "";
+    private boolean canGoBack;
+    private int scrollY;
+
+    /** Set once the shell asked for a page; the session's initial about:blank is not one. */
+    private boolean pageRequested;
+    /** True while the session's own about:blank is loading, before any requested page. */
+    private boolean initialBlank;
+    private boolean sawRequestedPage;
+
+    private WebExtension.Port bridgePort;
+    private final AtomicLong evaluationSequence = new AtomicLong();
+    private final Map<Long, PluginCall> pendingEvaluations = new HashMap<>();
+
+    /**
+     * The engine and its built-in extensions start with the app rather than
+     * with the first page, so uBlock and the bridge are in place before any
+     * page loads; a content script cannot join a document that began earlier.
+     */
+    @Override
+    public void load() {
+        ensureRuntime(getContext());
+    }
 
     @PluginMethod
     public void open(PluginCall call) {
@@ -47,7 +97,8 @@ public class InAppBrowserSurfacePlugin extends Plugin {
             ensureSurface();
             applyBounds(call.getObject("bounds", new JSObject()));
             setSurfaceVisible(call.getBoolean("visible", true));
-            surface.loadUrl(url);
+            pageRequested = true;
+            session.loadUri(url);
             call.resolve();
         });
     }
@@ -61,7 +112,8 @@ public class InAppBrowserSurfacePlugin extends Plugin {
         }
         getActivity().runOnUiThread(() -> {
             ensureSurface();
-            surface.loadUrl(url);
+            pageRequested = true;
+            session.loadUri(url);
             call.resolve();
         });
     }
@@ -69,7 +121,7 @@ public class InAppBrowserSurfacePlugin extends Plugin {
     @PluginMethod
     public void reload(PluginCall call) {
         getActivity().runOnUiThread(() -> {
-            if (surface != null) surface.reload();
+            if (session != null) session.reload();
             call.resolve();
         });
     }
@@ -77,7 +129,7 @@ public class InAppBrowserSurfacePlugin extends Plugin {
     @PluginMethod
     public void goBack(PluginCall call) {
         getActivity().runOnUiThread(() -> {
-            if (surface != null && surface.canGoBack()) surface.goBack();
+            if (session != null && canGoBack) session.goBack();
             call.resolve();
         });
     }
@@ -191,6 +243,12 @@ public class InAppBrowserSurfacePlugin extends Plugin {
         });
     }
 
+    /**
+     * Runs the script in the page through the bridge extension's content
+     * script and answers with its JSON-encoded result, as a WebView would.
+     * There is no port until the page's content script has connected, which
+     * happens at document start; before that there is nothing to run in.
+     */
     @PluginMethod
     public void evaluateJavaScript(PluginCall call) {
         String script = call.getString("script");
@@ -199,97 +257,152 @@ public class InAppBrowserSurfacePlugin extends Plugin {
             return;
         }
         getActivity().runOnUiThread(() -> {
-            if (surface == null) {
+            if (session == null) {
                 call.reject("There is no open page");
                 return;
             }
-            surface.evaluateJavascript(script, value -> {
-                JSObject result = new JSObject();
-                result.put("value", value);
-                call.resolve(result);
-            });
+            if (bridgePort == null) {
+                call.reject("The page is not ready to run scripts");
+                return;
+            }
+            long id = evaluationSequence.incrementAndGet();
+            pendingEvaluations.put(id, call);
+            try {
+                JSONObject message = new JSONObject();
+                message.put("id", id);
+                message.put("code", script);
+                bridgePort.postMessage(message);
+            } catch (Exception error) {
+                pendingEvaluations.remove(id);
+                call.reject("The script could not be sent to the page", error);
+            }
         });
     }
 
     @PluginMethod
     public void close(PluginCall call) {
         getActivity().runOnUiThread(() -> {
-            if (surface != null) {
-                ViewGroup parent = (ViewGroup) refreshSurface.getParent();
-                if (parent != null) parent.removeView(refreshSurface);
-                surface.stopLoading();
-                surface.destroy();
-                surface = null;
-                refreshSurface = null;
-            }
+            destroySurface();
             call.resolve();
         });
     }
 
     @Override
     protected void handleOnPause() {
-        if (surface != null) surface.onPause();
+        if (session != null) session.setActive(false);
     }
 
     @Override
     protected void handleOnResume() {
-        if (surface != null) surface.onResume();
+        if (session != null) session.setActive(true);
     }
 
     @Override
     protected void handleOnDestroy() {
-        if (surface != null) {
-            surface.destroy();
-            surface = null;
-            refreshSurface = null;
+        destroySurface();
+    }
+
+    private static synchronized GeckoRuntime ensureRuntime(android.content.Context context) {
+        if (runtime != null) return runtime;
+        boolean debuggable = (context.getApplicationInfo().flags
+            & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+        GeckoRuntimeSettings settings = new GeckoRuntimeSettings.Builder()
+            .remoteDebuggingEnabled(debuggable)
+            .build();
+        runtime = GeckoRuntime.create(context.getApplicationContext(), settings);
+        for (String[] extension : BUILT_IN_EXTENSIONS) {
+            String uri = extension[0];
+            String id = extension[1];
+            runtime.getWebExtensionController().ensureBuiltIn(uri, id).accept(
+                installed -> {
+                    Log.i(TAG, "Extension ready: " + id);
+                    installedExtensions.put(id, installed);
+                    installed.setTabDelegate(NEW_TAB_TO_SURFACE);
+                    if (BRIDGE_EXTENSION_ID.equals(id)) bridgeExtension = installed;
+                    if (activePlugin != null) activePlugin.attachExtension(installed);
+                },
+                error -> Log.e(TAG, "Extension failed: " + id, error)
+            );
         }
+        return runtime;
+    }
+
+    /**
+     * tabs.create from an extension: there is one surface, so the page loads
+     * there. GeckoView wants a fresh session back, which a single surface
+     * cannot give, so the extension's own call fails while the page shows.
+     */
+    private static final WebExtension.TabDelegate NEW_TAB_TO_SURFACE = new WebExtension.TabDelegate() {
+        @Override
+        public GeckoResult<GeckoSession> onNewTab(
+            WebExtension source,
+            WebExtension.CreateTabDetails details
+        ) {
+            InAppBrowserSurfacePlugin plugin = activePlugin;
+            if (plugin != null && plugin.session != null && plugin.isSurfaceUrl(details.url)) {
+                plugin.pageRequested = true;
+                plugin.session.loadUri(details.url);
+            }
+            return GeckoResult.fromValue(null);
+        }
+    };
+
+    /**
+     * An extension that navigates "its tab" (uBlock's blocked-page, a
+     * dashboard) does so through tabs.update, which GeckoView only honours
+     * when the session says so.
+     */
+    private void attachExtension(WebExtension extension) {
+        if (session == null) return;
+        session.getWebExtensionController().setTabDelegate(
+            extension,
+            new WebExtension.SessionTabDelegate() {
+                @Override
+                public GeckoResult<AllowOrDeny> onUpdateTab(
+                    WebExtension source,
+                    GeckoSession target,
+                    WebExtension.UpdateTabDetails details
+                ) {
+                    if (details.url != null && isSurfaceUrl(details.url)) {
+                        pageRequested = true;
+                        target.loadUri(details.url);
+                    }
+                    return GeckoResult.fromValue(AllowOrDeny.ALLOW);
+                }
+            }
+        );
     }
 
     private void ensureSurface() {
         if (surface != null) return;
-        surface = new WebView(getContext());
-        surface.setBackgroundColor(Color.WHITE);
-        surface.getSettings().setJavaScriptEnabled(true);
-        surface.getSettings().setDomStorageEnabled(true);
-        surface.getSettings().setSupportMultipleWindows(true);
-        surface.setWebChromeClient(new WebChromeClient() {
+        GeckoRuntime engine = ensureRuntime(getContext());
+        session = new GeckoSession();
+        session.setNavigationDelegate(new Navigation());
+        session.setProgressDelegate(new Progress());
+        session.setContentDelegate(new Content());
+        session.setScrollDelegate(new GeckoSession.ScrollDelegate() {
             @Override
-            public boolean onCreateWindow(
-                WebView view,
-                boolean isDialog,
-                boolean isUserGesture,
-                Message resultMsg
-            ) {
-                WebView externalTarget = new WebView(getContext());
-                externalTarget.setWebViewClient(new WebViewClient() {
-                    @Override
-                    public boolean shouldOverrideUrlLoading(
-                        WebView ignored,
-                        WebResourceRequest request
-                    ) {
-                        openExternal(request.getUrl().toString());
-                        externalTarget.destroy();
-                        return true;
-                    }
-                });
-                WebView.WebViewTransport transport =
-                    (WebView.WebViewTransport) resultMsg.obj;
-                transport.setWebView(externalTarget);
-                resultMsg.sendToTarget();
-                return true;
+            public void onScrollChanged(GeckoSession ignored, int x, int y) {
+                scrollY = y;
             }
         });
-        surface.setDownloadListener((url, userAgent, disposition, mimeType, length) ->
-            openExternal(url)
-        );
-        surface.setWebViewClient(new SurfaceClient());
+        session.open(engine);
+        activePlugin = this;
+        for (WebExtension extension : installedExtensions.values()) attachExtension(extension);
+        attachBridge();
+
+        surface = new GeckoView(getContext());
+        surface.setSession(session);
 
         refreshSurface = new SwipeRefreshLayout(getContext());
         refreshSurface.addView(surface, new ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT
         ));
-        refreshSurface.setOnRefreshListener(surface::reload);
+        // GeckoView is not a scrolling view Android knows about; the page's
+        // scroll position says whether a downward drag means "refresh".
+        refreshSurface.setOnChildScrollUpCallback((parent, child) -> scrollY > 0);
+        refreshSurface.setOnRefreshListener(() -> session.reload());
 
         WebView shell = getBridge().getWebView();
         ViewGroup parent = (ViewGroup) shell.getParent();
@@ -299,6 +412,58 @@ public class InAppBrowserSurfacePlugin extends Plugin {
             shellIndex + 1,
             new ViewGroup.LayoutParams(1, 1)
         );
+    }
+
+    /**
+     * The bridge extension may still be installing when the first session
+     * opens; its delegate is attached as soon as both exist.
+     */
+    private void attachBridge() {
+        if (session == null) return;
+        if (bridgeExtension == null) {
+            runtime.getWebExtensionController().ensureBuiltIn(
+                BUILT_IN_EXTENSIONS[0][0], BRIDGE_EXTENSION_ID
+            ).accept(installed -> {
+                bridgeExtension = installed;
+                attachBridge();
+            }, error -> Log.e(TAG, "Bridge extension unavailable", error));
+            return;
+        }
+        session.getWebExtensionController().setMessageDelegate(
+            bridgeExtension,
+            new WebExtension.MessageDelegate() {
+                @Override
+                public void onConnect(WebExtension.Port port) {
+                    if (!port.sender.isTopLevel()) return;
+                    bridgePort = port;
+                    port.setDelegate(new BridgePort());
+                }
+            },
+            BRIDGE_NATIVE_APP
+        );
+    }
+
+    private void destroySurface() {
+        if (refreshSurface != null) {
+            ViewGroup parent = (ViewGroup) refreshSurface.getParent();
+            if (parent != null) parent.removeView(refreshSurface);
+        }
+        if (surface != null) surface.releaseSession();
+        if (session != null) session.close();
+        failPendingEvaluations("The page was closed");
+        bridgePort = null;
+        pageRequested = false;
+        initialBlank = false;
+        sawRequestedPage = false;
+        if (activePlugin == this) activePlugin = null;
+        session = null;
+        surface = null;
+        refreshSurface = null;
+    }
+
+    private void failPendingEvaluations(String reason) {
+        for (PluginCall pending : pendingEvaluations.values()) pending.reject(reason);
+        pendingEvaluations.clear();
     }
 
     private void applyBounds(JSObject bounds) {
@@ -333,6 +498,13 @@ public class InAppBrowserSurfacePlugin extends Plugin {
             "https".equalsIgnoreCase(uri.getScheme());
     }
 
+    /** What the surface itself may show: web pages and the extensions' own pages. */
+    private boolean isSurfaceUrl(String value) {
+        if (value == null) return false;
+        if (isEmbeddable(value) || "about:blank".equals(value)) return true;
+        return "moz-extension".equalsIgnoreCase(Uri.parse(value).getScheme());
+    }
+
     private void openExternal(String url) {
         try {
             Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
@@ -343,74 +515,148 @@ public class InAppBrowserSurfacePlugin extends Plugin {
     }
 
     private void event(String name, long navigationId, String url) {
+        if (!pageRequested || initialBlank) return;
         JSObject payload = new JSObject();
         payload.put("navigationId", navigationId);
         payload.put("url", url == null ? "" : url);
         notifyListeners(name, payload);
     }
 
-    private void history(long navigationId, WebView view) {
+    private void history(long navigationId) {
+        if (!pageRequested || initialBlank) return;
         JSObject payload = new JSObject();
         payload.put("navigationId", navigationId);
-        payload.put("url", view.getUrl() == null ? "" : view.getUrl());
-        payload.put("canGoBack", view.canGoBack());
+        payload.put("url", currentUrl);
+        payload.put("canGoBack", canGoBack);
         notifyListeners("historyChanged", payload);
     }
 
-    private final class SurfaceClient extends WebViewClient {
+    private void failed(String url, int code, String message) {
+        finishRefresh();
+        JSObject payload = new JSObject();
+        payload.put("navigationId", activeNavigation);
+        payload.put("url", url == null ? "" : url);
+        payload.put("code", code);
+        payload.put("message", message);
+        notifyListeners("navigationFailed", payload);
+    }
+
+    private static String describe(WebRequestError error) {
+        switch (error.category) {
+            case WebRequestError.ERROR_CATEGORY_SECURITY:
+                return "TLS certificate validation failed";
+            case WebRequestError.ERROR_CATEGORY_URI:
+                return "The address could not be resolved";
+            case WebRequestError.ERROR_CATEGORY_NETWORK:
+                return "The network request failed";
+            case WebRequestError.ERROR_CATEGORY_CONTENT:
+                return "The content could not be loaded";
+            default:
+                return "The page could not be loaded";
+        }
+    }
+
+    private final class BridgePort implements WebExtension.PortDelegate {
         @Override
-        public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-            String url = request.getUrl().toString();
-            if (isEmbeddable(url)) return false;
-            openExternal(url);
-            return true;
+        public void onPortMessage(Object message, WebExtension.Port port) {
+            if (!(message instanceof JSONObject)) return;
+            JSONObject reply = (JSONObject) message;
+            long id = reply.optLong("id", -1);
+            PluginCall call = pendingEvaluations.remove(id);
+            if (call == null) return;
+            String error = reply.optString("error", null);
+            if (error != null && !reply.isNull("error")) {
+                call.reject("The script failed: " + error);
+                return;
+            }
+            JSObject result = new JSObject();
+            result.put("value", reply.optString("value", "null"));
+            call.resolve(result);
         }
 
         @Override
-        public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
-            activeNavigation = navigationSequence.incrementAndGet();
-            event("navigationStarted", activeNavigation, url);
+        public void onDisconnect(WebExtension.Port port) {
+            if (bridgePort == port) bridgePort = null;
+            failPendingEvaluations("The page navigated away");
         }
+    }
 
+    private final class Navigation implements GeckoSession.NavigationDelegate {
         @Override
-        public void onPageCommitVisible(WebView view, String url) {
-            event("navigationCommitted", activeNavigation, url);
-            history(activeNavigation, view);
-        }
-
-        @Override
-        public void onPageFinished(WebView view, String url) {
-            finishRefresh();
-            event("navigationFinished", activeNavigation, url);
-            history(activeNavigation, view);
-        }
-
-        @Override
-        public void onReceivedError(
-            WebView view,
-            WebResourceRequest request,
-            WebResourceError error
+        public void onLocationChange(
+            GeckoSession ignored,
+            String url,
+            java.util.List<GeckoSession.PermissionDelegate.ContentPermission> permissions,
+            Boolean hasUserGesture
         ) {
-            if (!request.isForMainFrame()) return;
-            finishRefresh();
-            JSObject payload = new JSObject();
-            payload.put("navigationId", activeNavigation);
-            payload.put("url", request.getUrl().toString());
-            payload.put("code", error.getErrorCode());
-            payload.put("message", String.valueOf(error.getDescription()));
-            notifyListeners("navigationFailed", payload);
+            currentUrl = url == null ? "" : url;
+            event("navigationCommitted", activeNavigation, currentUrl);
+            history(activeNavigation);
         }
 
         @Override
-        public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
-            handler.cancel();
+        public void onCanGoBack(GeckoSession ignored, boolean value) {
+            canGoBack = value;
+            history(activeNavigation);
+        }
+
+        @Override
+        public GeckoResult<AllowOrDeny> onLoadRequest(GeckoSession ignored, LoadRequest request) {
+            if (isSurfaceUrl(request.uri)) return GeckoResult.fromValue(AllowOrDeny.ALLOW);
+            openExternal(request.uri);
+            return GeckoResult.fromValue(AllowOrDeny.DENY);
+        }
+
+        @Override
+        public GeckoResult<GeckoSession> onNewSession(GeckoSession ignored, String uri) {
+            // A link that wants its own window opens in the system browser,
+            // as it did with the WebView.
+            openExternal(uri);
+            return GeckoResult.fromValue(null);
+        }
+
+        @Override
+        public GeckoResult<String> onLoadError(GeckoSession ignored, String uri, WebRequestError error) {
+            failed(uri, error.code, describe(error));
+            return null;
+        }
+    }
+
+    private final class Progress implements GeckoSession.ProgressDelegate {
+        @Override
+        public void onPageStart(GeckoSession ignored, String url) {
+            // A new session loads about:blank on its own before the first
+            // requested page; the shell never asked for that one.
+            initialBlank = !sawRequestedPage && "about:blank".equals(url);
+            if (!initialBlank) sawRequestedPage = true;
+            activeNavigation = navigationSequence.incrementAndGet();
+            currentUrl = url == null ? "" : url;
+            event("navigationStarted", activeNavigation, currentUrl);
+        }
+
+        @Override
+        public void onPageStop(GeckoSession ignored, boolean success) {
             finishRefresh();
-            JSObject payload = new JSObject();
-            payload.put("navigationId", activeNavigation);
-            payload.put("url", error.getUrl());
-            payload.put("code", error.getPrimaryError());
-            payload.put("message", "TLS certificate validation failed");
-            notifyListeners("navigationFailed", payload);
+            if (!success) return;
+            event("navigationFinished", activeNavigation, currentUrl);
+            history(activeNavigation);
+        }
+    }
+
+    private final class Content implements GeckoSession.ContentDelegate {
+        @Override
+        public void onExternalResponse(GeckoSession ignored, WebResponse response) {
+            openExternal(response.uri);
+        }
+
+        @Override
+        public void onCrash(GeckoSession ignored) {
+            failed(currentUrl, -1, "The page's process crashed");
+        }
+
+        @Override
+        public void onKill(GeckoSession ignored) {
+            failed(currentUrl, -1, "The page's process was stopped");
         }
     }
 }

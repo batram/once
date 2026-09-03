@@ -35,6 +35,7 @@
     "clean": "node scripts/clean-build-outputs.js",
     "clean:packages": "node scripts/clean-build-outputs.js --packages",
     "deploy:mobile:android": "npm run mobile -- deploy android --channel release",
+    "fetch:extensions": "node scripts/fetch-extensions.js",
     "lint": "eslint .",
     "lint:css": "stylelint \"apps/**/*.css\" \"packages/**/*.css\"",
     "lint:fix": "eslint . --fix",

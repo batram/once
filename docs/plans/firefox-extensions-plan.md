@@ -13,8 +13,34 @@ through the `ONCE_ELECTRON_EXTENSIONS` dev path). Step 5 is done: the
 have text editors in the shared settings panel, and on Electron reach the
 extensions through their own message APIs. Saving a list URL in Once added
 it to uBlock's selection without touching its defaults, and a userscript
-saved in Once ran through Violentmonkey (verified 2026-09-03). Step 6
-(Android on GeckoView) is next.
+saved in Once ran through Violentmonkey (verified 2026-09-03). Step 6 is
+done on the engine side: the Android reading surface is a GeckoView with
+uBlock Origin, Violentmonkey, and Once's own bridge extension built in from
+the APK's assets, and the existing surface events, source picker, menus, and
+pull-to-refresh work over it. Verified on the API 36 emulator: uBlock
+strict-blocked an ad host and showed its blocked-page in the surface, and
+its generic cosmetic filters hid probe elements. Step 7 (iOS) is next.
+
+Open on Android after step 6: the settings hand-off. The Electron applier
+talks to an extension's background page as one of its own pages; GeckoView
+gives the host no such channel to a third-party extension's background, so
+Once's `filter_lists` and `userscripts` documents do not reach uBlock or
+Violentmonkey there yet. Violentmonkey's `ffInject` setting likewise has to
+be switched on in its own dashboard, which the surface can show.
+
+Findings from step 6: GeckoView 154 and later need compileSdk 37 and Android
+Gradle plugin 9.1, so the app pins 153; GeckoView's `minSdk` is 26 (Android
+8), which the app now requires too; the debug APK is Firefox-sized, so
+release packaging needs ABI splits or a bundle. GeckoView has no
+`evaluateJavascript`, so a built-in bridge extension of Once's own runs the
+picker's scripts in its content-script world over native messaging, which
+needs the `geckoViewAddons` and `nativeMessagingFromContent` permissions
+and a native-app name without hyphens. An extension navigating "its tab"
+(uBlock's blocked-page) goes through `tabs.update`, which GeckoView only
+honours through a session tab delegate. Extensions must be installed before
+the first page loads, since a content script cannot join a document that
+began earlier, so the engine starts with the app rather than with the first
+page.
 
 Findings from step 5: `addListener` must register synchronously, as it does
 in Firefox; with async IPC a background page's listeners were still in

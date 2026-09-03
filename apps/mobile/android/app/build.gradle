@@ -22,6 +22,18 @@ android {
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
+        // GeckoView ships native code per ABI; devices and the emulator cover these two.
+        ndk {
+            abiFilters "arm64-v8a", "x86_64"
+        }
+    }
+    sourceSets {
+        main {
+            // The built-in extensions: Once's own bridge and the vendored bundles
+            // that scripts/fetch-extensions.js unpacks. GeckoView loads them from
+            // resource://android/assets/<name>/.
+            assets.srcDirs += ['../../extensions']
+        }
     }
     flavorDimensions += "environment"
     productFlavors {
@@ -59,6 +71,7 @@ dependencies {
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation "androidx.swiperefreshlayout:swiperefreshlayout:$androidxSwipeRefreshLayoutVersion"
     implementation project(':capacitor-android')
+    implementation "org.mozilla.geckoview:geckoview:$geckoViewVersion"
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
