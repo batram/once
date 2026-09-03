@@ -156,6 +156,9 @@ async function startMobileApp(): Promise<void> {
   showStartupState("Loading stories…")
   await mountOnceUi(app.client, {
     shell: "mobile",
+    // A static asset beside the app: Capacitor's local server answers for
+    // any frame, and the sandboxed frame's opaque origin keeps it apart.
+    addonSandboxUrl: new URL("addon-sandbox.html", window.location.href).toString(),
     appVersion: __ONCE_APP_VERSION__,
     buildChannel: __ONCE_BUILD_CHANNEL__,
     buildIdentifier: __ONCE_BUILD_IDENTIFIER__,

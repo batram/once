@@ -220,6 +220,32 @@ test("collectors need a script, a 2–4 character badge, and a readable config s
   assert.throws(() => readAddonStories({}, "DJ"), /list of stories/)
 })
 
+test("a manifest installed from a URL resolves its script, remembers its source, and upserts", () => {
+  const { readInstalledAddon, upsertAddon } = require("../../../packages/core/dist/addons")
+  const text = JSON.stringify({
+    ...manifest(), id: "packaged", contributions: [{ kind: "badge", id: "len-badge", compute: "len" }],
+    script: { url: "main.js", integrity: "sha256-" + "A".repeat(43) + "=" }
+  })
+  const read = readInstalledAddon(text, "https://host.test/addons/packaged/once-addon.json")
+  assert.equal(read.ok, true)
+  assert.equal(read.entry.manifest.script.url, "https://host.test/addons/packaged/main.js")
+  assert.deepEqual(read.entry.source, { url: "https://host.test/addons/packaged/once-addon.json" })
+  assert.equal(readInstalledAddon("{", "https://host.test/x.json").ok, false)
+
+  let doc = upsertAddon(readAddonsDocument({ version: 1, addons: [] }), read.entry)
+  doc = { ...doc, addons: doc.addons.map((entry) => ({ ...entry, enabled: false })) }
+  const newer = { ...read.entry, manifest: { ...read.entry.manifest, version: "9.0.0" } }
+  doc = upsertAddon(doc, newer)
+  assert.equal(doc.addons.length, 1)
+  assert.equal(doc.addons[0].manifest.version, "9.0.0")
+  assert.equal(doc.addons[0].enabled, false, "an update keeps the user's enabled flag")
+
+  const presented = presentAddons(doc)
+  assert.match(presented, /"source": \{/)
+  assert.deepEqual(parseAddonsText(presented), doc)
+  assert.deepEqual(readAddonsDocument(JSON.parse(JSON.stringify(doc))), doc)
+})
+
 test("defaults fill in: action group navigation, surfaces button and menu", () => {
   const read = readAddonManifest({
     ...manifest(),

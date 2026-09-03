@@ -37,31 +37,7 @@ function xhtmlArticlePage(title) {
 </html>`
 }
 
-// The fixture add-on: one message action that opens a page derived from the
-// story, and one computed badge. Exported so a spec can hash it.
-const ADDON_SCRIPT = `export default function activate(once) {
-  once.onInvoke((action, story) => {
-    if (action === "visit") once.openUrl(story, story.href.replace(/\\/[^/]*$/, "/from-addon"), "blank")
-    if (action === "sneak") once.openUrl({ href: "https://elsewhere.test/" }, "https://elsewhere.test/", "blank")
-  })
-  once.onBadges((contribution, stories) => stories.map((story) => contribution + " " + story.title.length))
-  once.collectors.register("json", {
-    parse(body, context) {
-      return body.items.map((item) => ({
-        href: item.url, title: item.title + " (" + new URL(context.url).pathname + ")",
-        comment_url: item.comments, timestamp: item.at, tags: [{ text: item.tag }]
-      }))
-    }
-  })
-}
-`
-
-const ADDON_API_STORIES = (origin) => ({
-  items: [
-    { url: `${origin}/api-story/1`, title: "Addon One", comments: `${origin}/api-comments/1`, at: 1700000000000, tag: "api" },
-    { url: `${origin}/api-story/2`, title: "Addon Two", comments: "", at: 1700000001000, tag: "api" }
-  ]
-})
+const { ADDON_SCRIPT, addonApiStories, addonPackageManifest } = require("../shared/addon-fixture")
 
 // The scripts the extension and add-on specs install: a scripted Once add-on
 // (its manifest pins this exact text by hash, so specs compute the integrity
@@ -73,10 +49,15 @@ function serveFixtureScript(request, response, origin) {
     response.end(ADDON_SCRIPT)
     return true
   }
+  if (request.url === "/addon/once-addon.json") {
+    response.writeHead(200, { "content-type": "application/json; charset=utf-8" })
+    response.end(JSON.stringify(addonPackageManifest()))
+    return true
+  }
   // The feed the fixture add-on's collector reads.
   if (request.url === "/api/stories.json") {
     response.writeHead(200, { "content-type": "application/json; charset=utf-8" })
-    response.end(JSON.stringify(ADDON_API_STORIES(origin)))
+    response.end(JSON.stringify(addonApiStories(origin)))
     return true
   }
   if (request.url === "/once-test.user.js") {

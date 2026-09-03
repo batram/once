@@ -187,6 +187,12 @@ export interface OnceClient {
   }>
   /** A small http(s) text resource through the platform's fetch: add-on code. */
   fetchText(url: string): Promise<string>
+  /**
+   * Add-on code kept on this device only, keyed by its integrity hash, so an
+   * add-on synced from elsewhere still runs offline once it was fetched here.
+   */
+  getAddonScript(integrity: string): Promise<string | null>
+  storeAddonScript(integrity: string, code: string): Promise<void>
   /** See ActiveTabPort.openUrl for what the targets mean. */
   openUrl(
     url: string,

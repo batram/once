@@ -4,6 +4,7 @@ const fs = require("fs")
 const path = require("path")
 const PouchDB = require("pouchdb")
 const storyFixture = require("../e2e/shared/story-fixture")
+const addonFixture = require("../e2e/shared/addon-fixture")
 
 const port = Number.parseInt(process.env.ONCE_MOBILE_TEST_PORT || "3211", 10)
 const host = process.env.ONCE_MOBILE_TEST_HOST || "0.0.0.0"
@@ -43,6 +44,14 @@ app.get("/test/urls", (_request, response) => response.json({
 app.get("/fixtures/visual-feed.json", (request, response) => {
   const baseUrl = `${request.protocol}://${request.get("host")}`
   response.json(storyFixture.feedJson(baseUrl))
+})
+// The fixture Once add-on's script and the feed its collector reads.
+app.get("/fixtures/addon/main.js", (_request, response) => {
+  response.type("text/javascript").send(addonFixture.ADDON_SCRIPT)
+})
+app.get("/fixtures/api/stories.json", (request, response) => {
+  const baseUrl = `${request.protocol}://${request.get("host")}`
+  response.json(addonFixture.addonApiStories(baseUrl))
 })
 app.use((request, response, next) => {
   const baseUrl = `${request.protocol}://${request.get("host")}`

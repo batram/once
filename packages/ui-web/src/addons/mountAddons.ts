@@ -155,23 +155,37 @@ async function sandboxFor(
     report(`Add-on ${manifest.name} needs a script, which this platform cannot run yet`, "no sandbox page")
     return null
   }
-  let code: string
-  try {
-    code = await client.fetchText(manifest.script.url)
-    if (code.length > SANDBOX_LIMITS.code) throw new Error("the script is too large")
-    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(code))
-    const integrity = `sha256-${btoa(String.fromCharCode(...new Uint8Array(digest)))}`
-    if (integrity !== manifest.script.integrity) {
-      throw new Error(`integrity mismatch: got ${integrity}`)
-    }
-  } catch (error) {
-    report(`Add-on ${manifest.name} could not load its script`, error)
-    return null
-  }
+  const code = await loadScript(client, manifest)
+  if (code === null) return null
   return new AddonSandbox(manifest.id, options.sandboxUrl, code, () => ({}), {
     perform: (op) => performOperation(op),
     report: (message) => LoaderInsights.showErrorMessage(message, "")
   })
+}
+
+/**
+ * The add-on's code, from this device's cache when the hash is already known
+ * here, otherwise fetched, checked against the manifest's hash, and kept. A
+ * synced entry whose code cannot be fetched here is installed elsewhere and
+ * stays off on this device until it can be.
+ */
+async function loadScript(client: OnceClient, manifest: AddonManifest): Promise<string | null> {
+  const script = manifest.script
+  if (!script) return null
+  const cached = await client.getAddonScript(script.integrity).catch(() => null)
+  if (cached !== null) return cached
+  try {
+    const code = await client.fetchText(script.url)
+    if (code.length > SANDBOX_LIMITS.code) throw new Error("the script is too large")
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(code))
+    const integrity = `sha256-${btoa(String.fromCharCode(...new Uint8Array(digest)))}`
+    if (integrity !== script.integrity) throw new Error(`integrity mismatch: got ${integrity}`)
+    await client.storeAddonScript(script.integrity, code).catch(() => undefined)
+    return code
+  } catch (error) {
+    report(`Add-on ${manifest.name} is installed but unavailable here: its script could not be loaded`, error)
+    return null
+  }
 }
 
 function actionButton(label: string, icon: string | undefined, run: () => void): HTMLElement {

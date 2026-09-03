@@ -8,6 +8,7 @@ import {
   presentUserscripts
 } from "@once/core"
 import { requireElement } from "../dom"
+import { bindAddonInstallControls } from "./addonInstallControls"
 import * as settingsControls from "./settingsControlBindings"
 import { trackSettingsSave } from "./settingsStatus"
 
@@ -76,6 +77,10 @@ export function bindExtensionSettingsEditors(
     present: async () => presentAddons(await client.getAddons()),
     save: (text) => client.saveAddons(parseAddonsText(text))
   }, onChanged)
+  bindAddonInstallControls(client, () => {
+    void restoreAddons()
+    onChanged()
+  })
   return {
     refresh: () => {
       void restoreLists()

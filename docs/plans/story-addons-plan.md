@@ -30,6 +30,28 @@ Electron e2e where a plain URL line becomes stories with the add-on's badge.
 The schema-driven configuration form in the source editor is not built yet;
 configuration is validated when a typed source names the collector.
 
+Step 6 is done for the mobile bundle: the sandbox page ships as a static
+asset beside the app (`addon-sandbox.html`, its runtime inlined and allowed
+by hash, since older WebKit refuses external scripts in an opaque-origin
+frame), loaded by URL rather than through a native route, because a
+navigated document carries its own policy and Capacitor's local server
+answers for any frame. Verified by the mobile web e2e (headless Chromium
+against the test server), where the fixture script computes a badge and its
+action appears in the row's menu. Not yet exercised on an Android emulator
+or an iOS device; the WebKit behaviour of `import()` on a blob module inside
+a sandboxed frame is the thing to confirm there.
+
+Step 7 is done except the development directory: an add-on installs from
+the URL of its `once-addon.json` (a relative `script.url` resolves against
+it, the entry remembers its source), code is cached per device by integrity
+hash in the local cache store and read from there first, so a synced entry
+runs offline once fetched here and is reported as installed elsewhere until
+then, and "Check for updates" refetches every URL-installed manifest and
+replaces entries whose version moved, keeping the user's enabled flag.
+`ONCE_ADDONS` for unpackaged Electron builds is not built: it needs the
+renderer to accept a non-http script URL served by main, which is a small
+but separate change.
+
 ## Decision
 
 Once gets **add-ons**: packages of its own format that extend the reader
@@ -176,7 +198,7 @@ a static `addon-sandbox.html` from a place where it carries its own policy:
 | Chrome | Manifest `sandbox.pages: ["static/addon-sandbox.html"]` | Chrome's own mechanism for exactly this: an opaque-origin page with a separate `content_security_policy.sandbox` that permits `blob:` scripts, no extension APIs, no access to the opener. |
 | Firefox | Open | Firefox does not implement the manifest `sandbox` key, and MV3 forbids `blob:` or `unsafe-eval` script sources on extension pages, so no page under the extension's origin may run add-on code. The options are a hosted sandbox page on an origin Once controls, or declarative add-ons only on Firefox. Undecided; the panel reports scripted add-ons as unavailable there. |
 | Electron | `once-addon://sandbox/index.html`, served by main from the second Forge renderer entry (`addon_sandbox`) | The frame's opaque origin may not load `file:` subresources (tried: the page loaded, its script was refused), so the page and its runtime come through a privileged scheme, a sibling of `once-reader://`. The shell CSP's `frame-src` names the scheme. |
-| Android, iOS | A route on the app's local server (`/once-addon/sandbox.html`) answered by the Capacitor plugin with the same CSP header | Android through `shouldInterceptRequest` in the existing plugin, iOS through Capacitor's scheme handler. The route serves the static page only; add-on code still arrives by `postMessage`. |
+| Android, iOS | `addon-sandbox.html`, a static asset beside the app, loaded by URL | No native route needed: a navigated document carries its own policy, and Capacitor's local server answers for any frame. The runtime is inlined and allowed by hash for older WebKit. Add-on code still arrives by `postMessage`. |
 
 The add-on's code reaches the sandbox as text over `postMessage`; the
 runtime turns it into a `blob:` module and imports it. That keeps code out

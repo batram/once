@@ -100,6 +100,7 @@
       ],
       "entry": [
         "src/main.ts",
+        "src/addonSandbox.ts",
         "src/pickerInjection.ts",
         "src/readerRuntime.ts",
         "webpack.config.js",

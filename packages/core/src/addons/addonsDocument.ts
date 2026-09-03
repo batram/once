@@ -10,6 +10,13 @@ export const ADDONS_VERSION = 1
 export interface AddonEntry {
   enabled: boolean
   manifest: AddonManifest
+  /** Where the manifest was installed from, when it came from a URL; what "check for updates" refetches. */
+  source?: { url: string }
+}
+
+function readSource(value: unknown): { url: string } | undefined {
+  if (!isRecord(value) || typeof value.url !== "string") return undefined
+  return /^https?:\/\//i.test(value.url) && value.url.length <= 2000 ? { url: value.url } : undefined
 }
 
 export interface AddonsDocument {
@@ -35,9 +42,50 @@ export function readAddonsDocument(value: unknown): AddonsDocument {
     const read = readAddonManifest(entry.manifest)
     if (!read.ok || seen.has(read.manifest.id)) continue
     seen.add(read.manifest.id)
-    doc.addons.push({ enabled: entry.enabled !== false, manifest: read.manifest })
+    const source = readSource(entry.source)
+    doc.addons.push({ enabled: entry.enabled !== false, manifest: read.manifest, ...(source ? { source } : {}) })
   }
   return doc
+}
+
+/** Adds or replaces the entry for the manifest's id, keeping the enabled flag of one already there. */
+export function upsertAddon(doc: AddonsDocument, entry: AddonEntry): AddonsDocument {
+  const existing = doc.addons.find((candidate) => candidate.manifest.id === entry.manifest.id)
+  const merged: AddonEntry = existing ? { ...entry, enabled: existing.enabled } : entry
+  return {
+    version: doc.version,
+    addons: existing
+      ? doc.addons.map((candidate) => (candidate === existing ? merged : candidate))
+      : [...doc.addons, merged]
+  }
+}
+
+export type AddonInstallRead =
+  | { ok: true; entry: AddonEntry }
+  | { ok: false; reports: AddonReport[] }
+
+/**
+ * A manifest fetched from `manifestUrl`: JSON text in, an entry out. A
+ * relative `script.url` resolves against the manifest's URL, so a package is
+ * a directory with `once-addon.json` beside `main.js`.
+ */
+export function readInstalledAddon(text: string, manifestUrl: string): AddonInstallRead {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch (error) {
+    return { ok: false, reports: [{ path: "", message: `not valid JSON: ${error instanceof Error ? error.message : String(error)}` }] }
+  }
+  if (isRecord(parsed) && isRecord(parsed.script) && typeof parsed.script.url === "string") {
+    try {
+      parsed = { ...parsed, script: { ...parsed.script, url: new URL(parsed.script.url, manifestUrl).toString() } }
+    } catch {
+      return { ok: false, reports: [{ path: "script.url", message: "does not resolve against the manifest URL" }] }
+    }
+  }
+  const read = readAddonManifest(parsed)
+  if (!read.ok) return read
+  return { ok: true, entry: { enabled: true, manifest: read.manifest, source: { url: manifestUrl } } }
 }
 
 export class AddonsTextError extends Error {
@@ -70,7 +118,7 @@ export function parseAddonsText(text: string): AddonsDocument {
       reports.push({ path: `[${index}]`, message: "must be a manifest object" })
       return
     }
-    const { enabled, ...manifest } = entry
+    const { enabled, source, ...manifest } = entry
     const read = readAddonManifest(manifest)
     if (!read.ok) {
       reports.push(...read.reports.map((report) => ({
@@ -83,7 +131,10 @@ export function parseAddonsText(text: string): AddonsDocument {
       return
     }
     seen.add(read.manifest.id)
-    doc.addons.push({ enabled: enabled !== false, manifest: read.manifest })
+    const installedFrom = readSource(source)
+    doc.addons.push({
+      enabled: enabled !== false, manifest: read.manifest, ...(installedFrom ? { source: installedFrom } : {})
+    })
   })
   if (reports.length > 0) {
     const first = reports[0]
@@ -96,10 +147,11 @@ export function parseAddonsText(text: string): AddonsDocument {
 /** The doc as editor text: stable key order, two-space indent. */
 export function presentAddons(doc: AddonsDocument): string {
   if (doc.addons.length === 0) return ""
-  const entries = doc.addons.map(({ enabled, manifest }) => {
+  const entries = doc.addons.map(({ enabled, manifest, source }) => {
     const { protocol, id, name, version, author, homepage, script, contributions, collectors } = manifest
     return {
       ...(enabled ? {} : { enabled: false }),
+      ...(source ? { source } : {}),
       protocol, id, name, version,
       ...(author ? { author } : {}),
       ...(homepage ? { homepage } : {}),

@@ -241,7 +241,11 @@ code as a blob module, no network). The frame speaks a validated
 `postMessage` protocol, every operation it asks for is scoped to the story
 the user acted on, and requests time out. On Electron main serves the page
 over `once-addon://` because an opaque origin may not load `file:`
-subresources; platforms without a serving path run declarative add-ons only.
+subresources; on mobile it is a static asset beside the app with its runtime
+inlined; platforms without a serving path (Firefox, Chrome so far) run
+declarative add-ons only. Add-on code is cached per device by its hash and
+never synced; an add-on installed from a URL remembers that URL for update
+checks.
 See [plans/story-addons-plan.md](plans/story-addons-plan.md).
 
 Desktop keyboard behavior is command-driven rather than a collection of DOM

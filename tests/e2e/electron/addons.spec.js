@@ -194,6 +194,36 @@ test("a collector add-on turns a JSON feed into stories with its own badge", asy
   }
 })
 
+// Installing from a URL: the manifest's relative script URL resolves against
+// it, the entry remembers where it came from, and an update check that finds
+// the same version changes nothing.
+test("an add-on installs from its manifest URL and reports on an update check", async () => {
+  const { electronApp, userData, window } = await launchApp(STORY_ENV)
+  try {
+    await seedLocalSource(window, storyFixture.sourceLine(origin), urls.alpha)
+    const urlInput = await openSettingsSection(window, "addons", '[data-testid="addon-url"]')
+    await urlInput.evaluate((input, value) => {
+      input.value = value
+    }, `${origin}/addon/once-addon.json`)
+    await window.getByTestId("install-addon").evaluate((button) => button.click())
+    const status = window.locator("#addon_install_settings .settings_status")
+    await expect(status).toHaveText("Installed Harness Package 2.0.0")
+    await expect(window.locator("#addons_area")).toHaveValue(/"source": \{\s*"url": "http/)
+    await expect(window.locator("#addons_area")).toHaveValue(new RegExp(`"url": "${origin}/addon/main.js"`))
+
+    await showAllStories(window)
+    const alpha = window.locator(`#stories story-item[data-href="${urls.alpha}"]`)
+    const title = await alpha.locator("a.title").innerText()
+    await expect(alpha.locator('.addon_badge[data-addon-badge="len"]')).toHaveText(`len ${title.length}`)
+
+    await openSettingsSection(window, "addons", '[data-testid="update-addons"]')
+    await window.getByTestId("update-addons").evaluate((button) => button.click())
+    await expect(status).toHaveText("1 checked, nothing new")
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
 test("a manifest with a problem is refused with the problem named, and nothing changes", async () => {
   const { electronApp, userData, window } = await launchApp()
   try {

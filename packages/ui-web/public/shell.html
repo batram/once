@@ -229,7 +229,22 @@
                     <button type="button" class="button" data-action="cancel">Cancel</button>
                   </div>
                 </div>
-                <div class="settings_block settings_editor_block">
+                <div class="settings_block settings_editor_block" id="addon_install_settings">
+                  <div class="field">
+                    <label class="field_label" for="addon_url_input">Install an add-on from a manifest URL</label>
+                    <input
+                      id="addon_url_input"
+                      type="url"
+                      inputmode="url"
+                      spellcheck="false"
+                      placeholder="https://example.org/my-addon/once-addon.json"
+                      data-testid="addon-url"
+                    />
+                  </div>
+                  <div class="settings_actions cluster">
+                    <button type="button" class="button" data-testid="install-addon">Install</button>
+                    <button type="button" class="button" data-testid="update-addons">Check for updates</button>
+                  </div>
                   <div class="input_container">
                     <textarea
                       id="addons_area"

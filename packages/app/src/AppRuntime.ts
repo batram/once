@@ -32,6 +32,7 @@ import {
 } from "./sourceMenu"
 import { SourceLoader } from "./SourceLoader"
 import { DiagnosticLog, errorDetails } from "./DiagnosticLog"
+import { getAddonScript, storeAddonScript } from "./addonScriptCache"
 import { fetchDocument, fetchText } from "./fetchDocument"
 import { waitForStartupStorage } from "./startupStorage"
 
@@ -202,6 +203,8 @@ export class AppRuntime {
       purgeStory: (href) => this.purgeStory(href),
       fetchDocument: (url) => fetchDocument(this.platform.fetch, url),
       fetchText: (url) => fetchText(this.platform.fetch, url),
+      getAddonScript: (integrity) => getAddonScript(this.platform.cacheStore, integrity),
+      storeAddonScript: (integrity, code) => storeAddonScript(this.platform.cacheStore, integrity, code),
       openUrl: (url, target) => {
         if (url.startsWith("search:")) {
           this.events.publish("searchRequested", {
