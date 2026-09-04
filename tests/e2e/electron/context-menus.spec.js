@@ -17,6 +17,11 @@ test("restores native tab and page menus with Inspect in packaged builds", async
     await window.locator("#urlfield").fill(`${origin}/menus`)
     await window.locator("#urlfield").press("Enter")
     await expect(window.locator("#urlfield")).toHaveValue(`${origin}/menus`)
+    // The URL field updates before the remote view has navigated; the page menu below
+    // emits on that view's webContents, so wait until it exists at the fixture URL.
+    await expect.poll(() => electronApp.evaluate(({ webContents }, expectedUrl) =>
+      webContents.getAllWebContents().some((contents) => contents.getURL() === expectedUrl)
+    , `${origin}/menus`)).toBe(true)
 
     await electronApp.evaluate(({ Menu }) => {
       globalThis.__onceOriginalBuildFromTemplate = Menu.buildFromTemplate
