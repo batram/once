@@ -4,6 +4,7 @@ import {
   BrowserWindow,
   Rectangle,
   Session,
+  protocol,
   session
 } from "electron"
 import started from "electron-squirrel-startup"
@@ -20,11 +21,11 @@ import { BROWSER_SESSION_PARTITION, BrowserCoordinator } from "./TabManager"
 import { OFFSCREEN_TEST_POSITION, isBackgroundMode } from "./browser/WindowLifecycle"
 import {
   configureReaderProtocol,
-  registerReaderScheme
+  readerScheme
 } from "./ReaderProtocol"
 import {
   configureErrorPageProtocol,
-  registerErrorPageScheme
+  errorPageScheme
 } from "./browser/ErrorPageProtocol"
 import {
   installedAppUserModelId,
@@ -32,8 +33,8 @@ import {
 } from "./WindowsInstanceIdentity"
 import { ExtensionRuntime } from "./extensions/ExtensionRuntime"
 import { bundledExtensionRoot, resolveBundledExtensions } from "./extensions/bundledExtensions"
-import { registerExtensionScheme } from "./extensions/ExtensionScheme"
-import { configureAddonSandboxProtocol, registerAddonSandboxScheme } from "./AddonSandboxProtocol"
+import { extensionScheme } from "./extensions/ExtensionScheme"
+import { addonSandboxScheme, configureAddonSandboxProtocol } from "./AddonSandboxProtocol"
 import { devAddonDirectories, readDevAddons, watchDevAddons } from "./devAddons"
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string
@@ -46,10 +47,15 @@ if (started) app.quit()
 app.userAgentFallback = app.userAgentFallback.replace(/\sElectron\/[^\s]+/, "") +
   ` (Once/${app.getVersion()})`
 
-registerReaderScheme()
-registerErrorPageScheme()
-registerExtensionScheme()
-registerAddonSandboxScheme()
+// One call for every scheme: Electron keeps only the last registration, and
+// a scheme left out of it loses its privileges (fetch on extension URLs
+// failed for as long as each module registered its own).
+protocol.registerSchemesAsPrivileged([
+  readerScheme(),
+  errorPageScheme(),
+  extensionScheme(),
+  addonSandboxScheme()
+])
 
 if (process.env.ONCE_ELECTRON_TEST_USER_DATA) {
   app.setPath("userData", process.env.ONCE_ELECTRON_TEST_USER_DATA)

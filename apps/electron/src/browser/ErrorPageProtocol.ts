@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { protocol, Session } from "electron"
+import { CustomScheme, Session } from "electron"
 import errorPageTemplate from "./error-page.html"
 import errorPageStyles from "./error-page.css"
 
@@ -12,13 +12,12 @@ interface ErrorDocument {
 
 const documents = new Map<string, ErrorDocument>()
 
-export function registerErrorPageScheme(): void {
-  protocol.registerSchemesAsPrivileged([
-    {
-      scheme: "once-error",
-      privileges: { standard: true, secure: true }
-    }
-  ])
+/** For the app's one `registerSchemesAsPrivileged` call. */
+export function errorPageScheme(): CustomScheme {
+  return {
+    scheme: "once-error",
+    privileges: { standard: true, secure: true }
+  }
 }
 
 export function configureErrorPageProtocol(targetSession: Session): void {

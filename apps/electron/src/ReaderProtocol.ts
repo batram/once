@@ -1,20 +1,19 @@
-import { protocol, Session } from "electron"
+import { CustomScheme, Session } from "electron"
 import { sourceUrlFromReaderUrl } from "./browser/reader-url"
 
 const documents = new Map<string, string>()
 
-export function registerReaderScheme(): void {
-  protocol.registerSchemesAsPrivileged([
-    {
-      scheme: "once-reader",
-      privileges: {
-        standard: true,
-        secure: true,
-        supportFetchAPI: true,
-        corsEnabled: true
-      }
+/** For the app's one `registerSchemesAsPrivileged` call. */
+export function readerScheme(): CustomScheme {
+  return {
+    scheme: "once-reader",
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true
     }
-  ])
+  }
 }
 
 export function configureReaderProtocol(targetSession: Session): void {

@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs"
-import { net, protocol, Session } from "electron"
+import { CustomScheme, net, Session } from "electron"
 import { devAddonFile } from "./devAddons"
 
 /**
@@ -13,13 +13,12 @@ import { devAddonFile } from "./devAddons"
  */
 const SERVED = new Set(["index.html", "index.js", "index.js.map"])
 
-export function registerAddonSandboxScheme(): void {
-  protocol.registerSchemesAsPrivileged([
-    {
-      scheme: "once-addon",
-      privileges: { standard: true, secure: true, supportFetchAPI: true }
-    }
-  ])
+/** For the app's one `registerSchemesAsPrivileged` call. */
+export function addonSandboxScheme(): CustomScheme {
+  return {
+    scheme: "once-addon",
+    privileges: { standard: true, secure: true, supportFetchAPI: true }
+  }
 }
 
 function notFound(text: string): Response {
