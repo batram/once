@@ -185,13 +185,12 @@ export class BrowserCoordinator {
       }
     })
     view.setBackgroundColor(state.backgroundColor)
-    for (const listener of this.tabCreated) listener(view.webContents)
 
     const id = randomUUID()
     const entry: TabEntry = {
       id,
       view,
-      ownerId: state.window.webContents.id,
+      ownerId: state.id,
       title: "New tab",
       loading: false,
       audible: false,
@@ -209,6 +208,9 @@ export class BrowserCoordinator {
     }
     this.ownership.addTab(state, entry)
     this.tabEvents.bind(entry)
+    // Once the tab is owned: extensions answer `tabs.onCreated` with
+    // `tabs.get`, which must already find it.
+    for (const listener of this.tabCreated) listener(view.webContents)
 
     if (active || !state.activeId) this.ownership.activate(state, id)
     this.navigationErrors.load(entry, normalized)

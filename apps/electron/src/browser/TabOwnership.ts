@@ -20,11 +20,11 @@ export class TabOwnership {
   ) {}
 
   addWindow(owner: WindowEntry): void {
-    this.windows.set(owner.window.webContents.id, owner)
+    this.windows.set(owner.id, owner)
   }
 
   removeWindow(owner: WindowEntry): void {
-    this.windows.delete(owner.window.webContents.id)
+    this.windows.delete(owner.id)
   }
 
   addTab(owner: WindowEntry, entry: TabEntry): void {
@@ -42,7 +42,7 @@ export class TabOwnership {
 
   requireOwned(owner: WindowEntry, id: string): TabEntry {
     const entry = this.tabs.get(id)
-    if (!entry || entry.ownerId !== owner.window.webContents.id) {
+    if (!entry || entry.ownerId !== owner.id) {
       throw new Error(`Unknown tab: ${id}`)
     }
     return entry
@@ -108,7 +108,7 @@ export class TabOwnership {
       source.activeId = null
     }
     source.tabs.splice(oldIndex, 1)
-    entry.ownerId = owner.window.webContents.id
+    entry.ownerId = owner.id
     entry.view.setBackgroundColor(owner.backgroundColor)
     this.insert(owner.tabs, id, beforeId)
     this.activate(owner, id)

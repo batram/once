@@ -51,6 +51,7 @@ export class WindowLifecycle {
     })
     return {
       window,
+      id: window.webContents.id,
       tabs: [],
       activeId: null,
       backgroundColor: window.getBackgroundColor(),

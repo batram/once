@@ -38,6 +38,12 @@ export interface TabEntry {
 
 export interface WindowEntry {
   window: BrowserWindow
+  /**
+   * The window's webContents id, the id extensions and closed-tab records
+   * use. Kept here because the window's own objects are gone by the time a
+   * closing window's tabs are put away.
+   */
+  id: number
   tabs: string[]
   activeId: string | null
   backgroundColor: string

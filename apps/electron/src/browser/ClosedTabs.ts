@@ -33,7 +33,7 @@ export class ClosedTabs {
     this.records.push({
       url: entry.displayedUrl,
       title: entry.title,
-      windowId: owner.window.webContents.id,
+      windowId: owner.id,
       index,
       history: entry.historySnapshot ?? null
     })
@@ -42,7 +42,7 @@ export class ClosedTabs {
 
   /** Newest tab from this window, else the newest from any window. */
   take(owner: WindowEntry): ClosedTabRecord | undefined {
-    const windowId = owner.window.webContents.id
+    const windowId = owner.id
     for (let index = this.records.length - 1; index >= 0; index -= 1) {
       if (this.records[index].windowId !== windowId) continue
       return this.records.splice(index, 1)[0]

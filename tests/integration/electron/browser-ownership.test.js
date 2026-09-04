@@ -83,6 +83,9 @@ function fakeWindow(id) {
 function owner(id, tabs = []) {
   return {
     window: fakeWindow(id),
+    // The window's webContents id, cached on the entry: a closing window's
+    // objects are gone by the time its tabs are put away.
+    id,
     tabs,
     activeId: null,
     backgroundColor: "#fff",

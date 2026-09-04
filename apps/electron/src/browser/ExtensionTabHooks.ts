@@ -26,7 +26,7 @@ export function tabSnapshots(ownership: TabOwnership): TabSnapshot[] {
       const active = owner.activeId === id
       snapshots.push({
         id: contents.id,
-        windowId: owner.window.webContents.id,
+        windowId: owner.id,
         index,
         url: entry.displayedUrl,
         title: entry.title || "New tab",
