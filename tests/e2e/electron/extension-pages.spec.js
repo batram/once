@@ -38,6 +38,68 @@ test("navigating to a userscript opens Violentmonkey's install page", async () =
   }
 })
 
+// uBlock's element picker: the popup's button has the background inject a
+// scriptlet that appends an extension frame to the page, and that frame is
+// the picker UI, an extension page inside the tab. The page's CSP must not
+// refuse the frame, the frame must be served its own scripts and styles, and
+// its `browser` must reach the background as a privileged page.
+test("the uBlock element picker opens as an extension frame inside the page", async () => {
+  const pageServer = await startPageServer()
+  const { electronApp, userData, window } = await launchApp()
+  try {
+    const host = await extensionHost(window, "uBlock Origin")
+    const pageUrl = `${pageServer.origin}/strict-frames`
+    await window.evaluate((url) => window.onceElectron.tabs.create(url, true), pageUrl)
+    await expect.poll(() => electronApp.evaluate(({ webContents }, url) =>
+      webContents.getAllWebContents().some((candidate) => candidate.getURL() === url && !candidate.isLoading())
+    , pageUrl), { timeout: 15_000 }).toBe(true)
+
+    await window.evaluate((host) =>
+      window.onceElectron.extensions.openPopup(host, { x: 600, y: 0, width: 32, height: 32 })
+    , host)
+    const popupUrl = `moz-extension://${host}/popup-fenix.html`
+    await expect.poll(() => electronApp.evaluate(async ({ webContents }, url) => {
+      const popup = webContents.getAllWebContents().find((candidate) => candidate.getURL().startsWith(url))
+      if (!popup) return false
+      return popup.executeJavaScript('document.querySelector("#gotoPick")?.classList.contains("canPick") ?? false')
+    }, popupUrl), { timeout: 15_000 }).toBe(true)
+    await electronApp.evaluate(async ({ webContents }, url) => {
+      const popup = webContents.getAllWebContents().find((candidate) => candidate.getURL().startsWith(url))
+      await popup.executeJavaScript('document.querySelector("#gotoPick").click()')
+    }, popupUrl)
+
+    // The popup closes itself once the picker is launched.
+    await expect.poll(() => electronApp.evaluate(({ webContents }, url) =>
+      webContents.getAllWebContents().some((candidate) => candidate.getURL().startsWith(url))
+    , popupUrl), { timeout: 15_000 }).toBe(false)
+
+    const pickerPrefix = `moz-extension://${host}/web_accessible_resources/epicker-ui.html`
+    await expect.poll(() => electronApp.evaluate(async ({ webContents }, [url, prefix]) => {
+      const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL() === url)
+      const frame = contents?.mainFrame.frames.find((candidate) => candidate.url.startsWith(prefix))
+      if (!frame) return null
+      return frame.executeJavaScript(`(async () => ({
+        vapi: typeof vAPI,
+        manifestName: browser.runtime.getManifest().name,
+        stylesLoaded: [...document.querySelectorAll("link[rel=stylesheet]")].every((link) => link.sheet !== null),
+        editor: typeof CodeMirror,
+        pickButton: document.querySelector("#pick")?.textContent.trim() ?? "",
+        hints: typeof (await vAPI.messaging.send("dashboard", { what: "getAutoCompleteDetails" }))
+      }))()`)
+    }, [pageUrl, pickerPrefix]), { timeout: 15_000 }).toMatchObject({
+      vapi: "object",
+      manifestName: "uBlock Origin",
+      stylesLoaded: true,
+      editor: "function",
+      pickButton: expect.stringMatching(/\S/),
+      hints: "object"
+    })
+  } finally {
+    await closeApp(electronApp, userData)
+    await pageServer.close()
+  }
+})
+
 // uBlock's dashboard shows each pane in an iframe of the same extension. That
 // frame needs the `browser` object too, and events (port traffic, messages)
 // must reach the frame rather than the dashboard around it: the labels come

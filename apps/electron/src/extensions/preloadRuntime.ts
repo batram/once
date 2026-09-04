@@ -10,13 +10,71 @@ import {
   ExtensionContextInit,
   ExtensionEvent,
   INTERNAL_API,
-  ListenerChange
+  ListenerChange,
+  PRIVACY_SETTINGS
 } from "./protocol"
 
 export type Listener = (...args: unknown[]) => unknown
 
 /** Where a preload parks the bridge copy before the world adopts it. */
 export const BRIDGE_STAGING_KEY = "__onceExtensionApi"
+
+// A setting the extension may "control": the value is remembered for the
+// page's lifetime and read back, but nothing in the browser changes. uBlock
+// sets a few of these at startup and treats a rejection as an error.
+function privacySetting(initial: unknown): Record<string, unknown> {
+  let value = initial
+  return {
+    get: async () => ({ value, levelOfControl: "controllable_by_this_extension" }),
+    set: async (details: unknown) => {
+      const record = details as { value?: unknown } | null
+      if (record && "value" in record) value = record.value
+    },
+    clear: async () => {
+      value = initial
+    },
+    onChange: localEvent().object
+  }
+}
+
+function privacyNamespace(): Record<string, unknown> {
+  const privacy: Record<string, unknown> = {}
+  for (const [group, settings] of Object.entries(PRIVACY_SETTINGS)) {
+    const namespace: Record<string, unknown> = {}
+    for (const [name, value] of Object.entries(settings)) namespace[name] = privacySetting(value)
+    privacy[group] = namespace
+  }
+  return privacy
+}
+
+/**
+ * The constants and settings objects an extension page finds on `browser`
+ * beyond the methods and events main answers: what a built page API needs
+ * before it goes into a page's main world.
+ */
+export function decorateExtensionPage(browser: Record<string, unknown>): void {
+  const webRequest = browser.webRequest as Record<string, unknown>
+  webRequest.ResourceType = Object.freeze({
+    MAIN_FRAME: "main_frame", SUB_FRAME: "sub_frame", STYLESHEET: "stylesheet",
+    SCRIPT: "script", IMAGE: "image", FONT: "font", OBJECT: "object",
+    XMLHTTPREQUEST: "xmlhttprequest", PING: "ping", CSP_REPORT: "csp_report",
+    MEDIA: "media", WEBSOCKET: "websocket", OTHER: "other"
+  })
+  webRequest.MAX_HANDLER_BEHAVIOR_CHANGED_CALLS_PER_10_MINUTES = 20
+  // Firefox has no EXTRA_HEADERS; extensions filter the undefined entry out.
+  webRequest.OnBeforeRequestOptions = Object.freeze({ BLOCKING: "blocking", REQUEST_BODY: "requestBody" })
+  webRequest.OnBeforeSendHeadersOptions = Object.freeze({ BLOCKING: "blocking", REQUEST_HEADERS: "requestHeaders" })
+  webRequest.OnSendHeadersOptions = Object.freeze({ REQUEST_HEADERS: "requestHeaders" })
+  webRequest.OnHeadersReceivedOptions = Object.freeze({ BLOCKING: "blocking", RESPONSE_HEADERS: "responseHeaders" })
+  webRequest.OnResponseStartedOptions = Object.freeze({ RESPONSE_HEADERS: "responseHeaders" })
+  webRequest.OnBeforeRedirectOptions = Object.freeze({ RESPONSE_HEADERS: "responseHeaders" })
+  webRequest.OnCompletedOptions = Object.freeze({ RESPONSE_HEADERS: "responseHeaders" })
+  ;(browser.tabs as Record<string, unknown>).TAB_ID_NONE = -1
+  const windows = browser.windows as Record<string, unknown>
+  windows.WINDOW_ID_NONE = -1
+  windows.WINDOW_ID_CURRENT = -2
+  browser.privacy = privacyNamespace()
+}
 
 /**
  * Runs inside the target world, so it must be self-contained: a

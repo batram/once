@@ -35,7 +35,7 @@ const load = (name) => require(path.join(extensionsDir, `${name}.ts`))
 const {
   contentScriptsFor, manifestContentScripts, registeredContentScript, ExtensionFiles
 } = load("contentScripts")
-const { isWebAccessible, serveExtensionRequest } = load("ExtensionProtocol")
+const { OwnPageRequests, isOwnPage, isWebAccessible, serveExtensionRequest } = load("ExtensionProtocol")
 const { loadUnpackedExtension } = load("LoadedExtension")
 const { extensionUrl } = load("ExtensionScheme")
 const { ExtensionContexts } = load("ExtensionContexts")
@@ -132,6 +132,49 @@ test("only web_accessible_resources are served on the browser session", async ()
   assert.equal(hidden.status, 404)
   const own = await serveExtensionRequest(extensionUrl(extension.host, "background.js"), lookup)
   assert.equal(own.status, 200)
+
+  // A web-accessible page a tab shows is the extension's origin and may load
+  // the rest of the extension (uBlock's picker frame loads its scripts so).
+  // The webRequest side grants what such a page asks for, once per request;
+  // an ordinary page, or a hidden extension page, asking grants nothing.
+  const picker = extensionUrl(extension.host, "web_accessible_resources/epicker-ui.html?secret=abc")
+  assert.equal(isOwnPage(extension, picker), true)
+  assert.equal(isOwnPage(extension, "https://site.test/page"), false)
+  assert.equal(isOwnPage(extension, extensionUrl(extension.host, "dashboard.html")), false)
+  assert.equal(isOwnPage(extension, extensionUrl("other", "web_accessible_resources/x.html")), false)
+  assert.equal(isOwnPage(extension, null), false)
+  const ownPages = new OwnPageRequests()
+  const script = extensionUrl(extension.host, "background.js")
+  const serve = () => serveExtensionRequest(script, lookup, { webAccessibleOnly: true, ownPages })
+  assert.equal((await serve()).status, 404)
+  ownPages.grant(script)
+  assert.equal((await serve()).status, 200)
+  assert.equal((await serve()).status, 404)
+})
+
+// uBlock's element picker is an extension page in a frame of the tab. It is
+// the extension's page (it connects to the background like one), yet it
+// comes with the tab and shares the frame's transport with content scripts.
+test("an extension's own page inside a tab is a page context tied to the tab", () => {
+  const contexts = new ExtensionContexts()
+  const ports = new ExtensionPorts(contexts)
+  const tab = { id: 9, isDestroyed: () => false }
+  const frame = { frameTreeNodeId: 4, detached: false, url: "moz-extension://abc/web_accessible_resources/epicker-ui.html", sent: [] }
+  frame.send = (channel, message) => frame.sent.push({ channel, message })
+  const picker = contexts.addFrame(tab, frame, "abc", 9, 4, "page")
+  assert.deepEqual(
+    { id: picker.id, kind: picker.kind, tabId: picker.tabId, frameId: picker.frameId },
+    { id: "9:4", kind: "page", tabId: 9, frameId: 4 }
+  )
+  const background = fakeContext(contexts, "bg", "background")
+  contexts.addListener(background.entry.id, "runtime", "onConnect", 1, null)
+  const portId = ports.connect(picker, "vapi", {}, { tab: { id: 9 } })
+  assert.equal(typeof portId, "number")
+  assert.equal(background.sent.length, 1)
+  ports.post(background.entry.id, portId, "hello")
+  assert.deepEqual(frame.sent.at(-1).message, {
+    api: "__port", event: "message", args: [{ portId, message: "hello" }], host: "abc"
+  })
 })
 
 test("ports join a content script to the background page and close with it", () => {

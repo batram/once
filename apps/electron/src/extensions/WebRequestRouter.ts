@@ -24,6 +24,12 @@ export interface WebRequestRouterOptions {
   tabIdFor(webContentsId: number | undefined): number
   /** Every loaded extension, in the order their listeners run. */
   sources(): RequestSource[]
+  /**
+   * Every request, with the URL of the document that makes it, before any
+   * listener sees it: the protocol handler for extension URLs learns who
+   * asks only this way.
+   */
+  requestFrom?(url: string, documentUrl: string | null): void
 }
 
 interface ElectronRequestDetails {
@@ -214,10 +220,9 @@ export class WebRequestRouter {
   private async beforeRequest(
     details: Electron.OnBeforeRequestListenerDetails
   ): Promise<Electron.CallbackResponse> {
-    const merged = await this.dispatch(
-      "onBeforeRequest",
-      buildWebRequestDetails(this.baseInput(details))
-    )
+    const input = this.baseInput(details)
+    this.options.requestFrom?.(input.url, input.frame.documentUrl)
+    const merged = await this.dispatch("onBeforeRequest", buildWebRequestDetails(input))
     if (merged.cancel) return { cancel: true }
     if (merged.redirectUrl) return { redirectURL: merged.redirectUrl }
     return {}

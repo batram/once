@@ -12,6 +12,31 @@ import {
 
 export type ExtensionLookup = (host: string) => LoadedExtension | undefined
 
+/**
+ * A web-accessible page that a tab is showing is the extension's own origin
+ * and may load the rest of the extension, as in Firefox: uBlock's element
+ * picker frame pulls in its scripts and styles that way. The protocol
+ * handler learns nothing about who asks, and Chromium sends no referrer
+ * between documents of a custom scheme, but the session's webRequest hook
+ * sees the requesting frame first: it grants each such URL, and the handler
+ * takes the grant when it serves.
+ */
+export class OwnPageRequests {
+  private readonly granted = new Map<string, number>()
+
+  grant(url: string): void {
+    this.granted.set(url, (this.granted.get(url) ?? 0) + 1)
+  }
+
+  take(url: string): boolean {
+    const count = this.granted.get(url) ?? 0
+    if (count === 0) return false
+    if (count === 1) this.granted.delete(url)
+    else this.granted.set(url, count - 1)
+    return true
+  }
+}
+
 export interface ExtensionProtocolOptions {
   /**
    * Serve only `web_accessible_resources`. This is the browser session's
@@ -19,6 +44,8 @@ export interface ExtensionProtocolOptions {
    * the extension's own UI or scripts.
    */
   webAccessibleOnly?: boolean
+  /** Requests the extension's own page frames make, served regardless. */
+  ownPages?: OwnPageRequests
 }
 
 function notFound(reason: string): Response {
@@ -38,6 +65,12 @@ export function isWebAccessible(extension: LoadedExtension, path: string): boole
   return extension.manifest.webAccessibleResources.some((glob) => globToRegExp(glob).test(path))
 }
 
+/** Whether a document at `documentUrl` is one of the extension's own pages a tab may show. */
+export function isOwnPage(extension: LoadedExtension, documentUrl: string | null): boolean {
+  const page = documentUrl === null ? null : parseExtensionUrl(documentUrl)
+  return page !== null && page.host === extension.host && isWebAccessible(extension, page.path)
+}
+
 export async function serveExtensionRequest(
   url: string,
   lookup: ExtensionLookup,
@@ -48,7 +81,8 @@ export async function serveExtensionRequest(
   const extension = lookup(parts.host)
   if (!extension) return notFound("Unknown extension")
 
-  if (options.webAccessibleOnly && !isWebAccessible(extension, parts.path)) {
+  if (options.webAccessibleOnly && !isWebAccessible(extension, parts.path) &&
+    !options.ownPages?.take(url)) {
     return notFound("Not a web accessible resource")
   }
 

@@ -248,7 +248,11 @@ scripts run in per-extension isolated worlds inside tabs, reached only
 through the runtime's frame preload; ports join them to the background page.
 An extension's own pages (popup, dashboard, its blocked-page) open as tabs
 or popup views created in the extension's session, and pages may load only
-its `web_accessible_resources`. The synced `filter_lists` and `userscripts`
+its `web_accessible_resources`. A web-accessible page a tab shows in a frame
+(uBlock's element picker) is the extension's page inside the tab: the frame
+preload gives it the page API in its main world, the page's CSP does not
+apply to it, and the webRequest hook grants the requests that frame makes
+for the rest of the extension. The synced `filter_lists` and `userscripts`
 documents are handed to uBlock Origin and Violentmonkey through their own
 message APIs, from a main-process context that behaves like one of the
 extension's pages. The extensions that ship are an explicit list in

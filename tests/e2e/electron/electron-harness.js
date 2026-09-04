@@ -160,6 +160,18 @@ async function startPageServer(options = {}) {
       response.end()
       return
     }
+    // A page whose CSP allows no frames but its own: what uBlock's element
+    // picker meets on sites such as Hacker News.
+    if (request.url === "/strict-frames") {
+      response.writeHead(200, {
+        "content-type": "text/html; charset=utf-8",
+        "content-security-policy": "frame-src 'self'; child-src 'self'"
+      })
+      response.end(`<!doctype html>
+        <title>Strict frames</title>
+        <p id="advert">An advert to pick</p>`)
+      return
+    }
     if (request.url === "/video") {
       response.writeHead(200, { "content-type": "text/html; charset=utf-8" })
       response.end(`<!doctype html>
@@ -415,6 +427,27 @@ async function saveRedirects(window, text) {
   await showAllStories(window)
 }
 
+// The default redirect list has held a single rule since the Nitter rule
+// went, and the structured editor specs need a second row: one to drag, one
+// to drop onto, and a row that survives while its neighbour is being edited.
+// Leaves the redirects section open in structured mode.
+const SEEDED_REDIRECTS = [
+  "https:\\/\\/www.reddit.com\\/(.*) => https://old.reddit.com/$1",
+  "https:\\/\\/example.test\\/(.*) => https://example.org/$1"
+].join("\n")
+
+async function seedRedirects(window) {
+  await saveRedirects(window, SEEDED_REDIRECTS)
+  await openSettingsSection(
+    window,
+    "redirects",
+    '[data-structured-section="redirects"] .structured_row >> nth=0'
+  )
+  await expect(
+    window.locator('[data-structured-section="redirects"] .structured_row')
+  ).toHaveCount(2)
+}
+
 async function getWindowTabs(electronApp, windowId) {
   return electronApp.evaluate(async ({ BrowserWindow }, id) => {
     const target = BrowserWindow.fromId(id)
@@ -478,6 +511,7 @@ module.exports = {
   saveFilters,
   saveRedirects,
   seedLocalSource,
+  seedRedirects,
   showAllStories,
   startPageServer,
   transferTab

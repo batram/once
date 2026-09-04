@@ -2,7 +2,8 @@ const { test, expect } = require("@playwright/test")
 const {
   closeApp,
   launchApp,
-  openSettingsSection
+  openSettingsSection,
+  seedRedirects
 } = require("./electron-harness")
 
 test("reorders story source groups with a native Electron drag", async () => {
@@ -133,6 +134,7 @@ test("keeps a broad auto-scroll zone while dragging settings rows", async () => 
 test("shows stable insertion indicators while dragging structured rows", async () => {
   const { electronApp, userData, window } = await launchApp()
   try {
+    await seedRedirects(window)
     for (const [section, indicator] of [
       ["sources", "structured_source_drop_before"],
       ["filters", "structured_row_drop_target"],
@@ -174,6 +176,7 @@ test("shows stable insertion indicators while dragging structured rows", async (
 test("matches the final-row filter and redirect indicator to the drop", async () => {
   const { electronApp, userData, window } = await launchApp()
   try {
+    await seedRedirects(window)
     for (const section of ["filters", "redirects"]) {
       await openSettingsSection(window, section)
       const rows = window.locator(

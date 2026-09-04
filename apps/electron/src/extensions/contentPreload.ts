@@ -2,14 +2,23 @@
 // frame of every tab before the page's own scripts. It asks main which
 // extensions have content scripts for this frame, gives each one an
 // isolated world with its own `browser`, and runs the scripts at the phase
-// the manifest asked for. The page's main world never sees any of it.
+// the manifest asked for. The page's main world never sees any of it. A
+// frame that shows an extension's own page is the exception: that one gets
+// the page API in its main world and nothing else.
 
 import { contextBridge, ipcRenderer, webFrame } from "electron"
-import { ADOPT_BRIDGE_SOURCE, BRIDGE_STAGING_KEY, PreloadApi } from "./preloadRuntime"
+import {
+  ADOPT_BRIDGE_SOURCE,
+  BRIDGE_STAGING_KEY,
+  PreloadApi,
+  adoptBridge,
+  decorateExtensionPage
+} from "./preloadRuntime"
 import {
   CONTENT_API_SURFACE,
   ContentFrameInit,
   ContentScriptBatch,
+  EXTENSION_API_SURFACE,
   EXTENSION_IPC,
   ExtensionEvent,
   INTERNAL_API
@@ -169,7 +178,8 @@ const DEFINE_WRAPPED_JS_OBJECT = `(() => {
 })()`
 
 function createWorld(init: ContentFrameInit): ContentWorld {
-  const api = new PreloadApi(init, CONTENT_API_SURFACE, {
+  const ownPage = init.kind !== "content"
+  const api = new PreloadApi(init, ownPage ? EXTENSION_API_SURFACE : CONTENT_API_SURFACE, {
     invoke: (namespace, method, args) =>
       ipcRenderer.invoke(EXTENSION_IPC.contentInvoke, { host: init.host, api: namespace, method, args }),
     reply: (token, result) => reply(world, token, result),
@@ -178,6 +188,16 @@ function createWorld(init: ContentFrameInit): ContentWorld {
     }
   })
   const world: ContentWorld = { init, api, styles: new Map() }
+  if (ownPage) {
+    // The frame is one of the extension's own pages (uBlock's element
+    // picker): `browser` belongs in its main world, as in the extension's
+    // other pages, and no content script runs here.
+    const browser = api.build()
+    decorateExtensionPage(browser)
+    contextBridge.exposeInMainWorld(BRIDGE_STAGING_KEY, browser)
+    contextBridge.executeInMainWorld({ func: adoptBridge })
+    return world
+  }
   contextBridge.exposeInIsolatedWorld(init.worldId, BRIDGE_STAGING_KEY, api.build())
   contextBridge.exposeInIsolatedWorld(init.worldId, MAIN_WORLD_STAGING_KEY, mainWorldAccess())
   // Runs before any content script: calls into the same world are executed

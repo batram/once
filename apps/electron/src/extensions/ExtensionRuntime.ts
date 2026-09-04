@@ -21,7 +21,12 @@ import { ContextEntry, frameContextId } from "./ExtensionContexts"
 import { ApiHandler, createApiHandlers } from "./ExtensionApi"
 import { ExtensionHost } from "./ExtensionHost"
 import { ExtensionPopup } from "./ExtensionPopup"
-import { configureExtensionProtocol } from "./ExtensionProtocol"
+import {
+  OwnPageRequests,
+  configureExtensionProtocol,
+  isOwnPage,
+  isWebAccessible
+} from "./ExtensionProtocol"
 import { LoadedExtension, loadUnpackedExtension } from "./LoadedExtension"
 import { extensionUrl, parseExtensionUrl } from "./ExtensionScheme"
 import { WebRequestRouter } from "./WebRequestRouter"
@@ -78,6 +83,11 @@ function frameIds(isMainFrame: boolean, processId: number, routingId: number): F
   }
 }
 
+/** What a frame of a tab may call: the page API when it is the extension's own page. */
+function surfaceFor(entry: ContextEntry): Readonly<Record<string, ApiSurface>> {
+  return entry.kind === "content" ? CONTENT_API_SURFACE : EXTENSION_API_SURFACE
+}
+
 function extensionDirectories(configured: string | undefined): string[] {
   return (configured ?? "")
     .split(path.delimiter)
@@ -117,6 +127,7 @@ export class ExtensionRuntime {
   private readonly popups = new Map<string, ExtensionPopup>()
   private readonly handlers: Record<string, ApiHandler> = createApiHandlers()
   private readonly router: WebRequestRouter
+  private readonly ownPages = new OwnPageRequests()
   private readonly tabContents = new Map<number, WebContents>()
   private readonly changed = new Set<() => void>()
   private lastActive = new Map<number, number>()
@@ -128,7 +139,11 @@ export class ExtensionRuntime {
     this.router = new WebRequestRouter(options.browserSession, {
       tabIdFor: (webContentsId) =>
         webContentsId !== undefined && this.tabContents.has(webContentsId) ? webContentsId : -1,
-      sources: () => [...this.hosts.values()]
+      sources: () => [...this.hosts.values()],
+      requestFrom: (url, documentUrl) => {
+        const extension = this.hostForUrl(url)?.extension
+        if (extension && isOwnPage(extension, documentUrl)) this.ownPages.grant(url)
+      }
     })
   }
 
@@ -145,7 +160,7 @@ export class ExtensionRuntime {
     configureExtensionProtocol(
       this.options.browserSession,
       (host) => this.hosts.get(host)?.extension,
-      { webAccessibleOnly: true }
+      { webAccessibleOnly: true, ownPages: this.ownPages }
     )
     this.options.hooks.onTabCreated((contents) => this.trackTab(contents))
     this.options.hooks.onTabsChanged(() => this.tabsChanged())
@@ -372,12 +387,12 @@ export class ExtensionRuntime {
     })
     ipcMain.handle(EXTENSION_IPC.contentInvoke, (event, message: ExtensionInvoke) => {
       const { host, entry } = this.requireContentContext(event, message?.host)
-      return this.invoke(host, entry, message, CONTENT_API_SURFACE)
+      return this.invoke(host, entry, message, surfaceFor(entry))
     })
     ipcMain.on(EXTENSION_IPC.contentListeners, (event, change: ListenerChange) => {
       try {
         const { host, entry } = this.requireContentContext(event, change?.host)
-        this.listenerChange(host, entry, change, CONTENT_API_SURFACE)
+        this.listenerChange(host, entry, change, surfaceFor(entry))
         event.returnValue = true
       } catch (error) {
         console.error("Content listener registration refused", error)
@@ -393,18 +408,37 @@ export class ExtensionRuntime {
 
   /**
    * A frame of a tab is starting: every extension with matching content
-   * scripts gets a context in it and its scripts as code.
+   * scripts gets a context in it and its scripts as code. A frame showing
+   * one of an extension's web-accessible pages is instead that extension's
+   * page inside the tab (uBlock's element picker): it gets the page API,
+   * tied to the tab, and no content scripts, as in Firefox.
    */
   private contentInit(event: IpcMainEvent): ContentFrameInit[] {
     const contents = event.sender
     const frame = event.senderFrame
     if (!frame || !this.tabContents.has(contents.id)) return []
+    const ids = frameIdsOf(frame)
+    const ownPage = parseExtensionUrl(frame.url)
+    if (ownPage) {
+      const host = this.hosts.get(ownPage.host)
+      if (!host || frame.parent === null || !isWebAccessible(host.extension, ownPage.path)) return []
+      host.contexts.addFrame(contents, frame, host.extension.host, contents.id, ids.frameId, "page")
+      return [{
+        id: host.extension.id,
+        host: host.extension.host,
+        kind: "page",
+        manifest: host.extension.rawManifest,
+        messages: host.extension.messages,
+        uiLanguage: app.getLocale(),
+        worldId: host.worldId,
+        scripts: []
+      }]
+    }
     const identity = {
       url: frame.url,
       topUrl: frame.top?.url ?? frame.url,
       isTop: frame.parent === null
     }
-    const ids = frameIdsOf(frame)
     const inits: ContentFrameInit[] = []
     for (const host of this.hosts.values()) {
       const specs = contentScriptsFor(host.contentScripts(), identity)
@@ -613,7 +647,7 @@ export class ExtensionRuntime {
       for (const host of this.hosts.values()) {
         host.action.forgetTab(id)
         for (const entry of host.contexts.all()) {
-          if (entry.kind === "content" && entry.tabId === id) host.contexts.remove(entry.id)
+          if (entry.tabId === id) host.contexts.remove(entry.id)
         }
       }
       this.emit("tabs", "onRemoved", [id, { windowId, isWindowClosing: false }])

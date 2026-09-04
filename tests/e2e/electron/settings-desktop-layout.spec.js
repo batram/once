@@ -4,7 +4,8 @@ const {
   expectDocumentFocus,
   launchApp,
   openPanel,
-  openSettingsSection
+  openSettingsSection,
+  seedRedirects
 } = require("./electron-harness")
 
 test("keeps the story and settings titlebars at the original story height", async () => {
@@ -160,6 +161,7 @@ test("uses the dense desktop source-list geometry and toolbar", async () => {
 test("keeps every structured desktop editor usable", async () => {
   const { electronApp, userData, window } = await launchApp()
   try {
+    await seedRedirects(window)
     for (const section of ["filters", "redirects"]) {
       await openSettingsSection(window, section)
       const row = window.locator(

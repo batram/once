@@ -50,7 +50,10 @@ export class ExtensionPopup {
     const view = this.view
     if (!view) return
     this.detach()
-    if (!view.webContents.isDestroyed()) view.webContents.close()
+    // A popup that closed itself (`window.close()`, as uBlock does after
+    // launching its picker) loses its webContents before the blur arrives.
+    const contents = view.webContents as WebContentsView["webContents"] | undefined
+    if (contents && !contents.isDestroyed()) contents.close()
   }
 
   private detach(): void {

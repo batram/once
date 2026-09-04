@@ -64,7 +64,11 @@ export interface RegisterContentScriptOptions {
   matchAboutBlank?: boolean
 }
 
-/** One extension's share of a frame: its identity plus what to inject. */
+/**
+ * One extension's share of a frame: its identity plus what to inject. A
+ * `page` kind means the frame shows one of the extension's own pages and
+ * gets the page API in its main world instead of content scripts.
+ */
 export interface ContentFrameInit extends ExtensionContextInit {
   /** The isolated world this extension's content scripts run in. */
   worldId: number

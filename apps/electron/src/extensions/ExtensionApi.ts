@@ -212,7 +212,9 @@ export function senderDescriptor(host: ApiHost, sender: ContextEntry): Record<st
     url: sender.url(),
     frameId: sender.frameId
   }
-  if (sender.kind === "content") {
+  // Content scripts and the extension's own frames inside a tab both come
+  // with the tab; the extension's pages in their own views do not.
+  if (sender.tabId >= 0) {
     descriptor.tab = host.hooks.tabs().find((tab) => tab.id === sender.tabId)
   }
   return descriptor

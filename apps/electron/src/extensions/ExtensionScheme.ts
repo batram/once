@@ -49,6 +49,10 @@ export function registerExtensionScheme(): void {
         secure: true,
         supportFetchAPI: true,
         corsEnabled: true,
+        // A page's CSP does not apply to the extension's own URLs, as in
+        // Firefox: uBlock's element picker is an extension frame appended to
+        // pages whose `frame-src` would otherwise refuse it.
+        bypassCSP: true,
         allowServiceWorkers: false
       }
     }

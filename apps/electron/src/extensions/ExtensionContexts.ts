@@ -99,19 +99,26 @@ export class ExtensionContexts {
     return this.insert(entry)
   }
 
-  /** This extension's content-script world inside one frame of a tab. */
+  /**
+   * This extension's content-script world inside one frame of a tab, or,
+   * as a `page`, a frame of the tab that shows one of the extension's own
+   * web-accessible pages (uBlock's element picker). Either way the frame
+   * shares the tab's process with other extensions, so messages carry the
+   * host they are for.
+   */
   addFrame(
     contents: WebContents,
     frame: WebFrameMain,
     host: string,
     tabId: number,
-    frameId: number
+    frameId: number,
+    kind: ExtensionContextKind = "content"
   ): ContextEntry {
     const id = frameContextId(contents, frame)
     const alive = () => !contents.isDestroyed() && !frame.detached
     return this.insert({
       id,
-      kind: "content",
+      kind,
       tabId,
       frameId,
       listeners: new Map(),
