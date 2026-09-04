@@ -89,6 +89,12 @@ const STRICT_FRAMES_PAGE = `<!doctype html>
 <p id="advert">An advert to pick</p>
 <p>Body text the picker overlay must not hide.</p>`
 
+// Waiting for the app to start, not measuring how fast it starts. A hosted
+// runner takes several times as long as a developer machine, so a tight
+// window here fails whichever spec happened to launch during a slow patch
+// rather than the one with the defect.
+const STARTUP_TIMEOUT_MS = process.env.CI ? 40_000 : 15_000
+
 async function startPageServer(options = {}) {
   let origin = ""
   const server = http.createServer((request, response) => {
@@ -303,14 +309,15 @@ async function launchApp(options = {}) {
   })
   await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows().length
-  ), { timeout: 10_000 }).toBe(1)
+  ), { timeout: STARTUP_TIMEOUT_MS }).toBe(1)
   const window = await electronApp.firstWindow()
   await expect(window.locator("body")).toHaveAttribute(
     "data-once-ready",
     "true",
-    { timeout: 7_000 }
+    { timeout: STARTUP_TIMEOUT_MS }
   )
-  await expect.poll(() => window.evaluate(() => window.onceElectron.tabs.getAll()))
+  await expect.poll(() => window.evaluate(() => window.onceElectron.tabs.getAll()),
+    { timeout: STARTUP_TIMEOUT_MS })
     .toMatchObject([{ url: "about:blank", active: true }])
   return { electronApp, userData, window }
 }

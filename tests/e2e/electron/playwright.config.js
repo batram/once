@@ -12,14 +12,17 @@ const includeInteractive = Boolean(process.env.CI) ||
 module.exports = defineConfig({
   testDir: __dirname,
   testMatch: "*.spec.js",
-  timeout: 30_000,
+  // A hosted runner is several times slower than a developer machine and its
+  // speed varies between runs, so the budget that keeps local feedback sharp
+  // turns healthy specs red there. Locally it stays tight.
+  timeout: process.env.CI ? 90_000 : 30_000,
   retries: 1,
   workers: 1,
   reporter: "line",
   grepInvert: includeInteractive ? undefined : /@interactive/,
   use: {
-    actionTimeout: 5_000,
-    navigationTimeout: 8_000,
+    actionTimeout: process.env.CI ? 15_000 : 5_000,
+    navigationTimeout: process.env.CI ? 20_000 : 8_000,
     trace: "retain-on-failure"
   }
 })
