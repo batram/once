@@ -77,6 +77,18 @@ document.documentElement.dataset.onceHarnessScript = "ran"
   return false
 }
 
+// A page whose CSP allows no frames but its own, on a light background: what
+// uBlock's element picker meets on sites such as Hacker News. The picker dims
+// the page by half, so the text has to stay readable through it.
+const STRICT_FRAMES_PAGE = `<!doctype html>
+<title>Strict frames</title>
+<style>
+  body { background: #ffffff; color: #111111; font: 16px system-ui; margin: 0; padding: 24px; }
+  #advert { background: #ffe08a; padding: 16px; }
+</style>
+<p id="advert">An advert to pick</p>
+<p>Body text the picker overlay must not hide.</p>`
+
 async function startPageServer(options = {}) {
   let origin = ""
   const server = http.createServer((request, response) => {
@@ -160,16 +172,12 @@ async function startPageServer(options = {}) {
       response.end()
       return
     }
-    // A page whose CSP allows no frames but its own: what uBlock's element
-    // picker meets on sites such as Hacker News.
     if (request.url === "/strict-frames") {
       response.writeHead(200, {
         "content-type": "text/html; charset=utf-8",
         "content-security-policy": "frame-src 'self'; child-src 'self'"
       })
-      response.end(`<!doctype html>
-        <title>Strict frames</title>
-        <p id="advert">An advert to pick</p>`)
+      response.end(STRICT_FRAMES_PAGE)
       return
     }
     if (request.url === "/video") {

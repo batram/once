@@ -78,20 +78,29 @@ test("the uBlock element picker opens as an extension frame inside the page", as
       const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL() === url)
       const frame = contents?.mainFrame.frames.find((candidate) => candidate.url.startsWith(prefix))
       if (!frame) return null
-      return frame.executeJavaScript(`(async () => ({
-        vapi: typeof vAPI,
-        manifestName: browser.runtime.getManifest().name,
-        stylesLoaded: [...document.querySelectorAll("link[rel=stylesheet]")].every((link) => link.sheet !== null),
-        editor: typeof CodeMirror,
-        pickButton: document.querySelector("#pick")?.textContent.trim() ?? "",
-        hints: typeof (await vAPI.messaging.send("dashboard", { what: "getAutoCompleteDetails" }))
-      }))()`)
+      return frame.executeJavaScript(`(async () => {
+        const sea = document.querySelector("svg#sea > path")
+        return {
+          vapi: typeof vAPI,
+          manifestName: browser.runtime.getManifest().name,
+          stylesLoaded: [...document.querySelectorAll("link[rel=stylesheet]")].every((link) => link.sheet !== null),
+          editor: typeof CodeMirror,
+          pickButton: document.querySelector("#pick")?.textContent.trim() ?? "",
+          // The dimming overlay is the picker's most visible style: with no
+          // stylesheet an SVG path fills opaque black and blacks out the page.
+          seaFill: sea ? getComputedStyle(sea).fill : null,
+          dialogSurface: getComputedStyle(document.querySelector("aside")).backgroundColor,
+          hints: typeof (await vAPI.messaging.send("dashboard", { what: "getAutoCompleteDetails" }))
+        }
+      })()`)
     }, [pageUrl, pickerPrefix]), { timeout: 15_000 }).toMatchObject({
       vapi: "object",
       manifestName: "uBlock Origin",
       stylesLoaded: true,
       editor: "function",
       pickButton: expect.stringMatching(/\S/),
+      seaFill: "rgba(0, 0, 0, 0.5)",
+      dialogSurface: expect.stringMatching(/^rgba?\((?!0, 0, 0, 0\))/),
       hints: "object"
     })
   } finally {
