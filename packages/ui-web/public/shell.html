@@ -5,7 +5,7 @@
     <title>once</title>
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' http: https:; frame-src 'self' blob: once-addon: https:;"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' http: https:; frame-src 'self' blob: once-addon: https: http://127.0.0.1:* http://localhost:*;"
     />
     <link rel="stylesheet" href="css/style.css" />
   </head>
@@ -248,11 +248,12 @@
                   </div>
                   <div id="addon_options" class="addon_options" data-testid="addon-options"></div>
                   <div class="settings_group" id="firefox_addon_sandbox_settings" data-platform-only hidden>
+                    <p class="field_hint">
+                      Firefox cannot run add-on code under an extension's origin. To use scripted
+                      add-ons, host a copy of addon-sandbox-hosted.html and name it here.
+                    </p>
                     <div class="field">
-                      <label class="field_label" for="addon_sandbox_url_input">
-                        Sandbox page for scripted add-ons (Firefox cannot run add-on code under an
-                        extension's origin, so name a hosted copy of addon-sandbox-hosted.html)
-                      </label>
+                      <label class="field_label" for="addon_sandbox_url_input">Sandbox page URL</label>
                       <input
                         id="addon_sandbox_url_input"
                         type="url"

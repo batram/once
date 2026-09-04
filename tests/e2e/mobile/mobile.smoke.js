@@ -1,3 +1,4 @@
+const { ADDON_INTEGRITY } = require("../shared/addon-fixture")
 /* global browser, describe, before, it, expect, $ */
 
 function contextName(context) {
@@ -421,4 +422,48 @@ describe("Once mobile", () => {
     const syncUrl = await $("[data-testid='sync-url']")
     expect(String(await syncUrl.getProperty("value")).includes(`/db/mobile_${platform}`)).toBe(true)
   })
+
+  it("runs a scripted add-on in the sandbox frame", async () => {
+    await runScriptedAddon(baseUrl, platform)
+  })
 })
+
+// The add-on sandbox on a device: the page is a static asset beside the app,
+// loaded in a sandboxed frame by the platform WebView (Android's Chromium,
+// iOS's WebKit), and the fixture script's computed badge has to reach the row.
+async function runScriptedAddon(baseUrl, platform) {
+  await clickWeb(await $("#settings_section_back"), platform)
+  await clickWeb(await $("[data-settings-target='addons']"), platform)
+  await setWebValue(await $("[data-testid='addons']"), JSON.stringify([{
+    protocol: 1,
+    id: "harness-script",
+    name: "Harness Script",
+    version: "1.0.0",
+    script: { url: `${baseUrl}/fixtures/addon/main.js`, integrity: ADDON_INTEGRITY },
+    contributions: [
+      { kind: "action", id: "visit", label: "Visit from add-on", surfaces: ["button", "menu"], run: { message: "visit" } },
+      { kind: "badge", id: "len", compute: "len" }
+    ]
+  }]))
+  await clickWeb(await $("[data-testid='save-addons']"), platform)
+  // The section index (and its summary) is hidden while the detail is open,
+  // and WebDriver reads no text from hidden elements, so watch the block's
+  // own status line instead.
+  await browser.waitUntil(async () =>
+    (await $("#addon_install_settings .settings_status").getText()) === "Saved", {
+    timeout: 10_000,
+    timeoutMsg: "The add-on was not saved"
+  })
+  await clickWeb(await $("[data-testid='stories-menu']"), platform)
+  const story = await $("[data-testid='story']")
+  await story.waitForDisplayed({ timeout: 30_000 })
+  const title = await story.$("[data-testid='story-title']").getText()
+  const badge = await story.$(".addon_badge[data-addon-badge='len']")
+  await badge.waitForExist({ timeout: 30_000 })
+  await browser.waitUntil(async () => (await badge.getText()) === `len ${title.length}`, {
+    timeout: 30_000,
+    timeoutMsg: "The sandbox did not answer the badge request"
+  })
+  expect(await story.$$(".addon_btn[data-story-element='addon:harness-script/visit']")).toHaveLength(1)
+  expect(await browser.execute(() => document.querySelectorAll("iframe[data-addon-sandbox]").length)).toBe(1)
+}

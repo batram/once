@@ -445,7 +445,12 @@ covers it); a change to `packages/ui-web/src/addons/sandboxRuntime.ts`
 therefore needs a repackage before an E2E rerun, like any other renderer
 change. The extension builds also emit `static/addon-sandbox-hosted.html`, a
 self-contained copy for Firefox users to host over `https`; nothing in the
-repository hosts it. See [ADDONS.md](ADDONS.md) for what the fixture exercises.
+repository hosts it for users, but `tests/e2e/extensions/firefox-addons.test.js`
+serves the built copy from the local fixture server, names it through the
+sidebar's own setting (which accepts plain `http` from `127.0.0.1` and
+`localhost` for exactly this), and runs the fixture add-on through it. The
+Android smoke suite (`mobile.smoke.js`) ends with the same add-on in the
+device WebView. See [ADDONS.md](ADDONS.md) for what the fixture exercises.
 
 On Windows, package builds that update committed or generated `dist` output can
 fail with `EPERM` when run from a restricted sandbox. Retry the unchanged

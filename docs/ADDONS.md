@@ -244,8 +244,9 @@ Rules the host enforces, not the script:
   extension's origin, so there the Add-ons section asks for the `https` URL
   of a hosted copy of `addon-sandbox-hosted.html`, a self-contained page the
   Firefox build emits under `static/`; host it anywhere you trust, paste the
-  URL, and reopen the sidebar. Until then Firefox reports scripted add-ons as
-  unavailable and runs declarative ones only.
+  URL, and reopen the sidebar (plain `http` is accepted from `127.0.0.1` and
+  `localhost` only, for a copy served on your own machine). Until then Firefox
+  reports scripted add-ons as unavailable and runs declarative ones only.
 
 ## Worked examples
 

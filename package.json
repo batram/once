@@ -70,7 +70,7 @@
     "test:design-system": "node --test tests/e2e/design-system/icon-audit.test.js && playwright test --config tests/e2e/design-system/playwright.config.js",
     "test:design-system:electron": "npm run package:electron && playwright test tests/e2e/electron/settings-desktop-layout.spec.js --config tests/e2e/electron/playwright.config.js",
     "test:design-system:mobile": "npm run test:mobile:web",
-    "test:extensions": "npm run build:extensions && node --test tests/e2e/extensions/artifacts.test.js && web-ext lint --source-dir apps/firefox-extension/dist/release && playwright test --config tests/e2e/extensions/playwright.config.js && node --test tests/e2e/extensions/firefox.test.js tests/e2e/extensions/firefox-stories.test.js tests/e2e/extensions/geny-firefox.test.js",
+    "test:extensions": "npm run build:extensions && node --test tests/e2e/extensions/artifacts.test.js && web-ext lint --source-dir apps/firefox-extension/dist/release && playwright test --config tests/e2e/extensions/playwright.config.js && node --test tests/e2e/extensions/firefox.test.js tests/e2e/extensions/firefox-stories.test.js tests/e2e/extensions/firefox-addons.test.js tests/e2e/extensions/geny-firefox.test.js",
     "test:live:collectors": "npm run build:packages && node --test tests/live/collectors/*.test.js",
     "test:mobile": "npm run build:packages && npm run typecheck --workspace @once/mobile && node --test tests/unit/mobile/*.test.js",
     "test:mobile:e2e:android": "node tests/e2e/mobile/run-mobile-e2e.js android",

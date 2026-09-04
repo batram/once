@@ -38,9 +38,11 @@ frame), loaded by URL rather than through a native route, because a
 navigated document carries its own policy and Capacitor's local server
 answers for any frame. Verified by the mobile web e2e (headless Chromium
 against the test server), where the fixture script computes a badge and its
-action appears in the row's menu. Not yet exercised on an Android emulator
-or an iOS device; the WebKit behaviour of `import()` on a blob module inside
-a sandboxed frame is the thing to confirm there.
+action appears in the row's menu, and by the Android Appium smoke suite on
+the API 36 emulator (verified 2026-09-04), where the same add-on runs in the
+device WebView. Not yet exercised on an iOS device; the WebKit behaviour of
+`import()` on a blob module inside a sandboxed frame is the thing to confirm
+there.
 
 Step 7 is done except the development directory: an add-on installs from
 the URL of its `once-addon.json` (a relative `script.url` resolves against
@@ -65,9 +67,10 @@ changes a computed badge.
 
 Step 9 is done: [ADDONS.md](../ADDONS.md) is the author reference, with the
 e2e fixtures as worked examples; ARCHITECTURE.md, CODEMAP.md, and
-COLLECTORS.md carry the add-on sections. Open from the original list: the
-Firefox and Chrome serving paths, device runs on Android and iOS, the
-schema-driven configuration form in the source editor, `ONCE_ADDONS`, and a
+COLLECTORS.md carry the add-on sections. The Chrome and Firefox serving paths and the
+Android emulator run followed on 2026-09-04. Open from the original list: an
+iOS device run, the schema-driven configuration form in the source editor,
+`ONCE_ADDONS`, a Once-hosted default for Firefox's sandbox page, and a
 curated index.
 
 ## Decision
@@ -214,7 +217,7 @@ a static `addon-sandbox.html` from a place where it carries its own policy:
 | Target | Serving | Notes |
 | --- | --- | --- |
 | Chrome | Manifest `sandbox.pages: ["static/addon-sandbox.html"]` (done) | Chrome's own mechanism for exactly this: an opaque-origin page with a separate `content_security_policy.sandbox` that permits `blob:` scripts, no extension APIs, no access to the opener. Verified by `tests/e2e/extensions/chrome-addons.spec.js`. |
-| Firefox | A hosted copy of `static/addon-sandbox-hosted.html`, named by the user (done) | Firefox does not implement the manifest `sandbox` key, and MV3 forbids `blob:` or `unsafe-eval` script sources on extension pages, so no page under the extension's origin may run add-on code. The Firefox build emits a self-contained page (runtime inlined, allowed by hash); the Add-ons section asks for the `https` URL of a hosted copy, kept in the browser's local extension storage. The shell CSP's `frame-src` allows `https:`. Without a URL, scripted add-ons are reported unavailable. |
+| Firefox | A hosted copy of `static/addon-sandbox-hosted.html`, named by the user (done) | Firefox does not implement the manifest `sandbox` key, and MV3 forbids `blob:` or `unsafe-eval` script sources on extension pages, so no page under the extension's origin may run add-on code. The Firefox build emits a self-contained page (runtime inlined, allowed by hash); the Add-ons section asks for the `https` URL of a hosted copy (or a loopback `http` one for local hosting), kept in the browser's local extension storage. The shell CSP's `frame-src` allows `https:` and loopback `http:`. Without a URL, scripted add-ons are reported unavailable. Verified by `tests/e2e/extensions/firefox-addons.test.js`, which hosts the built page on the fixture server. |
 | Electron | `once-addon://sandbox/index.html`, served by main from the second Forge renderer entry (`addon_sandbox`) | The frame's opaque origin may not load `file:` subresources (tried: the page loaded, its script was refused), so the page and its runtime come through a privileged scheme, a sibling of `once-reader://`. The shell CSP's `frame-src` names the scheme. |
 | Android, iOS | `addon-sandbox.html`, a static asset beside the app, loaded by URL | No native route needed: a navigated document carries its own policy, and Capacitor's local server answers for any frame. The runtime is inlined and allowed by hash for older WebKit. Add-on code still arrives by `postMessage`. |
 

@@ -1,4 +1,6 @@
+const fs = require("node:fs")
 const http = require("node:http")
+const path = require("node:path")
 const storyFixture = require("../shared/story-fixture")
 const addonFixture = require("../shared/addon-fixture")
 
@@ -22,6 +24,14 @@ async function startStoryFixture() {
     if (request.url === "/api/stories.json") {
       response.writeHead(200, { "content-type": "application/json; charset=utf-8" })
       response.end(JSON.stringify(addonFixture.addonApiStories(origin)))
+      return
+    }
+    // The self-contained sandbox page the Firefox build emits, hosted the way
+    // a Firefox user would host it, so the sidebar can point at it.
+    if (request.url === "/sandbox/addon-sandbox-hosted.html") {
+      const page = path.resolve(__dirname, "../../../apps/firefox-extension/dist/release/static/addon-sandbox-hosted.html")
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8" })
+      response.end(fs.readFileSync(page))
       return
     }
     response.writeHead(404, { "content-type": "text/plain" })

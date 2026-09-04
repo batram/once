@@ -26,7 +26,8 @@ plans are summarized in [HISTORY.md](HISTORY.md) and retained in Git history.
   [Add-ons](ADDONS.md))
   - A Once-hosted default for Firefox's sandbox page, so users need not host
     `addon-sandbox-hosted.html` themselves
-  - Android emulator and iOS device runs of the mobile sandbox
+  - An iOS device run of the mobile sandbox (Android is covered by the
+    emulator smoke suite)
   - A schema-driven configuration form for add-on collectors in the source
     editor
   - `ONCE_ADDONS` development directories for unpackaged Electron builds

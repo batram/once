@@ -13,7 +13,12 @@ export async function addonSandboxUrl(target: "chrome" | "firefox"): Promise<str
   if (target === "chrome") return browser.runtime.getURL("static/addon-sandbox.html")
   const stored = await browser.storage.local.get(KEY)
   const url = stored[KEY]
-  return typeof url === "string" && /^https:\/\//i.test(url) ? url : undefined
+  return typeof url === "string" && isAcceptableSandboxUrl(url) ? url : undefined
+}
+
+/** `https` anywhere, or plain `http` on this machine only, for hosting a copy locally while developing. */
+export function isAcceptableSandboxUrl(url: string): boolean {
+  return /^https:\/\//i.test(url) || /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//i.test(url)
 }
 
 /** Reveals the Firefox-only control in the Add-ons section and saves what the user enters. */
@@ -30,8 +35,8 @@ export async function bindAddonSandboxSetting(): Promise<void> {
   group.append(status)
   save.addEventListener("click", () => void (async () => {
     const url = input.value.trim()
-    if (url && !/^https:\/\//i.test(url)) {
-      status.textContent = "The sandbox page must be served over https"
+    if (url && !isAcceptableSandboxUrl(url)) {
+      status.textContent = "The sandbox page must be served over https (or from this machine over http)"
       return
     }
     if (url) await browser.storage.local.set({ [KEY]: url })
