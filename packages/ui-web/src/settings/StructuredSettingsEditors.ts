@@ -8,6 +8,7 @@ import {
 } from "./structured/structuredSearch"
 import {
   announceStructuredSettings,
+  FormField,
   showStructuredForm
 } from "./structured/form"
 import { createRedirectTester } from "./structured/redirectTester"
@@ -76,8 +77,8 @@ export class StructuredSettingsEditors {
       showSourceError: (source) => this.options.showSourceError(source),
       openMenu: (anchor, items) => this.openMenu(anchor, items),
       listActions: () => this.listActions("sources"),
-      showForm: (root, title, fields, save, remove, choices) =>
-        this.showForm(root, title, fields, save, remove, choices)
+      showForm: (root, title, fields, save, remove, choices, configure) =>
+        this.showForm(root, title, fields, save, remove, choices, configure ? { configure } : undefined)
     })
     this.addButtons = new StructuredAddButtons({
       mode: (section) => this.modes.get(section) || "list",
@@ -559,10 +560,14 @@ export class StructuredSettingsEditors {
     root: HTMLElement,
     titleText: string,
     fields: Array<[string, string, { multiline?: boolean; hint?: string }?]>,
-    save: (values: string[]) => boolean,
+    save: (values: string[]) => boolean | string,
     remove?: { label: string; action: () => void },
     choices?: Array<[string, string]>,
-    presentation?: { host?: HTMLElement; redirectTester?: boolean }
+    presentation?: {
+      host?: HTMLElement
+      redirectTester?: boolean
+      configure?: (inputs: FormField[], rows: HTMLElement) => void
+    }
   ): void {
     const section = root.dataset.structuredSection as Section
     this.detailSections.add(section)
@@ -579,6 +584,7 @@ export class StructuredSettingsEditors {
         : fields,
       save,
       remove,
+      configure: presentation?.configure,
       host: presentation?.host,
       createTester: presentation?.redirectTester
         ? (inputs) => createRedirectTester(

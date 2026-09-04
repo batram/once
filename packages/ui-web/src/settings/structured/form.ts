@@ -113,8 +113,14 @@ export interface StructuredFormOptions {
   root: HTMLElement
   title: string
   fields: StructuredFormField[]
-  save(values: string[]): boolean
+  /** `true` saved; `false` is the generic complaint, a string names the problem. */
+  save(values: string[]): boolean | string
   dismiss(): void
+  /**
+   * Rows that depend on the fixed fields, rebuilt into `rows` whenever one of
+   * those changes: the source form's collector configuration.
+   */
+  configure?(inputs: FormField[], rows: HTMLElement): void
   onTouch: boolean
   remove?: { label: string; action: () => void }
   host?: HTMLElement
@@ -243,6 +249,18 @@ export function showStructuredForm(options: StructuredFormOptions): void {
     appendFormField(rows, input, field)
     return input
   })
+  if (options.configure) {
+    const configure = options.configure
+    const dependent = document.createElement("section")
+    dependent.className = "settings_rows structured_form_config"
+    dependent.dataset.testid = "structured-config-rows"
+    form.append(dependent)
+    configure(inputs, dependent)
+    form.addEventListener("change", (event) => {
+      if (!(event.target instanceof Node) || dependent.contains(event.target)) return
+      configure(inputs, dependent)
+    })
+  }
   const tester = options.createTester?.(inputs)
   if (tester) form.append(tester.element)
   const error = document.createElement("p")
@@ -265,8 +283,9 @@ export function showStructuredForm(options: StructuredFormOptions): void {
   }
   const save = commit("Save", () => {
     if (!form.reportValidity()) return
-    if (!options.save(inputs.map((input) => input.value))) {
-      error.textContent = "Complete all required fields."
+    const result = options.save(inputs.map((input) => input.value))
+    if (result !== true) {
+      error.textContent = typeof result === "string" ? result : "Complete all required fields."
     }
   }, "structured-save")
   const cancel = commit("Cancel", options.dismiss)

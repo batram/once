@@ -6,7 +6,8 @@ import { DEFAULT_GROUP_ID, emptyStorySourceDocument, mintStorySourceGroupId,
 import { showChoiceDialog, showConfirmDialog } from "../../confirmDialog"
 import { AnchoredMenuItem } from "../../menu/storyAnchoredMenu"
 import { revealElement } from "../../scrollReveal"
-import { StructuredFormField } from "./form"
+import { FormField, StructuredFormField } from "./form"
+import { SourceConfigFields } from "./sourceConfig"
 import { SourceGroupView } from "./SourceGroupView"
 import { documentFromGroups, groupsFromDocument, SourceGroup } from "./sourceGroups"
 
@@ -18,9 +19,10 @@ export interface SourceSettingsHost {
   openMenu(anchor: HTMLElement, items: AnchoredMenuItem[]): void
   listActions(): HTMLElement | null
   showForm(root: HTMLElement, title: string, fields: StructuredFormField[],
-    save: (values: string[]) => boolean,
+    save: (values: string[]) => boolean | string,
     remove?: { label: string; action: () => void },
-    choices?: Array<[string, string]>): void
+    choices?: Array<[string, string]>,
+    configure?: (inputs: FormField[], rows: HTMLElement) => void): void
 }
 
 export class SourceSettingsEditor {
@@ -83,6 +85,9 @@ export class SourceSettingsEditor {
     const collectors: Array<[string, string]> = [["", "Auto-detect"],
       ...get_active().map((parser) => [parser.options.id, parser.options.description] as [string, string])]
     const groups = this.groups.map((group) => [group.id, group.name] as [string, string])
+    // Configuration rows follow the Collector select; a collector without a
+    // schema leaves the stored `select` alone.
+    const config = new SourceConfigFields(current?.select)
     this.host.showForm(root, "Source", [
       // Where the stories come from, then what Once does with them. This order
       // is also the order `values` arrives in below, so Enabled keeps its place
@@ -103,7 +108,10 @@ export class SourceSettingsEditor {
       // become a cache window nobody chose.
       const cacheWindow = readCacheMinutesInput(cacheMinutes)
       if (!cacheWindow.ok) return false
+      const configured = config.read()
+      if (!configured.ok) return configured.message
       const source = { ...(current ?? { id: mintStorySourceId(), url: "" }), url: url.trim() }
+      if (configured.select === undefined) delete source.select; else source.select = configured.select
       if (label.trim()) source.label = label.trim(); else delete source.label
       if (cacheWindow.minutes === undefined) delete source.cacheMinutes
       else source.cacheMinutes = cacheWindow.minutes
@@ -122,7 +130,7 @@ export class SourceSettingsEditor {
         }
         this.save()
       }
-    } } : undefined)
+    } } : undefined, undefined, (inputs, rows) => config.render(inputs[3], rows))
   }
 
   editGroup(root: HTMLElement, groupIndex?: number): void {

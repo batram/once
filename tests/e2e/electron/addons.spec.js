@@ -165,7 +165,14 @@ const COLLECTOR_MANIFEST = (origin) => [{
   contributions: [],
   collectors: [{
     id: "json", type: "HX", description: "Harness JSON feed", collects: "json",
-    pattern: [`${origin}/api/*`], colors: ["#336699", "white"]
+    pattern: [`${origin}/api/*`], colors: ["#336699", "white"],
+    config: {
+      type: "object",
+      properties: {
+        tag: { type: "string", description: "Extra tag" },
+        limit: { type: "number", minimum: 1, maximum: 50 }
+      }
+    }
   }]
 }]
 
@@ -192,6 +199,25 @@ test("a collector add-on turns a JSON feed into stories with its own badge", asy
     await expect(one.locator("a.title")).toHaveText("Addon One (/api/stories.json)")
     await expect(one).toHaveAttribute("data-comment_url", `${origin}/api-comments/1`)
     await expect(window.locator(`#stories story-item[data-href="${origin}/api-story/2"]`)).toBeVisible()
+
+    // The source editor renders the collector's config schema as rows once
+    // the collector is named; the saved `select` reaches the script.
+    const addonRow = '[data-testid="source-row"][data-source-id="src_addon0001"]'
+    await openSettingsSection(window, "sources", addonRow)
+    await window.locator(addonRow).click()
+    const form = window.getByTestId("structured-item-form")
+    await expect(form).toBeVisible()
+    await expect(window.getByTestId("structured-config-rows")).toBeHidden()
+    await form.locator("select").first().selectOption("addon:harness-collector/json")
+    const tag = window.getByTestId("source-config-tag")
+    await expect(tag).toBeVisible()
+    await expect(window.getByTestId("source-config-limit")).toHaveAttribute("max", "50")
+    await tag.fill("configured")
+    await tag.dispatchEvent("change")
+    await window.getByTestId("structured-save").click()
+    await expect(window.locator("#sources_area")).toHaveValue(/"select":\{"tag":"configured"\}/)
+    await showAllStories(window)
+    await expect(one.locator(".tags_container")).toContainText("configured", { timeout: 15_000 })
   } finally {
     await closeApp(electronApp, userData)
   }

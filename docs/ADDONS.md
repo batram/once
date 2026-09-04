@@ -165,7 +165,12 @@ to three levels, at most 24 properties. `description` labels the control.
 Once validates against the schema before anything reaches the script, fills
 defaults, and drops undeclared fields. The manifest's `settings` schema is
 rendered as controls in Settings › Add-ons; the values reach the script as
-`once.settings`.
+`once.settings`. A collector's `config` schema is rendered in the source
+editor: once a source names the collector, a Configuration group appears
+under the Collector select with one row per property (nested objects and
+arrays are edited as JSON), and Save stores the validated object in the
+source's `select`, which `parse` receives as `config`. A value the schema
+refuses is named in the form instead of being saved.
 
 ### Capabilities
 

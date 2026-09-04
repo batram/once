@@ -1,6 +1,7 @@
 import { OnceClient } from "@once/app"
-import { AddonEntry, ConfigSchema, validateConfig } from "@once/core"
+import { AddonEntry, validateConfig } from "@once/core"
 import { requireElement } from "../dom"
+import { createSchemaControl } from "./schemaControls"
 import { trackSettingsSave } from "./settingsStatus"
 
 /**
@@ -25,7 +26,10 @@ export function renderAddonOptions(client: OnceClient, entries: readonly AddonEn
     group.append(legend)
     const values = { ...(validateConfig(schema, entry.options ?? {}) as Record<string, unknown>) }
     for (const [name, property] of Object.entries(schema.properties)) {
-      const control = controlFor(entry.manifest.id, name, property, values[name])
+      const control = createSchemaControl(property, values[name], {
+        id: `addon_option_${entry.manifest.id}_${name}`,
+        testid: `addon-option-${entry.manifest.id}-${name}`
+      })
       if (!control) continue
       control.input.addEventListener("change", () => {
         values[name] = control.read()
@@ -39,62 +43,17 @@ export function renderAddonOptions(client: OnceClient, entries: readonly AddonEn
           })
         })
       })
-      group.append(control.field)
+      const field = document.createElement("div")
+      field.className = "field"
+      const label = document.createElement("label")
+      label.className = "field_label"
+      label.htmlFor = control.input.id
+      label.textContent = property.type === "object" || property.type === "array"
+        ? name
+        : property.description ?? name
+      field.append(label, control.input)
+      group.append(field)
     }
     host.append(group)
   }
-}
-
-interface Control {
-  field: HTMLElement
-  input: HTMLInputElement | HTMLSelectElement
-  read(): unknown
-}
-
-function controlFor(addonId: string, name: string, schema: ConfigSchema, value: unknown): Control | null {
-  if (schema.type === "object" || schema.type === "array") return null
-  const field = document.createElement("div")
-  field.className = "field"
-  const id = `addon_option_${addonId}_${name}`
-  const label = document.createElement("label")
-  label.className = "field_label"
-  label.htmlFor = id
-  label.textContent = schema.description ?? name
-  let input: HTMLInputElement | HTMLSelectElement
-  let read: () => unknown
-  if (schema.type === "string" && schema.enum) {
-    const select = document.createElement("select")
-    for (const option of schema.enum) {
-      const element = document.createElement("option")
-      element.value = option
-      element.textContent = option
-      select.append(element)
-    }
-    select.value = typeof value === "string" ? value : schema.enum[0]
-    input = select
-    read = () => select.value
-  } else if (schema.type === "boolean") {
-    const checkbox = document.createElement("input")
-    checkbox.type = "checkbox"
-    checkbox.checked = value === true
-    input = checkbox
-    read = () => checkbox.checked
-  } else {
-    const text = document.createElement("input")
-    text.type = schema.type === "number" ? "number" : "text"
-    text.value = value === undefined ? "" : String(value)
-    if (schema.type === "number") {
-      if (schema.minimum !== undefined) text.min = String(schema.minimum)
-      if (schema.maximum !== undefined) text.max = String(schema.maximum)
-      text.step = "any"
-    } else if (schema.maxLength !== undefined) {
-      text.maxLength = schema.maxLength
-    }
-    input = text
-    read = () => (schema.type === "number" ? Number(text.value) : text.value)
-  }
-  input.id = id
-  input.dataset.testid = `addon-option-${addonId}-${name}`
-  field.append(label, input)
-  return { field, input, read }
 }

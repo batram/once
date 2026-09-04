@@ -19,9 +19,12 @@ const ADDON_SCRIPT = `export default function activate(once) {
   })
   once.collectors.register("json", {
     parse(body, context) {
+      // A configured extra tag, so a config change shows on stories Once has
+      // already stored (titles are kept, tags merge).
+      var extra = context.config && context.config.tag ? [{ text: context.config.tag }] : []
       return body.items.map((item) => ({
         href: item.url, title: item.title + " (" + new URL(context.url).pathname + ")",
-        comment_url: item.comments, timestamp: item.at, tags: [{ text: item.tag }]
+        comment_url: item.comments, timestamp: item.at, tags: [{ text: item.tag }].concat(extra)
       }))
     }
   })

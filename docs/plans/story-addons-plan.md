@@ -28,8 +28,10 @@ sandbox with the fetched body and returns vetted stories carrying the
 declared badge; fetching, caching, resolution, and the search box are
 unchanged. Verified by registry and result-validation unit tests and an
 Electron e2e where a plain URL line becomes stories with the add-on's badge.
-The schema-driven configuration form in the source editor is not built yet;
-configuration is validated when a typed source names the collector.
+The schema-driven configuration form in the source editor followed on
+2026-09-04: the collector's schema travels as `options.configSchema`, and the
+source form renders a Configuration group from it that follows the Collector
+select and stores the validated object in `select`.
 
 Step 6 is done for the mobile bundle: the sandbox page ships as a static
 asset beside the app (`addon-sandbox.html`, its runtime inlined and allowed
@@ -70,10 +72,10 @@ changes a computed badge.
 Step 9 is done: [ADDONS.md](../ADDONS.md) is the author reference, with the
 e2e fixtures as worked examples; ARCHITECTURE.md, CODEMAP.md, and
 COLLECTORS.md carry the add-on sections. The Chrome and Firefox serving paths and the
-Android emulator run followed on 2026-09-04, as did `ONCE_ADDONS`. Open from
-the original list: an iOS device run, the schema-driven configuration form in
-the source editor, a Once-hosted default for Firefox's sandbox page, and a
-curated index.
+Android emulator run followed on 2026-09-04, as did `ONCE_ADDONS` and the
+source editor's configuration form. Open from the original list: an iOS
+device run, a Once-hosted default for Firefox's sandbox page, and a curated
+index.
 
 ## Decision
 

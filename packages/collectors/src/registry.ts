@@ -1,4 +1,4 @@
-import { Story } from "@once/core"
+import { ConfigSchema, Story } from "@once/core"
 import * as genyMatch from "./collectors/genyMatch"
 import * as hackerNewsHtml from "./collectors/hackerNewsHtml"
 import * as jsonSelect from "./collectors/jsonSelect"
@@ -43,6 +43,12 @@ export declare interface StoryParser {
      */
     cache_minutes?: number
     settings?: Record<string, unknown>
+    /**
+     * The shape of the configuration this collector takes, when it declares
+     * one (add-on collectors do, in their manifest). The source editor renders
+     * its fields from this; `normalizeConfig` still decides what is accepted.
+     */
+    configSchema?: ConfigSchema
   }
 
   parse: (

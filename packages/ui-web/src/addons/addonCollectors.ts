@@ -31,7 +31,8 @@ export function registerAddonCollector(
       pattern: [...collector.pattern],
       collects: collector.collects,
       colors: collector.colors,
-      cache_minutes: collector.cacheMinutes
+      cache_minutes: collector.cacheMinutes,
+      configSchema: collector.config
     },
     parse: () => {
       throw new Error(`${id} parses in its sandbox; the loader calls parseBody`)

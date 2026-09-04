@@ -222,7 +222,9 @@ handler runs and returns plain story objects. The host vets them
 (`readAddonStories`): http(s) URLs only, the collector's declared `type`, caps
 on count and lengths, scalar extras only. A `config` schema, a small JSON
 Schema subset, becomes the collector's `normalizeConfig`, so a typed source
-naming the collector has its `select` validated before fetching. `search`
+naming the collector has its `select` validated before fetching; the same
+schema is exposed as `options.configSchema`, from which the source editor
+renders the Configuration rows of a source naming that collector. `search`
 lists the searches the script implements (`globalSearch`, `domainSearch`).
 Built-in ids and type badges stay reserved: registering a clashing badge is
 refused.
