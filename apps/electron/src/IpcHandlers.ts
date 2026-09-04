@@ -156,6 +156,16 @@ function registerSettingsHandlers(
     if (typeof value !== "string") throw new Error("Invalid cache time")
     return settings.setCacheTime(value)
   })
+  ipcMain.handle(ELECTRON_IPC.getAccessibility, (event) => {
+    trusted(event, coordinator)
+    return settings.getAccessibility()
+  })
+  ipcMain.handle(ELECTRON_IPC.setAccessibility, async (event, enabled: boolean) => {
+    trusted(event, coordinator)
+    if (typeof enabled !== "boolean") throw new Error("Invalid accessibility flag")
+    await settings.setAccessibility(enabled)
+    app.setAccessibilitySupportEnabled(enabled)
+  })
   ipcMain.handle(ELECTRON_IPC.getSecret, (event, key: string) => {
     trusted(event, coordinator)
     if (typeof key !== "string" || !key) throw new Error("Invalid secret key")

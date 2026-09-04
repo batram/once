@@ -117,6 +117,9 @@ export interface ElectronBridge {
     /** Encrypted at rest like the sync URL; "" removes the entry. */
     getSecret(key: string): Promise<string>
     setSecret(key: string, value: string): Promise<void>
+    /** Full accessibility tree for screen readers; applied immediately. */
+    getAccessibility(): Promise<boolean>
+    setAccessibility(enabled: boolean): Promise<void>
   }
   tabs: {
     getAll(): Promise<ElectronTabState[]>
@@ -204,6 +207,8 @@ export const ELECTRON_IPC = {
   setSyncUrl: "once:settings:set-sync-url",
   getCacheTime: "once:settings:get-cache-time",
   setCacheTime: "once:settings:set-cache-time",
+  getAccessibility: "once:settings:get-accessibility",
+  setAccessibility: "once:settings:set-accessibility",
   getSecret: "once:settings:get-secret",
   setSecret: "once:settings:set-secret",
   tabsGetAll: "once:tabs:get-all",

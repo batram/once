@@ -192,6 +192,35 @@ test("lets the user place the current story below the address bar", async () => 
   }
 })
 
+test("screen reader support is off until the user switches it on", async () => {
+  const { electronApp, userData, window } = await launchApp(STORY_ENV)
+  try {
+    const isEnabled = () => electronApp.evaluate(({ app }) =>
+      app.isAccessibilitySupportEnabled())
+    expect(await isEnabled()).toBe(false)
+
+    const checkbox = await openSettingsSection(
+      window,
+      "theme",
+      "#electron_accessibility_checkbox"
+    )
+    await expect(window.locator("#electron_accessibility_checkbox_hint"))
+      .toContainText("tab-strip tools work without it")
+    await expect(checkbox).toBeEnabled()
+    await expect(checkbox).not.toBeChecked()
+
+    await checkbox.check()
+    await expect.poll(isEnabled).toBe(true)
+    await expect.poll(() => window.evaluate(() =>
+      window.onceElectron.settings.getAccessibility())).toBe(true)
+
+    await checkbox.uncheck()
+    await expect.poll(isEnabled).toBe(false)
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
 test("stacks, dismisses, restores, and opens source issues through the error log", async () => {
   const { electronApp, userData, window } = await launchApp(STORY_ENV)
   try {

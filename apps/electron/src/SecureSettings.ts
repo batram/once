@@ -8,6 +8,8 @@ interface StoredSettings {
   cacheTime?: number
   /** Source tokens and the like, each encrypted like the sync URL. */
   encryptedSecrets?: Record<string, string>
+  /** Full accessibility tree for screen readers; see main.ts. */
+  accessibility?: boolean
 }
 
 export class SecureSettings {
@@ -78,6 +80,19 @@ export class SecureSettings {
 
     const settings = await this.read()
     settings.cacheTime = parsed
+    await this.write(settings)
+  }
+
+  async getAccessibility(): Promise<boolean> {
+    return (await this.read()).accessibility === true
+  }
+
+  async setAccessibility(enabled: boolean): Promise<void> {
+    if (typeof enabled !== "boolean") {
+      throw new Error("Accessibility must be a boolean")
+    }
+    const settings = await this.read()
+    settings.accessibility = enabled
     await this.write(settings)
   }
 

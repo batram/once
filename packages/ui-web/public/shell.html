@@ -396,6 +396,31 @@
                       </select>
                     </div>
                   </section>
+                  <section
+                    class="settings_rows"
+                    id="electron_accessibility_settings"
+                    data-platform-only="electron"
+                    hidden
+                  >
+                    <h4 class="settings_subheading">Accessibility</h4>
+                    <div class="settings_row settings_row_inline">
+                      <label class="settings_row_name" for="electron_accessibility_checkbox">
+                        Screen reader support
+                      </label>
+                      <p class="settings_row_hint" id="electron_accessibility_checkbox_hint">
+                        Exposes the full contents of every page to screen readers. Costs
+                        memory and time on large pages; tab-strip tools work without it.
+                        Remembered on this device.
+                      </p>
+                      <input
+                        type="checkbox"
+                        class="switch"
+                        id="electron_accessibility_checkbox"
+                        data-testid="electron-accessibility"
+                        aria-describedby="electron_accessibility_checkbox_hint"
+                      />
+                    </div>
+                  </section>
                 </div>
                 <div
                   class="settings_block"

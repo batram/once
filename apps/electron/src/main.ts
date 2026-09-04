@@ -215,21 +215,26 @@ function configureBrowserSession(): Session {
   return browserSession
 }
 
-// Chromium only builds an accessibility tree when it is asked to, and unlike Chrome
-// itself, Electron does not switch it on when a client comes knocking: without this the
-// window exposes a handful of nodes and nothing of the UI inside it. Turning it on is
-// what lets screen readers - and tools looking for the tab that is playing audio - see
-// the tab strip at all. It costs memory per renderer, so ONCE_DISABLE_ACCESSIBILITY=1
-// opts out.
-function configureAccessibility(): void {
-  if (process.env.ONCE_DISABLE_ACCESSIBILITY === "1") return
-  app.setAccessibilitySupportEnabled(true)
+// Chromium builds a basic accessibility tree by itself once a UI Automation
+// client touches the window - it arrives a moment after the first request, so
+// a client that gives up on the first answer sees only the window's own chrome.
+// That basic tree carries the tab strip, which is all a tool hunting for the
+// audible tab needs. What it lacks are the screen reader extras (inline text
+// boxes, relations, the full HTML) that this call switches on for every page;
+// on a 60,000-node page those cost seconds of the main process and a hundred
+// megabytes per tab, so they are opt-in: the "Screen reader support" setting,
+// or ONCE_ACCESSIBILITY=1 for a scripted run.
+async function configureAccessibility(settings: SecureSettings): Promise<void> {
+  const enabled = process.env.ONCE_ACCESSIBILITY === "1" ||
+    await settings.getAccessibility()
+  if (enabled) app.setAccessibilitySupportEnabled(true)
 }
 
 app
   .whenReady()
   .then(async () => {
-    configureAccessibility()
+    const secureSettings = new SecureSettings()
+    await configureAccessibility(secureSettings)
     const browserSession = configureBrowserSession()
     // The shell window runs in the default session; its add-on sandbox frames
     // load their page from this scheme. `ONCE_ADDONS` adds development add-on
@@ -260,7 +265,7 @@ app
     })
     extensions.install()
     browserCoordinator.setPageProfileResolver((url) => extensions.pageProfile(url))
-    registerIpcHandlers(new SecureSettings(), {
+    registerIpcHandlers(secureSettings, {
       buildChannel: __ONCE_BUILD_CHANNEL__,
       buildIdentifier: __ONCE_BUILD_IDENTIFIER__,
       coordinator: browserCoordinator,

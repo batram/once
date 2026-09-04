@@ -14,6 +14,7 @@ import {
   StoryMenuActionId
 } from "@once/ui-web"
 import { BrowserShell } from "./BrowserShell"
+import { bindAccessibilitySetting } from "./AccessibilitySetting"
 import "./electron.css"
 
 // Served by main from the Forge output: a sandboxed frame has an opaque origin
@@ -56,6 +57,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     window.onceElectron.tabs.startSourcePicker(url)
   )
   const browserShell = new BrowserShell(window.onceElectron, runReaderRequest)
+  bindAccessibilitySetting(window.onceElectron)
   const onMenuCollapsedChanged = (collapsed: boolean): void =>
     browserShell.setLeftCollapsed(collapsed)
   bindMenuCollapseControls(onMenuCollapsedChanged)

@@ -37,7 +37,10 @@ const bridge: ElectronBridge = {
       ipcRenderer.invoke(ELECTRON_IPC.setCacheTime, value),
     getSecret: (key) => ipcRenderer.invoke(ELECTRON_IPC.getSecret, key),
     setSecret: (key, value) =>
-      ipcRenderer.invoke(ELECTRON_IPC.setSecret, key, value)
+      ipcRenderer.invoke(ELECTRON_IPC.setSecret, key, value),
+    getAccessibility: () => ipcRenderer.invoke(ELECTRON_IPC.getAccessibility),
+    setAccessibility: (enabled) =>
+      ipcRenderer.invoke(ELECTRON_IPC.setAccessibility, enabled)
   },
   tabs: {
     getAll: () => ipcRenderer.invoke(ELECTRON_IPC.tabsGetAll),
