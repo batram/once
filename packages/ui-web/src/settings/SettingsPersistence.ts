@@ -12,6 +12,19 @@ export class SettingsPersistence {
     showSource: (sourceId: string) => void = () => {}
   ) {
     this.cachePanel = new CacheTimingPanel(client, { showSource })
+    this.bindStoredContent()
+  }
+
+  // The stored-content switch is its own small thing: it restores itself now,
+  // saves on change, and follows a change synced from another device.
+  private bindStoredContent(): void {
+    const box = document.querySelector<HTMLInputElement>("#save_bookmarked_checkbox")
+    if (!box) return
+    box.addEventListener("change", () => this.saveSaveBookmarkedContent(box.checked))
+    void this.restoreSaveBookmarkedContent()
+    this.client.subscribe("settingsChanged", ({ section }) => {
+      if (section === "content") void this.restoreSaveBookmarkedContent()
+    })
   }
 
   async restoreSync(): Promise<void> {
@@ -81,6 +94,19 @@ export class SettingsPersistence {
 
   applyAnimation(checked: boolean): void {
     document.body.setAttribute("animated", checked.toString())
+  }
+
+  async restoreSaveBookmarkedContent(): Promise<void> {
+    const box = document.querySelector<HTMLInputElement>("#save_bookmarked_checkbox")
+    if (!box) return
+    box.checked = await this.client.getSaveBookmarkedContent()
+    this.settingsChanged()
+  }
+
+  saveSaveBookmarkedContent(checked: boolean): void {
+    const box = requireElement<HTMLInputElement>("#save_bookmarked_checkbox")
+    void trackSettingsSave(box, () => this.client.setSaveBookmarkedContent(checked))
+    box.checked = checked
   }
 
   async restoreCache(): Promise<void> {

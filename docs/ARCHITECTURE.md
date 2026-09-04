@@ -65,8 +65,10 @@ adapter's contract in `@once/platform-mobile` is unchanged.
 
 The sync URL can contain credentials, so mobile stores it outside the WebView:
 iOS uses Keychain and Android encrypts an app-private preference with an
-Android Keystore key. Development and release installs use separate bundle IDs
-and native flavors/schemes.
+Android Keystore key. Source tokens (see `docs/COLLECTORS.md`, "Authenticated
+sources") go through the same stores, behind the app's `secretStore` port, and
+never enter the synced settings. Development and release installs use separate
+bundle IDs and native flavors/schemes.
 
 Shared behavior belongs in `packages/*`. Target-specific permissions,
 lifecycles, background processes, native bridges, and packaging belong in
@@ -179,6 +181,33 @@ the shorter one effectively wins; a forced request re-stamps the entry; and
 nothing schedules a refetch, so a window only decides what the next reload
 does. `IndexedDbCacheStore` still has no `onblocked` handling, which would
 matter if the store ever gained a version.
+
+### Stored content
+
+A story can hold its article as a PouchDB attachment named `content`, with a
+small `stored_content` field saying where it came from (`feed` or `page`) and
+when. Attachments keep story lists light: `get` and `allDocs` return stubs,
+and the html is read lazily through `getStoryContent` on the story store when
+the reader opens it. Sync carries the attachment with the document, so a copy
+saved on one device reads offline on another.
+
+Content arrives three ways. Feed collectors attach the text a feed includes
+(see [Collectors](COLLECTORS.md)). The "Save for offline" story action (menu,
+swipe and keyboard) fetches the page, runs it through Readability and stores
+the sanitized article. And the app asks for that same extraction on its own
+when a bookmarked story has none and the "Save bookmarks offline" setting is
+on, or when a source's "Save for offline" option is set, once per story; it
+publishes `storyContentRequested`, and `reader/storedContent.ts` in `ui-web`
+serves those a couple at a time. A page extraction always wins over feed text.
+
+`PouchStoryStore.saveStory` never puts html inline: the document goes out with
+the stubs the database already holds (a put without them would delete the
+attachment), then `putAttachment` writes new html and one `get` refreshes the
+stubs on the in-memory story. `ReaderView` shows a stored article as it is,
+sanitized again on the way out, and only fetches for a story without one. The
+extensions cannot inject into a page they never load, so there the panel
+renders the reader document and the background opens the extension's own
+`static/reader.html`, handing the document over under a one-time token.
 
 Initial and live CouchDB replication use bounded 1,000-document batches with
 at most two batches in memory. Directional checkpoints live on the receiving

@@ -26,6 +26,8 @@ type Section = StructuredSettingsSection
 
 export interface StructuredSettingsOptions {
   saveSources(values: StorySourceDocument, reloadStories?: boolean): void | Promise<void>
+  /** A source's token, kept on this device; "" removes it. */
+  saveSourceSecret(sourceId: string, secret: string): Promise<void>
   saveFilters(values: string[]): void
   saveRedirects(values: Redirect[]): void
   showSourceError(source: string): void
@@ -74,6 +76,7 @@ export class StructuredSettingsEditors {
       render: () => this.render("sources"),
       root: () => this.roots.get("sources"),
       saveSources: (values, reload) => this.options.saveSources(values, reload),
+      saveSourceSecret: (id, secret) => this.options.saveSourceSecret(id, secret),
       showSourceError: (source) => this.options.showSourceError(source),
       openMenu: (anchor, items) => this.openMenu(anchor, items),
       listActions: () => this.listActions("sources"),

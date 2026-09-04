@@ -2251,7 +2251,8 @@
   --swipe-action-color: var(--swipe-open-color);
 }
 
-.settings_swipe [data-action="open-reader"] {
+.settings_swipe [data-action="open-reader"],
+.settings_swipe [data-action="save-content"] {
   --swipe-action-color: var(--swipe-open-reader-color);
 }
 

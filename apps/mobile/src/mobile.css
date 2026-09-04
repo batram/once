@@ -2533,7 +2533,8 @@
       background: rgb(0 128 0 / 72%);
     }
 
-    .swipe_action_field[data-action="open-reader"]::after {
+    .swipe_action_field[data-action="open-reader"]::after,
+    .swipe_action_field[data-action="save-content"]::after {
       background: #4050ac;
     }
 

@@ -211,7 +211,8 @@
   --swipe-reveal-color: var(--swipe-open-color);
 }
 
-.bb_slide [data-action="open-reader"] {
+.bb_slide [data-action="open-reader"],
+.bb_slide [data-action="save-content"] {
   --swipe-reveal-color: var(--swipe-open-reader-color);
 }
 
@@ -236,7 +237,8 @@
   --swipe-pending-color: var(--swipe-open-color);
 }
 
-.bb_slide .swipe_action_secondary[data-action="open-reader"] {
+.bb_slide .swipe_action_secondary[data-action="open-reader"],
+.bb_slide .swipe_action_secondary[data-action="save-content"] {
   --swipe-pending-color: var(--swipe-open-reader-color);
 }
 

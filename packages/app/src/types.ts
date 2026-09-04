@@ -2,6 +2,7 @@ import {
   AddonsDocument,
   FilterListsDocument,
   Redirect,
+  StoredContentMeta,
   Story,
   StorySourceDocument,
   StoryTag,
@@ -59,6 +60,11 @@ export interface SyncStatus {
 /** What one story field may be set to through the client. */
 export type StoryChangeValue = Story | string | boolean | StoryTag[]
 
+export interface StoredStoryContent {
+  html: string
+  meta: StoredContentMeta
+}
+
 export interface StoryChangeDetail {
   story: Story
   path: string[] | string
@@ -99,9 +105,18 @@ export interface OnceAppEvents {
       | "swipe"
       | "extensions"
       | "addons"
+      | "content"
   }
   /** Something changed what the cache holds: a reload, a refetch, a clear. */
   cacheStatusChanged: Record<string, never>
+  /**
+   * A story whose article should be fetched and stored: a bookmarked story
+   * under the bookmark setting, or a new story from a source that asked for
+   * it. The app decides which; whoever has a DOM fetches and extracts.
+   */
+  storyContentRequested: {
+    href: string
+  }
   redirectsChanged: {
     redirects: Redirect[]
   }
@@ -150,6 +165,12 @@ export interface OnceClient {
   saveUserscripts(document: UserscriptsDocument): Promise<void>
   getSyncUrl(): Promise<string>
   setSyncUrl(syncUrl: string): Promise<void>
+  /**
+   * The token a source sends, kept on this device only. Absent reads as "";
+   * setting "" removes it. Rejects when this shell has no secret store.
+   */
+  getSourceSecret(sourceId: string): Promise<string>
+  setSourceSecret(sourceId: string, secret: string): Promise<void>
   getCacheTime(): Promise<number>
   setCacheTime(cacheTime: string): Promise<void>
   getCacheTiming(): Promise<CacheTimingDocument>
@@ -158,6 +179,9 @@ export interface OnceClient {
   setTheme(theme: ThemeName): Promise<void>
   getAnimation(): Promise<AnimationSetting>
   setAnimation(animated: AnimationSetting): Promise<void>
+  /** Whether bookmarking a story also stores its article for offline reading. */
+  getSaveBookmarkedContent(): Promise<boolean>
+  setSaveBookmarkedContent(enabled: boolean): Promise<void>
   getSwipeSettings(): Promise<SwipeSettings>
   setSwipeSettings(settings: SwipeSettings): Promise<void>
   reloadStories(policy?: CachePolicy): Promise<void>
@@ -179,6 +203,17 @@ export interface OnceClient {
     value: StoryChangeValue
   ): Promise<Story | undefined>
   purgeStory(href: string): Promise<void>
+  /** The stored article of a story, with what is known about it, or null. */
+  getStoryContent(href: string): Promise<StoredStoryContent | null>
+  /**
+   * Stores an article for a story and announces it as a `stored_content`
+   * change, so rows and readers pick it up.
+   */
+  saveStoryContent(
+    href: string,
+    html: string,
+    meta: Omit<StoredContentMeta, "saved_at"> & { saved_at?: number }
+  ): Promise<Story | undefined>
   addFilter(filter: string): Promise<void>
   fetchDocument(url: string): Promise<{
     html: string
@@ -231,8 +266,14 @@ export interface StoryStorePort {
   getStaredStories(): Promise<Story[]>
   getStoriesByUrls(urls: string[]): Promise<Map<string, Story>>
   getStory(url: string): Promise<Story | null>
+  /**
+   * Writes the story; html the story carries through `attachContent` becomes
+   * its `content` attachment and is dropped from the returned story.
+   */
   saveStory(story: Story): Promise<Story>
   deleteStory(url: string): Promise<void>
+  /** The stored article html, or null when the story has none. */
+  getStoryContent(url: string): Promise<string | null>
   onDiagnostic?(handler: (error: DiagnosticError) => void): () => void
 }
 
@@ -258,6 +299,16 @@ export interface SyncSettingsStorePort {
   setSyncUrl(syncUrl: string): Promise<void>
   getCacheTime(): Promise<number>
   setCacheTime(cacheTime: string): Promise<void>
+}
+
+/**
+ * Secrets that stay on this device: source tokens. Kept beside the sync URL
+ * rather than in the synced settings, which travel in the clear. An absent
+ * value reads as the empty string; setting the empty string removes it.
+ */
+export interface SecretStorePort {
+  get(key: string): Promise<string>
+  set(key: string, value: string): Promise<void>
 }
 
 export interface ThemePort {
@@ -291,6 +342,8 @@ export interface OncePlatformPorts {
   syncService?: SyncServicePort
   cacheStore?: CacheStorePort
   syncSettingsStore: SyncSettingsStorePort
+  /** Without one, sources that need a token report that they cannot have one. */
+  secretStore?: SecretStorePort
   theme: ThemePort
   activeTab?: ActiveTabPort
   fetch: typeof fetch

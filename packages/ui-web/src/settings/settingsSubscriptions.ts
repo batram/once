@@ -12,6 +12,8 @@ export interface SettingsSubscriptionActions {
   swipe(): void
   extensions(): void
   addons(): void
+  /** Stored-content settings restore themselves; see SettingsPersistence. */
+  content?(): void
   sourceErrors(errors: SourceError[]): void
   summaries(): void
 }

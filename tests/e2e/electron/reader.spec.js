@@ -1,5 +1,13 @@
 const { test, expect } = require("@playwright/test")
-const { closeApp, launchApp, startPageServer } = require("./electron-harness")
+const {
+  closeApp,
+  launchApp,
+  openSettingsSection,
+  seedLocalSource,
+  showAllStories,
+  startPageServer
+} = require("./electron-harness")
+const storyFixture = require("../shared/story-fixture")
 
 let pageServer
 let origin
@@ -19,6 +27,43 @@ test.afterAll(async () => {
 function readerUrl(sourceUrl) {
   return `once-reader://${sourceUrl.replace("://", "//")}`
 }
+
+test("a bookmarked story's saved article opens in the reader after its site is gone", async () => {
+  // Its own fixture server, because the point is to take it away mid-test.
+  const server = await startPageServer()
+  const urls = storyFixture.storyUrls(server.origin)
+  const { electronApp, userData, window } = await launchApp({
+    env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0" }
+  })
+  try {
+    await seedLocalSource(window, storyFixture.sourceLine(server.origin), urls.alpha)
+    const toggle = await openSettingsSection(window, "theme", "#save_bookmarked_checkbox")
+    await toggle.check()
+    await showAllStories(window)
+    const alpha = window.locator(`#stories story-item[data-href="${urls.alpha}"]`)
+    // Bookmarking fetches and stores the article; the reader button says so.
+    await alpha.locator(".star_btn").click()
+    await expect(alpha).toHaveClass(/stared/)
+    await expect(alpha.locator(".outline_btn .icon--stored-content")).toHaveCount(1, {
+      timeout: 10_000
+    })
+
+    await server.close()
+    await alpha.locator(".outline_btn").click()
+    await expect(window.locator(".electron-tab-title")).toContainText(
+      storyFixture.STORY_TITLES.alpha
+    )
+    await expect.poll(() => window.evaluate(() => window.onceElectron.tabs.getAll()))
+      .toMatchObject([{
+        url: expect.stringMatching(/^once-reader:\/\//),
+        active: true,
+        loadError: null
+      }])
+  } finally {
+    await closeApp(electronApp, userData)
+    await server.close().catch(() => undefined)
+  }
+})
 
 test("duplicates a reader tab into a second reader tab", async () => {
   const { electronApp, userData, window } = await launchApp()

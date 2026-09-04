@@ -6,6 +6,8 @@ import * as path from "path"
 interface StoredSettings {
   encryptedSyncUrl?: string
   cacheTime?: number
+  /** Source tokens and the like, each encrypted like the sync URL. */
+  encryptedSecrets?: Record<string, string>
 }
 
 export class SecureSettings {
@@ -35,6 +37,28 @@ export class SecureSettings {
     settings.encryptedSyncUrl = safeStorage
       .encryptString(syncUrl)
       .toString("base64")
+    await this.write(settings)
+  }
+
+  async getSecret(key: string): Promise<string> {
+    const settings = await this.read()
+    const encrypted = settings.encryptedSecrets?.[key]
+    if (!encrypted) return ""
+    if (!safeStorage.isEncryptionAvailable()) {
+      throw new Error("Secure credential storage is unavailable")
+    }
+    return safeStorage.decryptString(Buffer.from(encrypted, "base64"))
+  }
+
+  async setSecret(key: string, value: string): Promise<void> {
+    if (value && !safeStorage.isEncryptionAvailable()) {
+      throw new Error("Secure credential storage is unavailable")
+    }
+    const settings = await this.read()
+    const kept = Object.entries(settings.encryptedSecrets ?? {})
+      .filter(([name]) => name !== key)
+    if (value) kept.push([key, safeStorage.encryptString(value).toString("base64")])
+    settings.encryptedSecrets = Object.fromEntries(kept)
     await this.write(settings)
   }
 

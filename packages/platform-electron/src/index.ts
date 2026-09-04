@@ -53,6 +53,10 @@ export function createElectronPlatform(
     syncService,
     cacheStore: IndexedDbCacheStore,
     syncSettingsStore: bridge.settings,
+    secretStore: {
+      get: (key) => bridge.settings.getSecret(key),
+      set: (key, value) => bridge.settings.setSecret(key, value)
+    },
     theme: {
       setTheme(theme: ThemeName) {
         document.body.removeAttribute("data-theme")

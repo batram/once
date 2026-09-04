@@ -50,6 +50,13 @@ class WebStoryStore {
 
   async saveStory(story: Story): Promise<Story> {
     story._id = story._id || this.storyId(story.href)
+    const html = story.pendingContent()
+    if (html !== undefined) {
+      window.localStorage.setItem(`once:content:${story._id}`, html)
+      story._attachments = {
+        content: { content_type: "text/html", length: html.length, stub: true }
+      }
+    }
     window.localStorage.setItem(
       `once:story:${story._id}`,
       JSON.stringify(story.to_obj())
@@ -59,6 +66,11 @@ class WebStoryStore {
 
   async deleteStory(url: string): Promise<void> {
     window.localStorage.removeItem(`once:story:${this.storyId(url)}`)
+    window.localStorage.removeItem(`once:content:${this.storyId(url)}`)
+  }
+
+  async getStoryContent(url: string): Promise<string | null> {
+    return window.localStorage.getItem(`once:content:${this.storyId(url)}`)
   }
 }
 
@@ -109,12 +121,25 @@ class WebSyncSettingsStore {
   }
 }
 
+/** Device-local, like the sync URL beside it; the browser profile is the vault. */
+class WebSecretStore {
+  async get(key: string): Promise<string> {
+    return window.localStorage.getItem(`once:secret:${key}`) || ""
+  }
+
+  async set(key: string, value: string): Promise<void> {
+    if (value) window.localStorage.setItem(`once:secret:${key}`, value)
+    else window.localStorage.removeItem(`once:secret:${key}`)
+  }
+}
+
 export function createWebPlatform(): OncePlatformPorts {
   return {
     listStore: new WebListStore(),
     storyStore: new WebStoryStore(),
     cacheStore: new WebCacheStore(),
     syncSettingsStore: new WebSyncSettingsStore(),
+    secretStore: new WebSecretStore(),
     theme: {
       setTheme(theme: ThemeName) {
         document.body.removeAttribute("data-theme")

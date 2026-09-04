@@ -1,4 +1,10 @@
 import { randomUUID } from "node:crypto"
+
+/**
+ * Where the browser tabs keep their cookies, and therefore where the user is
+ * logged in. A source that asks for the session fetches through it.
+ */
+export const BROWSER_SESSION_PARTITION = "persist:once-browser-v2"
 import {
   BrowserWindow,
   IpcMainInvokeEvent,
@@ -175,7 +181,7 @@ export class BrowserCoordinator {
         disableHtmlFullscreenWindowResize: true,
         ...(profile
           ? { session: profile.session, preload: profile.preload }
-          : { partition: "persist:once-browser-v2" })
+          : { partition: BROWSER_SESSION_PARTITION })
       }
     })
     view.setBackgroundColor(state.backgroundColor)

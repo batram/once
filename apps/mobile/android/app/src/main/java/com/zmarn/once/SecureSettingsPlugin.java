@@ -22,6 +22,7 @@ public class SecureSettingsPlugin extends Plugin {
     private static final String KEY_ALIAS = "once.sync.settings";
     private static final String PREFS = "once_secure_settings";
     private static final String SYNC_URL = "sync_url";
+    private static final String SECRET_PREFIX = "secret.";
     private static final int GCM_TAG_BITS = 128;
 
     @PluginMethod
@@ -47,6 +48,42 @@ public class SecureSettingsPlugin extends Plugin {
             call.resolve();
         } catch (Exception error) {
             call.reject("Unable to save secure sync settings", error);
+        }
+    }
+
+    @PluginMethod
+    public void getSecret(PluginCall call) {
+        String key = call.getString("key", "");
+        if (key.isEmpty()) {
+            call.reject("A secret needs a key");
+            return;
+        }
+        try {
+            String encrypted = preferences().getString(SECRET_PREFIX + key, null);
+            JSObject result = new JSObject();
+            result.put("value", encrypted == null ? "" : decrypt(encrypted));
+            call.resolve(result);
+        } catch (Exception error) {
+            call.reject("Unable to read secure setting", error);
+        }
+    }
+
+    @PluginMethod
+    public void setSecret(PluginCall call) {
+        String key = call.getString("key", "");
+        String value = call.getString("value", "");
+        if (key.isEmpty()) {
+            call.reject("A secret needs a key");
+            return;
+        }
+        try {
+            SharedPreferences.Editor edit = preferences().edit();
+            if (value.isEmpty()) edit.remove(SECRET_PREFIX + key);
+            else edit.putString(SECRET_PREFIX + key, encrypt(value));
+            if (!edit.commit()) throw new IllegalStateException("Secure settings commit failed");
+            call.resolve();
+        } catch (Exception error) {
+            call.reject("Unable to save secure setting", error);
         }
     }
 

@@ -52,6 +52,9 @@ type SettingsSection =
   | "swipe"
   | "extensions"
   | "addons"
+  | "content"
+
+export const SAVE_BOOKMARKED_CONTENT_ID = "save_bookmarked_content"
 
 export interface AppSettingsActions {
   publishChanged(section: SettingsSection): void
@@ -293,6 +296,17 @@ export class AppSettings {
     this.actions.publishChanged("animation")
   }
 
+  getSaveBookmarkedContent(): Promise<boolean> {
+    return this.getList(SAVE_BOOKMARKED_CONTENT_ID, false)
+  }
+
+  async setSaveBookmarkedContent(enabled: boolean): Promise<void> {
+    if (enabled !== await this.getSaveBookmarkedContent()) {
+      await this.setList(SAVE_BOOKMARKED_CONTENT_ID, enabled)
+    }
+    this.actions.publishChanged("content")
+  }
+
   async getSwipeSettings(): Promise<SwipeSettings> {
     return normalizeSwipeSettings(
       await this.getList<unknown>("swipe", DEFAULT_SWIPE_SETTINGS)
@@ -357,6 +371,9 @@ export class AppSettings {
         break
       case "swipe":
         this.actions.publishChanged("swipe")
+        break
+      case SAVE_BOOKMARKED_CONTENT_ID:
+        this.actions.publishChanged("content")
         break
     }
   }

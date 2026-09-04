@@ -13,12 +13,15 @@ export const options = {
     discard_timeless: {
       value: true,
       description: "Ignore stories that have no timestamp"
+    },
+    store_content: {
+      value: true,
+      description: "Keep the article text a feed includes, for the reader and offline"
     }
   }
 }
 
-import { daysAgo } from "@once/core"
-import { Story } from "@once/core"
+import { daysAgo, feedContentIsArticle, Story } from "@once/core"
 
 export function parse(doc: Document): Story[] {
   if (!doc) {
@@ -55,10 +58,7 @@ function parse_rss_2(doc: Document) {
     title_tag: "title",
     timestamp_tags: ["pubDate", "pubdate", "dc:date"],
     link_tags: ["feedburner:origLink", "link", { tag: "guid", startsWith: "http" }],
-    content_tags: [
-      { tag: "content:encoded", minLength: 1000 },
-      { tag: "description", minLength: 0 }
-    ]
+    content_tags: ["content:encoded", "description"]
   }
   return common_rss_parser(doc, def)
 }
@@ -69,9 +69,9 @@ function parse_atom(doc: Document) {
     main_link: [{ tag: "link", attr: "href" }],
     story_tag: "entry",
     title_tag: "title",
-    timestamp_tags: ["updated"],
+    timestamp_tags: ["updated", "published"],
     link_tags: [{ tag: "link", attr: "href" }],
-    content_tags: [{ tag: "content", minLength: 1000 }]
+    content_tags: [{ tag: "content", html: true }, { tag: "summary", html: true }]
   }
   return common_rss_parser(doc, def)
 }
@@ -80,7 +80,31 @@ declare interface FeedFromatTag {
   tag: string
   attr?: string
   startsWith?: string
-  minLength?: number
+  /** Read the element as Atom text content: honour its `type` attribute. */
+  html?: boolean
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+}
+
+/**
+ * Atom text constructs carry their markup three ways: `xhtml` as child
+ * elements, `html` as escaped text, and `text` as plain text. RSS has only the
+ * escaped form, so the helper is Atom's alone.
+ */
+function atomHtml(element: Element): string {
+  const type = (element.getAttribute("type") ?? "text").toLowerCase()
+  if (type === "xhtml") {
+    const container = element.firstElementChild
+    return (container?.localName === "div" ? container : element).innerHTML
+  }
+  const text = element.textContent ?? ""
+  if (type === "html" || type === "text/html" || type === "application/xhtml+xml") return text
+  return text.trim() ? `<p>${escapeHtml(text)}</p>` : ""
 }
 
 declare interface FeedFormat {
@@ -108,16 +132,14 @@ function get_feed_value(
       const element = elements[0]
       if (tag_format.attr) {
         value = element.getAttribute(tag_format.attr)
+      } else if (tag_format.html) {
+        value = atomHtml(element)
       } else {
         value = element.textContent
       }
 
       if (value && typeof value == "string") {
         if (tag_format.startsWith && !value.startsWith(tag_format.startsWith)) {
-          value = null
-        }
-
-        if (tag_format.minLength && value && value.length && value.length < tag_format.minLength) {
           value = null
         }
       }
@@ -160,7 +182,7 @@ function common_rss_parser(doc: Document, def: FeedFormat) {
     const content = get_feed_value(story, def.content_tags)
 
     if (!title && content) {
-      title = content.substring(0, 500)
+      title = content.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().substring(0, 500)
     }
 
     if (!link || !title) {
@@ -168,6 +190,12 @@ function common_rss_parser(doc: Document, def: FeedFormat) {
     }
 
     const new_story = new Story(options.type, link, title, link, timestamp)
+
+    // The feed already delivered the text, so keeping it costs no request;
+    // a teaser is left out because the page would show more than it does.
+    if (content && options.settings.store_content.value && feedContentIsArticle(content)) {
+      new_story.attachContent(content, { source: "feed", saved_at: Date.now() })
+    }
 
     if (main_title) {
       const user_tag = {

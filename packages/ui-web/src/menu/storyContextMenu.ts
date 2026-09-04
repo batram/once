@@ -17,6 +17,7 @@ export type BuiltinStoryMenuActionId =
   | "toggle-read"
   | "toggle-bookmark"
   | "filter"
+  | "save-content"
   | "search-domain"
   | "copy-link"
   | "copy-original-link"
@@ -129,6 +130,7 @@ export function describeStoryMenu(
       item("toggle-read", story.readActionLabel(), "state"),
       item("toggle-bookmark", story.bookmarkActionLabel(), "state"),
       item("filter", story.filterActionLabel(), "state"),
+      item("save-content", story.saveContentActionLabel(), "state"),
       item("search-domain", "Search this domain", "discovery"),
       item("copy-link", "Copy link address", "discovery"),
       item(
@@ -222,6 +224,22 @@ export async function executeStoryMenuAction(
       return story.toggleBookmark()
     case "filter":
       return story.showFilterAction()
+    case "save-content": {
+      const { saveStoryContentFromPage } = await import("../reader/storedContent.js")
+      try {
+        await saveStoryContentFromPage(getOnceClient(), story.story.href)
+      } catch (error) {
+        const { LoaderInsights } = await import("../shell/LoaderInsights.js")
+        const detail = error instanceof Error ? error.message : String(error)
+        LoaderInsights.showErrorMessage(
+          `The article could not be saved for offline: ${detail}`,
+          `Operation: story.content\nStory: ${story.story.href}\n\n${
+            error instanceof Error ? error.stack || error.message : String(error)
+          }`
+        )
+      }
+      return
+    }
     case "search-domain": {
       const Search = await import("../story/storySearch.js")
       Search.searchStories(`domain:${new URL(story.story.href).hostname}`)

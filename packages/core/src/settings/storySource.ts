@@ -51,6 +51,36 @@ export interface StorySourceGroup {
   name: string
 }
 
+/**
+ * How a source's requests identify the user. Only the shape is stored with the
+ * source, which syncs between devices in the clear; a token itself lives in the
+ * device's secret store under the source id, and never in this record.
+ *
+ * - `session` sends whatever cookies the shell holds for the host, so a site
+ *   the user is logged into in the browser answers as that user.
+ * - `token` sends the stored secret verbatim in a request header, which is
+ *   `Authorization` unless the source names another.
+ */
+export type StorySourceAuth =
+  | { kind: "session" }
+  | { kind: "token"; header?: string }
+
+export const DEFAULT_AUTH_HEADER = "Authorization"
+
+/** An HTTP header name: RFC 7230 tokens, which is what a fetch accepts. */
+const HEADER_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/
+
+/** The stored shape, or null when the value cannot be one. */
+export function readStorySourceAuth(value: unknown): StorySourceAuth | null {
+  if (!value || typeof value !== "object") return null
+  const input = value as Partial<{ kind: unknown; header: unknown }>
+  if (input.kind === "session") return { kind: "session" }
+  if (input.kind !== "token") return null
+  if (input.header === undefined) return { kind: "token" }
+  if (typeof input.header !== "string" || !HEADER_NAME.test(input.header)) return null
+  return { kind: "token", header: input.header }
+}
+
 export interface StorySource {
   /** Opaque and permanent. See the identity rules above. */
   id: string
@@ -66,8 +96,12 @@ export interface StorySource {
   enabled?: boolean
   /** Absent means inherit the collector, then the global default. */
   cacheMinutes?: number
+  /** Fetch and store each new story's article for the reader. Absent means no. */
+  saveContent?: boolean
   /** Collector configuration. Validated at the collector boundary, not here. */
   select?: unknown
+  /** How requests identify the user. Absent means anonymously. */
+  auth?: StorySourceAuth
 }
 
 export interface StorySourceDocument {
@@ -304,12 +338,14 @@ function readInto(
       return false
     } else fault(context, `${path}.${key}`, "not a non-empty string; dropped")
   }
-  if (input.enabled !== undefined) {
-    if (typeof input.enabled === "boolean") source.enabled = input.enabled
+  for (const key of ["enabled", "saveContent"] as const) {
+    const value = input[key]
+    if (value === undefined) continue
+    if (typeof value === "boolean") source[key] = value
     else if (context.strict) {
-      fault(context, `${path}.enabled`, "not a boolean")
+      fault(context, `${path}.${key}`, "not a boolean")
       return false
-    } else fault(context, `${path}.enabled`, "not a boolean; dropped")
+    } else fault(context, `${path}.${key}`, "not a boolean; dropped")
   }
   if (input.cacheMinutes !== undefined) {
     if (isCacheMinutes(input.cacheMinutes)) source.cacheMinutes = input.cacheMinutes
@@ -323,6 +359,14 @@ function readInto(
     } else fault(context, `${path}.cacheMinutes`, "out of range; inherits instead")
   }
   if (input.select !== undefined) source.select = input.select
+  if (input.auth !== undefined) {
+    const auth = readStorySourceAuth(input.auth)
+    if (auth) source.auth = auth
+    else if (context.strict) {
+      fault(context, `${path}.auth`, "not a session or token authentication")
+      return false
+    } else fault(context, `${path}.auth`, "not a session or token authentication; dropped")
+  }
   return true
 }
 
@@ -506,8 +550,14 @@ function inherit(incoming: StorySource, matched: StorySource): StorySource {
   if (merged.cacheMinutes === undefined && matched.cacheMinutes !== undefined) {
     merged.cacheMinutes = matched.cacheMinutes
   }
+  if (merged.saveContent === undefined && matched.saveContent !== undefined) {
+    merged.saveContent = matched.saveContent
+  }
   if (merged.select === undefined && matched.select !== undefined) {
     merged.select = matched.select
+  }
+  if (merged.auth === undefined && matched.auth !== undefined) {
+    merged.auth = matched.auth
   }
   return merged
 }

@@ -95,7 +95,7 @@ export type StructuredFormField = [
   string,
   string,
   {
-    kind?: "text" | "multiline" | "number" | "select" | "checkbox"
+    kind?: "text" | "multiline" | "number" | "select" | "checkbox" | "password"
     hint?: string
     choices?: Array<[string, string]>
     optional?: boolean

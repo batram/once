@@ -78,6 +78,42 @@ or valid `Date`. A collector can additionally set `comment_url`, `filter`, and
 merges an already-known URL into the stored story rather than creating a
 duplicate.
 
+A collector whose source delivers the article text may hand it to the story
+with `story.attachContent(html, { source: "feed", saved_at })`. The story
+store writes it as the story's `content` attachment, the reader shows it
+without a request, and a later feed edit replaces it — unless the user has
+since saved the page itself, which feed text never overrides. The RSS/Atom
+collector does this for `content:encoded`, `description`, Atom `content` and
+`summary` when the text is long enough to be an article rather than a teaser
+(`feedContentIsArticle` in core), behind its `store_content` setting.
+
+## Authenticated sources
+
+A source fetches anonymously unless its `auth` field says otherwise. Two
+shapes exist, and the source editor offers both under "Authentication":
+
+- `{ "kind": "session" }` sends the cookies the shell holds for the host, so a
+  site the user is logged into in the browser answers as that user. In the
+  extensions that is the browser profile's cookie jar; in Electron it is the
+  session the in-app browser tabs use; on mobile it is the WebView's.
+- `{ "kind": "token", "header": "Authorization" }` sends a stored secret
+  verbatim in the named header (`Authorization` when `header` is absent), so
+  a value like `Bearer …` or an API key works without the app knowing which.
+
+Only the shape lives in the source document, which syncs between devices in
+the clear. The token itself goes through the platform's secret store, keyed
+on the source id (`source:<id>`): `safeStorage` in Electron, the Keychain or
+the Keystore-encrypted preferences on mobile, `storage.local` in the
+extensions, and `localStorage` on the plain web build. A token source with
+nothing stored on this device reports a "No Token" source error instead of
+fetching; the token has to be entered on each device that uses it.
+
+Reddit is the reason this exists: it redirects anonymous readers to its login
+page. A logged-in browser session works with `session`; an OAuth bearer token
+works with `token` against `oauth.reddit.com` when the source names the
+`redditjson` collector explicitly. The app does not yet exchange OAuth client
+credentials for tokens or refresh them.
+
 ## Geny Match
 
 Geny Match is the configurable HTML collector. It is useful when a site

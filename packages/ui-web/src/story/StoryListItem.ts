@@ -2,7 +2,7 @@ import * as StoryFilterView from "./storyFilterView"
 import { Story } from "@once/core"
 // Registers the built-in outline button; imported for that side effect.
 import "../presenters/registry"
-import { applyStoryElements } from "./storyElements"
+import { applyStoryElements, refreshRowElements } from "./storyElements"
 import { DataChangeEvent, resortSingle } from "./storyList"
 import { URLRedirect } from "@once/core"
 import { StoryHistory } from "./StoryHistory"
@@ -179,6 +179,10 @@ export class StoryListItem extends HTMLElement {
         case "stared":
           this.update_star()
           break
+        case "stored_content":
+          // The reader button shows whether an article is stored.
+          refreshRowElements(this)
+          break
         case "filter":
         default:
           this.update_complete_story_el()
@@ -242,6 +246,10 @@ export class StoryListItem extends HTMLElement {
 
   filterActionLabel(): string {
     return this.story.filter ? "Edit filter" : "Filter source"
+  }
+
+  saveContentActionLabel(): string {
+    return this.story.contentSource() === "page" ? "Update saved copy" : "Save for offline"
   }
 
   openStory(target: "_self" | "middle" | "blank"): void {

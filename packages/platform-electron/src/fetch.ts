@@ -15,6 +15,9 @@ export async function bridgeFetch(
     method: request.method,
     headers: Array.from(request.headers.entries())
   }
+  // Only an explicit ask travels: the main process decides what the default
+  // is, and a request built without the option should not change that.
+  if (init?.credentials === "include") serialized.credentials = "include"
 
   if (request.method !== "GET" && request.method !== "HEAD") {
     serialized.body = await request.clone().arrayBuffer()

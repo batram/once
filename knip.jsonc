@@ -158,6 +158,7 @@
         "src/keyCommandBackground.ts",
         "src/pickerBackground.ts",
         "src/readerBackground.ts",
+        "src/readerPage.ts",
         "src/storyMenuBackground.ts"
       ],
       "includeEntryExports": true,

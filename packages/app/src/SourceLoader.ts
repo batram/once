@@ -1,9 +1,11 @@
 import { DEFAULT_CACHE_MINUTES, Story, StorySource } from "@once/core"
 import * as StoryParser from "@once/collectors"
+import { readSourceSecret, sourceRequestInit } from "./sourceAuth"
 import {
   CachePolicy,
   CacheStorePort,
   ProcessingSource,
+  SecretStorePort,
   SourceError
 } from "./types"
 
@@ -20,7 +22,9 @@ export class SourceLoader {
     private readonly cache: CacheStorePort | undefined,
     private readonly reportError: (error: SourceError) => void,
     /** Injected so the expiry boundary is testable without waiting for it. */
-    private readonly now: () => number = () => Date.now()
+    private readonly now: () => number = () => Date.now(),
+    /** Where source tokens live; absent in shells that cannot keep one. */
+    private readonly secrets?: SecretStorePort
   ) {}
 
   async load(
@@ -54,8 +58,12 @@ export class SourceLoader {
       : null
     if (cached != null) return this.parseCached(cached, resolved)
 
+    // Read before the request so a missing token fails as its own error rather
+    // than as whatever the site says to an anonymous caller — and outside the
+    // stale fallback, since a copy from when the token existed would hide it.
+    const secret = await readSourceSecret(this.secrets, source)
     try {
-      const response = await this.fetch(url)
+      const response = await this.fetch(url, sourceRequestInit(source.auth, secret))
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
@@ -168,6 +176,9 @@ export class SourceLoader {
     } else if (detail.includes("HTTP 404")) {
       title = "Not Found"
       message = "The requested resource was not found"
+    } else if (detail.startsWith("No token:")) {
+      title = "No Token"
+      message = detail.replace("No token: ", "")
     } else if (detail.includes("HTTP")) {
       title = "HTTP Error"
     }

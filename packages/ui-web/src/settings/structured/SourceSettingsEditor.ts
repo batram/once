@@ -1,8 +1,8 @@
 import { SourceError } from "@once/app"
 import { get_active } from "@once/collectors"
-import { DEFAULT_GROUP_ID, emptyStorySourceDocument, mintStorySourceGroupId,
-  mintStorySourceId, parseStorySourceText, readCacheMinutesInput,
-  serializeStorySourceDocument, StorySourceDocument } from "@once/core"
+import { DEFAULT_AUTH_HEADER, DEFAULT_GROUP_ID, emptyStorySourceDocument,
+  mintStorySourceGroupId, mintStorySourceId, parseStorySourceText, readCacheMinutesInput,
+  readStorySourceAuth, serializeStorySourceDocument, StorySourceDocument } from "@once/core"
 import { showChoiceDialog, showConfirmDialog } from "../../confirmDialog"
 import { AnchoredMenuItem } from "../../menu/storyAnchoredMenu"
 import { revealElement } from "../../scrollReveal"
@@ -15,6 +15,8 @@ export interface SourceSettingsHost {
   onTouch(): boolean; getText(): string; setText(text: string): void
   render(): void; root(): HTMLElement | undefined
   saveSources(value: StorySourceDocument, reloadStories?: boolean): void | Promise<void>
+  /** A source's token, kept on this device; "" removes it. */
+  saveSourceSecret(sourceId: string, secret: string): Promise<void>
   showSourceError(sourceId: string): void
   openMenu(anchor: HTMLElement, items: AnchoredMenuItem[]): void
   listActions(): HTMLElement | null
@@ -100,10 +102,28 @@ export class SourceSettingsEditor {
         { kind: "select", choices: collectors, optional: true, group: "Handling" }],
       ["Enabled", String(current?.enabled !== false), { kind: "checkbox", optional: true }],
       ["Group", this.groups[groupIndex]?.id ?? DEFAULT_GROUP_ID,
-        { kind: "select", choices: groups, group: "Handling" }]
+        { kind: "select", choices: groups, group: "Handling" }],
+      ["Save for offline", current?.saveContent === true ? "true" : "",
+        { kind: "select", choices: [["", "No"], ["true", "Yes"]], optional: true,
+          hint: "Fetch each new story's article for the reader", group: "Handling" }],
+      // The token itself is never shown back: it lives in the device's secret
+      // store, not in the source, so a blank field keeps what is stored.
+      ["Authentication", current?.auth?.kind ?? "",
+        { kind: "select", optional: true, group: "Access",
+          choices: [["", "None"], ["session", "Browser session (send cookies)"], ["token", "Token header"]],
+          hint: "Session sends the cookies this app holds for the site" }],
+      ["Token header", current?.auth?.kind === "token" ? current.auth.header ?? "" : "",
+        { optional: true, group: "Access", hint: `Blank means ${DEFAULT_AUTH_HEADER}` }],
+      ["Token", "", { kind: "password", optional: true, group: "Access",
+        hint: "Sent verbatim, e.g. “Bearer …”; stored on this device only. Blank keeps the current one" }]
     ], (values) => {
-      const [url, label, cacheMinutes, collector, enabled, groupId] = values
+      const [url, label, cacheMinutes, collector, enabled, groupId, saveContent,
+        authKind, authHeader, token] = values
       if (!url.trim()) return false
+      const auth = readStorySourceAuth(authKind === "token"
+        ? { kind: "token", ...(authHeader.trim() ? { header: authHeader.trim() } : {}) }
+        : { kind: authKind })
+      if (authKind && !auth) return "The token header is not a valid header name"
       // Refused rather than clamped or coerced, so a typo cannot quietly
       // become a cache window nobody chose.
       const cacheWindow = readCacheMinutesInput(cacheMinutes)
@@ -117,12 +137,20 @@ export class SourceSettingsEditor {
       else source.cacheMinutes = cacheWindow.minutes
       if (collector) source.collector = collector; else delete source.collector
       source.enabled = enabled !== "false"
+      if (saveContent === "true") source.saveContent = true; else delete source.saveContent
+      if (auth) source.auth = auth; else delete source.auth
       if (groupId === DEFAULT_GROUP_ID) delete source.groupId; else source.groupId = groupId
       if (current && sourceIndex !== undefined) {
         this.groups[groupIndex].sources.splice(sourceIndex, 1)
       }
       ;(this.groups.find((group) => group.id === groupId) ?? this.groups[0]).sources.push(source)
-      this.save(); return true
+      this.save()
+      // A typed token replaces the stored one; leaving token auth discards it,
+      // so a source switched back to anonymous does not keep a secret around.
+      if (auth?.kind === "token" ? token.length > 0 : current?.auth?.kind === "token") {
+        this.saveSecret(source.id, auth?.kind === "token" ? token : "")
+      }
+      return true
     }, current ? { label: "Delete source", action: () => {
       if (window.confirm("Delete this story source?")) {
         if (sourceIndex !== undefined) {
@@ -158,6 +186,12 @@ export class SourceSettingsEditor {
         confirmLabel: "Delete", positionWithin: root })) return
     } else return
     this.groups.splice(groupIndex, 1); this.save()
+  }
+  private saveSecret(sourceId: string, secret: string): void {
+    this.host.saveSourceSecret(sourceId, secret).catch((error: unknown) => {
+      console.error("Failed to store the source token", error)
+      this.saveState = "failed"; this.renderSaveState(this.host.root())
+    })
   }
   save(reloadStories = true): void {
     this.document = documentFromGroups(this.groups, this.document)

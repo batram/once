@@ -11,7 +11,9 @@ function createFakePlatform(stories = [], options = {}) {
       : options.storySources)
   }
   const savedStories = new Map(stories.map((story) => [story.href, story]))
+  const savedContents = new Map(options.storyContents || [])
   const cachedResponses = new Map(options.cachedResponses || [])
+  const secrets = new Map(options.secrets || [])
   let databaseHandler
   let remoteDatabaseHandler
   let historyHandler
@@ -21,10 +23,12 @@ function createFakePlatform(stories = [], options = {}) {
     opened,
     setStoredStory(story) { savedStories.set(story.href, story) },
     deleteStoredStory(href) { savedStories.delete(href) },
+    savedContents,
     emitDatabaseChange(change) { databaseHandler?.(change) },
     emitRemoteDatabaseChange(change) { remoteDatabaseHandler?.(change) },
     emitHistory(action) { historyHandler?.(action) },
     cachedResponses,
+    secrets,
     ports: {
       listStore: {
         async get(id, fallback) {
@@ -52,15 +56,38 @@ function createFakePlatform(stories = [], options = {}) {
         },
         async getStory(url) { return savedStories.get(url) || null },
         async saveStory(story) {
+          // Like PouchDB: pending html becomes the attachment, and the story
+          // keeps only a stub describing it.
+          const html = story.pendingContent?.()
+          if (html !== undefined) {
+            savedContents.set(story.href, html)
+            story._attachments = {
+              content: { content_type: "text/html", length: Buffer.byteLength(html), stub: true }
+            }
+          } else if (savedContents.has(story.href)) {
+            story._attachments = {
+              content: { content_type: "text/html", length: Buffer.byteLength(savedContents.get(story.href)), stub: true }
+            }
+          }
           savedStories.set(story.href, story)
           return story
-        }
+        },
+        async deleteStory(url) {
+          savedStories.delete(url)
+          savedContents.delete(url)
+        },
+        async getStoryContent(url) { return savedContents.get(url) ?? null }
       },
       syncSettingsStore: {
         async getSyncUrl() { return "" },
         async setSyncUrl() {},
         async getCacheTime() { return options.cacheTime ?? 60 },
         async setCacheTime() {}
+      },
+      // Absent when a test says so, to see what a shell without one reports.
+      secretStore: options.secretStore === false ? undefined : {
+        async get(key) { return secrets.get(key) || "" },
+        async set(key, value) { if (value) secrets.set(key, value); else secrets.delete(key) }
       },
       syncService: {
         syncFrom() {},

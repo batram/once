@@ -14,6 +14,7 @@ import * as StoryList from "./story/storyList"
 import { StoryListItem } from "./story/StoryListItem"
 import { SwipeConfig } from "./story/swipe/geometry"
 import { ReaderView } from "./reader/ReaderView"
+import { installStoredContentSaver } from "./reader/storedContent"
 import { SourcePickerView } from "./picker/SourcePickerView"
 import { bindMenuCollapseControls } from "./shell/menuCollapse"
 import { getKeyboardDispatcher } from "./keyboard"
@@ -82,6 +83,9 @@ export async function mountOnceUi(
   setOnceClient(client)
   StoryListItem.devToolsEnabled = options.buildChannel === "dev"
   ReaderView.mount(client)
+  installStoredContentSaver(client, {
+    reportError: (message, details) => LoaderInsights.showErrorMessage(message, details)
+  })
   mountAddons(client, { sandboxUrl: options.addonSandboxUrl, devAddons: options.devAddons })
 
   const version = document.querySelector<HTMLElement>(

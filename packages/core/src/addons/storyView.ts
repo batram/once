@@ -35,7 +35,7 @@ export interface StoryView {
 
 const OWN_FIELDS = new Set([
   "href", "title", "type", "comment_url", "timestamp", "read_state", "stared",
-  "tags", "substories", "filter", "sync_updated_at", "_attachments", "_rev", "_id"
+  "tags", "substories", "filter", "sync_updated_at", "stored_content", "_attachments", "_rev", "_id"
 ])
 
 function hostOf(url: string): string {

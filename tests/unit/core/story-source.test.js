@@ -15,6 +15,7 @@ const {
   mintStorySourceId,
   parseStorySources,
   readCacheMinutesInput,
+  readStorySourceAuth,
   reconcileStorySources,
   repairStorySources
 } = require("../../../packages/core/dist/settings/storySource")
@@ -263,6 +264,74 @@ test("an import never emits a duplicate or an unusable id", () => {
   assert.equal(new Set(ids).size, 3)
   ids.forEach((id) => assert.ok(isStorySourceId(id), id))
   assert.equal(ids[0], "src_11111111", "the first claim keeps it")
+})
+
+test("a source may ask for offline copies, and the flag survives an import", () => {
+  const stored = parseStorySources(doc({
+    sources: [{ id: "src_aaaaaaaa", url: "https://a.test/", saveContent: true }]
+  }))
+  assert.equal(stored.ok, true)
+  assert.equal(stored.doc.sources[0].saveContent, true)
+
+  const rejected = parseStorySources(doc({
+    sources: [{ id: "src_aaaaaaaa", url: "https://a.test/", saveContent: "yes" }]
+  }))
+  assert.equal(rejected.ok, false)
+  assert.match(rejected.reports[0].message, /not a boolean/)
+
+  const repaired = repairStorySources(doc({
+    sources: [{ id: "src_aaaaaaaa", url: "https://a.test/", saveContent: "yes" }]
+  }))
+  assert.equal(repaired.ok, true)
+  assert.equal("saveContent" in repaired.doc.sources[0], false)
+
+  // A plain URL list re-imported keeps what the stored source already said.
+  const { sources } = reconcileStorySources(
+    [{ id: "", url: "https://a.test/" }],
+    stored.doc.sources,
+    { mintId: counter() }
+  )
+  assert.equal(sources[0].saveContent, true)
+})
+
+test("a source may say how it authenticates; only the shape is stored", () => {
+  const stored = parseStorySources(doc({
+    sources: [
+      { id: "src_aaaaaaaa", url: "https://a.test/", auth: { kind: "session" } },
+      { id: "src_aaaaaaab", url: "https://b.test/", auth: { kind: "token", header: "X-Api-Key" } },
+      { id: "src_aaaaaaac", url: "https://c.test/", auth: { kind: "token" } }
+    ]
+  }))
+  assert.equal(stored.ok, true)
+  assert.deepEqual(stored.doc.sources.map((source) => source.auth), [
+    { kind: "session" }, { kind: "token", header: "X-Api-Key" }, { kind: "token" }
+  ])
+
+  // A token typed into the document by mistake does not ride along: the shape
+  // syncs in the clear, so only the shape is read.
+  assert.deepEqual(readStorySourceAuth({ kind: "token", token: "secret" }), { kind: "token" })
+  assert.equal(readStorySourceAuth({ kind: "basic" }), null)
+  assert.equal(readStorySourceAuth({ kind: "token", header: "not a header" }), null)
+
+  const rejected = parseStorySources(doc({
+    sources: [{ id: "src_aaaaaaaa", url: "https://a.test/", auth: { kind: "basic" } }]
+  }))
+  assert.equal(rejected.ok, false)
+  assert.match(rejected.reports[0].message, /authentication/)
+
+  const repaired = repairStorySources(doc({
+    sources: [{ id: "src_aaaaaaaa", url: "https://a.test/", auth: { kind: "basic" } }]
+  }))
+  assert.equal(repaired.ok, true)
+  assert.equal("auth" in repaired.doc.sources[0], false)
+
+  // A plain URL list re-imported keeps how the stored source authenticated.
+  const { sources } = reconcileStorySources(
+    [{ id: "", url: "https://a.test/" }],
+    stored.doc.sources,
+    { mintId: counter() }
+  )
+  assert.deepEqual(sources[0].auth, { kind: "session" })
 })
 
 test("the schema version is what the readers accept", () => {

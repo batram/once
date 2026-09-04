@@ -3,12 +3,12 @@ import {
   applyStoryFilters,
   groupedStorySources,
   Story,
+  StorySource,
   StorySourceDocument,
   URLRedirect
 } from "@once/core"
 import {
   CachePolicy,
-  DatabaseChange,
   DiagnosticError,
   OnceClient,
   OncePlatformPorts,
@@ -19,7 +19,7 @@ import {
   SyncStatus
 } from "./types"
 import { LocalEventBus } from "./EventBus"
-import { mergeStorySyncState, sameStorySyncState } from "./storySyncPolicy"
+import { mergeStorySyncState } from "./storySyncPolicy"
 import { StoryWriteQueue } from "./StoryWriteQueue"
 import { StoryWorkingSet } from "./StoryWorkingSet"
 import { AppSettings } from "./AppSettings"
@@ -35,6 +35,8 @@ import { DiagnosticLog, errorDetails } from "./DiagnosticLog"
 import { getAddonScript, storeAddonScript } from "./addonScriptCache"
 import { fetchDocument, fetchText } from "./fetchDocument"
 import { waitForStartupStorage } from "./startupStorage"
+import { StoryContentService } from "./storyContent"
+import { StoryChangeReconciler } from "./storyChangeReconciler"
 
 export class AppRuntime {
   readonly client: OnceClient
@@ -69,6 +71,8 @@ export class AppRuntime {
   private readonly settings: AppSettings
   private readonly cacheMaintenance: CacheMaintenance
   private readonly sourceLoader: SourceLoader
+  private readonly reconciler: StoryChangeReconciler
+  private readonly content: StoryContentService
   private syncStatus: SyncStatus = {
     state: "disabled",
     message: "Sync is not configured"
@@ -106,8 +110,17 @@ export class AppRuntime {
     this.sourceLoader = new SourceLoader(
       platform.fetch,
       platform.cacheStore,
-      (error) => this.setSourceError(error)
+      (error) => this.setSourceError(error),
+      undefined,
+      platform.secretStore
     )
+    this.reconciler = new StoryChangeReconciler(this.workingSet, platform.storyStore)
+    this.content = new StoryContentService(platform.storyStore, {
+      findStoryByUrl: (url) => this.findStoryByUrl(url),
+      workingStory: (href) => this.workingSet.get(href),
+      queueStoryWrite: (href, task, failure) => this.queueStoryWrite(href, task, failure),
+      emitDataChange: (path, value, previous) => this.emitDataChange(path, value, previous, null)
+    })
     this.client = this.createClient()
   }
 
@@ -127,7 +140,7 @@ export class AppRuntime {
           : change.id.replace(/^sto_/, "")
       void this.queueStoryWrite(
         href,
-        () => this.handleRemoteDatabaseChange(change),
+        () => this.reconciler.remote(change),
         {
           operation: "story.sync",
           message: "A synchronized story change could not be applied"
@@ -145,7 +158,7 @@ export class AppRuntime {
           : change.id.replace(/^sto_/, "")
       void this.queueStoryWrite(
         href,
-        () => this.handleObservedStoryChange(change),
+        () => this.reconciler.observed(change),
         {
           operation: "story.observe",
           message: "A local database story change could not be reconciled"
@@ -189,7 +202,7 @@ export class AppRuntime {
         .then(() => this.settings.getStorySources()),
       saveStorySources: (storySources, reloadStories) =>
         this.settings.saveStorySources(storySources, reloadStories),
-      ...settingsClientMethods(this.settings),
+      ...settingsClientMethods(this.settings, this.platform.secretStore),
       reloadStories: (policy = "cache-first") => this.reloadStories(policy),
       refetchSource: (sourceId) => this.reloadStories("network-only", sourceId),
       getSourceCacheStatus: () => this.cacheMaintenance.status(),
@@ -201,6 +214,8 @@ export class AppRuntime {
       persistStoryChange: (href, path, value) =>
         this.persistStoryChange(href, path, value),
       purgeStory: (href) => this.purgeStory(href),
+      getStoryContent: (href) => this.content.get(href),
+      saveStoryContent: (href, html, meta) => this.content.save(href, html, meta),
       fetchDocument: (url) => fetchDocument(this.platform.fetch, url),
       fetchText: (url) => fetchText(this.platform.fetch, url),
       getAddonScript: (integrity) => getAddonScript(this.platform.cacheStore, integrity),
@@ -281,7 +296,7 @@ export class AppRuntime {
         promises.push(
           this.sourceLoader.load(source, { policy, cacheMinutes: cacheWindow(source) })
             .then(async (stories) => {
-              await this.processStoryInput(stories, group.name)
+              await this.processStoryInput(stories, group.name, source)
             })
             .catch((error) => {
               this.sourceLoader.reportLoadFailure(source, error)
@@ -304,7 +319,8 @@ export class AppRuntime {
 
   private async processStoryInput(
     stories: Story[] | undefined,
-    groupName: string
+    groupName: string,
+    source?: StorySource
   ): Promise<void> {
     if (!stories) return
 
@@ -319,11 +335,23 @@ export class AppRuntime {
     })
 
     const mappedStories = await this.addStories(filteredStories)
+    // A source that asked for offline copies gets one per story, once: a
+    // story whose page was already extracted is not fetched again, whereas
+    // feed text is a placeholder the page may improve on.
+    if (source?.saveContent === true) {
+      for (const story of mappedStories) {
+        if (story.contentSource() !== "page") this.requestStoryContent(story.href)
+      }
+    }
     this.getAllStared().forEach((story) => mappedStories.push(story))
     this.events.publish("storiesChanged", {
       stories: mappedStories,
       bucket: "stories"
     })
+  }
+
+  private requestStoryContent(href: string): void {
+    this.events.publish("storyContentRequested", { href })
   }
 
   private setSourceError(error: SourceError): void {
@@ -465,7 +493,7 @@ export class AppRuntime {
       oldStory = await this.platform.storyStore.saveStory(oldStory)
     }
 
-    return oldStory
+    return await this.content.mergeFeedContent(oldStory, newStory) ?? oldStory
   }
 
   private async getWorkingStories(): Promise<Story[]> {
@@ -517,6 +545,14 @@ export class AppRuntime {
       [path]: Math.max(Date.now(), previousUpdate + 1)
     }
     this.emitDataChange([href, path], value, previousValue, null)
+
+    // Bookmarking is the signal that a story is worth keeping; under the
+    // setting that includes keeping its article.
+    if (path === "stared" && value === true && story.contentSource() !== "page") {
+      void this.settings.getSaveBookmarkedContent().then((enabled) => {
+        if (enabled) this.requestStoryContent(story.href)
+      })
+    }
 
     // Save a snapshot so each queued write persists exactly this transition
     // even if the live story mutates again before the save runs.
@@ -602,76 +638,4 @@ export class AppRuntime {
     })
   }
 
-  private async handleObservedStoryChange(
-    change: DatabaseChange
-  ): Promise<void> {
-    if (change.doc?._deleted) {
-      this.workingSet.remove(change.id.substring("sto_".length))
-      return
-    }
-    if (!change.doc) return
-
-    const changedStory = Story.from_obj(change.doc)
-    const currentStory = this.workingSet.get(changedStory.href)
-    if (!currentStory) return
-
-    const storedStory = await this.platform.storyStore.getStory(
-      changedStory.href
-    )
-    if (!storedStory) {
-      this.workingSet.remove(changedStory.href)
-      return
-    }
-
-    const reconciled = mergeStorySyncState(storedStory, currentStory)
-    let effectiveStory = storedStory
-    if (!sameStorySyncState(reconciled, storedStory)) {
-      effectiveStory = await this.platform.storyStore.saveStory(reconciled)
-    }
-    if (
-      currentStory._rev !== effectiveStory._rev ||
-      !sameStorySyncState(currentStory, effectiveStory)
-    ) {
-      this.workingSet.set(effectiveStory.href, effectiveStory)
-    }
-  }
-
-  private async handleRemoteDatabaseChange(
-    change: DatabaseChange
-  ): Promise<void> {
-    if (!change.id.startsWith("sto_") || !change.doc) return
-
-    if (change.doc._deleted) {
-      this.workingSet.remove(change.id.substring("sto_".length))
-      return
-    }
-
-    const remoteStory = Story.from_obj(change.doc)
-    const currentStory = this.workingSet.get(remoteStory.href)
-    const localStory = await this.platform.storyStore.getStory(remoteStory.href)
-    const mergeBase = localStory ?? currentStory ?? remoteStory
-    // Timestamped offline edits win by time. Untimestamped feed defaults use
-    // the legacy rank and therefore cannot replace an established read,
-    // skipped, starred, or filtered state.
-    const merged = mergeStorySyncState(mergeBase, remoteStory)
-    let effectiveStory = localStory ?? remoteStory
-
-    if (!sameStorySyncState(merged, effectiveStory)) {
-      effectiveStory = await this.platform.storyStore.saveStory(merged)
-    }
-
-    if (currentStory) {
-      if (
-        currentStory._rev !== effectiveStory._rev ||
-        !sameStorySyncState(currentStory, effectiveStory)
-      ) {
-        this.workingSet.set(effectiveStory.href, effectiveStory)
-      }
-      return
-    }
-
-    if (change.presentation !== "background") {
-      this.workingSet.add(effectiveStory)
-    }
-  }
 }

@@ -50,10 +50,15 @@ export function applyStoryElements(row: StoryListItem): void {
   }
 }
 
+/** Re-renders one row's contributed elements, after the row's story changed. */
+export function refreshRowElements(row: StoryListItem): void {
+  for (const stale of row.querySelectorAll("[data-story-element]")) stale.remove()
+  applyStoryElements(row)
+}
+
 /** Re-renders the elements on every row already on screen, after the set changed. */
 export function refreshStoryElements(): void {
   for (const row of document.querySelectorAll<StoryListItem>("story-item")) {
-    for (const stale of row.querySelectorAll("[data-story-element]")) stale.remove()
-    applyStoryElements(row)
+    refreshRowElements(row)
   }
 }

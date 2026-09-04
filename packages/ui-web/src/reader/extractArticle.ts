@@ -1,4 +1,5 @@
 import { Readability } from "@mozilla/readability"
+import { StoredContentMeta } from "@once/core"
 
 export interface ReaderArticle {
   title: string
@@ -6,6 +7,33 @@ export interface ReaderArticle {
   siteName: string
   content: string
   sourceUrl: string
+}
+
+/**
+ * An article from html Once stored earlier: a feed's text or a page already
+ * extracted. Sanitized again on the way out, since what a feed included was
+ * never run through the reader, and relative links resolve against the story.
+ */
+export function articleFromStoredContent(
+  html: string,
+  meta: StoredContentMeta,
+  sourceUrl: string,
+  fallbackTitle = ""
+): ReaderArticle {
+  // Wrapped so a bare fragment lands in the body in every parser.
+  const doc = new DOMParser().parseFromString(
+    `<!doctype html><html><head></head><body>${html}</body></html>`,
+    "text/html"
+  )
+  sanitize(doc, sourceUrl)
+  const host = new URL(sourceUrl).hostname
+  return {
+    title: meta.title || fallbackTitle || host,
+    byline: meta.byline ?? "",
+    siteName: meta.site_name || host.replace(/^www\./, ""),
+    content: doc.body.innerHTML,
+    sourceUrl
+  }
 }
 
 export function extractArticle(

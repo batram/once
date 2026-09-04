@@ -1,3 +1,10 @@
+const STORED_READER_PREFIX = "onceStoredReader:"
+
+interface StoredReaderDocument {
+  html: string
+  sourceUrl: string
+}
+
 export function installReaderBackground(
   browserApi: typeof browser = browser
 ): () => void {
@@ -8,6 +15,9 @@ export function installReaderBackground(
     active?: boolean
     theme?: "system" | "light" | "dark"
     rate?: number
+    html?: string
+    sourceUrl?: string
+    token?: string
   }, sender: browser.runtime.MessageSender) => {
     if (message?.onceCommand === "claimReaderTts") {
       const tabId = sender.tab?.id
@@ -36,6 +46,20 @@ export function installReaderBackground(
         throw new Error("Invalid reader TTS speed")
       }
       return browserApi.storage.local.set({ onceReaderTtsRate: rate })
+    }
+    if (message?.onceCommand === "openStoredReader") {
+      if (typeof message.html !== "string" || !message.html) {
+        throw new Error("A stored reader document is required")
+      }
+      return openStoredReaderTab(
+        browserApi,
+        { html: message.html, sourceUrl: message.sourceUrl ?? "" },
+        message.active !== false
+      )
+    }
+    if (message?.onceCommand === "getStoredReader") {
+      if (typeof message.token !== "string") return undefined
+      return takeStoredReader(browserApi, message.token)
     }
     if (message?.onceCommand !== "openReader" || !message.url) return undefined
     return openReaderTab(browserApi, message.url, message.active !== false, message.theme || "system")
@@ -82,6 +106,44 @@ async function openReaderTab(
     target: { tabId: tab.id },
     files: ["/reader-content.js"]
   })
+}
+
+/**
+ * Session storage where the browser has it, so a document survives the
+ * service worker being put to sleep between the tab opening and asking; local
+ * storage otherwise. Either way the entry is removed once read.
+ */
+function readerStorage(browserApi: typeof browser): browser.storage.StorageArea {
+  const storage = browserApi.storage as typeof browser.storage & {
+    session?: browser.storage.StorageArea
+  }
+  return storage.session ?? storage.local
+}
+
+async function openStoredReaderTab(
+  browserApi: typeof browser,
+  document: StoredReaderDocument,
+  active: boolean
+): Promise<void> {
+  const token = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+  await readerStorage(browserApi).set({ [`${STORED_READER_PREFIX}${token}`]: document })
+  await browserApi.tabs.create({
+    url: browserApi.runtime.getURL(`static/reader.html?token=${encodeURIComponent(token)}`),
+    active
+  })
+}
+
+async function takeStoredReader(
+  browserApi: typeof browser,
+  token: string
+): Promise<StoredReaderDocument | null> {
+  const key = `${STORED_READER_PREFIX}${token}`
+  const storage = readerStorage(browserApi)
+  const stored = await storage.get(key)
+  const document = stored[key] as StoredReaderDocument | undefined
+  if (!document) return null
+  await storage.remove(key)
+  return document
 }
 
 function waitUntilLoaded(browserApi: typeof browser, tabId: number): Promise<void> {

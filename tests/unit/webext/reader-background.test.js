@@ -25,7 +25,7 @@ function createBrowser() {
     onMessage,
     onRemoved,
     api: {
-      runtime: { onMessage },
+      runtime: { onMessage, getURL: (path) => `moz-extension://once/${path}` },
       tabs: {
         onRemoved,
         onUpdated,
@@ -35,7 +35,8 @@ function createBrowser() {
       },
       storage: { local: {
         async get(key) { return { [key]: stored[key] } },
-        async set(values) { Object.assign(stored, values); calls.push(["store", values]) }
+        async set(values) { Object.assign(stored, values); calls.push(["store", values]) },
+        async remove(key) { stored[key] = undefined; calls.push(["remove", key]) }
       } },
       scripting: {
         async executeScript(options) { calls.push(["script", options]) },
@@ -60,6 +61,32 @@ test("injects reader theme, styles, and content after a safe page loads", async 
   cleanup()
   assert.equal(fake.onMessage.listeners.length, 0)
   assert.equal(fake.onRemoved.listeners.length, 0)
+})
+
+test("parks a stored reader document for its page and hands it over once", async () => {
+  const fake = createBrowser()
+  installReaderBackground(fake.api)
+  const handler = fake.onMessage.listeners[0]
+  await handler({
+    onceCommand: "openStoredReader",
+    html: "<!doctype html><title>Stored</title>",
+    sourceUrl: "https://example.com/article",
+    active: false
+  }, {})
+  const [, created] = fake.calls.find(([kind]) => kind === "create")
+  assert.match(created.url, /^moz-extension:\/\/once\/static\/reader\.html\?token=/)
+  assert.equal(created.active, false)
+  const token = new URLSearchParams(created.url.split("?")[1]).get("token")
+  assert.ok(token)
+  // No script injection: the page is the extension's own.
+  assert.equal(fake.calls.some(([kind]) => kind === "script"), false)
+
+  assert.deepEqual(await handler({ onceCommand: "getStoredReader", token }, {}), {
+    html: "<!doctype html><title>Stored</title>",
+    sourceUrl: "https://example.com/article"
+  })
+  assert.equal(await handler({ onceCommand: "getStoredReader", token }, {}), null, "read once")
+  assert.throws(() => handler({ onceCommand: "openStoredReader", html: "" }, {}), /required/)
 })
 
 test("stores validated speech rate and transfers speech ownership", async () => {

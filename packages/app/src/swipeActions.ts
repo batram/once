@@ -16,6 +16,7 @@ export type BuiltinSwipeActionId =
   | "toggle-read"
   | "toggle-bookmark"
   | "filter"
+  | "save-content"
 
 export const SWIPE_ACTION_LABELS: Readonly<Record<BuiltinSwipeActionId, string>> = Object.freeze({
   "none": "Nothing",
@@ -25,7 +26,8 @@ export const SWIPE_ACTION_LABELS: Readonly<Record<BuiltinSwipeActionId, string>>
   "skip": "Skip",
   "toggle-read": "Toggle read state",
   "toggle-bookmark": "Toggle bookmark",
-  "filter": "Filter source"
+  "filter": "Filter source",
+  "save-content": "Save for offline"
 })
 
 export interface SwipeActionDescriptor {

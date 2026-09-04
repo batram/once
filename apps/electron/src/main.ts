@@ -16,7 +16,7 @@ import {
 } from "@once/platform-electron/bridge"
 import { SecureSettings } from "./SecureSettings"
 import { registerIpcHandlers } from "./IpcHandlers"
-import { BrowserCoordinator } from "./TabManager"
+import { BROWSER_SESSION_PARTITION, BrowserCoordinator } from "./TabManager"
 import { OFFSCREEN_TEST_POSITION, isBackgroundMode } from "./browser/WindowLifecycle"
 import {
   configureReaderProtocol,
@@ -203,7 +203,7 @@ function createShellWindow(bounds?: Rectangle): BrowserWindow {
 }
 
 function configureBrowserSession(): Session {
-  const browserSession = session.fromPartition("persist:once-browser-v2")
+  const browserSession = session.fromPartition(BROWSER_SESSION_PARTITION)
   configureReaderProtocol(browserSession)
   configureErrorPageProtocol(browserSession)
   browserSession.setPermissionCheckHandler((_webContents, permission) => {

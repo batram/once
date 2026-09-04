@@ -263,6 +263,46 @@ test("opens the reader and marks the story read", async () => {
   }
 })
 
+test("a bookmarked story's saved article opens in the extension's reader page offline", async () => {
+  const harness = await launchStoryExtension()
+  const { context, page, source } = harness
+  try {
+    await openSettingsSection(page, "theme")
+    await page.locator("#save_bookmarked_checkbox").check()
+    await openStories(page)
+    const alpha = storyItem(page, source.urls.alpha)
+    // Bookmarking fetches and stores the article; the reader button says so.
+    await alpha.locator(storyFixture.SELECTORS.starBtn).click()
+    await expect(alpha).toHaveClass(/stared/)
+    await expect(alpha.locator(".outline_btn .icon--stored-content")).toHaveCount(1, {
+      timeout: 10_000
+    })
+
+    // The site is gone: the reader still opens from the stored copy. Chrome's
+    // panel has no `browser` global, so it renders the document itself (a data:
+    // URL, as for a live article); Firefox goes through the background and the
+    // extension's reader page instead.
+    const pageRequests = source.requests.length
+    await context.route(source.urls.alpha, (route) => route.abort())
+    const readerPage = await waitForOpenedPage(context, "stored reader", () =>
+      alpha.locator(storyFixture.SELECTORS.outlineBtn).click()
+    )
+    await expect(readerPage).toHaveURL(/^data:text\/html|\/static\/reader\.html\?token=/)
+    await expect(readerPage).toHaveTitle(storyFixture.STORY_TITLES.alpha)
+    expect(source.requests.length, "nothing was fetched for the reader").toBe(pageRequests)
+    await expect(readerPage.locator("main > article")).toContainText(
+      "The reader pipeline extracts long-form content"
+    )
+    await expect(readerPage.locator("a.reader-original")).toHaveAttribute(
+      "href",
+      source.urls.alpha
+    )
+    expectCleanHarness(harness)
+  } finally {
+    await closeStoryExtension(harness)
+  }
+})
+
 test("a fast drag reported as a single move still commits stage 1", async () => {
   const harness = await launchStoryExtension()
   const { page, source } = harness

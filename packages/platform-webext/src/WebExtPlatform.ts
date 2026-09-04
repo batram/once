@@ -13,6 +13,7 @@ import {
   IndexedDbCacheStore,
   LOCAL_POUCH_OPTIONS
 } from "@once/persistence"
+import { WebExtSecretStorage } from "./storage/WebExtSecretStorage"
 import { WebExtSyncStorage } from "./storage/WebExtSyncStorage"
 import { setDocumentTheme } from "./ui/WebExtTheme"
 import {
@@ -45,6 +46,7 @@ export function createWebExtPlatform(
     syncService,
     cacheStore: IndexedDbCacheStore,
     syncSettingsStore,
+    secretStore: new WebExtSecretStorage(browserApi),
     theme: {
       setTheme: (theme: ThemeName) => setDocumentTheme(theme)
     },

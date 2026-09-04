@@ -56,6 +56,7 @@ module.exports = (env = {}, argv = {}) => {
       sidepanel: path.join(root, "packages", "webext-shell", "dist", "sidepanel.js"),
       "addon-sandbox": path.join(root, "packages", "webext-shell", "dist", "addonSandbox.js"),
       "reader-content": path.join(root, "packages", "ui-web", "dist", "reader", "contentScript.js"),
+      "reader-page": path.join(root, "packages", "webext-shell", "dist", "readerPage.js"),
       "picker-content": path.join(root, "packages", "ui-web", "dist", "picker", "contentScript.js")
     },
     output: {
@@ -144,6 +145,15 @@ module.exports = (env = {}, argv = {}) => {
             to: "static/addon-sandbox.html",
             transform(content) {
               return content.toString().replace("</body>", '  <script src="../addon-sandbox.js"></script>\n  </body>')
+            }
+          },
+          // The reader page for stored articles; the panel hands the rendered
+          // document to the background, which opens this page to show it.
+          {
+            from: path.join(root, "packages", "ui-web", "public", "reader.html"),
+            to: "static/reader.html",
+            transform(content) {
+              return content.toString().replace("</body>", '  <script src="../reader-page.js"></script>\n  </body>')
             }
           },
           {

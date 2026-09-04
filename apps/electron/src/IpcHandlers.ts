@@ -4,6 +4,7 @@ import {
   ipcMain,
   IpcMainInvokeEvent,
   net,
+  session,
   shell
 } from "electron"
 import {
@@ -20,7 +21,7 @@ import {
   ElectronUpdateStatus
 } from "@once/platform-electron/bridge"
 import { SecureSettings } from "./SecureSettings"
-import { BrowserCoordinator } from "./TabManager"
+import { BROWSER_SESSION_PARTITION, BrowserCoordinator } from "./TabManager"
 import { ExtensionRuntime } from "./extensions/ExtensionRuntime"
 
 interface IpcHandlerOptions {
@@ -104,10 +105,21 @@ function registerAppHandlers(options: IpcHandlerOptions): void {
       if (!Array.isArray(request.headers) || typeof request.method !== "string") {
         throw new Error("Invalid fetch request")
       }
-      const response = await net.fetch(url.toString(), {
+      if (request.credentials !== undefined && request.credentials !== "include") {
+        throw new Error("Invalid fetch credentials")
+      }
+      // A request that wants the user's cookies goes through the session the
+      // browser tabs use, since that is where the user logged in. Everything
+      // else keeps the default session and, with it, no cookies at all.
+      const browserSession = session.fromPartition(BROWSER_SESSION_PARTITION)
+      const fetchWith = request.credentials === "include"
+        ? browserSession.fetch.bind(browserSession)
+        : net.fetch
+      const response = await fetchWith(url.toString(), {
         method: request.method,
         headers: request.headers,
-        body: request.body ? Buffer.from(request.body) : undefined
+        body: request.body ? Buffer.from(request.body) : undefined,
+        credentials: request.credentials
       })
       return {
         status: response.status,
@@ -143,6 +155,17 @@ function registerSettingsHandlers(
     trusted(event, coordinator)
     if (typeof value !== "string") throw new Error("Invalid cache time")
     return settings.setCacheTime(value)
+  })
+  ipcMain.handle(ELECTRON_IPC.getSecret, (event, key: string) => {
+    trusted(event, coordinator)
+    if (typeof key !== "string" || !key) throw new Error("Invalid secret key")
+    return settings.getSecret(key)
+  })
+  ipcMain.handle(ELECTRON_IPC.setSecret, (event, key: string, value: string) => {
+    trusted(event, coordinator)
+    if (typeof key !== "string" || !key) throw new Error("Invalid secret key")
+    if (typeof value !== "string") throw new Error("Invalid secret")
+    return settings.setSecret(key, value)
   })
 }
 

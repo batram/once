@@ -22,6 +22,28 @@ export interface PouchStoryDatabase {
     doc: { _id: string; _rev: string },
     options?: Record<string, unknown>
   ): Promise<unknown>
+  getAttachment?(id: string, name: string): Promise<unknown>
+  putAttachment?(
+    id: string,
+    name: string,
+    rev: string,
+    attachment: unknown,
+    type: string
+  ): Promise<{ rev?: string }>
+}
+
+/** The `content` attachment as the platform's binary type: a Blob in the browsers, a Buffer in Node. */
+function contentAttachment(html: string): unknown {
+  if (typeof Blob !== "undefined") return new Blob([html], { type: "text/html" })
+  return Buffer.from(html, "utf8")
+}
+
+async function attachmentText(attachment: unknown): Promise<string> {
+  if (typeof attachment === "string") return attachment
+  if (attachment && typeof (attachment as Blob).text === "function") {
+    return (attachment as Blob).text()
+  }
+  return new TextDecoder("utf-8").decode(attachment as Uint8Array)
 }
 
 export class PouchStoryStore<TStory extends Story> {
@@ -128,7 +150,15 @@ export class PouchStoryStore<TStory extends Story> {
       })
   }
 
+  /**
+   * Writes the story document, then its `content` attachment when the story
+   * carries html that is not stored yet. The document itself always goes out
+   * with the attachment stubs PouchDB already holds: a document put without
+   * them would delete the attachment, and one put with inline data would
+   * re-upload it on every save.
+   */
   async saveStory(story: TStory): Promise<TStory> {
+    const pendingContent = story.pendingContent()
     const trySave = async (retryCount = 0): Promise<{ rev?: string }> => {
       try {
         const doc = await this.db.get(this.storyId(story.href))
@@ -145,15 +175,26 @@ export class PouchStoryStore<TStory extends Story> {
         if (story["ingested_at"] === undefined && doc.ingested_at !== undefined) {
           ;(story as Record<string, unknown>)["ingested_at"] = doc.ingested_at
         }
-        const nextDocument = story.to_obj()
-        if (sameStoredStory(doc, nextDocument)) return { rev: story._rev }
-        return await this.db.put(nextDocument)
+        const nextDocument = storedAttachments(story.to_obj(), doc)
+        const contentChanged = pendingContent !== undefined &&
+          !sameStoredContent(doc, nextDocument)
+        if (!contentChanged) {
+          // Whatever html rode along is already stored; keep the stubs only.
+          story._attachments = nextDocument._attachments as TStory["_attachments"]
+          if (sameStoredStory(doc, nextDocument)) return { rev: story._rev }
+          return await this.db.put(nextDocument)
+        }
+        const response = await this.db.put(nextDocument)
+        return await this.writeContent(story, response.rev, pendingContent)
       } catch (err) {
         const status = (err as { status?: number }).status
         if (status === 404) {
           story._id = this.storyId(story.href)
           ;(story as Record<string, unknown>)["ingested_at"] = Date.now()
-          return await this.db.put(story.to_obj())
+          const response = await this.db.put(storedAttachments(story.to_obj()))
+          return pendingContent === undefined
+            ? response
+            : await this.writeContent(story, response.rev, pendingContent)
         } else if (status === 409 && retryCount < 3) {
           console.log(
             `Conflict on story ${story.href}, retrying... (${retryCount + 1}/3)`
@@ -170,6 +211,42 @@ export class PouchStoryStore<TStory extends Story> {
       story._rev = resp.rev
     }
     return story
+  }
+
+  private async writeContent(
+    story: TStory,
+    rev: string | undefined,
+    html: string
+  ): Promise<{ rev?: string }> {
+    const id = this.storyId(story.href)
+    if (!this.db.putAttachment || !rev) {
+      // A database without attachments keeps the html on the story, so a
+      // later save against a capable one still writes it.
+      return { rev }
+    }
+    const response = await this.db.putAttachment(
+      id,
+      "content",
+      rev,
+      contentAttachment(html),
+      "text/html"
+    )
+    // The stubs PouchDB minted (digest, length) replace the html in memory.
+    const stored = await this.db.get(id)
+    story._attachments = stored._attachments as TStory["_attachments"]
+    return response
+  }
+
+  /** The stored article html, or null when the story has none. */
+  async getStoryContent(url: string): Promise<string | null> {
+    if (!this.db.getAttachment) return null
+    try {
+      const attachment = await this.db.getAttachment(this.storyId(url), "content")
+      return attachment == null ? null : await attachmentText(attachment)
+    } catch (error) {
+      if ((error as { status?: number }).status === 404) return null
+      throw error
+    }
   }
 
   async deleteStory(url: string): Promise<void> {
@@ -227,6 +304,31 @@ export class PouchStoryStore<TStory extends Story> {
   }
 }
 
+/**
+ * The document to put: the story's fields with the attachment stubs the
+ * database holds. Pending html never goes inline; `writeContent` sends it.
+ */
+function storedAttachments(
+  document: Record<string, unknown>,
+  stored?: Record<string, unknown>
+): Record<string, unknown> {
+  const next = { ...document }
+  if (stored?._attachments) next._attachments = stored._attachments
+  else delete next._attachments
+  return next
+}
+
+/** Whether the incoming story describes the content the document already has. */
+function sameStoredContent(
+  stored: Record<string, unknown>,
+  incoming: Record<string, unknown>
+): boolean {
+  const attachments = stored._attachments as Record<string, unknown> | undefined
+  if (!attachments?.content) return false
+  return JSON.stringify(canonicalValue(stored.stored_content)) ===
+    JSON.stringify(canonicalValue(incoming.stored_content))
+}
+
 function sameStoredStory(
   stored: Record<string, unknown>,
   incoming: Record<string, unknown>
@@ -236,6 +338,7 @@ function sameStoredStory(
     delete copy._rev
     delete copy._conflicts
     delete copy._deleted_conflicts
+    delete copy._attachments
     return copy
   }
   return JSON.stringify(canonicalValue(withoutRevisionMetadata(stored))) ===

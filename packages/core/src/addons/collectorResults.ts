@@ -35,7 +35,7 @@ function isHttpUrl(value: unknown): value is string {
 }
 
 const OWN = new Set(["type", "href", "title", "comment_url", "timestamp", "filter", "tags", "substories",
-  "read_state", "stared", "sync_updated_at", "_id", "_rev", "_attachments"])
+  "read_state", "stared", "sync_updated_at", "stored_content", "_id", "_rev", "_attachments"])
 
 function readTags(value: unknown): StoryTag[] {
   if (!Array.isArray(value)) return []

@@ -154,3 +154,116 @@ test("loads stared stories through an indexed query", async () => {
   ])
   assert.deepEqual(stories.map((story) => story.href), [stared.href])
 })
+
+const ARTICLE = "<p>Stored article — with a non-Latin-1 character: ✓</p>"
+
+// A PouchDB stand-in that holds one document and its attachment the way the
+// real one does: the document carries a stub, the bytes live beside it.
+function createAttachmentDatabase(initial) {
+  const state = { doc: initial ? { ...initial } : null, attachment: null, calls: [] }
+  const notFound = () => Object.assign(new Error("missing"), { status: 404 })
+  return {
+    state,
+    db: {
+      async get(id) {
+        state.calls.push(["get", id])
+        if (!state.doc || state.doc._id !== id) throw notFound()
+        return structuredClone(state.doc)
+      },
+      async put(doc) {
+        state.calls.push(["put", structuredClone(doc)])
+        const revision = Number((state.doc?._rev ?? "0-x").split("-")[0]) + 1
+        state.doc = { ...doc, _rev: `${revision}-put` }
+        return { rev: state.doc._rev }
+      },
+      async putAttachment(id, name, rev, attachment, type) {
+        state.calls.push(["putAttachment", id, name, rev, type])
+        assert.equal(state.doc._rev, rev, "attachments are written against the current revision")
+        state.attachment = attachment
+        const revision = Number(rev.split("-")[0]) + 1
+        state.doc = {
+          ...state.doc,
+          _rev: `${revision}-att`,
+          _attachments: { [name]: { content_type: type, digest: "md5-fake", length: attachment.size, stub: true } }
+        }
+        return { rev: state.doc._rev }
+      },
+      async getAttachment(id, name) {
+        state.calls.push(["getAttachment", id, name])
+        if (!state.attachment || state.doc?._id !== id || !state.doc._attachments?.[name]) throw notFound()
+        return state.attachment
+      }
+    }
+  }
+}
+
+test("writes pending html as the content attachment and keeps only its stub", async () => {
+  const { db, state } = createAttachmentDatabase()
+  const store = new PouchStoryStore(db, Story.from_obj.bind(Story))
+  const story = new Story("rss", "https://example.com/story", "A story")
+  story.attachContent(ARTICLE, { source: "feed", saved_at: 7 })
+
+  const saved = await store.saveStory(story)
+
+  assert.deepEqual(state.calls.map(([name]) => name), ["get", "put", "putAttachment", "get"])
+  const [, putDoc] = state.calls[1]
+  assert.equal("_attachments" in putDoc, false, "html never goes inline in the document")
+  assert.deepEqual(putDoc.stored_content, { source: "feed", saved_at: 7 })
+  assert.deepEqual(state.calls[2], ["putAttachment", `sto_${story.href}`, "content", "1-put", "text/html"])
+  assert.equal(await state.attachment.text(), ARTICLE)
+  assert.equal(saved._rev, "2-att")
+  assert.equal(saved.pendingContent(), undefined, "the html is not kept in memory")
+  assert.equal(saved._attachments.content.stub, true)
+  assert.equal(saved.has_content(), true)
+  assert.equal(await store.getStoryContent(story.href), ARTICLE)
+})
+
+test("a plain save carries the stored attachment stubs and does not rewrite content", async () => {
+  const { db, state } = createAttachmentDatabase()
+  const store = new PouchStoryStore(db, Story.from_obj.bind(Story))
+  const story = new Story("rss", "https://example.com/story", "A story")
+  story.attachContent(ARTICLE, { source: "feed", saved_at: 7 })
+  await store.saveStory(story)
+  state.calls.length = 0
+
+  // A snapshot from elsewhere: no attachment stubs, a changed field.
+  const snapshot = Story.from_obj({ ...story.to_obj(), _attachments: undefined, read_state: "read" })
+  await store.saveStory(snapshot)
+  const putDoc = state.calls.find(([name]) => name === "put")[1]
+  assert.equal(putDoc._attachments.content.stub, true, "a put without the stubs would drop the attachment")
+  assert.equal(state.calls.some(([name]) => name === "putAttachment"), false)
+  state.calls.length = 0
+
+  // The same html arriving again (a feed reload) changes nothing.
+  const again = Story.from_obj(story.to_obj())
+  again.read_state = "read"
+  again.attachContent(ARTICLE, { source: "feed", saved_at: 7 })
+  const saved = await store.saveStory(again)
+  assert.deepEqual(state.calls.map(([name]) => name), ["get"])
+  assert.equal(saved.pendingContent(), undefined)
+  assert.equal(saved._attachments.content.stub, true)
+})
+
+test("newer content replaces the attachment", async () => {
+  const { db, state } = createAttachmentDatabase()
+  const store = new PouchStoryStore(db, Story.from_obj.bind(Story))
+  const story = new Story("rss", "https://example.com/story", "A story")
+  story.attachContent(ARTICLE, { source: "feed", saved_at: 7 })
+  await store.saveStory(story)
+  state.calls.length = 0
+
+  story.attachContent("<p>From the page</p>", { source: "page", saved_at: 9, title: "Page" })
+  const saved = await store.saveStory(story)
+  assert.deepEqual(state.calls.map(([name]) => name), ["get", "put", "putAttachment", "get"])
+  assert.equal(await store.getStoryContent(story.href), "<p>From the page</p>")
+  assert.equal(saved.contentSource(), "page")
+})
+
+test("getStoryContent reads null for a story without an attachment or a database without them", async () => {
+  const { db } = createAttachmentDatabase({ _id: "sto_https://example.com/story", _rev: "1-x" })
+  const store = new PouchStoryStore(db, Story.from_obj.bind(Story))
+  assert.equal(await store.getStoryContent("https://example.com/story"), null)
+
+  const plain = new PouchStoryStore({ get: async () => { throw { status: 404 } } }, Story.from_obj.bind(Story))
+  assert.equal(await plain.getStoryContent("https://example.com/story"), null)
+})

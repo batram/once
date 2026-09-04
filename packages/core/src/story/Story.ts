@@ -1,5 +1,11 @@
 import { compareStories } from "./compareStories"
-import { SortableStory, StoryAttachment, StoryTag, SubStory } from "./StoryTypes"
+import {
+  SortableStory,
+  StoredContentMeta,
+  StoryAttachment,
+  StoryTag,
+  SubStory
+} from "./StoryTypes"
 
 import { URLRedirect } from "./URLRedirect"
 
@@ -15,6 +21,7 @@ export class Story {
   stared: boolean
   sync_updated_at?: Record<string, number>
   tags: StoryTag[]
+  stored_content?: StoredContentMeta
 
   _attachments?: StoryAttachment
   _rev?: string
@@ -134,30 +141,33 @@ export class Story {
     )
   }
 
-  async get_content(): Promise<string | undefined> {
-    if (this._attachments && this._attachments.content) {
-      let body: string | undefined
-      if (this._attachments.content.data) {
-        body = atob(this._attachments.content.data)
-      }
-
-      if (body) {
-        const title = this.title
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-        const content = `<title>${title}</title>${body}`
-        return content
-      }
+  /**
+   * Hands the story its article html. It is written as the `content`
+   * attachment by the story store on the next save; until then it rides
+   * along as `raw_content`.
+   */
+  attachContent(html: string, meta: StoredContentMeta): void {
+    this._attachments = {
+      ...this._attachments,
+      content: { content_type: "text/html", raw_content: html }
     }
-    return undefined
+    this.stored_content = meta
   }
 
+  /** Html attached but not yet written, if any. */
+  pendingContent(): string | undefined {
+    return this._attachments?.content?.raw_content
+  }
+
+  /** Whether an article is stored (or about to be) for this story. */
   has_content(): boolean {
-    return Boolean(
-      this._attachments &&
-      this._attachments.content &&
-      this._attachments.content.length != 0
-    )
+    const content = this._attachments?.content
+    if (!content) return false
+    if (typeof content.raw_content === "string") return content.raw_content.length > 0
+    return typeof content.length === "number" && content.length > 0
+  }
+
+  contentSource(): StoredContentMeta["source"] | undefined {
+    return this.has_content() ? this.stored_content?.source : undefined
   }
 }

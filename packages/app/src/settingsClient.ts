@@ -1,20 +1,33 @@
 import { AppSettings } from "./AppSettings"
-import { OnceClient } from "./types"
+import { sourceSecretKey } from "./sourceAuth"
+import { OnceClient, SecretStorePort } from "./types"
 
 type SettingsClientMethods = Pick<
   OnceClient,
   | "getFilterList" | "saveFilterList" | "getRedirectList" | "saveRedirectList"
   | "getFilterLists" | "saveFilterLists" | "getUserscripts" | "saveUserscripts"
   | "getAddons" | "saveAddons"
-  | "getSyncUrl" | "setSyncUrl" | "getCacheTime" | "setCacheTime"
+  | "getSyncUrl" | "setSyncUrl" | "getSourceSecret" | "setSourceSecret"
+  | "getCacheTime" | "setCacheTime"
   | "getCacheTiming" | "setCacheTiming" | "getTheme" | "setTheme"
   | "getAnimation" | "setAnimation" | "getSwipeSettings" | "setSwipeSettings"
+  | "getSaveBookmarkedContent" | "setSaveBookmarkedContent"
   | "addFilter"
 >
 
 /** The client methods that are one settings call each, with nothing else to do. */
-export function settingsClientMethods(settings: AppSettings): SettingsClientMethods {
+export function settingsClientMethods(
+  settings: AppSettings,
+  secrets?: SecretStorePort
+): SettingsClientMethods {
+  const secretStore = () => {
+    if (!secrets) throw new Error("This shell has nowhere to keep a source token")
+    return secrets
+  }
   return {
+    getSourceSecret: async (sourceId) => secretStore().get(sourceSecretKey(sourceId)),
+    setSourceSecret: async (sourceId, secret) =>
+      secretStore().set(sourceSecretKey(sourceId), secret),
     getFilterList: () => settings.getFilterList(),
     saveFilterList: (filterList) => settings.saveFilterList(filterList),
     getRedirectList: () => settings.getRedirectList(),
@@ -37,6 +50,8 @@ export function settingsClientMethods(settings: AppSettings): SettingsClientMeth
     setAnimation: (animated) => settings.setAnimation(animated),
     getSwipeSettings: () => settings.getSwipeSettings(),
     setSwipeSettings: (swipe) => settings.setSwipeSettings(swipe),
+    getSaveBookmarkedContent: () => settings.getSaveBookmarkedContent(),
+    setSaveBookmarkedContent: (enabled) => settings.setSaveBookmarkedContent(enabled),
     addFilter: (filter) => settings.addFilter(filter)
   }
 }

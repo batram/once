@@ -34,7 +34,10 @@ const bridge: ElectronBridge = {
     setSyncUrl: (value) => ipcRenderer.invoke(ELECTRON_IPC.setSyncUrl, value),
     getCacheTime: () => ipcRenderer.invoke(ELECTRON_IPC.getCacheTime),
     setCacheTime: (value) =>
-      ipcRenderer.invoke(ELECTRON_IPC.setCacheTime, value)
+      ipcRenderer.invoke(ELECTRON_IPC.setCacheTime, value),
+    getSecret: (key) => ipcRenderer.invoke(ELECTRON_IPC.getSecret, key),
+    setSecret: (key, value) =>
+      ipcRenderer.invoke(ELECTRON_IPC.setSecret, key, value)
   },
   tabs: {
     getAll: () => ipcRenderer.invoke(ELECTRON_IPC.tabsGetAll),

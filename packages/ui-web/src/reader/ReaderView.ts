@@ -1,5 +1,5 @@
 import { OnceClient } from "@once/app"
-import { extractArticle } from "./extractArticle"
+import { articleFromStoredContent, extractArticle, ReaderArticle } from "./extractArticle"
 import { readerDocument, ReaderTheme } from "./readerDocument"
 
 declare const browser: {
@@ -25,12 +25,29 @@ export class ReaderView {
     return ReaderView.openWith(url, target)
   }
 
+  /**
+   * An article Once already holds for this URL is shown as it is, without a
+   * request: that is what makes a stored story readable offline. Only a story
+   * without one fetches the page.
+   */
   static async openWith(
     url: string,
     target: "_self" | "middle" = "_self",
     openDocument: ReaderDocumentOpener | null = ReaderView.openDocument
   ): Promise<void> {
+    const stored = ReaderView.client
+      ? await storedArticle(ReaderView.client, url)
+      : null
     if (typeof browser !== "undefined" && browser.runtime?.getURL) {
+      if (stored) {
+        await browser.runtime.sendMessage({
+          onceCommand: "openStoredReader",
+          html: readerDocument(stored, currentTheme()),
+          sourceUrl: url,
+          active: target !== "middle"
+        })
+        return
+      }
       await browser.runtime.sendMessage({
         onceCommand: "openReader",
         url,
@@ -40,8 +57,11 @@ export class ReaderView {
       return
     }
     if (!ReaderView.client) throw new Error("ReaderView has not been mounted")
-    const fetched = await ReaderView.client.fetchDocument(url)
-    const article = extractArticle(fetched.html, fetched.url, fetched.mediaType)
+    let article = stored
+    if (!article) {
+      const fetched = await ReaderView.client.fetchDocument(url)
+      article = extractArticle(fetched.html, fetched.url, fetched.mediaType)
+    }
     const html = readerDocument(article, currentTheme())
     if (openDocument) {
       // Keep the requested story URL as reader identity even when fetching
@@ -58,6 +78,24 @@ type ReaderDocumentOpener = (
   sourceUrl: string,
   target: "_self" | "middle"
 ) => Promise<void>
+
+/** The stored article for the story this URL belongs to, if there is one. */
+export async function storedArticle(
+  client: OnceClient,
+  url: string
+): Promise<ReaderArticle | null> {
+  let story
+  try {
+    story = await client.findStoryByUrl(url)
+  } catch (error) {
+    console.warn("Stored content lookup failed; fetching instead", error)
+    return null
+  }
+  if (!story?.has_content()) return null
+  const content = await client.getStoryContent(story.href)
+  if (!content) return null
+  return articleFromStoredContent(content.html, content.meta, story.href, story.title)
+}
 
 function currentTheme(): ReaderTheme {
   const explicit = document.body.getAttribute("data-theme")

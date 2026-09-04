@@ -9,6 +9,7 @@
     "*": {
       "reader/readerDocument": ["dist/reader/readerDocument.d.ts"],
       "reader/readerTts": ["dist/reader/readerTts.d.ts"],
+      "reader/readerPageRuntime": ["dist/reader/readerPageRuntime.d.ts"],
       "picker/sourcePicker": ["dist/picker/sourcePicker.d.ts"]
     }
   },
@@ -24,6 +25,10 @@
     "./reader/readerTts": {
       "types": "./dist/reader/readerTts.d.ts",
       "default": "./dist/reader/readerTts.js"
+    },
+    "./reader/readerPageRuntime": {
+      "types": "./dist/reader/readerPageRuntime.d.ts",
+      "default": "./dist/reader/readerPageRuntime.js"
     },
     "./addons/sandboxRuntime": {
       "types": "./dist/addons/sandboxRuntime.d.ts",

@@ -30,6 +30,7 @@ const BINDABLE_STORY_ACTIONS: {
   { id: "toggle-read", label: "Toggle read state" },
   { id: "toggle-bookmark", label: "Toggle bookmark" },
   { id: "filter", label: "Filter story" },
+  { id: "save-content", label: "Save story for offline" },
   { id: "search-domain", label: "Search this domain" },
   { id: "copy-link", label: "Copy link address" },
   { id: "copy-original-link", label: "Copy original link address" }

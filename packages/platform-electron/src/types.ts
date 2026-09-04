@@ -42,6 +42,8 @@ export interface ElectronFetchRequest {
   method: string
   headers: [string, string][]
   body?: ArrayBuffer
+  /** Send the browser session's cookies. Absent means none, as before. */
+  credentials?: "include"
 }
 
 export interface ElectronFetchResponse {
@@ -112,6 +114,9 @@ export interface ElectronBridge {
     setSyncUrl(syncUrl: string): Promise<void>
     getCacheTime(): Promise<number>
     setCacheTime(cacheTime: string): Promise<void>
+    /** Encrypted at rest like the sync URL; "" removes the entry. */
+    getSecret(key: string): Promise<string>
+    setSecret(key: string, value: string): Promise<void>
   }
   tabs: {
     getAll(): Promise<ElectronTabState[]>
@@ -199,6 +204,8 @@ export const ELECTRON_IPC = {
   setSyncUrl: "once:settings:set-sync-url",
   getCacheTime: "once:settings:get-cache-time",
   setCacheTime: "once:settings:set-cache-time",
+  getSecret: "once:settings:get-secret",
+  setSecret: "once:settings:set-secret",
   tabsGetAll: "once:tabs:get-all",
   tabsOpenUrl: "once:tabs:open-url",
   tabsOpenReader: "once:tabs:open-reader",

@@ -32,6 +32,8 @@ function fakeStory(overrides = {}) {
           : "Unskip",
     bookmarkActionLabel: () => story.stared ? "Remove bookmark" : "Bookmark",
     filterActionLabel: () => story.filter ? "Edit filter" : "Filter source",
+    saveContentActionLabel: () =>
+      story.stored_content?.source === "page" ? "Update saved copy" : "Save for offline",
     openComments: () => {}
   }
 }
@@ -55,6 +57,7 @@ test("story menu descriptors are ordered, contextual, and platform-aware", () =>
     "toggle-read",
     "toggle-bookmark",
     "filter",
+    "save-content",
     "search-domain",
     "copy-link",
     "undo",
@@ -65,6 +68,17 @@ test("story menu descriptors are ordered, contextual, and platform-aware", () =>
   assert.equal(items.find((item) => item.id === "toggle-read").label, "Mark as unread")
   assert.equal(items.find((item) => item.id === "toggle-bookmark").label, "Remove bookmark")
   assert.equal(items.find((item) => item.id === "filter").label, "Edit filter")
+  assert.equal(items.find((item) => item.id === "save-content").label, "Save for offline")
+})
+
+test("the offline action names an update once the page was saved", () => {
+  const { describeStoryMenu } = loadMenuModule()
+  const items = describeStoryMenu({
+    platform: "electron",
+    buildChannel: "release",
+    story: fakeStory({ stored_content: { source: "page", saved_at: 1 } })
+  })
+  assert.equal(items.find((item) => item.id === "save-content").label, "Update saved copy")
 })
 
 test("mobile gets the short single-column menu the redesign specifies", () => {
@@ -84,6 +98,7 @@ test("mobile gets the short single-column menu the redesign specifies", () => {
     "toggle-read",
     "toggle-bookmark",
     "filter",
+    "save-content",
     "search-domain",
     "copy-link"
   ])

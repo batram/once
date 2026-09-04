@@ -511,6 +511,166 @@ test("deleting a source evicts its body unless another source shares it", async 
   assert.equal(fake.cachedResponses.has(lonely), false)
 })
 
+const FEED_ARTICLE = `<p>${"A feed sentence long enough to be an article. ".repeat(10)}</p>`
+
+function rssFeed(origin, article = FEED_ARTICLE) {
+  return `<?xml version="1.0"?><rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><title>Feed</title><link>${origin}/</link><item><title>Full story</title><link>${origin}/full</link><pubDate>${new Date().toUTCString()}</pubDate><content:encoded><![CDATA[${article}]]></content:encoded></item><item><title>Teaser story</title><link>${origin}/teaser</link><pubDate>${new Date().toUTCString()}</pubDate><description>Only a teaser.</description></item></channel></rss>`
+}
+
+function rssResponse(body) {
+  return new Response(body, { status: 200, headers: { "content-type": "application/rss+xml" } })
+}
+
+test("feed text is stored for new stories, follows the feed, and yields to page content", async () => {
+  const origin = "https://feeds.example"
+  let article = FEED_ARTICLE
+  const fake = createFakePlatform([], {
+    storySources: [`${origin}/all.rss`],
+    fetch: async () => rssResponse(rssFeed(origin, article))
+  })
+  const app = createOnceApp(fake.ports)
+  await app.start()
+  await app.client.reloadStories("network-only")
+
+  const full = app.client.getStorySnapshot().find((story) => story.href === `${origin}/full`)
+  assert.equal(full.has_content(), true)
+  assert.equal(full.contentSource(), "feed")
+  assert.equal(full.pendingContent(), undefined, "stored, not carried in memory")
+  assert.equal(fake.savedContents.get(full.href), FEED_ARTICLE)
+  const teaser = app.client.getStorySnapshot().find((story) => story.href === `${origin}/teaser`)
+  assert.equal(teaser.has_content(), false)
+  assert.deepEqual(await app.client.getStoryContent(full.href), {
+    html: FEED_ARTICLE,
+    meta: full.stored_content
+  })
+
+  // The feed edits the article: the stored copy follows.
+  article = `${FEED_ARTICLE}<p>Corrected.</p>`
+  await app.client.reloadStories("network-only")
+  assert.equal(fake.savedContents.get(full.href), article)
+
+  // An article extracted from the page itself is never replaced by the feed.
+  await app.client.saveStoryContent(full.href, "<p>From the page</p>", { source: "page", title: "Full" })
+  await app.client.settledStoryWrites()
+  article = `${FEED_ARTICLE}<p>Edited again.</p>`
+  await app.client.reloadStories("network-only")
+  assert.equal(fake.savedContents.get(full.href), "<p>From the page</p>")
+  assert.equal(app.client.getStorySnapshot().find((story) => story.href === full.href).contentSource(), "page")
+})
+
+test("a source asking for offline copies requests each story's page once", async () => {
+  const origin = "https://feeds.example"
+  const fake = createFakePlatform([], {
+    storySources: [{ id: "src_testsave01", url: `${origin}/all.rss`, saveContent: true }],
+    fetch: async () => rssResponse(rssFeed(origin))
+  })
+  const app = createOnceApp(fake.ports)
+  const requested = []
+  app.client.subscribe("storyContentRequested", ({ href }) => requested.push(href))
+  await app.start()
+  await app.client.reloadStories("network-only")
+  // Feed text is a placeholder the page may improve on, so both are asked for.
+  assert.deepEqual(requested.sort(), [`${origin}/full`, `${origin}/teaser`])
+
+  await app.client.saveStoryContent(`${origin}/full`, "<p>Page</p>", { source: "page" })
+  await app.client.settledStoryWrites()
+  requested.length = 0
+  await app.client.reloadStories("network-only")
+  assert.deepEqual(requested, [`${origin}/teaser`], "a page already extracted is not fetched again")
+})
+
+test("bookmarking requests the article only under the setting", async () => {
+  const story = new Story("rss", "https://example.com/keep", "Keep me")
+  const fake = createFakePlatform([story])
+  const app = createOnceApp(fake.ports)
+  const requested = []
+  app.client.subscribe("storyContentRequested", ({ href }) => requested.push(href))
+  await app.start()
+  await app.client.getStories()
+
+  await app.client.persistStoryChange(story.href, "stared", true)
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.deepEqual(requested, [], "off by default")
+
+  await app.client.setSaveBookmarkedContent(true)
+  await app.client.persistStoryChange(story.href, "stared", false)
+  await app.client.persistStoryChange(story.href, "stared", true)
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.deepEqual(requested, [story.href])
+})
+
+function redditResponse() {
+  return new Response(JSON.stringify(cachedRedditSource), {
+    status: 200,
+    headers: { "content-type": "application/json" }
+  })
+}
+
+test("a session source asks the shell to send its cookies", async () => {
+  const inits = []
+  const fake = createFakePlatform([], {
+    storySources: [{
+      id: "src_testauth0001",
+      url: "https://old.reddit.com/r/netsec/.json",
+      auth: { kind: "session" }
+    }],
+    fetch: async (url, init) => { inits.push(init); return redditResponse() }
+  })
+  const app = createOnceApp(fake.ports)
+  await app.start()
+  await app.client.reloadStories("network-only")
+  assert.deepEqual(inits, [{ credentials: "include" }])
+})
+
+test("a token source sends this device's stored token, and says when there is none", async () => {
+  const sourceId = "src_testauth0002"
+  const inits = []
+  const fake = createFakePlatform([], {
+    storySources: [{
+      id: sourceId,
+      url: "https://oauth.reddit.com/r/netsec/new.json",
+      collector: "redditjson",
+      auth: { kind: "token", header: "X-Api-Key" }
+    }],
+    secrets: [[`source:${sourceId}`, "key-123"]],
+    fetch: async (url, init) => { inits.push(init); return redditResponse() }
+  })
+  const app = createOnceApp(fake.ports)
+  const errors = []
+  app.client.subscribe("sourceErrorsChanged", (payload) => errors.push(payload.errors))
+  await app.start()
+  await app.client.reloadStories("network-only")
+  assert.deepEqual(inits, [{ headers: { "X-Api-Key": "key-123" } }])
+  assert.equal(await app.client.getSourceSecret(sourceId), "key-123")
+
+  // Removing the token turns the next load into a source error, not a request:
+  // the site's answer to an anonymous caller would only hide the real problem.
+  await app.client.setSourceSecret(sourceId, "")
+  await app.client.reloadStories("network-only")
+  assert.equal(inits.length, 1)
+  const reported = errors.at(-1).find((error) => error.sourceId === sourceId)
+  assert.equal(reported.title, "No Token")
+  assert.match(reported.message, /none is stored/)
+})
+
+test("a shell without a secret store says a token cannot be kept", async () => {
+  const sourceId = "src_testauth0003"
+  const fake = createFakePlatform([], {
+    storySources: [{ id: sourceId, url: "https://old.reddit.com/r/netsec/.json", auth: { kind: "token" } }],
+    secretStore: false,
+    fetch: async () => { throw new Error("must not be fetched") }
+  })
+  const app = createOnceApp(fake.ports)
+  const errors = []
+  app.client.subscribe("sourceErrorsChanged", (payload) => errors.push(payload.errors))
+  await app.start()
+  await app.client.reloadStories("network-only")
+  const reported = errors.at(-1).find((error) => error.sourceId === sourceId)
+  assert.equal(reported.title, "No Token")
+  assert.match(reported.message, /nowhere to keep/)
+  await assert.rejects(app.client.setSourceSecret(sourceId, "x"), /nowhere to keep/)
+})
+
 test("cache status reports each source's window and last fetch", async () => {
   const sourceUrl = "https://old.reddit.com/r/netsec/.json"
   const fetchedAt = Date.now() - 60_000

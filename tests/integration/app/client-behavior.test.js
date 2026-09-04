@@ -29,6 +29,28 @@ test("starts from stored stories and persists story changes", async () => {
   assert.equal(changes.at(-1).value, "read")
 })
 
+test("stores an article for a story and announces it as a stored_content change", async () => {
+  const story = new Story("rss", "https://example.com/story", "A story")
+  const fake = createFakePlatform([story])
+  const app = createOnceApp(fake.ports)
+  const changes = []
+  app.client.subscribe("storyChanged", (change) => changes.push(change))
+  await app.start()
+
+  assert.equal(await app.client.getStoryContent(story.href), null)
+  const saved = await app.client.saveStoryContent(story.href, "<p>Kept</p>", {
+    source: "page", title: "A story", byline: "Ada", site_name: "example.com"
+  })
+  assert.equal(saved.has_content(), true)
+  assert.equal(saved.pendingContent(), undefined)
+  assert.deepEqual(changes.at(-1).path, [story.href, "stored_content"])
+  assert.equal(changes.at(-1).value.source, "page")
+  const content = await app.client.getStoryContent(story.href)
+  assert.equal(content.html, "<p>Kept</p>")
+  assert.equal(content.meta.byline, "Ada")
+  assert.equal(typeof content.meta.saved_at, "number")
+})
+
 test("provides the current loaded-story ids to a new database sync", async () => {
   const story = new Story("rss", "https://example.com/story", "A story")
   const fake = createFakePlatform([story])

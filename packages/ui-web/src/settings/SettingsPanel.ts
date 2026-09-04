@@ -159,13 +159,10 @@ export class SettingsPanel {
             console.error("Failed to save an earlier story-source change", error)
           })
           .then(() => this.client.saveStorySources(values, reloadStories))
-        if (reloadStories) {
-          this.sourcesReloadPending = false
-        } else {
-          this.sourcesReloadPending = true
-        }
+        this.sourcesReloadPending = !reloadStories
         return this.sourcesSaveChain
       },
+      saveSourceSecret: (id, secret) => this.client.setSourceSecret(id, secret),
       saveFilters: (values) => this.client.saveFilterList(values),
       saveRedirects: (values) => this.client.saveRedirectList(values),
       showSourceError: (source) => this.showSourceErrorLog(source),
