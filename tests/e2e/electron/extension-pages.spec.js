@@ -78,9 +78,21 @@ test("the uBlock element picker opens as an extension frame inside the page", as
       const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL() === url)
       const frame = contents?.mainFrame.frames.find((candidate) => candidate.url.startsWith(prefix))
       if (!frame) return null
+      // The frame exists before its own scripts have run, so everything this
+      // reads may still be missing. It reports that rather than throwing:
+      // an exception in a poll callback ends the poll instead of retrying it.
       return frame.executeJavaScript(`(async () => {
         const sea = document.querySelector("svg#sea > path")
+        const dialog = document.querySelector("aside")
+        if (typeof vAPI !== "object" || vAPI === null) return { ready: "no vAPI" }
+        if (typeof browser !== "object" || browser === null) return { ready: "no browser" }
+        if (!sea || !dialog) return { ready: "no picker UI" }
+        let hints = "unanswered"
+        try {
+          hints = typeof (await vAPI.messaging.send("dashboard", { what: "getAutoCompleteDetails" }))
+        } catch { /* the background is not listening yet */ }
         return {
+          ready: "yes",
           vapi: typeof vAPI,
           manifestName: browser.runtime.getManifest().name,
           stylesLoaded: [...document.querySelectorAll("link[rel=stylesheet]")].every((link) => link.sheet !== null),
@@ -88,12 +100,13 @@ test("the uBlock element picker opens as an extension frame inside the page", as
           pickButton: document.querySelector("#pick")?.textContent.trim() ?? "",
           // The dimming overlay is the picker's most visible style: with no
           // stylesheet an SVG path fills opaque black and blacks out the page.
-          seaFill: sea ? getComputedStyle(sea).fill : null,
-          dialogSurface: getComputedStyle(document.querySelector("aside")).backgroundColor,
-          hints: typeof (await vAPI.messaging.send("dashboard", { what: "getAutoCompleteDetails" }))
+          seaFill: getComputedStyle(sea).fill,
+          dialogSurface: getComputedStyle(dialog).backgroundColor,
+          hints
         }
       })()`)
-    }, [pageUrl, pickerPrefix]), { timeout: 15_000 }).toMatchObject({
+    }, [pageUrl, pickerPrefix]), { timeout: 30_000 }).toMatchObject({
+      ready: "yes",
       vapi: "object",
       manifestName: "uBlock Origin",
       stylesLoaded: true,
