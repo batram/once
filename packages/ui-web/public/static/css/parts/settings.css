@@ -977,6 +977,23 @@
   font-size: var(--fs-caption);
 }
 
+/* A text editor that is one group of several in its section, rather than the
+   whole block. .settings_actions is display:contents by default, which only
+   works where the block itself is the flex row; here the group body is a plain
+   box, so the row has to be made again. */
+.settings_editor .settings_actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) 0 0;
+}
+
+/* Its save line belongs to the group, on the group's own gutter. */
+.settings_editor > .settings_status {
+  margin: 0;
+  padding: 0 var(--sp-3) var(--sp-2);
+}
+
 .structured_form {
   box-sizing: border-box;
   padding: var(--sp-2) 0;

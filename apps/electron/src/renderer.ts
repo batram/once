@@ -1,4 +1,4 @@
-import { createOnceApp } from "@once/app"
+import { createOnceApp, OnceClient } from "@once/app"
 import { FilterListsDocument, UserscriptsDocument } from "@once/core"
 import { createElectronPlatform } from "@once/platform-electron"
 import { ElectronRedirectRule, ElectronUpdateStatus } from "@once/platform-electron/bridge"
@@ -33,6 +33,39 @@ const UPDATER = {
   checkForUpdates: () => window.onceElectron.app.checkForUpdates(),
   onStatusChanged: (handler: (status: ElectronUpdateStatus) => void) =>
     window.onceElectron.app.onUpdateStatusChanged(handler)
+}
+
+/**
+ * The two directions of the extension settings exchange. Once hands its synced
+ * documents to the extensions that act on them, and takes back whatever their
+ * own dashboards changed — a userscript edited, toggled, added or removed in
+ * Violentmonkey — so that edit survives the next hand-off and reaches this
+ * account's other devices. Saving publishes another change, which hands the
+ * same document straight back and finds nothing left to reconcile.
+ */
+function exchangeExtensionSettings(client: OnceClient): void {
+  const apply = async (
+    settings?: { filterLists: FilterListsDocument; userscripts: UserscriptsDocument }
+  ): Promise<void> => {
+    try {
+      await window.onceElectron.extensions.applySettings(settings ?? {
+        filterLists: await client.getFilterLists(),
+        userscripts: await client.getUserscripts()
+      })
+    } catch (error) {
+      console.error("Failed to hand settings to the extensions", error)
+    }
+  }
+  // The startup publish happened before this subscription existed, so the
+  // first hand-off reads the documents directly.
+  void apply()
+  client.subscribe("extensionSettingsChanged", (settings) => void apply(settings))
+  window.onceElectron.extensions.onSettingsAdopted((adopted) => {
+    if (!adopted.userscripts) return
+    void client.saveUserscripts(adopted.userscripts).catch((error) => {
+      console.error("Failed to save a userscript change made in the dashboard", error)
+    })
+  })
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -78,22 +111,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   app.client.subscribe("redirectsChanged", ({ redirects }) => {
     void updateRedirects(redirects)
   })
-  // The startup publish happened before this subscription existed, so the
-  // first hand-off reads the documents directly.
-  const applyExtensionSettings = async (
-    settings?: { filterLists: FilterListsDocument; userscripts: UserscriptsDocument }
-  ): Promise<void> => {
-    try {
-      await window.onceElectron.extensions.applySettings(settings ?? {
-        filterLists: await app.client.getFilterLists(),
-        userscripts: await app.client.getUserscripts()
-      })
-    } catch (error) {
-      console.error("Failed to hand settings to the extensions", error)
-    }
-  }
-  void applyExtensionSettings()
-  app.client.subscribe("extensionSettingsChanged", (settings) => void applyExtensionSettings(settings))
+  exchangeExtensionSettings(app.client)
   await mountOnceUi(app.client, {
     shell: "electron",
     addonSandboxUrl: ADDON_SANDBOX_URL,
@@ -102,6 +120,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     buildChannel: buildInfo.channel,
     buildIdentifier: buildInfo.buildIdentifier,
     updater: UPDATER,
+    // The bundled uBlock Origin and Violentmonkey take both documents above.
+    extensionSettings: true,
     showHoveredLinks: true,
     initialStoryLoad: new URL(window.location.href).searchParams.has(
       "disableStoryLoading"

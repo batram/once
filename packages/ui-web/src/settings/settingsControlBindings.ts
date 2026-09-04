@@ -1,5 +1,6 @@
 import { SourceError } from "@once/app"
 import { requireClosestElement, requireElement } from "../dom"
+import { SETTINGS_EDITOR_SCOPE } from "./settingsStatus"
 
 interface TextSettingBinding {
   textareaId: string
@@ -15,7 +16,10 @@ export function bindTextSetting({
   escape = restore
 }: TextSettingBinding): void {
   const textarea = requireElement<HTMLTextAreaElement>(`#${textareaId}`)
-  const block = requireClosestElement<HTMLElement>(textarea, ".settings_block")
+  // A section with one editor puts its buttons in the block; a section that
+  // holds several (Extensions) gives each editor its own `.settings_editor`,
+  // which is then the nearest thing that owns exactly one Save and Cancel.
+  const block = requireClosestElement<HTMLElement>(textarea, SETTINGS_EDITOR_SCOPE)
   requireElement<HTMLButtonElement>('button[data-action="save"]', block)
     .addEventListener("click", () => void save())
   requireElement<HTMLButtonElement>('button[data-action="cancel"]', block)

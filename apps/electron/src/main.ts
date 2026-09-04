@@ -286,6 +286,13 @@ app
         if (!window.isDestroyed()) window.webContents.send(ELECTRON_IPC.extensionsChanged)
       }
     })
+    extensions.onSettingsAdopted((adopted) => {
+      for (const window of BrowserWindow.getAllWindows()) {
+        if (!window.isDestroyed()) {
+          window.webContents.send(ELECTRON_IPC.extensionsSettingsAdopted, adopted)
+        }
+      }
+    })
     await browserCoordinator.createWindow()
     void extensions.loadBundled(resolveBundledExtensions(bundledExtensionRoot({
       isPackaged: app.isPackaged,

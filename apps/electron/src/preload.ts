@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron"
 import {
+  ElectronAdoptedExtensionSettings,
   ELECTRON_IPC,
   ElectronBridge,
   ElectronFetchRequest,
@@ -125,7 +126,13 @@ const bridge: ElectronBridge = {
       return () => ipcRenderer.removeListener(ELECTRON_IPC.extensionsChanged, listener)
     },
     applySettings: (settings) =>
-      ipcRenderer.invoke(ELECTRON_IPC.extensionsApplySettings, settings)
+      ipcRenderer.invoke(ELECTRON_IPC.extensionsApplySettings, settings),
+    onSettingsAdopted(handler) {
+      const listener = (_event: unknown, settings: ElectronAdoptedExtensionSettings) =>
+        handler(settings)
+      ipcRenderer.on(ELECTRON_IPC.extensionsSettingsAdopted, listener)
+      return () => ipcRenderer.removeListener(ELECTRON_IPC.extensionsSettingsAdopted, listener)
+    }
   },
   addons: {
     devEntries: () => ipcRenderer.invoke(ELECTRON_IPC.addonsDevList),

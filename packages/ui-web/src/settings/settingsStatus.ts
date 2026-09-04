@@ -9,6 +9,14 @@
 
 export type SettingsSaveState = "saving" | "saved" | "failed"
 
+/**
+ * What "one editor" means for a status line and for a Save/Cancel pair. Most
+ * sections are one block with one editor in it; a section that holds several
+ * (Extensions) marks each with `.settings_editor`, and the innermost of the two
+ * is the one that owns the controls.
+ */
+export const SETTINGS_EDITOR_SCOPE = ".settings_editor, .settings_block"
+
 const MESSAGES: Record<SettingsSaveState, string> = {
   saving: "Saving…",
   saved: "Saved",
@@ -19,7 +27,7 @@ export function reportSettingsStatus(
   control: Element | null | undefined,
   state: SettingsSaveState
 ): void {
-  const block = control?.closest<HTMLElement>(".settings_block")
+  const block = control?.closest<HTMLElement>(SETTINGS_EDITOR_SCOPE)
   if (!block) return
   let status = block.querySelector<HTMLElement>(":scope > .settings_status")
   if (!status) {

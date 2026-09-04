@@ -66,6 +66,14 @@ export interface MountOnceUiOptions {
    */
   addonSandboxUrl?: string
   /**
+   * Whether this shell hands the filter-list and userscript documents to
+   * something that runs them — bundled extensions on Electron, the native
+   * surface on a phone. The sidepanel extensions and the mobile web build
+   * subscribe to nothing, so their Extensions section stays out of Settings
+   * rather than offering a save that reaches no page.
+   */
+  extensionSettings?: boolean
+  /**
    * Development add-ons the host reads from disk (Electron's `ONCE_ADDONS`):
    * manifests with their code, registered beside the synced ones and never
    * written to the document.
@@ -132,6 +140,9 @@ export async function mountOnceUi(
   const wantsShortcuts = Boolean(shortcutsHost) && Boolean(shortcutsBlock) &&
     document.body.dataset.platform !== "mobile"
   if (wantsShortcuts && shortcutsBlock) shortcutsBlock.hidden = false
+
+  const extensionSettings = document.querySelector<HTMLElement>("#extension_settings")
+  if (options.extensionSettings && extensionSettings) extensionSettings.hidden = false
 
   const settingsPanel = new SettingsPanel(client, {
     exitSettings: options.exitSettings

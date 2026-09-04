@@ -255,7 +255,12 @@ apply to it, and the webRequest hook grants the requests that frame makes
 for the rest of the extension. The synced `filter_lists` and `userscripts`
 documents are handed to uBlock Origin and Violentmonkey through their own
 message APIs, from a main-process context that behaves like one of the
-extension's pages. The extensions that ship are an explicit list in
+extension's pages. For userscripts that hand-off is an exchange rather than a
+write: Violentmonkey's dashboard edits the same scripts, so
+`extensions/userscriptReconcile.ts` compares both sides against what the last
+hand-off left behind, writes what the document changed, and returns what the
+dashboard changed for the shell to save into the document — which is how an
+edit, a switch, an install or a delete made there reaches the other devices. The extensions that ship are an explicit list in
 `apps/electron/src/extensions/bundledExtensions.ts`; their bundles come from
 `scripts/fetch-extensions.js` against pinned hashes into `vendor/extensions`
 and travel as packaged resources. `ONCE_ELECTRON_EXTENSIONS` adds

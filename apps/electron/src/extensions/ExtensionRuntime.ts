@@ -15,7 +15,7 @@ import {
   ElectronExtensionSettings,
   ElectronRect
 } from "@once/platform-electron/bridge"
-import { applySettingsToExtension } from "./extensionSettingsApply"
+import { AdoptedExtensionSettings, applySettingsToExtension } from "./extensionSettingsApply"
 import { BundledExtensionSource } from "./bundledExtensions"
 import { ContextEntry, frameContextId } from "./ExtensionContexts"
 import { ApiHandler, createApiHandlers } from "./ExtensionApi"
@@ -130,6 +130,7 @@ export class ExtensionRuntime {
   private readonly ownPages = new OwnPageRequests()
   private readonly tabContents = new Map<number, WebContents>()
   private readonly changed = new Set<() => void>()
+  private readonly adopted = new Set<(settings: AdoptedExtensionSettings) => void>()
   private lastActive = new Map<number, number>()
   private nextWorldId = CONTENT_WORLD_BASE
   private installed = false
@@ -254,10 +255,23 @@ export class ExtensionRuntime {
 
   private async applyTo(host: ExtensionHost, settings: ElectronExtensionSettings): Promise<void> {
     try {
-      await applySettingsToExtension(host, settings, this.options.storageRoot)
+      const adopted = await applySettingsToExtension(host, settings, this.options.storageRoot)
+      // A hand-off is a two-way exchange: what the extension's own dashboard
+      // changed comes back here and goes to the shell, which owns the
+      // documents. It travels as an event rather than as this call's result
+      // because an extension that loads later applies with no caller waiting.
+      if (Object.keys(adopted).length > 0) {
+        if (adopted.userscripts) this.settings = { ...settings, ...adopted }
+        for (const listener of this.adopted) listener(adopted)
+      }
     } catch (error) {
       console.error(`Settings could not be handed to ${host.extension.name}`, error)
     }
+  }
+
+  /** Runs when an extension's own dashboard changed one of the documents. */
+  onSettingsAdopted(listener: (settings: AdoptedExtensionSettings) => void): void {
+    this.adopted.add(listener)
   }
 
   async unload(extensionHost: string): Promise<void> {

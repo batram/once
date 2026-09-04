@@ -53,6 +53,9 @@ export function updateSettingsSummaries(
     },
     keyboard: { text: keyboardSummary() },
     swipe: { text: `${swipeRight} · ${swipeLeft}` },
+    extensions: {
+      text: extensionsSummary(value("#filter_lists_area"), value("#userscripts_area"))
+    },
     addons: { text: addonsSummary(value("#addons_area")) },
     cache: { text: `${value("#cache_time_input") || DEFAULT_CACHE_MINUTES} min` },
     errors: {
@@ -77,6 +80,22 @@ export function updateSettingsSummaries(
       Boolean(summary.error)
     )
   }
+}
+
+// Both editors carry text the user may still be editing, so the row counts
+// what currently reads as switched on: a list line without its `#`, a script
+// whose header carries no `@once-disabled`.
+function extensionsSummary(lists: string, scripts: string): string {
+  const listCount = lists
+    .split("\n")
+    .filter((line) => line.trim() && !line.trim().startsWith("#")).length
+  const scriptCount = scripts
+    .split(/^[ \t]*\/\/[ \t]*==UserScript==[ \t]*$/m)
+    .slice(1)
+    .filter((script) => !/^[ \t]*\/\/[ \t]*@once-disabled\b/m.test(script)).length
+  if (!listCount && !scriptCount) return "None"
+  return `${listCount} ${listCount === 1 ? "list" : "lists"} · ` +
+    `${scriptCount} ${scriptCount === 1 ? "script" : "scripts"}`
 }
 
 // The editor holds the document's JSON; a half-edited text is still a count

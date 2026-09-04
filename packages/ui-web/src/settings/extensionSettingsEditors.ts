@@ -10,7 +10,7 @@ import {
 import { requireElement } from "../dom"
 import { bindAddonInstallControls } from "./addonInstallControls"
 import * as settingsControls from "./settingsControlBindings"
-import { trackSettingsSave } from "./settingsStatus"
+import { SETTINGS_EDITOR_SCOPE, trackSettingsSave } from "./settingsStatus"
 
 export interface ExtensionSettingsEditors {
   /** Re-reads both documents into their editors, after a change elsewhere. */
@@ -32,7 +32,7 @@ async function saveTextDocument(
   try {
     await trackSettingsSave(area, save)
   } catch (error) {
-    const status = area.closest(".settings_block")?.querySelector(".settings_status")
+    const status = area.closest(SETTINGS_EDITOR_SCOPE)?.querySelector(".settings_status")
     const message = error instanceof Error ? error.message : String(error)
     if (status) status.textContent = `Could not save: ${message}`
   }

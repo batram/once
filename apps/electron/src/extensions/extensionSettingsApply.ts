@@ -3,11 +3,17 @@
 // against one extension's public commands and says so; a new extension on
 // the allowlist that wants Once's settings gets its own adapter here.
 
+import { createHash } from "node:crypto"
 import { promises as fs } from "node:fs"
 import path from "node:path"
-import { FilterListSubscription, UserscriptEntry } from "@once/core"
+import { FilterListSubscription, UserscriptEntry, UserscriptsDocument } from "@once/core"
 import { ElectronExtensionSettings } from "@once/platform-electron/bridge"
 import { ExtensionHost } from "./ExtensionHost"
+import {
+  AppliedUserscript,
+  InstalledUserscript,
+  planUserscripts
+} from "./userscriptReconcile"
 import { VirtualContext } from "./VirtualContext"
 
 export const UBLOCK_ORIGIN_ID = "uBlock0@raymondhill.net"
@@ -121,66 +127,165 @@ export async function applyFilterListsToUblock(
   }
 }
 
-interface AppliedScripts {
-  /** Once userscript id → Violentmonkey script id. */
-  ids: Record<string, number>
+const APPLIED_VERSION = 2
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
-async function readApplied(file: string): Promise<AppliedScripts> {
+const hash = (value: string): string =>
+  createHash("sha256").update(value).digest("hex")
+
+/**
+ * What the last hand-off left behind, beside the extension's own storage.
+ * Version 1 remembered which script was Once's but not what either side held,
+ * so those entries carry no baseline: nothing reads as edited, and the first
+ * hand-off after an upgrade writes Once's copy and records what it found.
+ */
+async function readApplied(file: string): Promise<Record<string, AppliedUserscript>> {
   try {
     const parsed: unknown = JSON.parse(await fs.readFile(file, "utf8"))
-    const ids = (parsed as { ids?: unknown } | null)?.ids
-    return { ids: typeof ids === "object" && ids !== null ? ids as Record<string, number> : {} }
+    if (!isRecord(parsed)) return {}
+    if (parsed.version === APPLIED_VERSION && isRecord(parsed.scripts)) {
+      return parsed.scripts as Record<string, AppliedUserscript>
+    }
+    if (!isRecord(parsed.ids)) return {}
+    return Object.fromEntries(
+      Object.entries(parsed.ids)
+        .filter(([, id]) => typeof id === "number")
+        .map(([onceId, id]) => [onceId, { id: id as number }])
+    )
   } catch {
-    return { ids: {} }
+    return {}
+  }
+}
+
+interface ExportedScript {
+  script?: {
+    props?: { id?: number }
+    meta?: { name?: string; namespace?: string }
+    config?: { enabled?: number | boolean; removed?: number | boolean }
+  }
+  code?: string
+}
+
+/**
+ * Everything Violentmonkey holds, with its code. `ExportZip` is the one
+ * command that answers with both in a single round trip; without `values` it
+ * carries no stored script data, only the scripts themselves.
+ */
+async function installedUserscripts(context: VirtualContext): Promise<InstalledUserscript[]> {
+  const result = await context.sendMessage({
+    cmd: "ExportZip",
+    data: { values: false }
+  }) as { items?: ExportedScript[] } | undefined
+  const items = Array.isArray(result?.items) ? result.items : []
+  const scripts: InstalledUserscript[] = []
+  for (const item of items) {
+    const id = item?.script?.props?.id
+    const name = item?.script?.meta?.name
+    const enabled = item?.script?.config?.enabled
+    if (typeof id !== "number" || !name || typeof item.code !== "string") continue
+    if (item.script?.config?.removed) continue
+    scripts.push({
+      id,
+      name,
+      namespace: item.script?.meta?.namespace || null,
+      code: item.code,
+      enabled: enabled !== 0 && enabled !== false
+    })
+  }
+  return scripts
+}
+
+/** Writes one script, then reads back what Violentmonkey stored for it. */
+async function installUserscript(
+  context: VirtualContext,
+  script: UserscriptEntry
+): Promise<AppliedUserscript | undefined> {
+  const result = await context.sendMessage({
+    cmd: "ParseScript",
+    data: { code: script.source, message: "", url: "", from: "" }
+  }) as { update?: { props?: { id?: number } }; errors?: unknown } | undefined
+  const id = result?.update?.props?.id
+  if (typeof id !== "number") {
+    console.error(`Violentmonkey did not install "${script.name}"`, result?.errors ?? result)
+    return undefined
+  }
+  await context.sendMessage({
+    cmd: "UpdateScriptInfo",
+    data: { id, config: { enabled: script.enabled ? 1 : 0 } }
+  })
+  // The baseline has to be the text Violentmonkey ended up with rather than
+  // the text Once sent: an install may normalise it, and the difference would
+  // otherwise read as a dashboard edit on the very next hand-off.
+  const stored = await context.sendMessage({ cmd: "GetScriptCode", data: id })
+  return {
+    id,
+    source: hash(script.source),
+    code: hash(typeof stored === "string" ? stored : script.source),
+    enabled: script.enabled
   }
 }
 
 /**
  * Violentmonkey's dashboard installs and edits through `runtime.sendMessage`
- * commands: `ParseScript` installs or updates by namespace and name and
- * answers with the script record, `UpdateScriptInfo` toggles it, and
- * `RemoveScripts` deletes by id. The ids Violentmonkey assigns are remembered
- * beside the extension's storage so a script Once no longer lists is removed.
+ * commands: `ExportZip` reads every script with its code, `ParseScript`
+ * installs or updates by namespace and name, `GetScriptCode` reads one back,
+ * `UpdateScriptInfo` toggles it, and `RemoveScripts` deletes by id.
+ *
+ * The dashboard is an editor in its own right, so this reconciles rather than
+ * overwrites: what Once's document changed is written, and what the dashboard
+ * changed is returned for the caller to save into the document, where it syncs
+ * like any other change.
  */
 export async function applyUserscriptsToViolentmonkey(
   host: ExtensionHost,
-  scripts: readonly UserscriptEntry[],
+  document: UserscriptsDocument,
   storageRoot: string
-): Promise<void> {
+): Promise<UserscriptsDocument | undefined> {
   const file = path.join(storageRoot, host.extension.host, "once-userscripts.json")
   const applied = await readApplied(file)
   await host.contexts.whenListening("runtime", "onMessage", STARTUP_TIMEOUT_MS)
   const context = new VirtualContext(host)
   try {
-    const next: Record<string, number> = {}
-    for (const script of scripts) {
-      const result = await context.sendMessage({
-        cmd: "ParseScript",
-        data: { code: script.source, message: "", url: "", from: "" }
-      }) as { update?: { props?: { id?: number } }; errors?: unknown } | undefined
-      const id = result?.update?.props?.id
-      if (typeof id !== "number") {
-        console.error(`Violentmonkey did not install "${script.name}"`, result?.errors ?? result)
-        continue
-      }
-      next[script.id] = id
+    const installed = await installedUserscripts(context)
+    const plan = planUserscripts(document, installed, applied, hash)
+    const next: Record<string, AppliedUserscript> = { ...plan.keep }
+    // Deleting takes both commands, as the dashboard's own delete does:
+    // `RemoveScripts` purges what is already in Violentmonkey's trash and
+    // leaves an installed script running, so it has to be put there first.
+    for (const id of plan.remove) {
+      await context.sendMessage({ cmd: "MarkRemoved", data: { id, removed: true } })
+    }
+    if (plan.remove.length > 0) {
+      await context.sendMessage({ cmd: "RemoveScripts", data: plan.remove })
+    }
+    for (const script of plan.install) {
+      const record = await installUserscript(context, script)
+      if (record) next[script.id] = record
+    }
+    for (const { id, enabled } of plan.toggle) {
       await context.sendMessage({
         cmd: "UpdateScriptInfo",
-        data: { id, config: { enabled: script.enabled ? 1 : 0 } }
+        data: { id, config: { enabled: enabled ? 1 : 0 } }
       })
     }
-    const stale = Object.entries(applied.ids)
-      .filter(([onceId]) => !(onceId in next))
-      .map(([, vmId]) => vmId)
-    if (stale.length > 0) {
-      await context.sendMessage({ cmd: "RemoveScripts", data: stale })
-    }
     await fs.mkdir(path.dirname(file), { recursive: true })
-    await fs.writeFile(file, JSON.stringify({ ids: next }), "utf8")
+    await fs.writeFile(
+      file,
+      JSON.stringify({ version: APPLIED_VERSION, scripts: next }),
+      "utf8"
+    )
+    return plan.adopted ? plan.document : undefined
   } finally {
     context.close()
   }
+}
+
+/** What a hand-off asks the shell to write back into its own documents. */
+export interface AdoptedExtensionSettings {
+  userscripts?: UserscriptsDocument
 }
 
 /** Which of Once's documents this extension takes, if any. */
@@ -188,10 +293,14 @@ export async function applySettingsToExtension(
   host: ExtensionHost,
   settings: ElectronExtensionSettings,
   storageRoot: string
-): Promise<void> {
+): Promise<AdoptedExtensionSettings> {
   if (host.extension.id === UBLOCK_ORIGIN_ID) {
     await applyFilterListsToUblock(host, settings.filterLists.lists)
   } else if (host.extension.id === VIOLENTMONKEY_ID) {
-    await applyUserscriptsToViolentmonkey(host, settings.userscripts.scripts, storageRoot)
+    const userscripts = await applyUserscriptsToViolentmonkey(
+      host, settings.userscripts, storageRoot
+    )
+    if (userscripts) return { userscripts }
   }
+  return {}
 }

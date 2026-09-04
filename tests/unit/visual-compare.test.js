@@ -135,7 +135,7 @@ test("visual comparison rejects unsupported switches", () => {
 
 test("visual comparison covers both themes and every settings panel", () => {
   const names = buildImageNames(["electron", "mobile"])
-  assert.equal(names.length, 120)
+  assert.equal(names.length, 116)
   for (const target of ["electron", "mobile"]) {
     const settingsSections = settingsSectionDefinitions
       .filter(([, , , platform]) => !platform || platform === target)

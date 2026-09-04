@@ -188,47 +188,86 @@
                     <button type="button" class="button" data-action="cancel">Cancel</button>
                   </div>
                 </div>
-                <div class="settings_block settings_editor_block">
-                  <div class="input_container">
-                    <textarea
-                      id="filter_lists_area"
-                      spellcheck="false"
-                      data-testid="filter-lists"
-                      placeholder="One filter list URL per line; start a line with # to keep a list switched off"
-                    ></textarea>
-                  </div>
-                  <div class="settings_actions cluster">
-                    <button
-                      type="button"
-                      class="button"
-                      data-action="save"
-                      data-testid="save-filter-lists"
-                    >
-                      Save
-                    </button>
-                    <button type="button" class="button" data-action="cancel">Cancel</button>
-                  </div>
-                </div>
-                <div class="settings_block settings_editor_block">
-                  <div class="input_container">
-                    <textarea
-                      id="userscripts_area"
-                      spellcheck="false"
-                      data-testid="userscripts"
-                      placeholder="Paste userscripts here, each starting with its // ==UserScript== header"
-                    ></textarea>
-                  </div>
-                  <div class="settings_actions cluster">
-                    <button
-                      type="button"
-                      class="button"
-                      data-action="save"
-                      data-testid="save-userscripts"
-                    >
-                      Save
-                    </button>
-                    <button type="button" class="button" data-action="cancel">Cancel</button>
-                  </div>
+                <!-- Both editors live in one section: they are the same idea, and
+                     the whole block stays hidden where nothing runs what it holds. -->
+                <div
+                  class="settings_block"
+                  id="extension_settings"
+                  data-platform-only
+                  hidden
+                >
+                  <p class="settings_description">
+                    These change the web pages Once opens, not the story list. Both are synced to
+                    your other devices, and every device runs them with whatever it has: the
+                    desktop app hands them to the uBlock Origin and Violentmonkey it ships with,
+                    phones run a smaller built-in version of each.
+                  </p>
+                  <section class="settings_group settings_editor">
+                    <h4 class="settings_group_title settings_subheading">Filter lists</h4>
+                    <p class="settings_group_hint" id="filter_lists_hint">
+                      Ad and tracker lists in the usual uBlock/Adblock format, one list URL per
+                      line. Start a line with # to keep a list but switch it off. On the desktop
+                      they are added to the lists uBlock Origin already uses, so nothing you
+                      selected there is lost. On a phone Once applies them itself and reads only
+                      plain blocking and hiding rules — exceptions (@@), scriptlets and
+                      procedural selectors are skipped, and iOS caps how many rules it will take.
+                    </p>
+                    <div class="settings_group_body">
+                      <div class="input_container">
+                        <textarea
+                          id="filter_lists_area"
+                          spellcheck="false"
+                          data-testid="filter-lists"
+                          aria-describedby="filter_lists_hint"
+                          placeholder="https://example.org/filters.txt"
+                        ></textarea>
+                      </div>
+                      <div class="settings_actions cluster">
+                        <button
+                          type="button"
+                          class="button"
+                          data-action="save"
+                          data-testid="save-filter-lists"
+                        >
+                          Save
+                        </button>
+                        <button type="button" class="button" data-action="cancel">Cancel</button>
+                      </div>
+                    </div>
+                  </section>
+                  <section class="settings_group settings_editor">
+                    <h4 class="settings_group_title settings_subheading">Userscripts</h4>
+                    <p class="settings_group_hint" id="userscripts_hint">
+                      Greasemonkey-style scripts, pasted one after another, each starting with its
+                      own // ==UserScript== header. @match, @include, @exclude, @run-at and
+                      @noframes decide where and when a script runs; add // @once-disabled inside
+                      a header to keep a script but switch it off. The desktop app installs them
+                      into Violentmonkey, where its own dashboard can edit them; phones run them
+                      directly and offer only GM_addStyle, GM_getValue and GM_setValue.
+                    </p>
+                    <div class="settings_group_body">
+                      <div class="input_container">
+                        <textarea
+                          id="userscripts_area"
+                          spellcheck="false"
+                          data-testid="userscripts"
+                          aria-describedby="userscripts_hint"
+                          placeholder="// ==UserScript==&#10;// @name My script&#10;// @match https://example.org/*&#10;// ==/UserScript=="
+                        ></textarea>
+                      </div>
+                      <div class="settings_actions cluster">
+                        <button
+                          type="button"
+                          class="button"
+                          data-action="save"
+                          data-testid="save-userscripts"
+                        >
+                          Save
+                        </button>
+                        <button type="button" class="button" data-action="cancel">Cancel</button>
+                      </div>
+                    </div>
+                  </section>
                 </div>
                 <div class="settings_block settings_editor_block" id="addon_install_settings">
                   <div class="field">

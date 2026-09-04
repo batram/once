@@ -61,17 +61,16 @@ async function applyExtensionSettings() {
 }
 
 // Saves a fixture filter list and a probing userscript from the settings
-// index, then hands both to the native extension runtime. The article fixture
-// carries the elements these rules and the script act on.
+// index, then hands both to the native extension runtime. Both editors are
+// groups of the one Extensions section, so this opens it once. The article
+// fixture carries the elements these rules and the script act on.
 async function saveExtensionSettings(baseUrl, platform) {
-  await clickWeb(await $("[data-settings-target='filterlists']"), platform)
+  await clickWeb(await $("[data-settings-target='extensions']"), platform)
   await setWebValue(
     await $("[data-testid='filter-lists']"),
     `${baseUrl}/fixtures/mobile-filter-list.txt`
   )
   await clickWeb(await $("[data-testid='save-filter-lists']"), platform)
-  await clickWeb(await $("#settings_section_back"), platform)
-  await clickWeb(await $("[data-settings-target='userscripts']"), platform)
   await setWebValue(await $("[data-testid='userscripts']"), `// ==UserScript==
 // @name Mobile e2e probe
 // @namespace once-e2e
@@ -82,7 +81,10 @@ document.documentElement.dataset.onceUserscriptStart = document.readyState;
 GM_addStyle('#once-userscript-target { display: none !important; }');
     GM_setValue('ran', true);
     document.documentElement.dataset.onceGmValue = String(GM_getValue('ran', false));`)
-  await clickWeb(await $("[data-testid='save-userscripts']"), platform)
+  // Second group of the section: it starts below the fold on a phone screen.
+  const saveScripts = await $("[data-testid='save-userscripts']")
+  await saveScripts.scrollIntoView()
+  await clickWeb(saveScripts, platform)
   await applyExtensionSettings()
 }
 

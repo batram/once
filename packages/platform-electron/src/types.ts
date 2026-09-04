@@ -85,6 +85,11 @@ export interface ElectronExtensionSettings {
   userscripts: import("@once/core").UserscriptsDocument
 }
 
+/** The parts of those documents an extension changed on its own. */
+export interface ElectronAdoptedExtensionSettings {
+  userscripts?: import("@once/core").UserscriptsDocument
+}
+
 /** One loaded extension as the toolbar shows it. */
 export interface ElectronExtensionInfo {
   /** Opaque, stable per extension; what the popup call names. */
@@ -174,6 +179,14 @@ export interface ElectronBridge {
     onChanged(handler: () => void): () => void
     /** Hands the synced documents to the extensions that act on them. */
     applySettings(settings: ElectronExtensionSettings): Promise<void>
+    /**
+     * A change made in an extension's own dashboard rather than in Once's
+     * settings — a userscript edited, toggled, added or deleted in
+     * Violentmonkey. The shell saves it into its document, where it syncs.
+     */
+    onSettingsAdopted(
+      handler: (settings: ElectronAdoptedExtensionSettings) => void
+    ): () => void
   }
   addons: {
     /** Development add-ons from `ONCE_ADDONS` directories; empty in packaged builds. */
@@ -253,6 +266,7 @@ export const ELECTRON_IPC = {
   extensionsOpenPopup: "once:extensions:open-popup",
   extensionsChanged: "once:extensions:changed",
   extensionsApplySettings: "once:extensions:apply-settings",
+  extensionsSettingsAdopted: "once:extensions:settings-adopted",
   addonsDevList: "once:addons:dev-list",
   addonsDevChanged: "once:addons:dev-changed"
 } as const
