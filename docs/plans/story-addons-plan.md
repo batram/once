@@ -1,6 +1,7 @@
 # Plan: Once add-ons on every platform
 
-Status: in progress. Steps 1 to 3 are done: the row element, story action,
+Status: complete as scoped (2026-09-04); the open items are listed at the
+end of this status. Steps 1 to 3 are done: the row element, story action,
 and swipe action registries are open (the outline button is the first
 built-in contribution, the Firefox `menus` mirror creates items for ids it
 has not seen); the protocol's declarative half lives in
