@@ -80,3 +80,8 @@
   height: var(--toolbar-control-size);
   padding: 0;
 }
+
+/* Add-on panel actions render straight into the toolbar row; an empty host has no box, so it never widens the gap. */
+.addon_panel_actions {
+  display: contents;
+}
