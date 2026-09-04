@@ -64,6 +64,8 @@ unpacked Chrome extension.
   code, and where to start common changes
 - [Collectors](docs/COLLECTORS.md): source loading, built-in collectors, and
   Geny Match selector configuration
+- [Add-ons](docs/ADDONS.md): the manifest, the script API, collectors,
+  capabilities, and how add-ons are installed and run
 - [Built-app visual comparison](docs/VISUAL_COMPARISON.md): deterministic
   screenshots, historical baselines, and computed-style JSON
 - [Releasing](docs/RELEASING.md): versioning, cutting a tagged release, and CI

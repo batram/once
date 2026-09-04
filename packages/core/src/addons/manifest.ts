@@ -5,6 +5,7 @@
 
 import { AddonCondition, CONDITION_KEYS } from "./conditions"
 import { ConfigSchema, readConfigSchema } from "./configSchema"
+import { MatchPatternSet } from "../webext/matchPattern"
 import { isKnownPlaceholder, templatePlaceholders } from "./templates"
 
 export const ADDON_PROTOCOL = 1
@@ -98,6 +99,14 @@ export interface AddonCollector {
   search: readonly ("global" | "domain")[]
 }
 
+/** A button in the stories toolbar: no story in hand, so it opens a fixed URL or asks the script. */
+export interface PanelActionContribution {
+  id: string
+  label: string
+  icon?: string
+  run: { open: string } | { message: string }
+}
+
 export interface AddonManifest {
   protocol: number
   id: string
@@ -108,17 +117,34 @@ export interface AddonManifest {
   script?: AddonScript
   contributions: readonly StoryContribution[]
   collectors: readonly AddonCollector[]
+  panelActions: readonly PanelActionContribution[]
+  /** `fetch:<match pattern>` grants; nothing else exists yet. Shown at install. */
+  capabilities: readonly string[]
+  /** Options the user sets; an object schema whose fields Once renders as controls. */
+  settings?: ConfigSchema
 }
 
-/** True when any contribution or collector hands work to the add-on's script. */
+/** The URLs a script may fetch through the host, from its `fetch:` grants. */
+export function grantedFetchPatterns(manifest: AddonManifest): MatchPatternSet {
+  return new MatchPatternSet(
+    manifest.capabilities
+      .filter((capability) => capability.startsWith("fetch:"))
+      .map((capability) => capability.slice("fetch:".length))
+  )
+}
+
+/** True when any contribution, collector, or panel action hands work to the add-on's script. */
 export function manifestNeedsScript(
   contributions: readonly StoryContribution[],
-  collectors: readonly AddonCollector[] = []
+  collectors: readonly AddonCollector[] = [],
+  panelActions: readonly PanelActionContribution[] = []
 ): boolean {
-  return collectors.length > 0 || contributions.some((contribution) =>
-    (contribution.kind === "action" && "message" in contribution.run) ||
-    (contribution.kind === "badge" && contribution.compute !== undefined)
-  )
+  return collectors.length > 0 ||
+    panelActions.some((action) => "message" in action.run) ||
+    contributions.some((contribution) =>
+      (contribution.kind === "action" && "message" in contribution.run) ||
+      (contribution.kind === "badge" && contribution.compute !== undefined)
+    )
 }
 
 const TYPE_BADGE = /^[A-Za-z0-9]{2,4}$/
@@ -316,6 +342,53 @@ class Reader {
     }
   }
 
+  panelAction(value: unknown, path: string): PanelActionContribution | undefined {
+    if (!isRecord(value)) return this.fail(path, "must be an object")
+    const id = this.string(value.id, `${path}.id`, 40)
+    if (id !== undefined && !ADDON_LIMITS.idPattern.test(id)) {
+      this.fail(`${path}.id`, "must be 3–40 lower-case letters, digits, or dashes")
+    }
+    const label = this.string(value.label, `${path}.label`, ADDON_LIMITS.label)
+    const icon = this.string(value.icon, `${path}.icon`, ADDON_LIMITS.iconName, false)
+    let run: PanelActionContribution["run"] | undefined
+    if (!isRecord(value.run)) {
+      this.fail(`${path}.run`, "must be an object")
+    } else if ("message" in value.run) {
+      const message = this.string(value.run.message, `${path}.run.message`, 40)
+      if (message !== undefined && !MESSAGE_NAME.test(message)) this.fail(`${path}.run.message`, "must be a simple identifier")
+      if (message !== undefined) run = { message }
+    } else if ("open" in value.run) {
+      const open = this.string(value.run.open, `${path}.run.open`, ADDON_LIMITS.template)
+      if (open !== undefined && (!/^https?:\/\//i.test(open) || templatePlaceholders(open).length > 0)) {
+        this.fail(`${path}.run.open`, "must be a fixed http(s) URL")
+      } else if (open !== undefined) run = { open }
+    } else {
+      this.fail(`${path}.run`, "must have open or message")
+    }
+    if (id === undefined || label === undefined || run === undefined) return undefined
+    return { id, label, icon, run }
+  }
+
+  capabilities(value: unknown): string[] {
+    if (value === undefined) return []
+    const list = this.stringList(value, "capabilities")
+    if (!list) return []
+    const accepted: string[] = []
+    list.forEach((capability, index) => {
+      if (!capability.startsWith("fetch:")) {
+        this.fail(`capabilities[${index}]`, "only fetch:<match pattern> grants exist")
+        return
+      }
+      try {
+        new MatchPatternSet([capability.slice("fetch:".length)])
+        accepted.push(capability)
+      } catch (error) {
+        this.fail(`capabilities[${index}]`, error instanceof Error ? error.message : String(error))
+      }
+    })
+    return accepted
+  }
+
   contribution(value: unknown, path: string): StoryContribution | undefined {
     if (!isRecord(value)) return this.fail(path, "must be an object")
     const id = this.string(value.id, `${path}.id`, 40)
@@ -431,7 +504,28 @@ export function readAddonManifest(value: unknown): AddonManifestRead {
       })
     }
   }
-  if (script === undefined && manifestNeedsScript(contributions, collectors)) {
+  const panelActions: PanelActionContribution[] = []
+  if (value.panelActions !== undefined) {
+    if (!Array.isArray(value.panelActions) || value.panelActions.length > 4) {
+      reader.fail("panelActions", "must be a list of at most 4 actions")
+    } else {
+      value.panelActions.forEach((entry, index) => {
+        const action = reader.panelAction(entry, `panelActions[${index}]`)
+        if (action) panelActions.push(action)
+      })
+    }
+  }
+  const capabilities = reader.capabilities(value.capabilities)
+  let settings: ConfigSchema | undefined
+  if (value.settings !== undefined) {
+    try {
+      settings = readConfigSchema(value.settings, "settings")
+      if (settings.type !== "object") reader.fail("settings", "must be an object schema")
+    } catch (error) {
+      reader.fail("settings", error instanceof Error ? error.message : String(error))
+    }
+  }
+  if (script === undefined && manifestNeedsScript(contributions, collectors, panelActions)) {
     reader.fail("script", "is required: a contribution uses message or compute, or the add-on has collectors")
   }
   if (reader.reports.length > 0 || id === undefined || name === undefined || version === undefined) {
@@ -440,6 +534,9 @@ export function readAddonManifest(value: unknown): AddonManifestRead {
   return {
     ok: true,
     reports: [],
-    manifest: { protocol: ADDON_PROTOCOL, id, name, version, author, homepage, script, contributions, collectors }
+    manifest: {
+      protocol: ADDON_PROTOCOL, id, name, version, author, homepage, script,
+      contributions, collectors, panelActions, capabilities, settings
+    }
   }
 }

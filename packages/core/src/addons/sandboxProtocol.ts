@@ -21,7 +21,11 @@ export const SANDBOX_LIMITS = Object.freeze({
   /** Failed loads or crashes before an add-on is left off until settings change. */
   failures: 3,
   /** Add-on code size, in characters. */
-  code: 512 * 1024
+  code: 512 * 1024,
+  /** Per-add-on storage in the synced doc, as JSON text. */
+  storageBytes: 64 * 1024,
+  /** A fetched body handed to a script. */
+  fetchBytes: 1024 * 1024
 })
 
 /** Host → sandbox. */
@@ -40,9 +44,19 @@ export type HostToSandbox =
     config: unknown
   }
   | { type: "collector.search"; requestId: number; collector: string; kind: "global" | "domain"; needle: string }
+  | { type: "panel.invoke"; requestId: number; action: string }
+  /** The answer to an operation that asked for one (`fetch`, `storage.*`). */
+  | { type: "opResult"; opId: number; ok: boolean; value?: unknown; error?: string }
 
-/** The operations a script may ask of the host. Each names the story it is about. */
+/**
+ * The operations a script may ask of the host. Story operations name the
+ * story they are about (`href`); the others carry an empty `href` and are
+ * governed by grants rather than by the story in hand.
+ */
 export type SandboxOperation =
+  | { name: "fetch"; href: ""; url: string }
+  | { name: "storage.get"; href: ""; key: string }
+  | { name: "storage.set"; href: ""; key: string; value: unknown }
   | { name: "openUrl"; href: string; url: string; target?: "_self" | "blank" | "middle" }
   | { name: "copyText"; href: string; text: string }
   | { name: "search"; href: string; query: string }
@@ -57,7 +71,7 @@ export type SandboxToHost =
   | { type: "ready"; protocol: number }
   | { type: "result"; requestId: number; value: unknown }
   | { type: "error"; requestId?: number; message: string }
-  | { type: "op"; requestId?: number; op: SandboxOperation }
+  | { type: "op"; requestId?: number; opId?: number; op: SandboxOperation }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -71,8 +85,21 @@ function isHref(value: unknown): value is string {
   return isText(value, 4096) && /^https?:\/\//i.test(value)
 }
 
+const STORAGE_KEY = /^[a-zA-Z0-9_.-]{1,80}$/
+
 function readOperation(value: unknown): SandboxOperation | null {
-  if (!isRecord(value) || !isHref(value.href)) return null
+  if (!isRecord(value)) return null
+  switch (value.name) {
+    case "fetch":
+      return isHref(value.url) ? { name: "fetch", href: "", url: value.url } : null
+    case "storage.get":
+      return typeof value.key === "string" && STORAGE_KEY.test(value.key) ? { name: "storage.get", href: "", key: value.key } : null
+    case "storage.set":
+      return typeof value.key === "string" && STORAGE_KEY.test(value.key)
+        ? { name: "storage.set", href: "", key: value.key, value: value.value }
+        : null
+  }
+  if (!isHref(value.href)) return null
   const href = value.href
   switch (value.name) {
     case "openUrl":
@@ -115,7 +142,8 @@ export function readSandboxMessage(value: unknown): SandboxToHost | null {
       return isText(value.message, 2000) ? { type: "error", requestId, message: value.message } : null
     case "op": {
       const op = readOperation(value.op)
-      return op ? { type: "op", requestId, op } : null
+      const opId = typeof value.opId === "number" ? value.opId : undefined
+      return op ? { type: "op", requestId, opId, op } : null
     }
     default:
       return null

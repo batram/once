@@ -224,6 +224,60 @@ test("an add-on installs from its manifest URL and reports on an update check", 
   }
 })
 
+// Capabilities: a panel button asks the script, which fetches within its
+// fetch: grant and stores the answer in its storage; an option the user
+// changes reaches the script and shows in a computed badge.
+const CAPABLE_MANIFEST = (origin) => [{
+  ...SCRIPTED_MANIFEST(origin)[0],
+  id: "harness-capable",
+  name: "Harness Capable",
+  capabilities: ["fetch:http://127.0.0.1/*"],
+  settings: {
+    type: "object",
+    properties: {
+      suffix: { type: "string", description: "Badge suffix", default: "" },
+      feed: { type: "string", default: `${origin}/api/stories.json` }
+    }
+  },
+  panelActions: [{ id: "count-feed", label: "Count the feed", icon: "reload", run: { message: "count-feed" } }],
+  contributions: [{ kind: "badge", id: "len", compute: "len" }]
+}]
+
+test("capabilities: a panel action fetches within its grant and stores, and options reach the script", async () => {
+  const { electronApp, userData, window } = await launchApp(STORY_ENV)
+  try {
+    await seedLocalSource(window, storyFixture.sourceLine(origin), urls.alpha)
+    const editor = await openSettingsSection(window, "addons", "#addons_area")
+    await editor.evaluate((textarea, value) => {
+      textarea.value = value
+    }, JSON.stringify(CAPABLE_MANIFEST(origin), null, 2))
+    await window.getByTestId("save-addons").evaluate((button) => button.click())
+    await expect(window.locator('[data-settings-target="addons"] .settings_section_summary'))
+      .toHaveText("1 of 1 enabled")
+
+    await showAllStories(window)
+    const alpha = window.locator(`#stories story-item[data-href="${urls.alpha}"]`)
+    const title = await alpha.locator("a.title").innerText()
+    await expect(alpha.locator('.addon_badge[data-addon-badge="len"]')).toHaveText(`len ${title.length}`)
+
+    const panelButton = window.locator('#addon_panel_actions .addon_panel_btn[data-story-element="addon:harness-capable/count-feed"]')
+    await expect(panelButton).toBeVisible()
+    await panelButton.click()
+    await openSettingsSection(window, "addons", "#addons_area")
+    await expect(editor).toHaveValue(/"storage": \{\s*"count": 2\s*\}/, { timeout: 10_000 })
+
+    const suffix = window.getByTestId("addon-option-harness-capable-suffix")
+    await expect(suffix).toBeVisible()
+    await suffix.fill("!")
+    await suffix.dispatchEvent("change")
+    await expect(editor).toHaveValue(/"options": \{\s*"suffix": "!"/, { timeout: 10_000 })
+    await showAllStories(window)
+    await expect(alpha.locator('.addon_badge[data-addon-badge="len"]')).toHaveText(`len ${title.length}!`)
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
+
 test("a manifest with a problem is refused with the problem named, and nothing changes", async () => {
   const { electronApp, userData, window } = await launchApp()
   try {

@@ -18,10 +18,13 @@ export interface SandboxTransport {
 }
 
 export interface SandboxHostOperations {
-  /** Runs one operation the script asked for; throws to refuse it. */
-  perform(op: SandboxOperation): void | Promise<void>
+  /** Runs one operation the script asked for; throws to refuse it. The value answers ops that asked. */
+  perform(op: SandboxOperation): unknown | Promise<unknown>
   report(message: string): void
 }
+
+/** Operations governed by grants rather than by the story in hand. */
+const UNSCOPED_OPERATIONS = new Set(["fetch", "storage.get", "storage.set"])
 
 interface Pending {
   resolve(value: unknown): void
@@ -93,6 +96,15 @@ export class AddonSandboxSession {
       SANDBOX_TIMEOUTS.badgesMs
     )
     return readBadgeTexts(value, stories.length)
+  }
+
+  /** A toolbar button: no story in hand, so story operations are refused during it. */
+  panelInvoke(action: string): Promise<unknown> {
+    return this.request(
+      (requestId) => ({ type: "panel.invoke", requestId, action }),
+      new Set(),
+      SANDBOX_TIMEOUTS.invokeMs
+    )
   }
 
   /** A collector's parse: the body goes in, plain story objects come back. */
@@ -174,19 +186,26 @@ export class AddonSandboxSession {
   }
 
   private operation(message: Extract<SandboxToHost, { type: "op" }>): void {
-    const { op } = message
-    const inScope = op.name === "updateBadge"
-      ? this.badgeScope.has(op.href)
-      : message.requestId !== undefined && this.pending.get(message.requestId)?.scope.has(op.href) === true
+    const { op, opId } = message
+    const inScope = UNSCOPED_OPERATIONS.has(op.name) ||
+      (op.name === "updateBadge"
+        ? this.badgeScope.has(op.href)
+        : message.requestId !== undefined && this.pending.get(message.requestId)?.scope.has(op.href) === true)
     if (!inScope) {
       this.host.report(`Add-on ${this.addonId} tried ${op.name} on a story it was not asked about`)
+      if (opId !== undefined) this.transport.post({ type: "opResult", opId, ok: false, error: "not allowed for this story" })
       return
     }
     void Promise.resolve()
       .then(() => this.host.perform(op))
-      .catch((error) => this.host.report(
-        `Add-on ${this.addonId} ${op.name} failed: ${error instanceof Error ? error.message : String(error)}`
-      ))
+      .then((value) => {
+        if (opId !== undefined) this.transport.post({ type: "opResult", opId, ok: true, value })
+      })
+      .catch((error) => {
+        const text = error instanceof Error ? error.message : String(error)
+        this.host.report(`Add-on ${this.addonId} ${op.name} failed: ${text}`)
+        if (opId !== undefined) this.transport.post({ type: "opResult", opId, ok: false, error: text })
+      })
   }
 
   /** A crash or a broken start: count it, close the frame, fail what waits. */

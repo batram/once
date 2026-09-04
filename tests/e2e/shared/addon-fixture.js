@@ -10,7 +10,13 @@ const ADDON_SCRIPT = `export default function activate(once) {
     if (action === "visit") once.openUrl(story, story.href.replace(/\\/[^/]*$/, "/from-addon"), "blank")
     if (action === "sneak") once.openUrl({ href: "https://elsewhere.test/" }, "https://elsewhere.test/", "blank")
   })
-  once.onBadges((contribution, stories) => stories.map((story) => contribution + " " + story.title.length))
+  once.onBadges((contribution, stories) =>
+    stories.map((story) => contribution + " " + story.title.length + (once.settings.suffix || "")))
+  once.onPanel(async (action) => {
+    if (action !== "count-feed") return
+    const response = await once.fetch(once.settings.feed)
+    await once.storage.set("count", JSON.parse(response.text).items.length)
+  })
   once.collectors.register("json", {
     parse(body, context) {
       return body.items.map((item) => ({

@@ -1,16 +1,21 @@
 import { OnceClient } from "@once/app"
 import {
+  AddonEntry,
   AddonManifest,
   AddonRun,
+  MatchPatternSet,
   SANDBOX_LIMITS,
   SandboxOperation,
   StoryContribution,
   StoryView,
   addonContributionId,
+  grantedFetchPatterns,
   projectStoryView,
   renderAddonTemplate,
-  storyMatchesCondition
+  storyMatchesCondition,
+  validateConfig
 } from "@once/core"
+import { renderAddonOptions } from "../settings/addonOptions"
 import { getOnceClient } from "../client"
 import { registerStoryAction } from "../menu/storyActionRegistry"
 import { StoryHistory } from "../story/StoryHistory"
@@ -46,9 +51,10 @@ export function mountAddons(client: OnceClient, options: MountAddonsOptions = {}
     let collectorsNow = false
     for (const entry of doc.addons) {
       if (!entry.enabled) continue
-      release.push(...await registerManifest(client, entry.manifest, options))
+      release.push(...await registerManifest(client, entry, options))
       collectorsNow ||= entry.manifest.collectors.length > 0 && entry.manifest.script !== undefined
     }
+    renderAddonOptions(client, doc.addons)
     refreshStoryElements()
     // Sources naming an add-on collector resolve against the registry at
     // load time, so a change in the set is a reason to load again.
@@ -84,11 +90,12 @@ function rowFor(href: string): StoryListItem | undefined {
 
 async function registerManifest(
   client: OnceClient,
-  manifest: AddonManifest,
+  entry: AddonEntry,
   options: MountAddonsOptions
 ): Promise<(() => void)[]> {
+  const { manifest } = entry
   const releases: (() => void)[] = []
-  const sandbox = await sandboxFor(client, manifest, options)
+  const sandbox = await sandboxFor(client, entry, options)
   if (sandbox) releases.push(() => sandbox.dispose())
   const scheduler = sandbox ? new BadgeScheduler(sandbox, viewOf) : null
   if (sandbox) {
@@ -100,6 +107,7 @@ async function registerManifest(
       }
     }
   }
+  releases.push(renderPanelActions(manifest, sandbox))
 
   for (const contribution of manifest.contributions) {
     const id = addonContributionId(manifest.id, contribution.id)
@@ -147,9 +155,10 @@ async function registerManifest(
 /** The add-on's sandbox, with its code fetched and checked; null when it has none or cannot run here. */
 async function sandboxFor(
   client: OnceClient,
-  manifest: AddonManifest,
+  entry: AddonEntry,
   options: MountAddonsOptions
 ): Promise<AddonSandbox | null> {
+  const { manifest } = entry
   if (!manifest.script) return null
   if (!options.sandboxUrl) {
     report(`Add-on ${manifest.name} needs a script, which this platform cannot run yet`, "no sandbox page")
@@ -157,10 +166,63 @@ async function sandboxFor(
   }
   const code = await loadScript(client, manifest)
   if (code === null) return null
-  return new AddonSandbox(manifest.id, options.sandboxUrl, code, () => ({}), {
-    perform: (op) => performOperation(op),
+  const settings = manifest.settings
+    ? validateConfig(manifest.settings, entry.options ?? {}) as Record<string, unknown>
+    : {}
+  const grants = grantedFetchPatterns(manifest)
+  return new AddonSandbox(manifest.id, options.sandboxUrl, code, () => settings, {
+    perform: (op) => performOperation(client, manifest, grants, op),
     report: (message) => LoaderInsights.showErrorMessage(message, "")
   })
+}
+
+/** Toolbar buttons for the panel actions; each opens its URL or asks the script. */
+function renderPanelActions(manifest: AddonManifest, sandbox: AddonSandbox | null): () => void {
+  const host = document.querySelector<HTMLElement>("#addon_panel_actions")
+  const buttons: HTMLElement[] = []
+  for (const action of manifest.panelActions) {
+    if ("message" in action.run && !sandbox) continue
+    const button = createIconButton(action.label, "addon_panel_btn", action.icon ?? "link")
+    button.classList.add("bar_btn")
+    button.dataset.storyElement = addonContributionId(manifest.id, action.id)
+    button.addEventListener("click", () => {
+      if ("open" in action.run) {
+        getOnceClient().openUrl(action.run.open, "blank")
+      } else if (sandbox) {
+        const message = action.run.message
+        void sandbox.ensure()
+          .then((session) => session.panelInvoke(message))
+          .catch((error) => report(`Add-on ${manifest.name} could not run ${message}`, error))
+      }
+    })
+    host?.append(button)
+    buttons.push(button)
+  }
+  return () => {
+    for (const button of buttons) button.remove()
+  }
+}
+
+/** Storage lives on the add-on's entry in the synced document, capped by size. */
+async function storageOperation(
+  client: OnceClient,
+  manifest: AddonManifest,
+  op: Extract<SandboxOperation, { name: "storage.get" | "storage.set" }>
+): Promise<unknown> {
+  const doc = await client.getAddons()
+  const entry = doc.addons.find((candidate) => candidate.manifest.id === manifest.id)
+  if (!entry) throw new Error("the add-on is no longer installed")
+  if (op.name === "storage.get") return entry.storage?.[op.key]
+  const storage: Record<string, unknown> = Object.fromEntries(
+    Object.entries(entry.storage ?? {}).filter(([key]) => key !== op.key)
+  )
+  if (op.value !== undefined) storage[op.key] = op.value
+  if (JSON.stringify(storage).length > SANDBOX_LIMITS.storageBytes) throw new Error("the add-on's storage is full")
+  await client.saveAddons({
+    ...doc,
+    addons: doc.addons.map((candidate) => (candidate === entry ? { ...candidate, storage } : candidate))
+  })
+  return undefined
 }
 
 /**
@@ -257,9 +319,23 @@ function setReadState(row: StoryListItem, state: "unread" | "read" | "skipped"):
 }
 
 /** What a script asked for, already vetted for shape and scope by the session. */
-function performOperation(op: SandboxOperation): void {
+async function performOperation(
+  client: OnceClient,
+  manifest: AddonManifest,
+  grants: MatchPatternSet,
+  op: SandboxOperation
+): Promise<unknown> {
   const row = rowFor(op.href)
   switch (op.name) {
+    case "fetch": {
+      if (!grants.matches(op.url)) throw new Error(`no fetch: grant covers ${op.url}`)
+      const text = await client.fetchText(op.url)
+      if (text.length > SANDBOX_LIMITS.fetchBytes) throw new Error("the response is too large")
+      return { status: 200, text }
+    }
+    case "storage.get":
+    case "storage.set":
+      return storageOperation(client, manifest, op)
     case "openUrl":
       row?.read_btn.classList.add("user_interaction")
       getOnceClient().openUrl(op.url, op.target === "blank" ? "blank" : op.target === "middle" ? "middle" : "_self")
@@ -286,4 +362,5 @@ function performOperation(op: SandboxOperation): void {
       BadgeScheduler.show(row, op.contribution, op.text)
       return
   }
+  return undefined
 }

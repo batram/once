@@ -161,6 +161,9 @@ All paths below are under `packages/ui-web/src/story`.
 - `settings/addonInstallControls.ts` installs from a manifest URL and checks
   URL-installed add-ons for updates; `app/src/addonScriptCache.ts` keeps
   fetched code per device under its integrity hash in the cache store.
+- `settings/addonOptions.ts` renders each enabled add-on's `settings` schema
+  as controls and saves the entry's `options`; panel-action buttons and the
+  `fetch`/`storage` operations are handled in `mountAddons.ts`.
 - The sandbox page is served per platform: Electron through
   `apps/electron/src/AddonSandboxProtocol.ts` (`once-addon://`), mobile as
   the `addon-sandbox.html` asset with its runtime inlined

@@ -2,7 +2,9 @@
 // with its manifest and an enabled flag. Read tolerantly like every other
 // settings doc; the text form is what the settings editor shows.
 
+import { validateConfig } from "./configSchema"
 import { AddonManifest, AddonReport, readAddonManifest } from "./manifest"
+import { SANDBOX_LIMITS } from "./sandboxProtocol"
 
 export const ADDONS_DOCUMENT_ID = "addons"
 export const ADDONS_VERSION = 1
@@ -12,6 +14,25 @@ export interface AddonEntry {
   manifest: AddonManifest
   /** Where the manifest was installed from, when it came from a URL; what "check for updates" refetches. */
   source?: { url: string }
+  /** The user's values for the manifest's `settings` schema; defaults fill the rest. */
+  options?: Record<string, unknown>
+  /** What the add-on's script stored through `once.storage`, size-capped. */
+  storage?: Record<string, unknown>
+}
+
+/** Settings values that validate against the manifest's schema; anything else is dropped. */
+export function readAddonOptions(manifest: AddonManifest, value: unknown): Record<string, unknown> | undefined {
+  if (!manifest.settings || !isRecord(value)) return undefined
+  try {
+    return validateConfig(manifest.settings, value) as Record<string, unknown>
+  } catch {
+    return undefined
+  }
+}
+
+export function readAddonStorage(value: unknown): Record<string, unknown> | undefined {
+  if (!isRecord(value)) return undefined
+  return JSON.stringify(value).length <= SANDBOX_LIMITS.storageBytes ? value : undefined
 }
 
 function readSource(value: unknown): { url: string } | undefined {
@@ -42,10 +63,22 @@ export function readAddonsDocument(value: unknown): AddonsDocument {
     const read = readAddonManifest(entry.manifest)
     if (!read.ok || seen.has(read.manifest.id)) continue
     seen.add(read.manifest.id)
-    const source = readSource(entry.source)
-    doc.addons.push({ enabled: entry.enabled !== false, manifest: read.manifest, ...(source ? { source } : {}) })
+    doc.addons.push(withExtras({ enabled: entry.enabled !== false, manifest: read.manifest }, entry))
   }
   return doc
+}
+
+/** The optional fields of an entry, each kept only when it reads cleanly. */
+function withExtras(entry: AddonEntry, raw: Record<string, unknown>): AddonEntry {
+  const source = readSource(raw.source)
+  const options = readAddonOptions(entry.manifest, raw.options)
+  const storage = readAddonStorage(raw.storage)
+  return {
+    ...entry,
+    ...(source ? { source } : {}),
+    ...(options ? { options } : {}),
+    ...(storage ? { storage } : {})
+  }
 }
 
 /** Adds or replaces the entry for the manifest's id, keeping the enabled flag of one already there. */
@@ -118,7 +151,7 @@ export function parseAddonsText(text: string): AddonsDocument {
       reports.push({ path: `[${index}]`, message: "must be a manifest object" })
       return
     }
-    const { enabled, source, ...manifest } = entry
+    const { enabled, source, options, storage, ...manifest } = entry
     const read = readAddonManifest(manifest)
     if (!read.ok) {
       reports.push(...read.reports.map((report) => ({
@@ -131,10 +164,7 @@ export function parseAddonsText(text: string): AddonsDocument {
       return
     }
     seen.add(read.manifest.id)
-    const installedFrom = readSource(source)
-    doc.addons.push({
-      enabled: enabled !== false, manifest: read.manifest, ...(installedFrom ? { source: installedFrom } : {})
-    })
+    doc.addons.push(withExtras({ enabled: enabled !== false, manifest: read.manifest }, { source, options, storage }))
   })
   if (reports.length > 0) {
     const first = reports[0]
@@ -147,17 +177,25 @@ export function parseAddonsText(text: string): AddonsDocument {
 /** The doc as editor text: stable key order, two-space indent. */
 export function presentAddons(doc: AddonsDocument): string {
   if (doc.addons.length === 0) return ""
-  const entries = doc.addons.map(({ enabled, manifest, source }) => {
-    const { protocol, id, name, version, author, homepage, script, contributions, collectors } = manifest
+  const entries = doc.addons.map(({ enabled, manifest, source, options, storage }) => {
+    const {
+      protocol, id, name, version, author, homepage, script, contributions, collectors,
+      panelActions, capabilities, settings: schema
+    } = manifest
     return {
       ...(enabled ? {} : { enabled: false }),
       ...(source ? { source } : {}),
+      ...(options ? { options } : {}),
+      ...(storage ? { storage } : {}),
       protocol, id, name, version,
       ...(author ? { author } : {}),
       ...(homepage ? { homepage } : {}),
       ...(script ? { script } : {}),
+      ...(capabilities.length > 0 ? { capabilities } : {}),
+      ...(schema ? { settings: schema } : {}),
       contributions,
-      ...(collectors.length > 0 ? { collectors } : {})
+      ...(collectors.length > 0 ? { collectors } : {}),
+      ...(panelActions.length > 0 ? { panelActions } : {})
     }
   })
   return JSON.stringify(entries, null, 2)

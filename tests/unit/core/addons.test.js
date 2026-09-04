@@ -162,7 +162,7 @@ test("scripted contributions need a pinned script, and message names are identif
   assert.equal(readSandboxMessage({ type: "op", op: { name: "openUrl", href: "https://a/", url: "file:///x" } }), null)
   assert.deepEqual(
     readSandboxMessage({ type: "op", requestId: 3, op: { name: "addTag", href: "https://a/", tag: "  paywall " } }),
-    { type: "op", requestId: 3, op: { name: "addTag", href: "https://a/", tag: "paywall" } }
+    { type: "op", requestId: 3, opId: undefined, op: { name: "addTag", href: "https://a/", tag: "paywall" } }
   )
   assert.deepEqual(readBadgeTexts(["a", 1], 3), ["a", "", ""])
 })
@@ -244,6 +244,47 @@ test("a manifest installed from a URL resolves its script, remembers its source,
   assert.match(presented, /"source": \{/)
   assert.deepEqual(parseAddonsText(presented), doc)
   assert.deepEqual(readAddonsDocument(JSON.parse(JSON.stringify(doc))), doc)
+})
+
+test("capabilities, settings schemas, panel actions, options, and storage validate and round-trip", () => {
+  const { grantedFetchPatterns, readSandboxMessage } = require("../../../packages/core/dist/addons")
+  const capable = manifest()
+  capable.contributions = [{ kind: "badge", id: "len", compute: "len" }]
+  capable.script = { url: "https://addons.example/main.js", integrity: "sha256-" + "A".repeat(43) + "=" }
+  capable.capabilities = ["fetch:https://api.example/*", "fetch:*://*.example.org/*"]
+  capable.settings = { type: "object", properties: { suffix: { type: "string", default: "" }, max: { type: "number", maximum: 10 } } }
+  capable.panelActions = [
+    { id: "count", label: "Count", run: { message: "count" } },
+    { id: "docs", label: "Docs", run: { open: "https://docs.example/" } }
+  ]
+  const read = readAddonManifest(capable)
+  assert.equal(read.ok, true, JSON.stringify(read.reports))
+  const grants = grantedFetchPatterns(read.manifest)
+  assert.equal(grants.matches("https://api.example/v1/items"), true)
+  assert.equal(grants.matches("https://other.example/"), false)
+  assert.equal(read.manifest.panelActions.length, 2)
+
+  const bad = { ...capable, capabilities: ["storage", "fetch:nonsense"], panelActions: [{ id: "x-y", label: "X", run: { open: "https://x/{href}" } }] }
+  const badRead = readAddonManifest(bad)
+  const paths = badRead.reports.map((r) => r.path)
+  assert.ok(paths.includes("capabilities[0]") && paths.includes("capabilities[1]"), paths.join())
+  assert.ok(paths.includes("panelActions[0].run.open"), paths.join())
+
+  const doc = readAddonsDocument({ version: 1, addons: [{
+    manifest: capable, options: { suffix: "!", max: 99, junk: 1 }, storage: { count: 2 }
+  }] })
+  assert.equal(doc.addons[0].options, undefined, "options outside the schema are dropped whole")
+  assert.deepEqual(doc.addons[0].storage, { count: 2 })
+  const fine = readAddonsDocument({ version: 1, addons: [{ manifest: capable, options: { suffix: "!" } }] })
+  assert.deepEqual(fine.addons[0].options, { suffix: "!" })
+  const text = presentAddons(fine)
+  assert.match(text, /"options": \{/)
+  assert.match(text, /"settings": \{\s*"type": "object"/)
+  assert.deepEqual(parseAddonsText(text), fine)
+
+  assert.deepEqual(readSandboxMessage({ type: "op", opId: 4, op: { name: "fetch", url: "https://api.example/x" } }),
+    { type: "op", requestId: undefined, opId: 4, op: { name: "fetch", href: "", url: "https://api.example/x" } })
+  assert.equal(readSandboxMessage({ type: "op", op: { name: "storage.set", key: "bad key!", value: 1 } }), null)
 })
 
 test("defaults fill in: action group navigation, surfaces button and menu", () => {

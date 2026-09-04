@@ -52,6 +52,23 @@ replaces entries whose version moved, keeping the user's enabled flag.
 renderer to accept a non-http script URL served by main, which is a small
 but separate change.
 
+Step 8 is done: `capabilities` carries `fetch:<match pattern>` grants and
+`once.fetch` goes through the host and the platform's fetch, refused outside
+the grants and capped at 1 MB; `once.storage` keeps a 64 KB namespace on the
+add-on's entry in the synced document; `panelActions` become toolbar
+buttons that open a fixed URL or ask the script; a manifest's `settings`
+schema is rendered as controls in the Add-ons section and the values reach
+the script as `once.settings`. Verified by protocol and session unit tests
+and an Electron e2e where a panel button fetches, stores, and an option
+changes a computed badge.
+
+Step 9 is done: [ADDONS.md](../ADDONS.md) is the author reference, with the
+e2e fixtures as worked examples; ARCHITECTURE.md, CODEMAP.md, and
+COLLECTORS.md carry the add-on sections. Open from the original list: the
+Firefox and Chrome serving paths, device runs on Android and iOS, the
+schema-driven configuration form in the source editor, `ONCE_ADDONS`, and a
+curated index.
+
 ## Decision
 
 Once gets **add-ons**: packages of its own format that extend the reader

@@ -85,6 +85,32 @@ test("a crash closes the frame, fails what waits, and switches the add-on off af
   assert.ok(sent.length > 0)
 })
 
+test("fetch and storage operations run without a story and get their answer posted back", async () => {
+  const sent = []
+  const session = new AddonSandboxSession("demo", { post: (m) => sent.push(m), destroy: () => {} }, {
+    perform: async (op) => {
+      if (op.name === "fetch") return { status: 200, text: "body of " + op.url }
+      if (op.name === "storage.get") return 42
+      throw new Error("refused")
+    },
+    report: () => {}
+  })
+  session.receive({ type: "op", opId: 1, op: { name: "fetch", url: "https://api.example/x" } })
+  session.receive({ type: "op", opId: 2, op: { name: "storage.get", key: "count" } })
+  session.receive({ type: "op", opId: 3, op: { name: "storage.set", key: "count", value: 1 } })
+  await new Promise((resolve) => setImmediate(resolve))
+  const results = sent.filter((m) => m.type === "opResult").sort((a, b) => a.opId - b.opId)
+  assert.deepEqual(results, [
+    { type: "opResult", opId: 1, ok: true, value: { status: 200, text: "body of https://api.example/x" } },
+    { type: "opResult", opId: 2, ok: true, value: 42 },
+    { type: "opResult", opId: 3, ok: false, error: "refused" }
+  ])
+  // A story operation with an opId outside any request is refused with an answer, not silence.
+  session.receive({ type: "op", opId: 4, op: { name: "notify", href: "https://a/", text: "hi" } })
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.deepEqual(sent.at(-1), { type: "opResult", opId: 4, ok: false, error: "not allowed for this story" })
+})
+
 test("malformed messages are ignored", async () => {
   const { session, performed, reports } = harness()
   for (const junk of [null, "x", {}, { type: "op", op: { name: "openUrl", href: "ftp://x", url: "https://x/" } }, { type: "result" }]) {
