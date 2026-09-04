@@ -24,7 +24,6 @@ const COLLECTOR_IDS = Object.freeze([
   "lobsters",
   "redditjson",
   "redditrss",
-  "nitter",
   "rss"
 ])
 

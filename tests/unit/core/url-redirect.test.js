@@ -4,16 +4,16 @@ const { URLRedirect } = require("../../../packages/core/dist")
 
 test("rewrites urls, remembers the original, and resets on rule changes", () => {
   URLRedirect.setRedirects([
-    { match_url: "^https://twitter\\.com", replace_url: "https://nitter.net" }
+    { match_url: "^https://www\\.reddit\\.com", replace_url: "https://old.reddit.com" }
   ])
 
   assert.equal(
-    URLRedirect.redirect_url("https://twitter.com/a"),
-    "https://nitter.net/a"
+    URLRedirect.redirect_url("https://www.reddit.com/a"),
+    "https://old.reddit.com/a"
   )
   assert.equal(
-    URLRedirect.original_url("https://nitter.net/a"),
-    "https://twitter.com/a"
+    URLRedirect.original_url("https://old.reddit.com/a"),
+    "https://www.reddit.com/a"
   )
 
   //urls without a matching rule map to themselves in both directions
@@ -28,12 +28,12 @@ test("rewrites urls, remembers the original, and resets on rule changes", () => 
 
   URLRedirect.setRedirects([])
   assert.equal(
-    URLRedirect.redirect_url("https://twitter.com/a"),
-    "https://twitter.com/a"
+    URLRedirect.redirect_url("https://www.reddit.com/a"),
+    "https://www.reddit.com/a"
   )
   assert.equal(
-    URLRedirect.original_url("https://nitter.net/a"),
-    "https://nitter.net/a"
+    URLRedirect.original_url("https://old.reddit.com/a"),
+    "https://old.reddit.com/a"
   )
 })
 

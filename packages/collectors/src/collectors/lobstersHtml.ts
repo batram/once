@@ -23,9 +23,10 @@ export function parse(doc: Document): Story[] {
       if (!link) {
         return null
       }
-      if (link.protocol == "file:") {
-        link.href = base_url + "/s/" + id
-      }
+      // Self posts link relatively ("/s/…"). Resolve against the site rather
+      // than trusting the DOM: a real browser resolves against whatever base
+      // the page has, and a test DOM does not resolve at all.
+      const href = new URL(link.getAttribute("href") ?? "", base_url).href
 
       const time_el = story.querySelector<HTMLElement>(".byline time")
       let timestamp = Date.now()
@@ -40,7 +41,7 @@ export function parse(doc: Document): Story[] {
 
       const new_story = new Story(
         options.type,
-        link.href,
+        href,
         link.innerText,
         base_url + "/s/" + id,
         timestamp

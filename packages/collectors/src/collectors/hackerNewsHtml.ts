@@ -16,6 +16,7 @@ export const options = {
   }
 }
 
+const site_url = "https://news.ycombinator.com/"
 const item_url = "https://news.ycombinator.com/item?id="
 const user_url = "https://news.ycombinator.com/submitted?id="
 
@@ -34,10 +35,11 @@ export function parse(doc: Document): Story[] {
       return []
     }
 
+    // Self posts link relatively ("item?id=…"). Resolve against the site
+    // rather than trusting the DOM: a real browser resolves against whatever
+    // base the page has, and a test DOM does not resolve at all.
     const id = story_el.id
-    if (story_link.protocol == "file:") {
-      story_link.href = curl + id
-    }
+    const href = new URL(story_link.getAttribute("href") ?? "", site_url).href
 
     const time = subtext.querySelector<HTMLAnchorElement>(".age a")?.innerText ?? ""
     const timestamp = parseHumanTime(time)
@@ -55,7 +57,7 @@ export function parse(doc: Document): Story[] {
 
     const new_story = new Story(
       options.type,
-      story_link.href,
+      href,
       story_link.innerText,
       id ? curl + id : "",
       timestamp,

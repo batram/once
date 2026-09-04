@@ -3,20 +3,35 @@ const fs = require("node:fs/promises")
 const path = require("node:path")
 const { installDomGlobals } = require("../../helpers/dom")
 const { assertStories } = require("../../helpers/collector-contract")
-const { parse_response } = require("../../../packages/collectors/dist")
-const { sources, fetchSource } = require("../source-cases")
+const { parse_response, resolveStorySource } = require("../../../packages/collectors/dist")
+const { sources, fetchSource, SourceUnavailableError } = require("../source-cases")
 
 installDomGlobals()
 
+// parse_response no longer looks a collector up itself: resolution does that,
+// and validates the configuration at the same time.
+function resolve(url) {
+  const resolved = resolveStorySource({ url })
+  if (resolved.problem) throw new Error(resolved.problem)
+  return resolved
+}
+
 for (const [name, source] of Object.entries(sources)) {
-  test(`live ${name} source still satisfies its collector contract`, async () => {
+  test(`live ${name} source still satisfies its collector contract`, async (t) => {
     let bytes
     try {
-      bytes = await fetchSource(source)
+      try {
+        bytes = await fetchSource(source)
+      } catch (error) {
+        if (error instanceof SourceUnavailableError) {
+          t.skip(`${source.url} unavailable: ${error.message}`)
+          return
+        }
+        throw error
+      }
       const stories = await parse_response(
         new Response(bytes),
-        source.url,
-        source.url
+        resolve(source.url)
       )
       assertStories(stories, source.type)
     } catch (error) {

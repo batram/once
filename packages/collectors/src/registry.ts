@@ -5,7 +5,6 @@ import * as jsonSelect from "./collectors/jsonSelect"
 import * as lobstersHtml from "./collectors/lobstersHtml"
 import * as redditJson from "./collectors/redditJson"
 import * as redditRss from "./collectors/redditRss"
-import * as twitterHtml from "./collectors/twitterHtml"
 import * as vanillaRss from "./collectors/vanillaRss"
 
 /** Everything a collector needs to know about the source being parsed. */
@@ -150,10 +149,6 @@ function builtinCollectors(): StoryParser[] {
     {
       options: redditRss.options,
       parse: redditRss.parse
-    },
-    {
-      options: twitterHtml.options,
-      parse: twitterHtml.parse
     },
     {
       options: vanillaRss.options,

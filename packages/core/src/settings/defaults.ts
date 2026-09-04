@@ -65,5 +65,4 @@ export function presentRedirectList(redirectList: Redirect[]): string {
     .join("\n")
 }
 
-export const defaultRedirectList = parseRedirectList(`https:\\/\\/www.reddit.com\\/(.*) => https://old.reddit.com/$1
-         https?:\\/\\/(?:www\\.|mobile\\.)?(?:twitter|x)\\.com\\/(.*) => https://nitter.net/$1`)
+export const defaultRedirectList = parseRedirectList("https:\\/\\/www.reddit.com\\/(.*) => https://old.reddit.com/$1")

@@ -42,7 +42,6 @@ check.
 | Lobsters | `lobsters` | `https://lobste.rs/` | HTML DOM | `LO` | global and domain |
 | Reddit JSON | `redditjson` | `https://old.reddit.com/*.json` | JSON | `re` | global and domain |
 | Reddit RSS | `redditrss` | `https://old.reddit.com/*.rss` | DOM | `re` | none |
-| Nitter | `nitter` | `https://nitter.net/` | HTML DOM | `tw` | none |
 | RSS/Atom | `rss` | `*.rss` | XML DOM | `RSS` | none |
 
 `options.id` is a **public persistence identifier**: a source that names its
@@ -58,8 +57,8 @@ validated configuration in the `select` field.
 Source-specific settings, colors, and descriptions live in each module's
 exported `options` object under `packages/collectors/src/collectors`.
 
-The dedicated HTML collectors understand the markup of Hacker News, Lobsters,
-and Nitter and add source-specific user or category tags. The Reddit JSON
+The dedicated HTML collectors understand the markup of Hacker News and
+Lobsters and add source-specific user or category tags. The Reddit JSON
 collector discards posts below `min_points` during normal collection. The RSS
 collector supports RSS 1.0, RSS 2.0, and Atom, applies `time_cut_off`, and can
 discard entries without timestamps. Reddit's Atom-shaped `.rss` response has
