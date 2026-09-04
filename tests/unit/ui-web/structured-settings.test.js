@@ -254,6 +254,7 @@ function sourceRowHost(window, groups, saved, overrides = {}) {
     onTouch: () => true,
     edit: (...position) => saved.push(["edit", ...position.slice(1)]),
     save: (reload) => saved.push(["save", reload]),
+    reload: (source) => saved.push(["reload", source]),
     showError: (source) => saved.push(["error", source]),
     openMenu: () => {},
     ...overrides
@@ -377,6 +378,7 @@ test("deleting a populated source group opens a modal overlay", async () => {
         render: () => {},
         root: () => root,
         saveSources: (values) => saved.push(values),
+        reloadSource: () => {},
         showSourceError: () => {},
         openMenu: () => {},
         listActions: () => null,

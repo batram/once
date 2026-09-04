@@ -262,7 +262,8 @@ test("syncs settings, newest stories, backlog, then starts live sync", async () 
     "redirect_list",
     "theme",
     "animation",
-    "swipe"
+    "swipe",
+    "save_bookmarked_content"
   ])
   assert.equal(replications[0].options.batch_size, 1000)
   assert.equal(replications[0].options.batches_limit, 2)

@@ -30,6 +30,8 @@ export interface StructuredSettingsOptions {
   saveSourceSecret(sourceId: string, secret: string): Promise<void>
   saveFilters(values: string[]): void
   saveRedirects(values: Redirect[]): void
+  /** Refetches one source now, ignoring its cache window. */
+  reloadSource(sourceId: string): void
   showSourceError(source: string): void
   /**
    * Retitle the settings header while a full-screen editor is open, and hide
@@ -77,6 +79,7 @@ export class StructuredSettingsEditors {
       root: () => this.roots.get("sources"),
       saveSources: (values, reload) => this.options.saveSources(values, reload),
       saveSourceSecret: (id, secret) => this.options.saveSourceSecret(id, secret),
+      reloadSource: (id) => this.options.reloadSource(id),
       showSourceError: (source) => this.options.showSourceError(source),
       openMenu: (anchor, items) => this.openMenu(anchor, items),
       listActions: () => this.listActions("sources"),

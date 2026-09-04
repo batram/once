@@ -163,6 +163,9 @@ export class SettingsPanel {
         return this.sourcesSaveChain
       },
       saveSourceSecret: (id, secret) => this.client.setSourceSecret(id, secret),
+      reloadSource: (id) => void this.client.refetchSource(id).catch((error: unknown) => {
+        console.error("Failed to reload the story source", error)
+      }),
       saveFilters: (values) => this.client.saveFilterList(values),
       saveRedirects: (values) => this.client.saveRedirectList(values),
       showSourceError: (source) => this.showSourceErrorLog(source),

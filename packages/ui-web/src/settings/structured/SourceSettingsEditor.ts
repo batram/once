@@ -17,6 +17,8 @@ export interface SourceSettingsHost {
   saveSources(value: StorySourceDocument, reloadStories?: boolean): void | Promise<void>
   /** A source's token, kept on this device; "" removes it. */
   saveSourceSecret(sourceId: string, secret: string): Promise<void>
+  /** Refetches one source now, ignoring its cache window. */
+  reloadSource(sourceId: string): void
   showSourceError(sourceId: string): void
   openMenu(anchor: HTMLElement, items: AnchoredMenuItem[]): void
   listActions(): HTMLElement | null
@@ -43,6 +45,7 @@ export class SourceSettingsEditor {
       editGroup: (root, group) => this.editGroup(root, group),
       deleteGroup: (root, group) => this.deleteGroup(root, group),
       save: (reload) => this.save(reload),
+      reload: (id) => this.host.reloadSource(id),
       showError: (id) => this.host.showSourceError(id),
       openMenu: (anchor, items) => this.host.openMenu(anchor, items),
       listActions: () => this.host.listActions() })

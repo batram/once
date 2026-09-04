@@ -41,6 +41,8 @@ export interface SourceRowHost {
   onTouch(): boolean
   edit(root: HTMLElement, groupIndex?: number, sourceIndex?: number): void
   save(reloadStories?: boolean): void
+  /** Refetches one source now, ignoring its cache window. */
+  reload(sourceId: string): void
   showError(source: string): void
   openMenu(anchor: HTMLElement, items: AnchoredMenuItem[]): void
 }
@@ -199,6 +201,11 @@ function appendRowActions(
   menu.setAttribute("aria-label", menu.title)
   const open = () => host.openMenu(menu, [
     { id: "edit-source", label: "Edit source", select: edit },
+    {
+      id: "reload-source",
+      label: "Reload source",
+      select: () => host.reload(source.id)
+    },
     {
       id: "delete-source",
       label: "Delete source",

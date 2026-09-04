@@ -262,6 +262,9 @@ test("opens the desktop source row menu from its hover control", async () => {
       name: "Edit source"
     })).toBeVisible()
     await expect(window.getByRole("menuitem", {
+      name: "Reload source"
+    })).toBeVisible()
+    await expect(window.getByRole("menuitem", {
       name: "Delete source"
     })).toBeVisible()
   } finally {
