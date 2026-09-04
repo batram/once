@@ -21,6 +21,13 @@ test("keeps the address synchronized across redirects and page navigation", asyn
     await address.press("Enter")
     await expect(address).toHaveValue(`${origin}/redirected`)
 
+    // The address bar follows the redirect as soon as the server answers,
+    // before the navigation commits, so the page can still report the old URL
+    // for a moment; wait for it to have arrived rather than reading it once.
+    const findPage = (currentUrl) => electronApp.evaluate(({ webContents }, url) =>
+      webContents.getAllWebContents().some((candidate) => candidate.getURL() === url),
+    currentUrl)
+    await expect.poll(() => findPage(`${origin}/redirected`)).toBe(true)
     await electronApp.evaluate(async ({ webContents }, currentUrl) => {
       const contents = webContents
         .getAllWebContents()
