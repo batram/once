@@ -90,7 +90,9 @@ test("a sub-resource carries its document, the main frame does not", () => {
   const main = details.buildWebRequestDetails({
     ...base, url: "https://site.test/next", resourceType: "mainFrame"
   })
-  assert.equal(main.documentUrl, null)
+  // Absent, not null: uBlock checks for undefined and then calls startsWith.
+  assert.equal("documentUrl" in main, false)
+  assert.equal("originUrl" in main, false)
   assert.equal(main.frameId, 0)
   assert.equal(main.parentFrameId, -1)
   assert.equal(main.thirdParty, false)

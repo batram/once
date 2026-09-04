@@ -105,8 +105,10 @@ export interface WebRequestDetails {
   tabId: number
   frameId: number
   parentFrameId: number
-  originUrl: string | null
-  documentUrl: string | null
+  // Absent rather than null when unknown, as in Firefox: uBlock tests
+  // `documentUrl !== undefined` and then calls string methods on it.
+  originUrl?: string
+  documentUrl?: string
   /** Firefox-only, but uBlock reads it: the top-level document's URL. */
   frameAncestors: { url: string; frameId: number }[]
   thirdParty: boolean
@@ -151,13 +153,14 @@ export function buildWebRequestDetails(input: WebRequestDetailsInput): WebReques
     tabId: input.tabId,
     frameId: isMainFrame ? 0 : input.frame.frameId,
     parentFrameId: isMainFrame ? -1 : input.frame.parentFrameId,
-    originUrl: documentUrl ?? (input.referrer || null),
-    documentUrl,
     frameAncestors: !isMainFrame && input.frame.topUrl && input.frame.frameId !== 0
       ? [{ url: input.frame.topUrl, frameId: 0 }]
       : [],
     thirdParty: isThirdParty(input.url, documentUrl ?? input.frame.topUrl)
   }
+  const originUrl = documentUrl ?? (input.referrer || null)
+  if (originUrl !== null) details.originUrl = originUrl
+  if (documentUrl !== null) details.documentUrl = documentUrl
   if (input.requestHeaders) details.requestHeaders = headersToWebExt(input.requestHeaders)
   if (input.responseHeaders) details.responseHeaders = headersToWebExt(input.responseHeaders)
   if (input.statusLine !== undefined) details.statusLine = input.statusLine
