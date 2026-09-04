@@ -239,9 +239,13 @@ Rules the host enforces, not the script:
   hash. A synced entry whose script cannot be fetched here is reported as
   installed elsewhere and stays off until it can be.
 - **Platforms**: declarative add-ons run everywhere. Scripted add-ons run on
-  Electron and mobile today. Firefox cannot host third-party code under an
-  extension's origin, so it reports scripted add-ons as unavailable; Chrome
-  will follow through its manifest `sandbox` mechanism.
+  Electron, mobile, and Chrome (the sandbox page is a manifest `sandbox`
+  page of the extension). Firefox cannot run third-party code under an
+  extension's origin, so there the Add-ons section asks for the `https` URL
+  of a hosted copy of `addon-sandbox-hosted.html`, a self-contained page the
+  Firefox build emits under `static/`; host it anywhere you trust, paste the
+  URL, and reopen the sidebar. Until then Firefox reports scripted add-ons as
+  unavailable and runs declarative ones only.
 
 ## Worked examples
 

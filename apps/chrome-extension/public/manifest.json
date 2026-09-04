@@ -25,6 +25,12 @@
   "side_panel": {
     "default_path": "static/sidepanel.html"
   },
+  "sandbox": {
+    "pages": ["static/addon-sandbox.html"]
+  },
+  "content_security_policy": {
+    "sandbox": "sandbox allow-scripts; script-src 'self' blob:; connect-src 'none'; img-src 'none'; style-src 'none'; base-uri 'none'; form-action 'none'"
+  },
   "action": {
     "default_icon": {
       "48": "static/imgs/icons/mipmap-mdpi/ic_launcher.png"

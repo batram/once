@@ -439,10 +439,13 @@ the fixture add-on from `tests/e2e/shared/addon-fixture.js`; both harnesses
 serve its script and its feed, and the manifests pin the script by the hash
 the fixture exports, so editing the script never needs a hash update by hand.
 The sandbox page is a Forge renderer entry (`addon_sandbox`) served over
-`once-addon://` on Electron and the `addon-sandbox.html` asset on mobile; a
-change to `packages/ui-web/src/addons/sandboxRuntime.ts` therefore needs a
-repackage before an E2E rerun, like any other renderer change. See
-[ADDONS.md](ADDONS.md) for what the fixture exercises.
+`once-addon://` on Electron, the `addon-sandbox.html` asset on mobile, and a
+manifest `sandbox` page in the Chrome build (`tests/e2e/extensions/chrome-addons.spec.js`
+covers it); a change to `packages/ui-web/src/addons/sandboxRuntime.ts`
+therefore needs a repackage before an E2E rerun, like any other renderer
+change. The extension builds also emit `static/addon-sandbox-hosted.html`, a
+self-contained copy for Firefox users to host over `https`; nothing in the
+repository hosts it. See [ADDONS.md](ADDONS.md) for what the fixture exercises.
 
 On Windows, package builds that update committed or generated `dist` output can
 fail with `EPERM` when run from a restricted sandbox. Retry the unchanged

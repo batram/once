@@ -1,5 +1,6 @@
 const http = require("node:http")
 const storyFixture = require("../shared/story-fixture")
+const addonFixture = require("../shared/addon-fixture")
 
 // Serves the shared story fixture (feed + story/comment/rewritten pages) for
 // the richer story-list suites. startLocalSource below stays untouched for
@@ -10,6 +11,17 @@ async function startStoryFixture() {
   const server = http.createServer((request, response) => {
     requests.push(request.url)
     if (storyFixture.handleRequest(request, response, origin)) {
+      return
+    }
+    // The fixture Once add-on's script and its collector's feed.
+    if (request.url === "/addon/main.js") {
+      response.writeHead(200, { "content-type": "text/javascript; charset=utf-8" })
+      response.end(addonFixture.ADDON_SCRIPT)
+      return
+    }
+    if (request.url === "/api/stories.json") {
+      response.writeHead(200, { "content-type": "application/json; charset=utf-8" })
+      response.end(JSON.stringify(addonFixture.addonApiStories(origin)))
       return
     }
     response.writeHead(404, { "content-type": "text/plain" })

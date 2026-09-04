@@ -242,7 +242,10 @@ code as a blob module, no network). The frame speaks a validated
 the user acted on, and requests time out. On Electron main serves the page
 over `once-addon://` because an opaque origin may not load `file:`
 subresources; on mobile it is a static asset beside the app with its runtime
-inlined; platforms without a serving path (Firefox, Chrome so far) run
+inlined; on Chrome it is a manifest `sandbox` page of the extension; on
+Firefox, which lets no page under an extension's origin run third-party code,
+it is a hosted copy of the self-contained page the build emits, named by the
+user and kept in local extension storage, without which Firefox runs
 declarative add-ons only. Add-on code is cached per device by its hash and
 never synced; an add-on installed from a URL remembers that URL for update
 checks.

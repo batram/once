@@ -24,8 +24,8 @@ plans are summarized in [HISTORY.md](HISTORY.md) and retained in Git history.
 
 - **Add-ons follow-ups** (the plan itself is complete; see
   [Add-ons](ADDONS.md))
-  - Scripted add-ons on Firefox (a hosted sandbox page, or declarative only)
-    and on Chrome (the manifest `sandbox` page)
+  - A Once-hosted default for Firefox's sandbox page, so users need not host
+    `addon-sandbox-hosted.html` themselves
   - Android emulator and iOS device runs of the mobile sandbox
   - A schema-driven configuration form for add-on collectors in the source
     editor
