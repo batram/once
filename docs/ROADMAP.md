@@ -30,7 +30,6 @@ plans are summarized in [HISTORY.md](HISTORY.md) and retained in Git history.
     emulator smoke suite)
   - A schema-driven configuration form for add-on collectors in the source
     editor
-  - `ONCE_ADDONS` development directories for unpackaged Electron builds
   - A curated add-on index and scheduled update checks
 - **Mobile deeper integration**
   - Native and share-driven source creation

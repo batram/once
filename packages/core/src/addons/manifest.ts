@@ -454,7 +454,11 @@ export function readAddonManifest(value: unknown): AddonManifestRead {
       reader.fail("script", "must be an object with url and integrity")
     } else {
       const url = reader.string(value.script.url, "script.url", ADDON_LIMITS.template)
-      if (url !== undefined && !/^https?:\/\//i.test(url)) reader.fail("script.url", "must be http(s)")
+      // `once-addon://dev/…` is a development package the Electron host serves
+      // itself; the hash still has to match, and only that host resolves it.
+      if (url !== undefined && !/^(https?|once-addon):\/\//i.test(url)) {
+        reader.fail("script.url", "must be http(s)")
+      }
       const integrity = reader.string(value.script.integrity, "script.integrity", 80)
       if (integrity !== undefined && !INTEGRITY.test(integrity)) {
         reader.fail("script.integrity", "must be sha256-<base64> of the script")

@@ -1,5 +1,8 @@
 const { test, expect } = require("@playwright/test")
 const crypto = require("node:crypto")
+const fs = require("node:fs/promises")
+const os = require("node:os")
+const path = require("node:path")
 const {
   ADDON_SCRIPT,
   closeApp,
@@ -275,6 +278,39 @@ test("capabilities: a panel action fetches within its grant and stores, and opti
     await expect(alpha.locator('.addon_badge[data-addon-badge="len"]')).toHaveText(`len ${title.length}!`)
   } finally {
     await closeApp(electronApp, userData)
+  }
+})
+
+// A development add-on: a directory named in ONCE_ADDONS with once-addon.json
+// beside main.js. Main reads it, pins the script by hash, and the renderer
+// registers it without any settings interaction or document entry.
+test("ONCE_ADDONS directories load as development add-ons in unpackaged builds", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "once-addons-dev-"))
+  await fs.writeFile(path.join(dir, "once-addon.json"), JSON.stringify({
+    protocol: 1,
+    id: "dev-harness",
+    name: "Dev Harness",
+    version: "0.0.1",
+    script: "main.js",
+    contributions: [{ kind: "badge", id: "len", compute: "len" }]
+  }))
+  await fs.writeFile(path.join(dir, "main.js"), ADDON_SCRIPT)
+  const { electronApp, userData, window } = await launchApp({
+    env: { ...STORY_ENV.env, ONCE_ADDONS: dir }
+  })
+  try {
+    await seedLocalSource(window, storyFixture.sourceLine(origin), urls.alpha)
+    await showAllStories(window)
+    const alpha = window.locator(`#stories story-item[data-href="${urls.alpha}"]`)
+    const title = await alpha.locator("a.title").innerText()
+    await expect(alpha.locator('.addon_badge[data-addon-badge="len"]')).toHaveText(`len ${title.length}`, { timeout: 15_000 })
+    expect(await window.locator("iframe[data-addon-sandbox]").count()).toBe(1)
+    // Nothing reached the synced document.
+    const editor = await openSettingsSection(window, "addons", "#addons_area")
+    await expect(editor).toHaveValue("")
+  } finally {
+    await closeApp(electronApp, userData)
+    await fs.rm(dir, { recursive: true, force: true })
   }
 })
 

@@ -34,6 +34,7 @@ import { ExtensionRuntime } from "./extensions/ExtensionRuntime"
 import { bundledExtensionRoot, resolveBundledExtensions } from "./extensions/bundledExtensions"
 import { registerExtensionScheme } from "./extensions/ExtensionScheme"
 import { configureAddonSandboxProtocol, registerAddonSandboxScheme } from "./AddonSandboxProtocol"
+import { devAddonDirectories, readDevAddons, watchDevAddons } from "./devAddons"
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string
@@ -231,8 +232,15 @@ app
     configureAccessibility()
     const browserSession = configureBrowserSession()
     // The shell window runs in the default session; its add-on sandbox frames
-    // load their page from this scheme.
-    configureAddonSandboxProtocol(session.defaultSession, MAIN_WINDOW_WEBPACK_ENTRY)
+    // load their page from this scheme. `ONCE_ADDONS` adds development add-on
+    // directories in unpackaged builds only, like `ONCE_ELECTRON_EXTENSIONS`.
+    const devAddonDirs = app.isPackaged ? [] : devAddonDirectories(process.env.ONCE_ADDONS)
+    configureAddonSandboxProtocol(session.defaultSession, MAIN_WINDOW_WEBPACK_ENTRY, devAddonDirs)
+    watchDevAddons(devAddonDirs, () => {
+      for (const window of BrowserWindow.getAllWindows()) {
+        if (!window.isDestroyed()) window.webContents.send(ELECTRON_IPC.addonsDevChanged)
+      }
+    })
     browserCoordinator = new BrowserCoordinator(
       createShellWindow,
       process.env.ONCE_ELECTRON_DISABLE_STORY_LOADING === "1"
@@ -257,6 +265,7 @@ app
       buildIdentifier: __ONCE_BUILD_IDENTIFIER__,
       coordinator: browserCoordinator,
       extensions,
+      devAddons: () => readDevAddons(devAddonDirs),
       getUpdateStatus: () => updateStatus,
       setUpdateStatus,
       updatesStarted: () => autoUpdatesStarted

@@ -1,5 +1,5 @@
 import { OnceClient } from "@once/app"
-import { mountAddons } from "./addons/mountAddons"
+import { DevAddonSource, mountAddons } from "./addons/mountAddons"
 import { addCollectorColorStyles } from "./collectorStyles"
 import { LoaderInsights } from "./shell/LoaderInsights"
 import { HoverUrlIndicator } from "./shell/HoverUrlIndicator"
@@ -64,6 +64,12 @@ export interface MountOnceUiOptions {
    * declarative ones still do.
    */
   addonSandboxUrl?: string
+  /**
+   * Development add-ons the host reads from disk (Electron's `ONCE_ADDONS`):
+   * manifests with their code, registered beside the synced ones and never
+   * written to the document.
+   */
+  devAddons?: DevAddonSource
 }
 
 export async function mountOnceUi(
@@ -76,7 +82,7 @@ export async function mountOnceUi(
   setOnceClient(client)
   StoryListItem.devToolsEnabled = options.buildChannel === "dev"
   ReaderView.mount(client)
-  mountAddons(client, { sandboxUrl: options.addonSandboxUrl })
+  mountAddons(client, { sandboxUrl: options.addonSandboxUrl, devAddons: options.devAddons })
 
   const version = document.querySelector<HTMLElement>(
     "[data-testid='app-version']"

@@ -233,7 +233,10 @@ itself, described by manifests in the synced `addons` settings document
 (`packages/core/src/addons`) and rendered by the shared UI through its
 element and action registries. Declarative contributions are URL and text
 templates over an allow-listed view of a story, with conditions Once
-evaluates. A manifest may also name a script, pinned by sha256 and fetched
+evaluates. Unpackaged Electron builds also read `ONCE_ADDONS` package
+directories (`apps/electron/src/devAddons.ts`), served as
+`once-addon://dev/…` and registered without touching the document. A
+manifest may also name a script, pinned by sha256 and fetched
 per device, never synced; that code runs in a fifth trust zone, a hidden
 `<iframe sandbox="allow-scripts">` on an opaque origin whose page carries its
 own policy (`packages/ui-web/public/addon-sandbox.html`: its runtime, add-on

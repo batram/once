@@ -121,6 +121,14 @@ const bridge: ElectronBridge = {
     applySettings: (settings) =>
       ipcRenderer.invoke(ELECTRON_IPC.extensionsApplySettings, settings)
   },
+  addons: {
+    devEntries: () => ipcRenderer.invoke(ELECTRON_IPC.addonsDevList),
+    onDevChanged(handler: () => void) {
+      const listener = () => handler()
+      ipcRenderer.on(ELECTRON_IPC.addonsDevChanged, listener)
+      return () => ipcRenderer.removeListener(ELECTRON_IPC.addonsDevChanged, listener)
+    }
+  },
   window: {
     setFullscreen: (fullscreen) =>
       ipcRenderer.invoke(ELECTRON_IPC.windowSetFullscreen, fullscreen),

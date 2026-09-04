@@ -168,6 +168,12 @@ npm run test:electron
 npm run test:electron:e2e
 ```
 
+An unpackaged Electron build reads two PATH-style directory lists:
+`ONCE_ELECTRON_EXTENSIONS` for unpacked WebExtensions and `ONCE_ADDONS` for
+Once add-on packages under development (`once-addon.json` beside its script;
+see [Add-ons](ADDONS.md)). Add-ons from `ONCE_ADDONS` reload when a file in
+their directory changes. Packaged builds ignore both variables.
+
 ## Capacitor mobile apps
 
 The committed native projects live below `apps/mobile/android` and

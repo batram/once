@@ -11,6 +11,7 @@ import {
   addonContributionId,
   grantedFetchPatterns,
   projectStoryView,
+  readAddonManifest,
   renderAddonTemplate,
   storyMatchesCondition,
   validateConfig
@@ -29,9 +30,17 @@ import { AddonSandbox } from "./AddonSandbox"
 import { registerAddonCollector } from "./addonCollectors"
 import { BadgeScheduler } from "./badgeScheduler"
 
+/** Development add-ons as the host read them from disk: manifest plus code. */
+export interface DevAddonSource {
+  list(): Promise<{ directory: string; manifest: unknown; code: string | null; error?: string }[]>
+  onChanged(listener: () => void): () => void
+}
+
 export interface MountAddonsOptions {
   /** The platform's sandbox page; absent means scripted add-ons stay off here. */
   sandboxUrl?: string
+  /** Development add-ons, registered beside the document's and never stored. */
+  devAddons?: DevAddonSource
 }
 
 /**
@@ -54,6 +63,16 @@ export function mountAddons(client: OnceClient, options: MountAddonsOptions = {}
       release.push(...await registerManifest(client, entry, options))
       collectorsNow ||= entry.manifest.collectors.length > 0 && entry.manifest.script !== undefined
     }
+    for (const dev of await options.devAddons?.list() ?? []) {
+      const read = dev.error ? null : readAddonManifest(dev.manifest)
+      if (!read || !read.ok) {
+        const why = dev.error ?? (read ? read.reports.map((r) => `${r.path} ${r.message}`).join("; ") : "")
+        report(`Development add-on in ${dev.directory} was not loaded`, why)
+        continue
+      }
+      release.push(...await registerManifest(client, { enabled: true, manifest: read.manifest }, options, dev.code))
+      collectorsNow ||= read.manifest.collectors.length > 0 && dev.code !== null
+    }
     renderAddonOptions(client, doc.addons)
     refreshStoryElements()
     // Sources naming an add-on collector resolve against the registry at
@@ -67,6 +86,9 @@ export function mountAddons(client: OnceClient, options: MountAddonsOptions = {}
   void apply().catch((error) => report("Add-ons could not be loaded", error))
   client.subscribe("settingsChanged", ({ section }) => {
     if (section === "addons") void apply().catch((error) => report("Add-ons could not be reloaded", error))
+  })
+  options.devAddons?.onChanged(() => {
+    void apply().catch((error) => report("Development add-ons could not be reloaded", error))
   })
 }
 
@@ -91,11 +113,12 @@ function rowFor(href: string): StoryListItem | undefined {
 async function registerManifest(
   client: OnceClient,
   entry: AddonEntry,
-  options: MountAddonsOptions
+  options: MountAddonsOptions,
+  devCode: string | null = null
 ): Promise<(() => void)[]> {
   const { manifest } = entry
   const releases: (() => void)[] = []
-  const sandbox = await sandboxFor(client, entry, options)
+  const sandbox = await sandboxFor(client, entry, options, devCode)
   if (sandbox) releases.push(() => sandbox.dispose())
   const scheduler = sandbox ? new BadgeScheduler(sandbox, viewOf) : null
   if (sandbox) {
@@ -156,7 +179,8 @@ async function registerManifest(
 async function sandboxFor(
   client: OnceClient,
   entry: AddonEntry,
-  options: MountAddonsOptions
+  options: MountAddonsOptions,
+  devCode: string | null
 ): Promise<AddonSandbox | null> {
   const { manifest } = entry
   if (!manifest.script) return null
@@ -164,7 +188,8 @@ async function sandboxFor(
     report(`Add-on ${manifest.name} needs a script, which this platform cannot run yet`, "no sandbox page")
     return null
   }
-  const code = await loadScript(client, manifest)
+  // A development add-on's code came from disk with the manifest; nothing to fetch.
+  const code = devCode ?? await loadScript(client, manifest)
   if (code === null) return null
   const settings = manifest.settings
     ? validateConfig(manifest.settings, entry.options ?? {}) as Record<string, unknown>

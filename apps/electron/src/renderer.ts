@@ -1,7 +1,7 @@
 import { createOnceApp } from "@once/app"
 import { FilterListsDocument, UserscriptsDocument } from "@once/core"
 import { createElectronPlatform } from "@once/platform-electron"
-import { ElectronRedirectRule } from "@once/platform-electron/bridge"
+import { ElectronRedirectRule, ElectronUpdateStatus } from "@once/platform-electron/bridge"
 import {
   bindMenuCollapseControls,
   HoverUrlIndicator,
@@ -19,6 +19,20 @@ import "./electron.css"
 // Served by main from the Forge output: a sandboxed frame has an opaque origin
 // and may not load file: subresources, so the add-on sandbox page needs a scheme.
 const ADDON_SANDBOX_URL = "once-addon://sandbox/index.html"
+
+// Main reads ONCE_ADDONS directories (unpackaged builds only) and tells the
+// renderer when a file in one changes.
+const DEV_ADDONS = {
+  list: () => window.onceElectron.addons.devEntries(),
+  onChanged: (listener: () => void) => window.onceElectron.addons.onDevChanged(listener)
+}
+
+const UPDATER = {
+  getStatus: () => window.onceElectron.app.getUpdateStatus(),
+  checkForUpdates: () => window.onceElectron.app.checkForUpdates(),
+  onStatusChanged: (handler: (status: ElectronUpdateStatus) => void) =>
+    window.onceElectron.app.onUpdateStatusChanged(handler)
+}
 
 document.addEventListener("DOMContentLoaded", async () => {
   const buildInfo = await window.onceElectron.app.getBuildInfo()
@@ -81,15 +95,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   await mountOnceUi(app.client, {
     shell: "electron",
     addonSandboxUrl: ADDON_SANDBOX_URL,
+    devAddons: DEV_ADDONS,
     appVersion: buildInfo.version,
     buildChannel: buildInfo.channel,
     buildIdentifier: buildInfo.buildIdentifier,
-    updater: {
-      getStatus: () => window.onceElectron.app.getUpdateStatus(),
-      checkForUpdates: () => window.onceElectron.app.checkForUpdates(),
-      onStatusChanged: (handler) =>
-        window.onceElectron.app.onUpdateStatusChanged(handler)
-    },
+    updater: UPDATER,
     showHoveredLinks: true,
     initialStoryLoad: new URL(window.location.href).searchParams.has(
       "disableStoryLoading"

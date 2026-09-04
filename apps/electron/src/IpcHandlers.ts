@@ -9,6 +9,7 @@ import {
 import {
   ELECTRON_IPC,
   ElectronBuildInfo,
+  ElectronDevAddon,
   ElectronExtensionSettings,
   ElectronFetchRequest,
   ElectronFetchResponse,
@@ -27,6 +28,8 @@ interface IpcHandlerOptions {
   buildIdentifier: string
   coordinator: BrowserCoordinator
   extensions: ExtensionRuntime
+  /** `ONCE_ADDONS` directories as main reads them; empty when packaged. */
+  devAddons: () => ElectronDevAddon[]
   getUpdateStatus: () => ElectronUpdateStatus
   setUpdateStatus: (status: ElectronUpdateStatus) => void
   updatesStarted: () => boolean
@@ -318,6 +321,10 @@ export function registerIpcHandlers(
 ): void {
   registerAppHandlers(options)
   registerExtensionHandlers(options)
+  ipcMain.handle(ELECTRON_IPC.addonsDevList, (event) => {
+    trusted(event, options.coordinator)
+    return options.devAddons()
+  })
   registerSettingsHandlers(settings, options.coordinator)
   registerTabNavigation(options.coordinator)
   registerTabLifecycle(options.coordinator)

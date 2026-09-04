@@ -238,6 +238,15 @@ Rules the host enforces, not the script:
 - **Code cache**: a script is fetched once per device and kept under its
   hash. A synced entry whose script cannot be fetched here is reported as
   installed elsewhere and stays off until it can be.
+- **Developing one**: an unpackaged Electron build (`npm start`) reads
+  `ONCE_ADDONS`, a PATH-style list of package directories, each holding
+  `once-addon.json` beside its script. Write `"script": "main.js"` (a plain
+  file name; the object form with a URL still works) and Once pins the hash
+  itself, serves the file as `once-addon://dev/<n>/main.js`, registers the
+  add-on beside the synced ones without writing it to the document, and
+  reloads it when a file in the directory changes. A manifest problem is
+  reported in the loader insights with the directory named. Packaged builds
+  ignore the variable, like `ONCE_ELECTRON_EXTENSIONS`.
 - **Platforms**: declarative add-ons run everywhere. Scripted add-ons run on
   Electron, mobile, and Chrome (the sandbox page is a manifest `sandbox`
   page of the extension). Firefox cannot run third-party code under an

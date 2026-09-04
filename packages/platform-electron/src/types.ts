@@ -167,6 +167,12 @@ export interface ElectronBridge {
     /** Hands the synced documents to the extensions that act on them. */
     applySettings(settings: ElectronExtensionSettings): Promise<void>
   }
+  addons: {
+    /** Development add-ons from `ONCE_ADDONS` directories; empty in packaged builds. */
+    devEntries(): Promise<ElectronDevAddon[]>
+    /** Fires when a file in one of those directories changes. */
+    onDevChanged(handler: () => void): () => void
+  }
   window: {
     setFullscreen(fullscreen: boolean): Promise<void>
     create(): Promise<void>
@@ -234,8 +240,18 @@ export const ELECTRON_IPC = {
   extensionsList: "once:extensions:list",
   extensionsOpenPopup: "once:extensions:open-popup",
   extensionsChanged: "once:extensions:changed",
-  extensionsApplySettings: "once:extensions:apply-settings"
+  extensionsApplySettings: "once:extensions:apply-settings",
+  addonsDevList: "once:addons:dev-list",
+  addonsDevChanged: "once:addons:dev-changed"
 } as const
+
+/** One `ONCE_ADDONS` directory as main read it; the renderer validates the manifest. */
+export interface ElectronDevAddon {
+  directory: string
+  manifest: unknown
+  code: string | null
+  error?: string
+}
 
 declare global {
   interface Window {

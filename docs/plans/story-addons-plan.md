@@ -51,9 +51,11 @@ hash in the local cache store and read from there first, so a synced entry
 runs offline once fetched here and is reported as installed elsewhere until
 then, and "Check for updates" refetches every URL-installed manifest and
 replaces entries whose version moved, keeping the user's enabled flag.
-`ONCE_ADDONS` for unpackaged Electron builds is not built: it needs the
-renderer to accept a non-http script URL served by main, which is a small
-but separate change.
+`ONCE_ADDONS` followed on 2026-09-04: main reads each directory's
+`once-addon.json`, pins the script by hash, and serves it as
+`once-addon://dev/<n>/<file>`; the renderer registers those entries beside
+the synced ones, never writes them to the document, and reloads on file
+changes. Packaged builds ignore the variable.
 
 Step 8 is done: `capabilities` carries `fetch:<match pattern>` grants and
 `once.fetch` goes through the host and the platform's fetch, refused outside
@@ -68,9 +70,9 @@ changes a computed badge.
 Step 9 is done: [ADDONS.md](../ADDONS.md) is the author reference, with the
 e2e fixtures as worked examples; ARCHITECTURE.md, CODEMAP.md, and
 COLLECTORS.md carry the add-on sections. The Chrome and Firefox serving paths and the
-Android emulator run followed on 2026-09-04. Open from the original list: an
-iOS device run, the schema-driven configuration form in the source editor,
-`ONCE_ADDONS`, a Once-hosted default for Firefox's sandbox page, and a
+Android emulator run followed on 2026-09-04, as did `ONCE_ADDONS`. Open from
+the original list: an iOS device run, the schema-driven configuration form in
+the source editor, a Once-hosted default for Firefox's sandbox page, and a
 curated index.
 
 ## Decision
