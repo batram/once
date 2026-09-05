@@ -1,0 +1,15 @@
+{
+  "protocol": 1,
+  "id": "story-length",
+  "name": "Story length",
+  "version": "1.0.0",
+  "script": "main.js",
+  "settings": {
+    "type": "object",
+    "properties": { "suffix": { "type": "string", "default": "characters" } }
+  },
+  "contributions": [
+    { "kind": "badge", "id": "length", "compute": "length" },
+    { "kind": "action", "id": "copy-title", "label": "Copy title", "run": { "message": "copy-title" } }
+  ]
+}

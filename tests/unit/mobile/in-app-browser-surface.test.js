@@ -178,7 +178,7 @@ test("Android hands synced settings to its trusted Gecko bridge", () => {
 
   assert.match(android, /public void applyExtensionSettings\(PluginCall call\)/)
   assert.match(android, /settingsPort\.postMessage\(message\)/)
-  assert.deepEqual(manifest.background.scripts, ["background.js"])
+  assert.deepEqual(manifest.background.scripts, ["filterRules.js", "background.js"])
   assert.ok(manifest.permissions.includes("webRequestBlocking"))
   assert.match(background, /browser\.webRequest\.onBeforeRequest\.addListener/)
   assert.match(background, /browser\.contentScripts\.register/)

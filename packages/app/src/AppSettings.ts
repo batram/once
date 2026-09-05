@@ -73,6 +73,7 @@ export interface AppSettingsActions {
 }
 
 export class AppSettings {
+  private addonWrites: Promise<void> = Promise.resolve()
   private readonly pendingWrites = new Map<string, string>()
   private sourcesState: "pending" | "resolved" = "pending"
   private sourcesDocument?: StorySourceDocument
@@ -166,8 +167,19 @@ export class AppSettings {
   }
 
   async saveAddons(document: AddonsDocument): Promise<void> {
-    await this.setList(ADDONS_DOCUMENT_ID, readAddonsDocument(document))
-    this.actions.publishChanged("addons")
+    await this.updateAddons(() => document)
+  }
+
+  updateAddons(change: (document: AddonsDocument) => AddonsDocument): Promise<void> {
+    const work = this.addonWrites.then(async () => {
+      const previous = await this.getAddons()
+      const next = readAddonsDocument(change(previous))
+      if (JSON.stringify(previous) === JSON.stringify(next)) return
+      await this.setList(ADDONS_DOCUMENT_ID, next)
+      this.actions.publishChanged("addons")
+    })
+    this.addonWrites = work.catch(() => undefined)
+    return work
   }
 
   async getSyncUrl(): Promise<string> {

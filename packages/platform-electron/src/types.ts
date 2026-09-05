@@ -92,6 +92,7 @@ export interface ElectronAdoptedExtensionSettings {
 
 /** One loaded extension as the toolbar shows it. */
 export interface ElectronExtensionInfo {
+  settingsStatus?: { state: "applying" | "applied" | "failed"; error?: string }
   /** Opaque, stable per extension; what the popup call names. */
   host: string
   name: string

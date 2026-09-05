@@ -1,0 +1,11 @@
+[
+  { "name": "plain network block", "list": "||ads.test^", "url": "https://ads.test/banner", "blocked": true, "skipped": 0 },
+  { "name": "plain exception", "list": "||ads.test^\n@@||ads.test/allowed", "url": "https://ads.test/allowed", "blocked": false, "skipped": 0 },
+  { "name": "resource restriction is not discarded", "list": "||ads.test^$script", "url": "https://ads.test/picture", "blocked": false, "skipped": 1 },
+  { "name": "domain restriction is not discarded", "list": "||ads.test^$domain=news.test", "url": "https://ads.test/banner", "blocked": false, "skipped": 1 },
+  { "name": "unsupported exception withholds affected blocking", "list": "||ads.test^\n@@||ads.test^$image", "url": "https://ads.test/banner", "blocked": false, "skipped": 1 },
+  { "name": "badfilter cannot leave disabled rule active", "list": "||ads.test^\n||ads.test^$badfilter", "url": "https://ads.test/banner", "blocked": false, "skipped": 1 },
+  { "name": "domain exclusions do not become global cosmetics", "list": "~news.test##.advert", "url": "https://news.test/", "blocked": false, "skipped": 1, "selectors": [] },
+  { "name": "simple cosmetic", "list": "##.advert", "url": "https://news.test/", "blocked": false, "skipped": 0, "selectors": [".advert"] },
+  { "name": "cosmetic exception withholds cosmetics", "list": "##.advert\nnews.test#@#.advert", "url": "https://news.test/", "blocked": false, "skipped": 1, "selectors": [] }
+]

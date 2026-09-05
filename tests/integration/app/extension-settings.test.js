@@ -10,6 +10,18 @@ const SCRIPT = `// ==UserScript==
 // ==/UserScript==
 probe()`
 
+test("concurrent add-on patches read the latest document without losing stored keys", async () => {
+  const app = createOnceApp(createFakePlatform().ports)
+  await app.start()
+  await app.client.saveAddons({ version: 1, addons: [{ enabled: true, manifest: {
+    protocol: 1, id: "demo-addon", name: "Demo", version: "1.0.0", contributions: []
+  } }] })
+  await Promise.all(["one", "two", "three"].map(key => app.client.updateAddons(doc => ({
+    ...doc, addons: doc.addons.map(entry => ({ ...entry, storage: { ...entry.storage, [key]: true } }))
+  }))))
+  assert.deepEqual((await app.client.getAddons()).addons[0].storage, { one: true, two: true, three: true })
+})
+
 test("extension settings start empty, save normalized, and announce every change", async () => {
   const fake = createFakePlatform()
   const app = createOnceApp(fake.ports)

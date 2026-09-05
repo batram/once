@@ -6,6 +6,16 @@ and ownership boundaries.
 
 ## Composition roots
 
+Extension reliability owners: `packages/ui-web/src/addons/AddonReconciler.ts`
+owns per-add-on registration; `AddonSandbox.ts` owns frame lifecycle;
+`addonPackage.ts` verifies install candidates. Settings management lives in
+`settings/addonManagement.ts` and `settings/addonInstallControls.ts`.
+`apps/electron/src/extensions/ExtensionSettingsCoordinator.ts` owns browser
+settings queues and dashboard observation. Android's portable parser is
+`apps/mobile/extensions/once-surface/filterRules.js`. Author types are in
+`packages/core/src/addons/authorApi.ts`, with a local validator in
+`scripts/validate-addon.js` and a starter in `examples/addons/story-length`.
+
 | Target | Composition root | Platform-specific code |
 | --- | --- | --- |
 | Firefox | `packages/webext-shell/src/sidepanel.ts` | `apps/firefox-extension` |

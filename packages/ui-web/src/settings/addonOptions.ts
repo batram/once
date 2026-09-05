@@ -35,12 +35,11 @@ export function renderAddonOptions(client: OnceClient, entries: readonly AddonEn
         values[name] = control.read()
         void trackSettingsSave(control.input, async () => {
           const options = validateConfig(schema, values) as Record<string, unknown>
-          const doc = await client.getAddons()
-          await client.saveAddons({
+          await client.updateAddons((doc) => ({
             ...doc,
             addons: doc.addons.map((candidate) =>
               candidate.manifest.id === entry.manifest.id ? { ...candidate, options } : candidate)
-          })
+          }))
         })
       })
       const field = document.createElement("div")

@@ -15,6 +15,7 @@ export interface SandboxTransport {
   post(message: HostToSandbox): void
   /** Tears the frame down; the session asks for it after a crash. */
   destroy(): void
+  failed?(reason: string): void
 }
 
 export interface SandboxHostOperations {
@@ -47,8 +48,10 @@ export class AddonSandboxSession {
   private readyResolve: (() => void) | null = null
   private readyReject: ((error: Error) => void) | null = null
   private failures = 0
+  private closed = false
+  private loadTimer: ReturnType<typeof setTimeout> | null = null
   /** Stories whose badges this add-on computed; `updateBadge` may name them. */
-  private readonly badgeScope = new Set<string>()
+  private readonly badgeScope = new Map<string, Set<string>>()
 
   constructor(
     readonly addonId: string,
@@ -63,12 +66,15 @@ export class AddonSandboxSession {
   /** Sends the code once the frame is up; resolves when the script reported ready. */
   load(code: string, settings: Readonly<Record<string, unknown>>): Promise<void> {
     if (this.ready) return this.ready
+    this.closed = false
     this.ready = new Promise<void>((resolve, reject) => {
       this.readyResolve = resolve
       this.readyReject = reject
-      const timer = setTimeout(() => this.fail("did not start in time"), SANDBOX_TIMEOUTS.loadMs)
+      this.loadTimer = setTimeout(() => this.fail("did not start in time"), SANDBOX_TIMEOUTS.loadMs)
       this.readyResolve = () => {
-        clearTimeout(timer)
+        if (this.loadTimer) clearTimeout(this.loadTimer)
+        this.loadTimer = null
+        this.readyReject = null
         resolve()
       }
     })
@@ -89,7 +95,9 @@ export class AddonSandboxSession {
   }
 
   async badges(contribution: string, stories: readonly StoryView[]): Promise<string[]> {
-    for (const story of stories) this.badgeScope.add(story.href)
+    const scope = this.badgeScope.get(contribution) ?? new Set<string>()
+    for (const story of stories) scope.add(story.href)
+    this.badgeScope.set(contribution, scope)
     const value = await this.request(
       (requestId) => ({ type: "badges", requestId, contribution, stories }),
       new Set(stories.map((story) => story.href)),
@@ -126,6 +134,7 @@ export class AddonSandboxSession {
 
   /** Every message from the frame lands here, already known to be from it. */
   receive(data: unknown): void {
+    if (this.closed) return
     const message = readSandboxMessage(data)
     if (!message) return
     switch (message.type) {
@@ -153,6 +162,15 @@ export class AddonSandboxSession {
   }
 
   dispose(): void {
+    if (this.closed) return
+    this.closed = true
+    if (this.loadTimer) clearTimeout(this.loadTimer)
+    this.loadTimer = null
+    this.readyReject?.(new Error("Add-on sandbox closed"))
+    this.readyReject = null
+    this.readyResolve = null
+    this.ready = null
+    this.badgeScope.clear()
     for (const [id, entry] of this.pending) {
       clearTimeout(entry.timer)
       entry.reject(new Error("Add-on sandbox closed"))
@@ -167,6 +185,7 @@ export class AddonSandboxSession {
     timeoutMs: number
   ): Promise<unknown> {
     if (this.disabled) return Promise.reject(new Error(`Add-on ${this.addonId} is switched off after repeated failures`))
+    if (this.closed) return Promise.reject(new Error("Add-on sandbox closed"))
     const requestId = this.nextRequest++
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -189,7 +208,7 @@ export class AddonSandboxSession {
     const { op, opId } = message
     const inScope = UNSCOPED_OPERATIONS.has(op.name) ||
       (op.name === "updateBadge"
-        ? this.badgeScope.has(op.href)
+        ? this.badgeScope.get(op.contribution)?.has(op.href) === true
         : message.requestId !== undefined && this.pending.get(message.requestId)?.scope.has(op.href) === true)
     if (!inScope) {
       this.host.report(`Add-on ${this.addonId} tried ${op.name} on a story it was not asked about`)
@@ -197,19 +216,23 @@ export class AddonSandboxSession {
       return
     }
     void Promise.resolve()
-      .then(() => this.host.perform(op))
+      .then(() => {
+        if (this.closed) throw new Error("Add-on sandbox closed")
+        return this.host.perform(op)
+      })
       .then((value) => {
-        if (opId !== undefined) this.transport.post({ type: "opResult", opId, ok: true, value })
+        if (!this.closed && opId !== undefined) this.transport.post({ type: "opResult", opId, ok: true, value })
       })
       .catch((error) => {
         const text = error instanceof Error ? error.message : String(error)
         this.host.report(`Add-on ${this.addonId} ${op.name} failed: ${text}`)
-        if (opId !== undefined) this.transport.post({ type: "opResult", opId, ok: false, error: text })
+        if (!this.closed && opId !== undefined) this.transport.post({ type: "opResult", opId, ok: false, error: text })
       })
   }
 
   /** A crash or a broken start: count it, close the frame, fail what waits. */
   private fail(reason: string): void {
+    if (this.closed) return
     this.failures += 1
     this.host.report(`Add-on ${this.addonId} ${reason}`)
     this.readyReject?.(new Error(reason))
@@ -217,5 +240,6 @@ export class AddonSandboxSession {
     this.readyReject = null
     this.ready = null
     this.dispose()
+    this.transport.failed?.(reason)
   }
 }

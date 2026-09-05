@@ -29,6 +29,9 @@ import { addCollectorColorStyles } from "../collectorStyles"
 import { AddonSandbox } from "./AddonSandbox"
 import { registerAddonCollector } from "./addonCollectors"
 import { BadgeScheduler } from "./badgeScheduler"
+import { AddonCandidate, AddonReconciler, AddonRegistration } from "./AddonReconciler"
+import { setAddonRetry, setAddonStatus } from "./addonStatus"
+import { configureAddonPackages, verifiedAddonScript } from "./addonPackage"
 
 /** Development add-ons as the host read them from disk: manifest plus code. */
 export interface DevAddonSource {
@@ -52,17 +55,22 @@ export interface MountAddonsOptions {
  * computed badges.
  */
 export function mountAddons(client: OnceClient, options: MountAddonsOptions = {}): void {
-  const release: (() => void)[] = []
-  let collectorsSeen = false
-  const apply = async (): Promise<void> => {
-    for (const fn of release.splice(0)) fn()
-    const doc = await client.getAddons()
-    let collectorsNow = false
-    for (const entry of doc.addons) {
-      if (!entry.enabled) continue
-      release.push(...await registerManifest(client, entry, options))
-      collectorsNow ||= entry.manifest.collectors.length > 0 && entry.manifest.script !== undefined
+  configureAddonPackages(options.sandboxUrl)
+  let forms = ""
+  let refreshing: Promise<void> = Promise.resolve()
+  const reconciler = new AddonReconciler(
+    ({ entry, code }) => registerManifest(client, entry, options, code ?? null),
+    (collectors) => {
+      refreshStoryElements()
+      if (collectors) {
+        addCollectorColorStyles()
+        void client.reloadStories("cache-first")
+      }
     }
+  )
+  const apply = async (): Promise<void> => {
+    const doc = await client.getAddons()
+    const candidates: AddonCandidate[] = doc.addons.map((entry) => ({ entry }))
     for (const dev of await options.devAddons?.list() ?? []) {
       const read = dev.error ? null : readAddonManifest(dev.manifest)
       if (!read || !read.ok) {
@@ -70,25 +78,31 @@ export function mountAddons(client: OnceClient, options: MountAddonsOptions = {}
         report(`Development add-on in ${dev.directory} was not loaded`, why)
         continue
       }
-      release.push(...await registerManifest(client, { enabled: true, manifest: read.manifest }, options, dev.code))
-      collectorsNow ||= read.manifest.collectors.length > 0 && dev.code !== null
+      if (candidates.some(({ entry }) => entry.manifest.id === read.manifest.id)) {
+        report(`Development add-on ${read.manifest.id} duplicates an installed add-on`, dev.directory)
+        continue
+      }
+      candidates.push({ entry: { enabled: true, manifest: read.manifest }, code: dev.code })
     }
-    renderAddonOptions(client, doc.addons)
-    refreshStoryElements()
-    // Sources naming an add-on collector resolve against the registry at
-    // load time, so a change in the set is a reason to load again.
-    if (collectorsNow || collectorsSeen) {
-      addCollectorColorStyles()
-      void client.reloadStories("cache-first")
+    await reconciler.apply(candidates)
+    const nextForms = JSON.stringify(doc.addons.map(({ manifest, options, enabled }) => ({ manifest, options, enabled })))
+    if (forms !== nextForms) {
+      forms = nextForms
+      renderAddonOptions(client, doc.addons)
     }
-    collectorsSeen = collectorsNow
   }
-  void apply().catch((error) => report("Add-ons could not be loaded", error))
+  const refresh = (): void => {
+    refreshing = refreshing.then(apply).catch((error) => report("Add-ons could not be loaded", error))
+  }
+  setAddonRetry((id) => {
+    void reconciler.retry(id).then(refresh).catch(error => report("Add-on could not be retried", error))
+  })
+  refresh()
   client.subscribe("settingsChanged", ({ section }) => {
-    if (section === "addons") void apply().catch((error) => report("Add-ons could not be reloaded", error))
+    if (section === "addons") refresh()
   })
   options.devAddons?.onChanged(() => {
-    void apply().catch((error) => report("Development add-ons could not be reloaded", error))
+    refresh()
   })
 }
 
@@ -115,12 +129,12 @@ async function registerManifest(
   entry: AddonEntry,
   options: MountAddonsOptions,
   devCode: string | null = null
-): Promise<(() => void)[]> {
+): Promise<AddonRegistration> {
   const { manifest } = entry
   const releases: (() => void)[] = []
   const sandbox = await sandboxFor(client, entry, options, devCode)
   if (sandbox) releases.push(() => sandbox.dispose())
-  const scheduler = sandbox ? new BadgeScheduler(sandbox, viewOf) : null
+  const scheduler = sandbox ? new BadgeScheduler(manifest.id, sandbox, viewOf) : null
   if (sandbox) {
     for (const collector of manifest.collectors) {
       try {
@@ -172,7 +186,10 @@ async function registerManifest(
       releases.push(registerStoryElement(textElement(id, contribution)))
     }
   }
-  return releases
+  return {
+    dispose: () => { for (const release of releases) release() },
+    updateOptions: (next) => { entry.options = next.options; sandbox?.updateSettings() }
+  }
 }
 
 /** The add-on's sandbox, with its code fetched and checked; null when it has none or cannot run here. */
@@ -183,22 +200,23 @@ async function sandboxFor(
   devCode: string | null
 ): Promise<AddonSandbox | null> {
   const { manifest } = entry
-  if (!manifest.script) return null
+  if (!manifest.script) { setAddonStatus(manifest.id, "declarative"); return null }
   if (!options.sandboxUrl) {
     report(`Add-on ${manifest.name} needs a script, which this platform cannot run yet`, "no sandbox page")
+    setAddonStatus(manifest.id, "unavailable", "Configure this platform's sandbox to run scripts")
     return null
   }
   // A development add-on's code came from disk with the manifest; nothing to fetch.
   const code = devCode ?? await loadScript(client, manifest)
-  if (code === null) return null
-  const settings = manifest.settings
-    ? validateConfig(manifest.settings, entry.options ?? {}) as Record<string, unknown>
-    : {}
+  if (code === null) { setAddonStatus(manifest.id, "unavailable", "Script could not be loaded; retry when online"); return null }
+  const settings = () => manifest.settings
+    ? validateConfig(manifest.settings, entry.options ?? {}) as Record<string, unknown> : {}
   const grants = grantedFetchPatterns(manifest)
-  return new AddonSandbox(manifest.id, options.sandboxUrl, code, () => settings, {
+  setAddonStatus(manifest.id, "idle")
+  return new AddonSandbox(manifest.id, options.sandboxUrl, code, settings, {
     perform: (op) => performOperation(client, manifest, grants, op),
     report: (message) => LoaderInsights.showErrorMessage(message, "")
-  })
+  }, (state, error) => setAddonStatus(manifest.id, state, error))
 }
 
 /** Toolbar buttons for the panel actions; each opens its URL or asks the script. */
@@ -234,18 +252,23 @@ async function storageOperation(
   manifest: AddonManifest,
   op: Extract<SandboxOperation, { name: "storage.get" | "storage.set" }>
 ): Promise<unknown> {
-  const doc = await client.getAddons()
-  const entry = doc.addons.find((candidate) => candidate.manifest.id === manifest.id)
-  if (!entry) throw new Error("the add-on is no longer installed")
-  if (op.name === "storage.get") return entry.storage?.[op.key]
-  const storage: Record<string, unknown> = Object.fromEntries(
-    Object.entries(entry.storage ?? {}).filter(([key]) => key !== op.key)
-  )
-  if (op.value !== undefined) storage[op.key] = op.value
-  if (JSON.stringify(storage).length > SANDBOX_LIMITS.storageBytes) throw new Error("the add-on's storage is full")
-  await client.saveAddons({
-    ...doc,
-    addons: doc.addons.map((candidate) => (candidate === entry ? { ...candidate, storage } : candidate))
+  if (op.name === "storage.get") {
+    const entry = (await client.getAddons()).addons.find((candidate) => candidate.manifest.id === manifest.id)
+    if (!entry) throw new Error("the add-on is no longer installed")
+    return entry.storage?.[op.key]
+  }
+  await client.updateAddons((doc) => {
+    const entry = doc.addons.find((candidate) => candidate.manifest.id === manifest.id)
+    if (!entry || !entry.enabled) throw new Error("the add-on is no longer enabled")
+    const storage: Record<string, unknown> = Object.fromEntries(
+      Object.entries(entry.storage ?? {}).filter(([key]) => key !== op.key)
+    )
+    if (op.value !== undefined) storage[op.key] = op.value
+    if (JSON.stringify(storage).length > SANDBOX_LIMITS.storageBytes) throw new Error("the add-on's storage is full")
+    return {
+      ...doc,
+      addons: doc.addons.map((candidate) => (candidate === entry ? { ...candidate, storage } : candidate))
+    }
   })
   return undefined
 }
@@ -257,18 +280,8 @@ async function storageOperation(
  * stays off on this device until it can be.
  */
 async function loadScript(client: OnceClient, manifest: AddonManifest): Promise<string | null> {
-  const script = manifest.script
-  if (!script) return null
-  const cached = await client.getAddonScript(script.integrity).catch(() => null)
-  if (cached !== null) return cached
   try {
-    const code = await client.fetchText(script.url)
-    if (code.length > SANDBOX_LIMITS.code) throw new Error("the script is too large")
-    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(code))
-    const integrity = `sha256-${btoa(String.fromCharCode(...new Uint8Array(digest)))}`
-    if (integrity !== script.integrity) throw new Error(`integrity mismatch: got ${integrity}`)
-    await client.storeAddonScript(script.integrity, code).catch(() => undefined)
-    return code
+    return await verifiedAddonScript(client, manifest)
   } catch (error) {
     report(`Add-on ${manifest.name} is installed but unavailable here: its script could not be loaded`, error)
     return null
@@ -384,7 +397,7 @@ async function performOperation(
       if (row) addTag(row, op.tag)
       return
     case "updateBadge":
-      BadgeScheduler.show(row, op.contribution, op.text)
+      BadgeScheduler.show(row, manifest.id, op.contribution, op.text)
       return
   }
   return undefined

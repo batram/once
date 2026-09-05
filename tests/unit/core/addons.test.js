@@ -287,6 +287,20 @@ test("capabilities, settings schemas, panel actions, options, and storage valida
   assert.equal(readSandboxMessage({ type: "op", op: { name: "storage.set", key: "bad key!", value: 1 } }), null)
 })
 
+test("updating an add-on preserves storage and validates existing user options", () => {
+  const { upsertAddon } = require("../../../packages/core/dist/addons")
+  const schema = { type: "object", properties: { suffix: { type: "string" } } }
+  const old = { enabled: false, manifest: { ...manifest(), settings: schema }, options: { suffix: "!" }, storage: { count: 7 } }
+  const fresh = { enabled: true, manifest: { ...old.manifest, version: "2.0.0" } }
+  const updated = upsertAddon({ version: 1, addons: [old] }, fresh).addons[0]
+  assert.deepEqual(updated.options, old.options)
+  assert.deepEqual(updated.storage, old.storage)
+  assert.equal(updated.enabled, false)
+  assert.throws(() => upsertAddon({ version: 1, addons: [old] }, {
+    ...fresh, manifest: { ...fresh.manifest, settings: { type: "object", properties: { suffix: { type: "number" } } } }
+  }))
+})
+
 test("defaults fill in: action group navigation, surfaces button and menu", () => {
   const read = readAddonManifest({
     ...manifest(),

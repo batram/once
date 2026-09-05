@@ -227,16 +227,28 @@ Rules the host enforces, not the script:
   whose badge the add-on computed). Anything else is refused and logged.
 - Requests time out: 3 s for an invocation, 5 s for a badge batch, 20 s for
   a collector parse, 15 s for a search.
-- Three crashes or failed starts switch the add-on off until settings change.
+- Three crashes or failed starts switch the add-on off on this device until
+  Retry, an options change, or a changed manifest. Storage writes do not reset
+  the failure count. Startup includes a deadline for loading the sandbox page.
 - Answers are validated: badge texts are clipped to 60 characters, stories
   are checked as described above.
 
 ## Installing, updating, and where things run
 
 - **Install from URL**: Settings › Add-ons › paste the URL of
-  `once-addon.json` › Install. The entry remembers the URL; **Check for
-  updates** refetches every such manifest and replaces entries whose version
-  changed, keeping your enabled flag.
+  `once-addon.json` › Install › review its name, version and network access ›
+  Confirm install. Code is hash-checked and, where a sandbox is available,
+  trial-activated before the installed document changes. Trial storage writes
+  are discarded. The entry remembers the URL. **Check for updates** shows
+  candidates without installing them; **Apply update** verifies each candidate.
+  Updates preserve enabled state and storage, and validate existing options
+  against the replacement schema. An incompatible schema or failed package
+  verification leaves the installed version intact.
+- **Manage installed add-ons**: each entry shows its version and device status,
+  with Enable/Disable, Remove and (for enabled scripts) Retry controls. Runtime
+  status is local; installation, enabled state, options and storage are synced.
+  Storage changes keep the sandbox alive. Options changes use `once.onSettings`
+  and refresh computed badges; only definition changes rebuild registrations.
 - **Paste**: the editor holds the whole document as a JSON list of
   manifests; add `"enabled": false` to switch one off. `options` and
   `storage` on an entry are yours and the script's respectively.
@@ -263,6 +275,15 @@ Rules the host enforces, not the script:
   reports scripted add-ons as unavailable and runs declarative ones only.
 
 ## Worked examples
+
+Start with [Story length](../examples/addons/story-length/README.md), a small
+package with typed script hints. `node scripts/validate-addon.js <directory>`
+validates a local package and its pinned script without executing code or
+accessing the network. The [editor schema](addon-manifest.schema.json) supplies
+completion hints; the validator remains authoritative for semantic checks.
+Authors can import `OnceAddonApi` from `@once/core` as a TypeScript type or a
+JSDoc annotation. Keep the supplied story object across asynchronous work:
+it carries the original invocation identity, including when handlers overlap.
 
 The repository's e2e fixtures are complete, tested add-ons:
 

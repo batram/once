@@ -3,44 +3,14 @@
 // object, and relays requests and operations. Nothing here may import from
 // the rest of the UI: this file is bundled alone into the sandbox page.
 
-import type { HostToSandbox, SandboxOperation, SandboxToHost, StoryView } from "@once/core"
+import type {
+  HostToSandbox, SandboxOperation, SandboxToHost, StoryView,
+  OnceAddonApi as OnceApi, AddonCollectorHandlers as CollectorHandlers, AddonFetchResult as FetchResult
+} from "@once/core"
 
 type InvokeHandler = (action: string, story: StoryView) => unknown
 type BadgesHandler = (contribution: string, stories: readonly StoryView[]) => unknown
 type SettingsListener = (settings: Readonly<Record<string, unknown>>) => void
-
-/** What an add-on collector implements; `parse` gets the body as the manifest's `collects` says. */
-interface CollectorHandlers {
-  parse(body: string | Record<string, unknown>, context: { url: string; config: unknown }): unknown
-  globalSearch?(needle: string): unknown
-  domainSearch?(needle: string): unknown
-}
-
-interface FetchResult {
-  status: number
-  text: string
-}
-
-interface OnceApi {
-  readonly settings: Readonly<Record<string, unknown>>
-  readonly collectors: { register(id: string, handlers: CollectorHandlers): void }
-  /** Per-add-on storage in the synced document; small values only. */
-  readonly storage: { get(key: string): Promise<unknown>; set(key: string, value: unknown): Promise<void> }
-  /** GET through the host, for URLs the manifest's `fetch:` grants cover. */
-  fetch(url: string): Promise<FetchResult>
-  onInvoke(handler: InvokeHandler): void
-  onPanel(handler: (action: string) => unknown): void
-  onBadges(handler: BadgesHandler): void
-  onSettings(handler: SettingsListener): void
-  openUrl(story: StoryView, url: string, target?: "_self" | "blank" | "middle"): void
-  copyText(story: StoryView, text: string): void
-  search(story: StoryView, query: string): void
-  notify(story: StoryView, text: string): void
-  setReadState(story: StoryView, state: "unread" | "read" | "skipped"): void
-  toggleBookmark(story: StoryView): void
-  addTag(story: StoryView, tag: string): void
-  updateBadge(story: StoryView, contribution: string, text: string): void
-}
 
 /** Everything the add-on registered, and the request currently being answered. */
 class RuntimeState {
@@ -51,7 +21,7 @@ class RuntimeState {
   readonly collectors = new Map<string, CollectorHandlers>()
   readonly settingsListeners: SettingsListener[] = []
   readonly awaitingOps = new Map<number, { resolve(value: unknown): void; reject(error: Error): void }>()
-  currentRequest: number | undefined
+  readonly storyRequests = new WeakMap<StoryView, number>()
   nextOp = 1
 }
 
@@ -60,12 +30,12 @@ function describe(error: unknown): string {
 }
 
 function createApi(state: RuntimeState, post: (message: SandboxToHost) => void): OnceApi {
-  const op = (operation: SandboxOperation): void =>
-    post({ type: "op", requestId: state.currentRequest, op: operation })
+  const op = (story: StoryView, operation: SandboxOperation): void =>
+    post({ type: "op", requestId: state.storyRequests.get(story), op: operation })
   const ask = (operation: SandboxOperation): Promise<unknown> => new Promise((resolve, reject) => {
     const opId = state.nextOp++
     state.awaitingOps.set(opId, { resolve, reject })
-    post({ type: "op", requestId: state.currentRequest, opId, op: operation })
+    post({ type: "op", opId, op: operation })
   })
   return {
     get settings() {
@@ -86,14 +56,14 @@ function createApi(state: RuntimeState, post: (message: SandboxToHost) => void):
     onPanel: (handler) => { state.panel = handler },
     onBadges: (handler) => { state.badges = handler },
     onSettings: (handler) => { state.settingsListeners.push(handler) },
-    openUrl: (story, url, target) => op({ name: "openUrl", href: story.href, url, target }),
-    copyText: (story, text) => op({ name: "copyText", href: story.href, text }),
-    search: (story, query) => op({ name: "search", href: story.href, query }),
-    notify: (story, text) => op({ name: "notify", href: story.href, text }),
-    setReadState: (story, readState) => op({ name: "setReadState", href: story.href, state: readState }),
-    toggleBookmark: (story) => op({ name: "toggleBookmark", href: story.href }),
-    addTag: (story, tag) => op({ name: "addTag", href: story.href, tag }),
-    updateBadge: (story, contribution, text) => op({ name: "updateBadge", href: story.href, contribution, text })
+    openUrl: (story, url, target) => op(story, { name: "openUrl", href: story.href, url, target }),
+    copyText: (story, text) => op(story, { name: "copyText", href: story.href, text }),
+    search: (story, query) => op(story, { name: "search", href: story.href, query }),
+    notify: (story, text) => op(story, { name: "notify", href: story.href, text }),
+    setReadState: (story, readState) => op(story, { name: "setReadState", href: story.href, state: readState }),
+    toggleBookmark: (story) => op(story, { name: "toggleBookmark", href: story.href }),
+    addTag: (story, tag) => op(story, { name: "addTag", href: story.href, tag }),
+    updateBadge: (story, contribution, text) => op(story, { name: "updateBadge", href: story.href, contribution, text })
   }
 }
 
@@ -164,13 +134,10 @@ export function startSandboxRuntime(scope: Window): void {
   let loaded = false
 
   const answer = async (requestId: number, run: () => unknown): Promise<void> => {
-    state.currentRequest = requestId
     try {
       post({ type: "result", requestId, value: await run() })
     } catch (error) {
       post({ type: "error", requestId, message: describe(error) })
-    } finally {
-      state.currentRequest = undefined
     }
   }
 
@@ -193,6 +160,10 @@ export function startSandboxRuntime(scope: Window): void {
       if (message.ok) waiting.resolve(message.value)
       else waiting.reject(new Error(message.error ?? "refused"))
     } else {
+      if (message.type === "invoke") state.storyRequests.set(message.story, message.requestId)
+      if (message.type === "badges") {
+        for (const story of message.stories) state.storyRequests.set(story, message.requestId)
+      }
       void answer(message.requestId, work(message, state))
     }
   })

@@ -12,7 +12,7 @@
     "webRequest",
     "webRequestBlocking"
   ],
-  "background": { "scripts": ["background.js"] },
+  "background": { "scripts": ["filterRules.js", "background.js"] },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],

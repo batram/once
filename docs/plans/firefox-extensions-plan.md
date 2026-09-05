@@ -1,5 +1,9 @@
 # Plan: Firefox extensions and userscripts in the embedded browsers
 
+Reliability follow-up: [extension-reliability-plan.md](extension-reliability-plan.md)
+records the subsequent settings reconciliation and mobile filtering changes.
+The implementation history below describes the original feature rollout.
+
 Status: complete. Steps 1 to 4 are done. uBlock Origin 1.74.0's Firefox
 build boots on the runtime, downloads and compiles its default lists,
 strict-blocks a navigation to an ad host and shows its own blocked-page in

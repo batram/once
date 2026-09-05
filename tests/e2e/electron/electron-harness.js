@@ -43,7 +43,7 @@ const { ADDON_SCRIPT, addonApiStories, addonPackageManifest } = require("../shar
 // (its manifest pins this exact text by hash, so specs compute the integrity
 // from ADDON_SCRIPT) and a userscript served the way script hosts serve them,
 // which is what makes Violentmonkey open its install page.
-function serveFixtureScript(request, response, origin) {
+function serveFixtureScript(request, response, origin, options = {}) {
   if (request.url === "/addon/main.js") {
     response.writeHead(200, { "content-type": "text/javascript; charset=utf-8" })
     response.end(ADDON_SCRIPT)
@@ -51,7 +51,7 @@ function serveFixtureScript(request, response, origin) {
   }
   if (request.url === "/addon/once-addon.json") {
     response.writeHead(200, { "content-type": "application/json; charset=utf-8" })
-    response.end(JSON.stringify(addonPackageManifest()))
+    response.end(JSON.stringify(options.addonManifest ? options.addonManifest() : addonPackageManifest()))
     return true
   }
   // The feed the fixture add-on's collector reads.
@@ -170,7 +170,7 @@ async function startPageServer(options = {}) {
     if (storyFixture.handleRequest(request, response, origin)) {
       return
     }
-    if (serveFixtureScript(request, response, origin)) {
+    if (serveFixtureScript(request, response, origin, options)) {
       return
     }
     if (request.url === "/redirect") {

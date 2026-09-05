@@ -15,7 +15,8 @@ import {
   ElectronExtensionSettings,
   ElectronRect
 } from "@once/platform-electron/bridge"
-import { AdoptedExtensionSettings, applySettingsToExtension } from "./extensionSettingsApply"
+import { AdoptedExtensionSettings } from "./extensionSettingsApply"
+import { ExtensionSettingsCoordinator } from "./ExtensionSettingsCoordinator"
 import { BundledExtensionSource } from "./bundledExtensions"
 import { ContextEntry, frameContextId } from "./ExtensionContexts"
 import { ApiHandler, createApiHandlers } from "./ExtensionApi"
@@ -130,13 +131,13 @@ export class ExtensionRuntime {
   private readonly ownPages = new OwnPageRequests()
   private readonly tabContents = new Map<number, WebContents>()
   private readonly changed = new Set<() => void>()
-  private readonly adopted = new Set<(settings: AdoptedExtensionSettings) => void>()
   private lastActive = new Map<number, number>()
   private nextWorldId = CONTENT_WORLD_BASE
   private installed = false
-  private settings: ElectronExtensionSettings | null = null
+  private readonly settingsCoordinator: ExtensionSettingsCoordinator
 
   constructor(private readonly options: ExtensionRuntimeOptions) {
+    this.settingsCoordinator = new ExtensionSettingsCoordinator(options.storageRoot, () => this.hosts.values(), () => this.notifyChanged())
     this.router = new WebRequestRouter(options.browserSession, {
       tabIdFor: (webContentsId) =>
         webContentsId !== undefined && this.tabContents.has(webContentsId) ? webContentsId : -1,
@@ -227,6 +228,7 @@ export class ExtensionRuntime {
       lookup: (candidate) => this.hosts.get(candidate)?.extension
     })
     this.hosts.set(extension.host, host)
+    this.settingsCoordinator.watch(host)
     host.action.onChanged(() => this.notifyChanged())
     try {
       await host.start()
@@ -236,7 +238,7 @@ export class ExtensionRuntime {
       throw error
     }
     this.notifyChanged()
-    if (this.settings) await this.applyTo(host, this.settings)
+    await this.settingsCoordinator.applyTo(host)
     return extension
   }
 
@@ -245,39 +247,19 @@ export class ExtensionRuntime {
    * loaded extension that takes them, and to any that loads afterwards.
    */
   async applySettings(settings: ElectronExtensionSettings): Promise<void> {
-    if (!settings || typeof settings !== "object" ||
-      !Array.isArray(settings.filterLists?.lists) || !Array.isArray(settings.userscripts?.scripts)) {
-      throw new Error("Invalid extension settings")
-    }
-    this.settings = settings
-    for (const host of this.hosts.values()) await this.applyTo(host, settings)
-  }
-
-  private async applyTo(host: ExtensionHost, settings: ElectronExtensionSettings): Promise<void> {
-    try {
-      const adopted = await applySettingsToExtension(host, settings, this.options.storageRoot)
-      // A hand-off is a two-way exchange: what the extension's own dashboard
-      // changed comes back here and goes to the shell, which owns the
-      // documents. It travels as an event rather than as this call's result
-      // because an extension that loads later applies with no caller waiting.
-      if (Object.keys(adopted).length > 0) {
-        if (adopted.userscripts) this.settings = { ...settings, ...adopted }
-        for (const listener of this.adopted) listener(adopted)
-      }
-    } catch (error) {
-      console.error(`Settings could not be handed to ${host.extension.name}`, error)
-    }
+    await this.settingsCoordinator.applySettings(settings)
   }
 
   /** Runs when an extension's own dashboard changed one of the documents. */
   onSettingsAdopted(listener: (settings: AdoptedExtensionSettings) => void): void {
-    this.adopted.add(listener)
+    this.settingsCoordinator.onAdopted(listener)
   }
 
   async unload(extensionHost: string): Promise<void> {
     const host = this.hosts.get(extensionHost)
     if (!host) return
     this.hosts.delete(extensionHost)
+    this.settingsCoordinator.forget(host)
     this.popups.get(extensionHost)?.close()
     this.popups.delete(extensionHost)
     for (const [id, owner] of this.contextOwner) {
@@ -305,7 +287,8 @@ export class ExtensionRuntime {
         badgeBackgroundColor: action.badgeBackgroundColor,
         icon: await host.iconDataUrl(),
         enabled: action.enabled,
-        hasPopup: host.popupUrl() !== null
+        hasPopup: host.popupUrl() !== null,
+        settingsStatus: this.settingsCoordinator.status(host)
       })
     }
     return infos

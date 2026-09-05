@@ -57,6 +57,18 @@ function record(id, script, enabled = true) {
   return { id, source: script.source, code: script.source, enabled }
 }
 
+test("a known storage generation allows deletion of the final dashboard script", () => {
+  const script = entry("Last", "run()")
+  const applied = { [script.id]: record(1, script) }
+  const deleted = planUserscripts(document(script), [], applied, hash, true)
+  assert.equal(deleted.adopted, true)
+  assert.deepEqual(deleted.document.scripts, [])
+  assert.deepEqual(deleted.install, [])
+  const reset = planUserscripts(document(script), [], applied, hash, false)
+  assert.equal(reset.adopted, false)
+  assert.deepEqual(reset.install, [script])
+})
+
 test("a settled script is left alone on both sides", () => {
   const script = entry("Probe", "one()")
   const plan = planUserscripts(

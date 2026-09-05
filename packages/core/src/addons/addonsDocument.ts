@@ -84,7 +84,15 @@ function withExtras(entry: AddonEntry, raw: Record<string, unknown>): AddonEntry
 /** Adds or replaces the entry for the manifest's id, keeping the enabled flag of one already there. */
 export function upsertAddon(doc: AddonsDocument, entry: AddonEntry): AddonsDocument {
   const existing = doc.addons.find((candidate) => candidate.manifest.id === entry.manifest.id)
-  const merged: AddonEntry = existing ? { ...entry, enabled: existing.enabled } : entry
+  const merged: AddonEntry = existing ? {
+    ...entry,
+    enabled: existing.enabled,
+    ...(existing.storage ? { storage: existing.storage } : {}),
+    // Reject an incompatible update before replacing the installed entry.
+    ...(entry.manifest.settings ? {
+      options: validateConfig(entry.manifest.settings, existing.options ?? {}) as Record<string, unknown>
+    } : {})
+  } : entry
   return {
     version: doc.version,
     addons: existing

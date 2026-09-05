@@ -71,37 +71,40 @@ enum IOSContentBlockerExporter {
     static func export(_ list: String) throws -> String {
         var rules: [[String: Any]] = []
         var exceptions: [[String: Any]] = []
+        var skipped = 0
+        var unsafeException = false
+        let cosmeticException = list.contains("#@#")
         for raw in list.split(whereSeparator: { $0.isNewline }) {
             var line = String(raw).trimmingCharacters(in: .whitespacesAndNewlines)
             if line.isEmpty || line.hasPrefix("!") || line.hasPrefix("[") { continue }
             let exception = line.hasPrefix("@@")
             if exception { line.removeFirst(2) }
-            if let marker = line.range(of: exception ? "#@#" : "##") {
+            if let marker = line.range(of: "##") {
                 let domains = String(line[..<marker.lowerBound])
                 let selector = String(line[marker.upperBound...])
-                if selector.isEmpty || selector.contains("+js(") || selector.contains(":has-text(") { continue }
-                var trigger: [String: Any] = ["url-filter": ".*"]
-                let included = domains.split(separator: ",").filter { !$0.hasPrefix("~") }.map(String.init)
-                if !included.isEmpty { trigger["if-domain"] = included.map { "*\($0)" } }
-                let action: [String: Any] = exception
-                    ? ["type": "ignore-previous-rules"]
-                    : ["type": "css-display-none", "selector": selector]
-                if exception { exceptions.append(["trigger": trigger, "action": action]) }
-                else { rules.append(["trigger": trigger, "action": action]) }
+                if !domains.isEmpty || selector.isEmpty || selector.contains("+") || selector.contains(":") || cosmeticException {
+                    skipped += 1; continue
+                }
+                let trigger: [String: Any] = ["url-filter": ".*"]
+                let action: [String: Any] = ["type": "css-display-none", "selector": selector]
+                rules.append(["trigger": trigger, "action": action])
                 continue
             }
-            let pieces = line.split(separator: "$", maxSplits: 1, omittingEmptySubsequences: false)
-            let pattern = String(pieces[0])
-            if pattern.isEmpty ||
-               (pattern.count > 1 && pattern.hasPrefix("/") && pattern.hasSuffix("/")) ||
-               pattern.contains("##") { continue }
-            var trigger: [String: Any] = ["url-filter": urlFilter(pattern)]
-            if pieces.count == 2 { applyOptions(String(pieces[1]), to: &trigger) }
+            if line.isEmpty || line.contains("$") || line.contains("#") || line.hasPrefix("/") {
+                skipped += 1
+                if exception || line.contains("$badfilter") { unsafeException = true }
+                continue
+            }
+            let trigger: [String: Any] = ["url-filter": urlFilter(line)]
             let action = ["type": exception ? "ignore-previous-rules" : "block"]
             if exception { exceptions.append(["trigger": trigger, "action": action]) }
             else { rules.append(["trigger": trigger, "action": action]) }
         }
+        if unsafeException {
+            rules.removeAll { ($0["action"] as? [String: Any])?["type"] as? String == "block" }
+        }
         rules.append(contentsOf: exceptions)
+        print("Once filter lists: \(rules.count) supported rules; \(skipped) unsupported rules skipped")
         let data = try JSONSerialization.data(withJSONObject: rules)
         return String(decoding: data, as: UTF8.self)
     }
@@ -111,7 +114,7 @@ enum IOSContentBlockerExporter {
         var prefix = ""
         if value.hasPrefix("||") {
             value.removeFirst(2)
-            prefix = "^[^:]+:(?://)?(?:[^/]+\\.)?"
+            prefix = "^https?://(?:[^/]+\\.)?"
         } else if value.hasPrefix("|") {
             value.removeFirst(); prefix = "^"
         }
@@ -123,28 +126,4 @@ enum IOSContentBlockerExporter {
         return prefix + escaped + (anchored ? "$" : "")
     }
 
-    private static func applyOptions(_ options: String, to trigger: inout [String: Any]) {
-        let resourceMap = [
-            "script": "script", "image": "image", "stylesheet": "style-sheet",
-            "font": "font", "media": "media", "document": "document",
-            "subdocument": "document", "xmlhttprequest": "raw", "websocket": "raw"
-        ]
-        var resources: [String] = []
-        var ifDomains: [String] = []
-        var unlessDomains: [String] = []
-        for option in options.split(separator: ",").map(String.init) {
-            if let mapped = resourceMap[option] { resources.append(mapped) }
-            else if option == "third-party" { trigger["load-type"] = ["third-party"] }
-            else if option == "~third-party" { trigger["load-type"] = ["first-party"] }
-            else if option.hasPrefix("domain=") {
-                for domain in option.dropFirst(7).split(separator: "|").map(String.init) {
-                    if domain.hasPrefix("~") { unlessDomains.append("*" + domain.dropFirst()) }
-                    else { ifDomains.append("*" + domain) }
-                }
-            }
-        }
-        if !resources.isEmpty { trigger["resource-type"] = resources }
-        if !ifDomains.isEmpty { trigger["if-domain"] = ifDomains }
-        if !unlessDomains.isEmpty { trigger["unless-domain"] = unlessDomains }
-    }
 }

@@ -235,6 +235,8 @@ test("an add-on installs from its manifest URL and reports on an update check", 
       input.value = value
     }, `${origin}/addon/once-addon.json`)
     await window.getByTestId("install-addon").evaluate((button) => button.click())
+    await expect(window.getByTestId("confirm-addon")).toBeVisible()
+    await window.getByTestId("confirm-addon").evaluate((button) => button.click())
     const status = window.locator("#addon_install_settings .settings_status")
     await expect(status).toHaveText("Installed Harness Package 2.0.0")
     await expect(window.locator("#addons_area")).toHaveValue(/"source": \{\s*"url": "http/)
@@ -290,10 +292,12 @@ test("capabilities: a panel action fetches within its grant and stores, and opti
     await expect(alpha.locator('.addon_badge[data-addon-badge="len"]')).toHaveText(`len ${title.length}`)
 
     const panelButton = window.locator('#addon_panel_actions .addon_panel_btn[data-story-element="addon:harness-capable/count-feed"]')
+    const originalFrame = await window.locator('iframe[data-addon-sandbox="harness-capable"]').elementHandle()
     await expect(panelButton).toBeVisible()
     await panelButton.click()
     await openSettingsSection(window, "addons", "#addons_area")
     await expect(editor).toHaveValue(/"storage": \{\s*"count": 2\s*\}/, { timeout: 10_000 })
+    expect(await originalFrame.evaluate(frame => frame.isConnected)).toBe(true)
 
     const suffix = window.getByTestId("addon-option-harness-capable-suffix")
     await expect(suffix).toBeVisible()
@@ -302,6 +306,7 @@ test("capabilities: a panel action fetches within its grant and stores, and opti
     await expect(editor).toHaveValue(/"options": \{\s*"suffix": "!"/, { timeout: 10_000 })
     await showAllStories(window)
     await expect(alpha.locator('.addon_badge[data-addon-badge="len"]')).toHaveText(`len ${title.length}!`)
+    expect(await originalFrame.evaluate(frame => frame.isConnected)).toBe(true)
   } finally {
     await closeApp(electronApp, userData)
   }

@@ -156,13 +156,14 @@ export function planUserscripts(
   document: UserscriptsDocument,
   installed: readonly InstalledUserscript[],
   applied: Readonly<Record<string, AppliedUserscript>>,
-  hash: Hash
+  hash: Hash,
+  knownStorage = false
 ): UserscriptPlan {
   const byVmId = new Map(installed.map((script) => [script.id, script]))
   const byKey = new Map(
     installed.map((script) => [userscriptId(script.namespace, script.name), script])
   )
-  const intact = storageIntact(installed, applied)
+  const intact = knownStorage || storageIntact(installed, applied)
   const state: PlanState = {
     scripts: [],
     plan: { install: [], toggle: [], remove: [], keep: {} },

@@ -19,6 +19,9 @@ const WRITE_DELAY_MS = 250
  * IndexedDB, so a single file is the right size for this store.
  */
 export class ExtensionStorage {
+  private readonly listeners = new Set<() => void>()
+  onChanged(listener: () => void): void { this.listeners.add(listener) }
+  private changed(): void { for (const listener of this.listeners) listener() }
   private items: Map<string, unknown> | null = null
   private loading: Promise<Map<string, unknown>> | null = null
   private writeTimer: NodeJS.Timeout | null = null
@@ -71,10 +74,11 @@ export class ExtensionStorage {
     const changes: StorageChanges = {}
     for (const [key, value] of Object.entries(values)) {
       if (value === undefined) continue
+      if (JSON.stringify(items.get(key)) === JSON.stringify(value)) continue
       changes[key] = { oldValue: items.get(key), newValue: value }
       items.set(key, value)
     }
-    this.scheduleWrite()
+    if (Object.keys(changes).length) { this.scheduleWrite(); this.changed() }
     return changes
   }
 
@@ -87,7 +91,7 @@ export class ExtensionStorage {
       changes[key] = { oldValue: items.get(key) }
       items.delete(key)
     }
-    this.scheduleWrite()
+    if (Object.keys(changes).length) { this.scheduleWrite(); this.changed() }
     return changes
   }
 
@@ -96,7 +100,7 @@ export class ExtensionStorage {
     const changes: StorageChanges = {}
     for (const [key, value] of items) changes[key] = { oldValue: value }
     items.clear()
-    this.scheduleWrite()
+    if (Object.keys(changes).length) { this.scheduleWrite(); this.changed() }
     return changes
   }
 

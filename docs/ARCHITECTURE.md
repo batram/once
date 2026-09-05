@@ -292,6 +292,14 @@ never synced; an add-on installed from a URL remembers that URL for update
 checks.
 See [plans/story-addons-plan.md](plans/story-addons-plan.md).
 
+Add-on registrations are reconciled per identity. Storage-only changes preserve
+running frames; options changes use the settings message. The sandbox owner
+retains startup/recovery state across disposable frames, and story objects retain
+their invocation identity across asynchronous work. Package updates are reviewed
+and verified before installation and preserve user storage and compatible options.
+See [EXTENSION_COMPATIBILITY.md](EXTENSION_COMPATIBILITY.md) for browser settings
+ownership, the conservative mobile filter subset, and platform validation limits.
+
 Desktop keyboard behavior is command-driven rather than a collection of DOM
 shortcuts. Shared code owns canonical chords, configurable bindings, conflict
 checks, shell dispatch, pane focus, and the durable story cursor. Electron's

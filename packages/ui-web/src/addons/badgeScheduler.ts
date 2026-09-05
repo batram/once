@@ -18,6 +18,7 @@ export class BadgeScheduler {
   private scheduled = false
 
   constructor(
+    private readonly addonId: string,
     private readonly sandbox: AddonSandbox,
     private readonly viewOf: (row: StoryListItem) => StoryView
   ) {}
@@ -27,18 +28,22 @@ export class BadgeScheduler {
     list.push({ row, element })
     this.waiting.set(contribution, list)
     element.dataset.addonBadge = contribution
+    element.dataset.addonOwner = this.addonId
     if (this.scheduled) return
     this.scheduled = true
     setTimeout(() => void this.flush(), 30)
   }
 
   /** Fills a badge element the add-on named, from `updateBadge`. */
-  static show(row: StoryListItem | undefined, contribution: string, text: string): void {
-    const element = row?.querySelector<HTMLElement>(`[data-addon-badge="${CSS.escape(contribution)}"]`)
-    if (!element) return
-    delete element.dataset.addonPending
-    element.textContent = text
-    element.hidden = text.trim() === ""
+  static show(row: StoryListItem | undefined, addonId: string, contribution: string, text: string): void {
+    const elements = row?.querySelectorAll<HTMLElement>(
+      `[data-addon-owner="${CSS.escape(addonId)}"][data-addon-badge="${CSS.escape(contribution)}"]`
+    ) ?? []
+    for (const element of elements) {
+      delete element.dataset.addonPending
+      element.textContent = text
+      element.hidden = text.trim() === ""
+    }
   }
 
   private async flush(): Promise<void> {

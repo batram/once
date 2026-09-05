@@ -3,7 +3,7 @@
 // against one extension's public commands and says so; a new extension on
 // the allowlist that wants Once's settings gets its own adapter here.
 
-import { createHash } from "node:crypto"
+import { createHash, randomUUID } from "node:crypto"
 import { promises as fs } from "node:fs"
 import path from "node:path"
 import { FilterListSubscription, UserscriptEntry, UserscriptsDocument } from "@once/core"
@@ -78,6 +78,22 @@ export function ublockSelection(
   return { toSelect: [...selected], toImport: toImport.join("\n"), toRemove }
 }
 
+/** Remember the selection that existed before Once managed each URL. */
+export function reconcileUblockLists(
+  table: UblockListTable,
+  lists: readonly FilterListSubscription[],
+  previous: Record<string, boolean>
+): { lists: FilterListSubscription[]; baseline: Record<string, boolean> } {
+  const baseline: Record<string, boolean> = {}
+  for (const list of lists) {
+    const key = ublockAssetKey(table, list.url)
+    baseline[list.url] = previous[list.url] ?? (key !== null && table.available[key].off !== true)
+  }
+  const removed = Object.entries(previous).filter(([url]) => !(url in baseline))
+    .map(([url, enabled]) => ({ url, enabled }))
+  return { lists: [...lists, ...removed], baseline }
+}
+
 /**
  * uBlock's dashboard talks to its background over a port with
  * `{ channel, msgId, msg }` envelopes and gets `{ msgId, msg }` back. The
@@ -87,7 +103,8 @@ export function ublockSelection(
  */
 export async function applyFilterListsToUblock(
   host: ExtensionHost,
-  lists: readonly FilterListSubscription[]
+  lists: readonly FilterListSubscription[],
+  storageRoot: string
 ): Promise<void> {
   await host.contexts.whenListening("runtime", "onConnect", STARTUP_TIMEOUT_MS)
   const context = new VirtualContext(host)
@@ -119,15 +136,30 @@ export async function applyFilterListsToUblock(
     if (!table || typeof table.available !== "object" || table.available === null) {
       throw new Error("uBlock Origin did not describe its filter lists")
     }
-    await request({ what: "applyFilterListSelection", ...ublockSelection(table, lists) })
+    const file = path.join(storageRoot, host.extension.host, "once-filter-lists.json")
+    let previous: Record<string, boolean> = {}
+    try {
+      const value: unknown = JSON.parse(await fs.readFile(file, "utf8"))
+      if (isRecord(value)) previous = Object.fromEntries(Object.entries(value).filter(([, enabled]) => typeof enabled === "boolean")) as Record<string, boolean>
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
+    }
+    const next = reconcileUblockLists(table, lists, previous)
+    // Persist ownership before effects, so an interrupted hand-off can be retried.
+    await fs.mkdir(path.dirname(file), { recursive: true })
+    await fs.writeFile(`${file}.tmp`, JSON.stringify({ ...previous, ...next.baseline }), "utf8")
+    await fs.rename(`${file}.tmp`, file)
+    await request({ what: "applyFilterListSelection", ...ublockSelection(table, next.lists) })
     await request({ what: "reloadAllFilters" }, RELOAD_TIMEOUT_MS)
+    await fs.writeFile(`${file}.tmp`, JSON.stringify(next.baseline), "utf8")
+    await fs.rename(`${file}.tmp`, file)
   } finally {
     port.disconnect()
     context.close()
   }
 }
 
-const APPLIED_VERSION = 2
+const APPLIED_VERSION = 3
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -146,7 +178,7 @@ async function readApplied(file: string): Promise<Record<string, AppliedUserscri
   try {
     const parsed: unknown = JSON.parse(await fs.readFile(file, "utf8"))
     if (!isRecord(parsed)) return {}
-    if (parsed.version === APPLIED_VERSION && isRecord(parsed.scripts)) {
+    if ((parsed.version === APPLIED_VERSION || parsed.version === 2) && isRecord(parsed.scripts)) {
       return parsed.scripts as Record<string, AppliedUserscript>
     }
     if (!isRecord(parsed.ids)) return {}
@@ -179,7 +211,8 @@ async function installedUserscripts(context: VirtualContext): Promise<InstalledU
     cmd: "ExportZip",
     data: { values: false }
   }) as { items?: ExportedScript[] } | undefined
-  const items = Array.isArray(result?.items) ? result.items : []
+  if (!Array.isArray(result?.items)) throw new Error("Violentmonkey did not export its scripts")
+  const items = result.items
   const scripts: InstalledUserscript[] = []
   for (const item of items) {
     const id = item?.script?.props?.id
@@ -246,11 +279,20 @@ export async function applyUserscriptsToViolentmonkey(
 ): Promise<UserscriptsDocument | undefined> {
   const file = path.join(storageRoot, host.extension.host, "once-userscripts.json")
   const applied = await readApplied(file)
+  const generationKey = "onceStorageGeneration"
+  const marker = (await host.storage.get(generationKey))[generationKey]
+  const generation = typeof marker === "string" ? marker : randomUUID()
+  if (typeof marker !== "string") {
+    await host.storage.set({ [generationKey]: generation })
+    await host.storage.flush()
+  }
+  let previousGeneration: unknown
+  try { previousGeneration = JSON.parse(await fs.readFile(file, "utf8")).generation } catch { /* first hand-off */ }
   await host.contexts.whenListening("runtime", "onMessage", STARTUP_TIMEOUT_MS)
   const context = new VirtualContext(host)
   try {
     const installed = await installedUserscripts(context)
-    const plan = planUserscripts(document, installed, applied, hash)
+    const plan = planUserscripts(document, installed, applied, hash, previousGeneration === generation)
     const next: Record<string, AppliedUserscript> = { ...plan.keep }
     // Deleting takes both commands, as the dashboard's own delete does:
     // `RemoveScripts` purges what is already in Violentmonkey's trash and
@@ -273,10 +315,11 @@ export async function applyUserscriptsToViolentmonkey(
     }
     await fs.mkdir(path.dirname(file), { recursive: true })
     await fs.writeFile(
-      file,
-      JSON.stringify({ version: APPLIED_VERSION, scripts: next }),
+      `${file}.tmp`,
+      JSON.stringify({ version: APPLIED_VERSION, generation, scripts: next }),
       "utf8"
     )
+    await fs.rename(`${file}.tmp`, file)
     return plan.adopted ? plan.document : undefined
   } finally {
     context.close()
@@ -295,7 +338,7 @@ export async function applySettingsToExtension(
   storageRoot: string
 ): Promise<AdoptedExtensionSettings> {
   if (host.extension.id === UBLOCK_ORIGIN_ID) {
-    await applyFilterListsToUblock(host, settings.filterLists.lists)
+    await applyFilterListsToUblock(host, settings.filterLists.lists, storageRoot)
   } else if (host.extension.id === VIOLENTMONKEY_ID) {
     const userscripts = await applyUserscriptsToViolentmonkey(
       host, settings.userscripts, storageRoot

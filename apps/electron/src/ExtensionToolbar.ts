@@ -4,7 +4,8 @@ function actionButton(bridge: ElectronBridge, info: ElectronExtensionInfo): HTML
   const button = document.createElement("button")
   button.type = "button"
   button.className = "browser-button image-button extension-action"
-  button.title = info.title
+  button.title = info.title + (info.settingsStatus ? ` — Settings ${info.settingsStatus.state}${info.settingsStatus.error ? `: ${info.settingsStatus.error}` : ""}` : "")
+  if (info.settingsStatus) button.dataset.settingsStatus = info.settingsStatus.state
   button.setAttribute("aria-label", info.title)
   button.disabled = !info.enabled
   if (info.icon) {

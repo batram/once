@@ -1,5 +1,9 @@
 # Plan: Once add-ons on every platform
 
+Reliability follow-up: [extension-reliability-plan.md](extension-reliability-plan.md).
+The status below records the original feature rollout; current management and
+lifecycle behavior is described in [ADDONS.md](../ADDONS.md).
+
 Status: complete as scoped (2026-09-04); the open items are listed at the
 end of this status. Steps 1 to 3 are done: the row element, story action,
 and swipe action registries are open (the outline button is the first

@@ -161,6 +161,7 @@ export interface OnceClient {
   saveFilterLists(document: FilterListsDocument): Promise<void>
   getAddons(): Promise<AddonsDocument>
   saveAddons(document: AddonsDocument): Promise<void>
+  updateAddons(change: (document: AddonsDocument) => AddonsDocument): Promise<void>
   getUserscripts(): Promise<UserscriptsDocument>
   saveUserscripts(document: UserscriptsDocument): Promise<void>
   getSyncUrl(): Promise<string>
