@@ -20,6 +20,7 @@ import {
   ContentScriptBatch,
   EXTENSION_API_SURFACE,
   EXTENSION_IPC,
+  EXTENSION_SCHEME,
   ExtensionEvent,
   INTERNAL_API
 } from "./protocol"
@@ -198,6 +199,20 @@ function createWorld(init: ContentFrameInit): ContentWorld {
     contextBridge.executeInMainWorld({ func: adoptBridge })
     return world
   }
+  // Chromium checks a <script> a content script inserts against the policy
+  // of the world that inserted it, and falls back to the page's only when
+  // the world has none of its own. Chrome gives MV2 content-script worlds
+  // an empty policy, which is what this is: neither the page's CSP nor its
+  // Trusted Types requirement applies to what the extension injects, as
+  // in Firefox. YouTube's page forbids both, and uBlock's scriptlets, the
+  // part of it that removes video ads, reach the page only this way. Set
+  // before the world exists; the origin is the extension's, as in Chrome,
+  // because the entry is per world and per process, not per frame.
+  webFrame.setIsolatedWorldInfo(init.worldId, {
+    securityOrigin: `${EXTENSION_SCHEME}://${init.host}`,
+    csp: "",
+    name: init.id
+  })
   contextBridge.exposeInIsolatedWorld(init.worldId, BRIDGE_STAGING_KEY, api.build())
   contextBridge.exposeInIsolatedWorld(init.worldId, MAIN_WORLD_STAGING_KEY, mainWorldAccess())
   // Runs before any content script: calls into the same world are executed

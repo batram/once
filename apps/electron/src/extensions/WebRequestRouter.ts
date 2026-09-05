@@ -9,11 +9,16 @@ import {
   WebRequestDetailsInput,
   buildWebRequestDetails,
   headersFromWebExt,
-  mergeBlockingResponses
+  mergeBlockingResponses,
+  startsDocument,
+  webExtResourceType
 } from "./webRequestDetails"
 
 /** How long a blocking listener may hold a request before it is let through. */
 const BLOCKING_TIMEOUT_MS = 3_000
+
+/** How long a document's headers wait for `onResponseStarted` listeners. */
+const DOCUMENT_RESPONSE_TIMEOUT_MS = 1_000
 
 interface RequestSource {
   readonly contexts: ExtensionContexts
@@ -113,6 +118,9 @@ function payloadFor(details: WebRequestDetails, caps: TargetCapabilities): WebRe
  * registered a matching listener, waiting for the blocking ones.
  */
 export class WebRequestRouter {
+  /** Requests whose `onResponseStarted` went out with their headers. */
+  private readonly startedEarly = new Set<number>()
+
   constructor(
     private readonly session: Session,
     private readonly options: WebRequestRouterOptions
@@ -136,6 +144,7 @@ export class WebRequestRouter {
       }))
     })
     this.session.webRequest.onResponseStarted(filter, (details) => {
+      if (this.startedEarly.delete(details.id)) return
       this.notify("onResponseStarted", buildWebRequestDetails({
         ...this.baseInput(details),
         responseHeaders: details.responseHeaders ?? {},
@@ -145,6 +154,7 @@ export class WebRequestRouter {
       }))
     })
     this.session.webRequest.onBeforeRedirect(filter, (details) => {
+      this.startedEarly.delete(details.id)
       this.notify("onBeforeRedirect", buildWebRequestDetails({
         ...this.baseInput(details),
         responseHeaders: details.responseHeaders ?? {},
@@ -155,6 +165,7 @@ export class WebRequestRouter {
       }))
     })
     this.session.webRequest.onCompleted(filter, (details) => {
+      this.startedEarly.delete(details.id)
       this.notify("onCompleted", buildWebRequestDetails({
         ...this.baseInput(details),
         statusLine: details.statusLine,
@@ -162,6 +173,7 @@ export class WebRequestRouter {
       }))
     })
     this.session.webRequest.onErrorOccurred(filter, (details) => {
+      this.startedEarly.delete(details.id)
       this.notify("onErrorOccurred", buildWebRequestDetails({
         ...this.baseInput(details),
         error: details.error
@@ -243,19 +255,44 @@ export class WebRequestRouter {
   private async headersReceived(
     details: Electron.OnHeadersReceivedListenerDetails
   ): Promise<Electron.HeadersReceivedResponse> {
-    const merged = await this.dispatch(
-      "onHeadersReceived",
-      buildWebRequestDetails({
-        ...this.baseInput(details),
-        responseHeaders: details.responseHeaders ?? {},
-        statusLine: details.statusLine,
-        statusCode: details.statusCode
-      })
-    )
+    const input: WebRequestDetailsInput = {
+      ...this.baseInput(details),
+      responseHeaders: details.responseHeaders ?? {},
+      statusLine: details.statusLine,
+      statusCode: details.statusCode
+    }
+    const merged = await this.dispatch("onHeadersReceived", buildWebRequestDetails(input))
     if (merged.cancel) return { cancel: true }
+    if (startsDocument(webExtResourceType(input.resourceType), input.statusCode ?? 0)) {
+      this.startedEarly.add(details.id)
+      await this.documentResponseStarted(buildWebRequestDetails(input))
+    }
     if (merged.responseHeaders) {
       return { responseHeaders: headersFromWebExt(merged.responseHeaders) }
     }
     return {}
+  }
+
+  /**
+   * A document's `onResponseStarted`, raised while its headers are still
+   * held and awaited until the listeners return. uBlock registers a page's
+   * scriptlets from this listener, and a registration that arrives after the
+   * renderer created the document misses it: Firefox's parent process runs
+   * these listeners before the content process gets the response, and a
+   * listener's calls reach main before its return does, so waiting here
+   * gives the same order. Electron's own onResponseStarted for the request
+   * comes after the renderer has the response, and is skipped.
+   */
+  private async documentResponseStarted(details: WebRequestDetails): Promise<void> {
+    const waits: Promise<unknown>[] = []
+    for (const source of this.options.sources()) {
+      for (const target of this.matchingTargets(source, "onResponseStarted", details)) {
+        const payload = payloadFor(details, capabilities(target, "onResponseStarted"))
+        waits.push(source.contexts.request(
+          target, "webRequest", "onResponseStarted", [payload], DOCUMENT_RESPONSE_TIMEOUT_MS
+        ))
+      }
+    }
+    await Promise.all(waits)
   }
 }

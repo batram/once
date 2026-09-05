@@ -32,6 +32,26 @@ without that marker retain the conservative storage-loss behavior for their firs
 handoff. Simultaneous dashboard and synced source edits still use the documented
 synced-source precedence; this is not a multi-version script merge system.
 
+## Scriptlets on Electron
+
+Network filters alone do not remove YouTube's video ads; uBlock strips them
+with scriptlets that must run in the page's own world before its scripts.
+uBlock's Firefox build injects them from its content script world by
+inserting a `<script>` element, and registers them per hostname for later
+documents. Two host behaviours make that work the way it does in Firefox:
+
+- Every content-script world declares its own (empty) Content Security
+  Policy, the way Chrome treats MV2 content scripts. Chromium checks an
+  inserted script against the inserting world's policy, so the page's CSP
+  and its Trusted Types requirement do not apply. Without this, YouTube's
+  headers silently block both the inline injection and the blob fallback.
+- A document's `onResponseStarted` is raised while its headers are still
+  held and is awaited before the response continues, so that a
+  `contentScripts.register` made from that listener is in place before the
+  renderer creates the document. Firefox's parent process orders these the
+  same way; Electron's own event would arrive after the document exists,
+  and the first visit to a hostname in a session would then be unfiltered.
+
 ## Supplemental mobile filter lists
 
 The portable subset consists of ordinary URL patterns (including anchors and

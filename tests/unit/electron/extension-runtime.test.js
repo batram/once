@@ -142,6 +142,15 @@ test("blocking responses merge with Firefox precedence", () => {
   })
 })
 
+test("a document response is held for onResponseStarted; redirects and sub-resources are not", () => {
+  assert.equal(details.startsDocument("main_frame", 200), true)
+  assert.equal(details.startsDocument("sub_frame", 404), true)
+  assert.equal(details.startsDocument("main_frame", 302), false)
+  assert.equal(details.startsDocument("main_frame", 304), false)
+  assert.equal(details.startsDocument("xmlhttprequest", 200), false)
+  assert.equal(details.startsDocument("script", 200), false)
+})
+
 test("extension ids become stable opaque hosts and URLs parse back", () => {
   const host = scheme.hostForExtensionId("uBlock0@raymondhill.net")
   assert.match(host, /^[0-9a-f]{32}$/)

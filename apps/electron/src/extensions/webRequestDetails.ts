@@ -171,6 +171,17 @@ export function buildWebRequestDetails(input: WebRequestDetailsInput): WebReques
   return details
 }
 
+/**
+ * Whether a response with these headers is about to become a document, so
+ * that its `onResponseStarted` must reach listeners while the headers are
+ * still held: what they ask for in response has to be in main before the
+ * renderer creates the document. A redirect never becomes one.
+ */
+export function startsDocument(type: WebExtResourceType, statusCode: number): boolean {
+  if (type !== "main_frame" && type !== "sub_frame") return false
+  return statusCode < 300 || statusCode >= 400
+}
+
 export interface RequestFilter {
   urls: readonly string[]
   types?: readonly WebExtResourceType[]
