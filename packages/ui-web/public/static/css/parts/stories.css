@@ -347,26 +347,25 @@
 /*
  * The keyboard cursor. Distinct from .selected, which marks the story the
  * content pane is showing: the two are often, but not always, the same row.
- * Carried by background rather than an outline so it reads as a highlighted
- * row instead of a boxed one; it therefore has to outrank .read and .selected.
+ * A pill in the left gutter rather than a fill or an outline: the fill already
+ * says unread, read or selected, so the cursor over a read row used to need a
+ * blend colour of its own, and a box would change the row's shape. The pill
+ * sits centred in the row's inline padding; the row's transform is its
+ * containing block.
  */
-story-item.cursor {
-  background: var(--cursor-idle-bg-color);
+story-item.cursor::before {
+  content: "";
+  position: absolute;
+  left: var(--sp-1-5);
+  top: var(--sp-2);
+  bottom: var(--sp-2);
+  width: var(--cursor-marker-size);
+  border-radius: var(--radius-pill);
+  background: var(--cursor-idle-color);
 }
 
-body[data-pane-focus="stories"] story-item.cursor {
-  background: var(--cursor-bg-color);
-}
-
-/* A read or skipped row keeps looking dealt-with while the cursor is on it. */
-story-item.cursor.read,
-story-item.cursor.skipped {
-  background: var(--cursor-idle-done-bg-color);
-}
-
-body[data-pane-focus="stories"] story-item.cursor.read,
-body[data-pane-focus="stories"] story-item.cursor.skipped {
-  background: var(--cursor-done-bg-color);
+body[data-pane-focus="stories"] story-item.cursor::before {
+  background: var(--cursor-color);
 }
 
 story-item.story:focus {

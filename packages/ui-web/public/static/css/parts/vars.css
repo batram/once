@@ -55,15 +55,14 @@
   --selected_bg_color: light-dark(#b3b3b3, #4a517be0);
   /* Where the keyboard is. The same colour marks the story cursor and the
      active browser tab, so one glance says which pane the keys will reach.
-     The idle variant keeps the spot findable once focus moves to the other
-     pane, without competing with it. */
-  --cursor-bg-color: light-dark(#c3d3f2, #3d4d96);
-  --cursor-idle-bg-color: light-dark(#dfe6f6, #333a63);
-  /* The same highlight over a story that is already dealt with. Muted and
-     shifted off the unread hue so a run of read or skipped rows still reads as
-     dealt-with while the cursor passes over them. */
-  --cursor-done-bg-color: light-dark(#adb5c4, #2f3550);
-  --cursor-idle-done-bg-color: light-dark(#c9ced8, #2a2f45);
+     It is a marker (a pill in the story gutter, a bar on the tab) rather than
+     a fill: the row fill already carries unread, read and selected, and a
+     fifth background collided with all of them. The idle variant keeps the
+     spot findable once focus moves to the other pane, without competing
+     with it. */
+  --cursor-color: light-dark(#4050ac, #5a68c8);
+  --cursor-idle-color: light-dark(#828282, #828282);
+  --cursor-marker-size: 3px;
   --sep-color: light-dark(rgb(114, 100, 100), rgb(114, 100, 100));
   --btn-bg-color: light-dark(#383a5900, #383a59);
   --input-bg-color: light-dark(white, #383a59);

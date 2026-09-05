@@ -132,6 +132,9 @@ body #titlebar-text {
   max-width: 220px;
   margin-left: var(--sp-0-5);
   padding: var(--sp-1) var(--sp-1);
+  /* Room for the keyboard-cursor pill on every tab, not only the one that
+     carries it, so titles do not shift when focus changes pane. */
+  padding-left: calc(var(--sp-1) + var(--cursor-marker-size) + var(--sp-1));
   font-size: var(--fs-dense);
   outline: none;
   margin-top: var(--sp-1);
@@ -475,12 +478,25 @@ body #video_webview_btn {
 }
 
 /*
- * Where the keyboard is. The active tab picks up the same highlight the story
- * cursor uses, so the two panes read as one keyboard position rather than two
- * competing "selected" states.
+ * Where the keyboard is. The active tab picks up the same marker colour the
+ * story cursor uses, so the two panes read as one keyboard position rather
+ * than two competing "selected" states. The same pill as the story cursor,
+ * standing in the tab's inline padding. It hangs off the title span because
+ * the tab's own ::before and ::after are the drag-and-drop indicators; the
+ * tab is the positioned ancestor, so the pill lands at the tab's edge.
  */
 body[data-pane-focus="browser"] .electron-tab.active {
   color: var(--text-high-color);
-  background: var(--cursor-bg-color);
+}
+
+body[data-pane-focus="browser"] .electron-tab.active .electron-tab-title::before {
+  content: "";
+  position: absolute;
+  left: var(--sp-1);
+  top: var(--sp-1);
+  bottom: var(--sp-1);
+  width: var(--cursor-marker-size);
+  border-radius: var(--radius-pill);
+  background: var(--cursor-color);
 }
 }
