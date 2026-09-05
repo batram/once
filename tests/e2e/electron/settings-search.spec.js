@@ -1,5 +1,13 @@
 const { test, expect } = require("@playwright/test")
 const { closeApp, launchApp } = require("./electron-harness")
+const settingsSectionDefinitions =
+  require("../../../packages/ui-web/src/settings/settingsSectionDefinitions")
+
+// Every defined section shows on the Electron shell (the keyboard section is
+// Electron-only), so the navigation row count is the definition count. Read
+// it rather than hard-coding it: the number has moved twice and each time the
+// spec was the last to hear.
+const sectionCount = settingsSectionDefinitions.length
 
 test("searches settings content without changing the open detail", async () => {
   const { electronApp, userData, window } = await launchApp()
@@ -101,8 +109,8 @@ test("searches settings content without changing the open detail", async () => {
     await expect(rows.filter({ visible: true })).toHaveCount(0)
 
     await search.fill("")
-    await expect(rows).toHaveCount(13)
-    await expect(rows.filter({ visible: true })).toHaveCount(13)
+    await expect(rows).toHaveCount(sectionCount)
+    await expect(rows.filter({ visible: true })).toHaveCount(sectionCount)
 
     const errorId = "error-log-settings-search-e2e"
     await window.locator("#error_log").evaluate((log, id) => {
@@ -193,10 +201,10 @@ test("settings menu always resets to a clean section index", async () => {
     )
     await expect(window.locator(".settings_section.active")).toHaveCount(0)
     await expect(window.locator("#settings_search")).toHaveValue("")
-    await expect(window.locator(".settings_section_row")).toHaveCount(13)
+    await expect(window.locator(".settings_section_row")).toHaveCount(sectionCount)
     await expect(window.locator(".settings_section_row").filter({
       visible: true
-    })).toHaveCount(13)
+    })).toHaveCount(sectionCount)
     await expect(
       window.locator('[data-settings-target="sources"] .settings_section_summary')
     ).toHaveText("5")

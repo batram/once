@@ -26,8 +26,13 @@ test("launches a secure browser shell with legacy tab interactions", async () =>
     const buildInfo = await window.evaluate(() =>
       window.onceElectron.app.getBuildInfo()
     )
-    const expectedVersion = buildInfo.buildIdentifier
-      ? `${buildInfo.version} (${buildInfo.buildIdentifier})`
+    // Mirrors mountOnceUi: a dev-channel bundle (what a local
+    // `package --dev` run produces) labels itself "dev <id>".
+    const buildBlip = buildInfo.channel === "dev"
+      ? `dev${buildInfo.buildIdentifier ? ` ${buildInfo.buildIdentifier}` : ""}`
+      : buildInfo.buildIdentifier
+    const expectedVersion = buildBlip
+      ? `${buildInfo.version} (${buildBlip})`
       : buildInfo.version
     await expect(window.getByTestId("app-version")).toHaveText(
       expectedVersion
