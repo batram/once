@@ -232,7 +232,9 @@ function createWorld(init: ContentFrameInit): ContentWorld {
   return world
 }
 
-const inits = ipcRenderer.sendSync(EXTENSION_IPC.contentInit) as ContentFrameInit[] | null
+// PDF responses keep their HTTP URL but use Chromium's native viewer. The MIME
+// type is available before <html>, so main can exclude them at document_start.
+const inits = ipcRenderer.sendSync(EXTENSION_IPC.contentInit, document.contentType) as ContentFrameInit[] | null
 if (Array.isArray(inits) && inits.length > 0) {
   for (const init of inits) worlds.set(init.host, createWorld(init))
   ipcRenderer.on(EXTENSION_IPC.event, (_ipcEvent, message: ExtensionEvent) => {

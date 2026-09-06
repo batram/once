@@ -378,9 +378,9 @@ export class ExtensionRuntime {
   }
 
   private registerContentIpc(): void {
-    ipcMain.on(EXTENSION_IPC.contentInit, (event) => {
+    ipcMain.on(EXTENSION_IPC.contentInit, (event, contentType: string) => {
       try {
-        event.returnValue = this.contentInit(event)
+        event.returnValue = this.contentInit(event, contentType)
       } catch (error) {
         console.error("Content script setup failed", error)
         event.returnValue = null
@@ -414,10 +414,23 @@ export class ExtensionRuntime {
    * page inside the tab (uBlock's element picker): it gets the page API,
    * tied to the tab, and no content scripts, as in Firefox.
    */
-  private contentInit(event: IpcMainEvent): ContentFrameInit[] {
+  private contentInit(event: IpcMainEvent, contentType: string): ContentFrameInit[] {
     const contents = event.sender
     const frame = event.senderFrame
     if (!frame || !this.tabContents.has(contents.id)) return []
+    // A frame-tree node survives navigation. Remove its previous document's
+    // contexts even when the new document accepts no content scripts; otherwise
+    // tabs.executeScript/insertCSS can still target the old HTML registration.
+    const contextId = frameContextId(contents, frame)
+    for (const host of this.hosts.values()) host.contexts.remove(contextId)
+    // Firefox extensions cannot inject into the native PDF viewer. Its outer
+    // document still has the requested HTTP URL, including extensionless URLs.
+    if (contentType === "application/pdf") return []
+    // Chromium also creates internal viewer/plugin frames. In particular a
+    // blank plugin frame must not inherit the outer URL via match_about_blank.
+    for (let ancestor: WebFrameMain | null = frame; ancestor; ancestor = ancestor.parent) {
+      if (ancestor.url.startsWith("chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/")) return []
+    }
     const ids = frameIdsOf(frame)
     const ownPage = parseExtensionUrl(frame.url)
     if (ownPage) {
