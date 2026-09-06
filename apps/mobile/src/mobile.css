@@ -1054,6 +1054,23 @@
     background: var(--main-bg-color);
   }
 
+  #reading_addon_trays {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: block;
+    overflow: auto;
+    box-sizing: border-box;
+    margin: 0;
+    padding: var(--sp-1-5);
+    background: var(--main-bg-color);
+    cursor: auto;
+  }
+
+  #reading_addon_trays .addon_tray {
+    margin-top: 0;
+  }
+
   #reading_empty {
     margin: 0;
     padding: var(--sp-5) var(--sp-4);

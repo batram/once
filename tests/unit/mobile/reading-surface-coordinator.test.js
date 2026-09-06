@@ -91,6 +91,16 @@ test("reading surface coordinator owns bounds and native visibility", async () =
   coordinator.setMenuOpen(true)
   await flushCoordinator()
   assert.deepEqual(surface.calls.at(-1), ["setVisible", false])
+  coordinator.setOverlayOpen(true)
+  coordinator.setMenuOpen(false)
+  await flushCoordinator()
+  assert.deepEqual(surface.calls.at(-1), ["setVisible", false])
+  session.navigate("https://example.test/second")
+  await flushCoordinator()
+  assert.deepEqual(surface.calls.at(-1), ["setVisible", false])
+  coordinator.setOverlayOpen(false)
+  await flushCoordinator()
+  assert.deepEqual(surface.calls.at(-1), ["setVisible", true])
 })
 
 test("reading surface coordinator rejects stale reader documents", async () => {

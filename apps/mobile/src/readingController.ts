@@ -14,10 +14,12 @@ import {
   isStoryAnchoredMenuOpen
 } from "@once/ui-web"
 import { ReaderDocumentHost } from "@once/ui-web"
+import { ReadingAddonTrays } from "./readingAddonTrays"
 import { ReadingSurfaceCoordinator } from "./readingSurfaceCoordinator"
 
 export class MobileReadingController {
   readonly session
+  private readonly addonTrays: ReadingAddonTrays
   private readonly content: HTMLElement
   private readonly nativeReading: ReadingSurfaceCoordinator
   private activePanel = "stories"
@@ -44,6 +46,7 @@ export class MobileReadingController {
       reader,
       this.content
     )
+    this.addonTrays = new ReadingAddonTrays(this.content, open => this.nativeReading.setOverlayOpen(open))
     this.session = this.nativeReading.session
     this.bindControls()
     this.bindEvents()
@@ -67,6 +70,8 @@ export class MobileReadingController {
       closeStoryAnchoredMenu()
       return true
     }
+
+    if (this.activePanel === "reading" && this.addonTrays.close()) return true
 
     if (this.activePanel === "settings") {
       const settingsPanel = document.querySelector<HTMLElement>("#settings_panel")
@@ -371,6 +376,7 @@ export class MobileReadingController {
       )
     const matchingStory = isStoryPage ? this.storyElement() : null
     this.observeCurrentStory(matchingStory)
+    this.addonTrays.setStory(matchingStory)
     const displayedStory = matchingStory?.story ?? story
     const currentCard = required("#reading_current_card")
     const storyHref = displayedStory?.href ?? ""

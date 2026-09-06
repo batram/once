@@ -31,11 +31,18 @@ test("concurrent tray operations are scoped, cancellation aborts host work and i
 
 test("tray state survives row replacement, collapse and reopen without a second request", async () => {
   const previous = global.document
-  const { document } = parseHTML("<html><body></body></html>")
+  const previousCustomEvent = global.CustomEvent
+  const { document, CustomEvent } = parseHTML("<html><body></body></html>")
   global.document = document
+  global.CustomEvent = CustomEvent
   const { AddonTrays } = require("../../../packages/ui-web/dist/addons/AddonTrays")
-  const { applyStoryElements, refreshRowElements } = require("../../../packages/ui-web/dist/story/storyElements")
+  const { applyStoryElements, refreshRowElements, renderStoryTrays, STORY_TRAYS_CHANGED } = require("../../../packages/ui-web/dist/story/storyElements")
   let calls = 0
+  let currentRow
+  const reading = document.createElement("div")
+  document.addEventListener(STORY_TRAYS_CHANGED, () => {
+    if (currentRow) renderStoryTrays(currentRow, reading)
+  })
   const trays = new AddonTrays({ id: "example", trays: [{ id: "assistant", title: "Assistant" }] }, {
     ensure: async () => ({ tray: async () => { calls++; return { messages: [
       { role: "assistant", text: "<b>Safe text</b>\n\n**Formatted answer**" },
@@ -50,6 +57,7 @@ test("tray state survives row replacement, collapse and reopen without a second 
   }
   try {
     const row = makeRow()
+    currentRow = row
     trays.toggle(row, "assistant")
     await new Promise(resolve => setImmediate(resolve))
     assert.match(row.querySelector(".addon_tray_message").textContent, /<b>Safe text<\/b>/)
@@ -57,19 +65,23 @@ test("tray state survives row replacement, collapse and reopen without a second 
     assert.equal(row.querySelector(".addon_tray_user").textContent, "**Literal question**")
     assert.equal(row.querySelector(".addon_tray_user strong"), null)
     assert.equal(row.querySelector("b"), null)
+    assert.match(reading.textContent, /Formatted answer/)
     refreshRowElements(row)
     assert.equal(row.querySelectorAll(".addon_tray").length, 1)
     row.remove()
     const replacement = makeRow()
+    currentRow = replacement
     applyStoryElements(replacement)
     assert.equal(replacement.querySelectorAll(".addon_tray").length, 1)
     trays.toggle(replacement, "assistant")
     assert.equal(replacement.querySelectorAll(".addon_tray").length, 0)
+    assert.equal(reading.childElementCount, 0)
     trays.toggle(replacement, "assistant")
     assert.equal(calls, 1)
     trays.reset()
     assert.equal(replacement.querySelectorAll(".addon_tray").length, 0)
-  } finally { trays.dispose(); global.document = previous }
+    assert.equal(reading.childElementCount, 0)
+  } finally { trays.dispose(); global.document = previous; global.CustomEvent = previousCustomEvent }
 })
 
 test("standalone declared connections are limited and settings cancel pending work", async () => {

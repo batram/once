@@ -64,4 +64,17 @@ export function refreshStoryElements(): void {
   for (const row of document.querySelectorAll<StoryListItem>("story-item")) {
     refreshRowElements(row)
   }
+  document.dispatchEvent(new Event(STORY_TRAYS_CHANGED))
+}
+
+/** Reading surfaces can display the same stateful trays as the story list. */
+export const STORY_TRAYS_CHANGED = "once-story-trays-changed"
+
+export function renderStoryTrays(row: StoryListItem, host: HTMLElement): void {
+  host.replaceChildren()
+  for (const contribution of registered.values()) {
+    if (contribution.slot !== "tray") continue
+    const element = contribution.render(row)
+    if (element) host.append(element)
+  }
 }

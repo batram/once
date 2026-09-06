@@ -1,6 +1,6 @@
 import { AddonManifest, AddonTrayEvent, AddonTrayView, StoryView, addonContributionId, projectStoryView, readTrayView } from "@once/core"
 import type { StoryListItem } from "../story/StoryListItem"
-import { registerStoryElement } from "../story/storyElements"
+import { registerStoryElement, STORY_TRAYS_CHANGED } from "../story/storyElements"
 import { AddonSandbox } from "./AddonSandbox"
 import { trayMarkdown } from "./trayMarkdown"
 
@@ -78,6 +78,7 @@ export class AddonTrays {
         if (button.dataset.addonTrayButton === addonContributionId(this.manifest.id, tray)) button.setAttribute("aria-expanded", String(this.expanded(href, tray)))
       }
     }
+    document.dispatchEvent(new CustomEvent(STORY_TRAYS_CHANGED, { detail: href }))
   }
 
   private async run(row: StoryListItem, tray: string, event: AddonTrayEvent): Promise<void> {

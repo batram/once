@@ -136,6 +136,45 @@ describe("Native AI addon", () => {
     await browser.waitUntil(async () => (await $("article").getText()).includes("Once mobile reader fixture content"), { timeout: 30000 })
     await browser.switchToFrame(null)
     await browser.saveScreenshot("/tmp/once-android-reader-button.png")
+    for (const mode of ["reader", "browser"]) {
+      if (mode === "browser") {
+        await click("#reading_reader_toggle")
+        await browser.waitUntil(async () => (await $("#reading_content").getAttribute("data-load-state")) === "ready", { timeout: 30000 })
+      }
+      await click("#reading_story_menu")
+      await browser.switchContext("NATIVE_APP")
+      const readingAction = await $(platform === "android"
+        ? 'android=new UiSelector().text("What? Wait, who, why?")'
+        : '-ios predicate string:name == "What? Wait, who, why?"')
+      await readingAction.waitForDisplayed({ timeout: 10000 })
+      await readingAction.click()
+      await browser.switchContext(webview)
+      const readingTray = await $("#reading_addon_trays")
+      await readingTray.waitForDisplayed({ timeout: 10000 })
+      await browser.waitUntil(async () => (await readingTray.getText()).includes("ExampleApp is software"), { timeout: 30000 })
+      await $("#reading_addon_trays textarea").setValue("Who uses it?")
+      await browser.execute(() => Array.from(document.querySelectorAll("#reading_addon_trays button")).find(button => button.textContent === "Ask").click())
+      await browser.waitUntil(async () => (await readingTray.getText()).includes("Developers use it"), { timeout: 30000 })
+      await $("#reading_addon_trays textarea").waitForEnabled({ timeout: 30000 })
+      await browser.switchContext("NATIVE_APP")
+      await browser.saveScreenshot(`/tmp/once-android-reading-${mode}-tray.png`)
+      await browser.switchContext(webview)
+      await $("#reading_addon_trays button[aria-label='Close']").click()
+      await readingTray.waitForDisplayed({ reverse: true, timeout: 10000 })
+      assert.equal(await $("#reading_content").getAttribute("data-mode"), mode)
+      if (mode === "browser") {
+        await browser.waitUntil(async () => {
+          const text = await browser.executeAsync(done => {
+            window.__onceE2E__.evaluateSurface("document.body.innerText").then(done, () => done(""))
+          })
+          return String(text).includes("Once mobile reader fixture content")
+        }, { timeout: 30000 })
+      }
+      await browser.switchContext("NATIVE_APP")
+      await browser.saveScreenshot(`/tmp/once-android-reading-${mode}-restored.png`)
+      await browser.switchContext(webview)
+    }
+
 
   })
 })

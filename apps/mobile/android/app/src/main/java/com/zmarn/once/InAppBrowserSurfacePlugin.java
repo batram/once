@@ -186,8 +186,8 @@ public class InAppBrowserSurfacePlugin extends Plugin {
                 (float) bounds.optDouble("height", 1) * density
             ));
             parent.addView(anchor, new ViewGroup.LayoutParams(width, height));
-            anchor.setX(Math.round((float) bounds.optDouble("x", 0) * density));
-            anchor.setY(Math.round((float) bounds.optDouble("y", 0) * density));
+            anchor.setX(shell.getX() + Math.round((float) bounds.optDouble("x", 0) * density));
+            anchor.setY(shell.getY() + Math.round((float) bounds.optDouble("y", 0) * density));
 
             PopupMenu popup = new PopupMenu(getActivity(), anchor, Gravity.END);
             for (int index = 0; index < labels.length; index++) {
@@ -501,8 +501,10 @@ public class InAppBrowserSurfacePlugin extends Plugin {
         params.width = width;
         params.height = height;
         refreshSurface.setLayoutParams(params);
-        refreshSurface.setX(x);
-        refreshSurface.setY(y);
+        // DOM bounds are relative to the shell, which can be inset by Android.
+        WebView shell = getBridge().getWebView();
+        refreshSurface.setX(shell.getX() + x);
+        refreshSurface.setY(shell.getY() + y);
     }
 
     private void setSurfaceVisible(boolean visible) {
