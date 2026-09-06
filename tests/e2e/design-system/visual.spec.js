@@ -70,6 +70,13 @@ async function prepareStories(page, target = "") {
         </div>
       </article>
     `).join("")
+    if (mobile) for (const row of stories.children) {
+      const tags = row.querySelector(".tags_container")
+      const labels = document.createElement("div")
+      labels.className = "story_tag_labels"
+      labels.append(...tags.children)
+      tags.append(labels, row.querySelector(".button_group"))
+    }
   })
   await page.locator("img").evaluateAll((images) =>
     Promise.all(images.map((image) => image.decode().catch(() => undefined)))

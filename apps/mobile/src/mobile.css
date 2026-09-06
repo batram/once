@@ -297,15 +297,35 @@
     margin-left: calc(-1 * var(--sp-0-5));
   }
 
-  /* Optional actions share the menu's geometry and wrap without covering tags. */
+  .story .tags_container:has(> .button_group) {
+    flex-wrap: nowrap;
+    align-items: flex-end;
+    gap: var(--sp-1);
+  }
+
+  .story .story_tag_labels {
+    display: flex;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .story .story_tag_labels .tag {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  /* Reserve action space beside wrapped tags, including when a tray is open. */
   .story .button_group {
     display: flex;
-    flex: 1 1 100%;
+    flex: 0 0 auto;
+    max-width: 60%;
     justify-content: flex-end;
+    align-self: flex-end;
     flex-wrap: wrap;
-    gap: var(--sp-2);
+    gap: var(--sp-1);
     padding: 0;
-    margin-top: var(--sp-1);
+    margin: 0 0 0 auto;
   }
 
   .story .menu_btn,
@@ -338,6 +358,31 @@
     position: relative;
     right: auto;
     bottom: auto;
+  }
+
+  .story .addon_tray {
+    padding: var(--sp-1) var(--sp-1-5) var(--sp-1-5);
+  }
+
+  .story .addon_tray .button {
+    min-height: 28px;
+    height: auto;
+    min-width: 0;
+    margin: 0;
+    padding: var(--sp-0-5) var(--sp-2);
+    font-size: var(--fs-meta);
+    line-height: 1.4;
+  }
+
+  .story .addon_tray .button--icon {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+  }
+
+  .story .addon_tray_composer textarea {
+    min-height: 28px;
+    padding: var(--sp-1);
   }
 
   .story .star_btn::before,

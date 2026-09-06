@@ -91,11 +91,19 @@ describe("Native AI addon", () => {
       assert.equal(geometry.width, geometry.menuWidth)
       assert.equal(geometry.height, geometry.menuHeight)
       assert.equal(geometry.y, geometry.menuY)
-      assert.ok(geometry.y >= geometry.textBottom)
+      assert.ok(geometry.y < geometry.textBottom)
       assert.equal(geometry.overflow, false)
       await browser.saveScreenshot(`/tmp/once-android-buttons-${theme}.png`)
       await $(action).click()
       await $(".addon_tray").waitForDisplayed()
+      const tray = await browser.execute(() => {
+        const panel = document.querySelector(".addon_tray")
+        return { padding: getComputedStyle(panel).padding,
+          heights: [...panel.querySelectorAll("button")].map(button => button.getBoundingClientRect().height) }
+      })
+      assert.equal(tray.padding, "4px 6px 6px")
+      for (const height of tray.heights) assert.equal(height, 28)
+      await browser.saveScreenshot(`/tmp/once-android-compact-tray-${theme}.png`)
       await $(".addon_tray button[aria-label='Close']").click()
       await click("[data-testid='settings-menu']")
       await click("[data-settings-target='theme']")

@@ -25,7 +25,21 @@ function shown(id: string, platform: Platform): boolean {
   return typeof value === "boolean" ? value : platform === "desktop"
 }
 
+export function positionStoryButtons(row: HTMLElement): void {
+  const group = row.querySelector(".button_group")
+  const tags = Array.from(row.querySelectorAll(".substories > .info .tags_container")).pop()
+  const target = document.body.dataset.platform === "mobile" && tags ? tags : row
+  if (group && target === tags && !tags.querySelector(".story_tag_labels")) {
+    const labels = document.createElement("div")
+    labels.className = "story_tag_labels"
+    for (const tag of Array.from(tags.children)) if (tag !== group) labels.appendChild(tag)
+    tags.prepend(labels)
+  }
+  if (group && group.parentElement !== target) target.appendChild(group)
+}
+
 export function applyStoryButtonPreferences(row: HTMLElement): void {
+  positionStoryButtons(row)
   const platform = document.body.dataset.platform === "mobile" ? "mobile" : "desktop"
   for (const button of row.querySelectorAll<HTMLElement>(".button_group > :not(.menu_btn)")) {
     const id = button.dataset.storyElement ?? (

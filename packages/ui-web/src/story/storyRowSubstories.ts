@@ -1,3 +1,4 @@
+import { positionStoryButtons } from "./storyButtonPreferences"
 import { humanTime, SubStory } from "@once/core"
 import { getOnceClient } from "../client"
 import { bindLinkBehavior, openStoryUrl } from "./storyLinks"
@@ -102,6 +103,8 @@ function buildInfoBlock(
 
 /** Rebuilds the substory list in place, own source first. */
 export function renderSubstories(row: StoryListItem): void {
+  // Preserve live controls and their listeners while rebuilding source tags.
+  if (row.button_group && row.substories_el.contains(row.button_group)) row.appendChild(row.button_group)
   row.substories_el.innerHTML = ""
 
   const subs = [
@@ -119,4 +122,5 @@ export function renderSubstories(row: StoryListItem): void {
   subs.forEach((x: SubStory) => {
     row.substories_el.append(buildInfoBlock(row, x))
   })
+  positionStoryButtons(row)
 }

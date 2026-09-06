@@ -11,6 +11,30 @@ test("story buttons default to the menu and have independent persistent platform
   await page.getByTestId("stories-menu").click()
   const action = story.locator(".addon_btn")
   await expect(action).toBeHidden()
+  const footer = await story.evaluate(row => {
+    const tag = row.querySelector(".tag").getBoundingClientRect()
+    const menu = row.querySelector(".menu_btn").getBoundingClientRect()
+    return { tagTop: tag.top, tagBottom: tag.bottom, menuTop: menu.top, menuBottom: menu.bottom }
+  })
+  expect(footer.menuTop).toBeLessThan(footer.tagBottom)
+  expect(footer.menuBottom).toBeGreaterThan(footer.tagTop)
+  await story.evaluate(row => {
+    const labels = row.querySelector(".story_tag_labels")
+    for (const text of ["python", "vibecoding", "visualization", "another tag"]) {
+      const tag = document.createElement("span")
+      tag.className = "tag"
+      tag.textContent = text
+      labels.append(tag)
+    }
+  })
+  const wrapped = await story.evaluate(row => {
+    const tag = row.querySelector(".story_tag_labels .tag:last-child").getBoundingClientRect()
+    const menu = row.querySelector(".menu_btn").getBoundingClientRect()
+    return { tagBottom: tag.bottom, menuTop: menu.top, tagRight: tag.right, menuLeft: menu.left }
+  })
+  expect(wrapped.menuTop).toBeLessThan(wrapped.tagBottom)
+  expect(wrapped.tagRight).toBeLessThan(wrapped.menuLeft)
+  await page.screenshot({ path: "/tmp/once-compact-wrapped-tags.png" })
   await story.getByTestId("story-menu-button").click()
   await page.getByTestId("story-menu").getByText("What? Wait, who, why?", { exact: true }).click()
   await expect(story.getByTestId("addon-tray")).toContainText("ExampleApp is software", { timeout: 20000 })
@@ -31,9 +55,26 @@ test("story buttons default to the menu and have independent persistent platform
     expect(a.width).toBe(m.width)
     expect(a.height).toBe(m.height)
     expect(a.y).toBe(m.y)
-    expect(a.x + a.width).toBeLessThan(m.x)
+    expect(m.x - a.x - a.width).toBe(4)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.screenshot({ path: `/tmp/once-story-buttons-${theme}.png` })
+    await action.click()
+    const tray = story.getByTestId("addon-tray")
+    await expect(tray).toContainText("ExampleApp is software")
+    const compact = await tray.evaluate(panel => ({
+      padding: getComputedStyle(panel).padding,
+      buttons: [...panel.querySelectorAll("button")].map(button => ({
+        height: button.getBoundingClientRect().height,
+        margin: getComputedStyle(button).margin
+      }))
+    }))
+    expect(compact.padding).toBe("4px 6px 6px")
+    for (const button of compact.buttons) {
+      expect(button.height).toBe(28)
+      expect(button.margin).toBe("0px")
+    }
+    await page.screenshot({ path: `/tmp/once-compact-tray-${theme}.png` })
+    await tray.getByRole("button", { name: "Close", exact: true }).click()
     await openSettingsSection(page, "theme")
   }
   await page.screenshot({ path: "/tmp/once-story-button-settings.png" })
@@ -58,7 +99,7 @@ test("story buttons default to the menu and have independent persistent platform
       }) }
   })
   expect(geometry.textWidth).toBeGreaterThan(280)
-  expect(geometry.actionsTop).toBeGreaterThanOrEqual(geometry.textBottom)
+  expect(geometry.actionsTop).toBeLessThan(geometry.textBottom)
   for (const box of geometry.boxes) {
     expect(box.width).toBe(28)
     expect(box.height).toBe(28)
