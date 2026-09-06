@@ -63,8 +63,8 @@ test("the ⋮ button opens the story menu anchored above the tab bar", async ({ 
   // text width.
   expect(geometry.buttonHeight).toBe(28)
   expect(geometry.buttonWidth).toBe(28)
-  expect(geometry.buttonRightGap).toBe(12)
-  expect(geometry.buttonBottomGap).toBe(16)
+  expect(geometry.buttonRightGap).toBe(16)
+  expect(geometry.buttonBottomGap).toBe(13)
   expect(geometry.titleRightGap).toBeLessThanOrEqual(1)
 
   // Tapping the backdrop dismisses without running an action.

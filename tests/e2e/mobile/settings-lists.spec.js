@@ -440,7 +440,7 @@ test("the source form stacks its rows and keeps the iconic commit pair", async (
     }
   })
 
-  expect(layout.groups).toEqual(["Feed", "Handling"])
+  expect(layout.groups).toEqual(["Feed", "Handling", "Access"])
   // Stacked, not side by side: the name sits above its control rather than
   // behind it, and both take the row's single column. Side by side they would
   // share a line and split the width.

@@ -192,6 +192,7 @@ async function storyMenuAction(story, action, platform, { viaLongPress = false }
 }
 
 const nativeStoryMenuLabels = {
+  "addon:what-wait-who-why/explain": ["What? Wait, who, why?"],
   "open": ["Open story"],
   "open-comments": ["Open comments"],
   "open-browser": ["Open in browser"],
@@ -491,8 +492,8 @@ async function runAiAddon(baseUrl, platform) {
   await browser.waitUntil(async () => (await browser.execute(element => element.parentElement.textContent, token)).includes("Token saved on this device"), { timeout: 10000 })
   await clickWeb(await $("[data-testid='stories-menu']"), platform)
   const button = await $("[data-addon-tray-button='addon:what-wait-who-why/assistant']")
-  await button.waitForDisplayed({ timeout: 10000 })
-  await clickWeb(button, platform)
+  expect(await button.isDisplayed()).toBe(false)
+  await storyMenuAction(await $("[data-testid='story']"), "addon:what-wait-who-why/explain", platform)
   await browser.waitUntil(async () => (await $(".addon_tray").getText()).includes("ExampleApp is software"), { timeout: 30000 })
   await browser.execute(() => Array.from(document.querySelectorAll(".addon_tray button")).find(button => button.textContent === "Summarize").click())
   await browser.waitUntil(async () => (await $(".addon_tray").getText()).includes("Its qualifications are preserved"), { timeout: 30000 })

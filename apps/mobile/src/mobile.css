@@ -201,10 +201,9 @@
     touch-action: pan-y;
   }
 
-  /* basis 0, not 100% or auto: the row wraps, so any basis wider than the free
-   space pushes the ⋮ button onto a line of its own instead of beside the text */
+  /* Story text keeps the full row width above the optional action strip. */
   .story .data {
-    flex: 1 1 0;
+    flex: 1 1 100%;
     min-width: 0;
     font-size: var(--fs-meta);
   }
@@ -289,7 +288,7 @@
     order: 1;
     flex: 1 1 100%;
     box-sizing: border-box;
-    padding-right: var(--sp-6);
+    padding-right: 0;
     /* one .tag box: its line box, plus 1px padding + 1px border + 2px margin
      on each side. Keeps a tagless row exactly as tall as a tagged one. */
     min-height: calc(var(--fs-meta) * 1.25 + 8px);
@@ -298,27 +297,22 @@
     margin-left: calc(-1 * var(--sp-0-5));
   }
 
-  /* actions live in the ⋮ menu instead */
+  /* Optional actions share the menu's geometry and wrap without covering tags. */
   .story .button_group {
-    display: none;
+    display: flex;
+    flex: 1 1 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+    padding: 0;
+    margin-top: var(--sp-1);
   }
 
-  .story .button_group:has([data-addon-tray-button]) {
-    display: inline-flex;
-  }
-
-  .story .button_group:has([data-addon-tray-button]) > :not([data-addon-tray-button]) {
-    display: none;
-  }
-
-  /* ---------- Row ⋮ button ---------- */
-
-  .story .menu_btn {
+  .story .menu_btn,
+  .story .button_group > .button {
     display: grid;
     place-items: center;
-    position: absolute;
-    right: 12px;
-    bottom: 15px;
+    position: relative;
     box-sizing: border-box;
     width: 28px;
     height: 28px;
@@ -333,9 +327,24 @@
     line-height: 1;
   }
 
-  .stories_container .story .menu_btn {
+  .story .menu_btn {
+    order: 10;
+    position: absolute;
     right: 12px;
     bottom: 15px;
+  }
+
+  .story .button_group > .menu_btn {
+    position: relative;
+    right: auto;
+    bottom: auto;
+  }
+
+  .story .star_btn::before,
+  .story .star_btn::after {
+    inset: 0;
+    margin: auto;
+    transform: none;
   }
 
   .story .menu_btn:active,

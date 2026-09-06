@@ -354,7 +354,7 @@ export class StoryListItem extends HTMLElement {
       event.stopPropagation()
       this.requestMenu()
     })
-    this.appendChild(this.menu_btn)
+    this.button_group.appendChild(this.menu_btn)
   }
 
   /** Anchors on the whole row by default so ⋮ and long-press agree. */

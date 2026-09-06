@@ -6,6 +6,7 @@ const { openStoryMenu, seedFixtureStories } = require("./helpers/stories")
 test("settings menu always resets to a clean section index", async ({ page }) => {
   await gotoMobileApp(page)
   await page.getByTestId("settings-menu").click()
+  const sectionCount = await page.locator(".settings_section_row").filter({ visible: true }).count()
   await page.locator("#settings_search").fill("two-stage")
   await page.locator('[data-settings-target="swipe"]').click()
   await page.getByTestId("stories-menu").click()
@@ -19,7 +20,7 @@ test("settings menu always resets to a clean section index", async ({ page }) =>
   await expect(page.locator("#settings_search")).toHaveValue("")
   await expect(page.locator(".settings_section_row").filter({
     visible: true
-  })).toHaveCount(12)
+  })).toHaveCount(sectionCount)
 })
 
 test("mobile back unwinds settings before restoring its previous panel", async ({ page }) => {

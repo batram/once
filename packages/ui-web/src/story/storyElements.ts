@@ -1,3 +1,4 @@
+import { applyStoryButtonPreferences } from "./storyButtonPreferences"
 import type { StoryListItem } from "./StoryListItem"
 
 /**
@@ -49,6 +50,7 @@ export function applyStoryElements(row: StoryListItem): void {
       target.appendChild(element)
     }
   }
+  applyStoryButtonPreferences(row)
 }
 
 /** Re-renders one row's contributed elements, after the row's story changed. */

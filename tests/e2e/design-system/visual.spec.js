@@ -35,6 +35,8 @@ async function prepareStories(page, target = "") {
         .map((label) => `<button type="button" class="button mobile_filter_chip">${label}</button>`)
         .join("")
     }
+    const mobile = document.body.dataset.platform === "mobile"
+    const hidden = mobile ? " hidden" : ""
     stories.innerHTML = [
       ["Postgres rewritten in Rust v0.2, now faster than Postgres and ClickHouse", "github.com", "malisper", "4 mins ago"],
       ["Physicists Solve a Muon Mystery. Now, Old Results Don’t Add Up", "quantamagazine.org", "ibobev", "46 mins ago"],
@@ -59,13 +61,13 @@ async function prepareStories(page, target = "") {
           </div>
         </div>
         <div class="button_group">
-          <button type="button" class="button filter_btn" aria-label="Filter">
+          <button type="button" class="button filter_btn" aria-label="Filter"${hidden}>
             <span class="icon icon--chrome icon--filter" aria-hidden="true"></span>
           </button>
-          <button type="button" class="button star_btn" aria-label="Star"></button>
-          <button type="button" class="button read_btn" aria-label="Read"></button>
+          <button type="button" class="button star_btn" aria-label="Star"${hidden}></button>
+          <button type="button" class="button read_btn" aria-label="Read"${hidden}></button>
+          <button type="button" class="button button--icon menu_btn" aria-label="Story actions">⋮</button>
         </div>
-        <button type="button" class="button button--icon menu_btn" aria-label="Story actions">⋮</button>
       </article>
     `).join("")
   })
@@ -95,6 +97,18 @@ test("Electron shell keeps its visual shape", async ({ page }) => {
 test("mobile shell keeps its visual shape", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await prepareStories(page, "?target=mobile")
+  await expect(page.locator(".story .button_group > :visible")).toHaveCount(3)
+  const menus = await page.locator(".story .button_group > .menu_btn").evaluateAll(buttons =>
+    buttons.map(button => {
+      const bounds = button.getBoundingClientRect()
+      return { width: bounds.width, height: bounds.height, right: bounds.right }
+    })
+  )
+  for (const bounds of menus) {
+    expect(bounds.width).toBe(28)
+    expect(bounds.height).toBe(28)
+    expect(bounds.right).toBe(374)
+  }
   for (const selector of [
     "#stories_menu_btn > .heading",
     "#reading_menu_btn",

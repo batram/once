@@ -147,7 +147,7 @@ export function describeStoryMenu(
   // renderers group by the `group` field, so order here is within-group only.
   if (story) {
     for (const action of registeredStoryActions()) {
-      if (!action.surfaces.includes("menu")) continue
+      if (!action.surfaces.includes("menu") && !action.surfaces.includes("button")) continue
       items.push(item(action.id, action.label, action.group, true, action.appliesTo(story)))
     }
   }

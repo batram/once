@@ -183,3 +183,19 @@ test("a registered add-on action joins the menu for the rows it applies to and r
     false
   )
 })
+
+test("button-only addon actions remain accessible from the context menu", () => {
+  const { describeStoryMenu } = loadMenuModule()
+  const { registerStoryAction } = require("../../../packages/ui-web/dist/menu/storyActionRegistry")
+  const remove = registerStoryAction({
+    id: "addon:example/button-only", label: "Example action", group: "discovery",
+    surfaces: ["button"], appliesTo: () => true, run: () => {}
+  })
+  try {
+    for (const platform of ["mobile", "electron"]) {
+      const action = describeStoryMenu({ platform, buildChannel: "release", story: fakeStory() })
+        .find(item => item.id === "addon:example/button-only")
+      assert.equal(action?.visible, true)
+    }
+  } finally { remove() }
+})

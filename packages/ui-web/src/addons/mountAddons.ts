@@ -1,3 +1,4 @@
+import { registerStoryButton } from "../story/storyButtonPreferences"
 import { OnceClient } from "@once/app"
 import {
   AddonEntry,
@@ -185,6 +186,7 @@ async function registerManifest(
         run
       }))
       if (contribution.surfaces.includes("button")) {
+        releases.push(registerStoryButton(id, contribution.label))
         releases.push(registerStoryElement({
           id,
           slot: "button",

@@ -1,4 +1,5 @@
 /* global browser, describe, it, $ */
+const assert = require("node:assert/strict")
 const fixture = require("../shared/ai-addon-fixture")
 
 async function click(selector) {
@@ -48,9 +49,61 @@ describe("Native AI addon", () => {
     await click("[data-testid='stories-menu']")
     await click("[data-testid='reload-stories']")
     await $("[data-testid='story']").waitForDisplayed({ timeout: 30000 })
-    await click("[data-addon-tray-button='addon:what-wait-who-why/assistant']")
+    const action = "#stories [data-addon-tray-button='addon:what-wait-who-why/assistant']"
+    assert.equal(await $(action).isDisplayed(), false)
+    const webview = await browser.getContext()
+    await $("#stories [data-testid='story-menu-button']").click()
+    await browser.switchContext("NATIVE_APP")
+    const entry = await $(platform === "android"
+      ? 'android=new UiSelector().text("What? Wait, who, why?")'
+      : '-ios predicate string:name == "What? Wait, who, why?"')
+    await entry.waitForDisplayed({ timeout: 10000 })
+    await browser.saveScreenshot("/tmp/once-android-story-menu.png")
+    await entry.click()
+    await browser.switchContext(webview)
     await browser.waitUntil(async () => (await $(".addon_tray").getText()).includes("ExampleApp is software"), { timeout: 30000 })
     await browser.execute(() => Array.from(document.querySelectorAll(".addon_tray button")).find(button => button.textContent === "Summarize").click())
     await browser.waitUntil(async () => (await $(".addon_tray").getText()).includes("Its qualifications are preserved"), { timeout: 30000 })
+    await $(".addon_tray button[aria-label='Close']").click()
+    await click("[data-testid='settings-menu']")
+    for (let level = 0; level < 3 && !(await $("[data-settings-target='theme']").isDisplayed()); level++) await click("#settings_section_back")
+    await click("[data-settings-target='theme']")
+    const mobile = '[id="story-button-mobile-addon:what-wait-who-why/explain"]'
+    const desktop = '[id="story-button-desktop-addon:what-wait-who-why/explain"]'
+    assert.equal(await $(mobile).isSelected(), false)
+    assert.equal(await $(desktop).isSelected(), true)
+    await $(mobile).click()
+    await $(desktop).click()
+    for (const theme of ["light", "dark"]) {
+      await fill("#theme_select", theme)
+      await click("[data-testid='stories-menu']")
+      await $(action).waitForDisplayed()
+      const geometry = await browser.execute(selector => {
+        const button = document.querySelector(selector).getBoundingClientRect()
+        const menu = document.querySelector("#stories story-item .menu_btn").getBoundingClientRect()
+        const data = document.querySelector("#stories story-item .data").getBoundingClientRect()
+        return { width: button.width, height: button.height, y: button.y, menuY: menu.y,
+          menuWidth: menu.width, menuHeight: menu.height, textBottom: data.bottom,
+          overflow: document.documentElement.scrollWidth > innerWidth }
+      }, action)
+      assert.equal(geometry.width, 28)
+      assert.equal(geometry.height, 28)
+      assert.equal(geometry.width, geometry.menuWidth)
+      assert.equal(geometry.height, geometry.menuHeight)
+      assert.equal(geometry.y, geometry.menuY)
+      assert.ok(geometry.y >= geometry.textBottom)
+      assert.equal(geometry.overflow, false)
+      await browser.saveScreenshot(`/tmp/once-android-buttons-${theme}.png`)
+      await $(action).click()
+      await $(".addon_tray").waitForDisplayed()
+      await $(".addon_tray button[aria-label='Close']").click()
+      await click("[data-testid='settings-menu']")
+      await click("[data-settings-target='theme']")
+    }
+    await browser.refresh()
+    await browser.waitUntil(async () => (await $("body").getAttribute("data-once-ready")) === "true", { timeout: 30000 })
+    await click("[data-testid='stories-menu']")
+    await click("[data-testid='reload-stories']")
+    await $(action).waitForDisplayed({ timeout: 30000 })
   })
 })

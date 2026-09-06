@@ -1,3 +1,4 @@
+import { mountStoryButtonSettings } from "../story/storyButtonPreferences"
 import { SourceError } from "@once/app"
 import { requireClosestElement, requireElement } from "../dom"
 import { SETTINGS_EDITOR_SCOPE } from "./settingsStatus"
@@ -98,6 +99,7 @@ export function bindThemeAnimationControls(
   saveTheme: (theme: string) => void,
   saveAnimation: (enabled: boolean) => void
 ): void {
+  mountStoryButtonSettings(requireElement<HTMLElement>("#story_button_settings"))
   const theme = requireElement<HTMLSelectElement>("#theme_select")
   theme.addEventListener("change", () => saveTheme(theme.value))
   const animation = requireElement<HTMLInputElement>("#anim_checkbox")
