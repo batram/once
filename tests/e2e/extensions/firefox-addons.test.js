@@ -131,7 +131,11 @@ test("Firefox runs a scripted add-on in a hosted sandbox page", { timeout: 120_0
     await driver.findElement(By.css('[data-testid="stories-menu"]')).click()
     const aiButton = await driver.wait(until.elementLocated(By.css('[data-addon-tray-button="addon:what-wait-who-why/assistant"]')), 10000)
     await aiButton.click()
-    await driver.wait(async () => (await driver.findElement(By.css(".addon_tray")).getText()).includes("ExampleApp is software"), 20000)
+    // The tray is replaced as responses arrive; read the live DOM atomically.
+    await driver.wait(() => driver.executeScript(`
+      return document.querySelector("#stories .addon_tray")
+        ?.textContent.includes("ExampleApp is software") ?? false
+    `), 20000)
     await openSettingsSection(driver, "addons", "#addon_url_input")
     const localZip = path.join(localDirectory, "local-package.zip")
     await fs.writeFile(localZip, await require("../shared/local-addon-fixture").zipFile())
@@ -139,7 +143,10 @@ test("Firefox runs a scripted add-on in a hosted sandbox page", { timeout: 120_0
     await driver.wait(until.elementLocated(By.css('[data-testid="confirm-addon"]')), 10000)
     await driver.findElement(By.css('[data-testid="confirm-addon"]')).click()
     await driver.findElement(By.css('[data-testid="stories-menu"]')).click()
-    await driver.wait(async () => (await driver.findElement(By.css('[data-addon-badge="ready"]')).getText()) === "Local package ready", 10000)
+    await driver.wait(() => driver.executeScript(`
+      return document.querySelector('#stories [data-addon-badge="ready"]')
+        ?.textContent === "Local package ready"
+    `), 10000)
   } finally {
     await driver.quit()
     await source.close()
