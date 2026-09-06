@@ -4,6 +4,7 @@ import { createIconButton } from "../story/storyRowMarkup"
 import { PresenterOptions } from "./registry"
 import { getOnceClient } from "../client"
 import { ReaderView } from "../reader/ReaderView"
+import { requestReading } from "../ReadingSession"
 import { LoaderInsights } from "../shell/LoaderInsights"
 import { requireElement } from "../dom"
 
@@ -32,7 +33,7 @@ export function story_elem_button(story: Story): HTMLElement {
     icon.className = "icon icon--chrome icon--stored-content"
   }
 
-  //prevent scroll, but fire interaction only on mouseup
+  // Prevent middle-button autoscroll.
   outline_btn.addEventListener("mousedown", (event) => {
     if (event.button == 1) {
       event.preventDefault()
@@ -41,31 +42,29 @@ export function story_elem_button(story: Story): HTMLElement {
     }
   })
 
-  outline_btn.addEventListener("mouseup", async (e: MouseEvent) => {
-    if (e.button !== 0 && e.button !== 1) return
-
+  const open = async (newTab: boolean) => {
     try {
-      if (e.button === 1) {
-        // Middle click
-        e.preventDefault()
-        e.stopPropagation()
-        await openInReaderMode(story.href, true)
-      } else if (e.button === 0) {
-        // Left click
-        await openInReaderMode(story.href, false)
+      if (newTab || !requestReading(story, "reader")) {
+        await openInReaderMode(story.href, newTab)
       }
-
       outline_btn.parentElement
         ?.querySelector(".read_btn")
         ?.classList.add("user_interaction")
-      await getOnceClient().persistStoryChange(
-        story.href,
-        "read_state",
-        "read"
-      )
+      await getOnceClient().persistStoryChange(story.href, "read_state", "read")
     } catch (error) {
       showReaderError(error, story.href)
     }
+  }
+  // Click covers touch and keyboard activation as well as the left mouse button.
+  outline_btn.addEventListener("click", (event) => {
+    event.stopPropagation()
+    void open(false)
+  })
+  outline_btn.addEventListener("mouseup", (event: MouseEvent) => {
+    if (event.button !== 1) return
+    event.preventDefault()
+    event.stopPropagation()
+    void open(true)
   })
 
   return outline_btn

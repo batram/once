@@ -74,6 +74,18 @@ test("story buttons default to the menu and have independent persistent platform
       expect(button.margin).toBe("0px")
     }
     await page.screenshot({ path: `/tmp/once-compact-tray-${theme}.png` })
+    await tray.evaluate(panel => { panel.style.minHeight = "200vh" })
+    await story.getByTestId("story-menu-button").click()
+    const menu = page.getByTestId("story-menu")
+    await expect(menu).toBeVisible()
+    await expect(menu.getByText("What? Wait, who, why?", { exact: true })).toBeVisible()
+    const menuBox = await menu.boundingBox()
+    const anchorBox = await story.getByTestId("story-menu-button").boundingBox()
+    expect(menuBox.y).toBeGreaterThanOrEqual(anchorBox.y + anchorBox.height)
+    expect(menuBox.height).toBeGreaterThan(200)
+    expect(Math.abs(menuBox.x + menuBox.width - anchorBox.x - anchorBox.width)).toBeLessThan(1)
+    await page.screenshot({ path: `/tmp/once-expanded-tray-menu-${theme}.png` })
+    await page.getByTestId("story-menu-backdrop").click({ position: { x: 1, y: 1 } })
     await tray.getByRole("button", { name: "Close", exact: true }).click()
     await openSettingsSection(page, "theme")
   }

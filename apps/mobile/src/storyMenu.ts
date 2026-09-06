@@ -223,7 +223,7 @@ function installLongPress(): void {
       // leaving the suppressor armed against a menu that never opened.
       if (!target?.isConnected) return
       armSuppressor()
-      target.requestMenu(target)
+      target.requestMenu()
     }, LONG_PRESS_MS)
   })
 }

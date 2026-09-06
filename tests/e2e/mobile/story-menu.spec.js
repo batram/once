@@ -45,8 +45,8 @@ test("the ⋮ button opens the story menu anchored above the tab bar", async ({ 
     const data = rowEl.querySelector(".data").getBoundingClientRect()
     const title = rowEl.querySelector(".title").getBoundingClientRect()
     return {
-      // right-aligned to the row it belongs to
-      rightGap: Math.abs(rect.right - row.right),
+      // right-aligned to the button that opened it
+      rightGap: Math.abs(rect.right - button.right),
       // never reaches behind the fixed tab bar
       clearsTabBar: rect.bottom <= tabs.top,
       buttonHeight: Math.round(button.height),
@@ -81,7 +81,7 @@ test("the ⋮ button opens the story menu anchored above the tab bar", async ({ 
   await expect(menu).toBeVisible()
   const flipped = await menu.evaluate((panel) => {
     const rect = panel.getBoundingClientRect()
-    const row = document.querySelector("story-item").getBoundingClientRect()
+    const row = document.querySelector("story-item .menu_btn").getBoundingClientRect()
     const tabs = document.querySelector("#menu").getBoundingClientRect()
     return {
       above: rect.bottom <= row.top,

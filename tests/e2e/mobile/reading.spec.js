@@ -220,3 +220,17 @@ test("Reader mode explains failures and offers clean recovery", async ({ page })
   await expect(page.getByTestId("reader-tts-bar")).toBeVisible()
   expect(attempts).toBe(3)
 })
+
+
+test("the optional reader button opens the mobile Reading session on tap", async ({ page }) => {
+  const story = await seedFixtureStories(page)
+  await openSettingsSection(page, "theme")
+  await page.locator('[id="story-button-mobile-builtin/outline"]').check()
+  await page.getByTestId("stories-menu").click()
+  await story.getByTestId("story-reader").tap()
+  await expect(page.locator("#reading_content")).toBeVisible()
+  await expect(page.locator("#reading_content")).toHaveAttribute("data-mode", "reader")
+  const reader = page.locator(".once-reader-host-frame").contentFrame()
+  await expect(reader.locator("article").first()).toContainText("Once mobile reader fixture content")
+  await page.screenshot({ path: "/tmp/once-mobile-reader-button.png" })
+})

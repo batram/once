@@ -357,8 +357,8 @@ export class StoryListItem extends HTMLElement {
     this.button_group.appendChild(this.menu_btn)
   }
 
-  /** Anchors on the whole row by default so ⋮ and long-press agree. */
-  requestMenu(anchor: HTMLElement = this): void {
+  /** Keep expanded trays out of the menu anchor bounds. */
+  requestMenu(anchor: HTMLElement = this.menu_btn): void {
     this.dispatchEvent(new StoryMenuRequestEvent(this, anchor))
   }
 
