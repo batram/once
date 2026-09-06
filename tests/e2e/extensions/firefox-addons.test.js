@@ -123,7 +123,11 @@ test("Firefox runs a scripted add-on in a hosted sandbox page", { timeout: 120_0
     await driver.wait(until.elementLocated(By.css('.addon_list_row[data-addon-id="what-wait-who-why"]')), 10000).click()
     await token.sendKeys("fixture-token")
     await driver.executeScript("arguments[0].parentElement.querySelector('button').click()", token)
-    await driver.wait(async () => (await driver.executeScript("return arguments[0].parentElement.textContent", token)).includes("Token saved on this device"), 10000)
+    // Saving options re-renders the settings control; poll its current node.
+    await driver.wait(() => driver.executeScript(`
+      return document.querySelector('[data-testid="addon-option-what-wait-who-why-compatibleToken"]')
+        ?.parentElement.textContent.includes("Token saved on this device") ?? false
+    `), 10000)
     await driver.findElement(By.css('[data-testid="stories-menu"]')).click()
     const aiButton = await driver.wait(until.elementLocated(By.css('[data-addon-tray-button="addon:what-wait-who-why/assistant"]')), 10000)
     await aiButton.click()
