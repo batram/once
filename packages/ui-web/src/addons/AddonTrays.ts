@@ -113,10 +113,15 @@ export class AddonTrays {
     root.setAttribute("aria-label", this.manifest.trays?.find(item => item.id === tray)?.title ?? tray)
     for (const type of ["pointerdown", "mousedown", "touchstart", "touchmove", "click", "dblclick", "keydown", "contextmenu"]) root.addEventListener(type, event => event.stopPropagation())
     const heading = document.createElement("strong")
+    heading.className = "addon_tray_title"
     heading.textContent = root.getAttribute("aria-label")
     const close = this.button("Close", () => { state.open = false; this.refresh(row.story.href, tray) })
+    // The label becomes the accessible name so the glyph can replace the word.
+    close.classList.add("button--icon")
+    close.setAttribute("aria-label", close.textContent ?? "Close")
+    close.replaceChildren(this.icon("x"))
     const header = document.createElement("div")
-    header.className = "addon_tray_actions"
+    header.className = "addon_tray_actions addon_tray_header"
     header.append(heading, close)
     root.append(header)
     for (const message of state.view.messages) {
@@ -131,11 +136,16 @@ export class AddonTrays {
         link.target = "_blank"
         link.rel = "noopener noreferrer"
         link.className = "addon_tray_source"
+        link.prepend(this.icon("popout", "icon--inline"))
         root.append(link)
       }
     }
     const status = document.createElement("p")
     status.setAttribute("role", "status")
+    // A host failure and an addon reporting its own through statusTone read the
+    // same to the reader, so they get the same treatment.
+    const failed = !state.controller && (state.error !== "" || state.view.statusTone === "error")
+    status.className = failed ? "addon_tray_status addon_tray_status--error" : "addon_tray_status"
     status.textContent = state.controller ? "Working…" : state.error || state.view.status || ""
     root.append(status, this.controls(row, tray, state))
     if (state.view.composer) root.append(this.composer(row, tray, state))
@@ -144,7 +154,7 @@ export class AddonTrays {
 
   private controls(row: StoryListItem, tray: string, state: TrayState): HTMLElement {
     const controls = document.createElement("div")
-    controls.className = "addon_tray_actions"
+    controls.className = "addon_tray_actions addon_tray_controls"
     if (state.controller) controls.append(this.button("Stop", () => {
       state.controller?.abort(); state.controller = undefined; state.error = "Request cancelled"; this.refresh(row.story.href, tray)
     }))
@@ -180,6 +190,15 @@ export class AddonTrays {
     })
     form.append(input, send)
     return form
+  }
+
+  /** `.icon` has no default size, so every call site names one: `.icon--inline`
+   *  for a glyph in running text, or a component rule for the rest. */
+  private icon(name: string, sized = ""): HTMLElement {
+    const glyph = document.createElement("span")
+    glyph.className = sized ? `icon ${sized} icon--${name}` : `icon icon--${name}`
+    glyph.setAttribute("aria-hidden", "true")
+    return glyph
   }
 
   private button(label: string, run: () => void): HTMLButtonElement {

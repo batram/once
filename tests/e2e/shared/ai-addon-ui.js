@@ -34,10 +34,15 @@ async function exerciseAiTray(page, row) {
   await expect(tray).toContainText("Developers use it")
   await row.evaluate(element => element.update_complete_story_el())
   await expect(tray).toContainText("Developers use it")
+  // An addon reporting its own failure, and a host one, both reach the reader as
+  // an error rather than as another progress line.
+  await question.fill("Break it")
+  await tray.getByRole("button", { name: "Ask", exact: true }).click()
+  await expect(tray.locator(".addon_tray_status--error")).toContainText("HTTP 500")
   await question.fill("Wait for me")
   await tray.getByRole("button", { name: "Ask", exact: true }).click()
   await tray.getByRole("button", { name: "Stop", exact: true }).click()
-  await expect(tray).toContainText("Request cancelled")
+  await expect(tray.locator(".addon_tray_status--error")).toContainText("Request cancelled")
   await tray.getByRole("button", { name: "Clear conversation", exact: true }).click()
   await expect(tray.locator(".addon_tray_message")).toHaveCount(0)
 }

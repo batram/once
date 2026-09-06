@@ -293,10 +293,14 @@ once.onTray(async (tray, event, story, context) => {
 ```
 
 Events are `{ type: "open" | "clear" }`, `{ type: "submit", text }`, or
-`{ type: "action", action }`. A view is `{ messages, status?, actions?, composer? }`.
+`{ type: "action", action }`. A view is
+`{ messages, status?, statusTone?, actions?, composer? }`.
 Messages have `role: "user" | "assistant" | "info"`, plain `text`, and optional
 `sources: [{ title, url }]`; only HTTP(S) source links are allowed. Actions are
 `{ id, label }`; the optional composer string labels the question field.
+`statusTone` is `"info"` (the default) or `"error"`. An addon that catches its own
+failures reports them through `status` like any other line, so set `"error"` there
+or the host cannot tell a failure from progress and will render both alike.
 Views are capped at 256,000 characters, 100 messages, 30 sources per message,
 and eight actions. They never contain host HTML, scripts, or event handlers.
 

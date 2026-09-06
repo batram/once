@@ -13,6 +13,9 @@ export default tseslint.config(
       "web-ext-artifacts/",
       "test-results/",
       "playwright-report/",
+      // gitignored scratch: run artifacts and e2e profiles, which carry copies
+      // of whole third-party extensions. Flat config does not read .gitignore.
+      "artifacts/",
       // design references dropped in as-is; not repo source
       "docs/**/*.js",
       "docs/**/*.jsx",

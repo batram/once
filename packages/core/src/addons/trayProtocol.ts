@@ -10,9 +10,15 @@ export interface AddonTrayMessage {
   text: string
   sources?: readonly AddonCitation[]
 }
+/** Whether a view's `status` reports a failure. Absent means `"info"`. */
+export type AddonTrayStatusTone = "info" | "error"
+
 export interface AddonTrayView {
   messages: readonly AddonTrayMessage[]
   status?: string
+  /** An addon reports its own failures through `status`, so without this the
+      host cannot tell one from a normal progress line and renders both alike. */
+  statusTone?: AddonTrayStatusTone
   actions?: readonly { id: string; label: string }[]
   composer?: string
 }
@@ -53,6 +59,7 @@ export function readTrayView(value: unknown): AddonTrayView {
     return { role: message.role, text: message.text, sources }
   })
   if (view.status !== undefined && (typeof view.status !== "string" || view.status.length > 1000)) throw new Error("Invalid tray status")
+  if (view.statusTone !== undefined && !["info", "error"].includes(view.statusTone)) throw new Error("Invalid tray status tone")
   if (view.composer !== undefined && (typeof view.composer !== "string" || view.composer.length > 200)) throw new Error("Invalid composer")
   if (view.actions && (!Array.isArray(view.actions) || view.actions.length > 8)) throw new Error("Too many tray actions")
   const actions = view.actions?.map(action => {
@@ -61,5 +68,5 @@ export function readTrayView(value: unknown): AddonTrayView {
     }
     return { id: action.id, label: action.label }
   })
-  return { messages, status: view.status, actions, composer: view.composer }
+  return { messages, status: view.status, statusTone: view.statusTone, actions, composer: view.composer }
 }

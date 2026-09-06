@@ -34,6 +34,9 @@ function handleRequest(request, response) {
         last.includes("Who uses") ? "Developers use it. This follows our earlier explanation." : "ExampleApp is software for organizing projects."
       const send = () => {
         if (response.destroyed) return
+        // The addon catches a provider failure itself and reports it through the
+        // view's status, which is the statusTone: "error" path.
+        if (last.includes("Break")) { response.writeHead(500); response.end("{}"); return }
         response.writeHead(call.authorized ? 200 : 401, { "content-type": "application/json" })
         response.end(JSON.stringify({ choices: [{ message: { content: answer } }] }))
       }

@@ -1,55 +1,153 @@
+/* A tray is a panel inside a story row, so it takes the list's density and type
+   scale rather than the document's defaults. Left alone it inherits 16px body
+   text, which made it the largest type in the window — larger than the story
+   title it belongs to, and four times the size of that row's metadata. */
 .addon_tray {
   flex: 0 0 100%;
   min-width: 0;
   box-sizing: border-box;
-  margin-block-start: var(--sp-2);
-  padding: var(--sp-3);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
+  margin-block-start: var(--sp-1-5);
+  padding: var(--sp-2) var(--sp-3) var(--sp-3);
+  /* --border-high-color rather than --divider-color: in dark mode the tray's
+     fill and an unread row's are the same value, so the edge is the only thing
+     saying where the panel starts. */
+  border: var(--bw) solid var(--border-high-color);
+  border-radius: var(--radius-md);
   background: var(--input-bg-color);
   color: var(--text-high-color);
+  font-size: var(--fs-dense);
+  line-height: 1.45;
   cursor: auto;
   user-select: text;
+}
+
+/* The addon's name, not a document heading: it says which tray this is and then
+   gets out of the way of the answer. */
+.addon_tray_header {
+  margin-block-end: var(--sp-2);
+  padding-block-end: var(--sp-1);
+  border-block-end: var(--bw) solid var(--divider-color);
+}
+
+.addon_tray_title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted-color);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --icon-sm, not the --icon-md the row's own button strip uses: this glyph is
+   paired with one line of --fs-meta text rather than four sibling icons, and at
+   16px it outweighed the title beside it. */
+.addon_tray_header .icon {
+  --icon-size: var(--icon-sm);
 }
 
 .addon_tray_actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--sp-2);
+  gap: var(--sp-1);
 }
 
+.addon_tray_controls {
+  margin-block-start: var(--sp-2);
+}
+
+/* .story .button sizes the row's icon strip to a 16px glyph. A tray button
+   carries a word and is sized by its text instead. Equal weight, imported
+   after stories.css in the same layer, so this wins on order. */
 .addon_tray .button {
-  min-height: 32px;
-  height: auto;
   box-sizing: border-box;
-  padding: var(--sp-1) var(--sp-2);
-  white-space: normal;
+  height: auto;
+  min-height: 0;
+  padding: var(--sp-0-5) var(--sp-2);
+  border-color: var(--border-color);
+  font-size: var(--fs-meta);
+  line-height: 1.4;
+  white-space: nowrap;
 }
 
+.addon_tray .button--icon {
+  padding-inline: var(--sp-0-5);
+}
+
+/* An answer runs to several paragraphs, so it gets a measure. The reader
+   document caps its own at 700px for the same reason. */
 .addon_tray_message {
+  max-inline-size: 72ch;
   margin-block: var(--sp-3);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  line-height: 1.5;
 }
 
-.addon_tray_user { font-weight: 600; }
-.addon_tray_info { font-style: italic; }
-.addon_tray_source { display: block; overflow-wrap: anywhere; }
+/* The reader's own turn, quoted back: a rule in the cursor colour marks it as
+   theirs, which the answer then does not have to be outweighed by. */
+.addon_tray_user {
+  padding-inline-start: var(--sp-2);
+  border-inline-start: calc(var(--bw) * 2) solid var(--cursor-color);
+  color: var(--text-muted-color);
+}
+
+.addon_tray_info {
+  font-style: italic;
+}
+
+/* .story a claims every link in a row, so a source needs the same weight to
+   keep its own colour. */
+.addon_tray .addon_tray_source {
+  display: block;
+  margin-block: var(--sp-0-5);
+  color: var(--text-muted-color);
+  font-size: var(--fs-meta);
+  overflow-wrap: anywhere;
+}
+
+.addon_tray .addon_tray_source .icon {
+  margin-inline-end: var(--sp-1);
+  opacity: 0.7;
+}
+
+.addon_tray .addon_tray_source:hover {
+  color: var(--text-high-color);
+  text-decoration-line: underline;
+}
+
+/* What the answer was built from, or why there is no answer. A rule separates
+   it from the sources above, which are the same size and colour. */
+.addon_tray_status {
+  margin-block: var(--sp-2) 0;
+  padding-block-start: var(--sp-1-5);
+  border-block-start: var(--bw) solid var(--divider-color);
+  color: var(--text-muted-color);
+  font-size: var(--fs-meta);
+}
+
+.addon_tray_status:empty {
+  display: none;
+}
+
+.addon_tray_status--error {
+  color: var(--error-color);
+}
 
 .addon_tray_composer {
   display: flex;
   align-items: end;
-  gap: var(--sp-2);
-  margin-block-start: var(--sp-3);
+  gap: var(--sp-1);
+  margin-block-start: var(--sp-2);
 }
 
+/* Border, radius and fill come from the control rule in vars.css; the tray
+   owns only the size and type of the box it puts there. */
 .addon_tray_composer textarea {
   flex: 1;
   min-width: 0;
-  resize: vertical;
+  padding: var(--sp-1) var(--sp-1-5);
   font: inherit;
-  color: inherit;
-  background: var(--input-bg-color);
+  resize: vertical;
 }

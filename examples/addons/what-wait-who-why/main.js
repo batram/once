@@ -68,7 +68,7 @@ function view(state) {
   const actions = [...ACTIONS]
   if (state.error) actions.push({ id: "retry", label: "Retry" })
   if (state.searchFailed) actions.push({ id: "without-search", label: "Answer without search" })
-  return { messages: state.messages, status: state.error || state.status || "Ask about this story.", actions, composer: "Ask a follow-up question about this story" }
+  return { messages: state.messages, status: state.error || state.status || "Ask about this story.", statusTone: state.error ? "error" : "info", actions, composer: "Ask a follow-up question about this story" }
 }
 
 export function recentHistory(history) {

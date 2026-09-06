@@ -35,6 +35,9 @@ test("tray views only allow bounded text and safe source URLs", () => {
   assert.throws(() => core.readTrayView({ messages: [{ role: "assistant", text: "answer", sources: [{ title: "bad", url: "javascript:alert(1)" }] }] }), /Invalid source/)
   assert.throws(() => core.readTrayView({ messages: [{ role: "assistant", text: "x".repeat(256001) }] }), /too large/)
   assert.throws(() => core.readTrayView({ messages: [], actions: [{ id: "bad space", label: "bad" }] }), /Invalid tray action/)
+  assert.equal(core.readTrayView({ messages: [], status: "failed", statusTone: "error" }).statusTone, "error")
+  assert.equal(core.readTrayView({ messages: [], status: "ready" }).statusTone, undefined)
+  assert.throws(() => core.readTrayView({ messages: [], statusTone: "warning" }), /Invalid tray status tone/)
 })
 
 test("connection requests cannot set authentication headers or arbitrary HTTP methods", () => {
