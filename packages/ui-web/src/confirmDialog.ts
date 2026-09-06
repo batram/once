@@ -78,12 +78,7 @@ export function showChoiceDialog({
   document.body.append(dialog)
 
   const positionDialog = () => {
-    const rect = positionWithin?.getBoundingClientRect() ?? {
-      left: 0,
-      top: 0,
-      width: window.innerWidth,
-      height: window.innerHeight
-    }
+    const rect = dialogBounds(positionWithin)
     dialog.style.left = `${Math.round(rect.left + rect.width / 2)}px`
     dialog.style.top = `${Math.round(rect.top + rect.height / 2)}px`
     dialog.style.setProperty(
@@ -160,12 +155,7 @@ export function showTextInputDialog({
   document.body.append(dialog)
 
   const positionDialog = () => {
-    const rect = positionWithin?.getBoundingClientRect() ?? {
-      left: 0,
-      top: 0,
-      width: window.innerWidth,
-      height: window.innerHeight
-    }
+    const rect = dialogBounds(positionWithin)
     dialog.style.left = `${Math.round(rect.left + rect.width / 2)}px`
     dialog.style.top = `${Math.round(rect.top + rect.height / 2)}px`
     dialog.style.setProperty(
@@ -251,12 +241,7 @@ export function showConfirmDialog({
   document.body.append(dialog)
 
   const positionDialog = () => {
-    const rect = positionWithin?.getBoundingClientRect() ?? {
-      left: 0,
-      top: 0,
-      width: window.innerWidth,
-      height: window.innerHeight
-    }
+    const rect = dialogBounds(positionWithin)
     dialog.style.left = `${Math.round(rect.left + rect.width / 2)}px`
     dialog.style.top = `${Math.round(rect.top + rect.height / 2)}px`
     dialog.style.setProperty(
@@ -294,4 +279,14 @@ export function showConfirmDialog({
     positionDialog()
     dialog.showModal()
   })
+}
+
+// A story action can originate in Reading while its row lives in hidden Stories.
+function dialogBounds(positionWithin?: HTMLElement) {
+  const requested = positionWithin?.getBoundingClientRect()
+  if (requested && requested.width > 0 && requested.height > 0) return requested
+  const active = positionWithin && document.querySelector("#left_panel")?.getAttribute("active_panel")
+  const visible = active ? document.getElementById(`${active}_panel`)?.getBoundingClientRect() : undefined
+  if (visible && visible.width > 0 && visible.height > 0) return visible
+  return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight }
 }

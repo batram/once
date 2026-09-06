@@ -131,6 +131,14 @@ export class MobileReadingController {
   }
 
   private bindEvents(): void {
+    // Native browser views sit above the webview, including its modal dialogs.
+    let dialogOpen = false
+    new MutationObserver(() => {
+      const open = Boolean(document.querySelector("dialog[open]"))
+      if (open === dialogOpen) return
+      dialogOpen = open
+      this.nativeReading.setDialogOpen(open)
+    }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["open"] })
     document.body.addEventListener(READING_REQUEST, (rawEvent) => {
       const event = rawEvent as ReadingRequestEvent
       event.preventDefault()

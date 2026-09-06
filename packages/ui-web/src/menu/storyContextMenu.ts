@@ -1,3 +1,4 @@
+import { open_panel } from "../shell/panelNavigation"
 import { URLRedirect } from "@once/core"
 import { StoryHistory } from "../story/StoryHistory"
 import type { StoryListItem } from "../story/StoryListItem"
@@ -242,6 +243,7 @@ export async function executeStoryMenuAction(
     }
     case "search-domain": {
       const Search = await import("../story/storySearch.js")
+      open_panel("stories")
       Search.searchStories(`domain:${new URL(story.story.href).hostname}`)
       return
     }

@@ -173,6 +173,36 @@ describe("Native AI addon", () => {
       await browser.switchContext("NATIVE_APP")
       await browser.saveScreenshot(`/tmp/once-android-reading-${mode}-restored.png`)
       await browser.switchContext(webview)
+      for (const action of ["Filter source", "Purge story"]) {
+        await click("#reading_story_menu")
+        await browser.switchContext("NATIVE_APP")
+        await $(platform === "android"
+          ? `android=new UiSelector().text("${action}")`
+          : `-ios predicate string:name == "${action}"`).click()
+        if (action === "Filter source") {
+          const cancel = await $(platform === "android"
+            ? 'android=new UiSelector().resourceId("android:id/button2")'
+            : '-ios predicate string:name == "Cancel"')
+          await cancel.waitForDisplayed({ timeout: 10000 })
+          await browser.saveScreenshot(`/tmp/once-android-reading-${mode}-filter.png`)
+          await cancel.click()
+          await browser.switchContext(webview)
+          continue
+        }
+        await browser.switchContext(webview)
+        const dialog = await $("dialog[open]")
+        await dialog.waitForDisplayed({ timeout: 10000 })
+        const bounds = await browser.execute(() => {
+          const box = document.querySelector("dialog[open]").getBoundingClientRect()
+          return { x: box.x, y: box.y, right: box.right, bottom: box.bottom, width: innerWidth, height: innerHeight }
+        })
+        assert.ok(bounds.x >= 0 && bounds.y >= 0 && bounds.right <= bounds.width && bounds.bottom <= bounds.height)
+        await browser.switchContext("NATIVE_APP")
+        await browser.saveScreenshot(`/tmp/once-android-reading-${mode}-${action === "Filter source" ? "filter" : "purge"}.png`)
+        await browser.switchContext(webview)
+        await $(`[data-testid="${action === "Filter source" ? "text-input-cancel" : "confirm-cancel"}"]`).click()
+        await dialog.waitForExist({ reverse: true, timeout: 10000 })
+      }
     }
 
 

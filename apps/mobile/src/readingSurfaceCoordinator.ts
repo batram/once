@@ -31,6 +31,7 @@ export class ReadingSurfaceCoordinator {
   private readingPanelVisible = false
   private menuOpen = false
   private overlayOpen = false
+  private dialogOpen = false
   private surfaceGeneration = 0
   private readerRequestId = 0
   private surfaceQueue: Promise<void> = Promise.resolve()
@@ -107,6 +108,11 @@ export class ReadingSurfaceCoordinator {
 
   setOverlayOpen(open: boolean): void {
     this.overlayOpen = open
+    void this.updateVisibility()
+  }
+
+  setDialogOpen(open: boolean): void {
+    this.dialogOpen = open
     void this.updateVisibility()
   }
 
@@ -190,7 +196,7 @@ export class ReadingSurfaceCoordinator {
       }
     }
     if (generation !== this.surfaceGeneration) return
-    await this.surface.setVisible(this.readingPanelVisible && !this.menuOpen && !this.overlayOpen)
+    await this.surface.setVisible(this.readingPanelVisible && !this.menuOpen && !this.overlayOpen && !this.dialogOpen)
     document.body.classList.toggle(
       "once-native-reading-surface",
       this.surface.available
@@ -202,7 +208,7 @@ export class ReadingSurfaceCoordinator {
     const visible = this.readingPanelVisible &&
       Boolean(state.currentUrl) &&
       state.mode !== "reader" &&
-      !this.menuOpen && !this.overlayOpen
+      !this.menuOpen && !this.overlayOpen && !this.dialogOpen
     await this.enqueue(async () => {
       if (!this.browserOpened) return
       await this.surface.setVisible(visible)
