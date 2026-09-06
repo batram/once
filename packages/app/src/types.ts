@@ -157,6 +157,9 @@ export interface OnceClient {
   saveFilterList(filterList: string[]): Promise<void>
   getRedirectList(): Promise<Redirect[]>
   saveRedirectList(redirectList: Redirect[]): Promise<void>
+  getBrowserExtensionSync(): Promise<import("@once/core").BrowserExtensionSyncDocument>
+  updateBrowserExtensionSync(change: (document: import("@once/core").BrowserExtensionSyncDocument) => import("@once/core").BrowserExtensionSyncDocument): Promise<void>
+  saveBrowserExtensionSync(document: import("@once/core").BrowserExtensionSyncDocument): Promise<void>
   getFilterLists(): Promise<FilterListsDocument>
   saveFilterLists(document: FilterListsDocument): Promise<void>
   getAddons(): Promise<AddonsDocument>

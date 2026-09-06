@@ -284,6 +284,11 @@ app
       setUpdateStatus,
       updatesStarted: () => autoUpdatesStarted
     })
+    extensions.manager.onSyncChanged = document => {
+      for (const window of BrowserWindow.getAllWindows()) {
+        if (!window.isDestroyed()) window.webContents.send(ELECTRON_IPC.extensionsSyncChanged, document)
+      }
+    }
     extensions.onChanged(() => {
       for (const window of BrowserWindow.getAllWindows()) {
         if (!window.isDestroyed()) window.webContents.send(ELECTRON_IPC.extensionsChanged)

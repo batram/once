@@ -6,6 +6,8 @@ type SettingsClientMethods = Pick<
   OnceClient,
   | "getFilterList" | "saveFilterList" | "getRedirectList" | "saveRedirectList"
   | "getFilterLists" | "saveFilterLists" | "getUserscripts" | "saveUserscripts"
+  | "getBrowserExtensionSync" | "saveBrowserExtensionSync"
+  | "updateBrowserExtensionSync"
   | "getAddons" | "saveAddons" | "updateAddons"
   | "getSyncUrl" | "setSyncUrl" | "getSourceSecret" | "setSourceSecret"
   | "getCacheTime" | "setCacheTime"
@@ -36,6 +38,9 @@ export function settingsClientMethods(
     saveFilterLists: (doc) => settings.saveFilterLists(doc),
     getUserscripts: () => settings.getUserscripts(),
     saveUserscripts: (doc) => settings.saveUserscripts(doc),
+    getBrowserExtensionSync: () => settings.getBrowserExtensionSync(),
+    updateBrowserExtensionSync: change => settings.updateBrowserExtensionSync(change),
+    saveBrowserExtensionSync: doc => settings.saveBrowserExtensionSync(doc),
     getAddons: () => settings.getAddons(),
     saveAddons: (doc) => settings.saveAddons(doc),
     updateAddons: (change) => settings.updateAddons(change),

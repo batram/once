@@ -48,6 +48,7 @@ export interface ExtensionContextInit {
 }
 
 export interface ContentScriptBatch {
+  world?: "MAIN" | "ISOLATED"
   runAt: ContentScriptRunAt
   js: { url: string; code: string }[]
   css: string[]
@@ -134,12 +135,13 @@ export const EXTENSION_API_SURFACE: Readonly<Record<string, ApiSurface>> = {
       "getURL", "getManifest", "getPlatformInfo", "getBrowserInfo",
       "sendMessage", "openOptionsPage", "reload", "setUninstallURL"
     ],
-    events: ["onMessage", "onInstalled", "onStartup", "onConnect", "onUpdateAvailable"]
+    events: ["onMessage", "onMessageExternal", "onInstalled", "onStartup", "onConnect", "onUpdateAvailable"]
   },
   "storage.local": {
     methods: ["get", "set", "remove", "clear", "getBytesInUse"],
-    events: []
+    events: ["onChanged"]
   },
+  "storage.sync": { methods: ["get", "set", "remove", "clear", "getBytesInUse"], events: ["onChanged"] },
   storage: { methods: [], events: ["onChanged"] },
   webRequest: {
     methods: ["handlerBehaviorChanged"],
@@ -209,8 +211,9 @@ export const CONTENT_API_SURFACE: Readonly<Record<string, ApiSurface>> = {
   },
   "storage.local": {
     methods: ["get", "set", "remove", "clear", "getBytesInUse"],
-    events: []
+    events: ["onChanged"]
   },
+  "storage.sync": { methods: ["get", "set", "remove", "clear", "getBytesInUse"], events: ["onChanged"] },
   storage: { methods: [], events: ["onChanged"] },
   i18n: { methods: ["getMessage", "getUILanguage"], events: [] },
   extension: { methods: ["getURL"], events: [] }

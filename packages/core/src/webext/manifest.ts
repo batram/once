@@ -8,6 +8,7 @@ import { isMatchPattern } from "./matchPattern"
 export type ContentScriptRunAt = "document_start" | "document_end" | "document_idle"
 
 export interface ContentScriptSpec {
+  readonly world?: "MAIN" | "ISOLATED"
   readonly matches: readonly string[]
   readonly excludeMatches: readonly string[]
   readonly js: readonly string[]
@@ -154,6 +155,7 @@ function contentScripts(json: Json): ContentScriptSpec[] {
       throw new ManifestError(`${where}.run_at is not a known value`)
     }
     return {
+      ...(entry.world === "MAIN" ? { world: "MAIN" as const } : {}),
       matches,
       excludeMatches,
       js,
@@ -178,7 +180,7 @@ function browserAction(json: Json): BrowserActionSpec | null {
 
 function optionsUi(json: Json): OptionsUiSpec | null {
   const value = json.options_ui
-  if (value === undefined) return null
+  if (value === undefined) return typeof json.options_page === "string" ? { page: json.options_page, openInTab: true } : null
   if (!isObject(value)) throw new ManifestError('"options_ui" must be an object')
   return {
     page: requireString(value, "page"),

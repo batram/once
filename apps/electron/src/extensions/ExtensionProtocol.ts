@@ -112,12 +112,16 @@ export async function serveExtensionRequest(
 }
 
 /** Serves `moz-extension://<host>/<path>` from the extension's directory. */
+const configuredSessions = new WeakSet<Session>()
+
 export function configureExtensionProtocol(
   targetSession: Session,
   lookup: ExtensionLookup,
   options: ExtensionProtocolOptions = {}
 ): void {
+  if (configuredSessions.has(targetSession)) targetSession.protocol.unhandle(EXTENSION_SCHEME)
   targetSession.protocol.handle(EXTENSION_SCHEME, (request) =>
     serveExtensionRequest(request.url, lookup, options)
   )
+  configuredSessions.add(targetSession)
 }

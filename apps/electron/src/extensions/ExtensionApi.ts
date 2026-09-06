@@ -27,6 +27,7 @@ export interface ApiHost {
   readonly contexts: ExtensionContexts
   readonly ports: ExtensionPorts
   readonly storage: ExtensionStorage
+  readonly syncStorage: ExtensionStorage
   readonly files: ExtensionFiles
   readonly hooks: ExtensionShellHooks
   readonly action: BrowserActionState
@@ -295,10 +296,27 @@ function runtimeHandlers(): Handlers {
   }
 }
 
+function syncStorageHandlers(): Handlers {
+  const announce = (host: ApiHost, changes: Record<string, unknown>) => {
+    if (Object.keys(changes).length) {
+      host.contexts.emit("storage", "onChanged", [changes, "sync"])
+      host.contexts.emit("storage.sync", "onChanged", [changes])
+    }
+  }
+  return {
+    "storage.sync.get": ({ host }, keys) => host.syncStorage.get(keys ?? null),
+    "storage.sync.set": async ({ host }, items) => announce(host, await host.syncStorage.set(items)),
+    "storage.sync.remove": async ({ host }, keys) => announce(host, await host.syncStorage.remove(keys)),
+    "storage.sync.clear": async ({ host }) => announce(host, await host.syncStorage.clear()),
+    "storage.sync.getBytesInUse": ({ host }, keys) => host.syncStorage.getBytesInUse(keys ?? null)
+  }
+}
+
 function storageHandlers(): Handlers {
   const announce = (host: ApiHost, changes: Record<string, unknown>): void => {
     if (Object.keys(changes).length > 0) {
       host.contexts.emit("storage", "onChanged", [changes, "local"])
+      host.contexts.emit("storage.local", "onChanged", [changes])
     }
   }
   return {
@@ -513,6 +531,7 @@ export function createApiHandlers(): Handlers {
   return {
     ...runtimeHandlers(),
     ...storageHandlers(),
+    ...syncStorageHandlers(),
     ...tabHandlers(),
     ...injectionHandlers(),
     ...actionHandlers(),

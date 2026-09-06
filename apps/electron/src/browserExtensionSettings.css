@@ -1,0 +1,40 @@
+.browser_extension_page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.browser_extension_row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sp-1-5);
+  width: 100%;
+  min-width: 0;
+  padding: var(--sp-4);
+  border: 1px solid var(--divider-color);
+  border-radius: var(--radius-xl);
+  background: var(--input-bg-color);
+  color: var(--text-high-color);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.browser_extension_row:hover {
+  border-color: var(--cursor-color);
+}
+
+.browser_extension_row .addon_list_description {
+  font-size: var(--fs-dense);
+  line-height: 1.5;
+}
+
+.browser_extension_row .addon_list_meta {
+  font-size: var(--fs-meta);
+  line-height: 1.5;
+  color: var(--text-muted-color);
+}

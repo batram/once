@@ -118,6 +118,19 @@ const bridge: ElectronBridge = {
       ipcRenderer.invoke(ELECTRON_IPC.storyMenuOpenWindow, url)
   },
   extensions: {
+    installed: () => ipcRenderer.invoke(ELECTRON_IPC.extensionsManage, "list"),
+    preview: source => ipcRenderer.invoke(ELECTRON_IPC.extensionsManage, "preview", source),
+    install: token => ipcRenderer.invoke(ELECTRON_IPC.extensionsManage, "install", token),
+    setEnabled: (id, enabled) => ipcRenderer.invoke(ELECTRON_IPC.extensionsManage, "enabled", id, enabled),
+    remove: id => ipcRenderer.invoke(ELECTRON_IPC.extensionsManage, "remove", id),
+    openOptions: id => ipcRenderer.invoke(ELECTRON_IPC.extensionsManage, "options", id),
+    storage: id => ipcRenderer.invoke(ELECTRON_IPC.extensionsManage, "storage", id),
+    applySync: doc => ipcRenderer.invoke(ELECTRON_IPC.extensionsManage, "sync", doc),
+    onSyncChanged: handler => {
+      const listener = (_event: unknown, doc: import("@once/core").BrowserExtensionSyncDocument) => handler(doc)
+      ipcRenderer.on(ELECTRON_IPC.extensionsSyncChanged, listener)
+      return () => ipcRenderer.removeListener(ELECTRON_IPC.extensionsSyncChanged, listener)
+    },
     list: () => ipcRenderer.invoke(ELECTRON_IPC.extensionsList),
     openPopup: (host: string, anchor: ElectronRect) =>
       ipcRenderer.invoke(ELECTRON_IPC.extensionsOpenPopup, host, anchor),

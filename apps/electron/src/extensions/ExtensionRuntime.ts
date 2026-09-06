@@ -1,4 +1,5 @@
 import path from "node:path"
+import { ExtensionManager } from "./ExtensionManager"
 import {
   app,
   BrowserWindow,
@@ -98,12 +99,13 @@ function extensionDirectories(configured: string | undefined): string[] {
 
 /** Content scripts grouped by phase, in registration order, as code. */
 function batches(host: ExtensionHost, scripts: ContentScript[]): ContentScriptBatch[] {
-  const byPhase = new Map<ContentScriptBatch["runAt"], ContentScriptBatch>()
+  const byPhase = new Map<string, ContentScriptBatch>()
   for (const { spec, inlineJs, inlineCss } of scripts) {
-    let batch = byPhase.get(spec.runAt)
+    const key = `${spec.runAt}:${spec.world ?? "ISOLATED"}`
+    let batch = byPhase.get(key)
     if (!batch) {
-      batch = { runAt: spec.runAt, js: [], css: [] }
-      byPhase.set(spec.runAt, batch)
+      batch = { runAt: spec.runAt, world: spec.world, js: [], css: [] }
+      byPhase.set(key, batch)
     }
     for (const file of spec.css) batch.css.push(host.files.read(file))
     batch.css.push(...inlineCss)
@@ -123,6 +125,7 @@ function batches(host: ExtensionHost, scripts: ContentScript[]): ContentScriptBa
  * lifecycle into `tabs` and `webNavigation` events. One instance per app.
  */
 export class ExtensionRuntime {
+  readonly manager: ExtensionManager
   private readonly hosts = new Map<string, ExtensionHost>()
   private readonly contextOwner = new Map<number, ExtensionHost>()
   private readonly popups = new Map<string, ExtensionPopup>()
@@ -137,6 +140,12 @@ export class ExtensionRuntime {
   private readonly settingsCoordinator: ExtensionSettingsCoordinator
 
   constructor(private readonly options: ExtensionRuntimeOptions) {
+    this.manager = new ExtensionManager(options.storageRoot, {
+      load: (directory, id) => this.load(directory, id),
+      unload: host => this.unload(host),
+      host: id => [...this.hosts.values()].find(host => host.extension.id === id),
+      changed: () => this.notifyChanged()
+    })
     this.settingsCoordinator = new ExtensionSettingsCoordinator(options.storageRoot, () => this.hosts.values(), () => this.notifyChanged())
     this.router = new WebRequestRouter(options.browserSession, {
       tabIdFor: (webContentsId) =>
@@ -190,13 +199,7 @@ export class ExtensionRuntime {
     sources: BundledExtensionSource[],
     extra = process.env.ONCE_ELECTRON_EXTENSIONS
   ): Promise<void> {
-    for (const source of sources) {
-      if (!source.present) {
-        console.warn(`Bundled extension ${source.id} is not present; run npm run fetch:extensions`)
-        continue
-      }
-      await this.loadLogged(source.directory, source.id)
-    }
+    await this.manager.restore(sources)
     if (!app.isPackaged) {
       for (const directory of extensionDirectories(extra)) await this.loadLogged(directory)
     }
@@ -231,6 +234,7 @@ export class ExtensionRuntime {
     this.settingsCoordinator.watch(host)
     host.action.onChanged(() => this.notifyChanged())
     try {
+      await this.manager.watch(host)
       await host.start()
     } catch (error) {
       this.hosts.delete(extension.host)

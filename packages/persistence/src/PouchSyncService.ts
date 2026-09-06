@@ -56,6 +56,7 @@ export class PouchSyncService {
     checkpoint: "target"
   }
   private static readonly SETTINGS_DOCUMENT_IDS = [
+    "browser_extension_sync",
     "sources",
     "cache_timing",
     "filter_list",

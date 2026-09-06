@@ -37,6 +37,14 @@ const worlds = new Map<string, ContentWorld>()
 function runScripts(world: ContentWorld, batch: ContentScriptBatch): void {
   for (const css of batch.css) insertStyle(world, css)
   if (batch.js.length === 0) return
+  if (batch.world === "MAIN") {
+    for (const script of batch.js) {
+      void webFrame.executeJavaScript(script.code).catch(error => {
+        console.error(`[${world.init.id}] main-world content script failed`, error)
+      })
+    }
+    return
+  }
   void webFrame.executeJavaScriptInIsolatedWorld(
     world.init.worldId,
     batch.js.map((script) => ({ code: script.code, url: script.url }))

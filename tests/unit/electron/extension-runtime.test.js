@@ -47,6 +47,20 @@ const { EXTENSION_IPC } = load("protocol")
 
 const fixture = path.join(root, "tests/fixtures/extensions/blocker")
 
+test("extension protocols register on first use and replace their handler on re-enable", () => {
+  let registered = false
+  let replacements = 0
+  const target = { protocol: {
+    handle() { assert.equal(registered, false); registered = true },
+    unhandle() { assert.equal(registered, true); registered = false; replacements++ }
+  } }
+  extensionProtocol.configureExtensionProtocol(target, () => undefined)
+  assert.equal(replacements, 0)
+  extensionProtocol.configureExtensionProtocol(target, () => undefined)
+  assert.equal(replacements, 1)
+  assert.equal(registered, true)
+})
+
 function fakeContents(id) {
   const contents = new EventEmitter()
   contents.id = id

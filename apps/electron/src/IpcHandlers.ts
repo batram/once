@@ -360,6 +360,27 @@ function registerStoryAndWindowHandlers(options: IpcHandlerOptions): void {
 
 function registerExtensionHandlers(options: IpcHandlerOptions): void {
   const { coordinator, extensions } = options
+  ipcMain.handle(ELECTRON_IPC.extensionsManage, async (event, command: string, value: unknown, enabled: unknown) => {
+    trusted(event, coordinator)
+    const manager = extensions.manager
+    if (command === "list") return manager.list()
+    if (command === "sync") return manager.applySync(value as import("@once/core").BrowserExtensionSyncDocument)
+    if (typeof value !== "string") throw new Error("Invalid extension request")
+    if (command === "preview") {
+      if (value) return manager.preview(value)
+      const current = browser(event, coordinator)
+      const result = await dialog.showOpenDialog(current.window.window, {
+        title: "Choose Firefox extension", filters: [{ name: "Firefox extension", extensions: ["xpi", "zip"] }], properties: ["openFile"]
+      })
+      return result.canceled || !result.filePaths[0] ? null : manager.preview("", result.filePaths[0])
+    }
+    if (command === "install") return manager.install(value)
+    if (command === "enabled") return manager.setEnabled(value, enabled as boolean)
+    if (command === "remove") return manager.remove(value)
+    if (command === "options") return manager.openOptions(value)
+    if (command === "storage") return manager.storage(value)
+    throw new Error("Unknown extension request")
+  })
   ipcMain.handle(ELECTRON_IPC.extensionsList, (event) => {
     const current = browser(event, coordinator)
     const active = current.window.activeId

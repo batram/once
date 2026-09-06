@@ -17,6 +17,7 @@
     "@once/app": "*",
     "@once/platform-electron": "*",
     "@once/ui-web": "*",
+    "adm-zip": "^0.5.18",
     "electron-squirrel-startup": "^1.0.1",
     "update-electron-app": "^3.3.0"
   },
@@ -27,6 +28,7 @@
     "@electron-forge/plugin-fuses": "7.11.2",
     "@electron-forge/plugin-webpack": "7.11.2",
     "@electron/fuses": "^1.8.0",
+    "@types/adm-zip": "^0.5.8",
     "css-loader": "^7.1.2",
     "electron": "43.1.0",
     "node": "24.18.0",

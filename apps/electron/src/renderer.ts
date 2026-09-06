@@ -14,8 +14,10 @@ import {
   StoryMenuActionId
 } from "@once/ui-web"
 import { BrowserShell } from "./BrowserShell"
+import { bindBrowserExtensionSettings } from "./BrowserExtensionSettings"
 import { bindAccessibilitySetting } from "./AccessibilitySetting"
 import "./electron.css"
+import "./browserExtensionSettings.css"
 
 // Served by main from the Forge output: a sandboxed frame has an opaque origin
 // and may not load file: subresources, so the add-on sandbox page needs a scheme.
@@ -137,6 +139,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       void window.onceElectron.window.setForwardedKeys(chords)
     }
   })
+  bindBrowserExtensionSettings(app.client, window.onceElectron)
   document.addEventListener("contextmenu", (event) => {
     const story = storyFromTarget(event.target)
     const onStoryList = Boolean(

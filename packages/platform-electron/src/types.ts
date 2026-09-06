@@ -82,6 +82,35 @@ export interface ElectronUpdateStatus {
 
 export type ElectronFocusSurface = "browser" | "shell"
 
+export interface ElectronManagedExtension {
+  id: string
+  host: string
+  name: string
+  version: string
+  description: string
+  enabled: boolean
+  running: boolean
+  bundled: boolean
+  source: string
+  error?: string
+  hasOptions: boolean
+  hasPopup: boolean
+  permissions: string[]
+  warnings: string[]
+}
+
+export interface ElectronExtensionPreview {
+  token: string
+  id: string
+  name: string
+  version: string
+  description: string
+  source: string
+  permissions: string[]
+  warnings: string[]
+  update: boolean
+}
+
 export interface ElectronExtensionSettings {
   filterLists: import("@once/core").FilterListsDocument
   userscripts: import("@once/core").UserscriptsDocument
@@ -177,6 +206,15 @@ export interface ElectronBridge {
     openWindow(url: string): Promise<void>
   }
   extensions: {
+    installed(): Promise<ElectronManagedExtension[]>
+    preview(source: string): Promise<ElectronExtensionPreview | null>
+    install(token: string): Promise<void>
+    setEnabled(id: string, enabled: boolean): Promise<void>
+    remove(id: string): Promise<void>
+    openOptions(id: string): Promise<void>
+    storage(id: string): Promise<{ local: Record<string, unknown>; sync: Record<string, unknown> }>
+    applySync(document: import("@once/core").BrowserExtensionSyncDocument): Promise<void>
+    onSyncChanged(handler: (document: import("@once/core").BrowserExtensionSyncDocument) => void): () => void
     list(): Promise<ElectronExtensionInfo[]>
     /** Toggles the extension's popup under the toolbar button at `anchor`. */
     openPopup(host: string, anchor: ElectronRect): Promise<void>
@@ -269,6 +307,8 @@ export const ELECTRON_IPC = {
   windowSetBackgroundColor: "once:window:set-background-color",
   windowTargetUrlChanged: "once:window:target-url-changed",
   windowFullscreenChanged: "once:window:fullscreen-changed",
+  extensionsManage: "once:extensions:manage",
+  extensionsSyncChanged: "once:extensions:sync-changed",
   extensionsList: "once:extensions:list",
   extensionsOpenPopup: "once:extensions:open-popup",
   extensionsChanged: "once:extensions:changed",

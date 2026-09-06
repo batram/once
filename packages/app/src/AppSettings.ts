@@ -1,3 +1,4 @@
+import { BrowserExtensionSyncDocument, BROWSER_EXTENSION_SYNC_ID, readBrowserExtensionSync } from "@once/core"
 import {
   ADDONS_DOCUMENT_ID,
   AddonsDocument,
@@ -74,6 +75,7 @@ export interface AppSettingsActions {
 
 export class AppSettings {
   private addonWrites: Promise<void> = Promise.resolve()
+  private browserExtensionWrites: Promise<void> = Promise.resolve()
   private readonly pendingWrites = new Map<string, string>()
   private sourcesState: "pending" | "resolved" = "pending"
   private sourcesDocument?: StorySourceDocument
@@ -141,6 +143,27 @@ export class AppSettings {
 
   // Both documents are read tolerantly and written normalized, like cache
   // timing: another client may have written them with a newer build.
+  async getBrowserExtensionSync(): Promise<BrowserExtensionSyncDocument> {
+    return readBrowserExtensionSync(await this.getList<unknown>(BROWSER_EXTENSION_SYNC_ID, null))
+  }
+
+  async saveBrowserExtensionSync(document: BrowserExtensionSyncDocument): Promise<void> {
+    await this.updateBrowserExtensionSync(() => document)
+  }
+
+  updateBrowserExtensionSync(change: (document: BrowserExtensionSyncDocument) => BrowserExtensionSyncDocument): Promise<void> {
+    const work = this.browserExtensionWrites.then(async () => {
+      const previous = await this.getBrowserExtensionSync()
+      const before = JSON.stringify(previous)
+      const next = readBrowserExtensionSync(change(previous))
+      if (JSON.stringify(next) === before) return
+      await this.setList(BROWSER_EXTENSION_SYNC_ID, next)
+      this.actions.publishChanged("extensions")
+    })
+    this.browserExtensionWrites = work.catch(() => undefined)
+    return work
+  }
+
   async getFilterLists(): Promise<FilterListsDocument> {
     return readFilterListsDocument(await this.getList<unknown>(FILTER_LISTS_DOCUMENT_ID, null))
   }
@@ -361,6 +384,9 @@ export class AppSettings {
       case FILTER_LISTS_DOCUMENT_ID:
       case USERSCRIPTS_DOCUMENT_ID:
         void this.actions.refreshExtensionSettings()
+        this.actions.publishChanged("extensions")
+        break
+      case BROWSER_EXTENSION_SYNC_ID:
         this.actions.publishChanged("extensions")
         break
       case ADDONS_DOCUMENT_ID:

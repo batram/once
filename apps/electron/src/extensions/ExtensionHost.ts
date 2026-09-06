@@ -39,6 +39,7 @@ export class ExtensionHost implements ApiHost {
   readonly contexts = new ExtensionContexts()
   readonly ports: ExtensionPorts
   readonly storage: ExtensionStorage
+  readonly syncStorage: ExtensionStorage
   readonly files: ExtensionFiles
   readonly hooks: ExtensionShellHooks
   readonly action: BrowserActionState
@@ -60,6 +61,7 @@ export class ExtensionHost implements ApiHost {
     this.storage = new ExtensionStorage(
       path.join(options.storageRoot, this.extension.host, "storage.json")
     )
+    this.syncStorage = new ExtensionStorage(path.join(options.storageRoot, this.extension.host, "sync.json"))
     this.files = new ExtensionFiles(this.extension)
     this.ports = new ExtensionPorts(this.contexts)
     this.action = new BrowserActionState(this.extension.manifest.browserAction?.defaultTitle ?? null)
@@ -198,5 +200,6 @@ export class ExtensionHost implements ApiHost {
     if (contents && !contents.isDestroyed()) contents.close()
     this.backgroundView = null
     await this.storage.flush()
+    await this.syncStorage.flush()
   }
 }
