@@ -19,6 +19,7 @@ export const DEV_OPTIONS_EVENT = "once:addon-options"
 export interface DevAddonControls {
   directory: string
   unload?: () => Promise<void>
+  share?: () => Promise<void>
 }
 
 export function devAddonEnabled(id: string): boolean {
@@ -92,6 +93,7 @@ function settingsGroup(client: OnceClient, entry: AddonEntry, dev: boolean, cont
       directory.textContent = controls.directory
       group.append(directory)
       if (controls.unload) group.append(addonButton("Unload", controls.unload))
+      if (controls.share) group.append(addonButton("Use this version on my devices", controls.share))
     }
   }
   const values = validateConfig(schema, entry.options ?? {}) as Record<string, unknown>
@@ -124,7 +126,7 @@ function settingsGroup(client: OnceClient, entry: AddonEntry, dev: boolean, cont
       lastGroup = property.group
     }
     const field = property.format === "secret"
-      ? secretField(client, entry, name, values)
+      ? secretField(client, entry, name, values, dev)
       : optionField(manifest.id, name, property, values[name], value => save(name, value))
     if (!field) continue
     fields.push({ element: field, schema: property })
@@ -142,6 +144,7 @@ function settingsGroup(client: OnceClient, entry: AddonEntry, dev: boolean, cont
       else input.value = typeof value === "object" ? JSON.stringify(value) : String(value)
     }
     updateVisibility()
+    for (const field of fields) field.element.dispatchEvent(new Event("addon-options-received"))
   })
   return group
 }
@@ -168,7 +171,7 @@ function optionField(addon: string, name: string, property: ConfigSchema, value:
   return field
 }
 
-function secretField(client: OnceClient, entry: AddonEntry, name: string, values: Record<string, unknown>): HTMLElement {
+function secretField(client: OnceClient, entry: AddonEntry, name: string, values: Record<string, unknown>, localOnly: boolean): HTMLElement {
   const schema = entry.manifest.settings
   if (!schema) throw new Error("Addon has no settings schema")
   const property = schema.type === "object" ? schema.properties[name] : schema
@@ -177,7 +180,7 @@ function secretField(client: OnceClient, entry: AddonEntry, name: string, values
   input.autocomplete = "new-password"
   input.id = `addon_option_${entry.manifest.id}_${name}`
   input.dataset.testid = `addon-option-${entry.manifest.id}-${name}`
-  input.placeholder = "Replace token (device-local)"
+  input.placeholder = "Replace token"
   const field = fieldShell(property, name, input.id)
   const status = document.createElement("span")
   status.setAttribute("role", "status")
@@ -185,14 +188,19 @@ function secretField(client: OnceClient, entry: AddonEntry, name: string, values
     const connection = entry.manifest.connections?.find(item => item.secret === name)
     return String(connection ? values[connection.endpoint] ?? "" : "")
   }
-  void client.hasAddonSecret(entry.manifest.id, name, endpoint()).then(configured => {
-    status.textContent = configured ? "Token saved on this device" : "No token for this endpoint"
-  }).catch(() => { status.textContent = "Could not read token status" })
+  const refresh = async () => {
+    const configured = await client.hasAddonSecret(entry.manifest.id, name, endpoint(), localOnly)
+    const vault = localOnly ? null : await client.getAddonVaultStatus?.()
+    status.textContent = configured ? vault?.state === "ready" ? "Token saved · Encrypted sync" : "Token saved on this device" : "No token for this endpoint"
+  }
+  void refresh().catch(() => { status.textContent = "Could not read token status" })
+  field.addEventListener("addon-options-received", () => { void refresh().catch(() => undefined) })
   const save = async (value: string) => {
     try {
-      await client.saveAddonSecret(entry.manifest.id, name, endpoint(), value)
+      await client.saveAddonSecret(entry.manifest.id, name, endpoint(), value, localOnly)
       input.value = ""
-      status.textContent = value ? "Token saved on this device" : "Token cleared"
+      if (value) await refresh()
+      else status.textContent = "Token cleared"
       window.dispatchEvent(new CustomEvent(DEV_OPTIONS_EVENT, { detail: entry.manifest.id }))
     } catch (error) { status.textContent = error instanceof Error ? error.message : String(error) }
   }

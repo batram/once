@@ -42,7 +42,7 @@ export type AddonRun =
   | { message: string }
   | { tray: string }
 
-/** The add-on's code: fetched per device and pinned by hash, never synced. */
+/** The add-on's code: pinned by hash, optionally included in encrypted addon sync. */
 export interface AddonScript {
   url: string
   /** `sha256-<base64>` of the exact bytes at `url`. */

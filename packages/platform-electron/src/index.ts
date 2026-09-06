@@ -54,6 +54,7 @@ export function createElectronPlatform(
     cacheStore: IndexedDbCacheStore,
     syncSettingsStore: bridge.settings,
     secretStore: {
+      protection: "os",
       get: (key) => bridge.settings.getSecret(key),
       set: (key, value) => bridge.settings.setSecret(key, value)
     },

@@ -32,9 +32,8 @@ import {
 } from "./sourceMenu"
 import { SourceLoader } from "./SourceLoader"
 import { DiagnosticLog, errorDetails } from "./DiagnosticLog"
-import { getAddonScript, storeAddonScript } from "./addonScriptCache"
 import { fetchDocument, fetchText } from "./fetchDocument"
-import { AddonConnections } from "./addonConnections"
+import { AddonSync } from "./AddonSync"
 import { waitForStartupStorage } from "./startupStorage"
 import { StoryContentService } from "./storyContent"
 import { StoryChangeReconciler } from "./storyChangeReconciler"
@@ -70,6 +69,7 @@ export class AppRuntime {
     }
   )
   private readonly settings: AppSettings
+  private readonly addonSync: AddonSync
   private readonly cacheMaintenance: CacheMaintenance
   private readonly sourceLoader: SourceLoader
   private readonly reconciler: StoryChangeReconciler
@@ -122,6 +122,7 @@ export class AppRuntime {
       queueStoryWrite: (href, task, failure) => this.queueStoryWrite(href, task, failure),
       emitDataChange: (path, value, previous) => this.emitDataChange(path, value, previous, null)
     })
+    this.addonSync = new AddonSync(platform, this.settings, () => this.events.publish("settingsChanged", { section: "addons" }))
     this.client = this.createClient()
   }
 
@@ -149,6 +150,10 @@ export class AppRuntime {
       ).catch(() => undefined)
     })
     this.platform.onDatabaseChange?.((change) => {
+      if (change.id === "addon_vault") {
+        this.events.publish("settingsChanged", { section: "addons" })
+        return
+      }
       if (!change.id.startsWith("sto_")) {
         this.settings.handleObservedChange(change)
         return
@@ -196,11 +201,7 @@ export class AppRuntime {
   }
 
   private createClient(): OnceClient {
-    const connections = new AddonConnections(this.platform.addonFetch ?? this.platform.fetch, this.platform.secretStore)
     return {
-      saveAddonSecret: (addon, field, endpoint, secret) => connections.save(addon, field, endpoint, secret),
-      hasAddonSecret: (addon, field, endpoint) => connections.configured(addon, field, endpoint),
-      requestAddonConnection: (manifest, options, connection, request, signal) => connections.request(manifest, options, connection, request, signal),
       getDiagnostics: () => this.diagnostics.snapshot(),
       getSyncStatus: () => this.syncStatus,
       getStorySources: () => this.sourceSettingsReady
@@ -208,6 +209,21 @@ export class AppRuntime {
       saveStorySources: (storySources, reloadStories) =>
         this.settings.saveStorySources(storySources, reloadStories),
       ...settingsClientMethods(this.settings, this.platform.secretStore),
+      ...this.addonSync.methods(),
+      createAddonVault: async (passphrase, remember, deviceName) => {
+        if (this.syncStatus.state !== "up-to-date") throw new Error("Connect sync and wait until it is up to date before creating a vault")
+        return this.addonSync.create(passphrase, remember, deviceName)
+      },
+      setSyncUrl: async url => {
+        if (await this.addonSync.vault.enabled()) {
+          const destination = (value: string) => { const parsed = new URL(value); return parsed.origin + parsed.pathname.replace(/\/$/, "") }
+          const old = await this.settings.getSyncUrl()
+          const saved = old ? destination(old) : await this.platform.secretStore?.get("once:addon-vault-destination")
+          if (url.trim() && saved !== destination(url)) throw new Error("Use a separate Once profile for another sync database while secure addon sync is enabled")
+          if (saved) await this.platform.secretStore?.set("once:addon-vault-destination", saved)
+        }
+        await this.settings.setSyncUrl(url)
+      },
       reloadStories: (policy = "cache-first") => this.reloadStories(policy),
       refetchSource: (sourceId) => this.reloadStories("network-only", sourceId),
       getSourceCacheStatus: () => this.cacheMaintenance.status(),
@@ -223,8 +239,6 @@ export class AppRuntime {
       saveStoryContent: (href, html, meta) => this.content.save(href, html, meta),
       fetchDocument: (url) => fetchDocument(this.platform.fetch, url),
       fetchText: (url) => fetchText(this.platform.fetch, url),
-      getAddonScript: (integrity) => getAddonScript(this.platform.cacheStore, integrity),
-      storeAddonScript: (integrity, code) => storeAddonScript(this.platform.cacheStore, integrity, code),
       openUrl: (url, target) => {
         if (url.startsWith("search:")) {
           this.events.publish("searchRequested", {

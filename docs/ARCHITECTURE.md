@@ -275,7 +275,7 @@ evaluates. Unpackaged Electron builds also read `ONCE_ADDONS` package
 directories (`apps/electron/src/devAddons.ts`), served as
 `once-addon://dev/…` and registered without touching the document. A
 manifest may also name a script, pinned by sha256 and fetched
-per device, never synced; that code runs in a fifth trust zone, a hidden
+per device or included in the encrypted addon vault; that code runs in a fifth trust zone, a hidden
 `<iframe sandbox="allow-scripts">` on an opaque origin whose page carries its
 own policy (`packages/ui-web/public/addon-sandbox.html`: its runtime, add-on
 code as a blob module, no network). The frame speaks a validated
@@ -287,9 +287,14 @@ inlined; on Chrome it is a manifest `sandbox` page of the extension; on
 Firefox, which lets no page under an extension's origin run third-party code,
 it is a hosted copy of the self-contained page the build emits, named by the
 user and kept in local extension storage, without which Firefox runs
-declarative add-ons only. Add-on code is cached per device by its hash and
-never synced; an add-on installed from a URL remembers that URL for update
+declarative add-ons only. Add-on code is cached per device by its hash;
+an add-on installed from a URL remembers that URL for update
 checks.
+With [encrypted addon sync](addon-sync-vault.md), `AddonSync` replaces the legacy
+`addons` document with one authenticated `addon_vault` snapshot containing
+approved packages, settings, storage and connection tokens. `AddonVault` owns
+unlocking and conflict review; dedicated PouchDB revision writes reject stale
+parents. The host injects tokens only for approved endpoint-bound connections.
 See [plans/story-addons-plan.md](plans/story-addons-plan.md).
 
 Add-on registrations are reconciled per identity. Storage-only changes preserve

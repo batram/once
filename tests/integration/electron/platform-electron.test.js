@@ -256,6 +256,9 @@ test("syncs settings, newest stories, backlog, then starts live sync", async () 
     () => ["sto_loaded", "sto_loaded", "sto_visible"]
   )
   assert.deepEqual(replications[0].options.doc_ids, [
+    "addon_vault",
+    "addons",
+    "browser_extension_sync",
     "sources",
     "cache_timing",
     "filter_list",

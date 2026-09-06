@@ -30,8 +30,8 @@ function handleRequest(request, response) {
       calls.push(call)
       response.once("close", () => { call.closed = true })
       const last = body.messages.at(-1).content
-      const answer = last.includes("Summarize") ? "• The article describes its main result.\n• Its qualifications are preserved." :
-        last.includes("Who uses") ? "Developers use it. This follows our earlier explanation." : "ExampleApp is software for organizing projects."
+      const answer = last.includes("Summarize") ? "- The article describes its main result.\n- Its qualifications are preserved." :
+        last.includes("Who uses") ? "Developers use it. This follows our earlier explanation." : "### Key entities\n\n**ExampleApp is software** for organizing projects.\n\nUse `projects` to group related work."
       const send = () => {
         if (response.destroyed) return
         // The addon catches a provider failure itself and reports it through the

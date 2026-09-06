@@ -97,6 +97,91 @@
   font-style: italic;
 }
 
+.addon_tray_assistant {
+  white-space: normal;
+}
+
+.addon_tray_assistant :where(p, ul, ol, pre, blockquote, table) {
+  margin-block: var(--sp-2);
+}
+
+.addon_tray_assistant :where(h1, h2, h3, h4, h5, h6) {
+  margin-block: var(--sp-3) var(--sp-1);
+  font-size: inherit;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.addon_tray_assistant :where(ul, ol) {
+  padding-inline-start: var(--sp-5);
+}
+
+.addon_tray_assistant li + li {
+  margin-block-start: var(--sp-1);
+}
+
+.addon_tray_assistant blockquote {
+  margin-inline: 0;
+  padding-inline-start: var(--sp-2);
+  border-inline-start: calc(var(--bw) * 2) solid var(--border-high-color);
+  color: var(--text-muted-color);
+}
+
+.addon_tray_assistant code {
+  padding: var(--sp-0-5) var(--sp-1);
+  border-radius: var(--radius-sm);
+  background: var(--main-bg-color);
+  font-family: monospace;
+  font-size: inherit;
+}
+
+.addon_tray_assistant pre {
+  overflow-x: auto;
+  padding: var(--sp-2);
+  border: var(--bw) solid var(--divider-color);
+  border-radius: var(--radius-sm);
+  white-space: pre;
+  overflow-wrap: normal;
+}
+
+.addon_tray_assistant pre code {
+  padding: 0;
+  background: transparent;
+}
+
+.addon_tray_assistant hr {
+  margin-block: var(--sp-3);
+  border: 0;
+  border-block-start: var(--bw) solid var(--divider-color);
+}
+
+.addon_tray_assistant a {
+  color: inherit;
+  text-decoration-line: underline;
+}
+
+.addon_tray_table {
+  overflow-x: auto;
+}
+
+.addon_tray_assistant table {
+  border-collapse: collapse;
+}
+
+.addon_tray_assistant :where(th, td) {
+  padding: var(--sp-1) var(--sp-2);
+  border: var(--bw) solid var(--divider-color);
+  text-align: start;
+}
+
+.addon_tray_assistant > :first-child {
+  margin-block-start: 0;
+}
+
+.addon_tray_assistant > :last-child {
+  margin-block-end: 0;
+}
+
 /* .story a claims every link in a row, so a source needs the same weight to
    keep its own colour. */
 .addon_tray .addon_tray_source {

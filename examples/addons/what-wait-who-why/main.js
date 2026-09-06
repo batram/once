@@ -132,7 +132,15 @@ function searchToolError(data) {
 function responseJson(response) {
   if (response.status < 200 || response.status >= 300) {
     const hint = response.status === 401 || response.status === 403 ? "Check the API token and permissions." : response.status === 429 ? "Rate limited; try again later." : "Check the endpoint and model ID."
-    throw new Error(`AI request failed (HTTP ${response.status}). ${hint}`)
+    // The host redacts the connection token; show only the structured error message,
+    // bounded to fit the tray's 1,000-character status limit. Never echo HTML bodies.
+    let detail = ""
+    try {
+      const data = JSON.parse(response.text)
+      const message = (Array.isArray(data) ? data[0] : data)?.error?.message
+      if (typeof message === "string") detail = message.replace(/\s+/g, " ").trim().slice(0, 600)
+    } catch { /* Keep the generic hint for non-JSON error responses. */ }
+    throw new Error(`AI request failed (HTTP ${response.status}). ${hint}${detail ? ` Provider: ${detail}` : ""}`)
   }
   let data
   try { data = JSON.parse(response.text) } catch { throw new Error("The AI endpoint returned invalid JSON.") }

@@ -132,6 +132,7 @@ export function createMobilePlatform(
     cacheStore: IndexedDbCacheStore,
     syncSettingsStore: new MobileSyncSettingsStore(bridge),
     secretStore: {
+      ...(Capacitor.isNativePlatform() ? { protection: "os" as const } : {}),
       get: (key) => bridge.getSecret(key),
       set: (key, value) => bridge.setSecret(key, value)
     },

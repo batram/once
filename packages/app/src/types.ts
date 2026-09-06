@@ -6,7 +6,8 @@ import {
   Story,
   StorySourceDocument,
   StoryTag,
-  UserscriptsDocument
+  UserscriptsDocument,
+  VaultStorePort
 } from "@once/core"
 import { CacheTimingDocument } from "./cacheTiming"
 import { SwipeSettings } from "./swipeSettings"
@@ -146,6 +147,14 @@ export type OnceEventHandler<T extends OnceEventName> = (
 ) => void
 
 export interface OnceClient {
+  getAddonVaultStatus(): Promise<import("@once/core").AddonVaultStatus>
+  shareAddonSnapshot(entry: import("@once/core").AddonEntry, code: string | null): Promise<void>
+  createAddonVault(passphrase: string, remember: boolean, deviceName: string): Promise<{ recoveryKey: string; warning?: string }>
+  unlockAddonVault(secret: string, recovery: boolean, remember: boolean, deviceName: string): Promise<void>
+  lockAddonVault(): Promise<void>
+  changeAddonVaultPassphrase(passphrase: string): Promise<void>
+  getAddonVaultChoices(): Promise<import("@once/core").AddonVaultChoice[]>
+  resolveAddonVault(revision: string, expected: string[]): Promise<void>
   getDiagnostics(): DiagnosticError[]
   getSyncStatus(): SyncStatus
   getStorySources(): Promise<StorySourceDocument>
@@ -175,10 +184,10 @@ export interface OnceClient {
    */
   getSourceSecret(sourceId: string): Promise<string>
   setSourceSecret(sourceId: string, secret: string): Promise<void>
-  saveAddonSecret(addon: string, field: string, endpoint: string, secret: string): Promise<void>
-  hasAddonSecret(addon: string, field: string, endpoint: string): Promise<boolean>
+  saveAddonSecret(addon: string, field: string, endpoint: string, secret: string, localOnly?: boolean): Promise<void>
+  hasAddonSecret(addon: string, field: string, endpoint: string, localOnly?: boolean): Promise<boolean>
   requestAddonConnection(manifest: import("@once/core").AddonManifest, options: Record<string, unknown>, connection: string,
-    request: import("@once/core").AddonRequest, signal?: AbortSignal): Promise<import("@once/core").AddonResponse>
+    request: import("@once/core").AddonRequest, signal?: AbortSignal, localOnly?: boolean): Promise<import("@once/core").AddonResponse>
   getCacheTime(): Promise<number>
   setCacheTime(cacheTime: string): Promise<void>
   getCacheTiming(): Promise<CacheTimingDocument>
@@ -264,6 +273,8 @@ export interface SourceCacheStatus {
 }
 
 export interface ListStorePort {
+  readVault?: VaultStorePort["readVault"]
+  writeVault?: VaultStorePort["writeVault"]
   get<T>(id: string, fallbackValue: T): Promise<T>
   set<T>(id: string, value: T): Promise<void>
 }
@@ -315,6 +326,8 @@ export interface SyncSettingsStorePort {
  * value reads as the empty string; setting the empty string removes it.
  */
 export interface SecretStorePort {
+  /** Only native keychain/OS-protected stores opt into remembering keys by default. */
+  protection?: "os"
   get(key: string): Promise<string>
   set(key: string, value: string): Promise<void>
 }

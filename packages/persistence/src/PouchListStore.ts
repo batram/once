@@ -1,10 +1,15 @@
+import { readVault, writeVault } from "./pouchVault"
+
 export interface PouchListDatabase {
-  get(id: string): Promise<{ list?: unknown }>
+  get(id: string, options?: Record<string, unknown>): Promise<{ _rev?: string; _conflicts?: string[]; list?: unknown }>
   put(doc: Record<string, unknown>): Promise<unknown>
 }
 
 export class PouchListStore {
   constructor(private db: PouchListDatabase) {}
+
+  readVault() { return readVault(this.db) }
+  writeVault(value: unknown, parents: string[]): Promise<void> { return writeVault(this.db, value, parents) }
 
   async get<T>(id: string, fallbackValue: T): Promise<T> {
     try {

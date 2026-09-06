@@ -2,6 +2,7 @@ import { AddonManifest, AddonTrayEvent, AddonTrayView, StoryView, addonContribut
 import type { StoryListItem } from "../story/StoryListItem"
 import { registerStoryElement } from "../story/storyElements"
 import { AddonSandbox } from "./AddonSandbox"
+import { trayMarkdown } from "./trayMarkdown"
 
 interface TrayState {
   open: boolean
@@ -127,7 +128,8 @@ export class AddonTrays {
     for (const message of state.view.messages) {
       const block = document.createElement("div")
       block.className = `addon_tray_message addon_tray_${message.role}`
-      block.textContent = message.text
+      if (message.role === "assistant") block.append(trayMarkdown(message.text))
+      else block.textContent = message.text
       root.append(block)
       for (const source of message.sources ?? []) {
         const link = document.createElement("a")

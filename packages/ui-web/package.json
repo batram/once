@@ -44,6 +44,7 @@
     "@once/app": "*",
     "@once/collectors": "*",
     "@once/core": "*",
-    "@zip.js/zip.js": "2.8.30"
+    "@zip.js/zip.js": "2.8.30",
+    "marked": "18.0.11"
   }
 }

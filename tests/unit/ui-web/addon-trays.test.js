@@ -37,7 +37,10 @@ test("tray state survives row replacement, collapse and reopen without a second 
   const { applyStoryElements, refreshRowElements } = require("../../../packages/ui-web/dist/story/storyElements")
   let calls = 0
   const trays = new AddonTrays({ id: "example", trays: [{ id: "assistant", title: "Assistant" }] }, {
-    ensure: async () => ({ tray: async () => { calls++; return { messages: [{ role: "assistant", text: "<b>Safe text</b>" }], composer: "Question" } } })
+    ensure: async () => ({ tray: async () => { calls++; return { messages: [
+      { role: "assistant", text: "<b>Safe text</b>\n\n**Formatted answer**" },
+      { role: "user", text: "**Literal question**" }
+    ], composer: "Question" } } })
   })
   const makeRow = () => {
     const row = document.createElement("story-item")
@@ -49,7 +52,10 @@ test("tray state survives row replacement, collapse and reopen without a second 
     const row = makeRow()
     trays.toggle(row, "assistant")
     await new Promise(resolve => setImmediate(resolve))
-    assert.equal(row.querySelector(".addon_tray_message").textContent, "<b>Safe text</b>")
+    assert.match(row.querySelector(".addon_tray_message").textContent, /<b>Safe text<\/b>/)
+    assert.equal(row.querySelector(".addon_tray_assistant strong").textContent, "Formatted answer")
+    assert.equal(row.querySelector(".addon_tray_user").textContent, "**Literal question**")
+    assert.equal(row.querySelector(".addon_tray_user strong"), null)
     assert.equal(row.querySelector("b"), null)
     refreshRowElements(row)
     assert.equal(row.querySelectorAll(".addon_tray").length, 1)

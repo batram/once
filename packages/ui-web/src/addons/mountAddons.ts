@@ -61,7 +61,6 @@ export interface MountAddonsOptions {
  */
 export function mountAddons(client: OnceClient, options: MountAddonsOptions = {}): void {
   configureAddonPackages(options.sandboxUrl)
-  let forms = ""
   let refreshing: Promise<void> = Promise.resolve()
   const showDirectories = bindAddonDirectories(options.devAddons)
   const reconciler = new AddonReconciler(
@@ -89,21 +88,23 @@ export function mountAddons(client: OnceClient, options: MountAddonsOptions = {}
         continue
       }
       if (candidates.some(({ entry }) => entry.manifest.id === read.manifest.id)) {
-        report(`Development add-on ${read.manifest.id} duplicates an installed add-on`, dev.directory)
+        if (devAddonEnabled(read.manifest.id)) report(`Development add-on ${read.manifest.id} duplicates an installed add-on`, dev.directory)
         continue
       }
       devIds.add(read.manifest.id)
       devControls.set(read.manifest.id, { directory: dev.directory,
+        share: async () => {
+          await client.shareAddonSnapshot({ enabled: true, manifest: read.manifest, options: readDevAddonOptions(read.manifest.id) }, dev.code)
+          localStorage.setItem(`once:dev-addon-enabled:${read.manifest.id}`, "false")
+          if (dev.removable) await options.devAddons?.removeDirectory?.(dev.directory)
+          window.dispatchEvent(new Event(DEV_OPTIONS_EVENT))
+        },
         ...(dev.removable && options.devAddons?.removeDirectory
           ? { unload: async () => { await options.devAddons?.removeDirectory?.(dev.directory) } } : {}) })
       candidates.push({ entry: { enabled: devAddonEnabled(read.manifest.id), manifest: read.manifest, options: readDevAddonOptions(read.manifest.id) }, code: dev.code })
     }
     await reconciler.apply(candidates)
-    const nextForms = JSON.stringify([candidates.map(({ entry }) => entry), directories.map(({ directory, removable }) => ({ directory, removable }))])
-    if (forms !== nextForms) {
-      forms = nextForms
-      renderAddonOptions(client, candidates.map(candidate => candidate.entry), devIds, devControls)
-    }
+    renderAddonOptions(client, candidates.map(candidate => candidate.entry), devIds, devControls)
   }
   const refresh = (): void => {
     refreshing = refreshing.then(apply).catch((error) => report("Add-ons could not be loaded", error))
@@ -247,7 +248,7 @@ async function sandboxFor(
   setAddonStatus(manifest.id, "idle")
   return new AddonSandbox(manifest.id, options.sandboxUrl, code, settings, {
     perform: (op, signal) => {
-      if (op.name === "request") return client.requestAddonConnection(manifest, settings(), op.connection, op.request, signal)
+      if (op.name === "request") return client.requestAddonConnection(manifest, settings(), op.connection, op.request, signal, devCode !== null)
       if (op.name === "story.content") return addonStoryContent(client, op.href, signal)
       return performOperation(client, manifest, grants, op)
     },

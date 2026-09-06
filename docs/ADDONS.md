@@ -26,7 +26,9 @@ The JSON editor and its Save/Cancel controls are hidden until you choose
 **Advanced: edit addon JSON…** on the overview. Pasting manifests there remains supported. The
 manifest is stored in the synced `addons` settings document and follows the
 user's devices; the script is fetched per device, checked against the hash
-the manifest pins, cached, and never synced. An add-on without a script is
+the manifest pins, and cached. With [encrypted addon sync](addon-sync-vault.md)
+enabled, approved scripts, settings and tokens sync together in the vault.
+Without it, code and tokens remain device-local. An add-on without a script is
 purely declarative and needs no trust decision at all.
 
 ### Local ZIP and folder imports
@@ -40,8 +42,9 @@ scripts from the network. The existing install preview shows the addon and its
 permissions before **Confirm install** or **Apply update** activates it.
 
 Imports are snapshots. Code is held in the existing device-local script cache,
-while the manifest and ordinary settings sync as before. Import the package on
-each device that needs to run it. Reimporting the same addon ID updates it while
+while the manifest and ordinary settings sync as before. With encrypted addon
+sync enabled, the approved package snapshot follows the user's devices after one
+vault unlock. Otherwise import it on each device. Reimporting the same addon ID updates it while
 preserving its enabled state, settings, and addon storage. No local file path is
 synced. **Check for updates** applies to URL installations; reimport ZIP/folder
 packages to update them.
@@ -223,7 +226,8 @@ Addon string settings also support `format: "url"`, `"multiline"`, or
 `"secret"`. Multiline settings can declare `maxLength: 16000`; collector
 strings keep their existing 2000-character cap. Declared defaults have a
 Restore default button. A secret cannot declare a default: its value is
-excluded from options and `once.settings` and saved separately on this device.
+excluded from options and `once.settings`. It stays in local secret storage unless
+the user enables encrypted addon sync, which stores it in the encrypted vault.
 Settings remain available while the addon is disabled. Development addon
 options live locally by addon ID, independently of the synced manifest document.
 
@@ -238,7 +242,7 @@ as described below. An addon with neither fetch grants nor connections cannot
 make arbitrary network requests of its own. Story content access is scoped to
 the invoked story and can fetch that story through Once's reader pipeline.
 
-### Connections and device-local credentials
+### Connections and credentials
 
 Declare at most eight connections, for example:
 
@@ -255,7 +259,8 @@ Declare at most eight connections, for example:
 `endpoint` and `secret` name settings, not literal values. `auth` is `bearer`
 (default) or `x-api-key`; `secret` is optional. The host injects the credential,
 bound to the normalized full endpoint URL. Changing that URL requires replacing
-the saved token. Tokens never travel into the sandbox or the synced document.
+the saved token. Tokens never travel into the sandbox or plaintext synced settings;
+encrypted addon sync carries them inside the authenticated vault.
 Browser storage is device-local, not equivalent to native OS encryption.
 
 `once.request(id, { method?, headers?, query?, body? }, context?)` returns
@@ -295,9 +300,13 @@ once.onTray(async (tray, event, story, context) => {
 Events are `{ type: "open" | "clear" }`, `{ type: "submit", text }`, or
 `{ type: "action", action }`. A view is
 `{ messages, status?, statusTone?, actions?, composer? }`.
-Messages have `role: "user" | "assistant" | "info"`, plain `text`, and optional
+Messages have `role: "user" | "assistant" | "info"`, a `text` string, and optional
 `sources: [{ title, url }]`; only HTTP(S) source links are allowed. Actions are
 `{ id, label }`; the optional composer string labels the question field.
+Assistant text supports basic Markdown: paragraphs, headings, emphasis, lists,
+quotes, code, tables, and HTTP(S) links. User and info text stays literal. The host
+creates the formatted elements; raw HTML stays text and images render as alt text
+without fetching them. Markdown links cannot use credentials or other protocols.
 `statusTone` is `"info"` (the default) or `"error"`. An addon that catches its own
 failures reports them through `status` like any other line, so set `"error"` there
 or the host cannot tell a failure from progress and will render both alike.

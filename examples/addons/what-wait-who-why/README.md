@@ -16,7 +16,9 @@ search and prompt settings. The raw JSON editor is under **Advanced: edit addon 
 it is not needed for normal installation or setup.
 Import keeps a snapshot on this device and shows the usual installation review.
 The supplied manifest works directly: Once calculates the script hash for you.
-Reimport to update a snapshot; import it separately on other devices that need it.
+Reimport to update a snapshot. With encrypted addon sync enabled, installed
+snapshots reach your other devices automatically. For a linked development folder,
+choose **Use this version on my devices** in its settings to share a snapshot.
 
 Set `ONCE_ADDONS` to this directory and launch an unpackaged Electron build using
 the normal development workflow. It appears in Settings → Once Add-ons, including its
@@ -40,16 +42,68 @@ Choose a provider, enter a model ID, and configure its full request endpoint:
 | Anthropic | `https://api.anthropic.com/v1/messages` | API key, optional workspace ID |
 | Compatible | User supplied, including `/v1/chat/completions` | Optional bearer token |
 
-Save tokens using the dedicated masked fields. Tokens stay in Once's device-local
-secret store and are bound to the endpoint you configured. They never enter the
-addon script, synced options, or conversation. Changing an endpoint requires
-replacing its saved token. Electron and native mobile use their existing encrypted
-stores; browser profiles use local browser storage, not equivalent OS encryption.
+Save tokens using the dedicated masked fields. Tokens are bound to the endpoint
+you configured and never enter the addon script, ordinary synced options, or
+conversation. [Encrypted addon sync](../../../docs/addon-sync-vault.md) includes
+installed addons' tokens in the encrypted vault so you only unlock once on each
+device. Otherwise tokens stay in the local secret store. Changing an endpoint
+requires replacing its saved token. Electron and native mobile use protected local
+storage; browser profiles offer remembering with weaker local protection.
 
 The three prompt editors have separate Restore default buttons. Ordinary installed
-addon options sync with Once; tokens and conversation history do not. The app sends
+addon options sync with Once; tokens require encrypted addon sync. Conversation
+history stays in the current session. The app sends
 article text and conversation context to the endpoint you choose. OpenAI requests
 set `store: false`; this is not a promise about a provider's separate logging policy.
+
+## Gemini API free-tier setup
+
+Google's Gemini API works with the existing **compatible** provider through its
+[Chat Completions endpoint](https://ai.google.dev/gemini-api/docs/openai).
+No proxy, server deployment, or addon code change is required.
+
+1. Create a key in [Google AI Studio](https://aistudio.google.com/apikey), using a
+   project whose Gemini API usage tier is **Free**. Keep that project on the free
+   tier; enabling paid billing changes the applicable pricing. Prefer a newly
+   created key; see Google's [current key requirements](https://ai.google.dev/gemini-api/docs/api-key).
+2. In **Settings → Once Add-ons → What? Wait, who, why?**, enter:
+
+   | Setting | Value |
+   | --- | --- |
+   | AI provider | `compatible` |
+   | Model ID | `gemini-3.1-flash-lite` |
+   | Chat Completions endpoint | `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions` |
+   | Compatible API token | Your Gemini API key, saved in the masked field |
+   | Enable web search | Off |
+
+3. Set the endpoint before saving the key: Once binds the saved token to that
+   exact endpoint. Keep the key out of the manifest and advanced JSON editor.
+4. Open a story's addon tray to explain its title, then try **Summarize** and a
+   follow-up question. These are separate requests. Reopening an existing tray
+   reuses its answer during the same session.
+
+For new projects, use `gemini-3.1-flash-lite`: Google has
+[restricted 2.5 model access to previous users](https://discuss.ai.google.dev/t/gemini-2-5-flash-deprecated-without-warning-earlier-than-shutdown-date/174217/27).
+A 404 with `gemini-2.5-flash-lite` can therefore mean the project lacks model
+access even when the endpoint is correct. Change the model, keeping the endpoint
+and saved key unchanged, then retry. The tray includes the provider's structured
+error message when available to help distinguish model access from other failures.
+
+Google lists 3.1 Flash-Lite's standard input and output as free on the free tier
+([pricing](https://ai.google.dev/gemini-api/docs/pricing), checked 2026-09-06).
+Availability and request/token quotas depend on the project and model; check
+[active limits in AI Studio](https://ai.google.dev/gemini-api/docs/rate-limits).
+HTTP 429 means a quota/rate limit was reached; wait for the relevant limit to reset
+before retrying. The addon does not automatically switch to a paid provider.
+
+The compatible connection does not enable native Google Search grounding. Leave
+web search off for this setup; enabling it requires the separate SearXNG fallback.
+Story text and follow-up context are sent to Google. Review the
+[Gemini API terms](https://ai.google.dev/gemini-api/terms) for the data-use rules
+that apply to your account and region before sending private content.
+
+This setup uses the Gemini Developer API free tier. Vertex AI and Google Cloud
+trial credits have separate endpoints, authentication, and billing rules.
 
 ## Use
 

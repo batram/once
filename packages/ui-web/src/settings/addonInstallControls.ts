@@ -6,6 +6,7 @@ import { prepareAddon } from "../addons/addonPackage"
 import { addonButton, bindAddonManagement } from "./addonManagement"
 import { bindAddonFileImport } from "./addonFileImport"
 import { bindAddonSettingsPages } from "./AddonSettingsPages"
+import { bindAddonVaultControls } from "./addonVaultControls"
 
 /**
  * Installing from a URL and checking for updates. A package is a directory
@@ -127,4 +128,5 @@ export function bindAddonInstallControls(client: OnceClient, onChanged: () => vo
     say(parts.join(" · "), failed.length > 0)
   })())
   bindAddonSettingsPages(block)
+  bindAddonVaultControls(client, requireElement<HTMLElement>("#addon_overview", block))
 }

@@ -180,3 +180,28 @@ test("long articles are capped in outgoing context and reported as shortened", a
   assert.equal(source.article.text.length, 64000)
   assert.match(result.status, /64,000/)
 })
+
+test("provider errors expose structured model-access details without triggering search fallback", async () => {
+  const message = "models/gemini-2.5-flash-lite is not found for API version v1beta, or is not supported for generateContent."
+  for (const body of [{ error: { code: 404, message, status: "NOT_FOUND" } }, [{ error: { message } }]]) {
+    const f = await fixture({ provider: "openai", webSearch: true, searchEndpoint: "https://search.test/" },
+      () => ({ status: 404, text: JSON.stringify(body) }))
+    const result = await f.run({ type: "open" })
+    assert.equal(result.status, `AI request failed (HTTP 404). Check the endpoint and model ID. Provider: ${message}`)
+    assert.equal(result.statusTone, "error")
+    assert.ok(result.actions.some(action => action.id === "retry"))
+    assert.equal(f.requests.length, 1)
+  }
+})
+
+test("provider error details fit the tray limit and non-JSON bodies remain hidden", async () => {
+  const long = await fixture({}, () => ({ status: 404, text: JSON.stringify({ error: { message: "Detail\n".repeat(1000) } }) }))
+  const result = await long.run({ type: "open" })
+  assert.match(result.status, /Provider: Detail Detail/)
+  assert.ok(result.status.length <= 1000)
+  assert.equal(result.status.includes("\n"), false)
+  for (const text of ["<html>Proxy failure</html>", "null", JSON.stringify({ error: { message: { unexpected: true } } })]) {
+    const f = await fixture({}, () => ({ status: 502, text }))
+    assert.equal((await f.run({ type: "open" })).status, "AI request failed (HTTP 502). Check the endpoint and model ID.")
+  }
+})
