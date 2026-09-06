@@ -37,7 +37,12 @@ export class ExtensionPopup {
     view.webContents.on("preferred-size-changed", (_event, size) => {
       this.place(anchor, size.width, size.height)
     })
-    view.webContents.on("blur", () => this.close())
+    // macOS can emit blur while window.close() is tearing down this popup.
+    // Closing it again inside that native callback crashes Electron. Let the
+    // callback finish, and ignore it if another popup has replaced this view.
+    view.webContents.on("blur", () => {
+      setImmediate(() => { if (this.view === view) this.close() })
+    })
     view.webContents.on("destroyed", () => {
       if (this.view === view) this.detach()
     })
