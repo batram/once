@@ -95,7 +95,9 @@ app.get("/fixtures/feed.rss", (request, response) => {
 })
 app.get("/fixtures/mobile-filter-list.txt", (_request, response) => {
   response.type("text/plain").send([
-    "/fixtures/blocked-ad.png$image",
+    // Synced mobile lists use the portable subset: resource options such as
+    // $image are skipped, and a leading slash is reserved for unsupported regex rules.
+    "*/fixtures/blocked-ad.png|",
     "##.once-filter-hide"
   ].join("\n"))
 })
