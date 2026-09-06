@@ -440,6 +440,7 @@ describe("Once mobile", () => {
 async function runScriptedAddon(baseUrl, platform) {
   await clickWeb(await $("#settings_section_back"), platform)
   await clickWeb(await $("[data-settings-target='addons']"), platform)
+  await clickWeb(await $("[data-testid='open-addon-advanced']"), platform)
   await setWebValue(await $("[data-testid='addons']"), JSON.stringify([{
     protocol: 1,
     id: "harness-script",
@@ -478,8 +479,11 @@ async function runAiAddon(baseUrl, platform) {
   const fixture = require("../shared/ai-addon-fixture")
   await clickWeb(await $("[data-testid='settings-menu']"), platform)
   await clickWeb(await $("[data-settings-target='addons']"), platform)
+  await clickWeb(await $("[data-testid='open-addon-advanced']"), platform)
   await setWebValue(await $("[data-testid='addons']"), JSON.stringify([fixture.manifest(baseUrl)]))
   await clickWeb(await $("[data-testid='save-addons']"), platform)
+  await clickWeb(await $("#settings_section_back"), platform)
+  await clickWeb(await $(".addon_list_row[data-addon-id='what-wait-who-why']"), platform)
   const token = await $("[data-testid='addon-option-what-wait-who-why-compatibleToken']")
   await token.waitForDisplayed({ timeout: 10000 })
   await setWebValue(token, "fixture-token")
