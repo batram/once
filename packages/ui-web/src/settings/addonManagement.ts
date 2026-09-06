@@ -47,9 +47,13 @@ export function bindAddonManagement(client: OnceClient, parent: HTMLElement): vo
       row.className = "settings_group"
       row.dataset.addonId = id
       row.dataset.enabled = String(entry.enabled)
+      row.dataset.addonName = entry.manifest.name
+      row.dataset.addonVersion = entry.manifest.version
+      row.dataset.addonOrigin = entry.source ? "Installed from URL" : "Installed"
       const title = document.createElement("legend")
       title.textContent = `${entry.manifest.name} ${entry.manifest.version}`
       const info = document.createElement("p")
+      info.className = "addon_runtime_status"
       info.setAttribute("role", "status")
       info.textContent = entry.enabled ? "Waiting to load" : "Disabled"
       const toggle = addonButton(entry.enabled ? "Disable" : "Enable", () => client.updateAddons(doc => ({

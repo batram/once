@@ -44,6 +44,8 @@ export interface ElectronFetchRequest {
   body?: ArrayBuffer
   /** Send the browser session's cookies. Absent means none, as before. */
   credentials?: "include"
+  redirect?: "error"
+  requestId?: string
 }
 
 export interface ElectronFetchResponse {
@@ -115,6 +117,7 @@ export interface ElectronBridge {
     ): () => void
   }
   fetch(request: ElectronFetchRequest): Promise<ElectronFetchResponse>
+  cancelFetch?(requestId: string): Promise<void>
   settings: {
     getSyncUrl(): Promise<string>
     setSyncUrl(syncUrl: string): Promise<void>
@@ -190,6 +193,8 @@ export interface ElectronBridge {
     ): () => void
   }
   addons: {
+    pickDirectory(): Promise<void>
+    removeDirectory(directory: string): Promise<void>
     /** Development add-ons from `ONCE_ADDONS` directories; empty in packaged builds. */
     devEntries(): Promise<ElectronDevAddon[]>
     /** Fires when a file in one of those directories changes. */
@@ -217,6 +222,7 @@ export const ELECTRON_IPC = {
   appCheckForUpdates: "once:app:check-for-updates",
   appUpdateStatusChanged: "once:app:update-status-changed",
   fetch: "once:fetch",
+  cancelFetch: "once:fetch-cancel",
   getSyncUrl: "once:settings:get-sync-url",
   setSyncUrl: "once:settings:set-sync-url",
   getCacheTime: "once:settings:get-cache-time",
@@ -269,11 +275,14 @@ export const ELECTRON_IPC = {
   extensionsApplySettings: "once:extensions:apply-settings",
   extensionsSettingsAdopted: "once:extensions:settings-adopted",
   addonsDevList: "once:addons:dev-list",
-  addonsDevChanged: "once:addons:dev-changed"
+  addonsDevChanged: "once:addons:dev-changed",
+  addonsPickDirectory: "once:addons:pick-directory",
+  addonsRemoveDirectory: "once:addons:remove-directory"
 } as const
 
 /** One `ONCE_ADDONS` directory as main read it; the renderer validates the manifest. */
 export interface ElectronDevAddon {
+  removable?: boolean
   directory: string
   manifest: unknown
   code: string | null

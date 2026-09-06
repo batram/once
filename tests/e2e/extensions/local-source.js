@@ -12,6 +12,7 @@ async function startStoryFixture() {
   let origin = ""
   const server = http.createServer((request, response) => {
     requests.push(request.url)
+    if (require("../shared/ai-addon-fixture").handleRequest(request, response)) return
     if (storyFixture.handleRequest(request, response, origin)) {
       return
     }

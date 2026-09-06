@@ -21,6 +21,7 @@ test.after(() => {
 
 const root = path.resolve(__dirname, "../../..")
 const { devAddonDirectories, devAddonFile, readDevAddons } = require(path.join(root, "apps/electron/src/devAddons.ts"))
+const { LocalAddonDirectories } = require(path.join(root, "apps/electron/src/LocalAddonDirectories.ts"))
 const { ADDON_SCRIPT, ADDON_INTEGRITY } = require("../../e2e/shared/addon-fixture")
 
 function makeDir(files) {
@@ -62,4 +63,36 @@ test("a manifest without a script, a bad script name, and a missing manifest eac
   assert.match(b.error, /plain \.js name/)
   assert.match(c.error, /no once-addon\.json/)
   for (const dir of [plain, badName, empty]) fs.rmSync(dir, { recursive: true, force: true })
+})
+
+test("picker directories persist locally, reload changes and unload without removing files", async () => {
+  const directory = makeDir({ "once-addon.json": JSON.stringify({ protocol: 1, id: "picked-addon", name: "Picked", version: "1", script: "main.js", contributions: [] }), "main.js": ADDON_SCRIPT })
+  const config = makeDir({})
+  const file = path.join(config, "directories.json")
+  let changes = 0
+  let local = new LocalAddonDirectories(file, [], () => { changes++ })
+  try {
+    local.add(directory)
+    assert.equal(local.list()[0].removable, true)
+    assert.equal(changes, 1)
+    local.dispose()
+    local = new LocalAddonDirectories(file, [], () => { changes++ })
+    assert.equal(local.list()[0].directory, directory)
+    const changed = new Promise(resolve => {
+      const timer = setInterval(() => { if (changes > 1) { clearInterval(timer); resolve() } }, 20)
+      setTimeout(() => { clearInterval(timer); resolve() }, 3000).unref()
+    })
+    fs.writeFileSync(path.join(directory, "main.js"), ADDON_SCRIPT + "\n// edited")
+    await changed
+    assert.ok(changes > 1)
+    assert.match(local.list()[0].code, /edited/)
+    local.remove(directory)
+    assert.equal(local.list().length, 0)
+    assert.ok(fs.existsSync(path.join(directory, "main.js")))
+    assert.deepEqual(JSON.parse(fs.readFileSync(file, "utf8")), [])
+  } finally {
+    local.dispose()
+    fs.rmSync(directory, { recursive: true, force: true })
+    fs.rmSync(config, { recursive: true, force: true })
+  }
 })

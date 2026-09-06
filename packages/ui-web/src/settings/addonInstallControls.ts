@@ -4,6 +4,8 @@ import { requireElement } from "../dom"
 import { reportSettingsStatus } from "./settingsStatus"
 import { prepareAddon } from "../addons/addonPackage"
 import { addonButton, bindAddonManagement } from "./addonManagement"
+import { bindAddonFileImport } from "./addonFileImport"
+import { bindAddonSettingsPages } from "./AddonSettingsPages"
 
 /**
  * Installing from a URL and checking for updates. A package is a directory
@@ -24,7 +26,7 @@ export function bindAddonInstallControls(client: OnceClient, onChanged: () => vo
 
   const say = (text: string, failed = false): void => {
     reportSettingsStatus(install, failed ? "failed" : "saved")
-    const status = block.querySelector<HTMLElement>(":scope > .settings_status")
+    const status = install.closest(".settings_editor")?.querySelector<HTMLElement>(":scope > .settings_status")
     if (status) status.textContent = text
   }
 
@@ -37,7 +39,7 @@ export function bindAddonInstallControls(client: OnceClient, onChanged: () => vo
     return read.entry
   }
 
-  const preview = async (entry: AddonEntry): Promise<void> => {
+  const preview = async (entry: AddonEntry, code: string | null = null): Promise<void> => {
     const existing = (await client.getAddons()).addons.find(item => item.manifest.id === entry.manifest.id)
     const baseline = JSON.stringify(existing?.manifest)
     const panel = document.createElement("fieldset")
@@ -49,13 +51,16 @@ export function bindAddonInstallControls(client: OnceClient, onChanged: () => vo
     const grants = document.createElement("p")
     const added = entry.manifest.capabilities.filter(grant => !existing?.manifest.capabilities.includes(grant))
     grants.textContent = `Network access: ${entry.manifest.capabilities.join(", ") || "none"}` +
-      (existing && added.length ? `; newly requested: ${added.join(", ")}` : "")
+      (existing && added.length ? `; newly requested: ${added.join(", ")}` : "") +
+      (entry.manifest.connections?.length ? `; configured connections: ${entry.manifest.connections.map(connection => `${connection.id} (destination from ${connection.endpoint}${connection.secret ? ", device-local token" : ""})`).join(", ")}` : "") +
+      (entry.manifest.trays?.length ? "; trays can read the invoked story's article content" : "")
     const feedback = document.createElement("p")
     feedback.setAttribute("role", "status")
     const confirm = addonButton(existing ? "Apply update" : "Confirm install", async () => {
       feedback.textContent = "Verifying package…"
       const projected = upsertAddon(await client.getAddons(), entry).addons.find(item => item.manifest.id === entry.manifest.id)
       if (!projected) throw new Error("The add-on could not be prepared")
+      if (code !== null && entry.manifest.script) await client.storeAddonScript(entry.manifest.script.integrity, code)
       await prepareAddon(client, projected)
       await client.updateAddons(doc => {
         const current = doc.addons.find(item => item.manifest.id === entry.manifest.id)
@@ -65,6 +70,7 @@ export function bindAddonInstallControls(client: OnceClient, onChanged: () => vo
       panel.remove()
       say(`${existing ? "Updated" : "Installed"} ${entry.manifest.name} ${entry.manifest.version}`)
       onChanged()
+      block.dispatchEvent(new CustomEvent("once:addon-installed", { detail: `${existing ? "Updated" : "Installed"} ${entry.manifest.name}` }))
     })
     confirm.dataset.testid = "confirm-addon"
     const actions = document.createElement("div")
@@ -72,7 +78,10 @@ export function bindAddonInstallControls(client: OnceClient, onChanged: () => vo
     actions.append(confirm, addonButton("Cancel", () => panel.remove()))
     panel.append(title, grants, feedback, actions)
     previews.append(panel)
+    block.dispatchEvent(new Event("once:addon-review"))
   }
+
+  bindAddonFileImport(block, async pack => { previews.replaceChildren(); await preview(pack.entry, pack.code) })
 
   install.addEventListener("click", () => void (async () => {
     const url = input.value.trim()
@@ -117,4 +126,5 @@ export function bindAddonInstallControls(client: OnceClient, onChanged: () => vo
     ]
     say(parts.join(" · "), failed.length > 0)
   })())
+  bindAddonSettingsPages(block)
 }

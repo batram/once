@@ -428,6 +428,10 @@ describe("Once mobile", () => {
   it("runs a scripted add-on in the sandbox frame", async () => {
     await runScriptedAddon(baseUrl, platform)
   })
+
+  it("runs the AI addon through native HTTP with a device-local token", async () => {
+    await runAiAddon(baseUrl, platform)
+  })
 })
 
 // The add-on sandbox on a device: the page is a static asset beside the app,
@@ -468,4 +472,24 @@ async function runScriptedAddon(baseUrl, platform) {
   })
   expect(await story.$$(".addon_btn[data-story-element='addon:harness-script/visit']")).toHaveLength(1)
   expect(await browser.execute(() => document.querySelectorAll("iframe[data-addon-sandbox]").length)).toBe(1)
+}
+
+async function runAiAddon(baseUrl, platform) {
+  const fixture = require("../shared/ai-addon-fixture")
+  await clickWeb(await $("[data-testid='settings-menu']"), platform)
+  await clickWeb(await $("[data-settings-target='addons']"), platform)
+  await setWebValue(await $("[data-testid='addons']"), JSON.stringify([fixture.manifest(baseUrl)]))
+  await clickWeb(await $("[data-testid='save-addons']"), platform)
+  const token = await $("[data-testid='addon-option-what-wait-who-why-compatibleToken']")
+  await token.waitForDisplayed({ timeout: 10000 })
+  await setWebValue(token, "fixture-token")
+  await browser.execute(element => element.parentElement.querySelector("button").click(), token)
+  await browser.waitUntil(async () => (await browser.execute(element => element.parentElement.textContent, token)).includes("Token saved on this device"), { timeout: 10000 })
+  await clickWeb(await $("[data-testid='stories-menu']"), platform)
+  const button = await $("[data-addon-tray-button='addon:what-wait-who-why/assistant']")
+  await button.waitForDisplayed({ timeout: 10000 })
+  await clickWeb(button, platform)
+  await browser.waitUntil(async () => (await $(".addon_tray").getText()).includes("ExampleApp is software"), { timeout: 30000 })
+  await browser.execute(() => Array.from(document.querySelectorAll(".addon_tray button")).find(button => button.textContent === "Summarize").click())
+  await browser.waitUntil(async () => (await $(".addon_tray").getText()).includes("Its qualifications are preserved"), { timeout: 30000 })
 }

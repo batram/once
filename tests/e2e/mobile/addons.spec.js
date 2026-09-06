@@ -3,6 +3,24 @@ const { ADDON_INTEGRITY } = require("../shared/addon-fixture")
 const { testServerUrl } = require("./helpers/mobile-app")
 const { openSettingsSection } = require("./helpers/settings")
 const { seedFixtureStories } = require("./helpers/stories")
+const { installAiAddon, exerciseAiTray } = require("../shared/ai-addon-ui")
+
+test("mobile imports a local addon ZIP through the file input", async ({ page }) => {
+  const story = await seedFixtureStories(page)
+  await openSettingsSection(page, "addons")
+  await require("../shared/local-addon-fixture").importZip(page)
+  await page.getByTestId("stories-menu").click()
+  await expect(story.locator('[data-addon-badge="ready"]')).toHaveText("Local package ready")
+})
+
+test("AI addon opens an interactive tray on a touch story row", async ({ page }) => {
+  const story = await seedFixtureStories(page)
+  const origin = new URL(await testServerUrl(page, "/")).origin
+  await openSettingsSection(page, "addons")
+  await installAiAddon(page, origin)
+  await page.getByTestId("stories-menu").click()
+  await exerciseAiTray(page, story)
+})
 
 // The sandbox page is a static asset beside the app here, loaded in a
 // sandboxed frame; the same fixture script the Electron suite runs has to
@@ -23,6 +41,7 @@ test("a scripted add-on runs in the mobile sandbox", async ({ page }) => {
   }]
 
   await openSettingsSection(page, "addons")
+  await require("../shared/addon-settings-ui").addonAdvanced(page)
   await page.getByTestId("addons").fill(JSON.stringify(manifest))
   const save = page.getByTestId("save-addons")
   await save.click()

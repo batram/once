@@ -300,6 +300,7 @@ test("capabilities: a panel action fetches within its grant and stores, and opti
     expect(await originalFrame.evaluate(frame => frame.isConnected)).toBe(true)
 
     const suffix = window.getByTestId("addon-option-harness-capable-suffix")
+    await require("../shared/addon-settings-ui").addonSettings(window, "harness-capable")
     await expect(suffix).toBeVisible()
     await suffix.fill("!")
     await suffix.dispatchEvent("change")

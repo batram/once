@@ -5,7 +5,8 @@
 
 import type {
   HostToSandbox, SandboxOperation, SandboxToHost, StoryView,
-  OnceAddonApi as OnceApi, AddonCollectorHandlers as CollectorHandlers, AddonFetchResult as FetchResult
+  OnceAddonApi as OnceApi, AddonCollectorHandlers as CollectorHandlers, AddonFetchResult as FetchResult,
+  AddonTrayContext, AddonResponse, AddonStoryContent
 } from "@once/core"
 
 type InvokeHandler = (action: string, story: StoryView) => unknown
@@ -17,10 +18,12 @@ class RuntimeState {
   invoke: InvokeHandler | null = null
   badges: BadgesHandler | null = null
   panel: ((action: string) => unknown) | null = null
+  tray: Parameters<OnceApi["onTray"]>[0] | null = null
+  readonly controllers = new Map<number, AbortController>()
   settings: Record<string, unknown> = {}
   readonly collectors = new Map<string, CollectorHandlers>()
   readonly settingsListeners: SettingsListener[] = []
-  readonly awaitingOps = new Map<number, { resolve(value: unknown): void; reject(error: Error): void }>()
+  readonly awaitingOps = new Map<number, { requestId?: number; resolve(value: unknown): void; reject(error: Error): void }>()
   readonly storyRequests = new WeakMap<StoryView, number>()
   nextOp = 1
 }
@@ -29,14 +32,18 @@ function describe(error: unknown): string {
   return error instanceof Error ? `${error.name}: ${error.message}` : String(error)
 }
 
+function askOperation(state: RuntimeState, post: (message: SandboxToHost) => void, operation: SandboxOperation, requestId?: number): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const opId = state.nextOp++
+    state.awaitingOps.set(opId, { resolve, reject, requestId })
+    post({ type: "op", opId, requestId, op: operation })
+  })
+}
+
 function createApi(state: RuntimeState, post: (message: SandboxToHost) => void): OnceApi {
   const op = (story: StoryView, operation: SandboxOperation): void =>
     post({ type: "op", requestId: state.storyRequests.get(story), op: operation })
-  const ask = (operation: SandboxOperation): Promise<unknown> => new Promise((resolve, reject) => {
-    const opId = state.nextOp++
-    state.awaitingOps.set(opId, { resolve, reject })
-    post({ type: "op", opId, op: operation })
-  })
+  const ask = (operation: SandboxOperation): Promise<unknown> => askOperation(state, post, operation)
   return {
     get settings() {
       return state.settings
@@ -52,6 +59,9 @@ function createApi(state: RuntimeState, post: (message: SandboxToHost) => void):
       set: async (key, value) => { await ask({ name: "storage.set", href: "", key, value }) }
     },
     fetch: (url) => ask({ name: "fetch", href: "", url }) as Promise<FetchResult>,
+    request: (connection, request, context) => context ? context.request(connection, request) : ask({ name: "request", href: "", connection, request }) as Promise<AddonResponse>,
+    getStoryContent: story => askOperation(state, post, { name: "story.content", href: story.href }, state.storyRequests.get(story)) as Promise<AddonStoryContent>,
+    onTray: handler => { state.tray = handler },
     onInvoke: (handler) => { state.invoke = handler },
     onPanel: (handler) => { state.panel = handler },
     onBadges: (handler) => { state.badges = handler },
@@ -91,8 +101,23 @@ async function load(
 }
 
 /** The handler a request goes to, or a throw the host will see as the request's error. */
-function work(message: HostToSandbox, state: RuntimeState): () => unknown {
+function work(message: HostToSandbox, state: RuntimeState, post: (message: SandboxToHost) => void): () => unknown {
   switch (message.type) {
+    case "tray": return () => {
+      if (!state.tray) throw new Error("The addon registered no tray handler")
+      const controller = new AbortController()
+      state.controllers.set(message.requestId, controller)
+      const ask = (operation: SandboxOperation) => {
+        controller.signal.throwIfAborted()
+        return askOperation(state, post, operation, message.requestId)
+      }
+      const context: AddonTrayContext = {
+        signal: controller.signal,
+        request: (connection, request) => ask({ name: "request", href: "", connection, request }) as Promise<AddonResponse>,
+        getStoryContent: () => ask({ name: "story.content", href: message.story.href }) as Promise<AddonStoryContent>
+      }
+      return state.tray(message.tray, message.event, message.story, context)
+    }
     case "invoke":
       return () => {
         if (!state.invoke) throw new Error("The add-on registered no invoke handler")
@@ -138,7 +163,7 @@ export function startSandboxRuntime(scope: Window): void {
       post({ type: "result", requestId, value: await run() })
     } catch (error) {
       post({ type: "error", requestId, message: describe(error) })
-    }
+    } finally { state.controllers.delete(requestId) }
   }
 
   scope.addEventListener("message", (event: MessageEvent) => {
@@ -150,6 +175,13 @@ export function startSandboxRuntime(scope: Window): void {
         loaded = true
         void load(message, state, api, post)
       }
+    } else if (message.type === "cancel") {
+      state.controllers.get(message.requestId)?.abort()
+      for (const [id, pending] of state.awaitingOps) {
+        if (pending.requestId !== message.requestId) continue
+        pending.reject(new Error("Request cancelled"))
+        state.awaitingOps.delete(id)
+      }
     } else if (message.type === "settings") {
       state.settings = { ...message.settings }
       for (const listener of state.settingsListeners) listener(state.settings)
@@ -160,11 +192,11 @@ export function startSandboxRuntime(scope: Window): void {
       if (message.ok) waiting.resolve(message.value)
       else waiting.reject(new Error(message.error ?? "refused"))
     } else {
-      if (message.type === "invoke") state.storyRequests.set(message.story, message.requestId)
+      if (message.type === "invoke" || message.type === "tray") state.storyRequests.set(message.story, message.requestId)
       if (message.type === "badges") {
         for (const story of message.stories) state.storyRequests.set(story, message.requestId)
       }
-      void answer(message.requestId, work(message, state))
+      void answer(message.requestId, work(message, state, post))
     }
   })
 }

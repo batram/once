@@ -1,0 +1,114 @@
+/* Addon navigation and forms share the same layout on every platform. */
+#settings_panel #addon_install_settings { padding: var(--sp-4); }
+#addon_install_settings .settings_group {
+  min-width: 0; margin: var(--sp-5) 0; padding: var(--sp-4);
+  border: 1px solid var(--divider-color); border-radius: var(--radius-xl);
+}
+#addon_install_settings legend {
+  max-width: 100%; padding: 0 var(--sp-1-5); font-size: var(--fs-dense); font-weight: 600;
+  line-height: 1.5; color: var(--text-high-color);
+}
+#addon_install_settings .settings_subheading {
+  margin: var(--sp-5) 0 var(--sp-4); padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--divider-color);
+  font-size: var(--fs-meta); letter-spacing: .06em; color: var(--text-muted-color);
+}
+#addon_install_settings .field:not([hidden]) {
+  display: flex; flex-flow: row wrap; align-items: center;
+  gap: var(--sp-2); min-width: 0; margin: 0 0 var(--sp-5);
+}
+#addon_install_settings .field > .field_label {
+  flex: 0 0 100%; order: 0; margin: 0; padding: 0;
+  text-transform: none; letter-spacing: normal; font-size: var(--fs-dense);
+  line-height: 1.4; font-weight: 600; color: var(--text-high-color);
+}
+#addon_install_settings .settings_group_hint {
+  margin: var(--sp-2) 0 var(--sp-3); padding: 0; font-size: var(--fs-meta);
+  line-height: 1.5; letter-spacing: normal; color: var(--text-muted-color);
+}
+#addon_install_settings .field > .settings_group_hint {
+  flex: 0 0 100%; order: 1; margin: 0;
+}
+#addon_install_settings .field > :is(input:not([type="checkbox"]),select,textarea) {
+  box-sizing: border-box; flex: 0 0 100%; order: 2;
+  width: 100%; min-width: 0; max-width: 100%;
+  margin: 0; padding: var(--sp-2) var(--sp-3); min-height: 36px;
+  border: 1px solid var(--border-color); border-radius: var(--radius-md);
+  background: var(--input-bg-color); color: var(--text-high-color);
+  font: inherit; font-size: var(--fs-dense); line-height: 1.5;
+}
+#addon_install_settings .field > textarea {
+  min-height: 168px; height: 180px; resize: vertical;
+}
+#settings_panel #addon_install_settings .button {
+  flex: 0 0 auto; width: auto; min-width: 0; max-width: 100%;
+  min-height: 28px; height: auto; padding: var(--sp-1) var(--sp-3); margin: 0;
+  border: 1px solid var(--border-color); border-radius: var(--radius-md);
+  font-size: var(--fs-meta); line-height: 1.4; letter-spacing: normal;
+}
+#addon_install_settings .field > .button { order: 3; }
+#addon_install_settings .field > [role="status"] {
+  order: 4; flex: 0 0 100%; font-size: var(--fs-meta); line-height: 1.5;
+  color: var(--text-muted-color);
+}
+#addon_install_settings [role="status"]:empty { display: none; }
+#addon_install_settings .settings_actions {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2);
+  margin: var(--sp-3) 0;
+}
+#addon_install_settings .settings_actions > span {
+  flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere;
+  font-size: var(--fs-meta); line-height: 1.5;
+}
+#addon_install_settings .settings_group > .button + .button { margin-left: var(--sp-2); }
+#addon_install_settings .field:has(> input[type="checkbox"]) > .field_label {
+  flex: 1 1 calc(100% - 32px); order: 1;
+}
+#addon_install_settings .field > input[type="checkbox"] {
+  flex: 0 0 16px; order: 0; width: 16px; height: 16px; margin: 0;
+}
+#addon_install_settings .field:has(> input[type="checkbox"]) > .settings_group_hint { order: 2; }
+#addon_install_settings :is(input,select,textarea,button):focus-visible {
+  outline: 2px solid var(--cursor-color); outline-offset: 2px;
+}
+
+
+
+#addon_install_settings .addon_page[hidden],
+#addon_install_settings .settings_group[hidden] { display: none; }
+
+#addon_install_settings .addon_page { min-width: 0; }
+#addon_install_settings .addon_page > h2 { margin: 0 0 var(--sp-4); font-size: var(--fs-title); }
+#addon_install_settings .addon_import_method {
+  margin: 0 0 var(--sp-5); padding: var(--sp-4);
+  border: 1px solid var(--divider-color); border-radius: var(--radius-xl);
+}
+#addon_install_settings .addon_import_method > h2 {
+  margin: 0 0 var(--sp-3); font-size: var(--fs-body);
+}
+#addon_install_settings .addon_import_method .field { margin-bottom: var(--sp-3); }
+#addon_install_settings .addon_list_row {
+  position: relative; display: flex; flex-direction: column; align-items: stretch;
+  gap: var(--sp-1-5); width: 100%; min-width: 0;
+  margin: 0 0 var(--sp-3); padding: var(--sp-4) var(--sp-6) var(--sp-4) var(--sp-4);
+  border: 1px solid var(--divider-color); border-radius: var(--radius-xl);
+  background: var(--input-bg-color); color: var(--text-high-color);
+  font: inherit; text-align: left; cursor: pointer;
+}
+#addon_install_settings .addon_list_row:hover { border-color: var(--cursor-color); }
+#addon_install_settings .addon_list_row strong { font-size: var(--fs-body); line-height: 1.5; }
+#addon_install_settings .addon_list_description { font-size: var(--fs-dense); line-height: 1.5; }
+#addon_install_settings .addon_list_description:empty { display: none; }
+#addon_install_settings .addon_list_meta { font-size: var(--fs-meta); line-height: 1.5; color: var(--text-muted-color); }
+#addon_install_settings .addon_list_arrow { position: absolute; right: var(--sp-3); top: var(--sp-4); font-size: var(--fs-title); }
+#settings_panel #addon_install_settings .addon_primary_action {
+  background: var(--cursor-color); color: var(--input-bg-color); border-color: var(--cursor-color);
+}
+#settings_panel #addon_install_settings .addon_advanced_action {
+  margin-top: var(--sp-5); color: var(--text-muted-color);
+}
+#addon_detail .settings_group { border: 0; padding: 0; margin: 0 0 var(--sp-4); }
+#addon_detail .settings_group > legend { display: none; }
+#addon_install_settings .addon_runtime_status { font-size: var(--fs-meta); color: var(--text-muted-color); }
+#addon_install_settings #addon_advanced .input_container { min-height: 320px; }
+#addon_install_settings .addon_list_row > * { overflow-wrap: anywhere; }

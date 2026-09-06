@@ -1,6 +1,8 @@
 const test = require("node:test")
 const assert = require("node:assert/strict")
 const path = require("node:path")
+const fs = require("node:fs/promises")
+const os = require("node:os")
 const { Builder, By, until } = require("selenium-webdriver")
 const firefox = require("selenium-webdriver/firefox")
 const { ADDON_INTEGRITY } = require("../shared/addon-fixture")
@@ -19,6 +21,7 @@ const {
 // runs the same fixture add-on the other suites run: the badge it computes has
 // to reach the row through a sandbox frame on another origin.
 test("Firefox runs a scripted add-on in a hosted sandbox page", { timeout: 120_000 }, async () => {
+  const localDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "once-firefox-zip-"))
   const expectedAddonId = "once_sidepanel_f@zmarn.com"
   const extensionUuid = "00000000-0000-4000-8000-000000000002"
   const options = new firefox.Options()
@@ -111,8 +114,31 @@ test("Firefox runs a scripted add-on in a hosted sandbox page", { timeout: 120_0
       source.requests.includes("/sandbox/addon-sandbox-hosted.html"),
       `the hosted page was fetched: ${source.requests.join(", ")}`
     )
+    const ai = require("../shared/ai-addon-fixture")
+    const aiEditor = await openSettingsSection(driver, "addons", "#addons_area")
+    await setValue(aiEditor, JSON.stringify([ai.manifest(source.origin)]))
+    await driver.findElement(By.css('[data-testid="save-addons"]')).click()
+    const token = await driver.wait(until.elementLocated(By.css('[data-testid="addon-option-what-wait-who-why-compatibleToken"]')), 10000)
+    await driver.findElement(By.css("#settings_section_back")).click()
+    await driver.wait(until.elementLocated(By.css('.addon_list_row[data-addon-id="what-wait-who-why"]')), 10000).click()
+    await token.sendKeys("fixture-token")
+    await driver.executeScript("arguments[0].parentElement.querySelector('button').click()", token)
+    await driver.wait(async () => (await driver.executeScript("return arguments[0].parentElement.textContent", token)).includes("Token saved on this device"), 10000)
+    await driver.findElement(By.css('[data-testid="stories-menu"]')).click()
+    const aiButton = await driver.wait(until.elementLocated(By.css('[data-addon-tray-button="addon:what-wait-who-why/assistant"]')), 10000)
+    await aiButton.click()
+    await driver.wait(async () => (await driver.findElement(By.css(".addon_tray")).getText()).includes("ExampleApp is software"), 20000)
+    await openSettingsSection(driver, "addons", "#addon_url_input")
+    const localZip = path.join(localDirectory, "local-package.zip")
+    await fs.writeFile(localZip, await require("../shared/local-addon-fixture").zipFile())
+    await driver.findElement(By.css('[data-testid="addon-zip-file"]')).sendKeys(localZip)
+    await driver.wait(until.elementLocated(By.css('[data-testid="confirm-addon"]')), 10000)
+    await driver.findElement(By.css('[data-testid="confirm-addon"]')).click()
+    await driver.findElement(By.css('[data-testid="stories-menu"]')).click()
+    await driver.wait(async () => (await driver.findElement(By.css('[data-addon-badge="ready"]')).getText()) === "Local package ready", 10000)
   } finally {
     await driver.quit()
     await source.close()
+    await fs.rm(localDirectory, { recursive: true, force: true })
   }
 })

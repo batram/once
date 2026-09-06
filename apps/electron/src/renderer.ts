@@ -24,6 +24,8 @@ const ADDON_SANDBOX_URL = "once-addon://sandbox/index.html"
 // Main reads ONCE_ADDONS directories (unpackaged builds only) and tells the
 // renderer when a file in one changes.
 const DEV_ADDONS = {
+  pickDirectory: () => window.onceElectron.addons.pickDirectory(),
+  removeDirectory: (directory: string) => window.onceElectron.addons.removeDirectory(directory),
   list: () => window.onceElectron.addons.devEntries(),
   onChanged: (listener: () => void) => window.onceElectron.addons.onDevChanged(listener)
 }

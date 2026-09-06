@@ -44,6 +44,7 @@ const { ADDON_SCRIPT, addonApiStories, addonPackageManifest } = require("../shar
 // from ADDON_SCRIPT) and a userscript served the way script hosts serve them,
 // which is what makes Violentmonkey open its install page.
 function serveFixtureScript(request, response, origin, options = {}) {
+  if (require("../shared/ai-addon-fixture").handleRequest(request, response)) return true
   if (request.url === "/addon/main.js") {
     response.writeHead(200, { "content-type": "text/javascript; charset=utf-8" })
     response.end(ADDON_SCRIPT)
@@ -349,7 +350,7 @@ async function openPanel(window, panel) {
 async function openSettingsSection(window, target, controlSelector) {
   await openPanel(window, "settings")
   const row = window.locator(`[data-settings-target="${target}"]`)
-  if (!(await row.isVisible())) {
+  for (let level = 0; level < 3 && !(await row.isVisible()); level++) {
     const back = window.locator("#settings_section_back")
     await expect(
       back,
@@ -367,6 +368,11 @@ async function openSettingsSection(window, target, controlSelector) {
     timeout: 5_000
   })
   if (!controlSelector) return section
+  if (target === "addons") {
+    const navigation = require("../shared/addon-settings-ui")
+    if (controlSelector === "#addons_area") await navigation.addonAdvanced(window)
+    else if (/url|directory|import/.test(controlSelector)) await navigation.addonImport(window)
+  }
   const control = section.locator(controlSelector)
   if (!(await control.isVisible()) &&
       ["sources", "filters", "redirects"].includes(target)) {

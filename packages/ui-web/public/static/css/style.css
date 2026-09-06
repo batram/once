@@ -8,7 +8,9 @@
 @import "./parts/animations.css" layer(components);
 @import "./parts/dialogs.css" layer(components);
 @import "./parts/stories.css" layer(components);
+@import "./parts/addon-trays.css" layer(components);
 @import "./parts/menu.css" layer(components);
 @import "./parts/settings.css" layer(components);
+@import "./parts/addon-settings.css" layer(components);
 @import "./parts/search.css" layer(components);
 @import "./parts/notifications.css" layer(components);

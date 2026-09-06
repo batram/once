@@ -5,6 +5,8 @@
 
 import { AddonCondition, CONDITION_KEYS } from "./conditions"
 import { ConfigSchema, readConfigSchema } from "./configSchema"
+import { AddonConnection, readConnections } from "./connections"
+import { AddonTray } from "./trayProtocol"
 import { MatchPatternSet } from "../webext/matchPattern"
 import { isKnownPlaceholder, templatePlaceholders } from "./templates"
 
@@ -38,6 +40,7 @@ export type AddonRun =
   | { tag: string }
   | { setReadState: "unread" | "read" | "skipped" }
   | { message: string }
+  | { tray: string }
 
 /** The add-on's code: fetched per device and pinned by hash, never synced. */
 export interface AddonScript {
@@ -122,6 +125,8 @@ export interface AddonManifest {
   capabilities: readonly string[]
   /** Options the user sets; an object schema whose fields Once renders as controls. */
   settings?: ConfigSchema
+  connections?: readonly AddonConnection[]
+  trays?: readonly AddonTray[]
 }
 
 /** The URLs a script may fetch through the host, from its `fetch:` grants. */
@@ -142,7 +147,7 @@ export function manifestNeedsScript(
   return collectors.length > 0 ||
     panelActions.some((action) => "message" in action.run) ||
     contributions.some((contribution) =>
-      (contribution.kind === "action" && "message" in contribution.run) ||
+      (contribution.kind === "action" && ("message" in contribution.run || "tray" in contribution.run)) ||
       (contribution.kind === "badge" && contribution.compute !== undefined)
     )
 }
@@ -259,6 +264,11 @@ class Reader {
     }
     const [key] = keys
     switch (key) {
+      case "tray": {
+        const tray = this.string(value.tray, `${path}.tray`, 40)
+        if (!tray || !ADDON_LIMITS.idPattern.test(tray)) return this.fail(path, "tray must be a simple identifier")
+        return { tray }
+      }
       case "message": {
         const message = this.string(value.message, `${path}.message`, 40)
         if (message === undefined) return undefined
@@ -523,11 +533,25 @@ export function readAddonManifest(value: unknown): AddonManifestRead {
   let settings: ConfigSchema | undefined
   if (value.settings !== undefined) {
     try {
-      settings = readConfigSchema(value.settings, "settings")
+      settings = readConfigSchema(value.settings, "settings", 0, true)
       if (settings.type !== "object") reader.fail("settings", "must be an object schema")
     } catch (error) {
       reader.fail("settings", error instanceof Error ? error.message : String(error))
     }
+  }
+  let connections: AddonConnection[] = []
+  let trays: AddonTray[] = []
+  try {
+    connections = readConnections(value.connections, settings)
+    trays = readTrays(value.trays)
+    for (const contribution of contributions) {
+      if (contribution.kind === "action" && "tray" in contribution.run) {
+        const id = contribution.run.tray
+        if (!trays.some(tray => tray.id === id)) reader.fail("contributions", "action names an undeclared tray")
+      }
+    }
+  } catch (error) {
+    reader.fail("features", error instanceof Error ? error.message : String(error))
   }
   if (script === undefined && manifestNeedsScript(contributions, collectors, panelActions)) {
     reader.fail("script", "is required: a contribution uses message or compute, or the add-on has collectors")
@@ -540,7 +564,20 @@ export function readAddonManifest(value: unknown): AddonManifestRead {
     reports: [],
     manifest: {
       protocol: ADDON_PROTOCOL, id, name, version, author, homepage, script,
-      contributions, collectors, panelActions, capabilities, settings
+      contributions, collectors, panelActions, capabilities, settings,
+      ...(connections.length ? { connections } : {}), ...(trays.length ? { trays } : {})
     }
   }
+}
+
+function readTrays(value: unknown): AddonTray[] {
+  if (value === undefined) return []
+  if (!Array.isArray(value) || value.length > 4) throw new Error("trays must be a list of at most 4 trays")
+  const seen = new Set<string>()
+  return value.map(raw => {
+    if (!isRecord(raw) || typeof raw.id !== "string" || !ADDON_LIMITS.idPattern.test(raw.id) || seen.has(raw.id) ||
+      typeof raw.title !== "string" || !raw.title || raw.title.length > 60) throw new Error("Invalid or duplicate tray")
+    seen.add(raw.id)
+    return { id: raw.id, title: raw.title }
+  })
 }

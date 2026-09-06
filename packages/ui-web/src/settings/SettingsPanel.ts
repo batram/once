@@ -360,8 +360,7 @@ export class SettingsPanel {
   ): void {
     this.openSettingsSection(key)
     if (!match.controlId && !match.targetId) return
-    const controlId = match.controlId
-    const targetId = match.targetId
+    const { controlId, targetId } = match
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         if (match.startIndex !== undefined &&
@@ -386,6 +385,7 @@ export class SettingsPanel {
               control instanceof HTMLSelectElement)) {
           return
         }
+        control.closest("#addon_install_settings")?.dispatchEvent(new CustomEvent("once:addon-reveal", { detail: control }))
         control.focus({ preventScroll: true })
         if ((control instanceof HTMLInputElement ||
              control instanceof HTMLTextAreaElement) &&

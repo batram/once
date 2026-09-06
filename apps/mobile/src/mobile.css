@@ -303,6 +303,14 @@
     display: none;
   }
 
+  .story .button_group:has([data-addon-tray-button]) {
+    display: inline-flex;
+  }
+
+  .story .button_group:has([data-addon-tray-button]) > :not([data-addon-tray-button]) {
+    display: none;
+  }
+
   /* ---------- Row ⋮ button ---------- */
 
   .story .menu_btn {

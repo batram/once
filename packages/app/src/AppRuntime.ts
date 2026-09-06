@@ -34,6 +34,7 @@ import { SourceLoader } from "./SourceLoader"
 import { DiagnosticLog, errorDetails } from "./DiagnosticLog"
 import { getAddonScript, storeAddonScript } from "./addonScriptCache"
 import { fetchDocument, fetchText } from "./fetchDocument"
+import { AddonConnections } from "./addonConnections"
 import { waitForStartupStorage } from "./startupStorage"
 import { StoryContentService } from "./storyContent"
 import { StoryChangeReconciler } from "./storyChangeReconciler"
@@ -195,7 +196,11 @@ export class AppRuntime {
   }
 
   private createClient(): OnceClient {
+    const connections = new AddonConnections(this.platform.addonFetch ?? this.platform.fetch, this.platform.secretStore)
     return {
+      saveAddonSecret: (addon, field, endpoint, secret) => connections.save(addon, field, endpoint, secret),
+      hasAddonSecret: (addon, field, endpoint) => connections.configured(addon, field, endpoint),
+      requestAddonConnection: (manifest, options, connection, request, signal) => connections.request(manifest, options, connection, request, signal),
       getDiagnostics: () => this.diagnostics.snapshot(),
       getSyncStatus: () => this.syncStatus,
       getStorySources: () => this.sourceSettingsReady

@@ -188,7 +188,7 @@ export function presentAddons(doc: AddonsDocument): string {
   const entries = doc.addons.map(({ enabled, manifest, source, options, storage }) => {
     const {
       protocol, id, name, version, author, homepage, script, contributions, collectors,
-      panelActions, capabilities, settings: schema
+      panelActions, capabilities, settings: schema, connections, trays
     } = manifest
     return {
       ...(enabled ? {} : { enabled: false }),
@@ -201,6 +201,8 @@ export function presentAddons(doc: AddonsDocument): string {
       ...(script ? { script } : {}),
       ...(capabilities.length > 0 ? { capabilities } : {}),
       ...(schema ? { settings: schema } : {}),
+      ...(connections?.length ? { connections } : {}),
+      ...(trays?.length ? { trays } : {}),
       contributions,
       ...(collectors.length > 0 ? { collectors } : {}),
       ...(panelActions.length > 0 ? { panelActions } : {})

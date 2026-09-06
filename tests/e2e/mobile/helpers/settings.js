@@ -5,7 +5,7 @@ async function openSettingsSection(page, section) {
   await waitForMobileApp(page)
   await page.getByTestId("settings-menu").click()
   const row = page.locator(`[data-settings-target="${section}"]`)
-  if (!(await row.isVisible())) {
+  for (let level = 0; level < 3 && !(await row.isVisible()); level++) {
     const back = page.locator("#settings_section_back")
     if (await back.isVisible()) await back.click()
   }

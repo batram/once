@@ -6,6 +6,7 @@ import {
   SandboxOperation,
   SandboxToHost,
   StoryView,
+  AddonTrayEvent,
   readBadgeTexts,
   readSandboxMessage
 } from "@once/core"
@@ -20,7 +21,7 @@ export interface SandboxTransport {
 
 export interface SandboxHostOperations {
   /** Runs one operation the script asked for; throws to refuse it. The value answers ops that asked. */
-  perform(op: SandboxOperation): unknown | Promise<unknown>
+  perform(op: SandboxOperation, signal?: AbortSignal): unknown | Promise<unknown>
   report(message: string): void
 }
 
@@ -33,6 +34,7 @@ interface Pending {
   timer: ReturnType<typeof setTimeout>
   /** Story hrefs an operation raised during this request may name. */
   scope: Set<string>
+  controller: AbortController
 }
 
 /**
@@ -43,6 +45,7 @@ interface Pending {
  */
 export class AddonSandboxSession {
   private readonly pending = new Map<number, Pending>()
+  private readonly connectionOperations = new Set<AbortController>()
   private nextRequest = 1
   private ready: Promise<void> | null = null
   private readyResolve: (() => void) | null = null
@@ -83,7 +86,31 @@ export class AddonSandboxSession {
   }
 
   settings(settings: Readonly<Record<string, unknown>>): void {
+    this.cancelAll()
     this.transport.post({ type: "settings", settings })
+  }
+
+  cancelAll(): void {
+    for (const controller of this.connectionOperations) controller.abort()
+    for (const id of this.pending.keys()) this.cancel(id)
+  }
+
+  private cancel(id: number): void {
+    this.pending.get(id)?.controller.abort()
+    this.transport.post({ type: "cancel", requestId: id })
+    this.settle(id, entry => entry.reject(new Error("Request cancelled")))
+  }
+
+  tray(tray: string, event: AddonTrayEvent, story: StoryView, signal: AbortSignal): Promise<unknown> {
+    if (signal.aborted) return Promise.reject(new Error("Request cancelled"))
+    if (Array.from(this.pending.values()).filter(entry => entry.scope.size).length >= 2) {
+      return Promise.reject(new Error("Two addon requests are already running; try again when one finishes"))
+    }
+    const id = this.nextRequest
+    const cancel = () => this.cancel(id)
+    signal.addEventListener("abort", cancel, { once: true })
+    return this.request(requestId => ({ type: "tray", requestId, tray, event, story }), new Set([story.href]), SANDBOX_TIMEOUTS.trayMs)
+      .finally(() => signal.removeEventListener("abort", cancel))
   }
 
   invoke(action: string, story: StoryView): Promise<unknown> {
@@ -164,6 +191,7 @@ export class AddonSandboxSession {
   dispose(): void {
     if (this.closed) return
     this.closed = true
+    for (const controller of this.connectionOperations) controller.abort()
     if (this.loadTimer) clearTimeout(this.loadTimer)
     this.loadTimer = null
     this.readyReject?.(new Error("Add-on sandbox closed"))
@@ -173,6 +201,7 @@ export class AddonSandboxSession {
     this.badgeScope.clear()
     for (const [id, entry] of this.pending) {
       clearTimeout(entry.timer)
+      entry.controller.abort()
       entry.reject(new Error("Add-on sandbox closed"))
       this.pending.delete(id)
     }
@@ -189,9 +218,11 @@ export class AddonSandboxSession {
     const requestId = this.nextRequest++
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
+        this.pending.get(requestId)?.controller.abort()
+        this.transport.post({ type: "cancel", requestId })
         this.settle(requestId, (entry) => entry.reject(new Error("Add-on did not answer in time")))
       }, timeoutMs)
-      this.pending.set(requestId, { resolve, reject, timer, scope })
+      this.pending.set(requestId, { resolve, reject, timer, scope, controller: new AbortController() })
       this.transport.post(build(requestId))
     })
   }
@@ -206,7 +237,8 @@ export class AddonSandboxSession {
 
   private operation(message: Extract<SandboxToHost, { type: "op" }>): void {
     const { op, opId } = message
-    const inScope = UNSCOPED_OPERATIONS.has(op.name) ||
+    const pending = message.requestId !== undefined ? this.pending.get(message.requestId) : undefined
+    const inScope = UNSCOPED_OPERATIONS.has(op.name) || (op.name === "request" && (message.requestId === undefined || !!pending)) ||
       (op.name === "updateBadge"
         ? this.badgeScope.get(op.contribution)?.has(op.href) === true
         : message.requestId !== undefined && this.pending.get(message.requestId)?.scope.has(op.href) === true)
@@ -218,16 +250,41 @@ export class AddonSandboxSession {
     void Promise.resolve()
       .then(() => {
         if (this.closed) throw new Error("Add-on sandbox closed")
-        return this.host.perform(op)
+        if (op.name === "request" || op.name === "story.content") {
+          pending?.controller.signal.throwIfAborted()
+          if (message.requestId !== undefined && !this.pending.has(message.requestId)) throw new Error("Request is no longer active")
+        }
+        if (op.name === "request") return this.connectionOperation(op, pending?.controller.signal)
+        return this.host.perform(op, pending?.controller.signal)
       })
       .then((value) => {
         if (!this.closed && opId !== undefined) this.transport.post({ type: "opResult", opId, ok: true, value })
       })
       .catch((error) => {
         const text = error instanceof Error ? error.message : String(error)
-        this.host.report(`Add-on ${this.addonId} ${op.name} failed: ${text}`)
+        if (op.name !== "request" && op.name !== "story.content") this.host.report(`Add-on ${this.addonId} ${op.name} failed: ${text}`)
         if (!this.closed && opId !== undefined) this.transport.post({ type: "opResult", opId, ok: false, error: text })
       })
+  }
+
+  private async connectionOperation(op: SandboxOperation, signal?: AbortSignal): Promise<unknown> {
+    if (this.connectionOperations.size >= 2) throw new Error("Two connection requests are already running")
+    const controller = new AbortController()
+    const abort = () => controller.abort()
+    signal?.throwIfAborted()
+    signal?.addEventListener("abort", abort, { once: true })
+    this.connectionOperations.add(controller)
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const cancelled = new Promise<never>((_resolve, reject) => {
+      controller.signal.addEventListener("abort", () => reject(new Error("Request cancelled or timed out")), { once: true })
+      timer = setTimeout(abort, SANDBOX_TIMEOUTS.trayMs)
+    })
+    try { return await Promise.race([this.host.perform(op, controller.signal), cancelled]) }
+    finally {
+      clearTimeout(timer)
+      signal?.removeEventListener("abort", abort)
+      this.connectionOperations.delete(controller)
+    }
   }
 
   /** A crash or a broken start: count it, close the frame, fail what waits. */

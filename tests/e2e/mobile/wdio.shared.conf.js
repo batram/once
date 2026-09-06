@@ -89,7 +89,7 @@ function configFor(platform) {
     runner: "local",
     specs: [path.join(
       __dirname,
-      visual ? "mobile.visual-inspection.js" : "mobile.smoke.js"
+      visual ? "mobile.visual-inspection.js" : process.env.ONCE_MOBILE_ADDONS_ONLY === "1" ? "mobile.addons.js" : "mobile.smoke.js"
     )],
     maxInstances: 1,
     logLevel: "info",

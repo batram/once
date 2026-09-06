@@ -18,16 +18,22 @@ export async function bridgeFetch(
   // Only an explicit ask travels: the main process decides what the default
   // is, and a request built without the option should not change that.
   if (init?.credentials === "include") serialized.credentials = "include"
+  if (init?.redirect === "error") serialized.redirect = "error"
+  if (init?.signal && bridge.cancelFetch) serialized.requestId = crypto.randomUUID()
 
   if (request.method !== "GET" && request.method !== "HEAD") {
     serialized.body = await request.clone().arrayBuffer()
   }
 
-  const response: ElectronFetchResponse = await bridge.fetch(serialized).catch(
-    (error: unknown) => {
-      throw unwrapBridgeError(error)
-    }
-  )
+  init?.signal?.throwIfAborted()
+  const cancel = () => { if (serialized.requestId) void bridge.cancelFetch?.(serialized.requestId).catch(() => undefined) }
+  init?.signal?.addEventListener("abort", cancel, { once: true })
+  let response: ElectronFetchResponse
+  try {
+    response = await bridge.fetch(serialized)
+    init?.signal?.throwIfAborted()
+  } catch (error) { throw unwrapBridgeError(error) }
+  finally { init?.signal?.removeEventListener("abort", cancel) }
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,

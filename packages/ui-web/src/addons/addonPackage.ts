@@ -10,6 +10,7 @@ export async function verifiedAddonScript(client: OnceClient, manifest: AddonMan
   if (!manifest.script) return null
   const { integrity, url } = manifest.script
   const cached = await client.getAddonScript(integrity).catch(() => null)
+  if (cached === null && url.startsWith("once-addon://local/")) throw new Error("Import this addon's ZIP or folder on this device to make its script available")
   const code = cached ?? await client.fetchText(url)
   const bytes = new TextEncoder().encode(code)
   if (bytes.length > SANDBOX_LIMITS.code) throw new Error("The script is too large")

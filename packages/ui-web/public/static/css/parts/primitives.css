@@ -56,6 +56,7 @@
 }
 
 .icon--article { --icon: url("../../imgs/article.svg"); }
+.icon--ai-question { --icon: url("../../imgs/ai-question.svg"); }
 .icon--chevron-left { --icon: url("../../imgs/chevron-left.svg"); }
 .icon--collapse { --icon: url("../../imgs/collapse.svg"); }
 .icon--filter { --icon: url("../../imgs/filter.svg"); }

@@ -16,12 +16,57 @@ my-addon/
   main.js           optional: an ES module, present when any contribution needs code
 ```
 
-A user installs an add-on by pasting the manifest's URL into Settings ›
-Add-ons, or by pasting the manifest itself into the editor there. The
+A user opens **Settings › Once Add-ons › Import addon…**, then uses **Import ZIP**,
+**Import folder** where directory selection is supported, or the manifest URL.
+Electron also offers **Load directory** to keep a local addon linked to its files.
+The Once Add-ons overview lists installed and linked addons. Open a row for that addon's
+settings and management controls; **Once Add-ons** in the header returns to the list.
+Fields stay mounted while navigating, so unfinished settings edits are preserved.
+The JSON editor and its Save/Cancel controls are hidden until you choose
+**Advanced: edit addon JSON…** on the overview. Pasting manifests there remains supported. The
 manifest is stored in the synced `addons` settings document and follows the
 user's devices; the script is fetched per device, checked against the hash
 the manifest pins, cached, and never synced. An add-on without a script is
 purely declarative and needs no trust decision at all.
+
+### Local ZIP and folder imports
+
+Choose a ZIP containing exactly one `once-addon.json`, either at the archive root
+or within a wrapping folder. The script must be included inside that package.
+Local manifests may use `"script": "main.js"`, `{ "file": "main.js" }`, or
+`{ "url": "main.js", "integrity": "sha256-…" }`. Once computes the script hash;
+when the package declares one, it must match. Local imports never fetch missing
+scripts from the network. The existing install preview shows the addon and its
+permissions before **Confirm install** or **Apply update** activates it.
+
+Imports are snapshots. Code is held in the existing device-local script cache,
+while the manifest and ordinary settings sync as before. Import the package on
+each device that needs to run it. Reimporting the same addon ID updates it while
+preserving its enabled state, settings, and addon storage. No local file path is
+synced. **Check for updates** applies to URL installations; reimport ZIP/folder
+packages to update them.
+
+ZIPs are limited to 8 MiB and 256 entries, with 8 MiB total expanded file sizes,
+a 256 KiB manifest, and a 512 KiB script. Archive paths are validated; encrypted
+archives and symbolic links are refused. Files are read in memory, not extracted
+to disk. The single-script module model still applies: bundle script dependencies.
+Folder imports use the same package limits.
+
+### Linked directories in Electron
+
+**Load directory** opens the native directory picker in both packaged and
+development Electron builds. The chosen directory must contain `once-addon.json`
+and its script, if any, using a plain local `.js` or `.mjs` filename. Once remembers
+up to 16 picker-loaded directories on this device, reloads changed files, and
+shows their settings alongside other addons. **Unload** removes the remembered
+link and runtime contributions without deleting the original files or local
+settings. Remove an installed copy with the same addon ID before loading a linked
+directory. `ONCE_ADDONS` remains available for unpackaged development builds.
+
+Browsers expose folder selection as a one-time import and do not offer Electron's
+watched path. ZIP selection uses the platform file picker, including mobile where
+available. Firefox's hosted sandbox requirement applies to every installation
+method. ZIP decompression uses the browser's native compression streams.
 
 ## The manifest
 
@@ -161,10 +206,12 @@ Buttons in the stories toolbar, at most four. There is no story in hand, so
 A small subset of JSON Schema: `object` with `properties` and `required`,
 `string` (`enum`, `maxLength`, `default`), `number` (`minimum`, `maximum`,
 `default`), `boolean` (`default`), `array` (`items`, `maxItems`); nesting up
-to three levels, at most 24 properties. `description` labels the control.
+to three levels, at most 24 properties. Collector controls use `description`
+as their label. Addon settings may provide `label`, `description` (help),
+`group`, and `visibleWhen: { field, equals }` (string or boolean equality).
 Once validates against the schema before anything reaches the script, fills
 defaults, and drops undeclared fields. The manifest's `settings` schema is
-rendered as controls in Settings › Add-ons; the values reach the script as
+rendered as controls in Settings › Once Add-ons › the addon name; the values reach the script as
 `once.settings`. A collector's `config` schema is rendered in the source
 editor: once a source names the collector, a Configuration group appears
 under the Collector select with one row per property (nested objects and
@@ -172,14 +219,99 @@ arrays are edited as JSON), and Save stores the validated object in the
 source's `select`, which `parse` receives as `config`. A value the schema
 refuses is named in the form instead of being saved.
 
+Addon string settings also support `format: "url"`, `"multiline"`, or
+`"secret"`. Multiline settings can declare `maxLength: 16000`; collector
+strings keep their existing 2000-character cap. Declared defaults have a
+Restore default button. A secret cannot declare a default: its value is
+excluded from options and `once.settings` and saved separately on this device.
+Settings remain available while the addon is disabled. Development addon
+options live locally by addon ID, independently of the synced manifest document.
+
 ### Capabilities
 
 `capabilities` lists grants; shown at install. Only one kind exists:
 `fetch:<match pattern>` allows `once.fetch` for matching URLs
 (`https://api.example/*`, `*://*.example.org/*`; ports are ignored,
-`http(s)` only). An add-on without a `fetch:` grant provably makes no network
-request of its own. Everything else a script can do is scoped to the story
-the user acted on, so no other grant is needed.
+`http(s)` only). This GET-only API does not accept fetch init/options.
+Separately, declared `connections` authorize requests to configured endpoints
+as described below. An addon with neither fetch grants nor connections cannot
+make arbitrary network requests of its own. Story content access is scoped to
+the invoked story and can fetch that story through Once's reader pipeline.
+
+### Connections and device-local credentials
+
+Declare at most eight connections, for example:
+
+```json
+{
+  "connections": [{ "id": "provider", "endpoint": "endpoint", "secret": "token", "auth": "bearer" }],
+  "settings": { "type": "object", "properties": {
+    "endpoint": { "type": "string", "format": "url", "label": "Request endpoint" },
+    "token": { "type": "string", "format": "secret", "label": "API token" }
+  } }
+}
+```
+
+`endpoint` and `secret` name settings, not literal values. `auth` is `bearer`
+(default) or `x-api-key`; `secret` is optional. The host injects the credential,
+bound to the normalized full endpoint URL. Changing that URL requires replacing
+the saved token. Tokens never travel into the sandbox or the synced document.
+Browser storage is device-local, not equivalent to native OS encryption.
+
+`once.request(id, { method?, headers?, query?, body? }, context?)` returns
+`{ status, headers, text }`, including HTTP error statuses. Only GET/POST are
+accepted; bodies are strings capped at 1 MiB UTF-8. Query values are strings
+appended to the configured endpoint. Script headers are limited to Content-Type,
+Accept, anthropic-version, and anthropic-workspace-id. Authentication and cookie
+headers are host-owned. Responses expose Content-Type and Retry-After, with a
+1 MiB body cap. Redirects are rejected. Transport errors do not expose credentials.
+
+There are at most two active connection requests per addon, each with a 120-second
+deadline. Pass the tray context (or use `context.request`) to cancel a particular
+invocation; standalone requests are cancelled on settings changes or teardown.
+Electron forwards cancellation through IPC. Capacitor's native HTTP API has no
+cancel operation: Stop discards results while the native request finishes within
+its timeout. Native mobile buffers the response before enforcing the size cap.
+
+### Story trays
+
+Declare up to four `trays: [{ id, title }]`, and give an ordinary story action
+`run: { "tray": "the-tray-id" }`. The usual button/menu/key/swipe surfaces apply.
+Once renders a full-width region below the story and owns all DOM and controls.
+
+```js
+once.onTray(async (tray, event, story, context) => {
+  if (event.type === "clear") return { messages: [], composer: "Ask a question" }
+  const article = await context.getStoryContent()
+  const response = await context.request("provider", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text: article.text, question: event.text })
+  })
+  context.signal.throwIfAborted()
+  return { messages: [{ role: "assistant", text: response.text }], composer: "Ask a question" }
+})
+```
+
+Events are `{ type: "open" | "clear" }`, `{ type: "submit", text }`, or
+`{ type: "action", action }`. A view is `{ messages, status?, actions?, composer? }`.
+Messages have `role: "user" | "assistant" | "info"`, plain `text`, and optional
+`sources: [{ title, url }]`; only HTTP(S) source links are allowed. Actions are
+`{ id, label }`; the optional composer string labels the question field.
+Views are capped at 256,000 characters, 100 messages, 30 sources per message,
+and eight actions. They never contain host HTML, scripts, or event handlers.
+
+The host provides loading/error status, Retry, Stop, Close and Clear conversation.
+Tray invocations last up to 120 seconds, with at most two active per addon.
+The story and request identity scope every content operation and response. Stops,
+settings changes, and teardown revoke pending work. Keep addon conversation state
+in memory and clear it in `onSettings`; no persistence is needed for redraws.
+
+`once.getStoryContent(story)` (or `context.getStoryContent()`) returns
+`{ text, title, sourceUrl, origin: "stored" | "page", truncated }`. Once uses
+saved/feed content first, otherwise fetches and extracts the article. Text is
+capped at 64,000 characters. This does not mark the story read or save an offline
+copy. Extraction errors reject the operation so the addon can label a title-only
+answer rather than imply it read the article.
 
 ## The script
 
@@ -213,6 +345,9 @@ export default function activate(once) {
 | `once.onInvoke(fn(action, story))` | `message` story actions; `action` is the message name |
 | `once.onBadges(fn(contribution, stories))` | computed badges; return one text per story, empty to show none |
 | `once.onPanel(fn(action))` | `message` panel actions |
+| `once.onTray(fn(tray, event, story, context))` | returns a validated host-rendered tray view |
+| `once.getStoryContent(story)` | readable text for the invoked story |
+| `once.request(connectionId, request, context?)` | bounded authenticated requests to a configured connection |
 | `once.collectors.register(id, { parse, globalSearch?, domainSearch? })` | a collector declared in the manifest |
 | `once.openUrl(story, url, target?)`, `once.copyText(story, text)`, `once.search(story, query)`, `once.notify(story, text)` | during an invocation, for the story it was about |
 | `once.setReadState(story, state)`, `once.toggleBookmark(story)`, `once.addTag(story, tag)` | mutations on that story, through undo history |
@@ -226,7 +361,7 @@ Rules the host enforces, not the script:
   open and only for the story it was about (or, for `updateBadge`, a story
   whose badge the add-on computed). Anything else is refused and logged.
 - Requests time out: 3 s for an invocation, 5 s for a badge batch, 20 s for
-  a collector parse, 15 s for a search.
+  a collector parse, 15 s for a collector search, 120 s for a tray invocation.
 - Three crashes or failed starts switch the add-on off on this device until
   Retry, an options change, or a changed manifest. Storage writes do not reset
   the failure count. Startup includes a deadline for loading the sandbox page.
@@ -235,7 +370,7 @@ Rules the host enforces, not the script:
 
 ## Installing, updating, and where things run
 
-- **Install from URL**: Settings › Add-ons › paste the URL of
+- **Install from URL**: Settings › Once Add-ons › Import addon… › paste the URL of
   `once-addon.json` › Install › review its name, version and network access ›
   Confirm install. Code is hash-checked and, where a sandbox is available,
   trial-activated before the installed document changes. Trial storage writes

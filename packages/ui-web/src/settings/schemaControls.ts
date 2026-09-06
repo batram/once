@@ -26,7 +26,13 @@ export function createSchemaControl(
   options: SchemaControlOptions
 ): SchemaControl | null {
   let control: SchemaControl
-  if (schema.type === "object" || schema.type === "array") {
+  if (schema.type === "string" && schema.format === "multiline") {
+    const textarea = document.createElement("textarea")
+    textarea.rows = 6
+    textarea.maxLength = schema.maxLength ?? 16_000
+    textarea.value = typeof value === "string" ? value : ""
+    control = { input: textarea, read: () => textarea.value }
+  } else if (schema.type === "object" || schema.type === "array") {
     if (!options.json) return null
     control = jsonControl(value)
   } else if (schema.type === "string" && schema.enum) {
@@ -40,6 +46,7 @@ export function createSchemaControl(
     control = textControl(schema, value)
   }
   control.input.id = options.id
+  if (schema.format === "url" && control.input instanceof HTMLInputElement) control.input.type = "url"
   control.input.dataset.testid = options.testid
   return control
 }

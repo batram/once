@@ -172,6 +172,10 @@ export interface OnceClient {
    */
   getSourceSecret(sourceId: string): Promise<string>
   setSourceSecret(sourceId: string, secret: string): Promise<void>
+  saveAddonSecret(addon: string, field: string, endpoint: string, secret: string): Promise<void>
+  hasAddonSecret(addon: string, field: string, endpoint: string): Promise<boolean>
+  requestAddonConnection(manifest: import("@once/core").AddonManifest, options: Record<string, unknown>, connection: string,
+    request: import("@once/core").AddonRequest, signal?: AbortSignal): Promise<import("@once/core").AddonResponse>
   getCacheTime(): Promise<number>
   setCacheTime(cacheTime: string): Promise<void>
   getCacheTiming(): Promise<CacheTimingDocument>
@@ -348,6 +352,8 @@ export interface OncePlatformPorts {
   theme: ThemePort
   activeTab?: ActiveTabPort
   fetch: typeof fetch
+  /** Optional transport for addon connections with explicit redirect/cookie controls. */
+  addonFetch?: typeof fetch
   onDatabaseChange?: (handler: (change: DatabaseChange) => void) => () => void
   onHistoryCommand?: (
     handler: (action: "undo" | "redo") => void

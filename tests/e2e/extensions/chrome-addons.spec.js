@@ -4,12 +4,14 @@ const os = require("node:os")
 const path = require("node:path")
 const { ADDON_INTEGRITY } = require("../shared/addon-fixture")
 const { startStoryFixture } = require("./local-source")
+const { installAiAddon, exerciseAiTray } = require("../shared/ai-addon-ui")
 
 // Chrome ships the add-on sandbox as a manifest `sandbox` page: an
 // opaque-origin extension page with its own policy that allows blob: modules.
 // The same fixture script the Electron and mobile suites run has to compute a
 // badge here and answer a button on the row.
 test("a scripted add-on runs in Chrome's sandbox page", async () => {
+  test.setTimeout(60_000)
   const extensionPath = path.resolve(__dirname, "../../../apps/chrome-extension/dist/release")
   const userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "once-chrome-addons-"))
   const source = await startStoryFixture()
@@ -39,6 +41,7 @@ test("a scripted add-on runs in Chrome's sandbox page", async () => {
 
     await page.locator("#settings_section_back").click()
     await page.locator('[data-settings-target="addons"]').click()
+    await require("../shared/addon-settings-ui").addonAdvanced(page)
     await page.getByTestId("addons").fill(JSON.stringify([{
       protocol: 1,
       id: "harness-script",
@@ -64,6 +67,16 @@ test("a scripted add-on runs in Chrome's sandbox page", async () => {
     const frame = page.locator("iframe[data-addon-sandbox]")
     await expect(frame).toHaveCount(1)
     expect(await frame.getAttribute("src")).toBe(`chrome-extension://${extensionId}/static/addon-sandbox.html`)
+    await page.getByTestId("settings-menu").click()
+    await page.locator('[data-settings-target="addons"]').click()
+    await installAiAddon(page, source.origin)
+    await page.getByTestId("stories-menu").click()
+    await exerciseAiTray(page, alpha)
+    await page.getByTestId("settings-menu").click()
+    await page.locator('[data-settings-target="addons"]').click()
+    await require("../shared/local-addon-fixture").importZip(page)
+    await page.getByTestId("stories-menu").click()
+    await expect(alpha.locator('[data-addon-badge="ready"]')).toHaveText("Local package ready")
     expect(pageErrors).toEqual([])
   } finally {
     await context.close()

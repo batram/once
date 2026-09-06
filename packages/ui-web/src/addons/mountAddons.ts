@@ -16,7 +16,8 @@ import {
   storyMatchesCondition,
   validateConfig
 } from "@once/core"
-import { renderAddonOptions } from "../settings/addonOptions"
+import { renderAddonOptions, readDevAddonOptions, devAddonEnabled, DEV_OPTIONS_EVENT, DevAddonControls } from "../settings/addonOptions"
+import { bindAddonDirectories } from "../settings/addonDirectories"
 import { getOnceClient } from "../client"
 import { registerStoryAction } from "../menu/storyActionRegistry"
 import { StoryHistory } from "../story/StoryHistory"
@@ -27,6 +28,8 @@ import { searchStories } from "../story/storySearch"
 import { LoaderInsights } from "../shell/LoaderInsights"
 import { addCollectorColorStyles } from "../collectorStyles"
 import { AddonSandbox } from "./AddonSandbox"
+import { AddonTrays } from "./AddonTrays"
+import { addonStoryContent } from "./addonStoryContent"
 import { registerAddonCollector } from "./addonCollectors"
 import { BadgeScheduler } from "./badgeScheduler"
 import { AddonCandidate, AddonReconciler, AddonRegistration } from "./AddonReconciler"
@@ -35,8 +38,10 @@ import { configureAddonPackages, verifiedAddonScript } from "./addonPackage"
 
 /** Development add-ons as the host read them from disk: manifest plus code. */
 export interface DevAddonSource {
-  list(): Promise<{ directory: string; manifest: unknown; code: string | null; error?: string }[]>
+  list(): Promise<{ directory: string; manifest: unknown; code: string | null; error?: string; removable?: boolean }[]>
   onChanged(listener: () => void): () => void
+  pickDirectory?(): Promise<void>
+  removeDirectory?(directory: string): Promise<void>
 }
 
 export interface MountAddonsOptions {
@@ -58,6 +63,7 @@ export function mountAddons(client: OnceClient, options: MountAddonsOptions = {}
   configureAddonPackages(options.sandboxUrl)
   let forms = ""
   let refreshing: Promise<void> = Promise.resolve()
+  const showDirectories = bindAddonDirectories(options.devAddons)
   const reconciler = new AddonReconciler(
     ({ entry, code }) => registerManifest(client, entry, options, code ?? null),
     (collectors) => {
@@ -71,7 +77,11 @@ export function mountAddons(client: OnceClient, options: MountAddonsOptions = {}
   const apply = async (): Promise<void> => {
     const doc = await client.getAddons()
     const candidates: AddonCandidate[] = doc.addons.map((entry) => ({ entry }))
-    for (const dev of await options.devAddons?.list() ?? []) {
+    const devIds = new Set<string>()
+    const devControls = new Map<string, DevAddonControls>()
+    const directories = await options.devAddons?.list() ?? []
+    showDirectories(directories)
+    for (const dev of directories) {
       const read = dev.error ? null : readAddonManifest(dev.manifest)
       if (!read || !read.ok) {
         const why = dev.error ?? (read ? read.reports.map((r) => `${r.path} ${r.message}`).join("; ") : "")
@@ -82,13 +92,17 @@ export function mountAddons(client: OnceClient, options: MountAddonsOptions = {}
         report(`Development add-on ${read.manifest.id} duplicates an installed add-on`, dev.directory)
         continue
       }
-      candidates.push({ entry: { enabled: true, manifest: read.manifest }, code: dev.code })
+      devIds.add(read.manifest.id)
+      devControls.set(read.manifest.id, { directory: dev.directory,
+        ...(dev.removable && options.devAddons?.removeDirectory
+          ? { unload: async () => { await options.devAddons?.removeDirectory?.(dev.directory) } } : {}) })
+      candidates.push({ entry: { enabled: devAddonEnabled(read.manifest.id), manifest: read.manifest, options: readDevAddonOptions(read.manifest.id) }, code: dev.code })
     }
     await reconciler.apply(candidates)
-    const nextForms = JSON.stringify(doc.addons.map(({ manifest, options, enabled }) => ({ manifest, options, enabled })))
+    const nextForms = JSON.stringify([candidates.map(({ entry }) => entry), directories.map(({ directory, removable }) => ({ directory, removable }))])
     if (forms !== nextForms) {
       forms = nextForms
-      renderAddonOptions(client, doc.addons)
+      renderAddonOptions(client, candidates.map(candidate => candidate.entry), devIds, devControls)
     }
   }
   const refresh = (): void => {
@@ -98,6 +112,11 @@ export function mountAddons(client: OnceClient, options: MountAddonsOptions = {}
     void reconciler.retry(id).then(refresh).catch(error => report("Add-on could not be retried", error))
   })
   refresh()
+  window.addEventListener(DEV_OPTIONS_EVENT, (event) => {
+    const id = (event as CustomEvent<string>).detail
+    if (id) void reconciler.retry(id).then(refresh)
+    else refresh()
+  })
   client.subscribe("settingsChanged", ({ section }) => {
     if (section === "addons") refresh()
   })
@@ -132,7 +151,11 @@ async function registerManifest(
 ): Promise<AddonRegistration> {
   const { manifest } = entry
   const releases: (() => void)[] = []
-  const sandbox = await sandboxFor(client, entry, options, devCode)
+  const lifecycle: { trays?: AddonTrays } = {}
+  const sandbox = await sandboxFor(client, entry, options, devCode, () => lifecycle.trays?.reset())
+  const storyTrays = new AddonTrays(manifest, sandbox)
+  lifecycle.trays = storyTrays
+  releases.push(() => storyTrays.dispose())
   if (sandbox) releases.push(() => sandbox.dispose())
   const scheduler = sandbox ? new BadgeScheduler(manifest.id, sandbox, viewOf) : null
   if (sandbox) {
@@ -150,8 +173,8 @@ async function registerManifest(
     const id = addonContributionId(manifest.id, contribution.id)
     if (contribution.kind === "action") {
       const applies = (row: StoryListItem) => storyMatchesCondition(contribution.when, viewOf(row))
-      const run = (row: StoryListItem) => runAction(manifest, contribution.run, row, sandbox)
-      if ("message" in contribution.run && !sandbox) continue
+      const run = (row: StoryListItem) => "tray" in contribution.run ? storyTrays.toggle(row, contribution.run.tray) : runAction(manifest, contribution.run, row, sandbox)
+      if (("message" in contribution.run || "tray" in contribution.run) && !sandbox) continue
       releases.push(registerStoryAction({
         id,
         label: contribution.label,
@@ -164,7 +187,15 @@ async function registerManifest(
         releases.push(registerStoryElement({
           id,
           slot: "button",
-          render: (row) => (applies(row) ? actionButton(contribution.label, contribution.icon, () => run(row)) : null)
+          render: (row) => {
+            if (!applies(row)) return null
+            const button = actionButton(contribution.label, contribution.icon, () => run(row))
+            if ("tray" in contribution.run) {
+              button.dataset.addonTrayButton = addonContributionId(manifest.id, contribution.run.tray)
+              button.setAttribute("aria-expanded", String(storyTrays.expanded(row.story.href, contribution.run.tray)))
+            }
+            return button
+          }
         }))
       }
     } else if (contribution.kind === "badge" && contribution.compute !== undefined) {
@@ -188,7 +219,7 @@ async function registerManifest(
   }
   return {
     dispose: () => { for (const release of releases) release() },
-    updateOptions: (next) => { entry.options = next.options; sandbox?.updateSettings() }
+    updateOptions: (next) => { entry.options = next.options; storyTrays.reset(); sandbox?.updateSettings() }
   }
 }
 
@@ -197,7 +228,8 @@ async function sandboxFor(
   client: OnceClient,
   entry: AddonEntry,
   options: MountAddonsOptions,
-  devCode: string | null
+  devCode: string | null,
+  resetTrays: () => void
 ): Promise<AddonSandbox | null> {
   const { manifest } = entry
   if (!manifest.script) { setAddonStatus(manifest.id, "declarative"); return null }
@@ -214,9 +246,16 @@ async function sandboxFor(
   const grants = grantedFetchPatterns(manifest)
   setAddonStatus(manifest.id, "idle")
   return new AddonSandbox(manifest.id, options.sandboxUrl, code, settings, {
-    perform: (op) => performOperation(client, manifest, grants, op),
+    perform: (op, signal) => {
+      if (op.name === "request") return client.requestAddonConnection(manifest, settings(), op.connection, op.request, signal)
+      if (op.name === "story.content") return addonStoryContent(client, op.href, signal)
+      return performOperation(client, manifest, grants, op)
+    },
     report: (message) => LoaderInsights.showErrorMessage(message, "")
-  }, (state, error) => setAddonStatus(manifest.id, state, error))
+  }, (state, error) => {
+    if (state === "failed" || state === "disabled") resetTrays()
+    setAddonStatus(manifest.id, state, error)
+  })
 }
 
 /** Toolbar buttons for the panel actions; each opens its URL or asks the script. */

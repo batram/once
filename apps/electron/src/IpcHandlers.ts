@@ -1,6 +1,7 @@
 import {
   app,
   autoUpdater,
+  dialog,
   ipcMain,
   IpcMainInvokeEvent,
   net,
@@ -31,10 +32,14 @@ interface IpcHandlerOptions {
   extensions: ExtensionRuntime
   /** `ONCE_ADDONS` directories as main reads them; empty when packaged. */
   devAddons: () => ElectronDevAddon[]
+  addAddonDirectory(directory: string): void
+  removeAddonDirectory(directory: string): void
   getUpdateStatus: () => ElectronUpdateStatus
   setUpdateStatus: (status: ElectronUpdateStatus) => void
   updatesStarted: () => boolean
 }
+
+const connectionRequests = new Map<string, AbortController>()
 
 function trusted(
   event: IpcMainInvokeEvent,
@@ -108,6 +113,11 @@ function registerAppHandlers(options: IpcHandlerOptions): void {
       if (request.credentials !== undefined && request.credentials !== "include") {
         throw new Error("Invalid fetch credentials")
       }
+      if (request.redirect !== undefined && request.redirect !== "error") throw new Error("Invalid redirect policy")
+      if (request.requestId !== undefined && !/^[a-zA-Z0-9-]{1,80}$/.test(request.requestId)) throw new Error("Invalid request ID")
+      const key = request.requestId ? `${event.sender.id}:${request.requestId}` : ""
+      const controller = new AbortController()
+      if (key) connectionRequests.set(key, controller)
       // A request that wants the user's cookies goes through the session the
       // browser tabs use, since that is where the user logged in. Everything
       // else keeps the default session and, with it, no cookies at all.
@@ -115,20 +125,49 @@ function registerAppHandlers(options: IpcHandlerOptions): void {
       const fetchWith = request.credentials === "include"
         ? browserSession.fetch.bind(browserSession)
         : net.fetch
-      const response = await fetchWith(url.toString(), {
-        method: request.method,
-        headers: request.headers,
-        body: request.body ? Buffer.from(request.body) : undefined,
-        credentials: request.credentials
-      })
-      return {
-        status: response.status,
-        statusText: response.statusText,
-        headers: Array.from(response.headers.entries()),
-        body: await response.arrayBuffer()
-      }
+      try {
+        const response = await fetchWith(url.toString(), {
+          method: request.method,
+          headers: request.headers,
+          body: request.body ? Buffer.from(request.body) : undefined,
+          credentials: request.credentials ?? "omit",
+          redirect: request.redirect,
+          signal: controller.signal
+        })
+        return {
+          status: response.status,
+          statusText: response.statusText,
+          headers: Array.from(response.headers.entries()),
+          body: await readFetchBody(response, request.redirect === "error")
+        }
+      } finally { if (key) connectionRequests.delete(key) }
     }
   )
+  ipcMain.handle(ELECTRON_IPC.cancelFetch, (event, id: string) => {
+    trusted(event, coordinator)
+    connectionRequests.get(`${event.sender.id}:${id}`)?.abort()
+  })
+}
+
+async function readFetchBody(response: Response, bounded: boolean): Promise<ArrayBuffer> {
+  if (!bounded) return response.arrayBuffer()
+  const chunks: Uint8Array[] = []
+  let length = 0
+  const reader = response.body?.getReader()
+  if (!reader) return new ArrayBuffer(0)
+  try {
+    while (true) {
+      const chunk = await reader.read()
+      if (chunk.done) break
+      length += chunk.value.byteLength
+      if (length > 1024 * 1024) throw new Error("Response is too large")
+      chunks.push(chunk.value)
+    }
+  } finally { await reader.cancel().catch(() => undefined) }
+  const result = new Uint8Array(length)
+  let offset = 0
+  for (const chunk of chunks) { result.set(chunk, offset); offset += chunk.length }
+  return result.buffer
 }
 
 function registerSettingsHandlers(
@@ -357,6 +396,16 @@ export function registerIpcHandlers(
   ipcMain.handle(ELECTRON_IPC.addonsDevList, (event) => {
     trusted(event, options.coordinator)
     return options.devAddons()
+  })
+  ipcMain.handle(ELECTRON_IPC.addonsPickDirectory, async (event) => {
+    const current = browser(event, options.coordinator)
+    const selection = await dialog.showOpenDialog(current.window.window, { title: "Load Once addon directory", properties: ["openDirectory"] })
+    if (!selection.canceled && selection.filePaths[0]) options.addAddonDirectory(selection.filePaths[0])
+  })
+  ipcMain.handle(ELECTRON_IPC.addonsRemoveDirectory, (event, directory: string) => {
+    trusted(event, options.coordinator)
+    if (typeof directory !== "string") throw new Error("Invalid directory")
+    options.removeAddonDirectory(directory)
   })
   registerSettingsHandlers(settings, options.coordinator)
   registerTabNavigation(options.coordinator)

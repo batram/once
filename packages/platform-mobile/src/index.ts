@@ -2,6 +2,7 @@ import PouchDB from "pouchdb-browser"
 import PouchDBFind from "pouchdb-find"
 import { Browser } from "@capacitor/browser"
 import { Capacitor, registerPlugin } from "@capacitor/core"
+import { mobileAddonFetch } from "./addonFetch"
 import { StatusBar, Style } from "@capacitor/status-bar"
 import { DatabaseChange, OncePlatformPorts, ThemeName } from "@once/app"
 import { DEFAULT_CACHE_MINUTES, Story } from "@once/core"
@@ -155,6 +156,7 @@ export function createMobilePlatform(
       }
     },
     fetch: window.fetch.bind(window),
+    addonFetch: mobileAddonFetch,
     onDatabaseChange(handler) {
       const changes = onceDb
         .changes({ since: "now", live: true, include_docs: true })

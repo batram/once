@@ -9,14 +9,14 @@ function main() {
   const file = path.join(directory, "once-addon.json")
   const manifest = JSON.parse(fs.readFileSync(file, "utf8"))
   if (manifest.script) {
-    const relative = typeof manifest.script === "string" ? manifest.script : manifest.script.url
+    const relative = typeof manifest.script === "string" ? manifest.script : manifest.script.file ?? manifest.script.url
     if (typeof relative !== "string" || /^[a-z]+:/i.test(relative)) throw new Error("Use a package-relative script URL for local validation")
     const script = path.resolve(directory, relative)
     if (!script.startsWith(directory + path.sep)) throw new Error("The script must stay inside the package")
     const bytes = fs.readFileSync(script)
     if (bytes.length > SANDBOX_LIMITS.code) throw new Error("The script exceeds the size limit")
     const integrity = `sha256-${crypto.createHash("sha256").update(bytes).digest("base64")}`
-    if (typeof manifest.script === "object" && manifest.script.integrity !== integrity) {
+    if (typeof manifest.script === "object" && manifest.script.integrity !== undefined && manifest.script.integrity !== integrity) {
       throw new Error(`Script integrity mismatch; expected ${integrity}`)
     }
     manifest.script = { url: new URL(relative.replace(/\\/g, "/"), "https://package.invalid/").href, integrity }

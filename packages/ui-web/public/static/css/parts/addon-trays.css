@@ -1,0 +1,55 @@
+.addon_tray {
+  flex: 0 0 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  margin-block-start: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--input-bg-color);
+  color: var(--text-high-color);
+  cursor: auto;
+  user-select: text;
+}
+
+.addon_tray_actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.addon_tray .button {
+  min-height: 32px;
+  height: auto;
+  box-sizing: border-box;
+  padding: var(--sp-1) var(--sp-2);
+  white-space: normal;
+}
+
+.addon_tray_message {
+  margin-block: var(--sp-3);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+
+.addon_tray_user { font-weight: 600; }
+.addon_tray_info { font-style: italic; }
+.addon_tray_source { display: block; overflow-wrap: anywhere; }
+
+.addon_tray_composer {
+  display: flex;
+  align-items: end;
+  gap: var(--sp-2);
+  margin-block-start: var(--sp-3);
+}
+
+.addon_tray_composer textarea {
+  flex: 1;
+  min-width: 0;
+  resize: vertical;
+  font: inherit;
+  color: inherit;
+  background: var(--input-bg-color);
+}

@@ -22,6 +22,7 @@ test("reviewed updates preserve state and reject a broken replacement package", 
     await expect(window.locator("#addon_installed")).toContainText("1.0.0")
     const editor = window.locator("#addons_area")
     await expect(editor).toHaveValue(/1\.0\.0/)
+    await require("../shared/addon-settings-ui").addonAdvanced(window)
     await editor.evaluate(area => {
       const entries = JSON.parse(area.value)
       entries[0].storage = { count: 7 }
@@ -31,6 +32,7 @@ test("reviewed updates preserve state and reject a broken replacement package", 
     await window.getByTestId("save-addons").click()
     await expect(editor).toHaveValue(/"count": 7/)
     version = "2.0.0"
+    await require("../shared/addon-settings-ui").addonOverview(window)
     await window.getByTestId("update-addons").click()
     await expect(confirm).toBeVisible()
     await expect(editor).toHaveValue(/1\.0\.0/)
@@ -49,6 +51,7 @@ test("reviewed updates preserve state and reject a broken replacement package", 
     await expect(window.locator("#addon_previews [role=status]")).toContainText("integrity")
     await expect(editor).toHaveValue(/2\.0\.0/)
     const installed = window.locator("#addon_installed")
+    await require("../shared/addon-settings-ui").addonSettings(window, "harness-package")
     await installed.getByRole("button", { name: "Disable", exact: true }).click()
     await expect(installed).toContainText("Disabled")
     await installed.getByRole("button", { name: "Remove", exact: true }).click()

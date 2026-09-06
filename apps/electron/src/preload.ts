@@ -30,6 +30,7 @@ const bridge: ElectronBridge = {
   fetch(request: ElectronFetchRequest) {
     return ipcRenderer.invoke(ELECTRON_IPC.fetch, request)
   },
+  cancelFetch: requestId => ipcRenderer.invoke(ELECTRON_IPC.cancelFetch, requestId),
   settings: {
     getSyncUrl: () => ipcRenderer.invoke(ELECTRON_IPC.getSyncUrl),
     setSyncUrl: (value) => ipcRenderer.invoke(ELECTRON_IPC.setSyncUrl, value),
@@ -135,6 +136,8 @@ const bridge: ElectronBridge = {
     }
   },
   addons: {
+    pickDirectory: () => ipcRenderer.invoke(ELECTRON_IPC.addonsPickDirectory),
+    removeDirectory: directory => ipcRenderer.invoke(ELECTRON_IPC.addonsRemoveDirectory, directory),
     devEntries: () => ipcRenderer.invoke(ELECTRON_IPC.addonsDevList),
     onDevChanged(handler: () => void) {
       const listener = () => handler()

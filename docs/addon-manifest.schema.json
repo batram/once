@@ -13,7 +13,8 @@
     "homepage": { "type": "string", "format": "uri" },
     "script": {
       "oneOf": [
-        { "type": "string", "description": "Package-relative filename, for local development only" },
+        { "type": "string", "description": "Package-relative filename for ZIP/folder imports and linked directories" },
+        { "type": "object", "required": ["file"], "properties": { "file": { "type": "string" } }, "additionalProperties": false },
         { "type": "object", "required": ["url", "integrity"], "properties": {
           "url": { "type": "string" },
           "integrity": { "type": "string", "pattern": "^sha256-[A-Za-z0-9+/]{43}=$" }
@@ -21,7 +22,14 @@
       ]
     },
     "capabilities": { "type": "array", "items": { "type": "string", "pattern": "^fetch:" } },
-    "settings": { "type": "object" },
+    "settings": { "$ref": "#/$defs/settingsSchema" },
+    "trays": { "type": "array", "maxItems": 4, "items": { "type": "object", "required": ["id", "title"], "properties": {
+      "id": { "type": "string", "pattern": "^[a-z0-9-]{3,40}$" }, "title": { "type": "string", "maxLength": 60 }
+    } } },
+    "connections": { "type": "array", "maxItems": 8, "items": { "type": "object", "required": ["id", "endpoint"], "properties": {
+      "id": { "type": "string" }, "endpoint": { "type": "string", "description": "Name of a URL setting" },
+      "secret": { "type": "string", "description": "Name of a device-local secret setting" }, "auth": { "enum": ["bearer", "x-api-key"] }
+    } } },
     "contributions": { "type": "array", "items": { "$ref": "#/$defs/contribution" } },
     "collectors": { "type": "array", "items": { "type": "object", "required": ["id", "type", "description", "collects"], "properties": {
       "id": { "type": "string" }, "type": { "type": "string", "pattern": "^[A-Za-z0-9]{2,4}$" },
@@ -31,6 +39,15 @@
     "panelActions": { "type": "array", "maxItems": 4, "items": { "type": "object", "required": ["id", "label", "run"] } }
   },
   "$defs": {
+    "settingsSchema": { "type": "object", "properties": {
+      "type": { "enum": ["object", "string", "number", "boolean", "array"] },
+      "properties": { "type": "object", "additionalProperties": { "$ref": "#/$defs/settingsSchema" } },
+      "label": { "type": "string" }, "description": { "type": "string" }, "group": { "type": "string" },
+      "format": { "enum": ["url", "multiline", "secret"] }, "maxLength": { "type": "integer", "maximum": 16000 },
+      "visibleWhen": { "type": "object", "required": ["field", "equals"], "properties": {
+        "field": { "type": "string" }, "equals": { "type": ["string", "boolean"] }
+      } }
+    } },
     "contribution": { "type": "object", "required": ["kind", "id"], "properties": {
       "kind": { "enum": ["action", "badge", "line"] }, "id": { "type": "string" },
       "label": { "type": "string" }, "icon": { "type": "string" },

@@ -22,6 +22,9 @@ const databaseRoot = configuredDataDirectory
 fs.mkdirSync(databaseRoot, { recursive: true })
 const TestPouchDB = PouchDB.defaults({ prefix: `${databaseRoot}${path.sep}` })
 const app = express()
+app.use((request, response, next) => {
+  if (!require("../e2e/shared/ai-addon-fixture").handleRequest(request, response)) next()
+})
 
 app.use((request, response, next) => {
   const started = Date.now()

@@ -3,6 +3,8 @@
 // untrusted and validates it here before acting.
 
 import { StoryView } from "./storyView"
+import { AddonRequest, readAddonRequest } from "./connections"
+import { AddonTrayEvent } from "./trayProtocol"
 
 export const SANDBOX_PROTOCOL = 1
 
@@ -10,6 +12,7 @@ export const SANDBOX_PROTOCOL = 1
 export const SANDBOX_TIMEOUTS = Object.freeze({
   loadMs: 5_000,
   invokeMs: 3_000,
+  trayMs: 120_000,
   badgesMs: 5_000,
   parseMs: 20_000,
   searchMs: 15_000
@@ -30,6 +33,8 @@ export const SANDBOX_LIMITS = Object.freeze({
 
 /** Host → sandbox. */
 export type HostToSandbox =
+  | { type: "cancel"; requestId: number }
+  | { type: "tray"; requestId: number; tray: string; event: AddonTrayEvent; story: StoryView }
   | { type: "load"; protocol: number; addonId: string; code: string; settings: Readonly<Record<string, unknown>> }
   | { type: "invoke"; requestId: number; action: string; story: StoryView }
   | { type: "badges"; requestId: number; contribution: string; stories: readonly StoryView[] }
@@ -54,6 +59,8 @@ export type HostToSandbox =
  * governed by grants rather than by the story in hand.
  */
 export type SandboxOperation =
+  | { name: "request"; href: ""; connection: string; request: AddonRequest }
+  | { name: "story.content"; href: string }
   | { name: "fetch"; href: ""; url: string }
   | { name: "storage.get"; href: ""; key: string }
   | { name: "storage.set"; href: ""; key: string; value: unknown }
@@ -90,6 +97,11 @@ const STORAGE_KEY = /^[a-zA-Z0-9_.-]{1,80}$/
 function readOperation(value: unknown): SandboxOperation | null {
   if (!isRecord(value)) return null
   switch (value.name) {
+    case "request":
+      try {
+        return typeof value.connection === "string" && /^[a-z][a-z0-9-]{2,39}$/.test(value.connection)
+          ? { name: "request", href: "", connection: value.connection, request: readAddonRequest(value.request) } : null
+      } catch { return null }
     case "fetch":
       return isHref(value.url) ? { name: "fetch", href: "", url: value.url } : null
     case "storage.get":
@@ -102,6 +114,7 @@ function readOperation(value: unknown): SandboxOperation | null {
   if (!isHref(value.href)) return null
   const href = value.href
   switch (value.name) {
+    case "story.content": return { name: "story.content", href }
     case "openUrl":
       if (!isHref(value.url)) return null
       if (value.target !== undefined && !["_self", "blank", "middle"].includes(String(value.target))) return null

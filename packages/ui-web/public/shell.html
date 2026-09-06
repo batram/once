@@ -269,7 +269,7 @@
                     </div>
                   </section>
                 </div>
-                <div class="settings_block settings_editor_block" id="addon_install_settings">
+                <div class="settings_block" id="addon_install_settings">
                   <div class="field">
                     <label class="field_label" for="addon_url_input">Install an add-on from a manifest URL</label>
                     <input
@@ -306,9 +306,13 @@
                       <button type="button" class="button" data-testid="save-addon-sandbox-url">Save</button>
                     </div>
                   </div>
-                  <div class="input_container">
+                  <div id="addon_advanced" class="settings_editor" hidden>
+                    <h2>Addon JSON</h2>
+                    <p class="settings_group_hint">Edit the installed addon definitions directly. For normal installation and configuration, use the addon list.</p>
+                    <div class="input_container">
                     <textarea
                       id="addons_area"
+                      aria-label="Installed addon JSON"
                       spellcheck="false"
                       data-testid="addons"
                       placeholder="Paste add-on manifests here as a JSON list; add &quot;enabled&quot;: false to switch one off"
@@ -324,6 +328,7 @@
                       Save
                     </button>
                     <button type="button" class="button" data-action="cancel">Cancel</button>
+                  </div>
                   </div>
                 </div>
                 <div class="settings_block">

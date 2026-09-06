@@ -85,6 +85,9 @@ async function openSettingsSection(driver, target, controlSelector) {
   )
   await section.click()
   if (!controlSelector) return null
+  if (target === "addons") {
+    await driver.findElement(By.css(`[data-testid="${controlSelector === "#addons_area" ? "open-addon-advanced" : "open-addon-import"}"]`)).click()
+  }
   const control = await driver.wait(
     until.elementLocated(By.css(controlSelector)),
     5_000,

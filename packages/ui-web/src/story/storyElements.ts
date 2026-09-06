@@ -8,7 +8,7 @@ import type { StoryListItem } from "./StoryListItem"
  */
 export interface StoryElementContribution {
   id: string
-  slot: "button" | "title" | "line"
+  slot: "button" | "title" | "line" | "tray"
   /** Returns nothing when the element does not apply to this row. */
   render(row: StoryListItem): HTMLElement | null
 }
@@ -23,6 +23,7 @@ export function registerStoryElement(contribution: StoryElementContribution): ()
 }
 
 function slotOf(row: StoryListItem, slot: StoryElementContribution["slot"]): HTMLElement {
+  if (slot === "tray") return row
   if (slot === "title") return row.title_line
   if (slot === "line") return row.substories_el
   return row.button_group

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto"
-import { existsSync, readFileSync, statSync, watch } from "node:fs"
+import { existsSync, readFileSync, realpathSync, statSync, watch } from "node:fs"
 import path from "node:path"
+import { SANDBOX_LIMITS } from "@once/core"
 
 /**
  * Development add-ons: directories named in `ONCE_ADDONS` (PATH-style), each
@@ -35,24 +36,34 @@ function scriptFileOf(manifest: Record<string, unknown>): string | null {
   const script = manifest.script
   const file = typeof script === "string"
     ? script
-    : typeof script === "object" && script !== null ? (script as { file?: unknown }).file : undefined
+    : typeof script === "object" && script !== null ? (script as { file?: unknown; url?: unknown }).file ?? (script as { url?: unknown }).url : undefined
+  if (script != null && typeof file !== "string") throw new Error("Local addons must name their script file")
   if (typeof file !== "string") return null
   if (!SCRIPT_FILE.test(file)) throw new Error(`script file ${file} must be a plain .js name in the directory`)
   return file
+}
+
+function readLocalFile(directory: string, file: string, limit: number): string {
+  const root = realpathSync(directory)
+  const source = realpathSync(path.join(root, file))
+  if (path.dirname(source) !== root) throw new Error("Addon files must stay inside the selected directory")
+  const stat = statSync(source)
+  if (!stat.isFile() || stat.size > limit) throw new Error(`Addon file ${file} is too large or is not a file`)
+  return readFileSync(source, "utf8")
 }
 
 export function readDevAddon(directory: string, index: number): DevAddon {
   const manifestPath = path.join(directory, "once-addon.json")
   try {
     if (!existsSync(manifestPath)) throw new Error("no once-addon.json")
-    const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as unknown
+    const manifest = JSON.parse(readLocalFile(directory, "once-addon.json", 256 * 1024)) as unknown
     if (typeof manifest !== "object" || manifest === null || Array.isArray(manifest)) {
       throw new Error("once-addon.json must hold an object")
     }
     const record = { ...(manifest as Record<string, unknown>) }
     const file = scriptFileOf(record)
     if (!file) return { directory, manifest: record, code: null }
-    const code = readFileSync(path.join(directory, file), "utf8")
+    const code = readLocalFile(directory, file, SANDBOX_LIMITS.code)
     const integrity = `sha256-${createHash("sha256").update(code, "utf8").digest("base64")}`
     record.script = { url: `once-addon://dev/${index}/${file}`, integrity }
     return { directory, manifest: record, code }
@@ -78,8 +89,10 @@ export function devAddonFile(directories: readonly string[], url: string): strin
   const index = Number(indexText)
   const directory = directories[index]
   if (!directory || !file || !SCRIPT_FILE.test(file) && file !== "once-addon.json") return null
-  const resolved = path.join(directory, file)
-  if (!resolved.startsWith(directory) || !existsSync(resolved) || !statSync(resolved).isFile()) return null
+  const candidate = path.join(directory, file)
+  if (!existsSync(candidate)) return null
+  const resolved = realpathSync(candidate)
+  if (path.dirname(resolved) !== realpathSync(directory) || !statSync(resolved).isFile()) return null
   return resolved
 }
 
@@ -87,7 +100,7 @@ export function devAddonFile(directories: readonly string[], url: string): strin
 export function watchDevAddons(directories: readonly string[], changed: () => void): () => void {
   let timer: NodeJS.Timeout | null = null
   const watchers = directories
-    .filter((directory) => existsSync(directory))
+    .filter((directory) => existsSync(directory) && statSync(directory).isDirectory())
     .map((directory) => watch(directory, () => {
       if (timer) clearTimeout(timer)
       timer = setTimeout(changed, 200)

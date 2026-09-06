@@ -92,7 +92,9 @@ export function settingsSearchSegments(section: HTMLElement): SearchSegment[] {
     if (element.matches("textarea, input, select")) continue
     const targetId =
       element.closest<HTMLElement>(".error_log_entry")?.id || undefined
-    const location = { targetId }
+    const addonField = element.closest(".addon_options_group .field")
+    const controlId = addonField?.querySelector<HTMLInputElement>("input,textarea,select")?.id
+    const location = { targetId, controlId }
     const directText = Array.from(element.childNodes)
       .filter((node) => node.nodeType === 3)
       .map((node) => node.textContent || "")
@@ -108,7 +110,8 @@ export function settingsSearchSegments(section: HTMLElement): SearchSegment[] {
       "input, textarea, select"
     )
     .forEach((control) => {
-      if (control.id === "couch_input" || control.closest(".couch-container")) {
+      if (control.id === "couch_input" || control.closest(".couch-container") ||
+          (control instanceof HTMLInputElement && control.type === "password")) {
         return
       }
       // Live values are read from the section itself rather than the pruned

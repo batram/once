@@ -43,6 +43,7 @@
     "@mozilla/readability": "^0.6.0",
     "@once/app": "*",
     "@once/collectors": "*",
-    "@once/core": "*"
+    "@once/core": "*",
+    "@zip.js/zip.js": "2.8.30"
   }
 }

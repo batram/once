@@ -35,7 +35,8 @@ import { ExtensionRuntime } from "./extensions/ExtensionRuntime"
 import { bundledExtensionRoot, resolveBundledExtensions } from "./extensions/bundledExtensions"
 import { extensionScheme } from "./extensions/ExtensionScheme"
 import { addonSandboxScheme, configureAddonSandboxProtocol } from "./AddonSandboxProtocol"
-import { devAddonDirectories, readDevAddons, watchDevAddons } from "./devAddons"
+import { devAddonDirectories } from "./devAddons"
+import { LocalAddonDirectories } from "./LocalAddonDirectories"
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string
@@ -245,13 +246,13 @@ app
     // The shell window runs in the default session; its add-on sandbox frames
     // load their page from this scheme. `ONCE_ADDONS` adds development add-on
     // directories in unpackaged builds only, like `ONCE_ELECTRON_EXTENSIONS`.
-    const devAddonDirs = app.isPackaged ? [] : devAddonDirectories(process.env.ONCE_ADDONS)
-    configureAddonSandboxProtocol(session.defaultSession, MAIN_WINDOW_WEBPACK_ENTRY, devAddonDirs)
-    watchDevAddons(devAddonDirs, () => {
+    const localAddons = new LocalAddonDirectories(path.join(app.getPath("userData"), "local-addon-directories.json"), app.isPackaged ? [] : devAddonDirectories(process.env.ONCE_ADDONS), () => {
       for (const window of BrowserWindow.getAllWindows()) {
         if (!window.isDestroyed()) window.webContents.send(ELECTRON_IPC.addonsDevChanged)
       }
     })
+    configureAddonSandboxProtocol(session.defaultSession, MAIN_WINDOW_WEBPACK_ENTRY, localAddons.directories)
+    app.once("will-quit", () => localAddons.dispose())
     browserCoordinator = new BrowserCoordinator(
       createShellWindow,
       process.env.ONCE_ELECTRON_DISABLE_STORY_LOADING === "1"
@@ -276,7 +277,9 @@ app
       buildIdentifier: __ONCE_BUILD_IDENTIFIER__,
       coordinator: browserCoordinator,
       extensions,
-      devAddons: () => readDevAddons(devAddonDirs),
+      devAddons: () => localAddons.list(),
+      addAddonDirectory: directory => localAddons.add(directory),
+      removeAddonDirectory: directory => localAddons.remove(directory),
       getUpdateStatus: () => updateStatus,
       setUpdateStatus,
       updatesStarted: () => autoUpdatesStarted

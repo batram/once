@@ -64,7 +64,7 @@ the synced ones, never writes them to the document, and reloads on file
 changes. Packaged builds ignore the variable.
 
 Step 8 is done: `capabilities` carries `fetch:<match pattern>` grants and
-`once.fetch` goes through the host and the platform's fetch, refused outside
+`once.fetch(url)` goes through the host and the platform's fetch, refused outside
 the grants and capped at 1 MB; `once.storage` keeps a 64 KB namespace on the
 add-on's entry in the synced document; `panelActions` become toolbar
 buttons that open a fixed URL or ask the script; a manifest's `settings`
@@ -273,7 +273,7 @@ Contributions beyond the manifest's static ones may be added at `ready`
 
 | Operation | Grant |
 | --- | --- |
-| `fetch(url, init)` | only with `capabilities: ["fetch:<match pattern>"]`; performed by the host through the platform `fetch` port (so Electron's main-process fetch and the extensions' host permissions apply), response size and time capped, credentials never sent |
+| `fetch(url)` | GET only, with `capabilities: ["fetch:<match pattern>"]`; performed through the platform fetch port, credentials omitted. Authenticated POST requests use the later `connections` / `once.request` API documented in ADDONS.md. |
 | `openUrl(url, target)` | `http(s)` only; the menu's targets |
 | `copyText(text)`, `search(query)`, `notify(text)` | inside an invocation only |
 | `setReadState`, `toggleBookmark`, `addTag(tag)` | on the story of the current invocation only; through `persistStoryChange`, so undoable |
