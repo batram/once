@@ -27,3 +27,4 @@ AGENTS.md
 .DS_Store
 docs/tmp
 artifacts/
+.tmp/
