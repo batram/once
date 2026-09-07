@@ -216,6 +216,8 @@ export interface ElectronBridge {
     applySync(document: import("@once/core").BrowserExtensionSyncDocument): Promise<void>
     onSyncChanged(handler: (document: import("@once/core").BrowserExtensionSyncDocument) => void): () => void
     list(): Promise<ElectronExtensionInfo[]>
+    showMenu(anchor: ElectronRect, pinned: string[]): Promise<{ pinned: string[]; host?: string; settings?: boolean; focusTrigger?: boolean }>
+    onPinsChanged(handler: (pinned: string[]) => void): () => void
     /** Toggles the extension's popup under the toolbar button at `anchor`. */
     openPopup(host: string, anchor: ElectronRect): Promise<void>
     onChanged(handler: () => void): () => void
@@ -310,6 +312,8 @@ export const ELECTRON_IPC = {
   extensionsManage: "once:extensions:manage",
   extensionsSyncChanged: "once:extensions:sync-changed",
   extensionsList: "once:extensions:list",
+  extensionsShowMenu: "once:extensions:show-menu",
+  extensionsPinsChanged: "once:extensions:pins-changed",
   extensionsOpenPopup: "once:extensions:open-popup",
   extensionsChanged: "once:extensions:changed",
   extensionsApplySettings: "once:extensions:apply-settings",

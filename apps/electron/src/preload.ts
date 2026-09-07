@@ -132,6 +132,13 @@ const bridge: ElectronBridge = {
       return () => ipcRenderer.removeListener(ELECTRON_IPC.extensionsSyncChanged, listener)
     },
     list: () => ipcRenderer.invoke(ELECTRON_IPC.extensionsList),
+    showMenu: (anchor, pinned) =>
+      ipcRenderer.invoke(ELECTRON_IPC.extensionsShowMenu, anchor, pinned),
+    onPinsChanged: handler => {
+      const listener = (_event: unknown, pinned: string[]) => handler(pinned)
+      ipcRenderer.on(ELECTRON_IPC.extensionsPinsChanged, listener)
+      return () => ipcRenderer.removeListener(ELECTRON_IPC.extensionsPinsChanged, listener)
+    },
     openPopup: (host: string, anchor: ElectronRect) =>
       ipcRenderer.invoke(ELECTRON_IPC.extensionsOpenPopup, host, anchor),
     onChanged(handler: () => void) {

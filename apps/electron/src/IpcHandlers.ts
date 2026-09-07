@@ -24,6 +24,7 @@ import {
 import { SecureSettings } from "./SecureSettings"
 import { BROWSER_SESSION_PARTITION, BrowserCoordinator } from "./TabManager"
 import { ExtensionRuntime } from "./extensions/ExtensionRuntime"
+import { showExtensionMenu } from "./extensions/ExtensionMenu"
 
 interface IpcHandlerOptions {
   buildChannel: "release" | "dev"
@@ -387,6 +388,17 @@ function registerExtensionHandlers(options: IpcHandlerOptions): void {
       ? coordinator.activeTabContentsId(current.window)
       : undefined
     return extensions.extensionInfos(active)
+  })
+  ipcMain.handle(ELECTRON_IPC.extensionsShowMenu, async (event, anchor: ElectronRect, pinned: string[]) => {
+    const current = browser(event, coordinator)
+    if (!anchor || ![anchor.x, anchor.y, anchor.width, anchor.height].every(Number.isFinite) ||
+      !Array.isArray(pinned) || !pinned.every(host => typeof host === "string")) {
+      throw new Error("Invalid extensions menu request")
+    }
+    const infos = await extensions.extensionInfos(coordinator.activeTabContentsId(current.window))
+    return showExtensionMenu(current.window.window, anchor, infos, pinned, next => {
+      if (!event.sender.isDestroyed()) event.sender.send(ELECTRON_IPC.extensionsPinsChanged, next)
+    })
   })
   ipcMain.handle(
     ELECTRON_IPC.extensionsOpenPopup,

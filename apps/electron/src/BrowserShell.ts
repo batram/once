@@ -80,7 +80,11 @@ export class BrowserShell {
     this.bindStoryPosition()
 
     this.bindControls()
-    bindExtensionToolbar(this.bridge, required<HTMLElement>("#extension_actions"))
+    bindExtensionToolbar(this.bridge, required<HTMLElement>("#extension_actions"), () => {
+      this.setLeftCollapsed(false)
+      required<HTMLButtonElement>('[data-testid="settings-menu"]').click()
+      required<HTMLButtonElement>('[data-settings-target="extensions"]').click()
+    })
     this.bindTabs()
     this.bindLayout()
     this.bindWindowState()

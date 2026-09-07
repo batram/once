@@ -50,6 +50,12 @@ module.exports = {
         config: "./webpack.renderer.config.js",
         entryPoints: [
           {
+            html: "./src/extensions/extension-menu.html",
+            js: "./src/extensions/extensionMenuRenderer.ts",
+            name: "extension_menu",
+            preload: { js: "./src/extensions/extensionMenuPreload.ts" }
+          },
+          {
             html: "../../packages/ui-web/public/shell.html",
             js: "./src/renderer.ts",
             name: "main_window",

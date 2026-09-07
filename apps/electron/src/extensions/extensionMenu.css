@@ -1,0 +1,55 @@
+:root {
+  color-scheme: light dark;
+  font: 13px system-ui, sans-serif;
+  color: light-dark(#202124, #e8eaed);
+  background: light-dark(#fff, #292a2d);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid light-dark(#dadce0, #55565a);
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px 8px 18px;
+  flex-shrink: 0;
+}
+
+h1 { font-size: 15px; font-weight: 600; margin: 0; }
+
+button {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+button:hover { background: light-dark(#f1f3f4, #3c4043); }
+button:focus-visible { outline: 2px solid light-dark(#1a73e8, #8ab4f8); outline-offset: -2px; }
+button:disabled { opacity: 0.5; cursor: default; }
+
+#extensions { overflow: auto; min-height: 0; flex: 1; padding: 0 8px 8px; }
+.extension-row { display: flex; align-items: center; gap: 4px; min-height: 48px; }
+.extension-open { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; padding: 10px; text-align: left; }
+.extension-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.extension-icon { position: relative; width: 24px; height: 24px; flex-shrink: 0; display: grid; place-items: center; }
+.extension-icon img { width: 24px; height: 24px; object-fit: contain; }
+.icon-button { display: grid; place-items: center; width: 36px; height: 36px; flex-shrink: 0; }
+#close { font-size: 22px; }
+.pin[aria-pressed="true"] { color: light-dark(#185abc, #8ab4f8); background: light-dark(#e8f0fe, #394457); }
+.badge { position: absolute; right: -5px; bottom: -4px; max-width: 30px; overflow: hidden; font-size: 9px; padding: 0 2px; border-radius: 3px; color: white; background: #52565c; }
+footer { padding: 6px 8px; border-top: 1px solid light-dark(#dadce0, #55565a); flex-shrink: 0; }
+#settings { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px; text-align: left; }
+#settings span { width: 24px; text-align: center; font-size: 19px; }
+.empty { padding: 8px 10px; line-height: 1.6; }
+#error { padding: 0 18px; color: light-dark(#b3261e, #f2b8b5); }
