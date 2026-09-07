@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto"
+import path from "node:path"
 
 /**
  * Where the browser tabs keep their cookies, and therefore where the user is
@@ -6,6 +7,7 @@ import { randomUUID } from "node:crypto"
  */
 export const BROWSER_SESSION_PARTITION = "persist:once-browser-v2"
 import {
+  app,
   BrowserWindow,
   IpcMainInvokeEvent,
   Rectangle,
@@ -34,7 +36,7 @@ import { SourcePicker } from "./browser/SourcePicker"
 import { TabEvents } from "./browser/TabEvents"
 import { TabOwnership } from "./browser/TabOwnership"
 import { WindowLifecycle, showWindow } from "./browser/WindowLifecycle"
-import { ClosedTabRecord } from "./browser/ClosedTabs"
+import { ClosedTabRecord, ClosedTabs } from "./browser/ClosedTabs"
 import { activeTabContentsId, createExtensionTabHooks } from "./browser/ExtensionTabHooks"
 import { parseExtensionUrl } from "./extensions/ExtensionScheme"
 import { ExtensionShellHooks, PageProfile } from "./extensions/runtimeTypes"
@@ -86,7 +88,7 @@ export class BrowserCoordinator {
     })
     this.ownership = new TabOwnership(this.navigationErrors, {
       createBlankTab: (owner) => this.createTab(owner, "about:blank", true)
-    })
+    }, new ClosedTabs(path.join(app.getPath("userData"), "closed-tabs.json")))
     this.windowLifecycle = new WindowLifecycle(this.menus, {
       activeEntry: (owner) => owner.activeId
         ? this.ownership.get(owner.activeId)

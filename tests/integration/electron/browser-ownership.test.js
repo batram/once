@@ -41,6 +41,7 @@ const { TabOwnership } = require(path.join(
   root,
   "apps/electron/src/browser/TabOwnership.ts"
 ))
+const { ClosedTabs } = require(path.join(root, "apps/electron/src/browser/ClosedTabs.ts"))
 const { TabEvents } = require(path.join(
   root,
   "apps/electron/src/browser/TabEvents.ts"
@@ -262,6 +263,62 @@ function navigated(id, ownerId, url, history) {
   tab.historySnapshot = history ?? { entries: [{ url, title: id }], index: 0 }
   return tab
 }
+
+test("closed tabs survive restarts, discard old window IDs, and persist consumption", (t) => {
+  const directory = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "once-closed-tabs-"))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const file = path.join(directory, "profile", "closed-tabs.json")
+  const tabs = new ClosedTabs(file)
+  const history = {
+    entries: [{ url: "https://example.com/a", title: "A" }, { url: "https://example.com/b", title: "B" }],
+    index: 0
+  }
+  tabs.record(navigated("older", 1, "https://example.com/older"), owner(1), 2)
+  tabs.record(navigated("newer", 2, "https://example.com/a", history), owner(2), 3)
+  const restarted = new ClosedTabs(file)
+  const restored = restarted.take(owner(1))
+  assert.equal(restored.url, "https://example.com/a")
+  assert.equal(restored.index, 3)
+  assert.deepEqual(restored.history, history)
+  assert.equal(new ClosedTabs(file).take(owner(1)).url, "https://example.com/older")
+  assert.equal(new ClosedTabs(file).size, 0)
+})
+
+test("closing a window persists its tabs and the history limit across restarts", (t) => {
+  const directory = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "once-closed-window-"))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const file = path.join(directory, "closed-tabs.json")
+  const ownership = new TabOwnership({}, {}, new ClosedTabs(file))
+  const window = owner(1)
+  ownership.addWindow(window)
+  for (let index = 0; index < 30; index += 1) {
+    const tab = navigated(`tab${index}`, 1, `https://example.com/${index}`)
+    tab.view.webContents.close = () => {}
+    ownership.addTab(window, tab)
+  }
+  ownership.closeWindow(window)
+  const restarted = new ClosedTabs(file)
+  assert.equal(restarted.size, 25)
+  for (let index = 29; index >= 5; index -= 1) {
+    assert.equal(restarted.take(owner(1)).url, `https://example.com/${index}`)
+  }
+  assert.equal(new ClosedTabs(file).size, 0)
+})
+
+test("invalid saved history does not prevent startup or subsequent saves", (t) => {
+  const directory = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "once-invalid-tabs-"))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const file = path.join(directory, "closed-tabs.json")
+  const warnings = t.mock.method(console, "warn", () => {})
+  for (const contents of ["{", '[{"url":42}]', "null"]) {
+    fs.writeFileSync(file, contents)
+    assert.equal(new ClosedTabs(file).size, 0)
+  }
+  assert.equal(warnings.mock.callCount(), 3)
+  const tabs = new ClosedTabs(file)
+  tabs.record(navigated("valid", 1, "https://example.com/valid"), owner(1), 0)
+  assert.equal(new ClosedTabs(file).size, 1)
+})
 
 test("TabOwnership records a closed tab with its strip position", () => {
   const ownership = new TabOwnership(

@@ -11,12 +11,12 @@ interface TabOwnershipActions {
 export class TabOwnership {
   readonly tabs = new Map<string, TabEntry>()
   readonly windows = new Map<number, WindowEntry>()
-  readonly closedTabs = new ClosedTabs()
   private readonly observers = new Set<() => void>()
 
   constructor(
     private readonly errors: NavigationErrors,
-    private readonly actions: TabOwnershipActions
+    private readonly actions: TabOwnershipActions,
+    readonly closedTabs = new ClosedTabs()
   ) {}
 
   addWindow(owner: WindowEntry): void {
@@ -146,7 +146,7 @@ export class TabOwnership {
       const entry = this.tabs.get(id)
       this.tabs.delete(id)
       // Closing a window is a bulk close: its tabs belong in the reopen stack
-      // too, so Ctrl+Shift+T brings them back one at a time.
+      // too, so Reopen closed tab brings them back one at a time.
       if (entry) this.closedTabs.record(entry, owner, index)
       if (entry) releaseErrorPages(entry.errorPages.keys())
       if (entry && !entry.view.webContents.isDestroyed()) {

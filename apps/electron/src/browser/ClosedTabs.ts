@@ -1,4 +1,6 @@
-import { TabEntry, WindowEntry } from "./BrowserState"
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs"
+import path from "node:path"
+import type { TabEntry, WindowEntry } from "./BrowserState"
 
 export interface TabHistorySnapshot {
   /** Shaped like Electron's NavigationEntry so it can be restored verbatim. */
@@ -28,6 +30,22 @@ const CLOSED_TAB_LIMIT = 25
 export class ClosedTabs {
   private readonly records: ClosedTabRecord[] = []
 
+  constructor(private readonly file?: string) {
+    if (!file || !existsSync(file)) return
+    try {
+      const stored: unknown = JSON.parse(readFileSync(file, "utf8"))
+      if (!Array.isArray(stored) || !stored.every(isClosedTabRecord)) {
+        throw new Error("Invalid closed tab history")
+      }
+      // Electron webContents IDs only identify windows in the current process.
+      this.records.push(...stored.slice(-CLOSED_TAB_LIMIT).map(record => ({
+        ...record, windowId: -1
+      })))
+    } catch (error) {
+      console.warn("Could not load closed tab history", error)
+    }
+  }
+
   record(entry: TabEntry, owner: WindowEntry, index: number): void {
     if (isThrowaway(entry)) return
     this.records.push({
@@ -38,6 +56,7 @@ export class ClosedTabs {
       history: entry.historySnapshot ?? null
     })
     if (this.records.length > CLOSED_TAB_LIMIT) this.records.shift()
+    this.save()
   }
 
   /** Newest tab from this window, else the newest from any window. */
@@ -45,18 +64,48 @@ export class ClosedTabs {
     const windowId = owner.id
     for (let index = this.records.length - 1; index >= 0; index -= 1) {
       if (this.records[index].windowId !== windowId) continue
-      return this.records.splice(index, 1)[0]
+      const record = this.records.splice(index, 1)[0]
+      this.save()
+      return record
     }
-    return this.records.pop()
+    const record = this.records.pop()
+    if (record) this.save()
+    return record
   }
 
   get size(): number {
     return this.records.length
   }
+
+  private save(): void {
+    if (!this.file) return
+    try {
+      mkdirSync(path.dirname(this.file), { recursive: true })
+      writeFileSync(`${this.file}.tmp`, JSON.stringify(this.records), "utf8")
+      renameSync(`${this.file}.tmp`, this.file)
+    } catch (error) {
+      console.warn("Could not save closed tab history", error)
+    }
+  }
+}
+
+function isClosedTabRecord(value: unknown): value is ClosedTabRecord {
+  if (!value || typeof value !== "object") return false
+  const record = value as ClosedTabRecord
+  if (typeof record.url !== "string" || typeof record.title !== "string"
+    || !Number.isInteger(record.windowId)
+    || !Number.isInteger(record.index) || record.index < 0) return false
+  const history = record.history
+  return history === null || (typeof history === "object" && history !== null
+    && Array.isArray(history.entries) && history.entries.length > 0
+    && Number.isInteger(history.index) && history.index >= 0
+    && history.index < history.entries.length
+    && history.entries.every(entry => entry && typeof entry.url === "string"
+      && typeof entry.title === "string"))
 }
 
 /**
- * A blank tab that was never navigated. Recording those would make Ctrl+Shift+T
+ * A blank tab that was never navigated. Recording those would make Reopen closed tab
  * mostly resurrect empty tabs, since every window starts with one.
  */
 function isThrowaway(entry: TabEntry): boolean {
