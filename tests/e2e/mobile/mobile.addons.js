@@ -18,6 +18,45 @@ async function fill(selector, value) {
   }, element, value)
 }
 
+function nativeItem(platform, text) {
+  return platform === "android"
+    ? `android=new UiSelector().text("${text}")`
+    : `-ios predicate string:name == "${text}"`
+}
+
+// Opens each Reading story-menu action that shows a dialog and checks the
+// native prompt (Filter source) or the in-page dialog (Purge story) stays on screen.
+async function verifyReadingActionDialogs(platform, webview, mode) {
+  for (const action of ["Filter source", "Purge story"]) {
+    await click("#reading_story_menu")
+    await browser.switchContext("NATIVE_APP")
+    await $(nativeItem(platform, action)).click()
+    if (action === "Filter source") {
+      const cancel = await $(platform === "android"
+        ? 'android=new UiSelector().resourceId("android:id/button2")'
+        : '-ios predicate string:name == "Cancel"')
+      await cancel.waitForDisplayed({ timeout: 10000 })
+      await browser.saveScreenshot(`/tmp/once-android-reading-${mode}-filter.png`)
+      await cancel.click()
+      await browser.switchContext(webview)
+      continue
+    }
+    await browser.switchContext(webview)
+    const dialog = await $("dialog[open]")
+    await dialog.waitForDisplayed({ timeout: 10000 })
+    const bounds = await browser.execute(() => {
+      const box = document.querySelector("dialog[open]").getBoundingClientRect()
+      return { x: box.x, y: box.y, right: box.right, bottom: box.bottom, width: innerWidth, height: innerHeight }
+    })
+    assert.ok(bounds.x >= 0 && bounds.y >= 0 && bounds.right <= bounds.width && bounds.bottom <= bounds.height)
+    await browser.switchContext("NATIVE_APP")
+    await browser.saveScreenshot(`/tmp/once-android-reading-${mode}-purge.png`)
+    await browser.switchContext(webview)
+    await $('[data-testid="confirm-cancel"]').click()
+    await dialog.waitForExist({ reverse: true, timeout: 10000 })
+  }
+}
+
 describe("Native AI addon", () => {
   it("extracts an article and sends authenticated explanation and summary requests through native HTTP", async () => {
     const platform = String(browser.capabilities.platformName).toLowerCase()
@@ -54,9 +93,7 @@ describe("Native AI addon", () => {
     const webview = await browser.getContext()
     await $("#stories [data-testid='story-menu-button']").click()
     await browser.switchContext("NATIVE_APP")
-    const entry = await $(platform === "android"
-      ? 'android=new UiSelector().text("What? Wait, who, why?")'
-      : '-ios predicate string:name == "What? Wait, who, why?"')
+    const entry = await $(nativeItem(platform, "What? Wait, who, why?"))
     await entry.waitForDisplayed({ timeout: 10000 })
     await browser.saveScreenshot("/tmp/once-android-story-menu.png")
     await entry.click()
@@ -143,9 +180,7 @@ describe("Native AI addon", () => {
       }
       await click("#reading_story_menu")
       await browser.switchContext("NATIVE_APP")
-      const readingAction = await $(platform === "android"
-        ? 'android=new UiSelector().text("What? Wait, who, why?")'
-        : '-ios predicate string:name == "What? Wait, who, why?"')
+      const readingAction = await $(nativeItem(platform, "What? Wait, who, why?"))
       await readingAction.waitForDisplayed({ timeout: 10000 })
       await readingAction.click()
       await browser.switchContext(webview)
@@ -173,38 +208,7 @@ describe("Native AI addon", () => {
       await browser.switchContext("NATIVE_APP")
       await browser.saveScreenshot(`/tmp/once-android-reading-${mode}-restored.png`)
       await browser.switchContext(webview)
-      for (const action of ["Filter source", "Purge story"]) {
-        await click("#reading_story_menu")
-        await browser.switchContext("NATIVE_APP")
-        await $(platform === "android"
-          ? `android=new UiSelector().text("${action}")`
-          : `-ios predicate string:name == "${action}"`).click()
-        if (action === "Filter source") {
-          const cancel = await $(platform === "android"
-            ? 'android=new UiSelector().resourceId("android:id/button2")'
-            : '-ios predicate string:name == "Cancel"')
-          await cancel.waitForDisplayed({ timeout: 10000 })
-          await browser.saveScreenshot(`/tmp/once-android-reading-${mode}-filter.png`)
-          await cancel.click()
-          await browser.switchContext(webview)
-          continue
-        }
-        await browser.switchContext(webview)
-        const dialog = await $("dialog[open]")
-        await dialog.waitForDisplayed({ timeout: 10000 })
-        const bounds = await browser.execute(() => {
-          const box = document.querySelector("dialog[open]").getBoundingClientRect()
-          return { x: box.x, y: box.y, right: box.right, bottom: box.bottom, width: innerWidth, height: innerHeight }
-        })
-        assert.ok(bounds.x >= 0 && bounds.y >= 0 && bounds.right <= bounds.width && bounds.bottom <= bounds.height)
-        await browser.switchContext("NATIVE_APP")
-        await browser.saveScreenshot(`/tmp/once-android-reading-${mode}-${action === "Filter source" ? "filter" : "purge"}.png`)
-        await browser.switchContext(webview)
-        await $(`[data-testid="${action === "Filter source" ? "text-input-cancel" : "confirm-cancel"}"]`).click()
-        await dialog.waitForExist({ reverse: true, timeout: 10000 })
-      }
+      await verifyReadingActionDialogs(platform, webview, mode)
     }
-
-
   })
 })
