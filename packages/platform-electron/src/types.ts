@@ -83,6 +83,8 @@ export interface ElectronUpdateStatus {
 export type ElectronFocusSurface = "browser" | "shell"
 
 export interface ElectronManagedExtension {
+  /** Packaged icon, available even when the extension is disabled. */
+  icon: string | null
   id: string
   host: string
   name: string

@@ -8,6 +8,21 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, text = "", class
   return result
 }
 
+function extensionHeading(item: ElectronManagedExtension, text = item.name): HTMLElement {
+  const heading = element("span", "", "browser_extension_heading")
+  const icon = element("span", item.name.slice(0, 1).toUpperCase(), "browser_extension_icon")
+  icon.setAttribute("aria-hidden", "true")
+  if (item.icon) {
+    const image = element("img")
+    image.src = item.icon
+    image.alt = ""
+    image.onerror = () => icon.replaceChildren(document.createTextNode(item.name.slice(0, 1).toUpperCase()))
+    icon.replaceChildren(image)
+  }
+  heading.append(icon, element("strong", text))
+  return heading
+}
+
 /** Real extension pages remain in browser tabs; management and sync have settings subpages. */
 export function bindBrowserExtensionSettings(client: OnceClient, bridge: ElectronBridge): void {
   const root = document.querySelector<HTMLElement>("#extension_settings")
@@ -127,7 +142,7 @@ async function renderExtensionPage({ target, selected, page, bridge, client, but
       const row = button("", () => show("detail", item))
       row.className = "browser_extension_row"
       row.setAttribute("aria-label", `Manage ${item.name}`)
-      row.append(element("strong", item.name), element("span", item.description, "addon_list_description"),
+      row.append(extensionHeading(item), element("span", item.description, "addon_list_description"),
         element("span", `${item.version} · ${item.error ? "Needs attention" : item.running ? "Enabled" : "Disabled"} · ${item.bundled ? "Included with Once" : "Installed"}`, "addon_list_meta"))
       page.append(row)
     }
@@ -159,7 +174,9 @@ async function renderExtensionPage({ target, selected, page, bridge, client, but
     }
     page.append(review)
   } else if (target === "detail" && selected) {
-    page.append(element("h4", `${selected.name} ${selected.version}`), element("p", selected.description), element("p", selected.source))
+    const heading = element("h4")
+    heading.append(extensionHeading(selected, `${selected.name} ${selected.version}`))
+    page.append(heading, element("p", selected.description), element("p", selected.source))
     if (selected.error) page.append(element("p", selected.error, "settings_status"))
     const actions = element("div", "", "settings_actions cluster")
     actions.append(button(selected.running ? "Disable extension" : "Enable extension", async () => {

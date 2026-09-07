@@ -38,16 +38,30 @@ async function harness(t) {
   }
   const manager = new ExtensionManager(root, runtime)
   await manager.restore([])
-  const xpi = async version => {
+  const xpi = async (version, withIcon = false) => {
     const zip = new AdmZip()
     zip.addFile("manifest.json", Buffer.from(JSON.stringify({ manifest_version: 2, name: "Test extension", version,
-      browser_specific_settings: { gecko: { id: "test@example.org" } }, permissions: ["storage"] })))
+      browser_specific_settings: { gecko: { id: "test@example.org" } }, permissions: ["storage"],
+      ...(withIcon ? { icons: { 48: "icon.svg" } } : {}) })))
+    if (withIcon) zip.addFile("icon.svg", Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><rect width="48" height="48" fill="red"/></svg>'))
     const file = path.join(root, `${version}.xpi`)
     await fs.writeFile(file, zip.toBuffer())
     return file
   }
   return { root, hosts, runtime, manager, xpi }
 }
+
+test("settings icons remain available while disabled, including packages with only a large icon", async t => {
+  const h = await harness(t)
+  const preview = await h.manager.preview("", await h.xpi("1", true))
+  await h.manager.install(preview.token)
+  const installed = (await h.manager.list())[0]
+  assert.match(installed.icon, /^data:image\/svg\+xml;base64,/)
+  await h.manager.setEnabled(preview.id, false)
+  const disabled = (await h.manager.list())[0]
+  assert.equal(disabled.running, false)
+  assert.equal(disabled.icon, installed.icon)
+})
 
 test("preview does not run code; install, disabled updates, restart, rollback and removal preserve identity", async t => {
   const h = await harness(t)

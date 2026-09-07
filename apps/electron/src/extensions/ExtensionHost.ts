@@ -1,4 +1,3 @@
-import { promises as fs } from "node:fs"
 import path from "node:path"
 import { Session, WebContents, WebContentsView, session as electronSession } from "electron"
 import { MatchPatternSet } from "@once/core"
@@ -8,7 +7,7 @@ import { ExtensionPorts } from "./ExtensionPorts"
 import { configureExtensionProtocol } from "./ExtensionProtocol"
 import { extensionUrl } from "./ExtensionScheme"
 import { ExtensionStorage } from "./ExtensionStorage"
-import { LoadedExtension, mimeTypeFor, resolveExtensionFile } from "./LoadedExtension"
+import { LoadedExtension, extensionIconDataUrl } from "./LoadedExtension"
 import { ContentScript, ExtensionFiles, manifestContentScripts } from "./contentScripts"
 import { ExtensionContextKind } from "./protocol"
 import { ExtensionShellHooks, PageProfile } from "./runtimeTypes"
@@ -169,27 +168,9 @@ export class ExtensionHost implements ApiHost {
     return popup ? extensionUrl(this.extension.host, popup) : null
   }
 
-  /** The largest toolbar icon at or under 32px, as a data URL. */
+  /** The package icon, cached for the lifetime of this host. */
   iconDataUrl(): Promise<string | null> {
-    this.icon ??= (async () => {
-      const icons = {
-        ...this.extension.manifest.icons,
-        ...this.extension.manifest.browserAction?.defaultIcon
-      }
-      const sizes = Object.keys(icons)
-        .map(Number)
-        .filter((size) => Number.isFinite(size) && size <= 32)
-        .sort((a, b) => b - a)
-      const chosen = sizes[0] !== undefined ? icons[String(sizes[0])] : icons.default
-      const file = chosen ? resolveExtensionFile(this.extension, chosen) : null
-      if (!file) return null
-      try {
-        const body = await fs.readFile(file)
-        return `data:${mimeTypeFor(file)};base64,${body.toString("base64")}`
-      } catch {
-        return null
-      }
-    })()
+    this.icon ??= extensionIconDataUrl(this.extension)
     return this.icon
   }
 

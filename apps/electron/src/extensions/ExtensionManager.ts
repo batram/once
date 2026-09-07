@@ -3,7 +3,7 @@ import path from "node:path"
 import { BrowserExtensionSyncDocument, readBrowserExtensionSync } from "@once/core"
 import { ElectronManagedExtension, ElectronExtensionPreview } from "@once/platform-electron/bridge"
 import { ExtensionCandidate, prepareExtension } from "./ExtensionPackage"
-import { LoadedExtension, loadUnpackedExtension } from "./LoadedExtension"
+import { LoadedExtension, loadUnpackedExtension, extensionIconDataUrl } from "./LoadedExtension"
 import { ExtensionHost } from "./ExtensionHost"
 import { extensionUrl } from "./ExtensionScheme"
 
@@ -87,13 +87,14 @@ export class ExtensionManager {
       try {
         const extension = await loadUnpackedExtension(entry.directory, "en")
         return { id, host: extension.host, name: extension.name, version: extension.manifest.version,
+          icon: await extensionIconDataUrl(extension),
           description: extension.description, enabled: entry.enabled, running: !!this.runtime.host(id),
           bundled: entry.bundled, source: entry.source, error: entry.error,
           hasOptions: !!extension.manifest.optionsUi, hasPopup: !!extension.manifest.browserAction?.defaultPopup,
           permissions: [...extension.manifest.permissions, ...extension.manifest.hostPermissions],
           warnings: compatibilityWarnings(extension) }
       } catch (error) {
-        return { id, host: "", name: id, version: "", description: "", enabled: entry.enabled,
+        return { id, host: "", name: id, version: "", description: "", icon: null, enabled: entry.enabled,
           running: false, bundled: entry.bundled, source: entry.source, error: String(error),
           hasOptions: false, hasPopup: false, permissions: [], warnings: [] }
       }

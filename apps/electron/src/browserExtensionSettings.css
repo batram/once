@@ -28,6 +28,27 @@
   border-color: var(--cursor-color);
 }
 
+.browser_extension_heading {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.browser_extension_icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 var(--icon-md);
+  width: var(--icon-md);
+  height: var(--icon-md);
+}
+
+.browser_extension_icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
 .browser_extension_row .addon_list_description {
   font-size: var(--fs-dense);
   line-height: 1.5;

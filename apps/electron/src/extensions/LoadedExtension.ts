@@ -126,3 +126,20 @@ const MIME_TYPES: Readonly<Record<string, string>> = {
 export function mimeTypeFor(file: string): string {
   return MIME_TYPES[path.extname(file).toLowerCase()] ?? "application/octet-stream"
 }
+
+/** Read an icon from the package without requiring a running extension host. */
+export async function extensionIconDataUrl(extension: LoadedExtension): Promise<string | null> {
+  const icons = { ...extension.manifest.icons, ...extension.manifest.browserAction?.defaultIcon }
+  const sizes = Object.keys(icons).map(Number).filter(size => Number.isFinite(size) && size > 0)
+  const preferred = sizes.filter(size => size <= 32).sort((a, b) => b - a)
+  const size = preferred[0] ?? sizes.sort((a, b) => a - b)[0]
+  const chosen = size !== undefined ? icons[String(size)] : icons.default
+  const file = chosen ? resolveExtensionFile(extension, chosen) : null
+  if (!file) return null
+  try {
+    const body = await fs.readFile(file)
+    return `data:${mimeTypeFor(file)};base64,${body.toString("base64")}`
+  } catch {
+    return null
+  }
+}
