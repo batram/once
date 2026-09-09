@@ -129,7 +129,7 @@ export function createRedirectTester(
     matchLine.append(document.createTextNode(url.slice(cursor)))
     const resultLine = labelled("Result")
     resultLine.append(document.createTextNode(
-      `→ ${URLRedirect.apply_redirect(url, expression, replacement.value)}`
+      URLRedirect.apply_redirect(url, expression, replacement.value)
     ))
     output.append(matchLine, resultLine)
   }

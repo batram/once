@@ -35,6 +35,7 @@ const DEV_ADDONS = {
 const UPDATER = {
   getStatus: () => window.onceElectron.app.getUpdateStatus(),
   checkForUpdates: () => window.onceElectron.app.checkForUpdates(),
+  openReleasePage: (url: string) => window.onceElectron.tabs.create(url, true),
   onStatusChanged: (handler: (status: ElectronUpdateStatus) => void) =>
     window.onceElectron.app.onUpdateStatusChanged(handler)
 }

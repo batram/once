@@ -37,6 +37,7 @@ import { extensionScheme } from "./extensions/ExtensionScheme"
 import { addonSandboxScheme, configureAddonSandboxProtocol } from "./AddonSandboxProtocol"
 import { devAddonDirectories } from "./devAddons"
 import { LocalAddonDirectories } from "./LocalAddonDirectories"
+import { manualReleaseStatus } from "./ManualReleaseCheck"
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string
@@ -154,7 +155,9 @@ function updateUnavailableMessage(): string | null {
 function startAutoUpdates(): void {
   const unavailableMessage = updateUnavailableMessage()
   if (unavailableMessage) {
-    setUpdateStatus({ state: "disabled", message: unavailableMessage })
+    setUpdateStatus(process.env.ONCE_ELECTRON_DISABLE_NETWORK_FETCH === "1"
+      ? { state: "disabled", message: unavailableMessage }
+      : manualReleaseStatus())
     return
   }
 

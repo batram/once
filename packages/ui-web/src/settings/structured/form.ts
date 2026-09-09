@@ -291,8 +291,7 @@ export function showStructuredForm(options: StructuredFormOptions): void {
   const cancel = commit("Cancel", options.dismiss)
   options.setOpenEditor(options.dismiss)
   if (tester) {
-    if (options.onTouch) tester.element.append(tester.corpus)
-    else actions.append(tester.corpus)
+    tester.element.append(tester.corpus)
   }
   if (options.remove && options.onTouch) {
     const remove = createActionButton(

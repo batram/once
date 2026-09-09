@@ -1613,10 +1613,16 @@
 
 .structured_redirect_output p {
   min-height: 1.35em;
-  word-break: break-all;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+
+.structured_redirect_output p + p {
+  margin-top: var(--sp-2);
 }
 
 .structured_redirect_output strong {
+  display: block;
   font-family: Verdana, Geneva, sans-serif;
   font-size: var(--fs-caption);
 }
@@ -1689,20 +1695,39 @@
   padding: var(--settings-structured_redirect_form-padding);
 }
 
-.structured_redirect_form h3 {
+.structured_redirect_form .structured_form_header {
+  display: none;
+}
+
+.structured_redirect_form .settings_row {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "name" "control" "hint";
+  gap: var(--sp-1-5);
+  padding: var(--sp-2) 0;
+}
+
+.structured_redirect_tester .structured_form_field {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sp-1-5);
+}
+
+.structured_redirect_form .structured_validation:empty {
   display: none;
 }
 
 .structured_redirect_form textarea {
-  min-height: 42px;
+  min-height: 64px;
   --settings-structured_redirect_form-padding: var(--sp-1) 6px;
   padding: var(--settings-structured_redirect_form-padding);
   font-size: var(--fs-meta);
+  line-height: 1.5;
 }
 
 .structured_redirect_form input {
-  min-height: 22px;
-  height: 22px;
+  min-height: 30px;
+  height: 30px;
   --settings-structured_redirect_form-padding: 2px 5px;
   padding: var(--settings-structured_redirect_form-padding);
   font-size: var(--fs-meta);

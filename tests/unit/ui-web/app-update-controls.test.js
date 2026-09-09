@@ -59,3 +59,41 @@ test("update controls expose status and disable busy checks", async () => {
     }
   }
 })
+
+test("manual checks update real button labels and open the release link", async () => {
+  const { window } = parseHTML('<button data-testid="check-for-updates" hidden>Check for updates</button><span data-testid="update-status"></span><a data-testid="release-page" hidden></a>')
+  const previousDocument = globalThis.document
+  globalThis.document = window.document
+  try {
+    const { bindAppUpdateControls } = require("../../../packages/ui-web/dist/settings/appUpdateControls")
+    const latest = "https://github.com/batram/once/releases/latest"
+    let finish
+    let opened
+    bindAppUpdateControls({
+      getStatus: async () => ({ state: "idle", manual: true, releaseUrl: latest }),
+      checkForUpdates: () => new Promise(resolve => { finish = resolve }),
+      onStatusChanged: () => () => {},
+      openReleasePage: async url => { opened = url }
+    })
+    await new Promise(setImmediate)
+    const button = document.querySelector("button")
+    const link = document.querySelector("a")
+    assert.equal(button.textContent, "Check latest release")
+    assert.equal(button.disabled, false)
+    assert.equal(link.hidden, false)
+    button.click()
+    assert.equal(button.textContent, "Checking…")
+    assert.equal(button.disabled, true)
+    assert.equal(link.href, latest)
+    finish({ state: "idle", manual: true, releaseUrl: `${latest}/fixture`, message: "Latest release: v1.0.0" })
+    await new Promise(setImmediate)
+    assert.equal(button.disabled, false)
+    assert.equal(button.textContent, "Check latest release")
+    link.click()
+    await new Promise(setImmediate)
+    assert.equal(opened, `${latest}/fixture`)
+  } finally {
+    if (previousDocument === undefined) Reflect.deleteProperty(globalThis, "document")
+    else globalThis.document = previousDocument
+  }
+})

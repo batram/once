@@ -66,6 +66,19 @@ export class StructuredSettingsEditors {
    * nothing new is discarded when it runs.
    */
   private openEditor: (() => void) | null = null
+  private resumeEditor: (() => void) | null = null
+  private forwardEditors = new Map<string, () => void>()
+
+  clearForwardNavigation(): void { this.forwardEditors.clear() }
+
+  handleForward(section: string | null): boolean {
+    if (!section || this.detailSections.has(section as Section)) return false
+    const resume = this.forwardEditors.get(section)
+    if (!resume) return false
+    this.forwardEditors.delete(section)
+    resume()
+    return true
+  }
 
   constructor(private options: StructuredSettingsOptions) {
     this.sourceEditor = new SourceSettingsEditor({
@@ -447,9 +460,11 @@ export class StructuredSettingsEditors {
       return false
     }
     if (!this.detailSections.has(section)) return false
+    const resume = this.resumeEditor
     this.detailSections.delete(section)
     this.read(section)
     this.render(section)
+    if (resume) this.forwardEditors.set(section, resume)
     this.roots.get(section)?.querySelector<HTMLElement>(
       ".structured_toolbar button, .structured_row_main"
     )?.focus()
@@ -471,6 +486,8 @@ export class StructuredSettingsEditors {
   private render(section: Section): void {
     const root = this.roots.get(section)
     if (!root) return
+    this.forwardEditors.delete(section)
+    this.resumeEditor = null
     this.preserveDesktopActions(section, root)
     this.detailSections.delete(section)
     // Rebuilding the list destroys any editor inside it, so the registered
@@ -576,6 +593,7 @@ export class StructuredSettingsEditors {
     }
   ): void {
     const section = root.dataset.structuredSection as Section
+    this.clearForwardNavigation()
     this.detailSections.add(section)
     this.updateAddButton(section)
     this.preserveDesktopActions(section, root)
@@ -604,6 +622,31 @@ export class StructuredSettingsEditors {
       setOpenEditor: (close) => { this.openEditor = close },
       setDetailTitle: (title) => this.options.setDetailTitle?.(title)
     })
+    // Keep the actual form for Forward: input values, selection, validation and
+    // the test URL are a draft, not a saved redirect. Never replay it after the
+    // underlying list changes, where the original row index could mean another rule.
+    const host = presentation?.host
+    const form = (host || root).querySelector<HTMLElement>(".structured_form")
+    const rowIndex = host?.parentElement ? Array.from(host.parentElement.children).indexOf(host) : -1
+    const baseline = this.textarea(section).value
+    const close = this.openEditor
+    const resume = () => {
+      if (!form || this.textarea(section).value !== baseline) return
+      this.detailSections.add(section)
+      this.updateAddButton(section)
+      this.listActions(section)
+      if (host) {
+        const rows = root.querySelector(".structured_rows")
+        const row = rows?.children.item(rowIndex)
+        if (row) row.replaceWith(host)
+        else rows?.append(host)
+      } else root.replaceChildren(form)
+      this.openEditor = close
+      this.resumeEditor = resume
+      if (this.onTouch) this.options.setDetailTitle?.(titleText)
+      form.querySelector<HTMLElement>("input, textarea, select")?.focus({ preventScroll: true })
+    }
+    this.resumeEditor = resume
   }
 
 }

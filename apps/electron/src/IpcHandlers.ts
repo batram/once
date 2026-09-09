@@ -25,6 +25,7 @@ import { SecureSettings } from "./SecureSettings"
 import { BROWSER_SESSION_PARTITION, BrowserCoordinator } from "./TabManager"
 import { ExtensionRuntime } from "./extensions/ExtensionRuntime"
 import { showExtensionMenu } from "./extensions/ExtensionMenu"
+import { checkLatestRelease } from "./ManualReleaseCheck"
 
 interface IpcHandlerOptions {
   buildChannel: "release" | "dev"
@@ -79,9 +80,16 @@ function registerAppHandlers(options: IpcHandlerOptions): void {
     trusted(event, coordinator)
     return options.getUpdateStatus()
   })
-  ipcMain.handle(ELECTRON_IPC.appCheckForUpdates, (event) => {
+  ipcMain.handle(ELECTRON_IPC.appCheckForUpdates, async (event) => {
     trusted(event, coordinator)
     const status = options.getUpdateStatus()
+    if (status.manual && process.env.ONCE_ELECTRON_DISABLE_NETWORK_FETCH !== "1") {
+      if (status.state === "checking") return status
+      options.setUpdateStatus({ ...status, state: "checking" })
+      const result = await checkLatestRelease(app.getVersion(), net.fetch)
+      options.setUpdateStatus(result)
+      return result
+    }
     if (!options.updatesStarted() ||
       ["checking", "available", "downloaded"].includes(status.state)) {
       return status

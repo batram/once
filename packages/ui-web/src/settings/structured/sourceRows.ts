@@ -202,6 +202,14 @@ function appendRowActions(
   const open = () => host.openMenu(menu, [
     { id: "edit-source", label: "Edit source", select: edit },
     {
+      id: "toggle-source",
+      label: source.enabled === false ? "Enable source" : "Disable source",
+      select: () => {
+        host.groups[groupIndex].sources[sourceIndex].enabled = source.enabled === false
+        host.save()
+      }
+    },
+    {
       id: "reload-source",
       label: "Reload source",
       select: () => host.reload(source.id)
@@ -262,7 +270,7 @@ export function renderSourceRow(
   open.setAttribute("aria-label", `Edit ${source.url}`)
   const primary = document.createElement("span")
   primary.className = "structured_row_primary"
-  primary.textContent = sourceLabel(source)
+  primary.textContent = sourceLabel(source) + (source.enabled === false ? " (disabled)" : "")
   primary.dataset.searchText = primary.textContent
   const secondary = document.createElement("span")
   secondary.className = "structured_row_secondary"

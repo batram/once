@@ -78,6 +78,8 @@ export type ElectronUpdateState =
 export interface ElectronUpdateStatus {
   state: ElectronUpdateState
   message?: string
+  manual?: boolean
+  releaseUrl?: string
 }
 
 export type ElectronFocusSurface = "browser" | "shell"

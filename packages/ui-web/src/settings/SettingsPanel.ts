@@ -16,17 +16,7 @@ import { bindSyncSettingsControls } from "./syncSettingsControls"
 import { bindSettingsSubscriptions } from "./settingsSubscriptions"
 import { bindExtensionSettingsEditors, ExtensionSettingsEditors } from "./extensionSettingsEditors"
 import settingsSectionDefinitions from "./settingsSectionDefinitions"
-
-export interface SettingsPanelOptions {
-  /**
-   * Last rung of the back chevron's chain, taken when the section index itself
-   * is showing and there is nothing left inside Settings to close. A shell that
-   * supplies one keeps the chevron visible on the index (mobile, where it is
-   * the software twin of the hardware back key); a shell that does not leaves
-   * the chevron hidden there and never reaches this.
-   */
-  exitSettings?: () => void
-}
+import { SettingsNavigation, SettingsPanelOptions } from "./SettingsNavigation"
 
 export class SettingsPanel {
   static instance: SettingsPanel
@@ -181,6 +171,7 @@ export class SettingsPanel {
   }
 
   private activeSettingsSection: string | null = null
+  private navigation?: SettingsNavigation
   private settingsSectionButtons = new Map<string, HTMLButtonElement>()
   private settingsSections = new Map<string, HTMLElement>()
   private settingsSectionResults = new Map<string, HTMLElement>()
@@ -278,20 +269,15 @@ export class SettingsPanel {
       subtree: true
     })
     this.updateSettingsSummaries()
-    // One chain, innermost first: a full-screen editor, then the open section,
-    // then Settings itself. Visibility follows .settings_detail_open alone —
-    // the button carries no `hidden` attribute, so no platform has to undo one
-    // to keep the chevron live on the index.
-    back.onclick = () => {
-      if (this.structuredEditors?.handleBack(this.activeSettingsSection)) return
-      if (this.activeSettingsSection) {
-        this.closeSettingsSection()
-        return
-      }
-      this.options.exitSettings?.()
-    }
-    document.addEventListener("once-settings-index-requested", () => {
-      this.showSettingsIndex()
+    this.navigation = new SettingsNavigation({
+      section: () => this.activeSettingsSection,
+      show: section => section === null ? this.closeSettingsSection() : this.openSettingsSection(section),
+      back,
+      backEditor: () => this.structuredEditors?.handleBack(this.activeSettingsSection) ?? false,
+      showIndex: () => this.showSettingsIndex(),
+      exitSettings: () => this.options.exitSettings?.(),
+      forwardEditor: () => this.structuredEditors?.handleForward(this.activeSettingsSection) ?? false,
+      clearForwardEditors: () => this.structuredEditors?.clearForwardNavigation()
     })
     if (document.body.dataset.platform !== "mobile") {
       this.openSettingsSection("sources")
@@ -405,6 +391,7 @@ export class SettingsPanel {
   }
 
   private openSettingsSection(key: string): void {
+    this.navigation?.record(key)
     this.activeSettingsSection = key
     this.settingsSectionButtons.forEach((button, buttonKey) => {
       if (buttonKey === key) button.setAttribute("aria-current", "page")
@@ -458,6 +445,7 @@ export class SettingsPanel {
   }
 
   private closeSettingsSection(): void {
+    this.navigation?.record(null)
     const previous = this.activeSettingsSection
     if (previous === "sources" && this.sourcesReloadPending) {
       this.sourcesReloadPending = false

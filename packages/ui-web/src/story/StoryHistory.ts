@@ -4,6 +4,10 @@ import { getOnceClient } from "../client"
 
 export type ReadState = "unread" | "read" | "skipped"
 
+function settingsOpen(): boolean {
+  return document.querySelector("#left_panel")?.getAttribute("active_panel") === "settings"
+}
+
 export class StoryHistory {
   undo_history: {
     story: Story
@@ -24,10 +28,27 @@ export class StoryHistory {
     this.undo_history = []
     this.redo_history = []
 
+    // The shell owns these buttons. Suppress Chromium's document navigation
+    // across the whole gesture, including auxclick after Back leaves Settings.
+    for (const type of ["mousedown", "auxclick"] as const) {
+      window.addEventListener(type, (event) => {
+        if (event.button === 3 || event.button === 4) event.preventDefault()
+      })
+    }
     window.addEventListener("mouseup", (e) => {
-      if (e.button.toString() == "3") {
+      if (e.button !== 3 && e.button !== 4) return
+      const navigation = new CustomEvent("once-settings-navigate", {
+        cancelable: true,
+        detail: { direction: e.button === 3 ? "back" : "forward" }
+      })
+      document.dispatchEvent(navigation)
+      if (navigation.defaultPrevented || settingsOpen()) {
+        e.preventDefault()
+        return
+      }
+      if (e.button === 3) {
         this.undo()
-      } else if (e.button.toString() == "4") {
+      } else {
         this.redo()
       }
       return true
@@ -81,6 +102,7 @@ export class StoryHistory {
   }
 
   undo(): void {
+    if (settingsOpen()) return
     console.log("undo")
     const hstate = this.undo_history.pop()
     if (hstate) {
@@ -101,6 +123,7 @@ export class StoryHistory {
   }
 
   redo(): void {
+    if (settingsOpen()) return
     console.log("redo")
     const hstate = this.redo_history.pop()
     if (hstate) {

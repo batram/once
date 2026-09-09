@@ -11,9 +11,10 @@ function panelFor(button: HTMLElement): string {
 
 export function open_panel(panel: string): void {
   const left_panel = requireElement<HTMLElement>("#left_panel")
+  const previous = left_panel.getAttribute("active_panel")
   left_panel.setAttribute("active_panel", panel)
   document.dispatchEvent(new CustomEvent("once-panel-changed", {
-    detail: { panel }
+    detail: { panel, previous }
   }))
 }
 
