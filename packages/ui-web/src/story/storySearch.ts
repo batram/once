@@ -10,6 +10,7 @@ import { getOnceClient } from "../client"
 import { getKeyboardDispatcher } from "../keyboard"
 import { requireElement } from "../dom"
 import { searchableStoryElements } from "./storySearchScope"
+import { adoptStoredStoryState } from "./storySearchState"
 
 export function init(): void {
   const searchfield =
@@ -232,12 +233,20 @@ async function local_search(needle: string) {
 }
 
 async function add_global_search_results(search_stories: Story[]) {
-  const filterList = await getOnceClient().getFilterList()
+  const client = getOnceClient()
+  const filterList = await client.getFilterList()
   const filtered_stories = applyStoryFilters(filterList, search_stories)
   const global_search_results = requireElement<HTMLElement>(
     "#global_search_results"
   )
-  filtered_stories.forEach((story) => {
+  // Results are collector-fresh; a story the user already read, skipped or
+  // starred must still show that, so look each one up in the store first.
+  const stories = await Promise.all(
+    filtered_stories.map(async (story) =>
+      adoptStoredStoryState(story, await client.findStoryByUrl(story.href))
+    )
+  )
+  stories.forEach((story) => {
     if (!global_search_results.querySelector(`.story[data-href="${story.href}"]`)) {
       story.bucket = "global_search_results"
       global_search_results.appendChild(new StoryListItem(story))

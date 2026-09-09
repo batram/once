@@ -170,6 +170,22 @@ function sortable_story(elem: StoryListItem): SortableStory<StoryListItem> {
   }
 }
 
+/**
+ * The main list sinks read stories below unread ones. Global search results
+ * show their read state on the row but stay in time order: they are a hit list,
+ * and a row jumping away after a click is not what a search wants.
+ */
+function comparatorFor(
+  story_con: Element
+): (a: SortableStory<StoryListItem>, b: SortableStory<StoryListItem>) => number {
+  if (story_con.id !== "global_search_results") return Story.compare
+  return (a, b) =>
+    Story.compare(
+      { ...a, read_state: "unread" },
+      { ...b, read_state: "unread" }
+    )
+}
+
 export function resortSingle(elem: StoryListItem): (() => void) | null {
   const story_con = elem.parentElement
   if (!story_con) {
@@ -187,7 +203,7 @@ export function resortSingle(elem: StoryListItem): (() => void) | null {
 
   const stories_sorted = stories
     .map(sortable_story)
-    .sort(Story.compare)
+    .sort(comparatorFor(story_con))
     .map((x) => x.el)
     .filter((el): el is StoryListItem => el != undefined)
 
@@ -222,7 +238,7 @@ export function sortStories(bucket = "stories"): void {
 
   const storted = Array.from(story_con.querySelectorAll<StoryListItem>(".story"))
     .map(sortable_story)
-    .sort(Story.compare)
+    .sort(comparatorFor(story_con))
 
   storted.forEach((x) => {
     const el = x.el
