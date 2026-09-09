@@ -63,6 +63,16 @@
   margin-top: var(--sp-2);
 }
 
+/* A line of guidance that belongs to the whole run rather than to one row: it
+   sits under the subheading in the hint voice, and the first row's hairline
+   comes from the row itself. */
+.settings_rows > .settings_rows_hint {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-muted-color);
+  font-size: var(--fs-caption);
+  line-height: 1.4;
+}
+
 /* Name and hint together on one side, the control on the other. The columns are
    a ratio rather than a width: the control keeps the same share of a wide panel
    as of a narrow one, and the name never loses its room to a fixed control. */
@@ -109,6 +119,13 @@
 
 .settings_row > :is(select, input, textarea):not(.switch) {
   width: 100%;
+}
+
+/* A one-shot action (restore, clear) is a control too; like a switch it is
+   only as wide as its label and keeps to the trailing edge. */
+.settings_row > .button {
+  grid-area: control;
+  justify-self: end;
 }
 
 /* A switch is small enough to stay beside its name at any width, so its column

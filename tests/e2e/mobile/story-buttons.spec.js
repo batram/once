@@ -41,11 +41,10 @@ test("story buttons default to the menu and have independent persistent platform
   await story.getByRole("button", { name: "Close", exact: true }).click()
   await openSettingsSection(page, "theme")
   const mobile = page.locator('[id="story-button-mobile-addon:what-wait-who-why/explain"]')
-  const desktop = page.locator('[id="story-button-desktop-addon:what-wait-who-why/explain"]')
   await expect(mobile).not.toBeChecked()
-  await expect(desktop).toBeChecked()
+  // A phone only gets a say over its own buttons; the desktop list is not offered.
+  await expect(page.locator('[id^="story-button-desktop-"]')).toHaveCount(0)
   await mobile.check()
-  await desktop.uncheck()
   for (const theme of ["light", "dark"]) {
     await page.getByTestId("theme").selectOption(theme)
     await page.getByTestId("stories-menu").click()
@@ -126,6 +125,7 @@ test("story buttons default to the menu and have independent persistent platform
     document.body.dataset.platform = "electron"
     document.querySelectorAll("story-item").forEach(row => row.update_complete_story_el())
   })
-  await expect(action).toBeHidden()
+  // The desktop choice was never touched, so its default (shown) applies.
+  await expect(action).toBeVisible()
   await page.screenshot({ path: "/tmp/once-story-buttons-desktop.png" })
 })

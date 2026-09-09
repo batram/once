@@ -50,54 +50,60 @@ export function applyStoryButtonPreferences(row: HTMLElement): void {
   }
 }
 
+function element<K extends keyof HTMLElementTagNameMap>(
+  tag: K, className: string, text: string
+): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag)
+  node.className = className
+  node.textContent = text
+  return node
+}
+
+/**
+ * One run of switches for the platform the app is running on. The other
+ * platform's choices stay in storage untouched: a phone has no way to see a
+ * desktop button, so it gets no say over one either.
+ */
 export function mountStoryButtonSettings(host: HTMLElement): void {
   const render = () => {
-    host.replaceChildren()
-    const heading = document.createElement("h4")
-    heading.className = "settings_subheading"
-    heading.textContent = "Story buttons"
-    const hint = document.createElement("p")
-    hint.className = "settings_group_hint"
-    hint.textContent = "Choose which buttons appear on story rows. Actions remain available in the story context menu. Mobile and desktop choices are saved separately on this device."
-    const reset = document.createElement("button")
-    reset.type = "button"
-    reset.className = "button"
-    reset.textContent = "Restore default buttons"
-    reset.addEventListener("click", () => {
+    const platform: Platform = document.body.dataset.platform === "mobile" ? "mobile" : "desktop"
+    host.replaceChildren(
+      element("h4", "settings_subheading", "Story buttons"),
+      element("p", "settings_rows_hint",
+        "Choose which buttons appear on story rows. Every action stays available in the story menu. Saved on this device.")
+    )
+    for (const [id, label] of buttons) {
+      const field = element("div", "settings_row settings_row_inline", "")
+      const input = document.createElement("input")
+      input.type = "checkbox"
+      input.className = "switch"
+      input.id = `story-button-${platform}-${id}`
+      input.checked = shown(id, platform)
+      const name = element("label", "settings_row_name", label)
+      name.htmlFor = input.id
+      input.addEventListener("change", () => {
+        const values = preferences()
+        values[id] = { ...values[id], [platform]: input.checked }
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(values))
+        document.querySelectorAll<HTMLElement>("story-item").forEach(applyStoryButtonPreferences)
+      })
+      field.append(name, input)
+      host.append(field)
+    }
+    const reset = element("div", "settings_row settings_row_inline", "")
+    const button = element("button", "button", "Restore")
+    button.type = "button"
+    button.addEventListener("click", () => {
       localStorage.setItem(STORAGE_KEY, "{}")
       document.querySelectorAll<HTMLElement>("story-item").forEach(applyStoryButtonPreferences)
       render()
     })
-    host.append(heading, hint, reset)
-    for (const platform of ["mobile", "desktop"] as const) {
-      const group = document.createElement("fieldset")
-      group.className = "settings_group"
-      const legend = document.createElement("legend")
-      legend.textContent = platform === "mobile" ? "Mobile buttons" : "Desktop buttons"
-      group.append(legend)
-      for (const [id, label] of buttons) {
-        const field = document.createElement("div")
-        field.className = "settings_row settings_row_inline"
-        const input = document.createElement("input")
-        input.type = "checkbox"
-        input.className = "switch"
-        input.id = `story-button-${platform}-${id}`
-        input.checked = shown(id, platform)
-        const name = document.createElement("label")
-        name.className = "settings_row_name"
-        name.htmlFor = input.id
-        name.textContent = label
-        input.addEventListener("change", () => {
-          const values = preferences()
-          values[id] = { ...values[id], [platform]: input.checked }
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(values))
-          document.querySelectorAll<HTMLElement>("story-item").forEach(applyStoryButtonPreferences)
-        })
-        field.append(name, input)
-        group.append(field)
-      }
-      host.append(group)
-    }
+    reset.append(
+      element("span", "settings_row_name", "Default buttons"),
+      element("p", "settings_row_hint", "Puts back the standard set for this device."),
+      button
+    )
+    host.append(reset)
   }
   listeners.add(render)
   render()
