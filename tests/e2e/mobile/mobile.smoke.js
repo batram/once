@@ -495,6 +495,7 @@ async function runAiAddon(baseUrl, platform) {
   expect(await button.isDisplayed()).toBe(false)
   await storyMenuAction(await $("[data-testid='story']"), "addon:what-wait-who-why/explain", platform)
   await browser.waitUntil(async () => (await $(".addon_tray").getText()).includes("ExampleApp is software"), { timeout: 30000 })
-  await browser.execute(() => Array.from(document.querySelectorAll(".addon_tray button")).find(button => button.textContent === "Summarize").click())
+  await browser.waitUntil(async () => browser.execute(() => Array.from(document.querySelectorAll(".addon_tray summary")).some(fold => fold.textContent === "Summary")), { timeout: 30000 })
+  await browser.execute(() => Array.from(document.querySelectorAll(".addon_tray summary")).find(fold => fold.textContent === "Summary").click())
   await browser.waitUntil(async () => (await $(".addon_tray").getText()).includes("Its qualifications are preserved"), { timeout: 30000 })
 }

@@ -1,8 +1,9 @@
 # What? Wait, who, why?
 
-A Once addon that explains a title, summarizes its article on request, and
-answers follow-up questions in a tray below the story. It makes no AI requests
-until you click its question-mark-and-sparkles button (or invoke its story action).
+A Once addon that explains a title, summarizes its article, and answers
+follow-up questions in a tray below the story. It makes no AI requests until you
+click its question-mark-and-sparkles button (or invoke its story action); opening
+the tray then sends two requests, one for the explanation and one for the summary.
 
 ## Develop and configure
 
@@ -78,9 +79,9 @@ No proxy, server deployment, or addon code change is required.
 
 3. Set the endpoint before saving the key: Once binds the saved token to that
    exact endpoint. Keep the key out of the manifest and advanced JSON editor.
-4. Open a story's addon tray to explain its title, then try **Summarize** and a
-   follow-up question. These are separate requests. Reopening an existing tray
-   reuses its answer during the same session.
+4. Open a story's addon tray to explain its title and summarize its article,
+   then try a follow-up question. These are separate requests. Reopening an
+   existing tray reuses its answers during the same session.
 
 For new projects, use `gemini-3.1-flash-lite`: Google has
 [restricted 2.5 model access to previous users](https://discuss.ai.google.dev/t/gemini-2-5-flash-deprecated-without-warning-earlier-than-shutdown-date/174217/27).
@@ -107,9 +108,12 @@ trial credits have separate endpoints, authentication, and billing rules.
 
 ## Use
 
-Opening a tray explains the title and answers it if it asks a question. For a
-release announcement, the default prompt explains what the software does and who
-uses it. Summarize is a separate action; the question box continues the conversation.
+Opening a tray explains the title and answers it if it asks a question, then
+summarizes the article. The answer stays in view; **Key entities** and **Summary**
+fold behind disclosures you expand when you want them. For a release
+announcement, the default prompt explains what the software does and who uses it.
+The **Summarize** button appears only while the conversation has no summary, for
+example after the automatic one failed; the question box continues the conversation.
 Saved/feed content is used before fetching and extracting the original article.
 Reading content for the addon does not mark a story read or save an offline copy.
 

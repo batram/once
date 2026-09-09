@@ -84,6 +84,47 @@ test("tray state survives row replacement, collapse and reopen without a second 
   } finally { trays.dispose(); global.document = previous; global.CustomEvent = previousCustomEvent }
 })
 
+test("titled messages fold behind disclosures whose state outlives a redraw and ends with the conversation", async () => {
+  const previous = global.document
+  const previousCustomEvent = global.CustomEvent
+  const { document, CustomEvent, Event } = parseHTML("<html><body></body></html>")
+  global.document = document
+  global.CustomEvent = CustomEvent
+  const { AddonTrays } = require("../../../packages/ui-web/dist/addons/AddonTrays")
+  const { refreshRowElements } = require("../../../packages/ui-web/dist/story/storyElements")
+  const messages = [
+    { role: "assistant", text: "The answer." },
+    { role: "assistant", title: "Key entities", collapsed: true, text: "- **Entity**", sources: [{ title: "Source", url: "https://source.test/" }] },
+    { role: "assistant", title: "Summary", text: "Open by default." }
+  ]
+  const trays = new AddonTrays({ id: "example", trays: [{ id: "assistant", title: "Assistant" }] }, {
+    ensure: async () => ({ tray: async (_tray, event) => ({ messages: event.type === "clear" ? [] : messages }) })
+  })
+  const row = document.createElement("story-item")
+  row.story = { href: "https://story.test/", title: "Title", type: "HN" }
+  document.body.append(row)
+  try {
+    trays.toggle(row, "assistant")
+    await new Promise(resolve => setImmediate(resolve))
+    const folds = () => Array.from(row.querySelectorAll("details.addon_tray_disclosure"))
+    assert.deepEqual(folds().map(fold => [fold.querySelector("summary").textContent, fold.hasAttribute("open")]), [["Key entities", false], ["Summary", true]])
+    assert.equal(folds()[0].querySelector(".addon_tray_disclosure_body .addon_tray_source").textContent, "Source")
+    assert.equal(folds()[0].querySelector("strong").textContent, "Entity")
+    assert.equal(row.querySelectorAll(".addon_tray_message").length, 3)
+    folds()[0].setAttribute("open", "")
+    folds()[0].dispatchEvent(new Event("toggle"))
+    refreshRowElements(row)
+    assert.deepEqual(folds().map(fold => fold.hasAttribute("open")), [true, true])
+    row.querySelector(".addon_tray_controls button:last-child").click()
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(folds().length, 0)
+    trays.toggle(row, "assistant")
+    trays.toggle(row, "assistant")
+    await new Promise(resolve => setImmediate(resolve))
+    assert.deepEqual(folds().map(fold => fold.hasAttribute("open")), [false, true])
+  } finally { trays.dispose(); global.document = previous; global.CustomEvent = previousCustomEvent }
+})
+
 test("standalone declared connections are limited and settings cancel pending work", async () => {
   const sent = [], running = []
   const session = new AddonSandboxSession("example", { post: message => sent.push(message), destroy() {} }, {

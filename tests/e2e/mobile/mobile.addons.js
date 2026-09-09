@@ -99,18 +99,19 @@ describe("Native AI addon", () => {
     await entry.click()
     await browser.switchContext(webview)
     await browser.waitUntil(async () => (await $(".addon_tray").getText()).includes("ExampleApp is software"), { timeout: 30000 })
-    await browser.execute(() => Array.from(document.querySelectorAll(".addon_tray button")).find(button => button.textContent === "Summarize").click())
+    // The summary arrives with the explanation but stays folded until opened; getText reads only what shows.
+    await browser.waitUntil(async () => browser.execute(() => Array.from(document.querySelectorAll(".addon_tray summary")).some(fold => fold.textContent === "Summary")), { timeout: 30000 })
+    assert.equal((await $(".addon_tray").getText()).includes("Its qualifications are preserved"), false)
+    await browser.execute(() => Array.from(document.querySelectorAll(".addon_tray summary")).find(fold => fold.textContent === "Summary").click())
     await browser.waitUntil(async () => (await $(".addon_tray").getText()).includes("Its qualifications are preserved"), { timeout: 30000 })
     await $(".addon_tray button[aria-label='Close']").click()
     await click("[data-testid='settings-menu']")
     for (let level = 0; level < 3 && !(await $("[data-settings-target='theme']").isDisplayed()); level++) await click("#settings_section_back")
     await click("[data-settings-target='theme']")
     const mobile = '[id="story-button-mobile-addon:what-wait-who-why/explain"]'
-    const desktop = '[id="story-button-desktop-addon:what-wait-who-why/explain"]'
     assert.equal(await $(mobile).isSelected(), false)
-    assert.equal(await $(desktop).isSelected(), true)
+    assert.equal(await $('[id^="story-button-desktop-"]').isExisting(), false)
     await $(mobile).click()
-    await $(desktop).click()
     for (const theme of ["light", "dark"]) {
       await fill("#theme_select", theme)
       await click("[data-testid='stories-menu']")

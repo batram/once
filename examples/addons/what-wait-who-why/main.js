@@ -1,7 +1,9 @@
 // A single module: Once imports this verified file into an opaque-origin sandbox.
 // All UI, content access, and network requests go through the supplied host API.
-const ACTIONS = [{ id: "explain", label: "Explain title" }, { id: "summarize", label: "Summarize" }]
+const SUMMARIZE = { id: "summarize", label: "Summarize" }
 const MAX_HISTORY = 32_000
+// The explanation answers first, then folds its entities: the heading is where the addon splits the text.
+const EXPLAIN = "Answer the title if it asks a question and explain it in plain paragraphs without any heading. Then explain its key named entities under one heading line that reads exactly `## Key entities`."
 
 export default function activate(once) {
   const conversations = new Map()
@@ -10,16 +12,18 @@ export default function activate(once) {
     if (event.type === "clear") { conversations.delete(story.href); return view({ messages: [] }) }
     let state = conversations.get(story.href)
     if (!state) {
-      state = { messages: [], history: [], article: null, contentError: "", last: null }
+      state = { messages: [], history: [], article: null, contentError: "", last: null, summarized: false }
       conversations.set(story.href, state)
     }
     if (event.type === "open" && state.messages.length) return view(state)
     const previous = state.last
     const retry = event.action === "retry" || event.action === "without-search"
-    const task = retry && previous ? previous.task : event.type === "submit" ? "chat" : event.action === "summarize" ? "summary" : "explain"
+    // Opening explains the title and then summarizes; a retry resumes with the task that failed.
+    const tasks = retry && previous ? previous.tasks : event.type === "submit" ? ["chat"] : event.action === "summarize" ? ["summary"] : ["explain", "summary"]
     const question = retry && previous ? previous.question : event.text || ""
-    const search = once.settings.webSearch === true && task !== "summary" && event.action !== "without-search"
-    state.last = { task, question }
+    const automatic = retry && previous ? previous.automatic : event.type === "open"
+    const noSearch = event.action === "without-search"
+    state.last = { tasks, question, automatic }
     state.error = ""
     state.searchFailed = false
     try {
@@ -29,31 +33,21 @@ export default function activate(once) {
         catch (error) { context.signal.throwIfAborted(); state.contentError = error.message || "Article unavailable" }
       }
       context.signal.throwIfAborted()
-      if (task === "summary" && !state.article) throw new Error("Cannot summarize: no readable article content is available. Open the original story or try Clear conversation to fetch again.")
-      const history = task === "summary" ? { messages: [], shortened: false } : recentHistory(state.history)
-      const prompt = once.settings[task === "summary" ? "summaryPrompt" : task === "chat" ? "chatPrompt" : "explainPrompt"] || ""
-      const user = task === "summary" ? "Summarize this article." : task === "chat" ? question : "Answer the title if it asks a question and explain its key named entities."
-      const source = articleContext(story, state.article)
-      const messages = [...history.messages, { role: "user", content: user }]
-      const result = await generate(context, once.settings, String(prompt), source, messages, search, story.title, question)
-      context.signal.throwIfAborted()
-      if (task === "chat") state.messages.push({ role: "user", text: question })
-      state.messages.push({ role: "assistant", text: result.text, sources: result.sources })
-      state.history.push({ role: "user", content: user }, { role: "assistant", content: result.text })
-      // Bound the in-memory view and retain complete conversational exchanges.
-      const retained = recentHistory(state.history)
-      state.history = retained.messages
-      state.retentionShortened ||= retained.shortened
-      while (state.messages.length > 60 || JSON.stringify(state.messages).length > 180_000) {
-        state.messages.shift()
-        if (state.messages[0]?.role === "assistant") state.messages.shift()
-        state.retentionShortened = true
+      const turn = { sources: 0, shortened: false }
+      for (const [index, task] of tasks.entries()) {
+        state.last = { tasks: tasks.slice(index), question, automatic }
+        if (task === "summary" && !state.article) {
+          // The status line already says the answer is title-only; an automatic summary just steps aside.
+          if (automatic) continue
+          throw new Error("Cannot summarize: no readable article content is available. Open the original story or try Clear conversation to fetch again.")
+        }
+        await answer(once, context, story, state, task, question, noSearch, turn)
       }
       state.status = [
         state.article ? "Using story content." : "Title only: article content is unavailable.",
-        result.sources.length ? "Web sources used." : "No web sources used.",
+        turn.sources ? "Web sources used." : "No web sources used.",
         state.article?.truncated ? "Article context shortened to 64,000 characters." : "",
-        history.shortened || state.retentionShortened ? "Older conversation context has been shortened." : ""
+        turn.shortened || state.retentionShortened ? "Older conversation context has been shortened." : ""
       ].filter(Boolean).join(" ")
     } catch (error) {
       context.signal.throwIfAborted()
@@ -64,8 +58,50 @@ export default function activate(once) {
   })
 }
 
+async function answer(once, context, story, state, task, question, noSearch, turn) {
+  const search = once.settings.webSearch === true && task !== "summary" && !noSearch
+  const history = task === "summary" ? { messages: [], shortened: false } : recentHistory(state.history)
+  const prompt = once.settings[task === "summary" ? "summaryPrompt" : task === "chat" ? "chatPrompt" : "explainPrompt"] || ""
+  const user = task === "summary" ? "Summarize this article." : task === "chat" ? question : EXPLAIN
+  const source = articleContext(story, state.article)
+  const messages = [...history.messages, { role: "user", content: user }]
+  const result = await generate(context, once.settings, String(prompt), source, messages, search, story.title, question)
+  context.signal.throwIfAborted()
+  if (task === "chat") state.messages.push({ role: "user", text: question }, { role: "assistant", text: result.text, sources: result.sources })
+  else if (task === "summary") {
+    state.messages.push({ role: "assistant", title: "Summary", collapsed: true, text: result.text, sources: result.sources })
+    state.summarized = true
+  } else state.messages.push(...explanation(result))
+  state.history.push({ role: "user", content: user }, { role: "assistant", content: result.text })
+  turn.sources += result.sources.length
+  turn.shortened ||= history.shortened
+  // Bound the in-memory view and retain complete conversational exchanges.
+  const retained = recentHistory(state.history)
+  state.history = retained.messages
+  state.retentionShortened ||= retained.shortened
+  while (state.messages.length > 60 || JSON.stringify(state.messages).length > 180_000) {
+    state.messages.shift()
+    if (state.messages[0]?.role === "assistant") state.messages.shift()
+    state.retentionShortened = true
+  }
+}
+
+/** The answer stays in view; the entity section behind the first heading folds
+ *  under that heading. A reply without an answer before its heading stays whole. */
+export function explanation(result) {
+  const whole = [{ role: "assistant", text: result.text, sources: result.sources }]
+  const lines = result.text.split("\n")
+  const index = lines.findIndex((line, position) => position > 0 && /^#{1,6}\s+\S/.test(line))
+  if (index < 0) return whole
+  const lead = lines.slice(0, index).join("\n").trim()
+  const body = lines.slice(index + 1).join("\n").trim()
+  const title = lines[index].replace(/^#+\s*/, "").replace(/\s*#+\s*$/, "").trim().slice(0, 100)
+  if (!lead || !body || !title) return whole
+  return [{ role: "assistant", text: lead, sources: result.sources }, { role: "assistant", title, collapsed: true, text: body }]
+}
+
 function view(state) {
-  const actions = [...ACTIONS]
+  const actions = state.summarized ? [] : [SUMMARIZE]
   if (state.error) actions.push({ id: "retry", label: "Retry" })
   if (state.searchFailed) actions.push({ id: "without-search", label: "Answer without search" })
   return { messages: state.messages, status: state.error || state.status || "Ask about this story.", statusTone: state.error ? "error" : "info", actions, composer: "Ask a follow-up question about this story" }

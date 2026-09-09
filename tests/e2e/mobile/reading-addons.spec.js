@@ -22,8 +22,16 @@ for (const mode of ["reader", "browser"]) {
       await page.getByTestId("story-menu").getByText("What? Wait, who, why?", { exact: true }).click()
       await expect(host).toBeVisible()
       await expect(host).toContainText("ExampleApp is software", { timeout: 20000 })
-      await host.getByRole("button", { name: "Summarize", exact: true }).click()
+      // The summary arrives folded with the explanation. Opened once, the fold
+      // stays open when the same conversation is shown again.
+      const summary = host.locator("details", { has: page.locator("summary", { hasText: "Summary" }) })
+      if (theme === "light") {
+        await expect(summary).not.toHaveAttribute("open", "")
+        await summary.locator("summary").click()
+      }
+      await expect(summary).toHaveAttribute("open", "")
       await expect(host).toContainText("Its qualifications are preserved")
+      await expect(host.locator("ul > li").first()).toBeVisible()
       await host.getByRole("textbox").fill("Who uses it?")
       await host.getByRole("button", { name: "Ask", exact: true }).click()
       await expect(host).toContainText("Developers use it")

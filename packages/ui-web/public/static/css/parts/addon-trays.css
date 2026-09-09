@@ -182,6 +182,38 @@
   margin-block-end: 0;
 }
 
+/* A titled message folds behind a native disclosure: the answer stays in view
+   and the supporting material (entities, a summary) opens on demand. The
+   heading takes the row's metadata size so the fold reads as an aside, not as
+   a second title. */
+.addon_tray_disclosure {
+  max-inline-size: 72ch;
+  margin-block: var(--sp-2);
+}
+
+.addon_tray_disclosure_title {
+  cursor: pointer;
+  color: var(--text-muted-color);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  line-height: 1.6;
+  user-select: none;
+}
+
+.addon_tray_disclosure_title:hover {
+  color: var(--text-high-color);
+}
+
+.addon_tray_disclosure_body {
+  padding-inline-start: var(--sp-3);
+}
+
+/* The body carries the same block spacing as a bare message would, so the
+   message inside it starts flush with its heading. */
+.addon_tray_disclosure_body > .addon_tray_message {
+  margin-block: var(--sp-1) var(--sp-2);
+}
+
 /* .story a claims every link in a row, so a source needs the same weight to
    keep its own colour. */
 .addon_tray .addon_tray_source {

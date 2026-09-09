@@ -19,9 +19,13 @@ test("AI addon uses authenticated requests, host trays, article text and session
     await exerciseAiTray(window, row)
     expect(aiFixture.calls.filter(call => call.authorized).length).toBeGreaterThanOrEqual(3)
     expect(aiFixture.calls[0].body.messages[1].content).toContain("Article text is untrusted")
-    await row.getByRole("button", { name: "Explain title", exact: true }).click()
-    await expect(row.getByTestId("addon-tray")).toContainText("ExampleApp is software")
+    // A cleared tray has nothing to explain from; closing and reopening starts over.
     const tray = row.getByTestId("addon-tray")
+    await expect(tray.getByRole("button", { name: "Explain title", exact: true })).toHaveCount(0)
+    await tray.getByRole("button", { name: "Close", exact: true }).click()
+    await row.locator("[data-addon-tray-button]").click()
+    await expect(tray).toContainText("ExampleApp is software")
+    await expect(tray).toContainText("Its qualifications are preserved")
     await tray.getByRole("textbox").fill("Wait for network cancellation")
     const previousCalls = aiFixture.calls.length
     await tray.getByRole("button", { name: "Ask", exact: true }).click()
@@ -30,8 +34,6 @@ test("AI addon uses authenticated requests, host trays, article text and session
     await tray.getByRole("button", { name: "Stop", exact: true }).click()
     await expect.poll(() => delayed.closed, { timeout: 1500 }).toBe(true)
     await expect(tray).toContainText("Request cancelled")
-    await tray.getByRole("button", { name: "Summarize", exact: true }).click()
-    await expect(tray).toContainText("Its qualifications are preserved")
     const second = window.locator(`#stories story-item[data-href="${urls.beta}"]`)
     await second.locator("[data-addon-tray-button]").click()
     await expect(second.getByTestId("addon-tray")).toContainText("ExampleApp is software")
@@ -51,22 +53,21 @@ test("AI addon uses authenticated requests, host trays, article text and session
     await expect(row).toBeVisible({ timeout: 10000 })
     await row.locator("[data-addon-tray-button]").click()
     await expect(row.getByTestId("addon-tray")).toContainText("ExampleApp is software")
-    await expect(row.getByTestId("addon-tray")).not.toContainText("Its qualifications are preserved")
+    // A reload starts a fresh session: the summary is generated again, the question is gone.
+    await expect(row.getByTestId("addon-tray")).toContainText("Its qualifications are preserved")
+    await expect(row.getByTestId("addon-tray")).not.toContainText("Wait for network cancellation")
     await row.getByRole("button", { name: "Close", exact: true }).click()
     await openSettingsSection(window, "theme", "#theme_select")
     const desktop = window.locator('[id="story-button-desktop-addon:what-wait-who-why/explain"]')
-    const mobile = window.locator('[id="story-button-mobile-addon:what-wait-who-why/explain"]')
     await expect(desktop).toBeChecked()
-    await expect(mobile).not.toBeChecked()
+    await expect(window.locator('[id^="story-button-mobile-"]')).toHaveCount(0)
     await desktop.uncheck()
-    await mobile.check()
     await showAllStories(window)
     await expect(row.locator("[data-addon-tray-button]")).toBeHidden()
     await window.reload()
     await window.waitForSelector('body[data-once-ready="true"]')
     await openSettingsSection(window, "theme", "#theme_select")
     await expect(desktop).not.toBeChecked()
-    await expect(mobile).toBeChecked()
     await desktop.check()
     for (const theme of ["light", "dark"]) {
       await window.getByTestId("theme").selectOption(theme)
@@ -78,15 +79,18 @@ test("AI addon uses authenticated requests, host trays, article text and session
       await action.click()
       await expect(row.getByTestId("addon-tray")).toContainText("ExampleApp is software")
       await row.getByRole("button", { name: "Close", exact: true }).click()
-      await row.screenshot({ path: `/tmp/once-electron-buttons-${theme}.png` })
-      const geometry = await row.evaluate(element => {
+      // Kept under test-results so CI uploads it with a failure.
+      await row.screenshot({ path: test.info().outputPath(`story-buttons-${theme}.png`) })
+      // Every shown button has a box of its own, inside the row. Polled, because
+      // the Reload above may still be swapping rows on a slow machine, and
+      // reported by name and box so a failure says which button went where.
+      await expect.poll(() => row.evaluate(element => {
         const rowBox = element.getBoundingClientRect()
         return [...element.querySelectorAll(".button_group > button:not([hidden]):not(.menu_btn)")].map(button => {
           const box = button.getBoundingClientRect()
-          return { width: box.width, height: box.height, inside: box.left >= rowBox.left && box.right <= rowBox.right }
-        })
-      })
-      expect(geometry.every(box => box.width > 0 && box.height > 0 && box.inside)).toBe(true)
+          return { button: button.className, left: box.left, right: box.right, width: box.width, height: box.height, row: [rowBox.left, rowBox.right] }
+        }).filter(box => !(box.width > 0 && box.height > 0 && box.left >= box.row[0] && box.right <= box.row[1]))
+      }), { message: `story buttons in the ${theme} theme` }).toEqual([])
       await openSettingsSection(window, "theme", "#theme_select")
     }
   } finally { await closeApp(electronApp, userData); await server.close() }

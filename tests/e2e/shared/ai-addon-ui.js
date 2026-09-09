@@ -21,13 +21,24 @@ async function exerciseAiTray(page, row) {
   await action.click()
   const tray = row.getByTestId("addon-tray")
   await expect(tray).toContainText("ExampleApp is software", { timeout: 20000 })
-  await expect(tray.getByRole("heading", { name: "Key entities" })).toBeVisible()
+  // Opening explains and summarizes in one go: the answer is in view, the
+  // entities and the summary wait behind closed disclosures.
   await expect(tray.locator("strong", { hasText: "ExampleApp is software" })).toBeVisible()
+  // The `has` locator must be page-rooted; it is matched relative to each details element.
+  const entities = tray.locator("details", { has: page.locator("summary", { hasText: "Key entities" }) })
+  const summary = tray.locator("details", { has: page.locator("summary", { hasText: "Summary" }) })
+  await expect(entities).not.toHaveAttribute("open", "")
+  await expect(summary).not.toHaveAttribute("open", "")
+  await expect(tray.locator("code")).toBeHidden()
+  await entities.locator("summary").click()
   await expect(tray.locator("code")).toHaveText("projects")
+  await expect(tray.locator("code")).toBeVisible()
+  await expect(tray.getByRole("button", { name: "Summarize", exact: true })).toHaveCount(0)
   await expect(action).toHaveAttribute("aria-expanded", "true")
-  await tray.getByRole("button", { name: "Summarize", exact: true }).click()
+  await summary.locator("summary").click()
   await expect(tray).toContainText("Its qualifications are preserved")
   await expect(tray.locator("ul > li")).toHaveCount(2)
+  await expect(tray.locator("ul > li").first()).toBeVisible()
   const question = tray.getByRole("textbox")
   await question.fill("Who uses it?")
   await tray.getByRole("button", { name: "Ask", exact: true }).click()
@@ -36,8 +47,11 @@ async function exerciseAiTray(page, row) {
   await expect(tray).toHaveCount(0)
   await action.click()
   await expect(tray).toContainText("Developers use it")
+  // The reader's choice to open the entities survives a row redraw.
+  await expect(tray.locator("code")).toBeVisible()
   await row.evaluate(element => element.update_complete_story_el())
   await expect(tray).toContainText("Developers use it")
+  await expect(tray.locator("code")).toBeVisible()
   // An addon reporting its own failure, and a host one, both reach the reader as
   // an error rather than as another progress line.
   await question.fill("Break it")

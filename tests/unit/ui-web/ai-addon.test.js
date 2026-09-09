@@ -27,28 +27,49 @@ async function fixture(extra = {}, respond) {
     run: event => handler("assistant", event, story, context) }
 }
 
-test("opening explains once, summarizing is separate, follow-up includes history, clear resets", async () => {
+test("opening explains and summarizes once, follow-up includes history, clear resets", async () => {
   const f = await fixture()
   let result = await f.run({ type: "open" })
   assert.match(result.messages[0].text, /explanation/)
+  assert.equal(result.messages[0].title, undefined)
+  assert.deepEqual(result.messages[1], { role: "assistant", title: "Summary", collapsed: true, text: "An explanation.", sources: [] })
+  assert.equal(f.requests.length, 2)
+  const summary = JSON.parse(f.requests[1].request.body)
+  assert.match(summary.messages[0].content, /three to five/)
+  assert.equal(summary.messages.some(message => message.content === "An explanation."), false)
+  // The opening turn already explained and summarized, so neither is offered again.
+  assert.deepEqual(result.actions, [])
   await f.run({ type: "open" })
-  assert.equal(f.requests.length, 1)
+  assert.equal(f.requests.length, 2)
   await f.run({ type: "submit", text: "Who uses it?" })
   const chat = JSON.parse(f.requests.at(-1).request.body)
   assert.ok(chat.messages.some(message => message.content === "An explanation."))
   assert.equal(chat.messages.at(-1).content, "Who uses it?")
-  await f.run({ type: "action", action: "summarize" })
-  const summary = JSON.parse(f.requests.at(-1).request.body)
-  assert.match(summary.messages[0].content, /three to five/)
-  assert.equal(summary.messages.some(message => message.content === "An explanation."), false)
   assert.equal(f.extracts(), 1)
   result = await f.run({ type: "clear" })
   assert.equal(result.messages.length, 0)
+  assert.deepEqual(result.actions.map(action => action.id), ["summarize"])
   await f.run({ type: "open" })
   assert.equal(f.extracts(), 2)
   f.changed()
   await f.run({ type: "open" })
   assert.equal(f.extracts(), 3)
+})
+
+test("the explanation keeps its answer in view and folds the entity section behind its heading", async () => {
+  const f = await fixture({}, () => ({ status: 200, text: JSON.stringify({ choices: [{ message: { content:
+    "ExampleApp organizes projects.\n\n## Key entities\n\n- **ExampleApp**: project software.\n- **Projects**: units of work." } }] }) }))
+  const result = await f.run({ type: "open" })
+  assert.deepEqual(result.messages.map(message => [message.title, message.collapsed, message.text.split("\n")[0]]), [
+    [undefined, undefined, "ExampleApp organizes projects."],
+    ["Key entities", true, "- **ExampleApp**: project software."],
+    ["Summary", true, "ExampleApp organizes projects."]
+  ])
+  const { explanation } = await modulePromise
+  const whole = { text: "## Key entities\n\nOnly a heading first.", sources: [] }
+  assert.deepEqual(explanation(whole), [{ role: "assistant", text: whole.text, sources: [] }])
+  assert.equal(explanation({ text: "No heading at all.", sources: [] }).length, 1)
+  assert.equal(explanation({ text: "Lead\n\n## Empty section\n\n", sources: [] }).length, 1)
 })
 
 test("question, release, ambiguous person and ordinary titles reach the explanation prompt", async () => {
@@ -62,10 +83,14 @@ test("question, release, ambiguous person and ordinary titles reach the explanat
   }
 })
 
-test("missing article is labelled title-only and cannot be summarized", async () => {
+test("missing article is labelled title-only, skips the automatic summary and refuses a requested one", async () => {
   const f = await fixture()
   f.context.getStoryContent = async () => { throw new Error("No readable content") }
-  assert.match((await f.run({ type: "open" })).status, /Title only/)
+  const opened = await f.run({ type: "open" })
+  assert.match(opened.status, /Title only/)
+  assert.equal(opened.statusTone, "info")
+  assert.equal(opened.messages.length, 1)
+  assert.deepEqual(opened.actions.map(action => action.id), ["summarize"])
   assert.match((await f.run({ type: "action", action: "summarize" })).status, /Cannot summarize/)
   assert.equal(f.requests.length, 1)
 })
@@ -102,8 +127,11 @@ test("search failure offers an explicit no-search retry; auth errors never trigg
   const f = await fixture({ webSearch: true })
   const failure = await f.run({ type: "open" })
   assert.ok(failure.actions.some(action => action.id === "without-search"))
-  await f.run({ type: "action", action: "without-search" })
-  assert.equal(f.requests.length, 1)
+  assert.equal(f.requests.length, 0)
+  // The retry resumes the opening turn: the explanation without search, then the summary.
+  const resumed = await f.run({ type: "action", action: "without-search" })
+  assert.equal(f.requests.length, 2)
+  assert.equal(resumed.messages.at(-1).title, "Summary")
   const native = await fixture({ provider: "openai", webSearch: true, searchEndpoint: "https://search.test/" }, () => ({ status: 401, text: "unauthorized" }))
   assert.match((await native.run({ type: "open" })).status, /401/)
   assert.equal(native.requests.length, 1)
@@ -124,8 +152,8 @@ test("search-disabled requests never include tools or contact SearXNG for any pr
         provider === "anthropic" ? { content: [{ type: "text", text: "Answer" }] } : { choices: [{ message: { content: "Answer" } }] }
     ) }))
     const result = await f.run({ type: "open" })
-    assert.equal(f.requests.length, 1)
-    assert.equal(JSON.parse(f.requests[0].request.body).tools, undefined)
+    assert.equal(f.requests.length, 2)
+    assert.ok(f.requests.every(request => JSON.parse(request.request.body).tools === undefined))
     assert.match(result.status, /No web sources used/)
   }
 })
@@ -139,8 +167,10 @@ test("explicit native-search unavailability falls back once and maps supplied so
       { status: 200, text: JSON.stringify({ output: [{ content: [{ type: "output_text", text: "Answer [S1]" }] }] }) }
   })
   const result = await f.run({ type: "open" })
-  assert.deepEqual(f.requests.map(request => request.connection), ["openai", "searxng", "openai"])
+  // The explanation falls back once; the summary that follows never searches.
+  assert.deepEqual(f.requests.map(request => request.connection), ["openai", "searxng", "openai", "openai"])
   assert.equal(JSON.parse(f.requests[2].request.body).tools, undefined)
+  assert.equal(JSON.parse(f.requests[3].request.body).tools, undefined)
   assert.match(result.status, /Web sources used/)
   assert.equal(result.messages[0].sources[0].url, "https://source.test/")
 })

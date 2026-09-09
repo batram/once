@@ -9,6 +9,11 @@ export interface AddonTrayMessage {
   role: "user" | "assistant" | "info"
   text: string
   sources?: readonly AddonCitation[]
+  /** Renders the message as a disclosure headed by this line, so the reader
+      opens the text on demand. Absent means the text is always shown. */
+  title?: string
+  /** Start a titled message closed. Ignored without `title`. */
+  collapsed?: boolean
 }
 /** Whether a view's `status` reports a failure. Absent means `"info"`. */
 export type AddonTrayStatusTone = "info" | "error"
@@ -46,6 +51,8 @@ export function readTrayView(value: unknown): AddonTrayView {
       throw new Error("Invalid tray message")
     }
     if (message.sources && (!Array.isArray(message.sources) || message.sources.length > 30)) throw new Error("Too many sources")
+    if (message.title !== undefined && (typeof message.title !== "string" || !message.title.trim() || message.title.length > 120)) throw new Error("Invalid tray message title")
+    if (message.collapsed !== undefined && typeof message.collapsed !== "boolean") throw new Error("Invalid tray message collapsed flag")
     const sources = message.sources?.map((source: AddonCitation) => {
       if (!source || typeof source.title !== "string" || source.title.length > 500 || typeof source.url !== "string") {
         throw new Error("Invalid source")
@@ -56,7 +63,7 @@ export function readTrayView(value: unknown): AddonTrayView {
       }
       return { title: source.title, url: url.href }
     })
-    return { role: message.role, text: message.text, sources }
+    return { role: message.role, text: message.text, sources, title: message.title, collapsed: message.title ? message.collapsed : undefined }
   })
   if (view.status !== undefined && (typeof view.status !== "string" || view.status.length > 1000)) throw new Error("Invalid tray status")
   if (view.statusTone !== undefined && !["info", "error"].includes(view.statusTone)) throw new Error("Invalid tray status tone")

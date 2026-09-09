@@ -301,7 +301,10 @@ Events are `{ type: "open" | "clear" }`, `{ type: "submit", text }`, or
 `{ type: "action", action }`. A view is
 `{ messages, status?, statusTone?, actions?, composer? }`.
 Messages have `role: "user" | "assistant" | "info"`, a `text` string, and optional
-`sources: [{ title, url }]`; only HTTP(S) source links are allowed. Actions are
+`sources: [{ title, url }]`; only HTTP(S) source links are allowed. A message with a
+`title` (up to 120 characters) renders as a disclosure headed by that line, and
+`collapsed: true` starts it closed; the reader's own open/close choice survives
+redraws until the conversation is cleared. Actions are
 `{ id, label }`; the optional composer string labels the question field.
 Assistant text supports basic Markdown: paragraphs, headings, emphasis, lists,
 quotes, code, tables, and HTTP(S) links. User and info text stays literal. The host

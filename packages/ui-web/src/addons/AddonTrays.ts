@@ -10,6 +10,9 @@ interface TrayState {
   view: AddonTrayView
   error: string
   last: AddonTrayEvent
+  /** Where the reader left each titled message, by index; a redraw must not
+      fold what they opened. */
+  disclosed: Map<number, boolean>
   controller?: AbortController
 }
 
@@ -58,7 +61,7 @@ export class AddonTrays {
     const key = this.key(href, tray)
     let state = this.states.get(key)
     if (!state) {
-      state = { open: false, draft: "", view: { messages: [] }, error: "", last: { type: "open" } }
+      state = { open: false, draft: "", view: { messages: [] }, error: "", last: { type: "open" }, disclosed: new Map() }
       this.states.set(key, state)
     }
     return state
@@ -126,13 +129,12 @@ export class AddonTrays {
     header.className = "addon_tray_actions addon_tray_header"
     header.append(heading, close)
     root.append(header)
-    for (const message of state.view.messages) {
+    for (const [index, message] of state.view.messages.entries()) {
       const block = document.createElement("div")
       block.className = `addon_tray_message addon_tray_${message.role}`
       if (message.role === "assistant") block.append(trayMarkdown(message.text))
       else block.textContent = message.text
-      root.append(block)
-      for (const source of message.sources ?? []) {
+      const sources = (message.sources ?? []).map(source => {
         const link = document.createElement("a")
         link.textContent = source.title || source.url
         link.href = source.url
@@ -140,8 +142,10 @@ export class AddonTrays {
         link.rel = "noopener noreferrer"
         link.className = "addon_tray_source"
         link.prepend(this.icon("popout", "icon--inline"))
-        root.append(link)
-      }
+        return link
+      })
+      if (message.title) root.append(this.disclosure(state, index, message.title, message.collapsed === true, block, sources))
+      else root.append(block, ...sources)
     }
     const status = document.createElement("p")
     status.setAttribute("role", "status")
@@ -166,7 +170,7 @@ export class AddonTrays {
       if (state.error) controls.append(this.button("Retry", () => { void this.run(row, tray, state.last) }))
     }
     controls.append(this.button("Clear conversation", () => {
-      state.view = { messages: [] }; state.draft = ""; void this.run(row, tray, { type: "clear" })
+      state.view = { messages: [] }; state.draft = ""; state.disclosed.clear(); void this.run(row, tray, { type: "clear" })
     }))
     return controls
   }
@@ -193,6 +197,23 @@ export class AddonTrays {
     })
     form.append(input, send)
     return form
+  }
+
+  /** A titled message folds behind a native disclosure. The attribute, not the
+   *  property, carries the state so the same code reads under linkedom. */
+  private disclosure(state: TrayState, index: number, title: string, collapsed: boolean, block: HTMLElement, sources: HTMLElement[]): HTMLElement {
+    const details = document.createElement("details")
+    details.className = "addon_tray_disclosure"
+    details.toggleAttribute("open", state.disclosed.get(index) ?? !collapsed)
+    details.addEventListener("toggle", () => state.disclosed.set(index, details.hasAttribute("open")))
+    const summary = document.createElement("summary")
+    summary.className = "addon_tray_disclosure_title"
+    summary.textContent = title
+    const body = document.createElement("div")
+    body.className = "addon_tray_disclosure_body"
+    body.append(block, ...sources)
+    details.append(summary, body)
+    return details
   }
 
   /** `.icon` has no default size, so every call site names one: `.icon--inline`
