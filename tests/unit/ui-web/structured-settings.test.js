@@ -411,6 +411,39 @@ test("deleting a populated source group opens a modal overlay", async () => {
   })
 })
 
+test("source editor reports the source whose form is open", () => {
+  withDom("<main></main>", (window) => {
+    const root = window.document.querySelector("main")
+    const editor = new SourceSettingsEditor({
+      onTouch: () => false,
+      getText: () => "",
+      setText: () => {},
+      render: () => {},
+      root: () => root,
+      saveSources: () => {},
+      saveSourceSecret: () => Promise.resolve(),
+      reloadSource: () => {},
+      showSourceError: () => {},
+      openMenu: () => {},
+      listActions: () => null,
+      showForm: (formRoot) => {
+        formRoot.textContent = ""
+        const form = window.document.createElement("form")
+        form.className = "structured_form"
+        formRoot.append(form)
+      }
+    })
+    editor.read("https://one.test\nhttps://two.test")
+    assert.equal(editor.editingSourceId(), null)
+
+    editor.editSource(root, 0, 1)
+    assert.equal(editor.editingSourceId(), editor.groups[0].sources[1].id)
+
+    editor.editSource(root, 0)
+    assert.equal(editor.editingSourceId(), null)
+  })
+})
+
 test("source group title drop moves a row into an empty group", () => {
   withDom("<main></main>", (window) => {
     const root = window.document.querySelector("main")

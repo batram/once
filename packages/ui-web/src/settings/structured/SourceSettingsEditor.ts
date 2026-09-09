@@ -162,6 +162,16 @@ export class SourceSettingsEditor {
         this.save()
       }
     } } : undefined, undefined, (inputs, rows) => config.render(inputs[3], rows))
+    // Tagged on the form itself rather than kept in a field: the form outlives
+    // re-renders through Forward, and the tag stays with it.
+    const form = root.querySelector<HTMLElement>(".structured_form")
+    if (form && current) form.dataset.sourceId = current.id
+  }
+
+  /** The source whose form is open, so text mode can select the same one. */
+  editingSourceId(): string | null {
+    return this.host.root()?.querySelector<HTMLElement>(".structured_form[data-source-id]")
+      ?.dataset.sourceId ?? null
   }
 
   editGroup(root: HTMLElement, groupIndex?: number): void {

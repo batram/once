@@ -16,6 +16,7 @@ import { installDragAutoScroll } from "../gesture/dragReorder"
 import { FlatSettingsEditors } from "./structured/FlatSettingsEditors"
 import { SourceSettingsEditor } from "./structured/SourceSettingsEditor"
 import { StructuredAddButtons } from "./structured/StructuredAddButtons"
+import { highlightStorySourceTextarea } from "./textareaHighlight"
 
 export { parseFilterRows } from "./structured/filters"
 export {
@@ -251,6 +252,12 @@ export class StructuredSettingsEditors {
       this.modes.set(section, "text")
     }
     this.updateActionVisibility(section)
+    // Coming from a source's form, land on that source in the text rather
+    // than at the top of the JSON.
+    if (mode === "list" && section === "sources") {
+      const editing = this.sourceEditor.editingSourceId()
+      if (editing) highlightStorySourceTextarea(editing)
+    }
   }
 
   private updateActionVisibility(section: Section): void {
