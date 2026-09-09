@@ -32,11 +32,12 @@ after a successful unlock; edits replicate when the connection returns.
 ## Linked development folders
 
 Directory links and filesystem paths are not synced. Open the linked addon's
-settings and choose **Use this version on my devices** to create an approved
-snapshot containing its current script, settings, and saved tokens. This requires
-an unlocked vault. A removable directory link is unloaded after sharing; the
-source files remain intact. Later filesystem edits do not update that snapshot.
-Use the normal import/update review to publish another version.
+settings and choose **Install this version** to create an approved snapshot
+containing its current script, settings, and saved tokens. This requires an
+unlocked vault. A removable directory link is unloaded after installing; the
+source files remain intact. Later filesystem edits do not update that snapshot:
+the installed copy's page reports the ignored folder and offers **Update
+installed copy from folder**, or use the normal import/update review.
 
 ## Recovery, updates and conflicts
 

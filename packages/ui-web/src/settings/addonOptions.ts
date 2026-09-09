@@ -16,10 +16,21 @@ const updateStatus = (group: HTMLElement): void => {
 }
 onAddonStatus(() => { for (const { element } of groups.values()) updateStatus(element) })
 export const DEV_OPTIONS_EVENT = "once:addon-options"
+/**
+ * What a linked folder can do for an addon. `folder` means the folder is what
+ * runs; `shadowed` means an installed copy with the same ID runs and the folder
+ * is being ignored, which the page has to say out loud.
+ */
 export interface DevAddonControls {
+  kind: "folder" | "shadowed"
   directory: string
   unload?: () => Promise<void>
-  share?: () => Promise<void>
+  /** Folder: saves the folder's files as an installed, synced copy. */
+  install?: () => Promise<void>
+  /** Shadowed: overwrites the installed copy with the folder's files, keeping its settings. */
+  replace?: () => Promise<void>
+  /** Shadowed: removes the installed copy so the folder runs. */
+  useFolder?: () => Promise<void>
 }
 
 export function devAddonEnabled(id: string): boolean {
@@ -36,16 +47,16 @@ export function readDevAddonOptions(id: string): Record<string, unknown> {
 /** Keep the form mounted across option saves and runtime status updates. */
 export function renderAddonOptions(client: OnceClient, entries: readonly AddonEntry[], devIds: ReadonlySet<string> = new Set(), devControls: ReadonlyMap<string, DevAddonControls> = new Map()): void {
   const host = requireElement<HTMLElement>("#addon_options")
-  const desired = new Set(entries.filter(entry => entry.manifest.settings?.type === "object" || devIds.has(entry.manifest.id)).map(entry => entry.manifest.id))
+  // Every addon gets a page: even one without settings has a source to show.
+  const desired = new Set(entries.map(entry => entry.manifest.id))
   for (const [id, group] of groups) {
     if (!desired.has(id)) { group.element.remove(); groups.delete(id) }
   }
   for (const entry of entries) {
     const { manifest } = entry
-    if (manifest.settings?.type !== "object" && !devIds.has(manifest.id)) continue
     const dev = devIds.has(manifest.id)
     const controls = devControls.get(manifest.id)
-    const signature = JSON.stringify([manifest, dev, controls?.directory, !!controls?.unload])
+    const signature = JSON.stringify([manifest, dev, entry.source?.url, controls?.kind, controls?.directory, !!controls?.unload])
     const existing = groups.get(manifest.id)
     if (existing?.signature === signature && existing.element.isConnected) {
       existing.element.dataset.enabled = String(entry.enabled)
@@ -70,8 +81,10 @@ function settingsGroup(client: OnceClient, entry: AddonEntry, dev: boolean, cont
   group.dataset.addonVersion = manifest.version
   group.dataset.enabled = String(entry.enabled)
   const legend = document.createElement("legend")
-  legend.textContent = `${manifest.name} settings${dev ? " (local directory, this device)" : ""}`
-  group.append(legend)
+  legend.textContent = `${manifest.name} settings${dev ? " (linked folder)" : ""}`
+  group.append(legend, sourceCard(entry, dev, controls))
+  if (dev) group.dataset.addonOrigin = "Linked folder · This device"
+  else if (controls?.kind === "shadowed") group.dataset.addonOrigin = "Installed · Linked folder not in use"
   if (dev) {
     const toggle = addonButton(devAddonEnabled(manifest.id) ? "Disable" : "Enable", () => {
       const enabled = !devAddonEnabled(manifest.id)
@@ -81,20 +94,14 @@ function settingsGroup(client: OnceClient, entry: AddonEntry, dev: boolean, cont
       updateStatus(group)
       window.dispatchEvent(new Event(DEV_OPTIONS_EVENT))
     })
-    group.append(toggle, addonButton("Retry", () => retryAddon(manifest.id)))
+    const actions = document.createElement("div")
+    actions.className = "settings_actions cluster"
+    actions.append(toggle, addonButton("Retry", () => retryAddon(manifest.id)))
     const status = document.createElement("p")
     status.className = "addon_runtime_status"
     status.setAttribute("role", "status")
-    group.append(status)
+    group.append(actions, status)
     updateStatus(group)
-    if (controls) {
-      const directory = document.createElement("p")
-      directory.className = "addon_directory_path settings_group_hint"
-      directory.textContent = controls.directory
-      group.append(directory)
-      if (controls.unload) group.append(addonButton("Unload", controls.unload))
-      if (controls.share) group.append(addonButton("Use this version on my devices", controls.share))
-    }
   }
   const values = validateConfig(schema, entry.options ?? {}) as Record<string, unknown>
   const fields: { element: HTMLElement; schema: ConfigSchema }[] = []
@@ -147,6 +154,66 @@ function settingsGroup(client: OnceClient, entry: AddonEntry, dev: boolean, cont
     for (const field of fields) field.element.dispatchEvent(new Event("addon-options-received"))
   })
   return group
+}
+
+/**
+ * Where the addon's code comes from, and the controls that change that. The
+ * card sits first in the group so its status line is where action errors land.
+ */
+function sourceCard(entry: AddonEntry, dev: boolean, controls?: DevAddonControls): HTMLElement {
+  const card = document.createElement("section")
+  card.className = "addon_source"
+  card.dataset.testid = "addon-source"
+  const heading = document.createElement("h3")
+  heading.className = "settings_subheading"
+  heading.textContent = "Where this addon comes from"
+  const summary = document.createElement("p")
+  summary.className = "addon_source_summary"
+  const status = document.createElement("p")
+  status.setAttribute("role", "status")
+  const actions = document.createElement("div")
+  actions.className = "addon_source_actions"
+  card.append(heading, summary, status, actions)
+  const location = (text: string): void => {
+    const path = document.createElement("code")
+    path.className = "addon_source_path"
+    path.textContent = text
+    summary.after(path)
+  }
+  const action = (label: string, hint: string, run: () => Promise<void> | void, testid: string, primary = false): void => {
+    const item = document.createElement("div")
+    item.className = "addon_source_action"
+    const button = addonButton(label, run)
+    button.dataset.testid = testid
+    if (primary) button.classList.add("addon_primary_action")
+    const help = document.createElement("p")
+    help.className = "settings_group_hint"
+    help.textContent = hint
+    item.append(button, help)
+    actions.append(item)
+  }
+  if (controls?.kind === "shadowed") {
+    card.classList.add("addon_source--attention")
+    summary.textContent = "The installed copy is running. A linked folder with the same addon ID is being ignored, so edits there change nothing:"
+    location(controls.directory)
+    if (controls.useFolder) action("Use the folder instead", "Removes the installed copy with its settings and tokens; the folder then runs and reloads on edits.", controls.useFolder, "addon-source-use-folder", true)
+    if (controls.replace) action("Update installed copy from folder", "Overwrites the installed copy with the folder's current files and keeps its settings and tokens. Needs encrypted addon sync.", controls.replace, "addon-source-replace")
+    if (controls.unload) action("Unload folder", "Forgets the folder link. The files stay where they are.", controls.unload, "addon-source-unload")
+  } else if (dev) {
+    summary.textContent = "Runs from a linked folder on this device. Saved edits reload it automatically; nothing about it is synced."
+    if (controls) location(controls.directory)
+    if (controls?.install) action("Install this version", "Saves the folder's current files as an installed copy, synced to your devices with encrypted addon sync, then unloads the folder.", controls.install, "addon-source-install", true)
+    if (controls?.unload) action("Unload folder", "Stops running the addon from this folder. The files and its local settings stay.", controls.unload, "addon-source-unload")
+  } else if (entry.source) {
+    summary.textContent = "Installed from a manifest URL. Check for updates fetches the manifest again and shows what changed before installing."
+    location(entry.source.url)
+    action("Check for updates", "Reviews every URL-installed addon for a newer version.", () => {
+      document.querySelector<HTMLButtonElement>('[data-testid="update-addons"]')?.click()
+    }, "addon-source-check-updates")
+  } else {
+    summary.textContent = "Installed copy of a ZIP, folder or shared snapshot. To update it, import the new version again; to work on it live, link its folder on the Import page."
+  }
+  return card
 }
 
 function optionField(addon: string, name: string, property: ConfigSchema, value: unknown, save: (value: unknown) => Promise<void>): HTMLElement | null {

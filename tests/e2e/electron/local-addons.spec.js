@@ -37,6 +37,54 @@ test("ZIP and folder imports use review and survive renderer reload", async () =
   }
 })
 
+test("an installed copy hides a linked folder until its page hands over to the folder", async () => {
+  const server = await startPageServer()
+  const { electronApp, userData, window } = await launchApp({ env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0" } })
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "once-shadowed-"))
+  const { addonSettings, addonOverview } = require("../shared/addon-settings-ui")
+  try {
+    for (const [name, text] of Object.entries(local.files("Folder version"))) await fs.writeFile(path.join(directory, name), text)
+    const href = stories.storyUrls(server.origin).alpha
+    await seedLocalSource(window, stories.sourceLine(server.origin), href)
+    await openSettingsSection(window, "addons", "#addon_url_input")
+    await local.importZip(window)
+    await showAllStories(window)
+    const badge = window.locator(`[data-href="${href}"] [data-addon-badge="ready"]`)
+    await expect(badge).toHaveText("Local package ready")
+    await openSettingsSection(window, "addons", "#addon_url_input")
+    await electronApp.evaluate(({ dialog }, selected) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [selected] }) }, directory)
+    await window.getByTestId("load-addon-directory").click()
+    await expect(window.getByRole("button", { name: "Unload folder", exact: true })).toBeVisible()
+    // The installed copy keeps running; the overview and the page both say the folder is idle.
+    await showAllStories(window)
+    await expect(badge).toHaveText("Local package ready")
+    await openSettingsSection(window, "addons", "#addon_url_input")
+    await addonOverview(window)
+    await expect(window.locator('.addon_list_row[data-addon-id="local-package"] .addon_list_meta')).toContainText("Linked folder not in use")
+    await addonSettings(window, "local-package")
+    const source = window.getByTestId("addon-source")
+    await expect(source).toBeVisible()
+    await expect(source).toHaveClass(/addon_source--attention/)
+    await expect(source).toContainText("being ignored")
+    await expect(source).toContainText(directory)
+    await window.locator("#addon_install_settings").screenshot({ path: test.info().outputPath("addon-source-shadowed.png") })
+    await window.getByTestId("addon-source-use-folder").click()
+    await showAllStories(window)
+    await expect(badge).toHaveText("Folder version")
+    await openSettingsSection(window, "addons", "#addon_url_input")
+    await addonSettings(window, "local-package")
+    await expect(source).not.toHaveClass(/addon_source--attention/)
+    await expect(source).toContainText("linked folder on this device")
+    await expect(window.getByTestId("addon-source-install")).toBeVisible()
+    await expect(window.getByRole("button", { name: "Use this version on my devices" })).toHaveCount(0)
+    await window.locator("#addon_install_settings").screenshot({ path: test.info().outputPath("addon-source-folder.png") })
+  } finally {
+    await closeApp(electronApp, userData)
+    await server.close()
+    await fs.rm(directory, { recursive: true, force: true })
+  }
+})
+
 test("packaged Electron loads a picked directory, watches edits, remembers it and unloads", async () => {
   const server = await startPageServer()
   const { electronApp, userData, window } = await launchApp({ env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0" } })
@@ -49,7 +97,7 @@ test("packaged Electron loads a picked directory, watches edits, remembers it an
     // Supply the OS dialog's selection at the native boundary; exercise the real button and IPC.
     await electronApp.evaluate(({ dialog }, selected) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [selected] }) }, directory)
     await window.getByTestId("load-addon-directory").click()
-    await expect(window.getByRole("button", { name: "Unload", exact: true })).toBeVisible()
+    await expect(window.getByRole("button", { name: "Unload folder", exact: true })).toBeVisible()
     await showAllStories(window)
     const badge = window.locator(`[data-href="${href}"] [data-addon-badge="ready"]`)
     await expect(badge).toHaveText("Local package ready")
@@ -57,7 +105,7 @@ test("packaged Electron loads a picked directory, watches edits, remembers it an
     await expect(badge).toHaveText("Changed on disk")
     expect(JSON.parse(await fs.readFile(path.join(userData, "local-addon-directories.json"), "utf8"))).toEqual([directory])
     await openSettingsSection(window, "addons", "#addon_url_input")
-    await window.getByRole("button", { name: "Unload", exact: true }).click()
+    await window.getByRole("button", { name: "Unload folder", exact: true }).click()
     await showAllStories(window)
     await expect(badge).toHaveCount(0)
     expect(await fs.readFile(path.join(directory, "main.js"), "utf8")).toContain("Changed on disk")

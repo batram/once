@@ -148,7 +148,8 @@ export type OnceEventHandler<T extends OnceEventName> = (
 
 export interface OnceClient {
   getAddonVaultStatus(): Promise<import("@once/core").AddonVaultStatus>
-  shareAddonSnapshot(entry: import("@once/core").AddonEntry, code: string | null): Promise<void>
+  /** Installs a snapshot of a linked folder; `replace` updates an installed copy with the same ID instead of refusing. */
+  shareAddonSnapshot(entry: import("@once/core").AddonEntry, code: string | null, replace?: boolean): Promise<void>
   createAddonVault(passphrase: string, remember: boolean, deviceName: string): Promise<{ recoveryKey: string; warning?: string }>
   unlockAddonVault(secret: string, recovery: boolean, remember: boolean, deviceName: string): Promise<void>
   lockAddonVault(): Promise<void>

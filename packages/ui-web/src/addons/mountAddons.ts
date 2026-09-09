@@ -88,20 +88,32 @@ export function mountAddons(client: OnceClient, options: MountAddonsOptions = {}
         report(`Development add-on in ${dev.directory} was not loaded`, why)
         continue
       }
-      if (candidates.some(({ entry }) => entry.manifest.id === read.manifest.id)) {
-        if (devAddonEnabled(read.manifest.id)) report(`Development add-on ${read.manifest.id} duplicates an installed add-on`, dev.directory)
+      const unload = dev.removable && options.devAddons?.removeDirectory
+        ? { unload: async () => { await options.devAddons?.removeDirectory?.(dev.directory) } } : {}
+      const installed = candidates.find(({ entry }) => entry.manifest.id === read.manifest.id)
+      if (installed) {
+        // The installed copy wins; the folder is ignored. Its page says so and
+        // offers the two ways out rather than a toast that names neither.
+        devControls.set(read.manifest.id, { kind: "shadowed", directory: dev.directory, ...unload,
+          useFolder: async () => {
+            await client.updateAddons(doc => ({ ...doc, addons: doc.addons.filter(item => item.manifest.id !== read.manifest.id) }))
+            localStorage.setItem(`once:dev-addon-enabled:${read.manifest.id}`, "true")
+            window.dispatchEvent(new Event(DEV_OPTIONS_EVENT))
+          },
+          replace: async () => {
+            const { source: _source, ...current } = installed.entry
+            await client.shareAddonSnapshot({ ...current, manifest: read.manifest }, dev.code, true)
+          } })
         continue
       }
       devIds.add(read.manifest.id)
-      devControls.set(read.manifest.id, { directory: dev.directory,
-        share: async () => {
+      devControls.set(read.manifest.id, { kind: "folder", directory: dev.directory, ...unload,
+        install: async () => {
           await client.shareAddonSnapshot({ enabled: true, manifest: read.manifest, options: readDevAddonOptions(read.manifest.id) }, dev.code)
           localStorage.setItem(`once:dev-addon-enabled:${read.manifest.id}`, "false")
           if (dev.removable) await options.devAddons?.removeDirectory?.(dev.directory)
           window.dispatchEvent(new Event(DEV_OPTIONS_EVENT))
-        },
-        ...(dev.removable && options.devAddons?.removeDirectory
-          ? { unload: async () => { await options.devAddons?.removeDirectory?.(dev.directory) } } : {}) })
+        } })
       candidates.push({ entry: { enabled: devAddonEnabled(read.manifest.id), manifest: read.manifest, options: readDevAddonOptions(read.manifest.id) }, code: dev.code })
     }
     await reconciler.apply(candidates)

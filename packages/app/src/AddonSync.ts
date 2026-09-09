@@ -106,7 +106,7 @@ export class AddonSync {
     if (!connection || addonEndpoint(values[connection.endpoint]) !== addonEndpoint(options[connection.endpoint])) throw new Error("The connection changed. Reload the addon before sending a request.")
   }
 
-  private async share(entry: AddonEntry, code: string | null): Promise<void> {
+  private async share(entry: AddonEntry, code: string | null, replace = false): Promise<void> {
     if (!await this.vault.enabled()) throw new Error("Enable encrypted addon sync first")
     const snapshot = structuredClone(entry)
     if (snapshot.manifest.script) {
@@ -117,8 +117,10 @@ export class AddonSync {
     const normalized = readAddonsDocument({ version: 1, addons: [snapshot] }).addons[0]
     if (!normalized) throw new Error("The directory is not a valid addon")
     await this.vault.update(async data => {
-      if (data.document.addons.some(item => item.manifest.id === snapshot.manifest.id)) throw new Error("An installed addon already has this ID")
-      data.document.addons.push(normalized)
+      const index = data.document.addons.findIndex(item => item.manifest.id === snapshot.manifest.id)
+      if (index >= 0 && !replace) throw new Error("An installed addon already has this ID")
+      if (index >= 0) data.document.addons[index] = normalized
+      else data.document.addons.push(normalized)
       if (normalized.manifest.script && code !== null) data.scripts[normalized.manifest.script.integrity] = code
       for (const connection of normalized.manifest.connections ?? []) {
         if (!connection.secret) continue
@@ -134,7 +136,7 @@ export class AddonSync {
     "storeAddonScript" | "saveAddonSecret" | "hasAddonSecret" | "requestAddonConnection" | "shareAddonSnapshot"> {
     return {
       getAddonVaultStatus: () => this.vault.status(),
-      shareAddonSnapshot: (entry, code) => this.serialize(() => this.share(entry, code)),
+      shareAddonSnapshot: (entry, code, replace) => this.serialize(() => this.share(entry, code, replace)),
       unlockAddonVault: (secret, recovery, remember, name) => this.vault.unlock(secret, recovery, remember, name),
       lockAddonVault: () => this.vault.lock(),
       changeAddonVaultPassphrase: passphrase => this.vault.update(() => undefined, passphrase),

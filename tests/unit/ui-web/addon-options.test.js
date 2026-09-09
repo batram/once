@@ -38,6 +38,31 @@ test("development options persist locally, preserve drafts, restore defaults and
     assert.notEqual(prompt.disabled, true)
     storage.set("once:dev-addon:dev-example", "null")
     assert.deepEqual(readDevAddonOptions("dev-example"), {})
+
+    // Every page opens with its source. A folder offers to install itself; an
+    // installed copy that hides a linked folder says so and offers both ways out.
+    const calls = []
+    const controls = new Map([
+      ["dev-example", { kind: "folder", directory: "C:\\work\\example", install: async () => calls.push("install"), unload: async () => calls.push("unload") }],
+      ["shadowed", { kind: "shadowed", directory: "C:\\work\\shadowed", useFolder: async () => calls.push("use"), replace: async () => calls.push("replace") }]
+    ])
+    const plain = { enabled: true, manifest: { id: "shadowed", name: "Shadowed" } }
+    const fromUrl = { enabled: true, manifest: { id: "remote", name: "Remote" }, source: { url: "https://example.org/once-addon.json" } }
+    renderAddonOptions(client, [entry, plain, fromUrl], new Set(["dev-example"]), controls)
+    const cardOf = id => document.querySelector(`[data-addon="${id}"] .addon_source`)
+    assert.match(cardOf("dev-example").textContent, /linked folder on this device/)
+    assert.equal(cardOf("dev-example").querySelector(".addon_source_path").textContent, "C:\\work\\example")
+    assert.equal(document.querySelector('[data-addon="dev-example"]').dataset.addonOrigin, "Linked folder · This device")
+    assert.ok(cardOf("shadowed").classList.contains("addon_source--attention"))
+    assert.match(cardOf("shadowed").textContent, /being ignored/)
+    assert.equal(document.querySelector('[data-addon="shadowed"]').dataset.addonOrigin, "Installed · Linked folder not in use")
+    assert.equal(cardOf("remote").querySelector(".addon_source_path").textContent, "https://example.org/once-addon.json")
+    assert.equal(button("Use this version on my devices"), undefined)
+    button("Install this version").click()
+    button("Use the folder instead").click()
+    button("Update installed copy from folder").click()
+    await settle()
+    assert.deepEqual(calls, ["install", "use", "replace"])
   } finally {
     for (const name of names) {
       if (previous[name] === undefined) Reflect.deleteProperty(globalThis, name)

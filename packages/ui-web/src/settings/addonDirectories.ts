@@ -10,7 +10,7 @@ export function bindAddonDirectories(source?: DevAddonSource): (entries: Awaited
   legend.textContent = "Link a development folder"
   const hint = document.createElement("p")
   hint.className = "settings_group_hint"
-  hint.textContent = "Working on an addon? Link its folder to reload it when files change. The link stays on this device; unloading leaves your files intact."
+  hint.textContent = "Working on an addon? Link its folder to run it from there and reload it when files change. The link stays on this device; unloading leaves your files intact. An installed copy with the same addon ID takes precedence, and the addon's page then says so."
   const status = document.createElement("p")
   status.setAttribute("role", "status")
   const pick = addonButton("Load directory…", async () => {
@@ -33,7 +33,7 @@ export function bindAddonDirectories(source?: DevAddonSource): (entries: Awaited
       const name = document.createElement("span")
       name.textContent = entry.directory + (entry.error ? ` — ${entry.error}` : "")
       row.append(name)
-      if (entry.removable && source.removeDirectory) row.append(addonButton("Unload", async () => {
+      if (entry.removable && source.removeDirectory) row.append(addonButton("Unload folder", async () => {
         try { await source.removeDirectory?.(entry.directory) }
         catch (error) { status.textContent = String(error) }
       }))

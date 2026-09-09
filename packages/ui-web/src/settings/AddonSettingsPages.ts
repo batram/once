@@ -3,6 +3,8 @@ import { requireClosestElement, requireElement } from "../dom"
 
 const groupsOf = (details: HTMLElement) => Array.from(details.querySelectorAll<HTMLElement>("[data-addon-id], .addon_options_group[data-addon]"))
 const idOf = (element: HTMLElement) => element.dataset.addonId ?? element.dataset.addon ?? ""
+/** The settings group knows about a linked folder; the installed row does not, so the later element speaks. */
+const originOf = (elements: HTMLElement[]) => [...elements].reverse().map(element => element.dataset.addonOrigin).find(Boolean)
 const titleOf = (element: HTMLElement) => element.dataset.addonName ??
   element.querySelector("legend")?.textContent?.replace(/ settings.*$/, "") ?? idOf(element)
 
@@ -57,7 +59,7 @@ export function bindAddonSettingsPages(root: HTMLElement): void {
       const local = !group.dataset.addonId
       const enabled = group.dataset.enabled !== "false"
       const runtime = group.querySelector(".addon_runtime_status")?.textContent
-      const meta = [group.dataset.addonVersion, local ? "Local directory · This device" : group.dataset.addonOrigin ?? "Installed",
+      const meta = [group.dataset.addonVersion, originOf(elements) ?? (local ? "Linked folder · This device" : "Installed"),
         !enabled ? "Disabled" : runtime || "Enabled"].filter(Boolean).join(" · ")
       let row = rows.get(key)
       if (!row) {

@@ -9,7 +9,7 @@ the tray then sends two requests, one for the explanation and one for the summar
 
 In Electron, open **Settings → Once Add-ons → Import addon… → Load directory…** and select this folder.
 It works in packaged builds and remembers the folder; edits reload automatically.
-Use **Unload** to remove the link without deleting the example files.
+Use **Unload folder** to remove the link without deleting the example files.
 
 Alternatively, use **Import folder**, or ZIP this folder and choose **Import ZIP** on the import page.
 Return to the Once Add-ons list and open **What? Wait, who, why?** for its connection,
@@ -19,7 +19,9 @@ Import keeps a snapshot on this device and shows the usual installation review.
 The supplied manifest works directly: Once calculates the script hash for you.
 Reimport to update a snapshot. With encrypted addon sync enabled, installed
 snapshots reach your other devices automatically. For a linked development folder,
-choose **Use this version on my devices** in its settings to share a snapshot.
+choose **Install this version** in its settings to share a snapshot. While an
+installed copy exists, the folder is ignored; the addon's page says so and offers
+to switch to the folder or update the installed copy from it.
 
 Set `ONCE_ADDONS` to this directory and launch an unpackaged Electron build using
 the normal development workflow. It appears in Settings → Once Add-ons, including its

@@ -61,10 +61,16 @@ Folder imports use the same package limits.
 development Electron builds. The chosen directory must contain `once-addon.json`
 and its script, if any, using a plain local `.js` or `.mjs` filename. Once remembers
 up to 16 picker-loaded directories on this device, reloads changed files, and
-shows their settings alongside other addons. **Unload** removes the remembered
-link and runtime contributions without deleting the original files or local
-settings. Remove an installed copy with the same addon ID before loading a linked
-directory. `ONCE_ADDONS` remains available for unpackaged development builds.
+shows their settings alongside other addons. Each addon's page opens with a
+"Where this addon comes from" card naming the folder, URL, or installed copy it
+runs from. **Unload folder** removes the remembered link and runtime
+contributions without deleting the original files or local settings. **Install
+this version** saves the folder's current files as an installed, synced copy.
+An installed copy with the same addon ID takes precedence over a linked folder;
+the installed addon's page then says the folder is ignored and offers **Use the
+folder instead** (removes the installed copy) or **Update installed copy from
+folder** (keeps its settings and tokens). `ONCE_ADDONS` remains available for
+unpackaged development builds.
 
 Browsers expose folder selection as a one-time import and do not offer Electron's
 watched path. ZIP selection uses the platform file picker, including mobile where

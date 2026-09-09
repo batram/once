@@ -110,5 +110,33 @@
 #addon_detail .settings_group { border: 0; padding: 0; margin: 0 0 var(--sp-4); }
 #addon_detail .settings_group > legend { display: none; }
 #addon_install_settings .addon_runtime_status { font-size: var(--fs-meta); color: var(--text-muted-color); }
+
+/* Where the addon comes from, first on its page: a quiet card normally, an
+   attention card when a linked folder is being ignored. */
+#addon_install_settings .addon_source {
+  margin: 0 0 var(--sp-5); padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--divider-color); border-left: 3px solid var(--border-high-color);
+  border-radius: var(--radius-md); background: var(--main-bg-color);
+}
+#addon_install_settings .addon_source--attention { border-left-color: var(--error-color); }
+#addon_install_settings .addon_source > .settings_subheading { margin: 0 0 var(--sp-2); padding: 0; border: 0; }
+#addon_install_settings .addon_source_summary {
+  margin: 0; font-size: var(--fs-dense); line-height: 1.5; color: var(--text-high-color);
+}
+#addon_install_settings .addon_source_path {
+  display: block; margin: var(--sp-2) 0 0; font-family: monospace; font-size: var(--fs-meta);
+  line-height: 1.5; color: var(--text-muted-color); overflow-wrap: anywhere;
+}
+#addon_install_settings .addon_source_actions {
+  display: flex; flex-direction: column; gap: var(--sp-3); margin-top: var(--sp-3);
+}
+#addon_install_settings .addon_source_actions:empty { display: none; }
+#addon_install_settings .addon_source_action {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-2) var(--sp-3);
+}
+#addon_install_settings .addon_source_action > .settings_group_hint { flex: 1 1 240px; margin: 0; }
+#addon_install_settings .addon_source > [role="status"] {
+  margin: var(--sp-2) 0 0; font-size: var(--fs-meta); color: var(--error-color);
+}
 #addon_install_settings #addon_advanced .input_container { min-height: 320px; }
 #addon_install_settings .addon_list_row > * { overflow-wrap: anywhere; }
