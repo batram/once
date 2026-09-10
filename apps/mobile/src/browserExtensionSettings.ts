@@ -66,7 +66,9 @@ export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions)
     }
     if (target === "overview") {
       page.append(element("p", "Firefox extensions for pages opened in Once. Installation and settings stay on this device.", "settings_description"))
-      page.append(button("Install extension", () => show("install")), button("Filter lists & userscripts", () => show("supplemental")))
+      const supplementalButton = button("Filter lists & userscripts", () => show("supplemental"))
+      supplementalButton.dataset.testid = "extension-supplemental"
+      page.append(button("Install extension", () => show("install")), supplementalButton)
       const result = await api.command({ action: "list" })
       if (generation !== ticket) return
       for (const item of result.extensions ?? []) {

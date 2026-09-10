@@ -62,10 +62,14 @@ async function applyExtensionSettings() {
 
 // Saves a fixture filter list and a probing userscript from the settings
 // index, then hands both to the native extension runtime. Both editors are
-// groups of the one Extensions section, so this opens it once. The article
-// fixture carries the elements these rules and the script act on.
+// groups of the one Extensions section, so this opens it once. On Android the
+// section opens on the native extension overview, which keeps the editors one
+// page further in. The article fixture carries the elements these rules and
+// the script act on.
 async function saveExtensionSettings(baseUrl, platform) {
   await clickWeb(await $("[data-settings-target='extensions']"), platform)
+  const supplemental = await $("[data-testid='extension-supplemental']")
+  if (await supplemental.isExisting()) await clickWeb(supplemental, platform)
   await setWebValue(
     await $("[data-testid='filter-lists']"),
     `${baseUrl}/fixtures/mobile-filter-list.txt`
