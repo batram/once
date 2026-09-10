@@ -1,5 +1,11 @@
 import type { MobileBrowserExtension, MobileBrowserExtensions } from "@once/platform-mobile"
 
+/** Marks a control the mobile e2e suite navigates through. */
+function withTestId<T extends HTMLElement>(node: T, id: string): T {
+  node.dataset.testid = id
+  return node
+}
+
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, text = "", className = ""): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag)
   node.textContent = text
@@ -66,9 +72,7 @@ export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions)
     }
     if (target === "overview") {
       page.append(element("p", "Firefox extensions for pages opened in Once. Installation and settings stay on this device.", "settings_description"))
-      const supplementalButton = button("Filter lists & userscripts", () => show("supplemental"))
-      supplementalButton.dataset.testid = "extension-supplemental"
-      page.append(button("Install extension", () => show("install")), supplementalButton)
+      page.append(button("Install extension", () => show("install")), withTestId(button("Filter lists & userscripts", () => show("supplemental")), "extension-supplemental"))
       const result = await api.command({ action: "list" })
       if (generation !== ticket) return
       for (const item of result.extensions ?? []) {
