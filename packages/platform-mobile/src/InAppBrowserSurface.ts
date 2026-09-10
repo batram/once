@@ -56,12 +56,27 @@ export interface BrowserHistoryEvent extends BrowserNavigationEvent {
   canGoBack: boolean
 }
 
+/** The extension page the native host shows, if any; the shell frames it. */
+export interface ExtensionPageState {
+  open: boolean
+  popup: boolean
+  title: string
+  status: string
+  count: number
+}
+
+export interface ExtensionPageCommand {
+  action: "close" | "reload" | "bounds"
+  bounds?: BrowserSurfaceBounds
+}
+
 export interface InAppBrowserSurfaceEvents {
   navigationStarted: BrowserNavigationEvent
   navigationCommitted: BrowserNavigationEvent
   navigationFinished: BrowserNavigationEvent
   navigationFailed: BrowserNavigationFailedEvent
   historyChanged: BrowserHistoryEvent
+  extensionPageChanged: ExtensionPageState
 }
 
 export type BrowserSurfaceEventName = keyof InAppBrowserSurfaceEvents
@@ -81,6 +96,7 @@ export interface InAppBrowserSurface {
     filterLists: FilterListsDocument,
     userscripts: UserscriptsDocument
   ): Promise<void>
+  extensionPage(command: ExtensionPageCommand): Promise<void>
   close(): Promise<void>
   addListener<K extends BrowserSurfaceEventName>(
     event: K,
@@ -101,6 +117,7 @@ interface NativeInAppBrowserPlugin {
   ): Promise<{ value?: string }>
   evaluateJavaScript(options: { script: string }): Promise<{ value?: string }>
   applyExtensionSettings(options: NativeExtensionSettings): Promise<void>
+  extensionPage(options: ExtensionPageCommand): Promise<void>
   close(): Promise<void>
   addListener(
     event: BrowserSurfaceEventName,
@@ -219,6 +236,9 @@ export function createNativeInAppBrowserSurface(): InAppBrowserSurface {
       NativeInAppBrowser.applyExtensionSettings(
         nativeExtensionSettings(filterLists, userscripts)
       ),
+    extensionPage: (command) => NativeInAppBrowser.extensionPage(
+      command.bounds ? { ...command, bounds: normalizeBounds(command.bounds) } : command
+    ),
     close: () => NativeInAppBrowser.close(),
     async addListener(event, listener) {
       const handle = await NativeInAppBrowser.addListener(
@@ -273,6 +293,7 @@ export function createFallbackInAppBrowserSurface(
     showPrompt: async () => null,
     evaluateJavaScript: async () => null,
     applyExtensionSettings: async () => undefined,
+    extensionPage: async () => undefined,
     close: async () => {
       currentUrl = ""
     },

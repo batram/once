@@ -1,14 +1,15 @@
 package com.zmarn.once;
 
 import android.app.Activity;
-import android.app.Dialog;
+import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
-import android.widget.LinearLayout;
-import android.widget.TextView;
+import android.webkit.WebView;
+import android.widget.FrameLayout;
+import com.getcapacitor.JSObject;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 import org.mozilla.geckoview.AllowOrDeny;
 import org.mozilla.geckoview.GeckoResult;
 import org.mozilla.geckoview.GeckoSession;
@@ -16,19 +17,29 @@ import org.mozilla.geckoview.GeckoView;
 import org.mozilla.geckoview.WebExtension;
 import org.mozilla.geckoview.WebRequestError;
 
-/** Extension tabs are real sessions. Popups keep the underlying content tab active. */
+/**
+ * Extension tabs are real sessions. Popups keep the underlying content tab active.
+ * The visible page sits in a host view the shell places below its own header;
+ * the shell draws the close and reload controls and reports the remaining
+ * rectangle, so the app chrome stays in charge of the screen.
+ */
 final class GeckoExtensionPages {
     private final Activity activity;
     private final GeckoEngine engine;
     private final GeckoExtensionManager manager;
+    private final Consumer<JSObject> state;
+    private final WebView shell;
     private final Map<GeckoSession, Page> pages = new LinkedHashMap<>();
+    private FrameLayout host;
     private Page visible;
     private boolean resumed = true;
 
-    GeckoExtensionPages(Activity activity, GeckoEngine engine, GeckoExtensionManager manager) {
+    GeckoExtensionPages(Activity activity, WebView shell, GeckoEngine engine, GeckoExtensionManager manager, Consumer<JSObject> state) {
+        this.shell = shell;
         this.activity = activity;
         this.engine = engine;
         this.manager = manager;
+        this.state = state;
     }
 
     static boolean allowed(String url) {
@@ -57,15 +68,38 @@ final class GeckoExtensionPages {
         Page page = pages.get(session);
         if (page == null) return;
         if (visible != null && visible != page) {
-            visible.dialog.hide();
             visible.session.setActive(false);
             if (!visible.popup && !page.popup) engine.runtime.getWebExtensionController().setTabActive(visible.session, false);
         }
         visible = page;
-        page.dialog.show();
-        page.dialog.getWindow().setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        FrameLayout container = host();
+        container.removeAllViews();
+        container.addView(page.view, new FrameLayout.LayoutParams(-1, -1));
+        container.setVisibility(View.VISIBLE);
+        container.bringToFront();
         page.session.setActive(resumed);
         manager.foregroundChanged();
+        publish();
+    }
+
+    /** Places the host where the shell laid out its frame; bounds are shell CSS pixels. */
+    void setBounds(JSObject bounds) {
+        float density = activity.getResources().getDisplayMetrics().density;
+        FrameLayout container = host();
+        ViewGroup.LayoutParams params = container.getLayoutParams();
+        params.width = Math.round((float) Math.max(0, bounds.optDouble("width", 0)) * density);
+        params.height = Math.round((float) Math.max(0, bounds.optDouble("height", 0)) * density);
+        container.setLayoutParams(params);
+        container.setX(shell.getX() + Math.round((float) Math.max(0, bounds.optDouble("x", 0)) * density));
+        container.setY(shell.getY() + Math.round((float) Math.max(0, bounds.optDouble("y", 0)) * density));
+    }
+
+    void closeVisible() { if (visible != null) close(visible.session); }
+
+    void reloadVisible() {
+        if (visible == null) return;
+        if (!visible.session.isOpen()) visible.session.open(engine.runtime);
+        visible.session.loadUri(visible.url);
     }
 
     boolean hasForegroundTab() { return visible != null && !visible.popup; }
@@ -76,13 +110,15 @@ final class GeckoExtensionPages {
     void close(GeckoSession session) {
         Page page = pages.remove(session);
         if (page == null) return;
-        if (visible == page) visible = null;
-        page.dialog.setOnDismissListener(null);
-        page.dialog.dismiss();
+        if (visible == page) {
+            visible = null;
+            if (host != null) { host.removeAllViews(); host.setVisibility(View.GONE); }
+        }
         page.view.releaseSession();
         if (session.isOpen()) session.close();
         manager.forgetSession(session);
         if (visible == null && !pages.isEmpty()) show(new ArrayList<>(pages.keySet()).get(pages.size() - 1));
+        else publish();
         manager.foregroundChanged();
     }
 
@@ -101,48 +137,49 @@ final class GeckoExtensionPages {
 
     void destroy() {
         for (Page page : new ArrayList<>(pages.values())) {
-            page.dialog.setOnDismissListener(null);
-            page.dialog.dismiss();
             page.view.releaseSession();
             if (page.session.isOpen()) page.session.close();
         }
         pages.clear();
         visible = null;
+        if (host != null && host.getParent() instanceof ViewGroup) ((ViewGroup) host.getParent()).removeView(host);
+        host = null;
+    }
+
+    private FrameLayout host() {
+        if (host != null) return host;
+        host = new FrameLayout(activity);
+        host.setVisibility(View.GONE);
+        ViewGroup parent = (ViewGroup) shell.getParent();
+        // Until the shell reports a frame the host stays a dot; it is still shown so a
+        // page opened before the first layout is not lost, only not yet visible.
+        parent.addView(host, new ViewGroup.LayoutParams(1, 1));
+        return host;
+    }
+
+    private void publish() {
+        JSObject payload = new JSObject();
+        payload.put("open", visible != null);
+        payload.put("popup", visible != null && visible.popup);
+        payload.put("title", visible == null ? "" : visible.title);
+        payload.put("status", visible == null ? "" : visible.status);
+        payload.put("count", pages.size());
+        state.accept(payload);
     }
 
     private final class Page {
         final String owner;
+        final String title;
         final boolean popup;
         final GeckoSession session = new GeckoSession();
         final GeckoView view = new GeckoView(activity);
-        final Dialog dialog = new Dialog(activity, android.R.style.Theme_Material_Light_NoActionBar);
-        final TextView status = new TextView(activity);
         String url = "about:blank";
+        String status = "";
 
         Page(String owner, String title, boolean popup) {
             this.owner = owner;
+            this.title = title;
             this.popup = popup;
-            LinearLayout layout = new LinearLayout(activity);
-            layout.setOrientation(LinearLayout.VERTICAL);
-            LinearLayout controls = new LinearLayout(activity);
-            Button close = new Button(activity);
-            close.setText("Close " + title);
-            close.setMaxLines(2);
-            close.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            close.setOnClickListener(ignored -> close(session));
-            Button reload = new Button(activity);
-            reload.setText("Reload");
-            reload.setOnClickListener(ignored -> {
-                if (!session.isOpen()) session.open(engine.runtime);
-                session.loadUri(url);
-            });
-            controls.addView(close, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-            controls.addView(reload);
-            layout.addView(controls);
-            layout.addView(status);
-            layout.addView(view, new LinearLayout.LayoutParams(-1, 0, 1));
-            dialog.setContentView(layout);
-            dialog.setOnDismissListener(ignored -> close(session));
             view.setSession(session);
             session.setNavigationDelegate(new GeckoSession.NavigationDelegate() {
                 @Override public GeckoResult<AllowOrDeny> onLoadRequest(GeckoSession target, LoadRequest request) {
@@ -153,7 +190,7 @@ final class GeckoExtensionPages {
                     return GeckoResult.fromValue(create(owner, title, false, true));
                 }
                 @Override public GeckoResult<String> onLoadError(GeckoSession target, String uri, WebRequestError error) {
-                    status.setText("Page could not load. Try Reload.");
+                    report("Page could not load. Try Reload.");
                     return null;
                 }
             });
@@ -161,17 +198,22 @@ final class GeckoExtensionPages {
                 @Override public void onPageStart(GeckoSession target, String value) {
                     manager.foregroundChanged();
                     url = value;
-                    status.setText("Loading…");
+                    report("Loading…");
                 }
                 @Override public void onPageStop(GeckoSession target, boolean success) {
-                    status.setText(success ? "" : "Page could not load. Try Reload.");
+                    report(success ? "" : "Page could not load. Try Reload.");
                 }
             });
             session.setContentDelegate(new GeckoSession.ContentDelegate() {
                 @Override public void onCloseRequest(GeckoSession target) { close(target); }
-                @Override public void onCrash(GeckoSession target) { status.setText("Page process crashed. Tap Reload to recover."); }
-                @Override public void onKill(GeckoSession target) { status.setText("Page process stopped. Tap Reload to recover."); }
+                @Override public void onCrash(GeckoSession target) { report("Page process crashed. Tap Reload to recover."); }
+                @Override public void onKill(GeckoSession target) { report("Page process stopped. Tap Reload to recover."); }
             });
+        }
+
+        private void report(String value) {
+            status = value;
+            if (visible == this) publish();
         }
     }
 }

@@ -986,6 +986,70 @@
     display: block;
   }
 
+  /* Frames the native extension page under the active panel's header. The
+     native view fills the rectangle below the bar; only the bar is ours. */
+  #extension_page_frame {
+    position: fixed;
+    z-index: 15;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--main-bg-color);
+    color: var(--text-high-color);
+  }
+
+  #extension_page_frame .extension_page_bar {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: var(--sp-2);
+    min-height: calc(var(--touch) + var(--sp-2));
+    box-sizing: border-box;
+    padding: var(--sp-1) var(--sp-2);
+    border-bottom: var(--m-bw) solid var(--m-ink);
+    background: var(--main-bg-color);
+    font-family: var(--m-sans);
+  }
+
+  #extension_page_frame .extension_page_title {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    font-size: var(--fs-title);
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #extension_page_frame .extension_page_status {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--error-color);
+    font-size: var(--fs-meta);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #extension_page_frame .button {
+    flex: 0 0 auto;
+    min-width: var(--touch);
+    min-height: var(--touch);
+    margin: 0;
+    padding: 0 var(--sp-3);
+    border: var(--m-bw) solid var(--m-ink);
+    border-radius: var(--m-radius);
+    background: var(--main-bg-color);
+    color: var(--text-high-color);
+    font-family: var(--m-sans);
+    font-size: var(--fs-body);
+  }
+
+  #extension_page_frame .button--icon {
+    padding: 0;
+  }
+
   #reading_url_validation,
   #reading_error {
     flex: 0 0 auto;

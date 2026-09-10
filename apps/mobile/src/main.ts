@@ -18,6 +18,7 @@ import {
 import { installStoryMenu } from "./storyMenu"
 import { bindMobileBrowserExtensionSettings } from "./browserExtensionSettings"
 import { bindMobileExtensionToolbar } from "./browserExtensionToolbar"
+import { bindExtensionPageFrame } from "./extensionPageFrame"
 import { installReaderTtsHostBridge } from "./readerTtsHostBridge"
 import { installReaderTtsControls } from "./readerTtsControls"
 import { MobileReadingController } from "./readingController"
@@ -124,9 +125,10 @@ async function startMobileApp(): Promise<void> {
   await sourcePicker.install()
   SourcePickerView.mount(app.client, (url) => sourcePicker.pick(url))
 
+  const extensionPages = bindExtensionPageFrame(browserSurface, open => reading.setExtensionPageOpen(open))
   if (Capacitor.getPlatform() === "android") {
     await App.addListener("backButton", () => {
-      void reading.handleBack().then((handled) => {
+      void extensionPages.close().then((closed) => closed || reading.handleBack()).then((handled) => {
         if (!handled) void App.exitApp()
       })
     })

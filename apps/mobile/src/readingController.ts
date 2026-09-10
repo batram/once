@@ -60,6 +60,10 @@ export class MobileReadingController {
     await this.nativeReading.install()
   }
 
+  setExtensionPageOpen(open: boolean): void {
+    this.nativeReading.setExtensionPageOpen(open)
+  }
+
   async handleBack(): Promise<boolean> {
     const dialog = document.querySelector<HTMLDialogElement>("dialog[open]")
     if (dialog) {

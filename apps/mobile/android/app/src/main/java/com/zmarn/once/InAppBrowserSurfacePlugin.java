@@ -81,8 +81,9 @@ public class InAppBrowserSurfacePlugin extends Plugin {
     public void load() {
         getActivity().runOnUiThread(() -> {
             engine = GeckoEngine.get(getContext());
-            extensions = new GeckoExtensionManager(getActivity(), engine, () -> session,
-                () -> notifyListeners("extensionsChanged", new JSObject()));
+            extensions = new GeckoExtensionManager(getActivity(), getBridge().getWebView(), engine, () -> session,
+                () -> notifyListeners("extensionsChanged", new JSObject()),
+                payload -> notifyListeners("extensionPageChanged", payload));
             engine.ready().accept(installed -> {
                 if (!destroyed) { extensions.adopt(installed); attachBridge(); }
             }, error -> Log.e(TAG, "Extension startup failed; next open will retry", error));
@@ -169,6 +170,20 @@ public class InAppBrowserSurfacePlugin extends Plugin {
     public void setBounds(PluginCall call) {
         getActivity().runOnUiThread(() -> {
             if (surface != null) applyBounds(call.getData());
+            call.resolve();
+        });
+    }
+
+    /** The shell frames the visible extension page: it draws the controls and reports the rectangle. */
+    @PluginMethod
+    public void extensionPage(PluginCall call) {
+        String action = call.getString("action", "");
+        getActivity().runOnUiThread(() -> {
+            if (extensions == null) { call.reject("Extensions are not ready"); return; }
+            if ("close".equals(action)) extensions.pages.closeVisible();
+            else if ("reload".equals(action)) extensions.pages.reloadVisible();
+            else if ("bounds".equals(action)) extensions.pages.setBounds(call.getObject("bounds", new JSObject()));
+            else { call.reject("Unknown extension page action"); return; }
             call.resolve();
         });
     }
