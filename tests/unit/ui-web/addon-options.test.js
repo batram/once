@@ -63,6 +63,15 @@ test("development options persist locally, preserve drafts, restore defaults and
     button("Update installed copy from folder").click()
     await settle()
     assert.deepEqual(calls, ["install", "use", "replace"])
+    // A shadowed page's actions install the folder as it was read; an edit to
+    // the folder changes nothing visible about the installed copy, so the page
+    // has to notice the folder itself or its button keeps installing stale files.
+    const edited = new Map(controls)
+    edited.set("shadowed", { ...controls.get("shadowed"), files: "edited", replace: async () => calls.push("replace edited") })
+    renderAddonOptions(client, [entry, plain, fromUrl], new Set(["dev-example"]), edited)
+    button("Update installed copy from folder").click()
+    await settle()
+    assert.equal(calls.at(-1), "replace edited")
   } finally {
     for (const name of names) {
       if (previous[name] === undefined) Reflect.deleteProperty(globalThis, name)

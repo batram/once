@@ -91,10 +91,13 @@ export function mountAddons(client: OnceClient, options: MountAddonsOptions = {}
       const unload = dev.removable && options.devAddons?.removeDirectory
         ? { unload: async () => { await options.devAddons?.removeDirectory?.(dev.directory) } } : {}
       const installed = candidates.find(({ entry }) => entry.manifest.id === read.manifest.id)
+      // The manifest carries the script's integrity, so it names the folder's files as read just now.
+      const files = JSON.stringify(read.manifest)
       if (installed) {
         // The installed copy wins; the folder is ignored. Its page says so and
-        // offers the two ways out rather than a toast that names neither.
-        devControls.set(read.manifest.id, { kind: "shadowed", directory: dev.directory, ...unload,
+        // offers the two ways out rather than a toast that names neither. The
+        // actions install what was read now, so the page must redraw on edits.
+        devControls.set(read.manifest.id, { kind: "shadowed", directory: dev.directory, files, ...unload,
           useFolder: async () => {
             await client.updateAddons(doc => ({ ...doc, addons: doc.addons.filter(item => item.manifest.id !== read.manifest.id) }))
             localStorage.setItem(`once:dev-addon-enabled:${read.manifest.id}`, "true")
@@ -107,7 +110,7 @@ export function mountAddons(client: OnceClient, options: MountAddonsOptions = {}
         continue
       }
       devIds.add(read.manifest.id)
-      devControls.set(read.manifest.id, { kind: "folder", directory: dev.directory, ...unload,
+      devControls.set(read.manifest.id, { kind: "folder", directory: dev.directory, files, ...unload,
         install: async () => {
           await client.shareAddonSnapshot({ enabled: true, manifest: read.manifest, options: readDevAddonOptions(read.manifest.id) }, dev.code)
           localStorage.setItem(`once:dev-addon-enabled:${read.manifest.id}`, "false")

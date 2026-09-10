@@ -123,6 +123,24 @@ test("SearXNG is opt-in, limited to five results and emits only referenced citat
   assert.equal(f.requests.filter(request => request.connection === "searxng").length, 1)
 })
 
+test("Tavily fallback posts a JSON query to its own connection and shares the citation mapping", async () => {
+  const f = await fixture({ webSearch: true, searchProvider: "tavily" }, connection => connection === "tavily"
+    ? { status: 200, text: JSON.stringify({ results: [{ title: "Source", url: "https://source.test/", content: "Evidence" }] }) }
+    : { status: 200, text: JSON.stringify({ choices: [{ message: { content: "Explanation [S1]." } }] }) })
+  const result = await f.run({ type: "open" })
+  assert.deepEqual(f.requests.map(request => request.connection), ["tavily", "compatible", "compatible"])
+  assert.equal(f.requests[0].request.method, "POST")
+  assert.deepEqual(JSON.parse(f.requests[0].request.body), { query: "What is ExampleApp 2.0?", max_results: 5 })
+  assert.deepEqual(result.messages[0].sources, [{ title: "[S1] Source", url: "https://source.test/" }])
+  const missing = await fixture({ webSearch: true, searchProvider: "tavily", tavilyEndpoint: "" })
+  assert.match((await missing.run({ type: "open" })).status, /Tavily/)
+  assert.equal(missing.requests.length, 0)
+  const failed = await fixture({ webSearch: true, searchProvider: "tavily" }, () => ({ status: 401, text: "{}" }))
+  const failure = await failed.run({ type: "open" })
+  assert.match(failure.status, /API key/)
+  assert.ok(failure.actions.some(action => action.id === "without-search"))
+})
+
 test("search failure offers an explicit no-search retry; auth errors never trigger fallback", async () => {
   const f = await fixture({ webSearch: true })
   const failure = await f.run({ type: "open" })

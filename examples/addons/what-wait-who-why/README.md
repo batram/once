@@ -125,11 +125,15 @@ its options, restarting its sandbox, or restarting Once clears the session.
 No conversations are persisted. Responses appear when complete; streaming is not
 implemented. Stop prevents late answers; Retry repeats a failed request.
 
-Web search is off by default. Enable it to use OpenAI or Anthropic's native search,
-or configure a SearXNG `/search` endpoint for compatible models and native-search
-unavailability. The SearXNG instance must allow `format=json`; many public instances
-do not. Its token is optional. Fallback search sends one query, uses at most five
-bounded snippets, and does not crawl result pages. Only referenced, supplied sources
+Web search is off by default. Enable it to use OpenAI or Anthropic's native search.
+Compatible models, and native-search unavailability, use the fallback provider you
+pick under **Web search**: a SearXNG `/search` endpoint or [Tavily](https://tavily.com).
+The SearXNG instance must allow `format=json`; many public instances do not, so a
+local instance is the practical choice. Its token is optional. Tavily's free tier
+gives 1,000 credits a month without a card, one per search: create a key in its
+dashboard and save it in the masked field, keeping the default endpoint. Fallback
+search sends one query, uses at most five bounded snippets, and does not crawl
+result pages. Only referenced, supplied sources
 become links. Summaries always use the article alone. Search failures offer Retry
 and Answer without search; authentication errors and rate limits do not silently
 switch providers.

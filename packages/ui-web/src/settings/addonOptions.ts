@@ -24,6 +24,8 @@ export const DEV_OPTIONS_EVENT = "once:addon-options"
 export interface DevAddonControls {
   kind: "folder" | "shadowed"
   directory: string
+  /** Identity of the folder's current files: the actions below capture them, so the page redraws when they change. */
+  files?: string
   unload?: () => Promise<void>
   /** Folder: saves the folder's files as an installed, synced copy. */
   install?: () => Promise<void>
@@ -56,7 +58,7 @@ export function renderAddonOptions(client: OnceClient, entries: readonly AddonEn
     const { manifest } = entry
     const dev = devIds.has(manifest.id)
     const controls = devControls.get(manifest.id)
-    const signature = JSON.stringify([manifest, dev, entry.source?.url, controls?.kind, controls?.directory, !!controls?.unload])
+    const signature = JSON.stringify([manifest, dev, entry.source?.url, controls?.kind, controls?.directory, controls?.files, !!controls?.unload])
     const existing = groups.get(manifest.id)
     if (existing?.signature === signature && existing.element.isConnected) {
       existing.element.dataset.enabled = String(entry.enabled)
@@ -105,11 +107,14 @@ function settingsGroup(client: OnceClient, entry: AddonEntry, dev: boolean, cont
   }
   const values = validateConfig(schema, entry.options ?? {}) as Record<string, unknown>
   const fields: { element: HTMLElement; schema: ConfigSchema }[] = []
+  // A field hides with the field its condition names, so a hidden toggle takes its dependants along.
+  const visible = (condition: ConfigSchema["visibleWhen"], depth = 0): boolean => {
+    if (!condition || depth > 3) return true
+    if (values[condition.field] !== condition.equals) return false
+    return visible(schema.type === "object" ? schema.properties[condition.field]?.visibleWhen : undefined, depth + 1)
+  }
   const updateVisibility = () => {
-    for (const field of fields) {
-      const condition = field.schema.visibleWhen
-      field.element.hidden = !!condition && values[condition.field] !== condition.equals
-    }
+    for (const field of fields) field.element.hidden = !visible(field.schema.visibleWhen)
   }
   const save = async (name: string, value: unknown): Promise<void> => {
     const options = validateConfig(schema, { ...values, [name]: value }) as Record<string, unknown>
