@@ -9,18 +9,18 @@ test("extensions panel supports direct actions, persistent pins, and settings @i
     const toolbar = window.locator("#extension_actions")
     const trigger = toolbar.getByRole("button", { name: "Extensions", exact: true })
     await expect.poll(() => window.evaluate(async () => (await window.onceElectron.extensions.list()).length)).toBe(2)
+    // The panel is found by what it shows, not by which page Playwright reports
+    // next: its window event also fires for tab contents, and an extension page
+    // opened moments earlier can be the one it reports. The panel window exists
+    // before its menu page has loaded, so its URL is polled on the navigation
+    // budget rather than read once.
     const openPanel = async () => {
-      const created = electronApp.waitForEvent("window", { predicate: page => page !== window })
+      const isPanel = page => page !== window && /extension_menu/.test(page.url())
       await trigger.click()
-      const panel = await created
-      // The window event fires when the panel window exists, still on its
-      // initial blank document, so a load-state wait returns at once. Wait for
-      // the menu page itself to arrive, on the navigation budget, before
-      // asking about its content: on a loaded CI runner the load alone can
-      // outlast an assertion's timeout.
-      await panel.waitForURL(/extension_menu/)
+      await expect.poll(() => electronApp.windows().some(isPanel), { timeout: 20_000 }).toBe(true)
+      const panel = electronApp.windows().find(isPanel)
       await panel.waitForLoadState("domcontentloaded")
-      await expect(panel.getByRole("heading", { name: "Extensions" }), `panel at ${panel.url()}`).toBeVisible()
+      await expect(panel.getByRole("heading", { name: "Extensions" })).toBeVisible()
       return panel
     }
     let panel = await openPanel()
@@ -30,11 +30,13 @@ test("extensions panel supports direct actions, persistent pins, and settings @i
     await expect(panel.getByRole("button", { name: `Unpin ${info.name}`, exact: true })).toHaveAttribute("aria-pressed", "true")
     expect(await panel.locator("#extensions").evaluate(element => element.scrollHeight <= element.clientHeight)).toBe(true)
     await panel.screenshot({ path: "artifacts/extension-toolbar-panel.png" })
-    await toolbar.screenshot({ path: "artifacts/extension-toolbar-icons.png" })
     await panel.getByRole("button", { name: "Manage extensions", exact: true }).click()
     await expect(window.locator("#left_panel")).toHaveAttribute("active_panel", "settings")
     await expect(window.locator('.settings_section[data-settings-section="extensions"]')).toHaveClass(/active/)
     await expect(trigger).toHaveAttribute("aria-expanded", "false")
+    // Taken once the panel is gone: capturing the main window can take focus,
+    // and the panel closes on blur.
+    await toolbar.screenshot({ path: "artifacts/extension-toolbar-icons.png" })
 
     panel = await openPanel()
     await expect(panel.getByRole("button", { name: `Unpin ${info.name}`, exact: true })).toBeVisible()
