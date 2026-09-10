@@ -16,10 +16,18 @@ test("Android browser menu occupies the address action position and routes exten
   const commands = []
   let menu
   let selection = null
+  let noPage = false
+  let manager = 0
+  const settingsButton = document.createElement("button")
+  settingsButton.id = "settings_menu_btn"
+  settingsButton.onclick = () => { manager += 1 }
+  document.body.append(settingsButton)
   exports.bindMobileExtensionToolbar({ command: async command => {
     commands.push(command)
+    if (command.action === "action") return { noPage }
     return { extensions: [
       { id: "popup", name: "Popup", enabled: true, hasAction: true },
+      { id: "both", name: "Both", enabled: true, hasAction: true, hasOptions: true },
       { id: "options", name: "Options", enabled: true, hasOptions: true },
       { id: "disabled", name: "Disabled", enabled: false, hasAction: true }
     ] }
@@ -30,7 +38,9 @@ test("Android browser menu occupies the address action position and routes exten
   assert.equal(button.type, "button")
   await button.onclick()
   assert.equal(menu.browserControls, true)
-  assert.deepEqual(menu.items.map(item => item.id), ["popup", "options", "once:manage"])
+  assert.deepEqual(menu.items.map(item => item.id), ["popup", "both", "options", "once:manage"])
+  assert.deepEqual(menu.items.map(item => item.settingsId), [undefined, "once:settings:both", undefined, undefined],
+    "only rows whose main tap runs an action need a separate settings control")
   assert.equal(commands.length, 1, "dismissing the menu performs no extension action")
   assert.equal(button.getAttribute("aria-expanded"), "false")
   selection = "options"
@@ -39,4 +49,17 @@ test("Android browser menu occupies the address action position and routes exten
   selection = "popup"
   await button.onclick()
   assert.deepEqual(commands.at(-1), { action: "action", id: "popup" })
+  assert.equal(manager, 0)
+  selection = "once:settings:both"
+  await button.onclick()
+  assert.deepEqual(commands.at(-1), { action: "options", id: "both" })
+  noPage = true
+  selection = "popup"
+  const validation = document.querySelector("#reading_url_validation")
+  validation.textContent = "stale"
+  validation.hidden = false
+  await button.onclick()
+  assert.deepEqual(commands.at(-1), { action: "action", id: "popup" })
+  assert.equal(manager, 1, "an action without a page or an options page opens the manager")
+  assert.equal(validation.hidden, true, "opening the menu clears an earlier error")
 })

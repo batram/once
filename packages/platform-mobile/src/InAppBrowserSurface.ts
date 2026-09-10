@@ -23,6 +23,8 @@ export interface NativeOverlayMenuItem {
   id: string
   label: string
   enabled: boolean
+  /** Resolves instead of `id` when the row's trailing settings control is chosen. */
+  settingsId?: string
 }
 
 export interface NativeOverlayMenuOptions {

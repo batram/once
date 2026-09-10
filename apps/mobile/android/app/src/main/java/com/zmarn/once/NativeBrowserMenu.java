@@ -67,14 +67,26 @@ final class NativeBrowserMenu {
                 JSONObject item = items.getJSONObject(index);
                 String id = item.getString("id");
                 if (!"once:manage".equals(id)) count++;
-                Button row = control(activity, item.getString("label"), item.optBoolean("enabled", true), () -> {
+                String label = item.getString("label");
+                Button row = control(activity, label, item.optBoolean("enabled", true), () -> {
                     if (settled.compareAndSet(false, true)) call.resolve(new JSObject().put("id", id));
                     dialog.dismiss();
                 });
                 row.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
                 row.setPadding(spacing, 0, spacing, 0);
                 setIcon(activity, row, item.optString("iconDataUrl", ""), "once:manage".equals(id));
-                entries.addView(row, new LinearLayout.LayoutParams(-1, -2));
+                String settingsId = item.optString("settingsId", "");
+                if (settingsId.isEmpty()) { entries.addView(row, new LinearLayout.LayoutParams(-1, -2)); continue; }
+                LinearLayout line = new LinearLayout(activity);
+                line.addView(row, new LinearLayout.LayoutParams(0, -2, 1));
+                Button settings = control(activity, "⚙", true, () -> {
+                    if (settled.compareAndSet(false, true)) call.resolve(new JSObject().put("id", settingsId));
+                    dialog.dismiss();
+                });
+                settings.setContentDescription(label + " settings");
+                settings.setTextSize(22);
+                line.addView(settings, new LinearLayout.LayoutParams(Math.round(56 * activity.getResources().getDisplayMetrics().density), -2));
+                entries.addView(line, new LinearLayout.LayoutParams(-1, -2));
             }
         } catch (Exception error) { call.reject("Invalid browser menu items", error); return; }
         String label = "Extensions (" + count + ")";

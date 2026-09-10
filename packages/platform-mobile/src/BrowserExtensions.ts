@@ -22,7 +22,7 @@ export interface MobileExtensionCommand {
 }
 
 export interface MobileBrowserExtensions {
-  command(options: MobileExtensionCommand): Promise<{ extensions?: MobileBrowserExtension[]; cancelled?: boolean }>
+  command(options: MobileExtensionCommand): Promise<{ extensions?: MobileBrowserExtension[]; cancelled?: boolean; noPage?: boolean }>
   onChanged(listener: () => void): Promise<() => void>
 }
 

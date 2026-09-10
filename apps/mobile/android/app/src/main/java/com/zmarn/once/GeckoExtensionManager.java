@@ -182,20 +182,32 @@ final class GeckoExtensionManager implements WebExtension.ActionDelegate, WebExt
             succeed(call, new JSObject());
         } else if ("action".equals(action)) {
             if (!extension.metaData.enabled) throw new IllegalStateException("Enable the extension first");
+            if (actionTab() == null) {
+                // Without a page there is nothing to act on, so fall back to the
+                // extension's own settings; the shell opens its manager otherwise.
+                if (extension.metaData.optionsPageUrl != null) onOpenOptionsPage(extension);
+                succeed(call, new JSObject().put("noPage", extension.metaData.optionsPageUrl == null));
+                return;
+            }
             click(extension);
             succeed(call, new JSObject());
         } else throw new IllegalArgumentException("Unknown extension operation");
     }
 
+    private GeckoSession actionTab() {
+        GeckoSession tab = pages.foregroundTab() != null ? pages.foregroundTab() : reading.get();
+        return tab != null && tab.isOpen() ? tab : null;
+    }
+
     private void click(WebExtension extension) {
         WebExtension.Action action = actions.get(extension.id);
-        GeckoSession tab = pages.foregroundTab() != null ? pages.foregroundTab() : reading.get();
-        if (tab == null || !tab.isOpen()) throw new IllegalStateException("Open a reading page before using this extension action");
+        GeckoSession tab = actionTab();
+        if (tab == null) throw new IllegalStateException("Open a reading page before using this extension action");
         WebExtension.Action override = tabActions.getOrDefault(tab, new HashMap<>()).get(extension.id);
         if (override != null) action = action == null ? override : override.withDefault(action);
         if (action == null || Boolean.FALSE.equals(action.enabled)) throw new IllegalStateException("This extension has no available action on the current page");
         popupContext = tab;
-        if (tab != null && tab.isOpen()) engine.runtime.getWebExtensionController().setTabActive(tab, true);
+        engine.runtime.getWebExtensionController().setTabActive(tab, true);
         action.click();
     }
 

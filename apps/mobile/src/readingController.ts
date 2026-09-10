@@ -25,6 +25,7 @@ export class MobileReadingController {
   private activePanel = "stories"
   private settingsReturnPanel: "stories" | "reading" = "stories"
   private editingAddress = false
+  private renderedNavigationId = 0
   private currentStoryRow: StoryListItem | null = null
   private currentCardStoryHref = ""
   private currentStoryCollapsed = false
@@ -373,6 +374,10 @@ export class MobileReadingController {
     this.content.dataset.mode = state.mode
     this.content.dataset.loadState = state.loadState
     this.content.dataset.navigationId = String(state.navigationId)
+    if (state.navigationId !== this.renderedNavigationId) {
+      this.renderedNavigationId = state.navigationId
+      this.clearValidation()
+    }
     required("#reading_empty").hidden = state.currentUrl !== ""
     const redirectedStoryUrl = story
       ? URLRedirect.redirect_url(story.href)
