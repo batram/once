@@ -6,7 +6,7 @@ embedded browsing surface. Their configuration and runtime ownership are separat
 | Surface | Once add-ons | Browser filtering and userscripts |
 | --- | --- | --- |
 | Electron | Declarative contributions and sandboxed scripts | Bundled extensions plus user-installed Firefox MV2 XPIs; see the management and API limits below |
-| Android | Declarative contributions and sandboxed scripts in the app shell | GeckoView built-ins; synced additions handled by Once's bridge |
+| Android | Declarative contributions and sandboxed scripts in the app shell | GeckoView built-ins and user-installed signed Firefox extensions; synced additions handled by Once's bridge |
 | iOS | Shared add-on implementation; device validation remains required | WebKit content rules and the documented small GM shim |
 | Chrome side panel | Declarative contributions and sandboxed scripts | Browser-native extensions remain the user's browser configuration |
 | Firefox side panel | Declarative contributions; scripts require a configured hosted sandbox | Browser-native extensions remain the user's browser configuration |
@@ -147,9 +147,31 @@ extension files, and host permissions are outside this feature.
 The installer accepts packages independently of these feature limits. A successful
 background-page load is not proof that every feature works. This custom runtime
 is not a full implementation of Firefox's API or permission model. Install only
-extensions whose source you trust. Android remains on its existing GeckoView
-built-in installation path; iOS cannot execute Firefox WebExtensions. The new
-installer and arbitrary storage sync integration are Electron features.
+extensions whose source you trust. Android uses GeckoView's own installer and
+permission model, described below. Arbitrary storage sync selection remains an
+Electron feature; iOS cannot execute Firefox WebExtensions.
+
+## Installing and managing Firefox extensions on Android
+
+Settings → Browser Extensions lists enabled and disabled extensions. Install from
+an Android-compatible Firefox Add-ons listing or choose a Mozilla-signed local
+XPI. Gecko checks the package signature and compatibility, then Once presents
+the verified identity and requested access in a native permission dialog.
+
+Management includes enable/disable, options pages, action popups, manual update
+checks, and removal with a data-removal confirmation. Bundled uBlock Origin and
+Violentmonkey can be disabled; they update with Once and cannot be removed. The
+internal Once bridge is protected. The reading address bar's three-dot browser
+menu contains navigation/reload controls and an expandable Extensions entry.
+Extension-created tabs use separate Gecko sessions with
+close/reload controls.
+
+Installed packages and their state remain on this device. This is not full
+desktop Firefox compatibility: Once does not supply desktop-only APIs, Firefox
+Account sync, a browser bookmarks/history database, a full tab strip, or a
+general Android download manager. Page-action-only extensions and extension
+pages requiring unimplemented browser UI delegates may need further host work.
+See [Android architecture, limits, and validation](plans/android-gecko-extension-management.md).
 
 ### Requested extension builds
 

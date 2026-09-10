@@ -19,12 +19,14 @@ export interface BrowserSurfaceOpenOptions {
 export type NativeOverlayAnchor = BrowserSurfaceBounds
 
 export interface NativeOverlayMenuItem {
+  iconDataUrl?: string
   id: string
   label: string
   enabled: boolean
 }
 
 export interface NativeOverlayMenuOptions {
+  browserControls?: boolean
   title?: string
   items: NativeOverlayMenuItem[]
   anchor?: NativeOverlayAnchor

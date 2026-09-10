@@ -2,7 +2,6 @@
 // Applies Once's synced additions inside GeckoView. Third-party built-ins have
 // isolated storage/background pages, so the trusted bridge owns this narrow
 // hand-off rather than attempting to mutate uBlock or Violentmonkey internals.
-const native = browser.runtime.connectNative("once_surface")
 let registrations = []
 let filterRegistration
 let blocked = []
@@ -75,7 +74,7 @@ async function installUserscripts(document, current) {
   }
 }
 
-native.onMessage.addListener(message => {
+function receiveSettings(message) {
   if (message?.type !== "extension-settings") return
   const revision = ++settingsRevision
   const current = () => revision === settingsRevision
@@ -88,4 +87,13 @@ native.onMessage.addListener(message => {
       for (const result of results) if (result.status === "rejected") console.error("Unable to apply Once extension settings", result.reason)
     })
   }).catch(error => console.error("Unable to apply Once extension settings", error))
-})
+}
+
+// The runtime outlives the Android activity. Reconnect when that activity's
+// delegate goes away so the new host can send its current settings again.
+function connectHost() {
+  const port = browser.runtime.connectNative("once_surface")
+  port.onMessage.addListener(receiveSettings)
+  port.onDisconnect.addListener(() => setTimeout(connectHost, 1000))
+}
+connectHost()

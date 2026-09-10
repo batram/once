@@ -132,7 +132,7 @@ test("native embedded browsers support pull-to-refresh", () => {
   ), "utf8")
 
   assert.match(android, /new SwipeRefreshLayout/)
-  assert.match(android, /setOnRefreshListener\(\(\) -> session\.reload\(\)\)/)
+  assert.match(android, /setOnRefreshListener\(this::reloadSession\)/)
   assert.match(android, /refreshSurface\.setRefreshing\(false\)/)
   assert.match(ios, /view\.scrollView\.refreshControl = refreshControl/)
   assert.match(ios, /@objc private func refreshBrowser/)
@@ -200,11 +200,13 @@ test("native embedded browsers present menus and prompts above web content", () 
   ), "utf8")
 
   assert.match(android, /public void showMenu\(PluginCall call\)/)
+  const dialogs = fs.readFileSync(path.join(root,
+    "apps/mobile/android/app/src/main/java/com/zmarn/once/NativeSurfaceDialogs.java"), "utf8")
   assert.match(
-    android,
-    /new PopupMenu\(getActivity\(\), anchor, Gravity\.END\)/
+    dialogs,
+    /new PopupMenu\(bridge.getActivity\(\), anchor, Gravity\.END\)/
   )
-  assert.match(android, /anchor\.post\(popup::show\)/)
+  assert.match(dialogs, /anchor\.post\(popup::show\)/)
   assert.match(android, /public void showPrompt\(PluginCall call\)/)
   assert.match(ios, /@objc func showMenu\(_ call: CAPPluginCall\)/)
   assert.match(ios, /preferredStyle: \.actionSheet/)

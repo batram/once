@@ -4,6 +4,7 @@ import { createOnceApp } from "@once/app"
 import {
   createDefaultMobileNativeBridge,
   createInAppBrowserSurface,
+  createMobileBrowserExtensions,
   createMobilePlatform
 } from "@once/platform-mobile"
 import {
@@ -15,6 +16,8 @@ import {
   UndoSnackbar
 } from "@once/ui-web"
 import { installStoryMenu } from "./storyMenu"
+import { bindMobileBrowserExtensionSettings } from "./browserExtensionSettings"
+import { bindMobileExtensionToolbar } from "./browserExtensionToolbar"
 import { installReaderTtsHostBridge } from "./readerTtsHostBridge"
 import { installReaderTtsControls } from "./readerTtsControls"
 import { MobileReadingController } from "./readingController"
@@ -171,6 +174,11 @@ async function startMobileApp(): Promise<void> {
     // chevron stays live on the section index and leaves the panel from there.
     exitSettings: () => void reading.handleBack()
   })
+  const browserExtensions = createMobileBrowserExtensions()
+  if (browserExtensions) {
+    bindMobileBrowserExtensionSettings(browserExtensions)
+    bindMobileExtensionToolbar(browserExtensions, browserSurface)
+  }
   // Touch has no keyboard shortcut, no mouse back button and no room left on
   // the back gesture, so undo has to offer itself. Mounted here rather than in
   // mountOnceUi so the desktop shells keep their existing affordances only.

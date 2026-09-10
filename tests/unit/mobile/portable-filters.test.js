@@ -30,7 +30,7 @@ test("mobile smoke filter list blocks its image through the Android bridge", asy
     fetch,
     console: { info() {}, error(...details) { errors.push(details) } },
     browser: {
-      runtime: { connectNative: () => ({ onMessage: { addListener: listener => { receive = listener } } }) },
+      runtime: { connectNative: () => ({ onMessage: { addListener: listener => { receive = listener } }, onDisconnect: { addListener() {} } }) },
       contentScripts: { register: async registration => {
         css.push(...(registration.css || []).map(entry => entry.code))
         return { unregister: async () => {} }
@@ -65,7 +65,7 @@ test("Android settings discard an old download before committing newer rules", a
     console: { info() {}, error(error) { throw error } },
     fetch: url => new Promise(resolve => downloads.push({ url, resolve })),
     browser: {
-      runtime: { connectNative: () => ({ onMessage: { addListener: listener => { receive = listener } } }) },
+      runtime: { connectNative: () => ({ onMessage: { addListener: listener => { receive = listener } }, onDisconnect: { addListener() {} } }) },
       contentScripts: { register: async () => ({ unregister: async () => {} }) },
       webRequest: { onBeforeRequest: { addListener: listener => { request = listener } } }
     }

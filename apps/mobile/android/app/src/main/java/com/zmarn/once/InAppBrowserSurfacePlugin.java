@@ -1,31 +1,28 @@
 package com.zmarn.once;
 
-import android.app.AlertDialog;
+import android.app.Activity;
+import android.os.Handler;
+import android.os.Looper;
 import android.content.Intent;
 import android.net.Uri;
 import android.util.Log;
-import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.WebView;
-import android.widget.EditText;
-import android.widget.PopupMenu;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
-import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.ActivityCallback;
+import androidx.activity.result.ActivityResult;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import org.json.JSONObject;
 import org.mozilla.geckoview.AllowOrDeny;
 import org.mozilla.geckoview.GeckoResult;
-import org.mozilla.geckoview.GeckoRuntime;
-import org.mozilla.geckoview.GeckoRuntimeSettings;
 import org.mozilla.geckoview.GeckoSession;
 import org.mozilla.geckoview.GeckoView;
 import org.mozilla.geckoview.WebExtension;
@@ -42,20 +39,15 @@ import org.mozilla.geckoview.WebResponse;
 @CapacitorPlugin(name = "InAppBrowserSurface")
 public class InAppBrowserSurfacePlugin extends Plugin {
     private static final String TAG = "OnceSurface";
-    private static final String BRIDGE_EXTENSION_ID = "once-surface@zmarn.com";
     private static final String BRIDGE_NATIVE_APP = "once_surface";
-    private static final String[][] BUILT_IN_EXTENSIONS = {
-        { "resource://android/assets/once-surface/", BRIDGE_EXTENSION_ID },
-        { "resource://android/assets/ublock-origin/", "uBlock0@raymondhill.net" },
-        { "resource://android/assets/violentmonkey/", "{aecec67f-0d10-4fa7-b7c7-609a2db280cf}" }
-    };
-
-    /** One engine per process; sessions come and go with the surface. */
-    private static GeckoRuntime runtime;
-    private static WebExtension bridgeExtension;
-    /** Every built-in that installed, by id; each gets tab delegates on the session. */
-    private static final Map<String, WebExtension> installedExtensions = new HashMap<>();
-    private static InAppBrowserSurfacePlugin activePlugin;
+    private GeckoEngine engine;
+    private GeckoExtensionManager extensions;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private boolean destroyed;
+    private boolean resumed = true;
+    private boolean visible;
+    private long surfaceGeneration;
+    private final Map<PluginCall, Runnable> waiting = new HashMap<>();
 
     private GeckoView surface;
     private GeckoSession session;
@@ -64,6 +56,7 @@ public class InAppBrowserSurfacePlugin extends Plugin {
     private long activeNavigation;
     private String currentUrl = "";
     private boolean canGoBack;
+    private boolean canGoForward;
     private int scrollY;
 
     /** Set once the shell asked for a page; the session's initial about:blank is not one. */
@@ -85,7 +78,42 @@ public class InAppBrowserSurfacePlugin extends Plugin {
      */
     @Override
     public void load() {
-        ensureRuntime(getContext());
+        getActivity().runOnUiThread(() -> {
+            engine = GeckoEngine.get(getContext());
+            extensions = new GeckoExtensionManager(getActivity(), engine, () -> session,
+                () -> notifyListeners("extensionsChanged", new JSObject()));
+            engine.ready().accept(installed -> {
+                if (!destroyed) { extensions.adopt(installed); attachBridge(); }
+            }, error -> Log.e(TAG, "Extension startup failed; next open will retry", error));
+        });
+    }
+
+    @PluginMethod
+    public void extensionCommand(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            if ("chooseFile".equals(call.getString("action"))) {
+                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("*/*");
+                startActivityForResult(call, intent, "extensionFileChosen");
+            } else extensions.command(call);
+        });
+    }
+
+    @ActivityCallback
+    private void extensionFileChosen(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null || result.getData().getData() == null) {
+            call.resolve(new JSObject().put("cancelled", true));
+            return;
+        }
+        Uri uri = result.getData().getData();
+        new Thread(() -> {
+            try {
+                java.io.File file = GeckoExtensionFiles.copy(getContext(), uri);
+                handler.post(() -> extensions.installFile(call, file));
+            } catch (Exception error) { handler.post(() -> call.reject("Could not read extension file", error)); }
+        }, "once-extension-file").start();
     }
 
     @PluginMethod
@@ -95,7 +123,7 @@ public class InAppBrowserSurfacePlugin extends Plugin {
             call.reject("Embedded browsing only supports http and https URLs");
             return;
         }
-        getActivity().runOnUiThread(() -> {
+        ready(call, () -> {
             ensureSurface();
             applyBounds(call.getObject("bounds", new JSObject()));
             setSurfaceVisible(call.getBoolean("visible", true));
@@ -112,7 +140,7 @@ public class InAppBrowserSurfacePlugin extends Plugin {
             call.reject("Embedded browsing only supports http and https URLs");
             return;
         }
-        getActivity().runOnUiThread(() -> {
+        ready(call, () -> {
             ensureSurface();
             pageRequested = true;
             session.loadUri(url);
@@ -122,8 +150,8 @@ public class InAppBrowserSurfacePlugin extends Plugin {
 
     @PluginMethod
     public void reload(PluginCall call) {
-        getActivity().runOnUiThread(() -> {
-            if (session != null) session.reload();
+        ready(call, () -> {
+            reloadSession();
             call.resolve();
         });
     }
@@ -154,96 +182,13 @@ public class InAppBrowserSurfacePlugin extends Plugin {
 
     @PluginMethod
     public void showMenu(PluginCall call) {
-        getActivity().runOnUiThread(() -> {
-            JSArray items = call.getArray("items");
-            if (items == null) {
-                call.reject("Native menu items are required");
-                return;
-            }
-            String[] labels = new String[items.length()];
-            String[] ids = new String[items.length()];
-            boolean[] enabled = new boolean[items.length()];
-            try {
-                for (int index = 0; index < items.length(); index++) {
-                    JSONObject item = items.getJSONObject(index);
-                    labels[index] = item.optString("label");
-                    ids[index] = item.optString("id");
-                    enabled[index] = item.optBoolean("enabled", true);
-                }
-            } catch (Exception error) {
-                call.reject("Invalid native menu items", error);
-                return;
-            }
-            WebView shell = getBridge().getWebView();
-            ViewGroup parent = (ViewGroup) shell.getParent();
-            View anchor = new View(getActivity());
-            JSObject bounds = call.getObject("anchor", new JSObject());
-            float density = getContext().getResources().getDisplayMetrics().density;
-            int width = Math.max(1, Math.round(
-                (float) bounds.optDouble("width", 1) * density
-            ));
-            int height = Math.max(1, Math.round(
-                (float) bounds.optDouble("height", 1) * density
-            ));
-            parent.addView(anchor, new ViewGroup.LayoutParams(width, height));
-            anchor.setX(shell.getX() + Math.round((float) bounds.optDouble("x", 0) * density));
-            anchor.setY(shell.getY() + Math.round((float) bounds.optDouble("y", 0) * density));
-
-            PopupMenu popup = new PopupMenu(getActivity(), anchor, Gravity.END);
-            for (int index = 0; index < labels.length; index++) {
-                popup.getMenu()
-                    .add(0, index, index, labels[index])
-                    .setEnabled(enabled[index]);
-            }
-            AtomicBoolean resolved = new AtomicBoolean();
-            popup.setOnMenuItemClickListener(item -> {
-                resolved.set(true);
-                JSObject result = new JSObject();
-                result.put("id", ids[item.getItemId()]);
-                call.resolve(result);
-                return true;
-            });
-            popup.setOnDismissListener(ignored -> {
-                parent.removeView(anchor);
-                if (resolved.compareAndSet(false, true)) call.resolve();
-            });
-            // addView/setX/setY do not lay the synthetic anchor out
-            // synchronously. Showing in the same turn makes PopupMenu observe
-            // the parent's origin and clamp itself to the left edge. Posting
-            // waits until the anchor has a real window position.
-            anchor.post(popup::show);
-        });
+        if (call.getBoolean("browserControls", false)) getActivity().runOnUiThread(() ->
+            NativeBrowserMenu.show(getActivity(), call, session, canGoBack, canGoForward, this::reloadSession));
+        else NativeSurfaceDialogs.showMenu(getBridge(), call);
     }
 
     @PluginMethod
-    public void showPrompt(PluginCall call) {
-        getActivity().runOnUiThread(() -> {
-            EditText input = new EditText(getActivity());
-            input.setSingleLine(true);
-            input.setText(call.getString("value", ""));
-            input.selectAll();
-            AlertDialog dialog = new AlertDialog.Builder(getActivity())
-                .setTitle(call.getString("title"))
-                .setMessage(call.getString("message", ""))
-                .setView(input)
-                .setNegativeButton(
-                    call.getString("cancelLabel", "Cancel"),
-                    (ignored, index) -> call.resolve()
-                )
-                .setPositiveButton(
-                    call.getString("confirmLabel", "OK"),
-                    (ignored, index) -> {
-                        JSObject result = new JSObject();
-                        result.put("value", input.getText().toString());
-                        call.resolve(result);
-                    }
-                )
-                .create();
-            dialog.setOnCancelListener(ignored -> call.resolve());
-            dialog.setOnShowListener(ignored -> input.requestFocus());
-            dialog.show();
-        });
-    }
+    public void showPrompt(PluginCall call) { NativeSurfaceDialogs.showPrompt(getBridge(), call); }
 
     /**
      * Runs the script in the page through the bridge extension's content
@@ -269,6 +214,10 @@ public class InAppBrowserSurfacePlugin extends Plugin {
             }
             long id = evaluationSequence.incrementAndGet();
             pendingEvaluations.put(id, call);
+            handler.postDelayed(() -> {
+                PluginCall pending = pendingEvaluations.remove(id);
+                if (pending != null) pending.reject("The page did not answer the script request in time");
+            }, 10000);
             try {
                 JSONObject message = new JSONObject();
                 message.put("id", id);
@@ -288,9 +237,11 @@ public class InAppBrowserSurfacePlugin extends Plugin {
             call.reject("filterLists and userscripts are required");
             return;
         }
-        extensionSettings = data;
-        sendExtensionSettings();
-        call.resolve();
+        getActivity().runOnUiThread(() -> {
+            extensionSettings = data;
+            sendExtensionSettings();
+            call.resolve();
+        });
     }
 
     @PluginMethod
@@ -303,93 +254,79 @@ public class InAppBrowserSurfacePlugin extends Plugin {
 
     @Override
     protected void handleOnPause() {
+        resumed = false;
         if (session != null) session.setActive(false);
+        if (extensions != null) extensions.pages.setResumed(false);
     }
 
     @Override
     protected void handleOnResume() {
-        if (session != null) session.setActive(true);
+        resumed = true;
+        if (session != null) session.setActive(visible);
+        if (extensions != null) extensions.pages.setResumed(true);
     }
 
     @Override
     protected void handleOnDestroy() {
+        destroyed = true;
         destroySurface();
+        if (extensions != null) extensions.destroy();
+        if (settingsPort != null) settingsPort.disconnect();
+        settingsPort = null;
+        handler.removeCallbacksAndMessages(null);
     }
 
-    private static synchronized GeckoRuntime ensureRuntime(android.content.Context context) {
-        if (runtime != null) return runtime;
-        boolean debuggable = (context.getApplicationInfo().flags
-            & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0;
-        GeckoRuntimeSettings settings = new GeckoRuntimeSettings.Builder()
-            .remoteDebuggingEnabled(debuggable)
-            .build();
-        runtime = GeckoRuntime.create(context.getApplicationContext(), settings);
-        for (String[] extension : BUILT_IN_EXTENSIONS) {
-            String uri = extension[0];
-            String id = extension[1];
-            runtime.getWebExtensionController().ensureBuiltIn(uri, id).accept(
-                installed -> {
-                    Log.i(TAG, "Extension ready: " + id);
-                    installedExtensions.put(id, installed);
-                    installed.setTabDelegate(NEW_TAB_TO_SURFACE);
-                    if (BRIDGE_EXTENSION_ID.equals(id)) bridgeExtension = installed;
-                    if (activePlugin != null) activePlugin.attachExtension(installed);
-                },
-                error -> Log.e(TAG, "Extension failed: " + id, error)
-            );
-        }
-        return runtime;
+    /** Await actual extension readiness, bounded and cancelled when the surface closes. */
+    private void ready(PluginCall call, Runnable work) {
+        getActivity().runOnUiThread(() -> {
+            if (destroyed) { call.reject("The browser host was closed"); return; }
+            long generation = surfaceGeneration;
+            Runnable timeout = () -> {
+                if (waiting.remove(call) != null) call.reject("Browser extensions did not become ready in time. Try again.");
+            };
+            waiting.put(call, timeout);
+            handler.postDelayed(timeout, 30000);
+            engine.ready().accept(installed -> {
+                Runnable pending = waiting.remove(call);
+                if (pending == null) return;
+                handler.removeCallbacks(pending);
+                if (destroyed || generation != surfaceGeneration) { call.reject("The browser surface was closed"); return; }
+                try {
+                    extensions.adopt(installed);
+                    attachBridge();
+                    work.run();
+                } catch (RuntimeException error) { call.reject("Browser operation failed", error); }
+            }, error -> {
+                Runnable pending = waiting.remove(call);
+                if (pending == null) return;
+                handler.removeCallbacks(pending);
+                call.reject("Browser extensions could not start: " + error.getMessage());
+            });
+        });
     }
 
-    /**
-     * tabs.create from an extension: there is one surface, so the page loads
-     * there. GeckoView wants a fresh session back, which a single surface
-     * cannot give, so the extension's own call fails while the page shows.
-     */
-    private static final WebExtension.TabDelegate NEW_TAB_TO_SURFACE = new WebExtension.TabDelegate() {
-        @Override
-        public GeckoResult<GeckoSession> onNewTab(
-            WebExtension source,
-            WebExtension.CreateTabDetails details
-        ) {
-            InAppBrowserSurfacePlugin plugin = activePlugin;
-            if (plugin != null && plugin.session != null && plugin.isSurfaceUrl(details.url)) {
-                plugin.pageRequested = true;
-                plugin.session.loadUri(details.url);
-            }
-            return GeckoResult.fromValue(null);
-        }
-    };
-
-    /**
-     * An extension that navigates "its tab" (uBlock's blocked-page, a
-     * dashboard) does so through tabs.update, which GeckoView only honours
-     * when the session says so.
-     */
-    private void attachExtension(WebExtension extension) {
+    private void reloadSession() {
         if (session == null) return;
-        session.getWebExtensionController().setTabDelegate(
-            extension,
-            new WebExtension.SessionTabDelegate() {
-                @Override
-                public GeckoResult<AllowOrDeny> onUpdateTab(
-                    WebExtension source,
-                    GeckoSession target,
-                    WebExtension.UpdateTabDetails details
-                ) {
-                    if (details.url != null && isSurfaceUrl(details.url)) {
-                        pageRequested = true;
-                        target.loadUri(details.url);
-                    }
-                    return GeckoResult.fromValue(AllowOrDeny.ALLOW);
-                }
-            }
-        );
+        if (!session.isOpen()) {
+            session.open(engine.runtime);
+            extensions.attachSession(session);
+            attachBridge();
+            session.setActive(visible && resumed);
+            extensions.foregroundChanged();
+            if (pageRequested && isSurfaceUrl(currentUrl)) session.loadUri(currentUrl);
+        } else session.reload();
     }
 
     private void ensureSurface() {
-        if (surface != null) return;
-        GeckoRuntime engine = ensureRuntime(getContext());
+        if (surface != null) {
+            if (!session.isOpen()) {
+                session.open(engine.runtime);
+                extensions.attachSession(session);
+                attachBridge();
+                session.setActive(visible && resumed);
+            }
+            return;
+        }
         session = new GeckoSession();
         session.setNavigationDelegate(new Navigation());
         session.setProgressDelegate(new Progress());
@@ -400,9 +337,8 @@ public class InAppBrowserSurfacePlugin extends Plugin {
                 scrollY = y;
             }
         });
-        session.open(engine);
-        activePlugin = this;
-        for (WebExtension extension : installedExtensions.values()) attachExtension(extension);
+        session.open(engine.runtime);
+        extensions.attachSession(session);
         attachBridge();
 
         surface = new GeckoView(getContext());
@@ -416,7 +352,7 @@ public class InAppBrowserSurfacePlugin extends Plugin {
         // GeckoView is not a scrolling view Android knows about; the page's
         // scroll position says whether a downward drag means "refresh".
         refreshSurface.setOnChildScrollUpCallback((parent, child) -> scrollY > 0);
-        refreshSurface.setOnRefreshListener(() -> session.reload());
+        refreshSurface.setOnRefreshListener(this::reloadSession);
 
         WebView shell = getBridge().getWebView();
         ViewGroup parent = (ViewGroup) shell.getParent();
@@ -433,20 +369,12 @@ public class InAppBrowserSurfacePlugin extends Plugin {
      * opens; its delegate is attached as soon as both exist.
      */
     private void attachBridge() {
-        if (session == null) return;
-        if (bridgeExtension == null) {
-            runtime.getWebExtensionController().ensureBuiltIn(
-                BUILT_IN_EXTENSIONS[0][0], BRIDGE_EXTENSION_ID
-            ).accept(installed -> {
-                bridgeExtension = installed;
-                attachBridge();
-            }, error -> Log.e(TAG, "Bridge extension unavailable", error));
-            return;
-        }
+        WebExtension bridgeExtension = extensions.bridge();
+        if (bridgeExtension == null) return;
         // The session controller sees this page's content-script connections;
         // background pages arrive through the extension-wide delegate.
         WebExtension.MessageDelegate router = new PortRouter();
-        session.getWebExtensionController().setMessageDelegate(bridgeExtension, router, BRIDGE_NATIVE_APP);
+        if (session != null) session.getWebExtensionController().setMessageDelegate(bridgeExtension, router, BRIDGE_NATIVE_APP);
         bridgeExtension.setMessageDelegate(router, BRIDGE_NATIVE_APP);
     }
 
@@ -459,6 +387,7 @@ public class InAppBrowserSurfacePlugin extends Plugin {
                 port.setDelegate(new SettingsPort());
                 sendExtensionSettings();
             } else if (environment == WebExtension.MessageSender.ENV_TYPE_CONTENT_SCRIPT
+                && port.sender.session == session
                 && port.sender.isTopLevel()) {
                 bridgePort = port;
                 port.setDelegate(new BridgePort());
@@ -467,19 +396,26 @@ public class InAppBrowserSurfacePlugin extends Plugin {
     }
 
     private void destroySurface() {
+        surfaceGeneration++;
+        for (Map.Entry<PluginCall, Runnable> entry : waiting.entrySet()) {
+            handler.removeCallbacks(entry.getValue());
+            entry.getKey().reject("The browser surface was closed");
+        }
+        waiting.clear();
         if (refreshSurface != null) {
             ViewGroup parent = (ViewGroup) refreshSurface.getParent();
             if (parent != null) parent.removeView(refreshSurface);
         }
         if (surface != null) surface.releaseSession();
-        if (session != null) session.close();
+        if (session != null) { extensions.forgetSession(session); if (session.isOpen()) session.close(); }
         failPendingEvaluations("The page was closed");
         bridgePort = null;
-        settingsPort = null;
         pageRequested = false;
         initialBlank = false;
         sawRequestedPage = false;
-        if (activePlugin == this) activePlugin = null;
+        scrollY = 0;
+        canGoBack = false;
+        canGoForward = false;
         session = null;
         surface = null;
         refreshSurface = null;
@@ -508,6 +444,9 @@ public class InAppBrowserSurfacePlugin extends Plugin {
     }
 
     private void setSurfaceVisible(boolean visible) {
+        this.visible = visible;
+        if (session != null && session.isOpen()) session.setActive(visible && resumed);
+        if (extensions != null) extensions.setReadingVisible(visible);
         if (refreshSurface != null) {
             refreshSurface.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
         }
@@ -602,7 +541,8 @@ public class InAppBrowserSurfacePlugin extends Plugin {
 
         @Override
         public void onDisconnect(WebExtension.Port port) {
-            if (bridgePort == port) bridgePort = null;
+            if (bridgePort != port) return;
+            bridgePort = null;
             failPendingEvaluations("The page navigated away");
         }
     }
@@ -646,6 +586,11 @@ public class InAppBrowserSurfacePlugin extends Plugin {
         }
 
         @Override
+        public void onCanGoForward(GeckoSession ignored, boolean value) {
+            canGoForward = value;
+        }
+
+        @Override
         public GeckoResult<AllowOrDeny> onLoadRequest(GeckoSession ignored, LoadRequest request) {
             if (isSurfaceUrl(request.uri)) return GeckoResult.fromValue(AllowOrDeny.ALLOW);
             openExternal(request.uri);
@@ -672,6 +617,9 @@ public class InAppBrowserSurfacePlugin extends Plugin {
         public void onPageStart(GeckoSession ignored, String url) {
             // A new session loads about:blank on its own before the first
             // requested page; the shell never asked for that one.
+            failPendingEvaluations("The page navigated away");
+            bridgePort = null;
+            scrollY = 0;
             initialBlank = !sawRequestedPage && "about:blank".equals(url);
             if (!initialBlank) sawRequestedPage = true;
             activeNavigation = navigationSequence.incrementAndGet();
@@ -688,6 +636,15 @@ public class InAppBrowserSurfacePlugin extends Plugin {
         }
     }
 
+    private void processStopped(String message) {
+        canGoForward = false;
+        bridgePort = null;
+        failPendingEvaluations(message);
+        canGoBack = false;
+        scrollY = 0;
+        failed(currentUrl, -1, message);
+    }
+
     private final class Content implements GeckoSession.ContentDelegate {
         @Override
         public void onExternalResponse(GeckoSession ignored, WebResponse response) {
@@ -696,12 +653,12 @@ public class InAppBrowserSurfacePlugin extends Plugin {
 
         @Override
         public void onCrash(GeckoSession ignored) {
-            failed(currentUrl, -1, "The page's process crashed");
+            processStopped("The page process crashed. Reload to recover.");
         }
 
         @Override
         public void onKill(GeckoSession ignored) {
-            failed(currentUrl, -1, "The page's process was stopped");
+            processStopped("The page process was stopped. Reload to recover.");
         }
     }
 }

@@ -16,6 +16,7 @@ import {
 } from "@once/persistence"
 export * from "./InAppBrowserSurface"
 export * from "./ReadingUrl"
+export * from "./BrowserExtensions"
 
 PouchDB.plugin(PouchDBFind)
 
