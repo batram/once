@@ -24,6 +24,11 @@ final class GeckoEngine {
     private GeckoEngine(Context context) {
         runtime = GeckoRuntime.create(context, new GeckoRuntimeSettings.Builder()
             .remoteDebuggingEnabled((context.getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0)
+            // One content process per page instead of one per site: a single story
+            // otherwise fans out into several 100 MB+ processes (comment frames,
+            // captchas, embeds) that the low-memory killer reaps first. Firefox for
+            // Android ships the same choice.
+            .fissionEnabled(false)
             .build());
     }
 

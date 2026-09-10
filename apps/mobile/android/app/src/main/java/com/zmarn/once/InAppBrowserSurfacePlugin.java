@@ -46,6 +46,7 @@ public class InAppBrowserSurfacePlugin extends Plugin {
     private boolean destroyed;
     private boolean resumed = true;
     private boolean visible;
+    private boolean killedWhileHidden;
     private long surfaceGeneration;
     private final Map<PluginCall, Runnable> waiting = new HashMap<>();
 
@@ -252,8 +253,11 @@ public class InAppBrowserSurfacePlugin extends Plugin {
         });
     }
 
+    // Pause alone keeps the page active: dialogs, share sheets and screenshots pause
+    // the activity while it stays visible, and an inactive session drops its process
+    // into the cached bucket the low-memory killer empties first.
     @Override
-    protected void handleOnPause() {
+    protected void handleOnStop() {
         resumed = false;
         if (session != null) session.setActive(false);
         if (extensions != null) extensions.pages.setResumed(false);
@@ -264,6 +268,14 @@ public class InAppBrowserSurfacePlugin extends Plugin {
         resumed = true;
         if (session != null) session.setActive(visible);
         if (extensions != null) extensions.pages.setResumed(true);
+        recoverKilledPage();
+    }
+
+    /** A process the system reclaimed while the page was hidden comes back silently. */
+    private void recoverKilledPage() {
+        if (!killedWhileHidden || session == null || !session.isOpen() || !visible || !resumed) return;
+        killedWhileHidden = false;
+        session.reload();
     }
 
     @Override
@@ -328,6 +340,9 @@ public class InAppBrowserSurfacePlugin extends Plugin {
             return;
         }
         session = new GeckoSession();
+        // The reading page is the selected tab: keep its process bound above the
+        // cached-app bucket so the low-memory killer takes other things first.
+        session.setPriorityHint(GeckoSession.PRIORITY_HIGH);
         session.setNavigationDelegate(new Navigation());
         session.setProgressDelegate(new Progress());
         session.setContentDelegate(new Content());
@@ -446,6 +461,7 @@ public class InAppBrowserSurfacePlugin extends Plugin {
     private void setSurfaceVisible(boolean visible) {
         this.visible = visible;
         if (session != null && session.isOpen()) session.setActive(visible && resumed);
+        recoverKilledPage();
         if (extensions != null) extensions.setReadingVisible(visible);
         if (refreshSurface != null) {
             refreshSurface.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
@@ -637,12 +653,16 @@ public class InAppBrowserSurfacePlugin extends Plugin {
     }
 
     private void processStopped(String message) {
+        forgetPageState(message);
+        failed(currentUrl, -1, message);
+    }
+
+    private void forgetPageState(String message) {
         canGoForward = false;
         bridgePort = null;
         failPendingEvaluations(message);
         canGoBack = false;
         scrollY = 0;
-        failed(currentUrl, -1, message);
     }
 
     private final class Content implements GeckoSession.ContentDelegate {
@@ -658,7 +678,14 @@ public class InAppBrowserSurfacePlugin extends Plugin {
 
         @Override
         public void onKill(GeckoSession ignored) {
-            processStopped("The page process was stopped. Reload to recover.");
+            // Android reclaims hidden pages under memory pressure; that is routine,
+            // so a hidden page reloads on its own when it is shown again.
+            if (visible && resumed) {
+                processStopped("The page process was stopped. Reload to recover.");
+                return;
+            }
+            forgetPageState("The page process was stopped while hidden");
+            killedWhileHidden = true;
         }
     }
 }

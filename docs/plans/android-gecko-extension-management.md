@@ -1,8 +1,8 @@
 # Android GeckoView stability and extension management
 
 The Android app shell remains a Capacitor WebView. Remote browsing uses a
-GeckoView beside it. GeckoView remains pinned to 153.0.20260810162159; this work
-does not change the Android SDK/Gradle upgrade requirement for newer engines.
+GeckoView beside it. Since 2026-09-10 the toolchain (AGP 9.4, Gradle 9.6, platform
+37.1) tracks the newest GeckoView release; `variables.gradle` carries the version.
 
 ## Ownership
 

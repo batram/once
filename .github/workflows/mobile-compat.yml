@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   android-api-24:
-    name: Android API 24
+    name: Android API 26
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -27,6 +27,8 @@ jobs:
           java-version: 21
           cache: gradle
       - run: npm ci
+      - name: Install the Android platform GeckoView compiles against
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.1" "build-tools;37.0.0"
       - run: npm run mobile -- package android --channel dev --e2e
       - name: Android native lint and unit tests
         working-directory: apps/mobile/android
@@ -34,7 +36,7 @@ jobs:
       - run: npm exec --workspace @once/mobile -- appium driver install uiautomator2@8.1.0
       - uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 24
+          api-level: 26
           arch: x86_64
           profile: pixel_2
           script: npm run test:mobile:e2e:android

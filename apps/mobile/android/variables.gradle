@@ -1,7 +1,8 @@
 ext {
     // Android 8: GeckoView's floor, and Firefox's own.
     minSdkVersion = 26
-    compileSdkVersion = 36
+    compileSdkVersion = 37
+    compileSdkMinorVersion = 1
     targetSdkVersion = 36
     androidxActivityVersion = '1.11.0'
     androidxAppCompatVersion = '1.7.1'
@@ -16,7 +17,7 @@ ext {
     androidxEspressoCoreVersion = '3.7.0'
     cordovaAndroidVersion = '14.0.1'
     // Firefox's engine for the browsing surface; runs the built-in extensions.
-    // 154 and later require compileSdk 37 and Android Gradle plugin 9.1;
-    // this is the newest release that builds with the toolchain here.
-    geckoViewVersion = '153.0.20260810162159'
+    // 154 and later require compileSdk 37.1 and Android Gradle plugin 9.x;
+    // the toolchain here (AGP 9.4, Gradle 9.5, platform 37.1) tracks the newest release.
+    geckoViewVersion = '155.0.20260903215306'
 }

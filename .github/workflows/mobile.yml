@@ -31,6 +31,8 @@ jobs:
       - run: npm run test:mobile
       - run: npm run test:setup:ci
       - run: npm run test:mobile:web
+      - name: Install the Android platform GeckoView compiles against
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.1" "build-tools;37.0.0"
       - run: npm run mobile -- package android --channel dev --e2e
       - name: Android native lint and unit tests
         working-directory: apps/mobile/android

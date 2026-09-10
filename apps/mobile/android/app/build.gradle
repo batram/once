@@ -10,6 +10,7 @@ def onceBuildNumber = Integer.parseInt(System.getenv('ONCE_BUILD_NUMBER') ?: '1'
 android {
     namespace = "com.zmarn.once"
     compileSdk = rootProject.ext.compileSdkVersion
+    compileSdkMinor = rootProject.ext.compileSdkMinorVersion
     defaultConfig {
         applicationId "com.zmarn.once"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -35,6 +36,10 @@ android {
             assets.srcDirs += ['../../extensions', '../../../../vendor/extensions']
         }
     }
+    // The flavours stamp app_name; AGP 9 no longer generates resValues unless asked.
+    buildFeatures {
+        resValues = true
+    }
     flavorDimensions += "environment"
     productFlavors {
         development {
@@ -53,7 +58,7 @@ android {
     buildTypes {
         release {
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }

@@ -57,7 +57,8 @@ hiding, `document-start`, and the GM shim as part of all seven passing mobile
 scenarios (verified 2026-09-03).
 
 Findings from step 6: GeckoView 154 and later need compileSdk 37 and Android
-Gradle plugin 9.1, so the app pins 153; GeckoView's `minSdk` is 26 (Android
+Gradle plugin 9.x; since 2026-09-10 the toolchain is AGP 9.4, Gradle 9.6 and
+platform 37.1 and the app tracks the newest GeckoView; GeckoView's `minSdk` is 26 (Android
 8), which the app now requires too; the debug APK is Firefox-sized, so
 release packaging needs ABI splits or a bundle. GeckoView has no
 `evaluateJavascript`, so a built-in bridge extension of Once's own runs the
