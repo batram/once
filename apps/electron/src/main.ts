@@ -34,7 +34,8 @@ import {
 import { ExtensionRuntime } from "./extensions/ExtensionRuntime"
 import { bundledExtensionRoot, resolveBundledExtensions } from "./extensions/bundledExtensions"
 import { extensionScheme } from "./extensions/ExtensionScheme"
-import { addonSandboxScheme, configureAddonSandboxProtocol } from "./AddonSandboxProtocol"
+import { addonSandboxScheme, configureAddonConversationProtocol, configureAddonSandboxProtocol } from "./AddonSandboxProtocol"
+import { AddonConversationRelay } from "./AddonConversationRelay"
 import { devAddonDirectories } from "./devAddons"
 import { LocalAddonDirectories } from "./LocalAddonDirectories"
 import { manualReleaseStatus } from "./ManualReleaseCheck"
@@ -216,6 +217,7 @@ function configureBrowserSession(): Session {
   const browserSession = session.fromPartition(BROWSER_SESSION_PARTITION)
   configureReaderProtocol(browserSession)
   configureErrorPageProtocol(browserSession)
+  configureAddonConversationProtocol(browserSession, MAIN_WINDOW_WEBPACK_ENTRY)
   browserSession.setPermissionCheckHandler((_webContents, permission) => {
     return permission === "fullscreen"
   })
@@ -285,7 +287,13 @@ app
       removeAddonDirectory: directory => localAddons.remove(directory),
       getUpdateStatus: () => updateStatus,
       setUpdateStatus,
-      updatesStarted: () => autoUpdatesStarted
+      updatesStarted: () => autoUpdatesStarted,
+      conversations: new AddonConversationRelay((shell, url) => {
+        const coordinator = browserCoordinator
+        const owner = coordinator?.windowOf(shell)
+        if (!coordinator || !owner) throw new Error("The shell window is gone")
+        return coordinator.openAddonConversation(owner, url)
+      })
     })
     extensions.manager.onSyncChanged = document => {
       for (const window of BrowserWindow.getAllWindows()) {

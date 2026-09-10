@@ -243,6 +243,16 @@ export interface ElectronBridge {
     devEntries(): Promise<ElectronDevAddon[]>
     /** Fires when a file in one of those directories changes. */
     onDevChanged(handler: () => void): () => void
+    conversations: {
+      /** Opens a tab for the conversation named by `token`, seeded with its snapshot. */
+      open(token: string, snapshot: unknown): Promise<void>
+      /** The conversation changed; the tab shows the new snapshot. */
+      push(token: string, snapshot: unknown): void
+      /** The reader did something in the tab. */
+      onCommand(handler: (token: string, command: unknown) => void): () => void
+      /** The tab went away or left the page. */
+      onClosed(handler: (token: string) => void): () => void
+    }
   }
   window: {
     setFullscreen(fullscreen: boolean): Promise<void>
@@ -325,8 +335,23 @@ export const ELECTRON_IPC = {
   addonsDevList: "once:addons:dev-list",
   addonsDevChanged: "once:addons:dev-changed",
   addonsPickDirectory: "once:addons:pick-directory",
-  addonsRemoveDirectory: "once:addons:remove-directory"
+  addonsRemoveDirectory: "once:addons:remove-directory",
+  // A tray's conversation continued in a browser tab: the shell opens and
+  // feeds it, the tab's page connects and sends the reader's input back.
+  addonsConversationOpen: "once:addons:conversation-open",
+  addonsConversationPush: "once:addons:conversation-push",
+  addonsConversationCommand: "once:addons:conversation-command",
+  addonsConversationClosed: "once:addons:conversation-closed",
+  addonsConversationConnect: "once:addons:conversation-connect",
+  addonsConversationState: "once:addons:conversation-state"
 } as const
+
+/** The page in the tab: `connect` answers with the current snapshot, or null when the token is unknown. */
+export interface ElectronConversationPageBridge {
+  connect(token: string): Promise<unknown>
+  onState(handler: (snapshot: unknown, connected: boolean) => void): () => void
+  send(token: string, command: unknown): void
+}
 
 /** One `ONCE_ADDONS` directory as main read it; the renderer validates the manifest. */
 export interface ElectronDevAddon {

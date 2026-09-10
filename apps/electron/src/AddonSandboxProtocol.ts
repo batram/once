@@ -47,3 +47,25 @@ export function configureAddonSandboxProtocol(
     return net.fetch(new URL(`../addon_sandbox/${name}`, shellEntryUrl).toString())
   })
 }
+
+/**
+ * The conversation page, for the browser session's tabs: the Forge
+ * `addon_conversation` entry plus the shell's stylesheet folder, which the
+ * page links as `css/…`. Nothing else under the scheme is reachable from a
+ * tab, so a page there cannot load the sandbox or a development add-on.
+ */
+export function configureAddonConversationProtocol(targetSession: Session, shellEntryUrl: string): void {
+  targetSession.protocol.handle("once-addon", (request) => {
+    const url = new URL(request.url)
+    if (url.host !== "conversation") return notFound("Not an add-on conversation file")
+    const parts = url.pathname.split("/").filter(Boolean)
+    if (parts[0] === "css" && parts.length > 1 && parts.every(part => /^[\w.-]+$/.test(part) && part !== "..")) {
+      return net.fetch(new URL(`../main_window/${parts.join("/")}`, shellEntryUrl).toString())
+    }
+    // Forge writes the entry's script tag as `../addon_conversation/index.js`,
+    // so as with the sandbox only the file name decides what is served.
+    const name = parts.pop() ?? ""
+    if (!SERVED.has(name)) return notFound("Not part of the add-on conversation page")
+    return net.fetch(new URL(`../addon_conversation/${name}`, shellEntryUrl).toString())
+  })
+}

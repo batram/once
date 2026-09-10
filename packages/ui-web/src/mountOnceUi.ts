@@ -1,5 +1,6 @@
 import { OnceClient } from "@once/app"
 import { DevAddonSource, mountAddons } from "./addons/mountAddons"
+import type { AddonConversationSurface } from "./addons/AddonTrays"
 import { addCollectorColorStyles } from "./collectorStyles"
 import { LoaderInsights } from "./shell/LoaderInsights"
 import { HoverUrlIndicator } from "./shell/HoverUrlIndicator"
@@ -79,6 +80,8 @@ export interface MountOnceUiOptions {
    * written to the document.
    */
   devAddons?: DevAddonSource
+  /** How this shell continues an addon tray's conversation in its main browser surface. */
+  addonConversations?: AddonConversationSurface
 }
 
 export async function mountOnceUi(
@@ -94,7 +97,7 @@ export async function mountOnceUi(
   installStoredContentSaver(client, {
     reportError: (message, details) => LoaderInsights.showErrorMessage(message, details)
   })
-  mountAddons(client, { sandboxUrl: options.addonSandboxUrl, devAddons: options.devAddons })
+  mountAddons(client, { sandboxUrl: options.addonSandboxUrl, devAddons: options.devAddons, conversations: options.addonConversations })
 
   const version = document.querySelector<HTMLElement>(
     "[data-testid='app-version']"

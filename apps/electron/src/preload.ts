@@ -163,6 +163,20 @@ const bridge: ElectronBridge = {
       const listener = () => handler()
       ipcRenderer.on(ELECTRON_IPC.addonsDevChanged, listener)
       return () => ipcRenderer.removeListener(ELECTRON_IPC.addonsDevChanged, listener)
+    },
+    conversations: {
+      open: (token, snapshot) => ipcRenderer.invoke(ELECTRON_IPC.addonsConversationOpen, token, snapshot),
+      push: (token, snapshot) => ipcRenderer.send(ELECTRON_IPC.addonsConversationPush, token, snapshot),
+      onCommand(handler) {
+        const listener = (_event: Electron.IpcRendererEvent, token: string, command: unknown) => handler(token, command)
+        ipcRenderer.on(ELECTRON_IPC.addonsConversationCommand, listener)
+        return () => ipcRenderer.removeListener(ELECTRON_IPC.addonsConversationCommand, listener)
+      },
+      onClosed(handler) {
+        const listener = (_event: Electron.IpcRendererEvent, token: string) => handler(token)
+        ipcRenderer.on(ELECTRON_IPC.addonsConversationClosed, listener)
+        return () => ipcRenderer.removeListener(ELECTRON_IPC.addonsConversationClosed, listener)
+      }
     }
   },
   window: {

@@ -40,6 +40,66 @@ export interface AddonStoryContent {
   truncated: boolean
 }
 
+/**
+ * A tray's conversation as another surface sees it: the story it belongs to,
+ * the last view the addon rendered, and whether the host is still working on
+ * it. The shell owning the sandbox publishes one after every change; the
+ * surface never holds anything the tray does not.
+ */
+export interface AddonConversationSnapshot {
+  addon: { id: string; name: string }
+  tray: AddonTray
+  story: { href: string; title: string }
+  view: AddonTrayView
+  busy: boolean
+  error: string
+  draft: string
+}
+
+/** What a surface may ask the owning shell to do with a conversation. */
+export type AddonConversationCommand =
+  | { type: "submit"; text: string }
+  | { type: "action"; action: string }
+  | { type: "retry" }
+  | { type: "stop" }
+  | { type: "clear" }
+  | { type: "draft"; text: string }
+
+export function readConversationCommand(value: unknown): AddonConversationCommand {
+  const command = value as { type?: unknown; text?: unknown; action?: unknown } | null
+  if (!command || typeof command !== "object") throw new Error("Invalid conversation command")
+  switch (command.type) {
+    case "retry": case "stop": case "clear": return { type: command.type }
+    case "submit": case "draft":
+      if (typeof command.text !== "string" || command.text.length > 8000) throw new Error("Invalid conversation text")
+      return { type: command.type, text: command.text }
+    case "action":
+      if (typeof command.action !== "string" || !/^[a-zA-Z0-9_-]{1,40}$/.test(command.action)) throw new Error("Invalid conversation action")
+      return { type: "action", action: command.action }
+    default: throw new Error("Unknown conversation command")
+  }
+}
+
+export function readConversationSnapshot(value: unknown): AddonConversationSnapshot {
+  const snapshot = value as AddonConversationSnapshot | null
+  if (!snapshot || typeof snapshot !== "object") throw new Error("Invalid conversation snapshot")
+  const text = (candidate: unknown, limit: number): string => {
+    if (typeof candidate !== "string" || candidate.length > limit) throw new Error("Invalid conversation snapshot")
+    return candidate
+  }
+  const href = new URL(text(snapshot.story?.href, 4096))
+  if (!["http:", "https:"].includes(href.protocol)) throw new Error("Invalid conversation story")
+  return {
+    addon: { id: text(snapshot.addon?.id, 100), name: text(snapshot.addon?.name, 200) },
+    tray: { id: text(snapshot.tray?.id, 100), title: text(snapshot.tray?.title, 200) },
+    story: { href: href.href, title: text(snapshot.story?.title, 1000) },
+    view: readTrayView(snapshot.view),
+    busy: snapshot.busy === true,
+    error: text(snapshot.error ?? "", 1000),
+    draft: text(snapshot.draft ?? "", 8000)
+  }
+}
+
 export function readTrayView(value: unknown): AddonTrayView {
   if (!value || typeof value !== "object") throw new Error("Invalid tray view")
   const view = value as AddonTrayView

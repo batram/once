@@ -28,6 +28,7 @@ import {
   resolveOpenDisposition
 } from "@once/platform-electron/navigation"
 import { hasReaderDocument, storeReaderDocument } from "./ReaderProtocol"
+import { isAddonConversationUrl } from "./AddonConversationRelay"
 import { sourceUrlFromReaderUrl } from "./browser/reader-url"
 import { TabEntry, WindowEntry } from "./browser/BrowserState"
 import { NativeMenus } from "./browser/NativeMenus"
@@ -44,6 +45,8 @@ import { isModifiedChord } from "@once/core"
 
 /** A generous ceiling; the real list is one chord per bound command. */
 const MAX_FORWARDED_KEYS = 100
+
+declare const ADDON_CONVERSATION_PRELOAD_WEBPACK_ENTRY: string
 
 interface CreateWindowOptions {
   url?: string
@@ -145,6 +148,12 @@ export class BrowserCoordinator {
     }
   }
 
+  /** The window whose shell these contents are, if they are one. */
+  windowOf(shell: WebContents): WindowEntry | undefined {
+    const state = this.ownership.windows.get(shell.id)
+    return state && !state.window.isDestroyed() && state.window.webContents === shell ? state : undefined
+  }
+
   requireWindow(event: IpcMainInvokeEvent): WindowEntry {
     const state = this.ownership.windows.get(event.sender.id)
     if (
@@ -173,6 +182,10 @@ export class BrowserCoordinator {
     // preload registered on the session. Either preload needs the sub-frame
     // flag to reach iframes (it grants no Node access; the tab stays sandboxed).
     const profile = this.pageProfile(normalized)
+    // The addon conversation page is ours, in the browser session, with the
+    // one preload that relays to the shell; that preload exposes nothing
+    // outside its own scheme should the tab navigate on.
+    const conversation = isAddonConversationUrl(normalized)
     const view = new WebContentsView({
       webPreferences: {
         nodeIntegration: false,
@@ -183,7 +196,9 @@ export class BrowserCoordinator {
         disableHtmlFullscreenWindowResize: true,
         ...(profile
           ? { session: profile.session, preload: profile.preload }
-          : { partition: BROWSER_SESSION_PARTITION })
+          : conversation
+            ? { partition: BROWSER_SESSION_PARTITION, preload: ADDON_CONVERSATION_PRELOAD_WEBPACK_ENTRY }
+            : { partition: BROWSER_SESSION_PARTITION })
       }
     })
     view.setBackgroundColor(state.backgroundColor)
@@ -624,6 +639,15 @@ export class BrowserCoordinator {
     this.pageProfile = resolver
   }
 
+  /** A new active tab for an addon conversation page, returned as the contents its relay talks to. */
+  async openAddonConversation(state: WindowEntry, url: string): Promise<WebContents> {
+    if (!isAddonConversationUrl(url)) throw new Error("Not an addon conversation page")
+    const id = await this.createTab(state, url, true)
+    const entry = this.ownership.get(id)
+    if (!entry) throw new Error("The conversation tab was not created")
+    return entry.view.webContents
+  }
+
   private validatePoint(point: ElectronPoint): void {
     if (!Number.isFinite(point?.x) || !Number.isFinite(point?.y)) {
       throw new Error("Invalid point")
@@ -642,7 +666,7 @@ export class BrowserCoordinator {
   // applied to other navigable input.
   private normalizeTabUrl(url: string): string {
     const trimmed = url.trim()
-    if (sourceUrlFromReaderUrl(trimmed) || parseExtensionUrl(trimmed)) return trimmed
+    if (sourceUrlFromReaderUrl(trimmed) || parseExtensionUrl(trimmed) || isAddonConversationUrl(trimmed)) return trimmed
     return normalizeBrowserUrl(trimmed)
   }
 

@@ -13,6 +13,7 @@ import {
 } from "@once/ui-web"
 import { createWebExtPlatform } from "@once/platform-webext"
 import { addonSandboxUrl, bindAddonSandboxSetting } from "./addonSandboxSetting"
+import { webextAddonConversations } from "./addonConversations"
 import { isStoryMenuActionForContext } from "./storyMenuBackground"
 import {
   TOGGLE_COMMENTS_COMMAND,
@@ -98,6 +99,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   await mountOnceUi(client, {
     shell: "webext",
     addonSandboxUrl: await addonSandboxUrl(__ONCE_WEBEXT_TARGET__),
+    addonConversations: webextAddonConversations(),
     browserShortcuts: await browserManagedShortcuts(),
     appVersion: browser.runtime.getManifest().version,
     buildChannel: __ONCE_BUILD_CHANNEL__,

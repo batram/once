@@ -14,6 +14,7 @@ import {
   StoryMenuActionId
 } from "@once/ui-web"
 import { BrowserShell } from "./BrowserShell"
+import { electronAddonConversations } from "./addonConversations"
 import { bindBrowserExtensionSettings } from "./BrowserExtensionSettings"
 import { bindAccessibilitySetting } from "./AccessibilitySetting"
 import "./electron.css"
@@ -121,6 +122,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     shell: "electron",
     addonSandboxUrl: ADDON_SANDBOX_URL,
     devAddons: DEV_ADDONS,
+    addonConversations: electronAddonConversations(window.onceElectron),
     appVersion: buildInfo.version,
     buildChannel: buildInfo.channel,
     buildIdentifier: buildInfo.buildIdentifier,

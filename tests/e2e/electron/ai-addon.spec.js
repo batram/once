@@ -26,6 +26,34 @@ test("AI addon uses authenticated requests, host trays, article text and session
     await row.locator("[data-addon-tray-button]").click()
     await expect(tray).toContainText("ExampleApp is software")
     await expect(tray).toContainText("Its qualifications are preserved")
+    // Continue in browser: the conversation opens as a tab in the browser session,
+    // shows what the tray has, and a follow-up asked there lands in the tray too.
+    await tray.getByTestId("addon-tray-continue").click()
+    await expect.poll(() => window.evaluate(() => window.onceElectron.tabs.getAll()))
+      .toContainEqual(expect.objectContaining({ url: expect.stringMatching(/^once-addon:\/\/conversation\/index\.html\?token=/), active: true, loadError: null }))
+    // The tab is a WebContentsView, which Playwright does not list as a page, so
+    // it is driven through main. While its navigation is in flight it reads as
+    // missing, which is a "not yet" for the polls below, not a failure.
+    const conversation = script => electronApp.evaluate(async ({ webContents }, code) => {
+      const page = webContents.getAllWebContents().find(candidate => candidate.getURL().startsWith("once-addon://conversation/"))
+      if (!page) return `no conversation page among ${webContents.getAllWebContents().map(candidate => candidate.getURL()).join(", ")}`
+      return page.executeJavaScript(code)
+    }, script)
+    const pageText = () => conversation('document.querySelector(\'[data-testid="addon-conversation"]\')?.textContent ?? "no conversation root"')
+    await expect.poll(pageText, {
+      timeout: 10000,
+      message: await conversation("JSON.stringify({ bridge: typeof window.onceConversation, html: document.documentElement.outerHTML.slice(0, 1200) })")
+    }).toContain("Its qualifications are preserved")
+    await expect.poll(pageText).toContain(storyFixture.STORY_TITLES.alpha)
+    await conversation('(() => { const input = document.querySelector("textarea"); input.value = "Who uses it, again?"; input.dispatchEvent(new Event("input")); document.querySelector("form").requestSubmit() })()')
+    await expect(tray).toContainText("Who uses it, again?")
+    await expect(tray).toContainText("Developers use it")
+    await expect.poll(pageText).toContain("Developers use it")
+    // Closing the tab ends the mirror; the tray goes on as before.
+    const conversationTab = (await window.evaluate(() => window.onceElectron.tabs.getAll())).find(tab => tab.url.startsWith("once-addon://conversation/"))
+    await window.evaluate(id => window.onceElectron.tabs.close(id), conversationTab.id)
+    await expect.poll(() => window.evaluate(() => window.onceElectron.tabs.getAll().then(tabs => tabs.length))).toBe(1)
+    await expect(tray).toContainText("Developers use it")
     await tray.getByRole("textbox").fill("Wait for network cancellation")
     const previousCalls = aiFixture.calls.length
     await tray.getByRole("button", { name: "Ask", exact: true }).click()

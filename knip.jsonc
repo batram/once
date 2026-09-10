@@ -69,6 +69,9 @@
         // The extensions menu window: a Forge entry with its own preload.
         "src/extensions/extensionMenuRenderer.ts",
         "src/extensions/extensionMenuPreload.ts",
+        // The addon conversation page: a Forge entry in a browser tab, with the preload that relays to the shell.
+        "src/addonConversation.ts",
+        "src/addonConversationPreload.ts",
         "forge.config.js",
         "webpack.*.config.js",
         "scripts/*.js"
@@ -158,6 +161,7 @@
     "packages/webext-shell": {
       "entry": [
         "src/addonSandbox.ts",
+        "src/addonConversationPage.ts",
         "src/keyCommandBackground.ts",
         "src/pickerBackground.ts",
         "src/readerBackground.ts",

@@ -29,7 +29,7 @@ import { searchStories } from "../story/storySearch"
 import { LoaderInsights } from "../shell/LoaderInsights"
 import { addCollectorColorStyles } from "../collectorStyles"
 import { AddonSandbox } from "./AddonSandbox"
-import { AddonTrays } from "./AddonTrays"
+import { AddonConversationSurface, AddonTrays } from "./AddonTrays"
 import { addonStoryContent } from "./addonStoryContent"
 import { registerAddonCollector } from "./addonCollectors"
 import { BadgeScheduler } from "./badgeScheduler"
@@ -50,6 +50,8 @@ export interface MountAddonsOptions {
   sandboxUrl?: string
   /** Development add-ons, registered beside the document's and never stored. */
   devAddons?: DevAddonSource
+  /** Where a tray's conversation can continue at full size; absent means trays offer no such button. */
+  conversations?: AddonConversationSurface
 }
 
 /**
@@ -170,7 +172,7 @@ async function registerManifest(
   const releases: (() => void)[] = []
   const lifecycle: { trays?: AddonTrays } = {}
   const sandbox = await sandboxFor(client, entry, options, devCode, () => lifecycle.trays?.reset())
-  const storyTrays = new AddonTrays(manifest, sandbox)
+  const storyTrays = new AddonTrays(manifest, sandbox, options.conversations)
   lifecycle.trays = storyTrays
   releases.push(() => storyTrays.dispose())
   if (sandbox) releases.push(() => sandbox.dispose())

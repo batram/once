@@ -3,11 +3,14 @@ import {
   autoUpdater,
   dialog,
   ipcMain,
+  IpcMainEvent,
   IpcMainInvokeEvent,
   net,
   session,
-  shell
+  shell,
+  WebContents
 } from "electron"
+import { AddonConversationRelay, isAddonConversationUrl } from "./AddonConversationRelay"
 import {
   ELECTRON_IPC,
   ElectronBuildInfo,
@@ -39,6 +42,33 @@ interface IpcHandlerOptions {
   getUpdateStatus: () => ElectronUpdateStatus
   setUpdateStatus: (status: ElectronUpdateStatus) => void
   updatesStarted: () => boolean
+  conversations: AddonConversationRelay
+}
+
+/** The addon conversation page in a tab is the only page allowed on its channels. */
+function conversationPage(event: IpcMainInvokeEvent | IpcMainEvent): WebContents {
+  if (!isAddonConversationUrl(event.sender.getURL()) || event.senderFrame !== event.sender.mainFrame) {
+    throw new Error("Untrusted IPC sender")
+  }
+  return event.sender
+}
+
+function registerAddonConversationHandlers(options: IpcHandlerOptions): void {
+  const { coordinator, conversations } = options
+  ipcMain.handle(ELECTRON_IPC.addonsConversationOpen, (event, token: string, snapshot: unknown) => {
+    const current = browser(event, coordinator)
+    return conversations.open(current.window.window.webContents, token, snapshot)
+  })
+  ipcMain.on(ELECTRON_IPC.addonsConversationPush, (event, token: string, snapshot: unknown) => {
+    const current = browser(event, coordinator)
+    conversations.push(current.window.window.webContents, token, snapshot)
+  })
+  ipcMain.handle(ELECTRON_IPC.addonsConversationConnect, (event, token: string) =>
+    conversations.connect(conversationPage(event), token)
+  )
+  ipcMain.on(ELECTRON_IPC.addonsConversationCommand, (event, token: string, command: unknown) => {
+    conversations.command(conversationPage(event), token, command)
+  })
 }
 
 const connectionRequests = new Map<string, AbortController>()
@@ -434,6 +464,7 @@ export function registerIpcHandlers(
 ): void {
   registerAppHandlers(options)
   registerExtensionHandlers(options)
+  registerAddonConversationHandlers(options)
   ipcMain.handle(ELECTRON_IPC.addonsDevList, (event) => {
     trusted(event, options.coordinator)
     return options.devAddons()

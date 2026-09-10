@@ -10,7 +10,8 @@
       "reader/readerDocument": ["dist/reader/readerDocument.d.ts"],
       "reader/readerTts": ["dist/reader/readerTts.d.ts"],
       "reader/readerPageRuntime": ["dist/reader/readerPageRuntime.d.ts"],
-      "picker/sourcePicker": ["dist/picker/sourcePicker.d.ts"]
+      "picker/sourcePicker": ["dist/picker/sourcePicker.d.ts"],
+      "addons/conversationPage": ["dist/addons/conversationPage.d.ts"]
     }
   },
   "exports": {
@@ -33,6 +34,10 @@
     "./addons/sandboxRuntime": {
       "types": "./dist/addons/sandboxRuntime.d.ts",
       "default": "./dist/addons/sandboxRuntime.js"
+    },
+    "./addons/conversationPage": {
+      "types": "./dist/addons/conversationPage.d.ts",
+      "default": "./dist/addons/conversationPage.js"
     },
     "./picker/sourcePicker": {
       "types": "./dist/picker/sourcePicker.d.ts",

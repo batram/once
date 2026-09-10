@@ -69,6 +69,14 @@ module.exports = {
             html: "../../packages/ui-web/public/addon-sandbox.html",
             js: "./src/addonSandbox.ts",
             name: "addon_sandbox"
+          },
+          // A tray's conversation in a browser tab: served under once-addon://
+          // like the sandbox, with a preload that only relays to the shell.
+          {
+            html: "../../packages/ui-web/public/addon-conversation.html",
+            js: "./src/addonConversation.ts",
+            name: "addon_conversation",
+            preload: { js: "./src/addonConversationPreload.ts" }
           }
         ]
       }

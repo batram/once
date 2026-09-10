@@ -19,6 +19,7 @@ import { installStoryMenu } from "./storyMenu"
 import { bindMobileBrowserExtensionSettings } from "./browserExtensionSettings"
 import { bindMobileExtensionToolbar } from "./browserExtensionToolbar"
 import { bindExtensionPageFrame } from "./extensionPageFrame"
+import { mobileAddonConversations } from "./addonConversations"
 import { installReaderTtsHostBridge } from "./readerTtsHostBridge"
 import { installReaderTtsControls } from "./readerTtsControls"
 import { MobileReadingController } from "./readingController"
@@ -164,6 +165,7 @@ async function startMobileApp(): Promise<void> {
     // A static asset beside the app: Capacitor's local server answers for
     // any frame, and the sandboxed frame's opaque origin keeps it apart.
     addonSandboxUrl: new URL("addon-sandbox.html", window.location.href).toString(),
+    addonConversations: mobileAddonConversations,
     appVersion: __ONCE_APP_VERSION__,
     buildChannel: __ONCE_BUILD_CHANNEL__,
     buildIdentifier: __ONCE_BUILD_IDENTIFIER__,

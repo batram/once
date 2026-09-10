@@ -1,8 +1,11 @@
-import { AddonManifest, AddonTrayEvent, AddonTrayView, StoryView, addonContributionId, projectStoryView, readTrayView } from "@once/core"
+import {
+  AddonConversationCommand, AddonConversationSnapshot, AddonManifest, AddonTrayEvent, AddonTrayView, StoryView,
+  addonContributionId, projectStoryView, readTrayView
+} from "@once/core"
 import type { StoryListItem } from "../story/StoryListItem"
 import { registerStoryElement, STORY_TRAYS_CHANGED } from "../story/storyElements"
 import { AddonSandbox } from "./AddonSandbox"
-import { trayMarkdown } from "./trayMarkdown"
+import { TrayDisclosures, renderTrayMessages, renderTrayStatus, trayButton, trayIcon } from "./trayMessages"
 
 /** Where a row lives: the list, or the mirror of the open story in #selected_container. */
 type TrayPlace = "list" | "selected"
@@ -10,14 +13,33 @@ type TrayPlace = "list" | "selected"
 interface TrayState {
   /** The conversation is one per story; which places show it is the reader's choice per place. */
   open: Set<TrayPlace>
+  story: StoryView
+  title: string
   draft: string
   view: AddonTrayView
   error: string
   last: AddonTrayEvent
-  /** Where the reader left each titled message, by index; a redraw must not
-      fold what they opened. */
-  disclosed: Map<number, boolean>
+  disclosed: TrayDisclosures
   controller?: AbortController
+  /** Other surfaces showing this conversation; told after every change. */
+  listeners: Set<(snapshot: AddonConversationSnapshot) => void>
+}
+
+/**
+ * A conversation as handed to another surface: it reads the current state,
+ * hears about changes, and sends the reader's input back to the tray that
+ * owns the sandbox. The surface never talks to the addon itself.
+ */
+export interface AddonConversationHandle {
+  snapshot(): AddonConversationSnapshot
+  subscribe(listener: (snapshot: AddonConversationSnapshot) => void): () => void
+  send(command: AddonConversationCommand): void
+}
+
+/** A platform's way of continuing a tray somewhere larger, offered as a tray button. */
+export interface AddonConversationSurface {
+  label: string
+  open(handle: AddonConversationHandle): void
 }
 
 /** State belongs to the addon registration, not a replaceable story row. */
@@ -25,7 +47,11 @@ export class AddonTrays {
   private readonly states = new Map<string, TrayState>()
   private readonly releases: (() => void)[] = []
   private disposed = false
-  constructor(private readonly manifest: AddonManifest, private readonly sandbox: AddonSandbox | null) {
+  constructor(
+    private readonly manifest: AddonManifest,
+    private readonly sandbox: AddonSandbox | null,
+    private readonly surface?: AddonConversationSurface
+  ) {
     for (const tray of manifest.trays ?? []) {
       this.releases.push(registerStoryElement({
         id: addonContributionId(manifest.id, `tray-${tray.id}`), slot: "tray",
@@ -40,11 +66,26 @@ export class AddonTrays {
 
   /** Opens or closes the tray where this row is; the same story elsewhere keeps its own state. */
   toggle(row: StoryListItem, tray: string): void {
-    const state = this.state(row.story.href, tray)
+    const state = this.state(row, tray)
     const place = this.place(row)
     if (!state.open.delete(place)) state.open.add(place)
     this.refresh(row.story.href, tray)
-    if (state.open.has(place) && !state.view.messages.length && !state.error && !state.controller) void this.run(row, tray, { type: "open" })
+    if (state.open.has(place) && !state.view.messages.length && !state.error && !state.controller) void this.run(row.story.href, tray, { type: "open" })
+  }
+
+  /** The conversation of a row's tray for another surface; the tray keeps owning it. */
+  handle(row: StoryListItem, tray: string): AddonConversationHandle {
+    const href = row.story.href
+    this.state(row, tray)
+    return {
+      snapshot: () => this.snapshot(href, tray),
+      subscribe: listener => {
+        const state = this.stateFor(href, tray)
+        state.listeners.add(listener)
+        return () => { state.listeners.delete(listener) }
+      },
+      send: command => this.command(href, tray, command)
+    }
   }
 
   reset(): void {
@@ -67,14 +108,72 @@ export class AddonTrays {
 
   private place(row: StoryListItem): TrayPlace { return row.closest("#selected_container") ? "selected" : "list" }
 
-  private state(href: string, tray: string): TrayState {
-    const key = this.key(href, tray)
+  private state(row: StoryListItem, tray: string): TrayState {
+    const key = this.key(row.story.href, tray)
     let state = this.states.get(key)
     if (!state) {
-      state = { open: new Set(), draft: "", view: { messages: [] }, error: "", last: { type: "open" }, disclosed: new Map() }
+      state = {
+        open: new Set(), story: projectStoryView(row.story, row.dataset.redirected_url || row.story.href), title: row.story.title,
+        draft: "", view: { messages: [] }, error: "", last: { type: "open" }, disclosed: new Map(), listeners: new Set()
+      }
       this.states.set(key, state)
     }
     return state
+  }
+
+  private stateFor(href: string, tray: string): TrayState {
+    const state = this.states.get(this.key(href, tray))
+    if (!state) throw new Error("The tray was reset")
+    return state
+  }
+
+  private snapshot(href: string, tray: string): AddonConversationSnapshot {
+    const state = this.stateFor(href, tray)
+    return {
+      addon: { id: this.manifest.id, name: this.manifest.name },
+      tray: { id: tray, title: this.manifest.trays?.find(item => item.id === tray)?.title ?? tray },
+      story: { href, title: state.title },
+      view: state.view, busy: !!state.controller, error: state.error, draft: state.draft
+    }
+  }
+
+  private command(href: string, tray: string, command: AddonConversationCommand): void {
+    const state = this.states.get(this.key(href, tray))
+    if (!state) return
+    switch (command.type) {
+      case "submit": {
+        const text = command.text.trim()
+        if (!text || state.controller) return
+        state.draft = ""
+        void this.run(href, tray, { type: "submit", text })
+        return
+      }
+      case "action": if (!state.controller) void this.run(href, tray, { type: "action", action: command.action }); return
+      case "retry": if (!state.controller) void this.run(href, tray, state.last); return
+      case "stop": this.stop(href, tray, state); return
+      case "clear": this.clear(href, tray, state); return
+      case "draft":
+        // Typed elsewhere: remembered for the next redraw, but no redraw now, or
+        // the composer the reader is typing into would lose its focus.
+        state.draft = command.text
+        this.notify(href, tray)
+    }
+  }
+
+  private stop(href: string, tray: string, state: TrayState): void {
+    if (!state.controller) return
+    state.controller.abort(); state.controller = undefined; state.error = "Request cancelled"; this.refresh(href, tray)
+  }
+
+  private clear(href: string, tray: string, state: TrayState): void {
+    state.view = { messages: [] }; state.draft = ""; state.disclosed.clear(); void this.run(href, tray, { type: "clear" })
+  }
+
+  private notify(href: string, tray: string): void {
+    const state = this.states.get(this.key(href, tray))
+    if (!state?.listeners.size) return
+    const snapshot = this.snapshot(href, tray)
+    for (const listener of state.listeners) listener(snapshot)
   }
 
   private refresh(href: string, tray: string): void {
@@ -91,36 +190,37 @@ export class AddonTrays {
         if (button.dataset.addonTrayButton === addonContributionId(this.manifest.id, tray)) button.setAttribute("aria-expanded", String(this.expanded(row, tray)))
       }
     }
+    this.notify(href, tray)
     document.dispatchEvent(new CustomEvent(STORY_TRAYS_CHANGED, { detail: href }))
   }
 
-  private async run(row: StoryListItem, tray: string, event: AddonTrayEvent): Promise<void> {
-    const state = this.state(row.story.href, tray)
+  private async run(href: string, tray: string, event: AddonTrayEvent): Promise<void> {
+    const state = this.stateFor(href, tray)
     state.controller?.abort()
     const controller = new AbortController()
     state.controller = controller
     state.last = event
     state.error = ""
-    this.refresh(row.story.href, tray)
+    this.refresh(href, tray)
     try {
       if (!this.sandbox) throw new Error("Configure the addon sandbox on this platform first")
       const session = await this.sandbox.ensure()
       controller.signal.throwIfAborted()
-      const story: StoryView = projectStoryView(row.story, row.dataset.redirected_url || row.story.href)
-      const result = await session.tray(tray, event, story, controller.signal)
+      const result = await session.tray(tray, event, state.story, controller.signal)
       if (!controller.signal.aborted) state.view = readTrayView(result)
     } catch (error) {
       if (!controller.signal.aborted) state.error = error instanceof Error ? error.message : String(error)
     } finally {
       if (state.controller === controller) {
         state.controller = undefined
-        this.refresh(row.story.href, tray)
+        this.refresh(href, tray)
       }
     }
   }
 
   private render(row: StoryListItem, tray: string): HTMLElement | null {
-    const state = this.states.get(this.key(row.story.href, tray))
+    const href = row.story.href
+    const state = this.states.get(this.key(href, tray))
     const place = this.place(row)
     if (!state?.open.has(place)) return null
     const root = document.createElement("section")
@@ -131,62 +231,41 @@ export class AddonTrays {
     const heading = document.createElement("strong")
     heading.className = "addon_tray_title"
     heading.textContent = root.getAttribute("aria-label")
-    const close = this.button("Close", () => { state.open.delete(place); this.refresh(row.story.href, tray) })
+    const header = document.createElement("div")
+    header.className = "addon_tray_actions addon_tray_header"
+    header.append(heading)
+    if (this.surface) {
+      const surface = this.surface
+      const open = trayButton(surface.label, () => surface.open(this.handle(row, tray)))
+      open.dataset.testid = "addon-tray-continue"
+      open.prepend(trayIcon("popout", "icon--inline"))
+      header.append(open)
+    }
+    const close = trayButton("Close", () => { state.open.delete(place); this.refresh(href, tray) })
     // The label becomes the accessible name so the glyph can replace the word.
     close.classList.add("button--icon")
     close.setAttribute("aria-label", close.textContent ?? "Close")
-    close.replaceChildren(this.icon("x"))
-    const header = document.createElement("div")
-    header.className = "addon_tray_actions addon_tray_header"
-    header.append(heading, close)
-    root.append(header)
-    for (const [index, message] of state.view.messages.entries()) {
-      const block = document.createElement("div")
-      block.className = `addon_tray_message addon_tray_${message.role}`
-      if (message.role === "assistant") block.append(trayMarkdown(message.text))
-      else block.textContent = message.text
-      const sources = (message.sources ?? []).map(source => {
-        const link = document.createElement("a")
-        link.textContent = source.title || source.url
-        link.href = source.url
-        link.target = "_blank"
-        link.rel = "noopener noreferrer"
-        link.className = "addon_tray_source"
-        link.prepend(this.icon("popout", "icon--inline"))
-        return link
-      })
-      if (message.title) root.append(this.disclosure(state, index, message.title, message.collapsed === true, block, sources))
-      else root.append(block, ...sources)
-    }
-    const status = document.createElement("p")
-    status.setAttribute("role", "status")
-    // A host failure and an addon reporting its own through statusTone read the
-    // same to the reader, so they get the same treatment.
-    const failed = !state.controller && (state.error !== "" || state.view.statusTone === "error")
-    status.className = failed ? "addon_tray_status addon_tray_status--error" : "addon_tray_status"
-    status.textContent = state.controller ? "Working…" : state.error || state.view.status || ""
-    root.append(status, this.controls(row, tray, state))
-    if (state.view.composer) root.append(this.composer(row, tray, state))
+    close.replaceChildren(trayIcon("x"))
+    header.append(close)
+    root.append(header, ...renderTrayMessages(state.view, state.disclosed))
+    root.append(renderTrayStatus(state.view, !!state.controller, state.error), this.controls(href, tray, state))
+    if (state.view.composer) root.append(this.composer(href, tray, state))
     return root
   }
 
-  private controls(row: StoryListItem, tray: string, state: TrayState): HTMLElement {
+  private controls(href: string, tray: string, state: TrayState): HTMLElement {
     const controls = document.createElement("div")
     controls.className = "addon_tray_actions addon_tray_controls"
-    if (state.controller) controls.append(this.button("Stop", () => {
-      state.controller?.abort(); state.controller = undefined; state.error = "Request cancelled"; this.refresh(row.story.href, tray)
-    }))
+    if (state.controller) controls.append(trayButton("Stop", () => this.stop(href, tray, state)))
     else {
-      for (const action of state.view.actions ?? []) controls.append(this.button(action.label, () => { void this.run(row, tray, { type: "action", action: action.id }) }))
-      if (state.error) controls.append(this.button("Retry", () => { void this.run(row, tray, state.last) }))
+      for (const action of state.view.actions ?? []) controls.append(trayButton(action.label, () => { void this.run(href, tray, { type: "action", action: action.id }) }))
+      if (state.error) controls.append(trayButton("Retry", () => { void this.run(href, tray, state.last) }))
     }
-    controls.append(this.button("Clear conversation", () => {
-      state.view = { messages: [] }; state.draft = ""; state.disclosed.clear(); void this.run(row, tray, { type: "clear" })
-    }))
+    controls.append(trayButton("Clear conversation", () => this.clear(href, tray, state)))
     return controls
   }
 
-  private composer(row: StoryListItem, tray: string, state: TrayState): HTMLElement {
+  private composer(href: string, tray: string, state: TrayState): HTMLElement {
     const form = document.createElement("form")
     form.className = "addon_tray_composer"
     const input = document.createElement("textarea")
@@ -196,52 +275,14 @@ export class AddonTrays {
     input.rows = 2
     input.value = state.draft
     input.disabled = !!state.controller
-    input.addEventListener("input", () => { state.draft = input.value })
-    const send = this.button("Ask", () => form.requestSubmit())
+    input.addEventListener("input", () => { state.draft = input.value; this.notify(href, tray) })
+    const send = trayButton("Ask", () => form.requestSubmit())
     send.disabled = !!state.controller
     form.addEventListener("submit", event => {
       event.preventDefault()
-      if (!state.draft.trim() || state.controller) return
-      const text = state.draft.trim()
-      state.draft = ""
-      void this.run(row, tray, { type: "submit", text })
+      this.command(href, tray, { type: "submit", text: state.draft })
     })
     form.append(input, send)
     return form
-  }
-
-  /** A titled message folds behind a native disclosure. The attribute, not the
-   *  property, carries the state so the same code reads under linkedom. */
-  private disclosure(state: TrayState, index: number, title: string, collapsed: boolean, block: HTMLElement, sources: HTMLElement[]): HTMLElement {
-    const details = document.createElement("details")
-    details.className = "addon_tray_disclosure"
-    details.toggleAttribute("open", state.disclosed.get(index) ?? !collapsed)
-    details.addEventListener("toggle", () => state.disclosed.set(index, details.hasAttribute("open")))
-    const summary = document.createElement("summary")
-    summary.className = "addon_tray_disclosure_title"
-    summary.textContent = title
-    const body = document.createElement("div")
-    body.className = "addon_tray_disclosure_body"
-    body.append(block, ...sources)
-    details.append(summary, body)
-    return details
-  }
-
-  /** `.icon` has no default size, so every call site names one: `.icon--inline`
-   *  for a glyph in running text, or a component rule for the rest. */
-  private icon(name: string, sized = ""): HTMLElement {
-    const glyph = document.createElement("span")
-    glyph.className = sized ? `icon ${sized} icon--${name}` : `icon icon--${name}`
-    glyph.setAttribute("aria-hidden", "true")
-    return glyph
-  }
-
-  private button(label: string, run: () => void): HTMLButtonElement {
-    const button = document.createElement("button")
-    button.type = "button"
-    button.className = "button"
-    button.textContent = label
-    button.addEventListener("click", run)
-    return button
   }
 }

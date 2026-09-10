@@ -17,7 +17,7 @@ test("AI manifest round-trips trays, connections, prompts and never secret optio
   const text = core.presentAddons(doc)
   assert.equal(text.includes("must-not-sync"), false)
   assert.equal(core.parseAddonsText(text).addons[0].manifest.trays[0].id, "assistant")
-  assert.equal(core.parseAddonsText(text).addons[0].manifest.connections.length, 4)
+  assert.equal(core.parseAddonsText(text).addons[0].manifest.connections.length, 5)
   const collector = core.readConfigSchema({ type: "string", maxLength: 16000, format: "multiline" })
   assert.throws(() => core.validateConfig(collector, "x".repeat(2001)), /too long/)
 })
@@ -38,6 +38,24 @@ test("tray views only allow bounded text and safe source URLs", () => {
   assert.equal(core.readTrayView({ messages: [], status: "failed", statusTone: "error" }).statusTone, "error")
   assert.equal(core.readTrayView({ messages: [], status: "ready" }).statusTone, undefined)
   assert.throws(() => core.readTrayView({ messages: [], statusTone: "warning" }), /Invalid tray status tone/)
+})
+
+test("conversation snapshots and commands crossing a surface boundary are checked like tray views", () => {
+  const snapshot = { addon: { id: "a", name: "A" }, tray: { id: "t", title: "T" }, story: { href: "https://story.test/", title: "S" },
+    view: { messages: [{ role: "assistant", text: "hi" }] }, busy: true, error: "", draft: "d" }
+  const read = core.readConversationSnapshot(snapshot)
+  assert.deepEqual(read.story, { href: "https://story.test/", title: "S" })
+  assert.equal(read.busy, true)
+  assert.equal(read.view.messages[0].text, "hi")
+  assert.throws(() => core.readConversationSnapshot({ ...snapshot, story: { href: "javascript:alert(1)", title: "S" } }), /conversation story/)
+  assert.throws(() => core.readConversationSnapshot({ ...snapshot, view: { messages: [{ role: "system", text: "x" }] } }), /Invalid tray message/)
+  assert.throws(() => core.readConversationSnapshot({ ...snapshot, draft: "x".repeat(8001) }), /Invalid conversation snapshot/)
+  assert.deepEqual(core.readConversationCommand({ type: "submit", text: "q" }), { type: "submit", text: "q" })
+  assert.deepEqual(core.readConversationCommand({ type: "action", action: "more" }), { type: "action", action: "more" })
+  assert.deepEqual(core.readConversationCommand({ type: "stop", extra: 1 }), { type: "stop" })
+  assert.throws(() => core.readConversationCommand({ type: "action", action: "bad space" }), /Invalid conversation action/)
+  assert.throws(() => core.readConversationCommand({ type: "open" }), /Unknown conversation command/)
+  assert.throws(() => core.readConversationCommand(null), /Invalid conversation command/)
 })
 
 test("connection requests cannot set authentication headers or arbitrary HTTP methods", () => {

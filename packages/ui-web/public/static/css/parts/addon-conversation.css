@@ -1,0 +1,115 @@
+/* A tray's conversation on a page of its own. It reuses the tray's message
+   rules, so the same answer reads the same in a row and here; the page adds
+   only a measure, a header and a composer that stays in reach. */
+/* The shell's base rules pin the document and let panels scroll; this page is
+   one column of prose and scrolls as a document. */
+.addon_conversation_page {
+  overflow: auto;
+}
+
+/* The shell's base rules also turn text selection off for the whole document,
+   which suits a list of rows; an answer on a page of its own is there to be
+   read, selected and copied. */
+.addon_conversation_page,
+.addon_conversation {
+  cursor: auto;
+  user-select: text;
+}
+
+.addon_conversation {
+  box-sizing: border-box;
+  max-inline-size: 78ch;
+  min-block-size: 100vh;
+  margin-inline: auto;
+  padding: var(--sp-4) var(--sp-4) var(--sp-6);
+  color: var(--text-high-color);
+  font-size: var(--fs-body);
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+}
+
+.addon_conversation_header {
+  margin-block-end: var(--sp-3);
+  padding-block-end: var(--sp-2);
+  border-block-end: var(--bw) solid var(--divider-color);
+}
+
+.addon_conversation_title {
+  margin: 0;
+  color: var(--text-muted-color);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+}
+
+.addon_conversation_story {
+  display: block;
+  margin-block-start: var(--sp-1);
+  color: var(--text-high-color);
+  font-size: var(--fs-title);
+  font-weight: 600;
+  text-decoration-line: none;
+}
+
+.addon_conversation_story:hover {
+  text-decoration-line: underline;
+}
+
+.addon_conversation_messages {
+  flex: 1 1 auto;
+}
+
+/* On a page the messages take the page's measure, not the tray's. */
+.addon_conversation .addon_tray_message,
+.addon_conversation .addon_tray_disclosure {
+  max-inline-size: none;
+}
+
+.addon_conversation .addon_tray_source {
+  display: block;
+  margin-block: var(--sp-0-5);
+  color: var(--text-muted-color);
+  font-size: var(--fs-meta);
+}
+
+.addon_conversation .addon_tray_source .icon {
+  margin-inline-end: var(--sp-1);
+  opacity: 0.7;
+}
+
+.addon_conversation_notice {
+  margin-block: var(--sp-3) 0;
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--bw) solid var(--border-high-color);
+  border-radius: var(--radius-md);
+  background: var(--input-bg-color);
+  color: var(--text-muted-color);
+  font-size: var(--fs-dense);
+}
+
+.addon_conversation_composer {
+  position: sticky;
+  inset-block-end: 0;
+  margin-block-start: var(--sp-3);
+  padding-block: var(--sp-2);
+  background: var(--main-bg-color);
+}
+
+.addon_conversation .button {
+  box-sizing: border-box;
+  height: auto;
+  min-height: 0;
+  padding: var(--sp-1) var(--sp-2);
+  border-color: var(--border-color);
+  font-size: var(--fs-dense);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.addon_conversation_composer textarea {
+  flex: 1;
+  min-width: 0;
+  padding: var(--sp-1-5) var(--sp-2);
+  font: inherit;
+  resize: vertical;
+}

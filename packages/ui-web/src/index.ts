@@ -30,3 +30,5 @@ export {
 export { SourcePickerView } from "./picker/SourcePickerView"
 
 export { renderStoryTrays, STORY_TRAYS_CHANGED } from "./story/storyElements"
+export { requestReading } from "./ReadingSession"
+export type { AddonConversationHandle, AddonConversationSurface } from "./addons/AddonTrays"

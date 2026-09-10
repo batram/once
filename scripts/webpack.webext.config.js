@@ -57,6 +57,7 @@ module.exports = (env = {}, argv = {}) => {
       "addon-sandbox": path.join(root, "packages", "webext-shell", "dist", "addonSandbox.js"),
       "reader-content": path.join(root, "packages", "ui-web", "dist", "reader", "contentScript.js"),
       "reader-page": path.join(root, "packages", "webext-shell", "dist", "readerPage.js"),
+      "addon-conversation-page": path.join(root, "packages", "webext-shell", "dist", "addonConversationPage.js"),
       "picker-content": path.join(root, "packages", "ui-web", "dist", "picker", "contentScript.js")
     },
     output: {
@@ -154,6 +155,15 @@ module.exports = (env = {}, argv = {}) => {
             to: "static/reader.html",
             transform(content) {
               return content.toString().replace("</body>", '  <script src="../reader-page.js"></script>\n  </body>')
+            }
+          },
+          // A tray's conversation continued in a tab; the panel it came from
+          // keeps the conversation and feeds the page over a runtime port.
+          {
+            from: path.join(root, "packages", "ui-web", "public", "addon-conversation.html"),
+            to: "static/addon-conversation.html",
+            transform(content) {
+              return content.toString().replace("</body>", '  <script src="../addon-conversation-page.js"></script>\n  </body>')
             }
           },
           {
