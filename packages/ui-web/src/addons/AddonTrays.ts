@@ -4,8 +4,12 @@ import { registerStoryElement, STORY_TRAYS_CHANGED } from "../story/storyElement
 import { AddonSandbox } from "./AddonSandbox"
 import { trayMarkdown } from "./trayMarkdown"
 
+/** Where a row lives: the list, or the mirror of the open story in #selected_container. */
+type TrayPlace = "list" | "selected"
+
 interface TrayState {
-  open: boolean
+  /** The conversation is one per story; which places show it is the reader's choice per place. */
+  open: Set<TrayPlace>
   draft: string
   view: AddonTrayView
   error: string
@@ -30,13 +34,17 @@ export class AddonTrays {
     }
   }
 
-  expanded(href: string, tray: string): boolean { return this.states.get(this.key(href, tray))?.open === true }
+  expanded(row: StoryListItem, tray: string): boolean {
+    return this.states.get(this.key(row.story.href, tray))?.open.has(this.place(row)) === true
+  }
 
+  /** Opens or closes the tray where this row is; the same story elsewhere keeps its own state. */
   toggle(row: StoryListItem, tray: string): void {
     const state = this.state(row.story.href, tray)
-    state.open = !state.open
+    const place = this.place(row)
+    if (!state.open.delete(place)) state.open.add(place)
     this.refresh(row.story.href, tray)
-    if (state.open && !state.view.messages.length && !state.error && !state.controller) void this.run(row, tray, { type: "open" })
+    if (state.open.has(place) && !state.view.messages.length && !state.error && !state.controller) void this.run(row, tray, { type: "open" })
   }
 
   reset(): void {
@@ -57,11 +65,13 @@ export class AddonTrays {
 
   private key(href: string, tray: string): string { return JSON.stringify([href, tray]) }
 
+  private place(row: StoryListItem): TrayPlace { return row.closest("#selected_container") ? "selected" : "list" }
+
   private state(href: string, tray: string): TrayState {
     const key = this.key(href, tray)
     let state = this.states.get(key)
     if (!state) {
-      state = { open: false, draft: "", view: { messages: [] }, error: "", last: { type: "open" }, disclosed: new Map() }
+      state = { open: new Set(), draft: "", view: { messages: [] }, error: "", last: { type: "open" }, disclosed: new Map() }
       this.states.set(key, state)
     }
     return state
@@ -78,7 +88,7 @@ export class AddonTrays {
         row.append(element)
       }
       for (const button of row.querySelectorAll<HTMLElement>("[data-addon-tray-button]")) {
-        if (button.dataset.addonTrayButton === addonContributionId(this.manifest.id, tray)) button.setAttribute("aria-expanded", String(this.expanded(href, tray)))
+        if (button.dataset.addonTrayButton === addonContributionId(this.manifest.id, tray)) button.setAttribute("aria-expanded", String(this.expanded(row, tray)))
       }
     }
     document.dispatchEvent(new CustomEvent(STORY_TRAYS_CHANGED, { detail: href }))
@@ -111,7 +121,8 @@ export class AddonTrays {
 
   private render(row: StoryListItem, tray: string): HTMLElement | null {
     const state = this.states.get(this.key(row.story.href, tray))
-    if (!state?.open) return null
+    const place = this.place(row)
+    if (!state?.open.has(place)) return null
     const root = document.createElement("section")
     root.className = "addon_tray"
     root.dataset.testid = "addon-tray"
@@ -120,7 +131,7 @@ export class AddonTrays {
     const heading = document.createElement("strong")
     heading.className = "addon_tray_title"
     heading.textContent = root.getAttribute("aria-label")
-    const close = this.button("Close", () => { state.open = false; this.refresh(row.story.href, tray) })
+    const close = this.button("Close", () => { state.open.delete(place); this.refresh(row.story.href, tray) })
     // The label becomes the accessible name so the glyph can replace the word.
     close.classList.add("button--icon")
     close.setAttribute("aria-label", close.textContent ?? "Close")

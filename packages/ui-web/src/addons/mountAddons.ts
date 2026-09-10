@@ -210,7 +210,7 @@ async function registerManifest(
             const button = actionButton(contribution.label, contribution.icon, () => run(row))
             if ("tray" in contribution.run) {
               button.dataset.addonTrayButton = addonContributionId(manifest.id, contribution.run.tray)
-              button.setAttribute("aria-expanded", String(storyTrays.expanded(row.story.href, contribution.run.tray)))
+              button.setAttribute("aria-expanded", String(storyTrays.expanded(row, contribution.run.tray)))
             }
             return button
           }

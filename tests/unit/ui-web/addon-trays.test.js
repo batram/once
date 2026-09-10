@@ -84,6 +84,42 @@ test("tray state survives row replacement, collapse and reopen without a second 
   } finally { trays.dispose(); global.document = previous; global.CustomEvent = previousCustomEvent }
 })
 
+test("the open story's mirror row shares the conversation but opens its tray on its own", async () => {
+  const previous = global.document
+  const previousCustomEvent = global.CustomEvent
+  const { document, CustomEvent } = parseHTML('<html><body><div id="selected_container"></div><div id="stories"></div></body></html>')
+  global.document = document
+  global.CustomEvent = CustomEvent
+  const { AddonTrays } = require("../../../packages/ui-web/dist/addons/AddonTrays")
+  let calls = 0
+  const trays = new AddonTrays({ id: "example", trays: [{ id: "assistant", title: "Assistant" }] }, {
+    ensure: async () => ({ tray: async () => { calls++; return { messages: [{ role: "assistant", text: "Shared answer" }] } } })
+  })
+  const makeRow = host => {
+    const row = document.createElement("story-item")
+    row.story = { href: "https://story.test/", title: "Title", type: "HN" }
+    host.append(row)
+    return row
+  }
+  const listed = makeRow(document.querySelector("#stories"))
+  const mirrored = makeRow(document.querySelector("#selected_container"))
+  try {
+    trays.toggle(listed, "assistant")
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(listed.querySelectorAll(".addon_tray").length, 1)
+    assert.equal(mirrored.querySelectorAll(".addon_tray").length, 0)
+    assert.equal(trays.expanded(listed, "assistant"), true)
+    assert.equal(trays.expanded(mirrored, "assistant"), false)
+    // Opening the mirror reuses the answer already there: no second request.
+    trays.toggle(mirrored, "assistant")
+    assert.match(mirrored.querySelector(".addon_tray_message").textContent, /Shared answer/)
+    assert.equal(calls, 1)
+    mirrored.querySelector('button[aria-label="Close"]').click()
+    assert.equal(mirrored.querySelectorAll(".addon_tray").length, 0)
+    assert.equal(listed.querySelectorAll(".addon_tray").length, 1)
+  } finally { trays.dispose(); global.document = previous; global.CustomEvent = previousCustomEvent }
+})
+
 test("titled messages fold behind disclosures whose state outlives a redraw and ends with the conversation", async () => {
   const previous = global.document
   const previousCustomEvent = global.CustomEvent
