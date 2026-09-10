@@ -174,6 +174,16 @@ Once add-on packages under development (`once-addon.json` beside its script;
 see [Add-ons](ADDONS.md)). Add-ons from `ONCE_ADDONS` reload when a file in
 their directory changes. Packaged builds ignore both variables.
 
+Packaged macOS builds are only ad-hoc signed, and each `package` produces a
+new code signature. Electron's `safeStorage` keeps its key in a Keychain item
+(`<app name> Safe Storage`) that trusts only the signature that created it, so
+a rebuilt package is refused the key, either with a Keychain password prompt or
+silently. The app then logs a warning and keeps the sync URL and source tokens
+unencrypted in `once-v2-settings.json` under the user data directory; they are
+encrypted again on the next save made while `safeStorage` works. Signing the
+package with a stable identity, or deleting the stale item in Keychain Access
+before the first start of a new build, restores Keychain-backed encryption.
+
 ## Capacitor mobile apps
 
 The committed native projects live below `apps/mobile/android` and
