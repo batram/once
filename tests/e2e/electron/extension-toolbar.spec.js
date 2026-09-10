@@ -13,8 +13,14 @@ test("extensions panel supports direct actions, persistent pins, and settings @i
       const created = electronApp.waitForEvent("window", { predicate: page => page !== window })
       await trigger.click()
       const panel = await created
+      // The window event fires when the panel window exists, still on its
+      // initial blank document, so a load-state wait returns at once. Wait for
+      // the menu page itself to arrive, on the navigation budget, before
+      // asking about its content: on a loaded CI runner the load alone can
+      // outlast an assertion's timeout.
+      await panel.waitForURL(/extension_menu/)
       await panel.waitForLoadState("domcontentloaded")
-      await expect(panel.getByRole("heading", { name: "Extensions" })).toBeVisible()
+      await expect(panel.getByRole("heading", { name: "Extensions" }), `panel at ${panel.url()}`).toBeVisible()
       return panel
     }
     let panel = await openPanel()

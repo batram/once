@@ -16,6 +16,9 @@ module.exports = defineConfig({
   // speed varies between runs, so the budget that keeps local feedback sharp
   // turns healthy specs red there. Locally it stays tight.
   timeout: process.env.CI ? 90_000 : 30_000,
+  // Assertions get the same allowance as actions do there; the default five
+  // seconds is what an assertion doubling as a page-load wait runs into.
+  expect: { timeout: process.env.CI ? 15_000 : 5_000 },
   retries: 1,
   workers: 1,
   reporter: "line",
