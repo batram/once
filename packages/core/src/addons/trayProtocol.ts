@@ -56,6 +56,38 @@ export interface AddonConversationSnapshot {
   draft: string
 }
 
+/**
+ * What names a conversation: the addon, its tray, and the story. A page URL
+ * carries these, so any surface showing that URL, now or later through
+ * history, asks the shell for the same conversation.
+ */
+export interface AddonConversationKey {
+  addon: string
+  tray: string
+  story: string
+}
+
+const CONVERSATION_ID = /^[a-zA-Z0-9_.-]{1,100}$/
+
+export function conversationSearch(key: AddonConversationKey): string {
+  return new URLSearchParams({ addon: key.addon, tray: key.tray, story: key.story }).toString()
+}
+
+/** The key in a page URL's query, or null when it does not name a conversation. */
+export function readConversationKey(url: string): AddonConversationKey | null {
+  let params: URLSearchParams
+  try { params = new URL(url).searchParams } catch { return null }
+  const addon = params.get("addon") ?? ""
+  const tray = params.get("tray") ?? ""
+  const story = params.get("story") ?? ""
+  if (!CONVERSATION_ID.test(addon) || !CONVERSATION_ID.test(tray) || story.length > 4096) return null
+  try {
+    const href = new URL(story)
+    if (!["http:", "https:"].includes(href.protocol)) return null
+    return { addon, tray, story: href.href }
+  } catch { return null }
+}
+
 /** What a surface may ask the owning shell to do with a conversation. */
 export type AddonConversationCommand =
   | { type: "submit"; text: string }

@@ -56,6 +56,13 @@ test("conversation snapshots and commands crossing a surface boundary are checke
   assert.throws(() => core.readConversationCommand({ type: "action", action: "bad space" }), /Invalid conversation action/)
   assert.throws(() => core.readConversationCommand({ type: "open" }), /Unknown conversation command/)
   assert.throws(() => core.readConversationCommand(null), /Invalid conversation command/)
+  const key = { addon: "example", tray: "assistant", story: "https://story.test/a b?x=1" }
+  const search = core.conversationSearch(key)
+  assert.deepEqual(core.readConversationKey(`once-addon://conversation/index.html?${search}`), { ...key, story: "https://story.test/a%20b?x=1" })
+  assert.equal(core.readConversationKey("once-addon://conversation/index.html?addon=example&tray=assistant"), null)
+  assert.equal(core.readConversationKey("once-addon://conversation/index.html?addon=bad%20id&tray=t&story=https%3A%2F%2Fs.test%2F"), null)
+  assert.equal(core.readConversationKey("once-addon://conversation/index.html?addon=a&tray=t&story=javascript%3Aalert(1)"), null)
+  assert.equal(core.readConversationKey("not a url"), null)
 })
 
 test("connection requests cannot set authentication headers or arbitrary HTTP methods", () => {

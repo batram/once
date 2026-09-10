@@ -244,14 +244,16 @@ export interface ElectronBridge {
     /** Fires when a file in one of those directories changes. */
     onDevChanged(handler: () => void): () => void
     conversations: {
-      /** Opens a tab for the conversation named by `token`, seeded with its snapshot. */
-      open(token: string, snapshot: unknown): Promise<void>
-      /** The conversation changed; the tab shows the new snapshot. */
-      push(token: string, snapshot: unknown): void
+      /** Opens a tab on a conversation page URL. */
+      open(url: string): Promise<void>
+      /** A tab's page asked for the conversation `key` names; answer with pushes until detached. */
+      onAttach(handler: (tabId: number, key: unknown) => void): () => void
+      /** The tab left the page or closed. */
+      onDetach(handler: (tabId: number) => void): () => void
+      /** The conversation for a tab: its snapshot, or null when the shell has none. */
+      push(tabId: number, snapshot: unknown): void
       /** The reader did something in the tab. */
-      onCommand(handler: (token: string, command: unknown) => void): () => void
-      /** The tab went away or left the page. */
-      onClosed(handler: (token: string) => void): () => void
+      onCommand(handler: (tabId: number, command: unknown) => void): () => void
     }
   }
   window: {
@@ -336,21 +338,26 @@ export const ELECTRON_IPC = {
   addonsDevChanged: "once:addons:dev-changed",
   addonsPickDirectory: "once:addons:pick-directory",
   addonsRemoveDirectory: "once:addons:remove-directory",
-  // A tray's conversation continued in a browser tab: the shell opens and
-  // feeds it, the tab's page connects and sends the reader's input back.
+  // A tray's conversation continued in a browser tab. The page's URL names the
+  // conversation; a tab showing it attaches to the shell that owns the addon,
+  // which feeds it snapshots and takes the reader's input back.
   addonsConversationOpen: "once:addons:conversation-open",
+  addonsConversationAttach: "once:addons:conversation-attach",
+  addonsConversationDetach: "once:addons:conversation-detach",
   addonsConversationPush: "once:addons:conversation-push",
   addonsConversationCommand: "once:addons:conversation-command",
-  addonsConversationClosed: "once:addons:conversation-closed",
   addonsConversationConnect: "once:addons:conversation-connect",
   addonsConversationState: "once:addons:conversation-state"
 } as const
 
-/** The page in the tab: `connect` answers with the current snapshot, or null when the token is unknown. */
+/** The conversation page's location; its query names the conversation. */
+export const ADDON_CONVERSATION_URL = "once-addon://conversation/index.html"
+
+/** The page in the tab: `connect` asks for the conversation its URL names; the answer arrives as state. */
 export interface ElectronConversationPageBridge {
-  connect(token: string): Promise<unknown>
+  connect(): Promise<void>
   onState(handler: (snapshot: unknown, connected: boolean) => void): () => void
-  send(token: string, command: unknown): void
+  send(command: unknown): void
 }
 
 /** One `ONCE_ADDONS` directory as main read it; the renderer validates the manifest. */

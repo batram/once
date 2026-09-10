@@ -30,7 +30,7 @@ test("AI addon uses authenticated requests, host trays, article text and session
     // shows what the tray has, and a follow-up asked there lands in the tray too.
     await tray.getByTestId("addon-tray-continue").click()
     await expect.poll(() => window.evaluate(() => window.onceElectron.tabs.getAll()))
-      .toContainEqual(expect.objectContaining({ url: expect.stringMatching(/^once-addon:\/\/conversation\/index\.html\?token=/), active: true, loadError: null }))
+      .toContainEqual(expect.objectContaining({ url: expect.stringMatching(/^once-addon:\/\/conversation\/index\.html\?addon=what-wait-who-why&tray=assistant&story=/), active: true, loadError: null }))
     // The tab is a WebContentsView, which Playwright does not list as a page, so
     // it is driven through main. While its navigation is in flight it reads as
     // missing, which is a "not yet" for the polls below, not a failure.
@@ -45,13 +45,27 @@ test("AI addon uses authenticated requests, host trays, article text and session
       message: await conversation("JSON.stringify({ bridge: typeof window.onceConversation, html: document.documentElement.outerHTML.slice(0, 1200) })")
     }).toContain("Its qualifications are preserved")
     await expect.poll(pageText).toContain(storyFixture.STORY_TITLES.alpha)
+    // The conversation tab counts as the story's page: its row is mirrored above the browser.
+    await expect(window.locator(`#selected_container story-item[data-href="${urls.alpha}"]`)).toBeVisible()
     await conversation('(() => { const input = document.querySelector("textarea"); input.value = "Who uses it, again?"; input.dispatchEvent(new Event("input")); document.querySelector("form").requestSubmit() })()')
     await expect(tray).toContainText("Who uses it, again?")
     await expect(tray).toContainText("Developers use it")
     await expect.poll(pageText).toContain("Developers use it")
-    // Closing the tab ends the mirror; the tray goes on as before.
+    // Following a link and coming back through history finds the conversation again.
     const conversationTab = (await window.evaluate(() => window.onceElectron.tabs.getAll())).find(tab => tab.url.startsWith("once-addon://conversation/"))
+    await window.evaluate(([id, url]) => window.onceElectron.tabs.navigate(id, url), [conversationTab.id, server.origin])
+    await expect.poll(pageText).toContain("no conversation page")
+    await window.evaluate(id => window.onceElectron.tabs.back(id), conversationTab.id)
+    await expect.poll(pageText, { timeout: 10000 }).toContain("Developers use it")
+    await expect.poll(() => conversation('document.querySelector(\'[data-testid="addon-conversation"]\')?.dataset.connected')).toBe("true")
+    // The page is named by its story, not by the tab: closing it and opening the
+    // same URL in a fresh tab shows the same conversation.
     await window.evaluate(id => window.onceElectron.tabs.close(id), conversationTab.id)
+    await expect.poll(() => window.evaluate(() => window.onceElectron.tabs.getAll().then(tabs => tabs.length))).toBe(1)
+    await window.evaluate(url => window.onceElectron.tabs.create(url, true), conversationTab.url)
+    await expect.poll(pageText, { timeout: 10000 }).toContain("Developers use it")
+    const reopened = (await window.evaluate(() => window.onceElectron.tabs.getAll())).find(tab => tab.url.startsWith("once-addon://conversation/"))
+    await window.evaluate(id => window.onceElectron.tabs.close(id), reopened.id)
     await expect.poll(() => window.evaluate(() => window.onceElectron.tabs.getAll().then(tabs => tabs.length))).toBe(1)
     await expect(tray).toContainText("Developers use it")
     await tray.getByRole("textbox").fill("Wait for network cancellation")

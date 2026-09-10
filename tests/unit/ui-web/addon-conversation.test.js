@@ -66,6 +66,15 @@ test("a tray hands out a conversation handle that mirrors its state and takes co
     const count = snapshots.length
     opened.send({ type: "draft", text: "unheard" })
     assert.equal(snapshots.length, count)
+    // A page asking by story gets the held conversation, a fresh one for a
+    // listed story, and nothing for an unknown story or tray.
+    assert.equal(trays.handleFor("assistant", "https://story.test/").snapshot().view.messages.length, 0)
+    const other = document.createElement("story-item")
+    other.story = { href: "https://other.test/", title: "Other", type: "HN" }
+    document.querySelector("#stories").append(other)
+    assert.equal(trays.handleFor("assistant", "https://other.test/").snapshot().story.title, "Other")
+    assert.equal(trays.handleFor("assistant", "https://unknown.test/"), null)
+    assert.equal(trays.handleFor("missing", "https://story.test/"), null)
   } finally { trays.dispose(); restore() }
 })
 
@@ -109,10 +118,17 @@ test("the conversation page renders snapshots, sends input and goes read-only wi
     // The shell went away: the transcript stays, the composer and actions do not.
     publish(null, false)
     assert.equal(root.dataset.connected, "false")
-    assert.match(root.querySelector(".addon_conversation_notice").textContent, /panel/)
+    assert.match(root.querySelector(".addon_conversation_notice").textContent, /panel that runs this addon is closed/)
     assert.equal(root.querySelector(".addon_conversation_notice").hidden, false)
     assert.equal(input.disabled, true)
     assert.equal(button("Retry"), undefined)
     assert.match(root.querySelector(".addon_tray_assistant").textContent, /Answer/)
+    // A shell that answers with nothing has no conversation for this story.
+    publish(null, true)
+    assert.match(root.querySelector(".addon_conversation_notice").textContent, /holds no conversation/)
+    assert.equal(root.querySelector(".addon_tray_assistant"), null)
+    publish(snapshot(), true)
+    assert.equal(root.querySelector(".addon_conversation_notice").hidden, true)
+    assert.equal(input.disabled, false)
   } finally { unmount(); restore() }
 })

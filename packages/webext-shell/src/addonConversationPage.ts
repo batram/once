@@ -1,18 +1,19 @@
 // Entry of the extension's addon conversation page: a tab that continues a
-// tray's conversation. The panel keeps the conversation; this page shows what
-// arrives over the runtime port named by its token and sends input back.
+// tray's conversation, named by the page's URL. The panel keeps the
+// conversation; this page shows what arrives over its runtime port and sends
+// input back, on first load and again when history brings it back.
 import browser from "webextension-polyfill"
-import { readConversationSnapshot } from "@once/core"
+import { readConversationKey, readConversationSnapshot } from "@once/core"
 import { mountAddonConversation, AddonConversationPort } from "@once/ui-web/addons/conversationPage"
 import { CONVERSATION_PORT } from "./addonConversations"
 
-function connect(token: string): AddonConversationPort {
-  const port = browser.runtime.connect({ name: `${CONVERSATION_PORT}${token}` })
+function connect(): AddonConversationPort {
+  const port = browser.runtime.connect({ name: CONVERSATION_PORT })
   return {
     subscribe(listener) {
       const onMessage = (message: unknown) => {
         const { snapshot } = (message ?? {}) as { snapshot?: unknown }
-        try { listener(readConversationSnapshot(snapshot), true) }
+        try { listener(snapshot ? readConversationSnapshot(snapshot) : null, true) }
         catch (error) { console.error("Ignoring an invalid conversation snapshot", error) }
       }
       const onDisconnect = () => listener(null, false)
@@ -28,9 +29,8 @@ function connect(token: string): AddonConversationPort {
 }
 
 const root = document.getElementById("addon_conversation") ?? document.body
-const token = new URLSearchParams(location.search).get("token") ?? ""
-if (!token) {
-  root.textContent = "This conversation page was opened without its Once panel. Open the story's tray again and continue from there."
+if (!readConversationKey(location.href)) {
+  root.textContent = "This page does not name a conversation. Open a story's tray in Once and continue from there."
 } else {
-  mountAddonConversation(root, connect(token))
+  mountAddonConversation(root, connect())
 }

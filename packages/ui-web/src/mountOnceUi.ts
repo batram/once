@@ -188,7 +188,7 @@ export async function mountOnceUi(
   client.subscribe("selectedUrlChanged", ({ url }) => {
     // Which of the story's two URLs is open, which the mirrored row cannot say.
     setSelectedUrl(url)
-    updateSelected(client, url)
+    updateSelected(client, url, options.addonConversations)
   })
   client.subscribe("searchRequested", ({ query }) => {
     StorySearch.searchStories(query)
@@ -205,10 +205,11 @@ export async function mountOnceUi(
   }
 }
 
-async function updateSelected(client: OnceClient, href: string): Promise<void> {
+async function updateSelected(client: OnceClient, href: string, conversations?: AddonConversationSurface): Promise<void> {
   if (!href) return
 
-  href = sourceUrlFromReaderUrl(href) || href
+  // A conversation page is about a story as much as that story's own page is.
+  href = conversations?.storyHref?.(href) || sourceUrlFromReaderUrl(href) || href
 
   if (href.startsWith("about:reader?url=")) {
     const urlParams = new URLSearchParams(href.replace("about:reader", ""))

@@ -62,8 +62,14 @@ export interface MountAddonsOptions {
  * a script gets a sandbox, created on first use, for `message` actions and
  * computed badges.
  */
+/** The story trays of every registered addon, by addon id. */
+const trays = new Map<string, AddonTrays>()
+
 export function mountAddons(client: OnceClient, options: MountAddonsOptions = {}): void {
   configureAddonPackages(options.sandboxUrl)
+  // A conversation page names its addon, tray and story; the trays of the
+  // addons currently registered are where those conversations live.
+  options.conversations?.connect?.(key => trays.get(key.addon)?.handleFor(key.tray, key.story) ?? null)
   let refreshing: Promise<void> = Promise.resolve()
   const showDirectories = bindAddonDirectories(options.devAddons)
   const reconciler = new AddonReconciler(
@@ -174,7 +180,8 @@ async function registerManifest(
   const sandbox = await sandboxFor(client, entry, options, devCode, () => lifecycle.trays?.reset())
   const storyTrays = new AddonTrays(manifest, sandbox, options.conversations)
   lifecycle.trays = storyTrays
-  releases.push(() => storyTrays.dispose())
+  trays.set(manifest.id, storyTrays)
+  releases.push(() => { if (trays.get(manifest.id) === storyTrays) trays.delete(manifest.id); storyTrays.dispose() })
   if (sandbox) releases.push(() => sandbox.dispose())
   const scheduler = sandbox ? new BadgeScheduler(manifest.id, sandbox, viewOf) : null
   if (sandbox) {

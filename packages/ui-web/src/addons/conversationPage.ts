@@ -18,6 +18,7 @@ export function mountAddonConversation(root: HTMLElement, port: AddonConversatio
 }
 
 const DISCONNECTED = "The Once panel that runs this addon is closed. Open it again to continue the conversation."
+const UNAVAILABLE = "The Once panel holds no conversation for this story right now. Open the story's tray in the panel to start one."
 
 class ConversationPage {
   private readonly disclosed: TrayDisclosures = new Map()
@@ -68,7 +69,9 @@ class ConversationPage {
     root.replaceChildren(this.header, this.messages, this.status, this.controls, this.notice, this.form)
     this.unsubscribe = port.subscribe((snapshot, connected) => {
       this.connected = connected
-      if (snapshot) this.snapshot = snapshot
+      // A shell that went away leaves its last transcript on view; one that
+      // answers with nothing has nothing for this story, and says so.
+      if (snapshot || connected) this.snapshot = snapshot
       this.render()
     })
     this.render()
@@ -110,8 +113,8 @@ class ConversationPage {
       }
       this.controls.append(trayButton("Clear conversation", () => this.port.send({ type: "clear" })))
     }
-    this.notice.hidden = this.connected
-    this.notice.textContent = this.connected ? "" : DISCONNECTED
+    this.notice.hidden = usable
+    this.notice.textContent = usable ? "" : this.connected ? UNAVAILABLE : DISCONNECTED
     this.form.hidden = !snapshot?.view.composer && !!snapshot
     this.input.placeholder = snapshot?.view.composer ?? "Question"
     this.input.setAttribute("aria-label", this.input.placeholder)

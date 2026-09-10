@@ -7,12 +7,12 @@ function event() {
   return { listeners, addListener(listener) { listeners.push(listener) }, removeListener() {} }
 }
 
-function port(name) {
-  return { name, posted: [], disconnected: false, onMessage: event(), onDisconnect: event(),
+function port(name, url) {
+  return { name, sender: { url }, posted: [], disconnected: false, onMessage: event(), onDisconnect: event(),
     postMessage(message) { this.posted.push(message) }, disconnect() { this.disconnected = true } }
 }
 
-test("the panel opens a tab per conversation and serves only ports that name a pending token", async () => {
+test("the panel opens a tab named by the conversation and answers every port whose page names one it holds", async () => {
   const onConnect = event()
   const created = []
   const api = {
@@ -23,18 +23,17 @@ test("the panel opens a tab per conversation and serves only ports that name a p
   assert.equal(surface.label, "Continue in a tab")
   const sent = []
   let listener
-  const snapshot = { addon: { id: "a", name: "A" }, view: { messages: [] } }
-  surface.open({ snapshot: () => snapshot, subscribe: next => { listener = next; return () => { listener = null } }, send: command => sent.push(command) })
+  const snapshot = { addon: { id: "example", name: "A" }, tray: { id: "assistant", title: "T" }, story: { href: "https://story.test/", title: "S" }, view: { messages: [] } }
+  const handle = { snapshot: () => snapshot, subscribe: next => { listener = next; return () => { listener = null } }, send: command => sent.push(command) }
+  surface.connect(key => key.story === "https://story.test/" ? handle : null)
+  surface.open(handle)
   await new Promise(resolve => setImmediate(resolve))
-  assert.equal(created.length, 1)
-  assert.equal(created[0].active, true)
-  const token = new URL(created[0].url).searchParams.get("token")
-  assert.match(created[0].url, /^moz-extension:\/\/once\/static\/addon-conversation\.html\?token=/)
-  const stranger = port(`${CONVERSATION_PORT}unknown`)
-  onConnect.listeners[0](stranger)
-  assert.equal(stranger.disconnected, true)
-  onConnect.listeners[0](port("something-else"))
-  const page = port(`${CONVERSATION_PORT}${token}`)
+  assert.deepEqual(created, [{ url: "moz-extension://once/static/addon-conversation.html?addon=example&tray=assistant&story=https%3A%2F%2Fstory.test%2F", active: true }])
+  onConnect.listeners[0](port("something-else", created[0].url))
+  const unknown = port(CONVERSATION_PORT, "moz-extension://once/static/addon-conversation.html?addon=example&tray=assistant&story=https%3A%2F%2Fother.test%2F")
+  onConnect.listeners[0](unknown)
+  assert.deepEqual(unknown.posted, [{ snapshot: null }])
+  const page = port(CONVERSATION_PORT, created[0].url)
   onConnect.listeners[0](page)
   assert.deepEqual(page.posted, [{ snapshot }])
   listener({ ...snapshot, busy: true })
@@ -44,4 +43,9 @@ test("the panel opens a tab per conversation and serves only ports that name a p
   assert.deepEqual(sent, [{ type: "submit", text: "Hello" }])
   page.onDisconnect.listeners[0]()
   assert.equal(listener, null)
+  // The page navigated on and came back, or another tab opened the same URL: same conversation.
+  const returned = port(CONVERSATION_PORT, created[0].url)
+  onConnect.listeners[0](returned)
+  assert.deepEqual(returned.posted, [{ snapshot }])
+  assert.notEqual(listener, null)
 })

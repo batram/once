@@ -55,19 +55,19 @@ function conversationPage(event: IpcMainInvokeEvent | IpcMainEvent): WebContents
 
 function registerAddonConversationHandlers(options: IpcHandlerOptions): void {
   const { coordinator, conversations } = options
-  ipcMain.handle(ELECTRON_IPC.addonsConversationOpen, (event, token: string, snapshot: unknown) => {
+  ipcMain.handle(ELECTRON_IPC.addonsConversationOpen, (event, url: string) => {
     const current = browser(event, coordinator)
-    return conversations.open(current.window.window.webContents, token, snapshot)
+    return conversations.open(current.window.window.webContents, String(url))
   })
-  ipcMain.on(ELECTRON_IPC.addonsConversationPush, (event, token: string, snapshot: unknown) => {
+  ipcMain.on(ELECTRON_IPC.addonsConversationPush, (event, tabId: number, snapshot: unknown) => {
     const current = browser(event, coordinator)
-    conversations.push(current.window.window.webContents, token, snapshot)
+    conversations.push(current.window.window.webContents, Number(tabId), snapshot)
   })
-  ipcMain.handle(ELECTRON_IPC.addonsConversationConnect, (event, token: string) =>
-    conversations.connect(conversationPage(event), token)
-  )
-  ipcMain.on(ELECTRON_IPC.addonsConversationCommand, (event, token: string, command: unknown) => {
-    conversations.command(conversationPage(event), token, command)
+  ipcMain.handle(ELECTRON_IPC.addonsConversationConnect, (event) => {
+    conversations.connect(conversationPage(event))
+  })
+  ipcMain.on(ELECTRON_IPC.addonsConversationCommand, (event, command: unknown) => {
+    conversations.command(conversationPage(event), command)
   })
 }
 

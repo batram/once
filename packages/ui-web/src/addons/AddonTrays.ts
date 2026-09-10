@@ -1,5 +1,5 @@
 import {
-  AddonConversationCommand, AddonConversationSnapshot, AddonManifest, AddonTrayEvent, AddonTrayView, StoryView,
+  AddonConversationCommand, AddonConversationKey, AddonConversationSnapshot, AddonManifest, AddonTrayEvent, AddonTrayView, StoryView,
   addonContributionId, projectStoryView, readTrayView
 } from "@once/core"
 import type { StoryListItem } from "../story/StoryListItem"
@@ -40,6 +40,10 @@ export interface AddonConversationHandle {
 export interface AddonConversationSurface {
   label: string
   open(handle: AddonConversationHandle): void
+  /** The story behind a conversation page's URL, so the shell can treat that page as the story it is about. */
+  storyHref?(url: string): string | null
+  /** Given at mount: how the surface finds a conversation a page asks for by key; null when the shell has none. */
+  connect?(find: (key: AddonConversationKey) => AddonConversationHandle | null): void
 }
 
 /** State belongs to the addon registration, not a replaceable story row. */
@@ -73,10 +77,24 @@ export class AddonTrays {
     if (state.open.has(place) && !state.view.messages.length && !state.error && !state.controller) void this.run(row.story.href, tray, { type: "open" })
   }
 
+  /**
+   * The conversation a page asks for by story: the one already held, or a
+   * fresh one for a story in the list. Null when the story is not around.
+   */
+  handleFor(tray: string, href: string): AddonConversationHandle | null {
+    if (!this.manifest.trays?.some(item => item.id === tray)) return null
+    if (this.states.has(this.key(href, tray))) return this.handleOf(href, tray)
+    const row = Array.from(document.querySelectorAll<StoryListItem>("story-item")).find(item => item.story.href === href)
+    return row ? this.handle(row, tray) : null
+  }
+
   /** The conversation of a row's tray for another surface; the tray keeps owning it. */
   handle(row: StoryListItem, tray: string): AddonConversationHandle {
-    const href = row.story.href
     this.state(row, tray)
+    return this.handleOf(row.story.href, tray)
+  }
+
+  private handleOf(href: string, tray: string): AddonConversationHandle {
     return {
       snapshot: () => this.snapshot(href, tray),
       subscribe: listener => {

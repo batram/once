@@ -288,11 +288,14 @@ app
       getUpdateStatus: () => updateStatus,
       setUpdateStatus,
       updatesStarted: () => autoUpdatesStarted,
-      conversations: new AddonConversationRelay((shell, url) => {
-        const coordinator = browserCoordinator
-        const owner = coordinator?.windowOf(shell)
-        if (!coordinator || !owner) throw new Error("The shell window is gone")
-        return coordinator.openAddonConversation(owner, url)
+      conversations: new AddonConversationRelay({
+        async openTab(shell, url) {
+          const coordinator = browserCoordinator
+          const owner = coordinator?.windowOf(shell)
+          if (!coordinator || !owner) throw new Error("The shell window is gone")
+          await coordinator.openAddonConversation(owner, url)
+        },
+        shellOf: tab => browserCoordinator?.shellOf(tab)
       })
     })
     extensions.manager.onSyncChanged = document => {

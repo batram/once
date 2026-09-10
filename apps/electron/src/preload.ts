@@ -165,17 +165,22 @@ const bridge: ElectronBridge = {
       return () => ipcRenderer.removeListener(ELECTRON_IPC.addonsDevChanged, listener)
     },
     conversations: {
-      open: (token, snapshot) => ipcRenderer.invoke(ELECTRON_IPC.addonsConversationOpen, token, snapshot),
-      push: (token, snapshot) => ipcRenderer.send(ELECTRON_IPC.addonsConversationPush, token, snapshot),
+      open: url => ipcRenderer.invoke(ELECTRON_IPC.addonsConversationOpen, url),
+      push: (tabId, snapshot) => ipcRenderer.send(ELECTRON_IPC.addonsConversationPush, tabId, snapshot),
+      onAttach(handler) {
+        const listener = (_event: Electron.IpcRendererEvent, tabId: number, key: unknown) => handler(tabId, key)
+        ipcRenderer.on(ELECTRON_IPC.addonsConversationAttach, listener)
+        return () => ipcRenderer.removeListener(ELECTRON_IPC.addonsConversationAttach, listener)
+      },
+      onDetach(handler) {
+        const listener = (_event: Electron.IpcRendererEvent, tabId: number) => handler(tabId)
+        ipcRenderer.on(ELECTRON_IPC.addonsConversationDetach, listener)
+        return () => ipcRenderer.removeListener(ELECTRON_IPC.addonsConversationDetach, listener)
+      },
       onCommand(handler) {
-        const listener = (_event: Electron.IpcRendererEvent, token: string, command: unknown) => handler(token, command)
+        const listener = (_event: Electron.IpcRendererEvent, tabId: number, command: unknown) => handler(tabId, command)
         ipcRenderer.on(ELECTRON_IPC.addonsConversationCommand, listener)
         return () => ipcRenderer.removeListener(ELECTRON_IPC.addonsConversationCommand, listener)
-      },
-      onClosed(handler) {
-        const listener = (_event: Electron.IpcRendererEvent, token: string) => handler(token)
-        ipcRenderer.on(ELECTRON_IPC.addonsConversationClosed, listener)
-        return () => ipcRenderer.removeListener(ELECTRON_IPC.addonsConversationClosed, listener)
       }
     }
   },

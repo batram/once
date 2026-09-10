@@ -639,13 +639,20 @@ export class BrowserCoordinator {
     this.pageProfile = resolver
   }
 
-  /** A new active tab for an addon conversation page, returned as the contents its relay talks to. */
-  async openAddonConversation(state: WindowEntry, url: string): Promise<WebContents> {
+  /** A new active tab on an addon conversation page. */
+  async openAddonConversation(state: WindowEntry, url: string): Promise<void> {
     if (!isAddonConversationUrl(url)) throw new Error("Not an addon conversation page")
-    const id = await this.createTab(state, url, true)
-    const entry = this.ownership.get(id)
-    if (!entry) throw new Error("The conversation tab was not created")
-    return entry.view.webContents
+    await this.createTab(state, url, true)
+  }
+
+  /** The shell of the window a tab's contents belong to. */
+  shellOf(tab: WebContents): WebContents | undefined {
+    for (const entry of this.ownership.tabs.values()) {
+      if (entry.view.webContents !== tab) continue
+      const owner = this.ownership.ownerFor(entry)
+      return owner && !owner.window.isDestroyed() ? owner.window.webContents : undefined
+    }
+    return undefined
   }
 
   private validatePoint(point: ElectronPoint): void {

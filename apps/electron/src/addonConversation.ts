@@ -1,6 +1,8 @@
-// Entry of the addon conversation page in a browser tab. The shell still owns
-// the conversation; this page mounts the shared view over the preload bridge.
-import { readConversationSnapshot } from "@once/core"
+// Entry of the addon conversation page in a browser tab. The page's URL names
+// the conversation; the shell still owns it, and this page mounts the shared
+// view over the preload bridge, on first load and again whenever history
+// brings the page back.
+import { readConversationKey, readConversationSnapshot } from "@once/core"
 import { mountAddonConversation, AddonConversationPort } from "@once/ui-web/addons/conversationPage"
 import type { ElectronConversationPageBridge } from "@once/platform-electron/bridge"
 
@@ -8,28 +10,24 @@ declare global {
   interface Window { onceConversation?: ElectronConversationPageBridge }
 }
 
-function port(bridge: ElectronConversationPageBridge, token: string): AddonConversationPort {
+function port(bridge: ElectronConversationPageBridge): AddonConversationPort {
   return {
     subscribe(listener) {
       const release = bridge.onState((snapshot, connected) => {
         try { listener(snapshot ? readConversationSnapshot(snapshot) : null, connected) }
         catch (error) { console.error("Ignoring an invalid conversation snapshot", error) }
       })
-      void bridge.connect(token).then(snapshot => {
-        if (snapshot) listener(readConversationSnapshot(snapshot), true)
-        else listener(null, false)
-      })
+      void bridge.connect().catch(() => listener(null, false))
       return release
     },
-    send: command => bridge.send(token, command)
+    send: command => bridge.send(command)
   }
 }
 
 const root = document.getElementById("addon_conversation") ?? document.body
-const token = new URLSearchParams(location.search).get("token") ?? ""
 const bridge = window.onceConversation
-if (!bridge || !token) {
-  root.textContent = "This conversation page was opened without its Once panel. Open the story's tray again and continue from there."
+if (!bridge || !readConversationKey(location.href)) {
+  root.textContent = "This page does not name a conversation. Open a story's tray in Once and continue from there."
 } else {
-  mountAddonConversation(root, port(bridge, token))
+  mountAddonConversation(root, port(bridge))
 }
