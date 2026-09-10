@@ -99,7 +99,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   await mountOnceUi(client, {
     shell: "webext",
     addonSandboxUrl: await addonSandboxUrl(__ONCE_WEBEXT_TARGET__),
-    addonConversations: webextAddonConversations(),
+    addonConversations: webextAddonConversations(browser),
     browserShortcuts: await browserManagedShortcuts(),
     appVersion: browser.runtime.getManifest().version,
     buildChannel: __ONCE_BUILD_CHANNEL__,

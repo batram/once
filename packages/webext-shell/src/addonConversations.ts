@@ -10,8 +10,8 @@ export const CONVERSATION_PORT = "once-addon-conversation:"
  * every snapshot, and sends the reader's input back. When the panel closes,
  * the port disconnects and the page says so.
  */
-/** `browserApi` is the extension's global; tests hand in their own. */
-export function webextAddonConversations(browserApi: typeof browser = browser): AddonConversationSurface {
+/** `browserApi` is the panel's polyfilled runtime: Chrome has no `browser` global of its own. */
+export function webextAddonConversations(browserApi: typeof browser): AddonConversationSurface {
   const pending = new Map<string, AddonConversationHandle>()
   browserApi.runtime.onConnect.addListener(port => {
     if (!port.name.startsWith(CONVERSATION_PORT)) return
