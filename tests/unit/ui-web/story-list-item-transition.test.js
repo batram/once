@@ -43,7 +43,12 @@ test("story exit ignores unrelated transitions and has a fallback", async () => 
   transition(window, "transitionend", "transform", row)
   assert.equal(completions, 0)
 
-  await new Promise((resolve) => setTimeout(resolve, 15))
+  // The 5ms fallback timer is what completes it; poll rather than sleep a
+  // fixed 15ms, which a busy runner can overshoot before the timer has run.
+  const deadline = Date.now() + 2_000
+  while (completions === 0 && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  }
   assert.equal(completions, 1)
 })
 
@@ -59,6 +64,7 @@ test("story exit completion can be cancelled by a replacement update", async () 
   )
   cancel()
 
-  await new Promise((resolve) => setTimeout(resolve, 15))
+  // Well past the 5ms fallback: a completion after cancel would have fired.
+  await new Promise((resolve) => setTimeout(resolve, 100))
   assert.equal(completions, 0)
 })

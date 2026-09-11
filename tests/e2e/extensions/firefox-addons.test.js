@@ -11,7 +11,9 @@ const {
   openExtensionPanel,
   openSettingsSection,
   reopenExtensionPanel,
-  systemAccessService
+  systemAccessService,
+  budget,
+  logBrowserVersion
 } = require("./firefox-panel")
 
 // Firefox lets no page under an extension's origin run third-party code, so
@@ -34,6 +36,7 @@ test("Firefox runs a scripted add-on in a hosted sandbox page", { timeout: 120_0
     .setFirefoxOptions(options)
     .setFirefoxService(systemAccessService())
     .build()
+  await logBrowserVersion(driver)
   const source = await startStoryFixture()
   const setValue = (element, value) => driver.executeScript(
     `arguments[0].value = arguments[1]
@@ -62,7 +65,7 @@ test("Firefox runs a scripted add-on in a hosted sandbox page", { timeout: 120_0
         driver.findElement(By.css("#firefox_addon_sandbox_settings .settings_status")),
         "Saved"
       ),
-      5_000
+      budget(5_000)
     )
     const sources = await openSettingsSection(driver, "sources", '[data-testid="sources"]')
     await setValue(sources, source.source)
@@ -88,7 +91,7 @@ test("Firefox runs a scripted add-on in a hosted sandbox page", { timeout: 120_0
         driver.findElement(By.css('[data-settings-target="addons"] .settings_section_summary')),
         "1 of 1 enabled"
       ),
-      10_000
+      budget(10_000)
     )
 
     await driver.findElement(By.css('[data-testid="stories-menu"]')).click()
@@ -96,14 +99,14 @@ test("Firefox runs a scripted add-on in a hosted sandbox page", { timeout: 120_0
     await driver.findElement(By.css('[data-testid="reload-stories"]')).click()
     const alpha = await driver.wait(
       until.elementLocated(By.css(`#stories story-item[data-href="${source.urls.alpha}"]`)),
-      20_000
+      budget(20_000)
     )
     const title = await alpha.findElement(By.css("a.title")).getText()
     const badge = await driver.wait(
       until.elementLocated(By.css('#stories story-item .addon_badge[data-addon-badge="len"]')),
-      20_000
+      budget(20_000)
     )
-    await driver.wait(until.elementTextIs(badge, `len ${title.length}`), 20_000)
+    await driver.wait(until.elementTextIs(badge, `len ${title.length}`), budget(20_000))
     assert.equal(
       (await alpha.findElements(By.css('.addon_btn[data-story-element="addon:harness-script/visit"]'))).length,
       1

@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test")
+const { test, expect } = require("../shared/browser-evidence")
 const fs = require("node:fs")
 const path = require("node:path")
 

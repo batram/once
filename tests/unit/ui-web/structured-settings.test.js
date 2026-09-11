@@ -18,6 +18,18 @@ const {
 const {
   SourceGroupView
 } = require("../../../packages/ui-web/dist/settings/structured/SourceGroupView")
+
+// The tester renders after a debounce. Waiting for what it renders, instead
+// of sleeping past the debounce, keeps a busy runner from reading the output
+// before it exists.
+async function untilRendered(tester) {
+  const deadline = Date.now() + 5_000
+  while (Date.now() < deadline) {
+    if (tester.element.querySelector("mark, .structured_redirect_parse_error")) return
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  throw new Error("the redirect tester did not render within 5s")
+}
 const {
   SourceSettingsEditor
 } = require("../../../packages/ui-web/dist/settings/structured/SourceSettingsEditor")
@@ -121,7 +133,7 @@ test("redirect tester seeds a matching URL and highlights exact captures", async
     ])
     window.document.querySelector("main").append(tester.element, tester.corpus)
     tester.refresh()
-    await new Promise((resolve) => setTimeout(resolve, 150))
+    await untilRendered(tester)
 
     const input = tester.element.querySelector("input")
     assert.equal(input.value, "https://example.test/same/value")
@@ -156,7 +168,7 @@ test("redirect tester reports invalid expressions without throwing", async () =>
     const replacement = window.document.createElement("textarea")
     const tester = createRedirectTester(pattern, replacement, [])
     tester.refresh()
-    await new Promise((resolve) => setTimeout(resolve, 150))
+    await untilRendered(tester)
 
     assert.match(
       tester.element.querySelector(".structured_redirect_parse_error").textContent,

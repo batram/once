@@ -9,7 +9,9 @@ const {
   openExtensionPanel,
   openSettingsSection,
   reopenExtensionPanel,
-  systemAccessService
+  systemAccessService,
+  budget,
+  logBrowserVersion
 } = require("./firefox-panel")
 
 function storySelector(href) {
@@ -21,7 +23,7 @@ async function waitForClass(driver, selector, className, present = true) {
     const value = await driver.findElement(By.css(selector)).getAttribute("class")
     const hasClass = value.split(/\s+/).includes(className)
     return hasClass === present
-  }, 10_000, `${selector} did not ${present ? "gain" : "lose"} .${className}`)
+  }, budget(10_000), `${selector} did not ${present ? "gain" : "lose"} .${className}`)
 }
 
 async function openNewTab(driver, panelHandle, action, expectedUrl) {
@@ -30,9 +32,9 @@ async function openNewTab(driver, panelHandle, action, expectedUrl) {
   const openedHandle = await driver.wait(async () => {
     const handles = await driver.getAllWindowHandles()
     return handles.find((handle) => !existingHandles.has(handle)) || false
-  }, 10_000, `no tab opened for ${expectedUrl}`)
+  }, budget(10_000), `no tab opened for ${expectedUrl}`)
   await driver.switchTo().window(openedHandle)
-  await driver.wait(until.urlIs(expectedUrl), 10_000)
+  await driver.wait(until.urlIs(expectedUrl), budget(10_000))
   await driver.close()
   await driver.switchTo().window(panelHandle)
 }
@@ -57,6 +59,7 @@ test(
       .setFirefoxOptions(options)
       .setFirefoxService(systemAccessService())
       .build()
+    await logBrowserVersion(driver)
     const source = await startStoryFixture()
     try {
       const extensionPath = path.resolve(
@@ -94,7 +97,7 @@ test(
       await driver.findElement(By.css("#searchfield")).clear()
       await driver.wait(
         until.elementLocated(By.css(storySelector(source.urls.alpha))),
-        15_000
+        budget(15_000)
       )
 
       const alphaSelector = storySelector(source.urls.alpha)
@@ -140,7 +143,7 @@ test(
         until.elementLocated(
           By.css('[data-testid="stories-menu"]')
         ),
-        15_000
+        budget(15_000)
       )
       await driver
         .findElement(By.css('[data-testid="stories-menu"]'))
@@ -151,7 +154,7 @@ test(
         .click()
       await driver.wait(
         until.elementLocated(By.css(deltaSelector)),
-        15_000
+        budget(15_000)
       )
       await waitForClass(driver, deltaSelector, "stared")
 
@@ -160,7 +163,7 @@ test(
         until.elementLocated(
           By.css(`${betaSelector} .info a.comment_url`)
         ),
-        15_000
+        budget(15_000)
       )
       await openNewTab(
         driver,
@@ -192,7 +195,7 @@ test(
       )
       const confirmButton = await driver.wait(
         until.elementLocated(By.css('[data-testid="confirm-accept"]')),
-        10_000
+        budget(10_000)
       )
       await confirmButton.click()
       await waitForClass(driver, deltaSelector, "filtered")

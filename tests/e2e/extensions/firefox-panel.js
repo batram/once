@@ -1,5 +1,22 @@
-const { By, until } = require("selenium-webdriver")
+const { By, error: webdriverError, until } = require("selenium-webdriver")
 const firefox = require("selenium-webdriver/firefox")
+
+// A hosted runner is several times slower than a developer machine; every
+// wait in the Firefox suite is scaled by this so budgets stay tight locally.
+const WAIT_SCALE = process.env.CI ? 3 : 1
+function budget(ms) {
+  return ms * WAIT_SCALE
+}
+
+// Errors that only mean "not yet": the element is not in the DOM or was
+// replaced. Anything else (window gone, session dead, marionette silent) is
+// a definite failure that must surface now, not after the budget expires.
+function isTransient(error) {
+  return (
+    error instanceof webdriverError.NoSuchElementError ||
+    error instanceof webdriverError.StaleElementReferenceError
+  )
+}
 
 // Open the extension's sidepanel page as a normal, drivable tab.
 //
@@ -26,17 +43,20 @@ const OPEN_TAB = `const url = arguments[0]
 
 async function waitForPanelReady(driver) {
   // driver.wait aborts on a condition that throws, and the fresh tab may not
-  // have parsed a body yet (NoSuchElementError), so misses must return false.
+  // have parsed a body yet (NoSuchElementError), so those misses return false.
+  // A closed window or dead session propagates: it used to be swallowed into
+  // fifteen silent seconds and the generic message below.
   await driver.wait(
     async () => {
       try {
         const body = await driver.findElement(By.css("body"))
         return (await body.getAttribute("data-once-ready")) === "true"
-      } catch {
-        return false
+      } catch (error) {
+        if (isTransient(error)) return false
+        throw error
       }
     },
-    15_000,
+    budget(15_000),
     "extension panel did not become ready"
   )
 }
@@ -53,7 +73,7 @@ async function openExtensionPanel(driver, extensionUuid) {
   const handle = await driver.wait(async () => {
     const handles = await driver.getAllWindowHandles()
     return handles.find((h) => !before.includes(h)) || false
-  }, 10_000, "extension panel tab did not open")
+  }, budget(10_000), "extension panel tab did not open")
   await driver.switchTo().window(handle)
   await waitForPanelReady(driver)
   return handle
@@ -65,6 +85,7 @@ async function openExtensionPanel(driver, extensionUuid) {
 async function reopenExtensionPanel(driver, extensionUuid) {
   await driver.close()
   const remaining = await driver.getAllWindowHandles()
+  if (!remaining.length) throw new Error("closing the panel tab left no window to switch to")
   await driver.switchTo().window(remaining[0])
   return openExtensionPanel(driver, extensionUuid)
 }
@@ -75,12 +96,12 @@ async function openSettingsSection(driver, target, controlSelector) {
   await driver.findElement(By.css('[data-testid="settings-menu"]')).click()
   const section = await driver.wait(
     until.elementLocated(By.css(`[data-settings-target="${target}"]`)),
-    5_000,
+    budget(5_000),
     `${label} settings entry did not appear within 5s`
   )
   await driver.wait(
     until.elementIsVisible(section),
-    5_000,
+    budget(5_000),
     `${label} settings entry was not visible within 5s`
   )
   await section.click()
@@ -90,7 +111,7 @@ async function openSettingsSection(driver, target, controlSelector) {
   }
   const control = await driver.wait(
     until.elementLocated(By.css(controlSelector)),
-    5_000,
+    budget(5_000),
     `${label} settings control ${controlSelector} did not appear within 5s`
   )
   const displayed = await control.isDisplayed()
@@ -101,7 +122,7 @@ async function openSettingsSection(driver, target, controlSelector) {
   }
   await driver.wait(
     until.elementIsVisible(control),
-    5_000,
+    budget(5_000),
     `${label} settings control ${controlSelector} was not visible within 5s`
   )
   return control
@@ -117,11 +138,29 @@ async function openSettingsSection(driver, target, controlSelector) {
 // via capabilities"). The old capabilities form only appeared to work where an
 // older geckodriver (<0.36) was on PATH; the pinned 0.37.x used on macOS/Linux CI
 // rejects it. Passing it to the service works on every platform.
+//
+// geckodriver's own output is inherited by the test process: a Firefox that
+// crashes or refuses the marionette handshake explains itself there, and it
+// used to be thrown away.
 function systemAccessService() {
-  return new firefox.ServiceBuilder().addArguments("--allow-system-access")
+  return new firefox.ServiceBuilder()
+    .addArguments("--allow-system-access")
+    .setStdio("inherit")
+}
+
+// Log which Firefox and geckodriver a run used: neither is pinned, the runner
+// image rolls both forward, and this is what dates a breakage.
+async function logBrowserVersion(driver) {
+  const capabilities = await driver.getCapabilities()
+  console.log(
+    `Firefox ${capabilities.get("browserVersion")} / ` +
+    `geckodriver ${capabilities.get("moz:geckodriverVersion")}`
+  )
 }
 
 module.exports = {
+  budget,
+  logBrowserVersion,
   openSettingsSection,
   openExtensionPanel,
   reopenExtensionPanel,

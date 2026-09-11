@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test")
+const { test, expect } = require("./electron-harness")
 const { closeApp, launchApp } = require("./electron-harness")
 
 test("keeps the title bar draggable and interactive controls no-drag @interactive", async () => {

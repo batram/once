@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test")
+const { test, expect } = require("./electron-harness")
 const { addonPackageManifest } = require("../shared/addon-fixture")
 const { launchApp, closeApp, startPageServer, openSettingsSection } = require("./electron-harness")
 

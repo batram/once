@@ -10,7 +10,9 @@ const {
 const {
   openExtensionPanel,
   openSettingsSection,
-  systemAccessService
+  systemAccessService,
+  budget,
+  logBrowserVersion
 } = require("./firefox-panel")
 
 test(
@@ -33,6 +35,7 @@ test(
       .setFirefoxOptions(options)
       .setFirefoxService(systemAccessService())
       .build()
+    await logBrowserVersion(driver)
     const fixture = await startGenyFixture()
     try {
       const extensionPath = path.resolve(
@@ -67,7 +70,7 @@ test(
         until.elementLocated(
           By.css(`story-item[data-href="${fixture.storyUrl}"]`)
         ),
-        15_000
+        budget(15_000)
       )
       assert.equal(await story.findElement(By.css("a.title")).getText(), STORY_TITLE)
       assert.match(await story.getText(), /TypeScript/)

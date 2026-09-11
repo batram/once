@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test")
+const { test, expect } = require("../shared/browser-evidence")
 
 const { createServer } = require("./static-server")
 
@@ -81,6 +81,8 @@ async function prepareStories(page, target = "") {
   await page.locator("img").evaluateAll((images) =>
     Promise.all(images.map((image) => image.decode().catch(() => undefined)))
   )
+  // A webfont landing after the screenshot is the classic slow-runner diff.
+  await page.evaluate(() => document.fonts.ready)
 }
 
 test("shared desktop shell keeps its visual shape", async ({ page }) => {

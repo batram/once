@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test")
+const { test, expect } = require("./electron-harness")
 const { launchApp, closeApp, openSettingsSection } = require("./electron-harness")
 const { addonAdvanced, addonOverview, addonSettings, addonImport } = require("../shared/addon-settings-ui")
 

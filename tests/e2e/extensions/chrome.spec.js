@@ -1,4 +1,11 @@
-const { test, expect, chromium } = require("@playwright/test")
+const { chromium } = require("@playwright/test")
+const {
+  expect,
+  expectExtensionReady,
+  observeContext,
+  test,
+  waitForExtensionWorker
+} = require("../shared/browser-evidence")
 const fs = require("node:fs/promises")
 const os = require("node:os")
 const path = require("node:path")
@@ -15,12 +22,13 @@ test("installed Chrome extension loads, collects, persists settings, and opens a
   const extensionPath = path.resolve(__dirname, "../../../apps/chrome-extension/dist/release")
   const userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "once-chrome-e2e-"))
   const source = await startLocalSource()
-  const pageErrors = []
   const testPageUnexpectedRequests = []
   const context = await chromium.launchPersistentContext(userDataDir, {
     channel: "chromium",
     args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`]
   })
+  const evidence = observeContext(context, "extension")
+  const pageErrors = evidence.pageErrors
   try {
     await context.route(/^https?:/, async (route) => {
       if (route.request().url().startsWith(source.origin)) {
@@ -32,13 +40,11 @@ test("installed Chrome extension loads, collects, persists settings, and opens a
       }
       await route.abort()
     })
-    let [worker] = context.serviceWorkers()
-    if (!worker) worker = await context.waitForEvent("serviceworker")
+    const worker = await waitForExtensionWorker(context)
     const extensionId = new URL(worker.url()).host
     const page = await context.newPage()
-    page.on("pageerror", (error) => pageErrors.push(error.message))
     await page.goto(`chrome-extension://${extensionId}/static/sidepanel.html?once-e2e=1`)
-    await expect(page.locator("body")).toHaveAttribute("data-once-ready", "true")
+    await expectExtensionReady(page, evidence)
     await expect(page.locator("body")).toHaveAttribute(
       "data-webext-target",
       "chrome"

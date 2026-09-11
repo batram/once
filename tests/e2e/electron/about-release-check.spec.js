@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test")
+const { test, expect } = require("./electron-harness")
 const { launchApp, closeApp, openSettingsSection } = require("./electron-harness")
 
 test("unmanaged About page checks a release and opens its page without installing", async () => {

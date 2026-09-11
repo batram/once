@@ -41,8 +41,12 @@ function handleRequest(request, response) {
         response.writeHead(call.authorized ? 200 : 401, { "content-type": "application/json" })
         response.end(JSON.stringify({ choices: [{ message: { content: answer } }] }))
       }
-      if (last.includes("Wait")) setTimeout(send, 3000)
-      else send()
+      // "Wait" is the request the reader cancels. Holding it until the client
+      // hangs up (never answering) keeps the Stop click from racing a timer;
+      // a 3s delay used to lose that race on a slow runner and report the
+      // answer instead of the cancellation.
+      if (last.includes("Wait")) return
+      send()
     })
     return true
   }

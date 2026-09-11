@@ -78,13 +78,18 @@ test("picker directories persist locally, reload changes and unload without remo
     local.dispose()
     local = new LocalAddonDirectories(file, [], () => { changes++ })
     assert.equal(local.list()[0].directory, directory)
-    const changed = new Promise(resolve => {
+    // The watcher's latency varies with the filesystem, so the wait is
+    // generous, and running out of it is reported as the watcher not firing
+    // rather than as a bare count mismatch further down.
+    const changed = new Promise((resolve, reject) => {
       const timer = setInterval(() => { if (changes > 1) { clearInterval(timer); resolve() } }, 20)
-      setTimeout(() => { clearInterval(timer); resolve() }, 3000).unref()
+      setTimeout(() => {
+        clearInterval(timer)
+        reject(new Error(`the directory watcher did not report the edit within 10s (changes=${changes})`))
+      }, 10_000).unref()
     })
     fs.writeFileSync(path.join(directory, "main.js"), ADDON_SCRIPT + "\n// edited")
     await changed
-    assert.ok(changes > 1)
     assert.match(local.list()[0].code, /edited/)
     local.remove(directory)
     assert.equal(local.list().length, 0)

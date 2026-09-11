@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test")
+const { test, expect } = require("./electron-harness")
 const { launchApp, closeApp, openPanel, seedRedirects } = require("./electron-harness")
 
 test("mouse navigation returns to Stories and repeatedly restores redirect drafts", async () => {

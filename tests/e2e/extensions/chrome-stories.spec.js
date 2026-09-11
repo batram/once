@@ -1,12 +1,16 @@
-const { test, expect, chromium } = require("@playwright/test")
+const { chromium } = require("@playwright/test")
 const fs = require("node:fs/promises")
 const os = require("node:os")
 const path = require("node:path")
-const {
-  HIDE_DELAY
-} = require("../../../packages/ui-web/dist/shell/HoverUrlIndicator")
 const { startStoryFixture } = require("./local-source")
 const storyFixture = require("../shared/story-fixture")
+const {
+  expect,
+  expectExtensionReady,
+  observeContext,
+  test,
+  waitForExtensionWorker
+} = require("../shared/browser-evidence")
 
 async function launchStoryExtension() {
   const extensionPath = path.resolve(
@@ -17,7 +21,6 @@ async function launchStoryExtension() {
     path.join(os.tmpdir(), "once-chrome-stories-")
   )
   const source = await startStoryFixture()
-  const pageErrors = []
   const unexpectedRequests = []
   const context = await chromium.launchPersistentContext(userDataDir, {
     channel: "chromium",
@@ -26,6 +29,8 @@ async function launchStoryExtension() {
       `--load-extension=${extensionPath}`
     ]
   })
+  const evidence = observeContext(context, "extension")
+  const pageErrors = evidence.pageErrors
 
   try {
     await context.route(/^https?:/, async (route) => {
@@ -39,18 +44,13 @@ async function launchStoryExtension() {
       await route.abort()
     })
 
-    let [worker] = context.serviceWorkers()
-    if (!worker) worker = await context.waitForEvent("serviceworker")
+    const worker = await waitForExtensionWorker(context)
     const extensionId = new URL(worker.url()).host
     const page = await context.newPage()
-    page.on("pageerror", (error) => pageErrors.push(error.message))
     await page.goto(
       `chrome-extension://${extensionId}/static/sidepanel.html?once-e2e=1`
     )
-    await expect(page.locator("body")).toHaveAttribute(
-      "data-once-ready",
-      "true"
-    )
+    await expectExtensionReady(page, evidence)
     expect(unexpectedRequests, "initial test-mode load must stay offline").toEqual(
       []
     )
@@ -66,6 +66,7 @@ async function launchStoryExtension() {
 
     return {
       context,
+      evidence,
       page,
       pageErrors,
       source,
@@ -77,17 +78,28 @@ async function launchStoryExtension() {
       `\nFixture requests: ${JSON.stringify(source.requests)}` +
       `\nUnexpected requests: ${JSON.stringify(unexpectedRequests)}` +
       `\nPage errors: ${JSON.stringify(pageErrors)}`
-    await context.close()
-    await source.close()
-    await fs.rm(userDataDir, { recursive: true, force: true })
+    await closeStoryExtension({ context, source, userDataDir })
     throw error
   }
 }
 
+// Every step runs even when an earlier one rejects: a hung browser at
+// context.close() used to leak the fixture server and the profile directory
+// for the rest of the run.
 async function closeStoryExtension(harness) {
-  await harness.context.close()
-  await harness.source.close()
-  await fs.rm(harness.userDataDir, { recursive: true, force: true })
+  const failures = []
+  for (const step of [
+    () => harness.context.close(),
+    () => harness.source.close(),
+    () => fs.rm(harness.userDataDir, { recursive: true, force: true })
+  ]) {
+    try {
+      await step()
+    } catch (error) {
+      failures.push(error)
+    }
+  }
+  if (failures.length) throw failures[0]
 }
 
 function storyItem(page, href) {
@@ -99,15 +111,17 @@ async function openStories(page) {
   await page.locator("#searchfield").fill("")
 }
 
+const OPEN_TIMEOUT_MS = process.env.CI ? 15_000 : 5_000
+
 async function waitForOpenedPage(context, label, action) {
   const opened = context.waitForEvent("page", {
-    timeout: 5_000
+    timeout: OPEN_TIMEOUT_MS
   }).catch(error => {
-    throw new Error(`${label} did not open a new page within 5s`, { cause: error })
+    throw new Error(`${label} did not open a new page within ${OPEN_TIMEOUT_MS}ms`, { cause: error })
   })
   await action()
   const page = await opened
-  await page.waitForLoadState("domcontentloaded", { timeout: 5_000 })
+  await page.waitForLoadState("domcontentloaded", { timeout: OPEN_TIMEOUT_MS })
   return page
 }
 
@@ -187,12 +201,14 @@ test("opens story, comment, substory, and original links", async () => {
     const hoverUrl = page.locator("#hover_url")
     await expect(hoverUrl).toHaveText(source.urls.alpha)
     await expect(hoverUrl).toHaveClass(/\bvisible\b/)
+    // The indicator lingers for HIDE_DELAY after the pointer leaves, so it is
+    // still shown the instant the hover-away resolves, and gone shortly after.
+    // Sleeping for half the delay and then asserting "still visible" turned
+    // this into a wall-clock race that a slow runner lost.
     await page.locator("#searchfield").hover()
-    await page.waitForTimeout(HIDE_DELAY / 2)
-    await expect(hoverUrl).toHaveClass(/\bvisible\b/)
-    await expect.poll(() => hoverUrl.getAttribute("class"), {
-      timeout: HIDE_DELAY * 2
-    }).not.toMatch(/\bvisible\b/)
+    expect(await hoverUrl.getAttribute("class"), "the indicator hid without its delay")
+      .toMatch(/\bvisible\b/)
+    await expect(hoverUrl).not.toHaveClass(/\bvisible\b/)
 
     const alphaPage = await waitForOpenedPage(context, "alpha story link", () =>
       alphaTitle.click()

@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test")
+const { test, expect } = require("./electron-harness")
 const {
   HIDE_DELAY
 } = require("../../../packages/ui-web/dist/shell/HoverUrlIndicator")

@@ -1,4 +1,4 @@
-const { expect, _electron: electron } = require("@playwright/test")
+const { expect, test: baseTest, _electron: electron } = require("@playwright/test")
 const fs = require("node:fs/promises")
 const http = require("node:http")
 const os = require("node:os")
@@ -95,6 +95,129 @@ const STRICT_FRAMES_PAGE = `<!doctype html>
 // window here fails whichever spec happened to launch during a slow patch
 // rather than the one with the defect.
 const STARTUP_TIMEOUT_MS = process.env.CI ? 40_000 : 15_000
+
+// Everything the app says while a spec drives it: main-process stdout and
+// stderr, main and renderer console output, uncaught renderer errors, and
+// process lifecycle. Failures attach it to the test and print it into the
+// runner log, so a CI failure carries its own explanation instead of a
+// timeout and a trace with no DOM in it.
+function createAppLog(electronApp) {
+  const startedAt = Date.now()
+  const lines = []
+  const state = { exited: false, exitCode: null, crashed: false, pageErrors: 0 }
+  const record = (source, text) => {
+    const elapsed = String(Date.now() - startedAt).padStart(6)
+    for (const line of String(text).replace(/\r?\n$/, "").split(/\r?\n/)) {
+      lines.push(`${elapsed}ms [${source}] ${line}`)
+    }
+  }
+  const child = electronApp.process()
+  child.stdout?.on("data", (data) => record("stdout", data))
+  child.stderr?.on("data", (data) => record("stderr", data))
+  child.on("exit", (code, signal) => {
+    state.exited = true
+    state.exitCode = code ?? signal
+    record("process", `exited with ${code ?? signal}`)
+  })
+  electronApp.on("console", (message) => {
+    record(`main.${message.type()}`, message.text())
+  })
+  const attachPage = (page) => {
+    const label = `window${page.url() ? ` ${page.url()}` : ""}`
+    page.on("console", (message) => record(`${message.type()}`, message.text()))
+    page.on("pageerror", (error) => {
+      state.pageErrors += 1
+      record("pageerror", error.stack || error.message || String(error))
+    })
+    page.on("crash", () => {
+      state.crashed = true
+      record("process", `${label} renderer crashed`)
+    })
+  }
+  electronApp.on("window", (page) => attachPage(page))
+  return {
+    state,
+    record,
+    text: () => lines.join("\n"),
+    attachPage
+  }
+}
+
+function stripAnsi(text) {
+  // eslint-disable-next-line no-control-regex
+  return String(text).replace(/\x1b\[[0-9;]*[A-Za-z]/g, "")
+}
+
+// Attach what the app said (and how it looked) to the running test.
+async function attachAppEvidence(info, appLog, reason) {
+  if (appLog.attached) return
+  appLog.attached = true
+  const text = appLog.text() || "(the app wrote nothing)"
+  const header = reason ? `${reason}\n\n` : ""
+  // A file in the test's output directory travels with the CI artifact and
+  // can be read without the trace viewer.
+  const logPath = info.outputPath("electron-app-log.txt")
+  await fs.writeFile(logPath, `${header}${text}`)
+  await info.attach("electron-app-log", { path: logPath, contentType: "text/plain" })
+  // The reporter line is what a person reads first on CI; give it the tail.
+  const tail = text.split("\n").slice(-40).join("\n")
+  console.log(`\n--- electron app log (${info.title}) ---\n${tail}\n--- end app log ---`)
+  if (appLog.screenshot) {
+    await info.attach("electron-window", { body: appLog.screenshot, contentType: "image/png" })
+  }
+}
+
+// Apps launched by the running test. A hard expect failure is not recorded on
+// the test until its function has returned, so a spec's finally block cannot
+// tell a passing test from a failing one; fixture teardown can, and that is
+// where the logs of every app the test launched are attached or dropped.
+const launchedApps = []
+
+const test = baseTest.extend({
+  // Playwright requires the destructuring form even when nothing is used.
+  // eslint-disable-next-line no-empty-pattern
+  onceAppEvidence: [async ({}, use, info) => {
+    launchedApps.length = 0
+    await use()
+    const failed = info.status !== info.expectedStatus || info.errors.length > 0
+    const apps = launchedApps.splice(0)
+    if (!failed) return
+    for (const appLog of apps) await attachAppEvidence(info, appLog)
+  }, { auto: true }]
+})
+
+// Wait for the renderer to declare itself ready, but stop the moment startup
+// is known to have failed: the process exited, the renderer crashed, or the
+// startup routine rejected and said so on <body>. Time is only the verdict
+// when nothing else spoke, and even then the message names the stage the
+// renderer was in when the budget ran out.
+async function waitForAppReady(electronApp, window, appLog) {
+  const deadline = Date.now() + STARTUP_TIMEOUT_MS
+  let last = { stage: "(none)", ready: undefined, error: undefined }
+  while (Date.now() < deadline) {
+    if (appLog.state.exited) {
+      throw new Error(`Electron exited during startup with ${appLog.state.exitCode}`)
+    }
+    if (appLog.state.crashed) throw new Error("The Once window crashed during startup")
+    try {
+      last = await window.evaluate(() => ({
+        stage: document.body?.dataset.onceStage ?? "(none)",
+        ready: document.body?.dataset.onceReady,
+        error: document.body?.dataset.onceStartupError
+      }))
+    } catch (error) {
+      if (window.isClosed()) throw new Error("The Once window closed during startup")
+      appLog.record("harness", `ready probe failed: ${stripAnsi(error.message)}`)
+    }
+    if (last.error) throw new Error(`Renderer startup failed at stage "${last.stage}":\n${last.error}`)
+    if (last.ready === "true") return
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+  throw new Error(
+    `The Once window did not become ready within ${STARTUP_TIMEOUT_MS}ms; ` +
+    `startup was at stage "${last.stage}"`
+  )
+}
 
 async function startPageServer(options = {}) {
   let origin = ""
@@ -308,22 +431,46 @@ async function launchApp(options = {}) {
       ...options.env
     }
   })
-  await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows().length
-  ), { timeout: STARTUP_TIMEOUT_MS }).toBe(1)
-  const window = await electronApp.firstWindow()
-  await expect(window.locator("body")).toHaveAttribute(
-    "data-once-ready",
-    "true",
-    { timeout: STARTUP_TIMEOUT_MS }
-  )
-  await expect.poll(() => window.evaluate(() => window.onceElectron.tabs.getAll()),
-    { timeout: STARTUP_TIMEOUT_MS })
-    .toMatchObject([{ url: "about:blank", active: true }])
+  const appLog = createAppLog(electronApp)
+  appLogs.set(electronApp, appLog)
+  launchedApps.push(appLog)
+  let window
+  try {
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows().length
+    ), { timeout: STARTUP_TIMEOUT_MS }).toBe(1)
+    window = await electronApp.firstWindow()
+    appLog.attachPage(window)
+    await waitForAppReady(electronApp, window, appLog)
+    await expect.poll(() => window.evaluate(() => window.onceElectron.tabs.getAll()),
+      { timeout: STARTUP_TIMEOUT_MS })
+      .toMatchObject([{ url: "about:blank", active: true }])
+  } catch (error) {
+    await captureWindow(appLog, window)
+    await attachAppEvidence(test.info(), appLog, `launchApp failed: ${stripAnsi(error.message)}`)
+    await electronApp.close().catch(() => undefined)
+    if (!options.userData) await fs.rm(userData, { recursive: true, force: true })
+    throw error
+  }
   return { electronApp, userData, window }
 }
 
+const appLogs = new WeakMap()
+
+// The window is gone once the app closes, so its last look is taken on every
+// close and kept in memory until teardown decides whether anyone needs it.
+async function captureWindow(appLog, window) {
+  if (!window || window.isClosed()) return
+  try {
+    appLog.screenshot = await window.screenshot({ timeout: 5_000 })
+  } catch (error) {
+    appLog.record("harness", `screenshot failed: ${stripAnsi(error.message)}`)
+  }
+}
+
 async function closeApp(electronApp, userData, { keepUserData = false } = {}) {
+  const appLog = appLogs.get(electronApp)
+  if (appLog) await captureWindow(appLog, electronApp.windows()[0])
   await electronApp.close()
   if (!keepUserData) {
     await fs.rm(userData, { recursive: true, force: true })
@@ -521,6 +668,8 @@ async function transferTab(electronApp, windowId, action, tabId) {
 module.exports = {
   ADDON_SCRIPT,
   closeApp,
+  expect,
+  test,
   expectDocumentFocus,
   getLiveContentsState,
   getOnceWindows,

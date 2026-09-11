@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test")
+const { test, expect } = require("./electron-harness")
 const { launchApp, closeApp, startPageServer, seedLocalSource, openSettingsSection, showAllStories } = require("./electron-harness")
 const storyFixture = require("../shared/story-fixture")
 const aiFixture = require("../shared/ai-addon-fixture")

@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test")
+const { test, expect } = require("./electron-harness")
 const { closeApp, launchApp } = require("./electron-harness")
 const settingsSectionDefinitions =
   require("../../../packages/ui-web/src/settings/settingsSectionDefinitions")

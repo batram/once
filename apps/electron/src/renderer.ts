@@ -74,7 +74,29 @@ function exchangeExtensionSettings(client: OnceClient): void {
   })
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
+// Startup publishes where it is and how it ended on <body>: data-once-stage
+// names the step in progress, data-once-ready marks the end, and
+// data-once-startup-error carries the failure. A rejected startup used to
+// vanish into an unhandled promise, leaving a window that looked alive to the
+// e2e harness until its timeout expired with nothing to report.
+function startupStage(name: string): void {
+  document.body.dataset.onceStage = name
+}
+
+function describeStartupError(error: unknown): string {
+  if (error instanceof Error) return `${error.name}: ${error.message}\n${error.stack ?? ""}`
+  return String(error)
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  void startRenderer().catch((error: unknown) => {
+    console.error("Once renderer startup failed", error)
+    document.body.dataset.onceStartupError = describeStartupError(error)
+  })
+})
+
+async function startRenderer(): Promise<void> {
+  startupStage("build-info")
   const buildInfo = await window.onceElectron.app.getBuildInfo()
   document.body.classList.add(`electron-platform-${buildInfo.platform}`)
 
@@ -101,7 +123,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     browserShell.setLeftCollapsed(collapsed)
   bindMenuCollapseControls(onMenuCollapsedChanged)
 
+  startupStage("app-start")
   await app.start()
+  startupStage("redirects")
   const updateRedirects = async (
     redirects?: ElectronRedirectRule[]
   ): Promise<void> => {
@@ -118,6 +142,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     void updateRedirects(redirects)
   })
   exchangeExtensionSettings(app.client)
+  startupStage("mount-ui")
   await mountOnceUi(app.client, {
     shell: "electron",
     addonSandboxUrl: ADDON_SANDBOX_URL,
@@ -142,6 +167,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       void window.onceElectron.window.setForwardedKeys(chords)
     }
   })
+  startupStage("bind-shell")
   bindBrowserExtensionSettings(app.client, window.onceElectron)
   document.addEventListener("contextmenu", (event) => {
     const story = storyFromTarget(event.target)
@@ -177,5 +203,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.onceElectron.window.onTargetUrlChanged((url) => {
     HoverUrlIndicator.show(url)
   })
+  startupStage("ready")
   document.body.dataset.onceReady = "true"
-})
+}

@@ -1,4 +1,4 @@
-const { test, expect } = require("@playwright/test")
+const { test, expect } = require("./electron-harness")
 const fs = require("node:fs/promises")
 const os = require("node:os")
 const path = require("node:path")

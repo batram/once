@@ -8,7 +8,9 @@ const {
   openExtensionPanel,
   openSettingsSection,
   reopenExtensionPanel,
-  systemAccessService
+  systemAccessService,
+  budget,
+  logBrowserVersion
 } = require("./firefox-panel")
 
 test("installed Firefox extension loads, collects, persists settings, and opens a story", { timeout: 90_000 }, async () => {
@@ -24,6 +26,7 @@ test("installed Firefox extension loads, collects, persists settings, and opens 
     .setFirefoxOptions(options)
     .setFirefoxService(systemAccessService())
     .build()
+  await logBrowserVersion(driver)
   const source = await startLocalSource()
   try {
     const extensionPath = path.resolve(__dirname, "../../../apps/firefox-extension/dist/release")
@@ -92,7 +95,7 @@ test("installed Firefox extension loads, collects, persists settings, and opens 
     await driver.findElement(By.css('[data-testid="stories-menu"]')).click()
     await driver.findElement(By.css("#searchfield")).clear()
     try {
-      await driver.wait(until.elementLocated(By.xpath('//story-item[contains(., "Extension smoke story")]')), 15_000)
+      await driver.wait(until.elementLocated(By.xpath('//story-item[contains(., "Extension smoke story")]')), budget(15_000))
     } catch (error) {
       const bodyText = await driver.findElement(By.css("body")).getText()
       error.message += `\nLocal requests: ${JSON.stringify(source.requests)}\nPage text: ${bodyText}`
@@ -111,15 +114,15 @@ test("installed Firefox extension loads, collects, persists settings, and opens 
     await driver.findElement(By.css('[data-testid="stories-menu"]')).click()
     await driver.findElement(By.css("#searchfield")).clear()
     await driver.findElement(By.css('[data-testid="reload-stories"]')).click()
-    const restoredStory = await driver.wait(until.elementLocated(By.xpath('//story-item[contains(., "Extension smoke story")]')), 15_000)
+    const restoredStory = await driver.wait(until.elementLocated(By.xpath('//story-item[contains(., "Extension smoke story")]')), budget(15_000))
     const existingHandles = new Set(await driver.getAllWindowHandles())
     await restoredStory.findElement(By.css("a.title")).click()
     const openedHandle = await driver.wait(async () => {
       const handles = await driver.getAllWindowHandles()
       return handles.find((handle) => !existingHandles.has(handle)) || false
-    }, 10_000)
+    }, budget(10_000))
     await driver.switchTo().window(openedHandle)
-    await driver.wait(until.urlIs(`${source.origin}/story`), 10_000)
+    await driver.wait(until.urlIs(`${source.origin}/story`), budget(10_000))
   } finally {
     await driver.quit()
     await source.close()

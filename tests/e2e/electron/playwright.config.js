@@ -19,7 +19,11 @@ module.exports = defineConfig({
   // Assertions get the same allowance as actions do there; the default five
   // seconds is what an assertion doubling as a page-load wait runs into.
   expect: { timeout: process.env.CI ? 15_000 : 5_000 },
+  // A retry is a second sample for the report, not a way to turn a red run
+  // green: on CI a test that needed one still fails the run, so a flake is
+  // noticed and fixed instead of quietly accumulating.
   retries: 1,
+  failOnFlakyTests: Boolean(process.env.CI),
   workers: 1,
   reporter: "line",
   grepInvert: includeInteractive ? undefined : /@interactive/,
