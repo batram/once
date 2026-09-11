@@ -437,6 +437,7 @@ public class InAppBrowserSurfacePlugin extends Plugin {
                 && port.sender.isTopLevel()) {
                 bridgePort = port;
                 port.setDelegate(new BridgePort());
+                backgroundMedia.attachPort(port);
             }
         }
     }
@@ -577,6 +578,8 @@ public class InAppBrowserSurfacePlugin extends Plugin {
         public void onPortMessage(Object message, WebExtension.Port port) {
             if (!(message instanceof JSONObject)) return;
             JSONObject reply = (JSONObject) message;
+            if (port != bridgePort) return;
+            if ("media-snapshot".equals(reply.optString("type"))) { backgroundMedia.pageSnapshot(reply); return; }
             long id = reply.optLong("id", -1);
             PluginCall call = pendingEvaluations.remove(id);
             if (call == null) return;
@@ -594,6 +597,7 @@ public class InAppBrowserSurfacePlugin extends Plugin {
         public void onDisconnect(WebExtension.Port port) {
             if (bridgePort != port) return;
             bridgePort = null;
+            backgroundMedia.attachPort(null);
             failPendingEvaluations("The page navigated away");
         }
     }
@@ -666,6 +670,8 @@ public class InAppBrowserSurfacePlugin extends Plugin {
     private final class Progress implements GeckoSession.ProgressDelegate {
         @Override
         public void onPageStart(GeckoSession ignored, String url) {
+            backgroundMedia.reset();
+            backgroundMedia.attachPort(null);
             // A new session loads about:blank on its own before the first
             // requested page; the shell never asked for that one.
             failPendingEvaluations("The page navigated away");

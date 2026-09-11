@@ -1,4 +1,4 @@
-/* global browser */
+/* global browser, installOnceMediaBridge */
 // GeckoView has no evaluateJavascript, so the app's browsing surface runs
 // scripts through this content script instead: the native side posts
 // `{ id, code }` over a native-messaging port and gets `{ id, value }` back,
@@ -8,6 +8,7 @@
 if (window === window.top) {
   // The native application name may hold only word characters and dots.
   const port = browser.runtime.connectNative("once_surface")
+  installOnceMediaBridge(port)
   port.onMessage.addListener((message) => {
     if (!message || typeof message.id !== "number" || typeof message.code !== "string") return
     let value

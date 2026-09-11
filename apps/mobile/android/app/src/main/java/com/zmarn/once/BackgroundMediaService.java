@@ -1,123 +1,153 @@
 package com.zmarn.once;
 
-import android.app.Notification;
-import android.app.NotificationChannel;
 import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.BroadcastReceiver;
 import android.content.IntentFilter;
-import android.graphics.drawable.Icon;
 import android.media.AudioAttributes;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.PowerManager;
-import android.media.session.PlaybackState;
-import org.mozilla.geckoview.MediaSession;
 
-/** Keeps ongoing Gecko playback alive without keeping the screen or reading view on. */
+/** Foreground only while playing; paused controls remain available without a wake lock. */
 public final class BackgroundMediaService extends Service {
-    private static final String CHANNEL = "background-media";
-    private static final String PAUSE = "com.zmarn.once.PAUSE_BACKGROUND_MEDIA";
-    private static final int NOTIFICATION = 4101;
-    // Once owns one reading session. Access is confined to the Android main thread.
-    private static MediaSession playing;
+    static final int NOTIFICATION = 4101;
+    private static BackgroundMedia current;
+    private static BackgroundMediaService instance;
+    private static boolean starting;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Runnable expire = () -> stop(this);
     private PowerManager.WakeLock wakeLock;
     private android.media.session.MediaSession controls;
     private AudioManager audioManager;
     private AudioFocusRequest audioFocus;
-    private boolean focusRequested;
+    private boolean focusRequested, foreground, expiryScheduled;
     private final BroadcastReceiver unplugged = new BroadcastReceiver() {
-        @Override public void onReceive(Context context, Intent intent) { pause(); }
+        @Override public void onReceive(Context context, Intent intent) { dispatch("pause", 0); }
     };
 
-    static void start(Context context, MediaSession media) {
-        if (playing == media) return;
-        playing = media;
-        context.startForegroundService(new Intent(context, BackgroundMediaService.class));
+    static void update(Context context, BackgroundMedia media) {
+        current = media;
+        if (instance != null) instance.refresh();
+        else if (media.state.playing && !starting) {
+            starting = true;
+            try { context.startForegroundService(new Intent(context, BackgroundMediaService.class)); }
+            catch (RuntimeException error) { starting = false; throw error; }
+        }
     }
 
     static void stop(Context context) {
-        playing = null;
+        current = null;
+        starting = false;
         context.stopService(new Intent(context, BackgroundMediaService.class));
+        context.getSystemService(NotificationManager.class).cancel(NOTIFICATION);
     }
 
     @Override public void onCreate() {
         super.onCreate();
-        getSystemService(NotificationManager.class).createNotificationChannel(
-            new NotificationChannel(CHANNEL, "Background playback", NotificationManager.IMPORTANCE_LOW));
+        instance = this;
+        starting = false;
+        ReadingMediaNotification.createChannel(this);
         controls = new android.media.session.MediaSession(this, "Once reading media");
         controls.setCallback(new android.media.session.MediaSession.Callback() {
-            @Override public void onPause() { pause(); }
-            @Override public void onStop() { pause(); }
+            @Override public void onPlay() { dispatch("play", 0); }
+            @Override public void onPause() { dispatch("pause", 0); }
+            @Override public void onStop() { dispatch("pause", 0); stop(BackgroundMediaService.this); }
+            @Override public void onSeekTo(long position) { dispatch("seek", position); }
+            @Override public void onRewind() { dispatch("back", 0); }
+            @Override public void onFastForward() { dispatch("forward", 0); }
+            @Override public void onSkipToNext() { dispatch("next", 0); }
+            @Override public void onSkipToPrevious() { dispatch("previous", 0); }
+            @Override public void onCustomAction(String action, android.os.Bundle extras) {
+                if ("back".equals(action) || "forward".equals(action)) dispatch(action, 0);
+            }
         });
-        controls.setPlaybackState(new PlaybackState.Builder()
-            .setActions(PlaybackState.ACTION_PAUSE | PlaybackState.ACTION_STOP)
-            .setState(PlaybackState.STATE_PLAYING, PlaybackState.PLAYBACK_POSITION_UNKNOWN, 1).build());
         controls.setActive(true);
         audioManager = getSystemService(AudioManager.class);
         audioFocus = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
             .setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
                 .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
-            .setOnAudioFocusChangeListener(change -> {
-                if (change < 0) pause();
-            }).build();
+            .setOnAudioFocusChangeListener(change -> { if (change < 0) dispatch("pause", 0); }).build();
         androidx.core.content.ContextCompat.registerReceiver(this, unplugged,
             new IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY), androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
-        // Promote even if playback stopped while Android was scheduling this start.
-        PendingIntent open = PendingIntent.getActivity(this, 0,
-            new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_IMMUTABLE);
-        PendingIntent pause = PendingIntent.getService(this, 1,
-            new Intent(this, BackgroundMediaService.class).setAction(PAUSE), PendingIntent.FLAG_IMMUTABLE);
-        Notification notification = new Notification.Builder(this, CHANNEL)
-            .setSmallIcon(android.R.drawable.ic_media_play)
-            .setContentTitle("Once background playback")
-            .setContentText("Audio and video can keep playing while Once is in the background")
-            .setContentIntent(open).setOngoing(true).setOnlyAlertOnce(true)
-            .setVisibility(Notification.VISIBILITY_PUBLIC)
-            .addAction(new Notification.Action.Builder(Icon.createWithResource(this, android.R.drawable.ic_media_pause), "Pause", pause).build())
-            .setStyle(new Notification.MediaStyle().setMediaSession(controls.getSessionToken()).setShowActionsInCompactView(0))
-            .build();
-        startForeground(NOTIFICATION, notification);
-        if (intent != null && PAUSE.equals(intent.getAction())) pause();
-        if (playing == null) {
-            stopSelf(startId);
-            return START_NOT_STICKY;
+        // Fulfil a pending foreground start even if playback stopped before delivery.
+        ReadingMediaState state = current == null ? new ReadingMediaState() : current.state;
+        startForeground(NOTIFICATION, ReadingMediaNotification.build(this, controls, state));
+        foreground = true;
+        if (current == null) { stopSelf(startId); return START_NOT_STICKY; }
+        if (intent != null && intent.getAction() != null) {
+            if ("stop".equals(intent.getAction())) { dispatch("pause", 0); stop(this); return START_NOT_STICKY; }
+            dispatch(intent.getAction(), 0);
         }
-        if (!focusRequested) {
-            focusRequested = true;
-            if (audioManager.requestAudioFocus(audioFocus) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
-                pause();
-                return START_NOT_STICKY;
-            }
-        }
-        if (wakeLock == null) {
-            wakeLock = getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Once:BackgroundMedia");
-            wakeLock.acquire();
-        }
+        refresh();
         return START_NOT_STICKY;
     }
 
-    private void pause() {
-        if (playing != null) playing.pause();
-        playing = null;
-        stopSelf();
+    private void dispatch(String action, long position) {
+        if (current != null) current.command(action, position);
     }
 
-    @Override public void onTaskRemoved(Intent rootIntent) { pause(); }
+    // MediaStyle notifications with an active MediaSession are exempt from POST_NOTIFICATIONS.
+    // https://developer.android.com/develop/ui/views/notifications/notification-permission#exemptions
+    @android.annotation.SuppressLint("NotificationPermission")
+    private void refresh() {
+        if (current == null || controls == null) return;
+        ReadingMediaState state = current.state;
+        controls.setMetadata(state.metadata());
+        controls.setPlaybackState(state.playbackState());
+        android.app.Notification notification = ReadingMediaNotification.build(this, controls, state);
+        if (state.playing) {
+            handler.removeCallbacks(expire);
+            expiryScheduled = false;
+            if (!foreground) { startForeground(NOTIFICATION, notification); foreground = true; }
+            else getSystemService(NotificationManager.class).notify(NOTIFICATION, notification);
+            if (!focusRequested) {
+                focusRequested = true;
+                if (audioManager.requestAudioFocus(audioFocus) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+                    dispatch("pause", 0);
+                    releasePlayback();
+                    return;
+                }
+            }
+            if (wakeLock == null) {
+                wakeLock = getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Once:BackgroundMedia");
+                wakeLock.acquire();
+            }
+        } else {
+            releasePlayback();
+            if (foreground) { stopForeground(STOP_FOREGROUND_DETACH); foreground = false; }
+            getSystemService(NotificationManager.class).notify(NOTIFICATION, notification);
+            if (!expiryScheduled) {
+                expiryScheduled = true;
+                handler.postDelayed(expire, 5 * 60 * 1000);
+            }
+        }
+    }
+
+    private void releasePlayback() {
+        if (focusRequested) { focusRequested = false; audioManager.abandonAudioFocusRequest(audioFocus); }
+        if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
+        wakeLock = null;
+    }
+
+    @Override public void onTaskRemoved(Intent rootIntent) { dispatch("pause", 0); stop(this); }
 
     @Override public void onDestroy() {
+        instance = null;
+        handler.removeCallbacksAndMessages(null);
         unregisterReceiver(unplugged);
-        if (focusRequested) audioManager.abandonAudioFocusRequest(audioFocus);
-        if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
+        releasePlayback();
         if (controls != null) controls.release();
         stopForeground(STOP_FOREGROUND_REMOVE);
+        getSystemService(NotificationManager.class).cancel(NOTIFICATION);
         super.onDestroy();
     }
 

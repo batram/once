@@ -66,7 +66,8 @@ public class BackgroundMediaTest {
             waitForPage();
             if (video) createVideo();
             instrumentation.runOnMainSync(() -> media().setEnabled(false));
-            for (int cycle = 0; cycle < 3; cycle++) {
+            int cycles = Integer.parseInt(InstrumentationRegistry.getArguments().getString("cycles", "3"));
+            for (int cycle = 0; cycle < cycles; cycle++) {
                 toggleFromMenu(true);
                 assertTrue("Preference survives controller recreation", new BackgroundMedia(context).isEnabled());
                 evaluate("document.querySelector('#media').play(); true");
@@ -94,19 +95,12 @@ public class BackgroundMediaTest {
             instrumentation.runOnMainSync(() -> media().setEnabled(true));
             evaluate("document.querySelector('#media').play(); true");
             assertPlaying("before explicit pause");
+            assertAndroidControls();
             evaluate("document.querySelector('#media').pause(); true");
             assertService(false);
             evaluate("document.querySelector('#media').play(); true");
             assertService(true);
-            android.app.NotificationManager notifications = context.getSystemService(android.app.NotificationManager.class);
-            boolean foundPause = false;
-            for (android.service.notification.StatusBarNotification notification : notifications.getActiveNotifications()) {
-                if (notification.getNotification().actions == null) continue;
-                for (android.app.Notification.Action action : notification.getNotification().actions) {
-                    if ("Pause".contentEquals(action.title)) { action.actionIntent.send(); foundPause = true; }
-                }
-            }
-            assertTrue("Playback notification supplies Pause", foundPause);
+            notificationAction("Pause");
             assertService(false);
             assertEquals("Notification pauses page media", "true", evaluate("document.querySelector('#media').paused"));
             evaluate("document.querySelector('#media').play(); true");
@@ -119,6 +113,143 @@ public class BackgroundMediaTest {
             instrumentation.runOnMainSync(() -> media().setEnabled(original));
             call(plugin::close, new JSObject());
             instrumentation.runOnMainSync(activity::finish);
+        }
+    }
+
+    private android.media.session.MediaController controller() {
+        for (android.service.notification.StatusBarNotification notification : instrumentation.getTargetContext()
+                .getSystemService(android.app.NotificationManager.class).getActiveNotifications()) {
+            android.media.session.MediaSession.Token token = notification.getNotification().extras.getParcelable(android.app.Notification.EXTRA_MEDIA_SESSION);
+            if (token != null) return new android.media.session.MediaController(instrumentation.getTargetContext(), token);
+        }
+        throw new AssertionError("No Android media controls");
+    }
+
+    private void notificationAction(String label) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        do {
+            for (android.service.notification.StatusBarNotification notification : instrumentation.getTargetContext()
+                    .getSystemService(android.app.NotificationManager.class).getActiveNotifications()) {
+                if (notification.getNotification().actions == null) continue;
+                for (android.app.Notification.Action action : notification.getNotification().actions) {
+                    if (label.contentEquals(action.title)) { action.actionIntent.send(); return; }
+                }
+            }
+            Thread.sleep(100);
+        } while (System.nanoTime() < deadline);
+        fail("Playback notification supplies " + label);
+    }
+
+    private void assertAndroidControls() throws Exception {
+        assertService(true);
+        android.media.session.MediaController controller = controller();
+        assertEquals("Once background media fixture", controller.getMetadata().getString(android.media.MediaMetadata.METADATA_KEY_TITLE));
+        assertTrue("Android receives duration", controller.getMetadata().getLong(android.media.MediaMetadata.METADATA_KEY_DURATION) > 0);
+        assertTrue("Android receives current position", controller.getPlaybackState().getPosition() >= 0);
+        assertTrue("Android advertises seeking", (controller.getPlaybackState().getActions() & android.media.session.PlaybackState.ACTION_SEEK_TO) != 0);
+        shell("cmd statusbar expand-notifications");
+        Thread.sleep(1000);
+        capture("media-controls.png");
+        shell("cmd statusbar collapse");
+        controller.getTransportControls().pause();
+        assertService(false);
+        Thread.sleep(300);
+        assertEquals(android.media.session.PlaybackState.STATE_PAUSED, controller().getPlaybackState().getState());
+        controller().getTransportControls().seekTo(2000);
+        Thread.sleep(500);
+        assertEquals("Android seek reaches the page", 2.0, time(), 0.25);
+        shell("input keyevent KEYCODE_SLEEP");
+        controller().getTransportControls().play();
+        assertService(true);
+        assertPlaying("Android Play while screen off");
+        shell("input keyevent KEYCODE_WAKEUP");
+        shell("wm dismiss-keyguard");
+    }
+
+    @Test public void youtubeLiveControls() throws Exception {
+        org.junit.Assume.assumeTrue("Opt-in network smoke", "true".equals(InstrumentationRegistry.getArguments().getString("youtubeLive")));
+        Context context = instrumentation.getTargetContext();
+        assertEquals("ranchu", android.os.Build.HARDWARE);
+        assertTrue(context.getPackageName().endsWith(".dev"));
+        shell("input keyevent KEYCODE_WAKEUP");
+        shell("wm dismiss-keyguard");
+        activity = (MainActivity) instrumentation.startActivitySync(new Intent(context, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        plugin = (InAppBrowserSurfacePlugin) activity.getBridge().getPlugin("InAppBrowserSurface").getInstance();
+        boolean original = media().isEnabled();
+        try {
+            call(plugin::close, new JSObject());
+            instrumentation.runOnMainSync(() -> media().setEnabled(true));
+            call(plugin::open, new JSObject().put("url", "https://m.youtube.com/watch?v=aqz-KE-bpKQ").put("visible", true)
+                .put("bounds", new JSObject().put("x", 0).put("y", 100).put("width", 400).put("height", 650)));
+            // Test-only permission: exercise transport controls independently of autoplay UI.
+            instrumentation.runOnMainSync(() -> session().setPermissionDelegate(new GeckoSession.PermissionDelegate() {
+                @Override public GeckoResult<Integer> onContentPermissionRequest(GeckoSession source, ContentPermission permission) {
+                    return GeckoResult.fromValue(permission.permission == PERMISSION_AUTOPLAY_AUDIBLE || permission.permission == PERMISSION_AUTOPLAY_INAUDIBLE
+                        ? ContentPermission.VALUE_ALLOW : ContentPermission.VALUE_DENY);
+                }
+            }));
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+            while (field("bridgePort") == null && System.nanoTime() < deadline) Thread.sleep(200);
+            assertNotNull("YouTube document bridge", field("bridgePort"));
+            Thread.sleep(5000);
+            android.util.Log.i("OnceMediaTest", "YouTube page: " + evaluate("document.title"));
+            evaluate("Array.from(document.querySelectorAll('button')).find(button => button.textContent.trim() === 'Reject all')?.click(); true");
+            Thread.sleep(2000);
+            assertEquals("YouTube video element", "true", evaluate("!!document.querySelector('video')"));
+            tapVideo();
+            evaluate("document.querySelector('video').play().catch(error => document.body.dataset.playError = String(error)); true");
+            Thread.sleep(4000);
+            android.util.Log.i("OnceMediaTest", "YouTube play error: " + evaluate("document.body.dataset.playError || null"));
+            assertEquals("YouTube allows playback", "false", evaluate("document.querySelector('video').paused"));
+            deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+            while (!"true".equals(evaluate("document.querySelector('video').currentTime > 0.5 && document.querySelector('video').readyState >= 2"))
+                    && System.nanoTime() < deadline) Thread.sleep(500);
+            android.util.Log.i("OnceMediaTest", "YouTube stream: " + evaluate("(() => { const v=document.querySelector('video'); return {time:v.currentTime,duration:v.duration,ready:v.readyState,error:v.error?.message,ui:document.body.innerText.slice(-700)}; })()"));
+            assertService(true);
+            android.media.session.MediaController controller = controller();
+            android.util.Log.i("OnceMediaTest", "YouTube Android title: " + controller.getMetadata().getString(android.media.MediaMetadata.METADATA_KEY_TITLE)
+                + "; artist: " + controller.getMetadata().getString(android.media.MediaMetadata.METADATA_KEY_ARTIST)
+                + "; duration: " + controller.getMetadata().getLong(android.media.MediaMetadata.METADATA_KEY_DURATION));
+            assertTrue(controller.getMetadata().getLong(android.media.MediaMetadata.METADATA_KEY_DURATION) > 0);
+            shell("cmd statusbar expand-notifications");
+            Thread.sleep(1000);
+            capture("youtube-controls.png");
+            shell("cmd statusbar collapse");
+            controller.getTransportControls().pause();
+            assertService(false);
+            controller().getTransportControls().seekTo(30000);
+            Thread.sleep(1000);
+            assertEquals(30, Double.parseDouble(evaluate("document.querySelector('video').currentTime")), 1);
+            shell("input keyevent KEYCODE_SLEEP");
+            controller().getTransportControls().play();
+            assertService(true);
+            deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(15);
+            while (Double.parseDouble(evaluate("document.querySelector('video').currentTime")) <= 31
+                    && System.nanoTime() < deadline) Thread.sleep(500);
+            String resumed = evaluate("(() => { const v=document.querySelector('video'); return {time:v.currentTime,paused:v.paused,ready:v.readyState,error:v.error?.message}; })()");
+            android.util.Log.i("OnceMediaTest", "YouTube screen-off resume: " + resumed);
+            assertTrue("YouTube screen-off resume: " + resumed, Double.parseDouble(evaluate("document.querySelector('video').currentTime")) > 31);
+        } finally {
+            shell("input keyevent KEYCODE_WAKEUP");
+            shell("wm dismiss-keyguard");
+            instrumentation.runOnMainSync(() -> media().setEnabled(original));
+            call(plugin::close, new JSObject());
+            instrumentation.runOnMainSync(activity::finish);
+        }
+    }
+
+    private void tapVideo() throws Exception {
+        org.json.JSONObject point = new org.json.JSONObject(evaluate("(() => { const r = document.querySelector('video').getBoundingClientRect(); return {x:r.x+r.width/2,y:r.y+r.height/2}; })()"));
+        int[] origin = new int[2];
+        instrumentation.runOnMainSync(() -> ((android.view.View) field("surface")).getLocationOnScreen(origin));
+        float density = activity.getResources().getDisplayMetrics().density;
+        shell("input tap " + (origin[0] + Math.round(point.getDouble("x") * density)) + " " +
+            (origin[1] + Math.round(point.getDouble("y") * density)));
+    }
+
+    private void capture(String name) throws Exception {
+        try (java.io.OutputStream image = new java.io.FileOutputStream(new java.io.File(activity.getExternalFilesDir(null), name))) {
+            instrumentation.getUiAutomation().takeScreenshot().compress(android.graphics.Bitmap.CompressFormat.PNG, 100, image);
         }
     }
 
