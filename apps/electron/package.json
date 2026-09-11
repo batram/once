@@ -30,7 +30,7 @@
     "@electron/fuses": "^1.8.0",
     "@types/adm-zip": "^0.5.8",
     "css-loader": "^7.1.2",
-    "electron": "43.7.0",
+    "electron": "44.3.0",
     "node": "24.18.0",
     "style-loader": "^4.0.0"
   }
