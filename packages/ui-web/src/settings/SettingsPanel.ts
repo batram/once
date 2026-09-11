@@ -273,7 +273,9 @@ export class SettingsPanel {
       section: () => this.activeSettingsSection,
       show: section => section === null ? this.closeSettingsSection() : this.openSettingsSection(section),
       back,
-      backEditor: () => (this.structuredEditors?.closeInlineEditor() || this.structuredEditors?.handleBack(this.activeSettingsSection)) ?? false,
+      // The editors' own Back chain keeps drafts (redirect forms) for Forward;
+      // an inline row it does not track (filters) simply closes.
+      backEditor: () => (this.structuredEditors?.handleBack(this.activeSettingsSection) || this.structuredEditors?.closeInlineEditor()) ?? false,
       showIndex: () => this.showSettingsIndex(),
       exitSettings: () => this.options.exitSettings?.(),
       forwardEditor: () => this.structuredEditors?.handleForward(this.activeSettingsSection) ?? false,
