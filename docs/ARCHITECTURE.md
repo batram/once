@@ -19,11 +19,12 @@ The implemented targets are:
   worker and manifest.
 - **Electron:** a Windows-first desktop application combining the Once UI with
   isolated browser tabs.
+- **Android and iOS:** a Capacitor application, `apps/mobile`, with a native
+  reading surface (GeckoView on Android, WKWebView on iOS);
+  `@once/platform-mobile` supplies its PouchDB, native networking, secure
+  settings, system UI, and browser-surface adapters.
 
-`apps/website` reserves the future web composition root. `apps/mobile` is the
-Capacitor composition root for Android and iOS; `@once/platform-mobile`
-supplies its PouchDB, native networking, secure settings, system UI, and
-external-browser adapters.
+`apps/website` reserves the future web composition root.
 
 ## Workspace structure and ownership
 
@@ -61,7 +62,11 @@ extensions as Electron (uBlock Origin, Violentmonkey) as GeckoView
 built-ins from the APK's assets, which `scripts/fetch-extensions.js` unpacks
 against pinned hashes, plus a bridge extension of Once's own that carries
 script evaluation for the source picker over native messaging. The surface
-adapter's contract in `@once/platform-mobile` is unchanged.
+adapter's contract in `@once/platform-mobile` is unchanged. Users can install
+further Mozilla-signed extensions through GeckoView's own installer, and an
+opt-in setting keeps media on the reading page playing in the background
+behind an Android media notification; see
+[Android reading media](android-background-playback.md).
 
 The sync URL can contain credentials, so mobile stores it outside the WebView:
 iOS uses Keychain and Android encrypts an app-private preference with an
@@ -230,7 +235,11 @@ run in a persistent, main-process-owned session whose permission requests are
 denied by default. The one preload that session registers for every frame is
 the extension content-script runner: it exposes nothing to the page's own
 world, and gives each loaded extension an isolated world with its own
-`browser` object. Sync URLs are protected through Electron `safeStorage`.
+`browser` object. Sync URLs and source tokens are protected through Electron
+`safeStorage`; when the OS refuses its key (an ad-hoc signed macOS build, a
+Linux desktop without a secret service), `SecureSettings` keeps them
+unencrypted in the profile, warns once, and re-encrypts on the next save that
+succeeds.
 
 Electron reader mode fetches through the validated bridge and serves sanitized
 documents from the isolated `once-reader://` protocol.
@@ -264,7 +273,14 @@ edit, a switch, an install or a delete made there reaches the other devices. The
 `apps/electron/src/extensions/bundledExtensions.ts`; their bundles come from
 `scripts/fetch-extensions.js` against pinned hashes into `vendor/extensions`
 and travel as packaged resources. `ONCE_ELECTRON_EXTENSIONS` adds
-directories in unpackaged builds only.
+directories in unpackaged builds only. Beyond the bundles, the user can
+install any Firefox MV2 extension from a Mozilla Add-ons listing or a local
+XPI (`extensions/ExtensionManager.ts` reviews, unpacks and activates it;
+`ExtensionPackage.ts` bounds the archive). Installed extensions appear in an
+extensions panel beside the address bar, from which an action can be pinned
+to the toolbar; installation stays local to the device while selected
+storage keys can sync. [Extension compatibility](EXTENSION_COMPATIBILITY.md)
+lists what the runtime does and does not provide.
 
 Add-ons are a separate concept from those extensions: additions to Once
 itself, described by manifests in the synced `addons` settings document
@@ -296,6 +312,16 @@ approved packages, settings, storage and connection tokens. `AddonVault` owns
 unlocking and conflict review; dedicated PouchDB revision writes reject stale
 parents. The host injects tokens only for approved endpoint-bound connections.
 See [plans/story-addons-plan.md](plans/story-addons-plan.md).
+
+An add-on may also own a *tray*: a conversation region under a story row that
+the host renders from validated views (`packages/core/src/addons/trayProtocol.ts`)
+while the add-on's script answers in the sandbox. The tray's conversation can
+continue on a larger surface without leaving the sandbox: an Electron tab
+(`once-addon://conversation`), an extension page, or the mobile reading view
+attach to it by its key (addon, tray, story) and relay commands back to the
+shell that owns the sandbox; the shell tells them when the conversation ends.
+`examples/addons/what-wait-who-why` is the shipped example, an AI assistant
+over the story's article with optional web search.
 
 Add-on registrations are reconciled per identity. Storage-only changes preserve
 running frames; options changes use the settings message. The sandbox owner

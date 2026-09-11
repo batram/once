@@ -14,7 +14,9 @@ owns per-add-on registration; `AddonSandbox.ts` owns frame lifecycle;
 settings queues and dashboard observation. Android's portable parser is
 `apps/mobile/extensions/once-surface/filterRules.js`. Author types are in
 `packages/core/src/addons/authorApi.ts`, with a local validator in
-`scripts/validate-addon.js` and a starter in `examples/addons/story-length`.
+`scripts/validate-addon.js`, a starter in `examples/addons/story-length` and
+the full-featured `examples/addons/what-wait-who-why` (connections, trays,
+search, settings groups).
 
 | Target | Composition root | Platform-specific code |
 | --- | --- | --- |
@@ -57,6 +59,12 @@ target lifecycle, permissions, native bridges, and packaging belong in an app.
 | Mobile reading surface | `apps/mobile/src/readingSurfaceCoordinator.ts` | Native session and surface lifecycle |
 | Native browser bridge | `packages/platform-mobile/src/InAppBrowserSurface.ts` | Capacitor-facing adapter |
 | Android reading surface | `apps/mobile/android/app/src/main/java/com/zmarn/once/InAppBrowserSurfacePlugin.java`, `GeckoEngine.java`, `apps/mobile/extensions/once-surface`, `scripts/fetch-extensions.js` | Process-owned Gecko runtime, installation readiness and session recovery; the bridge extension; the pinned bundle fetch |
+| Electron extension management and panel | `apps/electron/src/extensions/ExtensionManager.ts`, `ExtensionPackage.ts`, `ExtensionMenu.ts`, `ExtensionSettingsCoordinator.ts`, `apps/electron/src/BrowserExtensionSettings.ts` | Install from AMO or XPI with archive bounds; the owned panel window with pinnable actions; settings queues and selected storage sync |
+| Electron shell settings | `apps/electron/src/ManualReleaseCheck.ts`, `AccessibilitySetting.ts`, `SecureSettings.ts` | Manual GitHub release check for installs without Squirrel; the opt-in full accessibility tree; encrypted-or-plain credentials |
+| Addon trays and conversation pages | `packages/core/src/addons/trayProtocol.ts`, `packages/ui-web/src/addons/AddonTrays.ts`, `trayMarkdown.ts`, `conversationPage.ts`, `apps/electron/src/AddonConversationRelay.ts`, `addonConversations.ts`, `packages/webext-shell/src/addonConversations.ts`, `apps/mobile/src/addonConversations.ts`, `readingAddonTrays.ts` | Core validates views, keys and commands; ui-web owns the tray state and the page renderer; each shell relays a page to the tray that owns the sandbox |
+| Addon vault and connections | `packages/app/src/AddonSync.ts`, `AddonVault.ts`, `vaultCrypto.ts`, `addonConnections.ts`, `packages/core/src/addons/connections.ts`, `packages/persistence/src/pouchVault.ts` | Encrypted addon sync snapshot, unlock and conflict review; endpoint-bound tokens injected host-side |
+| Linked addon folders (Electron) | `apps/electron/src/LocalAddonDirectories.ts`, `devAddons.ts` | Picker-loaded directories remembered per device and reloaded on edits; `ONCE_ADDONS` for unpackaged builds |
+| Android extension pages and background media | `apps/mobile/src/extensionPageFrame.ts`, `apps/mobile/android/app/src/main/java/com/zmarn/once/BackgroundMedia.java`, `BackgroundMediaService.java` | Extension pages framed under the app header; opt-in playback behind a foreground service, see [Android reading media](android-background-playback.md) |
 | Android extension management | `apps/mobile/src/browserExtensionSettings.ts`, `browserExtensionToolbar.ts`, `packages/platform-mobile/src/BrowserExtensions.ts`, `apps/mobile/android/app/src/main/java/com/zmarn/once/GeckoExtensionManager.java`, `GeckoExtensionPages.java` | Signed AMO/XPI installation, permissions, catalog lifecycle, native options/popups and extension-created tabs |
 
 ## Source classifications

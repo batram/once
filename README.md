@@ -77,6 +77,12 @@ unpacked Chrome extension.
   screenshots, historical baselines, and computed-style JSON
 - [Releasing](docs/RELEASING.md): versioning, cutting a tagged release, and CI
   publishing
+- [Extension compatibility](docs/EXTENSION_COMPATIBILITY.md): what the
+  embedded browsers run, installing Firefox extensions on Electron and
+  Android, and the API limits
+- [Android reading media](docs/android-background-playback.md): background
+  playback with notification controls
+- [Design system](docs/DESIGN_SYSTEM.md) and [design tokens](docs/design-tokens.md)
 - [Roadmap](docs/ROADMAP.md)
 
 ## Screenshots

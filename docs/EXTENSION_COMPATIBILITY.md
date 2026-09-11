@@ -101,6 +101,12 @@ the listing's SHA-256 hash and GUID. Local packages are not cryptographically
 signature-verified and are labelled accordingly. Archives have compressed/expanded
 size limits, entry-count limits, and path validation before extraction.
 
+The extensions button beside the address bar opens a panel listing every
+installed extension with its action, options and enable controls. An action
+can be pinned there, which places its button, badge and popup in the toolbar
+itself; pins are kept per device in the shell window. A disabled extension
+keeps its pin but its button is inert; a removed one disappears from the bar.
+
 An extension's detail page offers enable/disable, its own options page (or popup
 page when it has no options page), sync selection, and removal. Bundled extensions
 can be disabled; updates to those bundles still arrive with Once. Installing a new
@@ -162,9 +168,10 @@ Management includes enable/disable, options pages, action popups, manual update
 checks, and removal with a data-removal confirmation. Bundled uBlock Origin and
 Violentmonkey can be disabled; they update with Once and cannot be removed. The
 internal Once bridge is protected. The reading address bar's three-dot browser
-menu contains navigation/reload controls and an expandable Extensions entry.
-Extension-created tabs use separate Gecko sessions with
-close/reload controls.
+menu contains navigation/reload controls, an expandable Extensions entry and
+the **Keep media playing in background** switch described in
+[Android reading media](android-background-playback.md). Extension-created
+tabs use separate Gecko sessions with close/reload controls.
 
 Installed packages and their state remain on this device. This is not full
 desktop Firefox compatibility: Once does not supply desktop-only APIs, Firefox
@@ -202,7 +209,12 @@ runs do not depend on current marketplace releases or downloads. On 2026-09-06 i
 passed against the versions above: SponsorBlock sought past the fixture segment,
 and Dark Reader marked the page as dynamic and changed its white background to
 `rgb(24, 26, 27)`. The settings selection and lifecycle controls passed in the same
-run. Four existing Electron extension/add-on page regressions also passed.
+run. Four existing Electron extension/add-on page regressions also passed. The
+same live test and the extension-page specs passed again on 2026-09-11 on
+Electron 44.3.0 with Violentmonkey 2.49.0 bundled, with the extensions'
+console output kept through `ONCE_ELECTRON_E2E_ATTACH_LOGS=1`; the only
+errors were SponsorBlock's expected "Receiving end does not exist" against
+the fixture page.
 
 A separate smoke of the distributable `Once-win32-x64/once.exe` verified the
 packaged renderer reached `onceReady`, installed both AMO builds, rendered

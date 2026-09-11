@@ -434,7 +434,11 @@ Rules the host enforces, not the script:
 ## Worked examples
 
 Start with [Story length](../examples/addons/story-length/README.md), a small
-package with typed script hints. `node scripts/validate-addon.js <directory>`
+package with typed script hints. [What? Wait, who, why?](../examples/addons/what-wait-who-why/README.md)
+is the full-featured one: connections to an AI provider, a story tray that
+summarizes and answers questions about the article, native or fallback web
+search (SearXNG, Tavily), grouped settings with secrets, and a conversation
+that continues in the browser surface. `node scripts/validate-addon.js <directory>`
 validates a local package and its pinned script without executing code or
 accessing the network. The [editor schema](addon-manifest.schema.json) supplies
 completion hints; the validator remains authoritative for semantic checks.

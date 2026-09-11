@@ -5,11 +5,14 @@ npm workspace; a single root install supplies every app and package.
 
 ## Prerequisites
 
-- Node.js and npm
+- Node.js 24 (`.nvmrc`) and npm
 - Firefox for Firefox extension testing
 - Chrome 114 or newer for Chrome extension testing
 - Windows for the current Electron packaging and end-to-end test workflows
-- Android Studio 2025.2.1+, Android SDK 36, and JDK 21 for Android
+- Android Studio 2025.2.1+, Android SDK platform 37.1 with build-tools 37,
+  Android Gradle plugin 9, and JDK 21 for Android (the pinned versions live in
+  `apps/mobile/android/variables.gradle`; GeckoView tracks its newest release,
+  which is what forces the platform version)
 - macOS with Xcode 26+ for iOS
 
 Install the locked dependency set with:
@@ -173,6 +176,19 @@ An unpackaged Electron build reads two PATH-style directory lists:
 Once add-on packages under development (`once-addon.json` beside its script;
 see [Add-ons](ADDONS.md)). Add-ons from `ONCE_ADDONS` reload when a file in
 their directory changes. Packaged builds ignore both variables.
+
+Other switches an Electron run understands, all off by default:
+
+- `ONCE_ELECTRON_EXTENSION_LOG=1` prints every line the bundled and installed
+  extensions write to their consoles; errors and warnings are printed always.
+- `ONCE_ELECTRON_TEST_USER_DATA=<dir>` uses that directory as the profile, so
+  two builds can be compared without touching the normal profile.
+- `ONCE_ELECTRON_E2E_INTERACTIVE=1` runs the Playwright suite headed, for
+  watching a spec drive the app; `ONCE_ELECTRON_E2E_ATTACH_LOGS=1` keeps each
+  test's `electron-app-log.txt` under `test-results/` even when it passes.
+- `ONCE_TEST_AMO_EXTENSIONS=1` enables the live Mozilla Add-ons test (Dark
+  Reader and SponsorBlock); `ONCE_PDF_TEST_DARK_READER=<dir>` adds an unpacked
+  Dark Reader to the PDF viewer spec.
 
 Packaged macOS builds are only ad-hoc signed, and each `package` produces a
 new code signature. Electron's `safeStorage` keeps its key in a Keychain item
@@ -506,9 +522,13 @@ offers to restart immediately; choosing **Later** applies it on a subsequent app
 restart. The version row in Electron settings also provides a manual update
 check and reports its current status. Development builds, unpackaged runs,
 Forge's unpacked package output, Squirrel's first launch after an install, and
-Electron tests do not check for updates; their manual check is disabled. Run
-the generated Setup executable to install Squirrel's `Update.exe` and enable
-updates.
+macOS or Linux builds do not update themselves. Their version row instead
+offers **Check latest release**, which asks the public GitHub releases API for
+the newest published tag, says whether it is newer than the installed version,
+and links its release page (`apps/electron/src/ManualReleaseCheck.ts`). Only
+`ONCE_ELECTRON_DISABLE_NETWORK_FETCH=1`, which the tests set, disables that
+check. Run the generated Setup executable to install Squirrel's `Update.exe`
+and enable automatic updates on Windows.
 
 Updates use Electron's public `update.electronjs.org` service and native
 Squirrel.Windows updater. Each non-draft, non-prerelease GitHub release must use
