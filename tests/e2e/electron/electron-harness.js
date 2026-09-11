@@ -450,8 +450,8 @@ async function launchApp(options = {}) {
   } catch (error) {
     await captureWindow(appLog, window)
     await attachAppEvidence(test.info(), appLog, `launchApp failed: ${stripAnsi(error.message)}`)
-    await electronApp.close().catch(() => undefined)
-    if (!options.userData) await fs.rm(userData, { recursive: true, force: true })
+    await closeAndRelease(electronApp).catch(() => undefined)
+    if (!options.userData) await removeUserData(userData)
     throw error
   }
   return { electronApp, userData, window }
@@ -473,10 +473,27 @@ async function captureWindow(appLog, window) {
 async function closeApp(electronApp, userData, { keepUserData = false } = {}) {
   const appLog = appLogs.get(electronApp)
   if (appLog) await captureWindow(appLog, electronApp.windows()[0])
+  await closeAndRelease(electronApp)
+  if (!keepUserData) await removeUserData(userData)
+}
+
+// Playwright's close() resolves when its connection drops, which on Windows
+// is before the process has let go of the profile's databases (DIPS, the
+// cookie store): deleting the directory right then fails with EBUSY. Wait for
+// the process itself, and let the removal retry the locks that outlive it.
+async function closeAndRelease(electronApp) {
+  const child = electronApp.process()
+  const exited = child.exitCode !== null ? Promise.resolve() : new Promise(resolve => {
+    const done = () => { clearTimeout(timer); resolve() }
+    const timer = setTimeout(() => { child.removeListener("exit", done); resolve() }, 15_000)
+    child.once("exit", done)
+  })
   await electronApp.close()
-  if (!keepUserData) {
-    await fs.rm(userData, { recursive: true, force: true })
-  }
+  await exited
+}
+
+async function removeUserData(userData) {
+  await fs.rm(userData, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 })
 }
 
 async function expectDocumentFocus(locator) {
