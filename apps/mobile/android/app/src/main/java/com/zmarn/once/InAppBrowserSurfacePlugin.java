@@ -286,11 +286,15 @@ public class InAppBrowserSurfacePlugin extends Plugin {
         recoverKilledPage();
     }
 
-    /** A process the system reclaimed while the page was hidden comes back silently. */
+    /**
+     * A process the system reclaimed while the page was hidden comes back silently.
+     * Gecko closes the session of a killed process, so the recovery reopens it
+     * and loads the page again rather than reloading a session that is gone.
+     */
     private void recoverKilledPage() {
-        if (!killedWhileHidden || session == null || !session.isOpen() || !visible || !resumed) return;
+        if (!killedWhileHidden || session == null || !visible || !resumed) return;
         killedWhileHidden = false;
-        session.reload();
+        reloadSession();
     }
 
     @Override
@@ -335,23 +339,29 @@ public class InAppBrowserSurfacePlugin extends Plugin {
     private void reloadSession() {
         if (session == null) return;
         if (!session.isOpen()) {
-            session.open(engine.runtime);
-            extensions.attachSession(session);
-            attachBridge();
-            session.setActive(visible && resumed);
+            reopenSession();
             extensions.foregroundChanged();
             if (pageRequested && isSurfaceUrl(currentUrl)) session.loadUri(currentUrl);
         } else session.reload();
     }
 
+    /**
+     * Gecko closes a session whose process died. Reopening it makes a new window,
+     * and the view only paints that window once it is attached again; without the
+     * re-attach the page loads, answers scripts and stays blank on screen.
+     */
+    private void reopenSession() {
+        if (surface != null) surface.releaseSession();
+        session.open(engine.runtime);
+        if (surface != null) surface.setSession(session);
+        extensions.attachSession(session);
+        attachBridge();
+        session.setActive(visible && resumed);
+    }
+
     private void ensureSurface() {
         if (surface != null) {
-            if (!session.isOpen()) {
-                session.open(engine.runtime);
-                extensions.attachSession(session);
-                attachBridge();
-                session.setActive(visible && resumed);
-            }
+            if (!session.isOpen()) reopenSession();
             return;
         }
         session = new GeckoSession();
@@ -475,7 +485,11 @@ public class InAppBrowserSurfacePlugin extends Plugin {
 
     private void setSurfaceVisible(boolean visible) {
         this.visible = visible;
-        if (session != null && session.isOpen()) session.setActive(visible && resumed);
+        // An extension popup covers the page briefly and acts on it, so the page
+        // stays active underneath: an inactive session drops its process into the
+        // cached bucket, and the low-memory killer emptied it before popups closed.
+        boolean popupOver = extensions != null && extensions.pages.hasPopup();
+        if (session != null && session.isOpen()) session.setActive((visible || popupOver) && resumed);
         recoverKilledPage();
         if (extensions != null) extensions.setReadingVisible(visible);
         if (refreshSurface != null) {
