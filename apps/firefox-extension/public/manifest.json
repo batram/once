@@ -18,6 +18,7 @@
   },
 
   "sidebar_action": {
+    "browser_style": false,
     "default_icon": "static/imgs/icons/mipmap-mdpi/ic_launcher.png",
     "default_title": "Once",
     "default_panel": "static/sidepanel.html"

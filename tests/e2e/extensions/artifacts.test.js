@@ -42,6 +42,7 @@ for (const target of ["chrome", "firefox"]) {
     } else {
       assert.deepEqual(manifest.background.scripts, ["background.js"])
       assert.equal(manifest.sidebar_action.default_panel, "static/sidepanel.html")
+      assert.equal(manifest.sidebar_action.browser_style, false, "Firefox must use Once's styles without injected browser defaults")
       assert.ok(manifest.browser_specific_settings.gecko.id)
       assert.ok(manifest.browser_action)
       assert.equal(manifest.action, undefined)

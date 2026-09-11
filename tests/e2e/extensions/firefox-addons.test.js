@@ -150,6 +150,26 @@ test("Firefox runs scripted add-ons in its packaged sandbox without setup", { ti
       return document.querySelector("#stories .addon_tray")
         ?.textContent.includes("ExampleApp is software") ?? false
     `), 20000)
+    // A second panel must not overwrite the owner's conversation with null.
+    const secondUrl = `moz-extension://${extensionUuid}/static/sidepanel.html?once-e2e=1&second=1`
+    const second = await driver.executeAsyncScript("browser.tabs.create({url: arguments[0], active: false}).then(arguments[1])", secondUrl)
+    await driver.wait(() => driver.executeScript(`
+      return browser.extension.getViews().some(w => w.location.href.includes('second=1') && w.document.body.dataset.onceReady === 'true')
+    `), 15000)
+    await driver.findElement(By.css('#stories [data-testid="addon-tray-continue"]')).click()
+    const conversationState = () => driver.executeScript(`
+      const w = browser.extension.getViews().find(w => w.location.pathname.endsWith('/addon-conversation.html'))
+      return { messages: w?.document.querySelector('.addon_conversation_messages')?.textContent,
+        notice: w?.document.querySelector('.addon_conversation_notice')?.textContent,
+        selected: document.querySelector('#selected_container story-item')?.dataset.href }
+    `)
+    await driver.wait(async () => (await conversationState()).messages?.includes("ExampleApp is software"), 10000)
+    await driver.wait(async () => (await conversationState()).selected === source.urls.alpha, 10000)
+    // Remove the unrelated panel: it must not disconnect the owner's tab.
+    await driver.executeAsyncScript("browser.tabs.remove(arguments[0]).then(arguments[1])", second.id)
+    await driver.findElement(By.css('#stories .addon_tray button[aria-label="Close"]')).click()
+    assert.ok((await conversationState()).messages.includes("ExampleApp is software"))
+    assert.equal((await conversationState()).notice, "")
     await openSettingsSection(driver, "addons", "#addon_url_input")
     const localZip = path.join(localDirectory, "local-package.zip")
     await fs.writeFile(localZip, await require("../shared/local-addon-fixture").zipFile())

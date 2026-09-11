@@ -27,8 +27,7 @@ platform](plans/story-addons-plan.md).
 - **Add-ons follow-ups** (the plan itself is complete; see
   [Add-ons](ADDONS.md))
   - Mozilla distribution policy review and a future Firefox build option
-    that omits add-ons. The working Firefox build uses a packaged MV2 sandbox
-    with no hosting setup; signing and store distribution remain separate work.
+    that omits add-ons.
   - A curated add-on index and automatic update checks (a manual check
     exists for URL installs)
 - **Mobile deeper integration**

@@ -321,6 +321,13 @@ continue on a larger surface without leaving the sandbox: an Electron tab
 (`once-addon://conversation`), an extension page, or the mobile reading view
 attach to it by its key (addon, tray, story) and relay commands back to the
 shell that owns the sandbox; the shell tells them when the conversation ends.
+Extension conversation URLs also name the originating panel instance. Only
+that panel answers the broadcast runtime connection; another open panel cannot
+replace its transcript or receive its commands. The tab reconnects to its owner
+if Firefox disconnects the shared port when an unrelated panel closes. Reloading
+the owning panel creates a new instance, so continue from its tray to open a
+fresh tab. Both extension targets resolve conversation URLs back to their story
+for the selected-story row.
 `examples/addons/what-wait-who-why` is the shipped example, an AI assistant
 over the story's article with optional web search.
 
