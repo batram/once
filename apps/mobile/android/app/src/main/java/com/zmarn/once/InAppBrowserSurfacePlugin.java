@@ -488,8 +488,7 @@ public class InAppBrowserSurfacePlugin extends Plugin {
         // An extension popup covers the page briefly and acts on it, so the page
         // stays active underneath: an inactive session drops its process into the
         // cached bucket, and the low-memory killer emptied it before popups closed.
-        boolean popupOver = extensions != null && extensions.pages.hasPopup();
-        if (session != null && session.isOpen()) session.setActive((visible || popupOver) && resumed);
+        if (session != null && session.isOpen()) session.setActive((visible || (extensions != null && extensions.pages.hasPopup())) && resumed);
         recoverKilledPage();
         if (extensions != null) extensions.setReadingVisible(visible);
         if (refreshSurface != null) {
