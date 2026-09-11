@@ -181,7 +181,9 @@ const test = baseTest.extend({
     await use()
     const failed = info.status !== info.expectedStatus || info.errors.length > 0
     const apps = launchedApps.splice(0)
-    if (!failed) return
+    // A smoke run reads what the extensions printed even when every
+    // assertion passed (RELEASING.md: ONCE_ELECTRON_EXTENSION_LOG=1).
+    if (!failed && process.env.ONCE_ELECTRON_E2E_ATTACH_LOGS !== "1") return
     for (const appLog of apps) await attachAppEvidence(info, appLog)
   }, { auto: true }]
 })

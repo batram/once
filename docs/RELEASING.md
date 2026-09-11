@@ -45,8 +45,12 @@ Violentmonkey publishes an unsigned zip, so its pin is the only check.
 To update an extension: change its `version`, `url`, and `sha256` in the
 fetch script (compute the hash from the downloaded file yourself, never copy
 it from a page), run `npm run fetch:extensions`, then run the Electron smoke
-with `ONCE_ELECTRON_EXTENSION_LOG=1` and the Android package, and read the
-extension's console output for APIs the runtime does not yet provide. The
+(the extension e2e specs, `ONCE_TEST_AMO_EXTENSIONS=1` for the live Dark
+Reader and SponsorBlock check) with `ONCE_ELECTRON_EXTENSION_LOG=1` and
+`ONCE_ELECTRON_E2E_ATTACH_LOGS=1`, so each test's `electron-app-log.txt` under
+`test-results/` holds what the extensions printed even when the test passed,
+and the Android package; read that output for APIs the runtime does not yet
+provide. The
 list of what may load at all is `apps/electron/src/extensions/bundledExtensions.ts`
 and the Android plugin's built-in table; a bundle whose manifest id does not
 match its listed id is refused.
