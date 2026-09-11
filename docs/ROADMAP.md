@@ -14,11 +14,9 @@ platform](plans/story-addons-plan.md).
 ## Near term
 
 - **Testing**
-  - Shared application tests with fake platform ports
-  - Collector reload and CouchDB failure/retry coverage
-  - Firefox and Chrome integration tests
-  - Broader Electron unit and Playwright coverage
-  - Portable, deterministic Electron E2E setup
+  - CouchDB failure and retry coverage for sync (collector reload, the fake
+    platform ports, the browser and Electron suites and the portable Electron
+    e2e setup all exist now)
   - Scheduled live collector compatibility monitoring with failure artifacts and notifications
 - **Distribution**
   - Publish Firefox and Chrome extensions through official stores
@@ -29,10 +27,10 @@ platform](plans/story-addons-plan.md).
 - **Add-ons follow-ups** (the plan itself is complete; see
   [Add-ons](ADDONS.md))
   - A Once-hosted default for Firefox's sandbox page, so users need not host
-    `addon-sandbox-hosted.html` themselves
-  - An iOS device run of the mobile sandbox (Android is covered by the
-    emulator smoke suite)
-  - A curated add-on index and scheduled update checks
+    `addon-sandbox-hosted.html` themselves (the mobile sandbox is covered by
+    the Android and iOS simulator suites)
+  - A curated add-on index and automatic update checks (a manual check
+    exists for URL installs)
 - **Mobile deeper integration**
   - Native and share-driven source creation
   - Background refresh and notifications
