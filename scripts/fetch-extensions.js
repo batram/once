@@ -28,9 +28,9 @@ const BUNDLES = [
   {
     name: "violentmonkey",
     id: "{aecec67f-0d10-4fa7-b7c7-609a2db280cf}",
-    version: "2.48.0",
-    url: "https://github.com/violentmonkey/violentmonkey/releases/download/v2.48.0/Violentmonkey-webext-v2.48.0.zip",
-    sha256: "e45efc89f485185e1f07b6e68050692bc241cbdf6058230b5f134e27ecdd083a"
+    version: "2.49.0",
+    url: "https://github.com/violentmonkey/violentmonkey/releases/download/v2.49.0/Violentmonkey-webext-v2.49.0.zip",
+    sha256: "847c86a20e214d3515a9dfabe5357875af20e305bbcc1692d6e109a4edd6a7f3"
   }
 ]
 
