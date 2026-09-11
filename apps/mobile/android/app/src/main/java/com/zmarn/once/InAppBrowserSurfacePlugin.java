@@ -27,7 +27,6 @@ import org.mozilla.geckoview.GeckoSession;
 import org.mozilla.geckoview.GeckoView;
 import org.mozilla.geckoview.WebExtension;
 import org.mozilla.geckoview.WebRequestError;
-import org.mozilla.geckoview.WebResponse;
 
 /**
  * The reading surface: a GeckoView beside the Capacitor shell. Firefox's
@@ -42,6 +41,7 @@ public class InAppBrowserSurfacePlugin extends Plugin {
     private static final String BRIDGE_NATIVE_APP = "once_surface";
     private GeckoEngine engine;
     private GeckoExtensionManager extensions;
+    private BackgroundMedia backgroundMedia;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean destroyed;
     private boolean resumed = true;
@@ -80,6 +80,7 @@ public class InAppBrowserSurfacePlugin extends Plugin {
     @Override
     public void load() {
         getActivity().runOnUiThread(() -> {
+            backgroundMedia = new BackgroundMedia(getContext());
             engine = GeckoEngine.get(getContext());
             extensions = new GeckoExtensionManager(getActivity(), getBridge().getWebView(), engine, () -> session,
                 () -> notifyListeners("extensionsChanged", new JSObject()),
@@ -199,7 +200,7 @@ public class InAppBrowserSurfacePlugin extends Plugin {
     @PluginMethod
     public void showMenu(PluginCall call) {
         if (call.getBoolean("browserControls", false)) getActivity().runOnUiThread(() ->
-            NativeBrowserMenu.show(getActivity(), call, session, canGoBack, canGoForward, this::reloadSession));
+            NativeBrowserMenu.show(getActivity(), call, session, canGoBack, canGoForward, this::reloadSession, backgroundMedia));
         else NativeSurfaceDialogs.showMenu(getBridge(), call);
     }
 
@@ -274,14 +275,14 @@ public class InAppBrowserSurfacePlugin extends Plugin {
     @Override
     protected void handleOnStop() {
         resumed = false;
-        if (session != null) session.setActive(false);
+        if (backgroundMedia != null) backgroundMedia.setActive(false);
         if (extensions != null) extensions.pages.setResumed(false);
     }
 
     @Override
     protected void handleOnResume() {
         resumed = true;
-        if (session != null) session.setActive(visible);
+        if (backgroundMedia != null) backgroundMedia.setActive(visible);
         if (extensions != null) extensions.pages.setResumed(true);
         recoverKilledPage();
     }
@@ -356,7 +357,7 @@ public class InAppBrowserSurfacePlugin extends Plugin {
         if (surface != null) surface.setSession(session);
         extensions.attachSession(session);
         attachBridge();
-        session.setActive(visible && resumed);
+        backgroundMedia.setActive(visible && resumed);
     }
 
     private void ensureSurface() {
@@ -365,12 +366,17 @@ public class InAppBrowserSurfacePlugin extends Plugin {
             return;
         }
         session = new GeckoSession();
+        backgroundMedia.attach(session);
         // The reading page is the selected tab: keep its process bound above the
         // cached-app bucket so the low-memory killer takes other things first.
         session.setPriorityHint(GeckoSession.PRIORITY_HIGH);
         session.setNavigationDelegate(new Navigation());
         session.setProgressDelegate(new Progress());
-        session.setContentDelegate(new Content());
+        session.setContentDelegate(new ReadingContentDelegate(this::openExternal, this::processStopped,
+            () -> visible && resumed, () -> {
+                forgetPageState("The page process was stopped while hidden");
+                killedWhileHidden = true;
+            }));
         session.setScrollDelegate(new GeckoSession.ScrollDelegate() {
             @Override
             public void onScrollChanged(GeckoSession ignored, int x, int y) {
@@ -436,6 +442,7 @@ public class InAppBrowserSurfacePlugin extends Plugin {
     }
 
     private void destroySurface() {
+        if (backgroundMedia != null) backgroundMedia.detach();
         surfaceGeneration++;
         for (Map.Entry<PluginCall, Runnable> entry : waiting.entrySet()) {
             handler.removeCallbacks(entry.getValue());
@@ -488,7 +495,7 @@ public class InAppBrowserSurfacePlugin extends Plugin {
         // An extension popup covers the page briefly and acts on it, so the page
         // stays active underneath: an inactive session drops its process into the
         // cached bucket, and the low-memory killer emptied it before popups closed.
-        if (session != null && session.isOpen()) session.setActive((visible || (extensions != null && extensions.pages.hasPopup())) && resumed);
+        if (backgroundMedia != null) backgroundMedia.setActive((visible || (extensions != null && extensions.pages.hasPopup())) && resumed);
         recoverKilledPage();
         if (extensions != null) extensions.setReadingVisible(visible);
         if (refreshSurface != null) {
@@ -686,6 +693,7 @@ public class InAppBrowserSurfacePlugin extends Plugin {
     }
 
     private void forgetPageState(String message) {
+        if (backgroundMedia != null) backgroundMedia.reset();
         canGoForward = false;
         bridgePort = null;
         failPendingEvaluations(message);
@@ -693,27 +701,4 @@ public class InAppBrowserSurfacePlugin extends Plugin {
         scrollY = 0;
     }
 
-    private final class Content implements GeckoSession.ContentDelegate {
-        @Override
-        public void onExternalResponse(GeckoSession ignored, WebResponse response) {
-            openExternal(response.uri);
-        }
-
-        @Override
-        public void onCrash(GeckoSession ignored) {
-            processStopped("The page process crashed. Reload to recover.");
-        }
-
-        @Override
-        public void onKill(GeckoSession ignored) {
-            // Android reclaims hidden pages under memory pressure; that is routine,
-            // so a hidden page reloads on its own when it is shown again.
-            if (visible && resumed) {
-                processStopped("The page process was stopped. Reload to recover.");
-                return;
-            }
-            forgetPageState("The page process was stopped while hidden");
-            killedWhileHidden = true;
-        }
-    }
 }

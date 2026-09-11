@@ -23,7 +23,7 @@ import org.mozilla.geckoview.GeckoSession;
 /** Native browser sheet with an inline expandable extension list. */
 final class NativeBrowserMenu {
     static void show(Activity activity, PluginCall call, GeckoSession session,
-                     boolean canBack, boolean canForward, Runnable reload) {
+                     boolean canBack, boolean canForward, Runnable reload, BackgroundMedia media) {
         Dialog dialog = new Dialog(activity);
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         LinearLayout content = new LinearLayout(activity);
@@ -57,6 +57,13 @@ final class NativeBrowserMenu {
             dialog.dismiss(); reload.run();
         }), new LinearLayout.LayoutParams(0, -2, 1));
         content.addView(navigation);
+        android.widget.Switch backgroundPlayback = new android.widget.Switch(activity);
+        backgroundPlayback.setText("Keep media playing in background");
+        backgroundPlayback.setTextSize(16);
+        backgroundPlayback.setPadding(spacing, spacing, spacing, spacing);
+        backgroundPlayback.setChecked(media.isEnabled());
+        backgroundPlayback.setOnCheckedChangeListener((button, checked) -> media.setEnabled(checked));
+        content.addView(backgroundPlayback, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout entries = new LinearLayout(activity);
         entries.setOrientation(LinearLayout.VERTICAL);
         entries.setVisibility(View.GONE);
