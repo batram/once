@@ -191,8 +191,8 @@ All paths below are under `packages/ui-web/src/story`.
   `apps/electron/src/AddonSandboxProtocol.ts` (`once-addon://`), mobile as
   the `addon-sandbox.html` asset with its runtime inlined
   (`apps/mobile/webpack.config.js`), Chrome as a manifest `sandbox` page, and
-  Firefox as a user-hosted copy of `static/addon-sandbox-hosted.html`
-  (`scripts/webpack.webext.config.js`, `webext-shell/src/addonSandboxSetting.ts`).
+  Firefox as the packaged `static/addon-sandbox.html` in its MV2 extension
+  (`scripts/webpack.webext.config.js`, `webext-shell/src/sidepanel.ts`).
 - `storyRowSubstories.ts` builds the per-source lines under the title.
 - `storyLinks.ts` owns anchor behaviour on a row: claiming clicks and
   middle-clicks from the browser, and marking a story read when its URL opens.

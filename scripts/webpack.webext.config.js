@@ -1,4 +1,3 @@
-const crypto = require("crypto")
 const path = require("path")
 const CopyPlugin = require("copy-webpack-plugin")
 const webpack = require("webpack")
@@ -7,37 +6,6 @@ const { devBuildIdentifier } = require("./build-identifier")
 const root = path.resolve(__dirname, "..")
 const { version } = require(path.join(root, "package.json"))
 const targets = new Set(["chrome", "firefox"])
-
-// A self-contained sandbox page with the runtime inlined and allowed by hash,
-// for hosting on an origin of the user's choosing: Firefox implements no
-// manifest `sandbox` and forbids blob: scripts on extension pages, so its
-// scripted add-ons run in a frame pointed at a hosted copy of this file.
-class AddonSandboxHostedPlugin {
-  apply(compiler) {
-    compiler.hooks.thisCompilation.tap("AddonSandboxHosted", (compilation) => {
-      compilation.hooks.processAssets.tap(
-        {
-          name: "AddonSandboxHosted",
-          stage: compiler.webpack.Compilation.PROCESS_ASSETS_STAGE_SUMMARIZE
-        },
-        (assets) => {
-          const runtime = assets["addon-sandbox.js"]
-          const page = assets["static/addon-sandbox.html"]
-          if (!runtime || !page) {
-            throw new Error("AddonSandboxHosted expects addon-sandbox.js and static/addon-sandbox.html assets")
-          }
-          const inlined = runtime.source().toString().replace(/<\/script/gi, "<\\/script")
-          const hash = crypto.createHash("sha256").update(inlined, "utf8").digest("base64")
-          const html = page.source().toString()
-            .replace("script-src 'self' blob:", `script-src 'sha256-${hash}' blob:`)
-            .replace('  <script src="../addon-sandbox.js"></script>\n', "")
-            .replace("</body>", `  <script>${inlined}</script>\n  </body>`)
-          compilation.emitAsset("static/addon-sandbox-hosted.html", new compiler.webpack.sources.RawSource(html))
-        }
-      )
-    })
-  }
-}
 
 module.exports = (env = {}, argv = {}) => {
   const target = env.target
@@ -119,7 +87,6 @@ module.exports = (env = {}, argv = {}) => {
         __ONCE_BUILD_CHANNEL__: JSON.stringify(buildChannel),
         __ONCE_BUILD_IDENTIFIER__: JSON.stringify(devBuildIdentifier())
       }),
-      new AddonSandboxHostedPlugin(),
       new CopyPlugin({
         patterns: [
           {
@@ -137,10 +104,9 @@ module.exports = (env = {}, argv = {}) => {
             from: path.join(root, "packages", "webext-shell", "src", "webext.css"),
             to: "static/css/webext.css"
           },
-          // The add-on sandbox page. Chrome loads it as a manifest `sandbox`
-          // page with the runtime as a sibling script; AddonSandboxHostedPlugin
-          // below also emits a self-contained copy for hosting elsewhere,
-          // which is what Firefox needs.
+          // Both browsers load this packaged page in an opaque-origin iframe.
+          // Chrome uses manifest sandbox.pages; Firefox's MV2 CSP permits
+          // blob modules, narrowed to this page by the shell's own CSP.
           {
             from: path.join(root, "packages", "ui-web", "public", "addon-sandbox.html"),
             to: "static/addon-sandbox.html",

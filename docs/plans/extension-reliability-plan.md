@@ -124,5 +124,5 @@ coordinator restored the check without adding an exception.
   retrospectively without risking independently selected lists.
 - Local patches are serialized within one app instance. Cross-device concurrent
   edits still follow the existing synced-document conflict behavior.
-- Firefox still needs its configured hosted sandbox. This work does not deploy
-  one or create an add-on index.
+- The Firefox hosting requirement was removed in the 2026-09-11 follow-up:
+  the MV2 build uses a packaged sandbox. An add-on index remains separate work.

@@ -300,10 +300,11 @@ the user acted on, and requests time out. On Electron main serves the page
 over `once-addon://` because an opaque origin may not load `file:`
 subresources; on mobile it is a static asset beside the app with its runtime
 inlined; on Chrome it is a manifest `sandbox` page of the extension; on
-Firefox, which lets no page under an extension's origin run third-party code,
-it is a hosted copy of the self-contained page the build emits, named by the
-user and kept in local extension storage, without which Firefox runs
-declarative add-ons only. Add-on code is cached per device by its hash;
+Firefox it is the packaged `static/addon-sandbox.html` page. Firefox uses MV2
+with `script-src 'self' blob:` in its manifest; the shell narrows its own
+scripts to `'self'`, while the sandbox permits blob modules and denies direct
+network access. The iframe has no same-origin permission or extension APIs.
+No user-provided hosting is involved. Add-on code is cached per device by its hash;
 an add-on installed from a URL remembers that URL for update
 checks.
 With [encrypted addon sync](addon-sync-vault.md), `AddonSync` replaces the legacy

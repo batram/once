@@ -9,7 +9,7 @@ embedded browsing surface. Their configuration and runtime ownership are separat
 | Android | Declarative contributions and sandboxed scripts in the app shell | GeckoView built-ins and user-installed signed Firefox extensions; synced additions handled by Once's bridge |
 | iOS | Shared add-on implementation; device validation remains required | WebKit content rules and the documented small GM shim |
 | Chrome side panel | Declarative contributions and sandboxed scripts | Browser-native extensions remain the user's browser configuration |
-| Firefox side panel | Declarative contributions; scripts require a configured hosted sandbox | Browser-native extensions remain the user's browser configuration |
+| Firefox side panel | Declarative contributions and sandboxed scripts in the packaged MV2 extension; no hosting setup | Browser-native extensions remain the user's browser configuration |
 
 ## Browser settings ownership
 

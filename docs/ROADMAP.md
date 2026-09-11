@@ -26,9 +26,9 @@ platform](plans/story-addons-plan.md).
 
 - **Add-ons follow-ups** (the plan itself is complete; see
   [Add-ons](ADDONS.md))
-  - A Once-hosted default for Firefox's sandbox page, so users need not host
-    `addon-sandbox-hosted.html` themselves (the mobile sandbox is covered by
-    the Android and iOS simulator suites)
+  - Mozilla distribution policy review and a future Firefox build option
+    that omits add-ons. The working Firefox build uses a packaged MV2 sandbox
+    with no hosting setup; signing and store distribution remain separate work.
   - A curated add-on index and automatic update checks (a manual check
     exists for URL installs)
 - **Mobile deeper integration**

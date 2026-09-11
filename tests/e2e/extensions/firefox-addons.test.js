@@ -16,13 +16,9 @@ const {
   logBrowserVersion
 } = require("./firefox-panel")
 
-// Firefox lets no page under an extension's origin run third-party code, so
-// its scripted add-ons run in a frame pointed at a hosted copy of the
-// self-contained sandbox page. This test hosts that page on the local fixture
-// server, names it through the real setting in the Add-ons section, and then
-// runs the same fixture add-on the other suites run: the badge it computes has
-// to reach the row through a sandbox frame on another origin.
-test("Firefox runs a scripted add-on in a hosted sandbox page", { timeout: 120_000 }, async () => {
+// A fresh Firefox install runs scripts in its packaged opaque-origin sandbox,
+// without configuring a URL or serving any sandbox resources from the fixture.
+test("Firefox runs scripted add-ons in its packaged sandbox without setup", { timeout: 120_000 }, async () => {
   const localDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "once-firefox-zip-"))
   const expectedAddonId = "once_sidepanel_f@zmarn.com"
   const extensionUuid = "00000000-0000-4000-8000-000000000002"
@@ -55,23 +51,17 @@ test("Firefox runs a scripted add-on in a hosted sandbox page", { timeout: 120_0
     assert.equal(installResult.result.extension, expectedAddonId)
     await openExtensionPanel(driver, extensionUuid)
 
-    // The Firefox-only control in the Add-ons section names the hosted page.
-    const sandboxUrl = `${source.origin}/sandbox/addon-sandbox-hosted.html`
-    const urlInput = await openSettingsSection(driver, "addons", '[data-testid="addon-sandbox-url"]')
-    await setValue(urlInput, sandboxUrl)
-    await driver.findElement(By.css('[data-testid="save-addon-sandbox-url"]')).click()
-    await driver.wait(
-      until.elementTextContains(
-        driver.findElement(By.css("#firefox_addon_sandbox_settings .settings_status")),
-        "Saved"
-      ),
-      budget(5_000)
-    )
+    const sandboxUrl = `moz-extension://${extensionUuid}/static/addon-sandbox.html`
+    assert.equal((await driver.findElements(By.css('[data-testid="addon-sandbox-url"]'))).length, 0)
+    // Old installations may still have a hosted URL saved. It must never be used.
+    await driver.executeAsyncScript(`
+      browser.storage.local.set({ addonSandboxUrl: arguments[0] }).then(arguments[1])
+    `, `${source.origin}/obsolete-sandbox.html`)
     const sources = await openSettingsSection(driver, "sources", '[data-testid="sources"]')
     await setValue(sources, source.source)
     await driver.findElement(By.css('[data-testid="save-sources"]')).click()
 
-    // The URL applies when the panel mounts, as the control says.
+    // Source configuration survives reopening the panel.
     await reopenExtensionPanel(driver, extensionUuid)
     const editor = await openSettingsSection(driver, "addons", "#addons_area")
     await setValue(editor, JSON.stringify([{
@@ -113,10 +103,31 @@ test("Firefox runs a scripted add-on in a hosted sandbox page", { timeout: 120_0
     )
     const frame = await driver.findElement(By.css("iframe[data-addon-sandbox]"))
     assert.equal(await frame.getAttribute("src"), sandboxUrl)
-    assert.ok(
-      source.requests.includes("/sandbox/addon-sandbox-hosted.html"),
-      `the hosted page was fetched: ${source.requests.join(", ")}`
-    )
+    assert.equal(await frame.getAttribute("sandbox"), "allow-scripts")
+    assert.equal(source.requests.some(url => url.includes("sandbox")), false)
+    assert.equal(await driver.executeScript(`
+      return document.querySelector('iframe[data-addon-sandbox]').contentDocument === null
+    `), true, "the sandbox must be cross-origin even though its page is packaged")
+    await driver.switchTo().frame(frame)
+    try {
+      const isolation = await driver.executeAsyncScript(`
+        const url = arguments[0], done = arguments[1]
+        let parentDenied = false, storageDenied = false
+        try { void parent.document.body } catch { parentDenied = true }
+        try { void localStorage.length } catch { storageDenied = true }
+        fetch(url).then(
+          () => done({ parentDenied, storageDenied, networkDenied: false }),
+          () => done({ parentDenied, storageDenied, networkDenied: true,
+            extensionApis: typeof browser !== "undefined" && !!browser.runtime })
+        )
+      `, `${source.origin}/sandbox-network-probe`)
+      assert.deepEqual(isolation, {
+        parentDenied: true, storageDenied: true, networkDenied: true, extensionApis: false
+      })
+    } finally {
+      await driver.switchTo().defaultContent()
+    }
+    assert.equal(source.requests.includes("/sandbox-network-probe"), false)
     const ai = require("../shared/ai-addon-fixture")
     const aiEditor = await openSettingsSection(driver, "addons", "#addons_area")
     await setValue(aiEditor, JSON.stringify([ai.manifest(source.origin)]))

@@ -74,8 +74,8 @@ unpackaged development builds.
 
 Browsers expose folder selection as a one-time import and do not offer Electron's
 watched path. ZIP selection uses the platform file picker, including mobile where
-available. Firefox's hosted sandbox requirement applies to every installation
-method. ZIP decompression uses the browser's native compression streams.
+available. Firefox includes its sandbox in the extension; no hosted page or
+extra setup is needed. ZIP decompression uses the browser's native compression streams.
 
 ## The manifest
 
@@ -421,15 +421,14 @@ Rules the host enforces, not the script:
   reloads it when a file in the directory changes. A manifest problem is
   reported in the loader insights with the directory named. Packaged builds
   ignore the variable, like `ONCE_ELECTRON_EXTENSIONS`.
-- **Platforms**: declarative add-ons run everywhere. Scripted add-ons run on
-  Electron, mobile, and Chrome (the sandbox page is a manifest `sandbox`
-  page of the extension). Firefox cannot run third-party code under an
-  extension's origin, so there the Add-ons section asks for the `https` URL
-  of a hosted copy of `addon-sandbox-hosted.html`, a self-contained page the
-  Firefox build emits under `static/`; host it anywhere you trust, paste the
-  URL, and reopen the sidebar (plain `http` is accepted from `127.0.0.1` and
-  `localhost` only, for a copy served on your own machine). Until then Firefox
-  reports scripted add-ons as unavailable and runs declarative ones only.
+- **Platforms**: declarative and scripted add-ons run on Electron, mobile,
+  Chrome, and Firefox. Chrome uses a manifest `sandbox` page. Firefox uses
+  Manifest V2 and a packaged `static/addon-sandbox.html` page, with blob modules
+  permitted by the extension CSP. The iframe remains opaque (`allow-scripts`
+  without `allow-same-origin`), and its own CSP blocks direct network access.
+  No hosting or sandbox URL setting is required; previously saved sandbox URLs
+  are ignored. Installed code is cached locally, so the sandbox itself has no
+  network dependency. Add-ons that fetch data still need their data services.
 
 ## Worked examples
 
