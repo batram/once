@@ -258,7 +258,12 @@ function secretField(client: OnceClient, entry: AddonEntry, name: string, values
   status.setAttribute("role", "status")
   const endpoint = () => {
     const connection = entry.manifest.connections?.find(item => item.secret === name)
-    return String(connection ? values[connection.endpoint] ?? "" : "")
+    if (!connection) return ""
+    // The endpoint field saves on change, which is still in flight when the
+    // reader goes straight from typing it to "Save token": read what is typed.
+    const typed = document.getElementById(`addon_option_${entry.manifest.id}_${connection.endpoint}`)
+    if (typed instanceof HTMLInputElement || typed instanceof HTMLTextAreaElement) return typed.value.trim()
+    return String(values[connection.endpoint] ?? "")
   }
   const refresh = async () => {
     const configured = await client.hasAddonSecret(entry.manifest.id, name, endpoint(), localOnly)

@@ -39,3 +39,18 @@ test("HTTP, network and malformed release failures retain a usable release-page 
     assert.ok(result.message)
   }
 })
+
+test("the manual check says whether the published release is newer or the installed one", async () => {
+  const release = (tag) => async () => Response.json({ tag_name: tag, draft: false, prerelease: false })
+  assert.match((await checkLatestRelease("0.3.0", release("v0.4.0"))).message, /^A newer release is available: v0\.4\.0\. Installed version: 0\.3\.0\.$/)
+  assert.match((await checkLatestRelease("0.4.0", release("v0.4.0"))).message, /^This is the latest release \(v0\.4\.0\)\.$/)
+  assert.match((await checkLatestRelease("0.4.0", release("nightly"))).message, /^Latest release: nightly\. Installed version: 0\.4\.0\.$/)
+  const limited = await checkLatestRelease("0.4.0", async () => new Response(null, { status: 403 }))
+  assert.match(limited.message, /rate limiting/)
+})
+
+test("the manual status keeps the reason updates are manual in front of the hint", () => {
+  assert.equal(manualReleaseStatus("Automatic updates are currently supported on Windows.").message,
+    "Automatic updates are currently supported on Windows. Check GitHub for the latest release. Updates for this install are manual.")
+  assert.equal(manualReleaseStatus().message, "Check GitHub for the latest release. Updates for this install are manual.")
+})

@@ -2,11 +2,36 @@ import { ElectronUpdateStatus } from "@once/platform-electron/bridge"
 
 export const LATEST_RELEASE_PAGE = "https://github.com/batram/once/releases/latest"
 
-export function manualReleaseStatus(): ElectronUpdateStatus {
+/** @param reason why this install has no automatic updates, kept in front of the hint. */
+export function manualReleaseStatus(reason?: string): ElectronUpdateStatus {
   return {
     state: "idle", manual: true, releaseUrl: LATEST_RELEASE_PAGE,
-    message: "Check GitHub for the latest release. Updates for this install are manual."
+    message: `${reason ? `${reason} ` : ""}Check GitHub for the latest release. Updates for this install are manual.`
   }
+}
+
+function releaseNumbers(value: string): number[] | null {
+  const match = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(value.trim())
+  return match ? match.slice(1, 4).map(Number) : null
+}
+
+/** Positive when `tag` is newer than `version`, zero when equal, null when either is not X.Y.Z. */
+function compareRelease(tag: string, version: string): number | null {
+  const latest = releaseNumbers(tag)
+  const installed = releaseNumbers(version)
+  if (!latest || !installed) return null
+  for (let index = 0; index < 3; index += 1) {
+    if (latest[index] !== installed[index]) return latest[index] - installed[index]
+  }
+  return 0
+}
+
+function releaseVerdict(tag: string, version: string): string {
+  const order = compareRelease(tag, version)
+  if (order !== null && order > 0) return `A newer release is available: ${tag}. Installed version: ${version}.`
+  if (order === 0) return `This is the latest release (${tag}).`
+  // A dev build ahead of the published release, or a tag that is not X.Y.Z.
+  return `Latest release: ${tag}. Installed version: ${version}.`
 }
 
 export async function checkLatestRelease(
@@ -22,7 +47,9 @@ export async function checkLatestRelease(
     })
     if (!response.ok) {
       throw new Error(response.status === 404 ? "No published release was found." :
-        `GitHub release check failed (HTTP ${response.status}).`)
+        response.status === 403 || response.status === 429
+          ? "GitHub is rate limiting release checks from this network right now. Open the release page instead."
+          : `GitHub release check failed (HTTP ${response.status}).`)
     }
     const release = await response.json() as { tag_name?: unknown; draft?: boolean; prerelease?: boolean }
     if (typeof release.tag_name !== "string" || !release.tag_name.trim() ||
@@ -31,7 +58,7 @@ export async function checkLatestRelease(
     }
     return {
       ...fallback,
-      message: `Latest release: ${release.tag_name}. Installed version: ${version}.`,
+      message: releaseVerdict(release.tag_name, version),
       releaseUrl: `https://github.com/batram/once/releases/tag/${encodeURIComponent(release.tag_name)}`
     }
   } catch (error) {

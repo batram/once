@@ -71,7 +71,10 @@ export class WindowLifecycle {
       this.menus.showContentsMenu(owner, window.webContents, params)
     })
     window.on("app-command", (event, command) => {
-      if (!owner.activeId) return
+      // Mouse back/forward reaches the shell renderer as a DOM event too, where
+      // it drives story undo/redo and settings navigation; only a focused page
+      // should also move through its own history.
+      if (!owner.activeId || window.webContents.isFocused()) return
       if (command === "browser-backward") {
         event.preventDefault()
         this.actions.back(owner, owner.activeId)

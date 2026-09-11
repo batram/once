@@ -106,3 +106,17 @@ test("an encrypted value from an earlier build fails to read only until it is re
   await settings.setSyncUrl("https://new")
   assert.equal(await settings.getSyncUrl(), "https://new")
 })
+
+test("a cipher that is available but refuses to decrypt falls back to the plain copy or explains itself", async () => {
+  const { settings, cipher } = setup(false)
+  await settings.setSyncUrl("https://plain")
+  cipher.available = true
+  await settings.setSecret("source:hn", "token")
+  cipher.decrypt = () => { throw new Error("The user name or passphrase you entered is not correct.") }
+  // The sync URL was never re-encrypted, so its plain copy still reads.
+  assert.equal(await settings.getSyncUrl(), "https://plain")
+  await assert.rejects(() => settings.getSecret("source:hn"), /refused to decrypt.*Save it again/)
+  await settings.setSecret("source:hn", "token2")
+  cipher.decrypt = (encrypted) => encrypted.replace(/^enc:/, "")
+  assert.equal(await settings.getSecret("source:hn"), "token2")
+})

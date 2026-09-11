@@ -34,11 +34,14 @@ export class ClosedTabs {
     if (!file || !existsSync(file)) return
     try {
       const stored: unknown = JSON.parse(readFileSync(file, "utf8"))
-      if (!Array.isArray(stored) || !stored.every(isClosedTabRecord)) {
-        throw new Error("Invalid closed tab history")
+      if (!Array.isArray(stored)) throw new Error("Invalid closed tab history")
+      // One damaged record should not cost the other twenty-four.
+      const valid = stored.filter(isClosedTabRecord)
+      if (valid.length < stored.length) {
+        console.warn(`Dropped ${stored.length - valid.length} invalid closed tab record(s)`)
       }
       // Electron webContents IDs only identify windows in the current process.
-      this.records.push(...stored.slice(-CLOSED_TAB_LIMIT).map(record => ({
+      this.records.push(...valid.slice(-CLOSED_TAB_LIMIT).map(record => ({
         ...record, windowId: -1
       })))
     } catch (error) {

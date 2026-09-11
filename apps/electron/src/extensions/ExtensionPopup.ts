@@ -14,6 +14,7 @@ const MIN_SIZE = 80
 export class ExtensionPopup {
   private view: WebContentsView | null = null
   private window: BrowserWindow | null = null
+  private readonly onWindowClosed = (): void => this.close()
 
   constructor(private readonly host: ExtensionHost) {}
 
@@ -47,8 +48,11 @@ export class ExtensionPopup {
       if (this.view === view) this.detach()
     })
     view.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
-    window.once("closed", () => this.close())
-    void view.webContents.loadURL(url).then(() => view.webContents.focus())
+    window.once("closed", this.onWindowClosed)
+    view.webContents.loadURL(url).then(
+      () => view.webContents.focus(),
+      () => { if (this.view === view) this.close() }
+    )
   }
 
   close(): void {
@@ -65,7 +69,9 @@ export class ExtensionPopup {
     const { view, window } = this
     this.view = null
     this.window = null
-    if (view && window && !window.isDestroyed()) window.contentView.removeChildView(view)
+    if (!view || !window || window.isDestroyed()) return
+    window.off("closed", this.onWindowClosed)
+    window.contentView.removeChildView(view)
   }
 
   /** Under the anchor, right-aligned to it, kept inside the window. */

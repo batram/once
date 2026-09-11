@@ -83,6 +83,15 @@ test("question, release, ambiguous person and ordinary titles reach the explanat
   }
 })
 
+test("an unconfigured addon gives directions without a Retry button or an error tone", async () => {
+  const f = await fixture({ model: "" })
+  const opened = await f.run({ type: "open" })
+  assert.match(opened.status, /Set a model ID and connection/)
+  assert.equal(opened.statusTone, "info")
+  assert.ok(!opened.actions.some(action => action.id === "retry"))
+  assert.equal(f.requests.length, 0)
+})
+
 test("missing article is labelled title-only, skips the automatic summary and refuses a requested one", async () => {
   const f = await fixture()
   f.context.getStoryContent = async () => { throw new Error("No readable content") }

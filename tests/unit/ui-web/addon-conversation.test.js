@@ -78,6 +78,30 @@ test("a tray hands out a conversation handle that mirrors its state and takes co
   } finally { trays.dispose(); restore() }
 })
 
+test("resetting the trays tells every conversation surface that its conversation is gone", async () => {
+  const restore = dom('<html><body><div id="stories"></div></body></html>')
+  const { AddonTrays } = require("../../../packages/ui-web/dist/addons/AddonTrays")
+  let opened = null
+  const trays = new AddonTrays({ id: "example", name: "Example", trays: [{ id: "assistant", title: "Assistant" }] }, {
+    ensure: async () => ({ tray: async () => ({ messages: [{ role: "assistant", text: "Hi" }] }) })
+  }, { label: "Continue", open: handle => { opened = handle } })
+  const row = document.createElement("story-item")
+  row.story = { href: "https://story.test/", title: "A story", type: "HN" }
+  document.querySelector("#stories").append(row)
+  try {
+    trays.toggle(row, "assistant")
+    await new Promise(resolve => setImmediate(resolve))
+    row.querySelector('[data-testid="addon-tray-continue"]').click()
+    const snapshots = []
+    opened.subscribe(snapshot => snapshots.push(snapshot))
+    trays.reset()
+    assert.equal(snapshots.at(-1), null)
+    assert.throws(() => opened.snapshot(), /reset/)
+    // A page asking again gets a fresh conversation for the listed story.
+    assert.equal(trays.handleFor("assistant", "https://story.test/").snapshot().view.messages.length, 0)
+  } finally { trays.dispose(); restore() }
+})
+
 test("the conversation page renders snapshots, sends input and goes read-only without its shell", async () => {
   const restore = dom('<html><body><main id="root"></main></body></html>')
   const { mountAddonConversation } = require("../../../packages/ui-web/dist/addons/conversationPage")

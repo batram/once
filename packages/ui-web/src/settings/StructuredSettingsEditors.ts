@@ -490,6 +490,13 @@ export class StructuredSettingsEditors {
     close?.()
   }
 
+  /** Back's first rung: an inline row editor (filters, redirects) closes before anything else. */
+  closeInlineEditor(): boolean {
+    if (!this.openEditor) return false
+    this.closeOpenEditor()
+    return true
+  }
+
   private render(section: Section): void {
     const root = this.roots.get(section)
     if (!root) return

@@ -7,6 +7,7 @@ const ts = require("typescript")
 
 function harness() {
   const views = []
+  let failLoads = false
   class View {
     constructor() {
       views.push(this)
@@ -20,7 +21,7 @@ function harness() {
         contents.destroyed = true
         contents.emit("destroyed")
       }
-      contents.loadURL = async () => {}
+      contents.loadURL = async () => { if (failLoads) throw new Error("blocked") }
       contents.focus = () => {}
       contents.setWindowOpenHandler = () => {}
       this.webContents = contents
@@ -46,7 +47,7 @@ function harness() {
   window.isDestroyed = () => false
   window.getContentBounds = () => ({ width: 800, height: 600 })
   const open = () => { popup.open(window, { x: 400, y: 0, width: 32, height: 32 }); return views.at(-1).webContents }
-  return { popup, open, children }
+  return { popup, open, children, window, failLoad: () => { failLoads = true } }
 }
 const settle = () => new Promise(resolve => setImmediate(resolve))
 
@@ -84,4 +85,24 @@ test("a stale blur callback cannot close a replacement popup", async () => {
   assert.equal(popup.isOpen(), true)
   assert.equal(children.size, 1)
   popup.close()
+})
+
+test("reopening a popup does not pile up window listeners", async () => {
+  const { popup, open, window } = harness()
+  for (let count = 0; count < 15; count += 1) open()
+  assert.equal(window.listenerCount("closed"), 1)
+  popup.close()
+  assert.equal(window.listenerCount("closed"), 0)
+})
+
+test("a popup whose page fails to load is closed instead of left blank", async () => {
+  const { popup, open, children, failLoad } = harness()
+  const contents = open()
+  failLoad()
+  const failing = open()
+  await settle()
+  assert.equal(failing.closes, 1)
+  assert.equal(popup.isOpen(), false)
+  assert.equal(children.size, 0)
+  assert.equal(contents.closes, 1)
 })

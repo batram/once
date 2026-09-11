@@ -69,7 +69,6 @@ export class StoryHistory {
     new_state: "unread" | "read" | "skipped",
     old_state: "unread" | "read" | "skipped"
   ): void {
-    console.log("history story_change", story.href, new_state, old_state)
     this.undo_history.push({ story, new_state, old_state })
     this.redo_history = []
     this.notifyStateChanged()
@@ -103,10 +102,8 @@ export class StoryHistory {
 
   undo(): void {
     if (settingsOpen()) return
-    console.log("undo")
     const hstate = this.undo_history.pop()
     if (hstate) {
-      console.log("undo", hstate)
       getOnceClient().persistStoryChange(
         hstate.story.href,
         "read_state",
@@ -124,10 +121,8 @@ export class StoryHistory {
 
   redo(): void {
     if (settingsOpen()) return
-    console.log("redo")
     const hstate = this.redo_history.pop()
     if (hstate) {
-      console.log("redo", hstate)
       getOnceClient().persistStoryChange(
         hstate.story.href,
         "read_state",

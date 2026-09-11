@@ -304,6 +304,32 @@ test("source row rendering keeps edit and error callbacks on the host", () => {
   })
 })
 
+test("a disabled source is marked in the row, its label and its menu", () => {
+  withDom("<main></main>", (window) => {
+    const root = window.document.querySelector("main")
+    const source = { id: "src_00000002", url: "https://off.test", enabled: false }
+    const groups = [{ id: "default", name: "Default", sources: [source] }]
+    const calls = []
+    const menus = []
+    const host = sourceRowHost(window, groups, calls, {
+      onTouch: () => false,
+      openMenu: (_anchor, items) => menus.push(items)
+    })
+    root.append(renderSourceRow(root, host, source, 0, 0))
+    const row = root.querySelector(".structured_row")
+    assert.ok(row.classList.contains("structured_row_disabled"))
+    assert.match(root.querySelector(".structured_row_primary").textContent, /\(disabled\)$/)
+    assert.match(root.querySelector("[data-testid='source-row']").getAttribute("aria-label"), /\(disabled\)$/)
+
+    root.querySelector(".structured_row_menu").click()
+    const toggle = menus.at(-1).find((item) => item.id === "toggle-source")
+    assert.equal(toggle.label, "Enable source")
+    toggle.select()
+    assert.equal(groups[0].sources[0].enabled, true)
+    assert.deepEqual(calls.at(-1), ["save", undefined])
+  })
+})
+
 test("source row drop reorders the model and saves without story reload", () => {
   withDom("<main></main>", (window) => {
     const root = window.document.querySelector("main")

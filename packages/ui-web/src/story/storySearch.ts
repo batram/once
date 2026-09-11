@@ -99,7 +99,7 @@ const specialk: Record<string, () => void> = {
   }
 }
 
-//TODO: load from plugin files, or in case of domain search attach a special optional function to collectors
+// Built-in providers; add-ons contribute theirs through mountAddons.
 const extra_search_providers: Record<
   string,
   { type: "global" | "local"; func: (needle: string) => void }
@@ -247,7 +247,8 @@ async function add_global_search_results(search_stories: Story[]) {
     )
   )
   stories.forEach((story) => {
-    if (!global_search_results.querySelector(`.story[data-href="${story.href}"]`)) {
+    const href = story.href.replace(/["\\]/g, "\\$&")
+    if (!global_search_results.querySelector(`.story[data-href="${href}"]`)) {
       story.bucket = "global_search_results"
       global_search_results.appendChild(new StoryListItem(story))
     }

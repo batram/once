@@ -115,7 +115,7 @@ function registerAppHandlers(options: IpcHandlerOptions): void {
     const status = options.getUpdateStatus()
     if (status.manual && process.env.ONCE_ELECTRON_DISABLE_NETWORK_FETCH !== "1") {
       if (status.state === "checking") return status
-      options.setUpdateStatus({ ...status, state: "checking" })
+      options.setUpdateStatus({ ...status, state: "checking", message: undefined })
       const result = await checkLatestRelease(app.getVersion(), net.fetch)
       options.setUpdateStatus(result)
       return result
@@ -414,7 +414,10 @@ function registerExtensionHandlers(options: IpcHandlerOptions): void {
       return result.canceled || !result.filePaths[0] ? null : manager.preview("", result.filePaths[0])
     }
     if (command === "install") return manager.install(value)
-    if (command === "enabled") return manager.setEnabled(value, enabled as boolean)
+    if (command === "enabled") {
+      if (typeof enabled !== "boolean") throw new Error("Invalid extension request")
+      return manager.setEnabled(value, enabled)
+    }
     if (command === "remove") return manager.remove(value)
     if (command === "options") return manager.openOptions(value)
     if (command === "storage") return manager.storage(value)

@@ -759,6 +759,12 @@
   box-shadow: inset 3px 0 var(--warning-color, #b06b00);
 }
 
+/* A disabled source stays in the list, dimmed, so it reads at a glance. */
+.structured_row_disabled .structured_row_primary,
+.structured_row_disabled .collector_badge {
+  opacity: 0.55;
+}
+
 .structured_row_primary,
 .structured_row_secondary {
   display: block;

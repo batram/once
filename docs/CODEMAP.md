@@ -95,8 +95,11 @@ new exceptions to the boundary baseline without an architectural decision.
 
 All paths below are under `packages/ui-web/src`.
 
-- `settings/SettingsPanel.ts` owns settings navigation and composes
-  collaborators.
+- `settings/SettingsPanel.ts` composes the settings collaborators and owns the
+  section index and search.
+- `settings/SettingsNavigation.ts` owns the per-visit back/forward history,
+  the header Back chain (inline row editor, then detail sections, then the
+  section, then the panel) and mouse back/forward while Settings is open.
 - `settings/SettingsPersistence.ts` owns persisted theme, animation, cache, and
   sync restoration.
 - `settings/SwipeSettingsLab.ts` is the swipe editor facade;

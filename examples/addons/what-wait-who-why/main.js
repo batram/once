@@ -27,7 +27,7 @@ export default function activate(once) {
     state.error = ""
     state.searchFailed = false
     try {
-      if (!String(once.settings.model || "").trim()) throw new Error("Set a model ID and connection in Settings → Add-ons before asking the AI.")
+      if (!String(once.settings.model || "").trim()) throw new SetupNeeded("Set a model ID and connection in Settings → Add-ons before asking the AI.")
       if (!state.article && !state.contentError) {
         try { state.article = await context.getStoryContent() }
         catch (error) { context.signal.throwIfAborted(); state.contentError = error.message || "Article unavailable" }
@@ -53,6 +53,7 @@ export default function activate(once) {
       context.signal.throwIfAborted()
       state.error = error.message || "AI request failed"
       state.searchFailed = error instanceof SearchFailure
+      state.setupNeeded = error instanceof SetupNeeded
     }
     return view(state)
   })
@@ -102,9 +103,10 @@ export function explanation(result) {
 
 function view(state) {
   const actions = state.summarized ? [] : [SUMMARIZE]
-  if (state.error) actions.push({ id: "retry", label: "Retry" })
+  // An unconfigured addon is directions, not a failure: no Retry, calm tone.
+  if (state.error && !state.setupNeeded) actions.push({ id: "retry", label: "Retry" })
   if (state.searchFailed) actions.push({ id: "without-search", label: "Answer without search" })
-  return { messages: state.messages, status: state.error || state.status || "Ask about this story.", statusTone: state.error ? "error" : "info", actions, composer: "Ask a follow-up question about this story" }
+  return { messages: state.messages, status: state.error || state.status || "Ask about this story.", statusTone: state.error && !state.setupNeeded ? "error" : "info", actions, composer: "Ask a follow-up question about this story" }
 }
 
 export function recentHistory(history) {
@@ -146,6 +148,8 @@ export function providerRequest(settings, prompt, context, messages, nativeSearc
 }
 
 class SearchFailure extends Error {}
+/** Nothing to retry: the addon needs its settings first. */
+class SetupNeeded extends Error {}
 
 async function generate(context, settings, prompt, article, messages, search, title, question) {
   const nativeSearch = search && ["openai", "anthropic"].includes(settings.provider)
@@ -157,8 +161,9 @@ async function generate(context, settings, prompt, article, messages, search, ti
   return providerResult(settings.provider, data)
 }
 
+/** A 400 while asking for native search: the provider's wording varies, so any mention of the tool counts. */
 function unavailableSearch(response) {
-  return response.status === 400 && /(?:web.?search|search tool)/i.test(response.text) && /not supported|unsupported|not enabled|unavailable/i.test(response.text)
+  return response.status === 400 && /search|tool/i.test(response.text)
 }
 
 function searchToolError(data) {

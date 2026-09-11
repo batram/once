@@ -3,6 +3,12 @@ import { requireElement } from "../dom"
 import { CacheTimingPanel } from "./CacheTimingPanel"
 import { trackSettingsSave } from "./settingsStatus"
 
+/** Electron's IPC wraps a rejection as "Error invoking remote method '…': Error: …"; show only the cause. */
+export function settingsErrorMessage(error: Error): string {
+  const match = /^Error invoking remote method '[^']*': (?:[A-Za-z]*Error: )?(.*)$/s.exec(error.message)
+  return match?.[1] || error.message
+}
+
 export class SettingsPersistence {
   private readonly cachePanel: CacheTimingPanel
 
@@ -50,7 +56,7 @@ export class SettingsPersistence {
       (error) => {
         status.dataset.state = "error"
         status.textContent = error instanceof Error
-          ? error.message
+          ? settingsErrorMessage(error)
           : "The sync setting could not be saved"
       }
     )

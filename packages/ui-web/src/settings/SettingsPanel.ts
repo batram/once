@@ -273,7 +273,7 @@ export class SettingsPanel {
       section: () => this.activeSettingsSection,
       show: section => section === null ? this.closeSettingsSection() : this.openSettingsSection(section),
       back,
-      backEditor: () => this.structuredEditors?.handleBack(this.activeSettingsSection) ?? false,
+      backEditor: () => (this.structuredEditors?.closeInlineEditor() || this.structuredEditors?.handleBack(this.activeSettingsSection)) ?? false,
       showIndex: () => this.showSettingsIndex(),
       exitSettings: () => this.options.exitSettings?.(),
       forwardEditor: () => this.structuredEditors?.handleForward(this.activeSettingsSection) ?? false,
@@ -521,28 +521,7 @@ export class SettingsPanel {
   }
 
   save_couch_settings(): void {
-    const couch_input =
-      requireElement<HTMLInputElement>("#couch_input")
-    const status = requireElement<HTMLElement>("#couch_status")
-    status.dataset.state = couch_input.value.trim() ? "connecting" : "disabled"
-    status.textContent = couch_input.value.trim()
-      ? "Saving and connecting…"
-      : "Turning sync off…"
-    this.client.setSyncUrl(couch_input.value).then(
-      () => {
-        // Trigger password highlighting update using existing input event listener
-        couch_input.dispatchEvent(new Event("input"))
-        const current = this.client.getSyncStatus()
-        status.dataset.state = current.state
-        status.textContent = current.message
-      },
-      (error) => {
-        status.dataset.state = "error"
-        status.textContent = error instanceof Error
-          ? error.message
-          : "The sync setting could not be saved"
-      }
-    )
+    this.persistence.saveSync()
   }
 
   async restore_theme_settings(): Promise<void> {

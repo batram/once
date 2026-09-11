@@ -2,7 +2,7 @@
   "protocol": 1,
   "id": "what-wait-who-why",
   "name": "What? Wait, who, why?",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "script": "main.js",
   "trays": [{ "id": "assistant", "title": "What? Wait, who, why?" }],
   "connections": [

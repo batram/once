@@ -126,7 +126,7 @@ export class SecureSettings {
   /** An encrypted value wins; a plain one stands in until it is re-saved. */
   private reveal(encrypted?: string, plain?: string): string {
     if (encrypted) {
-      if (this.cipher.isAvailable()) return this.cipher.decrypt(encrypted)
+      if (this.cipher.isAvailable()) return this.decrypt(encrypted, plain)
       if (plain === undefined) {
         throw new Error(
           "Secure credential storage is unavailable, so a value saved by an " +
@@ -135,6 +135,23 @@ export class SecureSettings {
       }
     }
     return plain ?? ""
+  }
+
+  /**
+   * macOS can report the Keychain as available and still refuse the item
+   * (the user denied the prompt); a plain copy stands in, else a readable error.
+   */
+  private decrypt(encrypted: string, plain?: string): string {
+    try {
+      return this.cipher.decrypt(encrypted)
+    } catch (error) {
+      if (plain !== undefined) return plain
+      const detail = error instanceof Error ? error.message : String(error)
+      throw new Error(
+        "Secure credential storage refused to decrypt a saved value. " +
+        `Save it again to replace it. (${detail})`
+      )
+    }
   }
 
   private warnPlainText(): void {

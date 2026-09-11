@@ -4,8 +4,12 @@ Detailed active implementation plans live in [`plans/`](plans/). Completed
 plans are summarized in [HISTORY.md](HISTORY.md) and retained in Git history.
 
 - [Future user theming](plans/design-system-theming-plan.md)
-- [Firefox extensions and userscripts in the embedded browsers](plans/firefox-extensions-plan.md)
-- [Once add-ons on every platform](plans/story-addons-plan.md)
+- [Extension reliability](plans/extension-reliability-plan.md)
+- [Android GeckoView extension management](plans/android-gecko-extension-management.md)
+
+Completed and kept for reference: [Firefox extensions and userscripts in the
+embedded browsers](plans/firefox-extensions-plan.md) and [Once add-ons on every
+platform](plans/story-addons-plan.md).
 
 ## Near term
 
@@ -43,8 +47,10 @@ plans are summarized in [HISTORY.md](HISTORY.md) and retained in Git history.
 ## Later
 
 - **Electron**
-  - Restore windows, tabs, navigation, recently closed tabs, and reading position
-  - Signing, updates, and supported-platform packaging
+  - Restore windows, open tabs and reading position (recently closed tabs
+    already survive a restart)
+  - Signing and supported-platform packaging (Squirrel updates and a manual
+    release check exist)
   - A new secure video presenter (the unreachable legacy presenter and
     vendored runtime were removed)
 - **Product**

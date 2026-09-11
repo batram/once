@@ -267,7 +267,7 @@ export function renderSourceRow(
   open.dataset.sourceId = source.id
   open.dataset.testid = "source-row"
   open.title = source.url
-  open.setAttribute("aria-label", `Edit ${source.url}`)
+  open.setAttribute("aria-label", `Edit ${source.url}${source.enabled === false ? " (disabled)" : ""}`)
   const primary = document.createElement("span")
   primary.className = "structured_row_primary"
   primary.textContent = sourceLabel(source) + (source.enabled === false ? " (disabled)" : "")

@@ -21,8 +21,8 @@ interface TrayState {
   last: AddonTrayEvent
   disclosed: TrayDisclosures
   controller?: AbortController
-  /** Other surfaces showing this conversation; told after every change. */
-  listeners: Set<(snapshot: AddonConversationSnapshot) => void>
+  /** Other surfaces showing this conversation; told after every change, and with null when it ends. */
+  listeners: Set<(snapshot: AddonConversationSnapshot | null) => void>
 }
 
 /**
@@ -32,7 +32,8 @@ interface TrayState {
  */
 export interface AddonConversationHandle {
   snapshot(): AddonConversationSnapshot
-  subscribe(listener: (snapshot: AddonConversationSnapshot) => void): () => void
+  /** Null tells the surface the conversation is gone (the addon was reset, disabled or removed). */
+  subscribe(listener: (snapshot: AddonConversationSnapshot | null) => void): () => void
   send(command: AddonConversationCommand): void
 }
 
@@ -108,12 +109,16 @@ export class AddonTrays {
 
   reset(): void {
     const keys = Array.from(this.states.keys())
+    const listeners = Array.from(this.states.values()).flatMap(state => Array.from(state.listeners))
     for (const state of this.states.values()) state.controller?.abort()
     this.states.clear()
     for (const key of keys) {
       const [href, tray] = JSON.parse(key) as [string, string]
       this.refresh(href, tray)
     }
+    // A page still showing one of these conversations would otherwise keep a
+    // live composer whose input goes nowhere.
+    for (const listener of listeners) listener(null)
   }
 
   dispose(): void {

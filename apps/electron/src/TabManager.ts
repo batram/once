@@ -360,12 +360,25 @@ export class BrowserCoordinator {
 
   /** Reopens the most recently closed tab, newest from this window first. */
   async restoreClosedTab(state: WindowEntry): Promise<string | null> {
-    const record = this.ownership.closedTabs.take(state)
+    let record = this.ownership.closedTabs.take(state)
+    // A page of an extension that has since been removed cannot load anywhere.
+    while (record && parseExtensionUrl(record.url) && !this.pageProfile(record.url)) {
+      record = this.ownership.closedTabs.take(state)
+    }
     if (!record) return null
-    const id = await this.createTab(state, record.url, true)
+    // Reader documents only live for the current session: after a restart the
+    // tab reopens blank and the shell regenerates the article for it, the same
+    // way a typed reader URL is handled in navigate().
+    const readerSource = sourceUrlFromReaderUrl(record.url)
+    const regenerate = readerSource !== null && !hasReaderDocument(readerSource)
+    const id = await this.createTab(state, regenerate ? "about:blank" : record.url, true)
     const before = state.tabs[record.index]
     if (before && before !== id) this.ownership.reorder(state, id, before)
-    this.restoreTabHistory(id, record)
+    if (regenerate) {
+      state.window.webContents.send(ELECTRON_IPC.tabsRegenerateReader, readerSource, id)
+    } else {
+      this.restoreTabHistory(id, record)
+    }
     return id
   }
 

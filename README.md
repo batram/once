@@ -19,7 +19,14 @@ and Capacitor applications for Android and iOS.
 - Sync state via couchdb
 - Filter stories based on keywords
 - Dark and Light theme
-- Reader mode
+- Reader mode, with saved article text for offline reading
+- Per-source cache timing and cache-first launch
+- Keyboard navigation and per-platform story buttons
+- Add-ons: collectors, presenters, trays and actions, installed from a URL,
+  folder or ZIP (an AI "what, wait, who, why" example ships in `examples/addons`)
+- Firefox extensions in the embedded browsers: uBlock Origin and
+  Violentmonkey are bundled on Electron and Android, and any signed Firefox
+  extension can be installed
 
 ## Quick start
 

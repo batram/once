@@ -158,7 +158,7 @@ function startAutoUpdates(): void {
   if (unavailableMessage) {
     setUpdateStatus(process.env.ONCE_ELECTRON_DISABLE_NETWORK_FETCH === "1"
       ? { state: "disabled", message: unavailableMessage }
-      : manualReleaseStatus())
+      : manualReleaseStatus(unavailableMessage))
     return
   }
 

@@ -315,6 +315,15 @@ test("invalid saved history does not prevent startup or subsequent saves", (t) =
     assert.equal(new ClosedTabs(file).size, 0)
   }
   assert.equal(warnings.mock.callCount(), 3)
+  // A damaged record is dropped on its own; the intact ones stay.
+  fs.writeFileSync(file, JSON.stringify([
+    { url: "https://example.com/kept", title: "Kept", windowId: 1, index: 0, history: null },
+    { url: 42 }
+  ]))
+  const partial = new ClosedTabs(file)
+  assert.equal(partial.size, 1)
+  assert.equal(partial.take(owner(1)).url, "https://example.com/kept")
+  assert.equal(warnings.mock.callCount(), 4)
   const tabs = new ClosedTabs(file)
   tabs.record(navigated("valid", 1, "https://example.com/valid"), owner(1), 0)
   assert.equal(new ClosedTabs(file).size, 1)

@@ -65,7 +65,6 @@ export function highlightTextareaContent(
     )
     return
   }
-  console.log(`SettingsPanel: scrolling to ${textareaId}`, searchText)
   textarea.focus({ preventScroll: true })
   textarea.setSelectionRange(startIndex, startIndex + searchText.length)
   scrollTextareaSelectionIntoView(textarea, startIndex)

@@ -3,7 +3,10 @@
 Once ships three published products from a single tag: the **Electron** desktop
 app (Windows), and the **Firefox** and **Chrome** side-panel extensions. The
 Capacitor mobile apps share the same version number but are not built or
-published by the release workflow.
+published by the release workflow. A hand-built Android or iOS release must
+also set `ONCE_BUILD_NUMBER` (the Android `versionCode` and iOS build number),
+which defaults to `1`: two builds of the same version with the same build
+number cannot upgrade over each other.
 
 Releases are cut by pushing a `vX.Y.Z` tag. GitHub Actions
 ([`.github/workflows/release.yml`](../.github/workflows/release.yml)) then
@@ -30,7 +33,9 @@ Electron and the Android app ship uBlock Origin and Violentmonkey. Their
 bundles are not in the repository: [`scripts/fetch-extensions.js`](../scripts/fetch-extensions.js)
 records the exact release URL and SHA-256 of each and unpacks them into
 `vendor/extensions/`, which the Electron package, make, and start scripts and
-the Android package command run first. Electron carries them as
+the Android package command run first. That means the release workflow's
+`make:electron` step downloads both bundles from GitHub; an upstream asset
+that has been removed or changed fails the hash check and stops the release. Electron carries them as
 `resources/extensions`; Android builds them into the APK's assets.
 
 uBlock's Firefox build is Mozilla-signed; the pinned hash is that of the

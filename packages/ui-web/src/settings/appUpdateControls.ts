@@ -22,6 +22,7 @@ export interface AppUpdater {
 }
 
 const DEFAULT_MESSAGES: Partial<Record<AppUpdateState, string>> = {
+  checking: "Checking…",
   disabled: "Updates are available in installed release builds.",
   available: "Downloading update…",
   current: "Up to date",
@@ -75,7 +76,8 @@ export function bindAppUpdateControls(
   })
 
   button.addEventListener("click", async () => {
-    render({ ...current, state: "checking" })
+    // The previous sentence would otherwise sit under a "Checking…" button.
+    render({ ...current, state: "checking", message: undefined })
     try {
       render(await updater.checkForUpdates())
     } catch (error) {
