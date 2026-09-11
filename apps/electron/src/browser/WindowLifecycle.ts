@@ -20,6 +20,22 @@ export function isBackgroundMode(): boolean {
 /** Far outside any plausible monitor arrangement. */
 export const OFFSCREEN_TEST_POSITION = { x: -32000, y: -32000 }
 
+/**
+ * Tells the shell it holds the keyboard. A reload raises focus while the
+ * shell's document is being replaced, and since Electron 44 a message sent to
+ * it at that moment ends the main process outright (no exception, no event);
+ * the document that is loading gets told once it is there.
+ */
+export function sendShellFocus(window: BrowserWindow): void {
+  if (window.isDestroyed()) return
+  const contents = window.webContents
+  const tell = () => {
+    if (!window.isDestroyed()) contents.send(ELECTRON_IPC.windowNativeFocusChanged, "shell")
+  }
+  if (contents.isLoading()) contents.once("did-finish-load", tell)
+  else tell()
+}
+
 export function showWindow(window: BrowserWindow): void {
   if (window.isDestroyed()) return
   if (!isBackgroundMode()) {
@@ -84,10 +100,7 @@ export class WindowLifecycle {
         this.actions.forward(owner, owner.activeId)
       }
     })
-    window.webContents.on("focus", () => {
-      if (window.isDestroyed()) return
-      window.webContents.send(ELECTRON_IPC.windowNativeFocusChanged, "shell")
-    })
+    window.webContents.on("focus", () => sendShellFocus(window))
     window.on("enter-full-screen", () => {
       owner.fullscreen = true
       this.sendFullscreen(owner, true)
