@@ -16,6 +16,23 @@ const {
   logBrowserVersion
 } = require("./firefox-panel")
 
+async function captureFailure(driver, phase, error, requests) {
+  const directory = path.resolve(__dirname, "../../../test-results/firefox-addons")
+  await fs.mkdir(directory, { recursive: true })
+  const evidence = { phase, error: String(error), requests }
+  try {
+    await driver.switchTo().defaultContent()
+    evidence.views = await driver.executeScript(`
+      return browser.extension.getViews().map(w => ({ url: w.location.href,
+        ready: w.document.body?.dataset.onceReady,
+        text: w.document.body?.innerText,
+        selected: w.document.querySelector('#selected_container story-item')?.dataset.href }))
+    `)
+    await fs.writeFile(path.join(directory, "panel.png"), await driver.takeScreenshot(), "base64")
+  } catch (captureError) { evidence.captureError = String(captureError) }
+  await fs.writeFile(path.join(directory, "state.json"), JSON.stringify(evidence, null, 2))
+}
+
 // A fresh Firefox install runs scripts in its packaged opaque-origin sandbox,
 // without configuring a URL or serving any sandbox resources from the fixture.
 test("Firefox runs scripted add-ons in its packaged sandbox without setup", { timeout: budget(120_000) }, async () => {
@@ -188,20 +205,7 @@ test("Firefox runs scripted add-ons in its packaged sandbox without setup", { ti
         ?.textContent === "Local package ready"
     `), 10_000, "ZIP add-on badge computed")
   } catch (error) {
-    const directory = path.resolve(__dirname, "../../../test-results/firefox-addons")
-    await fs.mkdir(directory, { recursive: true })
-    const evidence = { phase, error: String(error), requests: source.requests }
-    try {
-      await driver.switchTo().defaultContent()
-      evidence.views = await driver.executeScript(`
-        return browser.extension.getViews().map(w => ({ url: w.location.href,
-          ready: w.document.body?.dataset.onceReady,
-          text: w.document.body?.innerText,
-          selected: w.document.querySelector('#selected_container story-item')?.dataset.href }))
-      `)
-      await fs.writeFile(path.join(directory, "panel.png"), await driver.takeScreenshot(), "base64")
-    } catch (captureError) { evidence.captureError = String(captureError) }
-    await fs.writeFile(path.join(directory, "state.json"), JSON.stringify(evidence, null, 2))
+    await captureFailure(driver, phase, error, source.requests)
     throw error
   } finally {
     await driver.quit()
