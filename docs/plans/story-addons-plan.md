@@ -21,8 +21,8 @@ code is fetched per device and run in a sandboxed frame served over
 `once-addon://`, `message` actions and computed badges reach it over the
 validated protocol, operations are scoped to the invoked story, and three
 failures switch an add-on off. Verified by session unit tests and an
-Electron e2e with a fixture script. Firefox has no serving path yet (see the
-table below); Chrome and mobile serving are step 6's neighbours.
+Electron e2e with a fixture script. The other platforms' serving paths followed;
+see the current table below.
 
 Step 5 is done: a manifest may declare `collectors` (badge, description,
 detection patterns tried after every built-in, `collects`, colours, a cache
@@ -78,8 +78,10 @@ e2e fixtures as worked examples; ARCHITECTURE.md, CODEMAP.md, and
 COLLECTORS.md carry the add-on sections. The Chrome and Firefox serving paths and the
 Android emulator run followed on 2026-09-04, as did `ONCE_ADDONS` and the
 source editor's configuration form. Open from the original list: an iOS
-device run, a Once-hosted default for Firefox's sandbox page, and a curated
-index.
+device run and a curated index. The Firefox hosting requirement was removed
+on 2026-09-11: an MV2 build loads the packaged sandbox locally, with no user
+setup. Mozilla signing/policy and a future build without add-ons are separate
+roadmap work.
 
 ## Decision
 
@@ -225,7 +227,7 @@ a static `addon-sandbox.html` from a place where it carries its own policy:
 | Target | Serving | Notes |
 | --- | --- | --- |
 | Chrome | Manifest `sandbox.pages: ["static/addon-sandbox.html"]` (done) | Chrome's own mechanism for exactly this: an opaque-origin page with a separate `content_security_policy.sandbox` that permits `blob:` scripts, no extension APIs, no access to the opener. Verified by `tests/e2e/extensions/chrome-addons.spec.js`. |
-| Firefox | A hosted copy of `static/addon-sandbox-hosted.html`, named by the user (done) | Firefox does not implement the manifest `sandbox` key, and MV3 forbids `blob:` or `unsafe-eval` script sources on extension pages, so no page under the extension's origin may run add-on code. The Firefox build emits a self-contained page (runtime inlined, allowed by hash); the Add-ons section asks for the `https` URL of a hosted copy (or a loopback `http` one for local hosting), kept in the browser's local extension storage. The shell CSP's `frame-src` allows `https:` and loopback `http:`. Without a URL, scripted add-ons are reported unavailable. Verified by `tests/e2e/extensions/firefox-addons.test.js`, which hosts the built page on the fixture server. |
+| Firefox | Packaged `static/addon-sandbox.html` in the MV2 extension (done) | The manifest permits `script-src 'self' blob:`; the shell retains `script-src 'self'`, while the sandbox's own CSP permits blob modules and blocks network access. The frame remains opaque with `sandbox="allow-scripts"` and has no extension APIs. No hosting, sandbox URL, interpreter, or native helper is needed. Verified by `tests/e2e/extensions/firefox-addons.test.js`; signing and Mozilla policy review are separate work. |
 | Electron | `once-addon://sandbox/index.html`, served by main from the second Forge renderer entry (`addon_sandbox`) | The frame's opaque origin may not load `file:` subresources (tried: the page loaded, its script was refused), so the page and its runtime come through a privileged scheme, a sibling of `once-reader://`. The shell CSP's `frame-src` names the scheme. |
 | Android, iOS | `addon-sandbox.html`, a static asset beside the app, loaded by URL | No native route needed: a navigated document carries its own policy, and Capacitor's local server answers for any frame. The runtime is inlined and allowed by hash for older WebKit. Add-on code still arrives by `postMessage`. |
 

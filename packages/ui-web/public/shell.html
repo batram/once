@@ -5,7 +5,7 @@
     <title>once</title>
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' http: https:; frame-src 'self' blob: once-addon: https: http://127.0.0.1:* http://localhost:*;"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' http: https:; frame-src 'self' blob: once-addon:;"
     />
     <link rel="stylesheet" href="css/style.css" />
   </head>
@@ -286,26 +286,6 @@
                     <button type="button" class="button" data-testid="update-addons">Check for updates</button>
                   </div>
                   <div id="addon_options" class="addon_options" data-testid="addon-options"></div>
-                  <div class="settings_group" id="firefox_addon_sandbox_settings" data-platform-only hidden>
-                    <p class="field_hint">
-                      Firefox cannot run add-on code under an extension's origin. To use scripted
-                      add-ons, host a copy of addon-sandbox-hosted.html and name it here.
-                    </p>
-                    <div class="field">
-                      <label class="field_label" for="addon_sandbox_url_input">Sandbox page URL</label>
-                      <input
-                        id="addon_sandbox_url_input"
-                        type="url"
-                        inputmode="url"
-                        spellcheck="false"
-                        placeholder="https://example.org/once/addon-sandbox-hosted.html"
-                        data-testid="addon-sandbox-url"
-                      />
-                    </div>
-                    <div class="settings_actions cluster">
-                      <button type="button" class="button" data-testid="save-addon-sandbox-url">Save</button>
-                    </div>
-                  </div>
                   <div id="addon_advanced" class="settings_editor" hidden>
                     <h2>Addon JSON</h2>
                     <p class="settings_group_hint">Edit the installed addon definitions directly. For normal installation and configuration, use the addon list.</p>

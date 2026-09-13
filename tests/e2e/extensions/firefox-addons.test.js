@@ -16,13 +16,26 @@ const {
   logBrowserVersion
 } = require("./firefox-panel")
 
-// Firefox lets no page under an extension's origin run third-party code, so
-// its scripted add-ons run in a frame pointed at a hosted copy of the
-// self-contained sandbox page. This test hosts that page on the local fixture
-// server, names it through the real setting in the Add-ons section, and then
-// runs the same fixture add-on the other suites run: the badge it computes has
-// to reach the row through a sandbox frame on another origin.
-test("Firefox runs a scripted add-on in a hosted sandbox page", { timeout: 120_000 }, async () => {
+async function captureFailure(driver, phase, error, requests) {
+  const directory = path.resolve(__dirname, "../../../test-results/firefox-addons")
+  await fs.mkdir(directory, { recursive: true })
+  const evidence = { phase, error: String(error), requests }
+  try {
+    await driver.switchTo().defaultContent()
+    evidence.views = await driver.executeScript(`
+      return browser.extension.getViews().map(w => ({ url: w.location.href,
+        ready: w.document.body?.dataset.onceReady,
+        text: w.document.body?.innerText,
+        selected: w.document.querySelector('#selected_container story-item')?.dataset.href }))
+    `)
+    await fs.writeFile(path.join(directory, "panel.png"), await driver.takeScreenshot(), "base64")
+  } catch (captureError) { evidence.captureError = String(captureError) }
+  await fs.writeFile(path.join(directory, "state.json"), JSON.stringify(evidence, null, 2))
+}
+
+// A fresh Firefox install runs scripts in its packaged opaque-origin sandbox,
+// without configuring a URL or serving any sandbox resources from the fixture.
+test("Firefox runs scripted add-ons in its packaged sandbox without setup", { timeout: budget(120_000) }, async () => {
   const localDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "once-firefox-zip-"))
   const expectedAddonId = "once_sidepanel_f@zmarn.com"
   const extensionUuid = "00000000-0000-4000-8000-000000000002"
@@ -38,6 +51,12 @@ test("Firefox runs a scripted add-on in a hosted sandbox page", { timeout: 120_0
     .build()
   await logBrowserVersion(driver)
   const source = await startStoryFixture()
+  let phase = "install extension"
+  const waitFor = (condition, milliseconds, label) => {
+    phase = label
+    console.log(`Firefox add-ons: ${label}`)
+    return driver.wait(condition, budget(milliseconds), `Firefox add-ons: ${label}`)
+  }
   const setValue = (element, value) => driver.executeScript(
     `arguments[0].value = arguments[1]
      arguments[0].dispatchEvent(new Event("input", { bubbles: true }))
@@ -55,23 +74,17 @@ test("Firefox runs a scripted add-on in a hosted sandbox page", { timeout: 120_0
     assert.equal(installResult.result.extension, expectedAddonId)
     await openExtensionPanel(driver, extensionUuid)
 
-    // The Firefox-only control in the Add-ons section names the hosted page.
-    const sandboxUrl = `${source.origin}/sandbox/addon-sandbox-hosted.html`
-    const urlInput = await openSettingsSection(driver, "addons", '[data-testid="addon-sandbox-url"]')
-    await setValue(urlInput, sandboxUrl)
-    await driver.findElement(By.css('[data-testid="save-addon-sandbox-url"]')).click()
-    await driver.wait(
-      until.elementTextContains(
-        driver.findElement(By.css("#firefox_addon_sandbox_settings .settings_status")),
-        "Saved"
-      ),
-      budget(5_000)
-    )
+    const sandboxUrl = `moz-extension://${extensionUuid}/static/addon-sandbox.html`
+    assert.equal((await driver.findElements(By.css('[data-testid="addon-sandbox-url"]'))).length, 0)
+    // Old installations may still have a hosted URL saved. It must never be used.
+    await driver.executeAsyncScript(`
+      browser.storage.local.set({ addonSandboxUrl: arguments[0] }).then(arguments[1])
+    `, `${source.origin}/obsolete-sandbox.html`)
     const sources = await openSettingsSection(driver, "sources", '[data-testid="sources"]')
     await setValue(sources, source.source)
     await driver.findElement(By.css('[data-testid="save-sources"]')).click()
 
-    // The URL applies when the panel mounts, as the control says.
+    // Source configuration survives reopening the panel.
     await reopenExtensionPanel(driver, extensionUuid)
     const editor = await openSettingsSection(driver, "addons", "#addons_area")
     await setValue(editor, JSON.stringify([{
@@ -86,70 +99,114 @@ test("Firefox runs a scripted add-on in a hosted sandbox page", { timeout: 120_0
       ]
     }]))
     await driver.findElement(By.css('[data-testid="save-addons"]')).click()
-    await driver.wait(
+    await waitFor(
       until.elementTextIs(
         driver.findElement(By.css('[data-settings-target="addons"] .settings_section_summary')),
         "1 of 1 enabled"
       ),
-      budget(10_000)
+      10_000, "scripted add-on enabled"
     )
 
     await driver.findElement(By.css('[data-testid="stories-menu"]')).click()
     await driver.findElement(By.css("#searchfield")).clear()
     await driver.findElement(By.css('[data-testid="reload-stories"]')).click()
-    const alpha = await driver.wait(
+    const alpha = await waitFor(
       until.elementLocated(By.css(`#stories story-item[data-href="${source.urls.alpha}"]`)),
-      budget(20_000)
+      20_000, "fixture story loaded"
     )
     const title = await alpha.findElement(By.css("a.title")).getText()
-    const badge = await driver.wait(
+    const badge = await waitFor(
       until.elementLocated(By.css('#stories story-item .addon_badge[data-addon-badge="len"]')),
-      budget(20_000)
+      20_000, "scripted badge present"
     )
-    await driver.wait(until.elementTextIs(badge, `len ${title.length}`), budget(20_000))
+    await waitFor(until.elementTextIs(badge, `len ${title.length}`), 20_000, "scripted badge computed")
     assert.equal(
       (await alpha.findElements(By.css('.addon_btn[data-story-element="addon:harness-script/visit"]'))).length,
       1
     )
     const frame = await driver.findElement(By.css("iframe[data-addon-sandbox]"))
     assert.equal(await frame.getAttribute("src"), sandboxUrl)
-    assert.ok(
-      source.requests.includes("/sandbox/addon-sandbox-hosted.html"),
-      `the hosted page was fetched: ${source.requests.join(", ")}`
-    )
+    assert.equal(await frame.getAttribute("sandbox"), "allow-scripts")
+    assert.equal(source.requests.some(url => url.includes("sandbox")), false)
+    assert.equal(await driver.executeScript(`
+      return document.querySelector('iframe[data-addon-sandbox]').contentDocument === null
+    `), true, "the sandbox must be cross-origin even though its page is packaged")
+    await driver.switchTo().frame(frame)
+    try {
+      const isolation = await driver.executeAsyncScript(`
+        const url = arguments[0], done = arguments[1]
+        let parentDenied = false, storageDenied = false
+        try { void parent.document.body } catch { parentDenied = true }
+        try { void localStorage.length } catch { storageDenied = true }
+        fetch(url).then(
+          () => done({ parentDenied, storageDenied, networkDenied: false }),
+          () => done({ parentDenied, storageDenied, networkDenied: true,
+            extensionApis: typeof browser !== "undefined" && !!browser.runtime })
+        )
+      `, `${source.origin}/sandbox-network-probe`)
+      assert.deepEqual(isolation, {
+        parentDenied: true, storageDenied: true, networkDenied: true, extensionApis: false
+      })
+    } finally {
+      await driver.switchTo().defaultContent()
+    }
+    assert.equal(source.requests.includes("/sandbox-network-probe"), false)
     const ai = require("../shared/ai-addon-fixture")
     const aiEditor = await openSettingsSection(driver, "addons", "#addons_area")
     await setValue(aiEditor, JSON.stringify([ai.manifest(source.origin)]))
     await driver.findElement(By.css('[data-testid="save-addons"]')).click()
-    const token = await driver.wait(until.elementLocated(By.css('[data-testid="addon-option-what-wait-who-why-compatibleToken"]')), 10000)
+    const token = await waitFor(until.elementLocated(By.css('[data-testid="addon-option-what-wait-who-why-compatibleToken"]')), 10_000, "AI options rendered")
     await driver.findElement(By.css("#settings_section_back")).click()
-    await driver.wait(until.elementLocated(By.css('.addon_list_row[data-addon-id="what-wait-who-why"]')), 10000).click()
+    await waitFor(until.elementLocated(By.css('.addon_list_row[data-addon-id="what-wait-who-why"]')), 10_000, "AI settings row present").click()
     await token.sendKeys("fixture-token")
     await driver.executeScript("arguments[0].parentElement.querySelector('button').click()", token)
     // Saving options re-renders the settings control; poll its current node.
-    await driver.wait(() => driver.executeScript(`
+    await waitFor(() => driver.executeScript(`
       return document.querySelector('[data-testid="addon-option-what-wait-who-why-compatibleToken"]')
         ?.parentElement.textContent.includes("Token saved on this device") ?? false
-    `), 10000)
+    `), 10_000, "AI token saved")
     await driver.findElement(By.css('[data-testid="stories-menu"]')).click()
-    const aiButton = await driver.wait(until.elementLocated(By.css('[data-addon-tray-button="addon:what-wait-who-why/assistant"]')), 10000)
+    const aiButton = await waitFor(until.elementLocated(By.css('[data-addon-tray-button="addon:what-wait-who-why/assistant"]')), 10_000, "AI tray button present")
     await aiButton.click()
     // The tray is replaced as responses arrive; read the live DOM atomically.
-    await driver.wait(() => driver.executeScript(`
+    await waitFor(() => driver.executeScript(`
       return document.querySelector("#stories .addon_tray")
         ?.textContent.includes("ExampleApp is software") ?? false
-    `), 20000)
+    `), 20_000, "AI tray response received")
+    // A second panel must not overwrite the owner's conversation with null.
+    const secondUrl = `moz-extension://${extensionUuid}/static/sidepanel.html?once-e2e=1&second=1`
+    const second = await driver.executeAsyncScript("browser.tabs.create({url: arguments[0], active: false}).then(arguments[1])", secondUrl)
+    await waitFor(() => driver.executeScript(`
+      return browser.extension.getViews().some(w => w.location.href.includes('second=1') && w.document.body.dataset.onceReady === 'true')
+    `), 15_000, "second panel ready")
+    await driver.findElement(By.css('#stories [data-testid="addon-tray-continue"]')).click()
+    const conversationState = () => driver.executeScript(`
+      const w = browser.extension.getViews().find(w => w.location.pathname.endsWith('/addon-conversation.html'))
+      return { messages: w?.document.querySelector('.addon_conversation_messages')?.textContent,
+        notice: w?.document.querySelector('.addon_conversation_notice')?.textContent,
+        selected: document.querySelector('#selected_container story-item')?.dataset.href }
+    `)
+    await waitFor(async () => (await conversationState()).messages?.includes("ExampleApp is software"), 10_000, "conversation tab received transcript")
+    await waitFor(async () => (await conversationState()).selected === source.urls.alpha, 10_000, "conversation story selected")
+    // Remove the unrelated panel: it must not disconnect the owner's tab.
+    await driver.executeAsyncScript("browser.tabs.remove(arguments[0]).then(arguments[1])", second.id)
+    await driver.findElement(By.css('#stories .addon_tray button[aria-label="Close"]')).click()
+    assert.ok((await conversationState()).messages.includes("ExampleApp is software"))
+    assert.equal((await conversationState()).notice, "")
     await openSettingsSection(driver, "addons", "#addon_url_input")
     const localZip = path.join(localDirectory, "local-package.zip")
     await fs.writeFile(localZip, await require("../shared/local-addon-fixture").zipFile())
     await driver.findElement(By.css('[data-testid="addon-zip-file"]')).sendKeys(localZip)
-    await driver.wait(until.elementLocated(By.css('[data-testid="confirm-addon"]')), 10000)
+    await waitFor(until.elementLocated(By.css('[data-testid="confirm-addon"]')), 10_000, "ZIP import preview ready")
     await driver.findElement(By.css('[data-testid="confirm-addon"]')).click()
     await driver.findElement(By.css('[data-testid="stories-menu"]')).click()
-    await driver.wait(() => driver.executeScript(`
+    await waitFor(() => driver.executeScript(`
       return document.querySelector('#stories [data-addon-badge="ready"]')
         ?.textContent === "Local package ready"
-    `), 10000)
+    `), 10_000, "ZIP add-on badge computed")
+  } catch (error) {
+    await captureFailure(driver, phase, error, source.requests)
+    throw error
   } finally {
     await driver.quit()
     await source.close()

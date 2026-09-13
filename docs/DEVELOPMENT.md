@@ -475,12 +475,13 @@ The sandbox page is a Forge renderer entry (`addon_sandbox`) served over
 manifest `sandbox` page in the Chrome build (`tests/e2e/extensions/chrome-addons.spec.js`
 covers it); a change to `packages/ui-web/src/addons/sandboxRuntime.ts`
 therefore needs a repackage before an E2E rerun, like any other renderer
-change. The extension builds also emit `static/addon-sandbox-hosted.html`, a
-self-contained copy for Firefox users to host over `https`; nothing in the
-repository hosts it for users, but `tests/e2e/extensions/firefox-addons.test.js`
-serves the built copy from the local fixture server, names it through the
-sidebar's own setting (which accepts plain `http` from `127.0.0.1` and
-`localhost` for exactly this), and runs the fixture add-on through it. The
+change. Firefox uses Manifest V2 and loads the packaged sandbox page directly;
+its manifest permits blob modules, while the shell and sandbox each retain
+their narrower document CSP. `tests/e2e/extensions/firefox-addons.test.js`
+installs scripts without configuring a sandbox URL and checks opaque-origin
+isolation, denied direct network access, and absent extension APIs. No hosted
+sandbox asset is emitted. Signing and Mozilla policy review are separate from
+this local execution path. The
 Android smoke suite (`mobile.smoke.js`) ends with the same add-on in the
 device WebView. See [ADDONS.md](ADDONS.md) for what the fixture exercises.
 

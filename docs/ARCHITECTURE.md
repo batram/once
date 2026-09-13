@@ -300,10 +300,11 @@ the user acted on, and requests time out. On Electron main serves the page
 over `once-addon://` because an opaque origin may not load `file:`
 subresources; on mobile it is a static asset beside the app with its runtime
 inlined; on Chrome it is a manifest `sandbox` page of the extension; on
-Firefox, which lets no page under an extension's origin run third-party code,
-it is a hosted copy of the self-contained page the build emits, named by the
-user and kept in local extension storage, without which Firefox runs
-declarative add-ons only. Add-on code is cached per device by its hash;
+Firefox it is the packaged `static/addon-sandbox.html` page. Firefox uses MV2
+with `script-src 'self' blob:` in its manifest; the shell narrows its own
+scripts to `'self'`, while the sandbox permits blob modules and denies direct
+network access. The iframe has no same-origin permission or extension APIs.
+No user-provided hosting is involved. Add-on code is cached per device by its hash;
 an add-on installed from a URL remembers that URL for update
 checks.
 With [encrypted addon sync](addon-sync-vault.md), `AddonSync` replaces the legacy
@@ -320,6 +321,13 @@ continue on a larger surface without leaving the sandbox: an Electron tab
 (`once-addon://conversation`), an extension page, or the mobile reading view
 attach to it by its key (addon, tray, story) and relay commands back to the
 shell that owns the sandbox; the shell tells them when the conversation ends.
+Extension conversation URLs also name the originating panel instance. Only
+that panel answers the broadcast runtime connection; another open panel cannot
+replace its transcript or receive its commands. The tab reconnects to its owner
+if Firefox disconnects the shared port when an unrelated panel closes. Reloading
+the owning panel creates a new instance, so continue from its tray to open a
+fresh tab. Both extension targets resolve conversation URLs back to their story
+for the selected-story row.
 `examples/addons/what-wait-who-why` is the shipped example, an AI assistant
 over the story's article with optional web search.
 

@@ -6,6 +6,7 @@ evidence; this file is only a compact discovery index.
 
 | Completed | Work | Landing commits | Durable documentation |
 | --- | --- | --- | --- |
+| 2026-09-13 | Electron 45 alpha (Chromium 155): ends the per-node accessibility event flood that stalled the main process on every resize once any UI Automation client had touched the window; safeStorage moved to its async API | see `git log -- apps/electron/src/SecureSettings.ts` | [Architecture](ARCHITECTURE.md) |
 | 2026-09-11 | Android reading view keeps opted-in media playing in the background with notification and lock-screen controls | `a37e2a6e`..`fc389753` | [Android reading media](android-background-playback.md) |
 | 2026-09-11 | Electron 44.3.0, adm-zip 0.6.1 and Violentmonkey 2.49.0; the 0.4.0 review fixes (popup listener leak, decrypt refusal fallback, reader tab restore, disabled-source marking, conversation pages ending with their addon) | `426699e8`..`c2c1484a` | [Releasing](RELEASING.md) |
 | 2026-09-10 | Android GeckoView extension management: install from AMO or a signed XPI, native permission dialog, options and popup pages, extension-created tabs, header-framed extension pages | `7fbb586f`..`57438ee0` | [Extension compatibility](EXTENSION_COMPATIBILITY.md), [plan](plans/android-gecko-extension-management.md) |

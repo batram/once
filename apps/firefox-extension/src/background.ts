@@ -4,11 +4,11 @@ import { installPickerBackground } from "@once/webext-shell/dist/pickerBackgroun
 import { installStoryMenuBackground } from "@once/webext-shell/dist/storyMenuBackground"
 import { installKeyCommandBackground } from "@once/webext-shell/dist/keyCommandBackground"
 
-// Firefox MV3 backgrounds are non-persistent event pages: every listener
+// Firefox uses a non-persistent event page: every listener
 // must be registered synchronously in the first turn of the event loop,
 // or it will not be dispatched when the script wakes up for an event.
 
-browser.action.onClicked.addListener(() => {
+browser.browserAction.onClicked.addListener(() => {
   browser.sidebarAction.toggle()
 })
 
