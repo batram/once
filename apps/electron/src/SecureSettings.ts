@@ -26,16 +26,18 @@ interface StoredSettings {
  * are re-encrypted the next time they are saved while encryption works.
  */
 export interface Cipher {
-  isAvailable(): boolean
-  encrypt(value: string): string
-  decrypt(encrypted: string): string
+  isAvailable(): Promise<boolean>
+  encrypt(value: string): Promise<string>
+  decrypt(encrypted: string): Promise<string>
 }
 
+// The asynchronous safeStorage API; Electron 45 deprecated the synchronous one.
 const safeStorageCipher: Cipher = {
-  isAvailable: () => safeStorage.isEncryptionAvailable(),
-  encrypt: (value) => safeStorage.encryptString(value).toString("base64"),
-  decrypt: (encrypted) =>
-    safeStorage.decryptString(Buffer.from(encrypted, "base64"))
+  isAvailable: () => safeStorage.isAsyncEncryptionAvailable(),
+  encrypt: async (value) =>
+    (await safeStorage.encryptStringAsync(value)).toString("base64"),
+  decrypt: async (encrypted) =>
+    (await safeStorage.decryptStringAsync(Buffer.from(encrypted, "base64"))).result
 }
 
 export class SecureSettings {
@@ -57,8 +59,8 @@ export class SecureSettings {
 
   async setSyncUrl(syncUrl: string): Promise<void> {
     const settings = await this.read()
-    if (this.cipher.isAvailable()) {
-      settings.encryptedSyncUrl = this.cipher.encrypt(syncUrl)
+    if (await this.cipher.isAvailable()) {
+      settings.encryptedSyncUrl = await this.cipher.encrypt(syncUrl)
       delete settings.plainSyncUrl
     } else {
       this.warnPlainText()
@@ -80,8 +82,8 @@ export class SecureSettings {
     const settings = await this.read()
     const encrypted = without(settings.encryptedSecrets, key)
     const plain = without(settings.plainSecrets, key)
-    if (value && this.cipher.isAvailable()) {
-      encrypted[key] = this.cipher.encrypt(value)
+    if (value && await this.cipher.isAvailable()) {
+      encrypted[key] = await this.cipher.encrypt(value)
     } else if (value) {
       this.warnPlainText()
       plain[key] = value
@@ -124,9 +126,9 @@ export class SecureSettings {
   }
 
   /** An encrypted value wins; a plain one stands in until it is re-saved. */
-  private reveal(encrypted?: string, plain?: string): string {
+  private async reveal(encrypted?: string, plain?: string): Promise<string> {
     if (encrypted) {
-      if (this.cipher.isAvailable()) return this.decrypt(encrypted, plain)
+      if (await this.cipher.isAvailable()) return this.decrypt(encrypted, plain)
       if (plain === undefined) {
         throw new Error(
           "Secure credential storage is unavailable, so a value saved by an " +
@@ -141,9 +143,9 @@ export class SecureSettings {
    * macOS can report the Keychain as available and still refuse the item
    * (the user denied the prompt); a plain copy stands in, else a readable error.
    */
-  private decrypt(encrypted: string, plain?: string): string {
+  private async decrypt(encrypted: string, plain?: string): Promise<string> {
     try {
-      return this.cipher.decrypt(encrypted)
+      return await this.cipher.decrypt(encrypted)
     } catch (error) {
       if (plain !== undefined) return plain
       const detail = error instanceof Error ? error.message : String(error)
