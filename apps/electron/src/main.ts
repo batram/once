@@ -62,6 +62,11 @@ protocol.registerSchemesAsPrivileged([
 
 if (process.env.ONCE_ELECTRON_TEST_USER_DATA) {
   app.setPath("userData", process.env.ONCE_ELECTRON_TEST_USER_DATA)
+  // Test profiles never touch the real OS keychain: on macOS the safeStorage
+  // key lives in a Keychain item that trusts only the code signature that
+  // created it, so every Electron upgrade would otherwise raise a password
+  // prompt on the first test launch.
+  app.commandLine.appendSwitch("use-mock-keychain")
 }
 
 if (process.platform === "win32") {
