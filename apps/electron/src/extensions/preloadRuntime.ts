@@ -87,14 +87,58 @@ export function adoptBridge(): void {
   const scope = globalThis as unknown as { __onceExtensionApi?: unknown }
   const staged = scope.__onceExtensionApi
   if (!staged) return
-  const copy = (value: unknown): unknown => {
+  // Self-contained: this runs from its own source text in isolated worlds.
+  const adopted: { runtime?: Record<string, unknown> } = {}
+  const setLastError = (descriptor: PropertyDescriptor) => {
+    if (adopted.runtime) {
+      Object.defineProperty(adopted.runtime, "lastError", { configurable: true, enumerable: true, ...descriptor })
+    }
+  }
+  // A trailing function is a Chrome-style callback. A rejection reaches it as
+  // runtime.lastError, set only while it runs; SponsorBlock's tab-update
+  // callback is `() => { chrome.runtime.lastError }` and expects silence.
+  // Chrome warns when a callback leaves the error unread, and so does this.
+  const withCallback = (method: (...args: unknown[]) => unknown) => (...args: unknown[]) => {
+    if (typeof args[args.length - 1] !== "function") return method(...args)
+    const callback = args.pop() as (...values: unknown[]) => void
+    const settle = (value: unknown, error?: string) => {
+      let read = false
+      if (error !== undefined) {
+        setLastError({ get: () => { read = true; return { message: error } } })
+      }
+      try {
+        if (error === undefined) callback(value)
+        else callback()
+      } finally {
+        setLastError({ writable: true, value: undefined })
+        if (error !== undefined && !read) console.warn(`Unchecked runtime.lastError: ${error}`)
+      }
+    }
+    const result = method(...args)
+    if (result && typeof (result as Promise<unknown>).then === "function") {
+      (result as Promise<unknown>).then(
+        (value) => settle(value),
+        (error) => settle(undefined, error instanceof Error ? error.message : String(error))
+      )
+    } else {
+      settle(result)
+    }
+    return undefined
+  }
+  const copy = (value: unknown, inEvent: boolean): unknown => {
+    if (typeof value === "function") {
+      // An event's addListener takes a listener, not a callback.
+      return inEvent ? value : withCallback(value as (...args: unknown[]) => unknown)
+    }
     if (typeof value !== "object" || value === null) return value
     const source = value as Record<string, unknown>
     const out: Record<string, unknown> = Array.isArray(value) ? [] as unknown as Record<string, unknown> : {}
-    for (const name of Object.keys(source)) out[name] = copy(source[name])
+    const event = typeof source.addListener === "function"
+    for (const name of Object.keys(source)) out[name] = copy(source[name], event)
     return out
   }
-  const browser = copy(staged)
+  const browser = copy(staged, false) as Record<string, unknown>
+  adopted.runtime = browser.runtime as Record<string, unknown> | undefined
   Object.defineProperty(globalThis, "browser", {
     value: browser, writable: true, configurable: true, enumerable: false
   })
@@ -286,13 +330,10 @@ export class PreloadApi {
   private namespace(api: string): Record<string, unknown> {
     const object: Record<string, unknown> = {}
     for (const name of this.surface[api].methods) {
-      object[name] = (...args: unknown[]) => {
-        // `chrome` is the same object, so a trailing function is a Chrome
-        // style callback rather than an argument for main.
-        const callback = typeof args[args.length - 1] === "function"
-          ? args.pop() as Listener
-          : null
-        const result = this.transport.invoke(api, name, args).catch((error) => {
+      // Always promise-returning here; adoptBridge takes a Chrome-style
+      // trailing callback off before the call reaches this side.
+      object[name] = (...args: unknown[]) =>
+        this.transport.invoke(api, name, args).catch((error) => {
           // Arguments cross to main by structured clone; say which call an
           // extension made with something that cannot.
           if (error instanceof Error && /could not be cloned/.test(error.message)) {
@@ -300,16 +341,6 @@ export class PreloadApi {
           }
           throw error
         })
-        if (!callback) return result
-        result.then(
-          (value) => callback(value),
-          (error) => {
-            console.error(`browser.${api}.${name} failed`, error)
-            callback()
-          }
-        )
-        return undefined
-      }
     }
     for (const name of this.surface[api].events) object[name] = this.eventObject(api, name)
     return object
