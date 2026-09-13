@@ -12,6 +12,7 @@ import { SettingsPanel } from "./settings/SettingsPanel"
 import { StoryHistory } from "./story/StoryHistory"
 import { setSelectedUrl } from "./story/selectedStoryToggle"
 import * as StoryList from "./story/storyList"
+import { updateSelectedStory } from "./story/selectedStory"
 import { StoryListItem } from "./story/StoryListItem"
 import { SwipeConfig } from "./story/swipe/geometry"
 import { ReaderView } from "./reader/ReaderView"
@@ -188,7 +189,7 @@ export async function mountOnceUi(
   client.subscribe("selectedUrlChanged", ({ url }) => {
     // Which of the story's two URLs is open, which the mirrored row cannot say.
     setSelectedUrl(url)
-    updateSelected(client, url, options.addonConversations)
+    void updateSelectedStory(client, url, options.addonConversations)
   })
   client.subscribe("searchRequested", ({ query }) => {
     StorySearch.searchStories(query)
@@ -205,41 +206,3 @@ export async function mountOnceUi(
   }
 }
 
-async function updateSelected(client: OnceClient, href: string, conversations?: AddonConversationSurface): Promise<void> {
-  if (!href) return
-
-  // A conversation page is about a story as much as that story's own page is.
-  href = conversations?.storyHref?.(href) || sourceUrlFromReaderUrl(href) || href
-
-  if (href.startsWith("about:reader?url=")) {
-    const urlParams = new URLSearchParams(href.replace("about:reader", ""))
-    const readerUrl = urlParams.get("url")
-    if (readerUrl) href = decodeURIComponent(readerUrl)
-  }
-
-  const selectedContainer = document.querySelector("#selected_container")
-  if (!selectedContainer) return
-
-  const selectedStory = selectedContainer.querySelector<StoryListItem>("story-item")
-  if (selectedStory && selectedStory.story.matches_url(href)) return
-
-  const story = await client.findStoryByUrl(href)
-  selectedContainer.innerHTML = ""
-
-  if (story) {
-    const storyElement = new StoryListItem(story)
-    storyElement.classList.add("selected")
-    selectedContainer.append(storyElement)
-  }
-}
-
-function sourceUrlFromReaderUrl(url: string): string | null {
-  if (!url.startsWith("once-reader://")) return null
-  try {
-    const parsed = new URL(url)
-    if (parsed.hostname !== "http" && parsed.hostname !== "https") return null
-    return new URL(`${parsed.hostname}:${parsed.pathname}${parsed.search}${parsed.hash}`).toString()
-  } catch {
-    return null
-  }
-}
