@@ -75,6 +75,16 @@ class TabNavigationEvents {
         this.errors.applyTheme(entry, owner.backgroundColor)
       }
     })
+    // A tab whose renderer is gone keeps its view but paints nothing; the
+    // shell has no other way to learn why a page went blank (Electron 45
+    // alpha, 2026-09-13: renderers vanished after their view was removed).
+    contents.on("render-process-gone", (_event, details) => {
+      const owner = this.actions.ownerFor(entry)
+      console.error(
+        `Tab renderer gone (${details.reason}, exit ${details.exitCode})` +
+          ` for ${entry.displayedUrl}${owner?.activeId === entry.id ? " [active]" : " [background]"}`
+      )
+    })
     contents.on("will-navigate", (event, url) => {
       try {
         const normalized = this.actions.normalizeUrl(url)

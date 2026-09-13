@@ -121,7 +121,7 @@ test("keeps browser contents within the window after restoring from maximized @i
       }
     })
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows()[0]?.contentView.children[0]?.getBounds()
+      BrowserWindow.getAllWindows()[0]?.contentView.children.find((view) => view.getVisible())?.getBounds()
     )).toEqual(contentBounds)
   } finally {
     await closeApp(electronApp, userData)

@@ -46,7 +46,7 @@ test("enters and leaves fullscreen from an HTML video @interactive", async () =>
       }
     })
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows()[0]?.contentView.children[0]?.getBounds()
+      BrowserWindow.getAllWindows()[0]?.contentView.children.find((view) => view.getVisible())?.getBounds()
     )).toEqual(normalPageBounds)
 
     const enterVideoFullscreen = () => electronApp.evaluate(async ({ webContents }, url) => {
@@ -114,7 +114,7 @@ test("enters and leaves fullscreen from an HTML video @interactive", async () =>
       }
     })).toEqual(normalPageBounds)
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows()[0]?.contentView.children[0]?.getBounds()
+      BrowserWindow.getAllWindows()[0]?.contentView.children.find((view) => view.getVisible())?.getBounds()
     )).toEqual(normalPageBounds)
 
     await electronApp.evaluate(({ webContents }, url) => {
@@ -149,7 +149,7 @@ test("enters and leaves fullscreen from an HTML video @interactive", async () =>
     await expect(window.locator("#tab_dropzone")).toBeVisible()
     await expect(window.locator("#controlbar")).toBeVisible()
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows()[0]?.contentView.children[0]?.getBounds()
+      BrowserWindow.getAllWindows()[0]?.contentView.children.find((view) => view.getVisible())?.getBounds()
     )).toEqual(normalPageBounds)
 
     await enterVideoFullscreen()
@@ -187,7 +187,7 @@ test("enters and leaves fullscreen from an HTML video @interactive", async () =>
     await expect(window.locator("#tab_dropzone")).toBeVisible()
     await expect(window.locator("#controlbar")).toBeVisible()
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows()[0]?.contentView.children[0]?.getBounds()
+      BrowserWindow.getAllWindows()[0]?.contentView.children.find((view) => view.getVisible())?.getBounds()
     )).toEqual(normalPageBounds)
   } finally {
     await closeApp(electronApp, userData)

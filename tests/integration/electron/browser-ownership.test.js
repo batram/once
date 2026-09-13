@@ -69,6 +69,7 @@ function fakeWindow(id) {
       send: (...args) => sent.push(args)
     }),
     contentView: {
+      children,
       addChildView: (view) => children.push(view),
       removeChildView: (view) => children.splice(children.indexOf(view), 1)
     },
@@ -114,6 +115,9 @@ function entry(id, ownerId) {
       },
       setBounds(bounds) {
         this.bounds = bounds
+      },
+      setVisible(visible) {
+        this.visible = visible
       }
     },
     displayedUrl: "https://example.com",
@@ -151,6 +155,36 @@ test("TabOwnership transfers an active tab and restores source activation", () =
   assert.equal(target.activeId, "moving")
   assert.equal(moving.ownerId, 2)
   assert.equal(moving.view.backgroundColor, "#fff")
+  assert.deepEqual(source.window.children, [first.view])
+  assert.deepEqual(target.window.children, [moving.view])
+})
+
+test("TabOwnership keeps tabs attached and switches them with visibility", () => {
+  const ownership = new TabOwnership(
+    { backTargetIndex: () => -1 },
+    { createBlankTab: async () => {} }
+  )
+  const window = owner(1)
+  const first = entry("first", 1)
+  const second = entry("second", 1)
+  ownership.addWindow(window)
+  ownership.addTab(window, first)
+  ownership.addTab(window, second)
+
+  ownership.activate(window, "first")
+  ownership.activate(window, "second")
+  ownership.activate(window, "first")
+
+  // Re-adding a removed view no longer shows its page on Electron 45, so a
+  // tab is attached once and afterwards only toggled.
+  assert.deepEqual(window.window.children, [first.view, second.view])
+  assert.equal(first.view.visible, true)
+  assert.equal(second.view.visible, false)
+  assert.deepEqual(first.view.bounds, window.bounds)
+
+  ownership.finalizeClosed(second)
+  assert.deepEqual(window.window.children, [first.view])
+  assert.equal(window.activeId, "first")
 })
 
 test("TabOwnership closes an empty secondary window after its last tab", () => {

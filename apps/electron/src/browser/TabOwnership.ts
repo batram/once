@@ -76,14 +76,30 @@ export class TabOwnership {
     const entry = this.requireOwned(owner, id)
     if (owner.activeId === id) return
     const previous = owner.activeId ? this.tabs.get(owner.activeId) : undefined
-    if (previous) owner.window.contentView.removeChildView(previous.view)
+    if (previous) previous.view.setVisible(false)
     owner.activeId = id
-    owner.window.contentView.addChildView(entry.view)
+    this.show(owner, entry)
+    entry.view.webContents.focus()
+    this.notify(owner)
+  }
+
+  // Tabs stay attached to their window and switch with setVisible, whose
+  // views path tells the page it was shown. Electron 45 alpha (Chromium 155)
+  // stopped doing that on addChildView: a view removed and re-added kept its
+  // hidden state and painted nothing (2026-09-13).
+  private show(owner: WindowEntry, entry: TabEntry): void {
+    const { contentView } = owner.window
+    if (!contentView.children.includes(entry.view)) contentView.addChildView(entry.view)
     if (owner.bounds.width > 0 && owner.bounds.height > 0) {
       entry.view.setBounds(owner.bounds)
     }
-    entry.view.webContents.focus()
-    this.notify(owner)
+    entry.view.setVisible(true)
+  }
+
+  private detach(owner: WindowEntry, entry: TabEntry): void {
+    if (owner.window.isDestroyed()) return
+    const { contentView } = owner.window
+    if (contentView.children.includes(entry.view)) contentView.removeChildView(entry.view)
   }
 
   reorder(owner: WindowEntry, id: string, beforeId?: string): void {
@@ -103,10 +119,8 @@ export class TabOwnership {
       return
     }
     const oldIndex = source.tabs.indexOf(id)
-    if (source.activeId === id) {
-      source.window.contentView.removeChildView(entry.view)
-      source.activeId = null
-    }
+    this.detach(source, entry)
+    if (source.activeId === id) source.activeId = null
     source.tabs.splice(oldIndex, 1)
     entry.ownerId = owner.id
     entry.view.setBackgroundColor(owner.backgroundColor)
@@ -124,10 +138,8 @@ export class TabOwnership {
     if (index < 0) return
     // Recorded before the splice so the tab can be reopened where it was.
     this.closedTabs.record(entry, owner, index)
-    if (owner.activeId === entry.id) {
-      owner.window.contentView.removeChildView(entry.view)
-      owner.activeId = null
-    }
+    this.detach(owner, entry)
+    if (owner.activeId === entry.id) owner.activeId = null
     owner.tabs.splice(index, 1)
     if (owner.closing) return
     if (owner.tabs.length === 0) {
