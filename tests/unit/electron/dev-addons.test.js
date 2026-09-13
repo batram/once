@@ -25,7 +25,7 @@ const { LocalAddonDirectories } = require(path.join(root, "apps/electron/src/Loc
 const { ADDON_SCRIPT, ADDON_INTEGRITY } = require("../../e2e/shared/addon-fixture")
 
 function makeDir(files) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "once-dev-addon-"))
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "once-dev-addon-")))
   for (const [name, content] of Object.entries(files)) fs.writeFileSync(path.join(dir, name), content)
   return dir
 }
