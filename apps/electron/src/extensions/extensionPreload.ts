@@ -9,7 +9,8 @@ import {
   EXTENSION_API_SURFACE,
   EXTENSION_IPC,
   ExtensionContextInit,
-  ExtensionEvent
+  ExtensionEvent,
+  unwrapInvoke
 } from "./protocol"
 
 // An iframe that shows something other than this extension's own pages gets
@@ -27,7 +28,7 @@ function requireInit(): ExtensionContextInit | null {
 function expose(init: ExtensionContextInit): void {
   const api = new PreloadApi(init, EXTENSION_API_SURFACE, {
     invoke: (namespace, method, args) =>
-      ipcRenderer.invoke(EXTENSION_IPC.invoke, { api: namespace, method, args }),
+      ipcRenderer.invoke(EXTENSION_IPC.invoke, { api: namespace, method, args }).then(unwrapInvoke),
     reply: (token, result) => ipcRenderer.send(EXTENSION_IPC.reply, { token, result }),
     listen: (change) => {
       ipcRenderer.sendSync(EXTENSION_IPC.listeners, change)

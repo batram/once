@@ -44,7 +44,8 @@ import {
   ExtensionInvoke,
   ExtensionReply,
   INTERNAL_API,
-  ListenerChange
+  ListenerChange,
+  settleInvoke
 } from "./protocol"
 import { ExtensionShellHooks, PageProfile, TabSnapshot } from "./runtimeTypes"
 import { WebRequestListenerSpec } from "./webRequestDetails"
@@ -352,10 +353,10 @@ export class ExtensionRuntime {
         event.returnValue = null
       }
     })
-    ipcMain.handle(EXTENSION_IPC.invoke, (event, message: ExtensionInvoke) => {
+    ipcMain.handle(EXTENSION_IPC.invoke, (event, message: ExtensionInvoke) => settleInvoke(() => {
       const { host, entry } = this.requireContext(event)
       return this.invoke(host, entry, message, EXTENSION_API_SURFACE)
-    })
+    }))
     ipcMain.on(EXTENSION_IPC.listeners, (event, change: ListenerChange) => {
       try {
         const { host, entry } = this.requireContext(event)
@@ -386,10 +387,10 @@ export class ExtensionRuntime {
         event.returnValue = null
       }
     })
-    ipcMain.handle(EXTENSION_IPC.contentInvoke, (event, message: ExtensionInvoke) => {
+    ipcMain.handle(EXTENSION_IPC.contentInvoke, (event, message: ExtensionInvoke) => settleInvoke(() => {
       const { host, entry } = this.requireContentContext(event, message?.host)
       return this.invoke(host, entry, message, surfaceFor(entry))
-    })
+    }))
     ipcMain.on(EXTENSION_IPC.contentListeners, (event, change: ListenerChange) => {
       try {
         const { host, entry } = this.requireContentContext(event, change?.host)

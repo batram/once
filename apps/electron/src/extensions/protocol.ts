@@ -96,6 +96,29 @@ export interface ExtensionEvent {
   host?: string
 }
 
+/**
+ * What an `invoke` resolves to. An API rejection (a tab that closed, a
+ * message with no listener) is an ordinary outcome for the extension, so it
+ * travels as data: thrown from an ipcMain handler, Electron would print a
+ * stack trace for each one and wrap the message for the caller.
+ */
+export type ExtensionInvokeResult =
+  | { ok: true; value: unknown }
+  | { ok: false; error: string }
+
+export async function settleInvoke(run: () => unknown): Promise<ExtensionInvokeResult> {
+  try {
+    return { ok: true, value: await run() }
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+export function unwrapInvoke(result: ExtensionInvokeResult): unknown {
+  if (result.ok) return result.value
+  throw new Error(result.error)
+}
+
 export interface ExtensionReply {
   token: number
   result: unknown

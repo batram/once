@@ -21,7 +21,9 @@ test.after(() => {
 
 const root = path.resolve(__dirname, "../../..")
 const { PreloadApi } = require(path.join(root, "apps/electron/src/extensions/preloadRuntime.ts"))
-const { EXTENSION_API_SURFACE, INTERNAL_API } = require(path.join(root, "apps/electron/src/extensions/protocol.ts"))
+const { EXTENSION_API_SURFACE, INTERNAL_API, settleInvoke, unwrapInvoke } = require(
+  path.join(root, "apps/electron/src/extensions/protocol.ts")
+)
 
 const init = {
   id: "ext@test", host: "abc", kind: "page", manifest: { name: "Test" }, messages: {}, uiLanguage: "en"
@@ -43,6 +45,19 @@ function fakeTransport({ connectId = 1 } = {}) {
 }
 
 const settle = () => new Promise((resolve) => setImmediate(resolve))
+
+test("an API rejection crosses IPC as data and rejects again in the page", async () => {
+  // Thrown out of an ipcMain handler, Electron logs a stack trace for every
+  // "Receiving end does not exist" and prefixes the message the page sees.
+  assert.deepEqual(await settleInvoke(() => 42), { ok: true, value: 42 })
+  assert.deepEqual(await settleInvoke(async () => "later"), { ok: true, value: "later" })
+  const failed = await settleInvoke(() => { throw new Error("Invalid tab ID: 9") })
+  assert.deepEqual(failed, { ok: false, error: "Invalid tab ID: 9" })
+  assert.deepEqual(await settleInvoke(() => Promise.reject("plain")), { ok: false, error: "plain" })
+
+  assert.equal(unwrapInvoke({ ok: true, value: 42 }), 42)
+  assert.throws(() => unwrapInvoke(failed), { message: "Invalid tab ID: 9" })
+})
 
 test("a port's own disconnect() reaches the far end only; the far end's reaches this one", async () => {
   const transport = fakeTransport({ connectId: 7 })

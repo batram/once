@@ -22,7 +22,8 @@ import {
   EXTENSION_IPC,
   EXTENSION_SCHEME,
   ExtensionEvent,
-  INTERNAL_API
+  INTERNAL_API,
+  unwrapInvoke
 } from "./protocol"
 
 interface ContentWorld {
@@ -190,7 +191,8 @@ function createWorld(init: ContentFrameInit): ContentWorld {
   const ownPage = init.kind !== "content"
   const api = new PreloadApi(init, ownPage ? EXTENSION_API_SURFACE : CONTENT_API_SURFACE, {
     invoke: (namespace, method, args) =>
-      ipcRenderer.invoke(EXTENSION_IPC.contentInvoke, { host: init.host, api: namespace, method, args }),
+      ipcRenderer.invoke(EXTENSION_IPC.contentInvoke, { host: init.host, api: namespace, method, args })
+        .then(unwrapInvoke),
     reply: (token, result) => reply(world, token, result),
     listen: (change) => {
       ipcRenderer.sendSync(EXTENSION_IPC.contentListeners, { ...change, host: init.host })
