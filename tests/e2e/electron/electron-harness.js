@@ -541,7 +541,9 @@ async function openSettingsSection(window, target, controlSelector) {
   }
   const control = section.locator(controlSelector)
   if (["sources", "filters", "redirects"].includes(target)) {
-    const textMode = await control.evaluate(element => element.tagName === "TEXTAREA")
+    // Textareas always exist, but source rows may only be created on entering list mode.
+    const textMode = await control.evaluateAll(elements =>
+      elements.some(element => element.tagName === "TEXTAREA"))
     const toggle = window.getByTestId(`${target}-mode-toggle`)
     const currentAction = textMode ? "Edit as list" : "Edit as text"
     if (await toggle.getAttribute("aria-label") !== currentAction) await toggle.click()
