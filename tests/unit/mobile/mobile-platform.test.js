@@ -39,13 +39,23 @@ test("mobile adapter delegates secure settings, links, and theme through its bri
     replicate: { from: () => ({ on() { return this } }) },
     sync: () => ({ on() { return this } })
   }
-  const ports = createMobilePlatform(bridge, database)
+  const inApp = []
+  const ports = createMobilePlatform(bridge, database, { openInApp: (url) => inApp.push(url) })
   await ports.syncSettingsStore.setSyncUrl("https://user:secret@example.test/once")
   assert.equal(await ports.syncSettingsStore.getSyncUrl(), "https://user:secret@example.test/once")
   ports.activeTab.openUrl("javascript:alert(1)", "_self")
   ports.activeTab.openUrl("https://example.test/story", "_self")
+  ports.activeTab.openUrl("https://example.test/current", "current")
+  ports.activeTab.openUrl("https://example.test/external", "blank")
+  ports.activeTab.openUrl("https://example.test/middle", "middle")
   await new Promise((resolve) => setTimeout(resolve, 0))
-  assert.deepEqual(opened, ["https://example.test/story"])
+  assert.deepEqual(inApp, ["https://example.test/story", "https://example.test/current"])
+  assert.deepEqual(opened, ["https://example.test/external", "https://example.test/middle"])
+
+  const withoutHost = createMobilePlatform(bridge, database)
+  withoutHost.activeTab.openUrl("https://example.test/fallback", "_self")
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.equal(opened.at(-1), "https://example.test/fallback")
   ports.theme.setTheme("dark")
   await new Promise((resolve) => setTimeout(resolve, 0))
   assert.equal(document.body.getAttribute("data-theme"), "dark")

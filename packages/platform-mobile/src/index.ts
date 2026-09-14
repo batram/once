@@ -113,9 +113,19 @@ export function createDefaultMobileNativeBridge(): MobileNativeBridge {
   }
 }
 
+export interface MobilePlatformOptions {
+  /**
+   * Shows an http(s) page inside the app's reading view. Links opened with a
+   * "_self" or "current" target go here; "blank" and "middle" are the user's
+   * explicit choice of the system browser and stay external.
+   */
+  openInApp?: (url: string) => void
+}
+
 export function createMobilePlatform(
   bridge: MobileNativeBridge = createDefaultMobileNativeBridge(),
-  database?: PouchDB.Database
+  database?: PouchDB.Database,
+  options: MobilePlatformOptions = {}
 ): OncePlatformPorts {
   const onceDb = database || new PouchDB("once_mobile_v1", LOCAL_POUCH_OPTIONS)
   const listStore = new PouchListStore(onceDb)
@@ -147,8 +157,12 @@ export function createMobilePlatform(
       }
     },
     activeTab: {
-      openUrl(url) {
+      openUrl(url, target) {
         if (!/^https?:\/\//i.test(url)) return
+        if ((target === "_self" || target === "current") && options.openInApp) {
+          options.openInApp(url)
+          return
+        }
         void bridge.openExternal(url).catch((error) => {
           console.error("Failed to open mobile browser", error)
         })
