@@ -69,6 +69,22 @@ if (process.env.ONCE_ELECTRON_TEST_USER_DATA) {
   app.commandLine.appendSwitch("use-mock-keychain")
 }
 
+// Chromium 155 (Electron 45) turned NativeViewHostManagesLayers on for
+// Windows: the views tree now owns a WebContents' compositor layer, and its
+// aura window is stacked separately. On a first attach Chromium re-sorts the
+// aura windows to match the views order; on a re-attach (a view removed from
+// a window and added back, which is how a tab moves between windows) it only
+// pushes the window to the bottom of the stack and never re-sorts. Painting
+// follows the layer tree, so the page would draw on top, but the occlusion
+// tracker follows the aura stack, sees the window buried under the shell
+// page, reports it occluded, and the renderer stops producing frames: the
+// moved tab stays blank. Chromium 152 ran the previous implementation on
+// Windows, which this switch restores. Drop it once
+// NativeViewHostAura::AddedToWidget re-sorts native views (2026-09-14).
+if (process.platform !== "darwin") {
+  app.commandLine.appendSwitch("disable-features", "NativeViewHostManagesLayers")
+}
+
 if (process.platform === "win32") {
   const updateExecutable = path.resolve(
     path.dirname(process.execPath),

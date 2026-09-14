@@ -50,7 +50,8 @@ test("moves a live tab out to a new Once window and back", async () => {
     ])
     expect(await getLiveContentsState(electronApp, liveContentsId)).toEqual({
       url: detachedUrl,
-      state: 42
+      state: 42,
+      visibility: "visible"
     })
 
     await transferTab(electronApp, sourceWindowId, "moveHere", detachedId)
@@ -65,7 +66,8 @@ test("moves a live tab out to a new Once window and back", async () => {
     })
     expect(await getLiveContentsState(electronApp, liveContentsId)).toEqual({
       url: detachedUrl,
-      state: 42
+      state: 42,
+      visibility: "visible"
     })
   } finally {
     await closeApp(electronApp, userData)

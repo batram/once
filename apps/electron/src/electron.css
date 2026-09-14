@@ -97,6 +97,11 @@ body #titlebar-text {
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
+  /* The strip, not the tabs, opts out of window dragging. Chromium 155
+     (Electron 45) builds the native drag region from layout boxes without
+     the overflow clip, so a tab scrolled out of the strip kept cutting a
+     hole in the title bar it no longer painted over (2026-09-14). */
+  app-region: no-drag;
 }
 
 #electron_tabs::-webkit-scrollbar {
@@ -120,6 +125,9 @@ body #titlebar-text {
   background: var(--read-bg-color);
   cursor: pointer;
   user-select: none;
+}
+
+.legacy-tab-button {
   app-region: no-drag;
 }
 

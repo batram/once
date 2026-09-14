@@ -676,7 +676,8 @@ async function getLiveContentsState(electronApp, contentsId) {
     if (!contents || contents.isDestroyed()) return null
     return {
       url: contents.getURL(),
-      state: await contents.executeJavaScript("window.__onceE2EState")
+      state: await contents.executeJavaScript("window.__onceE2EState"),
+      visibility: await contents.executeJavaScript("document.visibilityState")
     }
   }, contentsId)
 }
