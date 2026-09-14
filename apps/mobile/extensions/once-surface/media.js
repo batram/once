@@ -45,11 +45,13 @@ globalThis.installOnceMediaBridge = function (port) {
       }
     }
   })
-  port.onDisconnect.addListener(() => {
+  const cleanup = () => {
     enabled = false
     for (const name of ["play", "pause", "seeked", "durationchange", "loadedmetadata", "ratechange", "yt-navigate-finish"]) {
       document.removeEventListener(name, changed, true)
     }
     document.removeEventListener("timeupdate", progress, true)
-  })
+  }
+  port.onDisconnect.addListener(cleanup)
+  return cleanup
 }

@@ -132,7 +132,7 @@ export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions)
     if (busy) refreshNeeded = true
     else void run(() => show("overview"))
   }).catch(error => { status.textContent = String(error) })
-  void run(() => show("overview"))
+  if (active()) void run(() => show("overview"))
 }
 
 function wrapSupplemental(root: HTMLElement): HTMLElement {

@@ -54,6 +54,32 @@ function flushCoordinator() {
   return new Promise((resolve) => setImmediate(resolve))
 }
 
+test("late native events cannot replace a newer address before its page start", async () => {
+  const { ReadingSurfaceCoordinator } = await loadCoordinator()
+  const session = new ReadingSession(), surface = createSurface()
+  const coordinator = new ReadingSurfaceCoordinator(session, surface, createReader(), {
+    getBoundingClientRect: () => ({ x: 0, y: 0, width: 320, height: 500 })
+  })
+  await coordinator.install()
+  session.navigate("https://example.test/old")
+  await flushCoordinator()
+  surface.listeners.get("navigationStarted")({ navigationId: 1, url: "https://example.test/old" })
+  await flushCoordinator()
+  session.navigate("https://example.test/latest")
+  for (const name of ["historyChanged", "navigationCommitted", "navigationFinished", "navigationStarted"]) {
+    surface.listeners.get(name)({ navigationId: 1, url: "https://example.test/old", canGoBack: true })
+  }
+  await flushCoordinator()
+  assert.equal(session.snapshot().currentUrl, "https://example.test/latest")
+  assert.equal(session.snapshot().loadState, "loading")
+  assert.deepEqual(surface.calls.filter(([name]) => name === "navigate"), [["navigate", "https://example.test/latest"]])
+  surface.listeners.get("navigationStarted")({ navigationId: 2, url: "https://example.test/latest" })
+  surface.listeners.get("navigationCommitted")({ navigationId: 2, url: "https://example.test/redirected" })
+  surface.listeners.get("navigationFinished")({ navigationId: 2, url: "https://example.test/redirected" })
+  assert.equal(session.snapshot().currentUrl, "https://example.test/redirected")
+  assert.equal(session.snapshot().loadState, "ready")
+})
+
 test("reading surface coordinator owns bounds and native visibility", async () => {
   const { ReadingSurfaceCoordinator } = await loadCoordinator()
   const session = new ReadingSession()

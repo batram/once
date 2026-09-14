@@ -45,7 +45,9 @@ public class BackgroundMediaTest {
 
     private void exercisePlayback(boolean video) throws Exception {
         Context context = instrumentation.getTargetContext();
-        assertEquals("Use only the isolated local emulator", "ranchu", android.os.Build.HARDWARE);
+        assertTrue("Use the emulator or the isolated Gecko test app on a physical device",
+            "ranchu".equals(android.os.Build.HARDWARE) ||
+            context.getPackageName().equals("com.zmarn.once.geckotest.dev"));
         assertTrue(context.getPackageName().endsWith(".dev"));
         shell("input keyevent KEYCODE_WAKEUP");
         shell("wm dismiss-keyguard");

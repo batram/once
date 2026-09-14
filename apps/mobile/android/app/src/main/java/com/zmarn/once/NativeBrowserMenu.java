@@ -23,7 +23,7 @@ import org.mozilla.geckoview.GeckoSession;
 /** Native browser sheet with an inline expandable extension list. */
 final class NativeBrowserMenu {
     static void show(Activity activity, PluginCall call, GeckoSession session,
-                     boolean canBack, boolean canForward, Runnable reload, BackgroundMedia media) {
+                     boolean canBack, boolean canForward, Runnable back, Runnable forward, Runnable reload, BackgroundMedia media) {
         Dialog dialog = new Dialog(activity);
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         LinearLayout content = new LinearLayout(activity);
@@ -40,10 +40,10 @@ final class NativeBrowserMenu {
         LinearLayout navigation = new LinearLayout(activity);
         boolean open = session != null && session.isOpen();
         navigation.addView(control(activity, "←\nBack", open && canBack, () -> {
-            dialog.dismiss(); session.goBack();
+            dialog.dismiss(); back.run();
         }), new LinearLayout.LayoutParams(0, -2, 1));
         navigation.addView(control(activity, "→\nForward", open && canForward, () -> {
-            dialog.dismiss(); session.goForward();
+            dialog.dismiss(); forward.run();
         }), new LinearLayout.LayoutParams(0, -2, 1));
         navigation.addView(control(activity, "↻\nReload", session != null, () -> {
             dialog.dismiss(); reload.run();

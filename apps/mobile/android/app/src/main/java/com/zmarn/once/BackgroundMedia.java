@@ -30,6 +30,7 @@ final class BackgroundMedia implements MediaSession.Delegate {
     }
 
     boolean isEnabled() { return preferences.getBoolean("background-playback", false); }
+    boolean keepsPlaying() { return isEnabled() && playing != null; }
 
     void attach(GeckoSession session) {
         reset();

@@ -7,17 +7,21 @@ const { parseHTML } = require("linkedom")
 
 const settle = () => new Promise(resolve => setImmediate(resolve))
 
-function harness(command) {
+function harness(command, active = true) {
   const { window, document } = parseHTML(`<html><body><div id="settings_panel">
     <button id="settings_section_back">Settings</button><h2 class="settings_title"></h2>
-    <div class="settings_section active"><div id="extension_settings"><p id="supplemental">Filters</p></div></div>
+    <div class="settings_section ${active ? "active" : ""}"><div id="extension_settings"><p id="supplemental">Filters</p></div></div>
     </div></body></html>`)
   const compiled = ts.transpileModule(fs.readFileSync(path.resolve(__dirname,
     "../../../apps/mobile/src/browserExtensionSettings.ts"), "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
   }).outputText
   const exports = {}
-  Function("exports", "document", "MutationObserver", compiled)(exports, document, window.MutationObserver)
+  // Linkedom only delivers subtree attribute records when childList is enabled.
+  class Observer extends window.MutationObserver {
+    observe(target, options) { super.observe(target, { ...options, childList: true }) }
+  }
+  Function("exports", "document", "MutationObserver", compiled)(exports, document, Observer)
   exports.bindMobileBrowserExtensionSettings({ command, onChanged: async () => () => {} })
   const click = text => {
     const button = [...document.querySelectorAll("button")].find(button => button.textContent === text || button.getAttribute("aria-label") === text)
@@ -27,6 +31,18 @@ function harness(command) {
   }
   return { document, click }
 }
+
+test("Hidden extension settings do not start Gecko until opened", async () => {
+  const calls = []
+  const ui = harness(async command => { calls.push(command); return { extensions: [] } }, false)
+  await settle()
+  assert.deepEqual(calls, [])
+  ui.document.querySelector(".settings_section").classList.add("active")
+  await settle()
+  assert.deepEqual(calls, [{ action: "list" }])
+  await ui.click("Install extension")
+  assert.ok(ui.document.querySelector("#mobile-extension-source"))
+})
 
 test("Android extension management preserves disabled entries and confirms removal", async () => {
   let items = [{ id: "dark", name: "Dark", description: "Changes page colors", version: "1", enabled: false,

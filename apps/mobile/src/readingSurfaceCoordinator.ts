@@ -28,6 +28,7 @@ export class ReadingSurfaceCoordinator {
   private browserOpened = false
   private browserUrl = ""
   private browserReady = false
+  private pendingNavigationUrl: string | null = null
   private readingPanelVisible = false
   private menuOpen = false
   private overlayOpen = false
@@ -50,6 +51,13 @@ export class ReadingSurfaceCoordinator {
     this.content = content
     this.documentLoader = documentLoader
     this.session.subscribe((state) => {
+      if (!state.currentUrl || state.mode === "reader") this.pendingNavigationUrl = null
+      else if (state.loadState === "loading" && state.currentUrl !== this.browserUrl) {
+        // Native events already in flight still carry the previous navigation
+        // ID until the new page starts. Preserve the user's latest destination
+        // across the asynchronous setBounds/navigate bridge calls.
+        this.pendingNavigationUrl = state.currentUrl
+      }
       const generation = ++this.surfaceGeneration
       void this.enqueue(() => this.syncSurface(state, generation))
     })
@@ -57,7 +65,8 @@ export class ReadingSurfaceCoordinator {
 
   async install(): Promise<void> {
     const started = await this.surface.addListener("navigationStarted", (event) => {
-      if (!this.acceptsNavigation(event.navigationId)) return
+      if (!this.acceptsNavigation(event.navigationId, event.url, true)) return
+      this.pendingNavigationUrl = null
       this.browserUrl = event.url
       this.browserReady = false
       this.session.navigationStarted(event.navigationId, event.url)
@@ -65,7 +74,7 @@ export class ReadingSurfaceCoordinator {
     const committed = await this.surface.addListener(
       "navigationCommitted",
       (event) => {
-        if (!this.acceptsNavigation(event.navigationId)) return
+        if (!this.acceptsNavigation(event.navigationId, event.url)) return
         this.browserUrl = event.url
         this.session.navigationCommitted(event.navigationId, event.url)
       }
@@ -73,19 +82,20 @@ export class ReadingSurfaceCoordinator {
     const finished = await this.surface.addListener(
       "navigationFinished",
       (event) => {
-        if (!this.acceptsNavigation(event.navigationId)) return
+        if (!this.acceptsNavigation(event.navigationId, event.url)) return
         this.browserUrl = event.url
         this.browserReady = true
         this.session.navigationFinished(event.navigationId, event.url)
       }
     )
     const failed = await this.surface.addListener("navigationFailed", (event) => {
-      if (!this.acceptsNavigation(event.navigationId)) return
+      if (!this.acceptsNavigation(event.navigationId, event.url, true)) return
+      this.pendingNavigationUrl = null
       this.browserReady = false
       this.session.navigationFailed(event.navigationId, event.url, event.message)
     })
     const history = await this.surface.addListener("historyChanged", (event) => {
-      if (!this.acceptsNavigation(event.navigationId)) return
+      if (!this.acceptsNavigation(event.navigationId, event.url)) return
       this.browserUrl = event.url
       this.session.historyChanged(event.navigationId, event.url, event.canGoBack)
     })
@@ -260,8 +270,15 @@ export class ReadingSurfaceCoordinator {
     return queued
   }
 
-  private acceptsNavigation(navigationId: number): boolean {
+  private acceptsNavigation(navigationId: number, url: string, startsOrFails = false): boolean {
     const state = this.session.snapshot()
+    if (!url) return false
+    if (this.pendingNavigationUrl !== null) {
+      if (!startsOrFails) return false
+      try {
+        if (new URL(url).href !== new URL(this.pendingNavigationUrl).href) return false
+      } catch { if (url !== this.pendingNavigationUrl) return false }
+    }
     return Boolean(state.story || state.currentUrl) &&
       navigationId >= state.navigationId
   }

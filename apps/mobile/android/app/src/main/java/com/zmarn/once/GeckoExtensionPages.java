@@ -98,7 +98,26 @@ final class GeckoExtensionPages {
 
     void reloadVisible() {
         if (visible == null) return;
-        if (!visible.session.isOpen()) visible.session.open(engine.runtime);
+        Page page = visible;
+        if (page.stalled && page.session.isOpen()) {
+            page.view.releaseSession();
+            page.session.close();
+            page.stalled = false;
+            engine.resetContentPool(stopped -> {
+                if (!pages.containsKey(page.session) || visible != page) return;
+                if (stopped) reloadVisible();
+                else page.report("Could not restart the page. Close it and try again.");
+            });
+            return;
+        }
+        if (!page.session.isOpen()) {
+            page.view.releaseSession();
+            page.session.open(engine.runtime);
+            page.view.setSession(page.session);
+            manager.attachSession(page.session);
+            page.session.setActive(resumed);
+        }
+        page.stalled = false;
         visible.session.loadUri(visible.url);
     }
 
@@ -110,6 +129,7 @@ final class GeckoExtensionPages {
     void close(GeckoSession session) {
         Page page = pages.remove(session);
         if (page == null) return;
+        page.handler.removeCallbacksAndMessages(null);
         if (visible == page) {
             visible = null;
             if (host != null) { host.removeAllViews(); host.setVisibility(View.GONE); }
@@ -135,8 +155,21 @@ final class GeckoExtensionPages {
         if (visible != null) visible.session.setActive(value);
     }
 
+    void trimHidden() {
+        for (Page page : new ArrayList<>(pages.values())) {
+            if (page == visible) continue;
+            pages.remove(page.session);
+            page.handler.removeCallbacksAndMessages(null);
+            page.view.releaseSession();
+            if (page.session.isOpen()) page.session.close();
+            manager.forgetSession(page.session);
+        }
+        publish();
+    }
+
     void destroy() {
         for (Page page : new ArrayList<>(pages.values())) {
+            page.handler.removeCallbacksAndMessages(null);
             page.view.releaseSession();
             if (page.session.isOpen()) page.session.close();
         }
@@ -175,6 +208,13 @@ final class GeckoExtensionPages {
         final GeckoView view = new GeckoView(activity);
         String url = "about:blank";
         String status = "";
+        boolean stalled;
+        final android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
+        final Runnable deadline = () -> {
+            if (!pages.containsKey(session)) return;
+            stalled = true;
+            report("Page is not responding. Reload to restart it, or Close.");
+        };
 
         Page(String owner, String title, boolean popup) {
             this.owner = owner;
@@ -199,15 +239,23 @@ final class GeckoExtensionPages {
                     manager.foregroundChanged();
                     url = value;
                     report("Loading…");
+                    handler.removeCallbacks(deadline);
+                    handler.postDelayed(deadline, 30000);
                 }
                 @Override public void onPageStop(GeckoSession target, boolean success) {
+                    handler.removeCallbacks(deadline);
                     report(success ? "" : "Page could not load. Try Reload.");
                 }
             });
             session.setContentDelegate(new GeckoSession.ContentDelegate() {
                 @Override public void onCloseRequest(GeckoSession target) { close(target); }
-                @Override public void onCrash(GeckoSession target) { report("Page process crashed. Tap Reload to recover."); }
-                @Override public void onKill(GeckoSession target) { report("Page process stopped. Tap Reload to recover."); }
+                @Override public void onCrash(GeckoSession target) { handler.removeCallbacks(deadline); report("Page process crashed. Tap Reload to recover."); }
+                @Override public void onKill(GeckoSession target) { handler.removeCallbacks(deadline); report("Page process stopped. Tap Reload to recover."); }
+                @Override public GeckoResult<org.mozilla.geckoview.SlowScriptResponse> onSlowScript(GeckoSession target, String filename) {
+                    stalled = true;
+                    report("Page is not responding. Reload to restart it, or Close.");
+                    return GeckoResult.fromValue(org.mozilla.geckoview.SlowScriptResponse.STOP);
+                }
             });
         }
 

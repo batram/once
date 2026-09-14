@@ -10,4 +10,10 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(InAppBrowserSurfacePlugin.class);
         super.onCreate(savedInstanceState);
     }
+
+    @Override public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        if (getBridge() == null || getBridge().getPlugin("InAppBrowserSurface") == null) return;
+        ((InAppBrowserSurfacePlugin) getBridge().getPlugin("InAppBrowserSurface").getInstance()).trimMemory(level);
+    }
 }
