@@ -12,6 +12,11 @@ const iconBase = path.resolve(
   "../../packages/ui-web/public/static/imgs/icons/mipmap-mdpi",
   isDevChannel ? "ic_launcher_dev" : "ic_launcher"
 )
+const linuxWindowIcon = path.resolve(
+  __dirname,
+  "../../packages/ui-web/public/static/imgs/icons",
+  isDevChannel ? "icon_dev.png" : "icon.png"
+)
 
 module.exports = {
   // Dev bundles get their own output tree so Squirrel's make outputs (notably
@@ -24,9 +29,12 @@ module.exports = {
     name: isDevChannel ? "Once Dev" : "Once",
     executableName: isDevChannel ? "once-dev" : "once",
     icon: iconBase,
-    // The vendored extension bundles (scripts/fetch-extensions.js) travel
-    // beside the asar as resources/extensions, where the runtime reads them.
-    extraResource: [path.resolve(__dirname, "../../vendor/extensions")]
+    // Runtime-owned files travel beside the asar. Linux reads the PNG directly
+    // because its executable does not contain a Windows-style icon resource.
+    extraResource: [
+      path.resolve(__dirname, "../../vendor/extensions"),
+      linuxWindowIcon
+    ]
   },
   makers: [
     {

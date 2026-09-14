@@ -201,13 +201,16 @@ function startAutoUpdates(): void {
 
 function createShellWindow(bounds?: Rectangle): BrowserWindow {
   return new BrowserWindow({
-    // Packaged builds get their icon from the executable (release or dev per
-    // forge.config.js); unpackaged dev runs load the dev logo from the repo.
+    // Linux window managers read this PNG at runtime. Forge copies the matching
+    // release/dev asset beside app.asar; unpackaged runs use the dev asset.
     icon: app.isPackaged
-      ? undefined
+      ? path.join(
+        process.resourcesPath,
+        __ONCE_BUILD_CHANNEL__ === "dev" ? "icon_dev.png" : "icon.png"
+      )
       : path.join(
         app.getAppPath(),
-        "../../packages/ui-web/public/static/imgs/icons/mipmap-mdpi/ic_launcher_dev.ico"
+        "../../packages/ui-web/public/static/imgs/icons/icon_dev.png"
       ),
     // Off-screen in test runs so the window never lands on the developer's
     // virtual desktop; see showWindow().
