@@ -32,8 +32,15 @@ export const EXTENSION_IPC = {
   /** Tab frame → main, `ipcRenderer.invoke`: one API call from a content script. */
   contentInvoke: "once-ext:content-invoke",
   /** Tab frame → main, `ipcRenderer.send`: a content script's reply. */
-  contentReply: "once-ext:content-reply"
+  contentReply: "once-ext:content-reply",
+  /** Popup page → main, `ipcRenderer.send`: the size its content wants. */
+  popupSize: "once-ext:popup-size"
 } as const
+
+export interface PopupSize {
+  width: number
+  height: number
+}
 
 export type ExtensionContextKind = "background" | "popup" | "options" | "page" | "content"
 

@@ -24,10 +24,11 @@ function harness() {
       contents.loadURL = async () => { if (failLoads) throw new Error("blocked") }
       contents.focus = () => {}
       contents.setWindowOpenHandler = () => {}
+      contents.ipc = new EventEmitter()
       this.webContents = contents
     }
     setBackgroundColor() {}
-    setBounds() {}
+    setBounds(bounds) { this.bounds = bounds }
   }
   const filename = path.resolve(__dirname, "../../../apps/electron/src/extensions/ExtensionPopup.ts")
   const compiled = ts.transpileModule(fs.readFileSync(filename, "utf8"), {
@@ -35,6 +36,7 @@ function harness() {
   }).outputText
   const module = { exports: {} }
   Function("exports", "require", compiled)(module.exports, name => {
+    if (name === "./protocol") return { EXTENSION_IPC: { popupSize: "once-ext:popup-size" } }
     assert.equal(name, "electron")
     return { WebContentsView: View }
   })
@@ -47,7 +49,7 @@ function harness() {
   window.isDestroyed = () => false
   window.getContentBounds = () => ({ width: 800, height: 600 })
   const open = () => { popup.open(window, { x: 400, y: 0, width: 32, height: 32 }); return views.at(-1).webContents }
-  return { popup, open, children, window, failLoad: () => { failLoads = true } }
+  return { popup, open, children, window, views, failLoad: () => { failLoads = true } }
 }
 const settle = () => new Promise(resolve => setImmediate(resolve))
 
@@ -93,6 +95,20 @@ test("reopening a popup does not pile up window listeners", async () => {
   assert.equal(window.listenerCount("closed"), 1)
   popup.close()
   assert.equal(window.listenerCount("closed"), 0)
+})
+
+test("a popup shrinks and grows to the size its page reports", async () => {
+  const { popup, open, views } = harness()
+  const contents = open()
+  const view = views.at(-1)
+  assert.deepEqual(view.bounds, { x: 52, y: 32, width: 380, height: 460 })
+  contents.ipc.emit("once-ext:popup-size", {}, { width: 252, height: 394 })
+  assert.deepEqual(view.bounds, { x: 180, y: 32, width: 252, height: 394 })
+  contents.ipc.emit("once-ext:popup-size", {}, { width: 320, height: 900 })
+  assert.deepEqual(view.bounds, { x: 112, y: 32, width: 320, height: 568 })
+  contents.ipc.emit("once-ext:popup-size", {}, { width: Number.NaN, height: 10 })
+  assert.deepEqual(view.bounds, { x: 112, y: 32, width: 320, height: 568 })
+  popup.close()
 })
 
 test("a popup whose page fails to load is closed instead of left blank", async () => {

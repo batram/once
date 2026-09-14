@@ -1,6 +1,7 @@
 import { BrowserWindow, WebContentsView } from "electron"
 import { ElectronRect } from "@once/platform-electron/bridge"
 import { ExtensionHost } from "./ExtensionHost"
+import { EXTENSION_IPC, PopupSize } from "./protocol"
 
 const INITIAL_WIDTH = 380
 const INITIAL_HEIGHT = 460
@@ -26,16 +27,18 @@ export class ExtensionPopup {
     this.close()
     const url = this.host.popupUrl()
     if (!url) return
-    const view = new WebContentsView({
-      webPreferences: { ...this.host.webPreferences(), enablePreferredSizeMode: true }
-    })
+    const view = new WebContentsView({ webPreferences: this.host.webPreferences() })
     this.view = view
     this.window = window
     this.host.register(view.webContents, "popup")
     view.setBackgroundColor("#ffffff")
     window.contentView.addChildView(view)
     this.place(anchor, INITIAL_WIDTH, INITIAL_HEIGHT)
-    view.webContents.on("preferred-size-changed", (_event, size) => {
+    // The page measures its own content (extensionPreload); Chromium's
+    // preferred size reports the viewport once the root box fills it and
+    // left every popup at its initial size on Electron 45.
+    view.webContents.ipc.on(EXTENSION_IPC.popupSize, (_event, size: PopupSize) => {
+      if (this.view !== view || !Number.isFinite(size?.width) || !Number.isFinite(size?.height)) return
       this.place(anchor, size.width, size.height)
     })
     // macOS can emit blur while window.close() is tearing down this popup.

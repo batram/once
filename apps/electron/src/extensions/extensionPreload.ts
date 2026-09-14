@@ -46,5 +46,34 @@ function expose(init: ExtensionContextInit): void {
   contextBridge.executeInMainWorld({ func: adoptBridge })
 }
 
+/**
+ * A popup is sized to its content, as Firefox does. Chromium's preferred
+ * size is the viewport whenever the root box fills it (uBlock's flex html),
+ * so it can never shrink the view; the body box plus its margins is what
+ * the page actually laid out. Reported on every change so late-arriving
+ * panels grow the popup.
+ */
+function reportPopupSize(): void {
+  const send = (): void => {
+    const body = document.body
+    if (!body) return
+    const rect = body.getBoundingClientRect()
+    const style = getComputedStyle(body)
+    const margin = (value: string): number => Number.parseFloat(value) || 0
+    ipcRenderer.send(EXTENSION_IPC.popupSize, {
+      width: Math.ceil(Math.max(rect.width, body.scrollWidth) + margin(style.marginLeft) + margin(style.marginRight)),
+      height: Math.ceil(Math.max(rect.height, body.scrollHeight) + margin(style.marginTop) + margin(style.marginBottom))
+    })
+  }
+  const observe = (): void => {
+    if (!document.body) return
+    new ResizeObserver(send).observe(document.body)
+    send()
+  }
+  if (document.body) observe()
+  else document.addEventListener("DOMContentLoaded", observe, { once: true })
+}
+
 const init = requireInit()
 if (init) expose(init)
+if (init?.kind === "popup" && process.isMainFrame) reportPopupSize()
