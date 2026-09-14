@@ -104,6 +104,13 @@ body #titlebar-text {
   app-region: no-drag;
 }
 
+.electron-tab {
+  /* app-region inherits, and the `none` keyword resolves to the inherited
+     value in Chromium, so only `initial` truly clears it. Without this the
+     tabs compute no-drag from the strip and still carve the title bar. */
+  app-region: initial;
+}
+
 #electron_tabs::-webkit-scrollbar {
   width: 2px;
   height: 2px;
