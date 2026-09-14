@@ -152,7 +152,7 @@ export class MobileReadingController {
       // before session.open publishes the state that measures its bounds.
       this.activePanel = "reading"
       PanelNavigation.open_panel("reading")
-      this.session.open(event.story, event.mode)
+      this.session.open(event.story, event.mode, event.url)
     })
     document.addEventListener("once-panel-changed", (rawEvent) => {
       const event = rawEvent as CustomEvent<{ panel: string }>

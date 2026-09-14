@@ -151,3 +151,14 @@ test("ReadingSession rejects stale Reader completions", () => {
   session.readerFinished(second.href)
   assert.equal(session.snapshot().loadState, "ready")
 })
+
+test("ReadingSession opens a substory's comments page in comments mode", () => {
+  const active = story("multi")
+  const substoryComments = "https://other.test/item?id=7"
+  const session = new ReadingSession()
+  session.open(active, "comments", substoryComments)
+
+  assert.equal(session.snapshot().mode, "comments")
+  assert.equal(session.snapshot().currentUrl, substoryComments)
+  assert.equal(session.snapshot().story, active)
+})

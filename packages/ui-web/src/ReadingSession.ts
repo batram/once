@@ -18,18 +18,27 @@ export type ReadingSessionListener = (state: Readonly<ReadingSessionState>) => v
 export const READING_REQUEST = "once-reading-request"
 
 export class ReadingRequestEvent extends Event {
+  /**
+   * @param url Overrides the URL derived from the story: a substory's comments
+   * page, which is not the story's own comment_url.
+   */
   constructor(
     readonly story: Story,
-    readonly mode: ReadingMode
+    readonly mode: ReadingMode,
+    readonly url?: string
   ) {
     super(READING_REQUEST, { bubbles: true, cancelable: true })
   }
 }
 
 /** Returns true when the mobile Reading host accepted the request. */
-export function requestReading(story: Story, mode: ReadingMode): boolean {
+export function requestReading(
+  story: Story,
+  mode: ReadingMode,
+  url?: string
+): boolean {
   if (document.body.dataset.platform !== "mobile") return false
-  return !document.body.dispatchEvent(new ReadingRequestEvent(story, mode))
+  return !document.body.dispatchEvent(new ReadingRequestEvent(story, mode, url))
 }
 
 /**
@@ -65,11 +74,12 @@ export class ReadingSession {
     this.reconcileActiveStory()
   }
 
-  open(story: Story, mode: ReadingMode): void {
+  /** `url` overrides the derived URL, e.g. for a substory's comments page. */
+  open(story: Story, mode: ReadingMode, url?: string): void {
     const storyUrl = URLRedirect.redirect_url(story.href)
-    const currentUrl = mode === "comments"
+    const currentUrl = url || (mode === "comments"
       ? story.comment_url || storyUrl
-      : storyUrl
+      : storyUrl)
     this.state = {
       story,
       mode,

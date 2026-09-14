@@ -1,6 +1,7 @@
 import { positionStoryButtons } from "./storyButtonPreferences"
 import { humanTime, SubStory } from "@once/core"
 import { getOnceClient } from "../client"
+import { requestReading } from "../ReadingSession"
 import { bindLinkBehavior, openStoryUrl } from "./storyLinks"
 import type { StoryListItem } from "./StoryListItem"
 
@@ -63,12 +64,14 @@ function buildInfoBlock(
   bindLinkBehavior(comments_link, {
     onClick: () => {
       // The row's own comments go through the reading surface; a different
-      // aggregator's just open.
+      // aggregator's does too on mobile, and otherwise just opens.
       if (commentsUrl === row.story.comment_url) {
         row.openComments()
       } else {
         row.read_btn.classList.add("user_interaction")
-        openStoryUrl(commentsUrl, "_self", false)
+        if (!requestReading(row.story, "comments", commentsUrl)) {
+          openStoryUrl(commentsUrl, "_self", false)
+        }
       }
     },
     onMiddleClick: () => {
