@@ -13,7 +13,10 @@ import type { StoryListItem } from "./StoryListItem"
  * rendered as the first of them, so the markup is the same either way.
  */
 
-function tagElement(tag: NonNullable<SubStory["tags"]>[number]): HTMLElement {
+function tagElement(
+  row: StoryListItem,
+  tag: NonNullable<SubStory["tags"]>[number]
+): HTMLElement {
   const tag_el = document.createElement("a")
   tag_el.classList.add("tag")
   tag_el.classList.add("tag_" + tag.class)
@@ -24,7 +27,14 @@ function tagElement(tag: NonNullable<SubStory["tags"]>[number]): HTMLElement {
     tag_el.href = tag_href
     bindLinkBehavior(tag_el, {
       onClick: () => {
-        getOnceClient().openUrl(tag_href, "_self")
+        // A search: tag is handled by the client; a page opens in the mobile
+        // reading view when the host takes it, and otherwise just opens.
+        if (
+          tag_href.startsWith("search:") ||
+          !requestReading(row.story, "browser", tag_href)
+        ) {
+          getOnceClient().openUrl(tag_href, "_self")
+        }
       },
       onMiddleClick: () => {
         getOnceClient().openUrl(tag_href, "middle")
@@ -96,7 +106,7 @@ function buildInfoBlock(
   tags_container.classList.add("tags_container")
   if (sub_story_ob.tags) {
     sub_story_ob.tags.forEach((tag) => {
-      tags_container.append(tagElement(tag))
+      tags_container.append(tagElement(row, tag))
     })
   }
   info.appendChild(tags_container)
