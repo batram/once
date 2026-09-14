@@ -195,13 +195,37 @@ test("browser shortcuts open, cycle, close and reopen tabs", async () => {
   }
 })
 
-test("Ctrl+L focuses the address bar and Ctrl+F the story search", async () => {
+test("Ctrl+L focuses the address bar; Ctrl+F finds in the page or the stories", async () => {
   const server = await startPageServer()
   const { electronApp, userData, window } = await launchApp()
   try {
+    await window.evaluate(
+      (url) => window.onceElectron.tabs.create(url, true),
+      `${server.origin}/article`
+    )
+    await expect.poll(() => activeTabUrl(window)).toContain("/article")
+
     await window.keyboard.press("Control+l")
     await expectDocumentFocus(window.locator("#urlfield"))
 
+    // In the content pane Ctrl+F belongs to the page, not the story search.
+    // The fixture article repeats one paragraph three times.
+    const count = window.locator("#find_count")
+    await window.keyboard.press("Control+f")
+    await expectDocumentFocus(window.locator("#find_field"))
+    await window.keyboard.type("readability")
+    await expect(count).toHaveText("1/3")
+    await window.keyboard.press("Enter")
+    await expect(count).toHaveText("2/3")
+    await window.keyboard.press("Shift+Enter")
+    await expect(count).toHaveText("1/3")
+    await window.keyboard.type("x")
+    await expect(count).toHaveText("No matches")
+    await window.keyboard.press("Escape")
+    await expect(window.locator("#find_bar")).toBeHidden()
+
+    // Back in the story list the same chord is the story search.
+    await window.keyboard.press("Alt+Shift+ArrowLeft")
     await window.keyboard.press("Control+f")
     await expectDocumentFocus(window.locator("#searchfield"))
   } finally {

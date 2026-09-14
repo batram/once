@@ -9,6 +9,7 @@ import {
 import { bindExtensionToolbar } from "./ExtensionToolbar"
 import { ReaderRequests, ReaderRequestRunner } from "./ReaderRequests"
 import browserShellMarkup from "./browser/browser-shell.html"
+import { FindBar } from "./browser/FindBar"
 import {
   displayBrowserUrl,
   isReadableUrl,
@@ -89,6 +90,8 @@ export class BrowserShell {
     this.bindLayout()
     this.bindWindowState()
     this.bindKeyboardCommands()
+    // Registers browser.find-in-page and follows the tabs on its own.
+    new FindBar(this.bridge)
     this.bridge.tabs.onChanged((tabs) => this.render(tabs))
     this.bridge.tabs.onRegenerateReader((sourceUrl, tabId) => {
       this.setAddressError("")
@@ -329,8 +332,10 @@ export class BrowserShell {
     // WebContentsView. A renderer-side focus() is silently ignored there, which
     // is why every forwarded command takes the shell back first; commands that
     // want the page focused (next tab, focus content) hand it straight on.
+    // The page is in the content pane, so the chord resolves in the browser
+    // context whatever DOM element the shell last had focused.
     this.bridge.window.onKeyCommand((chord) => {
-      void this.bridge.window.focusShell().then(() => keyboard.dispatchChord(chord))
+      void this.bridge.window.focusShell().then(() => keyboard.dispatchChordFromBrowser(chord))
     })
     this.publishForwardedKeys()
   }

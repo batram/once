@@ -4,6 +4,7 @@ import {
   ELECTRON_IPC,
   ElectronBridge,
   ElectronFetchRequest,
+  ElectronFindResult,
   ElectronFocusSurface,
   ElectronPoint,
   ElectronRect,
@@ -92,6 +93,19 @@ const bridge: ElectronBridge = {
       ipcRenderer.invoke(ELECTRON_IPC.tabsSetBounds, bounds),
     restoreClosed: () => ipcRenderer.invoke(ELECTRON_IPC.tabsRestoreClosed),
     focusContent: () => ipcRenderer.invoke(ELECTRON_IPC.tabsFocusContent),
+    findInPage: (id, text, options) =>
+      ipcRenderer.invoke(ELECTRON_IPC.tabsFindInPage, id, text, options),
+    stopFindInPage: (id, action) =>
+      ipcRenderer.invoke(ELECTRON_IPC.tabsStopFindInPage, id, action),
+    onFoundInPage(handler: (id: string, result: ElectronFindResult) => void) {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        id: string,
+        result: ElectronFindResult
+      ) => handler(id, result)
+      ipcRenderer.on(ELECTRON_IPC.tabsFoundInPage, listener)
+      return () => ipcRenderer.removeListener(ELECTRON_IPC.tabsFoundInPage, listener)
+    },
     onChanged(handler: (tabs: ElectronTabState[]) => void) {
       const listener = (_event: Electron.IpcRendererEvent, tabs: ElectronTabState[]) =>
         handler(tabs)

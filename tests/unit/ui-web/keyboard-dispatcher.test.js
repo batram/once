@@ -240,6 +240,41 @@ test("dispatchChord drives commands that never reached the DOM", () => {
   })
 })
 
+test("Ctrl+F finds in the page from the content pane and searches stories elsewhere", () => {
+  withShell(({ window, KeyboardDispatcher, defaultBindings }) => {
+    const dispatcher = new KeyboardDispatcher(defaultBindings())
+    let finds = 0
+    let searches = 0
+    dispatcher.register("browser.find-in-page", () => { finds += 1 })
+    dispatcher.register("search.focus", () => { searches += 1 })
+    dispatcher.mount(window)
+
+    press(window, { code: "KeyF", ctrlKey: true, target: window.document.querySelector("#stories") })
+    assert.deepEqual([finds, searches], [0, 1])
+
+    // linkedom does not track focus, so the active element is pinned by hand.
+    const focus = (element) => Object.defineProperty(window.document, "activeElement", {
+      value: element,
+      configurable: true
+    })
+    const content = window.document.querySelector("#tab_content")
+    focus(content)
+    press(window, { code: "KeyF", ctrlKey: true, target: content })
+    assert.deepEqual([finds, searches], [1, 1], "the content pane owns Ctrl+F")
+
+    // A chord forwarded from a page: DOM focus is still on the story list,
+    // because the key never reached this document, yet it came from the pane.
+    focus(window.document.querySelector("#searchfield"))
+    assert.equal(dispatcher.dispatchChordFromBrowser("Ctrl+F"), true)
+    assert.deepEqual([finds, searches], [2, 1])
+    // Global commands are still reachable from a page.
+    let tabs = 0
+    dispatcher.register("browser.new-tab", () => { tabs += 1 })
+    assert.equal(dispatcher.dispatchChordFromBrowser("Ctrl+T"), true)
+    assert.equal(tabs, 1)
+  })
+})
+
 test("unmount removes the listener", () => {
   withShell(({ window, KeyboardDispatcher, defaultBindings }) => {
     const dispatcher = new KeyboardDispatcher(defaultBindings())

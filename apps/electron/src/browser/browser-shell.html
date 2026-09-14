@@ -25,4 +25,17 @@
   </div>
   <div id="url_error" role="alert" aria-live="polite"></div>
   <div id="tab_content"></div>
+  <div id="find_bar" class="bar" role="search" aria-label="Find in page" hidden>
+    <input id="find_field" type="text" spellcheck="false" placeholder="Find in page" aria-label="Find in page" aria-describedby="find_count" />
+    <span id="find_count" aria-live="polite"></span>
+    <button type="button" id="find_prev" class="browser-button image-button" title="Previous match (Shift+Enter)" aria-label="Previous match">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6" /></svg>
+    </button>
+    <button type="button" id="find_next" class="browser-button image-button" title="Next match (Enter)" aria-label="Next match">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+    </button>
+    <button type="button" id="find_close" class="browser-button image-button" title="Close find bar (Escape)" aria-label="Close find bar">
+      <span class="icon icon--chrome icon--x" aria-hidden="true"></span>
+    </button>
+  </div>
 </section>

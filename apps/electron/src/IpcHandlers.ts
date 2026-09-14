@@ -18,6 +18,8 @@ import {
   ElectronExtensionSettings,
   ElectronFetchRequest,
   ElectronFetchResponse,
+  ElectronFindOptions,
+  ElectronFindStopAction,
   ElectronPoint,
   ElectronRect,
   ElectronRedirectRule,
@@ -352,7 +354,33 @@ function registerTabTools(coordinator: BrowserCoordinator): void {
     const current = browser(event, coordinator)
     return coordinator.focusContent(current.window)
   })
+  ipcMain.handle(
+    ELECTRON_IPC.tabsFindInPage,
+    (event, id: string, text: string, options?: ElectronFindOptions) => {
+      const current = browser(event, coordinator)
+      const query = String(text)
+      if (!query) throw new Error("Nothing to find")
+      // Electron's findNext=true begins a session; false continues one.
+      return coordinator.tabContents(current.window, id).findInPage(query, {
+        forward: options?.forward !== false,
+        findNext: options?.newSession === true,
+        matchCase: options?.matchCase === true
+      })
+    }
+  )
+  ipcMain.handle(
+    ELECTRON_IPC.tabsStopFindInPage,
+    (event, id: string, action: ElectronFindStopAction) => {
+      const current = browser(event, coordinator)
+      if (!FIND_STOP_ACTIONS.has(action)) throw new Error("Invalid find action")
+      coordinator.tabContents(current.window, id).stopFindInPage(action)
+    }
+  )
 }
+
+const FIND_STOP_ACTIONS: ReadonlySet<ElectronFindStopAction> = new Set([
+  "clearSelection", "keepSelection", "activateSelection"
+])
 
 function registerStoryAndWindowHandlers(options: IpcHandlerOptions): void {
   const { coordinator } = options

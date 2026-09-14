@@ -25,6 +25,7 @@ export type BuiltinKeyCommandId =
   | "story.toggle-comments"
   | "stories.reload"
   | "stories.reload-uncached"
+  | "browser.find-in-page"
   | "browser.new-tab"
   | "browser.close-tab"
   | "browser.restore-closed-tab"
@@ -95,9 +96,21 @@ const BUILTIN_KEY_COMMANDS: readonly KeyCommandDefinition[] = Object.freeze([
     id: "search.focus",
     label: "Focus story search",
     group: "search",
-    context: "global",
+    // "stories", not "global": the search box only exists while the story
+    // list is showing, and Ctrl+F inside the Electron content pane belongs to
+    // the page (browser.find-in-page), the way it does in every browser.
+    context: "stories",
     defaultKeys: ["Ctrl+F"],
     allowInTextEntry: "always"
+  },
+  {
+    id: "browser.find-in-page",
+    label: "Find in page",
+    group: "browser",
+    context: "browser",
+    defaultKeys: ["Ctrl+F"],
+    allowInTextEntry: "always",
+    shells: ELECTRON_ONLY
   },
   {
     id: "history.undo",

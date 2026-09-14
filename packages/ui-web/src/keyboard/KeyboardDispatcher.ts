@@ -96,6 +96,17 @@ export class KeyboardDispatcher {
     return true
   }
 
+  /**
+   * A chord pressed inside a browser tab. The key never reached this DOM, so
+   * document.activeElement says nothing about where it was pressed: the shell
+   * may have taken native focus back already, or still show a story row as
+   * active. The tab is inside the content pane, so "browser" leads regardless.
+   */
+  dispatchChordFromBrowser(chord: string): boolean {
+    const contexts = this.activeContexts().filter((context) => context !== "browser")
+    return this.dispatchChord(chord, ["browser", ...contexts])
+  }
+
   private handleKeydown(event: KeyboardEvent): void {
     if (event.defaultPrevented || this.suspended || this.isBlocked()) return
     const contexts = this.activeContexts()

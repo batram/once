@@ -84,6 +84,28 @@ export interface ElectronUpdateStatus {
 
 export type ElectronFocusSurface = "browser" | "shell"
 
+export interface ElectronFindOptions {
+  /** Search towards the end of the page; false walks back. */
+  forward?: boolean
+  /**
+   * A fresh query: start a new find session. Omitted or false steps the
+   * current session to its next match; without a session that finds nothing.
+   * (Electron calls this `findNext`, whose name says the opposite.)
+   */
+  newSession?: boolean
+  matchCase?: boolean
+}
+
+/** One `found-in-page` report from a tab; `finalUpdate` closes a request. */
+export interface ElectronFindResult {
+  requestId: number
+  activeMatchOrdinal: number
+  matches: number
+  finalUpdate: boolean
+}
+
+export type ElectronFindStopAction = "clearSelection" | "keepSelection" | "activateSelection"
+
 export interface ElectronManagedExtension {
   /** Packaged icon, available even when the extension is disabled. */
   icon: string | null
@@ -196,6 +218,10 @@ export interface ElectronBridge {
     setBounds(bounds: ElectronRect): Promise<void>
     restoreClosed(): Promise<string | null>
     focusContent(): Promise<void>
+    /** Starts or continues a find-in-page search; results arrive on onFoundInPage. */
+    findInPage(id: string, text: string, options?: ElectronFindOptions): Promise<number>
+    stopFindInPage(id: string, action: ElectronFindStopAction): Promise<void>
+    onFoundInPage(handler: (id: string, result: ElectronFindResult) => void): () => void
     onChanged(handler: (tabs: ElectronTabState[]) => void): () => void
     onRegenerateReader(
       handler: (sourceUrl: string, tabId: string) => void
@@ -310,6 +336,9 @@ export const ELECTRON_IPC = {
   tabsSetBounds: "once:tabs:set-bounds",
   tabsRestoreClosed: "once:tabs:restore-closed",
   tabsFocusContent: "once:tabs:focus-content",
+  tabsFindInPage: "once:tabs:find-in-page",
+  tabsStopFindInPage: "once:tabs:stop-find-in-page",
+  tabsFoundInPage: "once:tabs:found-in-page",
   tabsChanged: "once:tabs:changed",
   tabsRegenerateReader: "once:tabs:regenerate-reader",
   storyMenuShow: "once:story-menu:show",

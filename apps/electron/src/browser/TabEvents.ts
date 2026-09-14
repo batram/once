@@ -177,6 +177,17 @@ class TabWindowInteractionEvents {
       if (!owner || owner.activeId !== entry.id || owner.window.isDestroyed()) return
       owner.window.webContents.send(ELECTRON_IPC.windowNativeFocusChanged, "browser")
     })
+    // Find-in-page results, for the shell's find bar to count matches with.
+    contents.on("found-in-page", (_event, result) => {
+      const owner = this.actions.ownerFor(entry)
+      if (!owner || owner.window.isDestroyed()) return
+      owner.window.webContents.send(ELECTRON_IPC.tabsFoundInPage, entry.id, {
+        requestId: result.requestId,
+        activeMatchOrdinal: result.activeMatchOrdinal,
+        matches: result.matches,
+        finalUpdate: result.finalUpdate
+      })
+    })
     contents.on("enter-html-full-screen", () => this.enterFullscreen(entry))
     contents.on("leave-html-full-screen", () => this.leaveFullscreen(entry))
     // One listener only: browser-ownership.test.js asserts the count, and a

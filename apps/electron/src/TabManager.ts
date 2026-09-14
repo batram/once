@@ -398,6 +398,13 @@ export class BrowserCoordinator {
     }
   }
 
+  /** The live page of one of this window's tabs, for find-in-page and the like. */
+  tabContents(state: WindowEntry, id: string): WebContents {
+    const contents = this.ownership.requireOwned(state, id).view.webContents
+    if (contents.isDestroyed()) throw new Error(`Tab is gone: ${id}`)
+    return contents
+  }
+
   focusContent(state: WindowEntry): void {
     const entry = state.activeId ? this.ownership.get(state.activeId) : undefined
     if (!entry || entry.view.webContents.isDestroyed()) return
