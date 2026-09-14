@@ -97,6 +97,8 @@
   --warning-color: light-dark(#9a6200, #e2a642);
   --m-error: light-dark(#d33, #ff6b6b);
   --m-warning: light-dark(#9a6200, #e2a642);
+  /* Tab speaker icon while the tab is audibly playing. */
+  --audio-playing-color: light-dark(#1a8f3a, #4ecb6a);
   /* Swipe reveal colours, keyed by action rather than by stage so a
      reconfigured swipe keeps the same colour meaning. Affirmative actions run
      green→blue, destructive ones red→dark red. */

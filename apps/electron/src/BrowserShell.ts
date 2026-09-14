@@ -393,6 +393,9 @@ export class BrowserShell {
       if (tab.hasPlayedAudio || tab.muted) {
         const media = document.createElement("button")
         media.className = "electron-tab-media"
+        // "playing" tracks Chromium's audible flag, so the icon stays green
+        // on a background tab exactly as long as it is actually making sound.
+        media.classList.toggle("playing", tab.audible && !tab.muted)
         media.type = "button"
         media.title = tab.muted ? "Unmute tab" : "Mute tab"
         media.setAttribute("aria-label", media.title)

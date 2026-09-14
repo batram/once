@@ -129,10 +129,18 @@ test("keeps tab audio controls until the document navigates", async () => {
       const remote = webContents.getAllWebContents()
         .find((contents) => contents.getURL() === expectedUrl)
       remote.emit("audio-state-changed", { audible: true })
-      remote.emit("audio-state-changed", { audible: false })
     }, `${origin}/audio`)
 
     const media = window.locator(".electron-tab-media")
+    await expect(media).toHaveAttribute("aria-label", "Mute tab")
+    await expect(media).toHaveClass(/\bplaying\b/)
+
+    await electronApp.evaluate(({ webContents }, expectedUrl) => {
+      const remote = webContents.getAllWebContents()
+        .find((contents) => contents.getURL() === expectedUrl)
+      remote.emit("audio-state-changed", { audible: false })
+    }, `${origin}/audio`)
+    await expect(media).not.toHaveClass(/\bplaying\b/)
     await expect(media).toHaveAttribute("aria-label", "Mute tab")
 
     await window.locator(".electron-tab").evaluate((tab) => {

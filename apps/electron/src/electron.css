@@ -196,10 +196,15 @@ body #titlebar-text {
   background: var(--highlight-bg-color);
 }
 
-.electron-tab-media img {
-  width: 14px;
-  height: 14px;
+.electron-tab-media .icon {
   opacity: 0.75;
+}
+
+/* Sound is coming out of this tab right now. Stays lit on inactive tabs so
+   the strip answers "which tab is making that noise" at a glance. */
+.electron-tab-media.playing .icon {
+  color: var(--audio-playing-color);
+  opacity: 1;
 }
 
 .electron-tab.dragging {
