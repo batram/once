@@ -1,5 +1,6 @@
 import { installReaderTts } from "@once/ui-web/reader/readerTts"
 import { installReaderTtsPolyfill } from "./readerTtsPolyfill"
+import { installReaderFind } from "./readerFind"
 import {
   isReaderTtsEvent,
   READER_TTS_CHANNEL,
@@ -8,6 +9,7 @@ import {
 } from "./readerTtsProtocol"
 
 installReaderTtsPolyfill(window, { force: true })
+installReaderFind(window)
 const sessionId = `ui-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
 const controlListeners = new Set<(message: ReaderTtsEvent) => void>()
 window.addEventListener("message", (event) => {

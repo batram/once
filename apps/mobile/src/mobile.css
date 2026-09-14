@@ -1275,6 +1275,71 @@
     display: none;
   }
 
+  #reading_find_bar {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex: 0 0 auto;
+    min-height: var(--touch);
+    align-items: center;
+    gap: var(--sp-1);
+    box-sizing: border-box;
+    padding: var(--sp-1) var(--sp-2);
+    border-top: var(--m-bw) solid var(--m-ink);
+    background: var(--m-card-bg);
+    box-shadow: 0 -2px 8px rgb(0 0 0 / 10%);
+  }
+
+  #reading_find_bar[hidden] {
+    display: none;
+  }
+
+  #reading_find_field {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: var(--touch);
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0 var(--sp-2);
+    border: var(--m-bw) solid var(--m-ink);
+    border-radius: var(--m-radius);
+    background: var(--input-bg-color);
+    color: var(--text-color);
+    font-family: var(--m-sans);
+    font-size: var(--fs-body);
+  }
+
+  #reading_find_count {
+    flex: 0 0 auto;
+    color: var(--text-color);
+    font-family: var(--m-sans);
+    font-size: var(--fs-meta);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  #reading_find_count.no-matches {
+    color: var(--error-color);
+  }
+
+  #reading_find_bar > button {
+    display: grid;
+    place-items: center;
+    min-width: 40px;
+    min-height: var(--touch);
+    margin: 0;
+    padding: 0 var(--sp-1);
+    border: 0;
+    border-radius: var(--m-radius);
+    background: transparent;
+    font-family: var(--m-sans);
+    font-size: var(--fs-body);
+  }
+
+  #reading_find_bar > button:active {
+    background: var(--m-pressed-bg);
+  }
+
   #reader_tts_pill {
     position: relative;
     z-index: 2;

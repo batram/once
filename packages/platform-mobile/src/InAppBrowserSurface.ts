@@ -81,6 +81,21 @@ export interface InAppBrowserSurfaceEvents {
 
 export type BrowserSurfaceEventName = keyof InAppBrowserSurfaceEvents
 
+export interface PageFindOptions {
+  /** Search towards the end of the page; false walks back. */
+  forward?: boolean
+}
+
+/** What the engine reports after one find step. */
+export interface PageFindResult {
+  found: boolean
+  /** The step ran off the end and continued from the other end. */
+  wrapped: boolean
+  /** 1-based index of the selected match, 0 when there is none. */
+  current: number
+  total: number
+}
+
 export interface InAppBrowserSurface {
   readonly available: boolean
   open(options: BrowserSurfaceOpenOptions): Promise<void>
@@ -92,6 +107,13 @@ export interface InAppBrowserSurface {
   showMenu(options: NativeOverlayMenuOptions): Promise<string | null>
   showPrompt(options: NativeOverlayPromptOptions): Promise<string | null>
   evaluateJavaScript(script: string): Promise<string | null>
+  /**
+   * Selects the next (or previous) occurrence of `query` in the open page and
+   * says how many there are. Null when the surface cannot search.
+   */
+  findInPage(query: string, options?: PageFindOptions): Promise<PageFindResult | null>
+  /** Drops the find highlights and selection. */
+  clearFind(): Promise<void>
   applyExtensionSettings(
     filterLists: FilterListsDocument,
     userscripts: UserscriptsDocument
@@ -116,6 +138,8 @@ interface NativeInAppBrowserPlugin {
     options: NativeOverlayPromptOptions
   ): Promise<{ value?: string }>
   evaluateJavaScript(options: { script: string }): Promise<{ value?: string }>
+  findInPage(options: { query: string; forward: boolean }): Promise<PageFindResult>
+  clearFind(): Promise<void>
   applyExtensionSettings(options: NativeExtensionSettings): Promise<void>
   extensionPage(options: ExtensionPageCommand): Promise<void>
   close(): Promise<void>
@@ -232,6 +256,19 @@ export function createNativeInAppBrowserSurface(): InAppBrowserSurface {
       const result = await NativeInAppBrowser.evaluateJavaScript({ script })
       return result?.value ?? null
     },
+    async findInPage(query, options) {
+      const result = await NativeInAppBrowser.findInPage({
+        query,
+        forward: options?.forward !== false
+      })
+      return {
+        found: result.found === true,
+        wrapped: result.wrapped === true,
+        current: Number(result.current) || 0,
+        total: Number(result.total) || 0
+      }
+    },
+    clearFind: () => NativeInAppBrowser.clearFind(),
     applyExtensionSettings: (filterLists, userscripts) =>
       NativeInAppBrowser.applyExtensionSettings(
         nativeExtensionSettings(filterLists, userscripts)
@@ -292,6 +329,8 @@ export function createFallbackInAppBrowserSurface(
     showMenu: async () => null,
     showPrompt: async () => null,
     evaluateJavaScript: async () => null,
+    findInPage: async () => null,
+    clearFind: async () => undefined,
     applyExtensionSettings: async () => undefined,
     extensionPage: async () => undefined,
     close: async () => {

@@ -36,6 +36,12 @@ export class ReaderDocumentHost {
     return source != null && source === this.frame.contentWindow
   }
 
+  /** Posts into the reader document; nothing happens while none is open. */
+  post(message: unknown): void {
+    if (this.root.hidden) return
+    this.frame.contentWindow?.postMessage(message, "*")
+  }
+
   async open(html: string): Promise<void> {
     this.frame.srcdoc = await this.injectRuntime(html)
     this.root.hidden = false

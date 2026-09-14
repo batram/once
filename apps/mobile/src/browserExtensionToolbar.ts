@@ -44,6 +44,9 @@ export function bindMobileExtensionToolbar(api: MobileBrowserExtensions, surface
       const selected = await surface.showMenu({ items, browserControls: true })
       if (selected === "once:manage") {
         openExtensionManager()
+      } else if (selected === "once:find") {
+        // The sheet's own Find control; readingFindBar.ts owns the bar.
+        document.dispatchEvent(new Event("once-find-in-page-request"))
       } else if (selected?.startsWith(SETTINGS_PREFIX)) {
         await api.command({ action: "options", id: selected.slice(SETTINGS_PREFIX.length) })
       } else if (selected) {

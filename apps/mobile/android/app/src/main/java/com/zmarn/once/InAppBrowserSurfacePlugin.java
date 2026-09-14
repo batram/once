@@ -15,6 +15,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import org.json.JSONObject;
+import org.mozilla.geckoview.GeckoSession;
+import org.mozilla.geckoview.SessionFinder;
 import org.mozilla.geckoview.WebExtension;
 
 /**
@@ -223,6 +225,46 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
         getActivity().runOnUiThread(() -> {
             extensionSettings = data;
             sendExtensionSettings();
+            call.resolve();
+        });
+    }
+
+    /**
+     * One find step through Gecko's own finder: it selects and scrolls to the
+     * next match, highlights the rest, and reports the count. A changed query
+     * simply starts at the first match again.
+     */
+    @PluginMethod
+    public void findInPage(PluginCall call) {
+        String query = call.getString("query");
+        if (query == null || query.isEmpty()) {
+            call.reject("Search text is required");
+            return;
+        }
+        boolean forward = call.getBoolean("forward", true);
+        getActivity().runOnUiThread(() -> {
+            if (session == null) {
+                call.reject("There is no open page");
+                return;
+            }
+            SessionFinder finder = session.getFinder();
+            finder.setDisplayFlags(GeckoSession.FINDER_DISPLAY_HIGHLIGHT_ALL);
+            int flags = forward ? 0 : GeckoSession.FINDER_FIND_BACKWARDS;
+            finder.find(query, flags).accept(result -> {
+                JSObject payload = new JSObject();
+                payload.put("found", result != null && result.found);
+                payload.put("wrapped", result != null && result.wrapped);
+                payload.put("current", result == null ? 0 : result.current);
+                payload.put("total", result == null ? 0 : result.total);
+                call.resolve(payload);
+            }, error -> call.reject("The page could not be searched: " + error));
+        });
+    }
+
+    @PluginMethod
+    public void clearFind(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            if (session != null) session.getFinder().clear();
             call.resolve();
         });
     }

@@ -15,6 +15,7 @@ import {
 } from "@once/ui-web"
 import { ReaderDocumentHost } from "@once/ui-web"
 import { ReadingAddonTrays } from "./readingAddonTrays"
+import { ReadingFindBar } from "./readingFindBar"
 import { ReadingSurfaceCoordinator } from "./readingSurfaceCoordinator"
 
 export class MobileReadingController {
@@ -22,6 +23,7 @@ export class MobileReadingController {
   private readonly addonTrays: ReadingAddonTrays
   private readonly content: HTMLElement
   private readonly nativeReading: ReadingSurfaceCoordinator
+  private readonly findBar: ReadingFindBar
   private activePanel = "stories"
   private settingsReturnPanel: "stories" | "reading" = "stories"
   private editingAddress = false
@@ -49,6 +51,7 @@ export class MobileReadingController {
     )
     this.addonTrays = new ReadingAddonTrays(this.content, open => this.nativeReading.setOverlayOpen(open))
     this.session = this.nativeReading.session
+    this.findBar = new ReadingFindBar(surface, reader, this.session)
     this.bindControls()
     this.bindEvents()
     this.session.subscribe((state) => {
@@ -77,6 +80,7 @@ export class MobileReadingController {
     }
 
     if (this.activePanel === "reading" && this.addonTrays.close()) return true
+    if (this.activePanel === "reading" && this.findBar.close()) return true
 
     if (this.activePanel === "settings") {
       const settingsPanel = document.querySelector<HTMLElement>("#settings_panel")
@@ -131,6 +135,7 @@ export class MobileReadingController {
   }
 
   private clearReading(): void {
+    this.findBar.close()
     this.ttsControls.dismiss()
     this.nativeReading.closeReading()
   }

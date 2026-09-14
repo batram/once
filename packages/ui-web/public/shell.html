@@ -647,6 +647,52 @@
                 </section>
               </div>
               <div
+                id="reading_find_bar"
+                data-testid="reading-find-bar"
+                role="search"
+                aria-label="Find in page"
+                hidden
+              >
+                <input
+                  id="reading_find_field"
+                  data-testid="reading-find-input"
+                  type="search"
+                  enterkeyhint="search"
+                  autocapitalize="none"
+                  autocomplete="off"
+                  spellcheck="false"
+                  placeholder="Find in page"
+                  aria-label="Find in page"
+                  aria-describedby="reading_find_count"
+                />
+                <span id="reading_find_count" data-testid="reading-find-count" aria-live="polite"></span>
+                <button
+                  type="button"
+                  class="button button--icon"
+                  id="reading_find_prev"
+                  aria-label="Previous match"
+                >
+                  ▲
+                </button>
+                <button
+                  type="button"
+                  class="button button--icon"
+                  id="reading_find_next"
+                  aria-label="Next match"
+                >
+                  ▼
+                </button>
+                <button
+                  type="button"
+                  class="button button--icon"
+                  id="reading_find_close"
+                  data-testid="reading-find-close"
+                  aria-label="Close find in page"
+                >
+                  ✕
+                </button>
+              </div>
+              <div
                 id="reader_tts_pill"
                 data-testid="reader-tts-bar"
                 role="group"

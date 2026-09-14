@@ -6,13 +6,14 @@ const ts = require("typescript")
 const { parseHTML } = require("linkedom")
 
 test("Android browser menu occupies the address action position and routes extension choices", async () => {
-  const { document } = parseHTML('<html><body><form><div id="reading_url_group"></div><button id="reading_navigate">Go</button></form><p id="reading_url_validation" hidden></p></body></html>')
+  const { document, window } = parseHTML('<html><body><form><div id="reading_url_group"></div><button id="reading_navigate">Go</button></form><p id="reading_url_validation" hidden></p></body></html>')
   const compiled = ts.transpileModule(fs.readFileSync(path.resolve(__dirname,
     "../../../apps/mobile/src/browserExtensionToolbar.ts"), "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
   }).outputText
   const exports = {}
-  Function("exports", "document", compiled)(exports, document)
+  // linkedom's document only dispatches its own Event class, not Node's.
+  Function("exports", "document", "Event", compiled)(exports, document, window.Event)
   const commands = []
   let menu
   let selection = null
@@ -62,4 +63,13 @@ test("Android browser menu occupies the address action position and routes exten
   assert.deepEqual(commands.at(-1), { action: "action", id: "popup" })
   assert.equal(manager, 1, "an action without a page or an options page opens the manager")
   assert.equal(validation.hidden, true, "opening the menu clears an earlier error")
+
+  // The sheet's Find control is answered by the shell's find bar, not here.
+  let findRequests = 0
+  document.addEventListener("once-find-in-page-request", () => { findRequests += 1 })
+  const before = commands.length
+  selection = "once:find"
+  await button.onclick()
+  assert.equal(findRequests, 1)
+  assert.equal(commands.length, before + 1, "listing the extensions is the only command")
 })

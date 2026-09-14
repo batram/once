@@ -48,6 +48,12 @@ final class NativeBrowserMenu {
         navigation.addView(control(activity, "↻\nReload", session != null, () -> {
             dialog.dismiss(); reload.run();
         }), new LinearLayout.LayoutParams(0, -2, 1));
+        // Find in page: the shell opens its find bar, which searches the page or
+        // the reader document, so it needs no Gecko session of its own.
+        navigation.addView(control(activity, "⌕\nFind", true, () -> {
+            if (settled.compareAndSet(false, true)) call.resolve(new JSObject().put("id", "once:find"));
+            dialog.dismiss();
+        }), new LinearLayout.LayoutParams(0, -2, 1));
         content.addView(navigation);
         android.widget.Switch backgroundPlayback = new android.widget.Switch(activity);
         backgroundPlayback.setText("Keep media playing in background");
