@@ -46,7 +46,21 @@ test("AI addon uses authenticated requests, host trays, article text and session
     }).toContain("Its qualifications are preserved")
     await expect.poll(pageText).toContain(storyFixture.STORY_TITLES.alpha)
     // The conversation tab counts as the story's page: its row is mirrored above the browser.
-    await expect(window.locator(`#selected_container story-item[data-href="${urls.alpha}"]`)).toBeVisible()
+    const mirror = window.locator(`#selected_container story-item[data-href="${urls.alpha}"]`)
+    await expect(mirror).toBeVisible()
+    // The mirrored row opens its tray on its own, and keeps it open across a
+    // trip to another tab: coming back rebuilds the row with the tray shown.
+    await mirror.locator("[data-addon-tray-button]").click()
+    await expect(mirror.getByTestId("addon-tray")).toContainText("Its qualifications are preserved")
+    const before = await window.evaluate(() => window.onceElectron.tabs.getAll())
+    const conversationTabId = before.find(tab => tab.url.startsWith("once-addon://conversation/")).id
+    await window.evaluate(url => window.onceElectron.tabs.create(url, true), server.origin)
+    await expect(mirror).toHaveCount(0)
+    await window.evaluate(id => window.onceElectron.tabs.activate(id), conversationTabId)
+    await expect(mirror.getByTestId("addon-tray")).toContainText("Its qualifications are preserved")
+    await expect(mirror.locator("[data-addon-tray-button]")).toHaveAttribute("aria-expanded", "true")
+    const detour = (await window.evaluate(() => window.onceElectron.tabs.getAll())).find(tab => !before.some(known => known.id === tab.id))
+    await window.evaluate(id => window.onceElectron.tabs.close(id), detour.id)
     await conversation('(() => { const input = document.querySelector("textarea"); input.value = "Who uses it, again?"; input.dispatchEvent(new Event("input")); document.querySelector("form").requestSubmit() })()')
     await expect(tray).toContainText("Who uses it, again?")
     await expect(tray).toContainText("Developers use it")
@@ -76,6 +90,13 @@ test("AI addon uses authenticated requests, host trays, article text and session
     await tray.getByRole("button", { name: "Stop", exact: true }).click()
     await expect.poll(() => delayed.closed, { timeout: 1500 }).toBe(true)
     await expect(tray).toContainText("Request cancelled")
+    // A link in the answer opens as a tab in the shell, never as a bare popup window.
+    await tray.getByRole("link", { name: "the beta story" }).click()
+    await expect.poll(() => window.evaluate(() => window.onceElectron.tabs.getAll()))
+      .toContainEqual(expect.objectContaining({ url: urls.beta, active: true }))
+    expect(await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1)
+    const linked = (await window.evaluate(() => window.onceElectron.tabs.getAll())).find(tab => tab.url === urls.beta)
+    await window.evaluate(id => window.onceElectron.tabs.close(id), linked.id)
     const second = window.locator(`#stories story-item[data-href="${urls.beta}"]`)
     await second.locator("[data-addon-tray-button]").click()
     await expect(second.getByTestId("addon-tray")).toContainText("ExampleApp is software")

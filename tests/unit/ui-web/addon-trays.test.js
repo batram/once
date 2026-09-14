@@ -179,3 +179,40 @@ test("standalone declared connections are limited and settings cancel pending wo
   assert.ok(sent.filter(message => message.type === "opResult").every(message => !message.ok))
   session.dispose()
 })
+
+test("links in a tray open through the platform's tabs, not the browser's own _blank navigation", async () => {
+  const previous = global.document
+  const previousCustomEvent = global.CustomEvent
+  const { document, CustomEvent, Event } = parseHTML("<html><body></body></html>")
+  global.document = document
+  global.CustomEvent = CustomEvent
+  const { AddonTrays } = require("../../../packages/ui-web/dist/addons/AddonTrays")
+  const { setOnceClient } = require("../../../packages/ui-web/dist/client")
+  const opened = []
+  setOnceClient({ openUrl: (url, target) => opened.push([url, target]) })
+  const trays = new AddonTrays({ id: "example", trays: [{ id: "assistant", title: "Assistant" }] }, {
+    ensure: async () => ({ tray: async () => ({ messages: [
+      { role: "assistant", text: "See [the docs](https://docs.test/page) and `code`.", sources: [{ title: "Source", url: "https://source.test/" }] }
+    ] }) })
+  })
+  const row = document.createElement("story-item")
+  row.story = { href: "https://story.test/", title: "Title", type: "HN" }
+  document.body.append(row)
+  try {
+    trays.toggle(row, "assistant")
+    await new Promise(resolve => setImmediate(resolve))
+    // linkedom has no MouseEvent; a plain event carries the button and modifiers.
+    const click = (target, { type = "click", ...fields }) => {
+      const event = Object.assign(new Event(type, { bubbles: true, cancelable: true }), { ctrlKey: false, metaKey: false, shiftKey: false, ...fields })
+      target.dispatchEvent(event)
+      return event.defaultPrevented
+    }
+    const link = row.querySelector(".addon_tray_message a")
+    assert.equal(link.href, "https://docs.test/page")
+    assert.equal(click(link, { button: 0 }), true, "the click is claimed before the browser can navigate")
+    assert.equal(click(row.querySelector(".addon_tray_source"), { button: 0, ctrlKey: true }), true)
+    assert.equal(click(link, { type: "auxclick", button: 1 }), true)
+    assert.equal(click(row.querySelector(".addon_tray_message code"), { button: 0 }), false, "text is not a link")
+    assert.deepEqual(opened, [["https://docs.test/page", "blank"], ["https://source.test/", "middle"], ["https://docs.test/page", "middle"]])
+  } finally { trays.dispose(); global.document = previous; global.CustomEvent = previousCustomEvent }
+})

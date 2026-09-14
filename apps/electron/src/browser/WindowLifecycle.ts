@@ -52,6 +52,7 @@ interface WindowLifecycleActions {
   back(owner: WindowEntry, id: string): void
   close(owner: WindowEntry): void
   forward(owner: WindowEntry, id: string): void
+  openUrl(owner: WindowEntry, url: string): void
 }
 
 export class WindowLifecycle {
@@ -101,6 +102,13 @@ export class WindowLifecycle {
       }
     })
     window.webContents.on("focus", () => sendShellFocus(window))
+    // The shell is not a page: a `_blank` link or window.open from it (an
+    // addon tray's link, say) belongs in a tab, not in a bare BrowserWindow
+    // without the shell's chrome.
+    window.webContents.setWindowOpenHandler(({ url }) => {
+      if (/^https?:/i.test(url)) this.actions.openUrl(owner, url)
+      return { action: "deny" }
+    })
     window.on("enter-full-screen", () => {
       owner.fullscreen = true
       this.sendFullscreen(owner, true)

@@ -4,6 +4,7 @@ import {
 } from "@once/core"
 import type { StoryListItem } from "../story/StoryListItem"
 import { registerStoryElement, STORY_TRAYS_CHANGED } from "../story/storyElements"
+import { getOnceClient } from "../client"
 import { AddonSandbox } from "./AddonSandbox"
 import { TrayDisclosures, renderTrayMessages, renderTrayStatus, trayButton, trayIcon } from "./trayMessages"
 
@@ -251,6 +252,7 @@ export class AddonTrays {
     root.dataset.testid = "addon-tray"
     root.setAttribute("aria-label", this.manifest.trays?.find(item => item.id === tray)?.title ?? tray)
     for (const type of ["pointerdown", "mousedown", "touchstart", "touchmove", "click", "dblclick", "keydown", "contextmenu"]) root.addEventListener(type, event => event.stopPropagation())
+    bindTrayLinks(root)
     const heading = document.createElement("strong")
     heading.className = "addon_tray_title"
     heading.textContent = root.getAttribute("aria-label")
@@ -308,4 +310,31 @@ export class AddonTrays {
     form.append(input, send)
     return form
   }
+}
+
+/**
+ * Links in a tray are the host's anchors, but they are not left to the
+ * browser: the shell is not a page, so a `_blank` navigation from it becomes
+ * a bare popup window in Electron rather than a tab. Every platform's client
+ * knows where its tabs are, so the click goes there; a middle or modified
+ * click asks for a background tab, as it would on a story row.
+ */
+function bindTrayLinks(root: HTMLElement): void {
+  const open = (event: MouseEvent, target: "blank" | "middle") => {
+    const link = (event.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null
+    if (!link || !root.contains(link)) return
+    let client
+    try { client = getOnceClient() } catch { return }
+    event.preventDefault()
+    client.openUrl(link.href, target)
+  }
+  root.addEventListener("click", event => {
+    if (event.button !== 0) return
+    open(event, event.ctrlKey || event.metaKey || event.shiftKey ? "middle" : "blank")
+  })
+  root.addEventListener("auxclick", event => { if (event.button === 1) open(event, "middle") })
+  // Chromium opens its own tab for a middle click on mousedown/mouseup as well.
+  for (const type of ["mousedown", "mouseup"] as const) root.addEventListener(type, event => {
+    if (event.button === 1 && (event.target as Element | null)?.closest?.("a[href]")) event.preventDefault()
+  })
 }

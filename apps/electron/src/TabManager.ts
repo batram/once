@@ -98,7 +98,8 @@ export class BrowserCoordinator {
         : undefined,
       back: (owner, id) => this.back(owner, id),
       close: (owner) => this.ownership.closeWindow(owner),
-      forward: (owner, id) => this.forward(owner, id)
+      forward: (owner, id) => this.forward(owner, id),
+      openUrl: (owner, url) => { void this.openUrl(owner, url, "blank") }
     })
     const ownerAccess = {
       ownerFor: (entry: TabEntry) => this.ownership.ownerFor(entry),

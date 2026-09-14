@@ -72,3 +72,31 @@ test("the newest URL wins even when it is the one that misses", async () => {
   await older
   assert.equal(selectedHref(), null, "a stale hit must not select a story the browser has already left")
 })
+
+test("a contributed element that depends on where the row lives sees the mirror, not a detached row", async () => {
+  const { Story, updateSelectedStory } = loadModule()
+  const { registerStoryElement } = require("../../../packages/ui-web/dist/story/storyElements")
+  const alpha = new Story("fixture", STORY_URL, "Alpha", STORY_URL)
+  const client = { findStoryByUrl: (url) => Promise.resolve(url === STORY_URL ? alpha : null) }
+  // Stands in for an addon tray whose open state is kept per place: it renders
+  // only for the row mirrored into #selected_container.
+  const release = registerStoryElement({
+    id: "test:mirror-tray", slot: "tray",
+    render: (row) => {
+      if (!row.closest("#selected_container")) return null
+      const tray = document.createElement("section")
+      tray.className = "addon_tray"
+      return tray
+    }
+  })
+  try {
+    await updateSelectedStory(client, STORY_URL)
+    assert.equal(selectedHref(), STORY_URL)
+    assert.equal(document.querySelectorAll("#selected_container .addon_tray").length, 1, "the tray belongs to the mirrored row once it is in place")
+    // Leaving for another page and coming back rebuilds the mirror; the tray is there again.
+    await updateSelectedStory(client, "https://example.com/elsewhere")
+    assert.equal(selectedHref(), null)
+    await updateSelectedStory(client, STORY_URL)
+    assert.equal(document.querySelectorAll("#selected_container .addon_tray").length, 1)
+  } finally { release() }
+})

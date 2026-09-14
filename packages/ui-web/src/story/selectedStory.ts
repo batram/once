@@ -1,6 +1,7 @@
 import { OnceClient } from "@once/app"
 import type { AddonConversationSurface } from "../addons/AddonTrays"
 import { StoryListItem } from "./StoryListItem"
+import { refreshRowElements } from "./storyElements"
 
 // Mirrors the story behind the browser's open URL into #selected_container.
 //
@@ -42,6 +43,10 @@ export async function updateSelectedStory(
     const storyElement = new StoryListItem(story)
     storyElement.classList.add("selected")
     selectedContainer.append(storyElement)
+    // Contributed elements were rendered while the row was still detached, so
+    // a tray keyed on where the row lives (list or mirror) saw a list row and
+    // stayed closed; now that the row is in place its own state applies.
+    refreshRowElements(storyElement)
   }
 }
 

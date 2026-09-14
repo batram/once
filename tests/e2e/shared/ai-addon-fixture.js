@@ -31,7 +31,8 @@ function handleRequest(request, response) {
       response.once("close", () => { call.closed = true })
       const last = body.messages.at(-1).content
       const answer = last.includes("Summarize") ? "- The article describes its main result.\n- Its qualifications are preserved." :
-        last.includes("Who uses") ? "Developers use it. This follows our earlier explanation." :
+        // The follow-up carries a link, so hosts can show that a tray link opens where their tabs are.
+        last.includes("Who uses") ? `Developers use it. This follows our earlier explanation. See [the beta story](http://${request.headers.host}/story/beta).` :
           "**ExampleApp is software** for organizing projects.\n\n## Key entities\n\n**ExampleApp**: a project organizer. Use `projects` to group related work."
       const send = () => {
         if (response.destroyed) return
