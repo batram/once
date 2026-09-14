@@ -17,6 +17,7 @@ import { bindSettingsSubscriptions } from "./settingsSubscriptions"
 import { bindExtensionSettingsEditors, ExtensionSettingsEditors } from "./extensionSettingsEditors"
 import settingsSectionDefinitions from "./settingsSectionDefinitions"
 import { SettingsNavigation, SettingsPanelOptions } from "./SettingsNavigation"
+import { trackSettingsSave } from "./settingsStatus"
 
 export class SettingsPanel {
   static instance: SettingsPanel
@@ -585,13 +586,17 @@ export class SettingsPanel {
     this.refreshSettingsSearch()
   }
 
-  save_filter_settings(): void {
+  async save_filter_settings(): Promise<void> {
     const filter_area =
       requireElement<HTMLInputElement>("#filter_area")
     const filter_list = filter_area.value.split("\n").filter((x) => {
       return x.trim() != ""
     })
-    this.client.saveFilterList(filter_list)
+    const submitted = filter_area.value
+    await trackSettingsSave(filter_area, async () => {
+      await this.client.saveFilterList(filter_list)
+      if (filter_area.value === submitted) this.structuredEditors?.sync("filters")
+    })
   }
 
   async set_redirect_area(): Promise<void> {
@@ -603,11 +608,15 @@ export class SettingsPanel {
     this.refreshSettingsSearch()
   }
 
-  save_redirect_settings(): void {
+  async save_redirect_settings(): Promise<void> {
     const redirect_area =
       requireElement<HTMLInputElement>("#redirect_area")
     const redirect_list = parseRedirectList(redirect_area.value)
-    this.client.saveRedirectList(redirect_list)
+    const submitted = redirect_area.value
+    await trackSettingsSave(redirect_area, async () => {
+      await this.client.saveRedirectList(redirect_list)
+      if (redirect_area.value === submitted) this.structuredEditors?.sync("redirects")
+    })
   }
 
 

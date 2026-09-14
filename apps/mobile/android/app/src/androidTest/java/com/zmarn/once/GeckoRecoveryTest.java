@@ -6,7 +6,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.PluginCall;
-import java.lang.reflect.Field;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
@@ -92,11 +91,7 @@ public class GeckoRecoveryTest {
     }
 
     private static Object field(Object owner, String name) {
-        try {
-            Field field = owner.getClass().getDeclaredField(name);
-            field.setAccessible(true);
-            return field.get(owner);
-        } catch (Exception error) { throw new AssertionError(error); }
+        return GeckoTestSupport.field(owner, name);
     }
 
     private static final class Call extends PluginCall {

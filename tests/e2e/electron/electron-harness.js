@@ -540,9 +540,12 @@ async function openSettingsSection(window, target, controlSelector) {
     else if (/url|directory|import/.test(controlSelector)) await navigation.addonImport(window)
   }
   const control = section.locator(controlSelector)
-  if (!(await control.isVisible()) &&
-      ["sources", "filters", "redirects"].includes(target)) {
-    await window.getByTestId(`${target}-mode-toggle`).click()
+  if (["sources", "filters", "redirects"].includes(target)) {
+    const textMode = await control.evaluate(element => element.tagName === "TEXTAREA")
+    const toggle = window.getByTestId(`${target}-mode-toggle`)
+    const currentAction = textMode ? "Edit as list" : "Edit as text"
+    if (await toggle.getAttribute("aria-label") !== currentAction) await toggle.click()
+    await expect(toggle).toHaveAttribute("aria-label", currentAction)
   }
   await expect(
     control,
@@ -600,6 +603,8 @@ async function saveFilters(window, text) {
   )
   await filters.fill(text)
   await window.getByTestId("save-filters").click()
+  await expect(window.locator('[data-settings-section="filters"] .settings_status'))
+    .toHaveAttribute("data-state", "saved")
   await showAllStories(window)
 }
 
@@ -611,6 +616,8 @@ async function saveRedirects(window, text) {
   )
   await redirects.fill(text)
   await window.getByTestId("save-redirects").click()
+  await expect(window.locator('[data-settings-section="redirects"] .settings_status'))
+    .toHaveAttribute("data-state", "saved")
   await showAllStories(window)
 }
 

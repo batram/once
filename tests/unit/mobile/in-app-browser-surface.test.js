@@ -107,7 +107,7 @@ test("native embedded browsers use a bounded foreground sibling", () => {
   const root = path.resolve(__dirname, "../../..")
   const android = fs.readFileSync(path.join(
     root,
-    "apps/mobile/android/app/src/main/java/com/zmarn/once/InAppBrowserSurfacePlugin.java"
+    "apps/mobile/android/app/src/main/java/com/zmarn/once/ReadingSurfaceHost.java"
   ), "utf8")
   const ios = fs.readFileSync(path.join(
     root,
@@ -124,7 +124,7 @@ test("native embedded browsers support pull-to-refresh", () => {
   const root = path.resolve(__dirname, "../../..")
   const android = fs.readFileSync(path.join(
     root,
-    "apps/mobile/android/app/src/main/java/com/zmarn/once/InAppBrowserSurfacePlugin.java"
+    "apps/mobile/android/app/src/main/java/com/zmarn/once/ReadingSurfaceHost.java"
   ), "utf8")
   const ios = fs.readFileSync(path.join(
     root,

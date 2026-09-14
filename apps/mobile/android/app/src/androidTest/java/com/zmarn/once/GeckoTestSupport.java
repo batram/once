@@ -19,10 +19,22 @@ final class GeckoTestSupport {
     final Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
     MainActivity activity;
     InAppBrowserSurfacePlugin plugin;
-    void start() {
+    void start() throws Exception {
         assertTrue(instrumentation.getTargetContext().getPackageName().endsWith(".dev"));
+        shell("input keyevent KEYCODE_WAKEUP");
+        shell("wm dismiss-keyguard");
         activity = (MainActivity) instrumentation.startActivitySync(new Intent(instrumentation.getTargetContext(), MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        ui(() -> activity.getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON));
+        until("The foreground test activity must have a focused, laid-out window",
+            () -> activity.hasWindowFocus() && activity.getWindow().getDecorView().getWidth() > 0, 15);
         plugin = (InAppBrowserSurfacePlugin) activity.getBridge().getPlugin("InAppBrowserSurface").getInstance();
+    }
+    private void shell(String command) {
+        try (InputStream output = new android.os.ParcelFileDescriptor.AutoCloseInputStream(
+                instrumentation.getUiAutomation().executeShellCommand(command))) {
+            byte[] buffer = new byte[256];
+            while (output.read(buffer) != -1) { /* Wait for the command to complete. */ }
+        } catch (IOException error) { throw new AssertionError(error); }
     }
     void ui(Runnable work) { instrumentation.runOnMainSync(work); }
     GeckoEngine engine() {
@@ -41,8 +53,12 @@ final class GeckoTestSupport {
     }
     Object field(String name) { return field(plugin, name); }
     static Object field(Object owner, String name) {
-        try { java.lang.reflect.Field f = owner.getClass().getDeclaredField(name); f.setAccessible(true); return f.get(owner); }
-        catch (Exception e) { throw new AssertionError(e); }
+        for (Class<?> type = owner.getClass(); type != null; type = type.getSuperclass()) {
+            try { java.lang.reflect.Field f = type.getDeclaredField(name); f.setAccessible(true); return f.get(owner); }
+            catch (NoSuchFieldException ignored) { /* State can be owned by the native host superclass. */ }
+            catch (IllegalAccessException e) { throw new AssertionError(e); }
+        }
+        throw new AssertionError("Missing field: " + name);
     }
     void until(String message, BooleanSupplier condition, int seconds) throws Exception {
         long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(seconds);

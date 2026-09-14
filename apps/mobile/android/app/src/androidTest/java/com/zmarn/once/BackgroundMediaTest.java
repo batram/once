@@ -8,7 +8,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.PluginCall;
-import java.lang.reflect.Field;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.ByteBuffer;
@@ -341,8 +340,7 @@ public class BackgroundMediaTest {
     private GeckoSession session() { return (GeckoSession) field("session"); }
     private BackgroundMedia media() { return (BackgroundMedia) field("backgroundMedia"); }
     private Object field(String name) {
-        try { Field field = plugin.getClass().getDeclaredField(name); field.setAccessible(true); return field.get(plugin); }
-        catch (Exception error) { throw new AssertionError(error); }
+        return GeckoTestSupport.field(plugin, name);
     }
     private void shell(String command) throws Exception {
         try (java.io.InputStream output = new android.os.ParcelFileDescriptor.AutoCloseInputStream(
