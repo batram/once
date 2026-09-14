@@ -206,6 +206,69 @@ test("TabOwnership closes an empty secondary window after its last tab", () => {
   assert.equal(secondary.window.destroyed, true)
 })
 
+test("TabOwnership moves a previously active hidden tab into a populated window", () => {
+  const ownership = new TabOwnership(
+    { backTargetIndex: () => -1 },
+    { createBlankTab: async () => assert.fail("Both windows retain tabs") }
+  )
+  const source = owner(1)
+  const target = owner(2)
+  target.bounds = { x: 20, y: 40, width: 450, height: 300 }
+  const moving = entry("moving", 1)
+  const remaining = entry("remaining", 1)
+  const resident = entry("resident", 2)
+  ownership.addWindow(source)
+  ownership.addWindow(target)
+  ownership.addTab(source, moving)
+  ownership.addTab(source, remaining)
+  ownership.addTab(target, resident)
+  ownership.activate(source, moving.id)
+  ownership.activate(source, remaining.id)
+  ownership.activate(target, resident.id)
+  const contents = moving.view.webContents
+
+  for (let cycle = 0; cycle < 3; cycle++) {
+    ownership.move(target, moving.id, resident.id)
+    assert.equal(moving.view.webContents, contents)
+    assert.deepEqual(source.window.children, [remaining.view])
+    assert.deepEqual(target.window.children, [resident.view, moving.view])
+    assert.deepEqual(target.tabs, [moving.id, resident.id])
+    assert.equal(source.activeId, remaining.id)
+    assert.equal(resident.view.visible, false)
+    assert.equal(moving.view.visible, true)
+    assert.deepEqual(moving.view.bounds, target.bounds)
+    ownership.move(source, moving.id)
+    assert.deepEqual(target.window.children, [resident.view])
+    assert.equal(target.activeId, resident.id)
+    assert.equal(resident.view.visible, true)
+    ownership.activate(source, remaining.id)
+  }
+  ownership.finalizeClosed(moving)
+  assert.deepEqual(source.window.children, [remaining.view])
+  assert.equal(source.activeId, remaining.id)
+})
+
+test("TabOwnership reorders without reattaching or changing activation", () => {
+  const ownership = new TabOwnership(
+    { backTargetIndex: () => -1 }, { createBlankTab: async () => {} }
+  )
+  const window = owner(1)
+  const first = entry("first", 1)
+  const second = entry("second", 1)
+  ownership.addWindow(window)
+  ownership.addTab(window, first)
+  ownership.addTab(window, second)
+  ownership.activate(window, first.id)
+  ownership.activate(window, second.id)
+  window.window.contentView.addChildView = () => assert.fail("Reorder must not attach")
+  window.window.contentView.removeChildView = () => assert.fail("Reorder must not detach")
+  ownership.reorder(window, second.id, first.id)
+  assert.deepEqual(window.tabs, [second.id, first.id])
+  assert.equal(window.activeId, second.id)
+  assert.equal(first.view.visible, false)
+  assert.equal(second.view.visible, true)
+})
+
 test("TabEvents composes navigation, interaction, and lifecycle families", () => {
   const tab = entry("tab", 1)
   tab.view.webContents.setWindowOpenHandler = (handler) => {

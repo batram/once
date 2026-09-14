@@ -81,7 +81,11 @@ if (process.env.ONCE_ELECTRON_TEST_USER_DATA) {
 // moved tab stays blank. Chromium 152 ran the previous implementation on
 // Windows, which this switch restores. Drop it once
 // NativeViewHostAura::AddedToWidget re-sorts native views (2026-09-14).
-if (process.platform !== "darwin") {
+// The negative control is restricted to isolated test profiles. Keep the
+// workaround until the native tab-rendering calibration passes without it.
+const testNativeLayers = Boolean(process.env.ONCE_ELECTRON_TEST_USER_DATA) &&
+  process.env.ONCE_ELECTRON_TEST_NATIVE_LAYERS === "1"
+if (process.platform !== "darwin" && !testNativeLayers) {
   app.commandLine.appendSwitch("disable-features", "NativeViewHostManagesLayers")
 }
 

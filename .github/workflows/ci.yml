@@ -65,9 +65,12 @@ jobs:
       - run: npm run test:electron
       - run: npm run test:design-system
       - run: npm run test:electron:e2e
+      - run: npm run test:electron:rendering:run
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: electron-test-results
-          path: test-results
+          path: |
+            test-results
+            artifacts/native-rendering
           if-no-files-found: ignore

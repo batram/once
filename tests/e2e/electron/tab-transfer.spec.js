@@ -20,6 +20,8 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => pageServer.close())
 
+// Ownership/state coverage only. Playwright focus emulation can force pages
+// visible; native-rendering/run.js tests the uninstrumented frame lifecycle.
 test("moves a live tab out to a new Once window and back", async () => {
   const { electronApp, userData, window } = await launchApp()
   try {

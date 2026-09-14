@@ -429,7 +429,8 @@ async function launchApp(options = {}) {
       ONCE_ELECTRON_TEST_USER_DATA: userData,
       ONCE_ELECTRON_DISABLE_STORY_LOADING: "1",
       ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "1",
-      ...(background ? { ONCE_ELECTRON_TEST_BACKGROUND: "1" } : {}),
+      ONCE_ELECTRON_TEST_BACKGROUND: background ? "1" : "0",
+      ONCE_ELECTRON_TEST_NATIVE_LAYERS: "0",
       ...options.env
     }
   })
