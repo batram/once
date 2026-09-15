@@ -158,27 +158,38 @@ class ReaderSpeechSynthesis {
     this.native?.addEventListener(type, listener)
   }
 
-  speak(utterance: SpeechSynthesisUtterance): void {
+  // The session always hands over the plain utterance class. A native
+  // SpeechSynthesisUtterance rejects the Wafli voice object on assignment, so
+  // the native copy is only built here, once the voice choice is known.
+  speak(utterance: WafliSpeechSynthesisUtterance): void {
+    const native = this.native
     const useWafli = utterance.voice?.voiceURI === WAFLI_VOICE_URI ||
-      !this.native || this.native.getVoices().length === 0
+      !native || native.getVoices().length === 0 ||
+      typeof window.SpeechSynthesisUtterance !== "function"
     if (useWafli) {
-      this.wafli.speak(utterance as WafliSpeechSynthesisUtterance)
+      this.wafli.speak(utterance)
       return
     }
-    const onerror = utterance.onerror
-    utterance.onerror = (event) => {
+    const copy = new window.SpeechSynthesisUtterance(utterance.text)
+    copy.lang = utterance.lang
+    copy.pitch = utterance.pitch
+    copy.rate = utterance.rate
+    copy.volume = utterance.volume
+    copy.voice = utterance.voice
+    copy.onstart = (event) => utterance.onstart?.(event)
+    copy.onend = (event) => utterance.onend?.(event)
+    copy.onerror = (event) => {
       if (event.error === "canceled" || event.error === "interrupted") {
-        onerror?.call(utterance, event)
+        utterance.onerror?.(event)
         return
       }
       // Some platforms enumerate a native voice and still reject synthesis.
       // Retry this segment through the bundled engine without surfacing a
       // false terminal error to ReaderSpeechSession.
-      utterance.onerror = onerror
       utterance.voice = wafliVoice(true)
-      this.wafli.speak(utterance as WafliSpeechSynthesisUtterance)
+      this.wafli.speak(utterance)
     }
-    this.native?.speak(utterance)
+    native.speak(copy)
   }
 
   pause(): void { this.native?.pause(); this.wafli.pause() }
@@ -188,7 +199,7 @@ class ReaderSpeechSynthesis {
 
 function readerSpeechImplementation(options: ReaderTtsOptions): {
   synth: ReaderSpeechSynthesis
-  Utterance: typeof SpeechSynthesisUtterance | typeof WafliSpeechSynthesisUtterance
+  Utterance: typeof WafliSpeechSynthesisUtterance
 } {
   const nativeSynth = window.speechSynthesis
   const wafli = new WafliSpeechSynthesis(options.wafli ?? {
@@ -196,9 +207,7 @@ function readerSpeechImplementation(options: ReaderTtsOptions): {
   })
   return {
     synth: new ReaderSpeechSynthesis(nativeSynth, wafli),
-    Utterance: typeof window.SpeechSynthesisUtterance === "function"
-      ? window.SpeechSynthesisUtterance
-      : WafliSpeechSynthesisUtterance
+    Utterance: WafliSpeechSynthesisUtterance
   }
 }
 
