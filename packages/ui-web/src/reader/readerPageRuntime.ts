@@ -30,6 +30,7 @@ export async function installReaderPageTts(): Promise<void> {
   }
   installReaderTts({
     initialRate,
+    wafli: { wasmUrl: browser.runtime.getURL("static/wafli-module.wasm") },
     onRateChange: (rate) => {
       void browser.runtime.sendMessage({
         onceCommand: "setReaderTtsRate",

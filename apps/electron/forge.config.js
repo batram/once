@@ -71,6 +71,14 @@ module.exports = {
               js: "./src/preload.ts"
             }
           },
+          // Compiled as its own browser bundle and served by once-reader://.
+          // Reader pages execute this bundle directly; never serialize its
+          // functions from the minified shell bundle with Function#toString.
+          {
+            html: "./src/reader-runtime.html",
+            js: "./src/readerRuntime.ts",
+            name: "reader_runtime"
+          },
           // The add-on sandbox page: loaded by the renderer in a sandboxed
           // iframe, with no preload and therefore no bridge of any kind.
           {

@@ -159,6 +159,20 @@ test("reader TTS bridges through the host when the frame lacks speech synthesis"
   await expect(reader.getByTestId("tts-unavailable")).toHaveCount(0)
   await expect(reader.locator("[data-tts-play]")).toBeEnabled()
   await expect(reader.locator("article .tts-segment")).not.toHaveCount(0)
+  await expect(page.locator("#reader_tts_voice option").filter({
+    hasText: "Wafli SLT — offline"
+  })).toHaveCount(1)
+  await page.locator("#reader_tts_voice").evaluate((select) => {
+    select.value = "once-wafli-slt"
+    select.dispatchEvent(new Event("change", { bubbles: true }))
+  })
+  await page.locator('[data-host-tts="play"]').click()
+  await expect.poll(() => reader.locator("html").evaluate(() =>
+    performance.getEntriesByType("resource").some((entry) =>
+      entry.name.endsWith("/wafli-module.wasm")
+    )
+  )).toBe(true)
+  await page.locator('[data-host-tts="stop"]').click()
 })
 
 test("Reader mode explains failures and offers clean recovery", async ({ page }) => {

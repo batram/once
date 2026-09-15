@@ -18,7 +18,11 @@ for (const target of ["chrome", "firefox"]) {
       "vendor-pouchdb.js",
       "vendor-readability.js",
       "reader-content.js",
+      "reader-page.js",
       "addon-sandbox.js",
+      "static/wafli-module.wasm",
+      "static/licenses/wafli/FLITE",
+      "static/licenses/wafli/SONIC",
       "static/addon-sandbox.html",
       "static/sidepanel.html"
     ]) {
@@ -39,6 +43,11 @@ for (const target of ["chrome", "firefox"]) {
       assert.equal(manifest.background.service_worker, "background.js")
       assert.equal(manifest.side_panel.default_path, "static/sidepanel.html")
       assert.equal(manifest.minimum_chrome_version, "114")
+      assert.match(manifest.content_security_policy.extension_pages, /wasm-unsafe-eval/)
+      assert.deepEqual(
+        manifest.web_accessible_resources[0].resources,
+        ["static/wafli-module.wasm"]
+      )
     } else {
       assert.deepEqual(manifest.background.scripts, ["background.js"])
       assert.equal(manifest.sidebar_action.default_panel, "static/sidepanel.html")
@@ -48,7 +57,8 @@ for (const target of ["chrome", "firefox"]) {
       assert.equal(manifest.action, undefined)
       assert.equal(manifest.host_permissions, undefined)
       assert.ok(manifest.permissions.includes("<all_urls>"))
-      assert.equal(manifest.content_security_policy, "script-src 'self' blob:; object-src 'none'")
+      assert.equal(manifest.content_security_policy, "script-src 'self' 'wasm-unsafe-eval' blob:; object-src 'none'")
+      assert.deepEqual(manifest.web_accessible_resources, ["static/wafli-module.wasm"])
     }
   })
 }

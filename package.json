@@ -60,6 +60,7 @@
     "inspect:mobile:android:run": "node tests/e2e/mobile/run-mobile-e2e.js android --visual",
     "inspect:mobile:ios": "node tests/e2e/mobile/run-mobile-e2e.js ios --visual",
     "start:electron": "npm run fetch:extensions && npm run build:packages && npm run start --workspace @once/electron",
+    "start:electron:debug": "npm run fetch:extensions && npm run build:packages && npm run start --workspace @once/electron -- --debug-devtools",
     "test": "npm run test:unit && npm run test:electron && npm run test:extensions && npm run test:electron:e2e",
     "test:ci": "npm run check && npm test",
     "test:collectors": "npm run build:packages && node --test tests/unit/parser/*.test.js tests/unit/collectors/*.test.js",

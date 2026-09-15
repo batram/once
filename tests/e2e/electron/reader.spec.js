@@ -221,61 +221,18 @@ test("regenerates a missing reader document from its source URL", async () => {
         .getAllWebContents()
         .find((candidate) => candidate.getURL().startsWith("once-reader://"))
       if (!contents) return null
-      return contents.executeJavaScript(`(async () => {
-        const errors = [];
-        window.addEventListener("error", (event) => errors.push(event.message), { once: true });
-        const source = document.querySelector("script").textContent;
-        const parseError = (() => {
-          try {
-            Function(source)
-            return null
-          } catch (error) {
-            return error.message
-          }
-        })();
-        const engine = window.speechSynthesis || {};
-        for (const [name, implementation] of Object.entries({
-          addEventListener() {},
-          cancel() {},
-          getVoices() { return []; },
-          pause() {},
-          resume() {},
-          speak() {}
-        })) {
-          Object.defineProperty(engine, name, {
-            configurable: true,
-            value: implementation
-          });
-        }
-        Object.defineProperty(window, "speechSynthesis", {
-          configurable: true,
-          value: engine
-        });
-        Object.defineProperty(window, "SpeechSynthesisUtterance", {
-          configurable: true,
-          value: class {
-            constructor(text) { this.text = text; }
-          }
-        });
-        delete document.documentElement.dataset.onceTtsInstalled;
-        document.querySelectorAll(".tts-controls :disabled").forEach((control) => {
-          control.disabled = false;
-        });
-        document.querySelector('[data-testid="tts-unavailable"]')?.remove();
-        Function(source)();
-        const play = document.querySelector("[data-tts-play]");
-        play.click();
-        await new Promise((resolve) => setTimeout(resolve, 100));
+      return contents.executeJavaScript(`(() => {
+        const runtime = document.querySelector("script[data-once-reader-runtime]");
         return {
-          errors,
           installed: document.documentElement.dataset.onceTtsInstalled,
-          parseError
+          runtimeInline: runtime?.textContent || "",
+          runtimeSrc: runtime?.getAttribute("src") || ""
         };
       })()`)
     })).toEqual({
-      errors: [],
       installed: "true",
-      parseError: null
+      runtimeInline: "",
+      runtimeSrc: "once-reader://runtime/reader.js"
     })
     await expect.poll(() => window.evaluate(async () => {
       const active = (await window.onceElectron.tabs.getAll()).find((tab) => tab.active)

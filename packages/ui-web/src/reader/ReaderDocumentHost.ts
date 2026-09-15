@@ -48,8 +48,8 @@ export class ReaderDocumentHost {
     document.body.classList.add("once-reader-open")
   }
 
-  // Swaps the document's inline TTS script (blocked by the app CSP, which the
-  // srcdoc frame inherits) for the runtime bundle. The bundle is inlined
+  // Swaps the document's inert runtime marker for the platform bundle. The
+  // bundle is inlined
   // because older WebKit (iOS <=18) refuses to load external scripts inside
   // the opaque-origin sandboxed frame; the app CSP whitelists exactly this
   // inline text via its sha256 hash (ReaderRuntimeCspPlugin), so the escaping
@@ -61,7 +61,10 @@ export class ReaderDocumentHost {
     const scriptTag = source != null
       ? `<script>${source.replace(/<\/script/gi, "<\\/script")}</script>`
       : `<script src="${escapeHtmlAttribute(this.runtimeUrl)}"></script>`
-    return html.replace(/<script>[\s\S]*?<\/script>/, () => scriptTag)
+    return html.replace(
+      /<script data-once-reader-runtime><\/script>/,
+      () => scriptTag
+    )
   }
 
   private loadRuntimeSource(): Promise<string | null> {

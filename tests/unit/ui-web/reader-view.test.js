@@ -46,6 +46,16 @@ test("a story with stored content opens in the reader without a request", async 
   assert.match(opened[0].html, /class="byline">Ada</)
   assert.match(opened[0].html, /href="https:\/\/example.com\/more"/, "links resolve against the story")
   assert.doesNotMatch(opened[0].html, /alert\(1\)/, "stored html is sanitized on the way out")
+  assert.match(
+    opened[0].html,
+    /<script data-once-reader-runtime><\/script>/,
+    "platforms receive an inert marker instead of serialized executable code"
+  )
+  assert.doesNotMatch(
+    opened[0].html,
+    /FliteSpeechSynthesis|normalizeReaderSpeechText\.toString/,
+    "the reader runtime is never serialized into article HTML"
+  )
 })
 
 test("a story without stored content is fetched and extracted as before", async () => {

@@ -42,6 +42,7 @@ import { manualReleaseStatus } from "./ManualReleaseCheck"
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string
+declare const READER_RUNTIME_WEBPACK_ENTRY: string
 declare const __ONCE_BUILD_CHANNEL__: "release" | "dev"
 declare const __ONCE_BUILD_IDENTIFIER__: string
 
@@ -69,6 +70,14 @@ if (process.env.ONCE_ELECTRON_TEST_USER_DATA) {
   app.commandLine.appendSwitch("use-mock-keychain")
 }
 
+// Opt-in DevTools Protocol endpoint for local MCP-assisted debugging. Keep it
+// loopback-only and disabled in normal/release launches: a CDP client can read
+// and modify everything displayed by the app.
+if (process.env.ONCE_ELECTRON_REMOTE_DEBUGGING === "1") {
+  app.commandLine.appendSwitch("remote-debugging-address", "127.0.0.1")
+  app.commandLine.appendSwitch("remote-debugging-port", "9223")
+}
+
 // Chromium 155 (Electron 45) turned NativeViewHostManagesLayers on for
 // Windows: the views tree now owns a WebContents' compositor layer, and its
 // aura window is stacked separately. On a first attach Chromium re-sorts the
@@ -87,6 +96,15 @@ const testNativeLayers = Boolean(process.env.ONCE_ELECTRON_TEST_USER_DATA) &&
   process.env.ONCE_ELECTRON_TEST_NATIVE_LAYERS === "1"
 if (process.platform !== "darwin" && !testNativeLayers) {
   app.commandLine.appendSwitch("disable-features", "NativeViewHostManagesLayers")
+}
+
+// Chromium deliberately leaves its Linux Speech Dispatcher backend disabled
+// unless the embedder opts in. Without this switch the Web Speech API still
+// exists, but getVoices() stays empty and Reader Mode silently queues speech
+// that can never play. Speech Dispatcher remains an OS dependency; it can use
+// the distro's eSpeak, Festival, Piper, or other configured output module.
+if (process.platform === "linux") {
+  app.commandLine.appendSwitch("enable-speech-dispatcher")
 }
 
 if (process.platform === "win32") {
@@ -243,7 +261,7 @@ function createShellWindow(bounds?: Rectangle): BrowserWindow {
 
 function configureBrowserSession(): Session {
   const browserSession = session.fromPartition(BROWSER_SESSION_PARTITION)
-  configureReaderProtocol(browserSession)
+  configureReaderProtocol(browserSession, READER_RUNTIME_WEBPACK_ENTRY)
   configureErrorPageProtocol(browserSession)
   configureAddonConversationProtocol(browserSession, MAIN_WINDOW_WEBPACK_ENTRY)
   browserSession.setPermissionCheckHandler((_webContents, permission) => {

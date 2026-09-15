@@ -66,6 +66,9 @@ module.exports = (env = {}, argv = {}) => {
       fallback: { path: false }
     },
     module: {
+      parser: {
+        javascript: { url: false }
+      },
       rules: [
         {
           resourceQuery: /raw/,
@@ -87,6 +90,7 @@ module.exports = (env = {}, argv = {}) => {
         __ONCE_BUILD_CHANNEL__: JSON.stringify(buildChannel),
         __ONCE_BUILD_IDENTIFIER__: JSON.stringify(devBuildIdentifier())
       }),
+      new webpack.IgnorePlugin({ resourceRegExp: /^node:module$/ }),
       new CopyPlugin({
         patterns: [
           {
@@ -99,6 +103,14 @@ module.exports = (env = {}, argv = {}) => {
           {
             from: path.join(root, "packages", "ui-web", "src", "reader", "readerDocument.css"),
             to: "reader.css"
+          },
+          {
+            from: path.join(root, "packages", "ui-web", "src", "reader", "wafli-module.wasm"),
+            to: "static/wafli-module.wasm"
+          },
+          {
+            from: path.join(root, "packages", "ui-web", "src", "reader", "wafli-licenses"),
+            to: "static/licenses/wafli"
           },
           {
             from: path.join(root, "packages", "webext-shell", "src", "webext.css"),

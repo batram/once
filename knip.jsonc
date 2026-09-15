@@ -65,6 +65,8 @@
         "src/main.ts",
         "src/preload.ts",
         "src/renderer.ts",
+        // Standalone browser-world runtime served to once-reader:// pages.
+        "src/readerRuntime.ts",
         "src/addonSandbox.ts",
         "src/pickerInjection.ts",
         "src/extensions/extensionPreload.ts",

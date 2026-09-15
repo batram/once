@@ -26,7 +26,10 @@ const forgeCli = path.join(
 
 const rawArgs = process.argv.slice(2)
 const skipPackagedAppStop = shouldSkipPackagedAppStop(rawArgs, process.env)
-const args = rawArgs.filter((arg) => !["--dev", "--nokill"].includes(arg))
+const debugDevTools = rawArgs.includes("--debug-devtools")
+const args = rawArgs.filter((arg) =>
+  !["--dev", "--nokill", "--debug-devtools"].includes(arg)
+)
 const defaultChannel =
   rawArgs.includes("--dev") || args[0] === "start" ? "dev" : "release"
 
@@ -48,7 +51,10 @@ const result = spawnSync(nodeBinary, [forgeCli, ...args], {
   cwd: path.resolve(__dirname, ".."),
   env: {
     ...process.env,
-    ONCE_BUILD_CHANNEL: process.env.ONCE_BUILD_CHANNEL || defaultChannel
+    ONCE_BUILD_CHANNEL: process.env.ONCE_BUILD_CHANNEL || defaultChannel,
+    ONCE_ELECTRON_REMOTE_DEBUGGING: debugDevTools
+      ? "1"
+      : process.env.ONCE_ELECTRON_REMOTE_DEBUGGING
   },
   stdio: "inherit"
 })

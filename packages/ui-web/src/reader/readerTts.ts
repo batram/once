@@ -1,10 +1,12 @@
 import { ReaderSpeechSession, ReaderSpeechState } from "./ReaderSpeechSession"
+import { createReaderSpeechSegments } from "./readerSpeechText"
 import {
-  createReaderSpeechSegments,
-  createReaderSpeechSegmentsWith,
-  normalizeReaderSpeechText,
-  splitReaderSpeechText
-} from "./readerSpeechText"
+  createWafli,
+  toAudioBuffer,
+  wafliVoice,
+  WAFLI_VOICE_URI,
+  WafliSpeechOptions
+} from "./wafli"
 
 export type ReaderTtsControl =
   | { type: "play-toggle" }
@@ -26,6 +28,7 @@ export interface ReaderTtsOptions {
     handler: (control: ReaderTtsControl) => void
   ) => (() => void) | undefined
   onStateChange?: (state: ReaderTtsState) => void
+  wafli?: WafliSpeechOptions
 }
 
 interface ReaderTtsRuntime {
@@ -36,6 +39,167 @@ interface ReaderTtsRuntime {
   persistRate: typeof storeRate
   populateVoiceOptions: typeof populateVoices
   showTtsUnavailable: typeof showUnavailable
+}
+
+class WafliSpeechSynthesisUtterance {
+  lang = "en-US"
+  pitch = 1
+  rate = 1
+  volume = 1
+  voice: SpeechSynthesisVoice | null = null
+  onstart: ((event: SpeechSynthesisEvent) => void) | null = null
+  onend: ((event: SpeechSynthesisEvent) => void) | null = null
+  onerror: ((event: SpeechSynthesisErrorEvent) => void) | null = null
+
+  constructor(readonly text: string) {}
+}
+
+class WafliSpeechSynthesis {
+  private readonly voices = [wafliVoice(true)]
+  private queue: WafliSpeechSynthesisUtterance[] = []
+  private context: AudioContext | null = null
+  private source: AudioBufferSourceNode | null = null
+  private engine: ReturnType<typeof createWafli> | null = null
+  private loading = false
+  private generation = 0
+
+  constructor(private readonly options: WafliSpeechOptions) {}
+
+  getVoices(): SpeechSynthesisVoice[] { return this.voices }
+  addEventListener(): void {}
+
+  speak(utterance: WafliSpeechSynthesisUtterance): void {
+    this.queue.push(utterance)
+    const context = this.audioContext()
+    if (context.state === "suspended") void context.resume()
+    if (!this.source && !this.loading) void this.playNext(this.generation)
+  }
+
+  pause(): void { void this.context?.suspend() }
+  resume(): void { void this.context?.resume() }
+
+  cancel(): void {
+    this.generation += 1
+    this.queue = []
+    this.loading = false
+    if (this.source) {
+      this.source.onended = null
+      this.source.stop()
+      this.source = null
+    }
+  }
+
+  private audioContext(): AudioContext {
+    this.context ??= new AudioContext()
+    return this.context
+  }
+
+  private async playNext(generation: number): Promise<void> {
+    const utterance = this.queue.shift()
+    if (!utterance || generation !== this.generation) return
+    this.loading = true
+    try {
+      const wafli = await (this.engine ??= createWafli(this.options.wasmUrl))
+      const audio = wafli.synthesize(utterance.text, {
+        rate: Math.min(6, Math.max(0.5, Number(utterance.rate) || 1)),
+        strategy: "sonic"
+      })
+      const context = this.audioContext()
+      const buffer = toAudioBuffer(context, audio)
+      if (generation !== this.generation) return
+      const source = context.createBufferSource()
+      const gain = context.createGain()
+      this.source = source
+      source.buffer = buffer
+      gain.gain.value = Math.min(1, Math.max(0, Number(utterance.volume) || 1))
+      source.connect(gain).connect(context.destination)
+      await new Promise<void>((resolve, reject) => {
+        source.onended = () => resolve()
+        source.start()
+        utterance.onstart?.({ utterance } as SpeechSynthesisEvent)
+      })
+      if (generation === this.generation) {
+        utterance.onend?.({ utterance } as SpeechSynthesisEvent)
+      }
+    } catch (error) {
+      if (generation === this.generation) {
+        this.queue = []
+        const detail = error instanceof Error
+          ? `${error.name}: ${error.message}`
+          : String(error)
+        console.error("Wafli reader fallback failed", detail)
+        utterance.onerror?.({
+          utterance,
+          error: "synthesis-failed"
+        } as SpeechSynthesisErrorEvent)
+      }
+    } finally {
+      if (generation === this.generation) {
+        this.loading = false
+        this.source = null
+        void this.playNext(generation)
+      }
+    }
+  }
+}
+
+class ReaderSpeechSynthesis {
+  constructor(
+    private readonly native: SpeechSynthesis | undefined,
+    private readonly wafli: WafliSpeechSynthesis
+  ) {}
+
+  getVoices(): SpeechSynthesisVoice[] {
+    const nativeVoices = this.native?.getVoices() ?? []
+    return [...nativeVoices, wafliVoice(nativeVoices.length === 0)]
+  }
+
+  addEventListener(type: "voiceschanged", listener: () => void): void {
+    this.native?.addEventListener(type, listener)
+  }
+
+  speak(utterance: SpeechSynthesisUtterance): void {
+    const useWafli = utterance.voice?.voiceURI === WAFLI_VOICE_URI ||
+      !this.native || this.native.getVoices().length === 0
+    if (useWafli) {
+      this.wafli.speak(utterance as WafliSpeechSynthesisUtterance)
+      return
+    }
+    const onerror = utterance.onerror
+    utterance.onerror = (event) => {
+      if (event.error === "canceled" || event.error === "interrupted") {
+        onerror?.call(utterance, event)
+        return
+      }
+      // Some platforms enumerate a native voice and still reject synthesis.
+      // Retry this segment through the bundled engine without surfacing a
+      // false terminal error to ReaderSpeechSession.
+      utterance.onerror = onerror
+      utterance.voice = wafliVoice(true)
+      this.wafli.speak(utterance as WafliSpeechSynthesisUtterance)
+    }
+    this.native?.speak(utterance)
+  }
+
+  pause(): void { this.native?.pause(); this.wafli.pause() }
+  resume(): void { this.native?.resume(); this.wafli.resume() }
+  cancel(): void { this.native?.cancel(); this.wafli.cancel() }
+}
+
+function readerSpeechImplementation(options: ReaderTtsOptions): {
+  synth: ReaderSpeechSynthesis
+  Utterance: typeof SpeechSynthesisUtterance | typeof WafliSpeechSynthesisUtterance
+} {
+  const nativeSynth = window.speechSynthesis
+  const wafli = new WafliSpeechSynthesis(options.wafli ?? {
+    wasmUrl: new URL("wafli-module.wasm", document.baseURI).href
+  })
+  return {
+    synth: new ReaderSpeechSynthesis(nativeSynth, wafli),
+    Utterance: typeof window.SpeechSynthesisUtterance === "function"
+      ? window.SpeechSynthesisUtterance
+      : WafliSpeechSynthesisUtterance
+  }
 }
 
 const readerTtsRuntime: ReaderTtsRuntime = {
@@ -74,7 +238,7 @@ function runReaderTts(
   if (document.documentElement.dataset.onceTtsInstalled === "true") return
   document.documentElement.dataset.onceTtsInstalled = "true"
 
-  const synth = window.speechSynthesis
+  const { synth, Utterance } = readerSpeechImplementation(options)
   const play = document.querySelector<HTMLButtonElement>("[data-tts-play]")
   const stop = document.querySelector<HTMLButtonElement>("[data-tts-stop]")
   const back = document.querySelector<HTMLButtonElement>("[data-tts-back]")
@@ -86,7 +250,7 @@ function runReaderTts(
   const article = document.querySelector<HTMLElement>("article")
   if (!play || !stop || !back || !forward || !voiceSelect || !rateInput || !rateValue || !article) return
 
-  if (!synth || typeof SpeechSynthesisUtterance === "undefined") {
+  if (!synth || typeof Utterance === "undefined") {
     showTtsUnavailable(
       [play, stop, back, forward, voiceSelect, rateInput],
       play,
@@ -117,7 +281,7 @@ function runReaderTts(
   }
   const session = new Session({
     engine: synth,
-    createUtterance: (text) => new SpeechSynthesisUtterance(text),
+    createUtterance: (text) => new Utterance(text) as SpeechSynthesisUtterance,
     texts: segments.map((segment) => segment.text),
     initialRate,
     claimOwnership: () => {
@@ -174,40 +338,6 @@ function runReaderTts(
   }, { once: true })
   session.notify()
 
-}
-
-export function createStandaloneReaderTtsScript(): string {
-  return `(() => {
-    const normalizeReaderSpeechText = ${normalizeReaderSpeechText.toString()};
-    const splitReaderSpeechText = ${splitReaderSpeechText.toString()};
-    const createReaderSpeechSegmentsWith = ${createReaderSpeechSegmentsWith.toString()};
-    const createReaderSpeechSegments = (root, maximum = 900) =>
-      createReaderSpeechSegmentsWith(
-        root,
-        maximum,
-        normalizeReaderSpeechText,
-        splitReaderSpeechText
-      );
-    const ReaderSpeechSession = ${ReaderSpeechSession.toString()};
-    const readInitialRate = ${readInitialRate.toString()};
-    const storeRate = ${storeRate.toString()};
-    const showUnavailable = ${showUnavailable.toString()};
-    const populateVoices = ${populateVoices.toString()};
-    const bindReaderTtsDom = ${bindReaderTtsDom.toString()};
-    const applyExternalControl = ${applyExternalControl.toString()};
-    const createOwnershipChannel = ${createOwnershipChannel.toString()};
-    const runReaderTts = ${runReaderTts.toString()};
-    const runtime = {
-      applyControl: applyExternalControl,
-      bindDom: bindReaderTtsDom,
-      createChannel: createOwnershipChannel,
-      initialRate: readInitialRate,
-      persistRate: storeRate,
-      populateVoiceOptions: populateVoices,
-      showTtsUnavailable: showUnavailable
-    };
-    runReaderTts({}, ReaderSpeechSession, createReaderSpeechSegments, runtime);
-  })();`
 }
 
 function createOwnershipChannel(options: ReaderTtsOptions): BroadcastChannel | undefined {

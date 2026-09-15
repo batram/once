@@ -1,4 +1,4 @@
-const { copyFile, mkdir } = require("node:fs/promises")
+const { cp, copyFile, mkdir } = require("node:fs/promises")
 const path = require("node:path")
 
 const root = path.resolve(__dirname, "..")
@@ -11,6 +11,11 @@ async function copyPackageAssets() {
   await Promise.all(assets.map((asset) =>
     copyFile(path.join(source, asset), path.join(destination, asset))
   ))
+  await cp(
+    path.join(source, "wafli-licenses"),
+    path.join(destination, "wafli-licenses"),
+    { recursive: true }
+  )
 }
 
 copyPackageAssets().catch((error) => {

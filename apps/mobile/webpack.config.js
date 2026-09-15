@@ -96,6 +96,7 @@ module.exports = (_env = {}, argv = {}) => {
       fallback: { path: false }
     },
     module: {
+      parser: { javascript: { url: false } },
       rules: [
         {
           resourceQuery: /raw/,
@@ -121,6 +122,7 @@ module.exports = (_env = {}, argv = {}) => {
         __ONCE_BUILD_IDENTIFIER__: JSON.stringify(devBuildIdentifier()),
         __ONCE_MOBILE_E2E__: JSON.stringify(process.env.ONCE_MOBILE_E2E === "1")
       }),
+      new webpack.IgnorePlugin({ resourceRegExp: /^node:module$/ }),
       new ReaderRuntimeCspPlugin(),
       new AddonSandboxInlinePlugin(),
       new CopyPlugin({
@@ -136,6 +138,14 @@ module.exports = (_env = {}, argv = {}) => {
           {
             from: path.join(__dirname, "src", "mobile.css"),
             to: "mobile.css"
+          },
+          {
+            from: path.join(root, "packages", "ui-web", "src", "reader", "wafli-module.wasm"),
+            to: "wafli-module.wasm"
+          },
+          {
+            from: path.join(root, "packages", "ui-web", "src", "reader", "wafli-licenses"),
+            to: "licenses/wafli"
           },
           // The add-on sandbox page, a navigated document rather than a
           // srcdoc frame, so it carries its own policy instead of the app's.
