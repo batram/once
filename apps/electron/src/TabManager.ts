@@ -62,7 +62,7 @@ interface CompiledRedirect {
 type WindowFactory = (bounds?: Rectangle) => BrowserWindow
 
 export class BrowserCoordinator {
-  private readonly menus: NativeMenus
+  readonly menus: NativeMenus
   private readonly navigationErrors: NavigationErrors
   private readonly sourcePicker = new SourcePicker()
   private readonly tabEvents: TabEvents

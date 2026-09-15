@@ -52,6 +52,36 @@ export class NativeMenus {
     Menu.buildFromTemplate(template).popup({ window: owner.window })
   }
 
+  /**
+   * Address bar menu: the standard edit items plus "Paste and Go". Resolves
+   * with the clipboard text when Paste and Go was chosen, otherwise null; the
+   * shell then navigates through the same path as pressing Enter.
+   */
+  async showAddressMenu(owner: WindowEntry, point: ElectronPoint): Promise<string | null> {
+    if (!Number.isFinite(point?.x) || !Number.isFinite(point?.y)) {
+      throw new Error("Invalid point")
+    }
+    const pasted = (await clipboard.readText()).trim()
+    if (owner.window.isDestroyed()) return null
+    return new Promise((resolve) => {
+      const contents = owner.window.webContents
+      const template: MenuItemConstructorOptions[] = [
+        { label: "Inspect", click: () => this.inspect(contents, point.x, point.y) },
+        { type: "separator" },
+        { role: "cut" },
+        { role: "copy" },
+        { role: "paste" },
+        { label: "Paste and Go", enabled: pasted.length > 0, click: () => resolve(pasted) },
+        { type: "separator" },
+        { role: "selectAll" }
+      ]
+      Menu.buildFromTemplate(template).popup({
+        window: owner.window,
+        callback: () => resolve(null)
+      })
+    })
+  }
+
   showContentsMenu(
     owner: WindowEntry,
     contents: WebContents,

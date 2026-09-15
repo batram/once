@@ -215,6 +215,8 @@ export interface ElectronBridge {
     openDroppedUrls(urls: string[]): Promise<void>
     startSourcePicker(url?: string): Promise<import("@once/core").StorySource | null>
     showMenu(id: string, point: ElectronPoint): Promise<void>
+    /** Address bar menu; resolves with the clipboard text when "Paste and Go" was chosen. */
+    showAddressMenu(point: ElectronPoint): Promise<string | null>
     setBounds(bounds: ElectronRect): Promise<void>
     restoreClosed(): Promise<string | null>
     focusContent(): Promise<void>
@@ -333,6 +335,7 @@ export const ELECTRON_IPC = {
   tabsOpenDroppedUrls: "once:tabs:open-dropped-urls",
   tabsStartSourcePicker: "once:tabs:start-source-picker",
   tabsShowMenu: "once:tabs:show-menu",
+  tabsShowAddressMenu: "once:tabs:show-address-menu",
   tabsSetBounds: "once:tabs:set-bounds",
   tabsRestoreClosed: "once:tabs:restore-closed",
   tabsFocusContent: "once:tabs:focus-content",

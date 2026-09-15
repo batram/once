@@ -9,6 +9,7 @@ import {
 import { bindExtensionToolbar } from "./ExtensionToolbar"
 import { ReaderRequests, ReaderRequestRunner } from "./ReaderRequests"
 import browserShellMarkup from "./browser/browser-shell.html"
+import { AddressBar } from "./browser/AddressBar"
 import { FindBar } from "./browser/FindBar"
 import {
   displayBrowserUrl,
@@ -30,13 +31,12 @@ export class BrowserShell {
   private readonly tabStrip: HTMLElement
   private readonly newTabButton: HTMLButtonElement
   private readonly tabContent: HTMLElement
-  private readonly address: HTMLInputElement
+  private readonly address: AddressBar
   private readonly backButton: HTMLButtonElement
   private readonly forwardButton: HTMLButtonElement
   private readonly reloadButton: HTMLButtonElement
   private readonly readerButton: HTMLButtonElement
   private readonly closeButton: HTMLButtonElement
-  private readonly addressError: HTMLElement
   private readonly splitter: HTMLElement
   private draggingTabId: string | null = null
   private dropHandled = false
@@ -70,8 +70,20 @@ export class BrowserShell {
     this.tabStrip = required<HTMLElement>("#electron_tabs")
     this.newTabButton = required<HTMLButtonElement>("#new_tab_btn")
     this.tabContent = required<HTMLElement>("#tab_content")
-    this.address = required<HTMLInputElement>("#urlfield")
-    this.addressError = required<HTMLElement>("#url_error")
+    this.address = new AddressBar(
+      required<HTMLInputElement>("#urlfield"),
+      required<HTMLElement>("#url_error"),
+      {
+        navigate: async (url) => {
+          const active = this.activeTab()
+          if (!active) return
+          this.readerRequests.cancel(active.id)
+          await this.bridge.tabs.navigate(active.id, url)
+        },
+        showMenu: (point) => this.bridge.tabs.showAddressMenu(point),
+        errorChanged: () => this.reportBounds()
+      }
+    )
     this.backButton = required<HTMLButtonElement>("#browser_back")
     this.forwardButton = required<HTMLButtonElement>("#browser_forward")
     this.reloadButton = required<HTMLButtonElement>("#browser_reload")
@@ -94,7 +106,7 @@ export class BrowserShell {
     new FindBar(this.bridge)
     this.bridge.tabs.onChanged((tabs) => this.render(tabs))
     this.bridge.tabs.onRegenerateReader((sourceUrl, tabId) => {
-      this.setAddressError("")
+      this.address.setError("")
       this.readerRequests.start(tabId, sourceUrl)
     })
     void this.bridge.tabs.getAll().then((tabs) => this.render(tabs))
@@ -149,12 +161,12 @@ export class BrowserShell {
     this.readerButton.onclick = () => {
       const active = this.activeTab()
       if (!active) return
-      this.setAddressError("")
+      this.address.setError("")
       const readerSource = sourceUrlFromReaderUrl(active.url)
       if (readerSource) {
         this.readerRequests.cancel(active.id)
         void this.bridge.tabs.navigate(active.id, readerSource).catch((error) => {
-          this.setAddressError(readerErrorMessage(error))
+          this.address.setError(readerErrorMessage(error))
         })
         return
       }
@@ -162,23 +174,6 @@ export class BrowserShell {
       this.readerRequests.start(active.id, active.url)
     }
     this.closeButton.onclick = () => this.withActive((tab) => this.bridge.tabs.close(tab.id))
-
-    this.address.addEventListener("focus", () => this.address.select())
-    this.address.addEventListener("input", () => this.setAddressError(""))
-    this.address.addEventListener("keydown", async (event) => {
-      if (event.key !== "Enter") return
-      const active = this.activeTab()
-      if (!active) return
-      const url = this.address.value
-      this.address.blur()
-      this.readerRequests.cancel(active.id)
-      try {
-        this.setAddressError("")
-        await this.bridge.tabs.navigate(active.id, url)
-      } catch (error) {
-        this.setAddressError(error instanceof Error ? error.message : String(error))
-      }
-    })
   }
 
   private bindTabs(): void {
@@ -474,8 +469,8 @@ export class BrowserShell {
         this.renderedAddressTabId !== active.id || this.renderedAddressUrl !== addressUrl
       this.renderedAddressTabId = active.id
       this.renderedAddressUrl = addressUrl
-      if (navigationChanged || document.activeElement !== this.address) {
-        this.address.value = addressUrl
+      if (navigationChanged || document.activeElement !== this.address.input) {
+        this.address.input.value = addressUrl
       }
       this.backButton.disabled = !active.canGoBack
       this.forwardButton.disabled = !active.canGoForward
@@ -634,15 +629,8 @@ export class BrowserShell {
     this.tabStrip.style.setProperty("--electron-tab-width", `${tabWidth}px`)
   }
 
-  private setAddressError(message: string): void {
-    this.addressError.textContent = message
-    this.addressError.classList.toggle("visible", Boolean(message))
-    this.address.toggleAttribute("aria-invalid", Boolean(message))
-    this.reportBounds()
-  }
-
   private showReaderError(tabId: string, sourceUrl: string, error: unknown): void {
-    this.setAddressError("")
+    this.address.setError("")
     void this.bridge.tabs
       .showReaderError(sourceUrl, readerErrorMessage(error), tabId)
       .catch((reportError) => {

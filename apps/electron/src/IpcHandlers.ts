@@ -346,6 +346,10 @@ function registerTabTools(coordinator: BrowserCoordinator): void {
     const current = browser(event, coordinator)
     return coordinator.showTabMenu(current.window, id, point)
   })
+  ipcMain.handle(ELECTRON_IPC.tabsShowAddressMenu, (event, point: ElectronPoint) => {
+    const current = browser(event, coordinator)
+    return coordinator.menus.showAddressMenu(current.window, point)
+  })
   ipcMain.handle(ELECTRON_IPC.tabsSetBounds, (event, bounds: ElectronRect) => {
     const current = browser(event, coordinator)
     return coordinator.setBounds(current.window, bounds)

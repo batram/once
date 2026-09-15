@@ -174,3 +174,45 @@ test("keeps tab audio controls until the document navigates", async () => {
     await closeApp(electronApp, userData)
   }
 })
+
+test("offers Paste and Go on the address bar", async () => {
+  const { electronApp, userData, window } = await launchApp()
+  try {
+    const target = `${origin}/pasted`
+    await electronApp.evaluate(async ({ clipboard, Menu }, url) => {
+      await clipboard.writeText(` ${url} `)
+      globalThis.__onceLastMenuTemplate = null
+      Menu.buildFromTemplate = (template) => {
+        globalThis.__onceLastMenuTemplate = template
+        return { popup() {} }
+      }
+    }, target)
+
+    await window.locator("#urlfield").evaluate((field) => {
+      field.dispatchEvent(new MouseEvent("contextmenu", {
+        bubbles: true,
+        cancelable: true,
+        button: 2,
+        clientX: 8,
+        clientY: 8
+      }))
+    })
+    await expect.poll(() => electronApp.evaluate(() =>
+      globalThis.__onceLastMenuTemplate?.map((item) => item.label || item.role || item.type)
+    )).toEqual([
+      "Inspect", "separator", "cut", "copy", "paste", "Paste and Go", "separator", "selectAll"
+    ])
+
+    await electronApp.evaluate(() => {
+      const item = globalThis.__onceLastMenuTemplate.find((entry) => entry.label === "Paste and Go")
+      if (!item.enabled) throw new Error("Paste and Go should be enabled with text on the clipboard")
+      item.click()
+    })
+    await expect(window.locator("#urlfield")).toHaveValue(target)
+    await expect.poll(() => electronApp.evaluate(({ webContents }, expectedUrl) =>
+      webContents.getAllWebContents().some((contents) => contents.getURL() === expectedUrl)
+    , target)).toBe(true)
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})
