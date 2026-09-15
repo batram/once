@@ -33,6 +33,9 @@
         "tests/**/*.spec.js",
         "tests/**/*.test.js",
         "tests/e2e/electron/story-list.debug.js",
+        // native-rendering/run.js spawns this as an Electron main script by
+        // path, which Knip cannot follow as an import.
+        "tests/e2e/electron/native-rendering/driver.js",
         "tests/e2e/mobile/*.js",
         "tests/mobile-env/server.js"
       ],

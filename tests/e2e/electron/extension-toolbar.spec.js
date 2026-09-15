@@ -14,11 +14,23 @@ test("extensions panel supports direct actions, persistent pins, and settings @i
     // opened moments earlier can be the one it reports. The panel window exists
     // before its menu page has loaded, so its URL is polled on the navigation
     // budget rather than read once.
+    //
+    // The panel closes itself on blur. On a visible CI desktop a focus bounce
+    // right after it shows can dispose it before Playwright has attached, in
+    // which case the trigger collapses again with no panel to find. That is
+    // retried rather than waited out: the trigger ignores clicks while it
+    // reports itself expanded, so a fresh click is only sent once it has reset.
+    const isPanel = page => page !== window && /extension_menu/.test(page.url())
     const openPanel = async () => {
-      const isPanel = page => page !== window && /extension_menu/.test(page.url())
-      await trigger.click()
-      await expect.poll(() => electronApp.windows().some(isPanel), { timeout: 20_000 }).toBe(true)
-      const panel = electronApp.windows().find(isPanel)
+      const settled = async () =>
+        electronApp.windows().some(isPanel) || (await trigger.getAttribute("aria-expanded")) !== "true"
+      let panel
+      for (let attempt = 0; !panel && attempt < 3; attempt++) {
+        await trigger.click()
+        await expect.poll(settled, { timeout: 20_000 }).toBe(true)
+        panel = electronApp.windows().find(isPanel)
+      }
+      expect(panel, "extensions panel window").toBeTruthy()
       await panel.waitForLoadState("domcontentloaded")
       await expect(panel.getByRole("heading", { name: "Extensions" })).toBeVisible()
       return panel
