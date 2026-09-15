@@ -107,7 +107,7 @@ async function populatedDestination(context, first, second, origin) {
   const third = await openProbe(source, `${origin}/third`, webContents, waitFor)
   await bridge(source, "detach", third.id)
   const destination = await waitFor("populated destination", () =>
-    BrowserWindow.getAllWindows().find(window => window.id !== source.id))
+    BrowserWindow.getAllWindows().find(window => window.id !== source.id && window.isVisible()))
   const resident = await openProbe(destination, `${origin}/resident`, webContents, waitFor)
   await progressing(resident.contents, resident.token, stage, "resident-before-move")
   // First is attached but inactive in the source; the target already has an
@@ -153,7 +153,7 @@ async function runScenario({ source, waitFor, stage, BrowserWindow, webContents 
       await progressing(first.contents, first.token, stage, `reorder-${cycle}`)
       await bridge(source, "detach", first.id)
       const destination = await waitFor("detached window", () =>
-        BrowserWindow.getAllWindows().find(window => window.id !== source.id))
+        BrowserWindow.getAllWindows().find(window => window.id !== source.id && window.isVisible()))
       await progressing(first.contents, first.token, stage, `detach-${cycle}`)
       await bridge(source, "moveHere", first.id, second.id)
       await waitFor("empty destination closes", () => destination.isDestroyed())

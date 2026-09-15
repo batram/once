@@ -33,8 +33,14 @@ app.on("browser-window-created", (_event, window) => {
     x: area.x + (secondary ? Math.max(0, area.width - 760) : 0),
     y: area.y + (secondary ? Math.max(0, area.height - 480) : 0) })
   // Other applications must not cover the test when a detached window closes
-  // and Windows restores foreground focus. This is set before any page loads.
-  window.once("ready-to-show", () => window.setAlwaysOnTop(true))
+  // and Windows restores foreground focus. This is set before any page loads,
+  // and again once the window is showing: Windows has dropped a topmost flag
+  // applied to a still-hidden detached window, which the scenario then
+  // reported as lost protection. This is test scaffolding, not the tab
+  // lifecycle under observation, so re-asserting it repairs nothing.
+  const protect = () => { if (!window.isDestroyed()) window.setAlwaysOnTop(true) }
+  window.once("ready-to-show", protect)
+  window.on("show", protect)
 })
 const entry = path.join(root, "apps/electron/.webpack", process.arch, "main/index.js")
 report.bundle = { path: entry, sha256: createHash("sha256").update(fs.readFileSync(entry)).digest("hex") }
