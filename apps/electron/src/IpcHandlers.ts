@@ -30,6 +30,7 @@ import { SecureSettings } from "./SecureSettings"
 import { BROWSER_SESSION_PARTITION, BrowserCoordinator } from "./TabManager"
 import { ExtensionRuntime } from "./extensions/ExtensionRuntime"
 import { showExtensionMenu } from "./extensions/ExtensionMenu"
+import { registerAmoHandlers } from "./extensions/AmoHandlers"
 import { checkLatestRelease } from "./ManualReleaseCheck"
 
 interface IpcHandlerOptions {
@@ -500,6 +501,11 @@ export function registerIpcHandlers(
   registerAppHandlers(options)
   registerExtensionHandlers(options)
   registerAddonConversationHandlers(options)
+  registerAmoHandlers({
+    coordinator: options.coordinator,
+    extensions: options.extensions,
+    browserSession: session.fromPartition(BROWSER_SESSION_PARTITION)
+  })
   ipcMain.handle(ELECTRON_IPC.addonsDevList, (event) => {
     trusted(event, options.coordinator)
     return options.devAddons()

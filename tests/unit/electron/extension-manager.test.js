@@ -16,7 +16,7 @@ Module._extensions[".ts"] = (module, filename) => module._compile(ts.transpileMo
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true }
 }).outputText, filename)
 const { ExtensionManager } = require("../../../apps/electron/src/extensions/ExtensionManager.ts")
-const { unpackExtension, amoSlug } = require("../../../apps/electron/src/extensions/ExtensionPackage.ts")
+const { unpackExtension, amoSlug, amoSourceKind } = require("../../../apps/electron/src/extensions/ExtensionPackage.ts")
 const { loadUnpackedExtension } = require("../../../apps/electron/src/extensions/LoadedExtension.ts")
 const { ExtensionStorage } = require("../../../apps/electron/src/extensions/ExtensionStorage.ts")
 
@@ -110,6 +110,15 @@ test("selected sync keys are applied with deletions while local-only keys surviv
 test("AMO sources and archive entry names are constrained before extraction", async t => {
   assert.equal(amoSlug("https://addons.mozilla.org/en-US/firefox/addon/darkreader/"), "darkreader")
   assert.throws(() => amoSlug("https://example.org/firefox/addon/foo/"))
+  assert.throws(() => amoSlug("https://addons.mozilla.org/firefox/downloads/file/4903712/sidebery-5.6.1.xpi"))
+  assert.equal(amoSourceKind("https://addons.mozilla.org/en-US/firefox/addon/sidebery/"), "page")
+  assert.equal(amoSourceKind("https://addons.mozilla.org/firefox/downloads/file/4903712/sidebery-5.6.1.xpi"), "download")
+  assert.equal(amoSourceKind("https://addons.mozilla.org/firefox/downloads/file/4903712/sidebery-5.6.1.xpi?src=dp-btn-primary"), "download")
+  assert.equal(amoSourceKind("https://addons.cdn.mozilla.net/firefox/downloads/file/1/x.xpi"), "download")
+  assert.equal(amoSourceKind("http://addons.mozilla.org/firefox/downloads/file/1/x.xpi"), null)
+  assert.equal(amoSourceKind("https://example.org/firefox/downloads/file/1/x.xpi"), null)
+  assert.equal(amoSourceKind("https://addons.mozilla.org/en-US/firefox/"), null)
+  assert.equal(amoSourceKind("not a url"), null)
   const h = await harness(t)
   const zip = new AdmZip()
   zip.addFile("safe/CON.txt", Buffer.from("bad"))

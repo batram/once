@@ -94,7 +94,24 @@ runtime compatibility on their own.
 ## Installing and managing Firefox extensions on Electron
 
 Settings → Browser Extensions lists installed extensions, including disabled entries.
-Install extension accepts a Mozilla Firefox Add-ons page URL or a local XPI/ZIP.
+Install extension accepts a Mozilla Firefox Add-ons page URL, one of its XPI
+download links, or a local XPI/ZIP. A direct XPI link is verified against
+Mozilla's listing for the id the package declares, and must be the file that
+listing currently publishes.
+
+The Add-ons site itself installs into Once when browsed in a tab. AMO chooses
+its button from the browser named in its server-rendered state and from the
+presence of `navigator.mozAddonManager`; the tab preload rewrites that state to
+name Firefox before AMO's bundle boots and provides an add-on manager backed by
+the extension manager (`extensions/amoBridge.ts`, `extensions/AmoHandlers.ts`),
+so the site renders its own "Add to Firefox" button, relabelled "Add to Once",
+and its own installed, enabled and Remove states. Clicking it downloads the
+package, verifies it, and asks for confirmation in a native dialog that lists
+the requested access before anything is installed; Remove asks the same way.
+The request header is not changed. Clicking an XPI download link anywhere in a
+tab goes through the same review instead of saving a file. If AMO changes its
+state format the page falls back to its "Download Firefox" rendering, whose
+"Download file" link still installs through the download fallback.
 Review shows the extension identity, version, declared permissions, source, and
 compatibility limitations before installation. Mozilla downloads are checked against
 the listing's SHA-256 hash and GUID. Local packages are not cryptographically

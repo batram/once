@@ -1,6 +1,15 @@
+const fs = require("fs")
+const path = require("path")
 const webpack = require("webpack")
 const rules = require("./webpack.rules")
 const { devBuildIdentifier } = require("../../scripts/build-identifier")
+
+// The app icon, inlined for the tab preload's "Add to Once" badge on the
+// Add-ons site; a data URL keeps the sandboxed preload free of file access.
+const appIconSvg = fs.readFileSync(
+  path.resolve(__dirname, "../../packages/ui-web/public/static/imgs/icons/icon.svg"),
+  "utf8"
+)
 
 module.exports = {
   entry: {
@@ -39,7 +48,8 @@ module.exports = {
       __ONCE_BUILD_CHANNEL__: JSON.stringify(
         process.env.ONCE_BUILD_CHANNEL === "dev" ? "dev" : "release"
       ),
-      __ONCE_BUILD_IDENTIFIER__: JSON.stringify(devBuildIdentifier())
+      __ONCE_BUILD_IDENTIFIER__: JSON.stringify(devBuildIdentifier()),
+      __ONCE_APP_ICON_SVG__: JSON.stringify(appIconSvg)
     })
   ],
   devtool: "source-map"

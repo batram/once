@@ -366,6 +366,10 @@ export const ELECTRON_IPC = {
   extensionsChanged: "once:extensions:changed",
   extensionsApplySettings: "once:extensions:apply-settings",
   extensionsSettingsAdopted: "once:extensions:settings-adopted",
+  // addons.mozilla.org in a tab: its install button reaches the extension
+  // manager through these, and hears about changes made elsewhere in Once.
+  amoManage: "once:amo:manage",
+  amoChanged: "once:amo:changed",
   addonsDevList: "once:addons:dev-list",
   addonsDevChanged: "once:addons:dev-changed",
   addonsPickDirectory: "once:addons:pick-directory",

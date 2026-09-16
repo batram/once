@@ -138,6 +138,53 @@ interface PageContext {
   isCurrent(): boolean
 }
 
+/** The Add-ons URL or XPI chooser, its review, and the install from that review. */
+function renderInstallPage({ page, bridge, button, show, isCurrent }: PageContext): void {
+  const label = element("label", "Firefox Add-ons URL")
+  const input = element("input")
+  input.type = "url"
+  input.placeholder = "https://addons.mozilla.org/en-US/firefox/addon/…/"
+  input.id = "browser-extension-source"
+  label.htmlFor = input.id
+  page.append(label, input)
+  const review = element("section", "", "browser_extension_review")
+  review.hidden = true
+  const preview = async (source: string) => {
+    const candidate = await bridge.extensions.preview(source)
+    if (!candidate || !isCurrent()) return
+    const heading = element("h4")
+    heading.append(extensionHeading(candidate))
+    review.replaceChildren(heading, element("p", candidate.description, "addon_list_description"),
+      element("p", `${candidate.version} · ${candidate.update ? "Update" : "Not installed"} · ${candidate.source}`, "addon_list_meta"), ...permissionList(candidate))
+    for (const warning of candidate.warnings) review.append(element("p", warning, "settings_description"))
+    const actions = element("div", "", "settings_actions cluster")
+    actions.append(button(candidate.update ? "Update extension" : "Install reviewed extension", async () => {
+      await bridge.extensions.install(candidate.token)
+      await show("overview")
+    }))
+    review.append(actions)
+    review.hidden = false
+  }
+  const actions = element("div", "", "settings_actions cluster")
+  const reviewButton = button("Review extension", () => preview(input.value.trim()))
+  // Enter in the URL field reviews, through the button so it shares its busy state.
+  input.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.isComposing) return
+    event.preventDefault()
+    reviewButton.click()
+  })
+  actions.append(reviewButton, button("Choose XPI file…", () => preview("")))
+  const catalog = element("p", "Browse the ", "settings_description")
+  const catalogLink = element("a", "Firefox Add-ons catalog")
+  catalogLink.href = "https://addons.mozilla.org/en-US/firefox/"
+  // The shell routes `_blank` links into a tab, where the site's own
+  // "Add to Firefox" button adds to Once.
+  catalogLink.target = "_blank"
+  catalogLink.rel = "noopener"
+  catalog.append(catalogLink, " and add from there, or paste an add-on's page or XPI link above.")
+  page.append(actions, catalog, element("p", "Extensions can read and change pages within their requested access. Review the source and permissions before installing.", "settings_description"), review)
+}
+
 async function renderExtensionPage({ target, selected, page, bridge, client, button, show, isCurrent }: PageContext): Promise<void> {
   if (target === "overview") {
     page.append(element("p", "Install Firefox extensions for pages opened in Once. Installation and enabled state belong to this device.", "settings_description"))
@@ -156,48 +203,7 @@ async function renderExtensionPage({ target, selected, page, bridge, client, but
       page.append(row)
     }
   } else if (target === "install") {
-    const label = element("label", "Firefox Add-ons URL")
-    const input = element("input")
-    input.type = "url"
-    input.placeholder = "https://addons.mozilla.org/en-US/firefox/addon/…/"
-    input.id = "browser-extension-source"
-    label.htmlFor = input.id
-    page.append(label, input)
-    const review = element("section", "", "browser_extension_review")
-    review.hidden = true
-    const preview = async (source: string) => {
-      const candidate = await bridge.extensions.preview(source)
-      if (!candidate || !isCurrent()) return
-      const heading = element("h4")
-      heading.append(extensionHeading(candidate))
-      review.replaceChildren(heading, element("p", candidate.description, "addon_list_description"),
-        element("p", `${candidate.version} · ${candidate.update ? "Update" : "Not installed"} · ${candidate.source}`, "addon_list_meta"), ...permissionList(candidate))
-      for (const warning of candidate.warnings) review.append(element("p", warning, "settings_description"))
-      const actions = element("div", "", "settings_actions cluster")
-      actions.append(button(candidate.update ? "Update extension" : "Install reviewed extension", async () => {
-        await bridge.extensions.install(candidate.token)
-        await show("overview")
-      }))
-      review.append(actions)
-      review.hidden = false
-    }
-    const actions = element("div", "", "settings_actions cluster")
-    const reviewButton = button("Review extension", () => preview(input.value.trim()))
-    // Enter in the URL field reviews, through the button so it shares its busy state.
-    input.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter" || event.isComposing) return
-      event.preventDefault()
-      reviewButton.click()
-    })
-    actions.append(reviewButton, button("Choose XPI file…", () => preview("")))
-    const catalog = element("p", "Browse the ", "settings_description")
-    const catalogLink = element("a", "Firefox Add-ons catalog")
-    catalogLink.href = "https://addons.mozilla.org/en-US/firefox/"
-    // The shell routes `_blank` links into a tab.
-    catalogLink.target = "_blank"
-    catalogLink.rel = "noopener"
-    catalog.append(catalogLink, " and paste an add-on's page URL above.")
-    page.append(actions, catalog, element("p", "Extensions can read and change pages within their requested access. Review the source and permissions before installing.", "settings_description"), review)
+    renderInstallPage({ target, selected, page, bridge, client, button, show, isCurrent })
   } else if (target === "detail" && selected) {
     const heading = element("h4")
     heading.append(extensionHeading(selected, `${selected.name} ${selected.version}`))
