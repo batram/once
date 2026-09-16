@@ -22,7 +22,8 @@ test("install and manage the requested Firefox extensions through settings", asy
     await expect.poll(async () => (await inventory()).length).toBe(2)
     for (const slug of ["sponsorblock", "darkreader"]) {
       await window.getByRole("button", { name: "Install extension", exact: true }).click()
-      await window.getByRole("button", { name: slug === "sponsorblock" ? "Review SponsorBlock" : "Review Dark Reader", exact: true }).click()
+      await window.getByLabel("Firefox Add-ons URL").fill(`https://addons.mozilla.org/en-US/firefox/addon/${slug}/`)
+      await window.getByRole("button", { name: "Review extension", exact: true }).click()
       await window.getByRole("button", { name: "Install reviewed extension", exact: true }).click({ timeout: 60000 })
       const preview = (await inventory()).find(item => item.id === (slug === "sponsorblock" ? "sponsorBlocker@ajay.app" : "addon@darkreader.org"))
       await expect.poll(async () => (await inventory()).find(item => item.id === preview.id)?.running).toBe(true)

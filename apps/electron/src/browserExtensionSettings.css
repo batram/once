@@ -49,13 +49,59 @@
   object-fit: contain;
 }
 
-.browser_extension_row .addon_list_description {
+.browser_extension_row .addon_list_description,
+.browser_extension_review .addon_list_description {
   font-size: var(--fs-dense);
   line-height: 1.5;
 }
 
-.browser_extension_row .addon_list_meta {
+.browser_extension_row .addon_list_meta,
+.browser_extension_review .addon_list_meta {
   font-size: var(--fs-meta);
   line-height: 1.5;
   color: var(--text-muted-color);
+}
+
+/* The review card is the installed row it will become, minus the click. */
+.browser_extension_review {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1-5);
+  padding: var(--sp-4);
+  border: 1px solid var(--divider-color);
+  border-radius: var(--radius-xl);
+  background: var(--input-bg-color);
+  overflow-wrap: anywhere;
+}
+
+.browser_extension_review h4,
+.browser_extension_review p {
+  margin: 0;
+}
+
+.browser_extension_review .settings_actions {
+  margin-top: var(--sp-2);
+}
+
+.browser_extension_label {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--fs-meta);
+  color: var(--text-muted-color);
+}
+
+.browser_extension_permissions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.browser_extension_permissions li {
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--divider-color);
+  border-radius: var(--radius-md);
+  background: var(--second-bg-color);
+  font-size: var(--fs-meta);
 }
