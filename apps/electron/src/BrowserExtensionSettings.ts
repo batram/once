@@ -8,7 +8,9 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, text = "", class
   return result
 }
 
-function extensionHeading(item: ElectronManagedExtension, text = item.name): HTMLElement {
+type ExtensionSummary = Pick<ElectronManagedExtension, "name" | "icon" | "version" | "permissions">
+
+function extensionHeading(item: ExtensionSummary, text = item.name): HTMLElement {
   const heading = element("span", "", "browser_extension_heading")
   const icon = element("span", item.name.slice(0, 1).toUpperCase(), "browser_extension_icon")
   icon.setAttribute("aria-hidden", "true")
@@ -21,6 +23,13 @@ function extensionHeading(item: ElectronManagedExtension, text = item.name): HTM
   }
   heading.append(icon, element("strong", text))
   return heading
+}
+
+function permissionList(item: ExtensionSummary): HTMLElement[] {
+  const list = element("ul", "", "browser_extension_permissions")
+  for (const permission of item.permissions) list.append(element("li", permission))
+  if (!item.permissions.length) list.append(element("li", "No additional permissions"))
+  return [element("p", "Requested access", "browser_extension_label"), list]
 }
 
 /** Real extension pages remain in browser tabs; management and sync have settings subpages. */
@@ -154,25 +163,34 @@ async function renderExtensionPage({ target, selected, page, bridge, client, but
     input.id = "browser-extension-source"
     label.htmlFor = input.id
     page.append(label, input)
-    const review = element("section", "", "settings_group")
+    const review = element("section", "", "browser_extension_review")
+    review.hidden = true
     const preview = async (source: string) => {
       const candidate = await bridge.extensions.preview(source)
       if (!candidate || !isCurrent()) return
-      review.replaceChildren(element("h4", `${candidate.name} ${candidate.version}`), element("p", candidate.description),
-        element("p", candidate.source), element("p", `Requested access: ${candidate.permissions.join(", ") || "No additional permissions"}`))
+      const heading = element("h4")
+      heading.append(extensionHeading(candidate))
+      review.replaceChildren(heading, element("p", candidate.description, "addon_list_description"),
+        element("p", `${candidate.version} · ${candidate.update ? "Update" : "Not installed"} · ${candidate.source}`, "addon_list_meta"), ...permissionList(candidate))
       for (const warning of candidate.warnings) review.append(element("p", warning, "settings_description"))
-      review.append(button(candidate.update ? "Update extension" : "Install reviewed extension", async () => {
+      const actions = element("div", "", "settings_actions cluster")
+      actions.append(button(candidate.update ? "Update extension" : "Install reviewed extension", async () => {
         await bridge.extensions.install(candidate.token)
         await show("overview")
       }))
+      review.append(actions)
+      review.hidden = false
     }
     const actions = element("div", "", "settings_actions cluster")
-    actions.append(button("Review extension", () => preview(input.value.trim())), button("Choose XPI file…", () => preview("")))
-    page.append(actions, element("p", "Extensions can read and change pages within their requested access. Review the source and permissions before installing.", "settings_description"))
-    for (const [name, slug] of [["SponsorBlock", "sponsorblock"], ["Dark Reader", "darkreader"]]) {
-      page.append(button(`Review ${name}`, () => preview(`https://addons.mozilla.org/en-US/firefox/addon/${slug}/`)))
-    }
-    page.append(review)
+    const reviewButton = button("Review extension", () => preview(input.value.trim()))
+    // Enter in the URL field reviews, through the button so it shares its busy state.
+    input.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" || event.isComposing) return
+      event.preventDefault()
+      reviewButton.click()
+    })
+    actions.append(reviewButton, button("Choose XPI file…", () => preview("")))
+    page.append(actions, element("p", "Extensions can read and change pages within their requested access. Review the source and permissions before installing.", "settings_description"), review)
   } else if (target === "detail" && selected) {
     const heading = element("h4")
     heading.append(extensionHeading(selected, `${selected.name} ${selected.version}`))
@@ -196,7 +214,7 @@ async function renderExtensionPage({ target, selected, page, bridge, client, but
       await show("overview")
     }))
     page.append(actions, element("p", "Reload open pages to apply enable/disable changes. Removing an extension keeps its local settings for a later reinstall.", "settings_description"),
-      element("h4", "Requested access"), element("p", selected.permissions.join(", ") || "None"))
+      ...permissionList(selected))
     for (const warning of selected.warnings) page.append(element("p", warning, "settings_description"))
   } else if (target === "sync" && selected) {
     const [storage, doc] = await Promise.all([bridge.extensions.storage(selected.id), client.getBrowserExtensionSync()])

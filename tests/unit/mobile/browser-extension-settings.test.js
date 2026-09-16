@@ -68,6 +68,26 @@ test("Android extension management preserves disabled entries and confirms remov
   assert.equal(ui.document.querySelector('[aria-label="Manage Dark"]'), null)
 })
 
+test("Enter in the Add-ons URL field starts the review", async () => {
+  const sources = []
+  const ui = harness(async command => {
+    if (command.action === "install") { sources.push(command.source); return { cancelled: true } }
+    return { extensions: [] }
+  })
+  await settle()
+  await ui.click("Install extension")
+  const input = ui.document.querySelector("#mobile-extension-source")
+  input.value = " https://addons.mozilla.org/en-US/firefox/addon/consent-o-matic/ "
+  // Linkedom has no KeyboardEvent; a plain event carrying `key` is enough.
+  const keydown = key => Object.assign(new ui.document.defaultView.Event("keydown", { bubbles: true }), { key })
+  input.dispatchEvent(keydown("a"))
+  await settle()
+  assert.deepEqual(sources, [])
+  input.dispatchEvent(keydown("Enter"))
+  await settle()
+  assert.deepEqual(sources, ["https://addons.mozilla.org/en-US/firefox/addon/consent-o-matic/"])
+})
+
 test("Android install errors remain visible and file cancellation preserves the install page", async () => {
   const ui = harness(async command => {
     if (command.action === "install") throw new Error("Signature could not be verified")
@@ -76,7 +96,8 @@ test("Android install errors remain visible and file cancellation preserves the 
   })
   await settle()
   await ui.click("Install extension")
-  await ui.click("Review Dark Reader")
+  ui.document.querySelector("#mobile-extension-source").value = "https://addons.mozilla.org/en-US/firefox/addon/darkreader/"
+  await ui.click("Review and install")
   assert.match(ui.document.querySelector('[role="status"]').textContent, /Signature could not be verified/)
   await ui.click("Choose signed XPI file…")
   assert.ok(ui.document.querySelector("#mobile-extension-source"))

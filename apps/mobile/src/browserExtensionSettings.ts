@@ -177,12 +177,16 @@ function renderInstall(
     const result = await api.command({ action: "install", source })
     if (!result.cancelled) await done()
   }
-  page.append(button("Review and install", () => install(input.value.trim())), button("Choose signed XPI file…", async () => {
+  const reviewButton = button("Review and install", () => install(input.value.trim()))
+  // Enter in the URL field reviews, through the button so it shares its busy state.
+  input.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.isComposing) return
+    event.preventDefault()
+    reviewButton.click()
+  })
+  page.append(reviewButton, button("Choose signed XPI file…", async () => {
     const result = await api.command({ action: "chooseFile" })
     if (!result.cancelled) await done()
   }))
   page.append(element("p", "Local XPI files must be signed by Mozilla. Extension compatibility depends on Firefox for Android and the browser APIs Once supports.", "settings_description"))
-  for (const [name, slug] of [["Dark Reader", "darkreader"], ["SponsorBlock", "sponsorblock"]]) {
-    page.append(button(`Review ${name}`, () => install(`https://addons.mozilla.org/en-US/firefox/addon/${slug}/`)))
-  }
 }
