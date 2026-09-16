@@ -122,11 +122,11 @@ test("native provider payloads and source metadata normalize without arbitrary l
 test("SearXNG is opt-in, limited to five results and emits only referenced citations", async () => {
   const f = await fixture({ webSearch: true, searchEndpoint: "https://search.test/search" }, connection => connection === "searxng"
     ? { status: 200, text: JSON.stringify({ results: Array.from({ length: 7 }, (_, i) => ({ title: `Source ${i}`, url: `https://source.test/${i}`, content: "snippet" })) }) }
-    : { status: 200, text: JSON.stringify({ choices: [{ message: { content: "Explanation [S1]." } }] }) })
+    : { status: 200, text: JSON.stringify({ choices: [{ message: { content: "Explanation [S1, S3]. More [S3][S10]. Not S2." } }] }) })
   const result = await f.run({ type: "open" })
   assert.equal(f.requests[0].request.query.format, "json")
-  assert.equal(result.messages[0].sources.length, 1)
-  assert.equal(result.messages[0].sources[0].url, "https://source.test/0")
+  // Grouped and repeated citations still map to every id they name, once each.
+  assert.deepEqual(result.messages[0].sources.map(source => source.url), ["https://source.test/0", "https://source.test/2"])
   assert.equal(f.requests[1].request.body.includes("Source 5"), false)
   await f.run({ type: "action", action: "summarize" })
   assert.equal(f.requests.filter(request => request.connection === "searxng").length, 1)
