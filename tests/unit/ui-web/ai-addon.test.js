@@ -121,12 +121,19 @@ test("native provider payloads and source metadata normalize without arbitrary l
 
 test("SearXNG is opt-in, limited to five results and emits only referenced citations", async () => {
   const f = await fixture({ webSearch: true, searchEndpoint: "https://search.test/search" }, connection => connection === "searxng"
-    ? { status: 200, text: JSON.stringify({ results: Array.from({ length: 7 }, (_, i) => ({ title: `Source ${i}`, url: `https://source.test/${i}`, content: "snippet" })) }) }
-    : { status: 200, text: JSON.stringify({ choices: [{ message: { content: "Explanation [S1, S3]. More [S3][S10]. Not S2." } }] }) })
+    ? { status: 200, text: JSON.stringify({ results: [
+      // One page under three spellings takes one id; the ids count only distinct pages.
+      { title: "Dup", url: "https://Source.test/0/", content: "snippet" }, { title: "Dup", url: "https://source.test/0?utm=x#top", content: "snippet" },
+      ...Array.from({ length: 7 }, (_, i) => ({ title: `Source ${i}`, url: `https://source.test/${i}`, content: "snippet" }))
+    ] }) }
+    : { status: 200, text: JSON.stringify({ choices: [{ message: { content: "Explanation [S1, S3]. More [S3][S10]. Not S2.\n\n## Key entities\n\n- **Thing**" } }] }) })
   const result = await f.run({ type: "open" })
   assert.equal(f.requests[0].request.query.format, "json")
-  // Grouped and repeated citations still map to every id they name, once each.
-  assert.deepEqual(result.messages[0].sources.map(source => source.url), ["https://source.test/0", "https://source.test/2"])
+  assert.equal(JSON.parse(f.requests[1].request.body).messages[1].content.match(/"id":"S\d+"/g).length, 5)
+  // Grouped and repeated citations still map to every id they name, once each,
+  // and they follow the answer: the lead carries them, above the folded section.
+  assert.deepEqual(result.messages[0].sources.map(source => source.url), ["https://Source.test/0/", "https://source.test/2"])
+  assert.equal(result.messages[1].sources, undefined)
   assert.equal(f.requests[1].request.body.includes("Source 5"), false)
   await f.run({ type: "action", action: "summarize" })
   assert.equal(f.requests.filter(request => request.connection === "searxng").length, 1)

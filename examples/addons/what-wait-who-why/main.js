@@ -88,7 +88,8 @@ async function answer(once, context, story, state, task, question, noSearch, tur
 }
 
 /** The answer stays in view; the entity section behind the first heading folds
- *  under that heading. A reply without an answer before its heading stays whole. */
+ *  under that heading, with the sources between the two, above the fold.
+ *  A reply without an answer before its heading stays whole. */
 export function explanation(result) {
   const whole = [{ role: "assistant", text: result.text, sources: result.sources }]
   const lines = result.text.split("\n")
@@ -223,8 +224,12 @@ function safeSources(sources) {
   return sources.filter(source => {
     try {
       const url = new URL(source.url)
-      if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || source.url.length > 4096 || seen.has(url.href)) return false
-      seen.add(url.href)
+      if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || source.url.length > 4096) return false
+      // Search engines hand back the same page under several spellings
+      // (case, trailing slash, tracking query); one page gets one id.
+      const key = `${url.origin}${url.pathname.replace(/\/+$/, "")}`.toLowerCase()
+      if (seen.has(key)) return false
+      seen.add(key)
       return true
     } catch { return false }
   }).map(source => ({ title: String(source.title || source.url).slice(0, 500), url: source.url }))

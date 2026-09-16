@@ -214,23 +214,67 @@
   margin-block: var(--sp-1) var(--sp-2);
 }
 
-/* .story a claims every link in a row, so a source needs the same weight to
-   keep its own colour. */
-.addon_tray .addon_tray_source {
-  display: block;
-  margin-block: var(--sp-0-5);
-  color: var(--text-muted-color);
+/* The "Sources" fold. Closed, its heading is followed by the citation chips,
+   S1 S2 …, each a link; open, the chips give way to the full list. Chips are
+   anchors inside the summary, so a click on one follows the link and leaves
+   the fold alone. .story a claims every link in a row, so a source needs the
+   same weight to keep its own colour on both surfaces. */
+.addon_tray_sources_chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  margin-block-start: var(--sp-1);
+  font-weight: 400;
+  line-height: 1.45;
+  user-select: text;
+}
+
+.addon_tray_sources[open] .addon_tray_sources_chips {
+  display: none;
+}
+
+.addon_tray_sources_list {
+  margin-block: var(--sp-1) var(--sp-2);
+  padding: 0;
+  list-style: none;
   font-size: var(--fs-meta);
+}
+
+.addon_tray_sources_list li + li {
+  margin-block-start: var(--sp-1);
+}
+
+:is(.addon_tray, .addon_conversation) .addon_tray_source {
+  display: inline-flex;
+  gap: var(--sp-1);
+  align-items: baseline;
+  color: var(--text-muted-color);
   overflow-wrap: anywhere;
 }
 
-.addon_tray .addon_tray_source .icon {
-  margin-inline-end: var(--sp-1);
-  opacity: 0.7;
+:is(.addon_tray, .addon_conversation) .addon_tray_source_label {
+  padding-inline: var(--sp-1);
+  border: var(--bw) solid var(--border-color);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
 }
 
-.addon_tray .addon_tray_source:hover {
+.addon_tray_source_detail {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.addon_tray_source_url {
+  font-size: var(--fs-caption);
+  opacity: 0.8;
+}
+
+:is(.addon_tray, .addon_conversation) .addon_tray_source:hover {
   color: var(--text-high-color);
+}
+
+:is(.addon_tray, .addon_conversation) .addon_tray_source:hover .addon_tray_source_title {
   text-decoration-line: underline;
 }
 

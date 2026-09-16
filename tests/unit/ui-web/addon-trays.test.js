@@ -143,21 +143,29 @@ test("titled messages fold behind disclosures whose state outlives a redraw and 
     trays.toggle(row, "assistant")
     await new Promise(resolve => setImmediate(resolve))
     const folds = () => Array.from(row.querySelectorAll("details.addon_tray_disclosure"))
-    assert.deepEqual(folds().map(fold => [fold.querySelector("summary").textContent, fold.hasAttribute("open")]), [["Key entities", false], ["Summary", true]])
-    assert.equal(folds()[0].querySelector(".addon_tray_disclosure_body .addon_tray_source").textContent, "Source")
+    assert.deepEqual(folds().map(fold => [fold.querySelector("summary > span").textContent, fold.hasAttribute("open")]), [["Key entities", false], ["Sources", false], ["Summary", true]])
+    // Sources get their own closed fold after the message: numbered chips in the
+    // heading, the titled and addressed list in the body.
+    const sources = folds()[1]
+    assert.equal(sources.classList.contains("addon_tray_sources"), true)
+    assert.equal(sources.querySelector("summary .addon_tray_sources_chips .addon_tray_source_label").textContent, "1")
+    assert.equal(sources.querySelector("summary .addon_tray_source").title, "Source")
+    assert.equal(sources.querySelector("summary .addon_tray_source_title"), null)
+    assert.equal(sources.querySelector(".addon_tray_sources_list .addon_tray_source_title").textContent, "Source")
+    assert.equal(sources.querySelector(".addon_tray_sources_list .addon_tray_source_url").textContent, "https://source.test/")
     assert.equal(folds()[0].querySelector("strong").textContent, "Entity")
     assert.equal(row.querySelectorAll(".addon_tray_message").length, 3)
     folds()[0].setAttribute("open", "")
     folds()[0].dispatchEvent(new Event("toggle"))
     refreshRowElements(row)
-    assert.deepEqual(folds().map(fold => fold.hasAttribute("open")), [true, true])
+    assert.deepEqual(folds().map(fold => fold.hasAttribute("open")), [true, false, true])
     row.querySelector(".addon_tray_controls button:last-child").click()
     await new Promise(resolve => setImmediate(resolve))
     assert.equal(folds().length, 0)
     trays.toggle(row, "assistant")
     trays.toggle(row, "assistant")
     await new Promise(resolve => setImmediate(resolve))
-    assert.deepEqual(folds().map(fold => fold.hasAttribute("open")), [false, true])
+    assert.deepEqual(folds().map(fold => fold.hasAttribute("open")), [false, false, true])
   } finally { trays.dispose(); global.document = previous; global.CustomEvent = previousCustomEvent }
 })
 
