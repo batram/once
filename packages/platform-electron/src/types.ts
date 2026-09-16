@@ -128,6 +128,8 @@ export interface ElectronManagedExtension {
 export interface ElectronExtensionPreview {
   token: string
   id: string
+  /** Packaged icon, so the review card looks like the installed row it becomes. */
+  icon: string | null
   name: string
   version: string
   description: string

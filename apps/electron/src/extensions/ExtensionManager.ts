@@ -113,7 +113,7 @@ export class ExtensionManager {
       }
       this.candidates.set(candidate.token, candidate)
       const extension = candidate.extension
-      return { token: candidate.token, id: extension.id, name: extension.name,
+      return { token: candidate.token, id: extension.id, name: extension.name, icon: await extensionIconDataUrl(extension),
         version: extension.manifest.version, description: extension.description, source: candidate.source,
         permissions: [...extension.manifest.permissions, ...extension.manifest.hostPermissions],
         warnings: compatibilityWarnings(extension), update: !!this.entries[extension.id] }
