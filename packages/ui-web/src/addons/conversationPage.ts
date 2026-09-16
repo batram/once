@@ -56,7 +56,10 @@ class ConversationPage {
     this.input.rows = 3
     this.input.addEventListener("input", () => this.draftChanged())
     this.input.addEventListener("keydown", event => {
-      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); this.form.requestSubmit() }
+      // Enter asks (Ctrl/Cmd+Enter still does); Shift+Enter keeps writing on a new line.
+      if (event.key !== "Enter" || event.shiftKey || event.isComposing) return
+      event.preventDefault()
+      this.form.requestSubmit()
     })
     this.form.addEventListener("submit", event => {
       event.preventDefault()

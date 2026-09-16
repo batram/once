@@ -301,6 +301,12 @@ export class AddonTrays {
     input.value = state.draft
     input.disabled = !!state.controller
     input.addEventListener("input", () => { state.draft = input.value; this.notify(href, tray) })
+    input.addEventListener("keydown", event => {
+      // Enter asks; Shift+Enter keeps writing on a new line.
+      if (event.key !== "Enter" || event.shiftKey || event.isComposing) return
+      event.preventDefault()
+      form.requestSubmit()
+    })
     const send = trayButton("Ask", () => form.requestSubmit())
     send.disabled = !!state.controller
     form.addEventListener("submit", event => {

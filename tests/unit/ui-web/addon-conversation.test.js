@@ -53,6 +53,13 @@ test("a tray hands out a conversation handle that mirrors its state and takes co
     assert.equal(events.at(-1).action, "more")
     // A draft typed on the page is remembered without redrawing the row.
     const composer = row.querySelector("textarea")
+    // Enter in the row composer asks; Shift+Enter is left to the textarea.
+    let submits = 0
+    row.querySelector("form").requestSubmit = () => { submits++ }
+    const press = fields => { const event = Object.assign(new Event("keydown", { cancelable: true }), { key: "Enter", shiftKey: false, isComposing: false, ...fields }); composer.dispatchEvent(event); return event.defaultPrevented }
+    assert.equal(press({ shiftKey: true }), false)
+    assert.equal(press({}), true)
+    assert.equal(submits, 1)
     opened.send({ type: "draft", text: "unsent" })
     assert.equal(row.querySelector("textarea"), composer)
     assert.equal(snapshots.at(-1).draft, "unsent")
@@ -129,6 +136,15 @@ test("the conversation page renders snapshots, sends input and goes read-only wi
     root.querySelector("form").dispatchEvent(new Event("submit", { cancelable: true }))
     assert.deepEqual(sent.at(-1), { type: "submit", text: "Follow up" })
     assert.equal(input.value, "")
+    // Enter asks; Shift+Enter is left to the textarea for a new line.
+    let submits = 0
+    root.querySelector("form").requestSubmit = () => { submits++ }
+    const press = fields => { const event = Object.assign(new Event("keydown", { cancelable: true }), { key: "Enter", shiftKey: false, ctrlKey: false, metaKey: false, isComposing: false, ...fields }); input.dispatchEvent(event); return event.defaultPrevented }
+    assert.equal(press({ shiftKey: true }), false)
+    assert.equal(submits, 0)
+    assert.equal(press({}), true)
+    assert.equal(press({ ctrlKey: true }), true)
+    assert.equal(submits, 2)
     publish(snapshot({ busy: true }), true)
     assert.equal(input.disabled, true)
     assert.match(root.querySelector(".addon_tray_status").textContent, /Working/)
