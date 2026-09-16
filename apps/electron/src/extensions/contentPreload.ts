@@ -55,9 +55,15 @@ function runScripts(world: ContentWorld, batch: ContentScriptBatch): void {
   })
 }
 
+// Always the author origin, whatever `cssOrigin` the caller asked for.
+// Electron's removeInsertedCSS looks the key up among author sheets only
+// (Blink's RemoveInsertedStyleSheet defaults to that origin and Electron
+// passes none), so a sheet inserted as "user" stays until the page goes
+// away and removeCSS silently does nothing. uBlock asks for "user" on every
+// cosmetic sheet and removes them again when a site is whitelisted.
 function insertStyle(world: ContentWorld, css: string): void {
   if (world.styles.has(css)) return
-  world.styles.set(css, webFrame.insertCSS(css, { cssOrigin: "user" }))
+  world.styles.set(css, webFrame.insertCSS(css, { cssOrigin: "author" }))
 }
 
 function removeStyle(world: ContentWorld, css: string): void {
