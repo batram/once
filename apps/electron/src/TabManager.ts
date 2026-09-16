@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto"
-import path from "node:path"
 
 /**
  * Where the browser tabs keep their cookies, and therefore where the user is
@@ -37,7 +36,8 @@ import { SourcePicker } from "./browser/SourcePicker"
 import { TabEvents } from "./browser/TabEvents"
 import { TabOwnership } from "./browser/TabOwnership"
 import { WindowLifecycle, showWindow } from "./browser/WindowLifecycle"
-import { ClosedTabRecord, ClosedTabs } from "./browser/ClosedTabs"
+import { ClosedTabRecord } from "./browser/ClosedTabs"
+import { profileTabStores } from "./browser/OpenTabs"
 import { activeTabContentsId, createExtensionTabHooks } from "./browser/ExtensionTabHooks"
 import { parseExtensionUrl } from "./extensions/ExtensionScheme"
 import { ExtensionShellHooks, PageProfile } from "./extensions/runtimeTypes"
@@ -91,7 +91,7 @@ export class BrowserCoordinator {
     })
     this.ownership = new TabOwnership(this.navigationErrors, {
       createBlankTab: (owner) => this.createTab(owner, "about:blank", true)
-    }, new ClosedTabs(path.join(app.getPath("userData"), "closed-tabs.json")))
+    }, ...profileTabStores(app.getPath("userData")))
     this.windowLifecycle = new WindowLifecycle(this.menus, {
       activeEntry: (owner) => owner.activeId
         ? this.ownership.get(owner.activeId)
@@ -176,8 +176,7 @@ export class BrowserCoordinator {
   async createTab(
     state: WindowEntry,
     url = "about:blank",
-    active = true,
-    after: string | null = state.activeId
+    active = true, after: string | null = state.activeId
   ): Promise<string> {
     const normalized = this.normalizeTabUrl(url)
     // An extension page lives in that extension's session with its preload;
@@ -464,8 +463,7 @@ export class BrowserCoordinator {
     const normalized = urls.map((url) => normalizeBrowserUrl(url))
     // Each tab follows the one before it, so the drop keeps its order after
     // the active tab instead of each new tab pushing the previous one along.
-    let after = state.activeId
-    for (let index = 0; index < normalized.length; index += 1) {
+    for (let index = 0, after = state.activeId; index < normalized.length; index += 1) {
       after = await this.createTab(state, normalized[index], index === normalized.length - 1, after)
     }
   }

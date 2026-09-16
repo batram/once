@@ -42,6 +42,7 @@ const { TabOwnership } = require(path.join(
   "apps/electron/src/browser/TabOwnership.ts"
 ))
 const { ClosedTabs } = require(path.join(root, "apps/electron/src/browser/ClosedTabs.ts"))
+const { OpenTabs } = require(path.join(root, "apps/electron/src/browser/OpenTabs.ts"))
 const { TabEvents } = require(path.join(
   root,
   "apps/electron/src/browser/TabEvents.ts"
@@ -421,7 +422,8 @@ test("closing a window persists its tabs and the history limit across restarts",
   ownership.closeWindow(window)
   const restarted = new ClosedTabs(file)
   assert.equal(restarted.size, 25)
-  for (let index = 29; index >= 5; index -= 1) {
+  // Left to right, so the limit costs the rightmost tabs.
+  for (let index = 0; index < 25; index += 1) {
     assert.equal(restarted.take(owner(1)).url, `https://example.com/${index}`)
   }
   assert.equal(new ClosedTabs(file).size, 0)
@@ -536,16 +538,81 @@ test("TabOwnership records every tab of a closed window", () => {
   ownership.addWindow(window)
   const first = navigated("first", 1, "https://example.com/one")
   const second = navigated("second", 1, "https://example.com/two")
-  first.view.webContents.close = () => {}
-  second.view.webContents.close = () => {}
-  ownership.addTab(window, first)
-  ownership.addTab(window, second)
+  const third = navigated("third", 1, "https://example.com/three")
+  for (const tab of [first, second, third]) {
+    tab.view.webContents.close = () => {}
+    ownership.addTab(window, tab)
+  }
+  ownership.activate(window, second.id)
 
   ownership.closeWindow(window)
 
-  assert.equal(ownership.closedTabs.size, 2)
+  // The active tab comes back first, then the rest left to right.
+  assert.equal(ownership.closedTabs.size, 3)
   assert.equal(ownership.closedTabs.take(window).url, "https://example.com/two")
   assert.equal(ownership.closedTabs.take(window).url, "https://example.com/one")
+  assert.equal(ownership.closedTabs.take(window).url, "https://example.com/three")
+})
+
+test("tabs left open by a killed session come back before older closed tabs", (t) => {
+  const directory = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "once-open-tabs-"))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const closedFile = path.join(directory, "closed-tabs.json")
+  const openFile = path.join(directory, "open-tabs.json")
+  const ownership = new TabOwnership(
+    { backTargetIndex: () => -1 }, { createBlankTab: async () => {} },
+    new ClosedTabs(closedFile), new OpenTabs(openFile)
+  )
+  const window = owner(1)
+  ownership.addWindow(window)
+  const earlier = navigated("earlier", 1, "https://example.com/earlier")
+  ownership.addTab(window, earlier)
+  ownership.finalizeClosed(earlier)
+  const left = navigated("left", 1, "https://example.com/left")
+  const active = navigated("active", 1, "https://example.com/active")
+  const right = navigated("right", 1, "https://example.com/right")
+  for (const tab of [left, active, right]) ownership.addTab(window, tab)
+  ownership.activate(window, active.id)
+  ownership.notify(window)
+  // The snapshot is written a moment after the change, not on every keystroke.
+  assert.equal(fs.existsSync(openFile), false)
+  return new Promise((resolve) => setTimeout(resolve, 1200)).then(() => {
+    assert.equal(fs.existsSync(openFile), true)
+
+    // The process dies here: no closeWindow. The next start adopts the snapshot.
+    const restarted = new TabOwnership(
+      { backTargetIndex: () => -1 }, { createBlankTab: async () => {} },
+      new ClosedTabs(closedFile), new OpenTabs(openFile)
+    )
+    assert.equal(fs.existsSync(openFile), false, "adopted once")
+    const fresh = owner(7)
+    assert.equal(restarted.closedTabs.take(fresh).url, "https://example.com/active")
+    assert.equal(restarted.closedTabs.take(fresh).url, "https://example.com/left")
+    assert.equal(restarted.closedTabs.take(fresh).url, "https://example.com/right")
+    assert.equal(restarted.closedTabs.take(fresh).url, "https://example.com/earlier")
+    assert.equal(restarted.closedTabs.take(fresh), undefined)
+  })
+})
+
+test("a window that closes normally leaves no open tab snapshot behind", (t) => {
+  const directory = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "once-open-tabs-"))
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+  const openFile = path.join(directory, "open-tabs.json")
+  const ownership = new TabOwnership(
+    { backTargetIndex: () => -1 }, { createBlankTab: async () => {} },
+    new ClosedTabs(), new OpenTabs(openFile)
+  )
+  const window = owner(1)
+  ownership.addWindow(window)
+  const tab = navigated("tab", 1, "https://example.com/tab")
+  tab.view.webContents.close = () => {}
+  ownership.addTab(window, tab)
+  ownership.notify(window)
+  ownership.closeWindow(window)
+  return new Promise((resolve) => setTimeout(resolve, 1200)).then(() => {
+    assert.equal(fs.existsSync(openFile), false)
+    assert.equal(ownership.closedTabs.size, 1)
+  })
 })
 
 function boundTab(ownerState) {

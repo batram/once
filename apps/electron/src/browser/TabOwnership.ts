@@ -2,7 +2,8 @@ import { ELECTRON_IPC, ElectronTabState } from "@once/platform-electron/bridge"
 import { releaseErrorPages } from "./ErrorPageProtocol"
 import { NavigationErrors } from "./NavigationErrors"
 import { TabEntry, WindowEntry } from "./BrowserState"
-import { ClosedTabs } from "./ClosedTabs"
+import { ClosedTabs, isThrowaway } from "./ClosedTabs"
+import { OpenTabs, stackOrder } from "./OpenTabs"
 
 interface TabOwnershipActions {
   createBlankTab(owner: WindowEntry): Promise<unknown>
@@ -16,8 +17,12 @@ export class TabOwnership {
   constructor(
     private readonly errors: NavigationErrors,
     private readonly actions: TabOwnershipActions,
-    readonly closedTabs = new ClosedTabs()
-  ) {}
+    readonly closedTabs = new ClosedTabs(),
+    private readonly openTabs = new OpenTabs()
+  ) {
+    // Tabs a killed or crashed session left open are the newest closed tabs.
+    closedTabs.adopt(openTabs.takeStale())
+  }
 
   addWindow(owner: WindowEntry): void {
     this.windows.set(owner.id, owner)
@@ -161,14 +166,25 @@ export class TabOwnership {
 
   closeWindow(owner: WindowEntry): void {
     this.removeWindow(owner)
-    for (const [index, id] of [...owner.tabs].entries()) {
-      const entry = this.tabs.get(id)
-      this.tabs.delete(id)
-      // Closing a window is a bulk close: its tabs belong in the reopen stack
-      // too, so Reopen closed tab brings them back one at a time.
-      if (entry) this.closedTabs.record(entry, owner, index)
-      if (entry) releaseErrorPages(entry.errorPages.keys())
-      if (entry && !entry.view.webContents.isDestroyed()) {
+    const entries = owner.tabs.map((id) => this.tabs.get(id))
+    // Closing a window is a bulk close: its tabs belong in the reopen stack
+    // too, so Reopen closed tab brings them back one at a time, the active
+    // tab first and the rest left to right.
+    const records = entries.flatMap((entry, index) => entry && !isThrowaway(entry) ? [{
+      url: entry.displayedUrl,
+      title: entry.title,
+      windowId: owner.id,
+      index,
+      history: entry.historySnapshot ?? null
+    }] : [])
+    const active = entries.findIndex((entry) => entry?.id === owner.activeId)
+    this.closedTabs.adopt(stackOrder(records, records.findIndex((record) => record.index === active)))
+    this.openTabs.forget(owner)
+    for (const entry of entries) {
+      if (!entry) continue
+      this.tabs.delete(entry.id)
+      releaseErrorPages(entry.errorPages.keys())
+      if (!entry.view.webContents.isDestroyed()) {
         entry.view.webContents.close({ waitForBeforeUnload: false })
       }
     }
@@ -184,6 +200,9 @@ export class TabOwnership {
   notify(owner: WindowEntry): void {
     if (!owner.window.isDestroyed()) {
       owner.window.webContents.send(ELECTRON_IPC.tabsChanged, this.getAll(owner))
+    }
+    if (this.windows.has(owner.id)) {
+      this.openTabs.update(owner, owner.tabs.flatMap((id) => this.tabs.get(id) ?? []))
     }
     for (const observer of this.observers) observer()
   }

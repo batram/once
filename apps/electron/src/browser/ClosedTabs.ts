@@ -62,6 +62,16 @@ export class ClosedTabs {
     this.save()
   }
 
+  /** Puts already-shaped records on top of the stack, the last one popping first. */
+  adopt(records: ClosedTabRecord[]): void {
+    if (records.length === 0) return
+    this.records.push(...records)
+    if (this.records.length > CLOSED_TAB_LIMIT) {
+      this.records.splice(0, this.records.length - CLOSED_TAB_LIMIT)
+    }
+    this.save()
+  }
+
   /** Newest tab from this window, else the newest from any window. */
   take(owner: WindowEntry): ClosedTabRecord | undefined {
     const windowId = owner.id
@@ -92,7 +102,7 @@ export class ClosedTabs {
   }
 }
 
-function isClosedTabRecord(value: unknown): value is ClosedTabRecord {
+export function isClosedTabRecord(value: unknown): value is ClosedTabRecord {
   if (!value || typeof value !== "object") return false
   const record = value as ClosedTabRecord
   if (typeof record.url !== "string" || typeof record.title !== "string"
@@ -111,7 +121,7 @@ function isClosedTabRecord(value: unknown): value is ClosedTabRecord {
  * A blank tab that was never navigated. Recording those would make Reopen closed tab
  * mostly resurrect empty tabs, since every window starts with one.
  */
-function isThrowaway(entry: TabEntry): boolean {
+export function isThrowaway(entry: TabEntry): boolean {
   if (entry.displayedUrl && entry.displayedUrl !== "about:blank") return false
   return (entry.historySnapshot?.entries.length ?? 0) <= 1
 }
