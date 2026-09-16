@@ -172,7 +172,13 @@ function renderInstall(
   input.id = "mobile-extension-source"
   input.placeholder = "https://addons.mozilla.org/en-US/firefox/addon/…/"
   label.htmlFor = input.id
-  page.append(label, input, element("p", "Choose an Android-compatible Firefox extension. Once will download it and show its verified identity and requested access before installation.", "settings_description"))
+  const catalog = element("p", "Browse the ", "settings_description")
+  const catalogLink = element("a", "Firefox Add-ons catalog")
+  catalogLink.href = "https://addons.mozilla.org/en-US/firefox/"
+  catalogLink.target = "_blank"
+  catalogLink.rel = "noopener"
+  catalog.append(catalogLink, " and paste an add-on's page URL above.")
+  page.append(label, input, catalog, element("p", "Choose an Android-compatible Firefox extension. Once will download it and show its verified identity and requested access before installation.", "settings_description"))
   const install = async (source: string) => {
     const result = await api.command({ action: "install", source })
     if (!result.cancelled) await done()

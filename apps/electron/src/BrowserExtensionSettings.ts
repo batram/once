@@ -190,7 +190,14 @@ async function renderExtensionPage({ target, selected, page, bridge, client, but
       reviewButton.click()
     })
     actions.append(reviewButton, button("Choose XPI file…", () => preview("")))
-    page.append(actions, element("p", "Extensions can read and change pages within their requested access. Review the source and permissions before installing.", "settings_description"), review)
+    const catalog = element("p", "Browse the ", "settings_description")
+    const catalogLink = element("a", "Firefox Add-ons catalog")
+    catalogLink.href = "https://addons.mozilla.org/en-US/firefox/"
+    // The shell routes `_blank` links into a tab.
+    catalogLink.target = "_blank"
+    catalogLink.rel = "noopener"
+    catalog.append(catalogLink, " and paste an add-on's page URL above.")
+    page.append(actions, catalog, element("p", "Extensions can read and change pages within their requested access. Review the source and permissions before installing.", "settings_description"), review)
   } else if (target === "detail" && selected) {
     const heading = element("h4")
     heading.append(extensionHeading(selected, `${selected.name} ${selected.version}`))
