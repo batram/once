@@ -183,6 +183,27 @@ Other switches an Electron run understands, all off by default:
   extensions write to their consoles; errors and warnings are printed always.
 - `ONCE_ELECTRON_TEST_USER_DATA=<dir>` uses that directory as the profile, so
   two builds can be compared without touching the normal profile.
+- `ONCE_ELECTRON_REMOTE_DEBUGGING=1` opens the Chrome DevTools Protocol on
+  loopback, on the channel's port from the table below (`run-forge.js
+  --debug-devtools` sets it). An explicit `--remote-debugging-port=<n>` on the
+  command line wins over the channel default.
+
+### DevTools ports
+
+Each inspectable surface has a fixed loopback port so the DevTools MCP servers,
+which read their endpoint once at start, can stay configured:
+
+| Port | What listens | MCP server (Codex / Claude Code) |
+| --- | --- | --- |
+| 9223 | Packaged release-channel `once.exe --remote-debugging-port=9223`, the app the developer looks at | `once-devtools` / `electron-devtools` |
+| 9224 | The Android WebView, through `adb forward` (see above) | `android-devtools` / `android-devtools` |
+| 9225 | A dev-channel run with `ONCE_ELECTRON_REMOTE_DEBUGGING=1`: `run-forge.js start`, a `--dev` package, or the `.webpack/x64` bundle launched directly | `once-dev-devtools` / `electron-dev-devtools` |
+
+The dev port exists so a smoke run can be driven while the packaged app keeps
+running: the two never compete for one port. Both MCP definitions live in the
+user's config (`~/.codex/config.toml`, `~/.claude.json` under this project), not
+in the repository; after editing either, reload the MCP connection before
+`list_pages` sees the new endpoint.
 - `ONCE_ELECTRON_E2E_INTERACTIVE=1` runs the Playwright suite headed, for
   watching a spec drive the app; `ONCE_ELECTRON_E2E_ATTACH_LOGS=1` keeps each
   test's `electron-app-log.txt` under `test-results/` even when it passes.

@@ -72,10 +72,14 @@ if (process.env.ONCE_ELECTRON_TEST_USER_DATA) {
 
 // Opt-in DevTools Protocol endpoint for local MCP-assisted debugging. Keep it
 // loopback-only and disabled in normal/release launches: a CDP client can read
-// and modify everything displayed by the app.
-if (process.env.ONCE_ELECTRON_REMOTE_DEBUGGING === "1") {
+// and modify everything displayed by the app. Each channel has its own port
+// so a dev run can be inspected beside the packaged app (9223, the
+// `electron-devtools` MCP) without either evicting the other; 9224 is the
+// Android WebView forward. See docs/DEVELOPMENT.md, "DevTools ports".
+const REMOTE_DEBUGGING_PORT = __ONCE_BUILD_CHANNEL__ === "dev" ? "9225" : "9223"
+if (process.env.ONCE_ELECTRON_REMOTE_DEBUGGING === "1" && !app.commandLine.hasSwitch("remote-debugging-port")) {
   app.commandLine.appendSwitch("remote-debugging-address", "127.0.0.1")
-  app.commandLine.appendSwitch("remote-debugging-port", "9223")
+  app.commandLine.appendSwitch("remote-debugging-port", REMOTE_DEBUGGING_PORT)
 }
 
 // Chromium 155 (Electron 45) turned NativeViewHostManagesLayers on for
