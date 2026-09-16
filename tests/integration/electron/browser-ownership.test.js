@@ -248,6 +248,31 @@ test("TabOwnership moves a previously active hidden tab into a populated window"
   assert.equal(source.activeId, remaining.id)
 })
 
+test("TabOwnership places a new tab right after the active one", () => {
+  const ownership = new TabOwnership(
+    { backTargetIndex: () => -1 }, { createBlankTab: async () => {} }
+  )
+  const window = owner(1)
+  const first = entry("first", 1)
+  const last = entry("last", 1)
+  ownership.addWindow(window)
+  ownership.addTab(window, first)
+  ownership.addTab(window, last)
+  assert.deepEqual(window.tabs, [first.id, last.id], "no active tab: appended")
+  ownership.activate(window, first.id)
+  const opened = entry("opened", 1)
+  ownership.addTab(window, opened)
+  assert.deepEqual(window.tabs, [first.id, opened.id, last.id])
+  const chained = entry("chained", 1)
+  ownership.addTab(window, chained, opened.id)
+  assert.deepEqual(window.tabs, [first.id, opened.id, chained.id, last.id], "explicit anchor")
+  const appended = entry("appended", 1)
+  ownership.addTab(window, appended, null)
+  assert.deepEqual(
+    window.tabs, [first.id, opened.id, chained.id, last.id, appended.id], "null anchor: appended"
+  )
+})
+
 test("TabOwnership reorders without reattaching or changing activation", () => {
   const ownership = new TabOwnership(
     { backTargetIndex: () => -1 }, { createBlankTab: async () => {} }

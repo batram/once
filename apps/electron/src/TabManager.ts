@@ -172,10 +172,12 @@ export class BrowserCoordinator {
     return this.ownership.getAll(state)
   }
 
+  /** `after` anchors the new tab in the strip; by default it follows the active tab. */
   async createTab(
     state: WindowEntry,
     url = "about:blank",
-    active = true
+    active = true,
+    after: string | null = state.activeId
   ): Promise<string> {
     const normalized = this.normalizeTabUrl(url)
     // An extension page lives in that extension's session with its preload;
@@ -224,7 +226,7 @@ export class BrowserCoordinator {
       pickerSession: null,
       historySnapshot: null
     }
-    this.ownership.addTab(state, entry)
+    this.ownership.addTab(state, entry, after)
     this.tabEvents.bind(entry)
     // Once the tab is owned: extensions answer `tabs.onCreated` with
     // `tabs.get`, which must already find it.
@@ -460,8 +462,11 @@ export class BrowserCoordinator {
       throw new Error("Invalid dropped URLs")
     }
     const normalized = urls.map((url) => normalizeBrowserUrl(url))
+    // Each tab follows the one before it, so the drop keeps its order after
+    // the active tab instead of each new tab pushing the previous one along.
+    let after = state.activeId
     for (let index = 0; index < normalized.length; index += 1) {
-      await this.createTab(state, normalized[index], index === normalized.length - 1)
+      after = await this.createTab(state, normalized[index], index === normalized.length - 1, after)
     }
   }
 

@@ -27,9 +27,16 @@ export class TabOwnership {
     this.windows.delete(owner.id)
   }
 
-  addTab(owner: WindowEntry, entry: TabEntry): void {
+  /**
+   * A new tab goes right after `afterId` (by default the active tab), so a
+   * page opened from the current one sits next to it rather than at the far
+   * end of the strip. Without an anchor it lands at the end.
+   */
+  addTab(owner: WindowEntry, entry: TabEntry, afterId: string | null = owner.activeId): void {
     this.tabs.set(entry.id, entry)
-    owner.tabs.push(entry.id)
+    const anchor = afterId ? owner.tabs.indexOf(afterId) : -1
+    if (anchor >= 0) owner.tabs.splice(anchor + 1, 0, entry.id)
+    else owner.tabs.push(entry.id)
   }
 
   get(id: string): TabEntry | undefined {
