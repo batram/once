@@ -1126,23 +1126,35 @@
   white-space: nowrap;
 }
 
+/* The label is a plain text run, not a flex item: an ellipsis only forms in a
+   block container that holds the text directly, and every subpage writes the
+   label with textContent, so there is no span to truncate. A long parent name
+   ("Browser Extensions" in a narrow panel) clips instead of wrapping the bar
+   to two rows, and the cap leaves the section title the larger share. */
 #settings_panel #settings_section_back {
   order: 0;
-  align-items: center;
-  gap: var(--sp-1);
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 40%;
   margin: 0;
   padding: 0 var(--sp-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* The only definition of the back chevron. A real icon, masked so it takes the
-   button's own colour; flex centring against the label needs no vertical-align
-   fudging. A platform that needs a different scale sets the three properties
-   below on the button instead of restating the asset — see mobile.css. */
+   button's own colour. Inline so it shares the label's line box and gets
+   clipped together with it; a platform that needs a different scale sets the
+   three properties below on the button instead of restating the asset — see
+   mobile.css. */
 #settings_panel #settings_section_back::before {
   content: "";
-  flex: 0 0 var(--settings-back-icon-width, 11px);
+  display: inline-block;
   width: var(--settings-back-icon-width, 11px);
   height: var(--settings-back-icon-height, 11px);
+  margin-right: var(--sp-1);
+  vertical-align: middle;
   background: var(--settings-back-icon-color, currentColor);
   -webkit-mask: url("../../imgs/chevron-left.svg") center / var(--settings-back-icon-scale, contain)
     no-repeat;
@@ -1151,7 +1163,7 @@
 }
 
 #settings_panel.settings_detail_open #settings_section_back {
-  display: inline-flex;
+  display: inline-block;
 }
 
 #settings_panel .bar.panel_titlebar > button {
