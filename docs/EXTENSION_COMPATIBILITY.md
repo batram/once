@@ -5,7 +5,7 @@ embedded browsing surface. Their configuration and runtime ownership are separat
 
 | Surface | Once add-ons | Browser filtering and userscripts |
 | --- | --- | --- |
-| Electron | Declarative contributions and sandboxed scripts | Bundled extensions plus user-installed Firefox MV2 XPIs; see the management and API limits below |
+| Electron | Declarative contributions and sandboxed scripts | Bundled extensions plus user-installed Firefox MV2 and MV3 XPIs; see the management and API limits below |
 | Android | Declarative contributions and sandboxed scripts in the app shell | GeckoView built-ins and user-installed signed Firefox extensions; synced additions handled by Once's bridge |
 | iOS | Shared add-on implementation; device validation remains required | WebKit content rules and the documented small GM shim |
 | Chrome side panel | Declarative contributions and sandboxed scripts | Browser-native extensions remain the user's browser configuration |
@@ -139,12 +139,12 @@ extension files, and host permissions are outside this feature.
 
 | Feature | Current behavior |
 | --- | --- |
-| Manifest formats | Firefox Manifest V2 with an explicit Gecko ID; MV3/service workers are rejected |
-| Background scripts/pages | Hosted in separate persistent extension sessions; nonpersistent backgrounds remain resident |
-| Content scripts | Manifest and dynamic `contentScripts.register`; match/exclude patterns, frames, run phases, and MAIN/ISOLATED manifest worlds |
+| Manifest formats | Firefox Manifest V2 and V3 with an explicit Gecko ID. V3 `action`, `host_permissions`, object-form `web_accessible_resources` (the `matches` restriction is not enforced) and `background.type: "module"` are read; `optional_host_permissions` and `content_security_policy` are ignored |
+| Background scripts/pages | Hosted in separate persistent extension sessions; nonpersistent backgrounds remain resident. A V3 `background.service_worker` runs as an event-page script, as in Firefox, so worker-only globals such as `importScripts` are unavailable; `background.scripts` wins when both are declared |
+| Content scripts | Manifest and dynamic `contentScripts.register`/`scripting.registerContentScripts`; match/exclude patterns, frames, run phases, and MAIN/ISOLATED worlds. `scripting.executeScript`/`insertCSS`/`removeCSS` with `files`, `func`+`args` or `css`; V3 registrations do not persist across sessions |
 | Messaging | Internal runtime/tab messaging and ports; external extension-to-extension import is not implemented |
 | Storage | Separate persistent local/sync areas, changes and byte counts; Once sync is opt-in per key |
-| Toolbar/options | Popups, options pages, click events, titles and badges; dynamic icon updates remain limited |
+| Toolbar/options | Popups, options pages, click events, titles and badges through `browserAction` and its V3 alias `action`; dynamic icon updates remain limited |
 | Browser requests | Existing blocking request runtime used by uBlock; not complete Firefox webRequest coverage |
 | Tabs/windows | Existing tab navigation and messaging; window APIs are approximations and capture is unavailable |
 | Permissions | Manifest permissions only; optional permission requests return false |

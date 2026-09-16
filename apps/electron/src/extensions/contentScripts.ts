@@ -73,6 +73,7 @@ export function registeredContentScript(options: unknown): ContentScript {
   }
   return {
     spec: {
+      ...(record.world === "MAIN" ? { world: "MAIN" as const } : {}),
       matches,
       excludeMatches,
       js: js.files,

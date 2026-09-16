@@ -299,6 +299,57 @@ test("an iframe of an extension page is its own context, reached through the fra
   assert.equal(contexts.get("3"), undefined)
 })
 
+test("scripting registrations map onto the host's dynamic content scripts", () => {
+  const handlers = api.createApiHandlers()
+  const registered = new Map()
+  let next = 1
+  const host = {
+    registeredScripts: registered,
+    registerContentScript(script) {
+      const id = next++
+      registered.set(id, script)
+      return id
+    }
+  }
+  const call = () => ({ host, sender: null })
+  const scripts = () => [...registered.values()]
+  handlers["scripting.registerContentScripts"](call(), [
+    { id: "a", matches: ["https://a.test/*"], js: ["a.js"], runAt: "document_start", world: "MAIN" },
+    { id: "b", matches: ["<all_urls>"], css: ["b.css"], allFrames: true }
+  ])
+  assert.equal(registered.size, 2)
+  assert.equal(scripts()[0].spec.world, "MAIN")
+  assert.equal(scripts()[0].spec.runAt, "document_start")
+  assert.equal(scripts()[1].spec.allFrames, true)
+  assert.throws(
+    () => handlers["scripting.registerContentScripts"](call(), [{ id: "a", matches: ["<all_urls>"], js: ["x.js"] }]),
+    /already registered/
+  )
+  assert.throws(
+    () => handlers["scripting.registerContentScripts"](call(), [
+      { id: "c", matches: ["<all_urls>"], js: ["c.js"] },
+      { id: "_d", matches: ["<all_urls>"], js: ["d.js"] }
+    ]),
+    /does not start with/
+  )
+  assert.equal(registered.size, 2, "a rejected batch registers nothing")
+  assert.deepEqual(
+    handlers["scripting.getRegisteredContentScripts"](call(), { ids: ["b"] }).map((script) => script.id),
+    ["b"]
+  )
+  handlers["scripting.updateContentScripts"](call(), [{ id: "b", css: ["b2.css"] }])
+  assert.equal(registered.size, 2)
+  assert.deepEqual(scripts()[1].spec.css, ["b2.css"])
+  handlers["scripting.unregisterContentScripts"](call(), { ids: ["a"] })
+  assert.deepEqual(handlers["scripting.getRegisteredContentScripts"](call()).map((script) => script.id), ["b"])
+  assert.throws(() => handlers["scripting.unregisterContentScripts"](call(), { ids: ["a"] }), /Nonexistent/)
+  handlers["scripting.unregisterContentScripts"](call())
+  assert.equal(registered.size, 0)
+
+  assert.match(loaded.generatedBackgroundHtml(["worker.js"], true), /<script type="module" src="worker.js">/)
+  assert.doesNotMatch(loaded.generatedBackgroundHtml(["bg.js"]), /module/)
+})
+
 test("API handlers answer tabs, messages, i18n, and storage change events", async () => {
   const handlers = api.createApiHandlers()
   const extension = await loaded.loadUnpackedExtension(fixture, "en")
@@ -343,6 +394,10 @@ test("API handlers answer tabs, messages, i18n, and storage change events", asyn
     assert.equal(handlers["browserAction.getBadgeText"](call(1), { tabId: 31 }), "12")
     assert.equal(handlers["browserAction.getBadgeText"](call(1), {}), "")
     assert.equal(handlers["browserAction.getTitle"](call(1), {}), "Blocker")
+    // Manifest V3 reaches the same button as `action`.
+    handlers["action.setBadgeText"](call(1), { text: "3" })
+    assert.equal(handlers["browserAction.getBadgeText"](call(1), {}), "3")
+    assert.equal(handlers["action.getTitle"](call(1), {}), "Blocker")
 
     const reply = handlers["runtime.sendMessage"](call(2), { ping: true })
     const sent = background.sent.find((item) => item.message.event === "onMessage")

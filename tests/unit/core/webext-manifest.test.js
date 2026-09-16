@@ -76,8 +76,71 @@ test("background scripts and a non-persistent event page are understood", () => 
     background: { scripts: ["a.js", "b.js"], persistent: false }
   }))
   assert.deepEqual(manifest.background, {
-    kind: "scripts", scripts: ["a.js", "b.js"], persistent: false
+    kind: "scripts", scripts: ["a.js", "b.js"], persistent: false, module: false
   })
+})
+
+// Shaped like a Manifest V3 Firefox extension: action, host_permissions,
+// object-form web accessible resources and a background service worker.
+function v3Like(overrides = {}) {
+  return {
+    manifest_version: 3,
+    name: "V3 extension",
+    version: "2.0.0",
+    browser_specific_settings: { gecko: { id: "v3@example.org" } },
+    background: { service_worker: "worker.js", type: "module" },
+    action: { default_title: "V3", default_popup: "popup.html", default_icon: "icon.png" },
+    permissions: ["storage", "scripting"],
+    host_permissions: ["<all_urls>", "https://example.org/*"],
+    web_accessible_resources: [
+      { resources: ["assets/*", "frame.html"], matches: ["https://*/*"] },
+      "legacy.png"
+    ],
+    ...overrides
+  }
+}
+
+test("a Manifest V3 manifest folds into the same shape", () => {
+  const manifest = parseWebExtensionManifest(v3Like())
+  assert.equal(manifest.manifestVersion, 3)
+  assert.equal(manifest.id, "v3@example.org")
+  assert.deepEqual(manifest.background, {
+    kind: "scripts", scripts: ["worker.js"], persistent: false, module: true
+  })
+  assert.deepEqual([...manifest.permissions], ["storage", "scripting"])
+  assert.deepEqual(manifest.hostPermissions, ["<all_urls>", "https://example.org/*"])
+  assert.equal(manifest.browserAction.defaultPopup, "popup.html")
+  assert.deepEqual(manifest.browserAction.defaultIcon, { default: "icon.png" })
+  assert.deepEqual(manifest.webAccessibleResources, ["assets/*", "frame.html", "legacy.png"])
+})
+
+test("a V3 background prefers scripts over the worker and is never persistent", () => {
+  const manifest = parseWebExtensionManifest(v3Like({
+    background: { scripts: ["event.js"], service_worker: "worker.js", persistent: true }
+  }))
+  assert.deepEqual(manifest.background, {
+    kind: "scripts", scripts: ["event.js"], persistent: false, module: false
+  })
+  assert.equal(parseWebExtensionManifest(v3Like({ background: undefined })).background, null)
+})
+
+test("host patterns are read from both permission keys without duplicates", () => {
+  const manifest = parseWebExtensionManifest(v3Like({
+    permissions: ["tabs", "<all_urls>"],
+    host_permissions: ["<all_urls>"],
+    action: undefined,
+    browser_action: { default_title: "Old key" }
+  }))
+  assert.deepEqual(manifest.hostPermissions, ["<all_urls>"])
+  assert.equal(manifest.browserAction.defaultTitle, "Old key")
+  assert.throws(
+    () => parseWebExtensionManifest(v3Like({ host_permissions: ["nope"] })),
+    /"host_permissions" has an invalid match pattern/
+  )
+  assert.throws(
+    () => parseWebExtensionManifest(v3Like({ web_accessible_resources: [{ resources: "assets/*" }] })),
+    /resources must be a list of strings/
+  )
 })
 
 test("the legacy applications.gecko.id key still supplies the id", () => {
@@ -90,10 +153,10 @@ test("the legacy applications.gecko.id key still supplies the id", () => {
 
 test("what the runtime relies on is validated", () => {
   const cases = [
-    [{ manifest_version: 3 }, /manifest_version 2/],
+    [{ manifest_version: 1 }, /manifest_version 2 and 3/],
     [ublockLike({ browser_specific_settings: {} }), /gecko\.id/],
     [ublockLike({ name: "" }), /"name"/],
-    [ublockLike({ background: {} }), /"scripts" or "page"/],
+    [ublockLike({ background: {} }), /"scripts", "page" or "service_worker"/],
     [ublockLike({ content_scripts: [{ matches: [], js: ["x.js"] }] }), /must not be empty/],
     [ublockLike({ content_scripts: [{ matches: ["nope"], js: ["x.js"] }] }), /invalid match pattern/],
     [ublockLike({ content_scripts: [{ matches: ["<all_urls>"] }] }), /"js" or "css"/],

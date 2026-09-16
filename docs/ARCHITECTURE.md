@@ -274,7 +274,7 @@ edit, a switch, an install or a delete made there reaches the other devices. The
 `scripts/fetch-extensions.js` against pinned hashes into `vendor/extensions`
 and travel as packaged resources. `ONCE_ELECTRON_EXTENSIONS` adds
 directories in unpackaged builds only. Beyond the bundles, the user can
-install any Firefox MV2 extension from a Mozilla Add-ons listing or a local
+install any Firefox MV2 or MV3 extension from a Mozilla Add-ons listing or a local
 XPI (`extensions/ExtensionManager.ts` reviews, unpacks and activates it;
 `ExtensionPackage.ts` bounds the archive). Installed extensions appear in an
 extensions panel beside the address bar, from which an action can be pinned

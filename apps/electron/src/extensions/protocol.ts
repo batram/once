@@ -70,6 +70,7 @@ export interface RegisterContentScriptOptions {
   runAt?: ContentScriptRunAt
   allFrames?: boolean
   matchAboutBlank?: boolean
+  world?: "MAIN" | "ISOLATED"
 }
 
 /**
@@ -153,6 +154,14 @@ export interface ApiSurface {
   readonly events: readonly string[]
 }
 
+const BROWSER_ACTION_SURFACE: ApiSurface = {
+  methods: [
+    "setIcon", "setTitle", "getTitle", "setBadgeText", "getBadgeText",
+    "setBadgeBackgroundColor", "setBadgeTextColor", "setPopup", "enable", "disable"
+  ],
+  events: ["onClicked"]
+}
+
 /**
  * Every namespace the extension-page preload materialises, with the methods
  * it forwards to main and the events main can raise. A method or event
@@ -202,12 +211,16 @@ export const EXTENSION_API_SURFACE: Readonly<Record<string, ApiSurface>> = {
     methods: ["getMessage", "getUILanguage", "getAcceptLanguages"],
     events: []
   },
-  browserAction: {
+  browserAction: BROWSER_ACTION_SURFACE,
+  // Manifest V3 calls the same button `action`.
+  action: BROWSER_ACTION_SURFACE,
+  // The V3 replacement for tabs.executeScript/insertCSS and contentScripts.register.
+  scripting: {
     methods: [
-      "setIcon", "setTitle", "getTitle", "setBadgeText", "getBadgeText",
-      "setBadgeBackgroundColor", "setBadgeTextColor", "setPopup", "enable", "disable"
+      "executeScript", "insertCSS", "removeCSS", "registerContentScripts",
+      "unregisterContentScripts", "getRegisteredContentScripts", "updateContentScripts"
     ],
-    events: ["onClicked"]
+    events: []
   },
   extension: {
     methods: ["getURL", "isAllowedIncognitoAccess", "isAllowedFileSchemeAccess"],

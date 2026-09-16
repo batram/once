@@ -316,6 +316,7 @@ export class ExtensionRuntime {
     if (!host.popupUrl()) {
       const active = this.options.hooks.tabs().find((tab) => tab.active)
       host.contexts.emit("browserAction", "onClicked", [active])
+      host.contexts.emit("action", "onClicked", [active])
       return
     }
     if (!popup) {

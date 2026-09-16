@@ -89,9 +89,10 @@ export function resolveExtensionFile(
 }
 
 /** Firefox's equivalent for `background.scripts`: one script tag per entry. */
-export function generatedBackgroundHtml(scripts: readonly string[]): string {
+export function generatedBackgroundHtml(scripts: readonly string[], module = false): string {
+  const type = module ? ' type="module"' : ""
   const tags = scripts
-    .map((script) => `<script src="${escapeAttribute(script)}"></script>`)
+    .map((script) => `<script${type} src="${escapeAttribute(script)}"></script>`)
     .join("\n")
   return `<!DOCTYPE html>\n<html><head><meta charset="utf-8"></head><body>\n${tags}\n</body></html>\n`
 }

@@ -109,15 +109,16 @@ function schedule(world: ContentWorld, batch: ContentScriptBatch): void {
 // Injection requests from the background page: tabs.executeScript,
 // insertCSS, removeCSS. executeScript answers with its result.
 function handleInjection(world: ContentWorld, message: ExtensionEvent): void {
-  const [details] = message.args as [{ code?: string; url?: string; css?: string }]
+  const [details] = message.args as [{ code?: string; url?: string; css?: string; world?: string }]
   if (message.event === "insertCSS" && typeof details.css === "string") {
     insertStyle(world, details.css)
   } else if (message.event === "removeCSS" && typeof details.css === "string") {
     removeStyle(world, details.css)
   } else if (message.event === "executeScript" && typeof details.code === "string") {
     const token = message.token
+    // scripting.executeScript may ask for the page's own world (id 0).
     const run = webFrame.executeJavaScriptInIsolatedWorld(
-      world.init.worldId,
+      details.world === "MAIN" ? 0 : world.init.worldId,
       [{ code: details.code, url: details.url }]
     )
     if (token === undefined) return

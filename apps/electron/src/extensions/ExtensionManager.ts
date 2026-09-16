@@ -271,7 +271,7 @@ export class ExtensionManager {
 }
 
 function compatibilityWarnings(extension: LoadedExtension): string[] {
-  const warnings = ["Firefox Manifest V2 compatibility runtime. Some browser APIs are limited; reload open pages after enabling or disabling."]
+  const warnings = [`Firefox Manifest V${extension.manifest.manifestVersion} compatibility runtime. Some browser APIs are limited; reload open pages after enabling or disabling.`]
   const limited = ["theme", "commands", "notifications", "contextMenus", "menus", "nativeMessaging", "downloads", "bookmarks", "history"]
     .filter(permission => extension.manifest.permissions.has(permission))
   if (limited.length) warnings.push(`Limited or unavailable features: ${limited.join(", ")}.`)

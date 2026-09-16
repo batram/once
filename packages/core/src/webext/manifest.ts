@@ -1,9 +1,15 @@
-// The Firefox Manifest V2 subset the Once extension runtime understands.
-// Parsing is strict about what the runtime relies on (id, version, script
-// lists, match patterns) and lenient about keys it does not act on, so an
-// extension that carries extra Firefox-only keys still loads.
+// The Firefox Manifest V2 and V3 subset the Once extension runtime
+// understands. Parsing is strict about what the runtime relies on (id,
+// version, script lists, match patterns) and lenient about keys it does not
+// act on, so an extension that carries extra Firefox-only keys still loads.
+// V3 differences are folded into the same shape: `action` becomes the
+// browser action, `host_permissions` join the host list, a service worker
+// becomes a background script and object-form web accessible resources
+// flatten to their paths.
 
 import { isMatchPattern } from "./matchPattern"
+
+export type ManifestVersion = 2 | 3
 
 export type ContentScriptRunAt = "document_start" | "document_end" | "document_idle"
 
@@ -19,7 +25,13 @@ export interface ContentScriptSpec {
 }
 
 export type BackgroundSpec =
-  | { readonly kind: "scripts"; readonly scripts: readonly string[]; readonly persistent: boolean }
+  | {
+    readonly kind: "scripts"
+    readonly scripts: readonly string[]
+    readonly persistent: boolean
+    /** The scripts are ES modules (`background.type: "module"`). */
+    readonly module: boolean
+  }
   | { readonly kind: "page"; readonly page: string; readonly persistent: boolean }
 
 export interface BrowserActionSpec {
@@ -34,6 +46,7 @@ export interface OptionsUiSpec {
 }
 
 export interface WebExtensionManifest {
+  readonly manifestVersion: ManifestVersion
   readonly id: string
   readonly name: string
   readonly version: string
@@ -113,19 +126,25 @@ function extensionId(json: Json): string {
   )
 }
 
-function background(json: Json): BackgroundSpec | null {
+function background(json: Json, version: ManifestVersion): BackgroundSpec | null {
   const value = json.background
   if (value === undefined) return null
   if (!isObject(value)) throw new ManifestError('"background" must be an object')
-  const persistent = value.persistent !== false
+  // A V3 background is an event page whatever the manifest says.
+  const persistent = version === 2 && value.persistent !== false
   if (typeof value.page === "string") {
     return { kind: "page", page: value.page, persistent }
   }
+  const module = value.type === "module"
   const scripts = stringList(value.scripts, '"background.scripts"')
-  if (scripts.length === 0) {
-    throw new ManifestError('"background" needs "scripts" or "page"')
+  if (scripts.length > 0) return { kind: "scripts", scripts, persistent, module }
+  // Firefox runs a V3 background as an event page and prefers `scripts`
+  // when both are declared; a lone service worker is its script list.
+  const worker = value.service_worker
+  if (typeof worker === "string" && worker.length > 0) {
+    return { kind: "scripts", scripts: [worker], persistent, module }
   }
-  return { kind: "scripts", scripts, persistent }
+  throw new ManifestError('"background" needs "scripts", "page" or "service_worker"')
 }
 
 const RUN_AT: ReadonlySet<string> = new Set(["document_start", "document_end", "document_idle"])
@@ -167,15 +186,43 @@ function contentScripts(json: Json): ContentScriptSpec[] {
   })
 }
 
-function browserAction(json: Json): BrowserActionSpec | null {
-  const value = json.browser_action
-  if (value === undefined) return null
-  if (!isObject(value)) throw new ManifestError('"browser_action" must be an object')
+// V3 renamed `browser_action` to `action`; the version's own key wins and
+// the other is still read, so a manifest written for both keeps its button.
+function browserAction(json: Json, version: ManifestVersion): BrowserActionSpec | null {
+  const keys = version === 3 ? ["action", "browser_action"] : ["browser_action", "action"]
+  const key = keys.find((candidate) => json[candidate] !== undefined)
+  if (key === undefined) return null
+  const value = json[key]
+  if (!isObject(value)) throw new ManifestError(`"${key}" must be an object`)
   return {
     defaultTitle: optionalString(value, "default_title"),
     defaultPopup: optionalString(value, "default_popup"),
-    defaultIcon: stringMap(value.default_icon, '"browser_action.default_icon"')
+    defaultIcon: stringMap(value.default_icon, `"${key}.default_icon"`)
   }
+}
+
+// V3 lists resources as objects that also say which sites may load them.
+// The protocol handler cannot tell who asks, so only the paths are kept.
+function webAccessibleResources(value: unknown): string[] {
+  if (value === undefined) return []
+  if (!Array.isArray(value)) throw new ManifestError('"web_accessible_resources" must be a list')
+  const resources: string[] = []
+  value.forEach((entry, index) => {
+    const where = `"web_accessible_resources[${index}]"`
+    if (typeof entry === "string") {
+      resources.push(entry)
+    } else if (isObject(entry)) {
+      resources.push(...stringList(entry.resources, `${where}.resources`))
+    } else {
+      throw new ManifestError(`${where} must be a string or an object`)
+    }
+  })
+  return resources
+}
+
+function manifestVersion(value: unknown): ManifestVersion {
+  if (value === 2 || value === 3) return value
+  throw new ManifestError("only manifest_version 2 and 3 are supported")
 }
 
 function optionsUi(json: Json): OptionsUiSpec | null {
@@ -190,33 +237,37 @@ function optionsUi(json: Json): OptionsUiSpec | null {
 
 export function parseWebExtensionManifest(input: unknown): WebExtensionManifest {
   if (!isObject(input)) throw new ManifestError("manifest must be an object")
-  if (input.manifest_version !== 2) {
-    throw new ManifestError("only manifest_version 2 is supported")
-  }
+  const version = manifestVersion(input.manifest_version)
 
+  // V2 mixes host patterns into `permissions`; V3 has `host_permissions`.
+  // Both are read for both versions, so a hybrid manifest loses nothing.
   const permissions = new Set<string>()
-  const hostPermissions: string[] = []
+  const hostPermissions = new Set<string>()
   for (const entry of stringList(input.permissions, '"permissions"')) {
-    if (isMatchPattern(entry)) hostPermissions.push(entry)
+    if (isMatchPattern(entry)) hostPermissions.add(entry)
     else permissions.add(entry)
+  }
+  for (const entry of stringList(input.host_permissions, '"host_permissions"')) {
+    if (!isMatchPattern(entry)) {
+      throw new ManifestError(`"host_permissions" has an invalid match pattern "${entry}"`)
+    }
+    hostPermissions.add(entry)
   }
 
   return {
+    manifestVersion: version,
     id: extensionId(input),
     name: requireString(input, "name"),
     version: requireString(input, "version"),
     description: optionalString(input, "description"),
     defaultLocale: optionalString(input, "default_locale"),
-    background: background(input),
+    background: background(input, version),
     contentScripts: contentScripts(input),
     permissions,
-    hostPermissions,
-    browserAction: browserAction(input),
+    hostPermissions: [...hostPermissions],
+    browserAction: browserAction(input, version),
     optionsUi: optionsUi(input),
-    webAccessibleResources: stringList(
-      input.web_accessible_resources,
-      '"web_accessible_resources"'
-    ),
+    webAccessibleResources: webAccessibleResources(input.web_accessible_resources),
     icons: stringMap(input.icons, '"icons"')
   }
 }

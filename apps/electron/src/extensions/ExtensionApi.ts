@@ -16,8 +16,10 @@ import {
   inertHandlers,
   permissionHandlers
 } from "./apiExtras"
+import { activeTabId, asRecord, frameContexts, optionalTabId, requireTabId } from "./apiTargets"
 import { INTERNAL_API } from "./protocol"
 import { ExtensionShellHooks, TabSnapshot, TabUpdateProps, platformOs } from "./runtimeTypes"
+import { scriptingHandlers } from "./scriptingApi"
 
 const MESSAGE_REPLY_TIMEOUT_MS = 30_000
 const SCRIPT_RESULT_TIMEOUT_MS = 10_000
@@ -146,31 +148,10 @@ export class AlarmScheduler {
   }
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === "object" && value !== null ? value as Record<string, unknown> : {}
-}
-
-function optionalTabId(value: unknown): number | undefined {
-  return typeof value === "number" ? value : undefined
-}
-
-function requireTabId(value: unknown): number {
-  if (typeof value !== "number" || !Number.isInteger(value)) {
-    throw new Error("A tab id is required")
-  }
-  return value
-}
-
 function requireTab(host: ApiHost, id: number): TabSnapshot {
   const tab = host.hooks.tabs().find((candidate) => candidate.id === id)
   if (!tab) throw new Error(`Invalid tab ID: ${id}`)
   return tab
-}
-
-function activeTabId(host: ApiHost): number {
-  const active = host.hooks.tabs().find((tab) => tab.active)
-  if (!active) throw new Error("There is no active tab")
-  return active.id
 }
 
 // tabs.query URL filters are match patterns without the scheme restrictions,
@@ -238,13 +219,6 @@ async function firstReply(host: ApiHost, targets: EventTarget[], args: unknown[]
 }
 
 /** The content-script contexts of one tab, optionally one frame of it. */
-function frameContexts(host: ApiHost, tabId: number, frameId?: number, allFrames = false): ContextEntry[] {
-  return host.contexts.all().filter((entry) =>
-    entry.kind === "content" && entry.tabId === tabId && !entry.isDestroyed() &&
-    (frameId !== undefined ? entry.frameId === frameId : allFrames || entry.frameId === 0)
-  )
-}
-
 function runtimeHandlers(): Handlers {
   return {
     "runtime.getPlatformInfo": () => ({
@@ -464,7 +438,7 @@ function actionHandlers(): Handlers {
     const record = asRecord(details)
     host.action.update(optionalTabId(record.tabId), { [key]: read(record) })
   }
-  return {
+  const browserAction: Handlers = {
     "browserAction.setIcon": () => undefined,
     "browserAction.setTitle": patch("title", ({ title }) => typeof title === "string" ? title : null),
     "browserAction.getTitle": ({ host }, details) =>
@@ -481,7 +455,15 @@ function actionHandlers(): Handlers {
     "browserAction.enable": ({ host }, tabId) =>
       host.action.update(optionalTabId(tabId), { enabled: true }),
     "browserAction.disable": ({ host }, tabId) =>
-      host.action.update(optionalTabId(tabId), { enabled: false }),
+      host.action.update(optionalTabId(tabId), { enabled: false })
+  }
+  // Manifest V3's `action` is the same button under another name.
+  const action = Object.fromEntries(
+    Object.entries(browserAction).map(([key, handler]) => [key.replace(/^browserAction\./, "action."), handler])
+  )
+  return {
+    ...browserAction,
+    ...action,
     "contextMenus.create": (_call, props) => asRecord(props).id ?? `menu-${Date.now()}`,
     "contextMenus.update": () => undefined,
     "contextMenus.remove": () => undefined,
@@ -534,6 +516,7 @@ export function createApiHandlers(): Handlers {
     ...syncStorageHandlers(),
     ...tabHandlers(),
     ...injectionHandlers(),
+    ...scriptingHandlers(),
     ...actionHandlers(),
     ...portHandlers(),
     ...cookieHandlers(),

@@ -91,7 +91,7 @@ export async function serveExtensionRequest(
     if (!background || background.kind !== "scripts") {
       return notFound("This extension has no generated background page")
     }
-    return new Response(generatedBackgroundHtml(background.scripts), {
+    return new Response(generatedBackgroundHtml(background.scripts, background.module), {
       headers: { "content-type": "text/html; charset=utf-8" }
     })
   }

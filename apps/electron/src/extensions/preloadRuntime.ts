@@ -139,6 +139,24 @@ export function adoptBridge(): void {
   }
   const browser = copy(staged, false) as Record<string, unknown>
   adopted.runtime = browser.runtime as Record<string, unknown> | undefined
+  // scripting.executeScript takes a function. Across the context bridge a
+  // function is a proxy whose source is `[native code]`, so it is turned
+  // into its source here, in the world that owns it; main wraps it back
+  // into a call with the cloned arguments.
+  const scripting = browser.scripting as Record<string, unknown> | undefined
+  if (scripting && typeof scripting.executeScript === "function") {
+    const forward = scripting.executeScript as (...args: unknown[]) => unknown
+    scripting.executeScript = (injection: unknown, ...rest: unknown[]) => {
+      const record = typeof injection === "object" && injection !== null
+        ? { ...(injection as Record<string, unknown>) }
+        : {}
+      if (typeof record.func === "function") {
+        record.funcSource = String(record.func)
+        delete record.func
+      }
+      return forward(record, ...rest)
+    }
+  }
   Object.defineProperty(globalThis, "browser", {
     value: browser, writable: true, configurable: true, enumerable: false
   })
