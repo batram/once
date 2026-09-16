@@ -12,8 +12,11 @@
   line-height: 1;
 }
 
+/* No app-region here. It inherits, and Chromium subtracts every no-drag box
+   from the native drag area regardless of stacking or scroll clipping, so a
+   no-drag content tree carves holes in the title bar whenever a row scrolls
+   under it. Only the bars opt into `drag`; everything else stays `none`. */
 #window_content {
-  app-region: no-drag;
   display: flex;
   flex-direction: row;
   display: flex;

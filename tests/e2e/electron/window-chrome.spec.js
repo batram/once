@@ -1,58 +1,85 @@
 const { test, expect } = require("./electron-harness")
-const { closeApp, launchApp } = require("./electron-harness")
+const {
+  closeApp,
+  launchApp,
+  seedLocalSource,
+  startPageServer
+} = require("./electron-harness")
+const storyFixture = require("../shared/story-fixture")
 
 test("keeps the title bar draggable and interactive controls no-drag @interactive", async () => {
   // Window manipulation needs a normal, on-screen window: the background
   // mode used everywhere else parks the window off every monitor, and a
   // maximize restores onto a monitor rather than back to where it was.
   // Safe here because @interactive specs only run on CI.
-  const { electronApp, userData, window } = await launchApp({ background: false })
+  const server = await startPageServer()
+  const { electronApp, userData, window } = await launchApp({
+    background: false,
+    // Seeded stories arrive through the renderer fetch bridge.
+    env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0" }
+  })
   try {
     // The OS handles app-region dragging natively, so synthetic mouse events
-    // cannot move the window. Assert the effective region at the points a
-    // user would grab instead: the topmost element wins, so this also fails
-    // if a no-drag element ever covers the drag area.
-    const regionAt = (point) =>
-      window.evaluate(({ x, y }) => {
-        for (
-          let node = document.elementFromPoint(x, y);
-          node;
-          node = node.parentElement
-        ) {
+    // cannot move the window, and the native region is not readable from
+    // here. Chromium builds it as the union of every `drag` box minus the
+    // union of every `no-drag` box, ignoring stacking, overflow clipping and
+    // scroll position. So a hit test at a point cannot prove anything; the
+    // invariant is that no element outside the two bars carries a region at
+    // all. A no-drag row scrolled under the title bar would otherwise carve
+    // a hole in it (browser tabs on 2026-09-14, story trays after that).
+    const BARS = ["#titlebar", "#tab_dropzone"]
+    const strayRegions = () =>
+      window.evaluate((bars) => {
+        const strays = []
+        for (const node of document.querySelectorAll("*")) {
           const region = getComputedStyle(node).getPropertyValue("app-region")
-          if (region && region !== "none") return region
+          if (!region || region === "none") continue
+          if (bars.some((selector) => node.closest(selector))) continue
+          const id = node.id ? `#${node.id}` : ""
+          const classes = node.className && typeof node.className === "string"
+            ? `.${node.className.trim().split(/\s+/).join(".")}`
+            : ""
+          strays.push(`${node.tagName.toLowerCase()}${id}${classes}: ${region}`)
         }
-        return "none"
-      }, point)
+        return strays
+      }, BARS)
+    const regionOf = (selector) =>
+      window.locator(selector).evaluate((node) =>
+        getComputedStyle(node).getPropertyValue("app-region")
+      )
 
     expect(await electronApp.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()[0].isMovable()
     )).toBe(true)
     await expect(window.locator("#reading_menu_btn")).toBeHidden()
 
-    const titlebar = await window.locator("#titlebar").boundingBox()
-    expect(titlebar).not.toBeNull()
-    await expect.poll(() => regionAt({
-      x: titlebar.x + titlebar.width - 20,
-      y: titlebar.y + titlebar.height / 2
-    })).toBe("drag")
+    // The bars opt in, their controls opt out, and the tabs themselves carry
+    // nothing so a scrolled-out tab cannot subtract from the title bar.
+    await expect.poll(() => regionOf("#titlebar")).toBe("drag")
+    await expect.poll(() => regionOf("#tab_dropzone")).toBe("drag")
+    await expect.poll(() => regionOf("#new_tab_btn")).toBe("no-drag")
+    await expect.poll(() => regionOf("#electron_tabs")).toBe("no-drag")
+    await expect.poll(() => regionOf(".electron-tab")).toBe("none")
+    expect(await strayRegions()).toEqual([])
 
-    const newTabButton = await window.locator("#new_tab_btn").boundingBox()
-    const tab = await window.locator(".electron-tab").boundingBox()
-    await expect.poll(() => regionAt({
-      x: newTabButton.x + newTabButton.width + 20,
-      y: newTabButton.y + newTabButton.height / 2
-    })).toBe("drag")
-    await expect.poll(() => regionAt({
-      x: newTabButton.x + newTabButton.width / 2,
-      y: newTabButton.y + newTabButton.height / 2
-    })).toBe("no-drag")
-    await expect.poll(() => regionAt({
-      x: tab.x + tab.width / 2,
-      y: tab.y + tab.height / 2
-    })).toBe("no-drag")
+    // Real story rows, then a list too short for them so rows sit under the
+    // title bar's box. The invariant must not depend on scroll state.
+    await seedLocalSource(
+      window,
+      storyFixture.rssSourceLine(server.origin),
+      storyFixture.storyUrls(server.origin).alpha
+    )
+    const stories = window.locator("#stories")
+    await stories.evaluate((element) => {
+      element.style.maxHeight = "60px"
+      element.scrollTop = element.scrollHeight
+    })
+    await expect.poll(() => stories.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+    expect(await strayRegions()).toEqual([])
+    expect(await regionOf("#titlebar")).toBe("drag")
   } finally {
     await closeApp(electronApp, userData)
+    await server.close()
   }
 })
 
