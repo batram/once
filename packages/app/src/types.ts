@@ -340,10 +340,9 @@ export interface ThemePort {
 export interface ActiveTabPort {
   /**
    * `target` is a link target with two additions. "_self" means "wherever this
-   * shell shows a story" — the Electron content pane, a new tab in the
-   * extensions, since the panel is not one. "current" means "replace the page
-   * the user is looking at", which is a different thing in the extensions and
-   * the same thing in Electron.
+   * shell shows a story" — a new foreground tab, in Electron and in the
+   * extensions alike, so the page being read is never replaced. "current"
+   * means "replace the page the user is looking at", in place.
    */
   openUrl(
     url: string,

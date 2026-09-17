@@ -469,12 +469,45 @@ test("Alt+Shift+C switches the open page between story and comments", async () =
 
     await window.keyboard.press("Alt+Shift+C")
     await expect.poll(() => activeTabUrl(window)).toBe(urls.betaComments)
-    // Replaced in place: switching sides is not a second tab.
+    // The first story took over the untouched blank tab, and switching sides
+    // replaces that tab in place: still not a second tab.
     expect(await window.evaluate(async () =>
       (await window.onceElectron.tabs.getAll()).length)).toBe(1)
 
     await window.keyboard.press("Alt+Shift+C")
     await expect.poll(() => activeTabUrl(window)).toBe(urls.beta)
+  } finally {
+    await closeApp(electronApp, userData)
+    await server.close()
+  }
+})
+
+test("a story takes the blank tab, the next story gets a tab of its own", async () => {
+  const server = await startPageServer()
+  const { electronApp, userData, window } = await launchApp(STORY_ENV)
+  try {
+    const urls = await seedStories(window, server.origin)
+    const tabs = () => window.evaluate(async () => window.onceElectron.tabs.getAll())
+
+    await window.locator(`#stories story-item[data-href="${urls.alpha}"]`)
+      .locator(storyFixture.SELECTORS.title).click()
+    await expect.poll(() => activeTabUrl(window)).toBe(urls.alpha)
+    expect((await tabs()).length).toBe(1)
+
+    // The page being read is not replaced: the second story opens beside it,
+    // in the foreground.
+    await window.locator(`#stories story-item[data-href="${urls.beta}"]`)
+      .locator(storyFixture.SELECTORS.title).click()
+    await expect.poll(() => activeTabUrl(window)).toBe(urls.beta)
+    expect((await tabs()).map((tab) => tab.url)).toEqual([urls.alpha, urls.beta])
+
+    // The row mirrored above the page is that page's own story, so its links
+    // replace the page in place rather than opening a third tab.
+    await expect(window.locator(storyFixture.SELECTORS.selected)).toHaveCount(1)
+    await window.locator(storyFixture.SELECTORS.selected)
+      .locator(storyFixture.SELECTORS.comment).first().click()
+    await expect.poll(() => activeTabUrl(window)).toBe(urls.betaComments)
+    expect((await tabs()).map((tab) => tab.url)).toEqual([urls.alpha, urls.betaComments])
   } finally {
     await closeApp(electronApp, userData)
     await server.close()

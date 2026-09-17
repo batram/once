@@ -24,7 +24,8 @@ import {
 } from "@once/platform-electron/bridge"
 import {
   normalizeBrowserUrl,
-  resolveOpenDisposition
+  resolveOpenDisposition,
+  TabOpenDisposition
 } from "@once/platform-electron/navigation"
 import { hasReaderDocument, storeReaderDocument } from "./ReaderProtocol"
 import { isAddonConversationUrl } from "./AddonConversationRelay"
@@ -36,7 +37,7 @@ import { SourcePicker } from "./browser/SourcePicker"
 import { TabEvents } from "./browser/TabEvents"
 import { TabOwnership } from "./browser/TabOwnership"
 import { WindowLifecycle, showWindow } from "./browser/WindowLifecycle"
-import { ClosedTabRecord } from "./browser/ClosedTabs"
+import { ClosedTabRecord, isUntouchedBlank } from "./browser/ClosedTabs"
 import { profileTabStores } from "./browser/OpenTabs"
 import { activeTabContentsId, createExtensionTabHooks } from "./browser/ExtensionTabHooks"
 import { parseExtensionUrl } from "./extensions/ExtensionScheme"
@@ -244,17 +245,8 @@ export class BrowserCoordinator {
   ): Promise<void> {
     const normalized = this.normalizeTabUrl(url)
     const disposition = resolveOpenDisposition(target)
-    if (disposition === "background") {
-      await this.createTab(state, normalized, false)
-      return
-    }
-    if (disposition === "foreground") {
-      await this.createTab(state, normalized, true)
-    } else if (!state.activeId) {
-      await this.createTab(state, normalized, true)
-    } else {
-      await this.navigate(state, state.activeId, normalized)
-    }
+    await this.openWith(state, normalized, disposition)
+    if (disposition === "background") return
     // Opening a story in the foreground is a hand-off: the page takes the
     // keyboard, so the shell must stop showing the story cursor as active.
     // Reported here rather than left to the page's own focus event, which the
@@ -308,7 +300,7 @@ export class BrowserCoordinator {
       if (entry) this.navigationErrors.load(entry, readerUrl)
       if (entry || tabId) return
     }
-    await this.createTab(state, readerUrl, disposition !== "background")
+    await this.openWith(state, readerUrl, disposition)
   }
 
   showReaderError(
@@ -347,6 +339,16 @@ export class BrowserCoordinator {
     }
     if (!state.activeId) return null
     return this.ownership.requireOwned(state, state.activeId)
+  }
+
+  // "current" replaces the active tab. A foreground open takes a tab of its
+  // own, except the window's still-blank starting tab, which it takes over
+  // rather than leaving an empty tab behind it.
+  private async openWith(state: WindowEntry, url: string, disposition: TabOpenDisposition): Promise<void> {
+    const active = state.activeId ? this.ownership.requireOwned(state, state.activeId) : null
+    if (disposition === "background") await this.createTab(state, url, false)
+    else if (active && (disposition === "current" || isUntouchedBlank(active))) await this.navigate(state, active.id, url)
+    else await this.createTab(state, url, true)
   }
 
   activate(state: WindowEntry, id: string): void {

@@ -44,7 +44,8 @@ test("normalizes supported browser URLs and rejects privileged schemes", () => {
 })
 
 test("maps Once link targets to desktop tab dispositions", () => {
-  assert.equal(resolveOpenDisposition("_self"), "current")
+  assert.equal(resolveOpenDisposition("_self"), "foreground")
+  assert.equal(resolveOpenDisposition("current"), "current")
   assert.equal(resolveOpenDisposition("middle"), "background")
   assert.equal(resolveOpenDisposition("blank"), "foreground")
   assert.equal(resolveOpenDisposition("custom-window"), "foreground")

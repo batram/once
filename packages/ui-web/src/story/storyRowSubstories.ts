@@ -33,7 +33,7 @@ function tagElement(
           tag_href.startsWith("search:") ||
           !requestReading(row.story, "browser", tag_href)
         ) {
-          getOnceClient().openUrl(tag_href, "_self")
+          getOnceClient().openUrl(tag_href, row.selfTarget())
         }
       },
       onMiddleClick: () => {
@@ -80,7 +80,7 @@ function buildInfoBlock(
       } else {
         row.read_btn.classList.add("user_interaction")
         if (!requestReading(row.story, "comments", commentsUrl)) {
-          openStoryUrl(commentsUrl, "_self", false)
+          openStoryUrl(commentsUrl, row.selfTarget(), false)
         }
       }
     },

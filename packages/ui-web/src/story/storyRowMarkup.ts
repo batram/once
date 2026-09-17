@@ -57,7 +57,7 @@ export function buildTitleLine(
     onClick: () => {
       row.read_btn.classList.add("user_interaction")
       if (!requestReading(row.story, "browser")) {
-        open_story(row.story.href, "_self")
+        open_story(row.story.href, row.selfTarget())
       } else {
         void getOnceClient().persistStoryChange(
           row.story.href,
@@ -82,7 +82,7 @@ export function buildTitleLine(
   bindLinkBehavior(og_link, {
     onClick: () => {
       row.read_btn.classList.add("user_interaction")
-      openStoryUrl(row.story.href, "_self", false)
+      openStoryUrl(row.story.href, row.selfTarget(), false)
     },
     onMiddleClick: () => {
       row.read_btn.classList.add("user_interaction")

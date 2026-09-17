@@ -252,6 +252,16 @@ export class StoryListItem extends HTMLElement {
     return this.story.contentSource() === "page" ? "Update saved copy" : "Save for offline"
   }
 
+  /**
+   * Where this row's links go by default. A list row opens wherever the shell
+   * shows a story; the row mirrored into #selected_container is the story of
+   * the page already open, so its links replace that page instead of opening
+   * a tab beside it.
+   */
+  selfTarget(): "_self" | "current" {
+    return this.closest("#selected_container") ? "current" : "_self"
+  }
+
   openStory(target: "_self" | "middle" | "blank"): void {
     this.read_btn.classList.add("user_interaction")
     if (target === "_self" && requestReading(this.story, "browser")) {
@@ -262,12 +272,12 @@ export class StoryListItem extends HTMLElement {
       )
       return
     }
-    open_story(this.story.href, target)
+    open_story(this.story.href, target === "_self" ? this.selfTarget() : target)
   }
 
   openOriginal(): void {
     this.read_btn.classList.add("user_interaction")
-    openStoryUrl(this.story.href, "_self", false)
+    openStoryUrl(this.story.href, this.selfTarget(), false)
   }
 
   openComments(): void {
@@ -275,7 +285,7 @@ export class StoryListItem extends HTMLElement {
     if (!commentsUrl) return
     this.read_btn.classList.add("user_interaction")
     if (!requestReading(this.story, "comments")) {
-      openStoryUrl(commentsUrl, "_self", false)
+      openStoryUrl(commentsUrl, this.selfTarget(), false)
     }
   }
 

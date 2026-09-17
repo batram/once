@@ -35,10 +35,11 @@ function withDefaultScheme(value: string): string {
 export function resolveOpenDisposition(
   target: ElectronOpenTarget
 ): TabOpenDisposition {
-  // "_self" is a story being opened into the pane; "current" is the open page
-  // being replaced in place, which the extensions have to distinguish because
-  // there "_self" means a new tab. Both land on the active tab here.
-  if (target === "_self" || target === "current") return "current"
+  // "_self" is a story being opened from the list: it gets a foreground tab of
+  // its own, so the page the user was reading stays where it was. "current" is
+  // the open page being replaced in place, such as a tab switching between a
+  // story and its comments, and is the only target that reuses the active tab.
+  if (target === "current") return "current"
   if (target === "middle") return "background"
   return "foreground"
 }

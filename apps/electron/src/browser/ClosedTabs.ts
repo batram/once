@@ -125,3 +125,13 @@ export function isThrowaway(entry: TabEntry): boolean {
   if (entry.displayedUrl && entry.displayedUrl !== "about:blank") return false
   return (entry.historySnapshot?.entries.length ?? 0) <= 1
 }
+
+/**
+ * The live counterpart: the blank tab a window starts with, before anything
+ * has been shown in it. A foreground open may take it over instead of leaving
+ * an empty tab behind.
+ */
+export function isUntouchedBlank(entry: TabEntry): boolean {
+  if (entry.displayedUrl && entry.displayedUrl !== "about:blank") return false
+  return !entry.view.webContents.navigationHistory.canGoBack()
+}

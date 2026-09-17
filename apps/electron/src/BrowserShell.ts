@@ -51,8 +51,10 @@ export class BrowserShell {
   ) {
     this.readerRequests = new ReaderRequests(openReader, {
       hasTab: (tabId) => this.tabs.some((tab) => tab.id === tabId),
+      // The shell's reader button replaces the page in its own tab, which is
+      // the "current" disposition; "_self" would open a tab beside it.
       deliver: (tabId, html, sourceUrl) =>
-        this.bridge.tabs.openReader(html, sourceUrl, "_self", tabId),
+        this.bridge.tabs.openReader(html, sourceUrl, "current", tabId),
       fail: (tabId, url, error) => this.showReaderError(tabId, url, error),
       changed: () => this.renderControls()
     })

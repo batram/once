@@ -50,6 +50,7 @@ test("a bookmarked story's saved article opens in the reader after its site is g
 
     await server.close()
     await alpha.locator(".outline_btn").click()
+    // The first story takes over the window's untouched blank tab.
     await expect(window.locator(".electron-tab-title")).toContainText(
       storyFixture.STORY_TITLES.alpha
     )
@@ -68,8 +69,10 @@ test("a bookmarked story's saved article opens in the reader after its site is g
 test("duplicates a reader tab into a second reader tab", async () => {
   const { electronApp, userData, window } = await launchApp()
   try {
+    // "current" replaces the initial tab in place, which keeps the tab
+    // arithmetic below about duplication alone.
     await window.evaluate(({ html, sourceUrl }) =>
-      window.onceElectron.tabs.openReader(html, sourceUrl, "_self"),
+      window.onceElectron.tabs.openReader(html, sourceUrl, "current"),
     {
       html: "<!doctype html><title>Reader Article</title><h1>Reader body</h1>",
       sourceUrl: "https://example.com/article"
