@@ -11,7 +11,9 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.ActivityCallback;
 import androidx.activity.result.ActivityResult;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import org.json.JSONObject;
@@ -32,6 +34,11 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
     private final Map<Long, PluginCall> pendingEvaluations = new HashMap<>();
     private final AtomicLong evaluationSequence = new AtomicLong();
     private JSONObject extensionSettings;
+    /** Counts each settings hand-off; the bridge acknowledges the revision it applied. */
+    private long settingsRevision;
+    private long appliedSettingsRevision;
+    private final List<SettingsWaiter> settingsWaiters = new ArrayList<>();
+    private static final long SETTINGS_TIMEOUT_MS = 15000;
     private boolean navigationReady;
     private static final String BRIDGE_NATIVE_APP = "once_surface";
     /** The story list does not need a second browser engine resident in memory. */
@@ -224,6 +231,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
         }
         getActivity().runOnUiThread(() -> {
             extensionSettings = data;
+            settingsRevision++;
             sendExtensionSettings();
             call.resolve();
         });
@@ -307,16 +315,22 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
             waiting.put(call, timeout);
             handler.postDelayed(timeout, 30000);
             engine.ready().then(ignored -> engine.runtime.getWebExtensionController().list()).accept(installed -> {
-                Runnable pending = waiting.remove(call);
-                if (pending == null) return;
-                handler.removeCallbacks(pending);
-                if (destroyed || generation != surfaceGeneration) { call.reject("The browser surface was closed"); return; }
+                if (!waiting.containsKey(call)) return;
+                if (destroyed || generation != surfaceGeneration) { finishWaiting(call); call.reject("The browser surface was closed"); return; }
                 try {
                     extensions.adopt(installed);
                     attachBridge();
+                } catch (RuntimeException error) { finishWaiting(call); call.reject("Browser operation failed", error); return; }
+                // The engine starts with the first page, so the bridge receives
+                // the synced filter lists and userscripts only now. That page
+                // waits until they are in place: a document that starts earlier
+                // neither gets its requests blocked nor its elements hidden.
+                whenExtensionSettingsApplied(() -> {
+                    if (!finishWaiting(call)) return;
+                    if (destroyed || generation != surfaceGeneration) { call.reject("The browser surface was closed"); return; }
                     navigationReady = true;
-                    work.run();
-                } catch (RuntimeException error) { call.reject("Browser operation failed", error); }
+                    try { work.run(); } catch (RuntimeException error) { call.reject("Browser operation failed", error); }
+                });
             }, error -> {
                 Runnable pending = waiting.remove(call);
                 if (pending == null) return;
@@ -324,6 +338,40 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
                 call.reject("Browser extensions could not start: " + error.getMessage());
             });
         });
+    }
+
+    private boolean finishWaiting(PluginCall call) {
+        Runnable pending = waiting.remove(call);
+        if (pending == null) return false;
+        handler.removeCallbacks(pending);
+        return true;
+    }
+
+    private void whenExtensionSettingsApplied(Runnable work) {
+        if (extensionSettings == null || appliedSettingsRevision >= settingsRevision) { work.run(); return; }
+        SettingsWaiter waiter = new SettingsWaiter(work);
+        settingsWaiters.add(waiter);
+        handler.postDelayed(waiter, SETTINGS_TIMEOUT_MS);
+    }
+
+    /** Bounded: an unreachable filter list host must not keep every page from opening. */
+    private final class SettingsWaiter implements Runnable {
+        private final Runnable work;
+
+        SettingsWaiter(Runnable work) { this.work = work; }
+
+        @Override
+        public void run() {
+            if (!settingsWaiters.remove(this)) return;
+            Log.w(TAG, "Extension settings were not applied in time; opening the page without them");
+            work.run();
+        }
+
+        void applied() {
+            if (!settingsWaiters.remove(this)) return;
+            handler.removeCallbacks(this);
+            work.run();
+        }
     }
 
     /**
@@ -437,6 +485,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
         try {
             JSONObject message = new JSONObject();
             message.put("type", "extension-settings");
+            message.put("revision", settingsRevision);
             message.put("value", extensionSettings);
             settingsPort.postMessage(message);
         } catch (Exception error) {
@@ -445,6 +494,16 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
     }
 
     private final class SettingsPort implements WebExtension.PortDelegate {
+        @Override
+        public void onPortMessage(Object message, WebExtension.Port port) {
+            if (!(message instanceof JSONObject)) return;
+            JSONObject reply = (JSONObject) message;
+            if (!"extension-settings-applied".equals(reply.optString("type"))) return;
+            appliedSettingsRevision = Math.max(appliedSettingsRevision, reply.optLong("revision"));
+            if (appliedSettingsRevision < settingsRevision) return;
+            for (SettingsWaiter waiter : new ArrayList<>(settingsWaiters)) waiter.applied();
+        }
+
         @Override
         public void onDisconnect(WebExtension.Port port) {
             if (settingsPort == port) settingsPort = null;

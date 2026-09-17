@@ -243,10 +243,11 @@ export class AppSettings {
   }
 
   async startSync(syncUrl: string): Promise<void> {
-    if (!syncUrl.trim()) {
-      this.localSourcesResolution ??= this.resolveStorySources(false)
-      await this.localSourcesResolution
-    }
+    // The stored sources answer from the start; the replicated settings
+    // replace them later, or never do while offline. Only a local-only setup
+    // writes the defaults: with sync, an absent document is the remote's to fill.
+    this.localSourcesResolution ??= this.resolveStorySources(false, !syncUrl.trim())
+    await this.localSourcesResolution
     this.syncService?.syncFrom(syncUrl, () => this.actions.loadedStoryIds())
   }
 
@@ -416,7 +417,7 @@ export class AppSettings {
     }
   }
 
-  private async resolveStorySources(reload: boolean): Promise<void> {
+  private async resolveStorySources(reload: boolean, persistDefaults = true): Promise<void> {
     const stored = await this.getList<unknown>("sources", null)
     let document: StorySourceDocument
     if (stored !== null) {
@@ -433,9 +434,11 @@ export class AppSettings {
         return
       }
       document = parsed.doc
-    } else {
+    } else if (persistDefaults) {
       document = structuredClone(defaultStorySources)
       await this.setList("sources", document)
+    } else {
+      return
     }
     const previous = this.sourcesDocument
     this.sourcesDocument = document

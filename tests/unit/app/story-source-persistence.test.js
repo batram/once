@@ -45,6 +45,15 @@ test("configured sync serves typed defaults without persisting until settings re
   assert.equal(h.values.has("sources"), true)
 })
 
+test("stored sources answer before settings replicate when sync is configured", async () => {
+  const h = harness({ sources: remote }, true)
+  await h.settings.startSync("https://sync.example/db")
+  assert.deepEqual(await h.settings.getStorySources(), remote)
+  assert.deepEqual(h.events, ["sources"])
+  h.replicate(); await tick()
+  assert.deepEqual(h.events, ["sources"])
+})
+
 test("an observed sources write cannot resolve before settings replicate", async () => {
   const h = harness({}, true)
   await h.settings.startSync("https://sync.example/db")

@@ -74,7 +74,10 @@ async function installUserscripts(document, current) {
   }
 }
 
-function receiveSettings(message) {
+// The host holds its first page until the acknowledgement: lists fetched
+// after a page started loading cannot block its requests or hide its
+// elements. A failed list is reported and acknowledged, not retried.
+function receiveSettings(port, message) {
   if (message?.type !== "extension-settings") return
   const revision = ++settingsRevision
   const current = () => revision === settingsRevision
@@ -86,6 +89,7 @@ function receiveSettings(message) {
     ]).then(results => {
       for (const result of results) if (result.status === "rejected") console.error("Unable to apply Once extension settings", result.reason)
     })
+    if (current()) port.postMessage({ type: "extension-settings-applied", revision: message.revision })
   }).catch(error => console.error("Unable to apply Once extension settings", error))
 }
 
@@ -93,7 +97,7 @@ function receiveSettings(message) {
 // delegate goes away so the new host can send its current settings again.
 function connectHost() {
   const port = browser.runtime.connectNative("once_surface")
-  port.onMessage.addListener(receiveSettings)
+  port.onMessage.addListener(message => receiveSettings(port, message))
   port.onDisconnect.addListener(() => setTimeout(connectHost, 1000))
 }
 connectHost()

@@ -43,16 +43,26 @@ export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions)
       root.removeAttribute("aria-busy")
       if (refreshNeeded && active() && current === "overview") {
         refreshNeeded = false
-        void run(() => show("overview"))
+        void navigate("overview")
       }
     }
   }
-  const button = (label: string, work: () => Promise<void>) => {
+  // Page changes skip the busy guard: the overview's extension list may still
+  // be loading when the user taps through to another page, and the generation
+  // ticket discards that stale result. The guard stays for native commands.
+  const navigate = async (target: string, extension?: MobileBrowserExtension) => {
+    try { await show(target, extension) }
+    catch (error) { status.textContent = error instanceof Error ? error.message : String(error) }
+  }
+  const control = (label: string, onClick: () => void) => {
     const node = element("button", label, "button")
     node.type = "button"
-    node.addEventListener("click", () => void run(work))
+    node.addEventListener("click", onClick)
     return node
   }
+  const button = (label: string, work: () => Promise<void>) => control(label, () => void run(work))
+  const link = (label: string, target: string, extension?: MobileBrowserExtension) =>
+    control(label, () => void navigate(target, extension))
   const refreshSelected = async () => {
     const result = await api.command({ action: "list" })
     const entry = result.extensions?.find(item => item.id === selected?.id)
@@ -72,15 +82,15 @@ export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions)
     }
     if (target === "overview") {
       page.append(element("p", "Firefox extensions for pages opened in Once. Installation and settings stay on this device.", "settings_description"))
-      page.append(button("Install extension", () => show("install")), withTestId(button("Filter lists & userscripts", () => show("supplemental")), "extension-supplemental"))
+      page.append(link("Install extension", "install"), withTestId(link("Filter lists & userscripts", "supplemental"), "extension-supplemental"))
       const result = await api.command({ action: "list" })
       if (generation !== ticket) return
       for (const item of result.extensions ?? []) {
-        const row = button("", () => show("detail", item))
+        const row = link("", "detail", item)
         populateExtensionRow(row, item)
         page.append(row)
       }
-      page.append(button("Refresh extensions", () => show("overview")))
+      page.append(link("Refresh extensions", "overview"))
     } else if (target === "install") {
       renderInstall(page, api, button, () => show("overview"))
     } else if (target === "detail" && extension) {
@@ -103,7 +113,7 @@ export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions)
         page.append(button("Check for update", async () => {
           await api.command({ action: "update", id: extension.id })
           await refreshSelected()
-        }), button("Remove extension…", () => show("remove", extension)))
+        }), link("Remove extension…", "remove", extension))
       }
       page.append(element("p", "Reload open pages after enabling or disabling. Removing an extension also removes its extension data. Included extensions update with Once.", "settings_description"),
         element("h4", "Requested access"), element("p", extension.permissions.join(", ") || "None"))
@@ -112,27 +122,27 @@ export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions)
         button("Remove extension and data", async () => {
           await api.command({ action: "remove", id: extension.id })
           await show("overview")
-        }), button("Keep extension", () => show("detail", extension)))
+        }), link("Keep extension", "detail", extension))
     }
   }
   back.addEventListener("click", event => {
     if (!active() || current === "overview") return
     event.stopImmediatePropagation()
-    if (!busy) void run(() => show("overview"))
+    if (!busy) void navigate("overview")
   }, true)
   let wasActive = active()
   new MutationObserver(() => {
     const now = active()
     if (now === wasActive) return
     wasActive = now
-    if (now) void run(() => show("overview"))
+    if (now) void navigate("overview")
   }).observe(panel, { subtree: true, attributes: true, attributeFilter: ["class"] })
   void api.onChanged(() => {
     if (!active() || current !== "overview") return
     if (busy) refreshNeeded = true
-    else void run(() => show("overview"))
+    else void navigate("overview")
   }).catch(error => { status.textContent = String(error) })
-  if (active()) void run(() => show("overview"))
+  if (active()) void navigate("overview")
 }
 
 function wrapSupplemental(root: HTMLElement): HTMLElement {
