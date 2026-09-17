@@ -94,29 +94,7 @@ export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions)
     } else if (target === "install") {
       renderInstall(page, api, button, () => show("overview"))
     } else if (target === "detail" && extension) {
-      page.append(element("h4", `${extension.name} ${extension.version}`), element("p", extension.description))
-      page.append(button(extension.enabled ? "Disable extension" : "Enable extension", async () => {
-        await api.command({ action: "enable", id: extension.id, enabled: !extension.enabled })
-        await refreshSelected()
-      }))
-      if (extension.hasOptions || extension.hasAction) {
-        const options = button("Open extension settings", async () => { await api.command({ action: "options", id: extension.id }) })
-        options.disabled = !extension.enabled
-        page.append(options)
-      }
-      if (extension.hasAction) {
-        const action = button("Open extension action", async () => { await api.command({ action: "action", id: extension.id }) })
-        action.disabled = !extension.enabled
-        page.append(action)
-      }
-      if (!extension.bundled) {
-        page.append(button("Check for update", async () => {
-          await api.command({ action: "update", id: extension.id })
-          await refreshSelected()
-        }), link("Remove extension…", "remove", extension))
-      }
-      page.append(element("p", "Reload open pages after enabling or disabling. Removing an extension also removes its extension data. Included extensions update with Once.", "settings_description"),
-        element("h4", "Requested access"), element("p", extension.permissions.join(", ") || "None"))
+      renderDetail(page, api, extension, { button, link, refreshSelected })
     } else if (target === "remove" && extension) {
       page.append(element("p", `Remove ${extension.name} and its extension data from this device?`),
         button("Remove extension and data", async () => {
@@ -169,6 +147,39 @@ function extensionTitle(extension: MobileBrowserExtension): HTMLElement {
   icon.addEventListener("error", () => { icon.src = fallback }, { once: true })
   title.append(icon, element("strong", extension.name))
   return title
+}
+
+type PageControls = {
+  button: (label: string, work: () => Promise<void>) => HTMLButtonElement
+  link: (label: string, target: string, extension?: MobileBrowserExtension) => HTMLButtonElement
+  refreshSelected: () => Promise<void>
+}
+
+function renderDetail(page: HTMLElement, api: MobileBrowserExtensions, extension: MobileBrowserExtension, controls: PageControls): void {
+  const { button, link, refreshSelected } = controls
+  page.append(element("h4", `${extension.name} ${extension.version}`), element("p", extension.description))
+  page.append(button(extension.enabled ? "Disable extension" : "Enable extension", async () => {
+    await api.command({ action: "enable", id: extension.id, enabled: !extension.enabled })
+    await refreshSelected()
+  }))
+  if (extension.hasOptions || extension.hasAction) {
+    const options = button("Open extension settings", async () => { await api.command({ action: "options", id: extension.id }) })
+    options.disabled = !extension.enabled
+    page.append(options)
+  }
+  if (extension.hasAction) {
+    const action = button("Open extension action", async () => { await api.command({ action: "action", id: extension.id }) })
+    action.disabled = !extension.enabled
+    page.append(action)
+  }
+  if (!extension.bundled) {
+    page.append(button("Check for update", async () => {
+      await api.command({ action: "update", id: extension.id })
+      await refreshSelected()
+    }), link("Remove extension…", "remove", extension))
+  }
+  page.append(element("p", "Reload open pages after enabling or disabling. Removing an extension also removes its extension data. Included extensions update with Once.", "settings_description"),
+    element("h4", "Requested access"), element("p", extension.permissions.join(", ") || "None"))
 }
 
 function renderInstall(
