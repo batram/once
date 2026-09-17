@@ -21,7 +21,14 @@ function harness(command, active = true) {
   class Observer extends window.MutationObserver {
     observe(target, options) { super.observe(target, { ...options, childList: true }) }
   }
-  Function("exports", "document", "MutationObserver", compiled)(exports, document, Observer)
+  // The module's only runtime import is the settings-row reporter; the harness
+  // stands in for it and keeps what was reported.
+  const reports = []
+  const require = name => {
+    assert.equal(name, "@once/ui-web")
+    return { reportInstalledExtensions: (installed, enabled) => reports.push({ installed, enabled }) }
+  }
+  Function("exports", "require", "document", "MutationObserver", compiled)(exports, require, document, Observer)
   exports.bindMobileBrowserExtensionSettings({ command, onChanged: async () => () => {} })
   const click = text => {
     const button = [...document.querySelectorAll("button")].find(button => button.textContent === text || button.getAttribute("aria-label") === text)
@@ -29,7 +36,7 @@ function harness(command, active = true) {
     button.click()
     return settle()
   }
-  return { document, click }
+  return { document, click, reports }
 }
 
 test("Hidden extension settings do not start Gecko until opened", async () => {
@@ -55,6 +62,7 @@ test("Android extension management preserves disabled entries and confirms remov
     return { extensions: items }
   })
   await settle()
+  assert.deepEqual(ui.reports, [{ installed: 1, enabled: 0 }])
   await ui.click("Manage Dark")
   assert.equal([...ui.document.querySelectorAll("button")].find(button => button.textContent === "Open extension settings").disabled, true)
   await ui.click("Enable extension")

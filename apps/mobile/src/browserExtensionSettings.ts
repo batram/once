@@ -32,6 +32,8 @@ export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions)
   let busy = false
   let refreshNeeded = false
   const active = () => root.closest(".settings_section")?.classList.contains("active") === true
+  const report = ({ extensions = [] }: { extensions?: MobileBrowserExtension[] }) =>
+    reportInstalledExtensions(extensions.length, extensions.filter(item => item.enabled).length)
   const run = async (work: () => Promise<void>) => {
     if (busy) return
     busy = true
@@ -85,6 +87,7 @@ export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions)
       page.append(element("p", "Firefox extensions for pages opened in Once. Installation and settings stay on this device.", "settings_description"))
       page.append(link("Install extension", "install"), withTestId(link("Filter lists & userscripts", "supplemental"), "extension-supplemental"))
       const result = await api.command({ action: "list" })
+      report(result)
       if (generation !== ticket) return
       for (const item of result.extensions ?? []) {
         const row = link("", "detail", item)
@@ -116,16 +119,13 @@ export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions)
     wasActive = now
     if (now) void navigate("overview")
   }).observe(panel, { subtree: true, attributes: true, attributeFilter: ["class"] })
-  // The settings row summarises what is installed whether or not this section
-  // is open, so the count is reported on every change, not only when rendering.
-  const report = () => api.command({ action: "list" }).then(result => {
-    const installed = result.extensions ?? []
-    reportInstalledExtensions(installed.length, installed.filter(item => item.enabled).length)
-  }).catch(() => undefined)
-  void report()
+  // Listing starts Gecko, so the row learns its count from the overview's own
+  // list call and from change events, never from an eager query at bind.
   void api.onChanged(() => {
-    void report()
-    if (!active() || current !== "overview") return
+    if (!active() || current !== "overview") {
+      void api.command({ action: "list" }).then(report).catch(() => undefined)
+      return
+    }
     if (busy) refreshNeeded = true
     else void navigate("overview")
   }).catch(error => { status.textContent = String(error) })
