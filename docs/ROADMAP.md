@@ -6,6 +6,8 @@ plans are summarized in [HISTORY.md](HISTORY.md) and retained in Git history.
 - [Future user theming](plans/design-system-theming-plan.md)
 - [Extension reliability](plans/extension-reliability-plan.md)
 - [Android GeckoView extension management](plans/android-gecko-extension-management.md)
+- [Linux Electron releases](plans/linux-release-plan.md) (artifacts ship
+  since 0.4.0; physical GPU, Wayland and Speech Dispatcher coverage remain)
 
 Completed and kept for reference: [Firefox extensions and userscripts in the
 embedded browsers](plans/firefox-extensions-plan.md) and [Once add-ons on every
@@ -44,9 +46,11 @@ platform](plans/story-addons-plan.md).
 ## Later
 
 - **Electron**
-  - Restore windows, open tabs and reading position (recently closed tabs
-    already survive a restart)
-  - Signing and supported-platform packaging (Squirrel updates and a manual
+  - Restore windows, open tabs and reading position automatically (the
+    tabs of a killed session and recently closed tabs already survive a
+    restart on the reopen stack)
+  - Developer ID signing and notarization for macOS, and Linux self-update
+    (Windows, Linux and macOS packages, Squirrel updates and a manual
     release check exist)
   - A new secure video presenter (the unreachable legacy presenter and
     vendored runtime were removed)

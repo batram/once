@@ -7,9 +7,15 @@ and Capacitor applications for Android and iOS.
 ## Downloads
 
 [Latest releases](https://github.com/batram/once/releases/latest) include:
- - Windows Electron App
+ - Windows Electron app (Squirrel installer with automatic updates, plus a ZIP)
+ - Linux Electron app (`.deb` and a portable ZIP)
+ - macOS Electron app (`.dmg` and ZIP for Apple Silicon and Intel; ad-hoc
+   signed, so the first launch needs Control-click → Open)
  - Firefox extension
  - Chrome extension
+
+Android and iOS builds share the version number but are not published yet;
+see [Development](docs/DEVELOPMENT.md) to build them.
 
 ## Features
 
@@ -19,7 +25,8 @@ and Capacitor applications for Android and iOS.
 - Sync state via couchdb
 - Filter stories based on keywords
 - Dark and Light theme
-- Reader mode, with saved article text for offline reading
+- Reader mode, with saved article text for offline reading, read aloud with
+  the system voices or the bundled offline voice, and find in page
 - Per-source cache timing and cache-first launch
 - Keyboard navigation and per-platform story buttons
 - Add-ons: collectors, presenters, trays and actions, installed from a URL,

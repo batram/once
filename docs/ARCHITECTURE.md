@@ -244,6 +244,21 @@ succeeds.
 Electron reader mode fetches through the validated bridge and serves sanitized
 documents from the isolated `once-reader://` protocol.
 
+The reader reads aloud on every platform (`packages/ui-web/src/reader/readerTts.ts`).
+Its segmenter is inlined into the reader document, so it stays self-contained;
+the voice list offers the platform's Web Speech voices plus **Wafli SLT —
+offline**, a WebAssembly build of Flite and the CMU SLT voice from
+[`batram/wafli`](https://github.com/batram/wafli) (`reader/wafli.ts`; the
+module, its licenses and the pinned commit sit in `reader/wafli-licenses/`).
+Wafli synthesizes into an `AudioContext` behind the same speech-synthesis
+shape, so the play, step and rate controls do not know which engine speaks.
+
+Find in page has one command and two engines: on Electron `browser.find-in-page`
+takes Ctrl+F while the content pane holds the keyboard and `browser/FindBar.ts`
+drives Chromium's own find over tab IPC; on mobile the browser sheet's Find
+control drives Gecko's finder in browser mode and a small runtime inside the
+sandboxed reader frame in reader mode (`apps/mobile/src/readerFind.ts`).
+
 Electron also hosts Firefox-style WebExtensions through its own runtime in
 `apps/electron/src/extensions` rather than Chromium's extension subsystem; see
 [plans/firefox-extensions-plan.md](plans/firefox-extensions-plan.md). Each
@@ -348,7 +363,11 @@ shortcuts. Shared code owns canonical chords, configurable bindings, conflict
 checks, shell dispatch, pane focus, and the durable story cursor. Electron's
 main process forwards registered page keystrokes into that command layer and
 owns recently closed tab history; shells only advertise commands they can
-actually deliver.
+actually deliver. Because a killed session never closes its windows, main
+also writes every window's open tabs to `open-tabs.json` as they change
+(`browser/OpenTabs.ts`) and puts whatever is still there at the next start on
+top of the reopen stack, so Reopen closed tab brings back the tabs a crash
+lost before older ones.
 
 ## Migration history
 
