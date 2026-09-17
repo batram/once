@@ -18,6 +18,16 @@ for (const fixture of fixtures) {
   })
 }
 
+// The native messaging port as the bridge sees it: the host's settings arrive
+// through onMessage, and the bridge acknowledges applying them.
+function nativePort(onListener, acks) {
+  return {
+    onMessage: { addListener: onListener },
+    onDisconnect: { addListener() {} },
+    postMessage: message => acks.push(message)
+  }
+}
+
 test("mobile smoke filter list blocks its image through the Android bridge", async t => {
   const server = startTestServer({ port: 0, host: "127.0.0.1", stdout: "ignore", stderr: "pipe" })
   t.after(() => server.stop())
@@ -26,11 +36,12 @@ test("mobile smoke filter list blocks its image through the Android bridge", asy
   let receive, request
   const css = []
   const errors = []
+  const acks = []
   const bridge = vm.createContext({
     fetch,
     console: { info() {}, error(...details) { errors.push(details) } },
     browser: {
-      runtime: { connectNative: () => ({ onMessage: { addListener: listener => { receive = listener } }, onDisconnect: { addListener() {} } }) },
+      runtime: { connectNative: () => nativePort(listener => { receive = listener }, acks) },
       contentScripts: { register: async registration => {
         css.push(...(registration.css || []).map(entry => entry.code))
         return { unregister: async () => {} }
@@ -41,12 +52,14 @@ test("mobile smoke filter list blocks its image through the Android bridge", asy
   for (const file of ["filterRules.js", "background.js"]) {
     vm.runInContext(fs.readFileSync(path.join(root, "apps/mobile/extensions/once-surface", file), "utf8"), bridge)
   }
-  receive({ type: "extension-settings", value: {
+  receive({ type: "extension-settings", revision: 3, value: {
     filterLists: { lists: [{ url: `${baseUrl}/fixtures/mobile-filter-list.txt`, enabled: true }] },
     userscripts: { scripts: [] }
   } })
   await vm.runInContext("settingsQueue", bridge)
   assert.deepEqual(errors, [])
+  // The host holds its first page for this acknowledgement.
+  assert.deepEqual(acks.map(ack => [ack.type, ack.revision]), [["extension-settings-applied", 3]])
   assert.equal(request({ url: `${baseUrl}/fixtures/blocked-ad.png` }).cancel, true)
   assert.equal(request({ url: `${baseUrl}/fixtures/article.html` }).cancel, undefined)
   assert.equal(request({ url: `${baseUrl}/fixtures/blocked-ad.png.allowed` }).cancel, undefined)
@@ -61,11 +74,12 @@ test("mobile smoke filter list blocks its image through the Android bridge", asy
 test("Android settings discard an old download before committing newer rules", async () => {
   let receive, request
   const downloads = []
+  const acks = []
   const bridge = vm.createContext({
     console: { info() {}, error(error) { throw error } },
     fetch: url => new Promise(resolve => downloads.push({ url, resolve })),
     browser: {
-      runtime: { connectNative: () => ({ onMessage: { addListener: listener => { receive = listener } }, onDisconnect: { addListener() {} } }) },
+      runtime: { connectNative: () => nativePort(listener => { receive = listener }, acks) },
       contentScripts: { register: async () => ({ unregister: async () => {} }) },
       webRequest: { onBeforeRequest: { addListener: listener => { request = listener } } }
     }
@@ -73,13 +87,13 @@ test("Android settings discard an old download before committing newer rules", a
   for (const file of ["filterRules.js", "background.js"]) {
     vm.runInContext(fs.readFileSync(path.join(root, "apps/mobile/extensions/once-surface", file), "utf8"), bridge)
   }
-  const send = url => receive({ type: "extension-settings", value: {
+  const send = (url, revision) => receive({ type: "extension-settings", revision, value: {
     filterLists: { lists: [{ url, enabled: true }] }, userscripts: { scripts: [] }
   } })
   const tick = () => new Promise(resolve => setImmediate(resolve))
-  send("https://lists.test/old")
+  send("https://lists.test/old", 1)
   await tick()
-  send("https://lists.test/new")
+  send("https://lists.test/new", 2)
   downloads[0].resolve({ ok: true, text: async () => "||old.test^" })
   await tick()
   assert.equal(request({ url: "https://old.test/banner" }).cancel, undefined)
@@ -88,4 +102,6 @@ test("Android settings discard an old download before committing newer rules", a
   await tick()
   assert.equal(request({ url: "https://new.test/banner" }).cancel, true)
   assert.equal(request({ url: "https://old.test/banner" }).cancel, undefined)
+  // Only the settings that took effect are acknowledged.
+  assert.deepEqual(acks.map(ack => ack.revision), [2])
 })
