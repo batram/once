@@ -30,7 +30,9 @@ test("moves a live tab out to a new Once window and back", async () => {
       BrowserWindow.getAllWindows()[0].id
     )
 
-    await window.evaluate((url) => window.onceElectron.tabs.openUrl(url, "blank"), detachedUrl)
+    // Created outright: a foreground open would take over the starting blank
+    // tab, and the source window needs a second tab to survive the detach.
+    await window.evaluate((url) => window.onceElectron.tabs.create(url, true), detachedUrl)
     await expect.poll(async () =>
       (await getWindowTabs(electronApp, sourceWindowId)).find((tab) => tab.url === detachedUrl)?.title
     ).toBe("Detached")
