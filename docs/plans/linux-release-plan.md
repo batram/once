@@ -1,7 +1,8 @@
 # Plan: Linux Electron releases
 
-Created 2026-09-17. Status: release implementation and packaging proof complete;
-real-desktop validation remains.
+Created 2026-09-17. Status: release implementation, packaging proof, and the
+first real-desktop pass (Arch ZIP, Debian 13 `.deb`) complete; gradual release
+remains.
 
 ## Outcome and decisions
 
@@ -28,10 +29,10 @@ GitHub link in `apps/electron/src/ManualReleaseCheck.ts`.
 ## Work
 
 1. [x] **Add the Linux makers and dependency.** Pin
-   `@electron-forge/maker-deb` to the other Forge packages' `7.11.2`, retain the
-   Windows makers, and make the Debian package name/binary explicit. The `bin`
-   option is required: without it, the maker derives `@once/electron` from the
-   scoped npm package and cannot find Packager's `once` executable.
+       `@electron-forge/maker-deb` to the other Forge packages' `7.11.2`, retain the
+       Windows makers, and make the Debian package name/binary explicit. The `bin`
+       option is required: without it, the maker derives `@once/electron` from the
+       scoped npm package and cannot find Packager's `once` executable.
 
    ```diff
    diff --git a/apps/electron/package.json b/apps/electron/package.json
@@ -69,29 +70,29 @@ GitHub link in `apps/electron/src/ManualReleaseCheck.ts`.
    ```
 
 2. [x] **Prove packaging locally.** This was run on Arch Linux x86-64 with
-   Node 24.21.0/npm 12.0.2 and Electron `45.0.0-alpha.6`. The host had
-   `/sbin/fakeroot` but no `dpkg`, `zip`, or `xvfb-run`. Root package installation
-   was unavailable, so exact Arch `dpkg 1.23.7-1` and `zip 3.0-14` packages were
-   downloaded and extracted under `/tmp/once-dpkg`; the system was not modified.
+       Node 24.21.0/npm 12.0.2 and Electron `45.0.0-alpha.6`. The host had
+       `/sbin/fakeroot` but no `dpkg`, `zip`, or `xvfb-run`. Root package installation
+       was unavailable, so exact Arch `dpkg 1.23.7-1` and `zip 3.0-14` packages were
+       downloaded and extracted under `/tmp/once-dpkg`; the system was not modified.
 
    Commands and outcomes (exit codes are exact):
 
-   | Command | Exit | Result |
-   | --- | ---: | --- |
-   | `npm ci` | 1 | `EALLOWGIT`: npm disabled the locked Git dependency `@electron/node-gyp`. |
-   | `npm ci --allow-git=all` | 226 | `EROFS` creating `/home/mjb/.npm/_cacache/tmp/...`. |
-   | `npm ci --allow-git=all --cache /tmp/once-npm-cache` | 0 | 2,774 packages installed; required approved network access. |
-   | `npm install --workspace @once/electron --save-dev --save-exact @electron-forge/maker-deb@7.11.2 --allow-git=all --cache /tmp/once-npm-cache` | 0 | Added the Debian maker at the existing Forge version. |
-   | `npm run make:electron` | 1 | The npm 12 install-script policy had left `node_modules/node/bin/node` absent (`spawnSync ... ENOENT`). |
-   | `npm install-scripts approve node esbuild sharp leveldown` | 0 | Approved only already-locked build dependencies; the Node package's nested installer was then run from `node_modules/node`. |
-   | `node installArchSpecificPackage.js` (cwd `node_modules/node`) | 0 | Installed the locked Linux Node binary. |
-   | `npm run make:electron` | 1 | Forge reached maker resolution and reported missing `dpkg, fakeroot`. |
-   | `pacman -Sy --noconfirm dpkg` | 1 | Correctly failed because this environment does not grant root. |
-   | `curl -fL https://frankfurt.mirror.pkgbuild.com/extra/os/x86_64/dpkg-1.23.7-1-x86_64.pkg.tar.zst -o /tmp/once-pacman-cache/dpkg.pkg.tar.zst` followed by local `bsdtar` extraction | 0 | Supplied temporary `dpkg`/`dpkg-deb`. |
-   | `env PATH=/tmp/once-dpkg/usr/bin:/sbin:/bin:/usr/bin:/usr/local/bin npm run make:electron` | 1 | Packaging completed, then ZIP making failed with `spawn zip ENOENT`. |
-   | Download/extract `zip-3.0-14-x86_64.pkg.tar.zst` into `/tmp/once-dpkg` | 0 | Supplied temporary Info-ZIP. |
-   | Same `env PATH=... npm run make:electron` | 1 | Both makers started; Debian maker exposed the scoped-name bug: expected `Once-linux-x64/@once/electron`. |
-   | Same command after adding `bin`, then after adding the final explicit name/product fields above | 0, 0 | ZIP and Debian distributables completed. |
+   | Command                                                                                                                                                                            | Exit | Result                                                                                                                      |
+   | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---: | --------------------------------------------------------------------------------------------------------------------------- |
+   | `npm ci`                                                                                                                                                                           |    1 | `EALLOWGIT`: npm disabled the locked Git dependency `@electron/node-gyp`.                                                   |
+   | `npm ci --allow-git=all`                                                                                                                                                           |  226 | `EROFS` creating `/home/mjb/.npm/_cacache/tmp/...`.                                                                         |
+   | `npm ci --allow-git=all --cache /tmp/once-npm-cache`                                                                                                                               |    0 | 2,774 packages installed; required approved network access.                                                                 |
+   | `npm install --workspace @once/electron --save-dev --save-exact @electron-forge/maker-deb@7.11.2 --allow-git=all --cache /tmp/once-npm-cache`                                      |    0 | Added the Debian maker at the existing Forge version.                                                                       |
+   | `npm run make:electron`                                                                                                                                                            |    1 | The npm 12 install-script policy had left `node_modules/node/bin/node` absent (`spawnSync ... ENOENT`).                     |
+   | `npm install-scripts approve node esbuild sharp leveldown`                                                                                                                         |    0 | Approved only already-locked build dependencies; the Node package's nested installer was then run from `node_modules/node`. |
+   | `node installArchSpecificPackage.js` (cwd `node_modules/node`)                                                                                                                     |    0 | Installed the locked Linux Node binary.                                                                                     |
+   | `npm run make:electron`                                                                                                                                                            |    1 | Forge reached maker resolution and reported missing `dpkg, fakeroot`.                                                       |
+   | `pacman -Sy --noconfirm dpkg`                                                                                                                                                      |    1 | Correctly failed because this environment does not grant root.                                                              |
+   | `curl -fL https://frankfurt.mirror.pkgbuild.com/extra/os/x86_64/dpkg-1.23.7-1-x86_64.pkg.tar.zst -o /tmp/once-pacman-cache/dpkg.pkg.tar.zst` followed by local `bsdtar` extraction |    0 | Supplied temporary `dpkg`/`dpkg-deb`.                                                                                       |
+   | `env PATH=/tmp/once-dpkg/usr/bin:/sbin:/bin:/usr/bin:/usr/local/bin npm run make:electron`                                                                                         |    1 | Packaging completed, then ZIP making failed with `spawn zip ENOENT`.                                                        |
+   | Download/extract `zip-3.0-14-x86_64.pkg.tar.zst` into `/tmp/once-dpkg`                                                                                                             |    0 | Supplied temporary Info-ZIP.                                                                                                |
+   | Same `env PATH=... npm run make:electron`                                                                                                                                          |    1 | Both makers started; Debian maker exposed the scoped-name bug: expected `Once-linux-x64/@once/electron`.                    |
+   | Same command after adding `bin`, then after adding the final explicit name/product fields above                                                                                    | 0, 0 | ZIP and Debian distributables completed.                                                                                    |
 
    Final artifacts from the recommended configuration:
 
@@ -129,10 +130,10 @@ GitHub link in `apps/electron/src/ManualReleaseCheck.ts`.
    a real-desktop release gate below.
 
 3. [x] **Add an Ubuntu release job.** Ubuntu already provides a native environment
-   for the target audience. Install the maker tools explicitly, run the existing
-   make command, verify Linux-specific names, and upload only the two publishable
-   files. Gate signing and publication on this job. Download the artifact into the
-   aggregate release directory before the final verifier runs.
+       for the target audience. Install the maker tools explicitly, run the existing
+       make command, verify Linux-specific names, and upload only the two publishable
+       files. Gate signing and publication on this job. Download the artifact into the
+       aggregate release directory before the final verifier runs.
 
    ```diff
    diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
@@ -190,10 +191,10 @@ GitHub link in `apps/electron/src/ManualReleaseCheck.ts`.
    ```
 
 4. [x] **Make artifact verification platform-specific.** Preserve `electron` as
-   the Windows target for compatibility (or rename it and update the current
-   workflow together), add `electron-linux`, and make aggregate `release` require
-   both sets. Match complete basenames so one platform's ZIP cannot satisfy the
-   other platform's assertion.
+       the Windows target for compatibility (or rename it and update the current
+       workflow together), add `electron-linux`, and make aggregate `release` require
+       both sets. Match complete basenames so one platform's ZIP cannot satisfy the
+       other platform's assertion.
 
    ```diff
    diff --git a/scripts/verify-release-artifacts.js b/scripts/verify-release-artifacts.js
@@ -232,13 +233,13 @@ GitHub link in `apps/electron/src/ManualReleaseCheck.ts`.
    versioned artifact, and the case where only the Windows ZIP is present.
 
 5. [x] **Update release documentation.** Change the opening product description
-   from “Electron desktop app (Windows)” to “Electron desktop app (Windows and
-   Linux)”. In “What CI checks and produces”, list five jobs and add “Electron
-   for Linux (Ubuntu) — verify version, make `.deb` and portable ZIP, verify and
-   upload both.” Replace the expected-name paragraph with separate Windows and
-   Linux lists. State plainly that Windows Squirrel installs self-update, while
-   Linux `.deb` and ZIP installs use Settings → **Check latest release** and must
-   be downloaded/installed manually.
+       from “Electron desktop app (Windows)” to “Electron desktop app (Windows and
+       Linux)”. In “What CI checks and produces”, list five jobs and add “Electron
+       for Linux (Ubuntu) — verify version, make `.deb` and portable ZIP, verify and
+       upload both.” Replace the expected-name paragraph with separate Windows and
+       Linux lists. State plainly that Windows Squirrel installs self-update, while
+       Linux `.deb` and ZIP installs use Settings → **Check latest release** and must
+       be downloaded/installed manually.
 
    ```diff
    diff --git a/docs/RELEASING.md b/docs/RELEASING.md
@@ -266,15 +267,15 @@ GitHub link in `apps/electron/src/ManualReleaseCheck.ts`.
    ```
 
 6. [x] **Use the existing Linux icon.** Keep
-   `packages/ui-web/public/static/imgs/icons/icon.png`, added by commit
-   `c0951d08` (“Add Linux Electron app icon”), as both the BrowserWindow resource
-   and Debian desktop icon. Confirm the installed desktop entry resolves it at
-   normal launcher sizes. Do not derive the Linux icon from the Windows `.ico`.
+       `packages/ui-web/public/static/imgs/icons/icon.png`, added by commit
+       `c0951d08` (“Add Linux Electron app icon”), as both the BrowserWindow resource
+       and Debian desktop icon. Confirm the installed desktop entry resolves it at
+       normal launcher sizes. Do not derive the Linux icon from the Windows `.ico`.
 
-7. [ ] **Validate on real desktops before publishing.** Test the `.deb` on the
-   current Ubuntu LTS and the ZIP on at least one non-Debian desktop. Record distro,
-   desktop/session (X11 or Wayland), GPU, and install/uninstall behavior. Required
-   checks:
+7. [x] **Validate on real desktops before publishing.** Test the `.deb` on the
+       current Ubuntu LTS and the ZIP on at least one non-Debian desktop. Record distro,
+       desktop/session (X11 or Wayland), GPU, and install/uninstall behavior. Required
+       checks:
 
    - first launch and relaunch, application menu entry/icon, single-instance
      behavior, profile persistence, and manual release-check link;
@@ -291,10 +292,15 @@ GitHub link in `apps/electron/src/ManualReleaseCheck.ts`.
    - bundled uBlock Origin and Violentmonkey load from `resources/extensions`, and
      core story/reader flows work from both `.deb` and ZIP installs.
 
+   Recorded below. Still outstanding after this pass, and to be covered by the
+   experimental release cycle in step 8: audible Speech Dispatcher playback on a
+   host with a real audio sink, physical Intel/AMD GPU acceleration, a Wayland
+   session, and a human pass with a physical mouse over window dragging.
+
 8. [ ] **Release gradually.** Publish the first Linux artifacts as explicitly
-   experimental in release notes, inspect downloads and issue reports for one
-   patch cycle, then remove that label after both formats pass the desktop matrix.
-   Keep Windows Squirrel asset names and updater behavior unchanged.
+       experimental in release notes, inspect downloads and issue reports for one
+       patch cycle, then remove that label after both formats pass the desktop matrix.
+       Keep Windows Squirrel asset names and updater behavior unchanged.
 
 ## Desktop acceptance evidence
 
@@ -333,6 +339,77 @@ Graphics were Mesa llvmpipe (OpenGL 4.6, direct rendering reported but not
 accelerated); the container exposed no `/dev/dri`, VA-API render node, or DRI3.
 The app remained stable with software compositing, but physical Intel/AMD GPU
 coverage and Wayland remain outstanding.
+
+### Debian 13 `.deb` install (2026-09-17)
+
+Host: Debian GNU/Linux 13 (trixie), kernel 7.1.8+deb13-amd64, Hyper-V guest
+(`hyperv_drm`, no `/dev/dri` render node, no sound card) on an AMD Ryzen 9
+5900X, GNOME on X11 over XRDP at 1522×1039 and 100% scale, gnome-keyring
+providing `org.freedesktop.secrets`, PipeWire audio, Speech Dispatcher 0.12
+with the espeak-ng module. Node 24.21.0 (nvm), npm 11.19.0.
+
+Build: `npm ci --allow-git=all`, `npm install-scripts approve node esbuild
+sharp leveldown electron electron-winstaller` plus the Node, Electron, and
+sharp installers run by hand (npm 11's install-script policy also skips them),
+then `ONCE_RELEASE_BUILD=1 npm run make:electron` exit 0 with system `dpkg`,
+`fakeroot`, and `zip`. `verify:release-artifacts electron-linux` passed on
+`once_0.3.0_amd64.deb` (98,845,688 bytes) and `Once-linux-x64-0.3.0.zip`
+(131,793,008 bytes).
+
+Install: `sudo dpkg -i` exit 0 with every declared dependency already
+satisfied from the stock GNOME install. `desktop-file-validate` accepted the
+entry; `GenericName=Feed Reader`, `Icon=once` resolves to
+`/usr/share/pixmaps/once.png`, `/usr/bin/once -> ../lib/once/once`, and
+`resources/` holds `app.asar`, `icon.png`, and both extension bundles.
+`sudo dpkg -r once` removed the binary, `/usr/lib/once`, desktop entry, and
+pixmap with no leftovers; `~/.config/@once/electron` (49 MiB) survives as
+expected, and reinstalling over it reused the profile.
+
+Checks that passed:
+
+- First launch from `/usr/bin/once` and relaunch through the desktop entry
+  (`gtk-launch once`) with the profile persisting between them, sandboxed
+  renderer, and the `once-electron` window class. A second `once` invocation
+  exited 0 without a new process; the running instance opened a second window
+  as `second-instance` in `apps/electron/src/main.ts` intends.
+- Settings → About shows 0.3.0, **Check latest release** returned “This is the
+  latest release (v0.3.0)” from the live GitHub API, and the manual-update
+  explanation is shown.
+- Browser Extensions lists uBlock Origin 1.74.0 and Violentmonkey 2.49.0 as
+  Enabled · Included with Once. (The Settings summary row says “None” because it
+  counts user-installed extensions only; cosmetic.)
+- A story opened in the browser panel, the reader toggle switched to
+  `once-reader://…`, and the reader TTS toolbar rendered.
+- GTK client-side title bar with the app icon: XTest drag moved the window,
+  double-click maximized and restored, right-click opened and Escape closed the
+  GNOME window menu, WM close ended the process cleanly, and maximize,
+  fullscreen (client 1522×1039), resize to 900×600, and restore all reported
+  the expected `_NET_WM_STATE` and geometry. Once during the session, after a
+  synthetic long-press on the title bar, the X pointer stayed grabbed until the
+  Once window was closed; it did not reproduce with drag, double-click, or the
+  right-click menu and still needs a human pass with a real mouse.
+- `--force-device-scale-factor=1.5` rendered correctly and auto-maximized
+  because 1312×842 × 1.5 exceeds the screen.
+- Keychain with Secret Service available: saving a CouchDB URL stored a `v11`
+  ciphertext in `once-v2-settings.json` and created a `@once/electron Safe
+Storage` item (schema `chrome_libsecret_os_crypt_password_v2`) in the login
+  keyring; the UI masks the credentials. With the login collection locked via
+  D-Bus, launch raised GNOME’s standard “Authentication required” prompt;
+  cancelling it produced the toast “The sync setting could not be loaded; using
+  defaults”, an error-log badge, the main-process message “Secure credential
+  storage refused to decrypt a saved value. Save it again to replace it.”, and
+  the ciphertext was left intact. Re-saving under `--password-store=basic`
+  wrote a `v10` blob, so Once’s plaintext fallback is still unreachable on
+  Linux; that flag no longer suppresses the keyring prompt on this Chromium.
+- Web Speech exposed the full espeak-ng voice list through
+  `enable-speech-dispatcher`. Pressing Play entered the playing state, but with
+  no audio sink in the VM (`spd-say -w` also hangs) it never progressed or
+  reported an error in 30 s, so the “fails intelligibly without a backend”
+  requirement is not met yet: a dead Speech Dispatcher output leaves the reader
+  in a silent playing state.
+- GPU: Mesa llvmpipe 25.0.7 (not accelerated); the GPU process logged only the
+  benign VA-API/DRI3 warnings, and a `--disable-gpu` run behaved identically.
+  Physical GPU and Wayland coverage remain outstanding.
 
 ## Non-goals
 
