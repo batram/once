@@ -1,7 +1,7 @@
 # Releasing
 
 Once ships three published products from a single tag: the **Electron** desktop
-app (Windows and Linux), and the **Firefox** and **Chrome** side-panel extensions.
+app (Windows, Linux, and macOS), and the **Firefox** and **Chrome** side-panel extensions.
 The Capacitor mobile apps share the same version number but are not built or
 published by the release workflow. A hand-built Android or iOS release must
 also set `ONCE_BUILD_NUMBER` (the Android `versionCode` and iOS build number),
@@ -110,7 +110,7 @@ tag again. After Mozilla accepts a version, use a new patch version.
 
 ## What CI checks and produces
 
-The workflow runs five jobs:
+The workflow runs six jobs:
 
 - **Browser extensions** (Ubuntu) — `npm ci`, verify version, run the extension
   test suite, and upload the Chrome ZIP plus unsigned Firefox bundle.
@@ -118,10 +118,14 @@ The workflow runs five jobs:
   tests, and `make:electron` (Squirrel installer, NuGet package, ZIP).
 - **Electron for Linux** (Ubuntu) — `npm ci`, verify version, install the Debian
   packaging tools, and `make:electron` (`.deb` and portable ZIP).
-- **Sign Firefox extension with Mozilla** — starts only after all three build/test
+- **Electron for macOS** (Apple Silicon runner) — `npm ci`, verify version, and
+  `make:electron` twice, `--arch=arm64` and `--arch=x64` (a `.dmg` and a ZIP
+  per architecture). The bundles are ad-hoc signed, not Developer ID signed or
+  notarized; see [macOS signing](#macos-signing).
+- **Sign Firefox extension with Mozilla** — starts only after all four build/test
   jobs pass, then signs the Firefox bundle via `web-ext sign`. Requires the
   `AMO_JWT_ISSUER` and `AMO_JWT_SECRET` repository secrets.
-- **Publish GitHub release** — downloads all three sets of artifacts, verifies
+- **Publish GitHub release** — downloads all four sets of artifacts, verifies
   them, and runs `gh release create` with the notes file as the release body.
 
 Two scripts enforce the contract:
@@ -134,10 +138,36 @@ Two scripts enforce the contract:
   built files must be present and versioned. Expected names are
   `once-firefox-vX.Y.Z.xpi` and `once-chrome-vX.Y.Z.zip`; Windows
   `*-X.Y.Z Setup.exe`, `*-X.Y.Z-full.nupkg`, `Once-win32-x64-X.Y.Z.zip`, and
-  `RELEASES`; and Linux `once_X.Y.Z_amd64.deb` and
-  `Once-linux-x64-X.Y.Z.zip`.
+  `RELEASES`; Linux `once_X.Y.Z_amd64.deb` and `Once-linux-x64-X.Y.Z.zip`;
+  and macOS `Once-X.Y.Z-arm64.dmg`, `Once-X.Y.Z-x64.dmg`,
+  `Once-darwin-arm64-X.Y.Z.zip`, and `Once-darwin-x64-X.Y.Z.zip`.
 
-Squirrel automatic updates are Windows-only. Linux `.deb` and ZIP installs use
+Squirrel automatic updates are Windows-only. Linux and macOS installs use
 the version row's **Check latest release** action, implemented by
 `apps/electron/src/ManualReleaseCheck.ts`, and the user downloads and installs
 the newer GitHub release manually.
+
+## macOS signing
+
+The macOS bundles are **ad-hoc signed only**. Packaging rewrites `Info.plist`
+and the resources, which invalidates the signature Electron ships with, so the
+`postPackage` hook in [`forge.config.js`](../apps/electron/forge.config.js)
+runs `codesign --sign -` over the bundle. That keeps `codesign --verify`
+green and gives `safeStorage` a stable Keychain identity across launches, but
+it is not a Developer ID signature and the DMG is not notarized: Gatekeeper
+refuses the first launch of a downloaded copy with "cannot be opened because
+the developer cannot be verified". Users open it once via **Control-click →
+Open**, or clear the quarantine flag:
+
+```bash
+xattr -d com.apple.quarantine /Applications/Once.app
+```
+
+Proper signing needs an Apple Developer certificate and a notarization
+credential wired into `packagerConfig.osxSign` / `osxNotarize` and the release
+workflow's secrets; that is not set up.
+
+The DMG maker depends on two native modules (`macos-alias`, `fs-xattr`) whose
+install scripts the root `package.json` `allowScripts` block approves for npm
+versions that gate install scripts. Building the macOS packages locally needs
+Xcode Command Line Tools for `node-gyp` and `codesign`.

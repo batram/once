@@ -22,6 +22,13 @@ function hasBasename(expected) {
   return (file) => path.basename(file) === expected
 }
 
+function requireMacFiles(files) {
+  for (const arch of ["arm64", "x64"]) {
+    requireFiles(files, `macOS ${arch} disk image`, hasBasename(`Once-${version}-${arch}.dmg`))
+    requireFiles(files, `macOS ${arch} Electron ZIP`, hasBasename(`Once-darwin-${arch}-${version}.zip`))
+  }
+}
+
 if (!fs.existsSync(root)) {
   throw new Error(`Artifact directory does not exist: ${root}`)
 }
@@ -44,6 +51,8 @@ if (target === "extensions") {
   const files = walk(root)
   requireFiles(files, "Linux Debian package", hasBasename(`once_${version}_amd64.deb`))
   requireFiles(files, "Linux Electron ZIP", hasBasename(`Once-linux-x64-${version}.zip`))
+} else if (target === "electron-macos") {
+  requireMacFiles(walk(root))
 } else if (target === "release") {
   const files = walk(root)
   requireFiles(files, "signed Firefox extension XPI", (file) => file.endsWith(`once-firefox-v${version}.xpi`))
@@ -54,8 +63,9 @@ if (target === "extensions") {
   requireFiles(files, "Squirrel RELEASES metadata", (file) => path.basename(file) === "RELEASES")
   requireFiles(files, "Linux Debian package", hasBasename(`once_${version}_amd64.deb`))
   requireFiles(files, "Linux Electron ZIP", hasBasename(`Once-linux-x64-${version}.zip`))
+  requireMacFiles(files)
 } else {
-  throw new Error("Target must be extensions, electron, electron-linux, or release")
+  throw new Error("Target must be extensions, electron, electron-linux, electron-macos, or release")
 }
 
 console.log(`${target} artifacts verified for v${version}`)

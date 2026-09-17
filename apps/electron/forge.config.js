@@ -1,3 +1,4 @@
+const { spawnSync } = require("child_process")
 const path = require("path")
 const { FusesPlugin } = require("@electron-forge/plugin-fuses")
 const { WebpackPlugin } = require("@electron-forge/plugin-webpack")
@@ -28,13 +29,34 @@ module.exports = {
     buildVersion: version,
     name: isDevChannel ? "Once Dev" : "Once",
     executableName: isDevChannel ? "once-dev" : "once",
+    // Packager appends the platform's icon extension itself (.ico, .icns).
     icon: iconBase,
+    appBundleId: isDevChannel ? "app.once.desktop.dev" : "app.once.desktop",
+    appCategoryType: "public.app-category.news",
     // Runtime-owned files travel beside the asar. Linux reads the PNG directly
     // because its executable does not contain a Windows-style icon resource.
     extraResource: [
       path.resolve(__dirname, "../../vendor/extensions"),
       linuxWindowIcon
     ]
+  },
+  hooks: {
+    // Packaging rewrites Info.plist and the resources, which invalidates the
+    // ad-hoc signature Electron ships with. Re-sign ad-hoc so the bundle
+    // verifies again and safeStorage gets a stable Keychain identity; a real
+    // Developer ID signature is a separate, later step.
+    postPackage: async (_config, { platform, outputPaths }) => {
+      if (platform !== "darwin") return
+      for (const outputPath of outputPaths) {
+        const appBundle = path.join(outputPath, `${module.exports.packagerConfig.name}.app`)
+        const result = spawnSync("codesign", ["--force", "--deep", "--sign", "-", appBundle], {
+          stdio: "inherit"
+        })
+        if (result.status !== 0) {
+          throw new Error(`Ad-hoc codesign failed for ${appBundle}`)
+        }
+      }
+    }
   },
   makers: [
     {
@@ -48,7 +70,17 @@ module.exports = {
     },
     {
       name: "@electron-forge/maker-zip",
-      platforms: ["win32", "linux"]
+      platforms: ["win32", "linux", "darwin"]
+    },
+    {
+      // Unsigned: without an Apple Developer certificate the first launch
+      // needs the Gatekeeper override described in docs/RELEASING.md.
+      name: "@electron-forge/maker-dmg",
+      platforms: ["darwin"],
+      config: {
+        icon: `${iconBase}.icns`,
+        format: "ULFO"
+      }
     },
     {
       name: "@electron-forge/maker-deb",

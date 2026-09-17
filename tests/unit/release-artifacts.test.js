@@ -66,7 +66,65 @@ test("rejects wrong-version and Windows-only ZIP artifacts for Linux", (context)
   assert.match(result.stderr, /Missing Linux Electron ZIP/)
 })
 
+test("accepts the exact macOS release artifact names for both architectures", (context) => {
+  const directory = fixture([
+    `Once-${version}-arm64.dmg`,
+    `zip/darwin/arm64/Once-darwin-arm64-${version}.zip`,
+    `Once-${version}-x64.dmg`,
+    `zip/darwin/x64/Once-darwin-x64-${version}.zip`
+  ])
+  context.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+
+  const result = verify("electron-macos", directory)
+  assert.equal(result.status, 0, result.stderr)
+})
+
+test("rejects a macOS release that only covers one architecture", (context) => {
+  const directory = fixture([
+    `Once-${version}-arm64.dmg`,
+    `Once-darwin-arm64-${version}.zip`
+  ])
+  context.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+
+  const result = verify("electron-macos", directory)
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /Missing macOS x64 disk image/)
+})
+
+test("rejects a macOS release without its disk image", (context) => {
+  const directory = fixture([
+    `Once-darwin-arm64-${version}.zip`,
+    `Once-darwin-x64-${version}.zip`
+  ])
+  context.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+
+  const result = verify("electron-macos", directory)
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /Missing macOS arm64 disk image/)
+})
+
 test("accepts a complete cross-platform published release", (context) => {
+  const directory = fixture([
+    `once-firefox-v${version}.xpi`,
+    `once-chrome-v${version}.zip`,
+    `Once-${version} Setup.exe`,
+    `Once-${version}-full.nupkg`,
+    `Once-win32-x64-${version}.zip`,
+    "RELEASES",
+    `once_${version}_amd64.deb`,
+    `Once-linux-x64-${version}.zip`,
+    `Once-${version}-arm64.dmg`,
+    `Once-darwin-arm64-${version}.zip`,
+    `Once-${version}-x64.dmg`,
+    `Once-darwin-x64-${version}.zip`
+  ])
+  context.after(() => fs.rmSync(directory, { recursive: true, force: true }))
+
+  const result = verify("release", directory)
+  assert.equal(result.status, 0, result.stderr)
+})
+
+test("rejects a published release without the macOS artifacts", (context) => {
   const directory = fixture([
     `once-firefox-v${version}.xpi`,
     `once-chrome-v${version}.zip`,
@@ -80,5 +138,6 @@ test("accepts a complete cross-platform published release", (context) => {
   context.after(() => fs.rmSync(directory, { recursive: true, force: true }))
 
   const result = verify("release", directory)
-  assert.equal(result.status, 0, result.stderr)
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /Missing macOS arm64 disk image/)
 })

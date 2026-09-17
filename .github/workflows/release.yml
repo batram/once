@@ -121,9 +121,38 @@ jobs:
             apps/electron/out/make/zip/linux/**/*.zip
           if-no-files-found: error
 
+  electron-macos:
+    name: Electron for macOS
+    runs-on: macos-latest
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      ONCE_RELEASE_BUILD: "1"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run verify:release-version -- "$RELEASE_TAG"
+      # The Apple Silicon runner packages both architectures; the DMG and ZIP
+      # are unsigned (see docs/RELEASING.md).
+      - run: npm run make:electron -- --arch=arm64
+      - run: npm run make:electron -- --arch=x64
+      - run: npm run verify:release-artifacts -- electron-macos apps/electron/out/make
+      - uses: actions/upload-artifact@v7
+        with:
+          name: electron-macos
+          path: |
+            apps/electron/out/make/**/*.dmg
+            apps/electron/out/make/zip/darwin/**/*.zip
+          if-no-files-found: error
+
   sign-firefox:
     name: Sign Firefox extension with Mozilla
-    needs: [extensions, electron, electron-linux]
+    needs: [extensions, electron, electron-linux, electron-macos]
     runs-on: ubuntu-latest
     env:
       RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
@@ -165,7 +194,7 @@ jobs:
 
   release:
     name: Publish GitHub release
-    needs: [sign-firefox, electron, electron-linux]
+    needs: [sign-firefox, electron, electron-linux, electron-macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -189,6 +218,10 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: electron-linux
+          path: release
+      - uses: actions/download-artifact@v8
+        with:
+          name: electron-macos
           path: release
       - run: npm run verify:release-version -- "$RELEASE_TAG"
       - run: npm run verify:release-artifacts -- release release
