@@ -1,4 +1,5 @@
 import type { MobileBrowserExtension, MobileBrowserExtensions } from "@once/platform-mobile"
+import { reportInstalledExtensions } from "@once/ui-web"
 
 /** Marks a control the mobile e2e suite navigates through. */
 function withTestId<T extends HTMLElement>(node: T, id: string): T {
@@ -115,7 +116,15 @@ export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions)
     wasActive = now
     if (now) void navigate("overview")
   }).observe(panel, { subtree: true, attributes: true, attributeFilter: ["class"] })
+  // The settings row summarises what is installed whether or not this section
+  // is open, so the count is reported on every change, not only when rendering.
+  const report = () => api.command({ action: "list" }).then(result => {
+    const installed = result.extensions ?? []
+    reportInstalledExtensions(installed.length, installed.filter(item => item.enabled).length)
+  }).catch(() => undefined)
+  void report()
   void api.onChanged(() => {
+    void report()
     if (!active() || current !== "overview") return
     if (busy) refreshNeeded = true
     else void navigate("overview")

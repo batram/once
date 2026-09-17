@@ -54,7 +54,11 @@ export function updateSettingsSummaries(
     keyboard: { text: keyboardSummary() },
     swipe: { text: `${swipeRight} · ${swipeLeft}` },
     extensions: {
-      text: extensionsSummary(value("#filter_lists_area"), value("#userscripts_area"))
+      text: extensionsSummary(
+        sectionButtons.get("extensions"),
+        value("#filter_lists_area"),
+        value("#userscripts_area")
+      )
     },
     addons: { text: addonsSummary(value("#addons_area")) },
     cache: { text: `${value("#cache_time_input") || DEFAULT_CACHE_MINUTES} min` },
@@ -82,10 +86,43 @@ export function updateSettingsSummaries(
   }
 }
 
+/**
+ * Shells that manage real extensions report what is installed; the row then
+ * leads with that count, since it is what the section is for. A shell without
+ * extension management never calls this and the row keeps counting lists and
+ * scripts alone.
+ */
+export function reportInstalledExtensions(installed: number, enabled: number): void {
+  const row = document.querySelector<HTMLElement>('[data-settings-target="extensions"]')
+  if (!row) return
+  row.dataset.installedCount = String(installed)
+  row.dataset.enabledCount = String(enabled)
+  const summary = row.querySelector<HTMLElement>(".settings_section_summary")
+  if (!summary) return
+  const value = (selector: string) =>
+    document.querySelector<HTMLTextAreaElement>(selector)?.value || ""
+  summary.textContent =
+    extensionsSummary(row, value("#filter_lists_area"), value("#userscripts_area"))
+}
+
 // Both editors carry text the user may still be editing, so the row counts
 // what currently reads as switched on: a list line without its `#`, a script
-// whose header carries no `@once-disabled`.
-function extensionsSummary(lists: string, scripts: string): string {
+// whose header carries no `@once-disabled`. Zero counts are left out so the
+// installed extensions stay in front.
+function extensionsSummary(
+  row: HTMLElement | undefined,
+  lists: string,
+  scripts: string
+): string {
+  const parts: string[] = []
+  const installed = row?.dataset.installedCount
+  if (installed !== undefined) {
+    const installedCount = Number(installed)
+    const disabledCount = installedCount - Number(row?.dataset.enabledCount || 0)
+    parts.push(installedCount === 0 ? "No extensions" :
+      `${installedCount} ${installedCount === 1 ? "extension" : "extensions"}`)
+    if (disabledCount > 0) parts.push(`${disabledCount} disabled`)
+  }
   const listCount = lists
     .split("\n")
     .filter((line) => line.trim() && !line.trim().startsWith("#")).length
@@ -93,9 +130,9 @@ function extensionsSummary(lists: string, scripts: string): string {
     .split(/^[ \t]*\/\/[ \t]*==UserScript==[ \t]*$/m)
     .slice(1)
     .filter((script) => !/^[ \t]*\/\/[ \t]*@once-disabled\b/m.test(script)).length
-  if (!listCount && !scriptCount) return "None"
-  return `${listCount} ${listCount === 1 ? "list" : "lists"} · ` +
-    `${scriptCount} ${scriptCount === 1 ? "script" : "scripts"}`
+  if (listCount) parts.push(`${listCount} ${listCount === 1 ? "list" : "lists"}`)
+  if (scriptCount) parts.push(`${scriptCount} ${scriptCount === 1 ? "script" : "scripts"}`)
+  return parts.length ? parts.join(" · ") : "None"
 }
 
 // The editor holds the document's JSON; a half-edited text is still a count

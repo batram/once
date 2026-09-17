@@ -1,5 +1,6 @@
 import { OnceClient } from "@once/app"
 import { ElectronBridge, ElectronManagedExtension } from "@once/platform-electron/bridge"
+import { reportInstalledExtensions } from "@once/ui-web"
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, text = "", className = ""): HTMLElementTagNameMap[K] {
   const result = document.createElement(tag)
@@ -99,7 +100,16 @@ export function bindBrowserExtensionSettings(client: OnceClient, bridge: Electro
     wasActive = now
     if (now) void run(() => show("overview"))
   }).observe(panel, { subtree: true, attributes: true, attributeFilter: ["class"] })
-  bridge.extensions.onChanged(() => { if (active() && current === "overview" && !busy) void run(() => show("overview")) })
+  // The settings row summarises what is installed whether or not this section
+  // is open, so the count is reported on every change, not only when rendering.
+  const report = () => bridge.extensions.installed().then(installed =>
+    reportInstalledExtensions(installed.length, installed.filter(item => item.running).length)
+  ).catch(() => undefined)
+  bridge.extensions.onChanged(() => {
+    void report()
+    if (active() && current === "overview" && !busy) void run(() => show("overview"))
+  })
+  void report()
   let exchange = Promise.resolve()
   const apply = () => {
     exchange = exchange.then(async () => bridge.extensions.applySync(await client.getBrowserExtensionSync())).catch(error => { status.textContent = `Extension sync failed: ${error}` })
