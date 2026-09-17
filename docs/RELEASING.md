@@ -119,6 +119,13 @@ To re-run a release before Mozilla signing has succeeded, use the workflow's
 `workflow_dispatch` trigger with the existing tag name instead of pushing the
 tag again. After Mozilla accepts a version, use a new patch version.
 
+If only the final **Publish GitHub release** job fails (typically an
+`HTTP 500: Error saving asset` from GitHub's upload endpoint on one of the
+large ZIPs), do not re-dispatch the workflow: that would rebuild everything and
+re-submit the Firefox extension to Mozilla. Run `gh run rerun <run-id> --failed`
+instead. The publish job is resumable: it keeps the draft release from the
+previous attempt, re-uploads the assets, and publishes.
+
 ## What CI checks and produces
 
 The workflow runs six jobs:
@@ -137,7 +144,15 @@ The workflow runs six jobs:
   jobs pass, then signs the Firefox bundle via `web-ext sign`. Requires the
   `AMO_JWT_ISSUER` and `AMO_JWT_SECRET` repository secrets.
 - **Publish GitHub release** — downloads all four sets of artifacts, verifies
-  them, and runs `gh release create` with the notes file as the release body.
+  them, and publishes in three resumable stages: create a *draft* release with
+  the notes file as the body (skipped when a draft for the tag already exists),
+  upload each asset with `gh release upload --clobber` inside a retry loop
+  (five attempts, growing back-off), then flip the draft to published with
+  `gh release edit --draft=false`. The tag must already exist on GitHub. If an
+  upload fails for good, the draft and the assets uploaded so far stay in
+  place; `gh run rerun --failed` re-runs only this job, which finds the draft,
+  re-uploads every asset (already-present ones are overwritten in place) and
+  publishes.
 
 Two scripts enforce the contract:
 

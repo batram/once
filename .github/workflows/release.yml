@@ -228,7 +228,43 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
+        # Draft first, then one upload per file with retries, then publish.
+        # A failed upload (GitHub's upload endpoint returns sporadic HTTP 500s
+        # on 100-250 MB assets) no longer discards the draft, so
+        # `gh run rerun --failed` resumes with the assets already uploaded.
         run: |
-          mkdir assets
+          set -euo pipefail
+          mkdir -p assets
           find release -type f -exec cp {} assets/ \;
-          gh release create "$RELEASE_TAG" assets/* --verify-tag --notes-file ".github/release-notes/${RELEASE_TAG}.md" --title "Once $RELEASE_TAG"
+
+          # --verify-tag semantics: the tag must already exist on GitHub.
+          gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_TAG}" --silent \
+            || { echo "::error::tag ${RELEASE_TAG} does not exist on GitHub"; exit 1; }
+
+          if is_draft="$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft 2>/dev/null)"; then
+            if [ "$is_draft" != "true" ]; then
+              echo "::error::release ${RELEASE_TAG} is already published; refusing to overwrite it"
+              exit 1
+            fi
+            echo "Draft release ${RELEASE_TAG} already exists; resuming uploads"
+          else
+            gh release create "$RELEASE_TAG" --draft --verify-tag \
+              --notes-file ".github/release-notes/${RELEASE_TAG}.md" --title "Once $RELEASE_TAG"
+          fi
+
+          for asset in assets/*; do
+            attempt=1
+            delay=10
+            until gh release upload "$RELEASE_TAG" "$asset" --clobber; do
+              if [ "$attempt" -ge 5 ]; then
+                echo "::error::giving up on $(basename "$asset") after $attempt attempts"
+                exit 1
+              fi
+              echo "::warning::upload of $(basename "$asset") failed (attempt $attempt); retrying in ${delay}s"
+              sleep "$delay"
+              attempt=$((attempt + 1))
+              delay=$((delay * 2))
+            done
+          done
+
+          gh release edit "$RELEASE_TAG" --draft=false
