@@ -48,7 +48,21 @@ module.exports = {
     },
     {
       name: "@electron-forge/maker-zip",
-      platforms: ["win32"]
+      platforms: ["win32", "linux"]
+    },
+    {
+      name: "@electron-forge/maker-deb",
+      platforms: ["linux"],
+      config: {
+        options: {
+          name: isDevChannel ? "once-dev" : "once",
+          productName: isDevChannel ? "Once Dev" : "Once",
+          bin: isDevChannel ? "once-dev" : "once",
+          maintainer: "Once contributors",
+          icon: linuxWindowIcon,
+          categories: ["Utility"]
+        }
+      }
     }
   ],
   plugins: [

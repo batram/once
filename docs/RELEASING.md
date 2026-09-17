@@ -1,8 +1,8 @@
 # Releasing
 
 Once ships three published products from a single tag: the **Electron** desktop
-app (Windows), and the **Firefox** and **Chrome** side-panel extensions. The
-Capacitor mobile apps share the same version number but are not built or
+app (Windows and Linux), and the **Firefox** and **Chrome** side-panel extensions.
+The Capacitor mobile apps share the same version number but are not built or
 published by the release workflow. A hand-built Android or iOS release must
 also set `ONCE_BUILD_NUMBER` (the Android `versionCode` and iOS build number),
 which defaults to `1`: two builds of the same version with the same build
@@ -110,17 +110,19 @@ tag again. After Mozilla accepts a version, use a new patch version.
 
 ## What CI checks and produces
 
-The workflow runs four jobs:
+The workflow runs five jobs:
 
 - **Browser extensions** (Ubuntu) — `npm ci`, verify version, run the extension
   test suite, and upload the Chrome ZIP plus unsigned Firefox bundle.
 - **Electron for Windows** — `npm ci`, verify version, run Electron unit/e2e
   tests, and `make:electron` (Squirrel installer, NuGet package, ZIP).
-- **Sign Firefox extension with Mozilla** — starts only after both build/test
+- **Electron for Linux** (Ubuntu) — `npm ci`, verify version, install the Debian
+  packaging tools, and `make:electron` (`.deb` and portable ZIP).
+- **Sign Firefox extension with Mozilla** — starts only after all three build/test
   jobs pass, then signs the Firefox bundle via `web-ext sign`. Requires the
   `AMO_JWT_ISSUER` and `AMO_JWT_SECRET` repository secrets.
-- **Publish GitHub release** — downloads both sets of artifacts, verifies them,
-  and runs `gh release create` with the notes file as the release body.
+- **Publish GitHub release** — downloads all three sets of artifacts, verifies
+  them, and runs `gh release create` with the notes file as the release body.
 
 Two scripts enforce the contract:
 
@@ -129,6 +131,13 @@ Two scripts enforce the contract:
   published product versions must match the root, and the notes must mark each
   product `Changed`/`Unchanged`.
 - [`verify-release-artifacts.js`](../scripts/verify-release-artifacts.js) — the
-  built files must be present and versioned. Expected names:
-  `once-firefox-vX.Y.Z.xpi`, `once-chrome-vX.Y.Z.zip`,
-  `*-X.Y.Z Setup.exe`, `*-X.Y.Z-full.nupkg`, `*-X.Y.Z.zip`, and `RELEASES`.
+  built files must be present and versioned. Expected names are
+  `once-firefox-vX.Y.Z.xpi` and `once-chrome-vX.Y.Z.zip`; Windows
+  `*-X.Y.Z Setup.exe`, `*-X.Y.Z-full.nupkg`, `Once-win32-x64-X.Y.Z.zip`, and
+  `RELEASES`; and Linux `once_X.Y.Z_amd64.deb` and
+  `Once-linux-x64-X.Y.Z.zip`.
+
+Squirrel automatic updates are Windows-only. Linux `.deb` and ZIP installs use
+the version row's **Check latest release** action, implemented by
+`apps/electron/src/ManualReleaseCheck.ts`, and the user downloads and installs
+the newer GitHub release manually.

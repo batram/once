@@ -91,9 +91,39 @@ jobs:
             apps/electron/out/make/**/RELEASES
           if-no-files-found: error
 
+  electron-linux:
+    name: Electron for Linux
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      ONCE_RELEASE_BUILD: "1"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install Linux packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg fakeroot zip
+      - run: npm ci
+      - run: npm run verify:release-version -- "$RELEASE_TAG"
+      - run: npm run make:electron
+      - run: npm run verify:release-artifacts -- electron-linux apps/electron/out/make
+      - uses: actions/upload-artifact@v7
+        with:
+          name: electron-linux
+          path: |
+            apps/electron/out/make/**/*.deb
+            apps/electron/out/make/zip/linux/**/*.zip
+          if-no-files-found: error
+
   sign-firefox:
     name: Sign Firefox extension with Mozilla
-    needs: [extensions, electron]
+    needs: [extensions, electron, electron-linux]
     runs-on: ubuntu-latest
     env:
       RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
@@ -135,7 +165,7 @@ jobs:
 
   release:
     name: Publish GitHub release
-    needs: [sign-firefox, electron]
+    needs: [sign-firefox, electron, electron-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -155,6 +185,10 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: electron-windows
+          path: release
+      - uses: actions/download-artifact@v8
+        with:
+          name: electron-linux
           path: release
       - run: npm run verify:release-version -- "$RELEASE_TAG"
       - run: npm run verify:release-artifacts -- release release
