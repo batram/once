@@ -222,6 +222,15 @@ export const EXTENSION_API_SURFACE: Readonly<Record<string, ApiSurface>> = {
     ],
     events: []
   },
+  // Manifest V3 request rules; enforced by the runtime's webRequest router.
+  declarativeNetRequest: {
+    methods: [
+      "getEnabledRulesets", "updateEnabledRulesets", "getAvailableStaticRuleCount",
+      "getDynamicRules", "updateDynamicRules", "getSessionRules", "updateSessionRules",
+      "isRegexSupported", "getMatchedRules", "testMatchOutcome"
+    ],
+    events: ["onRuleMatchedDebug"]
+  },
   extension: {
     methods: ["getURL", "isAllowedIncognitoAccess", "isAllowedFileSchemeAccess"],
     events: []
@@ -261,6 +270,17 @@ export const CONTENT_API_SURFACE: Readonly<Record<string, ApiSurface>> = {
   i18n: { methods: ["getMessage", "getUILanguage"], events: [] },
   extension: { methods: ["getURL"], events: [] }
 }
+
+/** The constants `browser.declarativeNetRequest` exposes; Firefox's values. */
+export const DNR_LIMITS = {
+  DYNAMIC_RULESET_ID: "_dynamic",
+  SESSION_RULESET_ID: "_session",
+  GUARANTEED_MINIMUM_STATIC_RULES: 30_000,
+  MAX_NUMBER_OF_STATIC_RULESETS: 100,
+  MAX_NUMBER_OF_ENABLED_STATIC_RULESETS: 20,
+  MAX_NUMBER_OF_DYNAMIC_AND_SESSION_RULES: 5_000,
+  MAX_NUMBER_OF_REGEX_RULES: 1_000
+} as const
 
 /**
  * `privacy.*` entries are settings objects with get/set/clear, not methods.

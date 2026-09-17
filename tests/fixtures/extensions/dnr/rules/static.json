@@ -1,0 +1,17 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": { "urlFilter": "dnr-blocked.txt", "resourceTypes": ["xmlhttprequest", "image", "script"] }
+  },
+  {
+    "id": 2,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "responseHeaders": [{ "header": "X-Dnr-Fixture", "operation": "set", "value": "static" }]
+    },
+    "condition": { "urlFilter": "dnr-headers.txt", "resourceTypes": ["xmlhttprequest"] }
+  }
+]

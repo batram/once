@@ -45,6 +45,20 @@ export interface OptionsUiSpec {
   readonly openInTab: boolean
 }
 
+/** One `declarative_net_request.rule_resources` entry: a JSON rule file. */
+export interface StaticRulesetSpec {
+  readonly id: string
+  readonly enabled: boolean
+  readonly path: string
+}
+
+/** The permissions that turn `declarativeNetRequest` on. */
+const DNR_PERMISSIONS = ["declarativeNetRequest", "declarativeNetRequestWithHostAccess"]
+
+export function hasDeclarativeNetRequest(manifest: WebExtensionManifest): boolean {
+  return DNR_PERMISSIONS.some((permission) => manifest.permissions.has(permission))
+}
+
 export interface WebExtensionManifest {
   readonly manifestVersion: ManifestVersion
   readonly id: string
@@ -62,6 +76,8 @@ export interface WebExtensionManifest {
   readonly optionsUi: OptionsUiSpec | null
   readonly webAccessibleResources: readonly string[]
   readonly icons: Readonly<Record<string, string>>
+  /** Static `declarativeNetRequest` rulesets; empty without the manifest key. */
+  readonly ruleResources: readonly StaticRulesetSpec[]
 }
 
 export class ManifestError extends Error {
@@ -220,6 +236,28 @@ function webAccessibleResources(value: unknown): string[] {
   return resources
 }
 
+// Ruleset ids are what `updateEnabledRulesets` names; the browsers reserve
+// the `_` prefix for the dynamic and session sets.
+function ruleResources(json: Json): StaticRulesetSpec[] {
+  const value = json.declarative_net_request
+  if (value === undefined) return []
+  if (!isObject(value)) throw new ManifestError('"declarative_net_request" must be an object')
+  const resources = value.rule_resources
+  if (!Array.isArray(resources)) {
+    throw new ManifestError('"declarative_net_request.rule_resources" must be a list')
+  }
+  const ids = new Set<string>()
+  return resources.map((entry, index) => {
+    const where = `"declarative_net_request.rule_resources[${index}]"`
+    if (!isObject(entry)) throw new ManifestError(`${where} must be an object`)
+    const id = requireString(entry, "id")
+    if (id.startsWith("_") || ids.has(id)) throw new ManifestError(`${where} has an invalid or duplicate id "${id}"`)
+    ids.add(id)
+    if (typeof entry.enabled !== "boolean") throw new ManifestError(`${where}.enabled must be a boolean`)
+    return { id, enabled: entry.enabled, path: requireString(entry, "path") }
+  })
+}
+
 function manifestVersion(value: unknown): ManifestVersion {
   if (value === 2 || value === 3) return value
   throw new ManifestError("only manifest_version 2 and 3 are supported")
@@ -268,7 +306,8 @@ export function parseWebExtensionManifest(input: unknown): WebExtensionManifest 
     browserAction: browserAction(input, version),
     optionsUi: optionsUi(input),
     webAccessibleResources: webAccessibleResources(input.web_accessible_resources),
-    icons: stringMap(input.icons, '"icons"')
+    icons: stringMap(input.icons, '"icons"'),
+    ruleResources: ruleResources(input)
   }
 }
 

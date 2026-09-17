@@ -252,7 +252,11 @@ session at `moz-extension://<host>/` (named as Firefox names it, because
 extensions branch on that prefix), with a sandboxed preload that builds
 `browser.*` over a single typed IPC channel and no access to the Once bridge.
 The runtime owns the browser session's one `webRequest` listener per event
-and fans requests out to every extension's blocking listeners. Content
+and fans requests out to every extension's blocking listeners; before they
+run, each request passes the Manifest V3 `declarativeNetRequest` rules of
+every extension (`extensions/dnrBridge.ts` over the pure matcher in
+`packages/core/src/webext/dnrMatcher.ts`, with rulesets loaded and persisted
+by `extensions/DnrRulesets.ts`). Content
 scripts run in per-extension isolated worlds inside tabs, reached only
 through the runtime's frame preload; ports join them to the background page.
 An extension's own pages (popup, dashboard, its blocked-page) open as tabs

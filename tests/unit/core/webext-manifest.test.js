@@ -169,6 +169,39 @@ test("what the runtime relies on is validated", () => {
   }
 })
 
+test("declarative_net_request rulesets and their permissions are read", () => {
+  const { hasDeclarativeNetRequest } = require("../../../packages/core/dist/webext/manifest")
+  const manifest = parseWebExtensionManifest(v3Like({
+    permissions: ["declarativeNetRequest", "declarativeNetRequestFeedback"],
+    declarative_net_request: { rule_resources: [
+      { id: "ads", enabled: true, path: "rules/ads.json" },
+      { id: "extra", enabled: false, path: "rules/extra.json" }
+    ] }
+  }))
+  assert.deepEqual(manifest.ruleResources, [
+    { id: "ads", enabled: true, path: "rules/ads.json" },
+    { id: "extra", enabled: false, path: "rules/extra.json" }
+  ])
+  assert.equal(manifest.permissions.has("declarativeNetRequestFeedback"), true)
+  assert.equal(hasDeclarativeNetRequest(manifest), true)
+  assert.equal(hasDeclarativeNetRequest(parseWebExtensionManifest(v3Like({
+    permissions: ["declarativeNetRequestWithHostAccess"]
+  }))), true)
+  const plain = parseWebExtensionManifest(v3Like())
+  assert.deepEqual(plain.ruleResources, [])
+  assert.equal(hasDeclarativeNetRequest(plain), false)
+  const cases = [
+    [{ rule_resources: {} }, /must be a list/],
+    [{ rule_resources: [{ id: "_dynamic", enabled: true, path: "x.json" }] }, /invalid or duplicate id/],
+    [{ rule_resources: [{ id: "a", enabled: true, path: "x.json" }, { id: "a", enabled: false, path: "y.json" }] }, /duplicate/],
+    [{ rule_resources: [{ id: "a", path: "x.json" }] }, /enabled must be a boolean/],
+    [{ rule_resources: [{ id: "a", enabled: true }] }, /"path"/]
+  ]
+  for (const [value, expected] of cases) {
+    assert.throws(() => parseWebExtensionManifest(v3Like({ declarative_net_request: value })), expected)
+  }
+})
+
 test("manifest text that is not JSON reports as a manifest error", () => {
   assert.throws(() => parseWebExtensionManifestJson("{"), ManifestError)
   assert.equal(parseWebExtensionManifestJson(JSON.stringify(ublockLike())).name, "__MSG_extName__")

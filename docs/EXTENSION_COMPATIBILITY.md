@@ -163,9 +163,41 @@ extension files, and host permissions are outside this feature.
 | Storage | Separate persistent local/sync areas, changes and byte counts; Once sync is opt-in per key |
 | Toolbar/options | Popups, options pages, click events, titles and badges through `browserAction` and its V3 alias `action`; dynamic icon updates remain limited |
 | Browser requests | Existing blocking request runtime used by uBlock; not complete Firefox webRequest coverage |
+| Declarative net request | `declarativeNetRequest` static rulesets (`declarative_net_request.rule_resources`, enable/disable persisted), dynamic rules persisted on disk and session rules in memory; `block`, `allow`, `allowAllRequests`, `upgradeScheme`, `redirect` (`url`, `extensionPath`, `transform`, `regexSubstitution`) and `modifyHeaders`, with `urlFilter`/`regexFilter`, resource types, methods, initiator/request domains, `domainType` and tab ids. `getMatchedRules` and `testMatchOutcome` reject as unsupported, `onRuleMatchedDebug` never fires; see the section below |
 | Tabs/windows | Existing tab navigation and messaging; window APIs are approximations and capture is unavailable |
 | Permissions | Manifest permissions only; optional permission requests return false |
 | Other APIs | Existing alarms, cookie and i18n APIs; context menus, notifications, commands, browser chrome theme, native messaging, downloads and other Firefox-only features remain limited or unavailable |
+
+### Manifest V3 request rules (`declarativeNetRequest`)
+
+An extension with the `declarativeNetRequest` or `declarativeNetRequestWithHostAccess`
+permission has its rules enforced in the browser session, ahead of any `webRequest`
+listener: a rule that blocks ends the request before uBlock sees it, a declarative
+redirect yields to a redirect from a blocking listener, and `modifyHeaders` rules apply
+on top of whatever the listeners returned. Static rulesets listed under
+`declarative_net_request.rule_resources` are read from the package when the extension
+starts; a file that fails to parse is skipped with a log line. Dynamic rules and the
+enabled ruleset set are kept in `dnr.json` beside the extension's storage; session rules
+last until the extension is unloaded. Ties resolve as the specification says: highest
+priority wins, then allow/allowAllRequests over block over upgradeScheme over redirect;
+across extensions the first block wins, then the first redirect. `allowAllRequests`
+is remembered per tab and frame URL for the extension that matched it.
+
+Conditions: `urlFilter` (`||`, `|`, `^`, `*`; case-insensitive unless
+`isUrlFilterCaseSensitive`), `regexFilter`, `resourceTypes`/`excludedResourceTypes`,
+`requestMethods`/`excludedRequestMethods`, `initiatorDomains`/`excludedInitiatorDomains`
+(and the older `domains` names), `requestDomains`/`excludedRequestDomains`,
+`domainType`, `tabIds`/`excludedTabIds`. Redirects take `url`, `extensionPath`
+(served only when the path is web-accessible), `transform` (scheme, host, port, path,
+query or queryTransform, fragment, credentials) and `regexSubstitution`.
+
+Not supported: `getMatchedRules` and `testMatchOutcome` reject with "not supported",
+`onRuleMatchedDebug` never fires, `webtransport`/`webbundle` resource types never
+match (Electron has no such requests), `responseHeaders` conditions and
+`excludedResponseHeaders` are not evaluated, third-party detection uses the last two
+host labels rather than the public suffix list, `requestHeaders` `append` joins values
+onto one header regardless of the header, and rule-count limits are the Firefox
+constants without the Chrome "safe" allowances.
 
 The installer accepts packages independently of these feature limits. A successful
 background-page load is not proof that every feature works. This custom runtime

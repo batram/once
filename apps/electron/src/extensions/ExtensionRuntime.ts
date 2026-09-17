@@ -32,6 +32,7 @@ import {
 import { LoadedExtension, loadUnpackedExtension } from "./LoadedExtension"
 import { extensionUrl, parseExtensionUrl } from "./ExtensionScheme"
 import { WebRequestRouter } from "./WebRequestRouter"
+import { DnrEnforcer } from "./dnrBridge"
 import { CONTENT_WORLD_BASE, ContentScript, contentScriptsFor } from "./contentScripts"
 import {
   ApiSurface,
@@ -132,6 +133,7 @@ export class ExtensionRuntime {
   private readonly popups = new Map<string, ExtensionPopup>()
   private readonly handlers: Record<string, ApiHandler> = createApiHandlers()
   private readonly router: WebRequestRouter
+  private readonly dnr = new DnrEnforcer(() => [...this.hosts.values()].map((host) => host.dnr))
   private readonly ownPages = new OwnPageRequests()
   private readonly tabContents = new Map<number, WebContents>()
   private readonly changed = new Set<() => void>()
@@ -149,9 +151,9 @@ export class ExtensionRuntime {
     })
     this.settingsCoordinator = new ExtensionSettingsCoordinator(options.storageRoot, () => this.hosts.values(), () => this.notifyChanged())
     this.router = new WebRequestRouter(options.browserSession, {
-      tabIdFor: (webContentsId) =>
-        webContentsId !== undefined && this.tabContents.has(webContentsId) ? webContentsId : -1,
+      tabIdFor: (id) => id !== undefined && this.tabContents.has(id) ? id : -1,
       sources: () => [...this.hosts.values()],
+      declarative: this.dnr,
       requestFrom: (url, documentUrl) => {
         const extension = this.hostForUrl(url)?.extension
         if (extension && isOwnPage(extension, documentUrl)) this.ownPages.grant(url)
@@ -660,6 +662,7 @@ export class ExtensionRuntime {
     contents.once("destroyed", () => {
       const windowId = this.snapshot(id)?.windowId ?? -1
       this.tabContents.delete(id)
+      this.dnr.forgetTab(id)
       for (const host of this.hosts.values()) {
         host.action.forgetTab(id)
         for (const entry of host.contexts.all()) {

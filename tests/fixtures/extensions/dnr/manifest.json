@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Once DNR fixture",
+  "version": "1.0.0",
+  "description": "Blocks dnr-blocked.txt from a static ruleset and redirects dnr-redirect.txt from a dynamic rule; a fixture for the Once extension runtime",
+  "browser_specific_settings": { "gecko": { "id": "dnr@once.test" } },
+  "background": { "service_worker": "background.js" },
+  "permissions": ["declarativeNetRequest", "storage"],
+  "host_permissions": ["<all_urls>"],
+  "declarative_net_request": {
+    "rule_resources": [
+      { "id": "static", "enabled": true, "path": "rules/static.json" },
+      { "id": "dormant", "enabled": false, "path": "rules/dormant.json" }
+    ]
+  }
+}

@@ -17,6 +17,8 @@ import {
   permissionHandlers
 } from "./apiExtras"
 import { activeTabId, asRecord, frameContexts, optionalTabId, requireTabId } from "./apiTargets"
+import { DnrRulesets } from "./DnrRulesets"
+import { declarativeNetRequestHandlers } from "./dnrApi"
 import { INTERNAL_API } from "./protocol"
 import { ExtensionShellHooks, TabSnapshot, TabUpdateProps, platformOs } from "./runtimeTypes"
 import { scriptingHandlers } from "./scriptingApi"
@@ -36,6 +38,7 @@ export interface ApiHost {
   readonly alarms: AlarmScheduler
   readonly cookies: Electron.Cookies
   readonly registeredScripts: Map<number, ContentScript>
+  readonly dnr: DnrRulesets
   registerContentScript(script: ContentScript): number
 }
 
@@ -517,6 +520,7 @@ export function createApiHandlers(): Handlers {
     ...tabHandlers(),
     ...injectionHandlers(),
     ...scriptingHandlers(),
+    ...declarativeNetRequestHandlers(),
     ...actionHandlers(),
     ...portHandlers(),
     ...cookieHandlers(),

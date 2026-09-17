@@ -1,6 +1,7 @@
 import path from "node:path"
 import { Session, WebContents, WebContentsView, session as electronSession } from "electron"
 import { MatchPatternSet } from "@once/core"
+import { DnrRulesets } from "./DnrRulesets"
 import { ExtensionContexts } from "./ExtensionContexts"
 import { AlarmScheduler, ApiHost, BrowserActionState } from "./ExtensionApi"
 import { ExtensionPorts } from "./ExtensionPorts"
@@ -46,6 +47,8 @@ export class ExtensionHost implements ApiHost {
   readonly session: Session
   readonly worldId: number
   readonly cookies: Electron.Cookies
+  /** The extension's declarativeNetRequest rules; inert without the permission. */
+  readonly dnr: DnrRulesets
   /** `contentScripts.register` entries, by the id handed back. */
   readonly registeredScripts = new Map<number, ContentScript>()
   private nextScriptId = 1
@@ -61,6 +64,7 @@ export class ExtensionHost implements ApiHost {
       path.join(options.storageRoot, this.extension.host, "storage.json")
     )
     this.syncStorage = new ExtensionStorage(path.join(options.storageRoot, this.extension.host, "sync.json"))
+    this.dnr = new DnrRulesets(this.extension, path.join(options.storageRoot, this.extension.host, "dnr.json"))
     this.files = new ExtensionFiles(this.extension)
     this.ports = new ExtensionPorts(this.contexts)
     this.action = new BrowserActionState(this.extension.manifest.browserAction?.defaultTitle ?? null)
@@ -74,6 +78,8 @@ export class ExtensionHost implements ApiHost {
     this.session.setUserAgent(EXTENSION_PAGE_USER_AGENT)
     this.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
     this.grantCrossOriginReads()
+    // Static rules are in force before the background runs, as in Firefox.
+    await this.dnr.load()
     const page = this.extension.backgroundPage
     if (!page) return
     // A view attached to nothing, not a hidden BrowserWindow: a window would
@@ -182,5 +188,6 @@ export class ExtensionHost implements ApiHost {
     this.backgroundView = null
     await this.storage.flush()
     await this.syncStorage.flush()
+    await this.dnr.flush()
   }
 }

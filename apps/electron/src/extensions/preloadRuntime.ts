@@ -6,6 +6,7 @@
 import { getLocaleMessage } from "@once/core"
 import {
   ApiSurface,
+  DNR_LIMITS,
   EXTENSION_SCHEME,
   ExtensionContextInit,
   ExtensionEvent,
@@ -69,6 +70,7 @@ export function decorateExtensionPage(browser: Record<string, unknown>): void {
   webRequest.OnResponseStartedOptions = Object.freeze({ RESPONSE_HEADERS: "responseHeaders" })
   webRequest.OnBeforeRedirectOptions = Object.freeze({ RESPONSE_HEADERS: "responseHeaders" })
   webRequest.OnCompletedOptions = Object.freeze({ RESPONSE_HEADERS: "responseHeaders" })
+  Object.assign(browser.declarativeNetRequest as Record<string, unknown>, DNR_LIMITS)
   ;(browser.tabs as Record<string, unknown>).TAB_ID_NONE = -1
   const windows = browser.windows as Record<string, unknown>
   windows.WINDOW_ID_NONE = -1

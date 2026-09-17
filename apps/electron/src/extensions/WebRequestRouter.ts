@@ -4,11 +4,13 @@ import {
   BlockingResponse,
   CompiledRequestFilter,
   FrameFacts,
+  HttpHeader,
   NO_FRAME,
   WebRequestDetails,
   WebRequestDetailsInput,
   buildWebRequestDetails,
   headersFromWebExt,
+  headersToWebExt,
   mergeBlockingResponses,
   startsDocument,
   webExtResourceType
@@ -35,6 +37,15 @@ export interface WebRequestRouterOptions {
    * asks only this way.
    */
   requestFrom?(url: string, documentUrl: string | null): void
+  /** The declarativeNetRequest rules of every extension, consulted first. */
+  declarative?: DeclarativeRequestHooks
+}
+
+/** What `dnrBridge` answers for a request at each stage. */
+export interface DeclarativeRequestHooks {
+  beforeRequest(details: WebRequestDetails): { cancel?: boolean; redirectUrl?: string }
+  requestHeaders(details: WebRequestDetails, headers: readonly HttpHeader[]): HttpHeader[] | null
+  responseHeaders(details: WebRequestDetails, headers: readonly HttpHeader[]): HttpHeader[] | null
 }
 
 interface ElectronRequestDetails {
@@ -234,21 +245,28 @@ export class WebRequestRouter {
   ): Promise<Electron.CallbackResponse> {
     const input = this.baseInput(details)
     this.options.requestFrom?.(input.url, input.frame.documentUrl)
-    const merged = await this.dispatch("onBeforeRequest", buildWebRequestDetails(input))
+    const built = buildWebRequestDetails(input)
+    // A declarative block ends the request before any listener sees it, as
+    // Firefox orders the two; a declarative redirect yields to a listener's.
+    const declared = this.options.declarative?.beforeRequest(built) ?? {}
+    if (declared.cancel) return { cancel: true }
+    const merged = await this.dispatch("onBeforeRequest", built)
     if (merged.cancel) return { cancel: true }
-    if (merged.redirectUrl) return { redirectURL: merged.redirectUrl }
+    const redirect = merged.redirectUrl ?? declared.redirectUrl
+    if (redirect) return { redirectURL: redirect }
     return {}
   }
 
   private async beforeSendHeaders(
     details: Electron.OnBeforeSendHeadersListenerDetails
   ): Promise<Electron.BeforeSendResponse> {
-    const merged = await this.dispatch(
-      "onBeforeSendHeaders",
-      buildWebRequestDetails({ ...this.baseInput(details), requestHeaders: details.requestHeaders })
-    )
+    const built = buildWebRequestDetails({ ...this.baseInput(details), requestHeaders: details.requestHeaders })
+    const merged = await this.dispatch("onBeforeSendHeaders", built)
     if (merged.cancel) return { cancel: true }
-    if (merged.requestHeaders) return { requestHeaders: headersFromWebExt(merged.requestHeaders) }
+    const headers = merged.requestHeaders ?? headersToWebExt(details.requestHeaders)
+    const modified = this.options.declarative?.requestHeaders(built, headers) ?? null
+    const result = modified ?? merged.requestHeaders
+    if (result) return { requestHeaders: headersFromWebExt(result) }
     return {}
   }
 
@@ -261,15 +279,17 @@ export class WebRequestRouter {
       statusLine: details.statusLine,
       statusCode: details.statusCode
     }
-    const merged = await this.dispatch("onHeadersReceived", buildWebRequestDetails(input))
+    const built = buildWebRequestDetails(input)
+    const merged = await this.dispatch("onHeadersReceived", built)
     if (merged.cancel) return { cancel: true }
     if (startsDocument(webExtResourceType(input.resourceType), input.statusCode ?? 0)) {
       this.startedEarly.add(details.id)
       await this.documentResponseStarted(buildWebRequestDetails(input))
     }
-    if (merged.responseHeaders) {
-      return { responseHeaders: headersFromWebExt(merged.responseHeaders) }
-    }
+    const headers = merged.responseHeaders ?? headersToWebExt(details.responseHeaders ?? {})
+    const modified = this.options.declarative?.responseHeaders(built, headers) ?? null
+    const result = modified ?? merged.responseHeaders
+    if (result) return { responseHeaders: headersFromWebExt(result) }
     return {}
   }
 
