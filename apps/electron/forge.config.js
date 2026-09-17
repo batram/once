@@ -57,6 +57,7 @@ module.exports = {
         options: {
           name: isDevChannel ? "once-dev" : "once",
           productName: isDevChannel ? "Once Dev" : "Once",
+          genericName: "Feed Reader",
           bin: isDevChannel ? "once-dev" : "once",
           maintainer: "Once contributors",
           icon: linuxWindowIcon,

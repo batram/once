@@ -58,6 +58,7 @@ GitHub link in `apps/electron/src/ManualReleaseCheck.ts`.
    +        options: {
    +          name: isDevChannel ? "once-dev" : "once",
    +          productName: isDevChannel ? "Once Dev" : "Once",
+   +          genericName: "Feed Reader",
    +          bin: isDevChannel ? "once-dev" : "once",
    +          maintainer: "Once contributors",
    +          icon: linuxWindowIcon,
@@ -294,6 +295,44 @@ GitHub link in `apps/electron/src/ManualReleaseCheck.ts`.
    experimental in release notes, inspect downloads and issue reports for one
    patch cycle, then remove that label after both formats pass the desktop matrix.
    Keep Windows Squirrel asset names and updater behavior unchanged.
+
+## Desktop acceptance evidence
+
+Partial real-desktop validation ran on 2026-09-17 in an Arch Linux KDE Plasma
+X11 session over XRDP at 2560×1440 and 100% scale. Both published archives were
+extracted independently and their executables launched from the extracted
+locations with isolated profiles. Each mapped a focused `once-electron` X11
+window and started the browser, GPU, network, renderer, uBlock Origin, and
+Violentmonkey processes. The Debian launcher, icon, and resources were present;
+the run caught and fixed a desktop-entry default that exposed `@once/electron`
+as `GenericName`, which is now explicitly `Feed Reader`.
+
+The live packaged UI showed version 0.3.0, `Check latest release`, the manual
+GitHub link, and the Windows-only automatic-update explanation. Its real GitHub
+API check reported v0.3.0 current and updated the link to the tagged release.
+Both bundled extensions reported enabled/applied. Fullscreen expanded from the
+restored 1312×971 window to 2560×1440 and restored to the exact prior geometry.
+CSS inspection confirmed the titlebar/dropzone are `drag` while tabs and the new
+tab button are `no-drag`; XTest pointer injection did not move the window, so a
+human drag and native window-button pass is still required.
+
+KDE Secret Service (`org.freedesktop.secrets`/KWallet) was available. A temporary
+secret round-tripped and was deleted through the packaged bridge without a
+plaintext copy. With the session bus deliberately absent, Electron selected its
+own basic Linux password backend: the temporary value still round-tripped as an
+encrypted blob in a mode-0600 file, so this did not exercise Once's plaintext
+fallback and must not be represented as equivalent to an OS keyring. A locked
+wallet still needs manual validation.
+
+The `enable-speech-dispatcher` path exposed 14,805 local eSpeak voices, including
+English (America), proving Chromium discovered Speech Dispatcher. Both standalone
+`spd-say -w` and a Web Speech utterance failed to complete before their timeouts
+on the XRDP PulseAudio-on-PipeWire sink, so audible TTS remains unaccepted.
+
+Graphics were Mesa llvmpipe (OpenGL 4.6, direct rendering reported but not
+accelerated); the container exposed no `/dev/dri`, VA-API render node, or DRI3.
+The app remained stable with software compositing, but physical Intel/AMD GPU
+coverage and Wayland remain outstanding.
 
 ## Non-goals
 
