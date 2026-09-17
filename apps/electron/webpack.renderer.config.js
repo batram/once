@@ -2,6 +2,7 @@ const path = require("path")
 const CopyPlugin = require("copy-webpack-plugin")
 const webpack = require("webpack")
 const rules = require("./webpack.rules")
+const { bundledAddons } = require("../../scripts/bundled-addons")
 
 const root = path.resolve(__dirname, "../..")
 
@@ -24,6 +25,9 @@ module.exports = {
     fallback: { path: false }
   },
   plugins: [
+    new webpack.DefinePlugin({
+      __ONCE_BUNDLED_ADDONS__: JSON.stringify(bundledAddons())
+    }),
     new webpack.IgnorePlugin({ resourceRegExp: /^node:module$/ }),
     new CopyPlugin({
       patterns: [

@@ -3,7 +3,7 @@
 // settings doc; the text form is what the settings editor shows.
 
 import { validateConfig } from "./configSchema"
-import { AddonManifest, AddonReport, readAddonManifest } from "./manifest"
+import { ADDON_LIMITS, AddonManifest, AddonReport, readAddonManifest } from "./manifest"
 import { SANDBOX_LIMITS } from "./sandboxProtocol"
 
 export const ADDONS_DOCUMENT_ID = "addons"
@@ -43,6 +43,12 @@ function readSource(value: unknown): { url: string } | undefined {
 export interface AddonsDocument {
   version: number
   addons: AddonEntry[]
+  /**
+   * The add-ons shipped with Once that this doc has taken in, by id → the
+   * shipped version last offered. An id here with no entry is one the user
+   * removed; it is not offered again, on any device.
+   */
+  bundled?: Record<string, string>
 }
 
 export function emptyAddonsDocument(): AddonsDocument {
@@ -51,6 +57,16 @@ export function emptyAddonsDocument(): AddonsDocument {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+const MAX_BUNDLED = 64
+
+function readBundled(value: unknown): Record<string, string> | undefined {
+  if (!isRecord(value)) return undefined
+  const entries = Object.entries(value)
+    .filter(([id, version]) => ADDON_LIMITS.idPattern.test(id) && typeof version === "string" && version.length <= 64)
+    .slice(0, MAX_BUNDLED) as [string, string][]
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined
 }
 
 /** Another client's doc: anything unusable is dropped, silently. */
@@ -65,7 +81,8 @@ export function readAddonsDocument(value: unknown): AddonsDocument {
     seen.add(read.manifest.id)
     doc.addons.push(withExtras({ enabled: entry.enabled !== false, manifest: read.manifest }, entry))
   }
-  return doc
+  const bundled = readBundled(value.bundled)
+  return bundled ? { ...doc, bundled } : doc
 }
 
 /** The optional fields of an entry, each kept only when it reads cleanly. */
@@ -94,7 +111,7 @@ export function upsertAddon(doc: AddonsDocument, entry: AddonEntry): AddonsDocum
     } : {})
   } : entry
   return {
-    version: doc.version,
+    ...doc,
     addons: existing
       ? doc.addons.map((candidate) => (candidate === existing ? merged : candidate))
       : [...doc.addons, merged]

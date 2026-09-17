@@ -72,10 +72,15 @@ export function bindExtensionSettingsEditors(
   }, onChanged)
   // Add-ons are their own thing, not browser extensions, but the editor is
   // the same shape: a JSON list of manifests in, a validated document out.
+  // The text holds the entries only; the record of which bundled add-ons
+  // the document has taken in stays as it is, so saving never re-offers one.
   const restoreAddons = bindTextDocument({
     textareaId: "addons_area",
     present: async () => presentAddons(await client.getAddons()),
-    save: (text) => client.saveAddons(parseAddonsText(text))
+    save: (text) => {
+      const { addons } = parseAddonsText(text)
+      return client.updateAddons((doc) => ({ ...doc, addons }))
+    }
   }, onChanged)
   bindAddonInstallControls(client, () => {
     void restoreAddons()

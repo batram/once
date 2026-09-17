@@ -1,5 +1,6 @@
 import { OnceClient } from "@once/app"
 import { getAddonStatus, onAddonStatus, retryAddon } from "../addons/addonStatus"
+import { isBundledAddon } from "../addons/bundledAddons"
 
 export function addonButton(label: string, run: () => Promise<void> | void): HTMLButtonElement {
   const button = document.createElement("button")
@@ -49,7 +50,7 @@ export function bindAddonManagement(client: OnceClient, parent: HTMLElement): vo
       row.dataset.enabled = String(entry.enabled)
       row.dataset.addonName = entry.manifest.name
       row.dataset.addonVersion = entry.manifest.version
-      row.dataset.addonOrigin = entry.source ? "Installed from URL" : "Installed"
+      row.dataset.addonOrigin = entry.source ? "Installed from URL" : isBundledAddon(entry) ? "Bundled with Once" : "Installed"
       const title = document.createElement("legend")
       title.textContent = `${entry.manifest.name} ${entry.manifest.version}`
       const info = document.createElement("p")

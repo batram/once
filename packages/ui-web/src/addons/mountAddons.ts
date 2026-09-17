@@ -36,6 +36,7 @@ import { BadgeScheduler } from "./badgeScheduler"
 import { AddonCandidate, AddonReconciler, AddonRegistration } from "./AddonReconciler"
 import { setAddonRetry, setAddonStatus } from "./addonStatus"
 import { configureAddonPackages, verifiedAddonScript } from "./addonPackage"
+import { BundledAddonFiles, configureBundledAddons, seedBundledAddons } from "./bundledAddons"
 
 /** Development add-ons as the host read them from disk: manifest plus code. */
 export interface DevAddonSource {
@@ -50,6 +51,8 @@ export interface MountAddonsOptions {
   sandboxUrl?: string
   /** Development add-ons, registered beside the document's and never stored. */
   devAddons?: DevAddonSource
+  /** The packages built into this app, installed into the document on first start. */
+  bundledAddons?: readonly BundledAddonFiles[]
   /** Where a tray's conversation can continue at full size; absent means trays offer no such button. */
   conversations?: AddonConversationSurface
 }
@@ -67,6 +70,7 @@ const trays = new Map<string, AddonTrays>()
 
 export function mountAddons(client: OnceClient, options: MountAddonsOptions = {}): void {
   configureAddonPackages(options.sandboxUrl)
+  configureBundledAddons(options.bundledAddons)
   // A conversation page names its addon, tray and story; the trays of the
   // addons currently registered are where those conversations live.
   options.conversations?.connect?.(key => trays.get(key.addon)?.handleFor(key.tray, key.story) ?? null)
@@ -83,6 +87,10 @@ export function mountAddons(client: OnceClient, options: MountAddonsOptions = {}
     }
   )
   const apply = async (): Promise<void> => {
+    // A package this build carries and the document has not taken in yet is
+    // written first, so the same pass registers it. A failure here keeps
+    // nothing else from loading; the next pass tries again.
+    await seedBundledAddons(client).catch(error => console.error("Bundled add-ons could not be installed", error))
     const doc = await client.getAddons()
     const candidates: AddonCandidate[] = doc.addons.map((entry) => ({ entry }))
     const devIds = new Set<string>()

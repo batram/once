@@ -23,7 +23,8 @@ and Capacitor applications for Android and iOS.
 - Per-source cache timing and cache-first launch
 - Keyboard navigation and per-platform story buttons
 - Add-ons: collectors, presenters, trays and actions, installed from a URL,
-  folder or ZIP (an AI "what, wait, who, why" example ships in `examples/addons`)
+  folder or ZIP; the AI "What? Wait, who, why?" add-on comes bundled and can
+  be removed
 - Firefox extensions in the embedded browsers: uBlock Origin and
   Violentmonkey are bundled on Electron and Android, and any signed Firefox
   extension can be installed

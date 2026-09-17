@@ -74,7 +74,8 @@ export function createAddonSettingsLayout(root: HTMLElement, navigate: (target: 
   url.className = "addon_import_method"
   const install = find('[data-testid="install-addon"]')
   url.append(requireClosestElement(find("#addon_url_input"), ".field"), requireClosestElement(install, ".settings_actions"))
-  imports.append(files, directories, url, find("#addon_previews"))
+  const bundled = root.querySelector("#addon_bundled_import")
+  imports.append(files, directories, url, ...(bundled ? [bundled] : []), find("#addon_previews"))
   const details = page("detail")
   const installed = find("#addon_installed")
   const options = find("#addon_options")

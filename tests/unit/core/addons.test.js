@@ -326,6 +326,17 @@ test("the addons document reads tolerantly and drops what does not validate", ()
   assert.deepEqual(readAddonsDocument({ version: 2, addons: [] }).addons, [])
 })
 
+test("the record of bundled packages survives reads and upserts, and unusable ids are dropped", () => {
+  const { upsertAddon } = require("../../../packages/core/dist/addons")
+  const doc = readAddonsDocument({ version: 1, addons: [], bundled: { "what-wait-who-why": "1.2.0", "Bad Id": "1", "no-version": 3 } })
+  assert.deepEqual(doc.bundled, { "what-wait-who-why": "1.2.0" })
+  assert.equal(readAddonsDocument({ version: 1, addons: [], bundled: {} }).bundled, undefined)
+  assert.equal(readAddonsDocument({ version: 1, addons: [], bundled: "yes" }).bundled, undefined)
+  const upserted = upsertAddon(doc, { enabled: true, manifest: readAddonManifest(manifest()).manifest })
+  assert.deepEqual(upserted.bundled, { "what-wait-who-why": "1.2.0" }, "installing keeps the record")
+  assert.deepEqual(readAddonsDocument(JSON.parse(JSON.stringify(upserted))), upserted)
+})
+
 test("editor text round-trips through the document and reports errors loudly", () => {
   const text = JSON.stringify([{ enabled: false, ...manifest() }, { ...manifest(), id: "second" }])
   const doc = parseAddonsText(text)

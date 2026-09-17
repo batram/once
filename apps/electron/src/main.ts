@@ -308,11 +308,14 @@ app
     })
     configureAddonSandboxProtocol(session.defaultSession, MAIN_WINDOW_WEBPACK_ENTRY, localAddons.directories)
     app.once("will-quit", () => localAddons.dispose())
+    // Test switches reach the renderer as query flags on its entry URL.
+    const shellFlags = new URLSearchParams()
+    if (process.env.ONCE_ELECTRON_DISABLE_STORY_LOADING === "1") shellFlags.set("disableStoryLoading", "")
+    if (process.env.ONCE_ELECTRON_DISABLE_BUNDLED_ADDONS === "1") shellFlags.set("disableBundledAddons", "")
+    const shellQuery = shellFlags.toString().replace(/=(&|$)/g, "$1")
     browserCoordinator = new BrowserCoordinator(
       createShellWindow,
-      process.env.ONCE_ELECTRON_DISABLE_STORY_LOADING === "1"
-        ? `${MAIN_WINDOW_WEBPACK_ENTRY}?disableStoryLoading`
-        : MAIN_WINDOW_WEBPACK_ENTRY
+      shellQuery ? `${MAIN_WINDOW_WEBPACK_ENTRY}?${shellQuery}` : MAIN_WINDOW_WEBPACK_ENTRY
     )
     startAutoUpdates()
     // Installed before the first window so its webRequest hooks see every

@@ -1,5 +1,6 @@
 import { OnceClient } from "@once/app"
 import { DevAddonSource, mountAddons } from "./addons/mountAddons"
+import type { BundledAddonFiles } from "./addons/bundledAddons"
 import type { AddonConversationSurface } from "./addons/AddonTrays"
 import { addCollectorColorStyles } from "./collectorStyles"
 import { LoaderInsights } from "./shell/LoaderInsights"
@@ -81,6 +82,12 @@ export interface MountOnceUiOptions {
    * written to the document.
    */
   devAddons?: DevAddonSource
+  /**
+   * The add-on packages built into this app (`__ONCE_BUNDLED_ADDONS__`, from
+   * `scripts/bundled-addons.js`): installed on first start, removable, and
+   * offered again from the import page.
+   */
+  bundledAddons?: readonly BundledAddonFiles[]
   /** How this shell continues an addon tray's conversation in its main browser surface. */
   addonConversations?: AddonConversationSurface
 }
@@ -98,7 +105,7 @@ export async function mountOnceUi(
   installStoredContentSaver(client, {
     reportError: (message, details) => LoaderInsights.showErrorMessage(message, details)
   })
-  mountAddons(client, { sandboxUrl: options.addonSandboxUrl, devAddons: options.devAddons, conversations: options.addonConversations })
+  mountAddons(client, { sandboxUrl: options.addonSandboxUrl, devAddons: options.devAddons, bundledAddons: options.bundledAddons, conversations: options.addonConversations })
 
   const version = document.querySelector<HTMLElement>(
     "[data-testid='app-version']"

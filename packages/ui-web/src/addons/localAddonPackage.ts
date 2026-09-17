@@ -13,7 +13,18 @@ function safePath(name: string): string {
   return name
 }
 
-async function readPackage(files: PackageFile[]): Promise<LocalAddonPackage> {
+/**
+ * The script URL an installed local package carries: one the host owns,
+ * since the code came from this device rather than from anywhere fetchable.
+ * Imports are keyed by hash; a package bundled with Once by its id, so the
+ * entry stays the same one across the versions Once ships.
+ */
+type ScriptUrl = (id: string, key: string) => string
+const localScriptUrl: ScriptUrl = (_id, key) => `once-addon://local/${key}/main.js`
+export const BUNDLED_SCRIPT_PREFIX = "once-addon://bundled/"
+const bundledScriptUrl: ScriptUrl = (id) => `${BUNDLED_SCRIPT_PREFIX}${id}/main.js`
+
+async function readPackage(files: PackageFile[], scriptUrl: ScriptUrl = localScriptUrl): Promise<LocalAddonPackage> {
   if (files.length > MAX_FILES || files.reduce((size, file) => size + file.size, 0) > MAX_PACKAGE) throw new Error("Addon package is too large (8 MiB / 256 files maximum)")
   const byName = new Map<string, PackageFile>()
   for (const file of files) {
@@ -45,11 +56,21 @@ async function readPackage(files: PackageFile[]): Promise<LocalAddonPackage> {
     const integrity = `sha256-${btoa(String.fromCharCode(...digest))}`
     if (descriptor.integrity !== undefined && descriptor.integrity !== integrity) throw new Error("Script integrity does not match the manifest")
     const key = Array.from(digest, byte => byte.toString(16).padStart(2, "0")).join("")
-    manifest.script = { url: `once-addon://local/${key}/main.js`, integrity }
+    manifest.script = { url: scriptUrl(typeof manifest.id === "string" ? manifest.id : "", key), integrity }
   }
   const read = readAddonManifest(manifest)
   if (!read.ok) throw new Error(read.reports.map(report => `${report.path} ${report.message}`).join("; "))
   return { entry: { enabled: true, manifest: read.manifest }, code }
+}
+
+/** A package built into Once: its files by name, as the build inlined them. */
+export function readBundledAddon(files: Record<string, string>): Promise<LocalAddonPackage> {
+  return readPackage(Object.entries(files).map(([name, text]) => ({
+    name, size: text.length, text: async limit => {
+      if (text.length > limit) throw new Error("Package file is too large")
+      return text
+    }
+  })), bundledScriptUrl)
 }
 
 /** Snapshot only: browser folder pickers grant files, not a persistent watched path. */

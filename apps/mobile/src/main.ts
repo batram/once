@@ -9,6 +9,7 @@ import {
 } from "@once/platform-mobile"
 import {
   mountOnceUi,
+  type BundledAddonFiles,
   PanelNavigation,
   ReaderDocumentHost,
   ReaderView,
@@ -31,6 +32,7 @@ import {
 declare const __ONCE_APP_VERSION__: string
 declare const __ONCE_BUILD_CHANNEL__: "release" | "dev"
 declare const __ONCE_BUILD_IDENTIFIER__: string
+declare const __ONCE_BUNDLED_ADDONS__: BundledAddonFiles[]
 declare const __ONCE_MOBILE_E2E__: boolean
 
 const MOBILE_SCROLLBAR_IDLE_DELAY_MS = 650
@@ -168,6 +170,9 @@ async function startMobileApp(): Promise<void> {
     // A static asset beside the app: Capacitor's local server answers for
     // any frame, and the sandboxed frame's opaque origin keeps it apart.
     addonSandboxUrl: new URL("addon-sandbox.html", window.location.href).toString(),
+    // The e2e build starts with no add-ons unless a spec asks for the shipped ones.
+    bundledAddons: __ONCE_MOBILE_E2E__ && !new URL(window.location.href).searchParams.has("bundled-addons")
+      ? [] : __ONCE_BUNDLED_ADDONS__,
     addonConversations: mobileAddonConversations,
     appVersion: __ONCE_APP_VERSION__,
     buildChannel: __ONCE_BUILD_CHANNEL__,

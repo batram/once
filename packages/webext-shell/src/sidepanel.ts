@@ -1,7 +1,7 @@
 import browser = require("webextension-polyfill")
 
 import { createOnceApp } from "@once/app"
-import type { BrowserManagedShortcut } from "@once/ui-web"
+import type { BrowserManagedShortcut, BundledAddonFiles } from "@once/ui-web"
 import {
   describeStoryMenu,
   executeStoryMenuAction,
@@ -28,6 +28,7 @@ const RELAYED_COMMANDS: Record<string, string> = {
 declare const __ONCE_WEBEXT_TARGET__: "chrome" | "firefox"
 declare const __ONCE_BUILD_CHANNEL__: "release" | "dev"
 declare const __ONCE_BUILD_IDENTIFIER__: string
+declare const __ONCE_BUNDLED_ADDONS__: BundledAddonFiles[]
 
 // The only shortcuts that reach Once while a web page has focus, because only a
 // manifest command is delivered when the panel does not have the keyboard:
@@ -78,7 +79,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.body.dataset.webextTarget = __ONCE_WEBEXT_TARGET__
   const storyMenuContextId = crypto.randomUUID()
   const platform = createWebExtPlatform(browser)
-  const testMode = new URLSearchParams(window.location.search).has("once-e2e")
+  const query = new URLSearchParams(window.location.search)
+  const testMode = query.has("once-e2e")
   if (testMode) {
     const state = await browser.storage.local.get("onceE2ESeeded")
     if (!state.onceE2ESeeded) {
@@ -97,6 +99,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   await mountOnceUi(client, {
     shell: "webext",
     addonSandboxUrl: browser.runtime.getURL("static/addon-sandbox.html"),
+    // A test panel starts with no add-ons unless a spec asks for the shipped ones.
+    bundledAddons: testMode && !query.has("bundled-addons") ? [] : __ONCE_BUNDLED_ADDONS__,
     addonConversations: webextAddonConversations(browser),
     browserShortcuts: await browserManagedShortcuts(),
     appVersion: browser.runtime.getManifest().version,

@@ -77,6 +77,26 @@ watched path. ZIP selection uses the platform file picker, including mobile wher
 available. Firefox includes its sandbox in the extension; no hosted page or
 extra setup is needed. ZIP decompression uses the browser's native compression streams.
 
+### Bundled with Once
+
+Some add-ons ship inside every Once package — since 0.4.0 the
+[What? Wait, who, why?](../examples/addons/what-wait-who-why/README.md) AI
+assistant. [`scripts/bundled-addons.js`](../scripts/bundled-addons.js) lists
+them; each app's webpack build inlines the package files (`once-addon.json`
+and its script) as the `__ONCE_BUNDLED_ADDONS__` constant, so nothing extra is
+served or fetched. On first start the UI installs a bundled package into the
+`addons` document like a local import: the script goes into the device's
+addon cache and the entry's script URL is `once-addon://bundled/<id>/main.js`.
+The document records the offered version under `bundled`, by id, so a bundled
+add-on the user **removes** stays removed on every device the document syncs to.
+Another device that receives the entry through sync runs it from its own build's
+copy of the same version. A newer Once carrying a newer package version
+upgrades a still-installed bundled copy, keeping the user's options, storage
+and enabled flag; an add-on the user installed themselves under the same id
+is left alone. The overview lists a bundled add-on as "Bundled with Once", and
+the import page offers removed ones again under the same heading, through the
+usual review.
+
 ## The manifest
 
 ```jsonc

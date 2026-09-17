@@ -1,17 +1,31 @@
 import { OnceClient } from "@once/app"
 import { AddonEntry, AddonManifest, SANDBOX_LIMITS, grantedFetchPatterns, validateConfig } from "@once/core"
 import { AddonSandbox } from "./AddonSandbox"
+import { bundledAddonScript } from "./bundledAddons"
+import { BUNDLED_SCRIPT_PREFIX } from "./localAddonPackage"
 
 let sandboxUrl: string | undefined
 export function configureAddonPackages(url?: string): void { sandboxUrl = url }
+
+/** Code not cached on this device yet: fetched, or, for a package Once carries, taken from the build. */
+async function unverifiedAddonScript(client: OnceClient, url: string, integrity: string): Promise<string> {
+  if (url.startsWith(BUNDLED_SCRIPT_PREFIX)) {
+    // A synced entry for a bundled package: the code is at hand before this
+    // device has taken the package in itself, as long as it is the same build of it.
+    const bundled = await bundledAddonScript(integrity)
+    if (bundled === null) throw new Error("This version of the addon is not bundled with this Once; update Once to run it")
+    return bundled
+  }
+  if (url.startsWith("once-addon://local/")) throw new Error("Import this addon's ZIP or folder on this device to make its script available")
+  return client.fetchText(url)
+}
 
 /** Both installation and execution use the same integrity check, including cached code. */
 export async function verifiedAddonScript(client: OnceClient, manifest: AddonManifest): Promise<string | null> {
   if (!manifest.script) return null
   const { integrity, url } = manifest.script
   const cached = await client.getAddonScript(integrity).catch(() => null)
-  if (cached === null && url.startsWith("once-addon://local/")) throw new Error("Import this addon's ZIP or folder on this device to make its script available")
-  const code = cached ?? await client.fetchText(url)
+  const code = cached ?? await unverifiedAddonScript(client, url, integrity)
   const bytes = new TextEncoder().encode(code)
   if (bytes.length > SANDBOX_LIMITS.code) throw new Error("The script is too large")
   const digest = await crypto.subtle.digest("SHA-256", bytes)

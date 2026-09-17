@@ -55,6 +55,17 @@ list of what may load at all is `apps/electron/src/extensions/bundledExtensions.
 and the Android plugin's built-in table; a bundle whose manifest id does not
 match its listed id is refused.
 
+## Bundled Once add-ons
+
+The Once add-ons every package ships — the "What? Wait, who, why?" AI
+assistant since 0.4.0 — are listed in
+[`scripts/bundled-addons.js`](../scripts/bundled-addons.js) and read from
+`examples/addons/` at build time; the webpack configs inline them, so no
+fetch step is involved. To ship an update, bump `version` in the example's
+`once-addon.json`: users who kept the add-on installed get the new version on
+their next start, users who removed it are not asked again. The behaviour is
+described in [Add-ons](ADDONS.md#bundled-with-once).
+
 ## Cutting a release
 
 Work from a clean, green `main`.

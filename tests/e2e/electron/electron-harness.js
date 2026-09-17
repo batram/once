@@ -429,6 +429,9 @@ async function launchApp(options = {}) {
       ONCE_ELECTRON_TEST_USER_DATA: userData,
       ONCE_ELECTRON_DISABLE_STORY_LOADING: "1",
       ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "1",
+      // A fresh profile starts with no add-ons here; bundled-addons.spec.js
+      // turns the shipped packages back on to test their first start.
+      ONCE_ELECTRON_DISABLE_BUNDLED_ADDONS: "1",
       ONCE_ELECTRON_TEST_BACKGROUND: background ? "1" : "0",
       ONCE_ELECTRON_TEST_NATIVE_LAYERS: "0",
       ...options.env

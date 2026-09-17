@@ -6,6 +6,7 @@ import {
   bindMenuCollapseControls,
   HoverUrlIndicator,
   mountOnceUi,
+  type BundledAddonFiles,
   ReaderView,
   SourcePickerView,
   describeStoryMenu,
@@ -23,6 +24,9 @@ import "./browserExtensionSettings.css"
 // Served by main from the Forge output: a sandboxed frame has an opaque origin
 // and may not load file: subresources, so the add-on sandbox page needs a scheme.
 const ADDON_SANDBOX_URL = "once-addon://sandbox/index.html"
+
+// The add-on packages the build inlined (apps/electron/webpack.renderer.config.js).
+declare const __ONCE_BUNDLED_ADDONS__: BundledAddonFiles[]
 
 // Main reads ONCE_ADDONS directories (unpackaged builds only) and tells the
 // renderer when a file in one changes.
@@ -143,10 +147,13 @@ async function startRenderer(): Promise<void> {
   })
   exchangeExtensionSettings(app.client)
   startupStage("mount-ui")
+  // Test switches main put on the entry URL (ONCE_ELECTRON_DISABLE_*).
+  const flags = new URL(window.location.href).searchParams
   await mountOnceUi(app.client, {
     shell: "electron",
     addonSandboxUrl: ADDON_SANDBOX_URL,
     devAddons: DEV_ADDONS,
+    bundledAddons: flags.has("disableBundledAddons") ? [] : __ONCE_BUNDLED_ADDONS__,
     addonConversations: electronAddonConversations(window.onceElectron),
     appVersion: buildInfo.version,
     buildChannel: buildInfo.channel,
@@ -155,11 +162,7 @@ async function startRenderer(): Promise<void> {
     // The bundled uBlock Origin and Violentmonkey take both documents above.
     extensionSettings: true,
     showHoveredLinks: true,
-    initialStoryLoad: new URL(window.location.href).searchParams.has(
-      "disableStoryLoading"
-    )
-      ? "disabled"
-      : "cache",
+    initialStoryLoad: flags.has("disableStoryLoading") ? "disabled" : "cache",
     onMenuCollapsedChanged,
     // The renderer owns the keybinding config; main only mirrors the chords it
     // must steal from focused pages.

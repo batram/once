@@ -3,6 +3,7 @@ const path = require("path")
 const CopyPlugin = require("copy-webpack-plugin")
 const webpack = require("webpack")
 const { devBuildIdentifier } = require("../../scripts/build-identifier")
+const { bundledAddons } = require("../../scripts/bundled-addons")
 
 const root = path.resolve(__dirname, "../..")
 const { version } = require(path.join(root, "package.json"))
@@ -120,7 +121,8 @@ module.exports = (_env = {}, argv = {}) => {
         __ONCE_APP_VERSION__: JSON.stringify(version),
         __ONCE_BUILD_CHANNEL__: JSON.stringify(channel),
         __ONCE_BUILD_IDENTIFIER__: JSON.stringify(devBuildIdentifier()),
-        __ONCE_MOBILE_E2E__: JSON.stringify(process.env.ONCE_MOBILE_E2E === "1")
+        __ONCE_MOBILE_E2E__: JSON.stringify(process.env.ONCE_MOBILE_E2E === "1"),
+        __ONCE_BUNDLED_ADDONS__: JSON.stringify(bundledAddons())
       }),
       new webpack.IgnorePlugin({ resourceRegExp: /^node:module$/ }),
       new ReaderRuntimeCspPlugin(),

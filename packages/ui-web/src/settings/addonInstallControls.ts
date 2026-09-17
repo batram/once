@@ -5,6 +5,8 @@ import { reportSettingsStatus } from "./settingsStatus"
 import { prepareAddon } from "../addons/addonPackage"
 import { addonButton, bindAddonManagement } from "./addonManagement"
 import { bindAddonFileImport } from "./addonFileImport"
+import { bindAddonBundledImport } from "./addonBundledImport"
+import type { LocalAddonPackage } from "../addons/localAddonPackage"
 import { bindAddonSettingsPages } from "./AddonSettingsPages"
 import { bindAddonVaultControls } from "./addonVaultControls"
 
@@ -82,7 +84,9 @@ export function bindAddonInstallControls(client: OnceClient, onChanged: () => vo
     block.dispatchEvent(new Event("once:addon-review"))
   }
 
-  bindAddonFileImport(block, async pack => { previews.replaceChildren(); await preview(pack.entry, pack.code) })
+  const previewPackage = async (pack: LocalAddonPackage): Promise<void> => { previews.replaceChildren(); await preview(pack.entry, pack.code) }
+  bindAddonFileImport(block, previewPackage)
+  bindAddonBundledImport(client, block, previewPackage)
 
   install.addEventListener("click", () => void (async () => {
     const url = input.value.trim()
