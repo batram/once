@@ -1824,6 +1824,9 @@
   padding: var(--sp-0-5);
   border: thin solid white;
   font-size: var(--source-badge-font-size);
+  /* Pin the line box: line-height: normal follows the font's metrics, and
+     when Verdana falls back to Noto Sans the badge grows two pixels. */
+  line-height: 11px;
   text-align: center;
 }
 
