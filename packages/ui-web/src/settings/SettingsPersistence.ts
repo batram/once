@@ -79,8 +79,6 @@ export class SettingsPersistence {
     document.body.removeAttribute("data-theme")
     if (name === "dark" || name === "light") {
       document.body.setAttribute("data-theme", name)
-    } else if (name === "custom") {
-      console.debug("custom theme, not implement, just hanging out here :D")
     }
   }
 

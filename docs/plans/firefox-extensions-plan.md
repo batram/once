@@ -3,6 +3,11 @@
 Reliability follow-up: [extension-reliability-plan.md](extension-reliability-plan.md)
 records the subsequent settings reconciliation and mobile filtering changes.
 The implementation history below describes the original feature rollout.
+Superseded in places: the runtime now loads Manifest V3 extensions as well,
+users install arbitrary extensions from AMO, a URL or a file rather than only
+the bundled allowlist, and the fetch script hash-pins the bundles rather than
+verifying Mozilla's signature. [EXTENSION_COMPATIBILITY.md](../EXTENSION_COMPATIBILITY.md)
+is the current statement of what runs.
 
 Status: complete. Steps 1 to 4 are done. uBlock Origin 1.74.0's Firefox
 build boots on the runtime, downloads and compiles its default lists,
