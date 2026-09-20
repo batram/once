@@ -35,6 +35,7 @@ export interface ElectronTabState {
   muted: boolean
   active: boolean
   loadError: string | null
+  blockedPopupCount?: number
 }
 
 export interface ElectronFetchRequest {
@@ -219,6 +220,7 @@ export interface ElectronBridge {
     showMenu(id: string, point: ElectronPoint): Promise<void>
     /** Address bar menu; resolves with the clipboard text when "Paste and Go" was chosen. */
     showAddressMenu(point: ElectronPoint): Promise<string | null>
+    showBlockedPopups(id: string, point: ElectronPoint): Promise<void>
     setBounds(bounds: ElectronRect): Promise<void>
     restoreClosed(): Promise<string | null>
     focusContent(): Promise<void>
@@ -338,6 +340,7 @@ export const ELECTRON_IPC = {
   tabsStartSourcePicker: "once:tabs:start-source-picker",
   tabsShowMenu: "once:tabs:show-menu",
   tabsShowAddressMenu: "once:tabs:show-address-menu",
+  tabsShowBlockedPopups: "once:tabs:show-blocked-popups",
   tabsSetBounds: "once:tabs:set-bounds",
   tabsRestoreClosed: "once:tabs:restore-closed",
   tabsFocusContent: "once:tabs:focus-content",

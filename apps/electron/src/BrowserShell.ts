@@ -11,6 +11,7 @@ import { ReaderRequests, ReaderRequestRunner } from "./ReaderRequests"
 import browserShellMarkup from "./browser/browser-shell.html"
 import { AddressBar } from "./browser/AddressBar"
 import { FindBar } from "./browser/FindBar"
+import { bindBlockedPopups } from "./browser/BlockedPopups"
 import {
   displayBrowserUrl,
   isReadableUrl,
@@ -106,6 +107,7 @@ export class BrowserShell {
     this.bindKeyboardCommands()
     // Registers browser.find-in-page and follows the tabs on its own.
     new FindBar(this.bridge)
+    bindBlockedPopups(this.bridge)
     this.bridge.tabs.onChanged((tabs) => this.render(tabs))
     this.bridge.tabs.onRegenerateReader((sourceUrl, tabId) => {
       this.address.setError("")

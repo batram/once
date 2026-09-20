@@ -79,7 +79,8 @@ export class TabOwnership {
         hasPlayedAudio: entry.hasPlayedAudio,
         muted: entry.muted,
         active: id === owner.activeId,
-        loadError: entry.loadError
+        loadError: entry.loadError,
+        blockedPopupCount: entry.blockedPopups?.length ?? 0
       }]
     })
   }

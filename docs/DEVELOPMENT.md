@@ -188,6 +188,30 @@ Other switches an Electron run understands, all off by default:
   --debug-devtools` sets it). An explicit `--remote-debugging-port=<n>` on the
   command line wins over the channel default.
 
+### Browser popups
+
+Page popups require a recent mouse press or keyboard interaction in that tab.
+One interaction permits one new popup within five seconds; moving the mouse,
+scripted DOM events, and browser shortcuts do not grant permission. Navigation
+clears the permission and that document's blocked requests. Allowed popups use
+Electron's `createWindow` callback so `window.open()` returns a real window
+reference and sites do not also run their popup-blocked fallback.
+
+The toolbar shows **Popup blocked** for the active tab. Clicking it lists the
+blocked destinations, with actions to open one or dismiss the list. Up to 20
+requests are retained in memory per document; nothing is persisted or sent to
+the shell except the count. Manually opening a request preserves its referrer
+and POST body, but cannot retroactively replace the original caller's `null`
+window reference. There is no permanent site allowlist yet.
+
+Electron's public `setWindowOpenHandler` details do not expose Chromium's
+per-frame transient user activation. `TabPopups` therefore tracks trusted native
+input events in main, at tab scope. This mirrors the common desktop interaction
+policy, not every Chromium exception: activation consumed by other browser APIs
+and per-frame activation propagation are not visible through these events.
+The regression suite covers native mouse and keyboard input, automatic and
+synthetic attempts, expiry, named-window reuse, and manual open/dismiss.
+
 ### DevTools ports
 
 Each inspectable surface has a fixed loopback port so the DevTools MCP servers,

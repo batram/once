@@ -336,6 +336,24 @@ body #titlebar-text {
   gap: var(--toolbar-control-gap);
 }
 
+#blocked_popups {
+  flex: 0 0 auto;
+  height: var(--toolbar-control-size);
+  margin: 0;
+  padding: 0 var(--sp-2);
+  color: var(--text-high-color);
+  background: var(--btn-bg-color);
+  border: 1px solid var(--border-high-color);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-small);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+#blocked_popups[hidden] {
+  display: none;
+}
+
 #extension_actions:empty {
   display: none;
 }

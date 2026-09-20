@@ -335,6 +335,11 @@ function registerTabLifecycle(coordinator: BrowserCoordinator): void {
 }
 
 function registerTabTools(coordinator: BrowserCoordinator): void {
+  ipcMain.handle(ELECTRON_IPC.tabsShowBlockedPopups, (event, id: string, point: ElectronPoint) => {
+    const current = browser(event, coordinator)
+    if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) throw new Error("Invalid popup position")
+    return coordinator.showBlockedPopups(current.window, id, point)
+  })
   ipcMain.handle(ELECTRON_IPC.tabsOpenDroppedUrls, (event, urls: string[]) => {
     const current = browser(event, coordinator)
     return coordinator.openDroppedUrls(current.window, urls)

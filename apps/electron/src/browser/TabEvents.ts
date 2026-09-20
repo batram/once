@@ -4,6 +4,7 @@ import { chordFromKey, chordFromParts, isModifiedChord } from "@once/core"
 import { NativeMenus } from "./NativeMenus"
 import { NavigationErrors, sameUrl } from "./NavigationErrors"
 import { TabEntry, WindowEntry } from "./BrowserState"
+import { TabPopups } from "./TabPopups"
 
 interface TabOwnerAccess {
   ownerFor(entry: TabEntry): WindowEntry | undefined
@@ -143,10 +144,12 @@ interface WindowInteractionActions extends TabOwnerAccess {
 }
 
 class TabWindowInteractionEvents {
+  readonly popups: TabPopups
+
   constructor(
     private readonly menus: NativeMenus,
     private readonly actions: WindowInteractionActions
-  ) {}
+  ) { this.popups = new TabPopups(actions) }
 
   bind(entry: TabEntry): void {
     const contents = entry.view.webContents
@@ -198,24 +201,9 @@ class TabWindowInteractionEvents {
       if (!owner) return
       if (this.handleFullscreenKey(event, input, entry, owner)) return
       this.forwardShellChord(event, input, owner)
+      this.popups.keyDown(entry, event, input)
     })
-    contents.setWindowOpenHandler(({ url, disposition }) => {
-      const owner = this.actions.ownerFor(entry)
-      if (!owner) return { action: "deny" }
-      try {
-        const normalized = this.actions.normalizeUrl(url)
-        // Denying after manually opening the URL returns null to the page,
-        // which can trigger its popup-blocked fallback in the source tab.
-        return {
-          action: "allow",
-          outlivesOpener: true,
-          createWindow: (options) => this.actions.createPopup(owner, normalized, disposition, options)
-        }
-      } catch {
-        // Unsupported schemes are intentionally denied.
-      }
-      return { action: "deny" }
-    })
+    this.popups.bind(entry)
     contents.on("context-menu", (_event, params) => {
       const owner = this.actions.ownerFor(entry)
       if (owner) this.menus.showContentsMenu(owner, contents, params)
@@ -346,5 +334,9 @@ export class TabEvents {
 
   preserveTitleOnNextNavigation(entry: TabEntry): void {
     this.navigation.preserveTitleOnNextNavigation(entry)
+  }
+
+  showBlockedPopups(entry: TabEntry, point: import("@once/platform-electron/bridge").ElectronPoint): void {
+    this.interaction.popups.showBlocked(entry, point)
   }
 }

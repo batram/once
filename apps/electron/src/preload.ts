@@ -91,6 +91,8 @@ const bridge: ElectronBridge = {
       ipcRenderer.invoke(ELECTRON_IPC.tabsShowMenu, id, point),
     showAddressMenu: (point: ElectronPoint) =>
       ipcRenderer.invoke(ELECTRON_IPC.tabsShowAddressMenu, point),
+    showBlockedPopups: (id, point) =>
+      ipcRenderer.invoke(ELECTRON_IPC.tabsShowBlockedPopups, id, point),
     setBounds: (bounds: ElectronRect) =>
       ipcRenderer.invoke(ELECTRON_IPC.tabsSetBounds, bounds),
     restoreClosed: () => ipcRenderer.invoke(ELECTRON_IPC.tabsRestoreClosed),

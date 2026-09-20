@@ -179,6 +179,10 @@ export class BrowserCoordinator {
     return this.ownership.getAll(state)
   }
 
+  showBlockedPopups(state: WindowEntry, id: string, point: ElectronPoint): void {
+    this.tabEvents.showBlockedPopups(this.ownership.requireOwned(state, id), point)
+  }
+
   /** `after` anchors the new tab in the strip; by default it follows the active tab. */
   async createTab(
     state: WindowEntry,

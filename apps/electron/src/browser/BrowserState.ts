@@ -34,6 +34,8 @@ export interface TabEntry {
    * It cannot be read at close time: the webContents is destroyed by then.
    */
   historySnapshot: TabHistorySnapshot | null
+  /** Kept only for the current document; request bodies stay in main. */
+  blockedPopups?: Electron.HandlerDetails[]
 }
 
 export interface WindowEntry {
