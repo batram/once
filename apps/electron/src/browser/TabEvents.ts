@@ -136,8 +136,8 @@ class TabNavigationEvents {
 }
 
 interface WindowInteractionActions extends TabOwnerAccess {
-  createTab(owner: WindowEntry, url: string, active: boolean): Promise<string>
-  createWindow(url: string): Promise<void>
+  createPopup(owner: WindowEntry, url: string, disposition: string,
+    options: Electron.BrowserWindowConstructorOptions): Electron.WebContents
   normalizeUrl(url: string): string
   setFullscreen(owner: WindowEntry, fullscreen: boolean): void
 }
@@ -204,8 +204,13 @@ class TabWindowInteractionEvents {
       if (!owner) return { action: "deny" }
       try {
         const normalized = this.actions.normalizeUrl(url)
-        if (disposition === "new-window") void this.actions.createWindow(normalized)
-        else void this.actions.createTab(owner, normalized, disposition !== "background-tab")
+        // Denying after manually opening the URL returns null to the page,
+        // which can trigger its popup-blocked fallback in the source tab.
+        return {
+          action: "allow",
+          outlivesOpener: true,
+          createWindow: (options) => this.actions.createPopup(owner, normalized, disposition, options)
+        }
       } catch {
         // Unsupported schemes are intentionally denied.
       }

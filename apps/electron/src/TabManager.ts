@@ -10,8 +10,7 @@ import {
   BrowserWindow,
   IpcMainInvokeEvent,
   Rectangle,
-  WebContents,
-  WebContentsView
+  WebContents
 } from "electron"
 import {
   ELECTRON_IPC,
@@ -28,6 +27,7 @@ import {
   TabOpenDisposition
 } from "@once/platform-electron/navigation"
 import { hasReaderDocument, storeReaderDocument } from "./ReaderProtocol"
+import { createTabView } from "./browser/TabView"
 import { isAddonConversationUrl } from "./AddonConversationRelay"
 import { sourceUrlFromReaderUrl } from "./browser/reader-url"
 import { TabEntry, WindowEntry } from "./browser/BrowserState"
@@ -46,8 +46,6 @@ import { isModifiedChord } from "@once/core"
 
 /** A generous ceiling; the real list is one chord per bound command. */
 const MAX_FORWARDED_KEYS = 100
-
-declare const ADDON_CONVERSATION_PRELOAD_WEBPACK_ENTRY: string
 
 interface CreateWindowOptions {
   url?: string
@@ -111,8 +109,16 @@ export class BrowserCoordinator {
       normalizeUrl: (url) => this.normalizeTabUrl(url),
       ...ownerAccess
     }, {
-      createTab: (owner, url, active) => this.createTab(owner, url, active),
-      createWindow: async (url) => { await this.createWindow({ url }) },
+      createPopup: (owner, url, disposition, options) => {
+        const entry = this.createTabEntry(owner, url, disposition !== "background-tab"
+          && disposition !== "new-window", owner.activeId, options)
+        if (disposition === "new-window") {
+          void this.createWindow({ tabId: entry.id }).catch((error) => {
+            console.error("Could not move popup into a new Once window", error)
+          })
+        }
+        return entry.view.webContents
+      },
       normalizeUrl: (url) => this.normalizeTabUrl(url),
       setFullscreen: (owner, fullscreen) => this.setFullscreen(owner, fullscreen),
       ...ownerAccess
@@ -179,31 +185,20 @@ export class BrowserCoordinator {
     url = "about:blank",
     active = true, after: string | null = state.activeId
   ): Promise<string> {
+    return this.createTabEntry(state, url, active, after).id
+  }
+
+  private createTabEntry(
+    state: WindowEntry, url: string, active: boolean, after: string | null,
+    popupOptions?: Electron.BrowserWindowConstructorOptions
+  ): TabEntry {
     const normalized = this.normalizeTabUrl(url)
     // An extension page lives in that extension's session with its preload;
     // everything else is a remote page in the browser session with the frame
     // preload registered on the session. Either preload needs the sub-frame
     // flag to reach iframes (it grants no Node access; the tab stays sandboxed).
     const profile = this.pageProfile(normalized)
-    // The addon conversation page is ours, in the browser session, with the
-    // one preload that relays to the shell; that preload exposes nothing
-    // outside its own scheme should the tab navigate on.
-    const conversation = isAddonConversationUrl(normalized)
-    const view = new WebContentsView({
-      webPreferences: {
-        nodeIntegration: false,
-        nodeIntegrationInSubFrames: true,
-        contextIsolation: true,
-        sandbox: true,
-        webSecurity: true,
-        disableHtmlFullscreenWindowResize: true,
-        ...(profile
-          ? { session: profile.session, preload: profile.preload }
-          : conversation
-            ? { partition: BROWSER_SESSION_PARTITION, preload: ADDON_CONVERSATION_PRELOAD_WEBPACK_ENTRY }
-            : { partition: BROWSER_SESSION_PARTITION })
-      }
-    })
+    const view = createTabView(normalized, profile, BROWSER_SESSION_PARTITION, popupOptions)
     view.setBackgroundColor(state.backgroundColor)
 
     const id = randomUUID()
@@ -233,9 +228,11 @@ export class BrowserCoordinator {
     for (const listener of this.tabCreated) listener(view.webContents)
 
     if (active || !state.activeId) this.ownership.activate(state, id)
-    this.navigationErrors.load(entry, normalized)
+    // Electron performs popup navigation, retaining POST data, referrer and
+    // the opener relationship. Loading it ourselves would navigate twice.
+    if (!popupOptions) this.navigationErrors.load(entry, normalized)
     this.ownership.notify(state)
-    return id
+    return entry
   }
 
   async openUrl(
