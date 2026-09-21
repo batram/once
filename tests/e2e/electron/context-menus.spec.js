@@ -179,34 +179,52 @@ test("offers Paste and Go on the address bar", async () => {
   const { electronApp, userData, window } = await launchApp()
   try {
     const target = `${origin}/pasted`
-    await electronApp.evaluate(async ({ clipboard, Menu }, url) => {
-      await clipboard.writeText(` ${url} `)
+    await electronApp.evaluate(({ Menu }) => {
       globalThis.__onceLastMenuTemplate = null
       Menu.buildFromTemplate = (template) => {
         globalThis.__onceLastMenuTemplate = template
         return { popup() {} }
       }
-    }, target)
-
-    await window.locator("#urlfield").evaluate((field) => {
-      field.dispatchEvent(new MouseEvent("contextmenu", {
-        bubbles: true,
-        cancelable: true,
-        button: 2,
-        clientX: 8,
-        clientY: 8
-      }))
     })
-    await expect.poll(() => electronApp.evaluate(() =>
-      globalThis.__onceLastMenuTemplate?.map((item) => item.label || item.role || item.type)
-    )).toEqual([
-      "Inspect", "separator", "cut", "copy", "paste", "Paste and Go", "separator", "selectAll"
-    ])
+    // The clipboard belongs to the whole machine and only one process may hold
+    // it at a time: a write can be refused while someone else has it open, and
+    // the menu would then greylist Paste and Go for a reason of its own. Write
+    // until it reads back, so a busy clipboard says so instead of failing the
+    // assertion below with a story about Paste and Go.
+    await expect.poll(() => electronApp.evaluate(async ({ clipboard }, url) => {
+      await clipboard.writeText(` ${url} `)
+      return clipboard.readText()
+    }, target), { message: "another process kept the clipboard from being set" })
+      .toBe(` ${target} `)
+
+    // The menu reads the clipboard as it opens, and that read can be refused
+    // just as the write can, so ask for the menu again rather than report a
+    // momentarily unreadable clipboard as a missing Paste and Go.
+    await expect.poll(async () => {
+      await electronApp.evaluate(() => { globalThis.__onceLastMenuTemplate = null })
+      await window.locator("#urlfield").evaluate((field) => {
+        field.dispatchEvent(new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          button: 2,
+          clientX: 8,
+          clientY: 8
+        }))
+      })
+      return electronApp.evaluate(() => {
+        const template = globalThis.__onceLastMenuTemplate
+        return template && {
+          items: template.map((item) => item.label || item.role || item.type),
+          pasteAndGo: template.find((entry) => entry.label === "Paste and Go")?.enabled
+        }
+      })
+    }).toEqual({
+      items: ["Inspect", "separator", "cut", "copy", "paste", "Paste and Go", "separator", "selectAll"],
+      pasteAndGo: true
+    })
 
     await electronApp.evaluate(() => {
-      const item = globalThis.__onceLastMenuTemplate.find((entry) => entry.label === "Paste and Go")
-      if (!item.enabled) throw new Error("Paste and Go should be enabled with text on the clipboard")
-      item.click()
+      globalThis.__onceLastMenuTemplate.find((entry) => entry.label === "Paste and Go").click()
     })
     await expect(window.locator("#urlfield")).toHaveValue(target)
     await expect.poll(() => electronApp.evaluate(({ webContents }, expectedUrl) =>
