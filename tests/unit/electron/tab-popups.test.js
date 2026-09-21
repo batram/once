@@ -60,6 +60,21 @@ test("blocks automatic popups, but permits one popup per mouse activation", () =
   assert.equal(h.contents.open(h.request).action, "deny")
 })
 
+// Electron hands over pending contents for window.open and navigates them
+// itself; a link opened in a new tab (middle click, Ctrl+click) arrives with
+// the key present but empty, and nobody but us will load it.
+test("a link opened in a new tab is navigated here, a window.open popup by Electron", () => {
+  const h = harness()
+  h.mouse("mouseDown")
+  h.contents.open({ ...h.request, disposition: "background-tab" })
+    .createWindow({ webContents: undefined, show: false })
+  assert.equal(h.created[0][2], "background-tab")
+  assert.deepEqual(h.loaded, [[h.request.url, { httpReferrer: h.request.referrer }]])
+  h.mouse("mouseDown")
+  h.contents.open(h.request).createWindow({ webContents: { pending: true } })
+  assert.equal(h.loaded.length, 1)
+})
+
 test("activation expires and does not survive navigation", () => {
   const h = harness()
   h.mouse("mouseDown")

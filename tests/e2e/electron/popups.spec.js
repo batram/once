@@ -128,6 +128,45 @@ test("automatic and synthetic popups are blocked; the toolbar can open or dismis
   }
 })
 
+// A middle click is the user asking for a tab, not a popup the page opened by
+// itself: the blocker must let it through, background by default and in the
+// foreground with Shift. Regression guard for the popup blocker swallowing it.
+for (const { name, button, modifiers, expectActive } of [
+  { name: "middle click opens a background tab", button: "middle", modifiers: [], expectActive: false },
+  { name: "shift middle click opens a foreground tab", button: "middle", modifiers: ["shift"], expectActive: true },
+  { name: "ctrl click opens a background tab", button: "left", modifiers: ["control"], expectActive: false }
+]) {
+  test(name, async () => {
+    const server = await startPageServer()
+    const { electronApp, userData, window } = await launchApp()
+    try {
+      const source = `${server.origin}/one`
+      const target = `${server.origin}/two`
+      await window.evaluate(url => window.onceElectron.tabs.create(url, true), source)
+      await waitForPage(electronApp, source)
+      await inPage(electronApp, source, `document.body.innerHTML =
+        '<a id="sample" style="position:fixed;left:0;top:0;width:200px;height:80px" ' +
+        'href=${JSON.stringify(target)}>Sample</a>'; void 0`)
+      await focusPage(electronApp, source)
+      await electronApp.evaluate(({ webContents }, { source, button, modifiers }) => {
+        const page = webContents.getAllWebContents().find(c => c.getURL() === source)
+        const click = { x: 40, y: 30, button, clickCount: 1, modifiers }
+        page.sendInputEvent({ type: "mouseDown", ...click })
+        page.sendInputEvent({ type: "mouseUp", ...click })
+      }, { source, button, modifiers })
+      await waitForPage(electronApp, target)
+      await expect(window.locator("#blocked_popups")).toBeHidden()
+      const tabs = await window.evaluate(() => window.onceElectron.tabs.getAll())
+      expect(tabs.map(tab => tab.url)).toContain(target)
+      expect(tabs.find(tab => tab.url === target).active).toBe(expectActive)
+      expect(tabs.find(tab => tab.url === source).active).toBe(!expectActive)
+    } finally {
+      await closeApp(electronApp, userData)
+      await server.close()
+    }
+  })
+}
+
 test("a real keyboard event opens one popup and blocks a second from the same interaction", async () => {
   const server = await startPageServer()
   const { electronApp, userData, window } = await launchApp()

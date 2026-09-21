@@ -67,7 +67,14 @@ export class TabPopups {
     return {
       action: "allow",
       outlivesOpener: true,
-      createWindow: (options) => this.actions.createPopup(owner, url, request.disposition, options)
+      createWindow: (options) => {
+        const contents = this.actions.createPopup(owner, url, request.disposition, options)
+        // Electron navigates the pending contents it made for window.open. A
+        // link opened in a new tab (middle click, Ctrl+click) has none, so
+        // that navigation is ours; without it the tab would stay blank.
+        if (!options.webContents) this.load(contents, url, request)
+        return contents
+      }
     }
   }
 
@@ -96,7 +103,11 @@ export class TabPopups {
     const url = this.actions.normalizeUrl(request.url)
     entry.blockedPopups = entry.blockedPopups.filter(candidate => candidate !== request)
     this.actions.notify(entry)
-    const contents = this.actions.createPopup(owner, url, request.disposition, {})
+    this.load(this.actions.createPopup(owner, url, request.disposition, {}), url, request)
+  }
+
+  /** Reproduces what Electron's own popup navigation carries: referrer and body. */
+  private load(contents: Electron.WebContents, url: string, request: Electron.HandlerDetails): void {
     const body = request.postBody
     void contents.loadURL(url, {
       httpReferrer: request.referrer,
@@ -106,7 +117,7 @@ export class TabPopups {
       } : {})
     }).catch(error => {
       // Navigation events display real load failures in the new tab.
-      if (error.code !== "ERR_ABORTED") console.warn("Blocked popup could not load", error)
+      if (error.code !== "ERR_ABORTED") console.warn("Popup could not load", error)
     })
   }
 }

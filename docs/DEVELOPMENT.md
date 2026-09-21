@@ -204,6 +204,13 @@ the shell except the count. Manually opening a request preserves its referrer
 and POST body, but cannot retroactively replace the original caller's `null`
 window reference. There is no permanent site allowlist yet.
 
+A link opened in a new tab — middle click, Ctrl+click, `target="_blank"` with a
+modifier — reaches the same handler, with the disposition saying background or
+foreground. Electron has no pending contents for those, only a `webContents` key
+with nothing in it: passing that to `WebContentsView` throws, and the tab is
+ours to navigate. `createTabView` drops the empty key and `TabPopups` loads the
+URL with its referrer, so the click is not swallowed.
+
 Electron's public `setWindowOpenHandler` details do not expose Chromium's
 per-frame transient user activation. `TabPopups` therefore tracks trusted native
 input events in main, at tab scope. This mirrors the common desktop interaction

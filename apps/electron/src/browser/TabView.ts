@@ -10,8 +10,13 @@ export function createTabView(
 ): WebContentsView {
   // Keep Electron's supplied popup contents and preferences so the page
   // receives a real WindowProxy, then enforce the ordinary tab protections.
+  // A link opened in a new tab (middle click, Ctrl+click) has no pending
+  // contents, yet Electron still passes the key with nothing in it, and
+  // WebContentsView throws on that — which used to swallow the click.
+  const { webContents, ...windowOptions } = popupOptions ?? {}
   return new WebContentsView({
-    ...popupOptions,
+    ...windowOptions,
+    ...(webContents ? { webContents } : {}),
     webPreferences: {
       ...popupOptions?.webPreferences,
       nodeIntegration: false,
