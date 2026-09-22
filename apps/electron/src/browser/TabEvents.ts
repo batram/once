@@ -6,6 +6,7 @@ import { NavigationErrors, sameUrl } from "./NavigationErrors"
 import { fallbackTabTitle } from "./reader-url"
 import { TabEntry, WindowEntry } from "./BrowserState"
 import { TabPopups } from "./TabPopups"
+import { PopupWindowOptions } from "./TabView"
 
 interface TabOwnerAccess {
   ownerFor(entry: TabEntry): WindowEntry | undefined
@@ -139,7 +140,7 @@ class TabNavigationEvents {
 
 interface WindowInteractionActions extends TabOwnerAccess {
   createPopup(owner: WindowEntry, url: string, disposition: string,
-    options: Electron.BrowserWindowConstructorOptions): Electron.WebContents
+    options: PopupWindowOptions): Electron.WebContents
   normalizeUrl(url: string): string
   setFullscreen(owner: WindowEntry, fullscreen: boolean): void
 }

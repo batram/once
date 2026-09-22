@@ -27,7 +27,7 @@ import {
   TabOpenDisposition
 } from "@once/platform-electron/navigation"
 import { hasReaderDocument, storeReaderDocument } from "./ReaderProtocol"
-import { createTabView } from "./browser/TabView"
+import { createTabView, PopupWindowOptions } from "./browser/TabView"
 import { isAddonConversationUrl } from "./AddonConversationRelay"
 import { fallbackTabTitle, sourceUrlFromReaderUrl } from "./browser/reader-url"
 import { TabEntry, WindowEntry } from "./browser/BrowserState"
@@ -194,7 +194,7 @@ export class BrowserCoordinator {
 
   private createTabEntry(
     state: WindowEntry, url: string, active: boolean, after: string | null,
-    popupOptions?: Electron.BrowserWindowConstructorOptions
+    popupOptions?: PopupWindowOptions
   ): TabEntry {
     const normalized = this.normalizeTabUrl(url)
     // An extension page lives in that extension's session with its preload;

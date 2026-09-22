@@ -1,13 +1,14 @@
 import { Menu } from "electron"
 import { ElectronPoint } from "@once/platform-electron/bridge"
 import { TabEntry, WindowEntry } from "./BrowserState"
+import { PopupWindowOptions } from "./TabView"
 
 interface PopupActions {
   ownerFor(entry: TabEntry): WindowEntry | undefined
   notify(entry: TabEntry): void
   normalizeUrl(url: string): string
   createPopup(owner: WindowEntry, url: string, disposition: string,
-    options: Electron.BrowserWindowConstructorOptions): Electron.WebContents
+    options: PopupWindowOptions): Electron.WebContents
 }
 
 // Chromium's transient activation lasts five seconds and is spent by a popup.
@@ -67,7 +68,7 @@ export class TabPopups {
     return {
       action: "allow",
       outlivesOpener: true,
-      createWindow: (options) => {
+      createWindow: (options: PopupWindowOptions) => {
         const contents = this.actions.createPopup(owner, url, request.disposition, options)
         // Electron navigates the pending contents it made for window.open. A
         // link opened in a new tab (middle click, Ctrl+click) has none, so

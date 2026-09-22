@@ -4,9 +4,18 @@ import { PageProfile } from "../extensions/runtimeTypes"
 
 declare const ADDON_CONVERSATION_PRELOAD_WEBPACK_ENTRY: string
 
+/**
+ * What Electron hands a window-open `createWindow` callback. The pending
+ * contents for a window.open popup ride along in `webContents`, which the
+ * published typing leaves out.
+ */
+export type PopupWindowOptions = Electron.BrowserWindowConstructorOptions & {
+  webContents?: Electron.WebContents
+}
+
 export function createTabView(
   url: string, profile: PageProfile | null, partition: string,
-  popupOptions?: Electron.BrowserWindowConstructorOptions
+  popupOptions?: PopupWindowOptions
 ): WebContentsView {
   // Keep Electron's supplied popup contents and preferences so the page
   // receives a real WindowProxy, then enforce the ordinary tab protections.
