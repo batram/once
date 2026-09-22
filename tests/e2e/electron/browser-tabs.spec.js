@@ -202,9 +202,14 @@ test("clears a stale tab title when the next page has no title", async () => {
     await address.press("Enter")
     await expect(title).toHaveText("Titled-again")
 
+    // A page that sets no title is named by its URL without the scheme.
+    await address.fill(`${origin}/untitled`)
+    await address.press("Enter")
+    await expect(title).toHaveText(`${origin.replace("http://", "")}/untitled`)
+
     await address.fill("http://127.0.0.1:1/unreachable")
     await address.press("Enter")
-    await expect(title).toHaveText("New tab")
+    await expect(title).toHaveText("Failed to load")
   } finally {
     await closeApp(electronApp, userData)
   }

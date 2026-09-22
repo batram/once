@@ -29,7 +29,7 @@ import {
 import { hasReaderDocument, storeReaderDocument } from "./ReaderProtocol"
 import { createTabView } from "./browser/TabView"
 import { isAddonConversationUrl } from "./AddonConversationRelay"
-import { sourceUrlFromReaderUrl } from "./browser/reader-url"
+import { fallbackTabTitle, sourceUrlFromReaderUrl } from "./browser/reader-url"
 import { TabEntry, WindowEntry } from "./browser/BrowserState"
 import { NativeMenus } from "./browser/NativeMenus"
 import { NavigationErrors } from "./browser/NavigationErrors"
@@ -210,7 +210,7 @@ export class BrowserCoordinator {
       id,
       view,
       ownerId: state.id,
-      title: "New tab",
+      title: fallbackTabTitle(normalized),
       loading: false,
       audible: false,
       hasPlayedAudio: false,

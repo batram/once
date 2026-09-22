@@ -378,6 +378,11 @@ async function startPageServer(options = {}) {
         </script>`)
       return
     }
+    if (request.url === "/untitled") {
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8" })
+      response.end("<!doctype html><h1>No title here</h1>")
+      return
+    }
     const name = request.url.slice(1) || "one"
     const title = name.charAt(0).toUpperCase() + name.slice(1)
     response.writeHead(200, { "content-type": "text/html; charset=utf-8" })

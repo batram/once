@@ -3,6 +3,7 @@ import { ELECTRON_IPC } from "@once/platform-electron/bridge"
 import { chordFromKey, chordFromParts, isModifiedChord } from "@once/core"
 import { NativeMenus } from "./NativeMenus"
 import { NavigationErrors, sameUrl } from "./NavigationErrors"
+import { fallbackTabTitle } from "./reader-url"
 import { TabEntry, WindowEntry } from "./BrowserState"
 import { TabPopups } from "./TabPopups"
 
@@ -58,7 +59,7 @@ class TabNavigationEvents {
       entry.hasPlayedAudio = false
       if (entry.muted) contents.setAudioMuted(false)
       entry.muted = false
-      if (!preserveTitle) entry.title = "New tab"
+      if (!preserveTitle) entry.title = fallbackTabTitle(event.url)
       changed()
     })
     contents.on("did-redirect-navigation", (event) => {
@@ -297,7 +298,7 @@ class TabLifecycleEvents {
     const contents = entry.view.webContents
     const changed = () => this.actions.notify(entry)
     contents.on("page-title-updated", (_event, title) => {
-      entry.title = title || "New tab"
+      entry.title = title || fallbackTabTitle(contents.getURL())
       changed()
     })
     contents.on("audio-state-changed", (event) => {
