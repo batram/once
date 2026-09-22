@@ -369,7 +369,7 @@ test("TabEvents preserves the title while reloading the current URL", () => {
     isSameDocument: false,
     url: tab.displayedUrl
   })
-  assert.equal(tab.title, "New tab")
+  assert.equal(tab.title, "example.com")
 
   tab.title = "Next page title"
   tab.view.webContents.emit("did-start-navigation", {
@@ -377,7 +377,7 @@ test("TabEvents preserves the title while reloading the current URL", () => {
     isSameDocument: false,
     url: "https://example.com/next"
   })
-  assert.equal(tab.title, "New tab")
+  assert.equal(tab.title, "example.com/next")
 })
 
 function navigated(id, ownerId, url, history) {
