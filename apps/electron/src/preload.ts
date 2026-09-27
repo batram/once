@@ -95,6 +95,9 @@ const bridge: ElectronBridge = {
       ipcRenderer.invoke(ELECTRON_IPC.tabsShowBlockedPopups, id, point),
     setBounds: (bounds: ElectronRect) =>
       ipcRenderer.invoke(ELECTRON_IPC.tabsSetBounds, bounds),
+    showHoverCard: (id, anchor, theme) =>
+      ipcRenderer.invoke(ELECTRON_IPC.tabsShowHoverCard, id, anchor, theme),
+    hideHoverCard: () => ipcRenderer.invoke(ELECTRON_IPC.tabsHideHoverCard),
     restoreClosed: () => ipcRenderer.invoke(ELECTRON_IPC.tabsRestoreClosed),
     focusContent: () => ipcRenderer.invoke(ELECTRON_IPC.tabsFocusContent),
     findInPage: (id, text, options) =>

@@ -12,6 +12,7 @@ import browserShellMarkup from "./browser/browser-shell.html"
 import { AddressBar } from "./browser/AddressBar"
 import { FindBar } from "./browser/FindBar"
 import { bindBlockedPopups } from "./browser/BlockedPopups"
+import { TabHoverPreview } from "./browser/TabHoverPreview"
 import {
   displayBrowserUrl,
   isReadableUrl,
@@ -45,6 +46,7 @@ export class BrowserShell {
   private renderedAddressTabId: string | null = null
   private renderedAddressUrl = ""
   private readonly readerRequests: ReaderRequests
+  private readonly hoverPreview: TabHoverPreview
 
   constructor(
     private readonly bridge: ElectronBridge,
@@ -71,6 +73,7 @@ export class BrowserShell {
 
     this.dropzone = required<HTMLElement>("#tab_dropzone")
     this.tabStrip = required<HTMLElement>("#electron_tabs")
+    this.hoverPreview = new TabHoverPreview(this.bridge, this.tabStrip)
     this.newTabButton = required<HTMLButtonElement>("#new_tab_btn")
     this.tabContent = required<HTMLElement>("#tab_content")
     this.address = new AddressBar(
@@ -381,7 +384,6 @@ export class BrowserShell {
       element.setAttribute("role", "tab")
       element.setAttribute("aria-selected", String(tab.active))
       element.tabIndex = tab.active ? 0 : -1
-      element.title = tab.title
       // Chromium spells the audio state into a playing tab's accessible name, and
       // assistive tech and tools that hunt for "which tab is making that noise" read it
       // there. Mirroring the wording means they find our tabs too, without knowing
@@ -462,6 +464,7 @@ export class BrowserShell {
     this.layoutTabs()
     this.scrollActiveTabIntoView()
     this.readerRequests.retainTabs(tabs.map((tab) => tab.id))
+    this.hoverPreview.update(tabs)
     this.renderControls()
   }
 

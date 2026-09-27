@@ -18,6 +18,14 @@ export interface ElectronStoryMenuItem {
   visible: boolean
 }
 
+/** Shell colours for the tab hover card, which has no stylesheet of its own. */
+export interface ElectronTabHoverTheme {
+  background: string
+  foreground: string
+  muted: string
+  border: string
+}
+
 export interface ElectronRedirectRule {
   match_url: string
   replace_url: string
@@ -222,6 +230,9 @@ export interface ElectronBridge {
     showAddressMenu(point: ElectronPoint): Promise<string | null>
     showBlockedPopups(id: string, point: ElectronPoint): Promise<void>
     setBounds(bounds: ElectronRect): Promise<void>
+    /** The preview card under the tab strip; `anchor` is the hovered tab. */
+    showHoverCard(id: string, anchor: ElectronRect, theme: ElectronTabHoverTheme): Promise<void>
+    hideHoverCard(): Promise<void>
     restoreClosed(): Promise<string | null>
     focusContent(): Promise<void>
     /** Starts or continues a find-in-page search; results arrive on onFoundInPage. */
@@ -342,6 +353,8 @@ export const ELECTRON_IPC = {
   tabsShowAddressMenu: "once:tabs:show-address-menu",
   tabsShowBlockedPopups: "once:tabs:show-blocked-popups",
   tabsSetBounds: "once:tabs:set-bounds",
+  tabsShowHoverCard: "once:tabs:show-hover-card",
+  tabsHideHoverCard: "once:tabs:hide-hover-card",
   tabsRestoreClosed: "once:tabs:restore-closed",
   tabsFocusContent: "once:tabs:focus-content",
   tabsFindInPage: "once:tabs:find-in-page",

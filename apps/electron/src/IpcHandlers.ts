@@ -1,6 +1,7 @@
 import {
   app,
   autoUpdater,
+  BrowserWindow,
   dialog,
   ipcMain,
   IpcMainEvent,
@@ -24,8 +25,10 @@ import {
   ElectronRect,
   ElectronRedirectRule,
   ElectronStoryMenuItem,
+  ElectronTabHoverTheme,
   ElectronUpdateStatus
 } from "@once/platform-electron/bridge"
+import { TabHoverCard } from "./browser/TabHoverCard"
 import { SecureSettings } from "./SecureSettings"
 import { BROWSER_SESSION_PARTITION, BrowserCoordinator } from "./TabManager"
 import { ExtensionRuntime } from "./extensions/ExtensionRuntime"
@@ -359,6 +362,29 @@ function registerTabTools(coordinator: BrowserCoordinator): void {
   ipcMain.handle(ELECTRON_IPC.tabsSetBounds, (event, bounds: ElectronRect) => {
     const current = browser(event, coordinator)
     return coordinator.setBounds(current.window, bounds)
+  })
+  const hoverCards = new WeakMap<BrowserWindow, TabHoverCard>()
+  ipcMain.handle(
+    ELECTRON_IPC.tabsShowHoverCard,
+    (event, id: string, anchor: ElectronRect, theme: ElectronTabHoverTheme) => {
+      const current = browser(event, coordinator).window
+      if (![anchor?.x, anchor?.y, anchor?.width, anchor?.height].every(Number.isFinite)) {
+        throw new Error("Invalid hover card anchor")
+      }
+      const colours = [theme?.background, theme?.foreground, theme?.muted, theme?.border]
+      if (!colours.every((colour) => typeof colour === "string" && colour.length <= 100)) {
+        throw new Error("Invalid hover card theme")
+      }
+      let card = hoverCards.get(current.window)
+      if (!card) hoverCards.set(current.window, card = new TabHoverCard(current.window))
+      return card.show({
+        getAll: () => coordinator.getAll(current),
+        contents: (tabId) => coordinator.tabContents(current, tabId)
+      }, id, anchor, theme)
+    }
+  )
+  ipcMain.handle(ELECTRON_IPC.tabsHideHoverCard, (event) => {
+    hoverCards.get(browser(event, coordinator).window.window)?.hide()
   })
   ipcMain.handle(ELECTRON_IPC.tabsFocusContent, (event) => {
     const current = browser(event, coordinator)

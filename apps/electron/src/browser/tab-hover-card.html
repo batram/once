@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:">
+<title>Tab preview</title>
+<style>
+  html, body { margin: 0; background: transparent; overflow: hidden; }
+  body {
+    padding: 4px 10px 14px;
+    font: 13px/1.3 system-ui, "Segoe UI", sans-serif;
+    user-select: none;
+    cursor: default;
+  }
+  #card {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 8px 10px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--fg);
+    background: var(--bg);
+    box-shadow: 0 4px 12px #0000003d;
+  }
+  #title {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  #host {
+    margin-top: 2px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  #thumb {
+    display: block;
+    width: 100%;
+    margin-top: 8px;
+    border-radius: 4px;
+    object-fit: cover;
+    object-position: top;
+    background: var(--border);
+  }
+  #thumb[hidden] { display: none; }
+</style>
+</head>
+<body>
+<div id="card">
+  <div id="title"></div>
+  <div id="host"></div>
+  <img id="thumb" alt="" hidden>
+</div>
+<script>
+  // Main calls render() with executeJavaScript and sizes the view to the
+  // height it returns; the page has no preload and no other way to talk back.
+  window.render = function (card) {
+    var root = document.documentElement.style
+    root.setProperty("--bg", card.theme.background)
+    root.setProperty("--fg", card.theme.foreground)
+    root.setProperty("--muted", card.theme.muted)
+    root.setProperty("--border", card.theme.border)
+    document.getElementById("title").textContent = card.title
+    var host = document.getElementById("host")
+    host.textContent = card.host
+    host.hidden = !card.host
+    var thumb = document.getElementById("thumb")
+    thumb.hidden = !card.image
+    if (card.image) {
+      thumb.style.aspectRatio = card.aspect
+      if (thumb.getAttribute("src") !== card.image) thumb.src = card.image
+    } else {
+      thumb.removeAttribute("src")
+    }
+    return Math.ceil(document.body.getBoundingClientRect().height)
+  }
+</script>
+</body>
+</html>
