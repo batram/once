@@ -41,8 +41,12 @@ function showStartupState(
   message: string,
   state: "loading" | "error" | "ready" = "loading"
 ): void {
-  document.querySelector<HTMLElement>("#left_panel")
-    ?.setAttribute("active_panel", "stories")
+  // Default only before navigation has selected a panel. Startup can finish
+  // after a tab switch; status updates must not navigate the user back.
+  const panel = document.querySelector<HTMLElement>("#left_panel")
+  if (panel && !panel.hasAttribute("active_panel")) {
+    panel.setAttribute("active_panel", "stories")
+  }
   const status = document.querySelector<HTMLElement>("#startup_status")
   const text = document.querySelector<HTMLElement>("#startup_status_text")
   const retry = document.querySelector<HTMLButtonElement>("#startup_retry")
