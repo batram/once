@@ -1174,6 +1174,19 @@
     background: var(--main-bg-color);
   }
 
+  #reading_browser_loading {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    z-index: 2;
+    padding: var(--sp-1-5) var(--sp-2);
+    border-radius: var(--radius-md);
+    background: rgb(40 40 45 / 88%);
+    color: white;
+    font: var(--fs-meta) var(--m-sans);
+    pointer-events: none;
+  }
+
   #reading_addon_trays {
     position: absolute;
     inset: 0;

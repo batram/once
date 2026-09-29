@@ -383,6 +383,9 @@ export class MobileReadingController {
     this.content.dataset.mode = state.mode
     this.content.dataset.loadState = state.loadState
     this.content.dataset.navigationId = String(state.navigationId)
+    const browserLoading = required("#reading_browser_loading")
+    browserLoading.hidden = state.mode === "reader" || state.loadState !== "loading"
+    browserLoading.textContent = this.nativeReading.isBrowserOpened() ? "Loading page…" : "Starting browser…"
     if (state.navigationId !== this.renderedNavigationId) {
       this.renderedNavigationId = state.navigationId
       this.clearValidation()

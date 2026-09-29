@@ -21,7 +21,6 @@ import com.getcapacitor.PluginCall;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
-import org.json.JSONObject;
 import org.mozilla.geckoview.AllowOrDeny;
 import org.mozilla.geckoview.GeckoResult;
 import org.mozilla.geckoview.GeckoSession;
@@ -52,7 +51,12 @@ abstract class ReadingSurfaceHost extends Plugin {
     protected long healthId;
     protected long nextHealthAt;
     protected boolean painted;
+    protected boolean documentPainted;
+    protected boolean repairVerified;
     protected boolean navigationCompleted;
+    protected boolean displayReattached;
+    protected long loadStartedAt;
+    protected ReadingLoadStatus loadStatus;
     protected long blankSince;
     protected boolean blankWarning;
     protected boolean recoveryFailed;
@@ -102,11 +106,13 @@ abstract class ReadingSurfaceHost extends Plugin {
     @Override
     protected void handleOnResume() {
         resumed = true;
+        displayReattached = false;
         if (navigationDeadline != 0) navigationDeadline = SystemClock.elapsedRealtime() + NAVIGATION_TIMEOUT_MS;
         if (session != null) session.setPriorityHint(visible ? GeckoSession.PRIORITY_HIGH : GeckoSession.PRIORITY_DEFAULT);
         if (backgroundMedia != null) backgroundMedia.setActive(visible);
         if (extensions != null) extensions.pages.setResumed(true);
         recoverKilledPage();
+        attachDisplay();
         resumeWatchdog();
     }
 
@@ -189,10 +195,12 @@ abstract class ReadingSurfaceHost extends Plugin {
             if (!recoveryFailed && (session == null || !session.isOpen())) reopenSession();
             return;
         }
-        createReadingSession();
+        if (session == null || !session.isOpen()) createReadingSession();
 
         surface = new GeckoView(getContext());
-        surface.setSession(session);
+        // The extension bootstrap needs a session, not a 1x1 display. Attach
+        // only after the shell's real viewport has been laid out and exposed.
+        surface.addOnLayoutChangeListener((view, l, t, r, b, ol, ot, or, ob) -> attachDisplay());
 
         FrameLayout content = new FrameLayout(getContext());
         content.addView(surface, new FrameLayout.LayoutParams(-1, -1));
@@ -212,6 +220,8 @@ abstract class ReadingSurfaceHost extends Plugin {
         recoveryView.addView(retry);
         recoveryView.setVisibility(View.GONE);
         content.addView(recoveryView, new FrameLayout.LayoutParams(-1, -1));
+        loadStatus = new ReadingLoadStatus(getContext());
+        content.addView(loadStatus, loadStatus.layoutParams());
 
         refreshSurface = new SwipeRefreshLayout(getContext());
         refreshSurface.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
@@ -240,13 +250,7 @@ abstract class ReadingSurfaceHost extends Plugin {
                 if (session != created) return;
                 forgetPageState("The page process was stopped while hidden");
                 killedWhileHidden = true;
-            }, () -> { if (session == created) painted = true; }, () -> {
-                if (session != created) return;
-                painted = false;
-                navigationCompleted = false;
-                blankSince = 0;
-                nextHealthAt = 0;
-            }, filename -> {
+            }, () -> display.painted(created), () -> display.resetPaint(created), filename -> {
                 if (session != created) return;
                 Log.w(TAG, "Slow script: " + filename);
                 if (navigationDeadline == 0) navigationDeadline = SystemClock.elapsedRealtime() + RESPONSE_TIMEOUT_MS;
@@ -262,9 +266,15 @@ abstract class ReadingSurfaceHost extends Plugin {
         session.open(engine.runtime);
         extensions.attachSession(session);
         attachBridge();
-        if (surface != null) surface.setSession(session);
+        attachDisplay();
         backgroundMedia.setActive(visible && resumed);
     }
+
+    protected final ReadingDisplay display = new ReadingDisplay(this);
+    protected void attachDisplay() { display.attach(); }
+    protected void repairDisplay() { display.repair(); }
+    protected void traceLoad(String stage) { display.trace(stage); }
+    protected void requestHealthCheck() { display.requestHealthCheck(); }
 
     protected void destroySurface() {
         recoveryGeneration++;
@@ -298,6 +308,7 @@ abstract class ReadingSurfaceHost extends Plugin {
         refreshSurface = null;
         recoveryView = null;
         recoveryMessage = null;
+        loadStatus = null;
         requestedUrl = "";
         hiddenState = null;
         sessionState = null;
@@ -309,23 +320,11 @@ abstract class ReadingSurfaceHost extends Plugin {
     }
 
     protected void applyBounds(JSObject bounds) {
-        if (refreshSurface == null) return;
-        float density = getContext().getResources().getDisplayMetrics().density;
-        int x = Math.round((float) Math.max(0, bounds.optDouble("x", 0)) * density);
-        int y = Math.round((float) Math.max(0, bounds.optDouble("y", 0)) * density);
-        int width = Math.round((float) Math.max(0, bounds.optDouble("width", 0)) * density);
-        int height = Math.round((float) Math.max(0, bounds.optDouble("height", 0)) * density);
-        ViewGroup.LayoutParams params = refreshSurface.getLayoutParams();
-        params.width = width;
-        params.height = height;
-        refreshSurface.setLayoutParams(params);
-        // DOM bounds are relative to the shell, which can be inset by Android.
-        WebView shell = getBridge().getWebView();
-        refreshSurface.setX(shell.getX() + x);
-        refreshSurface.setY(shell.getY() + y);
+        display.bounds(bounds, getBridge().getWebView(), getContext().getResources().getDisplayMetrics().density);
     }
 
     protected void setSurfaceVisible(boolean visible) {
+        if (visible && !this.visible) displayReattached = false;
         if (visible && !this.visible && navigationDeadline != 0) navigationDeadline = SystemClock.elapsedRealtime() + NAVIGATION_TIMEOUT_MS;
         this.visible = visible;
         // An extension popup covers the page briefly and acts on it, so the page
@@ -337,6 +336,7 @@ abstract class ReadingSurfaceHost extends Plugin {
         if (refreshSurface != null) {
             refreshSurface.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
         }
+        attachDisplay();
         if (session != null) session.setPriorityHint(visible && resumed ? GeckoSession.PRIORITY_HIGH : GeckoSession.PRIORITY_DEFAULT);
         if (visible && resumed) resumeWatchdog(); else pauseWatchdog();
     }
@@ -374,46 +374,20 @@ abstract class ReadingSurfaceHost extends Plugin {
     }
 
     protected void armNavigation() {
+        if (navigationCompleted || navigationDeadline == 0) loadStartedAt = SystemClock.elapsedRealtime();
         if (navigationDeadline == 0) navigationDeadline = SystemClock.elapsedRealtime() + NAVIGATION_TIMEOUT_MS;
         navigationCompleted = false;
         blankSince = 0;
         blankWarning = false;
         recoveryFailed = false;
         if (recoveryView != null) recoveryView.setVisibility(View.GONE);
+        if (loadStatus != null) loadStatus.show("Loading page…");
         resumeWatchdog();
     }
 
-    protected void pauseWatchdog() {
-        handler.removeCallbacks(watchdog);
-        healthSentAt = 0;
-    }
-
-    protected void resumeWatchdog() {
-        handler.removeCallbacks(watchdog);
-        if (!destroyed && visible && resumed && session != null && pageRequested && !recoveryFailed)
-            handler.postDelayed(watchdog, 1000);
-    }
-
-    protected void checkHealth() {
-        if (destroyed || !visible || !resumed || session == null || recoveryFailed) return;
-        long now = SystemClock.elapsedRealtime();
-        if (healthSentAt != 0 && now - healthSentAt >= RESPONSE_TIMEOUT_MS) {
-            recoverPage("The page stopped responding", true);
-            return;
-        }
-        if (navigationDeadline != 0 && now >= navigationDeadline) {
-            recoverPage("The page did not become ready in time", true);
-            return;
-        }
-        if (bridgePort != null && healthSentAt == 0 && now >= nextHealthAt && isEmbeddable(currentUrl)) {
-            try {
-                healthId++;
-                healthSentAt = now;
-                bridgePort.postMessage(new JSONObject().put("type", "health").put("id", healthId));
-            } catch (Exception error) { healthSentAt = 0; bridgePort = null; armNavigation(); }
-        }
-        resumeWatchdog();
-    }
+    protected void pauseWatchdog() { display.pauseWatchdog(); }
+    protected void resumeWatchdog() { display.resumeWatchdog(); }
+    protected void checkHealth() { display.checkHealth(); }
 
     /** Detach first: late events from the discarded session cannot mutate the replacement. */
     protected void releaseReadingSession() {
@@ -474,6 +448,7 @@ abstract class ReadingSurfaceHost extends Plugin {
 
     protected void showRecovery(String message) {
         if (recoveryView == null) return;
+        if (loadStatus != null) loadStatus.hide();
         recoveryMessage.setText(message);
         recoveryView.setVisibility(View.VISIBLE);
     }
@@ -552,6 +527,8 @@ abstract class ReadingSurfaceHost extends Plugin {
         finishRefresh();
         if (navigationCompleted) return;
         navigationCompleted = true;
+        if (loadStatus != null) loadStatus.hide();
+        traceLoad("ready");
         event("navigationFinished", activeNavigation, currentUrl);
         history(activeNavigation);
     }
@@ -631,6 +608,7 @@ abstract class ReadingSurfaceHost extends Plugin {
     }
 
     private final class Progress implements GeckoSession.ProgressDelegate {
+        @Override public void onProgressChange(GeckoSession source, int progress) { display.progress(source, progress); }
         @Override public void onSessionStateChange(GeckoSession source, GeckoSession.SessionState state) {
             if (source == session && !awaitingRequestedStart && !initialBlank) sessionState = state;
         }
@@ -640,6 +618,9 @@ abstract class ReadingSurfaceHost extends Plugin {
             if (awaitingRequestedStart && !sameAddress(requestedUrl, url)) return;
             awaitingRequestedStart = false;
             painted = false;
+            documentPainted = false;
+            repairVerified = false;
+            displayReattached = false;
             backgroundMedia.reset();
             backgroundMedia.attachPort(null);
             // A new session loads about:blank on its own before the first
@@ -653,6 +634,7 @@ abstract class ReadingSurfaceHost extends Plugin {
             activeNavigation = navigationSequence.incrementAndGet();
             currentUrl = url == null ? "" : url;
             if (!initialBlank && isSurfaceUrl(currentUrl)) { requestedUrl = currentUrl; armNavigation(); }
+            if (!initialBlank) traceLoad("started");
             event("navigationStarted", activeNavigation, currentUrl);
         }
 
@@ -670,6 +652,11 @@ abstract class ReadingSurfaceHost extends Plugin {
             // navigation, including BFCache restores and stalled subresources.
             if (!isEmbeddable(currentUrl)) documentReady();
             nextHealthAt = 0;
+            if (!initialBlank) {
+                if (loadStatus != null && !navigationCompleted) loadStatus.show("Displaying page…");
+                traceLoad("network-stopped");
+                requestHealthCheck();
+            }
         }
     }
 
