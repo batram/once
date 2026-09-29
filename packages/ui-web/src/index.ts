@@ -1,5 +1,5 @@
 export { StoryListItem } from "./story/StoryListItem"
-export { UndoSnackbar } from "./story/UndoSnackbar"
+export { UndoButton } from "./story/UndoButton"
 export * as StoryList from "./story/storyList"
 export * from "./menu/storyContextMenu"
 export {

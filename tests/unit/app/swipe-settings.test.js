@@ -19,8 +19,7 @@ test("defaults match the redesign's plateaus and actions", () => {
   assert.equal(DEFAULT_SWIPE_SETTINGS.stickyStrength, 65)
   assert.equal(DEFAULT_SWIPE_SETTINGS.fastSwipeMode, false)
   assert.equal(DEFAULT_SWIPE_SETTINGS.stage2LockInMs, 175)
-  assert.equal(DEFAULT_SWIPE_SETTINGS.undoSnackbarEnabled, true)
-  assert.equal(DEFAULT_SWIPE_SETTINGS.undoSnackbarDurationMs, 5000)
+  assert.equal(DEFAULT_SWIPE_SETTINGS.undoButtonEnabled, true)
 })
 
 test("missing or malformed settings fall back to the defaults", () => {
@@ -120,27 +119,21 @@ test("fast swipe protection is opt-in and lock-in time is normalized", () => {
   )
 })
 
-test("mobile undo snackbar settings are normalized", () => {
+test("the mobile undo button only turns off when explicitly false", () => {
   assert.equal(
-    normalizeSwipeSettings({ undoSnackbarEnabled: false }).undoSnackbarEnabled,
+    normalizeSwipeSettings({ undoButtonEnabled: false }).undoButtonEnabled,
     false
   )
   assert.equal(
-    normalizeSwipeSettings({ undoSnackbarEnabled: "no" }).undoSnackbarEnabled,
+    normalizeSwipeSettings({ undoButtonEnabled: "no" }).undoButtonEnabled,
     true
   )
-  assert.equal(
-    normalizeSwipeSettings({ undoSnackbarDurationMs: 2750 })
-      .undoSnackbarDurationMs,
-    3000
-  )
-  assert.equal(
-    normalizeSwipeSettings({ undoSnackbarDurationMs: 100 }).undoSnackbarDurationMs,
-    1000
-  )
-  assert.equal(
-    normalizeSwipeSettings({ undoSnackbarDurationMs: 20000 })
-      .undoSnackbarDurationMs,
-    10000
-  )
+  // The retired snackbar toggle says nothing about the button, and the
+  // retired duration is dropped rather than carried along.
+  const legacy = normalizeSwipeSettings({
+    undoSnackbarEnabled: false,
+    undoSnackbarDurationMs: 3000
+  })
+  assert.equal(legacy.undoButtonEnabled, true)
+  assert.equal("undoSnackbarDurationMs" in legacy, false)
 })

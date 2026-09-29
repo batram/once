@@ -39,25 +39,18 @@ test("swipe settings autosave, undo, and reset without submit controls", async (
   await waitForSwipeSettings(page)
 })
 
-test("mobile undo snackbar settings autosave", async ({ page }) => {
+test("mobile undo button setting autosaves", async ({ page }) => {
   await gotoMobileApp(page)
   await openSettingsSection(page, "swipe")
   await openSwipeAdvanced(page)
 
-  const enabled = page.locator("#swipe_undo_snackbar")
-  const duration = page.locator("#swipe_undo_snackbar_duration")
+  const enabled = page.locator("#swipe_undo_button")
   await expect(enabled).toBeVisible()
   await expect(enabled).toBeChecked()
-  await expect(duration).toHaveValue("5000")
 
   await enabled.uncheck()
-  await expect(duration).toBeDisabled()
   await waitForSwipeSettings(page)
-
   await enabled.check()
-  await duration.fill("3000")
-  await expect(duration.locator("xpath=following-sibling::output"))
-    .toHaveText("3 s")
   await waitForSwipeSettings(page)
 })
 

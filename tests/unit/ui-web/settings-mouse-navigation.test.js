@@ -53,6 +53,42 @@ test("mouse buttons navigate settings without changing story history; stories re
   })
 })
 
+test("undoable changes list the latest change per story and undo only the picked one", () => {
+  withDom(() => {
+    document.querySelector("#left_panel").setAttribute("active_panel", "stories")
+    const persisted = []
+    const { setOnceClient } = require("../../../packages/ui-web/dist/client")
+    setOnceClient({
+      subscribe: () => () => {},
+      persistStoryChange: (href, _key, state) => persisted.push([href, state])
+    })
+    const history = new StoryHistory({ subscribe: () => {} })
+    const a = { href: "https://a.test" }
+    const b = { href: "https://b.test" }
+    history.story_change(a, "skipped", "unread")
+    history.story_change(b, "read", "unread")
+    history.story_change(a, "read", "skipped")
+
+    const listed = history.undoableChanges()
+    assert.deepEqual(listed.map(change => [change.story.href, change.new_state]), [
+      ["https://a.test", "read"],
+      ["https://b.test", "read"]
+    ])
+
+    history.undoChange(listed[1])
+    assert.deepEqual(persisted, [["https://b.test", "unread"]])
+    assert.deepEqual(history.undo_history.map(change => change.story.href), [
+      "https://a.test",
+      "https://a.test"
+    ])
+
+    history.undo()
+    assert.deepEqual(persisted.at(-1), ["https://a.test", "skipped"])
+    assert.equal(history.undo_history.length, 1)
+    assert.equal(history.redo_history.length, 2)
+  })
+})
+
 test("settings section history supports back, forward, boundaries and branching", () => {
   withDom(() => {
     let section = null

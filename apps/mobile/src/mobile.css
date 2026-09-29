@@ -472,72 +472,71 @@
     }
   }
 
-  /* ---------- Undo snackbar ---------- */
+  /* ---------- Story list overlays ---------- */
 
-  /* Sits above the tab bar (z-index 20) so it reads as belonging to the list it
-   is about, but below the anchored story menu, which is modal over everything.
-   Placed clear of the bar rather than over it: the tab targets stay reachable
-   while the offer is open, so nothing the user might reach for is blocked by a
-   thing that disappears on its own. */
-  .undo_snackbar {
+  /* Both corners above the tab bar (z-index 20) and below the anchored menu,
+   which is modal over everything. The undo button takes the thumb's corner;
+   the startup status takes the other, the way the browser's loading pill
+   floats over the page instead of pushing it down. */
+  .undo_button {
     position: fixed;
     z-index: 21;
-    right: var(--sp-3);
-    bottom: calc(var(--m-tabbar-h) + var(--sp-2));
-    left: var(--sp-3);
+    right: calc(env(safe-area-inset-right) + var(--sp-3));
+    bottom: calc(var(--m-tabbar-h) + var(--sp-3));
+    display: grid;
+    place-items: center;
     box-sizing: border-box;
-    display: flex;
-    align-items: center;
-    gap: var(--sp-2);
+    width: var(--touch);
+    height: var(--touch);
+    min-height: 0;
+    margin: 0;
+    padding: 0;
     overflow: hidden;
-    padding: var(--sp-1) var(--sp-1) var(--sp-1) var(--sp-3);
     border: var(--m-bw) solid var(--m-ink);
-    border-radius: var(--m-radius);
-    background: var(--m-card-bg);
-  }
-
-  .undo_snackbar_message {
-    flex: 1;
-    min-width: 0;
-    margin: 0;
-    overflow: hidden;
+    border-radius: 50%;
+    background: var(--main-bg-color);
     color: var(--text-high-color);
-    font-family: var(--m-sans);
-    font-size: var(--fs-meta);
-    white-space: nowrap;
-    text-overflow: ellipsis;
+    box-shadow: 0 2px 6px rgb(0 0 0 / 18%);
   }
 
-  .undo_snackbar_action {
-    flex: 0 0 auto;
-    min-height: var(--touch);
-    margin: 0;
-    padding: 0 var(--sp-3);
-    color: var(--text-high-color);
+  .undo_button .icon {
+    --icon-size: 20px;
   }
 
-  /* The countdown is the only signal that the offer expires, so it is functional
-   rather than decorative and stays ungated by [animated]. Under reduced motion
-   the shared override collapses it; the JS timer still governs dismissal. */
-  .undo_snackbar_progress {
+  .undo_button:active {
+    background: var(--m-pressed-bg);
+  }
+
+  /* Dimmed, not removed: the corner stays predictable, and the hold still lists
+   what (nothing) there is to take back. */
+  .undo_button.undo_button_empty {
+    color: var(--text-low-color);
+    border-color: color-mix(in srgb, var(--m-ink) 40%, transparent);
+    box-shadow: none;
+    opacity: 0.6;
+  }
+
+  .undo_button.press_building::after {
+    content: "";
     position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 0;
-    height: 2px;
+    inset: 0;
+    border-radius: 50%;
     background: var(--m-accent-bg);
-    animation: once-undo-countdown var(--undo-snackbar-duration) linear forwards;
+    opacity: 0.5;
+    transform: scale(0);
+    animation: once-undo-press 400ms linear 100ms forwards;
     pointer-events: none;
   }
 
-  @keyframes once-undo-countdown {
-    from {
-      width: 100%;
-    }
-
+  @keyframes once-undo-press {
     to {
-      width: 0;
+      transform: scale(1);
     }
+  }
+
+  /* The last row's actions must scroll clear of the button. */
+  #stories_panel:has(> .undo_button:not([hidden])) #stories {
+    padding-bottom: var(--m-fab-clearance);
   }
 
   /* ---------- Anchored story menu ---------- */
@@ -562,7 +561,8 @@
     border: var(--m-bw) solid var(--m-ink);
     border-radius: var(--m-radius);
     background: var(--main-bg-color);
-    overflow: hidden;
+    /* position() caps the height to the screen; a long undo list scrolls. */
+    overflow: hidden auto;
   }
 
   .once-anchored-menu-item {
@@ -755,16 +755,40 @@
     background: var(--main-bg-color);
   }
 
+  /* A floating pill, styled after #reading_browser_loading, so startup never
+   pushes the story list down and then yanks it back up when it finishes. */
   #startup_status {
+    position: fixed;
+    z-index: 21;
+    left: calc(env(safe-area-inset-left) + var(--sp-3));
+    bottom: calc(var(--m-tabbar-h) + var(--sp-3));
+    /* Leaves the undo button's corner free. */
+    max-width: calc(100vw - var(--touch) - var(--sp-3) * 4);
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: var(--sp-3);
-    min-height: var(--touch);
-    padding: var(--sp-3);
-    border-bottom: var(--m-bw) solid var(--m-ink);
-    background: var(--input-bg-color);
-    font-family: var(--m-sans);
+    gap: var(--sp-2);
+    box-sizing: border-box;
+    padding: var(--sp-1-5) var(--sp-2);
+    border-radius: var(--radius-md);
+    background: rgb(40 40 45 / 88%);
+    color: white;
+    font: var(--fs-meta) var(--m-sans);
+    pointer-events: none;
+  }
+
+  #startup_status_text {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  #startup_retry {
+    flex: 0 0 auto;
+    min-height: 32px;
+    margin: 0;
+    padding: 0 var(--sp-2);
+    pointer-events: auto;
   }
 
   #startup_status[data-state="loading"]::before {
@@ -778,7 +802,9 @@
   }
 
   #startup_status[data-state="error"] {
-    color: var(--m-error);
+    /* The pill is dark in both themes, so the error tint is fixed too. */
+    color: #ff9c9c;
+    pointer-events: auto;
   }
 
   @keyframes once-startup-spin {

@@ -97,7 +97,7 @@ test("searches settings content without changing the open detail", async () => {
     await expect(activeTextarea).toHaveValue(activeValue)
 
     await window.locator('[data-settings-target="swipe"]').click()
-    await expect(window.locator("#swipe_undo_snackbar")).toBeHidden()
+    await expect(window.locator("#swipe_undo_button")).toBeHidden()
     await expect(
       window.locator('[data-settings-target="swipe"]')
     ).toHaveAttribute("aria-current", "page")
@@ -105,7 +105,7 @@ test("searches settings content without changing the open detail", async () => {
       '.settings_section[data-settings-section="swipe"]'
     )).toBeVisible()
 
-    await search.fill("mobile undo snackbar")
+    await search.fill("mobile undo button")
     await expect(rows.filter({ visible: true })).toHaveCount(0)
 
     await search.fill("")

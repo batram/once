@@ -14,7 +14,7 @@ import {
   ReaderDocumentHost,
   ReaderView,
   SourcePickerView,
-  UndoSnackbar
+  UndoButton
 } from "@once/ui-web"
 import { installStoryMenu } from "./storyMenu"
 import { bindMobileBrowserExtensionSettings } from "./browserExtensionSettings"
@@ -196,9 +196,9 @@ async function startMobileApp(): Promise<void> {
     bindMobileExtensionToolbar(browserExtensions, browserSurface)
   }
   // Touch has no keyboard shortcut, no mouse back button and no room left on
-  // the back gesture, so undo has to offer itself. Mounted here rather than in
-  // mountOnceUi so the desktop shells keep their existing affordances only.
-  UndoSnackbar.mount()
+  // the back gesture, so undo needs a control of its own. Mounted here rather
+  // than in mountOnceUi so the desktop shells keep their existing affordances only.
+  UndoButton.mount()
   // The mobile header suppresses the button's label, so the icon needs a name.
   document.querySelector<HTMLButtonElement>("#settings_section_back")
     ?.setAttribute("aria-label", "Back")

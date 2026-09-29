@@ -23,9 +23,7 @@ function element<K extends keyof HTMLElementTagNameMap>(
 }
 
 interface AdvancedControls {
-  undoSnackbar: HTMLInputElement
-  undoSnackbarDuration: HTMLInputElement
-  undoSnackbarDurationOutput: HTMLOutputElement
+  undoButton: HTMLInputElement
   twoStage: HTMLInputElement
   sticky: HTMLInputElement
   stickyStrength: HTMLInputElement
@@ -92,17 +90,14 @@ function buildAdvancedControls(host: HTMLElement): AdvancedControls {
   advanced.append(summary, body)
 
   const mobileUndo = element("div", "swipe_mobile_only")
-  const undoSnackbar = checkbox(
+  const undoButton = checkbox(
     mobileUndo,
-    "swipe_undo_snackbar",
-    "Show mobile undo snackbar"
+    "swipe_undo_button",
+    "Show mobile undo button"
   )
   mobileUndo.append(description(
-    "Offers to reverse recent story changes at the bottom of the mobile screen."
+    "A round button in the story list's corner. Tap to undo the last change; hold it to pick one."
   ))
-  const [undoSnackbarDuration, undoSnackbarDurationOutput] = slider(
-    mobileUndo, "swipe_undo_snackbar_duration", "Undo time", 1000, 10000, 500
-  )
   body.append(mobileUndo)
 
   const twoStage = checkbox(body, "swipe_two_stage", "Two-stage swipe")
@@ -125,9 +120,7 @@ function buildAdvancedControls(host: HTMLElement): AdvancedControls {
   )
   host.append(advanced)
   return {
-    undoSnackbar,
-    undoSnackbarDuration,
-    undoSnackbarDurationOutput,
+    undoButton,
     twoStage,
     sticky,
     stickyStrength,
@@ -181,9 +174,7 @@ export class SwipeSettingsLabView {
   private readonly handles = new Map<string, HTMLButtonElement>()
   private readonly zones = new Map<string, HTMLElement>()
   private readonly twoStage: HTMLInputElement
-  private readonly undoSnackbar: HTMLInputElement
-  private readonly undoSnackbarDuration: HTMLInputElement
-  private readonly undoSnackbarDurationOutput: HTMLOutputElement
+  private readonly undoButton: HTMLInputElement
   private readonly sticky: HTMLInputElement
   private readonly stickyStrength: HTMLInputElement
   private readonly stickyOutput: HTMLOutputElement
@@ -274,9 +265,7 @@ export class SwipeSettingsLabView {
     })
 
     const controls = buildAdvancedControls(host)
-    this.undoSnackbar = controls.undoSnackbar
-    this.undoSnackbarDuration = controls.undoSnackbarDuration
-    this.undoSnackbarDurationOutput = controls.undoSnackbarDurationOutput
+    this.undoButton = controls.undoButton
     this.twoStage = controls.twoStage
     this.sticky = controls.sticky
     this.stickyStrength = controls.stickyStrength
@@ -291,12 +280,8 @@ export class SwipeSettingsLabView {
 
     this.twoStage.addEventListener("change", () =>
       this.actions.update({ twoStage: this.twoStage.checked }))
-    this.undoSnackbar.addEventListener("change", () =>
-      this.actions.update({ undoSnackbarEnabled: this.undoSnackbar.checked }))
-    this.undoSnackbarDuration.addEventListener("input", () =>
-      this.actions.update({
-        undoSnackbarDurationMs: Number(this.undoSnackbarDuration.value)
-      }))
+    this.undoButton.addEventListener("change", () =>
+      this.actions.update({ undoButtonEnabled: this.undoButton.checked }))
     this.sticky.addEventListener("change", () =>
       this.actions.update({ stickyStages: this.sticky.checked }))
     this.stickyStrength.addEventListener("input", () =>
@@ -441,15 +426,7 @@ export class SwipeSettingsLabView {
 
   private render(): void {
     const current = this.state.settings
-    this.undoSnackbar.checked = current.undoSnackbarEnabled
-    this.undoSnackbarDuration.value = String(current.undoSnackbarDurationMs)
-    this.undoSnackbarDurationOutput.value =
-      `${current.undoSnackbarDurationMs / 1000} s`
-    this.undoSnackbarDuration.disabled = !current.undoSnackbarEnabled
-    this.undoSnackbarDuration.closest("p")?.classList.toggle(
-      "disabled",
-      !current.undoSnackbarEnabled
-    )
+    this.undoButton.checked = current.undoButtonEnabled
     this.twoStage.checked = current.twoStage
     this.sticky.checked = current.stickyStages
     this.stickyStrength.value = String(current.stickyStrength)
