@@ -59,7 +59,20 @@ export class ReadingSurfaceCoordinator {
         this.pendingNavigationUrl = state.currentUrl
       }
       const generation = ++this.surfaceGeneration
-      void this.enqueue(() => this.syncSurface(state, generation))
+      void this.enqueue(async () => {
+        try {
+          await this.syncSurface(state, generation)
+        } catch (error) {
+          // A native initialization rejection has no navigation event. Surface it
+          // here instead of leaving the shell loading forever. A newer request
+          // owns its own error state, even if this bridge call finishes late.
+          if (generation !== this.surfaceGeneration || !state.currentUrl || state.mode === "reader" || state.loadState === "error") return
+          this.pendingNavigationUrl = null
+          this.browserReady = false
+          this.session.navigationFailed(state.navigationId, state.currentUrl,
+            error instanceof Error ? error.message : "The browser could not open this page.")
+        }
+      })
     })
   }
 
@@ -155,6 +168,10 @@ export class ReadingSurfaceCoordinator {
   }
 
   async reload(): Promise<void> {
+    if (!this.browserOpened) {
+      this.session.retry()
+      return
+    }
     await this.enqueue(() => this.surface.reload())
   }
 
@@ -193,6 +210,9 @@ export class ReadingSurfaceCoordinator {
     }
     this.readerRequestId += 1
     this.reader.close()
+    // Publishing a failed open must not queue another open automatically.
+    // The next explicit navigation will put the session back into loading.
+    if (state.loadState === "error" && !this.browserOpened) return
     const bounds = this.bounds()
     if (!this.browserOpened) {
       await this.surface.open({

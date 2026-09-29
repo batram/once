@@ -54,6 +54,57 @@ function flushCoordinator() {
   return new Promise((resolve) => setImmediate(resolve))
 }
 
+test("a rejected browser open becomes a visible error and Reload retries initialization", async () => {
+  const { ReadingSurfaceCoordinator } = await loadCoordinator()
+  const session = new ReadingSession(), surface = createSurface()
+  let attempts = 0
+  surface.open = async options => {
+    surface.calls.push(["open", options])
+    if (++attempts === 1) throw new Error("Browser extensions did not become ready in time. Try again.")
+  }
+  const coordinator = new ReadingSurfaceCoordinator(session, surface, createReader(), {
+    getBoundingClientRect: () => ({ x: 0, y: 0, width: 320, height: 500 })
+  })
+  await coordinator.install()
+  coordinator.setReadingPanelVisible(true)
+  session.navigate("https://example.test/first")
+  await flushCoordinator()
+  assert.equal(session.snapshot().loadState, "error")
+  assert.match(session.snapshot().error, /extensions did not become ready/)
+  assert.equal(attempts, 1, "Publishing an error must not automatically open again")
+  await coordinator.reload()
+  await flushCoordinator()
+  assert.equal(attempts, 2)
+  assert.equal(surface.calls.at(-1)[0], "setVisible")
+  surface.listeners.get("navigationStarted")({ navigationId: 1, url: "https://example.test/first" })
+  surface.listeners.get("navigationFinished")({ navigationId: 1, url: "https://example.test/first" })
+  assert.equal(session.snapshot().loadState, "ready")
+})
+
+test("an old initialization failure cannot overwrite a newer address", async () => {
+  const { ReadingSurfaceCoordinator } = await loadCoordinator()
+  const session = new ReadingSession(), surface = createSurface()
+  let rejectOpen
+  const open = surface.open
+  surface.open = options => {
+    surface.open = open
+    return new Promise((resolve, reject) => { rejectOpen = reject })
+  }
+  const coordinator = new ReadingSurfaceCoordinator(session, surface, createReader(), {
+    getBoundingClientRect: () => ({ x: 0, y: 0, width: 320, height: 500 })
+  })
+  await coordinator.install()
+  session.navigate("https://example.test/old")
+  await flushCoordinator()
+  session.navigate("https://example.test/new")
+  rejectOpen(new Error("Old initialization failed"))
+  await flushCoordinator()
+  assert.equal(session.snapshot().currentUrl, "https://example.test/new")
+  assert.equal(session.snapshot().loadState, "loading")
+  assert.equal(session.snapshot().error, null)
+  assert.equal(surface.calls.find(([name]) => name === "open")[1].url, "https://example.test/new")
+})
+
 test("late native events cannot replace a newer address before its page start", async () => {
   const { ReadingSurfaceCoordinator } = await loadCoordinator()
   const session = new ReadingSession(), surface = createSurface()

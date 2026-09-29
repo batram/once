@@ -13,6 +13,17 @@ import static org.junit.Assert.*;
 /** Exercises the actual Capacitor shell coordinator, rather than opening the plugin directly. */
 @RunWith(AndroidJUnit4.class)
 public class GeckoReadingJourneyTest {
+    @Test public void redirectThroughShellSettlesAtDestination() throws Exception {
+        GeckoTestSupport t = new GeckoTestSupport(); t.start();
+        awaitShell(t, "document.body.dataset.onceReady === 'true'", 30);
+        try (GeckoTestSupport.Fixture fixture = new GeckoTestSupport.Fixture()) {
+            submit(t, fixture.url("/redirect"));
+            t.ready("redirected");
+            awaitShell(t, "document.querySelector('#reading_content').dataset.loadState === 'ready'"
+                + " && document.querySelector('#reading_url').value === " + JSONObject.quote(fixture.url("/redirected")), 15);
+        }
+    }
+
     @Test public void blankDocumentOffersRetryAndLateContentAppearsWithoutProcessReset() throws Exception {
         GeckoTestSupport t = new GeckoTestSupport(); t.start();
         awaitShell(t, "document.body.dataset.onceReady === 'true'", 30);

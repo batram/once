@@ -214,6 +214,7 @@ abstract class ReadingSurfaceHost extends Plugin {
         content.addView(recoveryView, new FrameLayout.LayoutParams(-1, -1));
 
         refreshSurface = new SwipeRefreshLayout(getContext());
+        refreshSurface.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
         refreshSurface.addView(content, new ViewGroup.LayoutParams(-1, -1));
         refreshSurface.setOnChildScrollUpCallback((parent, child) -> scrollY > 0);
         refreshSurface.setOnRefreshListener(this::reloadSession);
@@ -239,7 +240,13 @@ abstract class ReadingSurfaceHost extends Plugin {
                 if (session != created) return;
                 forgetPageState("The page process was stopped while hidden");
                 killedWhileHidden = true;
-            }, () -> { if (session == created) painted = true; }, filename -> {
+            }, () -> { if (session == created) painted = true; }, () -> {
+                if (session != created) return;
+                painted = false;
+                navigationCompleted = false;
+                blankSince = 0;
+                nextHealthAt = 0;
+            }, filename -> {
                 if (session != created) return;
                 Log.w(TAG, "Slow script: " + filename);
                 if (navigationDeadline == 0) navigationDeadline = SystemClock.elapsedRealtime() + RESPONSE_TIMEOUT_MS;

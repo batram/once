@@ -320,6 +320,12 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
                 try {
                     extensions.adopt(installed);
                     attachBridge();
+                    // Gecko starts extension background pages after the first
+                    // session opens. Waiting for their settings acknowledgement
+                    // before opening any session creates a 15-second timeout
+                    // cycle. Bootstrap an empty session, but keep the requested
+                    // URL behind the settings barrier.
+                    ensureSurface();
                 } catch (RuntimeException error) { finishWaiting(call); call.reject("Browser operation failed", error); return; }
                 // The engine starts with the first page, so the bridge receives
                 // the synced filter lists and userscripts only now. That page
@@ -436,6 +442,8 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
                     String readyState = reply.optString("readyState");
                     // DOMContentLoaded plus visible paint is usable. Waiting for
                     // every image/tracker to finish needlessly kills healthy pages.
+                    // BFCache restores do not always emit a new first-paint
+                    // callback; keep their matching document acknowledgement.
                     if ((painted || reply.optBoolean("restored"))
                         && ("interactive".equals(readyState) || "complete".equals(readyState))) {
                         documentReady();

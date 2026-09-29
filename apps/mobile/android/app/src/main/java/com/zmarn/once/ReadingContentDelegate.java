@@ -14,16 +14,18 @@ final class ReadingContentDelegate implements GeckoSession.ContentDelegate {
     private final BooleanSupplier foreground;
     private final Runnable killedWhileHidden;
     private final Runnable painted;
+    private final Runnable paintReset;
     private final Consumer<String> slowScript;
 
     ReadingContentDelegate(Consumer<String> external, Consumer<String> stopped,
                            BooleanSupplier foreground, Runnable killedWhileHidden,
-                           Runnable painted, Consumer<String> slowScript) {
+                           Runnable painted, Runnable paintReset, Consumer<String> slowScript) {
         this.external = external;
         this.stopped = stopped;
         this.foreground = foreground;
         this.killedWhileHidden = killedWhileHidden;
         this.painted = painted;
+        this.paintReset = paintReset;
         this.slowScript = slowScript;
     }
 
@@ -35,6 +37,7 @@ final class ReadingContentDelegate implements GeckoSession.ContentDelegate {
         else killedWhileHidden.run();
     }
     @Override public void onFirstContentfulPaint(GeckoSession session) { painted.run(); }
+    @Override public void onPaintStatusReset(GeckoSession session) { paintReset.run(); }
     @Override public GeckoResult<SlowScriptResponse> onSlowScript(GeckoSession session, String filename) {
         slowScript.accept(filename);
         // This is also Gecko's default. Recovery is provided by the independent

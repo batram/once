@@ -14,7 +14,8 @@ test("Gecko settings reconnect after activity loss and accept settings on the ne
     browser: {
       runtime: { connectNative(name) {
         assert.equal(name, "once_surface")
-        const port = { onMessage: { addListener(listener) { port.receive = listener } },
+        const port = { sent: [], postMessage(message) { port.sent.push(message) },
+          onMessage: { addListener(listener) { port.receive = listener } },
           onDisconnect: { addListener(listener) { port.disconnect = listener } } }
         ports.push(port)
         return port
@@ -33,10 +34,12 @@ test("Gecko settings reconnect after activity loss and accept settings on the ne
   assert.equal(timers.length, 1)
   timers.shift()()
   assert.equal(ports.length, 2)
-  ports[1].receive({ type: "extension-settings", value: {
+  ports[1].receive({ type: "extension-settings", revision: 1, value: {
     filterLists: { lists: [] }, userscripts: { scripts: [{ id: "test", body: "document.body.dataset.works='yes'", matches: ["https://example.com/*"] }] }
   } })
   await vm.runInContext("settingsQueue", context)
   assert.equal(registrations.length, 1)
   assert.ok(registrations[0].js[0].code.includes("dataset.works"))
+  assert.equal(ports[1].sent[0].type, "extension-settings-applied")
+  assert.equal(ports[1].sent[0].revision, 1)
 })
