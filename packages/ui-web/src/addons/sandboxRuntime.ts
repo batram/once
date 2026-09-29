@@ -114,7 +114,10 @@ function work(message: HostToSandbox, state: RuntimeState, post: (message: Sandb
       const context: AddonTrayContext = {
         signal: controller.signal,
         request: (connection, request) => ask({ name: "request", href: "", connection, request }) as Promise<AddonResponse>,
-        getStoryContent: () => ask({ name: "story.content", href: message.story.href }) as Promise<AddonStoryContent>
+        getStoryContent: () => ask({ name: "story.content", href: message.story.href }) as Promise<AddonStoryContent>,
+        update: view => {
+          if (!controller.signal.aborted) post({ type: "op", requestId: message.requestId, op: { name: "tray.update", href: message.story.href, view } })
+        }
       }
       return state.tray(message.tray, message.event, message.story, context)
     }

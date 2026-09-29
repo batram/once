@@ -10,12 +10,13 @@ const defaults = Object.fromEntries(Object.entries(schema.properties).filter(([,
 async function fixture(extra = {}, respond) {
   const addon = await modulePromise
   let handler, settingsChanged
-  const requests = []
+  const requests = [], updates = []
   let extracts = 0
   const settings = { ...defaults, provider: "compatible", model: "fixture-model", compatibleEndpoint: "http://localhost/v1/chat/completions", ...extra }
   addon.default({ settings, onTray: callback => { handler = callback }, onSettings: callback => { settingsChanged = callback } })
   const context = {
     signal: new AbortController().signal,
+    update(view) { updates.push(view) },
     async getStoryContent() { extracts++; return { text: "Article evidence", title: "Article", sourceUrl: "https://story.test/", truncated: false } },
     async request(connection, request) {
       requests.push({ connection, request })
@@ -23,7 +24,7 @@ async function fixture(extra = {}, respond) {
     }
   }
   const story = { href: "https://story.test/", title: "What is ExampleApp 2.0?" }
-  return { requests, context, story, addon, changed: () => settingsChanged(settings), extracts: () => extracts,
+  return { requests, updates, context, story, addon, changed: () => settingsChanged(settings), extracts: () => extracts,
     run: event => handler("assistant", event, story, context) }
 }
 
@@ -54,6 +55,40 @@ test("opening explains and summarizes once, follow-up includes history, clear re
   f.changed()
   await f.run({ type: "open" })
   assert.equal(f.extracts(), 3)
+})
+
+test("opening asks for the explanation and summary at once and shows whichever lands first", async () => {
+  const pending = []
+  const reply = content => ({ status: 200, text: JSON.stringify({ choices: [{ message: { content } }] }) })
+  const f = await fixture({}, (_connection, request) => new Promise(resolve => pending.push({ summary: /Summarize/.test(request.body), resolve })))
+  const opened = f.run({ type: "open" })
+  await new Promise(resolve => setImmediate(resolve))
+  // Both are in flight before either answers.
+  assert.deepEqual(pending.map(request => request.summary), [false, true])
+  pending[1].resolve(reply("The summary."))
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(f.updates.map(view => view.messages.map(message => message.title ?? message.text)), [["Summary"]])
+  pending[0].resolve(reply("The explanation."))
+  const result = await opened
+  assert.deepEqual(result.messages.map(message => message.title ?? message.text), ["The explanation.", "Summary"])
+  // The last answer is the returned view; no redundant update.
+  assert.equal(f.updates.length, 1)
+})
+
+test("a failed explanation keeps the summary that did land, and Retry asks only for the explanation", async () => {
+  let explanations = 0
+  const summary = request => JSON.parse(request.body).messages.at(-1).content === "Summarize this article."
+  const f = await fixture({}, (_connection, request) => summary(request) || ++explanations > 1
+    ? { status: 200, text: JSON.stringify({ choices: [{ message: { content: summary(request) ? "The summary." : "The explanation." } }] }) }
+    : { status: 503, text: JSON.stringify({ error: { message: "High demand" } }) })
+  const failed = await f.run({ type: "open" })
+  assert.match(failed.status, /HTTP 503/)
+  assert.deepEqual(failed.messages.map(message => message.title ?? message.text), ["Summary"])
+  assert.deepEqual(failed.actions.map(action => action.id), ["retry"])
+  const retried = await f.run({ type: "action", action: "retry" })
+  assert.equal(f.requests.length, 3)
+  assert.match(retried.status, /Using story content/)
+  assert.deepEqual(retried.messages.map(message => message.title ?? message.text), ["Summary", "The explanation."])
 })
 
 test("the explanation keeps its answer in view and folds the entity section behind its heading", async () => {
@@ -129,12 +164,14 @@ test("SearXNG is opt-in, limited to five results and emits only referenced citat
     : { status: 200, text: JSON.stringify({ choices: [{ message: { content: "Explanation [S1, S3]. More [S3][S10]. Not S2.\n\n## Key entities\n\n- **Thing**" } }] }) })
   const result = await f.run({ type: "open" })
   assert.equal(f.requests[0].request.query.format, "json")
-  assert.equal(JSON.parse(f.requests[1].request.body).messages[1].content.match(/"id":"S\d+"/g).length, 5)
+  // The summary is asked alongside the search; the explanation waits for the search.
+  const explained = f.requests.find(request => request.connection === "compatible" && request.request.body.includes("Search results"))
+  assert.equal(JSON.parse(explained.request.body).messages[1].content.match(/"id":"S\d+"/g).length, 5)
   // Grouped and repeated citations still map to every id they name, once each,
   // and they follow the answer: the lead carries them, above the folded section.
   assert.deepEqual(result.messages[0].sources.map(source => source.url), ["https://Source.test/0/", "https://source.test/2"])
   assert.equal(result.messages[1].sources, undefined)
-  assert.equal(f.requests[1].request.body.includes("Source 5"), false)
+  assert.equal(explained.request.body.includes("Source 5"), false)
   await f.run({ type: "action", action: "summarize" })
   assert.equal(f.requests.filter(request => request.connection === "searxng").length, 1)
 })
@@ -150,7 +187,8 @@ test("Tavily fallback posts a JSON query to its own connection and shares the ci
   assert.deepEqual(result.messages[0].sources, [{ title: "[S1] Source", url: "https://source.test/" }])
   const missing = await fixture({ webSearch: true, searchProvider: "tavily", tavilyEndpoint: "" })
   assert.match((await missing.run({ type: "open" })).status, /Tavily/)
-  assert.equal(missing.requests.length, 0)
+  // Only the summary, which never searches, goes out.
+  assert.deepEqual(missing.requests.map(request => JSON.parse(request.request.body).messages.at(-1).content), ["Summarize this article."])
   const failed = await fixture({ webSearch: true, searchProvider: "tavily" }, () => ({ status: 401, text: "{}" }))
   const failure = await failed.run({ type: "open" })
   assert.match(failure.status, /API key/)
@@ -161,14 +199,16 @@ test("search failure offers an explicit no-search retry; auth errors never trigg
   const f = await fixture({ webSearch: true })
   const failure = await f.run({ type: "open" })
   assert.ok(failure.actions.some(action => action.id === "without-search"))
-  assert.equal(f.requests.length, 0)
-  // The retry resumes the opening turn: the explanation without search, then the summary.
+  // The summary never searches, so it arrives regardless.
+  assert.equal(f.requests.length, 1)
+  assert.deepEqual(failure.messages.map(message => message.title), ["Summary"])
+  // The retry resumes the opening turn with only what failed: the explanation, without search.
   const resumed = await f.run({ type: "action", action: "without-search" })
   assert.equal(f.requests.length, 2)
-  assert.equal(resumed.messages.at(-1).title, "Summary")
+  assert.deepEqual(resumed.messages.map(message => message.title), ["Summary", undefined])
   const native = await fixture({ provider: "openai", webSearch: true, searchEndpoint: "https://search.test/" }, () => ({ status: 401, text: "unauthorized" }))
   assert.match((await native.run({ type: "open" })).status, /401/)
-  assert.equal(native.requests.length, 1)
+  assert.ok(native.requests.every(request => request.connection === "openai"))
 })
 
 test("history trimming retains complete recent exchanges within the limit", async () => {
@@ -201,10 +241,9 @@ test("explicit native-search unavailability falls back once and maps supplied so
       { status: 200, text: JSON.stringify({ output: [{ content: [{ type: "output_text", text: "Answer [S1]" }] }] }) }
   })
   const result = await f.run({ type: "open" })
-  // The explanation falls back once; the summary that follows never searches.
-  assert.deepEqual(f.requests.map(request => request.connection), ["openai", "searxng", "openai", "openai"])
-  assert.equal(JSON.parse(f.requests[2].request.body).tools, undefined)
-  assert.equal(JSON.parse(f.requests[3].request.body).tools, undefined)
+  // The explanation falls back once; the summary beside it never searches.
+  assert.deepEqual(f.requests.map(request => request.connection), ["openai", "openai", "searxng", "openai"])
+  assert.deepEqual(f.requests.map(request => request.request.body && !!JSON.parse(request.request.body).tools), [true, false, undefined, false])
   assert.match(result.status, /Web sources used/)
   assert.equal(result.messages[0].sources[0].url, "https://source.test/")
 })
@@ -227,7 +266,8 @@ test("malformed JSON, rate limits and missing SearXNG JSON remain recoverable", 
     const f = await fixture({ provider: "openai", webSearch: true, searchEndpoint: "https://search.test/" }, () => ({ status, text }))
     const result = await f.run({ type: "open" })
     assert.match(result.status, expected)
-    assert.equal(f.requests.length, 1)
+    // The explanation and the summary, asked at once, each fail on their own.
+    assert.equal(f.requests.length, 2)
     assert.ok(result.actions.some(action => action.id === "retry"))
   }
   const search = await fixture({ webSearch: true, searchEndpoint: "https://search.test/" }, () => ({ status: 200, text: "<html>JSON disabled</html>" }))
@@ -254,7 +294,8 @@ test("provider errors expose structured model-access details without triggering 
     assert.equal(result.status, `AI request failed (HTTP 404). Check the endpoint and model ID. Provider: ${message}`)
     assert.equal(result.statusTone, "error")
     assert.ok(result.actions.some(action => action.id === "retry"))
-    assert.equal(f.requests.length, 1)
+    // A native-search request that fails for another reason never falls back to SearXNG.
+    assert.ok(f.requests.every(request => request.connection === "openai"))
   }
 })
 

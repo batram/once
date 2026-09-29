@@ -297,8 +297,8 @@ Accept, anthropic-version, and anthropic-workspace-id. Authentication and cookie
 headers are host-owned. Responses expose Content-Type and Retry-After, with a
 1 MiB body cap. Redirects are rejected. Transport errors do not expose credentials.
 
-There are at most two active connection requests per addon, each with a 120-second
-deadline. Pass the tray context (or use `context.request`) to cancel a particular
+There are at most four active connection requests per addon (two trays asking two
+things at once), each with a 120-second deadline. Pass the tray context (or use `context.request`) to cancel a particular
 invocation; standalone requests are cancelled on settings changes or teardown.
 Electron forwards cancellation through IPC. Capacitor's native HTTP API has no
 cancel operation: Stop discards results while the native request finishes within
@@ -341,6 +341,13 @@ failures reports them through `status` like any other line, so set `"error"` the
 or the host cannot tell a failure from progress and will render both alike.
 Views are capped at 256,000 characters, 100 messages, 30 sources per message,
 and eight actions. They never contain host HTML, scripts, or event handlers.
+
+`context.update(view)` shows a view while the invocation is still working, for
+example a first answer while a second request is outstanding. It is validated like
+a returned view, the host keeps its own busy status and Stop control meanwhile, and
+the view the handler returns replaces it. If the reader stops the invocation, the
+tray goes back to the last view the handler returned, since the addon never
+committed what it showed early.
 
 The host provides loading/error status, Retry, Stop, Close and Clear conversation.
 Tray invocations last up to 120 seconds, with at most two active per addon.

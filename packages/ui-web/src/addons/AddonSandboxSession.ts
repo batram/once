@@ -7,6 +7,7 @@ import {
   SandboxToHost,
   StoryView,
   AddonTrayEvent,
+  AddonTrayView,
   readBadgeTexts,
   readSandboxMessage
 } from "@once/core"
@@ -35,7 +36,12 @@ interface Pending {
   /** Story hrefs an operation raised during this request may name. */
   scope: Set<string>
   controller: AbortController
+  /** A tray request's views while it is still working. */
+  update?(view: AddonTrayView): void
 }
+
+/** Two trays at a time, each free to ask two things at once. */
+const CONNECTION_LIMIT = 4
 
 /**
  * One add-on's conversation with its sandbox: loads the code, sends requests
@@ -101,7 +107,7 @@ export class AddonSandboxSession {
     this.settle(id, entry => entry.reject(new Error("Request cancelled")))
   }
 
-  tray(tray: string, event: AddonTrayEvent, story: StoryView, signal: AbortSignal): Promise<unknown> {
+  tray(tray: string, event: AddonTrayEvent, story: StoryView, signal: AbortSignal, update?: (view: AddonTrayView) => void): Promise<unknown> {
     if (signal.aborted) return Promise.reject(new Error("Request cancelled"))
     if (Array.from(this.pending.values()).filter(entry => entry.scope.size).length >= 2) {
       return Promise.reject(new Error("Two addon requests are already running; try again when one finishes"))
@@ -109,7 +115,7 @@ export class AddonSandboxSession {
     const id = this.nextRequest
     const cancel = () => this.cancel(id)
     signal.addEventListener("abort", cancel, { once: true })
-    return this.request(requestId => ({ type: "tray", requestId, tray, event, story }), new Set([story.href]), SANDBOX_TIMEOUTS.trayMs)
+    return this.request(requestId => ({ type: "tray", requestId, tray, event, story }), new Set([story.href]), SANDBOX_TIMEOUTS.trayMs, update)
       .finally(() => signal.removeEventListener("abort", cancel))
   }
 
@@ -211,7 +217,8 @@ export class AddonSandboxSession {
   private request(
     build: (requestId: number) => HostToSandbox,
     scope: Set<string>,
-    timeoutMs: number
+    timeoutMs: number,
+    update?: (view: AddonTrayView) => void
   ): Promise<unknown> {
     if (this.disabled) return Promise.reject(new Error(`Add-on ${this.addonId} is switched off after repeated failures`))
     if (this.closed) return Promise.reject(new Error("Add-on sandbox closed"))
@@ -222,7 +229,7 @@ export class AddonSandboxSession {
         this.transport.post({ type: "cancel", requestId })
         this.settle(requestId, (entry) => entry.reject(new Error("Add-on did not answer in time")))
       }, timeoutMs)
-      this.pending.set(requestId, { resolve, reject, timer, scope, controller: new AbortController() })
+      this.pending.set(requestId, { resolve, reject, timer, scope, controller: new AbortController(), update })
       this.transport.post(build(requestId))
     })
   }
@@ -255,6 +262,10 @@ export class AddonSandboxSession {
           if (message.requestId !== undefined && !this.pending.has(message.requestId)) throw new Error("Request is no longer active")
         }
         if (op.name === "request") return this.connectionOperation(op, pending?.controller.signal)
+        if (op.name === "tray.update") {
+          if (!pending?.update) throw new Error("only a tray request can show an update")
+          return pending.update(op.view)
+        }
         return this.host.perform(op, pending?.controller.signal)
       })
       .then((value) => {
@@ -268,7 +279,7 @@ export class AddonSandboxSession {
   }
 
   private async connectionOperation(op: SandboxOperation, signal?: AbortSignal): Promise<unknown> {
-    if (this.connectionOperations.size >= 2) throw new Error("Two connection requests are already running")
+    if (this.connectionOperations.size >= CONNECTION_LIMIT) throw new Error(`${CONNECTION_LIMIT} connection requests are already running`)
     const controller = new AbortController()
     const abort = () => controller.abort()
     signal?.throwIfAborted()

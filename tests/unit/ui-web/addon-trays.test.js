@@ -29,6 +29,76 @@ test("concurrent tray operations are scoped, cancellation aborts host work and i
   session.dispose()
 })
 
+test("a tray update reaches only its own open tray request, and only as a valid view", async () => {
+  const sent = [], reports = [], updates = []
+  const session = new AddonSandboxSession("example", { post: message => sent.push(message), destroy() {} }, {
+    perform: () => undefined, report: message => reports.push(message)
+  })
+  const tray = session.tray("assistant", { type: "open" }, { href: "https://one.test/" }, new AbortController().signal, view => updates.push(view))
+  const trayId = sent.at(-1).requestId
+  const invoked = session.invoke("ping", { href: "https://one.test/" })
+  const invokeId = sent.at(-1).requestId
+  const view = { messages: [{ role: "assistant", text: "Early answer" }] }
+  session.receive({ type: "op", requestId: trayId, op: { name: "tray.update", href: "https://one.test/", view } })
+  session.receive({ type: "op", requestId: trayId, op: { name: "tray.update", href: "https://two.test/", view } })
+  session.receive({ type: "op", requestId: trayId, op: { name: "tray.update", href: "https://one.test/", view: { messages: [{ role: "system", text: "x" }] } } })
+  session.receive({ type: "op", requestId: invokeId, op: { name: "tray.update", href: "https://one.test/", view } })
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(updates.map(update => update.messages[0].text), ["Early answer"])
+  assert.equal(reports.length, 2)
+  session.receive({ type: "result", requestId: trayId, value: { messages: [] } })
+  session.receive({ type: "result", requestId: invokeId, value: null })
+  await Promise.all([tray, invoked])
+  session.receive({ type: "op", requestId: trayId, op: { name: "tray.update", href: "https://one.test/", view } })
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(updates.length, 1)
+  session.dispose()
+})
+
+test("an early view shows while the tray is busy, the final view replaces it, and Stop goes back", async () => {
+  const previous = global.document
+  const previousCustomEvent = global.CustomEvent
+  const { document, CustomEvent } = parseHTML("<html><body></body></html>")
+  global.document = document
+  global.CustomEvent = CustomEvent
+  const { AddonTrays } = require("../../../packages/ui-web/dist/addons/AddonTrays")
+  let finish, update
+  const trays = new AddonTrays({ id: "example", trays: [{ id: "assistant", title: "Assistant" }] }, {
+    ensure: async () => ({ tray: (_tray, event, _story, _signal, early) => {
+      if (event.type === "open") return Promise.resolve({ messages: [{ role: "assistant", text: "Committed" }], composer: "Question" })
+      update = early
+      return new Promise(resolve => { finish = resolve })
+    } })
+  })
+  const row = document.createElement("story-item")
+  row.story = { href: "https://story.test/", title: "Title", type: "HN" }
+  document.body.append(row)
+  const texts = () => Array.from(row.querySelectorAll(".addon_tray_message"), message => message.textContent.trim())
+  const buttons = () => Array.from(row.querySelectorAll(".addon_tray_controls button"), button => button.textContent)
+  try {
+    trays.toggle(row, "assistant")
+    await new Promise(resolve => setImmediate(resolve))
+    const ask = async () => {
+      trays.handle(row, "assistant").send({ type: "submit", text: "Why?" })
+      await new Promise(resolve => setImmediate(resolve))
+    }
+    await ask()
+    update({ messages: [{ role: "assistant", text: "Committed" }, { role: "assistant", text: "Early" }] })
+    assert.deepEqual(texts(), ["Committed", "Early"])
+    assert.ok(buttons().includes("Stop"))
+    finish({ messages: [{ role: "assistant", text: "Committed" }, { role: "assistant", text: "Early" }, { role: "assistant", text: "Late" }] })
+    await new Promise(resolve => setImmediate(resolve))
+    assert.deepEqual(texts(), ["Committed", "Early", "Late"])
+    assert.ok(!buttons().includes("Stop"))
+    await ask()
+    update({ messages: [{ role: "assistant", text: "Never recorded" }] })
+    row.querySelector(".addon_tray_controls button").click()
+    assert.deepEqual(texts(), ["Committed", "Early", "Late"])
+    update({ messages: [{ role: "assistant", text: "After stop" }] })
+    assert.deepEqual(texts(), ["Committed", "Early", "Late"])
+  } finally { trays.dispose(); global.document = previous; global.CustomEvent = previousCustomEvent }
+})
+
 test("tray state survives row replacement, collapse and reopen without a second request", async () => {
   const previous = global.document
   const previousCustomEvent = global.CustomEvent
@@ -175,10 +245,10 @@ test("standalone declared connections are limited and settings cancel pending wo
     perform: (_op, signal) => new Promise(resolve => running.push({ signal, resolve })), report() {}
   })
   const op = { name: "request", connection: "provider", request: { method: "GET" }, href: "" }
-  for (let opId = 1; opId <= 3; opId++) session.receive({ type: "op", opId, op })
+  for (let opId = 1; opId <= 5; opId++) session.receive({ type: "op", opId, op })
   await new Promise(resolve => setImmediate(resolve))
-  assert.equal(running.length, 2)
-  assert.equal(sent.find(message => message.opId === 3).ok, false)
+  assert.equal(running.length, 4)
+  assert.equal(sent.find(message => message.opId === 5).ok, false)
   session.settings({})
   await new Promise(resolve => setImmediate(resolve))
   assert.ok(running.every(request => request.signal.aborted))

@@ -4,7 +4,7 @@
 
 import { StoryView } from "./storyView"
 import { AddonRequest, readAddonRequest } from "./connections"
-import { AddonTrayEvent } from "./trayProtocol"
+import { AddonTrayEvent, AddonTrayView, readTrayView } from "./trayProtocol"
 
 export const SANDBOX_PROTOCOL = 1
 
@@ -61,6 +61,8 @@ export type HostToSandbox =
 export type SandboxOperation =
   | { name: "request"; href: ""; connection: string; request: AddonRequest }
   | { name: "story.content"; href: string }
+  /** A tray's view while its invocation is still working. */
+  | { name: "tray.update"; href: string; view: AddonTrayView }
   | { name: "fetch"; href: ""; url: string }
   | { name: "storage.get"; href: ""; key: string }
   | { name: "storage.set"; href: ""; key: string; value: unknown }
@@ -115,6 +117,8 @@ function readOperation(value: unknown): SandboxOperation | null {
   const href = value.href
   switch (value.name) {
     case "story.content": return { name: "story.content", href }
+    case "tray.update":
+      try { return { name: "tray.update", href, view: readTrayView(value.view) } } catch { return null }
     case "openUrl":
       if (!isHref(value.url)) return null
       if (value.target !== undefined && !["_self", "blank", "middle"].includes(String(value.target))) return null

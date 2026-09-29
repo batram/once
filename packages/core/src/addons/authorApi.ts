@@ -6,6 +6,8 @@ export interface AddonTrayContext {
   readonly signal: AbortSignal
   request(connectionId: string, request: AddonRequest): Promise<AddonResponse>
   getStoryContent(): Promise<AddonStoryContent>
+  /** Shows a view while this invocation is still working; the view it returns replaces it. */
+  update(view: AddonTrayView): void
 }
 
 export interface AddonCollectorHandlers {

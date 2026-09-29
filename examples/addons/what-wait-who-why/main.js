@@ -33,15 +33,26 @@ export default function activate(once) {
         catch (error) { context.signal.throwIfAborted(); state.contentError = error.message || "Article unavailable" }
       }
       context.signal.throwIfAborted()
-      const turn = { sources: 0, shortened: false }
-      for (const [index, task] of tasks.entries()) {
-        state.last = { tasks: tasks.slice(index), question, automatic }
-        if (task === "summary" && !state.article) {
-          // The status line already says the answer is title-only; an automatic summary just steps aside.
-          if (automatic) continue
-          throw new Error("Cannot summarize: no readable article content is available. Open the original story or try Clear conversation to fetch again.")
+      // The status line already says the answer is title-only; an automatic summary just steps aside.
+      const runnable = tasks.filter(task => task !== "summary" || state.article || !automatic)
+      if (runnable.includes("summary") && !state.article) throw new Error("Cannot summarize: no readable article content is available. Open the original story or try Clear conversation to fetch again.")
+      // Every task asks at once. Each answer shows as soon as it lands, but
+      // joins the conversation in task order, so the explanation stays first.
+      const answers = new Array(runnable.length)
+      const settled = await Promise.allSettled(runnable.map(async (task, index) => {
+        answers[index] = await ask(once, context, story, state, task, question, noSearch)
+        if (!context.signal.aborted && answers.filter(Boolean).length < runnable.length) {
+          context.update?.(view(state, answers.flatMap((answer, position) => answer ? messagesFor(runnable[position], question, answer.result) : [])))
         }
-        await answer(once, context, story, state, task, question, noSearch, turn)
+      }))
+      context.signal.throwIfAborted()
+      const turn = { sources: 0, shortened: false }
+      for (const [index, task] of runnable.entries()) if (answers[index]) record(state, task, question, answers[index], turn)
+      const failed = settled.find(outcome => outcome.status === "rejected")
+      if (failed) {
+        // A retry asks again only for what failed.
+        state.last = { tasks: runnable.filter((_task, index) => !answers[index]), question, automatic }
+        throw failed.reason
       }
       state.status = [
         state.article ? "Using story content." : "Title only: article content is unavailable.",
@@ -59,7 +70,8 @@ export default function activate(once) {
   })
 }
 
-async function answer(once, context, story, state, task, question, noSearch, turn) {
+/** One task's answer; nothing joins the conversation until `record`. */
+async function ask(once, context, story, state, task, question, noSearch) {
   const search = once.settings.webSearch === true && task !== "summary" && !noSearch
   const history = task === "summary" ? { messages: [], shortened: false } : recentHistory(state.history)
   const prompt = once.settings[task === "summary" ? "summaryPrompt" : task === "chat" ? "chatPrompt" : "explainPrompt"] || ""
@@ -68,14 +80,21 @@ async function answer(once, context, story, state, task, question, noSearch, tur
   const messages = [...history.messages, { role: "user", content: user }]
   const result = await generate(context, once.settings, String(prompt), source, messages, search, story.title, question)
   context.signal.throwIfAborted()
-  if (task === "chat") state.messages.push({ role: "user", text: question }, { role: "assistant", text: result.text, sources: result.sources })
-  else if (task === "summary") {
-    state.messages.push({ role: "assistant", title: "Summary", collapsed: true, text: result.text, sources: result.sources })
-    state.summarized = true
-  } else state.messages.push(...explanation(result))
+  return { user, result, shortened: history.shortened }
+}
+
+function messagesFor(task, question, result) {
+  if (task === "chat") return [{ role: "user", text: question }, { role: "assistant", text: result.text, sources: result.sources }]
+  if (task === "summary") return [{ role: "assistant", title: "Summary", collapsed: true, text: result.text, sources: result.sources }]
+  return explanation(result)
+}
+
+function record(state, task, question, { user, result, shortened }, turn) {
+  state.messages.push(...messagesFor(task, question, result))
+  if (task === "summary") state.summarized = true
   state.history.push({ role: "user", content: user }, { role: "assistant", content: result.text })
   turn.sources += result.sources.length
-  turn.shortened ||= history.shortened
+  turn.shortened ||= shortened
   // Bound the in-memory view and retain complete conversational exchanges.
   const retained = recentHistory(state.history)
   state.history = retained.messages
@@ -102,12 +121,13 @@ export function explanation(result) {
   return [{ role: "assistant", text: lead, sources: result.sources }, { role: "assistant", title, collapsed: true, text: body }]
 }
 
-function view(state) {
+/** `early` are answers already in while the rest of the turn is still being asked. */
+function view(state, early = []) {
   const actions = state.summarized ? [] : [SUMMARIZE]
   // An unconfigured addon is directions, not a failure: no Retry, calm tone.
   if (state.error && !state.setupNeeded) actions.push({ id: "retry", label: "Retry" })
   if (state.searchFailed) actions.push({ id: "without-search", label: "Answer without search" })
-  return { messages: state.messages, status: state.error || state.status || "Ask about this story.", statusTone: state.error && !state.setupNeeded ? "error" : "info", actions, composer: "Ask a follow-up question about this story" }
+  return { messages: [...state.messages, ...early], status: state.error || state.status || "Ask about this story.", statusTone: state.error && !state.setupNeeded ? "error" : "info", actions, composer: "Ask a follow-up question about this story" }
 }
 
 export function recentHistory(history) {

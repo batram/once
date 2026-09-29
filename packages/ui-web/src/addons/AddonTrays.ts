@@ -230,7 +230,16 @@ export class AddonTrays {
       if (!this.sandbox) throw new Error("Configure the addon sandbox on this platform first")
       const session = await this.sandbox.ensure()
       controller.signal.throwIfAborted()
-      const result = await session.tray(tray, event, state.story, controller.signal)
+      // A stopped invocation never recorded what it showed early, so the tray
+      // goes back to the last view the addon did return.
+      const before = state.view
+      let early: AddonTrayView | null = null
+      controller.signal.addEventListener("abort", () => { if (early && state.view === early) state.view = before }, { once: true })
+      const result = await session.tray(tray, event, state.story, controller.signal, view => {
+        if (state.controller !== controller || controller.signal.aborted) return
+        state.view = early = view
+        this.refresh(href, tray)
+      })
       if (!controller.signal.aborted) state.view = readTrayView(result)
     } catch (error) {
       if (!controller.signal.aborted) state.error = error instanceof Error ? error.message : String(error)
