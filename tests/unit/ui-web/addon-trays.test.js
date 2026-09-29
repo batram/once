@@ -261,10 +261,10 @@ test("standalone declared connections are limited and settings cancel pending wo
     perform: (_op, signal) => new Promise(resolve => running.push({ signal, resolve })), report() {}
   })
   const op = { name: "request", connection: "provider", request: { method: "GET" }, href: "" }
-  for (let opId = 1; opId <= 5; opId++) session.receive({ type: "op", opId, op })
+  for (let opId = 1; opId <= 7; opId++) session.receive({ type: "op", opId, op })
   await new Promise(resolve => setImmediate(resolve))
-  assert.equal(running.length, 4)
-  assert.equal(sent.find(message => message.opId === 5).ok, false)
+  assert.equal(running.length, 6)
+  assert.equal(sent.find(message => message.opId === 7).ok, false)
   session.settings({})
   await new Promise(resolve => setImmediate(resolve))
   assert.ok(running.every(request => request.signal.aborted))

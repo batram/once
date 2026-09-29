@@ -3,7 +3,8 @@
 A Once addon that explains a title, summarizes its article, and answers
 follow-up questions in a tray below the story. It makes no AI requests until you
 click its question-mark-and-sparkles button (or invoke its story action); opening
-the tray then sends two requests, one for the explanation and one for the summary.
+the tray then sends two requests at once, one for the explanation and one for the
+summary, and a third for the web section when web search is on.
 
 ## Develop and configure
 
@@ -110,8 +111,10 @@ trial credits have separate endpoints, authentication, and billing rules.
 
 ## Use
 
-Opening a tray explains the title and answers it if it asks a question, then
-summarizes the article. The answer stays in view; **Key entities** and **Summary**
+Opening a tray explains the title and answers it if it asks a question, and
+summarizes the article; with web search on, a cited **From the web** section adds
+what the search finds. All of them are asked at once and stream in as they are
+written, in that order. The answer stays in view; **Key entities** and **Summary**
 fold behind disclosures you expand when you want them. For a release
 announcement, the default prompt explains what the software does and who uses it.
 The **Summarize** button appears only while the conversation has no summary, for
@@ -122,10 +125,14 @@ Reading content for the addon does not mark a story read or save an offline copy
 Close hides the tray; reopening reuses the answer. Row redraws and sorting preserve
 the conversation. Clear conversation starts fresh; disabling the addon, changing
 its options, restarting its sandbox, or restarting Once clears the session.
-No conversations are persisted. Responses appear when complete; streaming is not
-implemented. Stop prevents late answers; Retry repeats a failed request.
+No conversations are persisted. Answers stream in as the provider writes them
+(on Android they appear when complete). Stop prevents late answers; Retry repeats
+only the requests that failed.
 
-Web search is off by default. Enable it to use OpenAI or Anthropic's native search.
+Web search is off by default. The explanation never waits for it: it answers from
+the article and the model's knowledge, while the **From the web** section is written
+from the search results beside it. Follow-up questions search before answering.
+Enable it to use OpenAI or Anthropic's native search.
 Compatible models, and native-search unavailability, use the fallback provider you
 pick under **Web search**: a SearXNG `/search` endpoint or [Tavily](https://tavily.com).
 The SearXNG instance must allow `format=json`; many public instances do not, so a
@@ -134,9 +141,9 @@ gives 1,000 credits a month without a card, one per search: create a key in its
 dashboard and save it in the masked field, keeping the default endpoint. Fallback
 search sends one query, uses at most five bounded snippets, and does not crawl
 result pages. Only referenced, supplied sources
-become links. Summaries always use the article alone. Search failures offer Retry
-and Answer without search; authentication errors and rate limits do not silently
-switch providers.
+become links. Summaries always use the article alone. A failed web section offers
+Retry; a follow-up whose search fails also offers Answer without search.
+Authentication errors and rate limits do not silently switch providers.
 
 ## Limits and validation
 

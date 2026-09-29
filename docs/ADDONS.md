@@ -297,7 +297,7 @@ Accept, anthropic-version, and anthropic-workspace-id. Authentication and cookie
 headers are host-owned. Responses expose Content-Type and Retry-After, with a
 1 MiB body cap. Redirects are rejected. Transport errors do not expose credentials.
 
-There are at most four active connection requests per addon (two trays asking two
+There are at most six active connection requests per addon (two trays asking three
 things at once), each with a 120-second deadline. Pass the tray context (or use `context.request`) to cancel a particular
 invocation; standalone requests are cancelled on settings changes or teardown.
 Electron forwards cancellation through IPC. Capacitor's native HTTP API has no

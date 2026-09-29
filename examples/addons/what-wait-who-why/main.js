@@ -4,6 +4,7 @@ const SUMMARIZE = { id: "summarize", label: "Summarize" }
 const MAX_HISTORY = 32_000
 // The explanation answers first, then folds its entities: the heading is where the addon splits the text.
 const EXPLAIN = "Answer the title if it asks a question and explain it in plain paragraphs without any heading. Then explain its key named entities under one heading line that reads exactly `## Key entities`."
+const WEB = "What does the web add to this story?"
 
 export default function activate(once) {
   const conversations = new Map()
@@ -18,8 +19,11 @@ export default function activate(once) {
     if (event.type === "open" && state.messages.length) return view(state)
     const previous = state.last
     const retry = event.action === "retry" || event.action === "without-search"
-    // Opening explains the title and then summarizes; a retry resumes with the task that failed.
-    const tasks = retry && previous ? previous.tasks : event.type === "submit" ? ["chat"] : event.action === "summarize" ? ["summary"] : ["explain", "summary"]
+    // Opening explains the title, adds what web search finds beside it rather
+    // than making the explanation wait for it, and summarizes; a retry resumes
+    // with the tasks that failed.
+    const opening = once.settings.webSearch === true ? ["explain", "web", "summary"] : ["explain", "summary"]
+    const tasks = retry && previous ? previous.tasks : event.type === "submit" ? ["chat"] : event.action === "summarize" ? ["summary"] : opening
     const question = retry && previous ? previous.question : event.text || ""
     const automatic = retry && previous ? previous.automatic : event.type === "open"
     const noSearch = event.action === "without-search"
@@ -34,7 +38,7 @@ export default function activate(once) {
       }
       context.signal.throwIfAborted()
       // The status line already says the answer is title-only; an automatic summary just steps aside.
-      const runnable = tasks.filter(task => task !== "summary" || state.article || !automatic)
+      const runnable = tasks.filter(task => (task !== "summary" || state.article || !automatic) && (task !== "web" || !noSearch))
       if (runnable.includes("summary") && !state.article) throw new Error("Cannot summarize: no readable article content is available. Open the original story or try Clear conversation to fetch again.")
       // Every task asks at once. Each answer shows as it is written, but
       // joins the conversation in task order, so the explanation stays first.
@@ -71,7 +75,8 @@ export default function activate(once) {
     } catch (error) {
       context.signal.throwIfAborted()
       state.error = error.message || "AI request failed"
-      state.searchFailed = error instanceof SearchFailure
+      // The web section is nothing but search, so answering it without search means nothing.
+      state.searchFailed = error instanceof SearchFailure && !state.last?.tasks.includes("web")
       state.setupNeeded = error instanceof SetupNeeded
     }
     return view(state)
@@ -80,10 +85,10 @@ export default function activate(once) {
 
 /** One task's answer; nothing joins the conversation until `record`. */
 async function ask(once, context, story, state, task, question, noSearch, onText) {
-  const search = once.settings.webSearch === true && task !== "summary" && !noSearch
-  const history = task === "summary" ? { messages: [], shortened: false } : recentHistory(state.history)
-  const prompt = once.settings[task === "summary" ? "summaryPrompt" : task === "chat" ? "chatPrompt" : "explainPrompt"] || ""
-  const user = task === "summary" ? "Summarize this article." : task === "chat" ? question : EXPLAIN
+  const search = once.settings.webSearch === true && (task === "chat" || task === "web") && !noSearch
+  const history = task === "summary" || task === "web" ? { messages: [], shortened: false } : recentHistory(state.history)
+  const prompt = once.settings[`${task}Prompt`] || ""
+  const user = task === "summary" ? "Summarize this article." : task === "chat" ? question : task === "web" ? WEB : EXPLAIN
   const source = articleContext(story, state.article)
   const messages = [...history.messages, { role: "user", content: user }]
   const result = await generate(context, once.settings, String(prompt), source, messages, search, story.title, question, onText)
@@ -106,6 +111,7 @@ function throttled(show, wait = 80) {
 function messagesFor(task, question, result) {
   if (task === "chat") return [{ role: "user", text: question }, { role: "assistant", text: result.text, sources: result.sources }]
   if (task === "summary") return [{ role: "assistant", title: "Summary", collapsed: true, text: result.text, sources: result.sources }]
+  if (task === "web") return [{ role: "assistant", title: "From the web", text: result.text, sources: result.sources }]
   return explanation(result)
 }
 

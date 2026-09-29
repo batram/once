@@ -41,8 +41,8 @@ interface Pending {
   update?(view: AddonTrayView): void
 }
 
-/** Two trays at a time, each free to ask two things at once. */
-const CONNECTION_LIMIT = 4
+/** Two trays at a time, each free to ask three things at once. */
+const CONNECTION_LIMIT = 6
 
 /**
  * One add-on's conversation with its sandbox: loads the code, sends requests
