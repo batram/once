@@ -16,7 +16,7 @@ export class StoryChangeReconciler {
 
   async observed(change: DatabaseChange): Promise<void> {
     if (change.doc?._deleted) {
-      this.workingSet.remove(change.id.substring("sto_".length))
+      await this.removeUnlessStored(change.id.substring("sto_".length))
       return
     }
     if (!change.doc) return
@@ -48,7 +48,7 @@ export class StoryChangeReconciler {
     if (!change.id.startsWith("sto_") || !change.doc) return
 
     if (change.doc._deleted) {
-      this.workingSet.remove(change.id.substring("sto_".length))
+      await this.removeUnlessStored(change.id.substring("sto_".length))
       return
     }
 
@@ -79,5 +79,14 @@ export class StoryChangeReconciler {
     if (change.presentation !== "background") {
       this.workingSet.add(effectiveStory)
     }
+  }
+
+  // A tombstone can close a losing conflict branch while the story's winning
+  // revision stays alive: two devices that ingest the same story before they
+  // sync each write a first revision, and conflict maintenance deletes the
+  // loser. Only a story the database no longer returns has been deleted.
+  private async removeUnlessStored(href: string): Promise<void> {
+    if (await this.storyStore.getStory(href)) return
+    this.workingSet.remove(href)
   }
 }

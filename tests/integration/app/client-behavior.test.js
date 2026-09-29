@@ -299,6 +299,7 @@ test("removes remotely deleted stories from working state", async () => {
   await app.start()
   await app.client.findStoryByUrl(story.href)
 
+  await fake.ports.storyStore.deleteStory(story.href)
   fake.emitRemoteDatabaseChange({
     id: `sto_${story.href}`,
     doc: { _id: `sto_${story.href}`, _rev: "2-deleted", _deleted: true },
@@ -308,6 +309,35 @@ test("removes remotely deleted stories from working state", async () => {
 
   assert.deepEqual(app.client.getStorySnapshot(), [])
   assert.deepEqual(removals, [{ href: story.href }])
+})
+
+// Two devices that ingest the same story before syncing each write a first
+// revision; conflict maintenance on one of them deletes the losing branch and
+// the tombstone replicates while the winning revision stays alive.
+test("keeps a story whose losing conflict branch was deleted", async () => {
+  const story = new Story("rss", "https://example.com/story", "A story")
+  story._rev = "1-winner"
+  const fake = createFakePlatform([story])
+  const app = createOnceApp(fake.ports)
+  const removals = []
+  app.client.subscribe("storyRemoved", (change) => removals.push(change))
+  await app.start()
+  await app.client.findStoryByUrl(story.href)
+
+  const tombstone = {
+    id: `sto_${story.href}`,
+    doc: { _id: `sto_${story.href}`, _rev: "2-loser-deleted", _deleted: true }
+  }
+  fake.emitRemoteDatabaseChange({ ...tombstone, presentation: "foreground" })
+  fake.emitDatabaseChange(tombstone)
+  await new Promise((resolve) => setImmediate(resolve))
+  await app.client.settledStoryWrites()
+
+  assert.deepEqual(
+    app.client.getStorySnapshot().map((entry) => entry.href),
+    [story.href]
+  )
+  assert.deepEqual(removals, [])
 })
 
 test("surfaces remote reconciliation failures as diagnostics", async (t) => {
