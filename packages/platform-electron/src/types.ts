@@ -55,14 +55,23 @@ export interface ElectronFetchRequest {
   credentials?: "include"
   redirect?: "error"
   requestId?: string
+  /** Answer with the head at once and send the body as `ElectronFetchChunk`s for `requestId`. */
+  stream?: true
 }
 
 export interface ElectronFetchResponse {
   status: number
   statusText: string
   headers: [string, string][]
-  body: ArrayBuffer
+  /** Absent for a streamed request: the body follows as chunks. */
+  body?: ArrayBuffer
 }
+
+/** One piece of a streamed body, in order; `done` or `error` ends it. */
+export type ElectronFetchChunk =
+  | { requestId: string; chunk: Uint8Array }
+  | { requestId: string; done: true }
+  | { requestId: string; error: string }
 
 export type ElectronOpenTarget = "_self" | "middle" | "blank" | string
 
@@ -184,6 +193,7 @@ export interface ElectronBridge {
   }
   fetch(request: ElectronFetchRequest): Promise<ElectronFetchResponse>
   cancelFetch?(requestId: string): Promise<void>
+  onFetchChunk?(handler: (chunk: ElectronFetchChunk) => void): () => void
   settings: {
     getSyncUrl(): Promise<string>
     setSyncUrl(syncUrl: string): Promise<void>
@@ -322,6 +332,7 @@ export const ELECTRON_IPC = {
   appUpdateStatusChanged: "once:app:update-status-changed",
   fetch: "once:fetch",
   cancelFetch: "once:fetch-cancel",
+  fetchChunk: "once:fetch-chunk",
   getSyncUrl: "once:settings:get-sync-url",
   setSyncUrl: "once:settings:set-sync-url",
   getCacheTime: "once:settings:get-cache-time",

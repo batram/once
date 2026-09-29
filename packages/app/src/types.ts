@@ -188,7 +188,8 @@ export interface OnceClient {
   saveAddonSecret(addon: string, field: string, endpoint: string, secret: string, localOnly?: boolean): Promise<void>
   hasAddonSecret(addon: string, field: string, endpoint: string, localOnly?: boolean): Promise<boolean>
   requestAddonConnection(manifest: import("@once/core").AddonManifest, options: Record<string, unknown>, connection: string,
-    request: import("@once/core").AddonRequest, signal?: AbortSignal, localOnly?: boolean): Promise<import("@once/core").AddonResponse>
+    request: import("@once/core").AddonRequest, signal?: AbortSignal, localOnly?: boolean,
+    onChunk?: (text: string) => void): Promise<import("@once/core").AddonResponse>
   getCacheTime(): Promise<number>
   setCacheTime(cacheTime: string): Promise<void>
   getCacheTiming(): Promise<CacheTimingDocument>

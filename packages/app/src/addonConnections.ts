@@ -27,7 +27,8 @@ export class AddonConnections {
     return typeof binding.value === "string" ? binding.value : ""
   }
 
-  async request(manifest: AddonManifest, options: Record<string, unknown>, id: string, raw: AddonRequest, signal?: AbortSignal): Promise<AddonResponse> {
+  async request(manifest: AddonManifest, options: Record<string, unknown>, id: string, raw: AddonRequest, signal?: AbortSignal,
+    onChunk?: (text: string) => void): Promise<AddonResponse> {
     const connection = manifest.connections?.find(item => item.id === id)
     if (!connection) throw new Error("Connection is not declared by this addon")
     const endpoint = addonEndpoint(options[connection.endpoint])
@@ -44,13 +45,14 @@ export class AddonConnections {
         credentials: "omit", redirect: "error"
       })
       signal?.throwIfAborted()
-      const text = await boundedText(response, signal)
+      const redact = (text: string) => token ? text.split(token).join("[redacted]") : text
+      const text = await boundedText(response, signal, onChunk && redactedStream(redact, token, onChunk))
       const returnedHeaders: Record<string, string> = {}
       for (const name of ["content-type", "retry-after"]) {
         const value = response.headers.get(name)
-        if (value) returnedHeaders[name] = token ? value.split(token).join("[redacted]") : value
+        if (value) returnedHeaders[name] = redact(value)
       }
-      return { status: response.status, headers: returnedHeaders, text: token ? text.split(token).join("[redacted]") : text }
+      return { status: response.status, headers: returnedHeaders, text: redact(text) }
     } catch (error) {
       if (signal?.aborted) throw new Error("Request cancelled")
       if (error instanceof Error && error.message === "Response is too large") throw error
@@ -59,7 +61,26 @@ export class AddonConnections {
   }
 }
 
-async function boundedText(response: Response, signal?: AbortSignal): Promise<string> {
+/**
+ * Hands on body text as it arrives, redacted. A token can straddle two
+ * chunks, so the last characters that could still begin one stay back until
+ * the next chunk shows what they are, or the body ends.
+ */
+function redactedStream(redact: (text: string) => string, token: string, onChunk: (text: string) => void): (text: string, done: boolean) => void {
+  let received = ""
+  let sent = 0
+  return (text, done) => {
+    received += text
+    let safe = done ? received.length : received.length - Math.max(0, token.length - 1)
+    // A whole token may cross the cut; the cut moves past it.
+    for (let found; token && (found = received.indexOf(token, Math.max(sent, safe - token.length + 1))) >= 0 && found < safe;) safe = found + token.length
+    if (safe <= sent) return
+    onChunk(redact(received.slice(sent, safe)))
+    sent = safe
+  }
+}
+
+async function boundedText(response: Response, signal?: AbortSignal, progress?: (text: string, done: boolean) => void): Promise<string> {
   const limit = 1024 * 1024
   if (Number(response.headers.get("content-length")) > limit) throw new Error("Response is too large")
   if (!response.body) return ""
@@ -71,10 +92,16 @@ async function boundedText(response: Response, signal?: AbortSignal): Promise<st
     while (true) {
       signal?.throwIfAborted()
       const chunk = await reader.read()
-      if (chunk.done) return text + decoder.decode()
+      if (chunk.done) {
+        const rest = decoder.decode()
+        progress?.(rest, true)
+        return text + rest
+      }
       size += chunk.value.byteLength
       if (size > limit) throw new Error("Response is too large")
-      text += decoder.decode(chunk.value, { stream: true })
+      const decoded = decoder.decode(chunk.value, { stream: true })
+      progress?.(decoded, false)
+      text += decoded
     }
   } finally { await reader.cancel().catch(() => undefined) }
 }

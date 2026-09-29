@@ -281,8 +281,8 @@ async function sandboxFor(
   const grants = grantedFetchPatterns(manifest)
   setAddonStatus(manifest.id, "idle")
   return new AddonSandbox(manifest.id, options.sandboxUrl, code, settings, {
-    perform: (op, signal) => {
-      if (op.name === "request") return client.requestAddonConnection(manifest, settings(), op.connection, op.request, signal, devCode !== null)
+    perform: (op, signal, onChunk) => {
+      if (op.name === "request") return client.requestAddonConnection(manifest, settings(), op.connection, op.request, signal, devCode !== null, onChunk)
       if (op.name === "story.content") return addonStoryContent(client, op.href, signal)
       return performOperation(client, manifest, grants, op)
     },

@@ -52,6 +52,8 @@ export type HostToSandbox =
   | { type: "panel.invoke"; requestId: number; action: string }
   /** The answer to an operation that asked for one (`fetch`, `storage.*`). */
   | { type: "opResult"; opId: number; ok: boolean; value?: unknown; error?: string }
+  /** Body text of a streamed `request` as it arrives; its `opResult` still carries the whole response. */
+  | { type: "opProgress"; opId: number; text: string }
 
 /**
  * The operations a script may ask of the host. Story operations name the
@@ -59,7 +61,7 @@ export type HostToSandbox =
  * governed by grants rather than by the story in hand.
  */
 export type SandboxOperation =
-  | { name: "request"; href: ""; connection: string; request: AddonRequest }
+  | { name: "request"; href: ""; connection: string; request: AddonRequest; stream?: true }
   | { name: "story.content"; href: string }
   /** A tray's view while its invocation is still working. */
   | { name: "tray.update"; href: string; view: AddonTrayView }
@@ -102,7 +104,7 @@ function readOperation(value: unknown): SandboxOperation | null {
     case "request":
       try {
         return typeof value.connection === "string" && /^[a-z][a-z0-9-]{2,39}$/.test(value.connection)
-          ? { name: "request", href: "", connection: value.connection, request: readAddonRequest(value.request) } : null
+          ? { name: "request", href: "", connection: value.connection, request: readAddonRequest(value.request), ...(value.stream === true ? { stream: true as const } : {}) } : null
       } catch { return null }
     case "fetch":
       return isHref(value.url) ? { name: "fetch", href: "", url: value.url } : null

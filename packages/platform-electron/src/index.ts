@@ -10,7 +10,7 @@ import {
   PouchSyncDatabase,
   PouchSyncService
 } from "@once/persistence"
-import { bridgeFetch } from "./fetch"
+import { bridgeFetch, bridgeStreamingFetch } from "./fetch"
 import { ElectronBridge, ElectronTabState } from "./types"
 
 export * from "./types"
@@ -86,6 +86,8 @@ export function createElectronPlatform(
       }
     },
     fetch: fetchThroughMain,
+    // Addon connections stream, so a tray can show an answer as it is written.
+    addonFetch: (input, init) => bridgeStreamingFetch(bridge, input, init),
     onDatabaseChange(handler) {
       const changes = onceDb
         .changes({

@@ -55,6 +55,22 @@ test("a tray update reaches only its own open tray request, and only as a valid 
   session.dispose()
 })
 
+test("only a streamed connection request relays its body to the sandbox as it arrives", async () => {
+  const sent = []
+  const session = new AddonSandboxSession("example", { post: message => sent.push(message), destroy() {} }, {
+    perform: (_op, _signal, onChunk) => { onChunk?.("data: 1\n"); onChunk?.("data: 2\n"); return { status: 200, headers: {}, text: "data: 1\ndata: 2\n" } },
+    report() {}
+  })
+  const request = { method: "POST", body: "{}" }
+  session.receive({ type: "op", opId: 7, op: { name: "request", href: "", connection: "provider", request, stream: true } })
+  session.receive({ type: "op", opId: 8, op: { name: "request", href: "", connection: "provider", request } })
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(sent.map(message => [message.type, message.opId, message.text]), [
+    ["opProgress", 7, "data: 1\n"], ["opProgress", 7, "data: 2\n"], ["opResult", 7, undefined], ["opResult", 8, undefined]
+  ])
+  session.dispose()
+})
+
 test("an early view shows while the tray is busy, the final view replaces it, and Stop goes back", async () => {
   const previous = global.document
   const previousCustomEvent = global.CustomEvent

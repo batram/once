@@ -17,6 +17,7 @@ import {
   ElectronBuildInfo,
   ElectronDevAddon,
   ElectronExtensionSettings,
+  ElectronFetchChunk,
   ElectronFetchRequest,
   ElectronFetchResponse,
   ElectronFindOptions,
@@ -160,6 +161,7 @@ function registerAppHandlers(options: IpcHandlerOptions): void {
       }
       if (request.redirect !== undefined && request.redirect !== "error") throw new Error("Invalid redirect policy")
       if (request.requestId !== undefined && !/^[a-zA-Z0-9-]{1,80}$/.test(request.requestId)) throw new Error("Invalid request ID")
+      if (request.stream !== undefined && (request.stream !== true || !request.requestId)) throw new Error("A streamed request needs a request ID")
       const key = request.requestId ? `${event.sender.id}:${request.requestId}` : ""
       const controller = new AbortController()
       if (key) connectionRequests.set(key, controller)
@@ -170,6 +172,7 @@ function registerAppHandlers(options: IpcHandlerOptions): void {
       const fetchWith = request.credentials === "include"
         ? browserSession.fetch.bind(browserSession)
         : net.fetch
+      let streaming = false
       try {
         const response = await fetchWith(url.toString(), {
           method: request.method,
@@ -179,19 +182,46 @@ function registerAppHandlers(options: IpcHandlerOptions): void {
           redirect: request.redirect,
           signal: controller.signal
         })
-        return {
+        const head = {
           status: response.status,
           statusText: response.statusText,
-          headers: Array.from(response.headers.entries()),
-          body: await readFetchBody(response, request.redirect === "error")
+          headers: Array.from(response.headers.entries())
         }
-      } finally { if (key) connectionRequests.delete(key) }
+        if (request.stream && request.requestId) {
+          // The body outlives this reply, and a cancel must still reach it.
+          streaming = true
+          void pumpFetchBody(event.sender, request.requestId, response, request.redirect === "error")
+            .finally(() => connectionRequests.delete(key))
+          return head
+        }
+        return { ...head, body: await readFetchBody(response, request.redirect === "error") }
+      } finally { if (key && !streaming) connectionRequests.delete(key) }
     }
   )
   ipcMain.handle(ELECTRON_IPC.cancelFetch, (event, id: string) => {
     trusted(event, coordinator)
     connectionRequests.get(`${event.sender.id}:${id}`)?.abort()
   })
+}
+
+/** Sends a body to the renderer that asked, piece by piece, under the same cap as a whole one. */
+async function pumpFetchBody(sender: WebContents, requestId: string, response: Response, bounded: boolean): Promise<void> {
+  const send = (message: ElectronFetchChunk) => { if (!sender.isDestroyed()) sender.send(ELECTRON_IPC.fetchChunk, message) }
+  const reader = response.body?.getReader()
+  let length = 0
+  try {
+    while (reader) {
+      const chunk = await reader.read()
+      if (chunk.done) break
+      if (sender.isDestroyed()) return
+      length += chunk.value.byteLength
+      if (bounded && length > 1024 * 1024) throw new Error("Response is too large")
+      send({ requestId, chunk: chunk.value })
+    }
+    send({ requestId, done: true })
+  } catch (error) {
+    send({ requestId, error: error instanceof Error ? error.message : String(error) })
+  } finally { await reader?.cancel().catch(() => undefined) }
 }
 
 async function readFetchBody(response: Response, bounded: boolean): Promise<ArrayBuffer> {

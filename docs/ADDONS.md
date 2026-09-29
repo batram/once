@@ -304,6 +304,12 @@ Electron forwards cancellation through IPC. Capacitor's native HTTP API has no
 cancel operation: Stop discards results while the native request finishes within
 its timeout. Native mobile buffers the response before enforcing the size cap.
 
+`context.request(id, request, { onChunk })` also hands the response body to
+`onChunk(text)` as it arrives, in order and with the connection token redacted, so
+a tray can show a streamed answer (ask the provider to stream; parsing its events
+is the addon's job). The returned response still carries the whole body. Electron
+and browsers stream; native mobile delivers the body in one piece when it is done.
+
 ### Story trays
 
 Declare up to four `trays: [{ id, title }]`, and give an ordinary story action

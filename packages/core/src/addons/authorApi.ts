@@ -2,9 +2,14 @@ import { StoryView } from "./storyView"
 import { AddonRequest, AddonResponse } from "./connections"
 import { AddonStoryContent, AddonTrayEvent, AddonTrayView } from "./trayProtocol"
 
+export interface AddonRequestOptions {
+  /** Receives the response body as it arrives, in order; the returned response still carries all of it. */
+  onChunk?(text: string): void
+}
+
 export interface AddonTrayContext {
   readonly signal: AbortSignal
-  request(connectionId: string, request: AddonRequest): Promise<AddonResponse>
+  request(connectionId: string, request: AddonRequest, options?: AddonRequestOptions): Promise<AddonResponse>
   getStoryContent(): Promise<AddonStoryContent>
   /** Shows a view while this invocation is still working; the view it returns replaces it. */
   update(view: AddonTrayView): void

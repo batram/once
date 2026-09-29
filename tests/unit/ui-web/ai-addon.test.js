@@ -18,9 +18,9 @@ async function fixture(extra = {}, respond) {
     signal: new AbortController().signal,
     update(view) { updates.push(view) },
     async getStoryContent() { extracts++; return { text: "Article evidence", title: "Article", sourceUrl: "https://story.test/", truncated: false } },
-    async request(connection, request) {
+    async request(connection, request, options) {
       requests.push({ connection, request })
-      return respond ? respond(connection, request) : { status: 200, text: JSON.stringify({ choices: [{ message: { content: "An explanation." } }] }) }
+      return respond ? respond(connection, request, options) :{ status: 200, text: JSON.stringify({ choices: [{ message: { content: "An explanation." } }] }) }
     }
   }
   const story = { href: "https://story.test/", title: "What is ExampleApp 2.0?" }
@@ -73,6 +73,57 @@ test("opening asks for the explanation and summary at once and shows whichever l
   assert.deepEqual(result.messages.map(message => message.title ?? message.text), ["The explanation.", "Summary"])
   // The last answer is the returned view; no redundant update.
   assert.equal(f.updates.length, 1)
+})
+
+test("a streamed explanation shows as it is written, and its finished text is the answer", async () => {
+  const pause = () => new Promise(resolve => setTimeout(resolve, 120))
+  const event = content => `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`
+  const f = await fixture({}, async (_connection, request, options) => {
+    const body = JSON.parse(request.body)
+    assert.equal(body.stream, true)
+    if (body.messages.at(-1).content === "Summarize this article.") {
+      await pause(); await pause(); await pause()
+      return { status: 200, text: JSON.stringify({ choices: [{ message: { content: "The summary." } }] }) }
+    }
+    const stream = [event("ExampleApp "), event("organizes"), event(" projects."), `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] })}\n\ndata: [DONE]\n\n`].join("")
+    // Pieces need not end on an event boundary.
+    const cut = stream.indexOf("organizes") + 3
+    options.onChunk(stream.slice(0, cut))
+    await pause()
+    options.onChunk(stream.slice(cut))
+    await pause()
+    return { status: 200, headers: { "content-type": "text/event-stream" }, text: stream }
+  })
+  const result = await f.run({ type: "open" })
+  const shown = f.updates.map(view => view.messages.map(message => message.title ?? message.text))
+  assert.deepEqual(shown[0], ["ExampleApp "])
+  assert.ok(shown.some(messages => messages[0] === "ExampleApp organizes projects." && messages.length === 1))
+  assert.deepEqual(result.messages.map(message => message.title ?? message.text), ["ExampleApp organizes projects.", "Summary"])
+})
+
+test("finished streams rebuild each provider's answer, citations and failures", async () => {
+  const { streamedResponse, providerResult } = await modulePromise
+  const sse = events => events.map(event => `event: x\ndata: ${JSON.stringify(event)}\n\n`).join("")
+  const openai = streamedResponse("openai", sse([
+    { type: "response.output_text.delta", delta: "Hi" },
+    { type: "response.completed", response: { status: "completed", output: [{ content: [{ type: "output_text", text: "Hi",
+      annotations: [{ type: "url_citation", title: "Source", url: "https://source.test/" }] }] }] } }
+  ]))
+  assert.deepEqual(providerResult("openai", openai), { text: "Hi", sources: [{ title: "Source", url: "https://source.test/" }] })
+  assert.throws(() => streamedResponse("openai", sse([{ type: "response.output_text.delta", delta: "Hi" }])), /ended before/)
+  const anthropic = streamedResponse("anthropic", sse([
+    { type: "content_block_start", index: 0, content_block: { type: "server_tool_use", id: "tool" } },
+    { type: "content_block_start", index: 1, content_block: { type: "text", text: "" } },
+    { type: "content_block_delta", index: 1, delta: { type: "text_delta", text: "Cited " } },
+    { type: "content_block_delta", index: 1, delta: { type: "citations_delta", citation: { type: "web_search_result_location", title: "Source", url: "https://source.test/" } } },
+    { type: "content_block_delta", index: 1, delta: { type: "text_delta", text: "answer" } },
+    { type: "message_delta", delta: { stop_reason: "end_turn" } }
+  ]))
+  assert.deepEqual(providerResult("anthropic", anthropic), { text: "Cited answer", sources: [{ title: "Source", url: "https://source.test/" }] })
+  assert.throws(() => providerResult("anthropic", streamedResponse("anthropic", sse([{ type: "message_delta", delta: { stop_reason: "max_tokens" } }]))), /did not complete/)
+  assert.throws(() => streamedResponse("compatible", sse([[{ error: { message: "High\ndemand" } }]])), /Provider: High demand/)
+  assert.throws(() => streamedResponse("anthropic", sse([{ type: "error", error: { type: "overloaded_error", message: "Overloaded" } }])), /Overloaded/)
+  assert.throws(() => providerResult("compatible", streamedResponse("compatible", sse([{ choices: [{ delta: { content: "Cut" }, finish_reason: "length" }] }]))), /did not complete/)
 })
 
 test("a failed explanation keeps the summary that did land, and Retry asks only for the explanation", async () => {

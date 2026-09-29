@@ -160,10 +160,10 @@ export class AddonSync {
       }),
       hasAddonSecret: async (addon, field, endpoint, localOnly) =>
         (localOnly || !await this.vault.enabled() ? this.local : this.synced).configured(addon, field, endpoint),
-      requestAddonConnection: async (manifest, options, connection, request, signal, localOnly) => {
-        if (localOnly || !await this.vault.enabled()) return this.local.request(manifest, options, connection, request, signal)
+      requestAddonConnection: async (manifest, options, connection, request, signal, localOnly, onChunk) => {
+        if (localOnly || !await this.vault.enabled()) return this.local.request(manifest, options, connection, request, signal, onChunk)
         await this.approved(manifest, options, connection)
-        return this.synced.request(manifest, options, connection, request, signal)
+        return this.synced.request(manifest, options, connection, request, signal, onChunk)
       }
     }
   }

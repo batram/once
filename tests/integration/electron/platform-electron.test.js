@@ -78,6 +78,42 @@ test("serializes fetch requests through the preload bridge", async () => {
   assert.deepEqual(await response.json(), { ok: true })
 })
 
+test("a streamed bridge fetch reads its body as main sends it, even a piece that beats the head", async () => {
+  const { bridgeStreamingFetch } = require("@once/platform-electron/fetch")
+  const handlers = new Set()
+  const cancelled = []
+  const emit = (message) => { for (const handler of handlers) handler(message) }
+  const piece = (text) => new TextEncoder().encode(text)
+  let requestId
+  const bridge = {
+    async fetch(request) {
+      requestId = request.requestId
+      assert.equal(request.stream, true)
+      emit({ requestId, chunk: piece("data: one\n") })
+      emit({ requestId: "someone-else", chunk: piece("not ours") })
+      return { status: 200, statusText: "OK", headers: [["content-type", "text/event-stream"]] }
+    },
+    async cancelFetch(id) { cancelled.push(id) },
+    onFetchChunk(handler) { handlers.add(handler); return () => handlers.delete(handler) }
+  }
+  const response = await bridgeStreamingFetch(bridge, "https://example.com/stream", { method: "POST", body: "{}" })
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  assert.equal(decoder.decode((await reader.read()).value), "data: one\n")
+  emit({ requestId, chunk: piece("data: two\n") })
+  emit({ requestId, done: true })
+  assert.equal(decoder.decode((await reader.read()).value), "data: two\n")
+  assert.equal((await reader.read()).done, true)
+  assert.equal(handlers.size, 0, "the last finished body stops listening")
+
+  const second = await bridgeStreamingFetch(bridge, "https://example.com/stream", { method: "POST", body: "{}" })
+  await second.body.cancel()
+  assert.deepEqual(cancelled, [requestId], "cancelling the body cancels the request in main")
+  const failing = await bridgeStreamingFetch(bridge, "https://example.com/stream", { method: "POST", body: "{}" })
+  emit({ requestId, error: "Response is too large" })
+  await assert.rejects(failing.text(), /too large/)
+})
+
 const nextTurn = () => new Promise((resolve) => setImmediate(resolve))
 
 test("rejects a local-looking sync target before constructing PouchDB", () => {

@@ -26,6 +26,20 @@ test("host injects bound credentials and preserves status while redacting echoed
   assert.deepEqual(result.headers, { "content-type": "text/plain;charset=UTF-8", "retry-after": "15" })
 })
 
+test("a streamed body reaches onChunk as it arrives, redacted even where the token straddles two pieces", async () => {
+  const pieces = ["data: a\n", "leak abc-se", "cret here\n", "data: abc-secret", " end\n"]
+  const { connections } = fixture(async () => new Response(new ReadableStream({
+    start(controller) { for (const piece of pieces) controller.enqueue(new TextEncoder().encode(piece)); controller.close() }
+  }), { headers: { "content-type": "text/event-stream" } }))
+  await connections.save(manifest.id, "token", options.endpoint, "abc-secret")
+  const chunks = []
+  const result = await connections.request(manifest, options, "provider", { method: "POST", body: "{}" }, undefined, text => chunks.push(text))
+  assert.equal(result.text, "data: a\nleak [redacted] here\ndata: [redacted] end\n")
+  assert.equal(chunks.join(""), result.text)
+  assert.ok(chunks.length > 1, "text arrives in pieces, not only at the end")
+  assert.ok(chunks.every(chunk => !chunk.includes("abc") && !chunk.includes("cret")), "no piece carries part of the token")
+})
+
 test("endpoint changes and undeclared connections fail before network access", async () => {
   let requests = 0
   const { connections } = fixture(async () => { requests++; return new Response("ok") })

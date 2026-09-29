@@ -21,8 +21,9 @@ export interface SandboxTransport {
 }
 
 export interface SandboxHostOperations {
-  /** Runs one operation the script asked for; throws to refuse it. The value answers ops that asked. */
-  perform(op: SandboxOperation, signal?: AbortSignal): unknown | Promise<unknown>
+  /** Runs one operation the script asked for; throws to refuse it. The value answers ops that asked.
+   *  A streamed `request` hands its body to `onChunk` as it arrives. */
+  perform(op: SandboxOperation, signal?: AbortSignal, onChunk?: (text: string) => void): unknown | Promise<unknown>
   report(message: string): void
 }
 
@@ -261,7 +262,7 @@ export class AddonSandboxSession {
           pending?.controller.signal.throwIfAborted()
           if (message.requestId !== undefined && !this.pending.has(message.requestId)) throw new Error("Request is no longer active")
         }
-        if (op.name === "request") return this.connectionOperation(op, pending?.controller.signal)
+        if (op.name === "request") return this.connectionOperation(op, pending?.controller.signal, opId)
         if (op.name === "tray.update") {
           if (!pending?.update) throw new Error("only a tray request can show an update")
           return pending.update(op.view)
@@ -278,7 +279,7 @@ export class AddonSandboxSession {
       })
   }
 
-  private async connectionOperation(op: SandboxOperation, signal?: AbortSignal): Promise<unknown> {
+  private async connectionOperation(op: Extract<SandboxOperation, { name: "request" }>, signal?: AbortSignal, opId?: number): Promise<unknown> {
     if (this.connectionOperations.size >= CONNECTION_LIMIT) throw new Error(`${CONNECTION_LIMIT} connection requests are already running`)
     const controller = new AbortController()
     const abort = () => controller.abort()
@@ -290,7 +291,10 @@ export class AddonSandboxSession {
       controller.signal.addEventListener("abort", () => reject(new Error("Request cancelled or timed out")), { once: true })
       timer = setTimeout(abort, SANDBOX_TIMEOUTS.trayMs)
     })
-    try { return await Promise.race([this.host.perform(op, controller.signal), cancelled]) }
+    const onChunk = op.stream && opId !== undefined
+      ? (text: string) => { if (!this.closed && !controller.signal.aborted) this.transport.post({ type: "opProgress", opId, text }) }
+      : undefined
+    try { return await Promise.race([this.host.perform(op, controller.signal, onChunk), cancelled]) }
     finally {
       clearTimeout(timer)
       signal?.removeEventListener("abort", abort)

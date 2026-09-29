@@ -3,6 +3,7 @@ import {
   ElectronAdoptedExtensionSettings,
   ELECTRON_IPC,
   ElectronBridge,
+  ElectronFetchChunk,
   ElectronFetchRequest,
   ElectronFindResult,
   ElectronFocusSurface,
@@ -32,6 +33,11 @@ const bridge: ElectronBridge = {
     return ipcRenderer.invoke(ELECTRON_IPC.fetch, request)
   },
   cancelFetch: requestId => ipcRenderer.invoke(ELECTRON_IPC.cancelFetch, requestId),
+  onFetchChunk(handler) {
+    const listener = (_event: Electron.IpcRendererEvent, chunk: ElectronFetchChunk) => handler(chunk)
+    ipcRenderer.on(ELECTRON_IPC.fetchChunk, listener)
+    return () => ipcRenderer.removeListener(ELECTRON_IPC.fetchChunk, listener)
+  },
   settings: {
     getSyncUrl: () => ipcRenderer.invoke(ELECTRON_IPC.getSyncUrl),
     setSyncUrl: (value) => ipcRenderer.invoke(ELECTRON_IPC.setSyncUrl, value),

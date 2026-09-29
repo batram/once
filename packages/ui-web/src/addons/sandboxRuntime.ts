@@ -23,7 +23,7 @@ class RuntimeState {
   settings: Record<string, unknown> = {}
   readonly collectors = new Map<string, CollectorHandlers>()
   readonly settingsListeners: SettingsListener[] = []
-  readonly awaitingOps = new Map<number, { requestId?: number; resolve(value: unknown): void; reject(error: Error): void }>()
+  readonly awaitingOps = new Map<number, { requestId?: number; resolve(value: unknown): void; reject(error: Error): void; onChunk?(text: string): void }>()
   readonly storyRequests = new WeakMap<StoryView, number>()
   nextOp = 1
 }
@@ -32,10 +32,10 @@ function describe(error: unknown): string {
   return error instanceof Error ? `${error.name}: ${error.message}` : String(error)
 }
 
-function askOperation(state: RuntimeState, post: (message: SandboxToHost) => void, operation: SandboxOperation, requestId?: number): Promise<unknown> {
+function askOperation(state: RuntimeState, post: (message: SandboxToHost) => void, operation: SandboxOperation, requestId?: number, onChunk?: (text: string) => void): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const opId = state.nextOp++
-    state.awaitingOps.set(opId, { resolve, reject, requestId })
+    state.awaitingOps.set(opId, { resolve, reject, requestId, onChunk })
     post({ type: "op", opId, requestId, op: operation })
   })
 }
@@ -107,13 +107,16 @@ function work(message: HostToSandbox, state: RuntimeState, post: (message: Sandb
       if (!state.tray) throw new Error("The addon registered no tray handler")
       const controller = new AbortController()
       state.controllers.set(message.requestId, controller)
-      const ask = (operation: SandboxOperation) => {
+      const ask = (operation: SandboxOperation, onChunk?: (text: string) => void) => {
         controller.signal.throwIfAborted()
-        return askOperation(state, post, operation, message.requestId)
+        return askOperation(state, post, operation, message.requestId, onChunk)
       }
       const context: AddonTrayContext = {
         signal: controller.signal,
-        request: (connection, request) => ask({ name: "request", href: "", connection, request }) as Promise<AddonResponse>,
+        request: (connection, request, options) => {
+          const onChunk = typeof options?.onChunk === "function" ? options.onChunk : undefined
+          return ask({ name: "request", href: "", connection, request, ...(onChunk ? { stream: true as const } : {}) }, onChunk) as Promise<AddonResponse>
+        },
         getStoryContent: () => ask({ name: "story.content", href: message.story.href }) as Promise<AddonStoryContent>,
         update: view => {
           if (!controller.signal.aborted) post({ type: "op", requestId: message.requestId, op: { name: "tray.update", href: message.story.href, view } })
@@ -194,6 +197,9 @@ export function startSandboxRuntime(scope: Window): void {
       state.awaitingOps.delete(message.opId)
       if (message.ok) waiting.resolve(message.value)
       else waiting.reject(new Error(message.error ?? "refused"))
+    } else if (message.type === "opProgress") {
+      // A throwing callback is the addon's own bug; the request carries on.
+      try { state.awaitingOps.get(message.opId)?.onChunk?.(message.text) } catch (error) { console.error(error) }
     } else {
       if (message.type === "invoke" || message.type === "tray") state.storyRequests.set(message.story, message.requestId)
       if (message.type === "badges") {
