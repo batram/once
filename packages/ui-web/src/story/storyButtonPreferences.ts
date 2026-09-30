@@ -2,9 +2,9 @@ const STORAGE_KEY = "once:story-buttons"
 type Platform = "mobile" | "desktop"
 const buttons = new Map<string, string>([
   ["read", "Skip / mark unread"], ["bookmark", "Bookmark"],
-  ["filter", "Filter source"], ["purge", "Purge story (development)"],
-  ["builtin/outline", "Open in reader"]
+  ["filter", "Filter source"], ["builtin/outline", "Open in reader"]
 ])
+// The purge switch is registered by the dev channel alone; see mountOnceUi.
 const listeners = new Set<() => void>()
 
 export function registerStoryButton(id: string, label: string): () => void {

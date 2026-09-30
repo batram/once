@@ -15,6 +15,7 @@ import { setSelectedUrl } from "./story/selectedStoryToggle"
 import * as StoryList from "./story/storyList"
 import { updateSelectedStory } from "./story/selectedStory"
 import { StoryListItem } from "./story/StoryListItem"
+import { registerStoryButton } from "./story/storyButtonPreferences"
 import { SwipeConfig } from "./story/swipe/geometry"
 import { ReaderView } from "./reader/ReaderView"
 import { installStoredContentSaver } from "./reader/storedContent"
@@ -102,6 +103,7 @@ export async function mountOnceUi(
   setShell(options.shell ?? "electron")
   setOnceClient(client)
   StoryListItem.devToolsEnabled = options.buildChannel === "dev"
+  if (StoryListItem.devToolsEnabled) registerStoryButton("purge", "Purge story (development)")
   ReaderView.mount(client)
   installStoredContentSaver(client, {
     reportError: (message, details) => LoaderInsights.showErrorMessage(message, details)
