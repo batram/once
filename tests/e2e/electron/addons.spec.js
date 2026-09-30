@@ -64,7 +64,7 @@ test("a declarative add-on contributes a row button, a badge, a swipe action, an
     }, JSON.stringify(MANIFEST(origin), null, 2))
     await window.getByTestId("save-addons").evaluate((button) => button.click())
     await expect(window.locator('[data-settings-target="addons"] .settings_section_summary'))
-      .toHaveText("1 of 1 enabled")
+      .toHaveText("1 add-on")
 
     await showAllStories(window)
     const alpha = window.locator(`#stories story-item[data-href="${urls.alpha}"]`)
@@ -94,7 +94,9 @@ test("a declarative add-on contributes a row button, a badge, a swipe action, an
     }, JSON.stringify(MANIFEST(origin).map((entry) => ({ enabled: false, ...entry })), null, 2))
     await window.getByTestId("save-addons").evaluate((button) => button.click())
     await expect(window.locator('[data-settings-target="addons"] .settings_section_summary'))
-      .toHaveText("0 of 1 enabled")
+      .toHaveText("1 add-on")
+    await expect(window.locator('#addon_installed [data-addon-id="harness-archive"]'))
+      .toHaveAttribute("data-enabled", "false")
     await showAllStories(window)
     await expect(alpha.locator(".addon_btn")).toHaveCount(0)
     await expect(alpha.locator(".addon_badge")).toHaveCount(0)
@@ -132,7 +134,7 @@ test("a scripted add-on runs in the sandbox: computed badges, message actions, s
     }, JSON.stringify(SCRIPTED_MANIFEST(origin), null, 2))
     await window.getByTestId("save-addons").evaluate((button) => button.click())
     await expect(window.locator('[data-settings-target="addons"] .settings_section_summary'))
-      .toHaveText("1 of 1 enabled")
+      .toHaveText("1 add-on")
 
     await showAllStories(window)
     const alpha = window.locator(`#stories story-item[data-href="${urls.alpha}"]`)
@@ -185,7 +187,7 @@ test("a collector add-on turns a JSON feed into stories with its own badge", asy
     }, JSON.stringify(COLLECTOR_MANIFEST(origin), null, 2))
     await window.getByTestId("save-addons").evaluate((button) => button.click())
     await expect(window.locator('[data-settings-target="addons"] .settings_section_summary'))
-      .toHaveText("1 of 1 enabled")
+      .toHaveText("1 add-on")
 
     // The fixture's sources document plus one plain source; the collector is
     // detected from the add-on's pattern, not named.
@@ -284,7 +286,7 @@ test("capabilities: a panel action fetches within its grant and stores, and opti
     }, JSON.stringify(CAPABLE_MANIFEST(origin), null, 2))
     await window.getByTestId("save-addons").evaluate((button) => button.click())
     await expect(window.locator('[data-settings-target="addons"] .settings_section_summary'))
-      .toHaveText("1 of 1 enabled")
+      .toHaveText("1 add-on")
 
     await showAllStories(window)
     const alpha = window.locator(`#stories story-item[data-href="${urls.alpha}"]`)

@@ -50,7 +50,7 @@ test("a scripted add-on runs in the mobile sandbox", async ({ page }) => {
   await save.click()
   await expect(save).toBeEnabled()
   await expect(page.locator('[data-settings-target="addons"] .settings_section_summary'))
-    .toHaveText("1 of 1 enabled")
+    .toHaveText("1 add-on")
 
   await page.getByTestId("stories-menu").click()
   const title = await story.locator("a.title").innerText()

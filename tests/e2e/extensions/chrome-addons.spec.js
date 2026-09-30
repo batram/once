@@ -61,7 +61,7 @@ test("a scripted add-on runs in Chrome's sandbox page", async () => {
     }]))
     await page.getByTestId("save-addons").click()
     await expect(page.locator('[data-settings-target="addons"] .settings_section_summary'))
-      .toHaveText("1 of 1 enabled")
+      .toHaveText("1 add-on")
 
     await page.getByTestId("stories-menu").click()
     await page.getByTestId("reload-stories").click()

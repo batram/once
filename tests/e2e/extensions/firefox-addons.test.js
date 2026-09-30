@@ -102,7 +102,7 @@ test("Firefox runs scripted add-ons in its packaged sandbox without setup", { ti
     await waitFor(
       until.elementTextIs(
         driver.findElement(By.css('[data-settings-target="addons"] .settings_section_summary')),
-        "1 of 1 enabled"
+        "1 add-on"
       ),
       10_000, "scripted add-on enabled"
     )
