@@ -22,6 +22,11 @@ export interface PullToRefreshOptions {
   threshold?: number
   // Upper bound of the (damped) travel — the list can be pulled this far.
   maxPull?: number
+  // How long (ms) the spinner strip may stay open on a slow refresh before it
+  // folds away on its own. The refresh itself carries on; whoever asked for
+  // the cap reports its progress elsewhere. Unset keeps the strip open until
+  // the refresh settles.
+  spinTimeout?: number
 }
 
 export function attachPullToRefresh(
@@ -95,13 +100,25 @@ export function attachPullToRefresh(
   }
 
   const runRefresh = async (): Promise<void> => {
+    // A capped spinner closes early; the strip must not close a second time
+    // when the refresh finally settles, or it would re-run the fold animation.
+    let closed = false
+    const closeOnce = (): void => {
+      if (closed) return
+      closed = true
+      close()
+    }
+    const spinCap = options.spinTimeout === undefined
+      ? null
+      : setTimeout(closeOnce, options.spinTimeout)
     try {
       await onRefresh()
     } catch {
       // reload() surfaces its own errors; the gesture only needs to close.
     } finally {
+      if (spinCap !== null) clearTimeout(spinCap)
       refreshing = false
-      close()
+      closeOnce()
     }
   }
 

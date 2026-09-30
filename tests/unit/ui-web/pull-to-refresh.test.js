@@ -149,3 +149,63 @@ test("a horizontal gesture cannot turn into pull-to-refresh", () => {
     assert.equal(refreshes, 0)
   })
 })
+
+test("a spin timeout folds the strip away while the refresh carries on", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] })
+  await withDom(async (window, attachPullToRefresh) => {
+    const stories = document.querySelector("#stories")
+    let finish
+    const refresh = new Promise((resolve) => { finish = resolve })
+    attachPullToRefresh(stories, () => refresh, { spinTimeout: 3000 })
+    const indicator = document.querySelector(".ptr-indicator")
+    const icon = indicator.querySelector(".ptr-icon")
+
+    stories.dispatchEvent(touch(window, "touchstart", 100, 100))
+    stories.dispatchEvent(touch(window, "touchmove", 100, 300))
+    stories.dispatchEvent(touch(window, "touchend", 100, 300))
+    assert.ok(icon.classList.contains("rotating"))
+
+    // linkedom serialises inline styles to the attribute but does not reflect
+    // them back on read, so the checks go through the attribute.
+    const height = () => /height:\s*([^;]+)/.exec(indicator.getAttribute("style") ?? "")?.[1]
+    t.mock.timers.tick(2999)
+    assert.notEqual(height(), "0px", "still open before the cap")
+    t.mock.timers.tick(1)
+    assert.equal(height(), "0px", "closes at the cap")
+
+    // A second pull while the first refresh is still running is ignored.
+    stories.dispatchEvent(touch(window, "touchstart", 100, 100))
+    stories.dispatchEvent(touch(window, "touchmove", 100, 300))
+    stories.dispatchEvent(touch(window, "touchend", 100, 300))
+    assert.equal(height(), "0px", "no re-open mid-refresh")
+
+    indicator.style.height = "10px"
+    finish()
+    await refresh
+    await Promise.resolve()
+    assert.equal(height(), "10px", "settling does not fold a second time")
+  })
+})
+
+test("without a spin timeout the strip stays open until the refresh settles", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] })
+  await withDom(async (window, attachPullToRefresh) => {
+    const stories = document.querySelector("#stories")
+    let finish
+    const refresh = new Promise((resolve) => { finish = resolve })
+    attachPullToRefresh(stories, () => refresh)
+    const indicator = document.querySelector(".ptr-indicator")
+
+    stories.dispatchEvent(touch(window, "touchstart", 100, 100))
+    stories.dispatchEvent(touch(window, "touchmove", 100, 300))
+    stories.dispatchEvent(touch(window, "touchend", 100, 300))
+    const height = () => /height:\s*([^;]+)/.exec(indicator.getAttribute("style") ?? "")?.[1]
+    t.mock.timers.tick(60000)
+    assert.notEqual(height(), "0px", "no cap, no early close")
+
+    finish()
+    await refresh
+    await Promise.resolve()
+    assert.equal(height(), "0px")
+  })
+})

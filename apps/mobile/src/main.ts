@@ -24,6 +24,7 @@ import { mobileAddonConversations } from "./addonConversations"
 import { installReaderTtsHostBridge } from "./readerTtsHostBridge"
 import { installReaderTtsControls } from "./readerTtsControls"
 import { MobileReadingController } from "./readingController"
+import { bindReloadStatus, RELOAD_SPIN_TIMEOUT_MS } from "./reloadStatus"
 import {
   loadMobilePickerInjection,
   MobileSourcePicker
@@ -37,9 +38,10 @@ declare const __ONCE_MOBILE_E2E__: boolean
 
 const MOBILE_SCROLLBAR_IDLE_DELAY_MS = 650
 
+// "done" is a plain notice: shown like "loading" but without the spinner.
 function showStartupState(
   message: string,
-  state: "loading" | "error" | "ready" = "loading"
+  state: "loading" | "error" | "ready" | "done" = "loading"
 ): void {
   // Default only before navigation has selected a panel. Startup can finish
   // after a tab switch; status updates must not navigate the user back.
@@ -56,6 +58,17 @@ function showStartupState(
   text.textContent = message
   retry.hidden = state !== "error"
   retry.onclick = state === "error" ? () => location.reload() : null
+}
+
+// The story-loading stage of startup. Bound before the UI mounts so the first,
+// background story load reports through the pill the same way a later reload
+// does. A startup failure owns the pill for good.
+function beginStoryLoading(client: Parameters<typeof bindReloadStatus>[0]): void {
+  showStartupState("Loading stories…")
+  bindReloadStatus(client, (message, state) => {
+    if (document.body.dataset.onceStage === "error") return
+    showStartupState(message, state)
+  })
 }
 
 function installTransientScrollbars(): void {
@@ -168,8 +181,9 @@ async function startMobileApp(): Promise<void> {
     })
   }
   document.body.dataset.onceStage = "ui-mount"
-  showStartupState("Loading stories…")
+  beginStoryLoading(app.client)
   await mountOnceUi(app.client, {
+    reloadSpinTimeout: RELOAD_SPIN_TIMEOUT_MS,
     shell: "mobile",
     // A static asset beside the app: Capacitor's local server answers for
     // any frame, and the sandboxed frame's opaque origin keeps it apart.

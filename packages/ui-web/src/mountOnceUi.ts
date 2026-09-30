@@ -44,6 +44,11 @@ export interface MountOnceUiOptions {
   onMenuCollapsedChanged?: (collapsed: boolean) => void
   initialStoryLoad?: "network" | "cache" | "disabled"
   backgroundInitialStoryLoad?: boolean
+  /**
+   * Caps the reload button spin and the pull-to-refresh strip at this many
+   * ms. For shells that show reload progress somewhere calmer than a spinner.
+   */
+  reloadSpinTimeout?: number
   updater?: AppUpdater
   sourcePicker?: boolean
   /**
@@ -177,7 +182,7 @@ export async function mountOnceUi(
     }, options.browserShortcuts ?? [])
   }
 
-  StoryList.init(client)
+  StoryList.init(client, { spinTimeout: options.reloadSpinTimeout })
   PanelNavigation.init()
   SidebarFilters.init(client)
   LoaderInsights.init(client, {

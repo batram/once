@@ -20,9 +20,17 @@ export class DataChangeEvent extends Event {
 }
 
 let onceClient: OnceClient
+// Shells that report reload progress elsewhere cap the spinners at this many
+// ms; the reload itself runs to completion either way.
+let spinTimeout: number | undefined
 
-export function init(client: OnceClient): void {
+export interface StoryListOptions {
+  spinTimeout?: number
+}
+
+export function init(client: OnceClient, options: StoryListOptions = {}): void {
   onceClient = client
+  spinTimeout = options.spinTimeout
   const reload_stories_btn = document.querySelector<HTMLElement>(
     "#reload_stories_btn"
   )
@@ -94,7 +102,7 @@ export function init(client: OnceClient): void {
   // pointer users, who still have the reload button above).
   const stories_el = document.querySelector<HTMLElement>("#stories")
   if (stories_el) {
-    attachPullToRefresh(stories_el, () => reload("network-only"))
+    attachPullToRefresh(stories_el, () => reload("network-only"), { spinTimeout })
   }
 }
 
@@ -293,10 +301,15 @@ async function reload(policy: CachePolicy = "cache-first"): Promise<void> {
   const btnIcon = btn?.querySelector(".icon--reload")
   btn?.classList.add("disabled")
   btnIcon?.classList.add("rotating")
+  // The button stays disabled for the whole reload; only its spin is capped.
+  const spinCap = spinTimeout === undefined
+    ? null
+    : setTimeout(() => btnIcon?.classList.remove("rotating"), spinTimeout)
 
   try {
     await onceClient.reloadStories(policy)
   } finally {
+    if (spinCap !== null) clearTimeout(spinCap)
     btn?.classList.remove("disabled")
     btnIcon?.classList.remove("rotating")
   }
