@@ -42,6 +42,7 @@ export interface MountOnceUiOptions {
   showHoveredLinks?: boolean
   onMenuCollapsedChanged?: (collapsed: boolean) => void
   initialStoryLoad?: "network" | "cache" | "disabled"
+  backgroundInitialStoryLoad?: boolean
   updater?: AppUpdater
   sourcePicker?: boolean
   /**
@@ -202,14 +203,21 @@ export async function mountOnceUi(
     StorySearch.searchStories(query)
   })
 
-  // Cache-first: a launch shows what is already stored and only fetches the
-  // sources whose window has passed, so opening the app is not a thundering
-  // herd on every feed the user follows.
+  await loadInitialStories(client, options)
+}
+
+async function loadInitialStories(client: OnceClient, options: MountOnceUiOptions): Promise<void> {
+  // Cache-first: a launch only fetches sources whose window has passed.
   const initialStoryLoad = options.initialStoryLoad || "cache"
   if (initialStoryLoad !== "disabled") {
-    await client.reloadStories(
+    const loading = client.reloadStories(
       initialStoryLoad === "cache" ? "cache-first" : "network-only"
     )
+    if (options.backgroundInitialStoryLoad) {
+      void loading.catch((error) => console.error("Initial story load failed", error))
+    } else {
+      await loading
+    }
   }
 }
 

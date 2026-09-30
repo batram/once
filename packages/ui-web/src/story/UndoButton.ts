@@ -33,7 +33,7 @@ export class UndoButton {
   private constructor(private readonly history: StoryHistory) {
     this.button = document.createElement("button")
     this.button.type = "button"
-    this.button.classList.add("undo_button")
+    this.button.classList.add("button", "undo_button")
     this.button.dataset.testid = "undo-button"
     this.button.setAttribute("aria-label", "Undo")
     this.button.title = "Undo (hold for a list)"

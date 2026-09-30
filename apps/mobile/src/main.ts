@@ -138,8 +138,8 @@ async function startMobileApp(): Promise<void> {
   const extensionPages = bindExtensionPageFrame(browserSurface, open => reading.setExtensionPageOpen(open))
   if (Capacitor.getPlatform() === "android") {
     await App.addListener("backButton", () => {
-      void extensionPages.close().then((closed) => closed || reading.handleBack()).then((handled) => {
-        if (!handled) void App.exitApp()
+      void extensionPages.close().then((closed) => closed || reading.handleBack()).then(async (handled) => {
+        if (!handled) await app.client.settledStoryWrites().then(() => App.exitApp())
       })
     })
   }
@@ -186,6 +186,7 @@ async function startMobileApp(): Promise<void> {
     // shell has no page of its own to run them in.
     extensionSettings: Capacitor.isNativePlatform(),
     initialStoryLoad: __ONCE_MOBILE_E2E__ ? "disabled" : "cache",
+    backgroundInitialStoryLoad: true,
     // Settings participates in the same back stack as the hardware key, so the
     // chevron stays live on the section index and leaves the panel from there.
     exitSettings: () => void reading.handleBack()

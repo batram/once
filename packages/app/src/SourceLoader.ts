@@ -17,6 +17,7 @@ export interface SourceLoadOptions {
 }
 
 export class SourceLoader {
+  private static readonly requestTimeoutMs = 30_000
   constructor(
     private readonly fetch: typeof globalThis.fetch,
     private readonly cache: CacheStorePort | undefined,
@@ -63,7 +64,25 @@ export class SourceLoader {
     // stale fallback, since a copy from when the token existed would hide it.
     const secret = await readSourceSecret(this.secrets, source)
     try {
-      const response = await this.fetch(url, sourceRequestInit(source.auth, secret))
+      const controller = new AbortController()
+      let timeout: ReturnType<typeof setTimeout> | undefined
+      let response: Response
+      try {
+        response = await Promise.race([
+          this.fetch(url, {
+            ...sourceRequestInit(source.auth, secret),
+            signal: controller.signal
+          }),
+          new Promise<Response>((_, reject) => {
+            timeout = setTimeout(() => {
+              controller.abort()
+              reject(new Error(`Source request timed out after ${SourceLoader.requestTimeoutMs / 1000} seconds`))
+            }, SourceLoader.requestTimeoutMs)
+          })
+        ])
+      } finally {
+        if (timeout) clearTimeout(timeout)
+      }
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }

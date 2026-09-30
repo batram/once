@@ -6,10 +6,11 @@ import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.FrameLayout;
-import android.widget.TextView;
+
+import androidx.appcompat.widget.AppCompatTextView;
 
 /** Small native overlay: updating progress never changes the browser viewport. */
-final class ReadingLoadStatus extends TextView {
+final class ReadingLoadStatus extends AppCompatTextView {
     ReadingLoadStatus(Context context) {
         super(context);
         setTextSize(12);

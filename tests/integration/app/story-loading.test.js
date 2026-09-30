@@ -619,7 +619,9 @@ test("a session source asks the shell to send its cookies", async () => {
   const app = createOnceApp(fake.ports)
   await app.start()
   await app.client.reloadStories("network-only")
-  assert.deepEqual(inits, [{ credentials: "include" }])
+  assert.equal(inits.length, 1)
+  assert.equal(inits[0].credentials, "include")
+  assert.ok(inits[0].signal instanceof AbortSignal)
 })
 
 test("a token source sends this device's stored token, and says when there is none", async () => {
@@ -640,7 +642,9 @@ test("a token source sends this device's stored token, and says when there is no
   app.client.subscribe("sourceErrorsChanged", (payload) => errors.push(payload.errors))
   await app.start()
   await app.client.reloadStories("network-only")
-  assert.deepEqual(inits, [{ headers: { "X-Api-Key": "key-123" } }])
+  assert.equal(inits.length, 1)
+  assert.deepEqual(inits[0].headers, { "X-Api-Key": "key-123" })
+  assert.ok(inits[0].signal instanceof AbortSignal)
   assert.equal(await app.client.getSourceSecret(sourceId), "key-123")
 
   // Removing the token turns the next load into a source error, not a request:

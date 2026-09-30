@@ -127,11 +127,14 @@ test("mobile shell is responsive and hides unavailable capabilities", async ({ p
     stories.replaceChildren(finalStory)
     stories.scrollTop = stories.scrollHeight
     const menu = document.querySelector("#menu")
-    return menu.getBoundingClientRect().top -
-      finalStory.getBoundingClientRect().bottom
+    return {
+      gap: menu.getBoundingClientRect().top -
+        finalStory.getBoundingClientRect().bottom,
+      clearance: parseFloat(getComputedStyle(stories).paddingBottom)
+    }
   })
-  expect(trailingStorySpace).toBeGreaterThanOrEqual(0)
-  expect(trailingStorySpace).toBeLessThanOrEqual(1)
+  expect(trailingStorySpace.gap).toBeGreaterThanOrEqual(trailingStorySpace.clearance - 1)
+  expect(trailingStorySpace.gap).toBeLessThanOrEqual(trailingStorySpace.clearance + 1)
 })
 
 test("mobile tabs keep full icons, a separate selection pill, and aligned status badges", async ({ page }) => {

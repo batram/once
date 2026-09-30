@@ -303,17 +303,17 @@ export class AppRuntime {
     const groupedSources = groupedStorySources(storySources)
     this.updateSourceMenu(storySources)
     const processingSources = new Map<string, ProcessingSource>()
-    const promises: Promise<void>[] = []
+    const loads: Array<() => Promise<void>> = []
 
     for (const group of groupedSources) {
       const loadable = group.sources.filter((item) => item.enabled !== false &&
         (!only || item.id === only))
       for (const source of loadable) {
         const sourceInfo = this.sourceLoader.describe(source)
-        processingSources.set(source.id, sourceInfo)
-        this.emitLoader(processingSources)
-        promises.push(
-          this.sourceLoader.load(source, { policy, cacheMinutes: cacheWindow(source) })
+        loads.push(() => {
+          processingSources.set(source.id, sourceInfo)
+          this.emitLoader(processingSources)
+          return this.sourceLoader.load(source, { policy, cacheMinutes: cacheWindow(source) })
             .then(async (stories) => {
               await this.processStoryInput(stories, group.name, source)
             })
@@ -324,12 +324,16 @@ export class AppRuntime {
               processingSources.delete(source.id)
               this.emitLoader(processingSources)
             })
-        )
+        })
       }
     }
 
-    await Promise.all(promises)
-    if (promises.length) this.events.publish("cacheStatusChanged", {})
+    let nextLoad = 0
+    const workers = Array.from({ length: Math.min(6, loads.length) }, async () => {
+      while (nextLoad < loads.length) await loads[nextLoad++]()
+    })
+    await Promise.all(workers)
+    if (loads.length) this.events.publish("cacheStatusChanged", {})
     this.events.publish("loaderChanged", {
       processing: [],
       visible: false

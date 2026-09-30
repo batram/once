@@ -295,10 +295,6 @@ async function reload(policy: CachePolicy = "cache-first"): Promise<void> {
   btnIcon?.classList.add("rotating")
 
   try {
-    document.querySelectorAll("#stories .story").forEach((x) => {
-      x.outerHTML = ""
-    })
-
     await onceClient.reloadStories(policy)
   } finally {
     btn?.classList.remove("disabled")
