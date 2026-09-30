@@ -6,7 +6,10 @@ const ts = require("typescript")
 
 const root = path.resolve(__dirname, "../../..")
 
-// Only a type import, so the module transpiles and loads on its own.
+const STORY_RELOAD_STARTED = "once:story-reload"
+
+// The only value import is the event name, so the module loads with a stub
+// in place of the ui-web package.
 function loadReloadStatus() {
   const source = fs.readFileSync(
     path.join(root, "apps/mobile/src/reloadStatus.ts"),
@@ -16,11 +19,13 @@ function loadReloadStatus() {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
   }).outputText
   const moduleObject = { exports: {} }
-  Function("exports", "module", "require", compiled)(moduleObject.exports, moduleObject, () => ({}))
+  Function("exports", "module", "require", compiled)(
+    moduleObject.exports, moduleObject, () => ({ STORY_RELOAD_STARTED })
+  )
   return moduleObject.exports
 }
 
-function fixture(t, options) {
+function fixture(t, options = {}) {
   t.mock.timers.enable({ apis: ["setTimeout"] })
   const { bindReloadStatus } = loadReloadStatus()
   const handlers = new Map()
@@ -30,17 +35,47 @@ function fixture(t, options) {
       return () => handlers.delete(event)
     }
   }
+  const reloadEvents = new EventTarget()
   const shown = []
-  const unbind = bindReloadStatus(client, (message, state) => shown.push([message, state]), options)
+  const unbind = bindReloadStatus(
+    client,
+    (message, state) => shown.push([message, state]),
+    { ...options, reloadEvents }
+  )
   const loader = (domains) => handlers.get("loaderChanged")({
     processing: domains.map((domain) => ({ domain, parserType: "rss" })),
     visible: domains.length > 0
   })
-  return { shown, loader, unbind, tick: (ms) => t.mock.timers.tick(ms) }
+  const start = (trigger) => reloadEvents.dispatchEvent(
+    new CustomEvent(STORY_RELOAD_STARTED, { detail: trigger })
+  )
+  return { shown, loader, start, unbind, tick: (ms) => t.mock.timers.tick(ms) }
 }
 
-test("a quick reload never reaches the status pill", (t) => {
-  const { shown, loader, tick } = fixture(t)
+test("a pull-to-refresh shows the pill at once and hands over to the sources", (t) => {
+  const { shown, loader, start, tick } = fixture(t)
+  start("pull")
+  assert.deepEqual(shown, [["Loading stories…", "loading"]])
+  loader(["a.example"])
+  assert.deepEqual(shown.at(-1), ["Loading 1 source: a.example", "loading"])
+  loader([])
+  assert.deepEqual(shown.at(-1), ["Stories updated", "done"])
+  tick(1500)
+  assert.deepEqual(shown.at(-1), ["Ready", "ready"])
+})
+
+test("a pull that finds nothing to load still settles the pill", (t) => {
+  const { shown, loader, start, tick } = fixture(t)
+  start("pull")
+  loader([])
+  assert.deepEqual(shown.at(-1), ["Stories updated", "done"])
+  tick(1500)
+  assert.deepEqual(shown.at(-1), ["Ready", "ready"])
+})
+
+test("a quick button reload never reaches the status pill", (t) => {
+  const { shown, loader, start, tick } = fixture(t)
+  start("button")
   loader(["a.example"])
   tick(2999)
   loader([])
@@ -48,8 +83,9 @@ test("a quick reload never reaches the status pill", (t) => {
   assert.deepEqual(shown, [])
 })
 
-test("a slow reload reports its sources after the spin timeout, then confirms and hides", (t) => {
-  const { shown, loader, tick } = fixture(t)
+test("a slow button reload reports its sources after the reveal delay, then confirms and hides", (t) => {
+  const { shown, loader, start, tick } = fixture(t)
+  start("button")
   loader(["a.example", "b.example"])
   tick(2999)
   assert.deepEqual(shown, [], "nothing before the timeout")
@@ -66,7 +102,7 @@ test("a slow reload reports its sources after the spin timeout, then confirms an
 })
 
 test("a reload starting inside the done notice takes the pill back over", (t) => {
-  const { shown, loader, tick } = fixture(t, { spinTimeout: 100, doneNotice: 500 })
+  const { shown, loader, tick } = fixture(t, { revealDelay: 100, doneNotice: 500 })
   loader(["a.example"])
   tick(100)
   loader([])
@@ -80,8 +116,8 @@ test("a reload starting inside the done notice takes the pill back over", (t) =>
   assert.deepEqual(shown.at(-1), ["Ready", "ready"])
 })
 
-test("the spin timeout is measured from the start of a pass, not from each change", (t) => {
-  const { shown, loader, tick } = fixture(t, { spinTimeout: 100 })
+test("the reveal delay is measured from the start of a pass, not from each change", (t) => {
+  const { shown, loader, tick } = fixture(t, { revealDelay: 100 })
   loader(["a.example"])
   tick(60)
   loader(["a.example", "b.example"])
@@ -90,10 +126,11 @@ test("the spin timeout is measured from the start of a pass, not from each chang
 })
 
 test("unbinding drops pending timers and the subscription", (t) => {
-  const { shown, loader, unbind, tick } = fixture(t, { spinTimeout: 100 })
+  const { shown, loader, start, unbind, tick } = fixture(t, { revealDelay: 100 })
   loader(["a.example"])
   unbind()
   tick(1000)
+  start("pull")
   assert.deepEqual(shown, [])
   assert.throws(() => loader([]), "the handler is gone")
 })

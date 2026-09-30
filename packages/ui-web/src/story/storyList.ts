@@ -64,7 +64,7 @@ export function init(client: OnceClient, options: StoryListOptions = {}): void {
   const keyboard = getKeyboardDispatcher()
   const reloadFromKeyboard = (policy: CachePolicy) => () => {
     if (reload_stories_btn?.classList.contains("disabled")) return
-    void reload(policy)
+    void reload(policy, "keyboard")
   }
   keyboard.register("stories.reload", reloadFromKeyboard("cache-first"))
   keyboard.register(
@@ -102,7 +102,7 @@ export function init(client: OnceClient, options: StoryListOptions = {}): void {
   // pointer users, who still have the reload button above).
   const stories_el = document.querySelector<HTMLElement>("#stories")
   if (stories_el) {
-    attachPullToRefresh(stories_el, () => reload("network-only"), { spinTimeout })
+    attachPullToRefresh(stories_el, () => reload("network-only", "pull"), { spinTimeout })
   }
 }
 
@@ -295,8 +295,16 @@ function refilter(): void {
     })
 }
 
-async function reload(policy: CachePolicy = "cache-first"): Promise<void> {
-  console.log("reload called, policy:", policy)
+/** Dispatched on `document` when a reload starts; `detail` names its trigger. */
+export const STORY_RELOAD_STARTED = "once:story-reload"
+export type StoryReloadTrigger = "button" | "keyboard" | "pull"
+
+async function reload(
+  policy: CachePolicy = "cache-first",
+  trigger: StoryReloadTrigger = "button"
+): Promise<void> {
+  console.log("reload called, policy:", policy, "trigger:", trigger)
+  document.dispatchEvent(new CustomEvent(STORY_RELOAD_STARTED, { detail: trigger }))
   const btn = document.querySelector("#reload_stories_btn")
   const btnIcon = btn?.querySelector(".icon--reload")
   btn?.classList.add("disabled")

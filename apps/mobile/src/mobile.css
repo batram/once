@@ -812,6 +812,8 @@
 
   #startup_status[data-state="loading"]::before {
     content: "";
+    /* A long message would otherwise shrink the ring into a C. */
+    flex: 0 0 auto;
     width: 0.9em;
     height: 0.9em;
     border: 2px solid currentColor;

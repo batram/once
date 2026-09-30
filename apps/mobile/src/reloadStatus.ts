@@ -1,8 +1,12 @@
 import type { OnceClient, ProcessingSource } from "@once/app"
+import { STORY_RELOAD_STARTED, type StoryReloadTrigger } from "@once/ui-web"
 
-// A reload that outlives this many ms drops its spinners (the reload button
-// and the pull-to-refresh strip) and reports through the startup pill instead.
-export const RELOAD_SPIN_TIMEOUT_MS = 3000
+// The reload button and the pull-to-refresh strip stop spinning after this
+// many ms; the reload itself runs to completion and the pill reports on it.
+export const RELOAD_SPIN_TIMEOUT_MS = 1500
+// A button reload that outlives this many ms starts reporting through the
+// startup pill. A pull reports from the start: the finger asked for it.
+export const RELOAD_REVEAL_DELAY_MS = 3000
 // How long the pill confirms a finished reload before it folds away again.
 export const RELOAD_DONE_NOTICE_MS = 1500
 
@@ -10,8 +14,10 @@ export type ReloadStatusState = "loading" | "done" | "ready"
 export type ShowReloadStatus = (message: string, state: ReloadStatusState) => void
 
 export interface ReloadStatusOptions {
-  spinTimeout?: number
+  revealDelay?: number
   doneNotice?: number
+  // Where the story list announces a starting reload; the document by default.
+  reloadEvents?: EventTarget
 }
 
 export function describeProcessing(items: ProcessingSource[]): string {
@@ -21,18 +27,20 @@ export function describeProcessing(items: ProcessingSource[]): string {
 }
 
 /**
- * Mirrors a slow reload into the startup status pill. A quick reload never
- * shows anything: the spinners cover it. Once a pass has run for the spin
- * timeout the pill names the sources still loading, follows every change
- * until the pass settles, confirms briefly, and hides again.
+ * Mirrors a reload into the startup status pill. A pull-to-refresh shows the
+ * pill at once; a button reload only once it has run for the reveal delay,
+ * since a quick one is covered by the spinner. Once shown, the pill names the
+ * sources still loading, follows every change until the pass settles,
+ * confirms briefly, and hides again.
  */
 export function bindReloadStatus(
   client: Pick<OnceClient, "subscribe">,
   show: ShowReloadStatus,
   options: ReloadStatusOptions = {}
 ): () => void {
-  const spinTimeout = options.spinTimeout ?? RELOAD_SPIN_TIMEOUT_MS
+  const revealDelay = options.revealDelay ?? RELOAD_REVEAL_DELAY_MS
   const doneNotice = options.doneNotice ?? RELOAD_DONE_NOTICE_MS
+  const reloadEvents = options.reloadEvents ?? document
   let processing: ProcessingSource[] = []
   let reveal: ReturnType<typeof setTimeout> | null = null
   let dismiss: ReturnType<typeof setTimeout> | null = null
@@ -51,6 +59,18 @@ export function bindReloadStatus(
     show(describeProcessing(processing), "loading")
   }
 
+  // The reload announces itself before the runtime reports its first source,
+  // so a pull shows a generic line until the sources are known.
+  const onReloadStarted = (event: Event): void => {
+    const trigger = (event as CustomEvent<StoryReloadTrigger>).detail
+    if (trigger !== "pull" || shown) return
+    clearReveal()
+    clearDismiss()
+    shown = true
+    show("Loading stories…", "loading")
+  }
+  reloadEvents.addEventListener(STORY_RELOAD_STARTED, onReloadStarted)
+
   const unsubscribe = client.subscribe("loaderChanged", ({ processing: items }) => {
     const wasProcessing = processing.length > 0
     processing = items
@@ -64,7 +84,7 @@ export function bindReloadStatus(
         reveal = setTimeout(() => {
           reveal = null
           if (processing.length > 0) render()
-        }, spinTimeout)
+        }, revealDelay)
       }
       return
     }
@@ -81,6 +101,7 @@ export function bindReloadStatus(
   return () => {
     clearReveal()
     clearDismiss()
+    reloadEvents.removeEventListener(STORY_RELOAD_STARTED, onReloadStarted)
     unsubscribe()
   }
 }

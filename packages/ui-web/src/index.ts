@@ -1,6 +1,7 @@
 export { StoryListItem } from "./story/StoryListItem"
 export { UndoButton } from "./story/UndoButton"
 export * as StoryList from "./story/storyList"
+export { STORY_RELOAD_STARTED, type StoryReloadTrigger } from "./story/storyList"
 export * from "./menu/storyContextMenu"
 export {
   openStoryAnchoredMenu,
