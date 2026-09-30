@@ -17,7 +17,7 @@ test("AI manifest round-trips trays, connections, prompts and never secret optio
   const text = core.presentAddons(doc)
   assert.equal(text.includes("must-not-sync"), false)
   assert.equal(core.parseAddonsText(text).addons[0].manifest.trays[0].id, "assistant")
-  assert.equal(core.parseAddonsText(text).addons[0].manifest.connections.length, 5)
+  assert.equal(core.parseAddonsText(text).addons[0].manifest.connections.length, 6)
   const collector = core.readConfigSchema({ type: "string", maxLength: 16000, format: "multiline" })
   assert.throws(() => core.validateConfig(collector, "x".repeat(2001)), /too long/)
 })
