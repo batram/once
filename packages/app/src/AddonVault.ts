@@ -43,7 +43,7 @@ export class AddonVault {
       const value = await this.read()
       return { state: value ? "ready" : "disabled", message: value ? "Ready · Encrypted sync enabled" : "Add-ons sync separately; tokens stay on this device", protectedStorage }
     } catch (error) {
-      return { state: error instanceof VaultStateError ? error.state : "error", message: error instanceof Error ? error.message : "Could not read the vault", protectedStorage }
+      return { state: error instanceof VaultStateError ? error.state : "error", message: error instanceof Error ? error.message : "Could not read the vault", protectedStorage, unlockRequired: !this.rawKey }
     }
   }
 
@@ -142,7 +142,10 @@ export class AddonVault {
       const decoded = await this.decode(records[0])
       let envelope = decoded.envelope
       const data = decoded.data
+      const before = JSON.stringify(data)
       await change(data)
+      // Re-saving unchanged settings must not create another encrypted branch.
+      if (passphrase === undefined && JSON.stringify(data) === before) { await this.trust(envelope, data); return }
       if (passphrase !== undefined) envelope = await rewrapPassword(envelope, this.rawKey, passphrase)
       await this.commit(envelope, data, records.map(item => item.revision))
     })

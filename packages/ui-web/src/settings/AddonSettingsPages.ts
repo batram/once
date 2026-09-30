@@ -1,5 +1,6 @@
 import { addonPageAction, createAddonSettingsLayout } from "./addonSettingsLayout"
 import { requireClosestElement, requireElement } from "../dom"
+import { refreshAddonCollectionSummary } from "./addonAvailability"
 
 const groupsOf = (details: HTMLElement) => Array.from(details.querySelectorAll<HTMLElement>("[data-addon-id], .addon_options_group[data-addon]"))
 const idOf = (element: HTMLElement) => element.dataset.addonId ?? element.dataset.addon ?? ""
@@ -7,6 +8,13 @@ const idOf = (element: HTMLElement) => element.dataset.addonId ?? element.datase
 const originOf = (elements: HTMLElement[]) => [...elements].reverse().map(element => element.dataset.addonOrigin).find(Boolean)
 const titleOf = (element: HTMLElement) => element.dataset.addonName ??
   element.querySelector("legend")?.textContent?.replace(/ settings.*$/, "") ?? idOf(element)
+
+function describeCollection(root: HTMLElement, count: HTMLElement, empty: HTMLElement, size: number): void {
+  const paused = ["locked", "conflict", "error"].includes(root.dataset.vaultState ?? "")
+  count.textContent = paused ? `Available on this device (${size})` : `Your add-ons (${size})`
+  empty.hidden = size > 0 || paused
+  refreshAddonCollectionSummary()
+}
 
 /** Navigation keeps the real controls mounted, including their drafts and listeners. */
 export function bindAddonSettingsPages(root: HTMLElement): void {
@@ -85,8 +93,7 @@ export function bindAddonSettingsPages(root: HTMLElement): void {
       row.children[1].textContent = group.dataset.addonDescription ?? ""
       row.children[2].textContent = meta
     }
-    count.textContent = `Your addons (${addons.size})`
-    empty.hidden = addons.size > 0
+    describeCollection(root, count, empty, addons.size)
     if (current.startsWith("addon:") && !rows.has(current)) show("overview")
     setHeader()
   }
@@ -95,6 +102,7 @@ export function bindAddonSettingsPages(root: HTMLElement): void {
     childList: true, subtree: true, characterData: true, attributes: true,
     attributeFilter: ["data-enabled", "data-addon-name", "data-addon-version"]
   })
+  new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ["data-vault-state"] })
   back.addEventListener("click", event => {
     if (!active() || current === "overview") return
     event.stopImmediatePropagation()

@@ -48,16 +48,38 @@ function plan(doc: AddonsDocument, pack: LocalAddonPackage): "install" | "upgrad
   const { id, version } = pack.entry.manifest
   const installed = doc.addons.find(entry => entry.manifest.id === id)
   const offered = doc.bundled?.[id]
-  if (offered === version) return null
-  if (installed && isBundledAddon(installed)) return "upgrade"
+  // An older app must never roll a shared package (or its offer marker) back.
+  // Unknown version formats require an explicit import instead of guessing.
+  if (offered !== undefined && !newerVersion(version, offered)) return null
+  if (installed && isBundledAddon(installed)) return newerVersion(version, installed.manifest.version) ? "upgrade" : "mark"
   if (installed) return "mark"
   return offered === undefined ? "install" : "mark"
 }
 
+function newerVersion(next: string, previous: string): boolean {
+  const parse = (value: string) => /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([\da-zA-Z.-]+))?(?:\+[\da-zA-Z.-]+)?$/.exec(value)
+  const left = parse(next), right = parse(previous)
+  if (!left || !right) return false
+  for (let i = 1; i <= 3; i++) {
+    if (Number(left[i]) !== Number(right[i])) return Number(left[i]) > Number(right[i])
+  }
+  if (!left[4] || !right[4]) return !left[4] && !!right[4]
+  const a = left[4].split("."), b = right[4].split(".")
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    if (a[i] === b[i]) continue
+    if (a[i] === undefined || b[i] === undefined) return b[i] === undefined
+    const an = /^\d+$/.test(a[i]), bn = /^\d+$/.test(b[i])
+    if (an && bn) return Number(a[i]) > Number(b[i])
+    return an !== bn ? !an : a[i] > b[i]
+  }
+  return false
+}
+
 function applyPlan(doc: AddonsDocument, pack: LocalAddonPackage): AddonsDocument {
   const { id, version } = pack.entry.manifest
-  const next = { ...doc, bundled: { ...doc.bundled, [id]: version } }
   const step = plan(doc, pack)
+  if (step === null) return doc
+  const next = { ...doc, bundled: { ...doc.bundled, [id]: version } }
   return step === "install" || step === "upgrade" ? upsertAddon(next, pack.entry) : next
 }
 

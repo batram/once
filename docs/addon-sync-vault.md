@@ -9,12 +9,12 @@ other Once settings.
 
 1. Configure CouchDB Sync and wait for **Up to date**. Use the same database on
    each device. All clients using the vault need a Once build that supports it.
-2. Open **Settings → Once Add-ons → Sync add-ons and connections**.
+2. Open **Settings → Once Add-ons → Add-on sync → Set up encrypted sync**.
 3. Choose a separate sync passphrase of at least 12 characters, confirm it, and
    name the device. Choose **Enable encrypted addon sync**. This migrates all
    installed addons, their settings, available packages, and saved tokens.
 4. Save the generated recovery key in a password manager. It is shown once.
-5. On another device, connect sync, then choose **Unlock synced connections**
+5. On another device, connect sync, then choose **Unlock add-on sync**
    and enter the passphrase once. Packages, settings, and tokens become ready
    together; no per-addon key entry or ZIP import is needed.
 
@@ -48,10 +48,16 @@ Without a passphrase, recovery key, or remembered key on a trusted device, the
 encrypted data cannot be recovered by resetting the sync database password.
 
 Concurrent offline edits pause synced addons instead of silently choosing a
-winner. **Review concurrent versions** shows each version's author, time, addon
+winner. The collection is unavailable during this pause; its addons have not
+been removed. Resolve the conflict before installing or updating packages.
+Devices with a remembered key can review immediately; other devices unlock first.
+**Review concurrent versions** shows each version's author, time, addon
 versions and token-presence indicators, never token values. Selecting a version
 keeps that entire snapshot and discards the other branches. There is no automatic
 field-by-field merge. Review deletions carefully before choosing an older version.
+Automatic bundled updates only move to newer versions, so running different Once
+versions on two devices cannot repeatedly downgrade and upgrade the shared addon.
+Unknown version formats require a manual package import.
 Create the vault on one device first, then unlock it on others. Independently
 creating different vaults before replication completes produces incompatible
 identities; these are rejected rather than merged. Restore the intended vault

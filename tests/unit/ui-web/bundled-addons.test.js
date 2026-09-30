@@ -85,6 +85,41 @@ test("a newer shipped version replaces a still-installed bundled copy but not th
   assert.deepEqual(own.state.doc.bundled, { [shipped.id]: shipped.version })
 })
 
+test("different app versions converge without downgrading packages or reviving removals", async () => {
+  const bundle = version => bundledAddons().map(({ files }) => ({ files: { ...files,
+    "once-addon.json": JSON.stringify({ ...shipped, version }) } }))
+  const { client, state } = fakeClient()
+  configureBundledAddons(bundle("1.5.0"))
+  await seedBundledAddons(client)
+  configureBundledAddons(bundle("1.6.0"))
+  await seedBundledAddons(client)
+  for (let i = 0; i < 6; i++) {
+    configureBundledAddons(bundle(i % 2 ? "1.6.0" : "1.5.0"))
+    await seedBundledAddons(client)
+    assert.equal(state.doc.addons[0].manifest.version, "1.6.0")
+    assert.equal(state.doc.bundled[shipped.id], "1.6.0")
+  }
+  assert.equal(state.writes, 2)
+  state.doc.addons = []
+  configureBundledAddons(bundle("1.5.0"))
+  await seedBundledAddons(client)
+  assert.equal(state.doc.addons.length, 0)
+  assert.equal(state.writes, 2)
+})
+
+test("bundle comparison respects numeric versions and prereleases, and leaves unknown formats alone", async () => {
+  for (const [installed, bundled, expected] of [["1.9.0", "1.10.0", "1.10.0"], ["2.0.0", "2.0.0-beta.1", "2.0.0"],
+    ["2.0.0-beta.2", "2.0.0-beta.10", "2.0.0-beta.10"], ["2.0.0-beta.10", "2.0.0", "2.0.0"], ["custom", "1.6.0", "custom"]]) {
+    const bundle = version => bundledAddons().map(({ files }) => ({ files: { ...files, "once-addon.json": JSON.stringify({ ...shipped, version }) } }))
+    const { client, state } = fakeClient()
+    configureBundledAddons(bundle(installed))
+    await seedBundledAddons(client)
+    configureBundledAddons(bundle(bundled))
+    await seedBundledAddons(client)
+    assert.equal(state.doc.addons[0].manifest.version, expected)
+  }
+})
+
 test("a locked vault is left alone, and a synced bundled entry runs from the build's copy", async () => {
   configureBundledAddons(bundledAddons())
   const locked = fakeClient({ version: 1, addons: [] }, "locked")

@@ -1,6 +1,7 @@
 import { customizedCommandCount } from "../keyboard/keybindingStore"
 import { getKeybindings } from "../keyboard"
 import { DEFAULT_CACHE_MINUTES, parseStorySourceText } from "@once/core"
+import { addonCollectionSummary } from "./addonAvailability"
 export function updateSettingsSummaries(
   sectionButtons: ReadonlyMap<string, HTMLButtonElement>,
   sourceFailures: number
@@ -60,7 +61,7 @@ export function updateSettingsSummaries(
         value("#userscripts_area")
       )
     },
-    addons: { text: addonsSummary(value("#addons_area")) },
+    addons: { text: addonCollectionSummary() },
     cache: { text: `${value("#cache_time_input") || DEFAULT_CACHE_MINUTES} min` },
     errors: {
       text: errorCount || warningCount
@@ -133,23 +134,6 @@ function extensionsSummary(
   if (listCount) parts.push(`${listCount} ${listCount === 1 ? "list" : "lists"}`)
   if (scriptCount) parts.push(`${scriptCount} ${scriptCount === 1 ? "script" : "scripts"}`)
   return parts.length ? parts.join(" · ") : "None"
-}
-
-// The editor holds the document's JSON; a half-edited text is still a count
-// of whatever parses, and an empty one is "None".
-function addonsSummary(text: string): string {
-  if (!text.trim()) return "None"
-  try {
-    const parsed: unknown = JSON.parse(text)
-    const entries = Array.isArray(parsed) ? parsed : [parsed]
-    const enabled = entries.filter((entry) =>
-      typeof entry === "object" && entry !== null &&
-      (entry as { enabled?: unknown }).enabled !== false
-    ).length
-    return `${enabled} of ${entries.length} enabled`
-  } catch {
-    return "Unsaved edits"
-  }
 }
 
 function keyboardSummary(): string {

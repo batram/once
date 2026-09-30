@@ -16,6 +16,8 @@ export interface AddonVaultStatus {
   state: "unavailable" | "disabled" | "locked" | "ready" | "conflict" | "error"
   message: string
   protectedStorage: boolean
+  /** Conflicts can be reviewed with an already remembered key. */
+  unlockRequired?: boolean
 }
 
 export interface AddonVaultChoice {

@@ -9,6 +9,7 @@ import { bindAddonBundledImport } from "./addonBundledImport"
 import type { LocalAddonPackage } from "../addons/localAddonPackage"
 import { bindAddonSettingsPages } from "./AddonSettingsPages"
 import { bindAddonVaultControls } from "./addonVaultControls"
+import { requireAddonAvailability } from "./addonAvailability"
 
 /**
  * Installing from a URL and checking for updates. A package is a directory
@@ -43,6 +44,7 @@ export function bindAddonInstallControls(client: OnceClient, onChanged: () => vo
   }
 
   const preview = async (entry: AddonEntry, code: string | null = null): Promise<void> => {
+    await requireAddonAvailability(client)
     const existing = (await client.getAddons()).addons.find(item => item.manifest.id === entry.manifest.id)
     const baseline = JSON.stringify(existing?.manifest)
     const panel = document.createElement("fieldset")
@@ -60,6 +62,7 @@ export function bindAddonInstallControls(client: OnceClient, onChanged: () => vo
     const feedback = document.createElement("p")
     feedback.setAttribute("role", "status")
     const confirm = addonButton(existing ? "Apply update" : "Confirm install", async () => {
+      await requireAddonAvailability(client)
       feedback.textContent = "Verifying package…"
       const projected = upsertAddon(await client.getAddons(), entry).addons.find(item => item.manifest.id === entry.manifest.id)
       if (!projected) throw new Error("The add-on could not be prepared")

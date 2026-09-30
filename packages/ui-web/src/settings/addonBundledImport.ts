@@ -17,15 +17,16 @@ export function bindAddonBundledImport(client: OnceClient, parent: HTMLElement, 
   legend.textContent = "Bundled with Once"
   const hint = document.createElement("p")
   hint.className = "settings_group_hint"
-  hint.textContent = "These addons come with Once and were removed. Install one again to get it back."
+  hint.textContent = "Install an add-on included with Once."
   const list = document.createElement("div")
   group.append(legend, hint, list)
   parent.append(group)
   let revision = 0
   const render = async (): Promise<void> => {
     const current = ++revision
-    const [bundled, doc] = await Promise.all([listBundledAddons(), client.getAddons()])
+    const [bundled, doc, vault] = await Promise.all([listBundledAddons(), client.getAddons(), client.getAddonVaultStatus()])
     if (current !== revision) return
+    if (["locked", "conflict", "error"].includes(vault.state)) { group.hidden = true; list.replaceChildren(); return }
     const installed = new Set(doc.addons.map(entry => entry.manifest.id))
     const missing = bundled.filter(pack => !installed.has(pack.entry.manifest.id))
     list.replaceChildren()

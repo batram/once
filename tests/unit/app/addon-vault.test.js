@@ -112,6 +112,7 @@ test("offline concurrent edits pause connections until an explicitly selected sn
   const deletion = first.state.records[0]
   first.state.records.push(second.state.records[0])
   assert.equal((await first.client.getAddonVaultStatus()).state, "conflict")
+  assert.equal((await first.client.getAddonVaultStatus()).unlockRequired, false)
   assert.equal((await first.client.getAddons()).addons.length, 0)
   const choices = await first.client.getAddonVaultChoices()
   assert.equal(choices.length, 2)
@@ -194,4 +195,18 @@ test("saving a token while migration is pending updates the vault, without leavi
   const doc = await first.client.getAddons()
   await first.client.requestAddonConnection(doc.addons[0].manifest, doc.addons[0].options, "provider", { method: "POST" })
   assert.deepEqual(first.state.requests, ["Bearer after-migration"])
+})
+
+test("unchanged saves do not create revisions or conflict with another device's edit", async () => {
+  const { first } = await setup()
+  const before = structuredClone(first.state.records)
+  const second = device(before)
+  await second.client.unlockAddonVault(passphrase, false, true, "Phone")
+  await first.client.updateAddons(doc => doc)
+  assert.deepEqual(first.state.records, before)
+  await second.client.updateAddons(doc => ({ ...doc, addons: [] }))
+  first.state.records = structuredClone(second.state.records)
+  assert.equal((await first.client.getAddonVaultStatus()).state, "ready")
+  const locked = device([...before, ...second.state.records])
+  assert.equal((await locked.client.getAddonVaultStatus()).unlockRequired, true)
 })
