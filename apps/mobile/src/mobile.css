@@ -55,7 +55,10 @@
     --m-card-bg: var(--unread-bg-color);
     --m-warning: light-dark(#b96500, #ffb84d);
     --m-error: light-dark(#c83d3d, #ff6b6b);
-    --m-tabbar-h: calc(48px + env(safe-area-inset-bottom));
+    /* The home indicator sits well inside the reported inset, so the bar keeps
+     a little less than the full inset below the labels. */
+    --m-tabbar-inset: max(env(safe-area-inset-bottom) - 16px, 0px);
+    --m-tabbar-h: calc(56px + var(--m-tabbar-inset));
     /* Bottom runway a scroller must leave so a fixed overlay never covers its
      last row. Both are derived from the overlay they clear — the floating +
      and the form's fixed action bar — not from the spacing scale. */
@@ -72,7 +75,9 @@
     min-width: 0;
     padding-top: env(safe-area-inset-top);
     padding-right: env(safe-area-inset-right);
-    padding-bottom: env(safe-area-inset-bottom);
+    /* The fixed tab bar owns the bottom inset; padding it here too would leave
+     a band of page background between the last row and the bar. */
+    padding-bottom: 0;
     padding-left: env(safe-area-inset-left);
     overscroll-behavior: none;
     -webkit-tap-highlight-color: transparent;
@@ -749,7 +754,10 @@
     flex-direction: row;
     width: auto;
     height: var(--m-tabbar-h);
-    padding: 0 0 env(safe-area-inset-bottom);
+    /* The height already includes the inset; border-box keeps the padding
+     from adding it a second time. */
+    box-sizing: border-box;
+    padding: var(--sp-2) 0 var(--m-tabbar-inset);
     border-top: var(--m-bw) solid var(--m-ink);
     border-right: 0;
     background: var(--main-bg-color);
