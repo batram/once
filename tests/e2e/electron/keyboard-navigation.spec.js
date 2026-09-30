@@ -120,21 +120,28 @@ test("R reloads the story list, Shift+R refetches, and both type", async () => {
     )
     await showAllStories(window)
     await expect(window.locator("#stories story-item.story").first()).toBeVisible()
-    // A reload rebuilds the rows, so a mark left on the current ones is how the
-    // test sees that it happened rather than racing the spinner.
-    const mark = () => window.evaluate(() => {
-      const rows = [...document.querySelectorAll("#stories story-item.story")]
-      rows.forEach((row) => { row.dataset.beforeReload = "1" })
-      return rows.length
+    // A reload updates the rows in place (their state is preserved since
+    // 6db243a1), so the test watches the reload button instead: the list
+    // disables it while onceClient.reloadStories runs and re-enables it after.
+    // Completed cycles are counted by an observer rather than sampled, because
+    // a cache-first reload is over in a few milliseconds.
+    await window.evaluate(() => {
+      const btn = document.querySelector("#reload_stories_btn")
+      window.__reloadCycles = 0
+      let running = btn.classList.contains("disabled")
+      new MutationObserver(() => {
+        const disabled = btn.classList.contains("disabled")
+        if (running && !disabled) window.__reloadCycles += 1
+        running = disabled
+      }).observe(btn, { attributes: true, attributeFilter: ["class"] })
     })
-    const marked = () => window.locator("#stories story-item[data-before-reload]").count()
+    const reloads = () => window.evaluate(() => window.__reloadCycles)
 
     // showAllStories leaves the search field focused, where R is a letter.
-    expect(await mark()).toBeGreaterThan(0)
     await window.keyboard.press("KeyR")
     await window.keyboard.press("Shift+KeyR")
     await expect(window.locator("#searchfield")).toHaveValue("rR")
-    expect(await marked()).toBeGreaterThan(0)
+    expect(await reloads()).toBe(0)
 
     await window.locator("#searchfield").fill("")
     await window.locator("#searchfield").blur()
@@ -143,13 +150,12 @@ test("R reloads the story list, Shift+R refetches, and both type", async () => {
     // hour, so a plain reload has nothing to fetch.
     const cachedAt = feedFetches
     await window.keyboard.press("KeyR")
-    await expect.poll(marked).toBe(0)
+    await expect.poll(reloads).toBe(1)
     await expect(window.locator("#stories story-item.story").first()).toBeVisible()
     expect(feedFetches).toBe(cachedAt)
 
-    await mark()
     await window.keyboard.press("Shift+KeyR")
-    await expect.poll(marked).toBe(0)
+    await expect.poll(reloads).toBe(2)
     await expect(window.locator("#stories story-item.story").first()).toBeVisible()
     await expect.poll(() => feedFetches).toBe(cachedAt + 1)
   } finally {
