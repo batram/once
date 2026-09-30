@@ -122,6 +122,29 @@ example after the automatic one failed; the question box continues the conversat
 Saved/feed content is used before fetching and extracting the original article.
 Reading content for the addon does not mark a story read or save an offline copy.
 
+### YouTube videos
+
+For a story that links a YouTube video (`watch`, `youtu.be`, `shorts`, `live` or
+`embed` URLs), the video's captions are the article: the summary and every answer
+come from the transcript, headed by the channel, duration and description. The
+addon asks YouTube's player endpoint for the video's caption tracks the way the
+YouTube Android app does, then downloads one track from `www.youtube.com`; no
+account, key or cookie is involved, and nothing about you reaches YouTube beyond
+the video ID. The video's own captions are preferred over auto-generated ones,
+and the track paired with the default audio language over other translations.
+The transcript is grouped into half-minute paragraphs headed by `[m:ss]`
+timestamps, so a follow-up such as "when does she mention the price?" can be
+answered with a time. The status line names the track used, for example
+**Using the video transcript (English (auto-generated))**.
+
+A video without captions, an age-restricted or private video, or a YouTube
+outage falls back to the page content Once can extract, and the status line says
+why the transcript was not used. **Read YouTube transcripts** under **Settings →
+Add-ons → YouTube** turns the feature off; the player endpoint setting exists for
+a proxy or a future URL change and normally stays at its default. YouTube changes
+this interface without notice: if transcripts stop arriving, the fallback keeps
+the addon working and the client identity in `main.js` is the first thing to update.
+
 Close hides the tray; reopening reuses the answer. Row redraws and sorting preserve
 the conversation. Clear conversation starts fresh; disabling the addon, changing
 its options, restarting its sandbox, or restarting Once clears the session.
@@ -152,6 +175,9 @@ Article input is capped at 64,000 characters, recent complete conversation pairs
 have a 120-second deadline, at most two concurrent tray invocations per addon, and
 1 MiB request/response limits. Missing article text is labelled title-only and
 cannot be summarized. Provider/model/tool errors are shown without crashing the addon.
+A caption track larger than 1 MiB (auto-generated captions of a very long video
+carry per-word timing) cannot be downloaded and the story falls back to page content;
+a transcript longer than 64,000 characters is cut there and reported as shortened.
 
 Electron forwards cancellation through IPC. Native Capacitor HTTP currently has no
 cancellation API: Stop revokes the invocation immediately, while the underlying

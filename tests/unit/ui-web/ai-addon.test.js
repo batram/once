@@ -7,13 +7,13 @@ const modulePromise = import(`data:text/javascript;base64,${fs.readFileSync(path
 const schema = JSON.parse(fs.readFileSync(path.join(directory, "once-addon.json"))).settings
 const defaults = Object.fromEntries(Object.entries(schema.properties).filter(([, value]) => "default" in value).map(([key, value]) => [key, value.default]))
 
-async function fixture(extra = {}, respond) {
+async function fixture(extra = {}, respond, fetch = async url => { throw new Error("no fetch: grant covers " + url) }) {
   const addon = await modulePromise
   let handler, settingsChanged
   const requests = [], updates = []
   let extracts = 0
   const settings = { ...defaults, provider: "compatible", model: "fixture-model", compatibleEndpoint: "http://localhost/v1/chat/completions", ...extra }
-  addon.default({ settings, onTray: callback => { handler = callback }, onSettings: callback => { settingsChanged = callback } })
+  addon.default({ settings, fetch, onTray: callback => { handler = callback }, onSettings: callback => { settingsChanged = callback } })
   const context = {
     signal: new AbortController().signal,
     update(view) { updates.push(view) },
@@ -375,4 +375,105 @@ test("provider error details fit the tray limit and non-JSON bodies remain hidde
     const f = await fixture({}, () => ({ status: 502, text }))
     assert.equal((await f.run({ type: "open" })).status, "AI request failed (HTTP 502). Check the endpoint and model ID.")
   }
+})
+
+const VIDEO = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+const CAPTIONS = "https://www.youtube.com/api/timedtext?v=dQw4w9WgXcQ&lang=en"
+const PLAYER = {
+  playabilityStatus: { status: "OK" },
+  videoDetails: { title: "Never Gonna Give You Up", author: "Rick Astley", lengthSeconds: "213", shortDescription: "The official video." },
+  captions: { playerCaptionsTracklistRenderer: {
+    captionTracks: [
+      { baseUrl: CAPTIONS + "&kind=asr", languageCode: "en", kind: "asr", name: { simpleText: "English (auto-generated)" } },
+      { baseUrl: CAPTIONS, languageCode: "en", name: { runs: [{ text: "English" }] } },
+      { baseUrl: CAPTIONS.replace("lang=en", "lang=de"), languageCode: "de", name: { simpleText: "German" } }
+    ],
+    audioTracks: [{ captionTrackIndices: [0, 1, 2], defaultCaptionTrackIndex: 1 }], defaultAudioTrackIndex: 0
+  } }
+}
+const XML = `<?xml version="1.0" encoding="utf-8" ?><timedtext format="3"><body><w t="0" id="1"/>
+<p t="1360" d="1680" w="1">[♪♪♪]</p><p t="18790" w="1" a="1">
+</p><p t="18800" d="3240"><s ac="0">We&#39;re</s><s t="239" ac="0"> no</s><s t="559"> strangers</s></p>
+<p t="31000" d="4000">Second &amp;#39;paragraph&amp;#39; &lt;3</p></body></timedtext>`
+
+/** A YouTube story: the player connection lists the tracks and `once.fetch` serves the chosen one. */
+async function videoFixture(extra = {}, player = PLAYER, captions = XML) {
+  const fetched = []
+  const f = await fixture(extra, (connection, request) => connection === "youtube"
+    ? (fetched.push(JSON.parse(request.body)), { status: 200, headers: {}, text: typeof player === "string" ? player : JSON.stringify(player) })
+    : { status: 200, text: JSON.stringify({ choices: [{ message: { content: "An explanation." } }] }) },
+  async url => { fetched.push(url); return { status: 200, text: captions } })
+  f.story.href = VIDEO
+  f.story.title = "Rick Astley - Never Gonna Give You Up"
+  return { ...f, fetched }
+}
+
+test("a YouTube story is read from its captions, timestamped and headed by its details", async () => {
+  const f = await videoFixture()
+  const result = await f.run({ type: "open" })
+  // The player is asked once, as the Android app; the manual English track wins over the auto-generated one.
+  assert.equal(f.fetched.length, 2)
+  assert.equal(f.fetched[0].videoId, "dQw4w9WgXcQ")
+  assert.equal(f.fetched[0].context.client.clientName, "ANDROID")
+  assert.equal(f.fetched[1], CAPTIONS)
+  assert.equal(f.extracts(), 0)
+  const ai = f.requests.filter(request => request.connection !== "youtube")
+  assert.equal(ai.length, 2)
+  const source = JSON.parse(JSON.parse(ai[0].request.body).messages[1].content.split("\n").slice(1).join("\n"))
+  assert.equal(source.article.kind, "video transcript")
+  assert.equal(source.article.title, "Never Gonna Give You Up")
+  assert.equal(source.article.sourceUrl, VIDEO)
+  assert.match(source.note, /transcript of a YouTube video/)
+  assert.equal(source.article.text,
+    "Channel: Rick Astley\n\nDuration: 3:33\n\nDescription:\nThe official video.\n\nTranscript (English):\n[0:01] [♪♪♪] We're no strangers\n[0:31] Second 'paragraph' <3")
+  assert.equal(JSON.parse(ai[1].request.body).messages.at(-1).content, "Summarize this video transcript.")
+  assert.equal(result.status, "Using the video transcript (English). No web sources used.")
+  // The transcript is kept for the follow-up; the story is not asked again.
+  await f.run({ type: "submit", text: "Who sings?" })
+  assert.equal(f.fetched.length, 2)
+})
+
+test("without captions, or with transcripts off, a YouTube story falls back to the story content", async () => {
+  const silent = await videoFixture({}, { playabilityStatus: { status: "OK" }, videoDetails: {} })
+  let result = await silent.run({ type: "open" })
+  assert.equal(silent.extracts(), 1)
+  assert.equal(result.status, "Using story content. No transcript: this video has no captions. No web sources used.")
+  assert.equal(result.statusTone, "info")
+  const blocked = await videoFixture({}, { playabilityStatus: { status: "LOGIN_REQUIRED", reason: "Sign in to confirm your age" } })
+  result = await blocked.run({ type: "open" })
+  assert.match(result.status, /No transcript: YouTube: Sign in to confirm your age/)
+  // A track anywhere but YouTube's caption endpoint is never fetched.
+  const elsewhere = await videoFixture({}, { ...PLAYER, captions: { playerCaptionsTracklistRenderer: { captionTracks: [{ baseUrl: "https://evil.test/captions", languageCode: "en" }] } } })
+  result = await elsewhere.run({ type: "open" })
+  assert.equal(elsewhere.fetched.length, 1)
+  assert.match(result.status, /unusable caption track/)
+  const off = await videoFixture({ youtubeTranscripts: false })
+  result = await off.run({ type: "open" })
+  assert.equal(off.fetched.length, 0)
+  assert.equal(off.extracts(), 1)
+  assert.equal(result.status, "Using story content. No web sources used.")
+  // Any other page never asks YouTube.
+  const page = await fixture()
+  await page.run({ type: "open" })
+  assert.ok(page.requests.every(request => request.connection !== "youtube"))
+})
+
+test("video URLs are recognised in their usual shapes; caption XML of either shape becomes paragraphs", async () => {
+  const { youtubeVideoId, transcriptText, captionTrack } = await modulePromise
+  for (const href of [VIDEO + "&t=42s", "https://youtu.be/dQw4w9WgXcQ?si=share", "https://m.youtube.com/shorts/dQw4w9WgXcQ",
+    "https://www.youtube.com/live/dQw4w9WgXcQ", "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ", "https://music.youtube.com/watch?v=dQw4w9WgXcQ"]) {
+    assert.equal(youtubeVideoId(href), "dQw4w9WgXcQ", href)
+  }
+  for (const href of ["https://www.youtube.com/@rick", "https://www.youtube.com/watch?v=short", "https://example.com/watch?v=dQw4w9WgXcQ", "not a url"]) {
+    assert.equal(youtubeVideoId(href), "", href)
+  }
+  const legacy = "<transcript><text start=\"1.36\" dur=\"1.68\">[♪♪♪]</text><text start=\"18.64\" dur=\"3.24\">We&amp;#39;re no strangers</text><text start=\"3661\" dur=\"1\">Late</text></transcript>"
+  assert.equal(transcriptText(legacy), "[0:01] [♪♪♪] We're no strangers\n[1:01:01] Late")
+  assert.equal(transcriptText("<timedtext/>"), "")
+  // Auto-generated captions are the last resort; the default audio track's own captions come first.
+  const tracks = PLAYER.captions.playerCaptionsTracklistRenderer
+  assert.equal(captionTrack(PLAYER).baseUrl, CAPTIONS)
+  assert.equal(captionTrack({ captions: { playerCaptionsTracklistRenderer: { captionTracks: tracks.captionTracks.slice(0, 1) } } }).kind, "asr")
+  assert.equal(captionTrack({ captions: { playerCaptionsTracklistRenderer: { captionTracks: [tracks.captionTracks[0], tracks.captionTracks[2]] } } }).languageCode, "de")
+  assert.equal(captionTrack({}), null)
 })
