@@ -39,13 +39,17 @@ test("Android browser menu occupies the address action position and routes exten
   assert.equal(button.type, "button")
   await button.onclick()
   assert.equal(menu.browserControls, true)
+  assert.equal(menu.dark, false, "without a theme choice or a system preference the sheet is light")
   assert.deepEqual(menu.items.map(item => item.id), ["popup", "both", "options", "once:manage"])
   assert.deepEqual(menu.items.map(item => item.settingsId), [undefined, "once:settings:both", undefined, undefined],
     "only rows whose main tap runs an action need a separate settings control")
   assert.equal(commands.length, 1, "dismissing the menu performs no extension action")
   assert.equal(button.getAttribute("aria-expanded"), "false")
   selection = "options"
+  document.body.dataset.theme = "dark"
   await button.onclick()
+  assert.equal(menu.dark, true, "the sheet follows the shell's explicit theme")
+  delete document.body.dataset.theme
   assert.deepEqual(commands.at(-1), { action: "options", id: "options" })
   selection = "popup"
   await button.onclick()

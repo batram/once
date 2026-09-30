@@ -29,6 +29,11 @@ export interface NativeOverlayMenuItem {
 
 export interface NativeOverlayMenuOptions {
   browserControls?: boolean
+  /**
+   * Whether the shell is currently showing its dark theme, so the native
+   * browser sheet can match it. Omitted, the sheet follows the system.
+   */
+  dark?: boolean
   title?: string
   items: NativeOverlayMenuItem[]
   anchor?: NativeOverlayAnchor

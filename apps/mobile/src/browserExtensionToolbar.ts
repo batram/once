@@ -7,6 +7,13 @@ function openExtensionManager(): void {
   document.querySelector<HTMLButtonElement>('[data-settings-target="extensions"]')?.click()
 }
 
+/** The theme the shell resolved: its explicit choice, else the system's. */
+function shellIsDark(): boolean {
+  const theme = document.body.dataset.theme
+  if (theme === "dark" || theme === "light") return theme === "dark"
+  return typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: dark)").matches
+}
+
 function setStatus(message: string): void {
   const status = document.querySelector<HTMLElement>("#reading_url_validation")
   if (!status) return
@@ -41,7 +48,7 @@ export function bindMobileExtensionToolbar(api: MobileBrowserExtensions, surface
           settingsId: item.hasOptions && item.hasAction ? SETTINGS_PREFIX + item.id : undefined
         }))
       items.push({ id: "once:manage", label: "Manage extensions", enabled: true, iconDataUrl: undefined, settingsId: undefined })
-      const selected = await surface.showMenu({ items, browserControls: true })
+      const selected = await surface.showMenu({ items, browserControls: true, dark: shellIsDark() })
       if (selected === "once:manage") {
         openExtensionManager()
       } else if (selected === "once:find") {

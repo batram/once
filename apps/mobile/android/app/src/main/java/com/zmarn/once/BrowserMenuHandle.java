@@ -2,7 +2,6 @@ package com.zmarn.once;
 
 import android.app.Dialog;
 import android.content.Context;
-import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -20,14 +19,14 @@ final class BrowserMenuHandle extends FrameLayout {
     private float startY;
     private boolean dragging;
 
-    BrowserMenuHandle(Context context, Dialog dialog) {
+    BrowserMenuHandle(Context context, Dialog dialog, int color) {
         super(context);
         this.dialog = dialog;
         density = getResources().getDisplayMetrics().density;
         slop = ViewConfiguration.get(context).getScaledTouchSlop();
         View pill = new View(context);
         GradientDrawable shape = new GradientDrawable();
-        shape.setColor(Color.rgb(155, 154, 164));
+        shape.setColor(color);
         shape.setCornerRadius(16 * density);
         pill.setBackground(shape);
         addView(pill, new LayoutParams(Math.round(48 * density), Math.round(5 * density), Gravity.CENTER));
