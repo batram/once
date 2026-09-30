@@ -15,14 +15,17 @@ function fail(message) {
   process.exit(1)
 }
 
-function loadAndroidLocalEnvironment() {
-  const envPath = path.join(root, ".env.android.local")
+// Machine-specific settings live in git-ignored .env.<platform>.local files
+// beside their committed .env.<platform>.example; exported variables win.
+function loadLocalEnvironment(platform) {
+  const fileName = `.env.${platform}.local`
+  const envPath = path.join(root, fileName)
   if (!fs.existsSync(envPath)) return
   for (const rawLine of fs.readFileSync(envPath, "utf8").split(/\r?\n/)) {
     const line = rawLine.trim()
     if (!line || line.startsWith("#")) continue
     const separator = line.indexOf("=")
-    if (separator < 1) fail(`invalid line in .env.android.local: ${rawLine}`)
+    if (separator < 1) fail(`invalid line in ${fileName}: ${rawLine}`)
     const name = line.slice(0, separator).trim()
     let value = line.slice(separator + 1).trim()
     if ((value.startsWith("\"") && value.endsWith("\"")) ||
@@ -190,7 +193,7 @@ function resolveWirelessAddress(adb, env) {
     console.log(`mobile: using connected wireless device ${connected[0]} from adb devices`)
     return connected[0]
   }
-  loadAndroidLocalEnvironment()
+  loadLocalEnvironment("android")
   const address = process.env.ONCE_ANDROID_WIRELESS_ADDRESS
   if (!address) {
     fail("no wireless device found via adb mdns or adb devices; enable wireless debugging and pair the device, or copy .env.android.example to .env.android.local and set ONCE_ANDROID_WIRELESS_ADDRESS")
@@ -327,6 +330,8 @@ if (command === "web") {
 }
 
 validatePlatform(platform)
+// DEVELOPER_DIR and the like apply to every xcodebuild the CLI runs.
+if (platform === "ios") loadLocalEnvironment("ios")
 const channel = channelFor(command, options.channel)
 if (command === "run" && channel !== "dev") fail("run only supports the dev channel")
 
@@ -354,8 +359,30 @@ else if (command === "run") {
   process.on("SIGTERM", stop)
   cap(["run", platform, "--live-reload", "--port", "5173", ...options.passthrough], platformEnvironment(platform, channel))
   stop()
+} else if (command === "deploy" && platform === "ios") {
+  if (channel !== "release") fail("deploy only supports the release channel")
+  const device = process.env.ONCE_IOS_DEVICE
+  if (!device) {
+    fail("no iOS device configured; copy .env.ios.example to .env.ios.local and set ONCE_IOS_DEVICE to the target id from `npx cap run ios --list`")
+  }
+  sync(platform, channel)
+  // Capacitor's run only builds the Debug configuration, which is the "Once
+  // Dev" product, so the release app is built and installed directly.
+  const buildPath = path.join(appRoot, "ios", "build")
+  const env = platformEnvironment(platform, channel)
+  run("xcodebuild", [
+    "-project", "App/App.xcodeproj",
+    "-scheme", "Once",
+    "-configuration", "Release",
+    "-destination", `id=${device}`,
+    "-derivedDataPath", buildPath,
+    "-allowProvisioningUpdates",
+    "build"
+  ], { cwd: path.join(appRoot, "ios"), env })
+  const app = path.join(buildPath, "Build", "Products", "Release-iphoneos", "Once.app")
+  if (!fs.existsSync(app)) fail(`built app not found at ${app}`)
+  run("xcrun", ["devicectl", "device", "install", "app", "--device", device, app], { env })
 } else if (command === "deploy") {
-  if (platform !== "android") fail("deploy only supports android")
   if (channel !== "release") fail("deploy only supports the release channel")
   const android = androidEnvironment(channel)
   const adb = adbCommand(android.env)

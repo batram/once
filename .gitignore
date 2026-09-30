@@ -3,6 +3,7 @@ node_modules/
 # Local environment and notes
 .env
 .env.android.local
+.env.ios.local
 .claude/*
 
 # Build and test outputs

@@ -299,6 +299,11 @@ Deploy resolves the wireless address in this order: an exported
 `.env.android.local` when discovery finds nothing, or set it to choose between
 several advertised devices.
 
+iOS commands read the git-ignored `.env.ios.local` first: `DEVELOPER_DIR` when
+xcode-select points at the Command Line Tools, and `ONCE_IOS_DEVICE`, the phone
+`deploy:mobile:ios` installs on. Copy `.env.ios.example` and take the id from
+`npx cap run ios --list` in `apps/mobile`.
+
 The iOS packaging command resolves the public Capacitor Swift package with
 system Git, disables Git credential helpers and interactive prompts, and tells
 Xcode to use netrc rather than the login Keychain for package authorization.
@@ -322,6 +327,10 @@ connects to the address in the git-ignored `.env.android.local`, and replaces
 the installed `com.zmarn.once` app with `adb install -r`. The debug signature
 makes this APK locally installable; it is not a store release artifact and
 cannot replace an app signed with a different key.
+
+`deploy:mobile:ios` is its iOS counterpart: a Release build of the `Once`
+scheme with release-channel web content, signed with the project's development
+team, installed on the phone named by `ONCE_IOS_DEVICE` with `xcrun devicectl`. It replaces the installed `com.zmarn.once` app.
 
 ### Inspect the Android WebView with Chrome DevTools
 
