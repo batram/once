@@ -238,6 +238,17 @@
     background: var(--m-pressed-bg);
   }
 
+  /* The .button reset above outranks the accent fill addon-settings.css gives
+   the primary action, which left its white label on the page colour. */
+  .addon_primary_action.button {
+    border-color: var(--cursor-color);
+    background: var(--cursor-color);
+  }
+
+  .addon_primary_action.button:active {
+    background: color-mix(in srgb, var(--cursor-color) 85%, black);
+  }
+
   /* ---------- Story rows ---------- */
 
   .story {

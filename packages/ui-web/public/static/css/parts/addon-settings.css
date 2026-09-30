@@ -101,8 +101,11 @@
 #addon_install_settings .addon_list_description:empty { display: none; }
 #addon_install_settings .addon_list_meta { font-size: var(--fs-meta); line-height: 1.5; color: var(--text-muted-color); }
 #addon_install_settings .addon_list_arrow { position: absolute; right: var(--sp-3); top: var(--sp-4); font-size: var(--fs-title); }
+/* White, not --input-bg-color: the dark-theme input background is a blue-grey
+   that all but vanishes on the accent fill. --cursor-color is deep enough in
+   both themes for white text. */
 #settings_panel #addon_install_settings .addon_primary_action {
-  background: var(--cursor-color); color: var(--input-bg-color); border-color: var(--cursor-color);
+  background: var(--cursor-color); color: white; border-color: var(--cursor-color);
 }
 #settings_panel #addon_install_settings .addon_advanced_action {
   margin-top: var(--sp-5); color: var(--text-muted-color);
