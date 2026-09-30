@@ -108,6 +108,18 @@ test("mobile build channels select stable names, identifiers, schemes, and flavo
     root,
     "apps/mobile/android/app/src/development/res/mipmap-mdpi/ic_launcher_dev.png"
   )))
+
+  // The Debug configuration builds "Once Dev"; Release keeps the store icon.
+  const pbxproj = fs.readFileSync(
+    path.join(root, "apps/mobile/ios/App/App.xcodeproj/project.pbxproj"),
+    "utf8"
+  )
+  const iconNames = [...pbxproj.matchAll(/ASSETCATALOG_COMPILER_APPICON_NAME = (\w+);/g)].map((m) => m[1])
+  assert.deepEqual(iconNames, ["AppIconDev", "AppIcon"])
+  assert.ok(fs.existsSync(path.join(
+    root,
+    "apps/mobile/ios/App/App/Assets.xcassets/AppIconDev.appiconset/AppIconDev-512@2x.png"
+  )))
 })
 
 test("mobile release package commands select production native artifacts", () => {
