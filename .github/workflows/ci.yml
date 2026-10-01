@@ -100,7 +100,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
-          name: electron-e2e-timings-${{ matrix.shard }}
+          name: electron-e2e-timings-${{ matrix.shard }}-attempt-${{ github.run_attempt }}
           path: artifacts/electron-e2e/results.json
           retention-days: 14
           if-no-files-found: error
@@ -113,14 +113,14 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() && matrix.rendering != 'none' }}
         with:
-          name: native-rendering-${{ matrix.rendering }}
+          name: native-rendering-${{ matrix.rendering }}-attempt-${{ github.run_attempt }}
           path: artifacts/native-rendering
           retention-days: 14
           if-no-files-found: error
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: electron-e2e-failures-${{ matrix.shard }}
+          name: electron-e2e-failures-${{ matrix.shard }}-attempt-${{ github.run_attempt }}
           path: test-results
           if-no-files-found: ignore
 
