@@ -53,6 +53,9 @@ final class NativeBrowserMenu {
         float density = activity.getResources().getDisplayMetrics().density;
         int spacing = Math.round(16 * density);
         int gap = Math.round(8 * density);
+        // One height for every list entry (switch, extension rows, gears,
+        // expander) so the sheet reads as aligned rows rather than mixed buttons.
+        int entry = Math.round(48 * density);
         Dialog dialog = new Dialog(activity);
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         LinearLayout content = new LinearLayout(activity);
@@ -87,8 +90,8 @@ final class NativeBrowserMenu {
         backgroundPlayback.setText("Keep media playing in background");
         backgroundPlayback.setTextSize(16);
         backgroundPlayback.setTextColor(palette.text);
-        backgroundPlayback.setPadding(spacing, spacing, spacing, spacing);
-        backgroundPlayback.setMinHeight(Math.round(56 * density));
+        backgroundPlayback.setPadding(spacing, 0, spacing, 0);
+        backgroundPlayback.setGravity(Gravity.CENTER_VERTICAL);
         backgroundPlayback.setThumbTintList(new ColorStateList(
             new int[][] { { android.R.attr.state_checked }, {} },
             new int[] { palette.accent, dark ? Color.rgb(188, 194, 205) : Color.WHITE }));
@@ -98,7 +101,7 @@ final class NativeBrowserMenu {
                 dark ? Color.rgb(90, 94, 120) : Color.rgb(180, 180, 180) }));
         backgroundPlayback.setChecked(media.isEnabled());
         backgroundPlayback.setOnCheckedChangeListener((button, checked) -> media.setEnabled(checked));
-        content.addView(backgroundPlayback, row(gap));
+        content.addView(backgroundPlayback, row(gap, entry));
         LinearLayout entries = new LinearLayout(activity);
         entries.setOrientation(LinearLayout.VERTICAL);
         entries.setVisibility(View.GONE);
@@ -116,19 +119,24 @@ final class NativeBrowserMenu {
                 });
                 row.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
                 row.setPadding(spacing, 0, spacing, 0);
+                // A long add-on name must not wrap: it would push the row taller
+                // than its gear and spill into the entry below.
+                row.setSingleLine(true);
+                row.setEllipsize(android.text.TextUtils.TruncateAt.END);
                 setIcon(activity, palette, row, item.optString("iconDataUrl", ""), "once:manage".equals(id));
                 String settingsId = item.optString("settingsId", "");
-                if (settingsId.isEmpty()) { entries.addView(row, row(gap)); continue; }
+                if (settingsId.isEmpty()) { entries.addView(row, row(gap, entry)); continue; }
                 LinearLayout line = new LinearLayout(activity);
-                line.addView(row, cell(gap, false));
+                line.addView(row, cell(gap, false, entry));
                 Button settings = control(activity, palette, "⚙", true, () -> {
                     if (settled.compareAndSet(false, true)) call.resolve(new JSObject().put("id", settingsId));
                     dialog.dismiss();
                 });
                 settings.setContentDescription(label + " settings");
                 settings.setTextSize(22);
-                line.addView(settings, new LinearLayout.LayoutParams(Math.round(56 * density), -2));
-                entries.addView(line, row(gap));
+                settings.setPadding(0, 0, 0, 0);
+                line.addView(settings, new LinearLayout.LayoutParams(entry, entry));
+                entries.addView(line, row(gap, entry));
             }
         } catch (Exception error) { call.reject("Invalid browser menu items", error); return; }
         String label = "Extensions (" + count + ")";
@@ -143,7 +151,7 @@ final class NativeBrowserMenu {
             expand.setText(label + (expanded ? "   ⌃" : "   ⌄"));
             expand.setContentDescription(label + (expanded ? ", expanded" : ", collapsed"));
         });
-        content.addView(expand, row(gap));
+        content.addView(expand, row(gap, entry));
         content.addView(entries);
         ScrollView scroll = new ScrollView(activity);
         scroll.addView(content);
@@ -159,14 +167,18 @@ final class NativeBrowserMenu {
 
     /** An equal-width cell in a horizontal row, with a gap before the next one. */
     private static LinearLayout.LayoutParams cell(int gap, boolean last) {
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, -2, 1);
+        return cell(gap, last, -2);
+    }
+
+    private static LinearLayout.LayoutParams cell(int gap, boolean last, int height) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, height, 1);
         params.setMarginEnd(last ? 0 : gap);
         return params;
     }
 
-    /** A full-width row separated from the one above it. */
-    private static LinearLayout.LayoutParams row(int gap) {
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
+    /** A full-width row of a fixed height, separated from the one above it. */
+    private static LinearLayout.LayoutParams row(int gap, int height) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, height);
         params.topMargin = gap;
         return params;
     }
@@ -187,7 +199,12 @@ final class NativeBrowserMenu {
         button.setBackground(new RippleDrawable(ColorStateList.valueOf(palette.ripple), shape, null));
         button.setStateListAnimator(null);
         button.setEnabled(enabled);
-        button.setMinHeight(Math.round(56 * activity.getResources().getDisplayMetrics().density));
+        // Fixed-height rows size themselves; the stock Button minimum would
+        // otherwise force every control to the tall default.
+        button.setMinHeight(0);
+        button.setMinimumHeight(0);
+        int inset = Math.round(8 * activity.getResources().getDisplayMetrics().density);
+        button.setPadding(inset, inset, inset, inset);
         button.setOnClickListener(ignored -> action.run());
         return button;
     }
