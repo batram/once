@@ -409,10 +409,11 @@ export class SettingsPanel {
     requireElement("#settings_panel .settings_title").textContent = label || "Settings"
     this.structuredEditors?.setActiveSection(key)
     requestAnimationFrame(() => {
-      const isMobileStructuredSection =
-        document.body.dataset.platform === "mobile" &&
-        (key === "sources" || key === "filters" || key === "redirects")
-      if (isMobileStructuredSection) {
+      // On touch, focusing a control opens its picker or the keyboard over
+      // the section the user just opened. Only a section that is essentially
+      // one text field (the sync URL) keeps that shortcut there; the rest
+      // park focus on the back button.
+      if (document.body.dataset.platform === "mobile" && key !== "sync") {
         back.focus({ preventScroll: true })
         return
       }
