@@ -653,12 +653,30 @@ abstract class ReadingSurfaceHost extends Plugin {
             // document. The matching content-port health reply completes web
             // navigation, including BFCache restores and stalled subresources.
             if (!isEmbeddable(currentUrl)) documentReady();
+            else if (!navigationCompleted) completeIfPdfViewer();
             nextHealthAt = 0;
             if (!initialBlank) {
                 if (loadStatus != null && !navigationCompleted) loadStatus.show("Displaying page…");
                 traceLoad("network-stopped");
                 requestHealthCheck();
             }
+        }
+
+        /**
+         * An http(s) PDF renders in Gecko's privileged pdf.js viewer, where the
+         * content-script bridge never connects, so no health reply can finish
+         * the navigation. Treat a stopped PDF load as ready, as for other
+         * documents the bridge cannot reach.
+         */
+        private void completeIfPdfViewer() {
+            GeckoSession loaded = session;
+            long navigation = activeNavigation;
+            loaded.isPdfJs().accept(pdf -> {
+                if (loaded != session || navigation != activeNavigation || destroyed) return;
+                traceLoad(Boolean.TRUE.equals(pdf) ? "pdf-viewer" : "not-pdf-viewer");
+                if (!Boolean.TRUE.equals(pdf)) return;
+                documentReady();
+            }, error -> Log.w(TAG, "isPdfJs failed: " + error));
         }
     }
 
