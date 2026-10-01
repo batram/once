@@ -1,6 +1,7 @@
 const fs = require("fs")
 const path = require("path")
 const { spawn, spawnSync } = require("child_process")
+const { deploymentSettings, selectDeploymentAbis, installApk } = require("./android-deploy")
 
 const root = path.resolve(__dirname, "../../..")
 const appRoot = path.join(root, "apps", "mobile")
@@ -167,8 +168,7 @@ function connectedWirelessAddresses(adb, env) {
 // Precedence: an explicit ONCE_ANDROID_WIRELESS_ADDRESS in the environment,
 // then mDNS discovery, an existing ADB wireless connection, then
 // .env.android.local.
-function resolveWirelessAddress(adb, env) {
-  const exported = process.env.ONCE_ANDROID_WIRELESS_ADDRESS
+function resolveWirelessAddress(adb, env, exported) {
   if (exported) {
     if (!wirelessAddressPattern.test(exported)) {
       fail("ONCE_ANDROID_WIRELESS_ADDRESS must be an IP or hostname followed by :port")
@@ -193,8 +193,7 @@ function resolveWirelessAddress(adb, env) {
     console.log(`mobile: using connected wireless device ${connected[0]} from adb devices`)
     return connected[0]
   }
-  loadLocalEnvironment("android")
-  const address = process.env.ONCE_ANDROID_WIRELESS_ADDRESS
+  const address = env.ONCE_ANDROID_WIRELESS_ADDRESS
   if (!address) {
     fail("no wireless device found via adb mdns or adb devices; enable wireless debugging and pair the device, or copy .env.android.example to .env.android.local and set ONCE_ANDROID_WIRELESS_ADDRESS")
   }
@@ -384,20 +383,45 @@ else if (command === "run") {
   run("xcrun", ["devicectl", "device", "install", "app", "--device", device, app], { env })
 } else if (command === "deploy") {
   if (channel !== "release") fail("deploy only supports the release channel")
+  const started = performance.now()
+  // Load tuning even when wireless discovery succeeds. Keep the file's address
+  // as a fallback because Android changes the wireless port after a reboot.
+  const exportedAddress = process.env.ONCE_ANDROID_WIRELESS_ADDRESS
+  loadLocalEnvironment("android")
+  let settings
+  try { settings = deploymentSettings(process.env) } catch (error) { fail(error.message) }
   const android = androidEnvironment(channel)
   const adb = adbCommand(android.env)
-  const address = resolveWirelessAddress(adb, android.env)
+  const explicitTarget = options.target || android.env.ONCE_ANDROID_SERIAL
+  const address = explicitTarget || resolveWirelessAddress(adb, android.env, exportedAddress)
+  if (!explicitTarget || wirelessAddressPattern.test(address)) {
+    run(adb, ["connect", address], { env: android.env })
+  }
+  const device = spawnSync(adb, ["-s", address, "shell", "getprop", "ro.product.cpu.abilist"], {
+    env: android.env, encoding: "utf8", timeout: 15000
+  })
+  if (device.error || device.status !== 0) {
+    fail(`cannot query target device: ${device.error?.message || device.stderr || device.status}`)
+  }
+  let abis
+  try { abis = selectDeploymentAbis(settings.abis, device.stdout) } catch (error) { fail(error.message) }
+  console.log(`mobile: deploying to ${address}; ABIs: ${abis.join(",")}`)
+  const webStarted = performance.now()
   sync(platform, channel)
+  console.log(`mobile: web build and sync completed in ${((performance.now() - webStarted) / 1000).toFixed(1)}s`)
+  const nativeStarted = performance.now()
   run(android.command, [
     "-classpath",
     path.join(appRoot, "android", "gradle", "wrapper", "gradle-wrapper.jar"),
     "org.gradle.wrapper.GradleWrapperMain",
     "assembleProductionDebug",
-    "--no-daemon"
+    `-PonceDeployAbis=${abis.join(",")}`,
+    settings.daemon ? "--daemon" : "--no-daemon"
   ], {
     cwd: path.join(appRoot, "android"),
     env: android.env
   })
+  console.log(`mobile: native build completed in ${((performance.now() - nativeStarted) / 1000).toFixed(1)}s`)
   const apk = path.join(
     appRoot,
     "android",
@@ -410,8 +434,9 @@ else if (command === "run") {
     "app-production-debug.apk"
   )
   if (!fs.existsSync(apk)) fail(`built APK not found at ${apk}`)
-  run(adb, ["connect", address], { env: android.env })
-  run(adb, ["-s", address, "install", "-r", apk], { env: android.env })
+  console.log(`mobile: APK ${(fs.statSync(apk).size / 1024 / 1024).toFixed(1)} MiB`)
+  try { installApk(adb, address, apk, settings.installMode, android.env) } catch (error) { fail(error.message) }
+  console.log(`mobile: deployment completed in ${((performance.now() - started) / 1000).toFixed(1)}s`)
 } else if (command === "package") {
   sync(platform, channel)
   if (platform === "android") {

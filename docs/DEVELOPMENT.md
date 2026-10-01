@@ -320,13 +320,49 @@ stop before store signing/export: supply the Android keystore or use
 `xcodebuild -exportArchive` with the appropriate Apple team and provisioning
 profile in the secure release environment.
 
-`deploy:mobile:android` is a local convenience command for a phone already
-paired through Android's Wireless debugging screen. It builds the production
-flavor with release-channel web content and Android's local debug signature,
-connects to the address in the git-ignored `.env.android.local`, and replaces
-the installed `com.zmarn.once` app with `adb install -r`. The debug signature
-makes this APK locally installable; it is not a store release artifact and
-cannot replace an app signed with a different key.
+`deploy:mobile:android` builds the production flavor with release-channel web
+content and Android's local debug signature, then replaces `com.zmarn.once`
+with `adb install -r`, preserving app data. Pair the phone through Android's
+Wireless debugging screen first. Deployment discovers its current address
+through mDNS, then tries an existing wireless ADB connection, then the address
+in `.env.android.local`. An exported `ONCE_ANDROID_WIRELESS_ADDRESS` takes
+precedence over discovery. The debug signature makes this APK locally
+installable; it is not a store release artifact and cannot replace an app
+signed with a different key.
+
+Deployment builds only the connected device's preferred supported ABI, uses
+ADB's compressed push followed by installation (`--no-streaming`), and reuses
+the Gradle daemon. This avoids transferring the emulator's GeckoView libraries
+to an ARM64 phone. Normal package/run builds retain both ARM64 and x86-64.
+The command prints the selected device and ABIs, APK size, web/sync time,
+native build time, install time, and total deployment time.
+
+Optional overrides live in the git-ignored `.env.android.local`; see
+[`.env.android.example`](../.env.android.example). They are read even when
+wireless discovery succeeds. Exported environment variables override the file.
+
+| Setting | Default | Alternatives |
+| --- | --- | --- |
+| `ONCE_ANDROID_DEPLOY_ABIS` | `auto` | `all`, `arm64-v8a`, `x86_64`, or `arm64-v8a,x86_64` |
+| `ONCE_ANDROID_INSTALL_MODE` | `push` | `streaming`, `fastdeploy` |
+| `ONCE_ANDROID_GRADLE_DAEMON` | `true` | `false` to use `--no-daemon` |
+| `ONCE_ANDROID_SERIAL` | wireless discovery | An explicit ADB serial, including a USB device |
+
+`npm run deploy:mobile:android -- --target <serial>` overrides the configured
+serial. Unsupported/incompatible ABIs and invalid settings fail before the
+build. `fastdeploy` is experimental: ADB may ignore it and do a full install;
+if it exits with an error, deployment retries a full push install. It never
+uninstalls the app or clears app data. To restore the previous build/install
+choices, use `all`, `streaming`, and `false` for the first three settings.
+
+Local Wi-Fi measurements on 2026-10-01 (Samsung SM-G780G, Android 13/API 33,
+ADB 37.0.0) selected these defaults. A 385.0 MiB dual-ABI APK took 68.9–72.3s
+with streaming and 46.0s with push. The 199.1 MiB ARM64 APK took 41.5–50.0s
+with streaming and 25.6–26.4s with push. These are install-only timings of
+repeat replacements, not build times or first-install guarantees. Fastdeploy
+was ignored by that ADB/device combination with an incorrect below-API-24
+warning, so it provided no patch-transfer benefit. Connection-interrupted
+and overlapping trials were excluded from this comparison.
 
 `deploy:mobile:ios` is its iOS counterpart: a Release build of the `Once`
 scheme with release-channel web content, signed with the project's development

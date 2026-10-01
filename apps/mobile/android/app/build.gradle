@@ -6,6 +6,11 @@ def rootPackage = new JsonSlurper().parseText(
     new File(rootProject.projectDir, '../../../package.json').text
 )
 def onceBuildNumber = Integer.parseInt(System.getenv('ONCE_BUILD_NUMBER') ?: '1')
+// Only local deployment passes this property. Normal APK/AAB builds keep both ABIs.
+def onceDeployAbis = providers.gradleProperty('onceDeployAbis').orElse('arm64-v8a,x86_64').get().split(',')
+if (!onceDeployAbis.every { it in ['arm64-v8a', 'x86_64'] }) {
+    throw new GradleException('onceDeployAbis must contain only arm64-v8a or x86_64')
+}
 
 android {
     namespace = "com.zmarn.once"
@@ -25,7 +30,7 @@ android {
         }
         // GeckoView ships native code per ABI; devices and the emulator cover these two.
         ndk {
-            abiFilters "arm64-v8a", "x86_64"
+            abiFilters.addAll(onceDeployAbis)
         }
     }
     sourceSets {
