@@ -107,7 +107,7 @@ export function registerAmoHandlers({ coordinator, extensions, browserSession }:
     }
     throw new Error("Unknown add-on request")
   })
-  extensions.onChanged(() => {
+  extensions.onInstalledChanged(() => {
     for (const tab of amoTabs(coordinator)) tab.send(ELECTRON_IPC.amoChanged)
   })
   // An XPI from Mozilla is never saved as a file: it goes through the same

@@ -308,7 +308,10 @@ export interface ElectronBridge {
     onPinsChanged(handler: (pinned: string[]) => void): () => void
     /** Toggles the extension's popup under the toolbar button at `anchor`. */
     openPopup(host: string, anchor: ElectronRect): Promise<void>
+    /** Badge, title, active-tab or installation changes: anything `list` shows. */
     onChanged(handler: () => void): () => void
+    /** Only changes to what `installed` reports, never badge or tab state. */
+    onInstalledChanged(handler: () => void): () => void
     /** Hands the synced documents to the extensions that act on them. */
     applySettings(settings: ElectronExtensionSettings): Promise<void>
     /**
@@ -430,6 +433,7 @@ export const ELECTRON_IPC = {
   extensionsPinsChanged: "once:extensions:pins-changed",
   extensionsOpenPopup: "once:extensions:open-popup",
   extensionsChanged: "once:extensions:changed",
+  extensionsInstalledChanged: "once:extensions:installed-changed",
   extensionsApplySettings: "once:extensions:apply-settings",
   extensionsSettingsAdopted: "once:extensions:settings-adopted",
   // addons.mozilla.org in a tab: its install button reaches the extension

@@ -15,6 +15,10 @@ interface Installed {
   error?: string
 }
 
+/** What `list` shows from a package itself; fixed for as long as its directory is installed. */
+type PackageMetadata = Pick<ElectronManagedExtension, "host" | "name" | "version" | "icon" | "description" |
+  "hasOptions" | "hasPopup" | "permissions" | "warnings">
+
 interface ManagerRuntime {
   load(directory: string, id?: string): Promise<LoadedExtension>
   unload(host: string): Promise<void>
@@ -26,6 +30,9 @@ interface ManagerRuntime {
 export class ExtensionManager {
   private entries: Record<string, Installed> = Object.create(null)
   private readonly candidates = new Map<string, ExtensionCandidate>()
+  // Installs and updates unpack into a fresh directory, so a directory's
+  // package never changes underneath its entry here.
+  private readonly packages = new Map<string, Promise<PackageMetadata>>()
   private queue: Promise<unknown> = Promise.resolve()
   private initialized: Promise<void> | undefined
   private sync: BrowserExtensionSyncDocument = { version: 1, extensions: {} }
@@ -59,6 +66,8 @@ export class ExtensionManager {
     const file = path.join(this.root, "installed.json")
     await fs.writeFile(`${file}.tmp`, JSON.stringify(this.entries), "utf8")
     await fs.rename(`${file}.tmp`, file)
+    const directories = new Set(Object.values(this.entries).map(entry => entry.directory))
+    for (const directory of this.packages.keys()) if (!directories.has(directory)) this.packages.delete(directory)
     this.runtime.changed()
   }
 
@@ -85,20 +94,32 @@ export class ExtensionManager {
     await this.queue
     return Promise.all(Object.entries(this.entries).map(async ([id, entry]) => {
       try {
-        const extension = await loadUnpackedExtension(entry.directory, "en")
-        return { id, host: extension.host, name: extension.name, version: extension.manifest.version,
-          icon: await extensionIconDataUrl(extension),
-          description: extension.description, enabled: entry.enabled, running: !!this.runtime.host(id),
-          bundled: entry.bundled, source: entry.source, error: entry.error,
-          hasOptions: !!extension.manifest.optionsUi, hasPopup: !!extension.manifest.browserAction?.defaultPopup,
-          permissions: [...extension.manifest.permissions, ...extension.manifest.hostPermissions],
-          warnings: compatibilityWarnings(extension) }
+        return { id, ...await this.metadata(entry.directory), enabled: entry.enabled, running: !!this.runtime.host(id),
+          bundled: entry.bundled, source: entry.source, error: entry.error }
       } catch (error) {
         return { id, host: "", name: id, version: "", description: "", icon: null, enabled: entry.enabled,
           running: false, bundled: entry.bundled, source: entry.source, error: String(error),
           hasOptions: false, hasPopup: false, permissions: [], warnings: [] }
       }
     }))
+  }
+
+  /** Read once per directory; a failed read is tried again next time. */
+  private metadata(directory: string): Promise<PackageMetadata> {
+    let metadata = this.packages.get(directory)
+    if (!metadata) {
+      metadata = (async () => {
+        const extension = await loadUnpackedExtension(directory, "en")
+        return { host: extension.host, name: extension.name, version: extension.manifest.version,
+          icon: await extensionIconDataUrl(extension), description: extension.description,
+          hasOptions: !!extension.manifest.optionsUi, hasPopup: !!extension.manifest.browserAction?.defaultPopup,
+          permissions: [...extension.manifest.permissions, ...extension.manifest.hostPermissions],
+          warnings: compatibilityWarnings(extension) }
+      })()
+      this.packages.set(directory, metadata)
+      metadata.catch(() => { if (this.packages.get(directory) === metadata) this.packages.delete(directory) })
+    }
+    return metadata
   }
 
   preview(source: string, file?: string): Promise<ElectronExtensionPreview> {

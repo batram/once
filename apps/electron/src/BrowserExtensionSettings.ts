@@ -105,7 +105,7 @@ export function bindBrowserExtensionSettings(client: OnceClient, bridge: Electro
   const report = () => bridge.extensions.installed().then(installed =>
     reportInstalledExtensions(installed.length, installed.filter(item => item.running).length)
   ).catch(() => undefined)
-  bridge.extensions.onChanged(() => {
+  bridge.extensions.onInstalledChanged(() => {
     void report()
     if (active() && current === "overview" && !busy) void run(() => show("overview"))
   })

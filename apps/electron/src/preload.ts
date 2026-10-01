@@ -174,6 +174,11 @@ const bridge: ElectronBridge = {
       ipcRenderer.on(ELECTRON_IPC.extensionsChanged, listener)
       return () => ipcRenderer.removeListener(ELECTRON_IPC.extensionsChanged, listener)
     },
+    onInstalledChanged(handler: () => void) {
+      const listener = () => handler()
+      ipcRenderer.on(ELECTRON_IPC.extensionsInstalledChanged, listener)
+      return () => ipcRenderer.removeListener(ELECTRON_IPC.extensionsInstalledChanged, listener)
+    },
     applySettings: (settings) =>
       ipcRenderer.invoke(ELECTRON_IPC.extensionsApplySettings, settings),
     onSettingsAdopted(handler) {

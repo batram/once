@@ -361,6 +361,11 @@ app
         if (!window.isDestroyed()) window.webContents.send(ELECTRON_IPC.extensionsChanged)
       }
     })
+    extensions.onInstalledChanged(() => {
+      for (const window of BrowserWindow.getAllWindows()) {
+        if (!window.isDestroyed()) window.webContents.send(ELECTRON_IPC.extensionsInstalledChanged)
+      }
+    })
     extensions.onSettingsAdopted((adopted) => {
       for (const window of BrowserWindow.getAllWindows()) {
         if (!window.isDestroyed()) {

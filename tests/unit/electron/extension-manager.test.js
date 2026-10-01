@@ -85,6 +85,23 @@ test("preview does not run code; install, disabled updates, restart, rollback an
   assert.deepEqual(await restarted.list(), [])
 })
 
+test("package metadata is read once per installed directory, and again after an update", async t => {
+  const h = await harness(t)
+  const preview = await h.manager.preview("", await h.xpi("1"))
+  await h.manager.install(preview.token)
+  const { directory } = h.hosts.get(preview.id).extension
+  const manifest = path.join(directory, "manifest.json")
+  assert.equal((await h.manager.list())[0].name, "Test extension")
+  // A change only an installer could make is not looked for on every list.
+  await fs.writeFile(manifest, (await fs.readFile(manifest, "utf8")).replace("Test extension", "Edited in place"))
+  assert.equal((await h.manager.list())[0].name, "Test extension")
+  await h.manager.setEnabled(preview.id, false)
+  assert.equal((await h.manager.list())[0].running, false)
+  const update = await h.manager.preview("", await h.xpi("2"))
+  await h.manager.install(update.token)
+  assert.equal((await h.manager.list())[0].version, "2")
+})
+
 test("selected sync keys are applied with deletions while local-only keys survive", async t => {
   const h = await harness(t)
   const preview = await h.manager.preview("", await h.xpi("1"))

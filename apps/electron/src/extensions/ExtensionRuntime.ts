@@ -137,6 +137,7 @@ export class ExtensionRuntime {
   private readonly ownPages = new OwnPageRequests()
   private readonly tabContents = new Map<number, WebContents>()
   private readonly changed = new Set<() => void>()
+  private readonly installedChanged = new Set<() => void>()
   private lastActive = new Map<number, number>()
   private nextWorldId = CONTENT_WORLD_BASE
   private installed = false
@@ -147,7 +148,7 @@ export class ExtensionRuntime {
       load: (directory, id) => this.load(directory, id),
       unload: host => this.unload(host),
       host: id => [...this.hosts.values()].find(host => host.extension.id === id),
-      changed: () => this.notifyChanged()
+      changed: () => this.notifyInstalledChanged()
     })
     this.settingsCoordinator = new ExtensionSettingsCoordinator(options.storageRoot, () => this.hosts.values(), () => this.notifyChanged())
     this.router = new WebRequestRouter(options.browserSession, {
@@ -244,7 +245,7 @@ export class ExtensionRuntime {
       await host.dispose()
       throw error
     }
-    this.notifyChanged()
+    this.notifyInstalledChanged()
     await this.settingsCoordinator.applyTo(host)
     return extension
   }
@@ -273,7 +274,7 @@ export class ExtensionRuntime {
       if (owner === host) this.contextOwner.delete(id)
     }
     await host.dispose()
-    this.notifyChanged()
+    this.notifyInstalledChanged()
   }
 
   /** How a tab showing this URL must be created; null for ordinary pages. */
@@ -301,9 +302,20 @@ export class ExtensionRuntime {
     return infos
   }
 
-  /** Runs when the toolbar should re-read `extensionInfos`. */
+  /**
+   * Runs when the toolbar should re-read `extensionInfos`: badges, titles and
+   * the active tab as well as what is installed.
+   */
   onChanged(listener: () => void): void {
     this.changed.add(listener)
+  }
+
+  /**
+   * Runs when `manager.list()` may read differently: an extension installed,
+   * removed, enabled, disabled, loaded or unloaded. Not for badge or tab state.
+   */
+  onInstalledChanged(listener: () => void): void {
+    this.installedChanged.add(listener)
   }
 
   /** The toolbar button was pressed: show the popup, or tell the extension. */
@@ -330,6 +342,11 @@ export class ExtensionRuntime {
 
   private notifyChanged(): void {
     for (const listener of this.changed) listener()
+  }
+
+  private notifyInstalledChanged(): void {
+    for (const listener of this.installedChanged) listener()
+    this.notifyChanged()
   }
 
   private hostForUrl(url: string): ExtensionHost | undefined {
