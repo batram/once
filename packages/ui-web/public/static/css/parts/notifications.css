@@ -11,7 +11,7 @@
 
 #status_surfaces {
   --status-small-font-size: 11px;
-  bottom: 25px;
+  bottom: var(--status-bubble-offset);
   display: flex;
   flex-direction: column-reverse;
   --status-surfaces-gap: 6px;
@@ -25,6 +25,10 @@
 
 #status_surfaces,
 #status_dock {
+  /* The bar continues the dock across the menu edge, so both share one
+     bottom edge and one height: #menu and #left_main end at the same line. */
+  --status-bubble-height: 30px;
+  --status-bubble-offset: var(--sp-6);
   --status-bubble-radius: 14px;
 }
 
@@ -36,7 +40,7 @@
   border-radius: 0 var(--status-bubble-radius) var(--status-bubble-radius) 0;
   box-sizing: border-box;
   color: var(--text-color);
-  min-height: 29px;
+  min-height: var(--status-bubble-height);
   pointer-events: auto;
 }
 
@@ -94,16 +98,16 @@
   flex: 0 0 auto;
   gap: 0;
   justify-content: center;
-  margin-bottom: var(--sp-6);
+  margin-bottom: var(--status-bubble-offset);
   margin-top: auto;
-  min-height: 29px;
+  min-height: var(--status-bubble-height);
   overflow: hidden;
   padding: var(--sp-0-5) var(--sp-1) var(--sp-0-5) var(--sp-1-5);
 }
 
 #menu.collapse #status_dock {
   flex-direction: column;
-  padding: var(--sp-1) var(--sp-0-5);
+  padding: var(--sp-0-5);
 }
 
 .status_indicator {
