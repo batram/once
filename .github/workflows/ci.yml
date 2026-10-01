@@ -95,11 +95,17 @@ jobs:
           cache: npm
       # Keep root tooling and every shared package, without mobile/Appium tooling.
       - run: npm ci --workspace @once/electron --workspace packages --include-workspace-root
+      - uses: actions/cache@v6
+        with:
+          path: vendor/extensions
+          key: electron-extensions-${{ hashFiles('scripts/fetch-extensions.js', 'scripts/download-extension.js') }}
       # Every shard retains a private Windows desktop and one Playwright worker.
       # Building independently avoids a serial build/artifact-transfer barrier.
-      - run: npm run test:electron:e2e -- --shard=${{ matrix.shard }}/6
+      - run: npm run package:electron
+        id: package
+      - run: npx playwright test --config tests/e2e/electron/playwright.config.js --shard=${{ matrix.shard }}/6
       - uses: actions/upload-artifact@v7
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
         with:
           name: electron-e2e-timings-${{ matrix.shard }}-attempt-${{ github.run_attempt }}
           path: artifacts/electron-e2e/results.json
@@ -108,11 +114,11 @@ jobs:
       # The shorter shards reuse their build for one complete calibration pair.
       # Pairs stay on separate desktops and never overlap Playwright execution.
       - run: npm run test:electron:rendering:run
-        if: ${{ !cancelled() && matrix.rendering != 'none' }}
+        if: ${{ !cancelled() && steps.package.outcome == 'success' && matrix.rendering != 'none' }}
         env:
           ONCE_RENDERING_ITERATION: ${{ matrix.rendering }}
       - uses: actions/upload-artifact@v7
-        if: ${{ !cancelled() && matrix.rendering != 'none' }}
+        if: ${{ !cancelled() && steps.package.outcome == 'success' && matrix.rendering != 'none' }}
         with:
           name: native-rendering-${{ matrix.rendering }}-attempt-${{ github.run_attempt }}
           path: artifacts/native-rendering

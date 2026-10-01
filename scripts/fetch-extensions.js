@@ -13,6 +13,7 @@ const crypto = require("node:crypto")
 const fs = require("node:fs")
 const path = require("node:path")
 const AdmZip = require("adm-zip")
+const { downloadExtension } = require("./download-extension")
 
 const root = path.resolve(__dirname, "..")
 const vendorRoot = path.join(root, "vendor", "extensions")
@@ -47,19 +48,13 @@ function isCurrent(bundle) {
   }
 }
 
-async function download(url) {
-  const response = await fetch(url, { redirect: "follow" })
-  if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`)
-  return Buffer.from(await response.arrayBuffer())
-}
-
 async function fetchBundle(bundle) {
   if (isCurrent(bundle)) {
     console.log(`${bundle.name} ${bundle.version} is present`)
     return
   }
   console.log(`Downloading ${bundle.name} ${bundle.version}`)
-  const archive = await download(bundle.url)
+  const archive = await downloadExtension(bundle.url)
   const digest = crypto.createHash("sha256").update(archive).digest("hex")
   if (digest !== bundle.sha256) {
     throw new Error(`${bundle.name}: hash ${digest} does not match the pinned ${bundle.sha256}`)
@@ -83,6 +78,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(error.message)
+  console.error(error)
   process.exitCode = 1
 })
