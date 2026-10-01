@@ -57,7 +57,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - run: npm ci --workspace @once/electron --workspace packages --include-workspace-root
       - run: npm run test:electron
       - run: npm run test:design-system
       - uses: actions/upload-artifact@v7
@@ -93,7 +93,8 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      # Keep root tooling and every shared package, without mobile/Appium tooling.
+      - run: npm ci --workspace @once/electron --workspace packages --include-workspace-root
       # Every shard retains a private Windows desktop and one Playwright worker.
       # Building independently avoids a serial build/artifact-transfer barrier.
       - run: npm run test:electron:e2e -- --shard=${{ matrix.shard }}/6

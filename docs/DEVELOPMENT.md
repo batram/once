@@ -595,7 +595,9 @@ executable or exercise its packaged-only behavior. Failure traces and other
 Playwright artifacts are written below `test-results/`.
 
 CI runs the Electron E2E suite in six file-level shards on separate Windows
-runners, each with one worker. To reproduce one shard, run
+runners, each with one worker. Windows jobs install the root tooling, Electron,
+and all shared-package workspaces from the lockfile; mobile/Appium tooling is
+only needed by other jobs. To reproduce one shard, run
 `npm run test:electron:e2e -- --shard=1/6`. Integration and design-system tests
 run once in a separate Windows job. All three native-rendering calibration
 pairs still run on separate desktops: shards 3, 5, and 6 each run one pair
