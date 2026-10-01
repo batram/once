@@ -132,3 +132,31 @@ test("the browser sheet offers add-on page actions for the page being read and r
   await button.onclick()
   assert.deepEqual(menu.items.map(item => item.id), ["once:manage"])
 })
+
+test("iOS opens the native browser sheet with page actions and no extension rows", async () => {
+  const { document, window } = parseHTML('<html><body><form><button id="reading_navigate">Go</button></form><p id="reading_url_validation" hidden></p></body></html>')
+  const compiled = ts.transpileModule(fs.readFileSync(path.resolve(__dirname,
+    "../../../apps/mobile/src/browserExtensionToolbar.ts"), "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
+  }).outputText
+  const exports = {}
+  Function("exports", "require", "document", "Event", compiled)(exports, () => ({
+    showChoiceDialog: async () => { throw new Error("The web dialog stands in only without a native surface") }
+  }), document, window.Event)
+  let menu
+  let selection = "once:page-action:generic.explain"
+  const ran = []
+  exports.bindMobileExtensionToolbar(null,
+    { available: true, showMenu: async options => { menu = options; return selection } },
+    { list: () => [{ id: "generic.explain", label: "Explain page" }], run: id => ran.push(id) })
+  const button = document.querySelector("#reading_browser_menu")
+  await button.onclick()
+  assert.equal(menu.browserControls, true)
+  assert.deepEqual(menu.items.map(item => item.id), ["once:page-action:generic.explain"])
+  assert.deepEqual(ran, ["generic.explain"])
+  let findRequests = 0
+  document.addEventListener("once-find-in-page-request", () => { findRequests += 1 })
+  selection = "once:find"
+  await button.onclick()
+  assert.equal(findRequests, 1)
+})

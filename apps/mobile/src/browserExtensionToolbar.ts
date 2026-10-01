@@ -25,7 +25,7 @@ function setStatus(message: string): void {
 }
 
 /**
- * Browser controls use a native sheet so they remain above GeckoView. The
+ * Browser controls use a native sheet so they remain above the page view. The
  * sheet is also where add-on trays are offered for the page being read.
  */
 export function bindMobileExtensionToolbar(
@@ -63,7 +63,9 @@ export function bindMobileExtensionToolbar(
       for (const action of pageActions.list()) {
         items.push({ id: PAGE_ACTION_PREFIX + action.id, label: action.label, enabled: true, iconDataUrl: undefined, settingsId: undefined })
       }
-      const selected = api ? await surface.showMenu({ items, browserControls: true, dark: shellIsDark() })
+      // Both native surfaces draw the sheet (iOS without the extension rows).
+      const selected = api || surface.available
+        ? await surface.showMenu({ items, browserControls: true, dark: shellIsDark() })
         : await showBrowserMenu(items)
       if (selected === "once:manage") {
         openExtensionManager()

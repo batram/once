@@ -211,6 +211,10 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
                 call.reject("Unable to present the native menu")
                 return
             }
+            if call.getBool("browserControls") == true {
+                self.presentBrowserMenu(call, from: presenter)
+                return
+            }
             let alert = UIAlertController(
                 title: call.getString("title"),
                 message: nil,
@@ -241,6 +245,24 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             }
             presenter.present(alert, animated: true)
         }
+    }
+
+    /// The browser sheet, like Android's: history and reload act on the page
+    /// here; Find and the shell's rows resolve back to the shell.
+    private func presentBrowserMenu(_ call: CAPPluginCall, from presenter: UIViewController) {
+        let surface = self.surface
+        // The shell says which theme it resolved; without that, follow the system.
+        let dark = call.getBool("dark") ?? (presenter.traitCollection.userInterfaceStyle == .dark)
+        let sheet = BrowserMenuSheet(call: call, navigation: .init(
+            canBack: surface?.canGoBack == true,
+            canForward: surface?.canGoForward == true,
+            canReload: surface != nil,
+            back: { surface?.goBack() },
+            forward: { surface?.goForward() },
+            reload: { surface?.reload() }
+        ), dark: dark)
+        sheet.configureSheet()
+        presenter.present(sheet, animated: true)
     }
 
     @objc func showPrompt(_ call: CAPPluginCall) {
