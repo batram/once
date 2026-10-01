@@ -113,6 +113,8 @@
         "src/main.ts",
         "src/addonSandbox.ts",
         "src/pickerInjection.ts",
+        // The find engine the iOS surface plugin evaluates in the page.
+        "src/pageFindRuntime.ts",
         "src/readerRuntime.ts",
         "webpack.config.js",
         "scripts/*.js"
@@ -168,6 +170,8 @@
         "src/addonSandbox.ts",
         "src/addonConversationPage.ts",
         "src/keyCommandBackground.ts",
+        // Content script the extension manifests load by bundle name.
+        "src/pageActionTarget.ts",
         "src/pickerBackground.ts",
         "src/readerBackground.ts",
         "src/readerPage.ts",

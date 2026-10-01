@@ -18,6 +18,8 @@ const ignored = [
   // Third-party extension bundles unpacked by scripts/fetch-extensions.js.
   /^vendor\/extensions\//,
   /^apps\/mobile\/ios\/App\/App\.xcodeproj\//,
+  // Xcode builds in the tree when a simulator target is chosen locally.
+  /^apps\/mobile\/ios\/DerivedData\//,
   /^apps\/mobile\/ios\/App\/App\/public\//,
   /\.min\.js$/
 ]

@@ -9,7 +9,9 @@ const textExtensions = new Set([".css", ".html", ".js", ".ts"])
 const ignored = [
   /(^|\/)(dist|node_modules|build|out|\.webpack|public\/assets)(\/|$)/,
   /^apps\/mobile\/android\/app\/src\/main\/assets\/public\//,
-  /^apps\/mobile\/ios\/App\/App\/public\//
+  /^apps\/mobile\/ios\/App\/App\/public\//,
+  // Xcode builds in the tree when a simulator target is chosen locally.
+  /^apps\/mobile\/ios\/DerivedData\//
 ]
 
 function filesBelow(directory) {
