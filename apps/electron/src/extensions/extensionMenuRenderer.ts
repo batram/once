@@ -28,48 +28,79 @@ async function act(action: "pin" | "open" | "settings" | "close", host?: string)
   }
 }
 
+interface Row {
+  id: string
+  name: string
+  title: string
+  enabled: boolean
+  icon: HTMLElement
+}
+
+function row(entry: Row, pinned: Set<string>): HTMLElement {
+  const row = document.createElement("div")
+  row.className = "extension-row"
+  const open = document.createElement("button")
+  open.type = "button"
+  open.className = "extension-open"
+  open.disabled = !entry.enabled
+  open.title = entry.title
+  open.setAttribute("aria-label", `Open ${entry.name}`)
+  const name = document.createElement("span")
+  name.className = "extension-name"
+  name.textContent = entry.name
+  open.append(entry.icon, name)
+  open.onclick = () => void act("open", entry.id)
+  const pin = document.createElement("button")
+  pin.type = "button"
+  pin.className = "icon-button pin"
+  pin.dataset.host = entry.id
+  pin.innerHTML = pinIcon
+  pin.setAttribute("aria-pressed", String(pinned.has(entry.id)))
+  pin.setAttribute("aria-label", `${pinned.has(entry.id) ? "Unpin" : "Pin"} ${entry.name}`)
+  pin.title = pinned.has(entry.id) ? "Unpin from toolbar" : "Pin to toolbar"
+  pin.onclick = () => void act("pin", entry.id)
+  row.append(open, pin)
+  return row
+}
+
+function iconBox(name: string, image: string | null, masked: boolean): HTMLElement {
+  const icon = document.createElement("span")
+  icon.className = "extension-icon"
+  if (image && masked) {
+    // A shell icon is a monochrome SVG; paint it in the panel's text colour.
+    const glyph = document.createElement("span")
+    glyph.className = "tool-glyph"
+    glyph.style.setProperty("--glyph", `url("${image}")`)
+    icon.append(glyph)
+  } else if (image) {
+    const img = document.createElement("img")
+    img.src = image
+    img.alt = ""
+    icon.append(img)
+  } else icon.textContent = name.slice(0, 1).toUpperCase()
+  return icon
+}
+
 function render(state: ExtensionMenuState): void {
   const pinned = new Set(state.pinned)
   list.replaceChildren()
+  for (const tool of state.tools) {
+    list.append(row({ id: tool.id, name: tool.name, title: tool.name, enabled: tool.enabled, icon: iconBox(tool.name, tool.icon, true) }, pinned))
+  }
+  if (state.tools.length) {
+    const divider = document.createElement("hr")
+    divider.className = "divider"
+    list.append(divider)
+  }
   for (const info of state.infos) {
-    const row = document.createElement("div")
-    row.className = "extension-row"
-    const open = document.createElement("button")
-    open.type = "button"
-    open.className = "extension-open"
-    open.disabled = !info.enabled
-    open.title = info.title
-    open.setAttribute("aria-label", `Open ${info.name}`)
-    const icon = document.createElement("span")
-    icon.className = "extension-icon"
-    if (info.icon) {
-      const image = document.createElement("img")
-      image.src = info.icon
-      image.alt = ""
-      icon.append(image)
-    } else icon.textContent = info.name.slice(0, 1).toUpperCase()
+    const icon = iconBox(info.name, info.icon, false)
     if (info.badgeText) {
       const badge = document.createElement("span")
       badge.className = "badge"
       badge.textContent = info.badgeText
       icon.append(badge)
     }
-    const name = document.createElement("span")
-    name.className = "extension-name"
-    name.textContent = info.name
-    open.append(icon, name)
-    open.onclick = () => void act("open", info.host)
-    const pin = document.createElement("button")
-    pin.type = "button"
-    pin.className = "icon-button pin"
-    pin.dataset.host = info.host
-    pin.innerHTML = pinIcon
-    pin.setAttribute("aria-pressed", String(pinned.has(info.host)))
-    pin.setAttribute("aria-label", `${pinned.has(info.host) ? "Unpin" : "Pin"} ${info.name}`)
-    pin.title = pinned.has(info.host) ? "Unpin from toolbar" : "Pin to toolbar"
-    pin.onclick = () => void act("pin", info.host)
-    row.append(open, pin)
-    list.append(row)
+    list.append(row({ id: info.host, name: info.name, title: info.title, enabled: info.enabled, icon }, pinned))
   }
   if (!state.infos.length) {
     const empty = document.createElement("p")

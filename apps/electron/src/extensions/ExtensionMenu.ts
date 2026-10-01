@@ -1,5 +1,5 @@
 import { BrowserWindow, screen } from "electron"
-import { ElectronExtensionInfo, ElectronRect } from "@once/platform-electron/bridge"
+import { ElectronExtensionInfo, ElectronRect, ElectronToolbarTool } from "@once/platform-electron/bridge"
 import { ExtensionMenuResult, ExtensionMenuState } from "./extensionMenuTypes"
 
 declare const EXTENSION_MENU_WEBPACK_ENTRY: string
@@ -12,6 +12,7 @@ export function showExtensionMenu(
   owner: BrowserWindow,
   anchor: ElectronRect,
   infos: ElectronExtensionInfo[],
+  tools: ElectronToolbarTool[],
   pinned: string[],
   pinsChanged: (pinned: string[]) => void
 ): Promise<ExtensionMenuResult> {
@@ -25,7 +26,7 @@ export function showExtensionMenu(
   const top = Math.round(origin.y + anchor.y + anchor.height + 6)
   const area = screen.getDisplayNearestPoint({ x: right, y: top }).workArea
   const width = Math.min(352, area.width)
-  const height = Math.min(480, 128 + Math.max(1, infos.length) * 48, area.height)
+  const height = Math.min(480, 128 + (Math.max(1, infos.length) + tools.length) * 48 + (tools.length ? 9 : 0), area.height)
   const panel = new BrowserWindow({
     parent: owner, width, height,
     x: Math.max(area.x, Math.min(right - width, area.x + area.width - width)),
@@ -41,20 +42,23 @@ export function showExtensionMenu(
   openMenus.set(owner, panel)
   const selection = new Set(pinned)
   const result: ExtensionMenuResult = { pinned: [...selection] }
-  const state = (): ExtensionMenuState => ({ infos, pinned: [...selection] })
+  const state = (): ExtensionMenuState => ({ infos, tools, pinned: [...selection] })
   panel.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
   panel.webContents.on("will-navigate", event => event.preventDefault())
   panel.webContents.ipc.handle("extension-menu:state", state)
   panel.webContents.ipc.handle("extension-menu:action", (_event, action: string, host?: string) => {
     const info = infos.find(item => item.host === host)
-    if (action === "pin" && info) {
-      if (selection.has(info.host)) selection.delete(info.host)
-      else selection.add(info.host)
+    const tool = tools.find(item => item.id === host)
+    const id = info?.host ?? tool?.id
+    if (action === "pin" && id) {
+      if (selection.has(id)) selection.delete(id)
+      else selection.add(id)
       result.pinned = [...selection]
       pinsChanged(result.pinned)
       return state()
     }
     if (action === "open" && info?.enabled) result.host = info.host
+    else if (action === "open" && tool?.enabled) result.tool = tool.id
     else if (action === "settings") result.settings = true
     else if (action === "close") result.focusTrigger = true
     else throw new Error("Unknown extension menu action")

@@ -195,6 +195,20 @@ export interface ElectronExtensionInfo {
   hasPopup: boolean
 }
 
+/**
+ * A shell-owned toolbar button the extensions menu lists beside the
+ * extensions so it can be pinned and unpinned the same way: the reader
+ * toggle and the add-on page actions.
+ */
+export interface ElectronToolbarTool {
+  /** `reader`, or `addon:<action id>`. */
+  id: string
+  name: string
+  /** Data URL of a monochrome SVG the menu paints in its text colour. */
+  icon: string | null
+  enabled: boolean
+}
+
 export interface ElectronBridge {
   app: {
     getBuildInfo(): Promise<ElectronBuildInfo>
@@ -286,7 +300,8 @@ export interface ElectronBridge {
     applySync(document: import("@once/core").BrowserExtensionSyncDocument): Promise<void>
     onSyncChanged(handler: (document: import("@once/core").BrowserExtensionSyncDocument) => void): () => void
     list(): Promise<ElectronExtensionInfo[]>
-    showMenu(anchor: ElectronRect, pinned: string[]): Promise<{ pinned: string[]; host?: string; settings?: boolean; focusTrigger?: boolean }>
+    /** `pinned` names extension hosts and tool ids alike; `tool` reports a chosen tool. */
+    showMenu(anchor: ElectronRect, pinned: string[], tools: ElectronToolbarTool[]): Promise<{ pinned: string[]; host?: string; tool?: string; settings?: boolean; focusTrigger?: boolean }>
     onPinsChanged(handler: (pinned: string[]) => void): () => void
     /** Toggles the extension's popup under the toolbar button at `anchor`. */
     openPopup(host: string, anchor: ElectronRect): Promise<void>

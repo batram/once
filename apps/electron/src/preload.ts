@@ -160,8 +160,8 @@ const bridge: ElectronBridge = {
       return () => ipcRenderer.removeListener(ELECTRON_IPC.extensionsSyncChanged, listener)
     },
     list: () => ipcRenderer.invoke(ELECTRON_IPC.extensionsList),
-    showMenu: (anchor, pinned) =>
-      ipcRenderer.invoke(ELECTRON_IPC.extensionsShowMenu, anchor, pinned),
+    showMenu: (anchor, pinned, tools) =>
+      ipcRenderer.invoke(ELECTRON_IPC.extensionsShowMenu, anchor, pinned, tools),
     onPinsChanged: handler => {
       const listener = (_event: unknown, pinned: string[]) => handler(pinned)
       ipcRenderer.on(ELECTRON_IPC.extensionsPinsChanged, listener)

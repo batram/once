@@ -27,6 +27,7 @@ import {
   ElectronRedirectRule,
   ElectronStoryMenuItem,
   ElectronTabHoverTheme,
+  ElectronToolbarTool,
   ElectronUpdateStatus
 } from "@once/platform-electron/bridge"
 import { TabHoverCard } from "./browser/TabHoverCard"
@@ -528,14 +529,19 @@ function registerExtensionHandlers(options: IpcHandlerOptions): void {
       : undefined
     return extensions.extensionInfos(active)
   })
-  ipcMain.handle(ELECTRON_IPC.extensionsShowMenu, async (event, anchor: ElectronRect, pinned: string[]) => {
+  ipcMain.handle(ELECTRON_IPC.extensionsShowMenu, async (event, anchor: ElectronRect, pinned: string[], tools: ElectronToolbarTool[]) => {
     const current = browser(event, coordinator)
+    const isTool = (tool: unknown): tool is ElectronToolbarTool => typeof tool === "object" && tool !== null &&
+      typeof (tool as ElectronToolbarTool).id === "string" && typeof (tool as ElectronToolbarTool).name === "string" &&
+      typeof (tool as ElectronToolbarTool).enabled === "boolean" &&
+      ((tool as ElectronToolbarTool).icon === null || typeof (tool as ElectronToolbarTool).icon === "string")
     if (!anchor || ![anchor.x, anchor.y, anchor.width, anchor.height].every(Number.isFinite) ||
-      !Array.isArray(pinned) || !pinned.every(host => typeof host === "string")) {
+      !Array.isArray(pinned) || !pinned.every(host => typeof host === "string") ||
+      !Array.isArray(tools) || !tools.every(isTool)) {
       throw new Error("Invalid extensions menu request")
     }
     const infos = await extensions.extensionInfos(coordinator.activeTabContentsId(current.window))
-    return showExtensionMenu(current.window.window, anchor, infos, pinned, next => {
+    return showExtensionMenu(current.window.window, anchor, infos, tools, pinned, next => {
       if (!event.sender.isDestroyed()) event.sender.send(ELECTRON_IPC.extensionsPinsChanged, next)
     })
   })

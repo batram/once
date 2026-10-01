@@ -13,28 +13,35 @@ test("extensions default to the menu, persist pins, and keep pinned actions work
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
   }).outputText
   const exports = {}
-  Function("exports", "document", "window", "localStorage", compiled)(exports, document, window, storage)
+  Function("exports", "document", "window", "localStorage", "Event", compiled)(exports, document, window, storage, window.Event)
   const info = { host: "example", name: "Example", title: "Open Example", enabled: true, badgeText: "2" }
   let changed
   let opened
-  let menuPins = [info.host]
+  let menuPins = [info.host, "reader"]
   let menuAction = {}
   let pinChanged
   let settingsOpened = false
   let shellFocused = false
   let menuItems
   let menuChoice = null
+  let menuArgs
+  let ranTool
   const bridge = { window: { focusShell: async () => { shellFocused = true } }, storyMenu: {
     show: async items => { menuItems = items; return menuChoice }
   }, extensions: {
     list: async () => [info],
     onChanged: listener => { changed = listener },
-    showMenu: async () => ({ pinned: menuPins, ...menuAction }),
+    showMenu: async (anchor, pinned, tools) => { menuArgs = { pinned, tools }; return { pinned: menuPins, ...menuAction } },
     onPinsChanged: listener => { pinChanged = listener },
     openPopup: async host => { opened = host }
   } }
   const container = document.getElementById("toolbar")
-  exports.bindExtensionToolbar(bridge, container, () => { settingsOpened = true })
+  const readerTool = { id: "reader", name: "Reader mode", icon: null, enabled: true }
+  exports.bindExtensionToolbar(bridge, container, {
+    openSettings: () => { settingsOpened = true },
+    tools: async () => [readerTool],
+    runTool: id => { ranTool = id }
+  })
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(container.querySelectorAll(".extension-action").length, 0)
   const button = container.querySelector('[aria-label="Extensions"]')
@@ -42,6 +49,9 @@ test("extensions default to the menu, persist pins, and keep pinned actions work
   await button.onclick()
   assert.equal(container.querySelectorAll(".extension-action").length, 1)
   assert.deepEqual(JSON.parse(stored.get("once-electron-pinned-extensions")), [info.host])
+  // Shell tools start pinned and ride along in the menu's one pin list.
+  assert.deepEqual(menuArgs, { pinned: ["reader"], tools: [readerTool] })
+  assert.equal(exports.isToolPinned("reader"), true)
   const action = container.querySelector(".extension-action")
   action.getBoundingClientRect = button.getBoundingClientRect
   action.onclick()
@@ -80,4 +90,20 @@ test("extensions default to the menu, persist pins, and keep pinned actions work
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(container.querySelectorAll(".extension-action").length, 0)
   assert.deepEqual(JSON.parse(stored.get("once-electron-pinned-extensions")), [])
+
+  // A tool left out of the menu's pins is hidden; choosing it runs it.
+  let pinEvents = 0
+  document.addEventListener("once-toolbar-pins-changed", () => pinEvents++)
+  menuPins = []
+  menuAction = { tool: "reader" }
+  await button.onclick()
+  assert.equal(ranTool, "reader")
+  assert.equal(exports.isToolPinned("reader"), false)
+  assert.deepEqual(JSON.parse(stored.get("once-electron-hidden-toolbar-tools")), ["reader"])
+  assert.equal(pinEvents, 1)
+  pinChanged(["reader"])
+  assert.equal(exports.isToolPinned("reader"), true)
+  exports.unpinTool("reader")
+  assert.equal(exports.isToolPinned("reader"), false)
+  assert.equal(pinEvents, 3)
 })

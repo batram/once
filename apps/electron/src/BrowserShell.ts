@@ -6,13 +6,13 @@ import {
   revealElement,
   setPaneFocus
 } from "@once/ui-web"
-import { bindExtensionToolbar } from "./ExtensionToolbar"
 import { ReaderRequests, ReaderRequestRunner } from "./ReaderRequests"
 import browserShellMarkup from "./browser/browser-shell.html"
 import { AddressBar } from "./browser/AddressBar"
 import { FindBar } from "./browser/FindBar"
 import { bindBlockedPopups } from "./browser/BlockedPopups"
 import { PageAddonActions } from "./browser/PageAddonActions"
+import { bindShellToolbar } from "./browser/ShellToolbar"
 import { TabHoverPreview } from "./browser/TabHoverPreview"
 import {
   displayBrowserUrl,
@@ -102,7 +102,7 @@ export class BrowserShell {
     this.bindStoryPosition()
 
     this.bindControls()
-    bindExtensionToolbar(this.bridge, required<HTMLElement>("#extension_actions"), () => {
+    bindShellToolbar(this.bridge, required<HTMLElement>("#extension_actions"), this.readerButton, this.pageAddonActions, () => {
       this.setLeftCollapsed(false)
       required<HTMLButtonElement>('[data-testid="settings-menu"]').click()
       required<HTMLButtonElement>('[data-settings-target="extensions"]').click()
