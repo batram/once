@@ -6,7 +6,7 @@ import type { StoryListItem } from "../story/StoryListItem"
 import { registerStoryElement, STORY_TRAYS_CHANGED } from "../story/storyElements"
 import { getOnceClient } from "../client"
 import { AddonSandbox } from "./AddonSandbox"
-import { AddonPage, pageStoryView, registerPageTray } from "./pageAddons"
+import { AddonPage, pageStoryRow, pageStoryView, registerPageTray } from "./pageAddons"
 import { TrayDisclosures, renderTrayMessages, renderTrayStatus, trayButton, trayIcon } from "./trayMessages"
 
 /**
@@ -79,14 +79,12 @@ export class AddonTrays {
   }
 
   /**
-   * Opens or closes the tray beside a page: a listed story's own row when the
-   * page is one, else a tray of the page's own, drawn wherever the shell
-   * renders page trays.
+   * Opens or closes the reading host's tray. Listed pages and their aliases
+   * share the story's conversation, with visibility owned by the page host.
    */
   togglePage(page: AddonPage, tray: string): void {
-    const row = this.rowOf(page.href)
-    if (row) this.toggle(row, tray)
-    else this.togglePlace(this.pageState(page, tray), page.href, tray, "page")
+    const href = pageStoryRow(page.href)?.story.href ?? page.href
+    this.togglePlace(this.pageState(page, tray), href, tray, "page")
   }
 
   /**
@@ -96,8 +94,9 @@ export class AddonTrays {
   continuePage(page: AddonPage, tray: string): boolean {
     if (!this.surface) return false
     const state = this.pageState(page, tray)
-    if (this.fresh(state)) void this.run(page.href, tray, { type: "open" })
-    this.surface.open(this.handleOf(page.href, tray))
+    const href = state.story.href
+    if (this.fresh(state)) void this.run(href, tray, { type: "open" })
+    this.surface.open(this.handleOf(href, tray))
     return true
   }
 
@@ -176,10 +175,10 @@ export class AddonTrays {
 
   /** A page's conversation: the story's own when the page is a listed story, else one about the page itself. */
   private pageState(page: AddonPage, tray: string): TrayState {
+    const row = pageStoryRow(page.href)
+    if (row) return this.state(row, tray)
     const existing = this.states.get(this.key(page.href, tray))
     if (existing) return existing
-    const row = this.rowOf(page.href)
-    if (row) return this.state(row, tray)
     const story = pageStoryView(page)
     return this.newState(page.href, tray, story, story.title)
   }
@@ -304,7 +303,9 @@ export class AddonTrays {
   }
 
   private renderPage(href: string, tray: string): HTMLElement | null {
-    return this.renderPlace(href, tray, "page")
+    const row = pageStoryRow(href)
+    // A reading view can also continue a tray opened from a story row.
+    return this.renderPlace(row?.story.href ?? href, tray, "page") ?? (row ? this.render(row, tray) : null)
   }
 
   private renderPlace(href: string, tray: string, place: TrayPlace): HTMLElement | null {

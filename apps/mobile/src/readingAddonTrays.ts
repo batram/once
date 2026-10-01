@@ -16,10 +16,7 @@ export class ReadingAddonTrays {
     this.host.hidden = true
     this.host.setAttribute("aria-label", "Story addon trays")
     content.append(this.host)
-    document.addEventListener(STORY_TRAYS_CHANGED, event => {
-      const href = (event as CustomEvent<string>).detail
-      if (!href || href === this.story?.story.href || href === this.pageHref) this.render()
-    })
+    document.addEventListener(STORY_TRAYS_CHANGED, () => this.render())
   }
 
   setStory(story: StoryListItem | null): void {
@@ -28,7 +25,7 @@ export class ReadingAddonTrays {
     this.render()
   }
 
-  /** The page shown when no story matches; null while a story's row stands in. */
+  /** The current page, including a listed story's redirected or comments URL. */
   setPage(href: string | null): void {
     if (this.pageHref === href) return
     this.pageHref = href
@@ -37,13 +34,17 @@ export class ReadingAddonTrays {
 
   close(): boolean {
     if (this.host.hidden) return false
-    for (const close of this.host.querySelectorAll<HTMLButtonElement>('button[aria-label="Close"]')) close.click()
+    // Closing a page tray may reveal the same conversation opened on its row.
+    // Dismiss both places when leaving the overlay with Back.
+    for (let pass = 0; pass < 2; pass++) {
+      for (const close of this.host.querySelectorAll<HTMLButtonElement>('button[aria-label="Close"]')) close.click()
+    }
     return true
   }
 
   private render(): void {
-    if (this.story) renderStoryTrays(this.story, this.host)
-    else if (this.pageHref) renderPageTrays(this.pageHref, this.host)
+    if (this.pageHref) renderPageTrays(this.pageHref, this.host)
+    else if (this.story) renderStoryTrays(this.story, this.host)
     else this.host.replaceChildren()
     this.host.hidden = this.host.childElementCount === 0
     this.onVisibility(!this.host.hidden)

@@ -5,6 +5,28 @@ const path = require("node:path")
 const ts = require("typescript")
 const { parseHTML } = require("linkedom")
 
+test("the browser menu offers page actions without Android's extension API", async () => {
+  const { document, window } = parseHTML('<html><body><button id="reading_navigate">Go</button></body></html>')
+  const compiled = ts.transpileModule(fs.readFileSync(path.resolve(__dirname,
+    "../../../apps/mobile/src/browserExtensionToolbar.ts"), "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
+  }).outputText
+  const exports = {}
+  let menu
+  Function("exports", "require", "document", "Event", compiled)(exports, () => ({
+    showChoiceDialog: async options => { menu = options; return options.choices[0].value }
+  }), document, window.Event)
+  const ran = []
+  exports.bindMobileExtensionToolbar(null, { showMenu: () => { throw new Error("No native extension sheet") } }, {
+    list: () => [{ id: "generic.explain", label: "Explain page" }], run: id => ran.push(id)
+  })
+  await document.querySelector("#reading_browser_menu").onclick()
+  assert.equal(menu.title, "Browser menu")
+  assert.deepEqual(menu.choices.map(item => item.label), ["Explain page", "Find in page"])
+  assert.equal(menu.cancelLabel, "Close")
+  assert.deepEqual(ran, ["generic.explain"])
+})
+
 test("Android browser menu occupies the address action position and routes extension choices", async () => {
   const { document, window } = parseHTML('<html><body><form><div id="reading_url_group"></div><button id="reading_navigate">Go</button></form><p id="reading_url_validation" hidden></p></body></html>')
   const compiled = ts.transpileModule(fs.readFileSync(path.resolve(__dirname,
@@ -13,7 +35,7 @@ test("Android browser menu occupies the address action position and routes exten
   }).outputText
   const exports = {}
   // linkedom's document only dispatches its own Event class, not Node's.
-  Function("exports", "document", "Event", compiled)(exports, document, window.Event)
+  Function("exports", "require", "document", "Event", compiled)(exports, () => ({}), document, window.Event)
   const commands = []
   let menu
   let selection = null
@@ -85,7 +107,7 @@ test("the browser sheet offers add-on page actions for the page being read and r
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
   }).outputText
   const exports = {}
-  Function("exports", "document", "Event", compiled)(exports, document, window.Event)
+  Function("exports", "require", "document", "Event", compiled)(exports, () => ({}), document, window.Event)
   let menu
   let selection = null
   const ran = []

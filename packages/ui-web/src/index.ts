@@ -38,4 +38,5 @@ export {
   PAGE_ADDON_ACTIONS_CHANGED, isAddonPage, pageAddonActions, renderPageTrays, runPageAddonAction
 } from "./addons/pageAddons"
 export type { AddonPage } from "./addons/pageAddons"
+export { showChoiceDialog } from "./confirmDialog"
 export type { BundledAddonFiles } from "./addons/bundledAddons"

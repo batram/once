@@ -10,6 +10,7 @@ import { ElectronPoint } from "@once/platform-electron/bridge"
 import { ElectronStoryMenuItem } from "@once/platform-electron/bridge"
 import { WindowEntry } from "./BrowserState"
 import { PageActions } from "./PageActions"
+import { sourceUrlFromReaderUrl } from "./reader-url"
 
 interface NativeMenuActions {
   close(owner: WindowEntry, id: string): void
@@ -136,21 +137,22 @@ export class NativeMenus {
 
     // Add-on trays for the page itself, and for a link under the cursor. The
     // shell's own window is no page, and neither is a blank or internal tab.
-    const page = contents !== owner.window.webContents && isWebUrl(params.pageURL) ? params.pageURL : null
-    const pageActions = page ? this.pageActions.for(owner) : []
-    if (pageActions.length) template.push({ type: "separator" })
+    const source = sourceUrlFromReaderUrl(params.pageURL ?? "") ?? params.pageURL
+    const page = contents !== owner.window.webContents && isWebUrl(source) ? source : null
+    const pageActions = page ? this.pageActions.for(owner, page) : []
+    const linkActions = page && link && isWebUrl(link) ? this.pageActions.for(owner, link) : []
+    if (pageActions.length || linkActions.length) template.push({ type: "separator" })
     for (const action of pageActions) {
-      const href = page as string
       template.push({
         label: action.label,
-        click: () => this.pageActions.run(owner, action.id, { href, title: contents.isDestroyed() ? "" : contents.getTitle() })
+        click: () => this.pageActions.run(owner, action.id, { href: page as string, title: contents.isDestroyed() ? "" : contents.getTitle() })
       })
-      if (link && isWebUrl(link)) {
-        template.push({
-          label: `${action.label} for Link`,
-          click: () => this.pageActions.run(owner, action.id, { href: link, title: params.linkText })
-        })
-      }
+    }
+    for (const action of linkActions) {
+      template.push({
+        label: `${action.label} for Link`,
+        click: () => this.pageActions.run(owner, action.id, { href: link as string, title: params.linkText })
+      })
     }
 
     Menu.buildFromTemplate(template).popup({ window: owner.window })

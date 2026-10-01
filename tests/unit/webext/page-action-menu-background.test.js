@@ -1,68 +1,80 @@
 const test = require("node:test")
 const assert = require("node:assert/strict")
-
 const tick = () => new Promise(resolve => setImmediate(resolve))
 
 function harness() {
-  const created = []
-  const removed = []
-  let clicked
-  let received
+  const entries = new Map()
+  const saved = {}
   const sent = []
+  let clicked, received, shown
+  let panel
   const menus = {
-    create(item) { created.push(item) },
-    async remove(id) { removed.push(id) },
-    async update() {},
+    create(item) { entries.set(item.id, item) },
+    async remove(id) { entries.delete(id) },
+    async update(id, change) { Object.assign(entries.get(id), change) },
+    async refresh() {},
+    onShown: { addListener(listener) { shown = listener } },
     onClicked: { addListener(listener) { clicked = listener } }
   }
-  const browserApi = {
-    contextMenus: menus,
+  const api = { menus, contextMenus: menus,
+    storage: { local: { get: async () => saved, set: async values => Object.assign(saved, values) } },
     runtime: {
-      getURL: path => `chrome-extension://once${path}`,
-      onInstalled: { addListener() {} },
       onMessage: { addListener(listener) { received = listener } },
-      async sendMessage(message) { sent.push(message) }
+      async sendMessage(message) {
+        sent.push(message)
+        if (message.onceCommand === "page-actions-query") return panel
+      }
     }
   }
-  const { installPageActionMenuBackground } = require("../../../packages/webext-shell/dist/pageActionMenuBackground")
-  installPageActionMenuBackground(browserApi)
-  return { created, removed, sent, click: (...args) => clicked(...args), receive: message => received(message) }
+  const restart = () => require("../../../packages/webext-shell/dist/pageActionMenuBackground").installPageActionMenuBackground(api)
+  restart()
+  return { entries, sent, restart,
+    panel: value => { panel = value },
+    receive: (value, sender = {}) => received(value, sender),
+    click: (...args) => clicked(...args), show: (...args) => shown(...args) }
 }
+const state = (items, contextId = "panel-1") => ({ onceCommand: "page-actions-context", contextId, items })
 
-test("page actions become page and link menu items on web pages, following the panel's reports", async () => {
+test("page and link entries carry native target filters and respect conditions", async () => {
   const h = harness()
-  h.receive({ onceCommand: "page-actions-context", contextId: "panel-1", items: [{ id: "example.explain", label: "Explain" }, { id: "bad" }] })
+  await h.receive(state([
+    { id: "example", label: "Example", when: { domain: ["*.example.test"], notDomain: ["blocked.example.test"], scheme: ["https"] } },
+    { id: "story-only", label: "Story only", when: { type: ["HN"] } },
+    { id: "bad", label: "Bad", when: { domain: "invalid" } }
+  ]))
+  assert.equal(h.entries.size, 2)
+  assert.deepEqual(h.entries.get("once_page_example").documentUrlPatterns, ["https://*.example.test/*"])
+  assert.deepEqual(h.entries.get("once_page_link:example").targetUrlPatterns, ["https://*.example.test/*"])
+  await h.receive({ onceCommand: "page-actions-target", href: "https://blocked.example.test/" }, { tab: { id: 1 } })
+  assert.equal(h.entries.get("once_page_example").enabled, false)
+  h.show({ linkUrl: "https://ok.example.test/", pageUrl: "https://other.test/" })
   await tick()
-  assert.equal(h.created.length, 1)
-  assert.equal(h.created[0].id, "once_page_example.explain")
-  assert.equal(h.created[0].title, "Explain")
-  assert.deepEqual(h.created[0].contexts, ["page", "link"])
-  assert.deepEqual(h.created[0].documentUrlPatterns, ["http://*/*", "https://*/*"])
-  assert.deepEqual(h.removed, ["once_page_example.explain"], "created over whatever an earlier worker left")
-
-  // Same item again: nothing recreated. A relabel recreates it; a dropped one goes.
-  h.receive({ onceCommand: "page-actions-context", contextId: "panel-1", items: [{ id: "example.explain", label: "Explain" }] })
-  await tick()
-  assert.equal(h.created.length, 1)
-  h.receive({ onceCommand: "page-actions-context", contextId: "panel-1", items: [{ id: "example.explain", label: "Explain more" }, { id: "other", label: "Other" }] })
-  await tick()
-  assert.deepEqual(h.created.slice(1).map(item => item.title), ["Explain more", "Other"])
-  h.receive({ onceCommand: "page-actions-context", contextId: "panel-1", items: [] })
-  await tick()
-  assert.deepEqual(h.removed.slice(-2).sort(), ["once_page_example.explain", "once_page_other"])
+  assert.equal(h.entries.get("once_page_link:example").enabled, true)
 })
 
-test("a click reports the link under the cursor, else the page, to the panel that listed the action", async () => {
+test("a retained menu finds a live panel after worker restart and routes page and link clicks", async () => {
   const h = harness()
-  h.click({ menuItemId: "once_page_example.explain", pageUrl: "https://a.test/page" }, { title: "A page" })
-  assert.equal(h.sent.length, 0, "nothing before a panel reported")
-  h.receive({ onceCommand: "page-actions-context", contextId: "panel-2", items: [{ id: "example.explain", label: "Explain" }] })
+  const items = [{ id: "example.explain", label: "Explain" }]
+  await h.receive(state(items))
+  h.restart()
+  h.panel(state(items, "new-panel"))
+  h.click({ menuItemId: "once_page_example.explain", pageUrl: "https://a.test/page" }, { title: "A page", windowId: 7 })
+  h.click({ menuItemId: "once_page_link:example.explain", pageUrl: "https://a.test/page", linkUrl: "https://b.test/link", linkText: "The link" }, { windowId: 7 })
   await tick()
-  h.click({ menuItemId: "once_page_example.explain", pageUrl: "https://a.test/page" }, { title: "A page" })
-  h.click({ menuItemId: "once_page_example.explain", pageUrl: "https://a.test/page", linkUrl: "https://a.test/link", linkText: "The link" }, { title: "A page" })
-  h.click({ menuItemId: "once_story_open", pageUrl: "https://a.test/page" }, { title: "A page" })
-  assert.deepEqual(h.sent, [
-    { onceCommand: "page-addon-action", action: "example.explain", contextId: "panel-2", href: "https://a.test/page", title: "A page" },
-    { onceCommand: "page-addon-action", action: "example.explain", contextId: "panel-2", href: "https://a.test/link", title: "The link" }
+  assert.deepEqual(h.sent.filter(message => message.onceCommand === "page-addon-action"), [
+    { onceCommand: "page-addon-action", action: "example.explain", contextId: "new-panel", href: "https://a.test/page", title: "A page" },
+    { onceCommand: "page-addon-action", action: "example.explain", contextId: "new-panel", href: "https://b.test/link", title: "The link" }
   ])
+  assert.ok(h.sent.filter(message => message.onceCommand === "page-actions-query").every(message => message.windowId === 7))
+  await h.receive(state([]))
+  assert.equal(h.entries.size, 0, "removed addons clear retained entries after a restart")
+})
+
+test("execution rechecks the live addon and its condition", async () => {
+  const h = harness()
+  h.panel(state([{ id: "example", label: "Example", when: { domain: ["example.test"] } }]))
+  h.click({ menuItemId: "once_page_example", pageUrl: "https://other.test/" }, {})
+  h.click({ menuItemId: "once_page_removed", pageUrl: "https://example.test/" }, {})
+  await tick()
+  assert.equal(h.sent.filter(message => message.onceCommand === "page-addon-action").length, 0)
 })

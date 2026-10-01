@@ -209,8 +209,8 @@ async function startMobileApp(): Promise<void> {
   const browserExtensions = createMobileBrowserExtensions()
   if (browserExtensions) {
     bindMobileBrowserExtensionSettings(browserExtensions)
-    bindMobileExtensionToolbar(browserExtensions, browserSurface, readingPageActions(() => reading.session.snapshot().currentUrl))
   }
+  bindMobileExtensionToolbar(browserExtensions, browserSurface, readingPageActions(() => reading.session.snapshot().currentUrl))
   // Touch has no keyboard shortcut, no mouse back button and no room left on
   // the back gesture, so undo needs a control of its own. Mounted here rather
   // than in mountOnceUi so the desktop shells keep their existing affordances only.

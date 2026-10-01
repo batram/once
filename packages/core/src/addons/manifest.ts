@@ -570,6 +570,14 @@ export function readAddonManifest(value: unknown): AddonManifestRead {
   }
 }
 
+/** Validate a condition transported separately from its already installed manifest. */
+export function readAddonCondition(value: unknown): AddonCondition | undefined {
+  const reader = new Reader()
+  const condition = reader.condition(value, "when")
+  if (reader.reports.length) throw new Error("Invalid add-on condition")
+  return condition
+}
+
 function readTrays(value: unknown): AddonTray[] {
   if (value === undefined) return []
   if (!Array.isArray(value) || value.length > 4) throw new Error("trays must be a list of at most 4 trays")

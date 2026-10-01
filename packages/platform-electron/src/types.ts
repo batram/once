@@ -1,3 +1,5 @@
+import type { AddonCondition } from "@once/core"
+
 export interface ElectronRect {
   x: number
   y: number
@@ -23,6 +25,7 @@ export interface ElectronPageAction {
   id: string
   label: string
   icon?: string
+  when?: AddonCondition
 }
 
 /** The page (or link) a page action was chosen for. */

@@ -402,7 +402,7 @@ export class MobileReadingController {
     const matchingStory = isStoryPage ? this.storyElement() : null
     this.observeCurrentStory(matchingStory)
     this.addonTrays.setStory(matchingStory)
-    this.addonTrays.setPage(matchingStory ? null : state.currentUrl || null)
+    this.addonTrays.setPage(state.currentUrl || null)
     const displayedStory = matchingStory?.story ?? story
     const currentCard = required("#reading_current_card")
     const storyHref = displayedStory?.href ?? ""

@@ -90,7 +90,7 @@ test("continuing a page opens the surface on a conversation started once, and is
   } finally { h.restore() }
 })
 
-test("a page that is a listed story opens the story's own tray on its row", async () => {
+test("a listed page shares the story conversation while opening it in the reading host", async () => {
   const h = harness()
   try {
     const trays = h.make(h.surface)
@@ -100,12 +100,39 @@ test("a page that is a listed story opens the story's own tray on its row", asyn
     h.document.body.append(row)
     h.page.runPageAddonAction("example.explain", { href: "https://story.test/", title: "Ignored" }, "toggle")
     await tick(); await tick()
-    assert.equal(trays.expanded(row, "assistant"), true)
-    assert.ok(row.querySelector("section.addon_tray"))
+    assert.equal(trays.expanded(row, "assistant"), false)
     assert.equal(h.calls[0].story.title, "Listed")
     const host = h.document.createElement("div")
     h.page.renderPageTrays("https://story.test/", host)
-    assert.equal(host.childElementCount, 0, "the page place stays closed; the row shows it")
+    assert.equal(host.childElementCount, 1, "directly navigating to a listed URL still shows the page tray")
+    release()
+    trays.dispose()
+  } finally { h.restore() }
+})
+
+test("comments and redirected pages render and continue the same listed conversation", async () => {
+  const h = harness()
+  try {
+    const trays = h.make(h.surface)
+    const release = h.register(trays)
+    const row = h.document.createElement("story-item")
+    row.story = { href: "https://original.test/article", comment_url: "https://forum.test/comments", title: "Listed", type: "HN" }
+    row.dataset.redirected_url = "https://mirror.test/article"
+    h.document.body.append(row)
+    const host = h.document.createElement("div")
+    for (const href of [row.story.comment_url, row.dataset.redirected_url, row.story.href]) {
+      h.page.runPageAddonAction("example.explain", { href }, "toggle")
+      await tick()
+      h.page.renderPageTrays(href, host)
+      assert.equal(host.childElementCount, 1)
+      assert.ok(host.textContent.includes("Listed"))
+      h.page.runPageAddonAction("example.explain", { href }, "continue")
+      assert.equal(h.opened.at(-1).snapshot().story.href, row.story.href)
+      h.page.runPageAddonAction("example.explain", { href }, "toggle")
+      h.page.renderPageTrays(href, host)
+      assert.equal(host.childElementCount, 0)
+    }
+    assert.equal(h.calls.length, 1, "aliases reuse the conversation")
     release()
     trays.dispose()
   } finally { h.restore() }

@@ -1,5 +1,6 @@
 import { ELECTRON_IPC, ElectronPageAction, ElectronPageActionTarget } from "@once/platform-electron/bridge"
 import { WindowEntry } from "./BrowserState"
+import { pageMatchesCondition, readAddonCondition } from "@once/core"
 
 /** Contribution ids look like `addon:<addon-id>/<action-id>`. */
 const ID = /^[a-zA-Z0-9_.:/-]{1,200}$/
@@ -16,8 +17,8 @@ export class PageActions {
     this.byWindow.set(owner, readPageActions(items))
   }
 
-  for(owner: WindowEntry): ElectronPageAction[] {
-    return this.byWindow.get(owner) ?? []
+  for(owner: WindowEntry, href: string): ElectronPageAction[] {
+    return (this.byWindow.get(owner) ?? []).filter(action => pageMatchesCondition(action.when, href))
   }
 
   run(owner: WindowEntry, id: string, page: ElectronPageActionTarget): void {
@@ -34,7 +35,10 @@ export function readPageActions(value: unknown): ElectronPageAction[] {
     const entry = item as Partial<ElectronPageAction> | null
     if (!entry || typeof entry.id !== "string" || !ID.test(entry.id)) continue
     if (typeof entry.label !== "string" || !entry.label.trim()) continue
-    actions.push({ id: entry.id, label: entry.label.trim().slice(0, 100) })
+    try {
+      const when = readAddonCondition(entry.when)
+      actions.push({ id: entry.id, label: entry.label.trim().slice(0, 100), ...(when ? { when } : {}) })
+    } catch { /* Ignore malformed conditions instead of making them unconditional. */ }
   }
   return actions
 }

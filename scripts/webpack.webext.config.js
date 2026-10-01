@@ -22,6 +22,7 @@ module.exports = (env = {}, argv = {}) => {
     mode,
     entry: {
       background: path.join(appRoot, "src", "background.ts"),
+      "page-action-target": path.join(root, "packages", "webext-shell", "dist", "pageActionTarget.js"),
       sidepanel: path.join(root, "packages", "webext-shell", "dist", "sidepanel.js"),
       "addon-sandbox": path.join(root, "packages", "webext-shell", "dist", "addonSandbox.js"),
       "reader-content": path.join(root, "packages", "ui-web", "dist", "reader", "contentScript.js"),

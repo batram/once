@@ -121,7 +121,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (id) getKeyboardDispatcher().run(id)
   })
 
-  bindPageActionsPanel(browser, storyMenuContextId)
+  await bindPageActionsPanel(browser, storyMenuContextId)
 
   let lastStory: StoryListItem | undefined
   let lastContextAt = 0

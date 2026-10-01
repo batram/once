@@ -1,4 +1,5 @@
-import { StoryView, projectStoryView } from "@once/core"
+import { AddonCondition, StoryView, URLRedirect, projectStoryView } from "@once/core"
+import type { StoryListItem } from "../story/StoryListItem"
 
 /**
  * A page the reader has open that need not be a story: the browser tab on
@@ -23,6 +24,7 @@ export interface PageAddonAction {
   label: string
   icon?: string
   surfaces: readonly PageActionSurface[]
+  when?: AddonCondition
 }
 
 export interface RegisteredPageAction extends PageAddonAction {
@@ -45,6 +47,13 @@ export function isAddonPage(href: string): boolean {
 /** What an add-on sees of a page: the story shape, with the page as its own source. */
 export function pageStoryView(page: AddonPage): StoryView {
   return projectStoryView({ href: page.href, title: page.title?.trim() || page.href, type: "page" })
+}
+
+/** Resolve page aliases the same way for tray actions and their reading host. */
+export function pageStoryRow(href: string): StoryListItem | undefined {
+  const rows = Array.from(document.querySelectorAll<StoryListItem>("story-item"))
+  return rows.find(row => row.story.href === href) ?? rows.find(row =>
+    row.story.comment_url === href || (row.dataset.redirected_url || URLRedirect.redirect_url(row.story.href)) === href)
 }
 
 function announce(): void {
@@ -75,7 +84,7 @@ export function registerPageTray(id: string, render: (href: string) => HTMLEleme
 export function pageAddonActions(surface: PageActionSurface, page?: AddonPage): PageAddonAction[] {
   const list = [...actions.values()].filter(action => action.surfaces.includes(surface))
   const shown = page ? list.filter(action => isAddonPage(page.href) && action.appliesTo(page)) : list
-  return shown.map(({ id, label, icon, surfaces }) => ({ id, label, icon, surfaces }))
+  return shown.map(({ id, label, icon, surfaces, when }) => ({ id, label, icon, surfaces, ...(when ? { when } : {}) }))
 }
 
 /** Runs an action on a page. False when it is unknown, does not apply, or could not run. */

@@ -328,6 +328,14 @@ the shell knows it, else the URL; `when: { "type": [...] }` without `"page"` kee
 an action to real stories. A tray opens its conversation in a new tab on Electron
 and in the extensions, and above the page on mobile.
 
+Page actions respect `when` on toolbar tools and native page/link menus as well
+as at execution. Electron reader tabs use the article's source URL. Mobile's
+browser menu is available without Android browser extensions; listed URLs,
+configured redirects, and comments pages share the listed story's conversation
+while opening it in the reading view. Extension menu execution resolves a live
+Once panel in the clicked browser window, including after a background restart;
+keep that panel open to own the addon and its conversations.
+
 ```js
 once.onTray(async (tray, event, story, context) => {
   if (event.type === "clear") return { messages: [], composer: "Ask a question" }

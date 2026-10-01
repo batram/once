@@ -1,11 +1,12 @@
-/** The panel's list of add-on actions for pages, sent whenever it changes. */
+import { pageMatchesCondition } from "@once/core"
+import { PageActionMenuItem, pageActionMenuPatterns, readPageActionMenuItems } from "./pageActionMenuItems"
+
 export interface PageActionMenuState {
   onceCommand: "page-actions-context"
   contextId: string
-  items: { id: string; label: string }[]
+  items: PageActionMenuItem[]
 }
 
-/** The background's report of a chosen page action, for the page or a link in it. */
 export interface PageActionMenuRun {
   onceCommand: "page-addon-action"
   action: string
@@ -15,68 +16,89 @@ export interface PageActionMenuRun {
 }
 
 export function isPageActionRunForContext(
-  message: { onceCommand?: string; contextId?: string },
-  contextId: string
+  message: { onceCommand?: string; contextId?: string }, contextId: string
 ): message is PageActionMenuRun {
   return message.onceCommand === "page-addon-action" && message.contextId === contextId
 }
 
 const prefix = "once_page_"
+const cacheKey = "oncePageActionMenus"
 
-/**
- * Offers the panel's add-on page actions in the context menu of every web
- * page and link. Items follow the panel's reports; the panel that reported
- * last is the one told about a click, so one window's panel acts on it.
- */
+/** Menus retain descriptors across worker restarts; execution always finds a live panel. */
 export function installPageActionMenuBackground(browserApi: typeof browser): void {
   const menus = browserApi.menus ?? browserApi.contextMenus
-  if (!menus) {
-    throw new Error("The WebExtension menus API is unavailable")
-  }
-  let contextId: string | undefined
-  let known = new Map<string, string>()
-  let applying: Promise<void> = Promise.resolve()
-
-  const apply = async (items: PageActionMenuState["items"]): Promise<void> => {
-    const next = new Map(items.map(item => [item.id, item.label]))
-    for (const id of known.keys()) {
-      if (!next.has(id)) await menus.remove(prefix + id).catch(() => undefined)
+  if (!menus) throw new Error("The WebExtension menus API is unavailable")
+  let known: PageActionMenuItem[] = []
+  // Remember retained menu ids so removing an addon after a restart also
+  // removes its old menu entries.
+  let applying = browserApi.storage.local.get(cacheKey).then(saved => {
+    known = readPageActionMenuItems(saved[cacheKey])
+  })
+  const ids = (id: string) => [prefix + id, prefix + "link:" + id]
+  const apply = async (items: PageActionMenuItem[]): Promise<void> => {
+    for (const item of known) {
+      for (const id of ids(item.id)) await menus.remove(id).catch(() => undefined)
     }
-    for (const [id, title] of next) {
-      if (known.get(id) === title) continue
-      // Chrome keeps items across worker restarts, so a fresh worker creates
-      // over an item it never saw: remove first rather than trip on the id.
-      await menus.remove(prefix + id).catch(() => undefined)
-      menus.create({
-        id: prefix + id,
-        title,
-        contexts: ["page", "link"],
-        documentUrlPatterns: ["http://*/*", "https://*/*"]
-      })
+    for (const item of items) {
+      const patterns = pageActionMenuPatterns(item.when)
+      if (!patterns.length) continue
+      for (const [index, id] of ids(item.id).entries()) {
+        await menus.remove(id).catch(() => undefined)
+        menus.create({ id, title: item.label, contexts: [index ? "link" : "page"],
+          documentUrlPatterns: index ? ["http://*/*", "https://*/*"] : patterns,
+          ...(index ? { targetUrlPatterns: patterns } : {}) })
+      }
     }
-    known = next
+    known = items
+    await browserApi.storage.local.set({ [cacheKey]: known })
   }
+  const enqueue = (work: () => Promise<void>): Promise<void> => {
+    applying = applying.then(work).catch(error => console.error("Could not update page action menus", error))
+    return applying
+  }
+  const target = (href: string): Promise<void> => enqueue(async () => {
+    for (const item of known) {
+      if (!pageActionMenuPatterns(item.when).length) continue
+      for (const id of ids(item.id)) await menus.update(id, { enabled: pageMatchesCondition(item.when, href) })
+    }
+  })
 
-  browserApi.runtime.onMessage.addListener((message: Partial<PageActionMenuState>) => {
-    if (message.onceCommand !== "page-actions-context" || !message.contextId || !Array.isArray(message.items)) return
-    contextId = message.contextId
-    const items = message.items.filter(item => typeof item?.id === "string" && typeof item.label === "string")
-    applying = applying.then(() => apply(items)).catch(error => console.error("Could not update page action menus", error))
+  browserApi.runtime.onMessage.addListener((message, sender) => {
+    if (message?.onceCommand === "page-actions-context" && typeof message.contextId === "string") {
+      return enqueue(() => apply(readPageActionMenuItems(message.items)))
+    }
+    // Chrome reports the hovered/focused link ahead of opening its menu.
+    // Firefox supplies the exact target through onShown below.
+    if (message?.onceCommand === "page-actions-target" && sender.tab && typeof message.href === "string") {
+      return target(message.href)
+    }
+    return undefined
+  })
+  browserApi.menus?.onShown.addListener(info => {
+    const href = info.linkUrl ?? info.pageUrl
+    if (href) void target(href).then(() => browserApi.menus.refresh())
   })
 
   menus.onClicked.addListener((info, tab) => {
     const id = String(info.menuItemId)
-    if (!id.startsWith(prefix) || !contextId) return
+    if (!id.startsWith(prefix)) return
+    const action = id.slice(prefix.length).replace(/^link:/, "")
     const href = info.linkUrl ?? info.pageUrl
     if (!href) return
-    const linkText = (info as { linkText?: string }).linkText
-    const run: PageActionMenuRun = {
-      onceCommand: "page-addon-action",
-      action: id.slice(prefix.length),
-      contextId,
-      href,
-      title: info.linkUrl ? linkText ?? "" : tab?.title ?? ""
-    }
-    void browserApi.runtime.sendMessage(run).catch(() => undefined)
+    void (async () => {
+      // A worker restart loses panel identity; an old identity can also name
+      // a closed panel. Resolve a live panel in the clicked window each time.
+      const state: PageActionMenuState | undefined = await browserApi.runtime.sendMessage({
+        onceCommand: "page-actions-query", windowId: tab?.windowId
+      })
+      if (!state?.contextId) return
+      const item = readPageActionMenuItems(state.items).find(item => item.id === action)
+      if (!item || !pageMatchesCondition(item.when, href)) return
+      const run: PageActionMenuRun = {
+        onceCommand: "page-addon-action", action, contextId: state.contextId, href,
+        title: info.linkUrl ? (info as { linkText?: string }).linkText ?? "" : tab?.title ?? ""
+      }
+      await browserApi.runtime.sendMessage(run)
+    })().catch(error => console.error("Could not run page action; open the Once panel in this window", error))
   })
 }

@@ -1,6 +1,7 @@
 import { ElectronBridge, ElectronTabState, ElectronToolbarTool } from "@once/platform-electron/bridge"
 import { AddonPage, PAGE_ADDON_ACTIONS_CHANGED, isAddonPage, pageAddonActions, runPageAddonAction } from "@once/ui-web"
 import { TOOLBAR_PINS_CHANGED, bindUnpinMenu, isToolPinned, shellIconData, unpinTool } from "../ExtensionToolbar"
+import { sourceUrlFromReaderUrl } from "./reader-url"
 
 const toolId = (actionId: string) => `addon:${actionId}`
 
@@ -26,14 +27,16 @@ export class PageAddonActions {
 
   /** The active tab, or none; only a web page gets live buttons. */
   setTab(tab: ElectronTabState | undefined): void {
-    this.page = tab && isAddonPage(tab.url) ? { href: tab.url, title: tab.title } : null
-    for (const button of this.host.querySelectorAll("button")) button.disabled = !this.page
+    const href = tab && (sourceUrlFromReaderUrl(tab.url) ?? tab.url)
+    this.page = href && isAddonPage(href) ? { href, title: tab?.title } : null
+    this.updateAvailability()
   }
 
   /** The button actions as the extensions menu lists them, pinned or not. */
   tools(): Promise<ElectronToolbarTool[]> {
+    const available = this.available()
     return Promise.all(pageAddonActions("button").map(async action => ({
-      id: toolId(action.id), name: action.label, icon: await shellIconData(action.icon ?? "link"), enabled: Boolean(this.page)
+      id: toolId(action.id), name: action.label, icon: await shellIconData(action.icon ?? "link"), enabled: available.has(action.id)
     })))
   }
 
@@ -62,6 +65,17 @@ export class PageAddonActions {
       bindUnpinMenu(this.bridge, button, action.label, () => unpinTool(toolId(action.id)))
       return button
     }))
-    for (const button of this.host.querySelectorAll("button")) button.disabled = !this.page
+    this.updateAvailability()
+  }
+
+  private available(): Set<string> {
+    return new Set(this.page ? pageAddonActions("button", this.page).map(action => action.id) : [])
+  }
+
+  private updateAvailability(): void {
+    const available = this.available()
+    for (const button of this.host.querySelectorAll<HTMLButtonElement>("button")) {
+      button.disabled = !available.has(button.dataset.pageAddonAction ?? "")
+    }
   }
 }

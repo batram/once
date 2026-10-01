@@ -4,6 +4,25 @@ const { openSettingsSection } = require("./helpers/settings")
 const { triggerMobileBack } = require("./helpers/mobile-app")
 const { installAiAddon } = require("../shared/ai-addon-ui")
 
+test("the browser menu opens an unlisted page conversation without native extensions", async ({ page }) => {
+  await require("./helpers/mobile-app").gotoMobileApp(page)
+  await openSettingsSection(page, "addons")
+  await installAiAddon(page, new URL(page.url()).origin)
+  await page.getByTestId("reading-menu").click()
+  await page.getByTestId("reading-url-input").fill(new URL("/fixtures/article.html?standalone=1", page.url()).href)
+  await page.getByTestId("reading-url-action").click()
+  await expect(page.locator("#reading_current_card")).toBeHidden()
+  await page.getByRole("button", { name: "Browser menu", exact: true }).click()
+  const menu = page.getByRole("dialog", { name: "Browser menu", exact: true })
+  await expect(menu).toBeVisible()
+  await menu.getByRole("button", { name: "What? Wait, who, why?", exact: true }).click()
+  const host = page.locator("#reading_addon_trays")
+  await expect(host).toBeVisible()
+  await expect(host).toContainText("ExampleApp is software", { timeout: 20000 })
+  await triggerMobileBack(page)
+  await expect(host).toBeHidden()
+})
+
 for (const mode of ["reader", "browser"]) {
   test(`Reading ${mode} shows and dismisses the shared WWWW conversation`, async ({ page }) => {
     const story = await seedFixtureStories(page)

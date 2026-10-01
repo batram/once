@@ -19,6 +19,11 @@
     "tabs"
   ],
   "host_permissions": ["<all_urls>"],
+  "content_scripts": [{
+    "matches": ["http://*/*", "https://*/*"],
+    "js": ["page-action-target.js"],
+    "all_frames": true
+  }],
   "web_accessible_resources": [
     {
       "resources": ["static/wafli-module.wasm"],

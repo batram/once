@@ -28,6 +28,11 @@ test("a tray add-on runs on a page that is no story: from the toolbar, and from 
     // The conversation takes the tab's title along, so wait for the page to have one.
     await expect.poll(() => window.evaluate(url => window.onceElectron.tabs.getAll().then(all => all.find(tab => tab.url === url)?.title), page))
       .toBe("Regenerated Article")
+    // Reader mode is still the same article target, including without a row.
+    await window.locator("#browser_reader").click()
+    await expect.poll(() => window.evaluate(() => window.onceElectron.tabs.getAll().then(all => all.find(tab => tab.active)?.url)))
+      .toContain("once-reader://")
+    await expect(action).toBeEnabled()
     await action.click()
     const conversationUrl = `once-addon://conversation/index.html?addon=what-wait-who-why&tray=assistant&story=${encodeURIComponent(page)}`
     await expect.poll(() => window.evaluate(() => window.onceElectron.tabs.getAll()))
@@ -45,7 +50,7 @@ test("a tray add-on runs on a page that is no story: from the toolbar, and from 
     await expect(window.locator("#selected_container story-item")).toHaveCount(0)
     // The same page again continues the same conversation rather than starting over.
     const tabs = await window.evaluate(() => window.onceElectron.tabs.getAll())
-    const pageTab = tabs.find(tab => tab.url === page)
+    const pageTab = tabs.find(tab => tab.url.startsWith("once-reader://"))
     await window.evaluate(id => window.onceElectron.tabs.activate(id), pageTab.id)
     await action.click()
     await expect.poll(() => window.evaluate(() => window.onceElectron.tabs.getAll().then(all => all.filter(tab => tab.url.startsWith("once-addon://")).length))).toBe(2)
@@ -68,7 +73,7 @@ test("a tray add-on runs on a page that is no story: from the toolbar, and from 
         x: 4, y: 4, isEditable: false, selectionText: "", pageURL: pageUrl,
         linkURL: linkUrl, linkText: "A linked page", editFlags: {}
       })
-    }, [page, linked])
+    }, [pageTab.url, linked])
     const labels = await electronApp.evaluate(() => globalThis.__onceLastMenuTemplate.map((item) => item.label || item.type))
     expect(labels.slice(-3)).toEqual(["separator", LABEL, `${LABEL} for Link`])
     await electronApp.evaluate(({ Menu }) => {

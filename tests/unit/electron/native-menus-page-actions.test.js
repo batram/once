@@ -14,6 +14,8 @@ function harness(pageActions) {
     const module = { exports: {} }
     Function("exports", "require", compiled)(module.exports, name => {
       if (name === "./PageActions") return pageActionsModule
+      if (name === "./reader-url") return load("reader-url.ts")
+      if (name === "@once/core") return require("@once/core")
       if (name === "@once/platform-electron/bridge") return { ELECTRON_IPC: { addonsPageActionRun: "once:addons:page-action-run" } }
       if (name !== "electron") return {}
       return {
@@ -50,6 +52,21 @@ test("a page's menu offers each add-on action for the page and, under a link, fo
   assert.deepEqual(h.labels().slice(-3), ["separator", "Explain", "Explain for Link"])
   h.menu().at(-1).click()
   assert.deepEqual(h.ran.at(-1), { channel: "once:addons:page-action-run", id: "addon:what-wait-who-why/explain", page: { href: "https://a.test/link", title: "The link" } })
+})
+
+test("conditions filter the page and link independently, including reader source URLs", () => {
+  const h = harness([{ id: "example.explain", label: "Explain", when: { domain: ["a.test"] } }])
+  h.menus.showContentsMenu(h.owner, h.contents, { ...h.params, pageURL: "once-reader://https://a.test/article", linkURL: "https://other.test/" })
+  assert.ok(h.labels().includes("Explain"))
+  assert.ok(!h.labels().includes("Explain for Link"))
+  h.menu().at(-1).click()
+  assert.equal(h.ran.at(-1).page.href, "https://a.test/article")
+  h.menus.showContentsMenu(h.owner, h.contents, { ...h.params, pageURL: "https://other.test/", linkURL: "https://a.test/link" })
+  assert.ok(!h.labels().includes("Explain"))
+  assert.ok(h.labels().includes("Explain for Link"))
+  h.menus.pageActions.set(h.owner, [{ id: "broken", label: "Broken", when: { domain: "not a list" } }])
+  h.menus.showContentsMenu(h.owner, h.contents, h.params)
+  assert.deepEqual(h.labels(), ["Inspect"])
 })
 
 test("no add-on items for the shell's own window, a non-web page, malformed actions, or none at all", () => {

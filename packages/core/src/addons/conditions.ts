@@ -2,7 +2,7 @@
 // test is evaluated by Once against the story view, never by an add-on, so a
 // row renders without waiting on anything.
 
-import { StoryView } from "./storyView"
+import { StoryView, projectStoryView } from "./storyView"
 
 export interface AddonCondition {
   /** Story `type` badges, any of. */
@@ -58,4 +58,12 @@ export function storyMatchesCondition(when: AddonCondition | undefined, view: St
     }
   }
   return true
+}
+
+/** DOM-free page matching for native menus and extension backgrounds. */
+export function pageMatchesCondition(when: AddonCondition | undefined, href: string): boolean {
+  try {
+    if (!["http:", "https:"].includes(new URL(href).protocol)) return false
+    return storyMatchesCondition(when, projectStoryView({ href, title: href, type: "page" }))
+  } catch { return false }
 }

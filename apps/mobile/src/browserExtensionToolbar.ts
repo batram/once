@@ -1,5 +1,6 @@
 import type { InAppBrowserSurface, MobileBrowserExtensions } from "@once/platform-mobile"
 import type { ReadingPageActions } from "./readingPageActions"
+import { showChoiceDialog } from "@once/ui-web"
 
 const SETTINGS_PREFIX = "once:settings:"
 const PAGE_ACTION_PREFIX = "once:page-action:"
@@ -28,7 +29,7 @@ function setStatus(message: string): void {
  * sheet is also where add-on trays are offered for the page being read.
  */
 export function bindMobileExtensionToolbar(
-  api: MobileBrowserExtensions,
+  api: MobileBrowserExtensions | null,
   surface: InAppBrowserSurface,
   pageActions: ReadingPageActions = { list: () => [], run() {} }
 ): void {
@@ -50,18 +51,19 @@ export function bindMobileExtensionToolbar(
     button.setAttribute("aria-expanded", "true")
     setStatus("")
     try {
-      const result = await api.command({ action: "list" })
+      const result = api ? await api.command({ action: "list" }) : { extensions: [] }
       const items = (result.extensions ?? []).filter(item => item.enabled && (item.hasAction || item.hasOptions))
         .map(item => ({
           id: item.id, label: item.name, enabled: true, iconDataUrl: item.iconDataUrl,
           settingsId: item.hasOptions && item.hasAction ? SETTINGS_PREFIX + item.id : undefined
         }))
-      items.push({ id: "once:manage", label: "Manage extensions", enabled: true, iconDataUrl: undefined, settingsId: undefined })
+      if (api) items.push({ id: "once:manage", label: "Manage extensions", enabled: true, iconDataUrl: undefined, settingsId: undefined })
       // Add-on trays for the open page, listed or not; they open above the page.
       for (const action of pageActions.list()) {
         items.push({ id: PAGE_ACTION_PREFIX + action.id, label: action.label, enabled: true, iconDataUrl: undefined, settingsId: undefined })
       }
-      const selected = await surface.showMenu({ items, browserControls: true, dark: shellIsDark() })
+      const selected = api ? await surface.showMenu({ items, browserControls: true, dark: shellIsDark() })
+        : await showBrowserMenu(items)
       if (selected === "once:manage") {
         openExtensionManager()
       } else if (selected?.startsWith(PAGE_ACTION_PREFIX)) {
@@ -69,9 +71,9 @@ export function bindMobileExtensionToolbar(
       } else if (selected === "once:find") {
         // The sheet's own Find control; readingFindBar.ts owns the bar.
         document.dispatchEvent(new Event("once-find-in-page-request"))
-      } else if (selected?.startsWith(SETTINGS_PREFIX)) {
+      } else if (api && selected?.startsWith(SETTINGS_PREFIX)) {
         await api.command({ action: "options", id: selected.slice(SETTINGS_PREFIX.length) })
-      } else if (selected) {
+      } else if (api && selected) {
         const extension = result.extensions?.find(item => item.id === selected)
         // Without an open page the action falls back to the extension's own
         // settings; an extension without any lands in the manager instead.
@@ -82,4 +84,10 @@ export function bindMobileExtensionToolbar(
       setStatus(`Could not open browser menu: ${error instanceof Error ? error.message : String(error)}`)
     } finally { button.disabled = false; button.setAttribute("aria-expanded", "false") }
   }
+}
+
+/** Platforms without the native extension sheet still have a browser menu. */
+function showBrowserMenu(items: { id: string; label: string }[]): Promise<string | null> {
+  return showChoiceDialog({ title: "Browser menu", message: "", cancelLabel: "Close",
+    choices: [...items, { id: "once:find", label: "Find in page" }].map(item => ({ value: item.id, label: item.label })) })
 }
