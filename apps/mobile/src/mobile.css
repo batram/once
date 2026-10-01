@@ -1821,10 +1821,14 @@
    twice. Settings participates in the same back stack as the native back
    action, so the chevron stays visible on the section index too, where it
    leaves the panel; the shared sheet reveals it only for an open section.
-   font-size: 0 drops the "Settings" label — main.ts names the icon instead. */
+   font-size: 0 drops the "Settings" label — main.ts names the icon instead.
+   Flex, not grid: the hidden label is still an anonymous item with a 20px
+   line box, which a grid stacks under the chevron as a second row, pushing
+   the chevron off the bar's centre line. */
   #settings_section_back {
-    display: grid;
-    place-items: center start;
+    display: flex;
+    align-items: center;
+    gap: 0;
     order: -1;
     margin: 0;
     padding: 0;
@@ -1842,7 +1846,7 @@
   }
 
   #settings_section_back::before {
-    margin: var(--sp-3) 0 0;
+    margin: 0;
   }
 
   /* ---------- Full-screen editor inside a section ----------
