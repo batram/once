@@ -70,6 +70,15 @@ class AddonSandboxInlinePlugin {
   }
 }
 
+/** The shell bundle and the scripts it injects into pages and frames. */
+const entry = {
+  mobile: path.join(__dirname, "src", "main.ts"),
+  "reader-runtime": path.join(__dirname, "src", "readerRuntime.ts"),
+  "picker-injection": path.join(__dirname, "src", "pickerInjection.ts"),
+  "page-find": path.join(__dirname, "src", "pageFindRuntime.ts"),
+  "addon-sandbox": path.join(__dirname, "src", "addonSandbox.ts")
+}
+
 module.exports = (_env = {}, argv = {}) => {
   const mode = argv.mode || "development"
   const channel = process.env.ONCE_BUILD_CHANNEL || "dev"
@@ -79,13 +88,7 @@ module.exports = (_env = {}, argv = {}) => {
 
   return {
     mode,
-    entry: {
-      mobile: path.join(__dirname, "src", "main.ts"),
-      "reader-runtime": path.join(__dirname, "src", "readerRuntime.ts"),
-      "picker-injection": path.join(__dirname, "src", "pickerInjection.ts"),
-      "page-find": path.join(__dirname, "src", "pageFindRuntime.ts"),
-      "addon-sandbox": path.join(__dirname, "src", "addonSandbox.ts")
-    },
+    entry,
     output: {
       path: path.join(__dirname, "dist"),
       filename: "[name].js",
