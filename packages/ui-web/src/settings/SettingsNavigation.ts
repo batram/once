@@ -28,8 +28,14 @@ export class SettingsNavigation {
   constructor(private host: SettingsNavigationHost) {
     host.back.onclick = () => {
       if (host.backEditor()) return
-      if (host.section()) host.show(null)
-      else host.exitSettings()
+      if (host.section()) {
+        host.show(null)
+        return
+      }
+      // On the index the chevron leaves Settings outright. Without this the
+      // shared Back step would replay earlier section visits first.
+      this.backHistory = []
+      host.exitSettings()
     }
     document.addEventListener("once-settings-index-requested", () => host.showIndex())
     document.addEventListener("once-settings-navigate", event => this.mouse(event))
