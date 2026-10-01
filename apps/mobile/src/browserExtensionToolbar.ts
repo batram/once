@@ -43,7 +43,8 @@ export function bindMobileExtensionToolbar(
   button.setAttribute("aria-label", "Browser menu")
   button.setAttribute("aria-haspopup", "dialog")
   button.setAttribute("aria-expanded", "false")
-  button.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>'
+  // A wide burger, not ⋮: the story rows below use the three-dot glyph.
+  button.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" aria-hidden="true"><path d="M5 5h14M5 12h14M5 19h14"/></svg>'
   navigate.after(button)
   navigate.parentElement?.classList.add("has-browser-menu")
   button.onclick = async () => {
