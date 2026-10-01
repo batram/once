@@ -150,7 +150,7 @@ function scriptHeader(script: UserscriptEntry | undefined, summary: UserscriptSu
   return top
 }
 
-function sourceEditor(loaded: string): { label: HTMLLabelElement; textarea: HTMLTextAreaElement } {
+function sourceEditor(loaded: string): { field: HTMLDivElement; textarea: HTMLTextAreaElement } {
   const label = element("label", "userscript_source_label", "Source")
   const textarea = element("textarea", "userscript_source")
   textarea.id = "userscript_source"
@@ -161,7 +161,9 @@ function sourceEditor(loaded: string): { label: HTMLLabelElement; textarea: HTML
   textarea.dataset.testid = "userscript-source"
   textarea.value = loaded
   label.htmlFor = textarea.id
-  return { label, textarea }
+  const field = element("div", "userscript_source_field")
+  field.append(label, textarea)
+  return { field, textarea }
 }
 
 interface Draft {
@@ -380,9 +382,9 @@ class UserscriptSettingsView implements UserscriptSettings {
     const notice = element("p", "userscript_notice")
     notice.setAttribute("role", "status")
     notice.hidden = true
-    const { label, textarea } = sourceEditor(loaded)
+    const { field, textarea } = sourceEditor(loaded)
     this.draft = { textarea, loaded, notice }
-    parts.push(notice, label, textarea, this.detailActions(editing, textarea))
+    parts.push(notice, field,this.detailActions(editing, textarea))
     this.detail.replaceChildren(...parts)
   }
 
