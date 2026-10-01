@@ -22,7 +22,11 @@ test("extensions default to the menu, persist pins, and keep pinned actions work
   let pinChanged
   let settingsOpened = false
   let shellFocused = false
-  const bridge = { window: { focusShell: async () => { shellFocused = true } }, extensions: {
+  let menuItems
+  let menuChoice = null
+  const bridge = { window: { focusShell: async () => { shellFocused = true } }, storyMenu: {
+    show: async items => { menuItems = items; return menuChoice }
+  }, extensions: {
     list: async () => [info],
     onChanged: listener => { changed = listener },
     showMenu: async () => ({ pinned: menuPins, ...menuAction }),
@@ -60,4 +64,20 @@ test("extensions default to the menu, persist pins, and keep pinned actions work
   await button.onclick()
   assert.equal(settingsOpened, true)
   assert.equal(shellFocused, true)
+
+  // Right-clicking a pinned action offers Inspect and Unpin; only choosing
+  // Unpin removes the pin.
+  pinChanged([info.host])
+  const pinned = container.querySelector(".extension-action")
+  const contextEvent = { clientX: 5, clientY: 6, preventDefault: () => {} }
+  pinned.oncontextmenu(contextEvent)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(menuItems.map(item => item.id), ["inspect", "unpin"])
+  assert.equal(menuItems[1].label, "Unpin Example")
+  assert.equal(container.querySelectorAll(".extension-action").length, 1)
+  menuChoice = "unpin"
+  pinned.oncontextmenu(contextEvent)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(container.querySelectorAll(".extension-action").length, 0)
+  assert.deepEqual(JSON.parse(stored.get("once-electron-pinned-extensions")), [])
 })

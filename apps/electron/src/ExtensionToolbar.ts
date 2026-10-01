@@ -1,6 +1,6 @@
 import { ElectronBridge, ElectronExtensionInfo } from "@once/platform-electron/bridge"
 
-function actionButton(bridge: ElectronBridge, info: ElectronExtensionInfo): HTMLButtonElement {
+function actionButton(bridge: ElectronBridge, info: ElectronExtensionInfo, unpin: () => void): HTMLButtonElement {
   const button = document.createElement("button")
   button.type = "button"
   button.className = "browser-button image-button extension-action"
@@ -32,6 +32,17 @@ function actionButton(bridge: ElectronBridge, info: ElectronExtensionInfo): HTML
       x: rect.x, y: rect.y, width: rect.width, height: rect.height
     })
   }
+  // The shell's native menu keeps "Inspect" and adds the only pin action a
+  // toolbar button can take; pinning happens in the extensions panel.
+  button.oncontextmenu = (event) => {
+    event.preventDefault()
+    void bridge.storyMenu.show([
+      { id: "inspect", label: "Inspect", group: "inspect", enabled: true, visible: true },
+      { id: "unpin", label: `Unpin ${info.name}`, group: "pin", enabled: true, visible: true }
+    ], { x: event.clientX, y: event.clientY }).then(selected => {
+      if (selected === "unpin") unpin()
+    }).catch(error => console.error("Failed to show extension action menu", error))
+  }
   return button
 }
 
@@ -59,9 +70,16 @@ export function bindExtensionToolbar(bridge: ElectronBridge, container: HTMLElem
   menuButton.setAttribute("aria-expanded", "false")
   // A small puzzle piece, sized by the same chrome tokens as adjacent controls.
   menuButton.innerHTML = '<svg width="18" height="18" viewBox="-2 -3 26 26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M9 3H4v6H3a3 3 0 0 0 0 6h1v6h6v-1a3 3 0 0 1 6 0v1h5v-6h-1a3 3 0 0 1 0-6h1V3h-6V2a3 3 0 0 0-6 0Z"/></svg>'
+  const unpin = (host: string) => {
+    localStorage.setItem(PINNED_KEY, JSON.stringify(readPinned().filter(pinned => pinned !== host)))
+    paint()
+  }
   const paint = () => {
     const pinned = new Set(readPinned())
-    container.replaceChildren(...infos.filter(info => pinned.has(info.host)).map(info => actionButton(bridge, info)), menuButton)
+    container.replaceChildren(
+      ...infos.filter(info => pinned.has(info.host)).map(info => actionButton(bridge, info, () => unpin(info.host))),
+      menuButton
+    )
   }
   menuButton.onclick = async () => {
     if (menuButton.getAttribute("aria-expanded") === "true") return
