@@ -3,6 +3,23 @@ const assert = require("node:assert/strict")
 const { Story } = require("../../../packages/core/dist")
 const { PouchStoryStore } = require("../../../packages/persistence/dist")
 
+test("bulk story lookup reads each URL once and retains all found stories", async () => {
+  const first = new Story("rss", "https://example.com/first", "First")
+  const second = new Story("rss", "https://example.com/second", "Second")
+  const requests = []
+  const store = new PouchStoryStore({ allDocs: async options => {
+    requests.push(options)
+    return { rows: [{ doc: first.to_obj() }, {}, { doc: second.to_obj() }] }
+  } }, Story.from_obj.bind(Story))
+  const result = await store.getStoriesByUrls([first.href, first.href, "https://example.com/missing", second.href])
+  assert.deepEqual(requests, [{ include_docs: true, keys: [
+    `sto_${first.href}`, "sto_https://example.com/missing", `sto_${second.href}`
+  ] }])
+  assert.deepEqual([...result.keys()], [first.href, second.href])
+  assert.equal((await store.getStoriesByUrls([])).size, 0)
+  assert.equal(requests.length, 1)
+})
+
 test("treats only a missing PouchDB story as an empty lookup", async () => {
   const missingStore = new PouchStoryStore(
     { get: async () => { throw { status: 404 } } },

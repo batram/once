@@ -21,6 +21,7 @@ import {
 import { LocalEventBus } from "./EventBus"
 import { mergeStorySyncState } from "./storySyncPolicy"
 import { StoryWriteQueue } from "./StoryWriteQueue"
+import { StoryIngestionQueue } from "./StoryIngestionQueue"
 import { StoryWorkingSet } from "./StoryWorkingSet"
 import { AppSettings } from "./AppSettings"
 import { settingsClientMethods } from "./settingsClient"
@@ -39,6 +40,7 @@ import { StoryContentService } from "./storyContent"
 import { StoryChangeReconciler } from "./storyChangeReconciler"
 
 export class AppRuntime {
+  private readonly storyIngestion = new StoryIngestionQueue()
   readonly client: OnceClient
   private readonly events = new LocalEventBus()
   private readonly workingSet = new StoryWorkingSet(
@@ -407,6 +409,7 @@ export class AppRuntime {
   }
 
   private async addStories(stories: Story[]): Promise<Story[]> {
+    if (stories.length === 0) return []
     const stored = await this.platform.storyStore.getStoriesByUrls(
       stories.map((story) => story.href)
     )
@@ -424,8 +427,10 @@ export class AppRuntime {
     bucket = "stories",
     storedStory?: Story
   ): Promise<Story> {
+    // Register per-URL order first. Waiting writes for the same URL do not
+    // occupy ingestion slots, and later user edits cannot overtake ingestion.
     return this.queueStoryWrite(newStory.href, () =>
-      this.addStoryNow(newStory, bucket, storedStory)
+      this.storyIngestion.run(() => this.addStoryNow(newStory, bucket, storedStory))
     )
   }
 
@@ -464,7 +469,15 @@ export class AppRuntime {
 
     if (!oldStory) {
       newStory = this.workingSet.set(newStory.href.toString(), newStory)
-      return this.platform.storyStore.saveStory(newStory)
+      try {
+        return await this.platform.storyStore.saveStory(newStory)
+      } catch (error) {
+        // A failed insertion must not make a later source retry look persisted.
+        if (this.workingSet.get(newStory.href) === newStory) {
+          this.workingSet.remove(newStory.href)
+        }
+        throw error
+      }
     }
 
     // A story returned to a caller for presentation must also be present in
@@ -476,19 +489,29 @@ export class AppRuntime {
       oldStory = this.workingSet.set(oldStory.href, oldStory, true)
     }
 
-    if (
-      newStory.comment_url == oldStory.comment_url &&
-      JSON.stringify(newStory.tags) != JSON.stringify(oldStory.tags)
-    ) {
-      const previousTags = [...oldStory.tags]
-      const existingStory = oldStory
-      newStory.tags.forEach((tag) => {
-        if (!existingStory.tags.map((existingTag) => existingTag.text).includes(tag.text)) {
-          existingStory.tags.push(tag)
-        }
+    if (newStory.comment_url == oldStory.comment_url) {
+      const existingTags = new Set(oldStory.tags.map((tag) => tag.text))
+      const addedTags = newStory.tags.filter((tag) => {
+        if (existingTags.has(tag.text)) return false
+        existingTags.add(tag.text)
+        return true
       })
-      this.emitDataChange([oldStory.href, "tags"], oldStory.tags, previousTags, null)
-      oldStory = await this.platform.storyStore.saveStory(oldStory)
+      if (addedTags.length) {
+        const previousTags = [...oldStory.tags]
+        const existingStory = oldStory
+        oldStory.tags.push(...addedTags)
+        const updatedTags = oldStory.tags
+        this.emitDataChange([oldStory.href, "tags"], oldStory.tags, previousTags, null)
+        try {
+          oldStory = await this.platform.storyStore.saveStory(oldStory)
+        } catch (error) {
+          if (existingStory.tags === updatedTags) {
+            existingStory.tags = previousTags
+            this.emitDataChange([existingStory.href, "tags"], previousTags, updatedTags, null)
+          }
+          throw error
+        }
+      }
     }
 
     const oldCommentUrls = oldStory.substories.map((substory) => {

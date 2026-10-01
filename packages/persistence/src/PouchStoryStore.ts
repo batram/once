@@ -125,7 +125,7 @@ export class PouchStoryStore<TStory extends Story> {
     if (urls.length === 0) return new Map()
     const response = await this.db.allDocs({
       include_docs: true,
-      keys: urls.map((url) => this.storyId(url))
+      keys: Array.from(new Set(urls), (url) => this.storyId(url))
     })
     const stories = new Map<string, TStory>()
     response.rows.forEach((entry) => {
