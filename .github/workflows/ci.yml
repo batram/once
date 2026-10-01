@@ -49,7 +49,7 @@ jobs:
 
   electron-contracts:
     name: Windows integration and design system
-    runs-on: windows-2022
+    runs-on: windows-2025
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
@@ -69,7 +69,7 @@ jobs:
 
   electron-e2e:
     name: Electron E2E (${{ matrix.shard }}/6)
-    runs-on: windows-2022
+    runs-on: windows-2025
     timeout-minutes: 15
     strategy:
       fail-fast: false

@@ -594,7 +594,7 @@ This validates packaging and the compiled app, but does not launch the shipped
 executable or exercise its packaged-only behavior. Failure traces and other
 Playwright artifacts are written below `test-results/`.
 
-CI runs the Electron E2E suite in six file-level shards on separate Windows 2022
+CI runs the Electron E2E suite in six file-level shards on separate Windows 2025
 runners, each with one worker. Windows jobs install the root tooling, Electron,
 and all shared-package workspaces from the lockfile; mobile/Appium tooling is
 only needed by other jobs. To reproduce one shard, run
