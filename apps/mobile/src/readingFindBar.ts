@@ -1,3 +1,5 @@
+import { Capacitor } from "@capacitor/core"
+import { Keyboard } from "@capacitor/keyboard"
 import type { InAppBrowserSurface } from "@once/platform-mobile"
 import { ReaderDocumentHost, ReadingSession, ReadingSessionState } from "@once/ui-web"
 import { isReaderFindResponse, readerFindRequest } from "./readerFindProtocol"
@@ -64,10 +66,12 @@ export class ReadingFindBar {
   }
 
   /**
-   * The native sheet that opens the bar is still animating away when the
-   * request arrives, and iOS drops a focus made while another view holds the
+   * The sheet that opens the bar is still going away when the request
+   * arrives, and both platforms drop a focus made while it holds the
    * keyboard. A second attempt once the sheet has gone keeps the field
-   * selected and the keyboard up.
+   * selected. Android's web view only raises the keyboard for a focus made
+   * inside a touch, which the native sheet's choice is not, so the keyboard
+   * plugin asks for it explicitly there.
    */
   private focusInput(): void {
     const focus = (): void => {
@@ -76,7 +80,12 @@ export class ReadingFindBar {
       this.input.select()
     }
     focus()
-    window.setTimeout(focus, SHEET_DISMISS_MS)
+    window.setTimeout(() => {
+      focus()
+      if (this.isOpen && Capacitor.getPlatform() === "android") {
+        void Keyboard.show().catch(() => undefined)
+      }
+    }, SHEET_DISMISS_MS)
   }
 
   /** Closes the bar and drops the highlights; says whether it was open. */

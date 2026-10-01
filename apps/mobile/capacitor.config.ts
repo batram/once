@@ -1,4 +1,5 @@
 import type { CapacitorConfig } from "@capacitor/cli"
+import { KeyboardResize } from "@capacitor/keyboard"
 
 export type MobileBuildChannel = "dev" | "release"
 
@@ -33,7 +34,7 @@ export function createCapacitorConfig(
       // (find in page) stay in view and the page is not scrolled away. The
       // window behind it takes the body's background, so the strip above the
       // keyboard matches the active theme instead of showing black.
-      Keyboard: { resize: "native", autoBackdropColor: "dom" },
+      Keyboard: { resize: KeyboardResize.Native, autoBackdropColor: "dom" },
       SplashScreen: {
         launchAutoHide: true,
         backgroundColor: dev ? "#342b20" : "#ffffff"
