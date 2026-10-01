@@ -1,4 +1,5 @@
 const { defineConfig } = require("@playwright/test")
+const path = require("node:path")
 
 // Specs tagged @interactive drive the window itself — fullscreen, maximize,
 // title-bar drag regions. Those operations snap an off-screen background
@@ -26,7 +27,9 @@ module.exports = defineConfig({
   failOnFlakyTests: Boolean(process.env.CI),
   workers: 1,
   reporter: process.env.CI
-    ? [["line"], ["json", { outputFile: "artifacts/electron-e2e/results.json" }]]
+    ? [["line"], ["json", {
+      outputFile: path.resolve(__dirname, "../../../artifacts/electron-e2e/results.json")
+    }]]
     : "line",
   grepInvert: includeInteractive ? undefined : /@interactive/,
   use: {
