@@ -240,12 +240,16 @@
 
   /* The .button reset above outranks the accent fill addon-settings.css gives
    the primary action, which left its white label on the page colour. */
-  .addon_primary_action.button {
+  .addon_primary_action.button,
+  .userscripts_add.button,
+  .userscript_primary.button:not(:disabled) {
     border-color: var(--cursor-color);
     background: var(--cursor-color);
   }
 
-  .addon_primary_action.button:active {
+  .addon_primary_action.button:active,
+  .userscripts_add.button:active,
+  .userscript_primary.button:not(:disabled):active {
     background: color-mix(in srgb, var(--cursor-color) 85%, black);
   }
 

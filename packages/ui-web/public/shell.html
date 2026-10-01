@@ -235,36 +235,40 @@
                       </div>
                     </div>
                   </section>
-                  <section class="settings_group settings_editor">
+                  <section class="settings_group userscripts_group">
                     <h4 class="settings_group_title settings_subheading">Userscripts</h4>
-                    <p class="settings_group_hint" id="userscripts_hint">
-                      Greasemonkey-style scripts, pasted one after another, each starting with its
-                      own // ==UserScript== header. @match, @include, @exclude, @run-at and
-                      @noframes decide where and when a script runs; add // @once-disabled inside
-                      a header to keep a script but switch it off. The desktop app installs them
-                      into Violentmonkey, where its own dashboard can edit them; phones run them
-                      directly and offer only GM_addStyle, GM_getValue and GM_setValue.
-                    </p>
-                    <div class="settings_group_body">
-                      <div class="input_container">
-                        <textarea
-                          id="userscripts_area"
-                          spellcheck="false"
-                          data-testid="userscripts"
-                          aria-describedby="userscripts_hint"
-                          placeholder="// ==UserScript==&#10;// @name My script&#10;// @match https://example.org/*&#10;// ==/UserScript=="
-                        ></textarea>
-                      </div>
-                      <div class="settings_actions cluster">
-                        <button
-                          type="button"
-                          class="button"
-                          data-action="save"
-                          data-testid="save-userscripts"
-                        >
-                          Save
-                        </button>
-                        <button type="button" class="button" data-action="cancel">Cancel</button>
+                    <!-- The list, a page per script and this whole-document
+                         editor are built around it by userscriptSettings.ts. -->
+                    <div id="userscripts_settings" class="userscripts" data-testid="userscripts-settings">
+                      <div class="settings_editor userscripts_bulk" id="userscripts_bulk" hidden>
+                        <h3 class="userscripts_bulk_title">All userscripts as text</h3>
+                        <p class="settings_group_hint" id="userscripts_hint">
+                          Every script one after another, each starting with its own
+                          // ==UserScript== header — the quickest way to paste several at once.
+                          Add // @once-disabled inside a header to keep a script but switch it off.
+                        </p>
+                        <div class="settings_group_body">
+                          <div class="input_container">
+                            <textarea
+                              id="userscripts_area"
+                              spellcheck="false"
+                              data-testid="userscripts"
+                              aria-describedby="userscripts_hint"
+                              placeholder="// ==UserScript==&#10;// @name My script&#10;// @match https://example.org/*&#10;// ==/UserScript=="
+                            ></textarea>
+                          </div>
+                          <div class="settings_actions cluster">
+                            <button
+                              type="button"
+                              class="button"
+                              data-action="save"
+                              data-testid="save-userscripts"
+                            >
+                              Save
+                            </button>
+                            <button type="button" class="button" data-action="cancel">Cancel</button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </section>

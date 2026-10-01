@@ -7,6 +7,11 @@ const {
   presentUserscripts,
   readFilterListsDocument,
   readUserscriptsDocument,
+  removeUserscript,
+  setUserscriptEnabled,
+  summarizeUserscript,
+  upsertUserscript,
+  USERSCRIPT_TEMPLATE,
   userscriptId
 } = require("../../../packages/core/dist/settings/extensionSettings")
 
@@ -82,4 +87,62 @@ test("userscript documents from other clients drop what cannot be parsed", () =>
     scripts: [{ source: SCRIPT_A, enabled: false }, { source: "garbage" }, { source: SCRIPT_A }]
   })
   assert.deepEqual(doc.scripts.map((s) => [s.name, s.enabled]), [["A", false]])
+})
+
+test("one script is added, replaced in place and renamed without touching the rest", () => {
+  const doc = parseUserscriptsText(`${SCRIPT_A}\n\n${SCRIPT_B}`)
+  const idA = userscriptId("once.test", "A")
+  const edited = upsertUserscript(doc, SCRIPT_A.replace("a()", "a2()"), { replacing: idA })
+  assert.deepEqual(edited.next.scripts.map((script) => script.name), ["A", "B"])
+  assert.match(edited.next.scripts[0].source, /a2\(\)/)
+  assert.equal(edited.next.scripts[1], doc.scripts[1])
+
+  const renamed = upsertUserscript(doc, SCRIPT_A.replace("@name  A", "@name  A2"), { replacing: idA })
+  assert.deepEqual(renamed.next.scripts.map((script) => script.name), ["A2", "B"])
+  assert.equal(renamed.entry.id, userscriptId("once.test", "A2"))
+
+  const added = upsertUserscript(doc, USERSCRIPT_TEMPLATE)
+  assert.deepEqual(added.next.scripts.map((script) => script.name), ["A", "B", "New script"])
+  assert.equal(added.entry.enabled, true)
+})
+
+test("a script cannot take another's name, and a broken header is an error", () => {
+  const doc = parseUserscriptsText(`${SCRIPT_A}\n\n${SCRIPT_B}`)
+  assert.throws(() => upsertUserscript(doc, SCRIPT_B.replace("b()", "c()")), /already called "B"/)
+  assert.throws(() => upsertUserscript(doc, "alert(1)"), /==UserScript==/)
+})
+
+test("switching a script keeps its source and drops the text form's marker on the way on", () => {
+  const doc = parseUserscriptsText(SCRIPT_A.replace("// @name", "// @once-disabled\n// @name"))
+  const id = doc.scripts[0].id
+  assert.equal(doc.scripts[0].enabled, false)
+  const on = setUserscriptEnabled(doc, id, true)
+  assert.equal(on.scripts[0].enabled, true)
+  assert.doesNotMatch(on.scripts[0].source, /once-disabled/)
+  assert.equal(parseUserscriptsText(presentUserscripts(on)).scripts[0].enabled, true)
+  const off = setUserscriptEnabled(on, id, false)
+  assert.equal(parseUserscriptsText(presentUserscripts(off)).scripts[0].enabled, false)
+  assert.deepEqual(removeUserscript(off, id).scripts, [])
+})
+
+test("the summary reads where a script runs and only offers safe icons", () => {
+  const summary = summarizeUserscript(`// ==UserScript==
+// @name  Icons
+// @version 2.1
+// @icon  javascript:alert(1)
+// @iconURL https://example.test/icon.png
+// @match https://a.test/*
+// @include https://b.test/*
+// @exclude https://a.test/private/*
+// @grant GM_xmlhttpRequest
+// @grant none
+// @noframes
+// ==/UserScript==`)
+  assert.equal(summary.version, "2.1")
+  assert.equal(summary.icon, "https://example.test/icon.png")
+  assert.deepEqual(summary.sites, ["https://a.test/*", "https://b.test/*"])
+  assert.deepEqual(summary.excludes, ["https://a.test/private/*"])
+  assert.deepEqual(summary.grants, ["GM_xmlhttpRequest"])
+  assert.equal(summary.noFrames, true)
+  assert.equal(summarizeUserscript("not a script"), null)
 })

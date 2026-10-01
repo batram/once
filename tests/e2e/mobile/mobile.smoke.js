@@ -75,7 +75,11 @@ async function saveExtensionSettings(baseUrl, platform) {
     `${baseUrl}/fixtures/mobile-filter-list.txt`
   )
   await clickWeb(await $("[data-testid='save-filter-lists']"), platform)
-  await setWebValue(await $("[data-testid='userscripts']"), `// ==UserScript==
+  // Second group of the section: it starts below the fold on a phone screen.
+  const addScript = await $("[data-testid='add-userscript']")
+  await addScript.scrollIntoView()
+  await clickWeb(addScript, platform)
+  await setWebValue(await $("[data-testid='userscript-source']"), `// ==UserScript==
 // @name Mobile e2e probe
 // @namespace once-e2e
 // @match <all_urls>
@@ -85,10 +89,10 @@ document.documentElement.dataset.onceUserscriptStart = document.readyState;
 GM_addStyle('#once-userscript-target { display: none !important; }');
     GM_setValue('ran', true);
     document.documentElement.dataset.onceGmValue = String(GM_getValue('ran', false));`)
-  // Second group of the section: it starts below the fold on a phone screen.
-  const saveScripts = await $("[data-testid='save-userscripts']")
-  await saveScripts.scrollIntoView()
-  await clickWeb(saveScripts, platform)
+  const saveScript = await $("[data-testid='save-userscript']")
+  await saveScript.scrollIntoView()
+  await clickWeb(saveScript, platform)
+  await $("[data-testid='userscripts-settings'][data-page='script']").waitForExist()
   await applyExtensionSettings()
 }
 

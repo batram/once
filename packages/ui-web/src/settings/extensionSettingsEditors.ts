@@ -11,10 +11,13 @@ import { requireElement } from "../dom"
 import { bindAddonInstallControls } from "./addonInstallControls"
 import * as settingsControls from "./settingsControlBindings"
 import { SETTINGS_EDITOR_SCOPE, trackSettingsSave } from "./settingsStatus"
+import { bindUserscriptSettings } from "./userscriptSettings"
 
 export interface ExtensionSettingsEditors {
   /** Re-reads both documents into their editors, after a change elsewhere. */
   refresh(): void
+  /** Closes an open userscript page; false when there was none. */
+  handleBack(): boolean
 }
 
 interface TextDocumentEditor {
@@ -65,6 +68,14 @@ export function bindExtensionSettingsEditors(
     present: async () => presentFilterLists(await client.getFilterLists()),
     save: (text) => client.saveFilterLists(parseFilterListsText(text))
   }, onChanged)
+  const userscripts = bindUserscriptSettings(
+    client,
+    requireElement<HTMLElement>("#userscripts_settings"),
+    requireElement<HTMLElement>("#userscripts_bulk"),
+    onChanged
+  )
+  // Every script as one text, one page in from the list: pasting several at
+  // once is quicker there than adding them one by one.
   const restoreScripts = bindTextDocument({
     textareaId: "userscripts_area",
     present: async () => presentUserscripts(await client.getUserscripts()),
@@ -91,6 +102,8 @@ export function bindExtensionSettingsEditors(
       void restoreLists()
       void restoreScripts()
       void restoreAddons()
-    }
+      userscripts.refresh()
+    },
+    handleBack: () => userscripts.handleBack()
   }
 }

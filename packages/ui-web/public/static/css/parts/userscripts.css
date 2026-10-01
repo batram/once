@@ -1,0 +1,404 @@
+/* Userscripts: a list of scripts with a switch each, and a page per script
+   with its header read out above its source. The rows follow the extension
+   and add-on lists — a bordered card per item — so the three read as one
+   family; the switch sits outside the row's button so each stays one
+   control. */
+
+.userscripts_group > .userscripts {
+  padding: var(--sp-3);
+}
+
+.userscripts_page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.userscripts .userscripts_intro {
+  padding: 0;
+  line-height: 1.5;
+}
+
+.userscripts_toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+.userscripts_count {
+  font-size: var(--fs-meta);
+  color: var(--text-muted-color);
+}
+
+/* White on the accent, as the add-on import button: the dark theme's input
+   background all but vanishes on it. */
+#settings_panel .userscripts .userscripts_add,
+#settings_panel .userscripts .userscript_primary:not(:disabled) {
+  border-color: var(--cursor-color);
+  background: var(--cursor-color);
+  color: white;
+}
+
+.userscripts_list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.userscript_row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+  padding-right: var(--sp-4);
+  border: 1px solid var(--divider-color);
+  border-radius: var(--radius-xl);
+  background: var(--input-bg-color);
+}
+
+.userscript_row:hover,
+.userscript_row:focus-within {
+  border-color: var(--cursor-color);
+}
+
+.userscript_row_main {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  min-width: 0;
+  margin: 0;
+  padding: var(--sp-3) 0 var(--sp-3) var(--sp-4);
+  border: 0;
+  background: none;
+  color: var(--text-high-color);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.userscript_row_main:focus-visible {
+  outline: 2px solid var(--text-high-color);
+  outline-offset: -2px;
+  border-radius: var(--radius-xl);
+}
+
+/* A switched-off script stays readable but steps back. */
+.userscript_row[data-enabled="false"] .userscript_row_main {
+  opacity: 0.6;
+}
+
+.userscript_row_text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-0-5);
+  min-width: 0;
+}
+
+.userscript_row_title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-0-5) var(--sp-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.userscript_row_title strong {
+  font-size: var(--fs-body);
+  line-height: 1.4;
+}
+
+.userscript_version {
+  font-size: var(--fs-meta);
+  color: var(--text-muted-color);
+}
+
+/* Two lines at most: the page has the rest. */
+.userscript_row_description {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: var(--fs-dense);
+  line-height: 1.45;
+  color: var(--text-high-color);
+}
+
+.userscript_row_meta {
+  overflow: hidden;
+  font-size: var(--fs-meta);
+  line-height: 1.5;
+  color: var(--text-muted-color);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.userscript_icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  margin-top: var(--sp-0-5);
+  overflow: hidden;
+  box-sizing: border-box;
+  border: 1px solid var(--border-high-color);
+  border-radius: var(--radius-lg);
+  background: var(--second-bg-color);
+  color: var(--text-muted-color);
+  font-size: var(--fs-dense);
+  font-weight: bold;
+}
+
+/* A script's own icon brings its own shape. */
+.userscript_icon_image {
+  border: 0;
+  background: none;
+}
+
+.userscript_icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.userscripts_empty {
+  margin: 0;
+  padding: var(--sp-4);
+  border: 1px dashed var(--border-high-color);
+  border-radius: var(--radius-xl);
+  color: var(--text-muted-color);
+  font-size: var(--fs-dense);
+  text-align: center;
+}
+
+#settings_panel .userscripts .userscripts_text_action {
+  align-self: flex-start;
+  color: var(--text-muted-color);
+}
+
+/* A script's own page. */
+.userscript_detail_header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.userscript_detail_header .userscript_icon {
+  width: calc(var(--icon-lg) * 1.5);
+  height: calc(var(--icon-lg) * 1.5);
+  margin: 0;
+  font-size: var(--fs-title);
+}
+
+.userscript_detail_title {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.userscript_detail_title h3 {
+  margin: 0;
+  font-size: var(--fs-title);
+  line-height: 1.35;
+}
+
+.userscript_detail_title h3:focus {
+  outline: none;
+}
+
+.userscript_detail_sub {
+  font-size: var(--fs-meta);
+  color: var(--text-muted-color);
+}
+
+.userscript_detail_switch {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-dense);
+  color: var(--text-muted-color);
+  cursor: pointer;
+}
+
+.userscript_detail_description {
+  margin: 0;
+  font-size: var(--fs-dense);
+  line-height: 1.5;
+}
+
+/* Label column beside the values on a wide panel; stacked on a narrow one. */
+.userscript_facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--sp-2) var(--sp-4);
+  margin: 0;
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--divider-color);
+  border-radius: var(--radius-xl);
+  background: var(--input-bg-color);
+}
+
+.userscript_fact {
+  display: contents;
+}
+
+.userscript_fact dt {
+  padding-top: var(--sp-0-5);
+  font-size: var(--fs-meta);
+  color: var(--text-muted-color);
+}
+
+.userscript_fact dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  min-width: 0;
+  margin: 0;
+}
+
+.userscript_chip {
+  max-width: 100%;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--divider-color);
+  border-radius: var(--radius-md);
+  background: var(--second-bg-color);
+  font-size: var(--fs-meta);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.userscript_note,
+.userscript_notice {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--divider-color);
+  border-left: 3px solid var(--border-high-color);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-dense);
+  line-height: 1.5;
+  color: var(--text-high-color);
+}
+
+.userscript_notice {
+  border-left-color: var(--error-color);
+}
+
+.userscript_notice .button {
+  margin-top: var(--sp-1);
+}
+
+.userscript_source_label {
+  margin-bottom: calc(var(--sp-2) * -1);
+  font-size: var(--fs-meta);
+  color: var(--text-muted-color);
+}
+
+.userscript_source {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 18em;
+  height: 26em;
+  margin: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--border-high-color);
+  border-radius: var(--radius-lg);
+  background: var(--input-bg-color);
+  color: var(--text-high-color);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: var(--fs-dense);
+  line-height: 1.5;
+  tab-size: 2;
+  white-space: pre;
+  overflow: auto;
+  resize: vertical;
+}
+
+.userscript_source:focus-visible {
+  outline: 2px solid var(--cursor-color);
+  outline-offset: -1px;
+}
+
+.userscript_actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+#settings_panel .userscripts .userscript_delete {
+  margin-left: auto;
+  color: var(--error-color);
+}
+
+.userscripts .userscripts_status {
+  margin: 0;
+  padding: 0;
+}
+
+.userscripts .userscripts_status:empty {
+  display: none;
+}
+
+.userscripts_bulk_title {
+  margin: 0;
+  font-size: var(--fs-title);
+}
+
+.userscripts_bulk_title:focus {
+  outline: none;
+}
+
+.userscripts .userscripts_bulk .settings_group_hint {
+  padding: 0;
+  line-height: 1.5;
+}
+
+.userscripts .userscripts_bulk .settings_group_body {
+  padding: 0;
+}
+
+.userscripts .userscripts_bulk .input_container {
+  width: 100%;
+  min-height: 24em;
+}
+
+@container (max-width: 30em) {
+  .userscript_facts {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-1);
+  }
+}
+
+/* While one script (or the whole text) is open, the group is the page:
+   its neighbours in the section are hidden and its box and title go, since
+   the header already reads "‹ Userscripts". */
+.userscripts_focused > :not(.userscripts_group) {
+  display: none;
+}
+
+.userscripts_group.userscripts_group_focused {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+}
+
+.userscripts_group_focused > .settings_group_title {
+  display: none;
+}
+
+.userscripts_group_focused > .userscripts {
+  padding: var(--sp-1) 0 0;
+}

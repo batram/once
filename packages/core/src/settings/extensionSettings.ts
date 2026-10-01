@@ -199,3 +199,133 @@ export function parseUserscriptsText(text: string): UserscriptsDocument {
   })
   return doc
 }
+
+// Single-script edits, for the settings list that shows one script at a time.
+// Each takes the latest doc and returns the next one, so a change to one
+// script never rewrites the others another device or the desktop's
+// Violentmonkey dashboard may have changed in the meantime.
+
+/** A new script's starting text: enough header to save as it stands. */
+export const USERSCRIPT_TEMPLATE = `// ==UserScript==
+// @name        New script
+// @namespace   https://example.org/
+// @version     1.0
+// @description What this script does
+// @match       https://example.org/*
+// @grant       none
+// ==/UserScript==
+
+`
+
+const DISABLED_LINE = new RegExp(`^[ \\t]*//[ \\t]*@${DISABLED_KEY}\\b.*(?:\\r?\\n|$)`, "m")
+
+/**
+ * The switch lives beside a script in the list, so the marker the text form
+ * uses for it comes out of a script saved from there.
+ */
+export function withoutDisabledMarker(source: string): string {
+  return source.replace(DISABLED_LINE, "")
+}
+
+/**
+ * Adds a script, or replaces the one `replacing` names. The script's own
+ * header decides its id, so renaming one replaces it in place; taking a name
+ * another script already has is an error the editor shows.
+ */
+export function upsertUserscript(
+  doc: UserscriptsDocument,
+  text: string,
+  options: { replacing?: string; enabled?: boolean } = {}
+): { next: UserscriptsDocument; entry: UserscriptEntry } {
+  const source = withoutDisabledMarker(text).trim()
+  let parsed
+  try {
+    parsed = parseUserscript(source)
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : String(error))
+  }
+  const id = userscriptId(parsed.metadata.namespace, parsed.metadata.name)
+  const clash = doc.scripts.find((script) => script.id === id && script.id !== options.replacing)
+  if (clash) {
+    throw new Error(`Another userscript is already called "${parsed.metadata.name}"`)
+  }
+  const previous = doc.scripts.find((script) => script.id === options.replacing)
+  const entry: UserscriptEntry = {
+    id,
+    name: parsed.metadata.name,
+    source,
+    enabled: options.enabled ?? previous?.enabled ?? true
+  }
+  const scripts = previous
+    ? doc.scripts.map((script) => (script === previous ? entry : script))
+    : [...doc.scripts, entry]
+  return { next: { ...doc, scripts }, entry }
+}
+
+export function setUserscriptEnabled(
+  doc: UserscriptsDocument,
+  id: string,
+  enabled: boolean
+): UserscriptsDocument {
+  return {
+    ...doc,
+    scripts: doc.scripts.map((script) =>
+      script.id === id
+        ? { ...script, enabled, source: enabled ? withoutDisabledMarker(script.source) : script.source }
+        : script
+    )
+  }
+}
+
+export function removeUserscript(doc: UserscriptsDocument, id: string): UserscriptsDocument {
+  return { ...doc, scripts: doc.scripts.filter((script) => script.id !== id) }
+}
+
+/** What the settings list shows about a script, read from its header. */
+export interface UserscriptSummary {
+  version: string | null
+  description: string | null
+  namespace: string | null
+  /** A `data:` image or an `https:` URL, never anything a page could run. */
+  icon: string | null
+  /** `@match` and `@include` together: where the script runs. */
+  sites: string[]
+  excludes: string[]
+  runAt: string
+  noFrames: boolean
+  grants: string[]
+  requires: string[]
+}
+
+const ICON_KEYS = ["icon", "iconURL", "defaulticon", "icon64", "icon64URL"]
+
+export function userscriptIcon(raw: ReadonlyMap<string, readonly string[]>): string | null {
+  for (const key of ICON_KEYS) {
+    const value = raw.get(key)?.[0]?.trim()
+    if (!value) continue
+    if (/^data:image\//i.test(value) || /^https:\/\//i.test(value)) return value
+  }
+  return null
+}
+
+export function summarizeUserscript(source: string): UserscriptSummary | null {
+  let parsed
+  try {
+    parsed = parseUserscript(source)
+  } catch {
+    return null
+  }
+  const { metadata } = parsed
+  return {
+    version: metadata.version,
+    description: metadata.description,
+    namespace: metadata.namespace,
+    icon: userscriptIcon(metadata.raw),
+    sites: [...metadata.matches, ...metadata.includes],
+    excludes: [...metadata.excludes],
+    runAt: metadata.runAt,
+    noFrames: metadata.noFrames,
+    grants: metadata.grants.filter((grant) => grant !== "none"),
+    requires: [...metadata.requires]
+  }
+}

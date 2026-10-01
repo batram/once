@@ -13,5 +13,6 @@
 @import "./parts/menu.css" layer(components);
 @import "./parts/settings.css" layer(components);
 @import "./parts/addon-settings.css" layer(components);
+@import "./parts/userscripts.css" layer(components);
 @import "./parts/search.css" layer(components);
 @import "./parts/notifications.css" layer(components);
