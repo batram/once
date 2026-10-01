@@ -18,6 +18,23 @@ import { ReadingAddonTrays } from "./readingAddonTrays"
 import { ReadingFindBar } from "./readingFindBar"
 import { ReadingSurfaceCoordinator } from "./readingSurfaceCoordinator"
 
+// The one remembered choice for the current-story card: the Settings select
+// shows it, and collapsing or expanding the card while reading overwrites it,
+// so every later story opens the way the last one was left.
+const STORY_CARD_STATE_KEY = "once:mobile-story-card-state"
+
+function storedStoryCardCollapsed(): boolean {
+  try {
+    return localStorage.getItem(STORY_CARD_STATE_KEY) === "collapsed"
+  } catch { return false }
+}
+
+function rememberStoryCardCollapsed(collapsed: boolean): void {
+  try {
+    localStorage.setItem(STORY_CARD_STATE_KEY, collapsed ? "collapsed" : "expanded")
+  } catch { /* private mode or quota: the choice lasts the session */ }
+}
+
 export class MobileReadingController {
   readonly session
   private readonly addonTrays: ReadingAddonTrays
@@ -210,8 +227,9 @@ export class MobileReadingController {
       void this.toggleStoryAndComments()
     }
     required<HTMLButtonElement>("#reading_story_collapse").onclick = () => {
-      this.setCurrentStoryCollapsed(!this.currentStoryCollapsed)
+      this.setCurrentStoryCollapsed(!this.currentStoryCollapsed, true)
     }
+    this.bindStoryCardStateSetting()
     this.bindCurrentStorySwipe(currentCard)
     required<HTMLButtonElement>("#reading_reader_toggle").onclick = () => {
       this.editingAddress = false
@@ -293,8 +311,8 @@ export class MobileReadingController {
       card.style.removeProperty("--reading-story-drag")
       if (!vertical) return
       suppressClick = Math.abs(distance) > 12
-      if (distance <= -32) this.setCurrentStoryCollapsed(true)
-      if (distance >= 32) this.setCurrentStoryCollapsed(false)
+      if (distance <= -32) this.setCurrentStoryCollapsed(true, true)
+      if (distance >= 32) this.setCurrentStoryCollapsed(false, true)
     }
 
     card.addEventListener("pointerdown", (event) => {
@@ -335,11 +353,31 @@ export class MobileReadingController {
     }, true)
   }
 
-  private setCurrentStoryCollapsed(collapsed: boolean): void {
+  private setCurrentStoryCollapsed(collapsed: boolean, remember = false): void {
+    if (remember) {
+      rememberStoryCardCollapsed(collapsed)
+      this.renderStoryCardStateSetting()
+    }
     if (this.currentStoryCollapsed === collapsed) return
     this.currentStoryCollapsed = collapsed
     this.renderCurrentStoryCollapse()
     void this.nativeReading.updateBounds()
+  }
+
+  // Reveals the mobile-only Layout group before mountOnceUi builds the
+  // settings navigation, the same handshake Electron's story position uses.
+  private bindStoryCardStateSetting(): void {
+    required("#mobile_layout_settings").hidden = false
+    const select = required<HTMLSelectElement>("#mobile_story_card_state")
+    this.renderStoryCardStateSetting()
+    select.addEventListener("change", () => {
+      this.setCurrentStoryCollapsed(select.value === "collapsed", true)
+    })
+  }
+
+  private renderStoryCardStateSetting(): void {
+    required<HTMLSelectElement>("#mobile_story_card_state").value =
+      storedStoryCardCollapsed() ? "collapsed" : "expanded"
   }
 
   private renderCurrentStoryCollapse(): void {
@@ -408,7 +446,7 @@ export class MobileReadingController {
     const storyHref = displayedStory?.href ?? ""
     if (storyHref !== this.currentCardStoryHref) {
       this.currentCardStoryHref = storyHref
-      this.currentStoryCollapsed = false
+      this.currentStoryCollapsed = storedStoryCardCollapsed()
     }
     currentCard.hidden = matchingStory == null
     currentCard.classList.toggle("stared", Boolean(displayedStory?.stared))

@@ -132,6 +132,50 @@ test("the current Reading story reflects bookmark changes", async ({ page }) => 
 // move the swipe handler happens to see — that one arrives only after the axis
 // lock resolves, and a flick has covered most of its distance by then.
 
+test("the current story card remembers its collapsed state and Appearance can set it", async ({ page }) => {
+  const story = await seedFixtureStories(page)
+  const currentCard = page.getByTestId("reading-current-card")
+  const collapse = page.getByTestId("reading-story-collapse")
+  // The e2e build loads no stories on its own, so a reload needs the same
+  // explicit fetch the seeding helper makes.
+  const openFixtureStory = async () => {
+    await page.getByTestId("stories-menu").click()
+    await page.getByTestId("reload-stories").click()
+    const row = page.getByTestId("story").filter({ hasText: "Fixture article" })
+    await expect(row).toBeVisible()
+    await openStoryMenu(page, row)
+    await page.getByTestId("story-menu-open").click()
+    await expect(currentCard).toBeVisible()
+  }
+
+  await openStoryMenu(page, story)
+  await page.getByTestId("story-menu-open").click()
+  await expect(currentCard).toBeVisible()
+  await expect(collapse).toHaveAttribute("aria-expanded", "true")
+  await collapse.click()
+  await expect(currentCard).toHaveClass(/\breading_story_collapsed\b/)
+
+  // The choice outlives the story: a fresh open starts collapsed, and the
+  // Appearance select shows the remembered state.
+  await reloadMobileApp(page)
+  await openFixtureStory()
+  await expect(currentCard).toHaveClass(/\breading_story_collapsed\b/)
+  await expect(collapse).toHaveAttribute("aria-expanded", "false")
+  await openSettingsSection(page, "theme")
+  const cardState = page.getByTestId("mobile-story-card-state")
+  await expect(cardState).toBeVisible()
+  await expect(cardState).toHaveValue("collapsed")
+
+  // Choosing a default in Settings is the same remembered choice.
+  await cardState.selectOption("expanded")
+  await reloadMobileApp(page)
+  await openFixtureStory()
+  await expect(currentCard).not.toHaveClass(/\breading_story_collapsed\b/)
+  await expect(collapse).toHaveAttribute("aria-expanded", "true")
+  expect(await page.evaluate(() => localStorage.getItem("once:mobile-story-card-state")))
+    .toBe("expanded")
+})
+
 test("reader TTS bridges through the host when the frame lacks speech synthesis", async ({ page }) => {
   // Simulate the Android WebView reader frame, which has no Web Speech API.
   await page.addInitScript(() => {

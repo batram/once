@@ -28,6 +28,14 @@ export function updateSettingsSummaries(
         ? " · below address bar"
         : " · above story list"
       : ""
+  // Likewise only the mobile shell reveals the story-card control.
+  const storyCard =
+    document.querySelector<HTMLElement>("#mobile_layout_settings")
+      ?.hidden === false
+      ? value("#mobile_story_card_state") === "collapsed"
+        ? " · story collapsed"
+        : " · story expanded"
+      : ""
   const swipeRight = document.querySelector<HTMLSelectElement>(
     '[data-swipe="right-0"]'
   )?.selectedOptions[0]?.textContent || "Read"
@@ -50,7 +58,7 @@ export function updateSettingsSummaries(
     },
     theme: {
       text: `${theme[0]?.toUpperCase()}${theme.slice(1)} · ${animation}` +
-        storyPosition
+        storyPosition + storyCard
     },
     keyboard: { text: keyboardSummary() },
     swipe: { text: `${swipeRight} · ${swipeLeft}` },

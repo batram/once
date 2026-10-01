@@ -422,6 +422,31 @@
                   <section class="settings_rows" id="story_button_settings"></section>
                   <section
                     class="settings_rows"
+                    id="mobile_layout_settings"
+                    data-platform-only="mobile"
+                    hidden
+                  >
+                    <h4 class="settings_subheading">Layout</h4>
+                    <div class="settings_row">
+                      <label class="settings_row_name" for="mobile_story_card_state">
+                        Current story
+                      </label>
+                      <p class="settings_row_hint" id="mobile_story_card_state_description">
+                        How the story card above a page starts out. Collapsing or expanding
+                        the card while reading changes this too. Remembered on this device.
+                      </p>
+                      <select
+                        id="mobile_story_card_state"
+                        data-testid="mobile-story-card-state"
+                        aria-describedby="mobile_story_card_state_description"
+                      >
+                        <option value="expanded">Expanded</option>
+                        <option value="collapsed">Collapsed</option>
+                      </select>
+                    </div>
+                  </section>
+                  <section
+                    class="settings_rows"
                     id="electron_accessibility_settings"
                     data-platform-only="electron"
                     hidden
