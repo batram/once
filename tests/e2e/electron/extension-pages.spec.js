@@ -1,12 +1,19 @@
 const { test, expect } = require("./electron-harness")
 const { closeApp, launchApp, startPageServer } = require("./electron-harness")
 
-async function extensionHost(window, name) {
+async function extensionHost(electronApp, window, name) {
   await expect.poll(() => window.evaluate(async () =>
     (await window.onceElectron.extensions.list()).map((entry) => entry.name)
   ), { timeout: 15_000 }).toContain(name)
   const list = await window.evaluate(() => window.onceElectron.extensions.list())
-  return list.find((entry) => entry.name === name).host
+  const host = list.find((entry) => entry.name === name).host
+  // An extension is listed as soon as it is registered, while its background
+  // page may still be loading; until it has run, its listeners (such as
+  // Violentmonkey's blocking webRequest one) do not exist and requests pass.
+  await expect.poll(() => electronApp.evaluate(({ webContents }, origin) =>
+    webContents.getAllWebContents().some((contents) => contents.getURL().startsWith(origin) && !contents.isLoading())
+  , `moz-extension://${host}/`), { timeout: 15_000 }).toBe(true)
+  return host
 }
 
 // Violentmonkey installs a script by cancelling the navigation to a
@@ -17,7 +24,7 @@ test("navigating to a userscript opens Violentmonkey's install page", async () =
   const pageServer = await startPageServer()
   const { electronApp, userData, window } = await launchApp()
   try {
-    const host = await extensionHost(window, "Violentmonkey")
+    const host = await extensionHost(electronApp, window, "Violentmonkey")
     const scriptUrl = `${pageServer.origin}/once-test.user.js`
     await window.evaluate((url) => window.onceElectron.tabs.create(url, true), scriptUrl)
 
@@ -47,7 +54,7 @@ test("the uBlock element picker opens as an extension frame inside the page", as
   const pageServer = await startPageServer()
   const { electronApp, userData, window } = await launchApp()
   try {
-    const host = await extensionHost(window, "uBlock Origin")
+    const host = await extensionHost(electronApp, window, "uBlock Origin")
     const pageUrl = `${pageServer.origin}/strict-frames`
     await window.evaluate((url) => window.onceElectron.tabs.create(url, true), pageUrl)
     await expect.poll(() => electronApp.evaluate(({ webContents }, url) =>
@@ -129,7 +136,7 @@ test("the uBlock element picker opens as an extension frame inside the page", as
 test("an iframe of an extension page gets the extension API and its messages", async () => {
   const { electronApp, userData, window } = await launchApp()
   try {
-    const host = await extensionHost(window, "uBlock Origin")
+    const host = await extensionHost(electronApp, window, "uBlock Origin")
     const dashboard = `moz-extension://${host}/dashboard.html#settings.html`
     await window.evaluate((url) => window.onceElectron.tabs.create(url, true), dashboard)
 
