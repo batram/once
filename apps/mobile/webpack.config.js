@@ -83,6 +83,7 @@ module.exports = (_env = {}, argv = {}) => {
       mobile: path.join(__dirname, "src", "main.ts"),
       "reader-runtime": path.join(__dirname, "src", "readerRuntime.ts"),
       "picker-injection": path.join(__dirname, "src", "pickerInjection.ts"),
+      "page-find": path.join(__dirname, "src", "pageFindRuntime.ts"),
       "addon-sandbox": path.join(__dirname, "src", "addonSandbox.ts")
     },
     output: {

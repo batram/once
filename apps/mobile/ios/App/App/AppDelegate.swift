@@ -103,6 +103,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         CAPPluginMethod(name: "showMenu", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "showPrompt", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "evaluateJavaScript", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "findInPage", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "clearFind", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "applyExtensionSettings", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "close", returnType: CAPPluginReturnPromise)
     ]
@@ -114,6 +116,16 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     private var extensionSettingsGeneration = 0
     private var contentRuleList: WKContentRuleList?
     private var extensionUserScripts: [WKUserScript] = []
+
+    /// The find engine the reader frame uses, bundled as public/page-find.js
+    /// (apps/mobile/src/pageFindRuntime.ts). WebKit's own finder reports no
+    /// count and highlights only the current match, so the page runs this
+    /// instead; it installs `window.__onceFind` once and is cheap afterwards.
+    private lazy var pageFindSource: String? = {
+        guard let url = Bundle.main.url(forResource: "page-find", withExtension: "js", subdirectory: "public")
+        else { return nil }
+        return try? String(contentsOf: url, encoding: .utf8)
+    }()
 
     private func embeddable(_ raw: String?) -> URL? {
         guard let raw, let url = URL(string: raw),
@@ -358,6 +370,62 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
                     call.resolve(["value": "null"])
                 }
             }
+        }
+    }
+
+    @objc func findInPage(_ call: CAPPluginCall) {
+        guard let query = call.getString("query"), !query.isEmpty else {
+            call.reject("Search text is required")
+            return
+        }
+        let forward = call.getBool("forward") ?? true
+        DispatchQueue.main.async {
+            guard let surface = self.surface else {
+                call.reject("There is no open page")
+                return
+            }
+            guard let runtime = self.pageFindSource,
+                  let encodedQuery = try? JSONSerialization.data(withJSONObject: [query], options: [.fragmentsAllowed]),
+                  let queryLiteral = String(data: encodedQuery, encoding: .utf8) else {
+                call.reject("The page could not be searched")
+                return
+            }
+            // The literal is a one-element JSON array, so [0] reads the string
+            // back. The runtime may end in a line comment, so the brace that
+            // closes the block gets a line of its own.
+            let script = """
+            if (!window.__onceFind) {
+            \(runtime)
+            }
+            JSON.stringify(window.__onceFind.find(\(queryLiteral)[0], \(forward ? "true" : "false")))
+            """
+            surface.evaluateJavaScript(script) { value, error in
+                if let error {
+                    call.reject("The page could not be searched: \(error.localizedDescription)")
+                    return
+                }
+                guard let text = value as? String,
+                      let data = text.data(using: .utf8),
+                      let result = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                    call.reject("The page could not be searched")
+                    return
+                }
+                let current = result["current"] as? Int ?? 0
+                let total = result["total"] as? Int ?? 0
+                call.resolve([
+                    "found": total > 0,
+                    "wrapped": false,
+                    "current": current,
+                    "total": total
+                ])
+            }
+        }
+    }
+
+    @objc func clearFind(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            self.surface?.evaluateJavaScript("window.__onceFind && window.__onceFind.clear()") { _, _ in }
+            call.resolve()
         }
     }
 

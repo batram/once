@@ -29,6 +29,11 @@ export function createCapacitorConfig(
     },
     plugins: {
       CapacitorHttp: { enabled: true },
+      // The web view shrinks above the keyboard, so bars along the bottom
+      // (find in page) stay in view and the page is not scrolled away. The
+      // window behind it takes the body's background, so the strip above the
+      // keyboard matches the active theme instead of showing black.
+      Keyboard: { resize: "native", autoBackdropColor: "dom" },
       SplashScreen: {
         launchAutoHide: true,
         backgroundColor: dev ? "#342b20" : "#ffffff"

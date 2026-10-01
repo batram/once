@@ -20,24 +20,42 @@ interface MatchSet {
   current: number
 }
 
-export function installReaderFind(target: Window = window): void {
+export interface FindCount {
+  /** 1-based index of the selected match, 0 when there is none. */
+  current: number
+  total: number
+}
+
+export interface FindEngine {
+  find(query: string, forward: boolean): FindCount
+  clear(): void
+}
+
+/**
+ * The engine on its own, so the native page on iOS can run it too (see
+ * pageFindRuntime.ts). A changed query walks the text again; a repeated one
+ * steps to the next or previous match, wrapping at either end.
+ */
+export function createFindEngine(target: Window = window): FindEngine {
   const doc = target.document
   let matches: MatchSet | null = null
-  const highlights = highlightRegistry(target)
-  if (highlights) installHighlightStyle(doc)
+  const painted = registerHighlights(target)
+  if (painted) installHighlightStyle(doc)
 
   const clear = (): void => {
     matches = null
-    highlights?.registry.delete(HIGHLIGHT_ALL)
-    highlights?.registry.delete(HIGHLIGHT_CURRENT)
+    painted?.all.clear()
+    painted?.current.clear()
     target.getSelection()?.removeAllRanges()
   }
 
   const select = (set: MatchSet): void => {
     const range = set.ranges[set.current]
-    if (highlights) {
-      highlights.registry.set(HIGHLIGHT_ALL, new highlights.Highlight(...set.ranges))
-      highlights.registry.set(HIGHLIGHT_CURRENT, new highlights.Highlight(range))
+    if (painted) {
+      painted.all.clear()
+      for (const match of set.ranges) painted.all.add(match)
+      painted.current.clear()
+      painted.current.add(range)
     }
     const selection = target.getSelection()
     selection?.removeAllRanges()
@@ -45,7 +63,7 @@ export function installReaderFind(target: Window = window): void {
     scrollTo(target, range)
   }
 
-  const find = (query: string, forward: boolean): void => {
+  const find = (query: string, forward: boolean): FindCount => {
     if (matches?.query !== query) {
       const ranges = collectRanges(doc, query)
       matches = { query, ranges, current: forward ? 0 : ranges.length - 1 }
@@ -58,17 +76,24 @@ export function installReaderFind(target: Window = window): void {
       clear()
       matches = { query, ranges: [], current: 0 }
     }
-    target.parent.postMessage(readerFindResponse({
-      query,
+    return {
       current: matches.ranges.length ? matches.current + 1 : 0,
       total: matches.ranges.length
-    }), "*")
+    }
   }
 
+  return { find, clear }
+}
+
+export function installReaderFind(target: Window = window): void {
+  const engine = createFindEngine(target)
   target.addEventListener("message", (event) => {
     if (event.source !== target.parent || !isReaderFindRequest(event.data)) return
-    if (event.data.type === "clear") clear()
-    else find(event.data.query, event.data.forward)
+    if (event.data.type === "clear") engine.clear()
+    else {
+      const { query, forward } = event.data
+      target.parent.postMessage(readerFindResponse({ query, ...engine.find(query, forward) }), "*")
+    }
   })
 }
 
@@ -117,20 +142,34 @@ function scrollTo(target: Window, range: Range): void {
   }
 }
 
-interface HighlightApi {
-  registry: Map<string, unknown>
-  Highlight: new (...ranges: Range[]) => unknown
+interface HighlightSet {
+  add(range: Range): unknown
+  clear(): void
 }
 
-/** The CSS Custom Highlight API, or null on engines without it. */
-function highlightRegistry(target: Window): HighlightApi | null {
+interface PaintedMatches {
+  all: HighlightSet
+  current: HighlightSet
+}
+
+/**
+ * The two highlights, registered once through the CSS Custom Highlight API,
+ * or null on engines without it. They are refilled rather than replaced:
+ * WebKit keeps painting the ranges of a Highlight that was swapped out of the
+ * registry, so a query that grows keystroke by keystroke would leave the
+ * matches of every prefix on screen.
+ */
+function registerHighlights(target: Window): PaintedMatches | null {
   const scope = target as unknown as {
-    CSS?: { highlights?: Map<string, unknown> }
-    Highlight?: new (...ranges: Range[]) => unknown
+    CSS?: { highlights?: Map<string, HighlightSet> }
+    Highlight?: new () => HighlightSet
   }
   const registry = scope.CSS?.highlights
   if (!registry || typeof scope.Highlight !== "function") return null
-  return { registry, Highlight: scope.Highlight }
+  const painted = { all: new scope.Highlight(), current: new scope.Highlight() }
+  registry.set(HIGHLIGHT_ALL, painted.all)
+  registry.set(HIGHLIGHT_CURRENT, painted.current)
+  return painted
 }
 
 function installHighlightStyle(doc: Document): void {

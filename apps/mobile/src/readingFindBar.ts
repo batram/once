@@ -9,6 +9,9 @@ import { isReaderFindResponse, readerFindRequest } from "./readerFindProtocol"
  */
 export const FIND_IN_PAGE_REQUEST = "once-find-in-page-request"
 
+/** Longer than the native sheets take to dismiss on either platform. */
+const SHEET_DISMISS_MS = 450
+
 /**
  * Find in page for the reading view, opened from the browser ⋮ sheet. The bar is shell
  * DOM along the bottom of the content; the page itself lives elsewhere, so
@@ -23,6 +26,12 @@ export class ReadingFindBar {
   private lastUrl = ""
   private lastMode = ""
   private lastLoadState = ""
+  /**
+   * Gecko runs each request asynchronously, so a clear sent while a find is
+   * still in flight could finish first and leave that find's highlights on
+   * the page. Every engine call waits for the previous one.
+   */
+  private queue: Promise<unknown> = Promise.resolve()
 
   constructor(
     private readonly surface: InAppBrowserSurface,
@@ -50,9 +59,24 @@ export class ReadingFindBar {
     const state = this.session.snapshot()
     if (!state.currentUrl) return
     this.bar.hidden = false
-    this.input.focus()
-    this.input.select()
+    this.focusInput()
     if (this.input.value) void this.find(true)
+  }
+
+  /**
+   * The native sheet that opens the bar is still animating away when the
+   * request arrives, and iOS drops a focus made while another view holds the
+   * keyboard. A second attempt once the sheet has gone keeps the field
+   * selected and the keyboard up.
+   */
+  private focusInput(): void {
+    const focus = (): void => {
+      if (!this.isOpen || document.activeElement === this.input) return
+      this.input.focus()
+      this.input.select()
+    }
+    focus()
+    window.setTimeout(focus, SHEET_DISMISS_MS)
   }
 
   /** Closes the bar and drops the highlights; says whether it was open. */
@@ -91,19 +115,32 @@ export class ReadingFindBar {
    * One step. Both engines start over on a changed query and step on a
    * repeated one, so the bar sends the same request either way.
    */
-  private async find(forward: boolean): Promise<void> {
+  private find(forward: boolean): Promise<void> {
     const query = this.input.value
     const state = this.session.snapshot()
-    if (!query || !state.currentUrl) return
+    if (!query || !state.currentUrl) return Promise.resolve()
     if (state.mode === "reader") {
       this.reader.post(readerFindRequest({ type: "find", query, forward }))
-      return
+      return Promise.resolve()
     }
+    return this.enqueue(() => this.findInBrowser(query, forward))
+  }
+
+  private enqueue(task: () => Promise<void>): Promise<void> {
+    const next = this.queue.then(task, task)
+    this.queue = next
+    return next
+  }
+
+  private async findInBrowser(query: string, forward: boolean): Promise<void> {
     try {
       const result = await this.surface.findInPage(query, { forward })
       if (this.input.value !== query) return
-      if (result) this.showCount(result.current, result.total)
-      else this.setCount("Not available here")
+      if (!result) this.setCount("Not available here")
+      // Gecko answers a fresh query before it has counted the matches, so a
+      // found match with no total is an unknown count, not an empty one.
+      else if (result.found && !result.total) this.setCount("")
+      else this.showCount(result.current, result.total)
     } catch {
       this.setCount("")
     }
@@ -111,7 +148,7 @@ export class ReadingFindBar {
 
   private clearHighlights(): void {
     this.reader.post(readerFindRequest({ type: "clear" }))
-    void this.surface.clearFind().catch(() => undefined)
+    void this.enqueue(() => this.surface.clearFind().catch(() => undefined))
   }
 
   private showCount(current: number, total: number): void {
