@@ -74,7 +74,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6]
+        include:
+          - shard: 1
+            rendering: none
+          - shard: 2
+            rendering: none
+          - shard: 3
+            rendering: "0"
+          - shard: 4
+            rendering: none
+          - shard: 5
+            rendering: "1"
+          - shard: 6
+            rendering: "2"
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
@@ -92,6 +104,19 @@ jobs:
           path: artifacts/electron-e2e/results.json
           retention-days: 14
           if-no-files-found: error
+      # The shorter shards reuse their build for one complete calibration pair.
+      # Pairs stay on separate desktops and never overlap Playwright execution.
+      - run: npm run test:electron:rendering:run
+        if: ${{ !cancelled() && matrix.rendering != 'none' }}
+        env:
+          ONCE_RENDERING_ITERATION: ${{ matrix.rendering }}
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() && matrix.rendering != 'none' }}
+        with:
+          name: native-rendering-${{ matrix.rendering }}
+          path: artifacts/native-rendering
+          retention-days: 14
+          if-no-files-found: error
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
@@ -99,38 +124,11 @@ jobs:
           path: test-results
           if-no-files-found: ignore
 
-  electron-rendering:
-    name: Native rendering pair (${{ matrix.iteration }})
-    runs-on: windows-latest
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        iteration: [0, 1, 2]
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
-      - run: npm run package:electron
-      - run: npm run test:electron:rendering:run
-        env:
-          ONCE_RENDERING_ITERATION: ${{ matrix.iteration }}
-      - uses: actions/upload-artifact@v7
-        if: ${{ !cancelled() }}
-        with:
-          name: native-rendering-${{ matrix.iteration }}
-          path: artifacts/native-rendering
-          retention-days: 14
-          if-no-files-found: error
-
   # Preserve the existing required-check name, and reject failed/skipped jobs.
   electron:
     name: Packaged Electron on Windows
     if: ${{ always() }}
-    needs: [electron-contracts, electron-e2e, electron-rendering]
+    needs: [electron-contracts, electron-e2e]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -138,8 +136,6 @@ jobs:
         env:
           CONTRACTS: ${{ needs.electron-contracts.result }}
           E2E: ${{ needs.electron-e2e.result }}
-          RENDERING: ${{ needs.electron-rendering.result }}
         run: |
           test "$CONTRACTS" = success
           test "$E2E" = success
-          test "$RENDERING" = success

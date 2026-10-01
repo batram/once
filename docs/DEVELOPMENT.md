@@ -598,7 +598,8 @@ CI runs the Electron E2E suite in six file-level shards on separate Windows
 runners, each with one worker. To reproduce one shard, run
 `npm run test:electron:e2e -- --shard=1/6`. Integration and design-system tests
 run once in a separate Windows job. All three native-rendering calibration
-pairs still run, each on its own Windows runner; `ONCE_RENDERING_ITERATION`
+pairs still run on separate desktops: shards 3, 5, and 6 each run one pair
+after their browser tests, reusing the build. `ONCE_RENDERING_ITERATION`
 selects pair `0`, `1`, or `2`. Without that variable, the local rendering command
 runs all three pairs sequentially. Each pair keeps its positive and negative
 control on the same bundle/runtime. Matrix failures do not cancel other shards.
