@@ -589,9 +589,32 @@ stop working in its next major version.
 
 `npm run test:electron` executes the shared app and Electron integration tests
 after a type-check. `npm run test:electron:e2e` packages the application, then launches
-the packaged webpack entry with Playwright. The E2E test currently references
-`electron.exe` directly and therefore runs on Windows. Failure traces and other
+the compiled webpack entry using the development Electron binary with Playwright.
+This validates packaging and the compiled app, but does not launch the shipped
+executable or exercise its packaged-only behavior. Failure traces and other
 Playwright artifacts are written below `test-results/`.
+
+CI runs the Electron E2E suite in six file-level shards on separate Windows 2025
+runners, each with one worker. Windows jobs install the root tooling, Electron,
+and all shared-package workspaces from the lockfile; mobile/Appium tooling is
+only needed by other jobs. To reproduce one shard, run
+`npm run test:electron:e2e -- --shard=1/6`. Integration and design-system tests
+run once in a separate Windows job. All three native-rendering calibration
+pairs still run on separate desktops: shards 3, 5, and 6 each run one pair
+after their browser tests, reusing the build. `ONCE_RENDERING_ITERATION`
+selects pair `0`, `1`, or `2`. Without that variable, the local rendering command
+runs all three pairs sequentially. Each pair keeps its positive and negative
+control on the same bundle/runtime. Matrix failures do not cancel other shards.
+The aggregate **Packaged Electron on Windows** check requires every Windows job.
+Pinned extension bundles are cached by the download scripts' hash. Downloads
+retry transient transport/HTTP failures at most twice; certificate errors,
+permanent HTTP failures, and archive hash mismatches still fail. Packaging is
+a separate prerequisite, so a failed build does not launch browser/rendering tests.
+
+Each E2E shard uploads `artifacts/electron-e2e/results.json`, including successful
+test durations and retry outcomes. Rendering jobs upload their reports, stage
+timestamps, and pair durations. These reports are retained for 14 days and have
+distinct artifact names per shard/pair; browser failure traces remain separate.
 
 The add-on specs (`tests/e2e/electron/addons.spec.js`, and
 `tests/e2e/mobile/addons.spec.js` for the phone-sized browser suite) install
