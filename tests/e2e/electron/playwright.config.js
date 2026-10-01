@@ -25,7 +25,9 @@ module.exports = defineConfig({
   retries: 1,
   failOnFlakyTests: Boolean(process.env.CI),
   workers: 1,
-  reporter: "line",
+  reporter: process.env.CI
+    ? [["line"], ["json", { outputFile: "artifacts/electron-e2e/results.json" }]]
+    : "line",
   grepInvert: includeInteractive ? undefined : /@interactive/,
   use: {
     actionTimeout: process.env.CI ? 15_000 : 5_000,

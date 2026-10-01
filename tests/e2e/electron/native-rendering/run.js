@@ -3,11 +3,13 @@ const { spawn } = require("node:child_process")
 const fs = require("node:fs/promises")
 const os = require("node:os")
 const path = require("node:path")
+const { renderingIterations } = require("./iterations")
 // Playwright clears test-results at startup, including unrelated subfolders.
 const outputRoot = path.resolve(__dirname, "../../../../artifacts/native-rendering")
 const summary = { startedAt: new Date().toISOString(), status: "running", runs: [] }
 
 async function run(nativeLayers, iteration) {
+  const startedAt = Date.now()
   const label = `${nativeLayers ? "native" : "workaround"}-${iteration}`
   const directory = path.join(outputRoot, label)
   await fs.mkdir(directory, { recursive: true })
@@ -37,7 +39,7 @@ async function run(nativeLayers, iteration) {
   await fs.rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 })
   const report = JSON.parse(await fs.readFile(reportPath, "utf8"))
   summary.runs.push({ label, exitCode, status: report.status, code: report.code,
-    stages: report.stages.length, reportPath })
+    stages: report.stages.length, durationMs: Date.now() - startedAt, reportPath })
   await fs.writeFile(path.join(outputRoot, "summary.json"), JSON.stringify(summary, null, 2))
   console.log(`${label}: ${report.status}; ${report.stages.length} stages; ${report.code || ""}`)
   if (nativeLayers) {
@@ -59,7 +61,7 @@ async function run(nativeLayers, iteration) {
 async function main() {
   assert.equal(process.platform, "win32", "This native occlusion calibration requires Windows")
   await fs.mkdir(outputRoot, { recursive: true })
-  for (let iteration = 0; iteration < 3; iteration++) {
+  for (const iteration of renderingIterations(process.env.ONCE_RENDERING_ITERATION)) {
     const fixed = await run(false, iteration)
     const native = await run(true, iteration)
     assert.equal(native.bundle.sha256, fixed.bundle.sha256, "Bundle changed during calibration")
