@@ -1512,6 +1512,59 @@
     padding: 0 var(--sp-1);
   }
 
+  /* ---------- Edge swipe (back / forward) ---------- */
+
+  /* A chevron that slides in from the edge the swipe started at and fills as
+     the finger approaches the commit distance. */
+  .edge_swipe_indicator {
+    --edge-swipe-progress: 0;
+
+    position: fixed;
+    top: 50%;
+    width: 36px;
+    height: 36px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--main-bg-color);
+    color: var(--text-color);
+    box-shadow: 0 1px 4px rgb(0 0 0 / 25%);
+    opacity: min(1, var(--edge-swipe-progress));
+    pointer-events: none;
+    z-index: 40;
+  }
+
+  .edge_swipe_indicator::before {
+    content: "";
+    width: 10px;
+    height: 10px;
+    border-left: 2px solid currentcolor;
+    border-bottom: 2px solid currentcolor;
+  }
+
+  body[data-edge-swipe="back"] .edge_swipe_indicator {
+    display: flex;
+    left: 0;
+    transform:
+      translate(calc(-100% + min(1, var(--edge-swipe-progress)) * 56px), -50%);
+  }
+
+  body[data-edge-swipe="back"] .edge_swipe_indicator::before {
+    transform: translateX(2px) rotate(45deg);
+  }
+
+  body[data-edge-swipe="forward"] .edge_swipe_indicator {
+    display: flex;
+    right: 0;
+    transform:
+      translate(calc(100% - min(1, var(--edge-swipe-progress)) * 56px), -50%);
+  }
+
+  body[data-edge-swipe="forward"] .edge_swipe_indicator::before {
+    transform: translateX(-2px) rotate(-135deg);
+  }
+
   /* ---------- Settings panel ---------- */
 
   #settings_panel .bar {

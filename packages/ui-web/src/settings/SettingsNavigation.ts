@@ -24,13 +24,11 @@ export class SettingsNavigation {
   private returnPanel = "stories"
   private forwardToSettings = false
   private restoringSettings = false
-  private mouseBackRequested = false
 
   constructor(private host: SettingsNavigationHost) {
     host.back.onclick = () => {
       if (host.backEditor()) return
-      if (this.mouseBackRequested) this.navigate("back")
-      else if (host.section()) host.show(null)
+      if (host.section()) host.show(null)
       else host.exitSettings()
     }
     document.addEventListener("once-settings-index-requested", () => host.showIndex())
@@ -87,10 +85,11 @@ export class SettingsNavigation {
       return
     }
     event.preventDefault()
-    if (direction === "back") {
-      // Share the header's nested-editor handling, including add-on subpages.
-      this.mouseBackRequested = true
-      try { this.host.back.click() } finally { this.mouseBackRequested = false }
-    } else this.navigate(direction)
+    // Share the header's nested-editor handling, including add-on subpages.
+    // Not by clicking the chevron: the mobile shell sends this event from
+    // the chevron's own handler (exitSettings), and a click nested inside a
+    // click on the same button is dropped by the browser.
+    if (direction === "back" && this.host.backEditor()) return
+    this.navigate(direction)
   }
 }

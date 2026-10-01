@@ -11,6 +11,7 @@
       "reader/readerTts": ["dist/reader/readerTts.d.ts"],
       "reader/readerPageRuntime": ["dist/reader/readerPageRuntime.d.ts"],
       "picker/sourcePicker": ["dist/picker/sourcePicker.d.ts"],
+      "gesture/touchGestureLock": ["dist/gesture/touchGestureLock.d.ts"],
       "addons/conversationPage": ["dist/addons/conversationPage.d.ts"]
     }
   },
@@ -26,6 +27,10 @@
     "./reader/readerTts": {
       "types": "./dist/reader/readerTts.d.ts",
       "default": "./dist/reader/readerTts.js"
+    },
+    "./gesture/touchGestureLock": {
+      "types": "./dist/gesture/touchGestureLock.d.ts",
+      "default": "./dist/gesture/touchGestureLock.js"
     },
     "./reader/readerPageRuntime": {
       "types": "./dist/reader/readerPageRuntime.d.ts",

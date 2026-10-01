@@ -137,6 +137,14 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
     }
 
     @PluginMethod
+    public void goForward(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            moveHistory(true);
+            call.resolve();
+        });
+    }
+
+    @PluginMethod
     public void setBounds(PluginCall call) {
         getActivity().runOnUiThread(() -> {
             if (surface != null) applyBounds(call.getData());

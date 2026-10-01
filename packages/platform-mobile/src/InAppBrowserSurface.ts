@@ -59,6 +59,17 @@ export interface BrowserNavigationFailedEvent extends BrowserNavigationEvent {
 
 export interface BrowserHistoryEvent extends BrowserNavigationEvent {
   canGoBack: boolean
+  canGoForward: boolean
+}
+
+/**
+ * The native page swiped from a screen edge with no history in that
+ * direction: iOS lets the web view consume edge swipes it can honour itself,
+ * so only the ones it cannot reach the shell, which continues them through
+ * its own back stack (back) or settings history (forward).
+ */
+export interface BrowserEdgeSwipeEvent {
+  direction: "back" | "forward"
 }
 
 /** The extension page the native host shows, if any; the shell frames it. */
@@ -81,6 +92,7 @@ export interface InAppBrowserSurfaceEvents {
   navigationFinished: BrowserNavigationEvent
   navigationFailed: BrowserNavigationFailedEvent
   historyChanged: BrowserHistoryEvent
+  edgeSwipe: BrowserEdgeSwipeEvent
   extensionPageChanged: ExtensionPageState
 }
 
@@ -107,6 +119,7 @@ export interface InAppBrowserSurface {
   navigate(url: string): Promise<void>
   reload(): Promise<void>
   goBack(): Promise<void>
+  goForward(): Promise<void>
   setBounds(bounds: BrowserSurfaceBounds): Promise<void>
   setVisible(visible: boolean): Promise<void>
   showMenu(options: NativeOverlayMenuOptions): Promise<string | null>
@@ -136,6 +149,7 @@ interface NativeInAppBrowserPlugin {
   navigate(options: { url: string }): Promise<void>
   reload(): Promise<void>
   goBack(): Promise<void>
+  goForward(): Promise<void>
   setBounds(options: BrowserSurfaceBounds): Promise<void>
   setVisible(options: { visible: boolean }): Promise<void>
   showMenu(options: NativeOverlayMenuOptions): Promise<{ id?: string }>
@@ -244,6 +258,7 @@ export function createNativeInAppBrowserSurface(): InAppBrowserSurface {
     },
     reload: () => NativeInAppBrowser.reload(),
     goBack: () => NativeInAppBrowser.goBack(),
+    goForward: () => NativeInAppBrowser.goForward(),
     setBounds: (bounds) => NativeInAppBrowser.setBounds(normalizeBounds(bounds)),
     setVisible: (visible) => NativeInAppBrowser.setVisible({ visible }),
     async showMenu(options) {
@@ -319,7 +334,7 @@ export function createFallbackInAppBrowserSurface(
     emit("navigationStarted", payload)
     await openExternal(url)
     emit("navigationCommitted", payload)
-    emit("historyChanged", { ...payload, canGoBack: false })
+    emit("historyChanged", { ...payload, canGoBack: false, canGoForward: false })
     emit("navigationFinished", payload)
   }
 
@@ -329,6 +344,7 @@ export function createFallbackInAppBrowserSurface(
     navigate: open,
     reload: () => currentUrl ? open(currentUrl) : Promise.resolve(),
     goBack: async () => undefined,
+    goForward: async () => undefined,
     setBounds: async () => undefined,
     setVisible: async () => undefined,
     showMenu: async () => null,

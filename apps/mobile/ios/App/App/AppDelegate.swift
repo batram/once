@@ -1,96 +1,9 @@
 import UIKit
 import Capacitor
-import Security
 import WebKit
 
-@objc(SecureSettingsPlugin)
-public class SecureSettingsPlugin: CAPPlugin, CAPBridgedPlugin {
-    public let identifier = "SecureSettingsPlugin"
-    public let jsName = "SecureSettings"
-    public let pluginMethods: [CAPPluginMethod] = [
-        CAPPluginMethod(name: "getSyncUrl", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "setSyncUrl", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "getSecret", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "setSecret", returnType: CAPPluginReturnPromise)
-    ]
-
-    private let account = "sync_url"
-    private var service: String { Bundle.main.bundleIdentifier ?? "com.zmarn.once" }
-
-    @objc func getSyncUrl(_ call: CAPPluginCall) {
-        readItem(call, account: account)
-    }
-
-    @objc func setSyncUrl(_ call: CAPPluginCall) {
-        writeItem(call, account: account, value: call.getString("value") ?? "")
-    }
-
-    /// Source tokens share the Keychain service with the sync URL, under
-    /// their own accounts, so they get the same protection and the same
-    /// device-only accessibility.
-    @objc func getSecret(_ call: CAPPluginCall) {
-        guard let key = call.getString("key"), !key.isEmpty else {
-            call.reject("A secret needs a key")
-            return
-        }
-        readItem(call, account: "secret." + key)
-    }
-
-    @objc func setSecret(_ call: CAPPluginCall) {
-        guard let key = call.getString("key"), !key.isEmpty else {
-            call.reject("A secret needs a key")
-            return
-        }
-        writeItem(call, account: "secret." + key, value: call.getString("value") ?? "")
-    }
-
-    private func readItem(_ call: CAPPluginCall, account: String) {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        var result: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        if status == errSecItemNotFound {
-            call.resolve(["value": ""])
-            return
-        }
-        guard status == errSecSuccess,
-              let data = result as? Data,
-              let value = String(data: data, encoding: .utf8) else {
-            call.reject("Unable to read secure settings")
-            return
-        }
-        call.resolve(["value": value])
-    }
-
-    private func writeItem(_ call: CAPPluginCall, account: String, value: String) {
-        let match: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account
-        ]
-        SecItemDelete(match as CFDictionary)
-        if value.isEmpty {
-            call.resolve()
-            return
-        }
-        var item = match
-        item[kSecValueData as String] = Data(value.utf8)
-        item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        guard SecItemAdd(item as CFDictionary, nil) == errSecSuccess else {
-            call.reject("Unable to save secure settings")
-            return
-        }
-        call.resolve()
-    }
-}
-
 @objc(InAppBrowserSurfacePlugin)
-public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigationDelegate, WKUIDelegate {
+public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigationDelegate, WKUIDelegate, UIGestureRecognizerDelegate {
     public let identifier = "InAppBrowserSurfacePlugin"
     public let jsName = "InAppBrowserSurface"
     public let pluginMethods: [CAPPluginMethod] = [
@@ -98,6 +11,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         CAPPluginMethod(name: "navigate", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "reload", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "goBack", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "goForward", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setBounds", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setVisible", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "showMenu", returnType: CAPPluginReturnPromise),
@@ -144,6 +58,20 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         let view = WKWebView(frame: .zero, configuration: configuration)
         view.navigationDelegate = self
         view.uiDelegate = self
+        // Safari's edge swipes for the page's own history. The recognizers
+        // below pick up the edges WebKit leaves alone (no history that way)
+        // and hand them to the shell, which continues its back stack.
+        view.allowsBackForwardNavigationGestures = true
+        for edge in [UIRectEdge.left, UIRectEdge.right] {
+            let recognizer = UIScreenEdgePanGestureRecognizer(
+                target: self,
+                action: #selector(edgeSwiped(_:))
+            )
+            recognizer.edges = edge
+            recognizer.delegate = self
+            view.addGestureRecognizer(recognizer)
+            view.scrollView.panGestureRecognizer.require(toFail: recognizer)
+        }
         let refreshControl = UIRefreshControl()
         refreshControl.addTarget(
             self,
@@ -155,6 +83,30 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         self.refreshControl = refreshControl
         surface = view
         return view
+    }
+
+    /// Only begins when WebKit has no history in that direction; otherwise the
+    /// web view's own gesture runs and this one stays out of the way.
+    public func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
+        guard let edge = recognizer as? UIScreenEdgePanGestureRecognizer, let surface else { return true }
+        return edge.edges == .left ? !surface.canGoBack : !surface.canGoForward
+    }
+
+    /// WebKit's own touch recognizers would otherwise claim the touch first.
+    public func gestureRecognizer(
+        _ recognizer: UIGestureRecognizer,
+        shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
+    ) -> Bool {
+        recognizer is UIScreenEdgePanGestureRecognizer
+    }
+
+    @objc private func edgeSwiped(_ recognizer: UIScreenEdgePanGestureRecognizer) {
+        guard recognizer.state == .ended, let view = recognizer.view else { return }
+        let travel = recognizer.translation(in: view).x
+        let back = recognizer.edges == .left
+        // Mirrors the shell gesture's commit distance.
+        guard back ? travel >= 72 : travel <= -72 else { return }
+        notifyListeners("edgeSwipe", data: ["direction": back ? "back" : "forward"])
     }
 
     @objc private func refreshBrowser(_ sender: UIRefreshControl) {
@@ -219,6 +171,13 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     @objc func goBack(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             if self.surface?.canGoBack == true { self.surface?.goBack() }
+            call.resolve()
+        }
+    }
+
+    @objc func goForward(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            if self.surface?.canGoForward == true { self.surface?.goForward() }
             call.resolve()
         }
     }
@@ -524,6 +483,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     private func history(_ view: WKWebView) {
         var value = payload(view.url)
         value["canGoBack"] = view.canGoBack
+        value["canGoForward"] = view.canGoForward
         notifyListeners("historyChanged", data: value)
     }
 

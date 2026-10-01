@@ -223,3 +223,40 @@ test("reading surface coordinator rejects stale reader documents", async () => {
   assert.deepEqual(reader.opened, ["<p>new</p>"])
   assert.equal(session.snapshot().loadState, "ready")
 })
+
+test("forward history reaches the surface and native edge swipes reach the shell only while a page shows", async () => {
+  const { ReadingSurfaceCoordinator } = await loadCoordinator()
+  const session = new ReadingSession(), surface = createSurface()
+  surface.goForward = async () => { surface.calls.push(["goForward"]) }
+  const coordinator = new ReadingSurfaceCoordinator(session, surface, createReader(), {
+    getBoundingClientRect: () => ({ x: 0, y: 0, width: 320, height: 500 })
+  })
+  const swipes = []
+  coordinator.onEdgeSwipe((direction) => swipes.push(direction))
+  await coordinator.install()
+
+  // No page open yet: the shell's own gesture covers the DOM, not this path.
+  surface.listeners.get("edgeSwipe")({ direction: "back" })
+  assert.deepEqual(swipes, [])
+
+  coordinator.setReadingPanelVisible(true)
+  session.navigate("https://example.test/page")
+  await flushCoordinator()
+  surface.listeners.get("navigationStarted")({ navigationId: 1, url: "https://example.test/page" })
+  surface.listeners.get("historyChanged")({
+    navigationId: 1, url: "https://example.test/page", canGoBack: true, canGoForward: true
+  })
+  assert.equal(session.snapshot().canGoForward, true)
+
+  surface.listeners.get("edgeSwipe")({ direction: "back" })
+  surface.listeners.get("edgeSwipe")({ direction: "forward" })
+  assert.deepEqual(swipes, ["back", "forward"])
+
+  await coordinator.goForward()
+  assert.ok(surface.calls.some(([name]) => name === "goForward"))
+
+  coordinator.setReadingPanelVisible(false)
+  await flushCoordinator()
+  surface.listeners.get("edgeSwipe")({ direction: "back" })
+  assert.deepEqual(swipes, ["back", "forward"])
+})

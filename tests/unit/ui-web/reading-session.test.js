@@ -162,3 +162,25 @@ test("ReadingSession opens a substory's comments page in comments mode", () => {
   assert.equal(session.snapshot().currentUrl, substoryComments)
   assert.equal(session.snapshot().story, active)
 })
+
+test("ReadingSession tracks forward history alongside back and drops both outside browser mode", () => {
+  const session = new ReadingSession()
+  session.open(story("one"), "browser")
+  session.historyChanged(1, "https://example.test/one/page", true, true)
+  assert.equal(session.snapshot().canGoBack, true)
+  assert.equal(session.snapshot().canGoForward, true)
+
+  // Older bridges report only canGoBack.
+  session.historyChanged(2, "https://example.test/one/next", true)
+  assert.equal(session.snapshot().canGoForward, false)
+
+  session.historyChanged(3, "https://example.test/one/page", true, true)
+  session.setMode("reader")
+  assert.equal(session.snapshot().canGoBack, false)
+  assert.equal(session.snapshot().canGoForward, false)
+
+  session.setMode("browser", true)
+  session.historyChanged(4, "https://example.test/one/page", false, true)
+  session.open(story("two"), "browser")
+  assert.equal(session.snapshot().canGoForward, false)
+})

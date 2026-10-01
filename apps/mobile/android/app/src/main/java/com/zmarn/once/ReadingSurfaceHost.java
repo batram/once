@@ -504,6 +504,7 @@ abstract class ReadingSurfaceHost extends Plugin {
         payload.put("navigationId", navigationId);
         payload.put("url", currentUrl);
         payload.put("canGoBack", canGoBack);
+        payload.put("canGoForward", canGoForward);
         notifyListeners("historyChanged", payload);
     }
 
@@ -574,6 +575,7 @@ abstract class ReadingSurfaceHost extends Plugin {
         public void onCanGoForward(GeckoSession ignored, boolean value) {
             if (ignored != session) return;
             canGoForward = value;
+            history(activeNavigation);
         }
 
         @Override

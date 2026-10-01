@@ -31,7 +31,9 @@ async function main() {
     "playwright",
     "test",
     "--config",
-    "tests/e2e/mobile/playwright.config.js"
+    "tests/e2e/mobile/playwright.config.js",
+    // Extra arguments reach Playwright, so one spec can run on its own.
+    ...process.argv.slice(2)
   ], {
     cwd: root,
     env,

@@ -11,6 +11,7 @@ export interface ReadingSessionState {
   loadState: ReadingLoadState
   navigationId: number
   canGoBack: boolean
+  canGoForward: boolean
   error: string | null
 }
 
@@ -56,6 +57,7 @@ export class ReadingSession {
     loadState: "idle",
     navigationId: 0,
     canGoBack: false,
+    canGoForward: false,
     error: null
   }
 
@@ -88,6 +90,7 @@ export class ReadingSession {
       loadState: "loading",
       navigationId: this.state.navigationId,
       canGoBack: false,
+      canGoForward: false,
       error: null
     }
     this.publish()
@@ -105,6 +108,7 @@ export class ReadingSession {
       mode,
       loadState: mode !== "reader" && browserAlreadyReady ? "ready" : "loading",
       canGoBack: mode === "browser" ? this.state.canGoBack : false,
+      canGoForward: mode === "browser" ? this.state.canGoForward : false,
       error: null
     })
   }
@@ -202,14 +206,16 @@ export class ReadingSession {
   historyChanged(
     navigationId: number,
     url: string,
-    canGoBack: boolean
+    canGoBack: boolean,
+    canGoForward = false
   ): void {
     if (!this.state.story && !this.state.currentUrl) return
     if (navigationId < this.state.navigationId) return
     this.patch({
       navigationId,
       currentUrl: url,
-      canGoBack
+      canGoBack,
+      canGoForward
     })
   }
 
@@ -221,6 +227,7 @@ export class ReadingSession {
       visibleStoryIndex: -1,
       loadState: "idle",
       canGoBack: false,
+      canGoForward: false,
       error: null
     }
     this.publish()

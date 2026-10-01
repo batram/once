@@ -71,6 +71,9 @@ export class MobileReadingController {
     this.findBar = new ReadingFindBar(surface, reader, this.session)
     this.bindControls()
     this.bindEvents()
+    this.nativeReading.onEdgeSwipe((direction) => {
+      void (direction === "back" ? this.handleBack() : this.handleForward())
+    })
     this.session.subscribe((state) => {
       this.render(state)
     })
@@ -100,6 +103,9 @@ export class MobileReadingController {
     if (this.activePanel === "reading" && this.findBar.close()) return true
 
     if (this.activePanel === "settings") {
+      // The same step the desktop mouse button takes, so the visit it leaves
+      // stays reachable by Forward; the header chevron alone would drop it.
+      if (this.settingsNavigate("back")) return true
       const settingsPanel = document.querySelector<HTMLElement>("#settings_panel")
       if (settingsPanel?.classList.contains("settings_detail_open")) {
         document.querySelector<HTMLButtonElement>("#settings_section_back")?.click()
@@ -144,6 +150,31 @@ export class MobileReadingController {
     }
     this.close()
     return true
+  }
+
+  /**
+   * The forward half of the back stack. Settings keeps its own visit history
+   * and answers the same event the desktop mouse button sends, including the
+   * return to Settings after Back left it; otherwise only the browser page
+   * has somewhere to go.
+   */
+  async handleForward(): Promise<boolean> {
+    if (this.settingsNavigate("forward")) return true
+    if (this.activePanel !== "reading") return false
+    const state = this.session.snapshot()
+    if (state.mode === "reader" || !state.canGoForward) return false
+    await this.nativeReading.goForward()
+    return true
+  }
+
+  /** Offers the step to the settings visit history; true when it took it. */
+  private settingsNavigate(direction: "back" | "forward"): boolean {
+    const navigation = new CustomEvent("once-settings-navigate", {
+      cancelable: true,
+      detail: { direction }
+    })
+    document.dispatchEvent(navigation)
+    return navigation.defaultPrevented
   }
 
   close(): void {

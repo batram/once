@@ -65,7 +65,7 @@ test("mobile adapter delegates secure settings, links, and theme through its bri
 test("native secure settings implementations use Keychain and Android Keystore", () => {
   const root = path.resolve(__dirname, "../../..")
   const android = fs.readFileSync(path.join(root, "apps/mobile/android/app/src/main/java/com/zmarn/once/SecureSettingsPlugin.java"), "utf8")
-  const ios = fs.readFileSync(path.join(root, "apps/mobile/ios/App/App/AppDelegate.swift"), "utf8")
+  const ios = fs.readFileSync(path.join(root, "apps/mobile/ios/App/App/SecureSettings.swift"), "utf8")
   assert.match(android, /AndroidKeyStore/)
   assert.match(android, /AES\/GCM\/NoPadding/)
   assert.match(ios, /kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly/)

@@ -20,6 +20,7 @@ import { installStoryMenu } from "./storyMenu"
 import { bindMobileBrowserExtensionSettings } from "./browserExtensionSettings"
 import { bindMobileExtensionToolbar } from "./browserExtensionToolbar"
 import { bindExtensionPageFrame } from "./extensionPageFrame"
+import { attachEdgeSwipe } from "./edgeSwipe"
 import { mobileAddonConversations } from "./addonConversations"
 import { installReaderTtsHostBridge } from "./readerTtsHostBridge"
 import { installReaderTtsControls } from "./readerTtsControls"
@@ -38,6 +39,28 @@ declare const __ONCE_BUNDLED_ADDONS__: BundledAddonFiles[]
 declare const __ONCE_MOBILE_E2E__: boolean
 
 const MOBILE_SCROLLBAR_IDLE_DELAY_MS = 650
+
+// The touch-only navigation affordances, mounted here rather than in
+// mountOnceUi so the desktop shells keep their existing ones only.
+function mountTouchNavigation(reading: MobileReadingController): void {
+  // Touch has no keyboard shortcut, no mouse back button and no room left on
+  // the back gesture, so undo needs a control of its own.
+  UndoButton.mount()
+  // The mobile header suppresses the button's label, so the icon needs a name.
+  document.querySelector<HTMLButtonElement>("#settings_section_back")
+    ?.setAttribute("aria-label", "Back")
+  // Edge swipes continue the same back stack as the hardware key and add the
+  // forward half. Android's system gesture already owns the screen edges and
+  // arrives as backButton, so the shell gesture is for iOS and the web harness.
+  // The story list is the root of that stack, so it does not arm the gesture.
+  if (Capacitor.getPlatform() === "android") return
+  attachEdgeSwipe({
+    onBack: () => void reading.handleBack(),
+    onForward: () => void reading.handleForward(),
+    enabled: () =>
+      document.querySelector("#left_panel")?.getAttribute("active_panel") !== "stories"
+  })
+}
 
 // "done" is a plain notice: shown like "loading" but without the spinner.
 function showStartupState(
@@ -211,18 +234,13 @@ async function startMobileApp(): Promise<void> {
     bindMobileBrowserExtensionSettings(browserExtensions)
   }
   bindMobileExtensionToolbar(browserExtensions, browserSurface, readingPageActions(() => reading.session.snapshot().currentUrl))
-  // Touch has no keyboard shortcut, no mouse back button and no room left on
-  // the back gesture, so undo needs a control of its own. Mounted here rather
-  // than in mountOnceUi so the desktop shells keep their existing affordances only.
-  UndoButton.mount()
-  // The mobile header suppresses the button's label, so the icon needs a name.
-  document.querySelector<HTMLButtonElement>("#settings_section_back")
-    ?.setAttribute("aria-label", "Back")
+  mountTouchNavigation(reading)
   if (__ONCE_MOBILE_E2E__) {
     // Lets the e2e suite await queued story saves instead of pausing blindly.
     ;(window as { __onceE2E__?: unknown }).__onceE2E__ = {
       settledStoryWrites: () => app.client.settledStoryWrites(),
       handleBack: () => reading.handleBack(),
+      handleForward: () => reading.handleForward(),
       evaluateSurface: (script: string) => browserSurface.evaluateJavaScript(script),
       applyExtensionSettings: async () => browserSurface.applyExtensionSettings(
         await app.client.getFilterLists(),

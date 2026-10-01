@@ -37,6 +37,7 @@ export class ReadingSurfaceCoordinator {
   private surfaceGeneration = 0
   private readerRequestId = 0
   private surfaceQueue: Promise<void> = Promise.resolve()
+  private edgeSwipeHandler: ((direction: "back" | "forward") => void) | null = null
 
   constructor(
     session: ReadingSession,
@@ -110,12 +111,22 @@ export class ReadingSurfaceCoordinator {
     const history = await this.surface.addListener("historyChanged", (event) => {
       if (!this.acceptsNavigation(event.navigationId, event.url)) return
       this.browserUrl = event.url
-      this.session.historyChanged(event.navigationId, event.url, event.canGoBack)
+      this.session.historyChanged(event.navigationId, event.url, event.canGoBack, event.canGoForward === true)
+    })
+    // The page's own edge swipes stay native; only the ones it cannot honour
+    // (no history that way) arrive here for the shell to continue.
+    const edge = await this.surface.addListener("edgeSwipe", (event) => {
+      if (!this.browserOpened || !this.readingPanelVisible) return
+      this.edgeSwipeHandler?.(event.direction)
     })
     // Listener lifetimes match the application lifetime. Retaining the
     // removers makes ownership explicit and prevents premature collection in
     // native bridge implementations.
-    this.listenerRemovers.push(started, committed, finished, failed, history)
+    this.listenerRemovers.push(started, committed, finished, failed, history, edge)
+  }
+
+  onEdgeSwipe(handler: (direction: "back" | "forward") => void): void {
+    this.edgeSwipeHandler = handler
   }
 
   private readonly listenerRemovers: Array<() => void> = []
@@ -165,6 +176,10 @@ export class ReadingSurfaceCoordinator {
 
   async goBack(): Promise<void> {
     await this.enqueue(() => this.surface.goBack())
+  }
+
+  async goForward(): Promise<void> {
+    await this.enqueue(() => this.surface.goForward())
   }
 
   async reload(): Promise<void> {

@@ -120,6 +120,31 @@ test("native embedded browsers use a bounded foreground sibling", () => {
   assert.doesNotMatch(ios, /insertSubview\(view, belowSubview: shell\)/)
 })
 
+test("native embedded browsers report forward history and iOS hands unhandled edge swipes to the shell", () => {
+  const root = path.resolve(__dirname, "../../..")
+  const androidHost = fs.readFileSync(path.join(
+    root,
+    "apps/mobile/android/app/src/main/java/com/zmarn/once/ReadingSurfaceHost.java"
+  ), "utf8")
+  const androidPlugin = fs.readFileSync(path.join(
+    root,
+    "apps/mobile/android/app/src/main/java/com/zmarn/once/InAppBrowserSurfacePlugin.java"
+  ), "utf8")
+  const ios = fs.readFileSync(path.join(
+    root,
+    "apps/mobile/ios/App/App/AppDelegate.swift"
+  ), "utf8")
+
+  assert.match(androidHost, /payload\.put\("canGoForward", canGoForward\)/)
+  assert.match(androidPlugin, /public void goForward\(PluginCall call\)/)
+  assert.match(ios, /allowsBackForwardNavigationGestures = true/)
+  assert.match(ios, /value\["canGoForward"\] = view\.canGoForward/)
+  assert.match(ios, /@objc func goForward\(_ call: CAPPluginCall\)/)
+  // The shell only hears about the edges WebKit cannot navigate itself.
+  assert.match(ios, /edge\.edges == \.left \? !surface\.canGoBack : !surface\.canGoForward/)
+  assert.match(ios, /notifyListeners\("edgeSwipe"/)
+})
+
 test("native embedded browsers support pull-to-refresh", () => {
   const root = path.resolve(__dirname, "../../..")
   const android = fs.readFileSync(path.join(
