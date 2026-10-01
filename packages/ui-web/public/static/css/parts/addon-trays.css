@@ -32,12 +32,13 @@
 .addon_tray_title {
   flex: 1 1 auto;
   min-width: 0;
-  overflow: hidden;
   color: var(--text-muted-color);
   font-size: var(--fs-meta);
   font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.4;
+  /* The buttons beside it are one line of --fs-meta at 1.4 plus their own
+     padding and border; this puts a one-line title on that same line. */
+  padding-block: calc(var(--sp-0-5) + var(--bw));
 }
 
 /* --icon-sm, not the --icon-md the row's own button strip uses: this glyph is
@@ -52,6 +53,15 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--sp-1);
+}
+
+/* After .addon_tray_actions so it wins on order: the close glyph belongs in
+   the top-right corner at any width, so the header never wraps its buttons
+   onto a second row. The title gives way instead and wraps its words, and the
+   buttons stay on its first line. */
+.addon_tray_header {
+  flex-wrap: nowrap;
+  align-items: flex-start;
 }
 
 .addon_tray_controls {
@@ -74,6 +84,10 @@
 
 .addon_tray .button--icon {
   padding-inline: var(--sp-0-5);
+  /* A 12px glyph on its own stands shorter than a word set in --fs-meta at
+     1.4, so the close read as a smaller button than the one beside it. Give
+     it the text buttons' outer height; the aspect ratio makes it square. */
+  block-size: calc(1.4em + var(--sp-0-5) * 2 + var(--bw) * 2);
 }
 
 /* An answer runs to several paragraphs, so it gets a measure. The reader

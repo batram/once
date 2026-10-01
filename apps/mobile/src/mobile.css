@@ -420,27 +420,39 @@
     bottom: auto;
   }
 
-  .story .addon_tray {
+  :is(.story, #reading_addon_trays) .addon_tray {
     padding: var(--sp-1) var(--sp-1-5) var(--sp-1-5);
+    /* Dark rows are --unread-bg-color, the same value as --input-bg-color, so
+     a tray with the shared fill vanished into the row it sits in. The darker
+     page colour sets it apart; light keeps the white card. */
+    background: light-dark(var(--input-bg-color), var(--main-bg-color));
   }
 
-  .story .addon_tray .button {
+  /* The .button reset above fills every button with the page colour, which on
+   a tray's card read as a loud second surface. Desktop tray buttons are an
+   outline on the tray's own fill; match that, pressed state included. */
+  :is(.story, #reading_addon_trays) .addon_tray .button {
     min-height: 28px;
     height: auto;
     min-width: 0;
     margin: 0;
     padding: var(--sp-0-5) var(--sp-2);
+    background: transparent;
     font-size: var(--fs-meta);
     line-height: 1.4;
   }
 
-  .story .addon_tray .button--icon {
+  :is(.story, #reading_addon_trays) .addon_tray .button:active {
+    background: var(--m-pressed-bg);
+  }
+
+  :is(.story, #reading_addon_trays) .addon_tray .button--icon {
     width: 28px;
     height: 28px;
     padding: 0;
   }
 
-  .story .addon_tray_composer textarea {
+  :is(.story, #reading_addon_trays) .addon_tray_composer textarea {
     min-height: 28px;
     padding: var(--sp-1);
   }
