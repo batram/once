@@ -4,8 +4,12 @@ const assert = require("node:assert/strict")
 const {
   ADB_COMMAND_TIMEOUT_MS,
   adbFailureDetail,
+  androidDeviceAbi,
   androidDeviceCommands,
+  ensureAndroidInstallSpace,
   isAndroidEmulator,
+  parseDataFreeBytes,
+  parseUpdatedSystemPackages,
   parseUsableAndroidDevices,
   resolveAndroidSerial,
   verifyAndroidTransport
@@ -125,4 +129,86 @@ test("Android transport preflight reconnects and retries once", () => {
     ["-s", "emulator-5556", "reconnect"],
     ["-s", "emulator-5556", "shell", "echo", "once-adb-ready"]
   ])
+})
+
+test("Android ABI selection picks the first ABI the APK can ship", () => {
+  const device = abilist => () => ({ status: 0, stdout: `${abilist}\n` })
+  assert.equal(androidDeviceAbi("adb", "phone", {}, device("arm64-v8a,armeabi-v7a")), "arm64-v8a")
+  assert.equal(androidDeviceAbi("adb", "emulator-5554", {}, device("x86_64,arm64-v8a")), "x86_64")
+  assert.throws(() => androidDeviceAbi("adb", "old", {}, device("armeabi-v7a")), /supports none/)
+})
+
+test("Android storage parsing reads df rows and reverts only safe Play Store updates", () => {
+  assert.equal(parseDataFreeBytes([
+    "Filesystem       1K-blocks    Used Available Use% Mounted on",
+    "/dev/block/dm-53   6082144 5225424    714508  88% /data/user/0"
+  ].join("\n")), 714508 * 1024)
+  assert.equal(parseDataFreeBytes("df: /data: Permission denied"), null)
+  assert.deepEqual(parseUpdatedSystemPackages([
+    "package:/data/app/~~a==/com.google.android.gms-b==/base.apk=com.google.android.gms",
+    "package:/data/app/~~c==/com.android.chrome-d==/base.apk=com.android.chrome",
+    "package:/system/app/Contacts/Contacts.apk=com.android.contacts",
+    "package:/data/app/~~e==/com.google.android.webview-f==/base.apk=com.google.android.webview"
+  ].join("\r\n")), ["com.android.chrome"])
+})
+
+function fakeDevice(freeMiB, { updates = [], reclaim = {} } = {}) {
+  const calls = []
+  let free = freeMiB
+  const spawnSync = (_adb, args) => {
+    const command = args.slice(3)
+    calls.push(command.join(" "))
+    if (command[0] === "df") {
+      return { status: 0, stdout: `Filesystem 1K-blocks Used Available Use% Mounted on\n/dev/x 1 1 ${free * 1024} 1% /data\n` }
+    }
+    if (command.join(" ") === "pm list packages -s -f") {
+      return { status: 0, stdout: updates.map(name => `package:/data/app/x/${name}-y/base.apk=${name}`).join("\n") }
+    }
+    free += reclaim[command.at(-1)] || 0
+    return { status: 0, stdout: "" }
+  }
+  return { calls, spawnSync }
+}
+
+const MiB = 1024 * 1024
+
+test("Android install space is left alone when the APK already fits", () => {
+  const device = fakeDevice(2000)
+  ensureAndroidInstallSpace({ adb: "adb", serial: "emulator-5554", apkBytes: 200 * MiB, env: {}, spawnSync: device.spawnSync, log() {} })
+  assert.deepEqual(device.calls, ["df -k /data"])
+})
+
+test("Android emulators reclaim space by reverting Play Store updates until the APK fits", () => {
+  const device = fakeDevice(700, {
+    updates: ["com.google.android.gms", "com.android.chrome", "com.google.android.youtube", "com.google.android.apps.maps"],
+    reclaim: { "com.zmarn.once.dev": 0, "com.android.chrome": 230, "com.google.android.youtube": 140 }
+  })
+  ensureAndroidInstallSpace({ adb: "adb", serial: "emulator-5554", apkBytes: 200 * MiB, env: {}, spawnSync: device.spawnSync, log() {} })
+  assert.deepEqual(device.calls.filter(call => call.startsWith("pm")), [
+    "pm uninstall com.zmarn.once.dev",
+    "pm trim-caches 64G",
+    "pm list packages -s -f",
+    "pm uninstall-system-updates com.android.chrome",
+    "pm uninstall-system-updates com.google.android.youtube"
+  ])
+})
+
+test("Android visual runs keep the installed app while reclaiming space", () => {
+  const device = fakeDevice(700, { reclaim: { "64G": 500 } })
+  ensureAndroidInstallSpace({ adb: "adb", serial: "emulator-5554", apkBytes: 200 * MiB, env: {}, spawnSync: device.spawnSync, keepApp: true, log() {} })
+  assert.ok(!device.calls.some(call => call.includes("uninstall")))
+})
+
+test("Android install space failures explain how to grow the emulator or free a device", () => {
+  const emulator = fakeDevice(300)
+  assert.throws(
+    () => ensureAndroidInstallSpace({ adb: "adb", serial: "emulator-5554", apkBytes: 200 * MiB, env: {}, spawnSync: emulator.spawnSync, log() {} }),
+    /Wipe Data/
+  )
+  const phone = fakeDevice(300)
+  assert.throws(
+    () => ensureAndroidInstallSpace({ adb: "adb", serial: "phone-1", apkBytes: 200 * MiB, env: {}, spawnSync: phone.spawnSync, log() {} }),
+    /free some space/
+  )
+  assert.deepEqual(phone.calls, ["df -k /data"])
 })

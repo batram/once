@@ -5,6 +5,8 @@ const { startTestServer } = require("./test-server-process")
 const {
   ADB_COMMAND_TIMEOUT_MS,
   adbFailureDetail,
+  androidDeviceAbi,
+  ensureAndroidInstallSpace,
   isAndroidEmulator,
   verifyAndroidTransport,
   resolveAndroidSerial
@@ -28,6 +30,27 @@ const appBundles = {
 }
 const { newestSourceTime, packageSources, readStamp } = require("./build-freshness")
 
+function adbCommand(env) {
+  const executable = process.platform === "win32" ? "adb.exe" : "adb"
+  const sdk = env.ANDROID_HOME || env.ANDROID_SDK_ROOT
+  return sdk ? path.join(sdk, "platform-tools", executable) : executable
+}
+
+// Resolve the Android device once: the build targets its ABI, the storage
+// preflight and visual install address it, and Appium is pinned to it.
+let androidTarget
+function resolveAndroidTarget() {
+  if (platform !== "android" || androidTarget) return androidTarget
+  const adb = adbCommand(process.env)
+  const serial = resolveAndroidSerial(adb, process.env, spawnSync, {
+    npmScript: visual ? "inspect:mobile:android:run" : "test:mobile:e2e:android"
+  })
+  verifyAndroidTransport(adb, serial, process.env, spawnSync)
+  const abi = androidDeviceAbi(adb, serial, process.env, spawnSync)
+  androidTarget = { adb, serial, abi }
+  return androidTarget
+}
+
 function stalenessReason() {
   if (process.env.ONCE_MOBILE_APP) return null
   if (!fs.existsSync(path.join(appRoot, appBundles[platform]))) {
@@ -37,6 +60,13 @@ function stalenessReason() {
   if (!stamp) return "there is no build stamp from `mobile package`"
   if (!stamp.e2e) return "the last build was not an --e2e build"
   if (stamp.channel !== "dev") return `the last build was for the ${stamp.channel} channel`
+  if (platform === "android") {
+    const { abi } = resolveAndroidTarget()
+    if (!stamp.abis) return "the last build has no recorded ABIs"
+    if (stamp.abis.length !== 1 || stamp.abis[0] !== abi) {
+      return `the last build carries ${stamp.abis.join(",")} instead of only the device ABI ${abi}`
+    }
+  }
   const sources = [
     path.join(appRoot, "src"),
     path.join(appRoot, "webpack.config.js"),
@@ -60,9 +90,29 @@ function ensureFreshApp() {
   const build = spawnSync(
     node,
     [npmCli, "run", "mobile", "--", "package", platform, "--channel", "dev", "--e2e"],
-    { cwd: root, stdio: "inherit" }
+    {
+      cwd: root,
+      stdio: "inherit",
+      env: platform === "android"
+        ? { ...process.env, ONCE_ANDROID_PACKAGE_ABIS: resolveAndroidTarget().abi }
+        : process.env
+    }
   )
   if (build.status !== 0) process.exit(build.status || 1)
+}
+
+function ensureAndroidStorage() {
+  if (platform !== "android") return
+  const { adb, serial } = resolveAndroidTarget()
+  const app = process.env.ONCE_MOBILE_APP || path.join(appRoot, appBundles.android)
+  ensureAndroidInstallSpace({
+    adb,
+    serial,
+    apkBytes: fs.statSync(app).size,
+    env: process.env,
+    spawnSync,
+    keepApp: visual
+  })
 }
 
 function installVisualApp() {
@@ -71,12 +121,8 @@ function installVisualApp() {
   let command
   let args
   if (platform === "android") {
-    const executable = process.platform === "win32" ? "adb.exe" : "adb"
-    const sdk = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT
-    command = sdk ? path.join(sdk, "platform-tools", executable) : executable
-    const serial = resolveAndroidSerial(command, process.env, spawnSync, {
-      npmScript: visual ? "inspect:mobile:android:run" : "test:mobile:e2e:android"
-    })
+    const { adb, serial } = resolveAndroidTarget()
+    command = adb
     args = ["-s", serial, "install", "-r", app]
   } else {
     command = "xcrun"
@@ -113,13 +159,7 @@ let finalizing = false
 
 function configureAndroidReverse(port, env) {
   if (platform !== "android" || process.env.ONCE_MOBILE_TEST_URL) return
-  const executable = process.platform === "win32" ? "adb.exe" : "adb"
-  const sdk = env.ANDROID_HOME || env.ANDROID_SDK_ROOT
-  const adb = sdk ? path.join(sdk, "platform-tools", executable) : executable
-  const serial = resolveAndroidSerial(adb, env, spawnSync, {
-    npmScript: visual ? "inspect:mobile:android:run" : "test:mobile:e2e:android"
-  })
-  verifyAndroidTransport(adb, serial, env, spawnSync)
+  const { adb, serial } = resolveAndroidTarget()
   env.ONCE_ANDROID_UDID = serial
   env.ANDROID_SERIAL = serial
   if (isAndroidEmulator(serial)) {
@@ -183,8 +223,14 @@ async function finalize(code) {
 }
 
 async function start() {
-  ensureFreshApp()
-  installVisualApp()
+  try {
+    ensureFreshApp()
+    ensureAndroidStorage()
+    installVisualApp()
+  } catch (error) {
+    console.error(error.message)
+    process.exit(1)
+  }
   let testEnv
   let port
   try {

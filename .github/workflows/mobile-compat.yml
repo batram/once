@@ -30,6 +30,9 @@ jobs:
       - name: Install the Android platform GeckoView compiles against
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.1" "build-tools;37.0.0"
       - run: npm run mobile -- package android --channel dev --e2e
+        env:
+          # Match the x86_64 emulator below so the e2e runner reuses this APK.
+          ONCE_ANDROID_PACKAGE_ABIS: x86_64
       - name: Android native lint and unit tests
         working-directory: apps/mobile/android
         run: java -classpath gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain lintDevelopmentDebug testDevelopmentDebugUnitTest --no-daemon

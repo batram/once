@@ -1,7 +1,7 @@
 const fs = require("fs")
 const path = require("path")
 const { spawnSync } = require("child_process")
-const { androidDeviceCommands } = require("./android-device")
+const { androidDeviceAbi, androidDeviceCommands } = require("./android-device")
 
 const root = path.resolve(__dirname, "../../..")
 const npmCli = process.env.npm_execpath
@@ -89,7 +89,7 @@ function requireConnectedDevice(sdk, env) {
       commands.map(command => `  ${command}`).join("\n")
     )
   }
-  return requested || connected[0]
+  return { adb, serial: requested || connected[0] }
 }
 
 function ensureUiAutomatorDriver(env) {
@@ -107,10 +107,16 @@ function ensureUiAutomatorDriver(env) {
 }
 
 const android = androidEnvironment()
-const serial = requireConnectedDevice(android.sdk, android.env)
+const { adb, serial } = requireConnectedDevice(android.sdk, android.env)
 const env = { ...android.env, ONCE_ANDROID_UDID: serial, ANDROID_SERIAL: serial }
 ensureUiAutomatorDriver(env)
-runNpm(["run", "mobile", "--", "package", "android", "--channel", "dev", "--e2e"], env)
+let abi
+try { abi = androidDeviceAbi(adb, serial, env, spawnSync) } catch (error) { fail(error.message) }
+// Package only the device's ABI so the APK fits the emulator's /data.
+runNpm(["run", "mobile", "--", "package", "android", "--channel", "dev", "--e2e"], {
+  ...env,
+  ONCE_ANDROID_PACKAGE_ABIS: abi
+})
 runNpm([
   "run",
   visual ? "inspect:mobile:android:run" : "test:mobile:e2e:android"

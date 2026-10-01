@@ -268,13 +268,14 @@ function sync(platform, channel) {
 
 // Record what the last package build produced so the e2e runner can detect
 // stale or mismatched (non-e2e, wrong channel) app bundles and rebuild.
-function writePackageStamp(platform, channel) {
+function writePackageStamp(platform, channel, abis) {
   fs.mkdirSync(path.join(appRoot, "dist"), { recursive: true })
   fs.writeFileSync(
     path.join(appRoot, "dist", `.once-package-${platform}.json`),
     JSON.stringify({
       channel,
       e2e: Boolean(options.e2e),
+      ...(abis ? { abis } : {}),
       builtAt: Date.now()
     })
   )
@@ -438,6 +439,15 @@ else if (command === "run") {
   try { installApk(adb, address, apk, settings.installMode, android.env) } catch (error) { fail(error.message) }
   console.log(`mobile: deployment completed in ${((performance.now() - started) / 1000).toFixed(1)}s`)
 } else if (command === "package") {
+  // E2E runners pass the target device's ABI; GeckoView's native libraries
+  // dominate the APK, and shipping both ABIs overflows emulator storage.
+  const packageAbis = platform === "android" && process.env.ONCE_ANDROID_PACKAGE_ABIS
+    ? process.env.ONCE_ANDROID_PACKAGE_ABIS.split(",")
+    : null
+  if (packageAbis && (channel === "release" ||
+      !packageAbis.every(abi => ["arm64-v8a", "x86_64"].includes(abi)))) {
+    fail("ONCE_ANDROID_PACKAGE_ABIS applies to dev packages and must list arm64-v8a or x86_64")
+  }
   sync(platform, channel)
   if (platform === "android") {
     // The built-in extension bundles are not in the repository; they are
@@ -452,6 +462,7 @@ else if (command === "run") {
       path.join(appRoot, "android", "gradle", "wrapper", "gradle-wrapper.jar"),
       "org.gradle.wrapper.GradleWrapperMain",
       gradleTask,
+      ...(packageAbis ? [`-PonceDeployAbis=${packageAbis.join(",")}`] : []),
       "--no-daemon"
     ], {
       cwd: path.join(appRoot, "android"),
@@ -477,5 +488,7 @@ else if (command === "run") {
       ...(release ? ["CODE_SIGNING_ALLOWED=NO", "archive"] : ["build"])
     ], { cwd: path.join(appRoot, "ios"), env: publicPackageEnvironment(channel) })
   }
-  writePackageStamp(platform, channel)
+  writePackageStamp(platform, channel, platform === "android"
+    ? packageAbis || ["arm64-v8a", "x86_64"]
+    : null)
 } else fail(`unknown command ${command}`)

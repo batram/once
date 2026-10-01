@@ -456,6 +456,19 @@ Appium to the selected serial and uses `adb reverse` so the app can reach the
 host-only test server at `127.0.0.1`. If more than one device is connected, set
 `ONCE_ANDROID_UDID` to the serial shown by `adb devices`.
 
+Android E2E APKs carry only the selected device's ABI: GeckoView's native
+libraries are stored uncompressed, so a two-ABI APK is over 400 MiB. The
+runners read the ABI over ADB and pass it to `mobile package` as
+`ONCE_ANDROID_PACKAGE_ABIS`; the build stamp records it, and a build for a
+different ABI is rebuilt. Before installing, the runner checks free space on
+`/data`. Emulators fill up as the Play Store updates their preinstalled Google
+apps, so when the APK would not fit it removes the previous Once Dev install,
+trims caches, and reverts those updates one at a time (keeping Google Play
+services, the Play Store, and WebView) until it does. Physical devices are only
+reported. If an emulator still lacks space, raise its internal storage in
+Device Manager and cold boot it with Wipe Data: the emulator only grows `/data`
+when it is wiped.
+
 For a repeatable manual visual pass, use:
 
 ```bash
