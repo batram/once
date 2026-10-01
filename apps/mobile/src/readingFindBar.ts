@@ -57,9 +57,27 @@ export class ReadingFindBar {
     return !this.bar.hidden
   }
 
+  /**
+   * The native page prefers the platform's own find panel, which also
+   * searches documents the shell cannot see into (PDFs). It is presented once
+   * the sheet that asked for it has gone, like the bar's focus below; the bar
+   * stays as the fallback where there is no such panel.
+   */
   open(): void {
     const state = this.session.snapshot()
     if (!state.currentUrl) return
+    if (state.mode === "reader") {
+      this.openBar()
+      return
+    }
+    window.setTimeout(() => {
+      if (this.session.snapshot().currentUrl !== state.currentUrl) return
+      void this.surface.presentFind()
+        .then((presented) => { if (!presented) this.openBar() }, () => this.openBar())
+    }, SHEET_DISMISS_MS)
+  }
+
+  private openBar(): void {
     this.bar.hidden = false
     this.focusInput()
     if (this.input.value) void this.find(true)

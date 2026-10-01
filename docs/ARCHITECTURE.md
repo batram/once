@@ -256,8 +256,10 @@ shape, so the play, step and rate controls do not know which engine speaks.
 Find in page has one command and two engines: on Electron `browser.find-in-page`
 takes Ctrl+F while the content pane holds the keyboard and `browser/FindBar.ts`
 drives Chromium's own find over tab IPC; on mobile the browser sheet's Find
-control drives Gecko's finder in browser mode and a small runtime inside the
-sandboxed reader frame in reader mode (`apps/mobile/src/readerFind.ts`).
+control drives Gecko's finder in browser mode on Android, presents the system
+find panel over the WKWebView on iOS 16 and later (it searches PDFs in the
+native viewer too, which have no DOM for a script to walk), and a small runtime
+inside the sandboxed reader frame in reader mode (`apps/mobile/src/readerFind.ts`).
 
 Electron also hosts Firefox-style WebExtensions through its own runtime in
 `apps/electron/src/extensions` rather than Chromium's extension subsystem; see

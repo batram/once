@@ -132,6 +132,12 @@ export interface InAppBrowserSurface {
   findInPage(query: string, options?: PageFindOptions): Promise<PageFindResult | null>
   /** Drops the find highlights and selection. */
   clearFind(): Promise<void>
+  /**
+   * Opens the platform's own find panel over the page, which can search
+   * documents the shell cannot reach, such as PDFs in the native viewer.
+   * False when the platform has none, so the caller shows its own bar.
+   */
+  presentFind(): Promise<boolean>
   applyExtensionSettings(
     filterLists: FilterListsDocument,
     userscripts: UserscriptsDocument
@@ -159,6 +165,7 @@ interface NativeInAppBrowserPlugin {
   evaluateJavaScript(options: { script: string }): Promise<{ value?: string }>
   findInPage(options: { query: string; forward: boolean }): Promise<PageFindResult>
   clearFind(): Promise<void>
+  presentFind(): Promise<{ presented?: boolean }>
   applyExtensionSettings(options: NativeExtensionSettings): Promise<void>
   extensionPage(options: ExtensionPageCommand): Promise<void>
   close(): Promise<void>
@@ -289,6 +296,14 @@ export function createNativeInAppBrowserSurface(): InAppBrowserSurface {
       }
     },
     clearFind: () => NativeInAppBrowser.clearFind(),
+    async presentFind() {
+      // Platforms without the method reject the call; that is a plain "no".
+      try {
+        return (await NativeInAppBrowser.presentFind()).presented === true
+      } catch {
+        return false
+      }
+    },
     applyExtensionSettings: (filterLists, userscripts) =>
       NativeInAppBrowser.applyExtensionSettings(
         nativeExtensionSettings(filterLists, userscripts)
@@ -352,6 +367,7 @@ export function createFallbackInAppBrowserSurface(
     evaluateJavaScript: async () => null,
     findInPage: async () => null,
     clearFind: async () => undefined,
+    presentFind: async () => false,
     applyExtensionSettings: async () => undefined,
     extensionPage: async () => undefined,
     close: async () => {

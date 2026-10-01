@@ -285,6 +285,14 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
         });
     }
 
+    /** GeckoView has no find panel of its own; the shell's bar searches. */
+    @PluginMethod
+    public void presentFind(PluginCall call) {
+        JSObject payload = new JSObject();
+        payload.put("presented", false);
+        call.resolve(payload);
+    }
+
     @PluginMethod
     public void close(PluginCall call) {
         getActivity().runOnUiThread(() -> {

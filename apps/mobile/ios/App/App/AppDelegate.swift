@@ -19,6 +19,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         CAPPluginMethod(name: "evaluateJavaScript", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "findInPage", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "clearFind", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "presentFind", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "applyExtensionSettings", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "close", returnType: CAPPluginReturnPromise)
     ]
@@ -385,6 +386,25 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         DispatchQueue.main.async {
             self.surface?.evaluateJavaScript("window.__onceFind && window.__onceFind.clear()") { _, _ in }
             call.resolve()
+        }
+    }
+
+    /// The system find panel (iOS 16 and later). WebKit searches the whole
+    /// document itself, including PDFs in its native viewer, which the
+    /// injected engine above cannot see because they have no DOM text.
+    @objc func presentFind(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard let surface = self.surface else {
+                call.reject("There is no open page")
+                return
+            }
+            if #available(iOS 16.0, *) {
+                surface.isFindInteractionEnabled = true
+                surface.findInteraction?.presentFindNavigator(showingReplace: false)
+                call.resolve(["presented": true])
+            } else {
+                call.resolve(["presented": false])
+            }
         }
     }
 
