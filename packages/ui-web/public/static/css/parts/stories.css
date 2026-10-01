@@ -59,8 +59,9 @@
   transform-origin: center;
 }
 
+/* Two full turns inside the mobile spin cap (RELOAD_SPIN_TIMEOUT_MS). */
 .ptr-indicator .ptr-icon.rotating {
-  animation-duration: 900ms;
+  animation-duration: 1s;
 }
 
 #selected_container {

@@ -3,7 +3,9 @@ import { STORY_RELOAD_STARTED, type StoryReloadTrigger } from "@once/ui-web"
 
 // The reload button and the pull-to-refresh strip stop spinning after this
 // many ms; the reload itself runs to completion and the pill reports on it.
-export const RELOAD_SPIN_TIMEOUT_MS = 1500
+// Matches one full turn of `.rotating` (2s, animations.css) and two of the
+// pull-to-refresh icon (1s, stories.css) so neither freezes mid-revolution.
+export const RELOAD_SPIN_TIMEOUT_MS = 2000
 // A button reload that outlives this many ms starts reporting through the
 // startup pill. A pull reports from the start: the finger asked for it.
 export const RELOAD_REVEAL_DELAY_MS = 3000
