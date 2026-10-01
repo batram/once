@@ -50,6 +50,7 @@ import {
 } from "./protocol"
 import { ExtensionShellHooks, PageProfile, TabSnapshot } from "./runtimeTypes"
 import { WebRequestListenerSpec } from "./webRequestDetails"
+import { frameIds, frameIdsOf } from "./frameIds"
 
 export interface ExtensionRuntimeOptions {
   browserSession: Session
@@ -57,34 +58,6 @@ export interface ExtensionRuntimeOptions {
   preloadPath: string
   contentPreloadPath: string
   hooks: ExtensionShellHooks
-}
-
-interface FrameIds {
-  frameId: number
-  parentFrameId: number
-}
-
-const MAIN_FRAME: FrameIds = { frameId: 0, parentFrameId: -1 }
-
-function frameIdsOf(frame: WebFrameMain | null | undefined): FrameIds {
-  try {
-    if (!frame || frame.parent === null) return MAIN_FRAME
-    return {
-      frameId: frame.frameTreeNodeId,
-      parentFrameId: frame.parent.parent === null ? 0 : frame.parent.frameTreeNodeId
-    }
-  } catch {
-    return MAIN_FRAME
-  }
-}
-
-function frameIds(isMainFrame: boolean, processId: number, routingId: number): FrameIds {
-  if (isMainFrame) return MAIN_FRAME
-  try {
-    return frameIdsOf(webFrameMain.fromId(processId, routingId))
-  } catch {
-    return MAIN_FRAME
-  }
 }
 
 /** What a frame of a tab may call: the page API when it is the extension's own page. */

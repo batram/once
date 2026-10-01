@@ -22,6 +22,7 @@ import { LocalEventBus } from "./EventBus"
 import { mergeStorySyncState } from "./storySyncPolicy"
 import { StoryWriteQueue } from "./StoryWriteQueue"
 import { StoryIngestionQueue } from "./StoryIngestionQueue"
+import { mergeIngestionTags } from "./storyIngestionTags"
 import { StoryWorkingSet } from "./StoryWorkingSet"
 import { AppSettings } from "./AppSettings"
 import { settingsClientMethods } from "./settingsClient"
@@ -489,30 +490,13 @@ export class AppRuntime {
       oldStory = this.workingSet.set(oldStory.href, oldStory, true)
     }
 
-    if (newStory.comment_url == oldStory.comment_url) {
-      const existingTags = new Set(oldStory.tags.map((tag) => tag.text))
-      const addedTags = newStory.tags.filter((tag) => {
-        if (existingTags.has(tag.text)) return false
-        existingTags.add(tag.text)
-        return true
-      })
-      if (addedTags.length) {
-        const previousTags = [...oldStory.tags]
-        const existingStory = oldStory
-        oldStory.tags.push(...addedTags)
-        const updatedTags = oldStory.tags
-        this.emitDataChange([oldStory.href, "tags"], oldStory.tags, previousTags, null)
-        try {
-          oldStory = await this.platform.storyStore.saveStory(oldStory)
-        } catch (error) {
-          if (existingStory.tags === updatedTags) {
-            existingStory.tags = previousTags
-            this.emitDataChange([existingStory.href, "tags"], previousTags, updatedTags, null)
-          }
-          throw error
-        }
-      }
-    }
+    oldStory = await mergeIngestionTags(
+      oldStory,
+      newStory,
+      (story) => this.platform.storyStore.saveStory(story),
+      (story, previousTags) =>
+        this.emitDataChange([story.href, "tags"], story.tags, previousTags, null)
+    )
 
     const oldCommentUrls = oldStory.substories.map((substory) => {
       return substory.comment_url
