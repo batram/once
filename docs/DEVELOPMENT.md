@@ -347,6 +347,24 @@ wireless discovery succeeds. Exported environment variables override the file.
 | `ONCE_ANDROID_INSTALL_MODE` | `push` | `streaming`, `fastdeploy` |
 | `ONCE_ANDROID_GRADLE_DAEMON` | `true` | `false` to use `--no-daemon` |
 | `ONCE_ANDROID_SERIAL` | wireless discovery | An explicit ADB serial, including a USB device |
+| `ONCE_ANDROID_ADB` | SDK `platform-tools/adb` | A custom executable for installation; absolute path or relative to the repository root |
+
+The ADB override applies to installation, including the push fallback. SDK ADB
+continues to manage discovery, connection, and device queries, so a minimal
+custom client can share the SDK server's wireless discovery support. Missing
+or directory-valued executable paths fail before building. Paths containing
+spaces are passed directly as executable paths without a shell.
+
+For a patched local build, set both values in `.env.android.local`:
+
+```dotenv
+ONCE_ANDROID_ADB=C:/path/to/patched/adb.exe
+ONCE_ANDROID_INSTALL_MODE=fastdeploy
+```
+
+Exported values override the file. Remove `ONCE_ANDROID_ADB` to use SDK ADB for
+installation again; use `ONCE_ANDROID_INSTALL_MODE=push` for the standard
+compressed-push mode.
 
 `npm run deploy:mobile:android -- --target <serial>` overrides the configured
 serial. Unsupported/incompatible ABIs and invalid settings fail before the

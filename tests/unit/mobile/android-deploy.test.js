@@ -40,10 +40,9 @@ test("failed patch installs retry a full install without uninstalling or clearin
 
 // Execute the actual CLI with a fake device/process boundary. In particular,
 // exercise .env loading even when mDNS succeeds, before the SDK is resolved.
-function deploy({ local = "", exported = {}, mdns = "phone _adb-tls-connect._tcp 192.0.2.1:1234", target = [] } = {}) {
+function deploy({ local = "", exported = {}, mdns = "phone _adb-tls-connect._tcp 192.0.2.1:1234", target = [], missing = "", directory = "", calls = [] } = {}) {
   const root = path.resolve(__dirname, "../../..")
   const filename = path.join(root, "apps/mobile/scripts/mobile-cli.js")
-  const calls = []
   const execute = (command, args, options) => {
     calls.push({ command, args, env: options.env })
     const stdout = args[0] === "mdns" ? mdns
@@ -61,8 +60,8 @@ function deploy({ local = "", exported = {}, mdns = "phone _adb-tls-connect._tcp
     },
     require(name) {
       if (name === "fs") return {
-        ...fs, existsSync: () => true, mkdirSync() {}, writeFileSync() {},
-        statSync: () => ({ size: 100 }),
+        ...fs, existsSync: file => file !== missing, mkdirSync() {}, writeFileSync() {},
+        statSync: file => ({ size: 100, isFile: () => file !== directory }),
         readFileSync: (file, encoding) => file.endsWith(".env.android.local") ? local : fs.readFileSync(file, encoding)
       }
       if (name === "child_process") return { spawnSync: execute }
@@ -112,4 +111,31 @@ test("exported wireless address beats discovery and explicit USB target bypasses
   const usb = deploy({ local: "ONCE_ANDROID_SERIAL=local-phone", target: ["--target", "usb-phone"] })
   assert.equal(usb.find(call => call.args.includes("install")).args[1], "usb-phone")
   assert.ok(!usb.some(call => ["connect", "mdns"].includes(call.args[0])))
+})
+
+test("custom install ADB supports spaces while SDK ADB manages device discovery", () => {
+  const custom = path.resolve("custom tools", "adb.exe")
+  const calls = deploy({ local: `ONCE_ANDROID_ADB="${custom}"\nONCE_ANDROID_INSTALL_MODE=fastdeploy` })
+  const install = calls.find(call => call.args.includes("install"))
+  assert.equal(install.command, custom)
+  assert.ok(install.args.includes("--fastdeploy"))
+  for (const call of calls.filter(call => call.args[0] === "mdns" || call.args[0] === "connect" || call.args.includes("getprop"))) {
+    assert.equal(call.command, path.join("C:/sdk", "platform-tools", process.platform === "win32" ? "adb.exe" : "adb"))
+  }
+})
+
+test("exported install ADB overrides the file and relative paths resolve from the repository", () => {
+  const calls = deploy({ local: "ONCE_ANDROID_ADB=ignored/adb", exported: { ONCE_ANDROID_ADB: "tools/custom-adb" } })
+  assert.equal(calls.find(call => call.args.includes("install")).command, path.resolve(__dirname, "../../../tools/custom-adb"))
+  const defaults = deploy()
+  assert.equal(defaults.find(call => call.args.includes("install")).command, defaults.find(call => call.args[0] === "mdns").command)
+})
+
+test("invalid custom install ADB paths fail before invoking any build or device commands", () => {
+  const custom = path.resolve("missing-adb")
+  for (const invalid of [{ missing: custom }, { directory: custom }]) {
+    const calls = []
+    assert.throws(() => deploy({ exported: { ONCE_ANDROID_ADB: custom }, calls, ...invalid }), /exit 1/)
+    assert.equal(calls.length, 0)
+  }
 })

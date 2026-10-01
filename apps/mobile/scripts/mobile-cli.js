@@ -120,13 +120,14 @@ function androidEnvironment(channel) {
   }
 }
 
-function adbCommand(env) {
-  const command = path.join(
+function adbCommand(env, overridePath) {
+  const command = overridePath ? path.resolve(root, overridePath) : path.join(
     env.ANDROID_HOME,
     "platform-tools",
     process.platform === "win32" ? "adb.exe" : "adb"
   )
   if (!fs.existsSync(command)) fail(`adb not found at ${command}`)
+  if (!fs.statSync(command).isFile()) fail(`adb path is not a file: ${command}`)
   return command
 }
 
@@ -393,6 +394,10 @@ else if (command === "run") {
   try { settings = deploymentSettings(process.env) } catch (error) { fail(error.message) }
   const android = androidEnvironment(channel)
   const adb = adbCommand(android.env)
+  // SDK ADB owns discovery/connection; a custom install client can share that
+  // server without needing its own mDNS implementation.
+  const installAdb = adbCommand(android.env, android.env.ONCE_ANDROID_ADB)
+  console.log(`mobile: install ADB ${installAdb}`)
   const explicitTarget = options.target || android.env.ONCE_ANDROID_SERIAL
   const address = explicitTarget || resolveWirelessAddress(adb, android.env, exportedAddress)
   if (!explicitTarget || wirelessAddressPattern.test(address)) {
@@ -436,7 +441,7 @@ else if (command === "run") {
   )
   if (!fs.existsSync(apk)) fail(`built APK not found at ${apk}`)
   console.log(`mobile: APK ${(fs.statSync(apk).size / 1024 / 1024).toFixed(1)} MiB`)
-  try { installApk(adb, address, apk, settings.installMode, android.env) } catch (error) { fail(error.message) }
+  try { installApk(installAdb, address, apk, settings.installMode, android.env) } catch (error) { fail(error.message) }
   console.log(`mobile: deployment completed in ${((performance.now() - started) / 1000).toFixed(1)}s`)
 } else if (command === "package") {
   // E2E runners pass the target device's ABI; GeckoView's native libraries
