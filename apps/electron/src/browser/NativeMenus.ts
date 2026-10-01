@@ -9,6 +9,7 @@ import {
 import { ElectronPoint } from "@once/platform-electron/bridge"
 import { ElectronStoryMenuItem } from "@once/platform-electron/bridge"
 import { WindowEntry } from "./BrowserState"
+import { PageActions } from "./PageActions"
 
 interface NativeMenuActions {
   close(owner: WindowEntry, id: string): void
@@ -20,7 +21,12 @@ interface NativeMenuActions {
   toggleMuted(owner: WindowEntry, id: string): void
 }
 
+const isWebUrl = (url: unknown): url is string => typeof url === "string" && (url.startsWith("http://") || url.startsWith("https://"))
+
 export class NativeMenus {
+  /** The add-on actions each window's renderer offers for pages; the page menu lists them. */
+  readonly pageActions = new PageActions()
+
   constructor(private readonly actions: NativeMenuActions) {}
 
   showTabMenu(
@@ -126,6 +132,25 @@ export class NativeMenus {
         { label: "Open in Default Browser", click: () => void shell.openExternal(link) },
         { label: "Copy Link Address", click: () => clipboard.writeText(link) }
       )
+    }
+
+    // Add-on trays for the page itself, and for a link under the cursor. The
+    // shell's own window is no page, and neither is a blank or internal tab.
+    const page = contents !== owner.window.webContents && isWebUrl(params.pageURL) ? params.pageURL : null
+    const pageActions = page ? this.pageActions.for(owner) : []
+    if (pageActions.length) template.push({ type: "separator" })
+    for (const action of pageActions) {
+      const href = page as string
+      template.push({
+        label: action.label,
+        click: () => this.pageActions.run(owner, action.id, { href, title: contents.isDestroyed() ? "" : contents.getTitle() })
+      })
+      if (link && isWebUrl(link)) {
+        template.push({
+          label: `${action.label} for Link`,
+          click: () => this.pageActions.run(owner, action.id, { href: link, title: params.linkText })
+        })
+      }
     }
 
     Menu.buildFromTemplate(template).popup({ window: owner.window })

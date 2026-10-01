@@ -62,6 +62,10 @@ function conversationPage(event: IpcMainInvokeEvent | IpcMainEvent): WebContents
 
 function registerAddonConversationHandlers(options: IpcHandlerOptions): void {
   const { coordinator, conversations } = options
+  ipcMain.handle(ELECTRON_IPC.addonsPageActionsSet, (event, items: unknown) => {
+    const current = browser(event, coordinator)
+    coordinator.menus.pageActions.set(current.window, items)
+  })
   ipcMain.handle(ELECTRON_IPC.addonsConversationOpen, (event, url: string) => {
     const current = browser(event, coordinator)
     return conversations.open(current.window.window.webContents, String(url))

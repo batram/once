@@ -77,3 +77,36 @@ test("Android browser menu occupies the address action position and routes exten
   assert.equal(findRequests, 1)
   assert.equal(commands.length, before + 1, "listing the extensions is the only command")
 })
+
+test("the browser sheet offers add-on page actions for the page being read and runs the chosen one", async () => {
+  const { document, window } = parseHTML('<html><body><form><button id="reading_navigate">Go</button></form><p id="reading_url_validation" hidden></p></body></html>')
+  const compiled = ts.transpileModule(fs.readFileSync(path.resolve(__dirname,
+    "../../../apps/mobile/src/browserExtensionToolbar.ts"), "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
+  }).outputText
+  const exports = {}
+  Function("exports", "document", "Event", compiled)(exports, document, window.Event)
+  let menu
+  let selection = null
+  const ran = []
+  let actions = [{ id: "addon:what-wait-who-why/explain", label: "What? Wait, who, why?" }]
+  exports.bindMobileExtensionToolbar(
+    { command: async () => ({ extensions: [] }) },
+    { showMenu: async options => { menu = options; return selection } },
+    { list: () => actions, run: id => ran.push(id) }
+  )
+  const button = document.querySelector("#reading_browser_menu")
+  await button.onclick()
+  assert.deepEqual(menu.items.map(item => [item.id, item.label]), [
+    ["once:manage", "Manage extensions"],
+    ["once:page-action:addon:what-wait-who-why/explain", "What? Wait, who, why?"]
+  ])
+  selection = "once:page-action:addon:what-wait-who-why/explain"
+  await button.onclick()
+  assert.deepEqual(ran, ["addon:what-wait-who-why/explain"])
+  // No page open, or no tray add-on: the sheet is the extensions' alone.
+  actions = []
+  selection = null
+  await button.onclick()
+  assert.deepEqual(menu.items.map(item => item.id), ["once:manage"])
+})

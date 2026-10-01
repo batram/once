@@ -1,6 +1,8 @@
 import type { InAppBrowserSurface, MobileBrowserExtensions } from "@once/platform-mobile"
+import type { ReadingPageActions } from "./readingPageActions"
 
 const SETTINGS_PREFIX = "once:settings:"
+const PAGE_ACTION_PREFIX = "once:page-action:"
 
 function openExtensionManager(): void {
   document.querySelector<HTMLButtonElement>("#settings_menu_btn")?.click()
@@ -21,8 +23,15 @@ function setStatus(message: string): void {
   status.hidden = message === ""
 }
 
-/** Browser controls use a native sheet so they remain above GeckoView. */
-export function bindMobileExtensionToolbar(api: MobileBrowserExtensions, surface: InAppBrowserSurface): void {
+/**
+ * Browser controls use a native sheet so they remain above GeckoView. The
+ * sheet is also where add-on trays are offered for the page being read.
+ */
+export function bindMobileExtensionToolbar(
+  api: MobileBrowserExtensions,
+  surface: InAppBrowserSurface,
+  pageActions: ReadingPageActions = { list: () => [], run() {} }
+): void {
   const navigate = document.querySelector<HTMLButtonElement>("#reading_navigate")
   if (!navigate) return
   const button = document.createElement("button")
@@ -48,9 +57,15 @@ export function bindMobileExtensionToolbar(api: MobileBrowserExtensions, surface
           settingsId: item.hasOptions && item.hasAction ? SETTINGS_PREFIX + item.id : undefined
         }))
       items.push({ id: "once:manage", label: "Manage extensions", enabled: true, iconDataUrl: undefined, settingsId: undefined })
+      // Add-on trays for the open page, listed or not; they open above the page.
+      for (const action of pageActions.list()) {
+        items.push({ id: PAGE_ACTION_PREFIX + action.id, label: action.label, enabled: true, iconDataUrl: undefined, settingsId: undefined })
+      }
       const selected = await surface.showMenu({ items, browserControls: true, dark: shellIsDark() })
       if (selected === "once:manage") {
         openExtensionManager()
+      } else if (selected?.startsWith(PAGE_ACTION_PREFIX)) {
+        pageActions.run(selected.slice(PAGE_ACTION_PREFIX.length))
       } else if (selected === "once:find") {
         // The sheet's own Find control; readingFindBar.ts owns the bar.
         document.dispatchEvent(new Event("once-find-in-page-request"))

@@ -24,6 +24,7 @@ import { mobileAddonConversations } from "./addonConversations"
 import { installReaderTtsHostBridge } from "./readerTtsHostBridge"
 import { installReaderTtsControls } from "./readerTtsControls"
 import { MobileReadingController } from "./readingController"
+import { readingPageActions } from "./readingPageActions"
 import { bindReloadStatus, RELOAD_SPIN_TIMEOUT_MS } from "./reloadStatus"
 import {
   loadMobilePickerInjection,
@@ -208,7 +209,7 @@ async function startMobileApp(): Promise<void> {
   const browserExtensions = createMobileBrowserExtensions()
   if (browserExtensions) {
     bindMobileBrowserExtensionSettings(browserExtensions)
-    bindMobileExtensionToolbar(browserExtensions, browserSurface)
+    bindMobileExtensionToolbar(browserExtensions, browserSurface, readingPageActions(() => reading.session.snapshot().currentUrl))
   }
   // Touch has no keyboard shortcut, no mouse back button and no room left on
   // the back gesture, so undo needs a control of its own. Mounted here rather

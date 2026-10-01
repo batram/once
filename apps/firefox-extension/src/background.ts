@@ -2,6 +2,7 @@ import browser from "webextension-polyfill"
 import { installReaderBackground } from "@once/webext-shell/dist/readerBackground"
 import { installPickerBackground } from "@once/webext-shell/dist/pickerBackground"
 import { installStoryMenuBackground } from "@once/webext-shell/dist/storyMenuBackground"
+import { installPageActionMenuBackground } from "@once/webext-shell/dist/pageActionMenuBackground"
 import { installKeyCommandBackground } from "@once/webext-shell/dist/keyCommandBackground"
 
 // Firefox uses a non-persistent event page: every listener
@@ -15,4 +16,5 @@ browser.browserAction.onClicked.addListener(() => {
 installReaderBackground(browser)
 installPickerBackground(browser)
 installStoryMenuBackground(browser)
+installPageActionMenuBackground(browser)
 installKeyCommandBackground(browser)

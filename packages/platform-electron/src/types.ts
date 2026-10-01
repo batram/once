@@ -18,6 +18,19 @@ export interface ElectronStoryMenuItem {
   visible: boolean
 }
 
+/** An add-on action a page's context menu offers, as the renderer lists them. */
+export interface ElectronPageAction {
+  id: string
+  label: string
+  icon?: string
+}
+
+/** The page (or link) a page action was chosen for. */
+export interface ElectronPageActionTarget {
+  href: string
+  title: string
+}
+
 /** Shell colours for the tab hover card, which has no stylesheet of its own. */
 export interface ElectronTabHoverTheme {
   background: string
@@ -296,6 +309,12 @@ export interface ElectronBridge {
     devEntries(): Promise<ElectronDevAddon[]>
     /** Fires when a file in one of those directories changes. */
     onDevChanged(handler: () => void): () => void
+    pageActions: {
+      /** The actions a page's context menu offers; main keeps them per window. */
+      set(items: ElectronPageAction[]): Promise<void>
+      /** One was chosen in a page's menu, for the page or a link in it. */
+      onRun(handler: (id: string, page: ElectronPageActionTarget) => void): () => void
+    }
     conversations: {
       /** Opens a tab on a conversation page URL. */
       open(url: string): Promise<void>
@@ -403,6 +422,10 @@ export const ELECTRON_IPC = {
   addonsDevChanged: "once:addons:dev-changed",
   addonsPickDirectory: "once:addons:pick-directory",
   addonsRemoveDirectory: "once:addons:remove-directory",
+  // Add-on actions for pages: the renderer lists them, main offers them in a
+  // page's context menu and reports the one chosen.
+  addonsPageActionsSet: "once:addons:page-actions-set",
+  addonsPageActionRun: "once:addons:page-action-run",
   // A tray's conversation continued in a browser tab. The page's URL names the
   // conversation; a tab showing it attaches to the shell that owns the addon,
   // which feeds it snapshots and takes the reader's input back.

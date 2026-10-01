@@ -12,6 +12,7 @@ import browserShellMarkup from "./browser/browser-shell.html"
 import { AddressBar } from "./browser/AddressBar"
 import { FindBar } from "./browser/FindBar"
 import { bindBlockedPopups } from "./browser/BlockedPopups"
+import { PageAddonActions } from "./browser/PageAddonActions"
 import { TabHoverPreview } from "./browser/TabHoverPreview"
 import {
   displayBrowserUrl,
@@ -47,6 +48,7 @@ export class BrowserShell {
   private renderedAddressUrl = ""
   private readonly readerRequests: ReaderRequests
   private readonly hoverPreview: TabHoverPreview
+  private readonly pageAddonActions: PageAddonActions
 
   constructor(
     private readonly bridge: ElectronBridge,
@@ -95,6 +97,7 @@ export class BrowserShell {
     this.reloadButton = required<HTMLButtonElement>("#browser_reload")
     this.readerButton = required<HTMLButtonElement>("#browser_reader")
     this.closeButton = required<HTMLButtonElement>("#browser_close")
+    this.pageAddonActions = new PageAddonActions(this.bridge, required<HTMLElement>("#page_addon_actions"))
 
     this.bindStoryPosition()
 
@@ -470,6 +473,7 @@ export class BrowserShell {
 
   private renderControls(): void {
     const active = this.activeTab()
+    this.pageAddonActions.setTab(active)
     if (active) {
       const addressUrl = displayBrowserUrl(active.url)
       const navigationChanged =

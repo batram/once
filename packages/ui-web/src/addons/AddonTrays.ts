@@ -6,10 +6,14 @@ import type { StoryListItem } from "../story/StoryListItem"
 import { registerStoryElement, STORY_TRAYS_CHANGED } from "../story/storyElements"
 import { getOnceClient } from "../client"
 import { AddonSandbox } from "./AddonSandbox"
+import { AddonPage, pageStoryView, registerPageTray } from "./pageAddons"
 import { TrayDisclosures, renderTrayMessages, renderTrayStatus, trayButton, trayIcon } from "./trayMessages"
 
-/** Where a row lives: the list, or the mirror of the open story in #selected_container. */
-type TrayPlace = "list" | "selected"
+/**
+ * Where a tray shows: on a row in the list, on the mirror of the open story
+ * in #selected_container, or beside a page that has no row at all.
+ */
+type TrayPlace = "list" | "selected" | "page"
 
 interface TrayState {
   /** The conversation is one per story; which places show it is the reader's choice per place. */
@@ -59,10 +63,9 @@ export class AddonTrays {
     private readonly surface?: AddonConversationSurface
   ) {
     for (const tray of manifest.trays ?? []) {
-      this.releases.push(registerStoryElement({
-        id: addonContributionId(manifest.id, `tray-${tray.id}`), slot: "tray",
-        render: row => this.render(row, tray.id)
-      }))
+      const id = addonContributionId(manifest.id, `tray-${tray.id}`)
+      this.releases.push(registerStoryElement({ id, slot: "tray", render: row => this.render(row, tray.id) }))
+      this.releases.push(registerPageTray(id, href => this.renderPage(href, tray.id)))
     }
   }
 
@@ -72,11 +75,41 @@ export class AddonTrays {
 
   /** Opens or closes the tray where this row is; the same story elsewhere keeps its own state. */
   toggle(row: StoryListItem, tray: string): void {
-    const state = this.state(row, tray)
-    const place = this.place(row)
+    this.togglePlace(this.state(row, tray), row.story.href, tray, this.place(row))
+  }
+
+  /**
+   * Opens or closes the tray beside a page: a listed story's own row when the
+   * page is one, else a tray of the page's own, drawn wherever the shell
+   * renders page trays.
+   */
+  togglePage(page: AddonPage, tray: string): void {
+    const row = this.rowOf(page.href)
+    if (row) this.toggle(row, tray)
+    else this.togglePlace(this.pageState(page, tray), page.href, tray, "page")
+  }
+
+  /**
+   * Continues a page's conversation on the platform's larger surface,
+   * starting it when it is new. False when this platform has no such surface.
+   */
+  continuePage(page: AddonPage, tray: string): boolean {
+    if (!this.surface) return false
+    const state = this.pageState(page, tray)
+    if (this.fresh(state)) void this.run(page.href, tray, { type: "open" })
+    this.surface.open(this.handleOf(page.href, tray))
+    return true
+  }
+
+  private togglePlace(state: TrayState, href: string, tray: string, place: TrayPlace): void {
     if (!state.open.delete(place)) state.open.add(place)
-    this.refresh(row.story.href, tray)
-    if (state.open.has(place) && !state.view.messages.length && !state.error && !state.controller) void this.run(row.story.href, tray, { type: "open" })
+    this.refresh(href, tray)
+    if (state.open.has(place) && this.fresh(state)) void this.run(href, tray, { type: "open" })
+  }
+
+  /** A conversation nothing has happened in yet, so opening it asks the addon to begin. */
+  private fresh(state: TrayState): boolean {
+    return !state.view.messages.length && !state.error && !state.controller
   }
 
   /**
@@ -86,8 +119,12 @@ export class AddonTrays {
   handleFor(tray: string, href: string): AddonConversationHandle | null {
     if (!this.manifest.trays?.some(item => item.id === tray)) return null
     if (this.states.has(this.key(href, tray))) return this.handleOf(href, tray)
-    const row = Array.from(document.querySelectorAll<StoryListItem>("story-item")).find(item => item.story.href === href)
+    const row = this.rowOf(href)
     return row ? this.handle(row, tray) : null
+  }
+
+  private rowOf(href: string): StoryListItem | undefined {
+    return Array.from(document.querySelectorAll<StoryListItem>("story-item")).find(item => item.story.href === href)
   }
 
   /** The conversation of a row's tray for another surface; the tray keeps owning it. */
@@ -133,15 +170,26 @@ export class AddonTrays {
   private place(row: StoryListItem): TrayPlace { return row.closest("#selected_container") ? "selected" : "list" }
 
   private state(row: StoryListItem, tray: string): TrayState {
-    const key = this.key(row.story.href, tray)
-    let state = this.states.get(key)
-    if (!state) {
-      state = {
-        open: new Set(), story: projectStoryView(row.story, row.dataset.redirected_url || row.story.href), title: row.story.title,
-        draft: "", view: { messages: [] }, error: "", last: { type: "open" }, disclosed: new Map(), listeners: new Set()
-      }
-      this.states.set(key, state)
+    return this.states.get(this.key(row.story.href, tray))
+      ?? this.newState(row.story.href, tray, projectStoryView(row.story, row.dataset.redirected_url || row.story.href), row.story.title)
+  }
+
+  /** A page's conversation: the story's own when the page is a listed story, else one about the page itself. */
+  private pageState(page: AddonPage, tray: string): TrayState {
+    const existing = this.states.get(this.key(page.href, tray))
+    if (existing) return existing
+    const row = this.rowOf(page.href)
+    if (row) return this.state(row, tray)
+    const story = pageStoryView(page)
+    return this.newState(page.href, tray, story, story.title)
+  }
+
+  private newState(href: string, tray: string, story: StoryView, title: string): TrayState {
+    const state: TrayState = {
+      open: new Set(), story, title,
+      draft: "", view: { messages: [] }, error: "", last: { type: "open" }, disclosed: new Map(), listeners: new Set()
     }
+    this.states.set(this.key(href, tray), state)
     return state
   }
 
@@ -252,9 +300,15 @@ export class AddonTrays {
   }
 
   private render(row: StoryListItem, tray: string): HTMLElement | null {
-    const href = row.story.href
+    return this.renderPlace(row.story.href, tray, this.place(row))
+  }
+
+  private renderPage(href: string, tray: string): HTMLElement | null {
+    return this.renderPlace(href, tray, "page")
+  }
+
+  private renderPlace(href: string, tray: string, place: TrayPlace): HTMLElement | null {
     const state = this.states.get(this.key(href, tray))
-    const place = this.place(row)
     if (!state?.open.has(place)) return null
     const root = document.createElement("section")
     root.className = "addon_tray"
@@ -268,9 +322,11 @@ export class AddonTrays {
     const header = document.createElement("div")
     header.className = "addon_tray_actions addon_tray_header"
     header.append(heading)
-    if (this.surface) {
+    // A page's own tray is drawn by the platform's reading surface already,
+    // so there is nowhere larger to continue it.
+    if (this.surface && place !== "page") {
       const surface = this.surface
-      const open = trayButton(surface.label, () => surface.open(this.handle(row, tray)))
+      const open = trayButton(surface.label, () => surface.open(this.handleOf(href, tray)))
       open.dataset.testid = "addon-tray-continue"
       open.prepend(trayIcon("popout", "icon--inline"))
       header.append(open)

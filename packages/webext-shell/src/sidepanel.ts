@@ -14,6 +14,7 @@ import {
 import { createWebExtPlatform } from "@once/platform-webext"
 import { webextAddonConversations } from "./addonConversations"
 import { isStoryMenuActionForContext } from "./storyMenuBackground"
+import { bindPageActionsPanel } from "./pageActionsPanel"
 import {
   TOGGLE_COMMENTS_COMMAND,
   isKeyCommandMessage
@@ -119,6 +120,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     const id = RELAYED_COMMANDS[message.command]
     if (id) getKeyboardDispatcher().run(id)
   })
+
+  bindPageActionsPanel(browser, storyMenuContextId)
 
   let lastStory: StoryListItem | undefined
   let lastContextAt = 0

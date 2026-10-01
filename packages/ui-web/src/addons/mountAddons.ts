@@ -30,6 +30,7 @@ import { LoaderInsights } from "../shell/LoaderInsights"
 import { addCollectorColorStyles } from "../collectorStyles"
 import { AddonSandbox } from "./AddonSandbox"
 import { AddonConversationSurface, AddonTrays } from "./AddonTrays"
+import { pageStoryView, registerPageAction } from "./pageAddons"
 import { addonStoryContent } from "./addonStoryContent"
 import { registerAddonCollector } from "./addonCollectors"
 import { BadgeScheduler } from "./badgeScheduler"
@@ -207,7 +208,7 @@ async function registerManifest(
     const id = addonContributionId(manifest.id, contribution.id)
     if (contribution.kind === "action") {
       const applies = (row: StoryListItem) => storyMatchesCondition(contribution.when, viewOf(row))
-      const run = (row: StoryListItem) => "tray" in contribution.run ? storyTrays.toggle(row, contribution.run.tray) : runAction(manifest, contribution.run, row, sandbox)
+      const run = (row: StoryListItem) => "tray" in contribution.run ? storyTrays.toggle(row, contribution.run.tray) : runAction(manifest, contribution.run, viewOf(row), sandbox, row)
       if (("message" in contribution.run || "tray" in contribution.run) && !sandbox) continue
       releases.push(registerStoryAction({
         id,
@@ -217,6 +218,22 @@ async function registerManifest(
         appliesTo: applies,
         run
       }))
+      if (!("tag" in contribution.run) && !("setReadState" in contribution.run)) {
+        // Only a stored story can be tagged or marked; everything else an action
+        // does works as well on a page the reader has open as on a story.
+        const pageRun = contribution.run
+        const surfaces = contribution.surfaces.filter((surface): surface is "button" | "menu" => surface === "button" || surface === "menu")
+        releases.push(registerPageAction({
+          id, label: contribution.label, icon: contribution.icon, surfaces,
+          appliesTo: page => storyMatchesCondition(contribution.when, pageStoryView(page)),
+          run: (page, how) => {
+            if (!("tray" in pageRun)) { runAction(manifest, pageRun, pageStoryView(page), sandbox); return true }
+            if (how === "continue") return storyTrays.continuePage(page, pageRun.tray)
+            storyTrays.togglePage(page, pageRun.tray)
+            return true
+          }
+        }))
+      }
       if (contribution.surfaces.includes("button")) {
         releases.push(registerStoryButton(id, contribution.label))
         releases.push(registerStoryElement({
@@ -389,27 +406,27 @@ function textElement(id: string, contribution: Extract<StoryContribution, { kind
   }
 }
 
-function runAction(manifest: AddonManifest, run: AddonRun, row: StoryListItem, sandbox: AddonSandbox | null): void {
-  const view = viewOf(row)
+/** Runs a declarative or message action on what the add-on sees; `row` is the story's row when there is one. */
+function runAction(manifest: AddonManifest, run: AddonRun, view: StoryView, sandbox: AddonSandbox | null, row?: StoryListItem): void {
   try {
     if ("message" in run) {
       if (!sandbox) return
-      row.read_btn.classList.add("user_interaction")
+      row?.read_btn.classList.add("user_interaction")
       void sandbox.ensure()
         .then((session) => session.invoke(run.message, view))
         .catch((error) => report(`Add-on ${manifest.name} could not run ${run.message}`, error))
     } else if ("open" in run) {
       const target = run.target === "blank" ? "blank" : run.target === "middle" ? "middle" : "_self"
-      row.read_btn.classList.add("user_interaction")
+      row?.read_btn.classList.add("user_interaction")
       getOnceClient().openUrl(renderAddonTemplate(run.open, view, "url"), target)
     } else if ("copy" in run) {
       void navigator.clipboard.writeText(renderAddonTemplate(run.copy, view, "text"))
     } else if ("search" in run) {
       searchStories(renderAddonTemplate(run.search, view, "text"))
     } else if ("tag" in run) {
-      addTag(row, run.tag)
+      if (row) addTag(row, run.tag)
     } else if ("setReadState" in run) {
-      setReadState(row, run.setReadState)
+      if (row) setReadState(row, run.setReadState)
     }
   } catch (error) {
     report(`Add-on ${manifest.name} could not run its action`, error)

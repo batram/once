@@ -358,6 +358,16 @@ body #titlebar-text {
   display: none;
 }
 
+#page_addon_actions {
+  display: flex;
+  align-items: center;
+  gap: var(--toolbar-control-gap);
+}
+
+#page_addon_actions:empty {
+  display: none;
+}
+
 .extension-action {
   position: relative;
   font-size: var(--fs-small);

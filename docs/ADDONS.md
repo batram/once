@@ -316,6 +316,18 @@ Declare up to four `trays: [{ id, title }]`, and give an ordinary story action
 `run: { "tray": "the-tray-id" }`. The usual button/menu/key/swipe surfaces apply.
 Once renders a full-width region below the story and owns all DOM and controls.
 
+### Actions on pages
+
+Every action except `tag` and `setReadState` is also offered for pages that are
+no listed story, on the surfaces it declares: `button` puts it beside Electron's
+reader button; `menu` puts it in every page's context menu on Electron (for the
+page, and for a link under the cursor), in the browser extensions' page and link
+context menu, and in the mobile browser sheet. The action then runs on a story
+whose `href` is the page, `type` is `"page"`, and `title` is the page title when
+the shell knows it, else the URL; `when: { "type": [...] }` without `"page"` keeps
+an action to real stories. A tray opens its conversation in a new tab on Electron
+and in the extensions, and above the page on mobile.
+
 ```js
 once.onTray(async (tray, event, story, context) => {
   if (event.type === "clear") return { messages: [], composer: "Ask a question" }

@@ -7,6 +7,7 @@ import {
   ElectronFetchRequest,
   ElectronFindResult,
   ElectronFocusSurface,
+  ElectronPageActionTarget,
   ElectronPoint,
   ElectronRect,
   ElectronRedirectRule,
@@ -190,6 +191,14 @@ const bridge: ElectronBridge = {
       const listener = () => handler()
       ipcRenderer.on(ELECTRON_IPC.addonsDevChanged, listener)
       return () => ipcRenderer.removeListener(ELECTRON_IPC.addonsDevChanged, listener)
+    },
+    pageActions: {
+      set: items => ipcRenderer.invoke(ELECTRON_IPC.addonsPageActionsSet, items),
+      onRun(handler) {
+        const listener = (_event: Electron.IpcRendererEvent, id: string, page: ElectronPageActionTarget) => handler(id, page)
+        ipcRenderer.on(ELECTRON_IPC.addonsPageActionRun, listener)
+        return () => ipcRenderer.removeListener(ELECTRON_IPC.addonsPageActionRun, listener)
+      }
     },
     conversations: {
       open: url => ipcRenderer.invoke(ELECTRON_IPC.addonsConversationOpen, url),
