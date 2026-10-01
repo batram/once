@@ -128,13 +128,24 @@ test("automatic and synthetic popups are blocked; the toolbar can open or dismis
   }
 })
 
+// The platform's "open link in new tab" click: Cmd on macOS, where Ctrl+click
+// is the secondary click and opens the context menu instead.
+const newTabModifier = process.platform === "darwin"
+  ? { label: "cmd", key: "meta" }
+  : { label: "ctrl", key: "control" }
+
 // A middle click is the user asking for a tab, not a popup the page opened by
 // itself: the blocker must let it through, background by default and in the
 // foreground with Shift. Regression guard for the popup blocker swallowing it.
 for (const { name, button, modifiers, expectActive } of [
   { name: "middle click opens a background tab", button: "middle", modifiers: [], expectActive: false },
   { name: "shift middle click opens a foreground tab", button: "middle", modifiers: ["shift"], expectActive: true },
-  { name: "ctrl click opens a background tab", button: "left", modifiers: ["control"], expectActive: false }
+  {
+    name: `${newTabModifier.label} click opens a background tab`,
+    button: "left",
+    modifiers: [newTabModifier.key],
+    expectActive: false
+  }
 ]) {
   test(name, async () => {
     const server = await startPageServer()
