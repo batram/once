@@ -82,17 +82,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   const platform = createWebExtPlatform(browser)
   const query = new URLSearchParams(window.location.search)
   const testMode = query.has("once-e2e")
-  if (testMode) {
-    const state = await browser.storage.local.get("onceE2ESeeded")
-    if (!state.onceE2ESeeded) {
-      await platform.listStore.set("sources", {
-        version: 2,
-        groups: [],
-        sources: []
-      })
-      await browser.storage.local.set({ onceE2ESeeded: true })
-    }
-  }
   const app = createOnceApp(platform)
   const client = app.client
 

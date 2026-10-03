@@ -17,7 +17,10 @@ function loadReaderView() {
   return { ReaderView, Story }
 }
 
-const ARTICLE = "<p>The stored article, with a <a href=\"/more\">relative link</a>" +
+const ARTICLE = '<meta http-equiv="refresh" content="0;url=../sidepanel.html?once-e2e">' +
+  '<link rel="stylesheet" href="https://attacker.example/reader.css">' +
+  '<math><mi xlink:href="javascript:readerXss()">x</mi></math>' +
+  "<p>The stored article, with a <a href=\"/more\">relative link</a>" +
   " and a <script>alert(1)</script> that must not survive.</p>"
 
 test("a story with stored content opens in the reader without a request", async () => {
@@ -46,6 +49,7 @@ test("a story with stored content opens in the reader without a request", async 
   assert.match(opened[0].html, /class="byline">Ada</)
   assert.match(opened[0].html, /href="https:\/\/example.com\/more"/, "links resolve against the story")
   assert.doesNotMatch(opened[0].html, /alert\(1\)/, "stored html is sanitized on the way out")
+  assert.doesNotMatch(opened[0].html, /http-equiv|attacker\.example|xlink:href|readerXss/, "article markup cannot redirect, style, or reparse the reader")
   assert.match(
     opened[0].html,
     /<script data-once-reader-runtime><\/script>/,

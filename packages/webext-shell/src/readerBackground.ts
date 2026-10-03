@@ -1,3 +1,5 @@
+import { isExtensionPageSender, isTabContentSender } from "./messageSender"
+
 const STORED_READER_PREFIX = "onceStoredReader:"
 
 interface StoredReaderDocument {
@@ -20,6 +22,7 @@ export function installReaderBackground(
     token?: string
   }, sender: browser.runtime.MessageSender) => {
     if (message?.onceCommand === "claimReaderTts") {
+      if (!isTabContentSender(sender) && !isExtensionPageSender(browserApi, sender, "reader")) return undefined
       const tabId = sender.tab?.id
       if (tabId == null) return undefined
       const previous = activeReaderTabId
@@ -32,15 +35,18 @@ export function installReaderBackground(
       return Promise.resolve()
     }
     if (message?.onceCommand === "releaseReaderTts") {
+      if (!isTabContentSender(sender) && !isExtensionPageSender(browserApi, sender, "reader")) return undefined
       if (sender.tab?.id === activeReaderTabId) activeReaderTabId = null
       return Promise.resolve()
     }
     if (message?.onceCommand === "getReaderTtsRate") {
+      if (!isTabContentSender(sender) && !isExtensionPageSender(browserApi, sender, "reader")) return undefined
       return browserApi.storage.local.get("onceReaderTtsRate").then((stored) => ({
         rate: stored.onceReaderTtsRate
       }))
     }
     if (message?.onceCommand === "setReaderTtsRate") {
+      if (!isTabContentSender(sender) && !isExtensionPageSender(browserApi, sender, "reader")) return undefined
       const rate = Number(message.rate)
       if (!Number.isFinite(rate) || rate < 0.5 || rate > 6) {
         throw new Error("Invalid reader TTS speed")
@@ -48,6 +54,7 @@ export function installReaderBackground(
       return browserApi.storage.local.set({ onceReaderTtsRate: rate })
     }
     if (message?.onceCommand === "openStoredReader") {
+      if (!isExtensionPageSender(browserApi, sender, "sidepanel")) return undefined
       if (typeof message.html !== "string" || !message.html) {
         throw new Error("A stored reader document is required")
       }
@@ -58,10 +65,12 @@ export function installReaderBackground(
       )
     }
     if (message?.onceCommand === "getStoredReader") {
+      if (!isExtensionPageSender(browserApi, sender, "reader")) return undefined
       if (typeof message.token !== "string") return undefined
       return takeStoredReader(browserApi, message.token)
     }
     if (message?.onceCommand !== "openReader" || !message.url) return undefined
+    if (!isExtensionPageSender(browserApi, sender, "sidepanel")) return undefined
     return openReaderTab(browserApi, message.url, message.active !== false, message.theme || "system")
   }
   const removedListener = (tabId: number) => {

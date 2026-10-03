@@ -1,3 +1,5 @@
+import { isExtensionPageSender } from "./messageSender"
+
 export interface NativeStoryMenuState {
   contextId: string
   items: {
@@ -93,7 +95,8 @@ export function installStoryMenuBackground(browserApi: typeof browser): void {
     onceCommand?: string
     contextId?: string
     items?: NativeStoryMenuState["items"]
-  }) => {
+  }, sender) => {
+    if (!isExtensionPageSender(browserApi, sender, "sidepanel")) return
     if (
       message.onceCommand !== "story-menu-context" ||
       !message.contextId ||

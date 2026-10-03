@@ -61,9 +61,16 @@ test("installs with Firefox's menus namespace when contextMenus is absent", asyn
 
   received({
     onceCommand: "story-menu-context",
+    contextId: "forged",
+    items: []
+  }, { tab: { id: 1 }, url: "https://example.test/" })
+  clicked({ menuItemId: "once_story_undo" })
+  assert.equal(sent, undefined)
+  received({
+    onceCommand: "story-menu-context",
     contextId: "panel-a",
     items: []
-  })
+  }, { url: "moz-extension://once/static/sidepanel.html" })
   clicked({ menuItemId: "once_story_undo", targetElementId: 42 })
   await new Promise((resolve) => setImmediate(resolve))
 

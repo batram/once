@@ -1,8 +1,11 @@
+import { isExtensionPageSender } from "./messageSender"
+
 export function installPickerBackground(
   browserApi: typeof browser = browser
 ): () => void {
-  const messageListener = (message: { onceCommand?: string; url?: string }) => {
+  const messageListener = (message: { onceCommand?: string; url?: string }, sender: browser.runtime.MessageSender) => {
     if (message?.onceCommand !== "startSourcePicker") return undefined
+    if (!isExtensionPageSender(browserApi, sender, "sidepanel")) return undefined
     return startPickerOnActiveTab(browserApi, message.url)
   }
   browserApi.runtime.onMessage.addListener(messageListener)

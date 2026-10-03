@@ -19,7 +19,7 @@ function fakeBrowser(tab) {
   return {
     executed,
     api: {
-      runtime: { onMessage: event() },
+      runtime: { onMessage: event(), getURL: path => `moz-extension://once/${path.replace(/^\//, "")}` },
       tabs: { async query() { return tab ? [tab] : [] } },
       scripting: { async executeScript(options) { executed.push(options) } }
     }
@@ -32,7 +32,8 @@ test("injects the picker content script into the active HTTP tab", async () => {
   const [listener] = api.runtime.onMessage.listeners
 
   assert.equal(listener({ onceCommand: "openReader" }), undefined)
-  await listener({ onceCommand: "startSourcePicker" })
+  await listener({ onceCommand: "startSourcePicker" }, { url: "moz-extension://once/static/sidepanel.html" })
+  assert.equal(listener({ onceCommand: "startSourcePicker" }, { url: "https://example.com/" }), undefined)
   assert.deepEqual(executed, [
     { target: { tabId: 7 }, files: ["/picker-content.js"] }
   ])
@@ -47,7 +48,7 @@ test("requests a URL instead of injecting into missing or non-HTTP tabs", async 
   assert.deepEqual(
     await missing.api.runtime.onMessage.listeners[0]({
       onceCommand: "startSourcePicker"
-    }),
+    }, { url: "moz-extension://once/static/sidepanel.html" }),
     { needsUrl: true }
   )
 
@@ -56,7 +57,7 @@ test("requests a URL instead of injecting into missing or non-HTTP tabs", async 
   assert.deepEqual(
     await privileged.api.runtime.onMessage.listeners[0]({
       onceCommand: "startSourcePicker"
-    }),
+    }, { url: "moz-extension://once/static/sidepanel.html" }),
     { needsUrl: true }
   )
   assert.deepEqual(privileged.executed, [])

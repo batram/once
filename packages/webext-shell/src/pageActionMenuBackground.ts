@@ -1,5 +1,6 @@
 import { pageMatchesCondition } from "@once/core"
 import { PageActionMenuItem, pageActionMenuPatterns, readPageActionMenuItems } from "./pageActionMenuItems"
+import { isExtensionPageSender, isTabContentSender } from "./messageSender"
 
 export interface PageActionMenuState {
   onceCommand: "page-actions-context"
@@ -65,11 +66,12 @@ export function installPageActionMenuBackground(browserApi: typeof browser): voi
 
   browserApi.runtime.onMessage.addListener((message, sender) => {
     if (message?.onceCommand === "page-actions-context" && typeof message.contextId === "string") {
+      if (!isExtensionPageSender(browserApi, sender, "sidepanel")) return undefined
       return enqueue(() => apply(readPageActionMenuItems(message.items)))
     }
     // Chrome reports the hovered/focused link ahead of opening its menu.
     // Firefox supplies the exact target through onShown below.
-    if (message?.onceCommand === "page-actions-target" && sender.tab && typeof message.href === "string") {
+    if (message?.onceCommand === "page-actions-target" && isTabContentSender(sender) && typeof message.href === "string") {
       return target(message.href)
     }
     return undefined

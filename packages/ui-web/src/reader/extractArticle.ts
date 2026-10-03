@@ -98,10 +98,12 @@ function withoutHash(url: URL): string {
 }
 
 function sanitize(doc: Document, baseUrl: string): void {
-  doc.querySelectorAll("script,style,noscript,template,form,iframe,object,embed,svg").forEach((node) => node.remove())
+  // Article markup must not control the reader document or switch the parser
+  // into a foreign namespace when the sanitized HTML is parsed again.
+  doc.querySelectorAll("script,style,noscript,template,form,iframe,object,embed,svg,math,meta,base,link,frame,frameset").forEach((node) => node.remove())
   doc.querySelectorAll<HTMLElement>("*").forEach((node) => {
     Array.from(node.attributes).forEach((attribute) => {
-      if (/^on/i.test(attribute.name) || attribute.name === "style" || attribute.name === "srcset") {
+      if (/^on/i.test(attribute.name) || ["style", "srcset", "xlink:href", "formaction", "action", "ping", "srcdoc", "data", "background"].includes(attribute.name)) {
         node.removeAttribute(attribute.name)
       }
     })

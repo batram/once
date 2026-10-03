@@ -19,6 +19,7 @@ function harness() {
   const api = { menus, contextMenus: menus,
     storage: { local: { get: async () => saved, set: async values => Object.assign(saved, values) } },
     runtime: {
+      getURL: path => `moz-extension://once/${path.replace(/^\//, "")}`,
       onMessage: { addListener(listener) { received = listener } },
       async sendMessage(message) {
         sent.push(message)
@@ -30,7 +31,7 @@ function harness() {
   restart()
   return { entries, sent, restart,
     panel: value => { panel = value },
-    receive: (value, sender = {}) => received(value, sender),
+    receive: (value, sender = { url: "moz-extension://once/static/sidepanel.html" }) => received(value, sender),
     click: (...args) => clicked(...args), show: (...args) => shown(...args) }
 }
 const state = (items, contextId = "panel-1") => ({ onceCommand: "page-actions-context", contextId, items })
@@ -45,7 +46,7 @@ test("page and link entries carry native target filters and respect conditions",
   assert.equal(h.entries.size, 2)
   assert.deepEqual(h.entries.get("once_page_example").documentUrlPatterns, ["https://*.example.test/*"])
   assert.deepEqual(h.entries.get("once_page_link:example").targetUrlPatterns, ["https://*.example.test/*"])
-  await h.receive({ onceCommand: "page-actions-target", href: "https://blocked.example.test/" }, { tab: { id: 1 } })
+  await h.receive({ onceCommand: "page-actions-target", href: "https://blocked.example.test/" }, { tab: { id: 1 }, url: "https://blocked.example.test/" })
   assert.equal(h.entries.get("once_page_example").enabled, false)
   h.show({ linkUrl: "https://ok.example.test/", pageUrl: "https://other.test/" })
   await tick()
@@ -77,4 +78,12 @@ test("execution rechecks the live addon and its condition", async () => {
   h.click({ menuItemId: "once_page_removed", pageUrl: "https://example.test/" }, {})
   await tick()
   assert.equal(h.sent.filter(message => message.onceCommand === "page-addon-action").length, 0)
+})
+
+test("rejects menu state from a content script or another extension page", async () => {
+  const h = harness()
+  const untrusted = state([{ id: "injected", label: "Injected" }])
+  assert.equal(h.receive(untrusted, { tab: { id: 1 }, url: "https://example.test/" }), undefined)
+  assert.equal(h.receive(untrusted, { url: "moz-extension://other/static/sidepanel.html" }), undefined)
+  assert.equal(h.entries.size, 0)
 })

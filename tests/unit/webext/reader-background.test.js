@@ -1,6 +1,9 @@
 const test = require("node:test")
 const assert = require("node:assert/strict")
 const { installReaderBackground } = require("../../../packages/webext-shell/dist/readerBackground")
+const panelSender = { url: "moz-extension://once/static/sidepanel.html" }
+const readerSender = { url: "moz-extension://once/static/reader.html?token=test" }
+const contentSender = id => ({ tab: { id }, url: "https://example.com/article" })
 
 function event() {
   const listeners = []
@@ -25,7 +28,7 @@ function createBrowser() {
     onMessage,
     onRemoved,
     api: {
-      runtime: { onMessage, getURL: (path) => `moz-extension://once/${path}` },
+      runtime: { onMessage, getURL: (path) => `moz-extension://once/${path.replace(/^\//, "")}` },
       tabs: {
         onRemoved,
         onUpdated,
@@ -50,14 +53,14 @@ test("injects reader theme, styles, and content after a safe page loads", async 
   const fake = createBrowser()
   const cleanup = installReaderBackground(fake.api)
   const handler = fake.onMessage.listeners[0]
-  await handler({ onceCommand: "openReader", url: "https://example.com/article", active: false, theme: "dark" }, {})
+  await handler({ onceCommand: "openReader", url: "https://example.com/article", active: false, theme: "dark" }, panelSender)
   assert.deepEqual(fake.calls[0], ["create", { url: "https://example.com/article", active: false }])
   assert.equal(fake.calls.filter(([kind]) => kind === "script").length, 2)
   assert.deepEqual(fake.calls.find(([kind]) => kind === "css"), [
     "css",
     { target: { tabId: 7 }, files: ["/reader.css"] }
   ])
-  await assert.rejects(() => handler({ onceCommand: "openReader", url: "file:///secret" }, {}), /HTTP or HTTPS/)
+  await assert.rejects(() => handler({ onceCommand: "openReader", url: "file:///secret" }, panelSender), /HTTP or HTTPS/)
   cleanup()
   assert.equal(fake.onMessage.listeners.length, 0)
   assert.equal(fake.onRemoved.listeners.length, 0)
@@ -72,7 +75,7 @@ test("parks a stored reader document for its page and hands it over once", async
     html: "<!doctype html><title>Stored</title>",
     sourceUrl: "https://example.com/article",
     active: false
-  }, {})
+  }, panelSender)
   const [, created] = fake.calls.find(([kind]) => kind === "create")
   assert.match(created.url, /^moz-extension:\/\/once\/static\/reader\.html\?token=/)
   assert.equal(created.active, false)
@@ -81,23 +84,35 @@ test("parks a stored reader document for its page and hands it over once", async
   // No script injection: the page is the extension's own.
   assert.equal(fake.calls.some(([kind]) => kind === "script"), false)
 
-  assert.deepEqual(await handler({ onceCommand: "getStoredReader", token }, {}), {
+  assert.deepEqual(await handler({ onceCommand: "getStoredReader", token }, readerSender), {
     html: "<!doctype html><title>Stored</title>",
     sourceUrl: "https://example.com/article"
   })
-  assert.equal(await handler({ onceCommand: "getStoredReader", token }, {}), null, "read once")
-  assert.throws(() => handler({ onceCommand: "openStoredReader", html: "" }, {}), /required/)
+  assert.equal(await handler({ onceCommand: "getStoredReader", token }, readerSender), null, "read once")
+  assert.throws(() => handler({ onceCommand: "openStoredReader", html: "" }, panelSender), /required/)
 })
 
 test("stores validated speech rate and transfers speech ownership", async () => {
   const fake = createBrowser()
   installReaderBackground(fake.api)
   const handler = fake.onMessage.listeners[0]
-  await handler({ onceCommand: "setReaderTtsRate", rate: 1.7 }, {})
-  assert.deepEqual(await handler({ onceCommand: "getReaderTtsRate" }, {}), { rate: 1.7 })
-  assert.throws(() => handler({ onceCommand: "setReaderTtsRate", rate: 20 }, {}), /Invalid reader TTS speed/)
-  await handler({ onceCommand: "claimReaderTts" }, { tab: { id: 1 } })
-  await handler({ onceCommand: "claimReaderTts" }, { tab: { id: 2 } })
+  await handler({ onceCommand: "setReaderTtsRate", rate: 1.7 }, readerSender)
+  assert.deepEqual(await handler({ onceCommand: "getReaderTtsRate" }, readerSender), { rate: 1.7 })
+  assert.throws(() => handler({ onceCommand: "setReaderTtsRate", rate: 20 }, readerSender), /Invalid reader TTS speed/)
+  await handler({ onceCommand: "claimReaderTts" }, contentSender(1))
+  await handler({ onceCommand: "claimReaderTts" }, contentSender(2))
   await Promise.resolve()
   assert.deepEqual(fake.calls.at(-1), ["sendMessage", 1, { onceCommand: "stopReaderTts" }])
+})
+
+test("rejects privileged commands from the wrong sender document", async () => {
+  const fake = createBrowser()
+  installReaderBackground(fake.api)
+  const handler = fake.onMessage.listeners[0]
+  assert.equal(handler({ onceCommand: "openReader", url: "https://example.com" }, readerSender), undefined)
+  assert.equal(handler({ onceCommand: "openStoredReader", html: "secret" }, contentSender(1)), undefined)
+  assert.equal(handler({ onceCommand: "getStoredReader", token: "secret" }, panelSender), undefined)
+  assert.equal(handler({ onceCommand: "setReaderTtsRate", rate: 2 }, panelSender), undefined)
+  assert.equal(handler({ onceCommand: "claimReaderTts" }, { tab: { id: 1 }, url: "moz-extension://once/static/sidepanel.html" }), undefined)
+  assert.deepEqual(fake.calls, [])
 })
