@@ -99,7 +99,7 @@ export class BrowserCoordinator {
       close: (owner) => this.ownership.closeWindow(owner),
       forward: (owner, id) => this.forward(owner, id),
       openUrl: (owner, url) => { void this.openUrl(owner, url, "blank") }
-    })
+    }, shellEntry)
     const ownerAccess = {
       ownerFor: (entry: TabEntry) => this.ownership.ownerFor(entry),
       notify: (entry: TabEntry) => this.ownership.notifyEntry(entry)
@@ -168,7 +168,8 @@ export class BrowserCoordinator {
       !state ||
       state.window.isDestroyed() ||
       event.sender !== state.window.webContents ||
-      event.senderFrame !== state.window.webContents.mainFrame
+      event.senderFrame !== state.window.webContents.mainFrame ||
+      !this.windowLifecycle.isShellDocument(event.sender.getURL())
     ) {
       throw new Error("Untrusted IPC sender")
     }

@@ -58,8 +58,21 @@ interface WindowLifecycleActions {
 export class WindowLifecycle {
   constructor(
     private readonly menus: NativeMenus,
-    private readonly actions: WindowLifecycleActions
+    private readonly actions: WindowLifecycleActions,
+    private readonly shellEntry: string
   ) {}
+
+  isShellDocument(url: string): boolean {
+    try {
+      const actual = new URL(url)
+      const expected = new URL(this.shellEntry)
+      actual.hash = ""
+      expected.hash = ""
+      return actual.href === expected.href
+    } catch {
+      return false
+    }
+  }
 
   createState(window: BrowserWindow): WindowEntry {
     let resolveBackgroundReady!: () => void
@@ -84,6 +97,11 @@ export class WindowLifecycle {
 
   bind(owner: WindowEntry): void {
     const { window } = owner
+    const preventForeignNavigation = (event: Electron.Event, url: string) => {
+      if (!this.isShellDocument(url)) event.preventDefault()
+    }
+    window.webContents.on("will-navigate", preventForeignNavigation)
+    window.webContents.on("will-redirect", preventForeignNavigation)
     window.webContents.on("context-menu", (_event, params) => {
       this.menus.showContentsMenu(owner, window.webContents, params)
     })
