@@ -31,6 +31,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     private var navigationSequence = 0
     private var activeNavigation = 0
     private var extensionSettingsGeneration = 0
+    /// Bumped by close() so an open/navigate still waiting on extensions doesn't revive the surface.
+    private var closeGeneration = 0
     private var contentRuleList: WKContentRuleList?
     private var extensionUserScripts: [WKUserScript] = []
     private lazy var extensions: WebExtensionHost = {
@@ -149,7 +151,9 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             return
         }
         Task { @MainActor in
+            let generation = self.closeGeneration
             await self.extensions.prepare()
+            guard generation == self.closeGeneration else { call.resolve(); return }
             guard let view = self.ensureSurface() else {
                 call.reject("Unable to create the embedded browser surface")
                 return
@@ -167,7 +171,9 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             return
         }
         Task { @MainActor in
+            let generation = self.closeGeneration
             await self.extensions.prepare()
+            guard generation == self.closeGeneration else { call.resolve(); return }
             guard let view = self.ensureSurface() else {
                 call.reject("Unable to create the embedded browser surface")
                 return
@@ -327,7 +333,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
                       url.scheme == "https" || url.scheme == "http" else { return nil }
                 return url
             }
-            await extensions.prepare()
+            // Warm extensions without holding startup; content rules don't depend on them.
+            Task { @MainActor in await self.extensions.prepare() }
             do {
                 let texts = try await IOSContentBlockerExporter.fetchLists(entries)
                 let encodedRules = try IOSContentBlockerExporter.export(texts.joined(separator: "\n"))
@@ -514,6 +521,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
 
     @objc func close(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
+            self.closeGeneration += 1
             self.extensions.detach()
             self.surface?.stopLoading()
             self.surface?.navigationDelegate = nil

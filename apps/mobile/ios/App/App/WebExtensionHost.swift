@@ -81,9 +81,11 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
 
     func detach() {
         closePage()
-        if let reading { controller.didCloseTab(reading, windowIsClosing: true) }
+        guard let reading else { return }
+        controller.didCloseTab(reading, windowIsClosing: true)
         controller.didCloseWindow(self)
-        reading = nil
+        self.reading = nil
+        parent = nil
     }
 
     func catalog() -> [[String: Any]] {
@@ -210,7 +212,7 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
             guard let url = configuration.url else { throw hostError("No extension page URL") }
             // A background install event may offer onboarding before the browser
             // exists. Decline that tab without failing extension initialization.
-            guard parent != nil else { completionHandler(nil, nil); return }
+            guard parent != nil, reading != nil else { completionHandler(nil, nil); return }
             try open(url, context: context)
             completionHandler(page, nil)
         } catch { completionHandler(nil, error) }

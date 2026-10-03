@@ -48,7 +48,9 @@
       const document = `${sender.documentId || ""}:${sender.url}`
       if (message?.cmd === "GetInjected") {
         const ready = Promise.resolve(listener(message, sender))
-        frames.set(key, { document, ready })
+        const frame = { document, ready }
+        frames.set(key, frame)
+        ready.catch(() => { if (frames.get(key) === frame) frames.delete(key) })
         return ready
       }
       if (message?.cmd !== "UpdateValue") return listener(message, sender)
