@@ -89,7 +89,7 @@ test("reader keeps article markup while dropping document controls and active at
     '<meta http-equiv="refresh" content="0;url=../sidepanel.html?once-e2e">' +
     '<link rel="stylesheet" href="https://tracker.test/reader.css">' +
     '<math><a xlink:href="javascript:bad()">foreign</a></math>' +
-    '<textarea><img src=x onerror=bad()></textarea></section>',
+    "<textarea><img src=x onerror=bad()></textarea></section>",
     {}, "https://source.test/article"
   )
   assert.match(article.content, /<section class="story">/)
