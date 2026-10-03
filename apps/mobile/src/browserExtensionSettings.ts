@@ -15,7 +15,7 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, text = "", class
 }
 
 /** Android management stays in the shared settings section; extension pages are native sessions. */
-export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions): void {
+export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions, openBrowserUrl: (url: string) => void): void {
   const root = document.querySelector<HTMLElement>("#extension_settings")
   const panel = document.querySelector<HTMLElement>("#settings_panel")
   const back = document.querySelector<HTMLButtonElement>("#settings_section_back")
@@ -96,7 +96,7 @@ export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions)
       }
       page.append(link("Refresh extensions", "overview"))
     } else if (target === "install") {
-      renderInstall(page, api, button, () => show("overview"))
+      renderInstall(page, api, button, () => show("overview"), openBrowserUrl)
     } else if (target === "detail" && extension) {
       renderDetail(page, api, extension, { button, link, refreshSelected })
     } else if (target === "remove" && extension) {
@@ -194,7 +194,8 @@ function renderDetail(page: HTMLElement, api: MobileBrowserExtensions, extension
 function renderInstall(
   page: HTMLElement, api: MobileBrowserExtensions,
   button: (label: string, work: () => Promise<void>) => HTMLButtonElement,
-  done: () => Promise<void>
+  done: () => Promise<void>,
+  openBrowserUrl: (url: string) => void
 ): void {
   const label = element("label", "Firefox Add-ons URL")
   const input = element("input")
@@ -205,8 +206,10 @@ function renderInstall(
   const catalog = element("p", "Browse the ", "settings_description")
   const catalogLink = element("a", "Firefox Add-ons catalog")
   catalogLink.href = "https://addons.mozilla.org/en-US/firefox/"
-  catalogLink.target = "_blank"
-  catalogLink.rel = "noopener"
+  catalogLink.addEventListener("click", event => {
+    event.preventDefault()
+    openBrowserUrl(catalogLink.href)
+  })
   catalog.append(catalogLink, " and paste an add-on's page URL above.")
   page.append(label, input, catalog, element("p", "Choose an Android-compatible Firefox extension. Once will download it and show its verified identity and requested access before installation.", "settings_description"))
   const install = async (source: string) => {

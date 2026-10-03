@@ -29,15 +29,29 @@ function harness(command, active = true) {
     return { reportInstalledExtensions: (installed, enabled) => reports.push({ installed, enabled }) }
   }
   Function("exports", "require", "document", "MutationObserver", compiled)(exports, require, document, Observer)
-  exports.bindMobileBrowserExtensionSettings({ command, onChanged: async () => () => {} })
+  const openedUrls = []
+  exports.bindMobileBrowserExtensionSettings({ command, onChanged: async () => () => {} }, url => openedUrls.push(url))
   const click = text => {
     const button = [...document.querySelectorAll("button")].find(button => button.textContent === text || button.getAttribute("aria-label") === text)
     assert.ok(button, `button ${text} exists`)
     button.click()
     return settle()
   }
-  return { document, click, reports }
+  return { document, click, reports, openedUrls }
 }
+
+test("Firefox Add-ons catalog opens in the mobile reading view", async () => {
+  const ui = harness(async () => ({ extensions: [] }))
+  await settle()
+  await ui.click("Install extension")
+  const link = ui.document.querySelector('a[href="https://addons.mozilla.org/en-US/firefox/"]')
+  assert.ok(link)
+  const event = new ui.document.defaultView.Event("click", { bubbles: true, cancelable: true })
+  link.dispatchEvent(event)
+  assert.equal(event.defaultPrevented, true)
+  assert.equal(link.getAttribute("target"), null)
+  assert.deepEqual(ui.openedUrls, ["https://addons.mozilla.org/en-US/firefox/"])
+})
 
 test("Hidden extension settings do not start Gecko until opened", async () => {
   const calls = []

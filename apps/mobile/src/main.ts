@@ -231,7 +231,7 @@ async function startMobileApp(): Promise<void> {
   })
   const browserExtensions = createMobileBrowserExtensions()
   if (browserExtensions) {
-    bindMobileBrowserExtensionSettings(browserExtensions)
+    bindMobileBrowserExtensionSettings(browserExtensions, url => reading.openBrowserUrl(url))
   }
   bindMobileExtensionToolbar(browserExtensions, browserSurface, readingPageActions(() => reading.session.snapshot().currentUrl))
   mountTouchNavigation(reading)
