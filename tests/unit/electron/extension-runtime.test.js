@@ -48,6 +48,7 @@ const targets = load("apiTargets")
 const { ExtensionHost } = load("ExtensionHost")
 const { EXTENSION_IPC } = load("protocol")
 const { ExtensionRuntime } = load("ExtensionRuntime")
+const { ContentFrames } = load("contentFrames")
 
 test("a registered extension view loses page trust after cross-origin navigation", () => {
   assert.equal(scheme.isExtensionPageDocument("moz-extension://owner/page.html", "owner"), true)
@@ -456,19 +457,18 @@ test("an injection creates the top-frame content context when no manifest script
       }
     }
   }
-  const runtime = Object.create(ExtensionRuntime.prototype)
-  runtime.tabContents = new Map([[4, contents]])
-  runtime.pdfFrames = new WeakSet([child])
-  runtime.ensureInjectionFrames(host, 4)
+  const frames = new ContentFrames()
+  frames.init(new Map(), contents, child, "application/pdf")
+  frames.ensure(host, contents, 4)
   assert.equal(sent.length, 1)
   assert.equal(sent[0].message.event, "bootstrap")
   assert.equal(sent[0].message.args[0].host, "owner")
-  runtime.ensureInjectionFrames(host, 4)
+  frames.ensure(host, contents, 4)
   assert.equal(sent.length, 1)
-  runtime.ensureInjectionFrames(host, 4, undefined, true)
+  frames.ensure(host, contents, 4, undefined, true)
   assert.equal(sent.length, 1, "a PDF child gets no world")
-  runtime.pdfFrames.delete(child)
-  runtime.ensureInjectionFrames(host, 4, undefined, true)
+  frames.init(new Map(), contents, child, "text/html")
+  frames.ensure(host, contents, 4, undefined, true)
   assert.equal(sent.length, 2, "same-origin child gets a world for allFrames")
 })
 

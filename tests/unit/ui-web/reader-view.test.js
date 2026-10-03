@@ -14,7 +14,8 @@ function loadReaderView() {
   globalThis.customElements = window.customElements
   const { Story } = require("../../../packages/core/dist")
   const { ReaderView } = require("../../../packages/ui-web/dist/reader/ReaderView")
-  return { ReaderView, Story }
+  const { articleFromStoredContent } = require("../../../packages/ui-web/dist/reader/extractArticle")
+  return { ReaderView, Story, articleFromStoredContent }
 }
 
 const ARTICLE = '<meta http-equiv="refresh" content="0;url=../sidepanel.html?once-e2e">' +
@@ -77,4 +78,23 @@ test("a story without stored content is fetched and extracted as before", async 
 
   await assert.rejects(ReaderView.open(story.href), /fetch reached/)
   assert.deepEqual(fetched, [story.href])
+})
+
+test("reader keeps article markup while dropping document controls and active attributes", () => {
+  const { articleFromStoredContent } = loadReaderView()
+  const article = articleFromStoredContent(
+    '<section class="story"><custom-card><p id="part">Text <a href="#part" ping="https://tracker.test/" onclick="bad()">jump</a></p></custom-card>' +
+    '<img src="/image.png" srcset="https://tracker.test/secret 2x" onerror="bad()">' +
+    '<table><tr><td colspan="2">Cell</td></tr></table>' +
+    '<meta http-equiv="refresh" content="0;url=../sidepanel.html?once-e2e">' +
+    '<link rel="stylesheet" href="https://tracker.test/reader.css">' +
+    '<math><a xlink:href="javascript:bad()">foreign</a></math>' +
+    '<textarea><img src=x onerror=bad()></textarea></section>',
+    {}, "https://source.test/article"
+  )
+  assert.match(article.content, /<section class="story">/)
+  assert.match(article.content, /<p id="part">Text <a href="#part">jump<\/a><\/p>/)
+  assert.match(article.content, /<img src="https:\/\/source\.test\/image\.png">/)
+  assert.match(article.content, /<td colspan="2">Cell<\/td>/)
+  assert.doesNotMatch(article.content, /custom-card|ping=|onclick=|onerror=|srcset=|http-equiv|<link|<math|<textarea|tracker\.test|bad\(\)/)
 })

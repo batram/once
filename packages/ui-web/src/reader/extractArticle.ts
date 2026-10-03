@@ -97,31 +97,79 @@ function withoutHash(url: URL): string {
   return url.href.slice(0, url.href.length - url.hash.length)
 }
 
+const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml"
+const ARTICLE_TAGS = new Set([
+  "a", "abbr", "address", "article", "audio", "b", "bdi", "bdo", "blockquote", "br",
+  "caption", "cite", "code", "col", "colgroup", "dd", "del", "details", "dfn", "div",
+  "dl", "dt", "em", "figcaption", "figure", "h1", "h2", "h3", "h4", "h5", "h6",
+  "hr", "i", "img", "kbd", "li", "main", "mark", "ol", "p", "picture", "pre",
+  "q", "rp", "rt", "ruby", "s", "samp", "section", "small", "source", "span",
+  "strong", "sub", "summary", "sup", "table", "tbody", "td", "tfoot", "th", "thead",
+  "time", "tr", "u", "ul", "var", "video"
+])
+const DROP_SUBTREE = new Set([
+  "base", "button", "canvas", "embed", "fencedframe", "form", "frame", "frameset",
+  "head", "iframe", "input", "link", "math", "meta", "noembed", "noframes",
+  "noscript", "object", "option", "plaintext", "portal", "script", "select", "style",
+  "svg", "template", "textarea", "xmp"
+])
+const TEXT_ATTRIBUTES = new Set(["alt", "class", "dir", "id", "lang", "title"])
+
 function sanitize(doc: Document, baseUrl: string): void {
-  // Article markup must not control the reader document or switch the parser
-  // into a foreign namespace when the sanitized HTML is parsed again.
-  doc.querySelectorAll("script,style,noscript,template,form,iframe,object,embed,svg,math,meta,base,link,frame,frameset").forEach((node) => node.remove())
-  doc.querySelectorAll<HTMLElement>("*").forEach((node) => {
-    Array.from(node.attributes).forEach((attribute) => {
-      if (/^on/i.test(attribute.name) || ["style", "srcset", "xlink:href", "formaction", "action", "ping", "srcdoc", "data", "background"].includes(attribute.name)) {
-        node.removeAttribute(attribute.name)
+  const base = new URL(baseUrl)
+  const copyChildren = (source: Node, target: Node): void => {
+    for (const child of Array.from(source.childNodes)) {
+      if (child.nodeType === 3) {
+        target.appendChild(doc.createTextNode(child.textContent ?? ""))
+        continue
       }
-    })
-    for (const attribute of ["href", "src"] as const) {
-      const value = node.getAttribute(attribute)
-      if (!value) continue
-      try {
-        const resolved = new URL(value, baseUrl)
-        const allowed = attribute === "href" ? ["http:", "https:", "mailto:"] : ["http:", "https:"]
-        if (!allowed.includes(resolved.protocol)) throw new Error("unsafe URL")
-        // A jump within the article stays a bare fragment, so it scrolls the
-        // reader instead of leaving it for the original page.
-        node.setAttribute(attribute, attribute === "href" && resolved.hash && withoutHash(resolved) === withoutHash(new URL(baseUrl))
-          ? resolved.hash
-          : resolved.toString())
-      } catch {
-        node.removeAttribute(attribute)
+      if (child.nodeType !== 1) continue
+      const element = child as Element
+      const tag = element.localName.toLowerCase()
+      // Build a new HTML tree so unknown elements, foreign namespaces and
+      // attributes cannot gain behavior when the article is parsed again.
+      if (element.namespaceURI !== HTML_NAMESPACE || DROP_SUBTREE.has(tag)) continue
+      if (!ARTICLE_TAGS.has(tag)) {
+        copyChildren(element, target)
+        continue
       }
+      const safe = doc.createElement(tag)
+      for (const attribute of Array.from(element.attributes)) {
+        if (attribute.namespaceURI) continue
+        const name = attribute.name.toLowerCase()
+        const value = attribute.value
+        if (TEXT_ATTRIBUTES.has(name)) {
+          safe.setAttribute(name, value)
+        } else if (name === "href" && tag === "a") {
+          try {
+            const resolved = new URL(value, base)
+            if (!["http:", "https:", "mailto:"].includes(resolved.protocol)) continue
+            // A jump within the article remains a fragment.
+            safe.setAttribute("href", resolved.hash && withoutHash(resolved) === withoutHash(base)
+              ? resolved.hash : resolved.toString())
+          } catch { /* drop an invalid URL */ }
+        } else if (name === "src" && ["img", "audio", "video", "source"].includes(tag)) {
+          try {
+            const resolved = new URL(value, base)
+            if (["http:", "https:"].includes(resolved.protocol)) safe.setAttribute("src", resolved.toString())
+          } catch { /* drop an invalid URL */ }
+        } else if (name === "controls" && ["audio", "video"].includes(tag)) {
+          safe.setAttribute("controls", "")
+        } else if (name === "open" && tag === "details") {
+          safe.setAttribute("open", "")
+        } else if (["colspan", "rowspan", "scope"].includes(name) && ["td", "th"].includes(tag)) {
+          safe.setAttribute(name, value)
+        } else if (name === "start" && tag === "ol") {
+          safe.setAttribute(name, value)
+        } else if (name === "datetime" && tag === "time") {
+          safe.setAttribute(name, value)
+        }
+      }
+      target.appendChild(safe)
+      copyChildren(element, safe)
     }
-  })
+  }
+  const article = doc.createDocumentFragment()
+  copyChildren(doc.body, article)
+  doc.body.replaceChildren(article)
 }

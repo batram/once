@@ -8,7 +8,6 @@ import {
   IpcMainInvokeEvent,
   Session,
   WebContents,
-  WebFrameMain,
   webFrameMain
 } from "electron"
 import {
@@ -19,26 +18,24 @@ import {
 import { AdoptedExtensionSettings } from "./extensionSettingsApply"
 import { ExtensionSettingsCoordinator } from "./ExtensionSettingsCoordinator"
 import { BundledExtensionSource } from "./bundledExtensions"
-import { ContextEntry, creatorUrl, frameContextId } from "./ExtensionContexts"
+import { ContextEntry, frameContextId } from "./ExtensionContexts"
 import { ApiHandler, createApiHandlers } from "./ExtensionApi"
 import { ExtensionHost } from "./ExtensionHost"
 import { ExtensionPopup } from "./ExtensionPopup"
 import {
   OwnPageRequests,
   configureExtensionProtocol,
-  isOwnPage,
-  isWebAccessible
+  isOwnPage
 } from "./ExtensionProtocol"
 import { LoadedExtension, loadUnpackedExtension } from "./LoadedExtension"
 import { extensionUrl, isExtensionPageDocument, parseExtensionUrl } from "./ExtensionScheme"
 import { WebRequestRouter } from "./WebRequestRouter"
 import { DnrEnforcer } from "./dnrBridge"
-import { CONTENT_WORLD_BASE, ContentScript, contentScriptsFor } from "./contentScripts"
+import { CONTENT_WORLD_BASE } from "./contentScripts"
 import {
   ApiSurface,
   CONTENT_API_SURFACE,
   ContentFrameInit,
-  ContentScriptBatch,
   EXTENSION_API_SURFACE,
   EXTENSION_IPC,
   ExtensionContextInit,
@@ -51,7 +48,7 @@ import {
 import { ExtensionShellHooks, PageProfile, TabSnapshot } from "./runtimeTypes"
 import { WebRequestListenerSpec } from "./webRequestDetails"
 import { frameIds, frameIdsOf } from "./frameIds"
-import { canInjectFrame } from "./apiTargets"
+import { ContentFrames } from "./contentFrames"
 import { canAccessCookie, requirePermission } from "./extensionPermissions"
 
 export interface ExtensionRuntimeOptions {
@@ -67,42 +64,11 @@ function surfaceFor(entry: ContextEntry): Readonly<Record<string, ApiSurface>> {
   return entry.kind === "content" ? CONTENT_API_SURFACE : EXTENSION_API_SURFACE
 }
 
-// Chromium also creates internal viewer/plugin frames. In particular a blank
-// plugin frame must not inherit the outer URL via match_about_blank.
-function insidePdfViewer(frame: WebFrameMain): boolean {
-  for (let ancestor: WebFrameMain | null = frame; ancestor; ancestor = ancestor.parent) {
-    if (ancestor.url.startsWith("chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/")) return true
-  }
-  return false
-}
-
 function extensionDirectories(configured: string | undefined): string[] {
   return (configured ?? "")
     .split(path.delimiter)
     .map((entry) => entry.trim())
     .filter((entry) => entry.length > 0)
-}
-
-/** Content scripts grouped by phase, in registration order, as code. */
-function batches(host: ExtensionHost, scripts: ContentScript[]): ContentScriptBatch[] {
-  const byPhase = new Map<string, ContentScriptBatch>()
-  for (const { spec, inlineJs, inlineCss } of scripts) {
-    const key = `${spec.runAt}:${spec.world ?? "ISOLATED"}`
-    let batch = byPhase.get(key)
-    if (!batch) {
-      batch = { runAt: spec.runAt, world: spec.world, js: [], css: [] }
-      byPhase.set(key, batch)
-    }
-    for (const file of spec.css) batch.css.push(host.files.read(file))
-    batch.css.push(...inlineCss)
-    for (const file of spec.js) {
-      batch.js.push({ url: extensionUrl(host.extension.host, file), code: host.files.read(file) })
-    }
-    for (const code of inlineJs) {
-      batch.js.push({ url: extensionUrl(host.extension.host, "_registered_content_script.js"), code })
-    }
-  }
-  return [...byPhase.values()]
 }
 
 /**
@@ -120,8 +86,7 @@ export class ExtensionRuntime {
   private readonly dnr = new DnrEnforcer(() => [...this.hosts.values()].map((host) => host.dnr))
   private readonly ownPages = new OwnPageRequests()
   private readonly tabContents = new Map<number, WebContents>()
-  /** Frames whose current document is a PDF; only their preload knows the MIME type. */
-  private readonly pdfFrames = new WeakSet<WebFrameMain>()
+  private readonly contentFrames = new ContentFrames()
   private readonly changed = new Set<() => void>()
   private readonly installedChanged = new Set<() => void>()
   private lastActive = new Map<number, number>()
@@ -223,8 +188,10 @@ export class ExtensionRuntime {
       cookies: this.options.browserSession.cookies,
       hooks: this.options.hooks,
       lookup: (candidate) => this.hosts.get(candidate)?.extension,
-      ensureInjectionFrames: (owner, tabId, frameId, allFrames) =>
-        this.ensureInjectionFrames(owner, tabId, frameId, allFrames)
+      ensureInjectionFrames: (owner, tabId, frameId, allFrames) => {
+        const contents = this.tabContents.get(tabId)
+        if (contents) this.contentFrames.ensure(owner, contents, tabId, frameId, allFrames)
+      }
     })
     this.hosts.set(extension.host, host)
     this.settingsCoordinator.watch(host)
@@ -422,69 +389,10 @@ export class ExtensionRuntime {
     })
   }
 
-  /**
-   * A frame of a tab is starting: every extension with matching content
-   * scripts gets a context in it and its scripts as code. A frame showing
-   * one of an extension's web-accessible pages is instead that extension's
-   * page inside the tab (uBlock's element picker): it gets the page API,
-   * tied to the tab, and no content scripts, as in Firefox.
-   */
   private contentInit(event: IpcMainEvent, contentType: string): ContentFrameInit[] {
-    const contents = event.sender
     const frame = event.senderFrame
-    if (!frame || !this.tabContents.has(contents.id)) return []
-    // A frame-tree node survives navigation. Remove its previous document's
-    // contexts even when the new document accepts no content scripts; otherwise
-    // tabs.executeScript/insertCSS can still target the old HTML registration.
-    const contextId = frameContextId(contents, frame)
-    for (const host of this.hosts.values()) host.contexts.remove(contextId)
-    // Firefox extensions cannot inject into the native PDF viewer. Its outer
-    // document still has the requested HTTP URL, including extensionless URLs.
-    this.pdfFrames.delete(frame)
-    if (contentType === "application/pdf") {
-      this.pdfFrames.add(frame)
-      return []
-    }
-    if (insidePdfViewer(frame)) return []
-    const ids = frameIdsOf(frame)
-    const ownPage = parseExtensionUrl(frame.url)
-    if (ownPage) {
-      const host = this.hosts.get(ownPage.host)
-      if (!host || frame.parent === null || !isWebAccessible(host.extension, ownPage.path)) return []
-      host.contexts.addFrame(contents, frame, host.extension.host, contents.id, ids.frameId, "page")
-      return [{
-        id: host.extension.id,
-        host: host.extension.host,
-        kind: "page",
-        manifest: host.extension.rawManifest,
-        messages: host.extension.messages,
-        uiLanguage: app.getLocale(),
-        worldId: host.worldId,
-        scripts: []
-      }]
-    }
-    const identity = {
-      url: frame.url,
-      topUrl: frame.top?.url ?? frame.url,
-      isTop: frame.parent === null
-    }
-    const inits: ContentFrameInit[] = []
-    for (const host of this.hosts.values()) {
-      const specs = contentScriptsFor(host.contentScripts(), identity)
-      if (specs.length === 0) continue
-      host.contexts.addFrame(contents, frame, host.extension.host, contents.id, ids.frameId)
-      inits.push({
-        id: host.extension.id,
-        host: host.extension.host,
-        kind: "content",
-        manifest: host.extension.rawManifest,
-        messages: host.extension.messages,
-        uiLanguage: app.getLocale(),
-        worldId: host.worldId,
-        scripts: batches(host, specs)
-      })
-    }
-    return inits
+    if (!frame || !this.tabContents.has(event.sender.id)) return []
+    return this.contentFrames.init(this.hosts, event.sender, frame, contentType)
   }
 
   /**
@@ -625,36 +533,6 @@ export class ExtensionRuntime {
 
   private snapshot(id: number): TabSnapshot | undefined {
     return this.options.hooks.tabs().find((tab) => tab.id === id)
-  }
-
-  /** A gesture-granted extension may need a content world on a tab with no manifest script. */
-  private ensureInjectionFrames(host: ExtensionHost, tabId: number, frameId?: number, allFrames = false): void {
-    const contents = this.tabContents.get(tabId)
-    if (!contents) return
-    const init: ContentFrameInit = {
-      id: host.extension.id,
-      host: host.extension.host,
-      kind: "content",
-      manifest: host.extension.rawManifest,
-      messages: host.extension.messages,
-      uiLanguage: app.getLocale(),
-      worldId: host.worldId,
-      scripts: []
-    }
-    const visit = (frame: WebFrameMain): void => {
-      const id = frameIdsOf(frame).frameId
-      if ((frameId !== undefined ? id === frameId : allFrames || id === 0) &&
-          !frame.detached && !this.pdfFrames.has(frame) && !insidePdfViewer(frame) &&
-          canInjectFrame(host, tabId, frame.url, creatorUrl(frame)) &&
-          !host.contexts.get(frameContextId(contents, frame))) {
-        host.contexts.addFrame(contents, frame, host.extension.host, tabId, id)
-        frame.send(EXTENSION_IPC.event, {
-          api: INTERNAL_API.content, event: "bootstrap", host: host.extension.host, args: [init]
-        })
-      }
-      if (allFrames || frameId !== undefined) for (const child of frame.frames) visit(child)
-    }
-    visit(contents.mainFrame)
   }
 
   private trackTab(contents: WebContents): void {
