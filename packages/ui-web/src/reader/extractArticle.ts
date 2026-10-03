@@ -99,14 +99,14 @@ function withoutHash(url: URL): string {
 
 const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml"
 const ARTICLE_TAGS = new Set([
-  "a", "abbr", "address", "article", "audio", "b", "bdi", "bdo", "blockquote", "br",
-  "caption", "cite", "code", "col", "colgroup", "dd", "del", "details", "dfn", "div",
-  "dl", "dt", "em", "figcaption", "figure", "h1", "h2", "h3", "h4", "h5", "h6",
-  "hr", "i", "img", "kbd", "li", "main", "mark", "ol", "p", "picture", "pre",
-  "q", "rp", "rt", "ruby", "s", "samp", "section", "small", "source", "span",
-  "strong", "sub", "summary", "sup", "table", "tbody", "td", "tfoot", "th", "thead",
-  "time", "tr", "u", "ul", "var", "video"
-])
+  "a abbr address article audio b bdi bdo blockquote br",
+  "caption cite code col colgroup dd del details dfn div",
+  "dl dt em figcaption figure h1 h2 h3 h4 h5 h6",
+  "hr i img kbd li main mark ol p picture pre",
+  "q rp rt ruby s samp section small source span",
+  "strong sub summary sup table tbody td tfoot th thead",
+  "time tr u ul var video"
+].join(" ").split(" "))
 const DROP_SUBTREE = new Set([
   "base", "button", "canvas", "embed", "fencedframe", "form", "frame", "frameset",
   "head", "iframe", "input", "link", "math", "meta", "noembed", "noframes",
