@@ -1,4 +1,4 @@
-import { MatchPatternSet, parseMatchPattern } from "@once/core"
+import { MatchPattern, MatchPatternSet, parseMatchPattern } from "@once/core"
 import type { LoadedExtension } from "./LoadedExtension"
 
 export function requirePermission(extension: LoadedExtension, name: string): void {
@@ -6,15 +6,41 @@ export function requirePermission(extension: LoadedExtension, name: string): voi
 }
 
 // Host grants cover origins, regardless of the path used in a match pattern.
-export function permittedHosts(extension: LoadedExtension): MatchPatternSet {
-  return new MatchPatternSet(extension.manifest.hostPermissions.map((source) => {
+const hostGrants = new WeakMap<LoadedExtension, { set: MatchPatternSet; patterns: MatchPattern[] }>()
+function grants(extension: LoadedExtension): { set: MatchPatternSet; patterns: MatchPattern[] } {
+  let cached = hostGrants.get(extension)
+  if (cached) return cached
+  const sources = extension.manifest.hostPermissions.map((source) => {
     if (source === "<all_urls>") return source
     return `${source.slice(0, source.indexOf("/", source.indexOf("://") + 3))}/*`
-  }))
+  })
+  cached = { set: new MatchPatternSet(sources), patterns: sources.map((source) => parseMatchPattern(source)) }
+  hostGrants.set(extension, cached)
+  return cached
+}
+
+export function permittedHosts(extension: LoadedExtension): MatchPatternSet {
+  return grants(extension).set
 }
 
 export function requireHost(extension: LoadedExtension, url: string): void {
   if (!permittedHosts(extension).matches(url)) throw new Error(`Missing host permission for ${url}`)
+}
+
+export function canAccessCookie(
+  extension: LoadedExtension,
+  cookie: Pick<Electron.Cookie, "domain" | "hostOnly" | "secure">
+): boolean {
+  const domain = (cookie.domain ?? "").replace(/^\./, "").toLowerCase()
+  if (!domain) return false
+  const { set: permitted, patterns } = grants(extension)
+  const schemes = cookie.secure ? ["https"] : ["https", "http"]
+  if (cookie.hostOnly) return schemes.some((scheme) => permitted.matches(`${scheme}://${domain}/`))
+  return patterns.some((pattern) => {
+    const host = pattern.host === "*" ? domain : pattern.host
+    if (host !== domain && !host.endsWith(`.${domain}`)) return false
+    return schemes.some((scheme) => permitted.matches(`${scheme}://${host}/`))
+  })
 }
 
 /** A dynamic script's entire requested origin range must be granted. */

@@ -248,14 +248,19 @@ installAmoBridge()
 // PDF responses keep their HTTP URL but use Chromium's native viewer. The MIME
 // type is available before <html>, so main can exclude them at document_start.
 const inits = ipcRenderer.sendSync(EXTENSION_IPC.contentInit, document.contentType) as ContentFrameInit[] | null
+ipcRenderer.on(EXTENSION_IPC.event, (_ipcEvent, message: ExtensionEvent) => {
+  if (message.api === INTERNAL_API.content && message.event === "bootstrap") {
+    const [init] = message.args as [ContentFrameInit]
+    if (init?.host === message.host && !worlds.has(init.host)) worlds.set(init.host, createWorld(init))
+    return
+  }
+  const world = message.host ? worlds.get(message.host) : undefined
+  if (!world) return
+  if (message.api === INTERNAL_API.content) handleInjection(world, message)
+  else world.api.handleEvent(message)
+})
 if (Array.isArray(inits) && inits.length > 0) {
   for (const init of inits) worlds.set(init.host, createWorld(init))
-  ipcRenderer.on(EXTENSION_IPC.event, (_ipcEvent, message: ExtensionEvent) => {
-    const world = message.host ? worlds.get(message.host) : undefined
-    if (!world) return
-    if (message.api === INTERNAL_API.content) handleInjection(world, message)
-    else world.api.handleEvent(message)
-  })
   for (const world of worlds.values()) {
     for (const batch of world.init.scripts) schedule(world, batch)
   }

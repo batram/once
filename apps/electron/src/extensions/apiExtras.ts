@@ -4,7 +4,7 @@
 
 import { ApiHandler } from "./ExtensionApi"
 import { registeredContentScript } from "./contentScripts"
-import { permittedHosts, requireHost, requireHostPattern, requirePermission } from "./extensionPermissions"
+import { canAccessCookie, requireHost, requireHostPattern, requirePermission } from "./extensionPermissions"
 
 type Handlers = Record<string, ApiHandler>
 
@@ -56,13 +56,8 @@ function cookieFilter(details: Record<string, unknown>): Electron.CookiesGetFilt
 }
 
 export function cookieHandlers(): Handlers {
-  const allowed = (host: Parameters<ApiHandler>[0]["host"], cookie: Electron.Cookie): boolean => {
-    const domain = (cookie.domain ?? "").replace(/^\./, "")
-    if (!domain) return false
-    const origin = permittedHosts(host.extension)
-    return origin.matches(`https://${domain}/`) ||
-      (!cookie.secure && origin.matches(`http://${domain}/`))
-  }
+  const allowed = (host: Parameters<ApiHandler>[0]["host"], cookie: Electron.Cookie): boolean =>
+    canAccessCookie(host.extension, cookie)
   return {
     "cookies.get": async ({ host }, details) => {
       requirePermission(host.extension, "cookies")
@@ -127,7 +122,6 @@ export function cookieHandlers(): Handlers {
 export function contentScriptHandlers(): Handlers {
   return {
     "contentScripts.register": ({ host }, options) => {
-      requirePermission(host.extension, "contentScripts")
       const script = registeredContentScript(options)
       for (const pattern of script.spec.matches) requireHostPattern(host.extension, pattern)
       return host.registerContentScript(script)

@@ -7,10 +7,10 @@
 import type { ApiHandler, ApiHost } from "./ExtensionApi"
 import { ContextEntry } from "./ExtensionContexts"
 import { extensionUrl } from "./ExtensionScheme"
-import { asRecord, frameContexts, requireTabId } from "./apiTargets"
+import { asRecord, authorizedFrames, frameContexts, requireTabId } from "./apiTargets"
 import { ContentScript, registeredContentScript } from "./contentScripts"
 import { INTERNAL_API } from "./protocol"
-import { requireHost, requireHostPattern, requirePermission } from "./extensionPermissions"
+import { requireHostPattern, requirePermission } from "./extensionPermissions"
 
 const SCRIPT_RESULT_TIMEOUT_MS = 10_000
 
@@ -50,8 +50,7 @@ function targetFrames(host: ApiHost, injection: Record<string, unknown>): Contex
   } else {
     frames = frameContexts(host, tabId, undefined, target.allFrames === true)
   }
-  for (const frame of frames) requireHost(host.extension, frame.url())
-  return frames
+  return authorizedFrames(host, tabId, frames)
 }
 
 /** What an executeScript injection runs, in order, with a URL for file sources. */

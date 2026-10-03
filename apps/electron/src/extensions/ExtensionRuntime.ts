@@ -51,7 +51,8 @@ import {
 import { ExtensionShellHooks, PageProfile, TabSnapshot } from "./runtimeTypes"
 import { WebRequestListenerSpec } from "./webRequestDetails"
 import { frameIds, frameIdsOf } from "./frameIds"
-import { permittedHosts, requirePermission } from "./extensionPermissions"
+import { canInjectFrame } from "./apiTargets"
+import { canAccessCookie, requirePermission } from "./extensionPermissions"
 
 export interface ExtensionRuntimeOptions {
   browserSession: Session
@@ -156,10 +157,7 @@ export class ExtensionRuntime {
     this.options.browserSession.cookies.on("changed", (_event, cookie, cause, removed) => {
       for (const host of this.hosts.values()) {
         if (!host.extension.manifest.permissions.has("cookies")) continue
-        const domain = (cookie.domain ?? "").replace(/^\./, "")
-        const permitted = permittedHosts(host.extension)
-        if (!domain || !(permitted.matches(`https://${domain}/`) ||
-          (!cookie.secure && permitted.matches(`http://${domain}/`)))) continue
+        if (!canAccessCookie(host.extension, cookie)) continue
         host.contexts.emit("cookies", "onChanged", [{
           removed,
           cookie: { ...cookie, storeId: "0" },
@@ -213,7 +211,9 @@ export class ExtensionRuntime {
       worldId: this.nextWorldId++,
       cookies: this.options.browserSession.cookies,
       hooks: this.options.hooks,
-      lookup: (candidate) => this.hosts.get(candidate)?.extension
+      lookup: (candidate) => this.hosts.get(candidate)?.extension,
+      ensureInjectionFrames: (owner, tabId, frameId, allFrames) =>
+        this.ensureInjectionFrames(owner, tabId, frameId, allFrames)
     })
     this.hosts.set(extension.host, host)
     this.settingsCoordinator.watch(host)
@@ -303,13 +303,14 @@ export class ExtensionRuntime {
   openPopup(window: BrowserWindow, extensionHost: string, anchor: ElectronRect): void {
     const host = this.hosts.get(extensionHost)
     if (!host) throw new Error("Unknown extension")
+    const active = this.options.hooks.tabs().find((tab) => tab.active && tab.windowId === window.id)
+    host.grantActiveTab(active)
     let popup = this.popups.get(extensionHost)
     if (popup?.isOpen()) {
       popup.close()
       return
     }
     if (!host.popupUrl()) {
-      const active = this.options.hooks.tabs().find((tab) => tab.active)
       host.contexts.emit("browserAction", "onClicked", [active])
       host.contexts.emit("action", "onClicked", [active])
       return
@@ -614,6 +615,35 @@ export class ExtensionRuntime {
     return this.options.hooks.tabs().find((tab) => tab.id === id)
   }
 
+  /** A gesture-granted extension may need a content world on a tab with no manifest script. */
+  private ensureInjectionFrames(host: ExtensionHost, tabId: number, frameId?: number, allFrames = false): void {
+    const contents = this.tabContents.get(tabId)
+    if (!contents) return
+    const init: ContentFrameInit = {
+      id: host.extension.id,
+      host: host.extension.host,
+      kind: "content",
+      manifest: host.extension.rawManifest,
+      messages: host.extension.messages,
+      uiLanguage: app.getLocale(),
+      worldId: host.worldId,
+      scripts: []
+    }
+    const visit = (frame: WebFrameMain): void => {
+      const id = frameIdsOf(frame).frameId
+      if ((frameId !== undefined ? id === frameId : allFrames || id === 0) &&
+          !frame.detached && canInjectFrame(host, tabId, frame.url) &&
+          !host.contexts.get(frameContextId(contents, frame))) {
+        host.contexts.addFrame(contents, frame, host.extension.host, tabId, id)
+        frame.send(EXTENSION_IPC.event, {
+          api: INTERNAL_API.content, event: "bootstrap", host: host.extension.host, args: [init]
+        })
+      }
+      if (allFrames || frameId !== undefined) for (const child of frame.frames) visit(child)
+    }
+    visit(contents.mainFrame)
+  }
+
   private trackTab(contents: WebContents): void {
     const id = contents.id
     this.tabContents.set(id, contents)
@@ -637,6 +667,9 @@ export class ExtensionRuntime {
     contents.on("page-title-updated", (_event, title) => updated({ title }))
     contents.on("did-start-navigation", (event) => {
       if (event.isSameDocument) return
+      if (event.frame === contents.mainFrame) {
+        for (const host of this.hosts.values()) host.revokeActiveTab(id)
+      }
       const ids = frameIdsOf(event.frame)
       this.emit("webNavigation", "onBeforeNavigate", [navigation(event.url, ids.frameId, ids.parentFrameId)])
     })
@@ -675,6 +708,7 @@ export class ExtensionRuntime {
       this.tabContents.delete(id)
       this.dnr.forgetTab(id)
       for (const host of this.hosts.values()) {
+        host.revokeActiveTab(id)
         host.action.forgetTab(id)
         for (const entry of host.contexts.all()) {
           if (entry.tabId === id) host.contexts.remove(entry.id)

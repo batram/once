@@ -44,6 +44,8 @@ const { ExtensionStorage } = load("ExtensionStorage")
 const { ExtensionContexts } = load("ExtensionContexts")
 const api = load("ExtensionApi")
 const permissions = load("extensionPermissions")
+const targets = load("apiTargets")
+const { ExtensionHost } = load("ExtensionHost")
 const { EXTENSION_IPC } = load("protocol")
 const { ExtensionRuntime } = load("ExtensionRuntime")
 
@@ -386,6 +388,106 @@ test("dynamic scripts require both their API and complete host grants", () => {
     [{ id: "x", matches: ["<all_urls>"], js: ["x.js"] }]), /host permission/)
   assert.doesNotThrow(() => permissions.requireHostPattern(host.extension, "https://allowed.test/*"))
   assert.throws(() => permissions.requireHostPattern(host.extension, "https://*.allowed.test/*"), /host permission/)
+})
+
+test("contentScripts.register needs host grants but no nonexistent API permission", () => {
+  const handlers = api.createApiHandlers()
+  let registered = 0
+  const host = {
+    extension: { manifest: { permissions: new Set(), hostPermissions: ["https://allowed.test/*"] } },
+    registerContentScript() { registered++; return registered }
+  }
+  const call = { host, sender: null }
+  assert.equal(handlers["contentScripts.register"](call,
+    { matches: ["https://allowed.test/*"], js: [{ file: "a.js" }] }), 1)
+  assert.throws(() => handlers["contentScripts.register"](call,
+    { matches: ["<all_urls>"], js: [{ file: "a.js" }] }), /host permission/)
+  assert.equal(registered, 1)
+})
+
+test("blank frames do not abort authorized all-frame injections", () => {
+  const extension = { manifest: { permissions: new Set(), hostPermissions: ["https://allowed.test/*"] } }
+  const host = { extension, hooks: { tabs: () => [{ id: 4, url: "https://allowed.test/page" }] } }
+  const frames = [
+    { url: () => "https://allowed.test/page" },
+    { url: () => "about:blank" },
+    { url: () => "https://other.test/frame" }
+  ]
+  assert.deepEqual(targets.authorizedFrames(host, 4, frames), frames.slice(0, 2))
+})
+
+test("activeTab grant is scoped to a clicked tab and expires on navigation", () => {
+  const tab = { id: 4, url: "https://allowed.test/page" }
+  const host = Object.create(ExtensionHost.prototype)
+  host.extension = { manifest: { permissions: new Set(["activeTab"]), hostPermissions: [] } }
+  host.hooks = { tabs: () => [tab] }
+  host.activeTabGrants = new Map()
+  assert.equal(targets.canInjectFrame(host, 4, tab.url), false)
+  host.grantActiveTab(tab)
+  assert.equal(targets.canInjectFrame(host, 4, tab.url), true)
+  assert.equal(targets.canInjectFrame(host, 4, "https://other.test/frame"), false)
+  assert.equal(targets.canInjectFrame(host, 5, tab.url), false)
+  host.revokeActiveTab(4)
+  assert.equal(targets.canInjectFrame(host, 4, tab.url), false)
+})
+
+test("an injection creates the top-frame content context when no manifest script did", () => {
+  const sent = []
+  const frame = { url: "https://allowed.test/page", detached: false, frameTreeNodeId: 1,
+    parent: null, frames: [], send: (channel, message) => sent.push({ channel, message }) }
+  const child = { url: "https://allowed.test/frame", detached: false, frameTreeNodeId: 2,
+    parent: frame, frames: [], send: (channel, message) => sent.push({ channel, message }) }
+  frame.frames.push(child)
+  const contents = { id: 4, mainFrame: frame }
+  const entries = new Map()
+  const host = {
+    extension: { id: "test", host: "owner", rawManifest: {}, messages: {},
+      manifest: { permissions: new Set(["activeTab"]), hostPermissions: [] } },
+    hooks: { tabs: () => [{ id: 4, url: frame.url }] },
+    hasActiveTabGrant: () => true,
+    worldId: 1000,
+    contexts: {
+      get: (id) => entries.get(id),
+      addFrame: (_contents, target) => {
+        const entry = { id: `4:${target.frameTreeNodeId}` }
+        entries.set(entry.id, entry)
+        return entry
+      }
+    }
+  }
+  const runtime = Object.create(ExtensionRuntime.prototype)
+  runtime.tabContents = new Map([[4, contents]])
+  runtime.ensureInjectionFrames(host, 4)
+  assert.equal(sent.length, 1)
+  assert.equal(sent[0].message.event, "bootstrap")
+  assert.equal(sent[0].message.args[0].host, "owner")
+  runtime.ensureInjectionFrames(host, 4)
+  assert.equal(sent.length, 1)
+  runtime.ensureInjectionFrames(host, 4, undefined, true)
+  assert.equal(sent.length, 2, "same-origin child gets a world for allFrames")
+})
+
+test("host patterns are compiled once and domain cookies follow permitted subdomains", () => {
+  const extension = { manifest: { hostPermissions: ["https://mail.example.com/*"] } }
+  assert.equal(permissions.permittedHosts(extension), permissions.permittedHosts(extension))
+  assert.equal(permissions.canAccessCookie(extension,
+    { domain: ".example.com", hostOnly: false, secure: true }), true)
+  assert.equal(permissions.canAccessCookie(extension,
+    { domain: "example.com", hostOnly: true, secure: true }), false)
+  assert.equal(permissions.canAccessCookie(extension,
+    { domain: ".other.com", hostOnly: false, secure: true }), false)
+})
+
+test("cookies.get returns a parent-domain cookie for a permitted child host", async () => {
+  const extension = { manifest: {
+    permissions: new Set(["cookies"]), hostPermissions: ["https://mail.example.com/*"]
+  } }
+  const cookie = { name: "SID", value: "secret", domain: ".example.com",
+    hostOnly: false, secure: true, path: "/" }
+  const call = { host: { extension, cookies: { get: async () => [cookie] } }, sender: null }
+  const result = await api.createApiHandlers()["cookies.get"](call,
+    { url: "https://mail.example.com/", name: "SID" })
+  assert.equal(result.value, "secret")
 })
 
 test("cookies.getAll filters a shared cookie store by permission and host", async () => {

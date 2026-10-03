@@ -12,6 +12,7 @@ import { LoadedExtension, extensionIconDataUrl } from "./LoadedExtension"
 import { ContentScript, ExtensionFiles, manifestContentScripts } from "./contentScripts"
 import { ExtensionContextKind } from "./protocol"
 import { ExtensionShellHooks, PageProfile } from "./runtimeTypes"
+import type { TabSnapshot } from "./runtimeTypes"
 
 // uBlock decides which browser it is running in from the user agent as well
 // as from `runtime.getBrowserInfo`, so extension pages present as Firefox.
@@ -27,6 +28,7 @@ export interface ExtensionHostOptions {
   cookies: Electron.Cookies
   hooks: ExtensionShellHooks
   lookup: (host: string) => LoadedExtension | undefined
+  ensureInjectionFrames: (host: ExtensionHost, tabId: number, frameId?: number, allFrames?: boolean) => void
 }
 
 /**
@@ -51,6 +53,7 @@ export class ExtensionHost implements ApiHost {
   readonly dnr: DnrRulesets
   /** `contentScripts.register` entries, by the id handed back. */
   readonly registeredScripts = new Map<number, ContentScript>()
+  private readonly activeTabGrants = new Map<number, string>()
   private nextScriptId = 1
   private backgroundView: WebContentsView | null = null
   private icon: Promise<string | null> | null = null
@@ -70,6 +73,33 @@ export class ExtensionHost implements ApiHost {
     this.action = new BrowserActionState(this.extension.manifest.browserAction?.defaultTitle ?? null)
     this.alarms = new AlarmScheduler((alarm) => this.contexts.emit("alarms", "onAlarm", [alarm]))
     this.session = electronSession.fromPartition(`persist:once-ext:${this.extension.host}`)
+  }
+
+  grantActiveTab(tab: TabSnapshot | undefined): void {
+    if (!tab || !this.extension.manifest.permissions.has("activeTab")) return
+    try {
+      const url = new URL(tab.url)
+      if (url.protocol === "http:" || url.protocol === "https:") {
+        this.activeTabGrants.set(tab.id, url.origin)
+      }
+    } catch { /* A blank or invalid tab has no grantable origin. */ }
+  }
+
+  revokeActiveTab(tabId: number): void {
+    this.activeTabGrants.delete(tabId)
+  }
+
+  hasActiveTabGrant(tabId: number, frameUrl: string): boolean {
+    const granted = this.activeTabGrants.get(tabId)
+    if (!granted) return false
+    try {
+      return new URL(frameUrl).origin === granted &&
+        new URL(this.hooks.tabs().find((tab) => tab.id === tabId)?.url ?? "").origin === granted
+    } catch { return false }
+  }
+
+  ensureInjectionFrames(tabId: number, frameId?: number, allFrames = false): void {
+    this.options.ensureInjectionFrames(this, tabId, frameId, allFrames)
   }
 
   /** Serves the extension's files to its own pages and starts the background page. */
