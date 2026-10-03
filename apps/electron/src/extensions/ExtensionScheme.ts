@@ -39,6 +39,11 @@ export function parseExtensionUrl(url: string): ExtensionUrlParts | null {
   return { host: parsed.hostname, path }
 }
 
+/** A registered view stays trusted only while its current document is its owner's page. */
+export function isExtensionPageDocument(url: string, ownerHost: string): boolean {
+  return parseExtensionUrl(url)?.host === ownerHost
+}
+
 /**
  * The scheme's privileges, for the app's one `registerSchemesAsPrivileged`
  * call before `app.whenReady()`: Electron keeps only the last such call, so

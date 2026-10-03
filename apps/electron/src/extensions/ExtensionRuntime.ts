@@ -30,7 +30,7 @@ import {
   isWebAccessible
 } from "./ExtensionProtocol"
 import { LoadedExtension, loadUnpackedExtension } from "./LoadedExtension"
-import { extensionUrl, parseExtensionUrl } from "./ExtensionScheme"
+import { extensionUrl, isExtensionPageDocument, parseExtensionUrl } from "./ExtensionScheme"
 import { WebRequestRouter } from "./WebRequestRouter"
 import { DnrEnforcer } from "./dnrBridge"
 import { CONTENT_WORLD_BASE, ContentScript, contentScriptsFor } from "./contentScripts"
@@ -51,6 +51,7 @@ import {
 import { ExtensionShellHooks, PageProfile, TabSnapshot } from "./runtimeTypes"
 import { WebRequestListenerSpec } from "./webRequestDetails"
 import { frameIds, frameIdsOf } from "./frameIds"
+import { permittedHosts, requirePermission } from "./extensionPermissions"
 
 export interface ExtensionRuntimeOptions {
   browserSession: Session
@@ -153,12 +154,19 @@ export class ExtensionRuntime {
     this.options.hooks.onTabCreated((contents) => this.trackTab(contents))
     this.options.hooks.onTabsChanged(() => this.tabsChanged())
     this.options.browserSession.cookies.on("changed", (_event, cookie, cause, removed) => {
-      this.emit("cookies", "onChanged", [{
-        removed,
-        cookie: { ...cookie, storeId: "0" },
-        cause: cause === "explicit" ? "explicit" : cause === "overwrite" ? "overwrite"
-          : cause === "expired" || cause === "expired-overwrite" ? "expired" : "evicted"
-      }])
+      for (const host of this.hosts.values()) {
+        if (!host.extension.manifest.permissions.has("cookies")) continue
+        const domain = (cookie.domain ?? "").replace(/^\./, "")
+        const permitted = permittedHosts(host.extension)
+        if (!domain || !(permitted.matches(`https://${domain}/`) ||
+          (!cookie.secure && permitted.matches(`http://${domain}/`)))) continue
+        host.contexts.emit("cookies", "onChanged", [{
+          removed,
+          cookie: { ...cookie, storeId: "0" },
+          cause: cause === "explicit" ? "explicit" : cause === "overwrite" ? "overwrite"
+            : cause === "expired" || cause === "expired-overwrite" ? "expired" : "evicted"
+        }])
+      }
     })
     app.on("before-quit", () => {
       for (const host of this.hosts.values()) void host.storage.flush()
@@ -485,8 +493,15 @@ export class ExtensionRuntime {
       this.adoptContext(contents)
     const page = host?.contexts.get(contents.id)
     if (!host || !page || !frame) throw new Error("Untrusted extension IPC sender")
-    if (frame === contents.mainFrame) return { host, entry: page }
-    if (parseExtensionUrl(frame.url)?.host !== host.extension.host) {
+    if (frame === contents.mainFrame) {
+      if (!isExtensionPageDocument(frame.url, host.extension.host) &&
+          !(registerFrame && (frame.url === "" || frame.url === "about:blank") &&
+            (contents.getURL() === "" || contents.getURL() === "about:blank"))) {
+        throw new Error("Untrusted extension IPC sender")
+      }
+      return { host, entry: page }
+    }
+    if (!isExtensionPageDocument(frame.url, host.extension.host)) {
       throw new Error("Untrusted extension IPC sender")
     }
     const entry = registerFrame
@@ -571,6 +586,12 @@ export class ExtensionRuntime {
     const known = surface[change.api]
     if (!known || !known.events.includes(change.event)) {
       throw new Error(`browser.${change.api}.${change.event} is not available`)
+    }
+    if (change.api === "webRequest") {
+      requirePermission(host.extension, "webRequest")
+      if (change.action === "add" && change.spec?.extraInfoSpec?.includes("blocking")) {
+        requirePermission(host.extension, "webRequestBlocking")
+      }
     }
     if (change.action === "add") {
       // The filter's shape is checked where it is compiled; a bad one simply

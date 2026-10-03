@@ -22,6 +22,7 @@ import { declarativeNetRequestHandlers } from "./dnrApi"
 import { INTERNAL_API } from "./protocol"
 import { ExtensionShellHooks, TabSnapshot, TabUpdateProps, platformOs } from "./runtimeTypes"
 import { scriptingHandlers } from "./scriptingApi"
+import { requireHost } from "./extensionPermissions"
 
 const MESSAGE_REPLY_TIMEOUT_MS = 30_000
 const SCRIPT_RESULT_TIMEOUT_MS = 10_000
@@ -402,6 +403,7 @@ function injectionHandlers(): Handlers {
       : typeof details.file === "string" ? host.files.read(details.file) : null
     if (code === null) throw new Error("Either code or file is required")
     const frames = frameContexts(host, tabId, optionalTabId(details.frameId), details.allFrames === true)
+    for (const frame of frames) requireHost(host.extension, frame.url())
     return { tabId, frames, details, code }
   }
   return {

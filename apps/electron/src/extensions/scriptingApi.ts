@@ -10,6 +10,7 @@ import { extensionUrl } from "./ExtensionScheme"
 import { asRecord, frameContexts, requireTabId } from "./apiTargets"
 import { ContentScript, registeredContentScript } from "./contentScripts"
 import { INTERNAL_API } from "./protocol"
+import { requireHost, requireHostPattern, requirePermission } from "./extensionPermissions"
 
 const SCRIPT_RESULT_TIMEOUT_MS = 10_000
 
@@ -39,13 +40,18 @@ function stringList(value: unknown): string[] {
 
 /** The frames an injection's `target` names: listed ids, every frame, or the top one. */
 function targetFrames(host: ApiHost, injection: Record<string, unknown>): ContextEntry[] {
+  requirePermission(host.extension, "scripting")
   const target = asRecord(injection.target)
   const tabId = requireTabId(target.tabId)
+  let frames: ContextEntry[]
   if (Array.isArray(target.frameIds)) {
     const wanted = target.frameIds.filter((id): id is number => typeof id === "number")
-    return frameContexts(host, tabId, undefined, true).filter((frame) => wanted.includes(frame.frameId))
+    frames = frameContexts(host, tabId, undefined, true).filter((frame) => wanted.includes(frame.frameId))
+  } else {
+    frames = frameContexts(host, tabId, undefined, target.allFrames === true)
   }
-  return frameContexts(host, tabId, undefined, target.allFrames === true)
+  for (const frame of frames) requireHost(host.extension, frame.url())
+  return frames
 }
 
 /** What an executeScript injection runs, in order, with a URL for file sources. */
@@ -133,7 +139,10 @@ function registrationHandlers(): Handlers {
       const compiled = listOf(scripts).map((options) => {
         const id = scriptId(options)
         if (registered.has(id)) throw new Error(`Content script with id "${id}" is already registered`)
-        return { id, options, script: compileRegistration(options) }
+        requirePermission(host.extension, "scripting")
+        const script = compileRegistration(options)
+        for (const pattern of script.spec.matches) requireHostPattern(host.extension, pattern)
+        return { id, options, script }
       })
       for (const { id, options, script } of compiled) {
         registered.set(id, { options, handle: host.registerContentScript(script) })
@@ -164,7 +173,10 @@ function registrationHandlers(): Handlers {
         const existing = registered.get(id)
         if (!existing) throw new Error(`Nonexistent script ID '${id}'`)
         const options = { ...existing.options, ...patch }
-        return { id, existing, options, script: compileRegistration(options) }
+        requirePermission(host.extension, "scripting")
+        const script = compileRegistration(options)
+        for (const pattern of script.spec.matches) requireHostPattern(host.extension, pattern)
+        return { id, existing, options, script }
       })
       for (const { id, existing, options, script } of compiled) {
         host.registeredScripts.delete(existing.handle)

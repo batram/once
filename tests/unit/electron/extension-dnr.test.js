@@ -251,7 +251,10 @@ test("the router applies declarative rules beside a blocking webRequest listener
   ])
   const router = new WebRequestRouter(session, {
     tabIdFor: () => 5,
-    sources: () => [{ contexts }],
+    sources: () => [{
+      contexts,
+      extension: { manifest: { permissions: new Set(["webRequest", "webRequestBlocking"]), hostPermissions: ["<all_urls>"] } }
+    }],
     declarative: new DnrEnforcer(() => [dnr])
   })
   router.install()
@@ -278,6 +281,29 @@ test("the router applies declarative rules beside a blocking webRequest listener
     })),
     { responseHeaders: { "Content-Type": "text/plain" } }
   )
+})
+
+test("webRequest never exposes requests outside the extension's permissions", async () => {
+  const session = fakeSession()
+  const contexts = new ExtensionContexts()
+  const background = fakeContents(9)
+  contexts.add(background, "background")
+  contexts.addListener(9, "webRequest", "onBeforeRequest", 1,
+    { filter: { urls: ["<all_urls>"] }, extraInfoSpec: [] })
+  const extension = { manifest: {
+    permissions: new Set(), hostPermissions: ["https://allowed.test/*"]
+  } }
+  new WebRequestRouter(session, { tabIdFor: () => 1, sources: () => [{ contexts, extension }] }).install()
+  const run = (url) => new Promise((resolve) => session.listeners.onBeforeRequest({
+    id: 1, url, method: "GET", resourceType: "xhr", referrer: "", timestamp: 0, frame: null
+  }, resolve))
+  await run("https://allowed.test/a")
+  assert.equal(background.sent.length, 0)
+  extension.manifest.permissions.add("webRequest")
+  await run("https://private.test/a")
+  assert.equal(background.sent.length, 0)
+  await run("https://allowed.test/a")
+  assert.equal(background.sent.length, 1)
 })
 
 test("declarativeNetRequest handlers need the permission and say what is unsupported", async (t) => {

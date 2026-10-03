@@ -1,4 +1,6 @@
 import { Session, WebFrameMain } from "electron"
+import type { LoadedExtension } from "./LoadedExtension"
+import { permittedHosts } from "./extensionPermissions"
 import { ExtensionContexts, EventTarget, ListenerRecord } from "./ExtensionContexts"
 import {
   BlockingResponse,
@@ -24,6 +26,7 @@ const DOCUMENT_RESPONSE_TIMEOUT_MS = 1_000
 
 interface RequestSource {
   readonly contexts: ExtensionContexts
+  readonly extension: LoadedExtension
 }
 
 export interface WebRequestRouterOptions {
@@ -206,9 +209,12 @@ export class WebRequestRouter {
   }
 
   private matchingTargets(source: RequestSource, event: string, details: WebRequestDetails): EventTarget[] {
+    if (!source.extension.manifest.permissions.has("webRequest") ||
+        !permittedHosts(source.extension).matches(details.url)) return []
     return source.contexts.targets("webRequest", event, (spec) => {
       const filter = compiled(spec)
-      return filter !== null && filter.matches(details)
+      return filter !== null && filter.matches(details) &&
+        (!filter.blocking || source.extension.manifest.permissions.has("webRequestBlocking"))
     })
   }
 

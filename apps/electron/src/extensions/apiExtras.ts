@@ -4,6 +4,7 @@
 
 import { ApiHandler } from "./ExtensionApi"
 import { registeredContentScript } from "./contentScripts"
+import { permittedHosts, requireHost, requireHostPattern, requirePermission } from "./extensionPermissions"
 
 type Handlers = Record<string, ApiHandler>
 
@@ -55,18 +56,34 @@ function cookieFilter(details: Record<string, unknown>): Electron.CookiesGetFilt
 }
 
 export function cookieHandlers(): Handlers {
+  const allowed = (host: Parameters<ApiHandler>[0]["host"], cookie: Electron.Cookie): boolean => {
+    const domain = (cookie.domain ?? "").replace(/^\./, "")
+    if (!domain) return false
+    const origin = permittedHosts(host.extension)
+    return origin.matches(`https://${domain}/`) ||
+      (!cookie.secure && origin.matches(`http://${domain}/`))
+  }
   return {
     "cookies.get": async ({ host }, details) => {
+      requirePermission(host.extension, "cookies")
       const record = asRecord(details)
+      if (typeof record.url !== "string") throw new Error("cookies.get needs a url")
+      requireHost(host.extension, record.url)
       const [cookie] = await host.cookies.get(cookieFilter(record))
-      return cookie ? webExtCookie(cookie) : null
+      return cookie && allowed(host, cookie) ? webExtCookie(cookie) : null
     },
-    "cookies.getAll": async ({ host }, details) =>
-      (await host.cookies.get(cookieFilter(asRecord(details)))).map(webExtCookie),
+    "cookies.getAll": async ({ host }, details) => {
+      requirePermission(host.extension, "cookies")
+      const record = asRecord(details)
+      if (typeof record.url === "string") requireHost(host.extension, record.url)
+      return (await host.cookies.get(cookieFilter(record))).filter((cookie) => allowed(host, cookie)).map(webExtCookie)
+    },
     "cookies.set": async ({ host }, details) => {
+      requirePermission(host.extension, "cookies")
       const record = asRecord(details)
       const url = optionalString(record.url)
       if (!url) throw new Error("cookies.set needs a url")
+      requireHost(host.extension, url)
       const cookie: Electron.CookiesSetDetails = { url }
       const name = optionalString(record.name)
       const value = optionalString(record.value)
@@ -88,24 +105,33 @@ export function cookieHandlers(): Handlers {
       return stored ? webExtCookie(stored) : null
     },
     "cookies.remove": async ({ host }, details) => {
+      requirePermission(host.extension, "cookies")
       const record = asRecord(details)
       const url = optionalString(record.url)
       const name = optionalString(record.name)
       if (!url || name === undefined) throw new Error("cookies.remove needs url and name")
+      requireHost(host.extension, url)
       await host.cookies.remove(url, name)
       return { url, name, storeId: "0", firstPartyDomain: "" }
     },
-    "cookies.getAllCookieStores": ({ host }) => [
-      { id: "0", tabIds: host.hooks.tabs().map((tab) => tab.id), incognito: false }
-    ]
+    "cookies.getAllCookieStores": ({ host }) => {
+      requirePermission(host.extension, "cookies")
+      return [
+        { id: "0", tabIds: host.hooks.tabs().map((tab) => tab.id), incognito: false }
+      ]
+    }
   }
 }
 
 /** `contentScripts.register`: the script joins the frames that match from now on. */
 export function contentScriptHandlers(): Handlers {
   return {
-    "contentScripts.register": ({ host }, options) =>
-      host.registerContentScript(registeredContentScript(options)),
+    "contentScripts.register": ({ host }, options) => {
+      requirePermission(host.extension, "contentScripts")
+      const script = registeredContentScript(options)
+      for (const pattern of script.spec.matches) requireHostPattern(host.extension, pattern)
+      return host.registerContentScript(script)
+    },
     "contentScripts.unregister": ({ host }, id) => {
       if (typeof id === "number") host.registeredScripts.delete(id)
     }

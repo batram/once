@@ -43,7 +43,27 @@ const extensionProtocol = load("ExtensionProtocol")
 const { ExtensionStorage } = load("ExtensionStorage")
 const { ExtensionContexts } = load("ExtensionContexts")
 const api = load("ExtensionApi")
+const permissions = load("extensionPermissions")
 const { EXTENSION_IPC } = load("protocol")
+const { ExtensionRuntime } = load("ExtensionRuntime")
+
+test("a registered extension view loses page trust after cross-origin navigation", () => {
+  assert.equal(scheme.isExtensionPageDocument("moz-extension://owner/page.html", "owner"), true)
+  assert.equal(scheme.isExtensionPageDocument("https://example.test/page", "owner"), false)
+  assert.equal(scheme.isExtensionPageDocument("moz-extension://other/page.html", "owner"), false)
+  assert.equal(scheme.isExtensionPageDocument("about:blank", "owner"), false)
+  const contents = fakeContents(71)
+  const frame = { url: "moz-extension://owner/page.html" }
+  contents.mainFrame = frame
+  const entry = { id: String(contents.id), kind: "background" }
+  const host = { extension: { host: "owner" }, contexts: { get: () => entry } }
+  const runtime = Object.create(ExtensionRuntime.prototype)
+  runtime.contextOwner = new Map([[contents.id, host]])
+  const event = { sender: contents, senderFrame: frame }
+  assert.equal(runtime.requireContext(event).entry, entry)
+  frame.url = "https://example.test/page"
+  assert.throws(() => runtime.requireContext(event), /Untrusted extension IPC sender/)
+})
 
 const fixture = path.join(root, "tests/fixtures/extensions/blocker")
 
@@ -304,6 +324,7 @@ test("scripting registrations map onto the host's dynamic content scripts", () =
   const registered = new Map()
   let next = 1
   const host = {
+    extension: { manifest: { permissions: new Set(["scripting"]), hostPermissions: ["<all_urls>"] } },
     registeredScripts: registered,
     registerContentScript(script) {
       const id = next++
@@ -348,6 +369,41 @@ test("scripting registrations map onto the host's dynamic content scripts", () =
 
   assert.match(loaded.generatedBackgroundHtml(["worker.js"], true), /<script type="module" src="worker.js">/)
   assert.doesNotMatch(loaded.generatedBackgroundHtml(["bg.js"]), /module/)
+})
+
+test("dynamic scripts require both their API and complete host grants", () => {
+  const handlers = api.createApiHandlers()
+  const host = {
+    extension: { manifest: { permissions: new Set(), hostPermissions: ["https://allowed.test/*"] } },
+    registeredScripts: new Map(),
+    registerContentScript() { throw new Error("should not register") }
+  }
+  const call = { host, sender: null }
+  const script = [{ id: "x", matches: ["https://allowed.test/*"], js: ["x.js"] }]
+  assert.throws(() => handlers["scripting.registerContentScripts"](call, script), /scripting permission/)
+  host.extension.manifest.permissions.add("scripting")
+  assert.throws(() => handlers["scripting.registerContentScripts"](call,
+    [{ id: "x", matches: ["<all_urls>"], js: ["x.js"] }]), /host permission/)
+  assert.doesNotThrow(() => permissions.requireHostPattern(host.extension, "https://allowed.test/*"))
+  assert.throws(() => permissions.requireHostPattern(host.extension, "https://*.allowed.test/*"), /host permission/)
+})
+
+test("cookies.getAll filters a shared cookie store by permission and host", async () => {
+  const handlers = api.createApiHandlers()
+  const cookies = [
+    { name: "allowed", value: "1", domain: "allowed.test", path: "/", secure: true },
+    { name: "private", value: "2", domain: "private.test", path: "/", secure: true }
+  ]
+  const host = {
+    extension: { manifest: { permissions: new Set(), hostPermissions: ["https://allowed.test/*"] } },
+    cookies: { get: async () => cookies }
+  }
+  const call = { host, sender: null }
+  await assert.rejects(handlers["cookies.getAll"](call, {}), /cookies permission/)
+  host.extension.manifest.permissions.add("cookies")
+  const result = await handlers["cookies.getAll"](call, {})
+  assert.deepEqual(result.map((cookie) => cookie.name), ["allowed"])
+  await assert.rejects(handlers["cookies.getAll"](call, { url: "https://private.test/" }), /host permission/)
 })
 
 test("API handlers answer tabs, messages, i18n, and storage change events", async () => {
