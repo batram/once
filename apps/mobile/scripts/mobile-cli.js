@@ -240,7 +240,8 @@ function channelFor(command, value) {
 }
 
 function buildWeb(channel) {
-  const env = environment(channel)
+  if (platform === "ios") run(process.execPath, [path.join(root, "scripts", "fetch-ios-extensions.js")])
+  const env = { ...environment(channel), ONCE_MOBILE_PLATFORM: platform || "web" }
   runNpm(["run", "build:packages"], env)
   runNpm(["run", channel === "dev" ? "build:dev" : "build", "--workspace", "@once/mobile"], env)
   writeWebStamp(channel)
@@ -265,6 +266,12 @@ function writeWebStamp(channel) {
 function sync(platform, channel) {
   buildWeb(channel)
   cap(["sync", platform], platformEnvironment(platform, channel))
+  if (platform === "ios") {
+    // Capacitor 8 emits .v18 under swift-tools-version 5.9 and truncates 18.4.
+    // The string form is supported by that manifest API and keeps our minimum.
+    const manifest = path.join(appRoot, "ios/App/CapApp-SPM/Package.swift")
+    fs.writeFileSync(manifest, fs.readFileSync(manifest, "utf8").replace(/platforms: \[\.iOS\([^)]*\)\]/, 'platforms: [.iOS("18.4")]'))
+  }
 }
 
 // Record what the last package build produced so the e2e runner can detect

@@ -22,6 +22,7 @@ export interface MobileExtensionCommand {
 }
 
 export interface MobileBrowserExtensions {
+  readonly platform?: "android" | "ios"
   command(options: MobileExtensionCommand): Promise<{ extensions?: MobileBrowserExtension[]; cancelled?: boolean; noPage?: boolean }>
   onChanged(listener: () => void): Promise<() => void>
 }
@@ -32,9 +33,11 @@ interface NativeExtensions {
 }
 
 export function createMobileBrowserExtensions(): MobileBrowserExtensions | null {
-  if (Capacitor.getPlatform() !== "android") return null
+  const platform = Capacitor.getPlatform()
+  if (platform !== "android" && platform !== "ios") return null
   const native = registerPlugin<NativeExtensions>("InAppBrowserSurface")
   return {
+    platform,
     command: options => native.extensionCommand(options),
     async onChanged(listener) {
       const subscription = await native.addListener("extensionsChanged", listener)

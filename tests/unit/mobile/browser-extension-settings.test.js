@@ -7,7 +7,7 @@ const { parseHTML } = require("linkedom")
 
 const settle = () => new Promise(resolve => setImmediate(resolve))
 
-function harness(command, active = true) {
+function harness(command, active = true, platform = "android") {
   const { window, document } = parseHTML(`<html><body><div id="settings_panel">
     <button id="settings_section_back">Settings</button><h2 class="settings_title"></h2>
     <div class="settings_section ${active ? "active" : ""}"><div id="extension_settings"><p id="supplemental">Filters</p></div></div>
@@ -30,7 +30,7 @@ function harness(command, active = true) {
   }
   Function("exports", "require", "document", "MutationObserver", compiled)(exports, require, document, Observer)
   const openedUrls = []
-  exports.bindMobileBrowserExtensionSettings({ command, onChanged: async () => () => {} }, url => openedUrls.push(url))
+  exports.bindMobileBrowserExtensionSettings({ command, platform, onChanged: async () => () => {} }, url => openedUrls.push(url))
   const click = text => {
     const button = [...document.querySelectorAll("button")].find(button => button.textContent === text || button.getAttribute("aria-label") === text)
     assert.ok(button, `button ${text} exists`)
@@ -51,6 +51,16 @@ test("Firefox Add-ons catalog opens in the mobile reading view", async () => {
   assert.equal(event.defaultPrevented, true)
   assert.equal(link.getAttribute("target"), null)
   assert.deepEqual(ui.openedUrls, ["https://addons.mozilla.org/en-US/firefox/"])
+})
+
+test("iOS exposes bundled extension controls without promising Firefox installation", async () => {
+  const ui = harness(async () => ({ extensions: [{ id: "ublock-origin-lite", name: "uBlock Origin Lite", version: "1", description: "Blocker", enabled: false, bundled: true, hasOptions: false, hasAction: false, permissions: [], disabledReason: "Requires iOS 18.6" }] }), true, "ios")
+  await settle()
+  assert.equal(ui.document.body.textContent.includes("Safari-compatible"), true)
+  assert.equal(ui.document.body.textContent.includes("Install extension"), false)
+  await ui.click("Manage uBlock Origin Lite")
+  assert.equal(ui.document.body.textContent.includes("Requires iOS 18.6"), true)
+  assert.equal(ui.document.body.textContent.includes("Check for update"), false)
 })
 
 test("Hidden extension settings do not start Gecko until opened", async () => {

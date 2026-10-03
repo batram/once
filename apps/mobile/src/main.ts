@@ -1,6 +1,7 @@
 import { App } from "@capacitor/app"
 import { Capacitor } from "@capacitor/core"
 import { createOnceApp } from "@once/app"
+import { bindMobileExtensionSettings } from "./mobileExtensionSettings"
 import {
   createDefaultMobileNativeBridge,
   createInAppBrowserSurface,
@@ -190,26 +191,7 @@ async function startMobileApp(): Promise<void> {
   document.body.dataset.onceStage = "app-start"
   showStartupState("Opening saved stories and settings…")
   await app.start()
-  if (Capacitor.isNativePlatform()) {
-    const applyExtensionSettings = async (settings?: {
-      filterLists: Awaited<ReturnType<typeof app.client.getFilterLists>>
-      userscripts: Awaited<ReturnType<typeof app.client.getUserscripts>>
-    }): Promise<void> => {
-      try {
-        await browserSurface.applyExtensionSettings(
-          settings?.filterLists ?? await app.client.getFilterLists(),
-          settings?.userscripts ?? await app.client.getUserscripts()
-        )
-      } catch (error) {
-        console.error("Failed to apply mobile extension settings", error)
-      }
-    }
-    // AppRuntime's startup publication precedes this subscription.
-    await applyExtensionSettings()
-    app.client.subscribe("extensionSettingsChanged", (settings) => {
-      void applyExtensionSettings(settings)
-    })
-  }
+  if (Capacitor.isNativePlatform()) await bindMobileExtensionSettings(app.client, browserSurface)
   document.body.dataset.onceStage = "ui-mount"
   beginStoryLoading(app.client)
   await mountOnceUi(app.client, {
@@ -228,7 +210,7 @@ async function startMobileApp(): Promise<void> {
     sourcePicker: true,
     // Only the native surface applies them; the browser build of the mobile
     // shell has no page of its own to run them in.
-    extensionSettings: Capacitor.isNativePlatform(),
+    extensionSettings: Capacitor.isNativePlatform() || __ONCE_MOBILE_E2E__,
     initialStoryLoad: __ONCE_MOBILE_E2E__ ? "disabled" : "cache",
     backgroundInitialStoryLoad: true,
     // Settings participates in the same back stack as the hardware key, so the

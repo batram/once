@@ -133,6 +133,11 @@ module.exports = (_env = {}, argv = {}) => {
       new AddonSandboxInlinePlugin(),
       new CopyPlugin({
         patterns: [
+          ...(process.env.ONCE_MOBILE_PLATFORM === "ios" ? [
+            // Preserve upstream extension runtime assets, including modules with top-level await.
+            { from: path.join(root, "vendor", "extensions", "ublock-origin-lite"), to: "extensions/ublock-origin-lite", globOptions: { dot: false }, info: { minimized: true } },
+            { from: path.join(root, "vendor", "extensions", "ios"), to: "extensions", globOptions: { dot: false }, info: { minimized: true } }
+          ] : []),
           {
             from: path.join(root, "packages", "ui-web", "public", "static", "css"),
             to: "css"

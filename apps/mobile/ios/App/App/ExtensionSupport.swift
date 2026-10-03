@@ -68,6 +68,36 @@ enum UserscriptInjection {
 /// rules first and `ignore-previous-rules` exceptions last. Unsupported scriptlets and
 /// procedural cosmetics are intentionally omitted because WKContentRuleList cannot run them.
 enum IOSContentBlockerExporter {
+    static func fetchLists(_ urls: [URL]) async throws -> [String] {
+        try await withThrowingTaskGroup(of: String.self) { group in
+            for url in urls {
+                group.addTask {
+                    let cacheKey = "once.filter-list." + Data(url.absoluteString.utf8).base64EncodedString()
+                    do {
+                        var request = URLRequest(url: url)
+                        request.timeoutInterval = 30
+                        request.setValue("Once iOS content blocker", forHTTPHeaderField: "User-Agent")
+                        let (data, response) = try await URLSession.shared.data(for: request)
+                        guard let http = response as? HTTPURLResponse,
+                              (200..<300).contains(http.statusCode),
+                              let text = String(data: data, encoding: .utf8) else {
+                            throw NSError(domain: "OnceContentBlocker", code: 1,
+                                          userInfo: [NSLocalizedDescriptionKey: "Unable to download \(url.absoluteString)"])
+                        }
+                        UserDefaults.standard.set(text, forKey: cacheKey)
+                        return text
+                    } catch {
+                        if let cached = UserDefaults.standard.string(forKey: cacheKey) { return cached }
+                        throw error
+                    }
+                }
+            }
+            var result: [String] = []
+            for try await text in group { result.append(text) }
+            return result
+        }
+    }
+
     static func export(_ list: String) throws -> String {
         var rules: [[String: Any]] = []
         var exceptions: [[String: Any]] = []

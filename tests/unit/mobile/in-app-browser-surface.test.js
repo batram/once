@@ -169,7 +169,7 @@ test("iOS installs synced content rules and parsed userscripts", () => {
   const adapter = fs.readFileSync(path.join(
     root, "packages/platform-mobile/src/InAppBrowserSurface.ts"
   ), "utf8")
-  const mobile = fs.readFileSync(path.join(root, "apps/mobile/src/main.ts"), "utf8")
+  const mobile = fs.readFileSync(path.join(root, "apps/mobile/src/mobileExtensionSettings.ts"), "utf8")
   const ios = fs.readFileSync(path.join(
     root, "apps/mobile/ios/App/App/AppDelegate.swift"
   ), "utf8")

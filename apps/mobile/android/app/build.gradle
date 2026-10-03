@@ -39,6 +39,7 @@ android {
             // that scripts/fetch-extensions.js unpacks for every target. GeckoView
             // loads them from resource://android/assets/<name>/.
             assets.srcDirs += ['../../extensions', '../../../../vendor/extensions']
+            assets.exclude 'ublock-origin-lite/**', 'ios/**'
         }
     }
     // The flavours stamp app_name; AGP 9 no longer generates resValues unless asked.

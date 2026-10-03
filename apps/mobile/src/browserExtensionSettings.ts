@@ -14,7 +14,7 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, text = "", class
   return node
 }
 
-/** Android management stays in the shared settings section; extension pages are native sessions. */
+/** Extension management stays in the shared settings section; extension pages are native sessions. */
 export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions, openBrowserUrl: (url: string) => void): void {
   const root = document.querySelector<HTMLElement>("#extension_settings")
   const panel = document.querySelector<HTMLElement>("#settings_panel")
@@ -84,8 +84,11 @@ export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions,
       back.textContent = target === "overview" ? "Settings" : "Browser Extensions"
     }
     if (target === "overview") {
-      page.append(element("p", "Firefox extensions for pages opened in Once. Installation and settings stay on this device.", "settings_description"))
-      page.append(link("Install extension", "install"), withTestId(link("Filter lists & userscripts", "supplemental"), "extension-supplemental"))
+      page.append(element("p", api.platform === "ios"
+        ? "Bundled Safari-compatible extensions for pages opened in Once. Extension settings stay on this device."
+        : "Firefox extensions for pages opened in Once. Installation and settings stay on this device.", "settings_description"))
+      if (api.platform !== "ios") page.append(link("Install extension", "install"))
+      page.append(withTestId(link("Filter lists & userscripts", "supplemental"), "extension-supplemental"))
       const result = await api.command({ action: "list" })
       report(result)
       if (generation !== ticket) return
@@ -167,6 +170,7 @@ type PageControls = {
 function renderDetail(page: HTMLElement, api: MobileBrowserExtensions, extension: MobileBrowserExtension, controls: PageControls): void {
   const { button, link, refreshSelected } = controls
   page.append(element("h4", `${extension.name} ${extension.version}`), element("p", extension.description))
+  if (extension.disabledReason) page.append(element("p", extension.disabledReason, "settings_status"))
   page.append(button(extension.enabled ? "Disable extension" : "Enable extension", async () => {
     await api.command({ action: "enable", id: extension.id, enabled: !extension.enabled })
     await refreshSelected()

@@ -21,6 +21,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         CAPPluginMethod(name: "clearFind", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "presentFind", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "applyExtensionSettings", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "extensionCommand", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "extensionPage", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "close", returnType: CAPPluginReturnPromise)
     ]
 
@@ -31,6 +33,12 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     private var extensionSettingsGeneration = 0
     private var contentRuleList: WKContentRuleList?
     private var extensionUserScripts: [WKUserScript] = []
+    private lazy var extensions: WebExtensionHost = {
+        let host = WebExtensionHost()
+        host.changed = { [weak self] in self?.notifyListeners("extensionsChanged", data: [:]) }
+        host.pageChanged = { [weak self] in self?.notifyListeners("extensionPageChanged", data: $0) }
+        return host
+    }()
 
     /// The find engine the reader frame uses, bundled as public/page-find.js
     /// (apps/mobile/src/pageFindRuntime.ts). WebKit's own finder reports no
@@ -53,10 +61,12 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         if let surface { return surface }
         guard let shell = bridge?.webView, let parent = shell.superview else { return nil }
         let configuration = WKWebViewConfiguration()
+        configuration.webExtensionController = extensions.controller
         configuration.websiteDataStore = .default()
         if let contentRuleList { configuration.userContentController.add(contentRuleList) }
         for script in extensionUserScripts { configuration.userContentController.addUserScript(script) }
         let view = WKWebView(frame: .zero, configuration: configuration)
+        extensions.attach(view, parent: parent)
         view.navigationDelegate = self
         view.uiDelegate = self
         // Safari's edge swipes for the page's own history. The recognizers
@@ -138,7 +148,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             call.reject("Embedded browsing only supports http and https URLs")
             return
         }
-        DispatchQueue.main.async {
+        Task { @MainActor in
+            await self.extensions.prepare()
             guard let view = self.ensureSurface() else {
                 call.reject("Unable to create the embedded browser surface")
                 return
@@ -155,7 +166,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             call.reject("Embedded browsing only supports http and https URLs")
             return
         }
-        DispatchQueue.main.async {
+        Task { @MainActor in
+            await self.extensions.prepare()
             guard let view = self.ensureSurface() else {
                 call.reject("Unable to create the embedded browser surface")
                 return
@@ -303,20 +315,21 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             call.reject("filterLists and userscripts are required")
             return
         }
-        extensionSettingsGeneration += 1
-        let generation = extensionSettingsGeneration
-        installUserscripts(userscripts)
+        Task { @MainActor in
+            extensionSettingsGeneration += 1
+            let generation = extensionSettingsGeneration
+            installUserscripts(userscripts)
 
-        let entries = (filterLists["lists"] as? [JSObject] ?? []).compactMap { entry -> URL? in
-            guard entry["enabled"] as? Bool != false,
-                  let raw = entry["url"] as? String,
-                  let url = URL(string: raw),
-                  url.scheme == "https" || url.scheme == "http" else { return nil }
-            return url
-        }
-        Task {
+            let entries = (filterLists["lists"] as? [JSObject] ?? []).compactMap { entry -> URL? in
+                guard entry["enabled"] as? Bool != false,
+                      let raw = entry["url"] as? String,
+                      let url = URL(string: raw),
+                      url.scheme == "https" || url.scheme == "http" else { return nil }
+                return url
+            }
+            await extensions.prepare()
             do {
-                let texts = try await fetchFilterLists(entries)
+                let texts = try await IOSContentBlockerExporter.fetchLists(entries)
                 let encodedRules = try IOSContentBlockerExporter.export(texts.joined(separator: "\n"))
                 try await compileAndInstallRules(encodedRules, generation: generation)
                 if generation == extensionSettingsGeneration { call.resolve() }
@@ -325,6 +338,30 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
                 if generation == extensionSettingsGeneration { call.reject(error.localizedDescription) }
                 else { call.resolve() }
             }
+        }
+    }
+
+    @objc func extensionCommand(_ call: CAPPluginCall) {
+        Task { @MainActor in
+            await extensions.prepare()
+            let action = call.getString("action") ?? "list"
+            if action == "options" || action == "action", surface == nil {
+                ensureSurface()?.isHidden = true
+            }
+            do {
+                call.resolve(try extensions.command(action, id: call.getString("id") ?? "",
+                                                    enabled: call.getBool("enabled") ?? true))
+            } catch { call.reject(error.localizedDescription) }
+        }
+    }
+
+    @objc func extensionPage(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            let object = call.getObject("bounds") ?? [:]
+            let bounds = CGRect(x: max(0, object["x"] as? Double ?? 0), y: max(0, object["y"] as? Double ?? 0),
+                                width: max(0, object["width"] as? Double ?? 0), height: max(0, object["height"] as? Double ?? 0))
+            self.extensions.pageCommand(call.getString("action") ?? "close", bounds: bounds)
+            call.resolve()
         }
     }
 
@@ -430,36 +467,6 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         }
     }
 
-    private func fetchFilterLists(_ urls: [URL]) async throws -> [String] {
-        try await withThrowingTaskGroup(of: String.self) { group in
-            for url in urls {
-                group.addTask {
-                    let cacheKey = "once.filter-list." + Data(url.absoluteString.utf8).base64EncodedString()
-                    do {
-                        var request = URLRequest(url: url)
-                        request.timeoutInterval = 30
-                        request.setValue("Once iOS content blocker", forHTTPHeaderField: "User-Agent")
-                        let (data, response) = try await URLSession.shared.data(for: request)
-                        guard let http = response as? HTTPURLResponse,
-                              (200..<300).contains(http.statusCode),
-                              let text = String(data: data, encoding: .utf8) else {
-                            throw NSError(domain: "OnceContentBlocker", code: 1,
-                                          userInfo: [NSLocalizedDescriptionKey: "Unable to download \(url.absoluteString)"])
-                        }
-                        UserDefaults.standard.set(text, forKey: cacheKey)
-                        return text
-                    } catch {
-                        if let cached = UserDefaults.standard.string(forKey: cacheKey) { return cached }
-                        throw error
-                    }
-                }
-            }
-            var result: [String] = []
-            for try await text in group { result.append(text) }
-            return result
-        }
-    }
-
     @MainActor
     private func compileAndInstallRules(_ encodedRules: String, generation: Int) async throws {
         guard generation == extensionSettingsGeneration else { return }
@@ -507,6 +514,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
 
     @objc func close(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
+            self.extensions.detach()
             self.surface?.stopLoading()
             self.surface?.navigationDelegate = nil
             self.surface?.uiDelegate = nil
@@ -523,6 +531,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     }
 
     private func history(_ view: WKWebView) {
+        extensions.navigationChanged()
         var value = payload(view.url)
         value["canGoBack"] = view.canGoBack
         value["canGoForward"] = view.canGoForward
@@ -579,11 +588,12 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             decisionHandler(.cancel)
             return
         }
-        if embeddable(url.absoluteString) != nil, navigationAction.targetFrame != nil {
-            decisionHandler(.allow)
-        } else {
+        switch extensions.navigationDisposition(for: url, targetIsMainFrame: navigationAction.targetFrame?.isMainFrame) {
+        case .allow: decisionHandler(.allow)
+        case .external:
             UIApplication.shared.open(url)
             decisionHandler(.cancel)
+        case .cancel: decisionHandler(.cancel)
         }
     }
 
@@ -603,6 +613,10 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
 
     public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         webView.reload()
+    }
+
+    public func webViewDidClose(_ webView: WKWebView) {
+        extensions.closePage(requestedBy: webView)
     }
 
     public func webView(
