@@ -93,6 +93,10 @@ function head(doc: Document): HTMLHeadElement {
   return created
 }
 
+function withoutHash(url: URL): string {
+  return url.href.slice(0, url.href.length - url.hash.length)
+}
+
 function sanitize(doc: Document, baseUrl: string): void {
   doc.querySelectorAll("script,style,noscript,template,form,iframe,object,embed,svg").forEach((node) => node.remove())
   doc.querySelectorAll<HTMLElement>("*").forEach((node) => {
@@ -108,7 +112,11 @@ function sanitize(doc: Document, baseUrl: string): void {
         const resolved = new URL(value, baseUrl)
         const allowed = attribute === "href" ? ["http:", "https:", "mailto:"] : ["http:", "https:"]
         if (!allowed.includes(resolved.protocol)) throw new Error("unsafe URL")
-        node.setAttribute(attribute, resolved.toString())
+        // A jump within the article stays a bare fragment, so it scrolls the
+        // reader instead of leaving it for the original page.
+        node.setAttribute(attribute, attribute === "href" && resolved.hash && withoutHash(resolved) === withoutHash(new URL(baseUrl))
+          ? resolved.hash
+          : resolved.toString())
       } catch {
         node.removeAttribute(attribute)
       }

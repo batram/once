@@ -24,6 +24,7 @@ import { attachEdgeSwipe } from "./edgeSwipe"
 import { mobileAddonConversations } from "./addonConversations"
 import { installReaderTtsHostBridge } from "./readerTtsHostBridge"
 import { installReaderTtsControls } from "./readerTtsControls"
+import { installReaderLinkHost } from "./readerLinks"
 import { MobileReadingController } from "./readingController"
 import { readingPageActions } from "./readingPageActions"
 import { bindReloadStatus, RELOAD_SPIN_TIMEOUT_MS } from "./reloadStatus"
@@ -162,6 +163,11 @@ async function startMobileApp(): Promise<void> {
   const ttsControls = installReaderTtsControls(tts)
   const reading = new MobileReadingController(browserSurface, reader, ttsControls)
   await reading.install()
+  // Web links leave the reader for the browser surface; mail goes to the system.
+  installReaderLinkHost((source) => reader.isReaderWindow(source), (url) => {
+    if (url.startsWith("mailto:")) void nativeBridge.openExternal(url)
+    else reading.openBrowserUrl(url)
+  })
   ReaderView.mount(app.client)
   const sourcePicker = new MobileSourcePicker({
     surface: browserSurface,

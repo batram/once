@@ -406,7 +406,9 @@ function bindReaderTtsDom(
   Array.from(new Set(segments.map((segment) => segment.element))).forEach((element) => {
     element.classList.add("tts-segment")
     element.title = "Start reading here"
-    element.addEventListener("click", () => {
+    element.addEventListener("click", (event) => {
+      // A tap on a link follows the link; it does not start reading.
+      if (event.target instanceof Element && event.target.closest("a[href], area[href]")) return
       const index = segments.findIndex((segment) => segment.element === element)
       if (index >= 0) session.start(index)
     })
