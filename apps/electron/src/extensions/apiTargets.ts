@@ -3,7 +3,7 @@
 // injection handlers and the V3 `scripting` namespace.
 
 import type { ApiHost } from "./ExtensionApi"
-import type { ContextEntry } from "./ExtensionContexts"
+import { ContextEntry, isBlankFrameUrl } from "./ExtensionContexts"
 import { permittedHosts } from "./extensionPermissions"
 
 export function asRecord(value: unknown): Record<string, unknown> {
@@ -36,16 +36,16 @@ export function frameContexts(host: ApiHost, tabId: number, frameId?: number, al
   )
 }
 
-export function canInjectFrame(host: ApiHost, tabId: number, url: string): boolean {
+/** A blank frame is judged by `creator`, the ancestor URL whose origin it inherits. */
+export function canInjectFrame(host: ApiHost, tabId: number, url: string, creator = ""): boolean {
   if (permittedHosts(host.extension).matches(url) || host.hasActiveTabGrant?.(tabId, url)) return true
-  if (url !== "about:blank" && url !== "") return false
-  const topUrl = host.hooks.tabs().find((tab) => tab.id === tabId)?.url
-  return !!topUrl && (permittedHosts(host.extension).matches(topUrl) ||
-    !!host.hasActiveTabGrant?.(tabId, topUrl))
+  if (!isBlankFrameUrl(url)) return false
+  return !!creator && (permittedHosts(host.extension).matches(creator) ||
+    !!host.hasActiveTabGrant?.(tabId, creator))
 }
 
 export function authorizedFrames(host: ApiHost, tabId: number, frames: ContextEntry[]): ContextEntry[] {
-  const allowed = frames.filter((frame) => canInjectFrame(host, tabId, frame.url()))
+  const allowed = frames.filter((frame) => canInjectFrame(host, tabId, frame.url(), frame.creatorUrl?.()))
   if (frames.length > 0 && allowed.length === 0) throw new Error("Missing host permission for target frame")
   return allowed
 }

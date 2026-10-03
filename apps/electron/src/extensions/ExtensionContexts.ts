@@ -14,6 +14,8 @@ export interface ContextEntry {
   /** `api.event` → listener id → spec. */
   readonly listeners: Map<string, Map<number, ListenerRecord>>
   url(): string
+  /** For a tab frame: the nearest ancestor URL a blank document inherits its origin from. */
+  creatorUrl?(): string
   isDestroyed(): boolean
   send(message: ExtensionEvent): void
 }
@@ -36,6 +38,18 @@ export function pageContextId(contents: WebContents): string {
 // document replaces the previous document's context instead of joining it.
 export function frameContextId(contents: WebContents, frame: WebFrameMain): string {
   return `${contents.id}:${frame.frameTreeNodeId}`
+}
+
+export function isBlankFrameUrl(url: string): boolean {
+  return url === "about:blank" || url === ""
+}
+
+/** A blank frame takes its parent's origin, which may differ from the top document's. */
+export function creatorUrl(frame: WebFrameMain): string {
+  for (let ancestor = frame.parent; ancestor; ancestor = ancestor.parent) {
+    if (!isBlankFrameUrl(ancestor.url)) return ancestor.url
+  }
+  return ""
 }
 
 /**
@@ -123,6 +137,7 @@ export class ExtensionContexts {
       frameId,
       listeners: new Map(),
       url: () => (alive() ? frame.url : ""),
+      creatorUrl: () => (alive() ? creatorUrl(frame) : ""),
       isDestroyed: () => !alive(),
       send: (message) => {
         if (alive()) frame.send(EXTENSION_IPC.event, { ...message, host })

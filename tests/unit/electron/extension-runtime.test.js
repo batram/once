@@ -410,8 +410,9 @@ test("blank frames do not abort authorized all-frame injections", () => {
   const host = { extension, hooks: { tabs: () => [{ id: 4, url: "https://allowed.test/page" }] } }
   const frames = [
     { url: () => "https://allowed.test/page" },
-    { url: () => "about:blank" },
-    { url: () => "https://other.test/frame" }
+    { url: () => "about:blank", creatorUrl: () => "https://allowed.test/page" },
+    { url: () => "https://other.test/frame" },
+    { url: () => "about:blank", creatorUrl: () => "https://other.test/frame" }
   ]
   assert.deepEqual(targets.authorizedFrames(host, 4, frames), frames.slice(0, 2))
 })
@@ -457,12 +458,16 @@ test("an injection creates the top-frame content context when no manifest script
   }
   const runtime = Object.create(ExtensionRuntime.prototype)
   runtime.tabContents = new Map([[4, contents]])
+  runtime.pdfFrames = new WeakSet([child])
   runtime.ensureInjectionFrames(host, 4)
   assert.equal(sent.length, 1)
   assert.equal(sent[0].message.event, "bootstrap")
   assert.equal(sent[0].message.args[0].host, "owner")
   runtime.ensureInjectionFrames(host, 4)
   assert.equal(sent.length, 1)
+  runtime.ensureInjectionFrames(host, 4, undefined, true)
+  assert.equal(sent.length, 1, "a PDF child gets no world")
+  runtime.pdfFrames.delete(child)
   runtime.ensureInjectionFrames(host, 4, undefined, true)
   assert.equal(sent.length, 2, "same-origin child gets a world for allFrames")
 })
@@ -476,6 +481,9 @@ test("host patterns are compiled once and domain cookies follow permitted subdom
     { domain: "example.com", hostOnly: true, secure: true }), false)
   assert.equal(permissions.canAccessCookie(extension,
     { domain: ".other.com", hostOnly: false, secure: true }), false)
+  const wildcard = { manifest: { hostPermissions: ["*://*.example.com/*"] } }
+  assert.equal(permissions.canAccessCookie(wildcard,
+    { domain: ".mail.example.com", hostOnly: false, secure: true }), true)
 })
 
 test("cookies.get returns a parent-domain cookie for a permitted child host", async () => {

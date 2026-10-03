@@ -19,7 +19,7 @@ import {
 import { AdoptedExtensionSettings } from "./extensionSettingsApply"
 import { ExtensionSettingsCoordinator } from "./ExtensionSettingsCoordinator"
 import { BundledExtensionSource } from "./bundledExtensions"
-import { ContextEntry, frameContextId } from "./ExtensionContexts"
+import { ContextEntry, creatorUrl, frameContextId } from "./ExtensionContexts"
 import { ApiHandler, createApiHandlers } from "./ExtensionApi"
 import { ExtensionHost } from "./ExtensionHost"
 import { ExtensionPopup } from "./ExtensionPopup"
@@ -67,6 +67,15 @@ function surfaceFor(entry: ContextEntry): Readonly<Record<string, ApiSurface>> {
   return entry.kind === "content" ? CONTENT_API_SURFACE : EXTENSION_API_SURFACE
 }
 
+// Chromium also creates internal viewer/plugin frames. In particular a blank
+// plugin frame must not inherit the outer URL via match_about_blank.
+function insidePdfViewer(frame: WebFrameMain): boolean {
+  for (let ancestor: WebFrameMain | null = frame; ancestor; ancestor = ancestor.parent) {
+    if (ancestor.url.startsWith("chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/")) return true
+  }
+  return false
+}
+
 function extensionDirectories(configured: string | undefined): string[] {
   return (configured ?? "")
     .split(path.delimiter)
@@ -111,6 +120,8 @@ export class ExtensionRuntime {
   private readonly dnr = new DnrEnforcer(() => [...this.hosts.values()].map((host) => host.dnr))
   private readonly ownPages = new OwnPageRequests()
   private readonly tabContents = new Map<number, WebContents>()
+  /** Frames whose current document is a PDF; only their preload knows the MIME type. */
+  private readonly pdfFrames = new WeakSet<WebFrameMain>()
   private readonly changed = new Set<() => void>()
   private readonly installedChanged = new Set<() => void>()
   private lastActive = new Map<number, number>()
@@ -303,7 +314,8 @@ export class ExtensionRuntime {
   openPopup(window: BrowserWindow, extensionHost: string, anchor: ElectronRect): void {
     const host = this.hosts.get(extensionHost)
     if (!host) throw new Error("Unknown extension")
-    const active = this.options.hooks.tabs().find((tab) => tab.active && tab.windowId === window.id)
+    // Tab snapshots name their window by its webContents id, not BrowserWindow.id.
+    const active = this.options.hooks.tabs().find((tab) => tab.active && tab.windowId === window.webContents.id)
     host.grantActiveTab(active)
     let popup = this.popups.get(extensionHost)
     if (popup?.isOpen()) {
@@ -428,12 +440,12 @@ export class ExtensionRuntime {
     for (const host of this.hosts.values()) host.contexts.remove(contextId)
     // Firefox extensions cannot inject into the native PDF viewer. Its outer
     // document still has the requested HTTP URL, including extensionless URLs.
-    if (contentType === "application/pdf") return []
-    // Chromium also creates internal viewer/plugin frames. In particular a
-    // blank plugin frame must not inherit the outer URL via match_about_blank.
-    for (let ancestor: WebFrameMain | null = frame; ancestor; ancestor = ancestor.parent) {
-      if (ancestor.url.startsWith("chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/")) return []
+    this.pdfFrames.delete(frame)
+    if (contentType === "application/pdf") {
+      this.pdfFrames.add(frame)
+      return []
     }
+    if (insidePdfViewer(frame)) return []
     const ids = frameIdsOf(frame)
     const ownPage = parseExtensionUrl(frame.url)
     if (ownPage) {
@@ -632,7 +644,8 @@ export class ExtensionRuntime {
     const visit = (frame: WebFrameMain): void => {
       const id = frameIdsOf(frame).frameId
       if ((frameId !== undefined ? id === frameId : allFrames || id === 0) &&
-          !frame.detached && canInjectFrame(host, tabId, frame.url) &&
+          !frame.detached && !this.pdfFrames.has(frame) && !insidePdfViewer(frame) &&
+          canInjectFrame(host, tabId, frame.url, creatorUrl(frame)) &&
           !host.contexts.get(frameContextId(contents, frame))) {
         host.contexts.addFrame(contents, frame, host.extension.host, tabId, id)
         frame.send(EXTENSION_IPC.event, {

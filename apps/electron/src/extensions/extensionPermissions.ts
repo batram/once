@@ -37,7 +37,9 @@ export function canAccessCookie(
   const schemes = cookie.secure ? ["https"] : ["https", "http"]
   if (cookie.hostOnly) return schemes.some((scheme) => permitted.matches(`${scheme}://${domain}/`))
   return patterns.some((pattern) => {
-    const host = pattern.host === "*" ? domain : pattern.host
+    // A wildcard grant covers the cookie's own domain when it sits beneath it.
+    const covers = pattern.host === "*" || (pattern.subdomains && domain.endsWith(`.${pattern.host}`))
+    const host = covers ? domain : pattern.host
     if (host !== domain && !host.endsWith(`.${domain}`)) return false
     return schemes.some((scheme) => permitted.matches(`${scheme}://${host}/`))
   })
