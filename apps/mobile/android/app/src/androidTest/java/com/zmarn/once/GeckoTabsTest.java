@@ -129,6 +129,63 @@ public class GeckoTabsTest {
         assertFalse("Nothing was opened, so nothing is retired", after.retired.stream().anyMatch(key -> key.startsWith(unknown)));
     }
 
+    /** Every tab reports audible playback, even with background playback off, and never ends at a stale true. */
+    @Test public void tabsReportMediaPlaybackChanges() throws Exception {
+        GeckoTestSupport t = new GeckoTestSupport(); t.start();
+        String previous = (String) GeckoTestSupport.field(t.plugin, "selectedTab");
+        String id = UUID.randomUUID().toString(), generation = UUID.randomUUID().toString();
+        java.util.concurrent.LinkedBlockingQueue<Boolean> events = new java.util.concurrent.LinkedBlockingQueue<>();
+        // Observed without the background-playback opt-in, which this restores.
+        java.util.concurrent.atomic.AtomicReference<Boolean> backgroundPlayback = new java.util.concurrent.atomic.AtomicReference<>();
+        try (GeckoTestSupport.Fixture fixture = new GeckoTestSupport.Fixture()) {
+            select(t, id);
+            open(t, id, generation, fixture.url("/media"));
+            // Test-only autoplay grant; Gecko consults it as the document loads, so it must precede readiness.
+            t.ui(() -> {
+                ReadingSurfaceHost tab = (ReadingSurfaceHost) ((Map<?, ?>) GeckoTestSupport.field(t.plugin, "tabs")).get(id);
+                ((org.mozilla.geckoview.GeckoSession) GeckoTestSupport.field(tab, "session")).setPermissionDelegate(new org.mozilla.geckoview.GeckoSession.PermissionDelegate() {
+                    @Override public org.mozilla.geckoview.GeckoResult<Integer> onContentPermissionRequest(org.mozilla.geckoview.GeckoSession session, ContentPermission permission) {
+                        return org.mozilla.geckoview.GeckoResult.fromValue(ContentPermission.VALUE_ALLOW);
+                    }
+                });
+            });
+            GeckoTestSupport.Call show = new GeckoTestSupport.Call(identity(id, generation).put("visible", true));
+            t.ui(() -> t.plugin.setVisible(show)); show.await();
+            ready(t, id, generation, "media");
+            t.ui(() -> {
+                ReadingSurfaceHost tab = (ReadingSurfaceHost) ((Map<?, ?>) GeckoTestSupport.field(t.plugin, "tabs")).get(id);
+                BackgroundMedia media = tab.backgroundMedia;
+                backgroundPlayback.set(media.isEnabled());
+                media.setEnabled(false);
+                java.util.function.Consumer<Boolean> emit = media.playingChanged;
+                media.playingChanged = playing -> { events.add(playing); emit.accept(playing); };
+            });
+            // A generated 440 Hz tone: audible media without fixtures on disk. Gecko never
+            // activated a media session for a 10 s looping clip; a minute-long one is controllable.
+            evaluate(t, id, generation, "(() => { const rate = 8000, n = rate * 60, view = new DataView(new ArrayBuffer(44 + n * 2));"
+                + "const text = (at, s) => [...s].forEach((c, i) => view.setUint8(at + i, c.charCodeAt(0)));"
+                + "text(0, 'RIFF'); view.setUint32(4, 36 + n * 2, true); text(8, 'WAVEfmt '); view.setUint32(16, 16, true);"
+                + "view.setUint16(20, 1, true); view.setUint16(22, 1, true); view.setUint32(24, rate, true); view.setUint32(28, rate * 2, true);"
+                + "view.setUint16(32, 2, true); view.setUint16(34, 16, true); text(36, 'data'); view.setUint32(40, n * 2, true);"
+                + "for (let i = 0; i < n; i++) view.setInt16(44 + i * 2, Math.sin(i * 2 * Math.PI * 440 / rate) * 8000, true);"
+                + "const audio = document.createElement('audio'); audio.id = 'media'; audio.loop = true;"
+                + "audio.src = URL.createObjectURL(new Blob([view], {type: 'audio/wav'})); document.body.append(audio);"
+                + "audio.play(); return true; })()");
+            assertEquals("Play reports playing", Boolean.TRUE, events.poll(15, java.util.concurrent.TimeUnit.SECONDS));
+            evaluate(t, id, generation, "document.querySelector('#media').pause(); true");
+            assertEquals("Pause reports stopped", Boolean.FALSE, events.poll(10, java.util.concurrent.TimeUnit.SECONDS));
+            evaluate(t, id, generation, "document.querySelector('#media').play(); true");
+            assertEquals(Boolean.TRUE, events.poll(15, java.util.concurrent.TimeUnit.SECONDS));
+            close(t, id, generation);
+            assertEquals("Closing a playing tab reports stopped", Boolean.FALSE, events.poll(5, java.util.concurrent.TimeUnit.SECONDS));
+            assertNull("Changes are reported once", events.poll(1, java.util.concurrent.TimeUnit.SECONDS));
+        } finally {
+            if (((Map<?, ?>) GeckoTestSupport.field(t.plugin, "tabs")).containsKey(id)) close(t, id, generation);
+            if (backgroundPlayback.get() != null) new BackgroundMedia(t.plugin.getContext()).setEnabled(backgroundPlayback.get());
+            select(t, previous);
+        }
+    }
+
     private static final class TabState { java.util.Set<Object> ids; java.util.Set<String> retired; }
     @SuppressWarnings("unchecked")
     private TabState tabs(GeckoTestSupport t) {
