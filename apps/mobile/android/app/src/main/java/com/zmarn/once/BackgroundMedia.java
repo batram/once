@@ -55,7 +55,7 @@ final class BackgroundMedia implements MediaSession.Delegate {
 
     private void updateService() {
         if (!isEnabled() || playing == null) {
-            BackgroundMediaService.stop(context);
+            BackgroundMediaService.release(context, this);
             return;
         }
         try {
@@ -63,7 +63,7 @@ final class BackgroundMedia implements MediaSession.Delegate {
         } catch (RuntimeException error) {
             Log.e("OnceMedia", "Could not start background playback", error);
             playing.pause();
-            BackgroundMediaService.stop(context);
+            BackgroundMediaService.release(context, this);
             Toast.makeText(context, "Background playback could not start. Reopen Once and try again.", Toast.LENGTH_LONG).show();
         }
     }
@@ -98,7 +98,7 @@ final class BackgroundMedia implements MediaSession.Delegate {
         nativeTitle = "";
         nativeArtist = "";
         state = new ReadingMediaState();
-        BackgroundMediaService.stop(context);
+        BackgroundMediaService.release(context, this);
     }
 
     void detach() {

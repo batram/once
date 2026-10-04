@@ -1,6 +1,7 @@
 package com.zmarn.once;
 
 import android.app.Activity;
+import android.os.Looper;
 import android.os.SystemClock;
 import android.content.Intent;
 import android.net.Uri;
@@ -38,6 +39,21 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
     private boolean adoptedWindow;
     private final Map<String, InAppBrowserSurfacePlugin> tabs = new HashMap<>();
     private final java.util.Set<String> retiredTabs = new java.util.HashSet<>();
+
+    // Capacitor invokes plugin methods on its plugin thread, but the tab maps and
+    // their sessions are UI-thread state. Returns true when the receiver should
+    // run the call itself; otherwise the call was hopped or forwarded.
+    private boolean route(PluginCall call, java.util.function.Consumer<InAppBrowserSurfacePlugin> method) {
+        if (owner != null) return true;
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            getActivity().runOnUiThread(() -> method.accept(this));
+            return false;
+        }
+        InAppBrowserSurfacePlugin target = target(call);
+        if (target == this) return true;
+        if (target != null) method.accept(target);
+        return false;
+    }
 
     private InAppBrowserSurfacePlugin target(PluginCall call) {
         if (owner != null) return this;
@@ -218,9 +234,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
 
     @PluginMethod
     public void open(PluginCall call) {
-        InAppBrowserSurfacePlugin target = target(call);
-        if (target == null) return;
-        if (target != this) { target.open(call); return; }
+        if (!route(call, tab -> tab.open(call))) return;
         String url = call.getString("url");
         if (!isEmbeddable(url)) {
             call.reject("Embedded browsing only supports http and https URLs");
@@ -240,9 +254,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
 
     @PluginMethod
     public void navigate(PluginCall call) {
-        InAppBrowserSurfacePlugin target = target(call);
-        if (target == null) return;
-        if (target != this) { target.navigate(call); return; }
+        if (!route(call, tab -> tab.navigate(call))) return;
         String url = call.getString("url");
         if (!isEmbeddable(url)) {
             call.reject("Embedded browsing only supports http and https URLs");
@@ -259,9 +271,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
 
     @PluginMethod
     public void reload(PluginCall call) {
-        InAppBrowserSurfacePlugin target = target(call);
-        if (target == null) return;
-        if (target != this) { target.reload(call); return; }
+        if (!route(call, tab -> tab.reload(call))) return;
         ready(call, () -> {
             reloadSession();
             call.resolve();
@@ -270,9 +280,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
 
     @PluginMethod
     public void goBack(PluginCall call) {
-        InAppBrowserSurfacePlugin target = target(call);
-        if (target == null) return;
-        if (target != this) { target.goBack(call); return; }
+        if (!route(call, tab -> tab.goBack(call))) return;
         getActivity().runOnUiThread(() -> {
             moveHistory(false);
             call.resolve();
@@ -281,9 +289,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
 
     @PluginMethod
     public void goForward(PluginCall call) {
-        InAppBrowserSurfacePlugin target = target(call);
-        if (target == null) return;
-        if (target != this) { target.goForward(call); return; }
+        if (!route(call, tab -> tab.goForward(call))) return;
         getActivity().runOnUiThread(() -> {
             moveHistory(true);
             call.resolve();
@@ -292,17 +298,13 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
 
     @PluginMethod
     public void capturePreview(PluginCall call) {
-        InAppBrowserSurfacePlugin target = target(call);
-        if (target == null) return;
-        if (target != this) { target.capturePreview(call); return; }
+        if (!route(call, tab -> tab.capturePreview(call))) return;
         getActivity().runOnUiThread(() -> ReadingPreview.capture(this, getBridge().getWebView(), call));
     }
 
     @PluginMethod
     public void setBounds(PluginCall call) {
-        InAppBrowserSurfacePlugin target = target(call);
-        if (target == null) return;
-        if (target != this) { target.setBounds(call); return; }
+        if (!route(call, tab -> tab.setBounds(call))) return;
         getActivity().runOnUiThread(() -> {
             if (surface != null) applyBounds(call.getData());
             call.resolve();
@@ -320,9 +322,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
 
     @PluginMethod
     public void setVisible(PluginCall call) {
-        InAppBrowserSurfacePlugin target = target(call);
-        if (target == null) return;
-        if (target != this) { target.setVisible(call); return; }
+        if (!route(call, tab -> tab.setVisible(call))) return;
         getActivity().runOnUiThread(() -> {
             setSurfaceVisible(call.getBoolean("visible", false));
             call.resolve();
@@ -331,9 +331,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
 
     @PluginMethod
     public void showMenu(PluginCall call) {
-        InAppBrowserSurfacePlugin target = target(call);
-        if (target == null) return;
-        if (target != this) { target.showMenu(call); return; }
+        if (!route(call, tab -> tab.showMenu(call))) return;
         if (call.getBoolean("browserControls", false)) getActivity().runOnUiThread(() ->
             NativeBrowserMenu.show(getActivity(), call, session, canGoBack, canGoForward,
                 () -> moveHistory(false), () -> moveHistory(true), this::reloadSession, backgroundMedia));
@@ -351,9 +349,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
      */
     @PluginMethod
     public void evaluateJavaScript(PluginCall call) {
-        InAppBrowserSurfacePlugin target = target(call);
-        if (target == null) return;
-        if (target != this) { target.evaluateJavaScript(call); return; }
+        if (!route(call, tab -> tab.evaluateJavaScript(call))) return;
         String script = call.getString("script");
         if (script == null || script.isEmpty()) {
             call.reject("JavaScript source is required");
@@ -413,17 +409,13 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
      */
     @PluginMethod
     public void findInPage(PluginCall call) {
-        InAppBrowserSurfacePlugin target = target(call);
-        if (target == null) return;
-        if (target != this) { target.findInPage(call); return; }
+        if (!route(call, tab -> tab.findInPage(call))) return;
         getActivity().runOnUiThread(() -> ReadingPageFinder.find(call, session));
     }
 
     @PluginMethod
     public void clearFind(PluginCall call) {
-        InAppBrowserSurfacePlugin target = target(call);
-        if (target == null) return;
-        if (target != this) { target.clearFind(call); return; }
+        if (!route(call, tab -> tab.clearFind(call))) return;
         getActivity().runOnUiThread(() -> {
             if (session != null) session.getFinder().clear();
             call.resolve();
@@ -433,9 +425,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
     /** GeckoView has no find panel of its own; the shell's bar searches. */
     @PluginMethod
     public void presentFind(PluginCall call) {
-        InAppBrowserSurfacePlugin target = target(call);
-        if (target == null) return;
-        if (target != this) { target.presentFind(call); return; }
+        if (!route(call, tab -> tab.presentFind(call))) return;
         JSObject payload = new JSObject();
         payload.put("presented", false);
         call.resolve(payload);
@@ -443,14 +433,16 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
 
     @PluginMethod
     public void close(PluginCall call) {
-        InAppBrowserSurfacePlugin target = target(call);
-        if (target == null) return;
-        if (target != this) { target.close(call); return; }
+        if (!route(call, tab -> tab.close(call))) return;
         getActivity().runOnUiThread(() -> {
+            // A closed tab never comes back: its identity is retired, so later
+            // calls are rejected instead of rebuilding a session.
+            if (owner != null) destroyed = true;
             destroySurface();
             if (owner != null) {
                 owner.tabs.remove(tabId, this);
                 owner.retiredTabs.add(tabId + ":" + tabGeneration);
+                if (tabId.equals(owner.selectedTab)) owner.selectedTab = null;
             }
             call.resolve();
         });

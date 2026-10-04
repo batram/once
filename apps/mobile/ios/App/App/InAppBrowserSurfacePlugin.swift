@@ -66,7 +66,22 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         if let memoryObserver { NotificationCenter.default.removeObserver(memoryObserver) }
     }
 
-    func target(_ call: CAPPluginCall) -> InAppBrowserSurfacePlugin? {
+    // Capacitor invokes plugin methods on its bridge queue, but the tab maps and
+    // their views are main-queue state. Returns true when the receiver should
+    // run the call itself; otherwise the call was hopped or forwarded.
+    func route(_ call: CAPPluginCall, _ method: @escaping (InAppBrowserSurfacePlugin) -> Void) -> Bool {
+        if owner != nil { return true }
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { method(self) }
+            return false
+        }
+        guard let target = target(call) else { return false }
+        if target === self { return true }
+        method(target)
+        return false
+    }
+
+    private func target(_ call: CAPPluginCall) -> InAppBrowserSurfacePlugin? {
         if owner != nil { return self }
         guard let id = call.getString("tabId") ?? selectedTab else { return self }
         let generation = call.getString("generation") ?? ""
@@ -246,8 +261,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     }
 
     @objc func open(_ call: CAPPluginCall) {
-        guard let target = target(call) else { return }
-        if target !== self { target.open(call); return }
+        guard route(call, { $0.open(call) }) else { return }
         guard let url = embeddable(call.getString("url")) else {
             call.reject("Embedded browsing only supports http and https URLs")
             return
@@ -269,8 +283,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     }
 
     @objc func navigate(_ call: CAPPluginCall) {
-        guard let target = target(call) else { return }
-        if target !== self { target.navigate(call); return }
+        guard route(call, { $0.navigate(call) }) else { return }
         guard let url = embeddable(call.getString("url")) else {
             call.reject("Embedded browsing only supports http and https URLs")
             return
@@ -289,8 +302,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     }
 
     @objc func reload(_ call: CAPPluginCall) {
-        guard let target = target(call) else { return }
-        if target !== self { target.reload(call); return }
+        guard route(call, { $0.reload(call) }) else { return }
         DispatchQueue.main.async {
             if let surface = self.surface { self.navigationState.reload(surface) }
             call.resolve()
@@ -298,8 +310,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     }
 
     @objc func goBack(_ call: CAPPluginCall) {
-        guard let target = target(call) else { return }
-        if target !== self { target.goBack(call); return }
+        guard route(call, { $0.goBack(call) }) else { return }
         DispatchQueue.main.async {
             if self.surface?.canGoBack == true { self.surface?.goBack() }
             call.resolve()
@@ -307,8 +318,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     }
 
     @objc func goForward(_ call: CAPPluginCall) {
-        guard let target = target(call) else { return }
-        if target !== self { target.goForward(call); return }
+        guard route(call, { $0.goForward(call) }) else { return }
         DispatchQueue.main.async {
             if self.surface?.canGoForward == true { self.surface?.goForward() }
             call.resolve()
@@ -316,8 +326,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     }
 
     @objc func setBounds(_ call: CAPPluginCall) {
-        guard let target = target(call) else { return }
-        if target !== self { target.setBounds(call); return }
+        guard route(call, { $0.setBounds(call) }) else { return }
         DispatchQueue.main.async {
             self.applyBounds(call.jsObjectRepresentation)
             call.resolve()
@@ -325,8 +334,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     }
 
     @objc func setVisible(_ call: CAPPluginCall) {
-        guard let target = target(call) else { return }
-        if target !== self { target.setVisible(call); return }
+        guard route(call, { $0.setVisible(call) }) else { return }
         DispatchQueue.main.async {
             let visible = (call.getBool("visible") ?? false) && (self.owner == nil || self.owner?.selectedTab == self.tabId)
             if visible, let url = self.reclaimedURL {
@@ -339,8 +347,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     }
 
     @objc func showMenu(_ call: CAPPluginCall) {
-        guard let target = target(call) else { return }
-        if target !== self { target.showMenu(call); return }
+        guard route(call, { $0.showMenu(call) }) else { return }
         DispatchQueue.main.async {
             guard let presenter = self.presenter() else {
                 call.reject("Unable to present the native menu")
@@ -503,8 +510,14 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     }
 
     @objc func close(_ call: CAPPluginCall) {
-        guard let target = target(call) else { return }
-        if target !== self { target.close(call); return }
+        guard route(call, { $0.close(call) }) else { return }
+        // Routed tabs run here on the main queue: retire the identity now so
+        // calls already queued behind this close cannot revive the tab.
+        if let owner {
+            if owner.tabs[tabId] === self { owner.tabs.removeValue(forKey: tabId) }
+            owner.retiredTabs.insert(tabId + ":" + tabGeneration)
+            if owner.selectedTab == tabId { owner.selectedTab = nil }
+        }
         DispatchQueue.main.async {
             self.closeGeneration += 1
             if let view = self.surface { self.extensions.detach(view) }
@@ -518,10 +531,6 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             self.refreshControl = nil
             self.contentRuleList = nil
             self.installedRuleJSON = nil
-            if let owner = self.owner {
-                if owner.tabs[self.tabId] === self { owner.tabs.removeValue(forKey: self.tabId) }
-                owner.retiredTabs.insert(self.tabId + ":" + self.tabGeneration)
-            }
             call.resolve()
         }
     }

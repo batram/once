@@ -154,8 +154,16 @@ export class ReadingSurfaceCoordinator {
   private readonly listenerRemovers: Array<() => void> = []
 
   setReadingPanelVisible(visible: boolean): void {
+    const shown = visible && !this.readingPanelVisible
     this.readingPanelVisible = visible
     this.reader.setVisible(visible && this.session.snapshot().mode === "reader")
+    // A background tab opened while the panel was hidden, or before a
+    // rotation, holds stale native bounds; only the shown tab tracks resizes.
+    if (shown) {
+      void this.enqueue(async () => {
+        if (this.browserOpened) await this.surface.setBounds(this.bounds())
+      })
+    }
     void this.updateVisibility()
   }
 

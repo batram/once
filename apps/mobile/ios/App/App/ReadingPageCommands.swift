@@ -5,8 +5,7 @@ import WebKit
 // Page commands capture the scoped plugin before crossing the main queue.
 extension InAppBrowserSurfacePlugin {
     @objc func capturePreview(_ call: CAPPluginCall) {
-        guard let target = target(call) else { return }
-        if target !== self { target.capturePreview(call); return }
+        guard route(call, { $0.capturePreview(call) }) else { return }
         DispatchQueue.main.async {
             let reader = call.getBool("reader") ?? false
             guard let view = reader ? self.webView : self.surface,
@@ -39,8 +38,7 @@ extension InAppBrowserSurfacePlugin {
     }
 
     @objc func evaluateJavaScript(_ call: CAPPluginCall) {
-        guard let target = target(call) else { return }
-        if target !== self { target.evaluateJavaScript(call); return }
+        guard route(call, { $0.evaluateJavaScript(call) }) else { return }
         guard let script = call.getString("script"), !script.isEmpty else {
             call.reject("JavaScript source is required")
             return
@@ -68,8 +66,7 @@ extension InAppBrowserSurfacePlugin {
     }
 
     @objc func findInPage(_ call: CAPPluginCall) {
-        guard let target = target(call) else { return }
-        if target !== self { target.findInPage(call); return }
+        guard route(call, { $0.findInPage(call) }) else { return }
         guard let query = call.getString("query"), !query.isEmpty else {
             call.reject("Search text is required")
             return
@@ -119,8 +116,7 @@ extension InAppBrowserSurfacePlugin {
     }
 
     @objc func clearFind(_ call: CAPPluginCall) {
-        guard let target = target(call) else { return }
-        if target !== self { target.clearFind(call); return }
+        guard route(call, { $0.clearFind(call) }) else { return }
         DispatchQueue.main.async {
             self.surface?.evaluateJavaScript("window.__onceFind && window.__onceFind.clear()") { _, _ in }
             call.resolve()
@@ -131,8 +127,7 @@ extension InAppBrowserSurfacePlugin {
     /// document itself, including PDFs in its native viewer, which the
     /// injected engine above cannot see because they have no DOM text.
     @objc func presentFind(_ call: CAPPluginCall) {
-        guard let target = target(call) else { return }
-        if target !== self { target.presentFind(call); return }
+        guard route(call, { $0.presentFind(call) }) else { return }
         DispatchQueue.main.async {
             guard let surface = self.surface else {
                 call.reject("There is no open page")

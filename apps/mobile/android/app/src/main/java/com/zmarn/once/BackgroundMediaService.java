@@ -41,6 +41,11 @@ public final class BackgroundMediaService extends Service {
         }
     }
 
+    /** Each tab owns a BackgroundMedia; only the one driving the service may stop it. */
+    static void release(Context context, BackgroundMedia media) {
+        if (current == null || current == media) stop(context);
+    }
+
     static void stop(Context context) {
         current = null;
         starting = false;
