@@ -4,7 +4,7 @@ const fs = require("node:fs")
 const path = require("node:path")
 const vm = require("node:vm")
 
-test("cached documents reconnect native messaging and release old media listeners", () => {
+test("cached documents reconnect native messaging and release old media listeners", async () => {
   const events = new Map()
   const ports = []
   let mediaCleanups = 0
@@ -14,7 +14,7 @@ test("cached documents reconnect native messaging and release old media listener
     window, location: { href: "https://example.test/", hostname: "example.test" },
     document: { readyState: "complete" }, setTimeout, clearTimeout,
     installOnceMediaBridge: () => () => { mediaCleanups++ },
-    browser: { runtime: { connectNative() {
+    browser: { runtime: { async sendMessage() { return { sourceUrl: "https://example.test/original", statusCode: 200 } }, connectNative() {
       const messages = []
       const port = {
         sent: [], closed: false,
@@ -32,6 +32,8 @@ test("cached documents reconnect native messaging and release old media listener
     "../../../apps/mobile/extensions/once-surface/content.js"), "utf8"), context)
   assert.equal(ports.length, 1)
   ports[0].receive({ type: "health", id: 1 })
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(ports[0].sent[0].context.statusCode, 200)
   assert.equal(ports[0].sent[0].restored, false)
   events.get("pagehide")({ persisted: true })
   assert.equal(ports[0].closed, true)
@@ -41,6 +43,7 @@ test("cached documents reconnect native messaging and release old media listener
   ports[0].receive({ type: "health", id: 2 })
   assert.equal(ports[0].sent.length, 1, "Old ports must not respond")
   ports[1].receive({ type: "health", id: 3 })
+  await new Promise(resolve => setImmediate(resolve))
   assert.equal(ports[1].sent[0].restored, true)
   ports[1].receive({ id: 4, code: "2 + 2" })
   assert.equal(ports[1].sent[1].value, "4")

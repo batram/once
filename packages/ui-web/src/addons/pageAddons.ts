@@ -1,4 +1,4 @@
-import { AddonCondition, StoryView, URLRedirect, projectStoryView } from "@once/core"
+import { AddonCondition, StoryView, URLRedirect, projectStoryView, sameStoryDocument } from "@once/core"
 import type { StoryListItem } from "../story/StoryListItem"
 
 /**
@@ -80,8 +80,8 @@ export function pageStoryView(page: AddonPage): StoryView {
 /** Resolve page aliases the same way for tray actions and their reading host. */
 export function pageStoryRow(href: string): StoryListItem | undefined {
   const rows = Array.from(document.querySelectorAll<StoryListItem>("story-item"))
-  return rows.find(row => row.story.href === href) ?? rows.find(row =>
-    row.story.matches_comment_url?.(href) || row.story.comment_url === href || (row.dataset.redirected_url || URLRedirect.redirect_url(row.story.href)) === href)
+  return rows.find(row => sameStoryDocument(row.story.href, href)) ?? rows.find(row =>
+    row.story.matches_comment_url?.(href) || sameStoryDocument(row.story.comment_url, href) || sameStoryDocument(row.dataset.redirected_url || URLRedirect.redirect_url(row.story.href), href))
 }
 
 function announce(): void {

@@ -25,6 +25,7 @@
   },
 
   "permissions": [
+    "webNavigation",
     "webRequest",
     "activeTab",
     "scripting",

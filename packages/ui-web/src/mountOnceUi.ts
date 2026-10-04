@@ -212,10 +212,10 @@ export async function mountOnceUi(
     )
   })
 
-  client.subscribe("selectedUrlChanged", ({ url }) => {
+  client.subscribe("selectedUrlChanged", ({ url, context }) => {
     // Which of the story's two URLs is open, which the mirrored row cannot say.
-    setSelectedUrl(url)
-    void updateSelectedStory(client, url, options.addonConversations)
+    setSelectedUrl(url, context)
+    void updateSelectedStory(client, url, options.addonConversations, context)
   })
   client.subscribe("searchRequested", ({ query }) => {
     StorySearch.searchStories(query)

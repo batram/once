@@ -1,5 +1,5 @@
 import { InAppBrowserSurface, normalizeReadingUrl } from "@once/platform-mobile"
-import { humanTime, URLRedirect } from "@once/core"
+import { humanTime, URLRedirect, storyPageUrls } from "@once/core"
 import { ReaderTtsUiControls } from "./readerTtsControls"
 import {
   PanelNavigation,
@@ -467,14 +467,10 @@ export class MobileReadingController {
       this.clearValidation()
     }
     required("#reading_empty").hidden = state.currentUrl !== ""
-    const redirectedStoryUrl = story
-      ? URLRedirect.redirect_url(story.href)
-      : ""
-    const isStoryPage = story != null &&
-      (
-        state.currentUrl === redirectedStoryUrl ||
-        state.currentUrl === story.comment_url
-      )
+    const isStoryPage = story != null && storyPageUrls(state.currentUrl, {
+      ...state.pageContext,
+      failed: state.loadState === "error"
+    }).some(url => story.matches_url(url))
     const matchingStory = isStoryPage ? this.storyElement() : null
     this.observeCurrentStory(matchingStory)
     this.addonTrays.setStory(matchingStory)

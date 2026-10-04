@@ -1,3 +1,4 @@
+import { storyPageUrls, StoryPageContext } from "@once/core"
 import type { StoryListItem } from "./StoryListItem"
 
 // Switching the open page between a story and its comments.
@@ -12,9 +13,11 @@ import type { StoryListItem } from "./StoryListItem"
 // only says *which* story is open, not which of its two URLs, and the row's own
 // markup cannot answer that either — so the URL is kept alongside it.
 let selectedUrl = ""
+let selectedContext: StoryPageContext | undefined
 
-export function setSelectedUrl(url: string): void {
+export function setSelectedUrl(url: string, context?: StoryPageContext): void {
   selectedUrl = url
+  selectedContext = context
 }
 
 /**
@@ -29,7 +32,8 @@ export function toggledStoryUrl(
   const row = doc.querySelector<StoryListItem>("#selected_container story-item")
   const story = row?.story
   if (!story || !selectedUrl) return null
-  if (story.matches_comment_url(selectedUrl)) return story.href
-  if (!story.matches_story_url(selectedUrl)) return null
+  const urls = storyPageUrls(selectedUrl, selectedContext)
+  if (urls.some(url => story.matches_comment_url(url))) return story.href
+  if (!urls.some(url => story.matches_story_url(url))) return null
   return story.comment_url || null
 }

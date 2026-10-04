@@ -27,6 +27,7 @@ import org.mozilla.geckoview.GeckoSession;
 import org.mozilla.geckoview.GeckoView;
 import org.mozilla.geckoview.WebExtension;
 import org.mozilla.geckoview.WebRequestError;
+import static com.zmarn.once.ReadingNavigationError.describe;
 
 /** Native reading session, view ownership, navigation and bounded recovery.
  * The Capacitor adapter supplies extension messaging and script-call settlement. */
@@ -78,6 +79,8 @@ abstract class ReadingSurfaceHost extends Plugin {
     protected final AtomicLong navigationSequence = new AtomicLong();
     protected long activeNavigation;
     protected String currentUrl = "";
+    protected String documentSourceUrl = "";
+    protected int documentStatus;
     protected boolean canGoBack;
     protected boolean canGoForward;
     protected int scrollY;
@@ -492,6 +495,8 @@ abstract class ReadingSurfaceHost extends Plugin {
         JSObject payload = new JSObject();
         payload.put("navigationId", navigationId);
         payload.put("url", url == null ? "" : url);
+        payload.put("sourceUrl", documentSourceUrl);
+        if (documentStatus != 0) payload.put("statusCode", documentStatus);
         notifyListeners(name, payload);
     }
 
@@ -532,21 +537,6 @@ abstract class ReadingSurfaceHost extends Plugin {
         traceLoad("ready");
         event("navigationFinished", activeNavigation, currentUrl);
         history(activeNavigation);
-    }
-
-    protected static String describe(WebRequestError error) {
-        switch (error.category) {
-            case WebRequestError.ERROR_CATEGORY_SECURITY:
-                return "TLS certificate validation failed";
-            case WebRequestError.ERROR_CATEGORY_URI:
-                return "The address could not be resolved";
-            case WebRequestError.ERROR_CATEGORY_NETWORK:
-                return "The network request failed";
-            case WebRequestError.ERROR_CATEGORY_CONTENT:
-                return "The content could not be loaded";
-            default:
-                return "The page could not be loaded";
-        }
     }
 
     private final class Navigation implements GeckoSession.NavigationDelegate {
@@ -635,6 +625,8 @@ abstract class ReadingSurfaceHost extends Plugin {
             if (!initialBlank) sawRequestedPage = true;
             activeNavigation = navigationSequence.incrementAndGet();
             currentUrl = url == null ? "" : url;
+            documentSourceUrl = currentUrl;
+            documentStatus = 0;
             if (!initialBlank && isSurfaceUrl(currentUrl)) { requestedUrl = currentUrl; armNavigation(); }
             if (!initialBlank) traceLoad("started");
             event("navigationStarted", activeNavigation, currentUrl);

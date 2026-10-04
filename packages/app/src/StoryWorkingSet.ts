@@ -53,7 +53,8 @@ export class StoryWorkingSet {
     const story = this.stories.get(url)
     if (story) return story
     const commentHref = this.comments.get(url)
-    return commentHref ? this.stories.get(commentHref) ?? null : null
+    if (commentHref) return this.stories.get(commentHref) ?? null
+    return this.snapshot().find(candidate => candidate.matches_url(url)) ?? null
   }
 
   values(): IterableIterator<Story> {

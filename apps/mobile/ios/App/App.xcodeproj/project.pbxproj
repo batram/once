@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		7A1E0C152E6800010000A001 /* BrowserNavigationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E0C142E6800010000A001 /* BrowserNavigationState.swift */; };
 		7A1E0C132E6800010000A001 /* InAppBrowserSurfacePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E0C122E6800010000A001 /* InAppBrowserSurfacePlugin.swift */; };
 		7A1E0C112E6800010000A001 /* WebExtensionHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E0C102E6800010000A001 /* WebExtensionHost.swift */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
@@ -23,6 +24,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		7A1E0C142E6800010000A001 /* BrowserNavigationState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserNavigationState.swift; sourceTree = "<group>"; };
 		7A1E0C122E6800010000A001 /* InAppBrowserSurfacePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InAppBrowserSurfacePlugin.swift; sourceTree = "<group>"; };
 		7A1E0C102E6800010000A001 /* WebExtensionHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebExtensionHost.swift; sourceTree = "<group>"; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
@@ -75,6 +77,7 @@
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				7A1E0C122E6800010000A001 /* InAppBrowserSurfacePlugin.swift */,
+				7A1E0C142E6800010000A001 /* BrowserNavigationState.swift */,
 				7A1E0C0A2E6800010000A001 /* ExtensionSupport.swift */,
 				7A1E0C102E6800010000A001 /* WebExtensionHost.swift */,
 				7A1E0C0C2E6800010000A001 /* SecureSettings.swift */,
@@ -172,6 +175,7 @@
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				7A1E0C132E6800010000A001 /* InAppBrowserSurfacePlugin.swift in Sources */,
+				7A1E0C152E6800010000A001 /* BrowserNavigationState.swift in Sources */,
 				7A1E0C0B2E6800010000A001 /* ExtensionSupport.swift in Sources */,
 				7A1E0C112E6800010000A001 /* WebExtensionHost.swift in Sources */,
 				7A1E0C0D2E6800010000A001 /* SecureSettings.swift in Sources */,

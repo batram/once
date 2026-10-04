@@ -71,6 +71,7 @@ export class TabOwnership {
       return [{
         id,
         url: entry.displayedUrl,
+        storyPage: { ...entry.storyPage, failed: Boolean(entry.loadError) },
         title: entry.title || "New tab",
         loading: entry.loading,
         canGoBack: alive && this.errors.backTargetIndex(entry) >= 0,

@@ -1,3 +1,4 @@
+import { sameStoryDocument } from "./storyPage"
 import { compareStories } from "./compareStories"
 import {
   SortableStory,
@@ -120,13 +121,13 @@ export class Story {
 
   matches_comment_url(url: string): boolean {
     return (
-      this.comment_url === url ||
+      sameStoryDocument(this.comment_url, url) ||
       (this.substories &&
         this.substories
           .map((x) => {
             return x.comment_url
           })
-          .includes(url))
+          .some((commentUrl) => sameStoryDocument(commentUrl, url)))
     )
   }
   matches_url(url: string): boolean {
@@ -136,8 +137,8 @@ export class Story {
   matches_story_url(url: string): boolean {
     const redirected_url = URLRedirect.redirect_url(this.href)
     return (
-      this.href === url ||
-      (redirected_url != this.href && redirected_url == url)
+      sameStoryDocument(this.href, url) ||
+      sameStoryDocument(redirected_url, url)
     )
   }
 

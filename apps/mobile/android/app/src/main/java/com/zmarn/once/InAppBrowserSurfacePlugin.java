@@ -456,6 +456,11 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
                 healthSentAt = 0;
                 nextHealthAt = SystemClock.elapsedRealtime() + (navigationCompleted ? 5000 : 250);
                 if (!awaitingRequestedStart && sameAddress(currentUrl, reply.optString("url"))) {
+                    JSONObject context = reply.optJSONObject("context");
+                    if (context != null) {
+                        documentSourceUrl = context.optString("sourceUrl", documentSourceUrl);
+                        documentStatus = context.optInt("statusCode", documentStatus);
+                    }
                     String readyState = reply.optString("readyState");
                     // DOMContentLoaded plus visible paint is usable. Waiting for
                     // every image/tracker to finish needlessly kills healthy pages.

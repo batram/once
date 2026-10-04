@@ -1,4 +1,4 @@
-import { Story, URLRedirect } from "@once/core"
+import { Story, URLRedirect, StoryPageContext } from "@once/core"
 
 export type ReadingMode = "reader" | "browser" | "comments"
 export type ReadingLoadState = "idle" | "loading" | "ready" | "error"
@@ -13,6 +13,7 @@ export interface ReadingSessionState {
   canGoBack: boolean
   canGoForward: boolean
   error: string | null
+  pageContext?: StoryPageContext
 }
 
 export type ReadingSessionListener = (state: Readonly<ReadingSessionState>) => void
@@ -86,6 +87,7 @@ export class ReadingSession {
       story,
       mode,
       currentUrl,
+      pageContext: { sourceUrl: currentUrl },
       visibleStoryIndex: this.indexOf(story),
       loadState: "loading",
       navigationId: this.state.navigationId,
@@ -141,6 +143,7 @@ export class ReadingSession {
     this.patch({
       mode: "browser",
       currentUrl: url,
+      pageContext: { sourceUrl: url },
       loadState: "loading",
       error: null
     })
@@ -156,12 +159,13 @@ export class ReadingSession {
     return story
   }
 
-  navigationStarted(navigationId: number, url: string): void {
+  navigationStarted(navigationId: number, url: string, context?: StoryPageContext): void {
     if (!this.state.story && !this.state.currentUrl) return
     if (navigationId < this.state.navigationId) return
     this.patch({
       navigationId,
       currentUrl: url,
+      pageContext: { sourceUrl: url, ...context },
       loadState: "loading",
       error: null
     })
@@ -170,23 +174,26 @@ export class ReadingSession {
   navigationCommitted(
     navigationId: number,
     url: string,
-    canGoBack = this.state.canGoBack
+    canGoBack = this.state.canGoBack,
+    context?: StoryPageContext
   ): void {
     if (!this.state.story && !this.state.currentUrl) return
     if (navigationId < this.state.navigationId) return
     this.patch({
       navigationId,
       currentUrl: url,
+      pageContext: { ...this.state.pageContext, ...context },
       canGoBack
     })
   }
 
-  navigationFinished(navigationId: number, url: string): void {
+  navigationFinished(navigationId: number, url: string, context?: StoryPageContext): void {
     if (!this.state.story && !this.state.currentUrl) return
     if (navigationId < this.state.navigationId) return
     this.patch({
       navigationId,
       currentUrl: url,
+      pageContext: { ...this.state.pageContext, ...context },
       loadState: "ready",
       error: null
     })

@@ -72,12 +72,14 @@ export function createElectronPlatform(
         bridge.tabs.openUrl(url, target)
       },
       onSelectedUrlChanged(handler) {
-        let lastUrl = ""
+        let lastSelection = ""
         const notify = (tabs: ElectronTabState[]) => {
           const active = tabs.find((tab) => tab.active)
-          if (active && active.url !== lastUrl) {
-            lastUrl = active.url
-            handler(active.url)
+          if (!active) return
+          const selection = JSON.stringify([active.id, active.url, active.storyPage, active.loadError])
+          if (selection !== lastSelection) {
+            lastSelection = selection
+            handler(active.url, { ...active.storyPage, failed: Boolean(active.loadError) })
           }
         }
 

@@ -3,6 +3,7 @@ import { Capacitor } from "@capacitor/core"
 import { createOnceApp } from "@once/app"
 import { bindMobileExtensionSettings } from "./mobileExtensionSettings"
 import {
+  type BrowserNavigationEvent,
   createDefaultMobileNativeBridge,
   createInAppBrowserSurface,
   createMobileBrowserExtensions,
@@ -139,6 +140,20 @@ function installTransientScrollbars(): void {
   }, true)
 }
 
+function captureNavigationListeners(browserSurface: ReturnType<typeof createInAppBrowserSurface>) {
+  const navigationListeners = new Map<string, (event: BrowserNavigationEvent) => void>()
+  if (__ONCE_MOBILE_E2E__) {
+    const addListener = browserSurface.addListener.bind(browserSurface)
+    browserSurface.addListener = async (name, listener) => {
+      if (!navigationListeners.has(name) && (name === "navigationCommitted" || name === "navigationFinished")) {
+        navigationListeners.set(name, listener as (event: BrowserNavigationEvent) => void)
+      }
+      return addListener(name, listener)
+    }
+  }
+  return navigationListeners
+}
+
 async function startMobileApp(): Promise<void> {
   document.body.dataset.platform = "mobile"
   document.body.dataset.buildChannel = __ONCE_BUILD_CHANNEL__
@@ -155,6 +170,7 @@ async function startMobileApp(): Promise<void> {
   const browserSurface = createInAppBrowserSurface((url) =>
     nativeBridge.openExternal(url)
   )
+  const navigationListeners = captureNavigationListeners(browserSurface)
   installStoryMenu(browserSurface)
   const reader = new ReaderDocumentHost(
     document.querySelector<HTMLElement>("#reading_content") ?? document.body,
@@ -229,6 +245,12 @@ async function startMobileApp(): Promise<void> {
       settledStoryWrites: () => app.client.settledStoryWrites(),
       handleBack: () => reading.handleBack(),
       handleForward: () => reading.handleForward(),
+      finishReading: (url: string, statusCode = 200) => {
+        const state = reading.session.snapshot()
+        const event = { navigationId: state.navigationId, url, statusCode, sourceUrl: state.pageContext?.sourceUrl }
+        navigationListeners.get("navigationCommitted")?.(event)
+        navigationListeners.get("navigationFinished")?.(event)
+      },
       failReading: (message: string) => {
         const state = reading.session.snapshot()
         reading.session.navigationFailed(state.navigationId, state.currentUrl, message)

@@ -6,6 +6,7 @@
 // in this content script's own world, which sees the page's DOM but not its
 // scripts, which is exactly what the source picker needs.
 if (window === window.top) {
+  const documentContext = browser.runtime.sendMessage({ type: "once-document-context" }).catch(() => null)
   let port = null
   let cleanupMedia = null
   let suspended = false
@@ -37,7 +38,9 @@ if (window === window.top) {
       if (port !== connected) return
       attempts = 0
       if (message?.type === "health") {
-        connected.postMessage({ type: "health", id: message.id, url: location.href, readyState: document.readyState, restored })
+        void documentContext.then(context => {
+          if (port === connected) connected.postMessage({ type: "health", id: message.id, url: location.href, readyState: document.readyState, restored, context })
+        })
         return
       }
       if (!message || typeof message.id !== "number" || typeof message.code !== "string") return

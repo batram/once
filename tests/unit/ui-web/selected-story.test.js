@@ -100,3 +100,25 @@ test("a contributed element that depends on where the row lives sees the mirror,
     assert.equal(document.querySelectorAll("#selected_container .addon_tray").length, 1)
   } finally { release() }
 })
+
+test("redirected documents and fragments retain the mirrored story; errors and unrelated pages clear it", async () => {
+  const { Story, updateSelectedStory } = loadModule()
+  const story = new Story("fixture", STORY_URL, "Alpha", STORY_URL)
+  const client = { findStoryByUrl: async url => story.matches_url(url) ? story : null }
+  const destination = "https://example.com/final"
+  const context = { sourceUrl: STORY_URL, statusCode: 200 }
+  await updateSelectedStory(client, destination, undefined, context)
+  assert.equal(selectedHref(), STORY_URL)
+  const row = document.querySelector("#selected_container story-item")
+  await updateSelectedStory(client, destination + "#heading", undefined, context)
+  assert.equal(document.querySelector("#selected_container story-item"), row)
+  await updateSelectedStory(client, destination, undefined, { ...context, statusCode: 404 })
+  assert.equal(selectedHref(), null)
+  await updateSelectedStory(client, STORY_URL + "#other")
+  assert.equal(selectedHref(), STORY_URL)
+  await updateSelectedStory(client, STORY_URL, undefined, { failed: true })
+  assert.equal(selectedHref(), null)
+  await updateSelectedStory(client, destination, undefined, context)
+  await updateSelectedStory(client, "https://example.com/unrelated")
+  assert.equal(selectedHref(), null)
+})

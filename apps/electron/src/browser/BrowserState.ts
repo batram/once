@@ -1,3 +1,4 @@
+import type { StoryPageContext } from "@once/core"
 import {
   BrowserWindow,
   Rectangle,
@@ -20,6 +21,8 @@ export interface TabEntry {
   audible: boolean
   hasPlayedAudio: boolean
   muted: boolean
+  storyPage?: StoryPageContext
+  storyPageUrl?: string
   displayedUrl: string
   loadError: string | null
   loadErrorRetryable: boolean

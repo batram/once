@@ -203,6 +203,19 @@ const ARTICLE_PARAGRAPH =
 function handleRequest(request, response, origin) {
   const path = (request.url || "").split("?")[0]
 
+  if (path === "/navigation-start") {
+    const query = new URL(request.url, origin).search
+    response.writeHead(302, { location: `${origin}/navigation-final${query}` })
+    response.end()
+    return true
+  }
+  if (path === "/navigation-final") {
+    const status = Number(new URL(request.url, origin).searchParams.get("status") || 200)
+    response.writeHead(status, { "content-type": "text/html; charset=utf-8" })
+    response.end('<!doctype html><title>Navigation fixture</title><a href="#heading">Jump to heading</a><h1 id="heading">Final page</h1>')
+    return true
+  }
+
   if (path === "/failure.rss") {
     response.writeHead(503, {
       "content-type": "text/plain; charset=utf-8",

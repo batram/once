@@ -1,3 +1,4 @@
+import { installStoryNavigationBackground } from "@once/webext-shell/dist/storyNavigationBackground"
 import browser from "webextension-polyfill"
 import { installReaderBackground } from "@once/webext-shell/dist/readerBackground"
 import { installPickerBackground } from "@once/webext-shell/dist/pickerBackground"
@@ -33,3 +34,5 @@ installConnectionOriginBackground(
   (browser as unknown as { declarativeNetRequest?: RequestRulesApi }).declarativeNetRequest,
   browser.runtime.getURL("/")
 ).catch((error: unknown) => console.error("Unable to install the connection request rules", error))
+
+installStoryNavigationBackground(browser)

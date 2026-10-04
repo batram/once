@@ -556,3 +556,29 @@ test("tracks selected stories opened through original and rewritten URLs", async
     await closeStoryExtension(harness)
   }
 })
+
+test("matches HTTP redirects and internal navigation without matching a 404", async () => {
+  const harness = await launchStoryExtension()
+  const { page, context, source } = harness
+  try {
+    const selected = page.locator("#selected_container story-item.selected")
+    for (const status of [200, 404]) {
+      await saveRedirects(page, `${source.urls.gamma} => ${source.origin}/navigation-start?status=${status}`)
+      const opened = await waitForOpenedPage(context, "redirected story", () => storyItem(page, source.urls.gamma).locator("a.title").click())
+      await expect(opened).toHaveURL(`${source.origin}/navigation-final?status=${status}`)
+      if (status === 404) {
+        await expect(selected).toHaveCount(0)
+      } else {
+        await expect(selected).toHaveAttribute("data-href", source.urls.gamma)
+        await opened.getByRole("link", { name: "Jump to heading" }).click()
+        await expect(selected).toHaveAttribute("data-href", source.urls.gamma)
+        await opened.evaluate(() => history.pushState({}, "", "/navigation-final?internal=1"))
+        await expect(selected).toHaveAttribute("data-href", source.urls.gamma)
+        await opened.goto(`${source.origin}/story/epsilon`)
+        await expect(selected).toHaveAttribute("data-href", source.urls.epsilon)
+      }
+      await opened.close()
+      await page.bringToFront()
+    }
+  } finally { await closeStoryExtension(harness) }
+})

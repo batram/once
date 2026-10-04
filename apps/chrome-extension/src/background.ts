@@ -1,3 +1,4 @@
+import { installStoryNavigationBackground } from "@once/webext-shell/dist/storyNavigationBackground"
 import browser from "webextension-polyfill"
 import { installReaderBackground } from "@once/webext-shell/dist/readerBackground"
 import { installPickerBackground } from "@once/webext-shell/dist/pickerBackground"
@@ -54,3 +55,5 @@ browser.commands.onCommand.addListener((command, tab) => {
     .open({ windowId })
     .catch((error: unknown) => console.error("Unable to open the side panel", error))
 })
+
+installStoryNavigationBackground(browser)

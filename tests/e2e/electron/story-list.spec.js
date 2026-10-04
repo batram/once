@@ -534,3 +534,37 @@ test("selects the story for rewritten URLs opened from the list or the URL bar",
     await closeApp(electronApp, userData)
   }
 })
+
+test("matches successful HTTP redirects and same-document navigation but excludes 404 destinations", async () => {
+  const { electronApp, userData, window } = await launchApp(STORY_ENV)
+  try {
+    await seedLocalSource(window, storyFixture.sourceLine(origin), urls.alpha)
+    const address = window.locator("#urlfield")
+    const selected = window.locator("#selected_container story-item.selected")
+    for (const status of [200, 404]) {
+      await saveRedirects(window, `${urls.gamma} => ${origin}/navigation-start?status=${status}`)
+      await storyItem(window, urls.gamma).locator("a.title").click()
+      await expect(address).toHaveValue(`${origin}/navigation-final?status=${status}`)
+      if (status === 404) {
+        await expect(selected).toHaveCount(0)
+        continue
+      }
+      await expect.poll(() => window.evaluate(async () => (await window.onceElectron.tabs.getAll()).find(tab => tab.active)?.storyPage?.statusCode)).toBe(200)
+      await expect(selected).toHaveAttribute("data-href", urls.gamma)
+      await electronApp.evaluate(async ({ webContents }, url) => {
+        const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)
+        await page.executeJavaScript("location.hash = 'heading'")
+      }, `${origin}/navigation-final?status=200`)
+      await expect(address).toHaveValue(`${origin}/navigation-final?status=200#heading`)
+      await expect(selected).toHaveAttribute("data-href", urls.gamma)
+      await electronApp.evaluate(async ({ webContents }, url) => {
+        const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)
+        await page.executeJavaScript("history.pushState({}, '', '/navigation-final?internal=1')")
+      }, `${origin}/navigation-final?status=200#heading`)
+      await expect(selected).toHaveAttribute("data-href", urls.gamma)
+      await address.fill(`${origin}/linked`)
+      await address.press("Enter")
+      await expect(selected).toHaveCount(0)
+    }
+  } finally { await closeApp(electronApp, userData) }
+})

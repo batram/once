@@ -197,8 +197,8 @@ export class AppRuntime {
       .then((syncUrl) => this.settings.startSync(syncUrl))
     await this.waitForStartupStorage("sync", () => this.sourceSettingsReady)
 
-    this.platform.activeTab?.onSelectedUrlChanged((url) => {
-      this.client.selectUrl(url)
+    this.platform.activeTab?.onSelectedUrlChanged((url, context) => {
+      this.client.selectUrl(url, context)
     })
     this.platform.onHistoryCommand?.((action) => {
       this.events.publish("historyCommand", { action })
@@ -254,8 +254,8 @@ export class AppRuntime {
           this.platform.activeTab?.openUrl(url, target)
         }
       },
-      selectUrl: async (url) => {
-        this.events.publish("selectedUrlChanged", { url })
+      selectUrl: async (url, context) => {
+        this.events.publish("selectedUrlChanged", { url, context })
       },
       subscribe: (event, handler) => this.events.subscribe(event, handler)
     }

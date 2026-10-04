@@ -1,4 +1,4 @@
-import type { AddonCondition } from "@once/core"
+import type { AddonCondition, StoryPageContext } from "@once/core"
 
 export interface ElectronRect {
   x: number
@@ -48,6 +48,7 @@ export interface ElectronRedirectRule {
 }
 
 export interface ElectronTabState {
+  storyPage?: StoryPageContext
   id: string
   url: string
   title: string

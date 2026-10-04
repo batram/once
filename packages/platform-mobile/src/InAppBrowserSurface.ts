@@ -1,3 +1,4 @@
+import type { StoryPageContext } from "@once/core"
 import { Capacitor, PluginListenerHandle, registerPlugin } from "@capacitor/core"
 import type { FilterListsDocument, UserscriptsDocument } from "@once/core"
 import { parseUserscript } from "@once/core"
@@ -47,7 +48,7 @@ export interface NativeOverlayPromptOptions {
   cancelLabel?: string
 }
 
-export interface BrowserNavigationEvent {
+export interface BrowserNavigationEvent extends StoryPageContext {
   navigationId: number
   url: string
 }

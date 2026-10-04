@@ -83,14 +83,14 @@ export class ReadingSurfaceCoordinator {
       this.pendingNavigationUrl = null
       this.browserUrl = event.url
       this.browserReady = false
-      this.session.navigationStarted(event.navigationId, event.url)
+      this.session.navigationStarted(event.navigationId, event.url, event)
     })
     const committed = await this.surface.addListener(
       "navigationCommitted",
       (event) => {
         if (!this.acceptsNavigation(event.navigationId, event.url)) return
         this.browserUrl = event.url
-        this.session.navigationCommitted(event.navigationId, event.url)
+        this.session.navigationCommitted(event.navigationId, event.url, undefined, event)
       }
     )
     const finished = await this.surface.addListener(
@@ -99,7 +99,7 @@ export class ReadingSurfaceCoordinator {
         if (!this.acceptsNavigation(event.navigationId, event.url)) return
         this.browserUrl = event.url
         this.browserReady = true
-        this.session.navigationFinished(event.navigationId, event.url)
+        this.session.navigationFinished(event.navigationId, event.url, event)
       }
     )
     const failed = await this.surface.addListener("navigationFailed", (event) => {

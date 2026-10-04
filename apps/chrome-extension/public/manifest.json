@@ -8,6 +8,8 @@
     "48": "static/imgs/icons/mipmap-mdpi/ic_launcher.png"
   },
   "permissions": [
+    "webNavigation",
+    "webRequest",
     "activeTab",
     "scripting",
     "sidePanel",

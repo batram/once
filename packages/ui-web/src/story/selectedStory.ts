@@ -1,3 +1,4 @@
+import { storyPageUrls, StoryPageContext } from "@once/core"
 import { OnceClient } from "@once/app"
 import type { AddonConversationSurface } from "../addons/AddonTrays"
 import { StoryListItem } from "./StoryListItem"
@@ -15,7 +16,8 @@ let latestRequest = 0
 export async function updateSelectedStory(
   client: OnceClient,
   href: string,
-  conversations?: AddonConversationSurface
+  conversations?: AddonConversationSurface,
+  context?: StoryPageContext
 ): Promise<void> {
   if (!href) return
   const request = ++latestRequest
@@ -32,10 +34,16 @@ export async function updateSelectedStory(
   const selectedContainer = document.querySelector("#selected_container")
   if (!selectedContainer) return
 
+  const candidates = storyPageUrls(href, context)
   const selectedStory = selectedContainer.querySelector<StoryListItem>("story-item")
-  if (selectedStory && selectedStory.story.matches_url(href)) return
+  if (selectedStory && candidates.some(url => selectedStory.story.matches_url(url))) return
 
-  const story = await client.findStoryByUrl(href)
+  let story = null
+  for (const url of candidates) {
+    story = await client.findStoryByUrl(url)
+    if (request !== latestRequest) return
+    if (story) break
+  }
   if (request !== latestRequest) return
   selectedContainer.innerHTML = ""
 

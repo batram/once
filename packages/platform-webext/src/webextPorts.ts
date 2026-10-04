@@ -25,9 +25,20 @@ export function createWebExtActiveTab(
       windowApi.open(url, target)
     },
     onSelectedUrlChanged(handler) {
-      const notifySelectedTab = (tab: browser.tabs.Tab | undefined) => {
-        if (tab?.url) handler(tab.url)
+      let generation = 0
+      const notifySelectedTab = async (tab: browser.tabs.Tab | undefined) => {
+        const request = ++generation
+        if (!tab?.url) return
+        const context = await browserApi.runtime.sendMessage({ onceGetNavigation: tab.id, url: tab.url }).catch(() => null)
+        if (request === generation) handler(tab.url, context ?? undefined)
       }
+      const navigationListener = (message: { onceNavigationChanged?: number }) => {
+        if (typeof message?.onceNavigationChanged !== "number") return
+        void browserApi.tabs.query({ currentWindow: true, active: true }).then(tabs => {
+          if (tabs[0]?.id === message.onceNavigationChanged) void notifySelectedTab(tabs[0])
+        })
+      }
+      browserApi.runtime.onMessage.addListener(navigationListener)
       const activatedListener = async (activeInfo: browser.tabs._OnActivatedActiveInfo) => {
         const win = await browserApi.windows.getCurrent()
         const tab = await browserApi.tabs.get(activeInfo.tabId)
@@ -47,6 +58,8 @@ export function createWebExtActiveTab(
         .query({ currentWindow: true, active: true })
         .then((tabs) => notifySelectedTab(tabs[0]))
       return () => {
+        generation += 1
+        browserApi.runtime.onMessage.removeListener(navigationListener)
         browserApi.tabs.onActivated.removeListener(activatedListener)
         browserApi.tabs.onUpdated.removeListener(updatedListener)
       }

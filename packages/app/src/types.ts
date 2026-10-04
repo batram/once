@@ -1,3 +1,4 @@
+import type { StoryPageContext } from "@once/core"
 import {
   AddonsDocument,
   FilterListsDocument,
@@ -132,6 +133,7 @@ export interface OnceAppEvents {
   }
   selectedUrlChanged: {
     url: string
+    context?: StoryPageContext
   }
   historyCommand: {
     action: "undo" | "redo"
@@ -252,7 +254,7 @@ export interface OnceClient {
     url: string,
     target: "_self" | "current" | "middle" | "blank" | string
   ): void
-  selectUrl(url: string): Promise<void>
+  selectUrl(url: string, context?: StoryPageContext): Promise<void>
   subscribe<T extends OnceEventName>(
     event: T,
     handler: OnceEventHandler<T>
@@ -349,7 +351,7 @@ export interface ActiveTabPort {
     url: string,
     target: "_self" | "current" | "middle" | "blank" | string
   ): void
-  onSelectedUrlChanged(handler: (url: string) => void): () => void
+  onSelectedUrlChanged(handler: (url: string, context?: StoryPageContext) => void): () => void
 }
 
 export interface DatabaseChange {

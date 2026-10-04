@@ -24,6 +24,7 @@ test("maps tab dispositions and tracks only the selected tab in the current wind
       async get(id) { return { id, windowId: 1, active: true, url: "https://example.com/activated" } },
       async query() { return [{ windowId: 1, active: true, url: "https://example.com/initial" }] }
     },
+    runtime: { onMessage: event(), async sendMessage() { return null } },
     windows: { async getCurrent() { return { id: 1 } } }
   }
   const port = createWebExtActiveTab(api, { open(url, target) { opened.push({ url, target }) } })
@@ -38,7 +39,7 @@ test("maps tab dispositions and tracks only the selected tab in the current wind
 
   const urls = []
   const cleanup = port.onSelectedUrlChanged((url) => urls.push(url))
-  await Promise.resolve()
+  await new Promise(resolve => setImmediate(resolve))
   await activated.listeners[0]({ tabId: 2 })
   await updated.listeners[0](2, {}, { active: true, windowId: 2, url: "https://example.com/other" })
   assert.deepEqual(urls, ["https://example.com/initial", "https://example.com/activated"])

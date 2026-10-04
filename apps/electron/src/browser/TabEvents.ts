@@ -1,6 +1,6 @@
 import { dialog } from "electron"
 import { ELECTRON_IPC } from "@once/platform-electron/bridge"
-import { chordFromKey, chordFromParts, isModifiedChord } from "@once/core"
+import { chordFromKey, chordFromParts, isModifiedChord, sameStoryDocument } from "@once/core"
 import { NativeMenus } from "./NativeMenus"
 import { NavigationErrors, sameUrl } from "./NavigationErrors"
 import { fallbackTabTitle } from "./reader-url"
@@ -55,6 +55,8 @@ class TabNavigationEvents {
         this.errors.restore(entry, event.url, errorPage)
         return
       }
+      entry.storyPage = { sourceUrl: sameStoryDocument(entry.storyPageUrl, event.url)
+        ? entry.storyPage?.sourceUrl ?? event.url : event.url }
       this.reset(entry, event.url)
       entry.audible = false
       entry.hasPlayedAudio = false
@@ -68,7 +70,10 @@ class TabNavigationEvents {
       entry.displayedUrl = event.url
       changed()
     })
-    contents.on("did-navigate", (_event, url) => this.didNavigate(entry, url, changed))
+    contents.on("did-navigate", (_event, url, statusCode) => {
+      entry.storyPage = { ...entry.storyPage, statusCode }
+      this.didNavigate(entry, url, changed)
+    })
     contents.on("did-navigate-in-page", (_event, url, isMainFrame) => {
       if (isMainFrame) this.didNavigate(entry, url, changed)
     })
@@ -110,6 +115,7 @@ class TabNavigationEvents {
       return
     }
     this.reset(entry, url)
+    entry.storyPageUrl = url
     this.snapshotHistory(entry)
     changed()
   }
