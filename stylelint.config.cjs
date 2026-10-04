@@ -10,7 +10,9 @@ module.exports = {
     "apps/electron/out/**",
     "**/node_modules/**",
     "apps/mobile/android/app/src/main/assets/public/**",
-    "apps/mobile/ios/App/App/public/**"
+    "apps/mobile/ios/App/App/public/**",
+    // Xcode builds in the tree when a simulator target is chosen locally.
+    "apps/mobile/ios/DerivedData/**"
   ],
   rules: {
     "alpha-value-notation": null,

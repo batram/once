@@ -7,3 +7,5 @@ docs/Mobile app redesign with swipe/
 apps/electron/out/
 apps/electron/.webpack/
 package-lock.json
+apps/mobile/ios/build/
+apps/mobile/ios/DerivedData/
