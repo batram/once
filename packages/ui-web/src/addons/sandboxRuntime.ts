@@ -117,7 +117,7 @@ function work(message: HostToSandbox, state: RuntimeState, post: (message: Sandb
           const onChunk = typeof options?.onChunk === "function" ? options.onChunk : undefined
           return ask({ name: "request", href: "", connection, request, ...(onChunk ? { stream: true as const } : {}) }, onChunk) as Promise<AddonResponse>
         },
-        getStoryContent: () => ask({ name: "story.content", href: message.story.href }) as Promise<AddonStoryContent>,
+        getStoryContent: () => ask({ name: "story.content", href: message.story.href, ...(message.event.refreshSource ? { fresh: true } : {}) }) as Promise<AddonStoryContent>,
         update: view => {
           if (!controller.signal.aborted) post({ type: "op", requestId: message.requestId, op: { name: "tray.update", href: message.story.href, view } })
         }

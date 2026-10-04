@@ -156,6 +156,7 @@ async function startRenderer(): Promise<void> {
     devAddons: DEV_ADDONS,
     bundledAddons: flags.has("disableBundledAddons") ? [] : __ONCE_BUNDLED_ADDONS__,
     addonConversations: electronAddonConversations(window.onceElectron),
+    addonPanel: true,
     panelPages: electronPanelPages(window.onceElectron),
     appVersion: buildInfo.version,
     buildChannel: buildInfo.channel,

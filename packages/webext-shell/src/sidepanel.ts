@@ -92,6 +92,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     // A test panel starts with no add-ons unless a spec asks for the shipped ones.
     bundledAddons: testMode && !query.has("bundled-addons") ? [] : __ONCE_BUNDLED_ADDONS__,
     addonConversations: webextAddonConversations(browser),
+    addonPanel: true,
     browserShortcuts: await browserManagedShortcuts(),
     appVersion: browser.runtime.getManifest().version,
     buildChannel: __ONCE_BUILD_CHANNEL__,

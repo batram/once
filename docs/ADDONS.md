@@ -332,7 +332,25 @@ extensions the reader can choose, per add-on under its settings ("On web pages")
 to see these conversations in the Once panel beside the page instead: the panel
 gets a temporary menu entry, named by the add-on's `shortName` (or its initials
 when the name is too long), that goes away when the conversation is closed. The
-extensions open their side panel for it from the context menu.
+extensions open their side panel for it from the context menu. The placement
+choice is offered only by hosts that support both surfaces.
+
+The title bar always stays above the conversation's story. The browser's matched
+story row is reused only when it belongs to the conversation; otherwise the panel
+shows its own subject title and domain, with **Open article** and **Use current
+page** actions. Navigation never retargets a conversation or starts an AI request.
+Reader views and recognized redirects retain article identity; when viewing
+comments, **Open article** returns to the conversation's original source. Up to twelve recent
+panel conversations can be selected again while their add-ons remain loaded.
+Closing or replacing a panel preserves its pending draft.
+
+**Refresh source and restart** clears the chosen conversation and runs it again.
+The host sends the existing `clear` event followed by `open` with
+`refreshSource: true`; during that invocation `context.getStoryContent()` skips
+the saved article and fetches the source URL. This is separate from browser
+navigation or reload and does not capture the browser's live DOM. Add-ons should
+discard their own cached context on `clear`, and use the invocation's context
+for article access. WWWW labels saved versus fetched article content explicitly.
 
 Page actions respect `when` on toolbar tools and native page/link menus as well
 as at execution. Electron reader tabs use the article's source URL. Mobile's

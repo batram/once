@@ -99,6 +99,8 @@ export interface MountOnceUiOptions {
   bundledAddons?: readonly BundledAddonFiles[]
   /** How this shell continues an addon tray's conversation in its main browser surface. */
   addonConversations?: AddonConversationSurface
+  /** The host can keep a conversation beside an independently navigable page. */
+  addonPanel?: boolean
   /**
    * How this shell shows a web page inside the panel, such as a story's
    * comments beside the current page. Absent means an iframe.
@@ -122,7 +124,7 @@ export async function mountOnceUi(
     reportError: (message, details) => LoaderInsights.showErrorMessage(message, details)
   })
   mountAddons(client, { sandboxUrl: options.addonSandboxUrl, devAddons: options.devAddons, bundledAddons: options.bundledAddons,
-    conversations: options.addonConversations, panelConversations: addonPanelConversations() })
+    conversations: options.addonConversations, panelConversations: options.addonPanel ? addonPanelConversations(client) : undefined })
 
   const version = document.querySelector<HTMLElement>(
     "[data-testid='app-version']"

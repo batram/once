@@ -68,7 +68,9 @@ export default function activate(once) {
       }
       state.status = [
         state.article?.origin === "youtube" ? `Using the video transcript (${state.article.track}).`
-          : state.article ? "Using story content." : "Title only: article content is unavailable.",
+          : state.article?.origin === "stored" ? "Saved article."
+            : state.article?.origin === "page" ? "Fetched article."
+              : state.article ? "Using story content." : "Title only: article content is unavailable.",
         state.transcriptError ? `No transcript: ${state.transcriptError}` : "",
         turn.sources ? "Web sources used." : "No web sources used.",
         state.article?.truncated ? "Article context shortened to 64,000 characters." : "",

@@ -83,7 +83,8 @@
   background: var(--main-bg-color);
 }
 
-.addon_conversation .button {
+.addon_conversation .button,
+.addon_panel_context .button {
   box-sizing: border-box;
   height: auto;
   min-height: 0;

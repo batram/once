@@ -102,6 +102,66 @@
   display: none;
 }
 
+/* The title bar is always first. Only a row belonging to this conversation
+   may appear beneath it; unrelated browser stories remain in the Stories panel. */
+#left_panel[active_panel="addon"] #stories_panel {
+  max-height: 30%;
+  overflow: auto;
+}
+
+#left_panel[active_panel="addon"]:not([data-addon-story-matched="true"]) #stories_panel {
+  display: none;
+}
+
+#left_panel[data-addon-story-matched="true"] .addon_panel_subject,
+#left_panel[data-addon-story-matched="true"] .addon_panel_context small {
+  display: none;
+}
+
+#addon_panel .addon_panel_context {
+  flex: 0 0 auto;
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: var(--bw) solid var(--divider-color);
+  overflow-wrap: anywhere;
+  max-height: 40%;
+  overflow: auto;
+}
+
+.addon_panel_subject {
+  display: block;
+  font-weight: 600;
+  color: var(--text-high-color);
+  text-decoration: none;
+}
+
+.addon_panel_subject:hover {
+  text-decoration: underline;
+}
+
+.addon_panel_context small {
+  display: block;
+  color: var(--text-muted-color);
+  font-size: var(--fs-meta);
+}
+
+.addon_panel_context .addon_tray_actions:not(:empty) {
+  margin-top: var(--sp-2);
+}
+
+#addon_panel_bar .addon_panel_history {
+  flex: 0 0 auto;
+  min-width: 0;
+  width: 5.5em;
+  font-size: var(--fs-meta);
+  background: transparent;
+  border-color: transparent;
+}
+
+#addon_panel .temporary_panel_body {
+  width: 100%;
+  max-inline-size: none;
+}
+
 #menu > :not(.temporary_panel_menu) + .temporary_panel_menu {
   margin-top: var(--sp-2);
 }

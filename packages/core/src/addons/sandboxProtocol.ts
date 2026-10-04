@@ -62,7 +62,7 @@ export type HostToSandbox =
  */
 export type SandboxOperation =
   | { name: "request"; href: ""; connection: string; request: AddonRequest; stream?: true }
-  | { name: "story.content"; href: string }
+  | { name: "story.content"; href: string; fresh?: boolean }
   /** A tray's view while its invocation is still working. */
   | { name: "tray.update"; href: string; view: AddonTrayView }
   | { name: "fetch"; href: ""; url: string }
@@ -118,7 +118,7 @@ function readOperation(value: unknown): SandboxOperation | null {
   if (!isHref(value.href)) return null
   const href = value.href
   switch (value.name) {
-    case "story.content": return { name: "story.content", href }
+    case "story.content": return { name: "story.content", href, ...(value.fresh === true ? { fresh: true } : {}) }
     case "tray.update":
       try { return { name: "tray.update", href, view: readTrayView(value.view) } } catch { return null }
     case "openUrl":

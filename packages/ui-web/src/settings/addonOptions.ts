@@ -4,7 +4,7 @@ import { requireElement } from "../dom"
 import { createSchemaControl } from "./schemaControls"
 import { addonButton } from "./addonManagement"
 import { getAddonStatus, onAddonStatus, retryAddon } from "../addons/addonStatus"
-import { pageConversationPlace, setPageConversationPlace } from "../addons/pageAddons"
+import { canChooseConversationPlacement, pageConversationPlace, setPageConversationPlace } from "../addons/pageAddons"
 
 const groups = new Map<string, { signature: string; element: HTMLElement }>()
 const updateStatus = (group: HTMLElement): void => {
@@ -295,7 +295,7 @@ function secretField(client: OnceClient, entry: AddonEntry, name: string, values
 function conversationPlaceField(manifest: AddonEntry["manifest"]): HTMLElement[] {
   const converses = (manifest.contributions ?? []).some(contribution => contribution.kind === "action" && "tray" in contribution.run
     && contribution.surfaces.some(surface => surface === "menu" || surface === "button"))
-  if (!converses || document.body.dataset.platform === "mobile") return []
+  if (!converses || !canChooseConversationPlacement()) return []
   const heading = document.createElement("h3")
   heading.className = "settings_subheading"
   heading.textContent = "On web pages"

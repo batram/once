@@ -2,8 +2,8 @@ import { OnceClient } from "@once/app"
 import { AddonStoryContent } from "@once/core"
 import { articleFromStoredContent, extractArticle } from "../reader/extractArticle"
 
-export async function addonStoryContent(client: OnceClient, href: string, signal?: AbortSignal): Promise<AddonStoryContent> {
-  const stored = await client.getStoryContent(href)
+export async function addonStoryContent(client: OnceClient, href: string, signal?: AbortSignal, fresh = false): Promise<AddonStoryContent> {
+  const stored = fresh ? null : await client.getStoryContent(href)
   signal?.throwIfAborted()
   let article
   if (stored) article = articleFromStoredContent(stored.html, stored.meta, href)

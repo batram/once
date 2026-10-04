@@ -74,6 +74,8 @@ test("a page menu conversation opens in the Once panel when the add-on is set to
     })
     // The tab's own URL, as the browser settled on it.
     const alphaTab = await window.evaluate(() => window.onceElectron.tabs.getAll().then(all => all.find(tab => tab.active)?.url))
+    await expect.poll(() => electronApp.evaluate(({ webContents }, url) =>
+      webContents.getAllWebContents().some(contents => contents.getURL() === url), alphaTab)).toBe(true)
     await electronApp.evaluate(({ webContents }, pageUrl) => {
       const remote = webContents.getAllWebContents().find((contents) => contents.getURL() === pageUrl)
       remote.emit("context-menu", {}, { x: 4, y: 4, isEditable: false, selectionText: "", pageURL: pageUrl, linkURL: "", linkText: "", editFlags: {} })
@@ -86,7 +88,7 @@ test("a page menu conversation opens in the Once panel when the add-on is set to
     await expect(window.locator("#left_panel")).toHaveAttribute("active_panel", "addon")
     await expect(selected).toBeVisible()
     await expect(window.locator("#stories")).toBeHidden()
-    // Laid out like the other panels: its title bar first, then the story, then the conversation.
+    // The consistent title bar stays above the conversation's matching story.
     const barBox = await window.getByTestId("addon-panel-close").locator("xpath=..").boundingBox()
     const storyBox = await selected.boundingBox()
     const panelBox = await panel.boundingBox()
@@ -97,6 +99,51 @@ test("a page menu conversation opens in the Once panel when the add-on is set to
     const entryBox = await window.getByTestId("addon-panel-menu").boundingBox()
     expect(entryBox.y - (filtersBox.y + filtersBox.height)).toBeLessThan(40)
     await window.screenshot({ path: test.info().outputPath("panel-with-story.png") })
+    await expect(window.locator("#addon_panel_title")).toBeFocused()
+    // Browsing elsewhere never retargets an existing conversation.
+    await window.locator("#urlfield").fill(urls.beta)
+    await window.locator("#urlfield").press("Enter")
+    await expect(window.locator("#selected_container story-item")).toHaveAttribute("data-href", urls.beta)
+    await expect(panel.locator(".addon_panel_subject")).toHaveAttribute("href", urls.alpha)
+    await expect(window.locator("#selected_container")).toBeHidden()
+    await expect(panel.locator(".addon_panel_subject")).toBeVisible()
+    await panel.getByRole("textbox").fill("Remember my Alpha question")
+    await panel.getByRole("button", { name: "Use current page", exact: true }).click()
+    await expect(panel.locator(".addon_panel_subject")).toHaveAttribute("href", urls.beta)
+    // The recent picker restores the subject and its unsent draft.
+    const history = window.getByRole("combobox", { name: "Recent conversations" })
+    await history.selectOption(JSON.stringify(["what-wait-who-why", "assistant", urls.alpha]))
+    await expect(panel.getByRole("textbox")).toHaveValue("Remember my Alpha question")
+    await panel.getByRole("button", { name: "Open article", exact: true }).click()
+    await expect(window.locator("#selected_container story-item")).toHaveAttribute("data-href", urls.alpha)
+    await panel.getByRole("button", { name: "Refresh source and restart", exact: true }).click()
+    await expect(panel).toContainText("Fetched article.", { timeout: 15000 })
+    await expect(panel.getByRole("textbox")).toHaveValue("")
+    await window.screenshot({ path: test.info().outputPath("conversation-context.png") })
+    await window.locator("#left_panel").screenshot({ path: test.info().outputPath("panel-aligned.png") })
+    // A link action starts on a different subject without navigating the page.
+    await expect.poll(() => electronApp.evaluate(({ webContents }, url) =>
+      webContents.getAllWebContents().some(contents => contents.getURL() === url), urls.alpha)).toBe(true)
+    await electronApp.evaluate(({ Menu, webContents }, urls) => {
+      const original = Menu.buildFromTemplate
+      try {
+        Menu.buildFromTemplate = template => ({ popup() { template.find(item => item.label === "What? Wait, who, why? for Link").click() } })
+        webContents.getAllWebContents().find(contents => contents.getURL() === urls.alpha).emit("context-menu", {}, {
+          x: 4, y: 4, isEditable: false, selectionText: "", pageURL: urls.alpha, linkURL: urls.beta, linkText: "Beta discussion story", editFlags: {}
+        })
+      } finally { Menu.buildFromTemplate = original }
+    }, urls)
+    await expect(panel.locator(".addon_panel_subject")).toHaveAttribute("href", urls.beta)
+    await expect(window.locator("#selected_container story-item")).toHaveAttribute("data-href", urls.alpha)
+    await expect(window.locator("#selected_container")).toBeHidden()
+    await expect(panel.getByRole("button", { name: "Use current page", exact: true })).toBeVisible()
+    await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(900, 700))
+    await expect(panel.getByRole("textbox")).toBeInViewport()
+    await expect(panel.locator(".addon_panel_subject")).toBeInViewport()
+    await window.screenshot({ path: test.info().outputPath("different-subject-narrow.png") })
+    await window.locator("#left_panel").screenshot({ path: test.info().outputPath("panel-other-page.png") })
+    await window.getByTestId("addon-panel-close").click()
+    await expect.poll(() => window.evaluate(() => document.activeElement?.tagName)).not.toBe("BODY")
   } finally {
     await closeApp(electronApp, userData)
     await server.close()

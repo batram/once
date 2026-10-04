@@ -30,7 +30,7 @@ import { LoaderInsights } from "../shell/LoaderInsights"
 import { addCollectorColorStyles } from "../collectorStyles"
 import { AddonSandbox } from "./AddonSandbox"
 import { AddonConversationSurface, AddonTrays } from "./AddonTrays"
-import { pageStoryView, registerPageAction } from "./pageAddons"
+import { pageStoryView, registerPageAction, setConversationPlacementAvailable } from "./pageAddons"
 import { addonStoryContent } from "./addonStoryContent"
 import { registerAddonCollector } from "./addonCollectors"
 import { BadgeScheduler } from "./badgeScheduler"
@@ -78,6 +78,7 @@ export interface MountAddonsOptions {
 const trays = new Map<string, AddonTrays>()
 
 export function mountAddons(client: OnceClient, options: MountAddonsOptions = {}): void {
+  if (!options.pageOnly) setConversationPlacementAvailable(Boolean(options.conversations && options.panelConversations))
   configureAddonPackages(options.sandboxUrl)
   configureBundledAddons(options.bundledAddons)
   // A conversation page names its addon, tray and story; the trays of the
@@ -234,7 +235,7 @@ async function registerManifest(
         releases.push(registerPageAction({
           id, label: contribution.label, icon: contribution.icon, surfaces, when: contribution.when,
           ...("search" in pageRun ? { requiresPanel: true } : {}),
-          ...("tray" in pageRun ? { converses: true } : {}),
+          ...("tray" in pageRun ? { converses: true, tray: pageRun.tray } : {}),
           appliesTo: page => storyMatchesCondition(contribution.when, pageStoryView(page)),
           run: (page, how) => {
             if (!("tray" in pageRun)) { runAction(manifest, pageRun, pageStoryView(page), sandbox); return true }
@@ -312,7 +313,7 @@ async function sandboxFor(
   return new AddonSandbox(manifest.id, options.sandboxUrl, code, settings, {
     perform: (op, signal, onChunk) => {
       if (op.name === "request") return client.requestAddonConnection(manifest, settings(), op.connection, op.request, signal, devCode !== null, onChunk)
-      if (op.name === "story.content") return addonStoryContent(client, op.href, signal)
+      if (op.name === "story.content") return addonStoryContent(client, op.href, signal, op.fresh)
       return performOperation(client, manifest, grants, op)
     },
     report: (message) => LoaderInsights.showErrorMessage(message, "")

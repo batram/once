@@ -53,6 +53,8 @@ test("conversation snapshots and commands crossing a surface boundary are checke
   assert.deepEqual(core.readConversationCommand({ type: "submit", text: "q" }), { type: "submit", text: "q" })
   assert.deepEqual(core.readConversationCommand({ type: "action", action: "more" }), { type: "action", action: "more" })
   assert.deepEqual(core.readConversationCommand({ type: "stop", extra: 1 }), { type: "stop" })
+  assert.deepEqual(core.readConversationCommand({ type: "refresh" }), { type: "refresh" })
+  assert.equal(core.readConversationSnapshot({ ...snapshot, canRefresh: true }).canRefresh, true)
   assert.throws(() => core.readConversationCommand({ type: "action", action: "bad space" }), /Invalid conversation action/)
   assert.throws(() => core.readConversationCommand({ type: "open" }), /Unknown conversation command/)
   assert.throws(() => core.readConversationCommand(null), /Invalid conversation command/)

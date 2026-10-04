@@ -51,7 +51,7 @@ class ConversationPage {
     this.story.rel = "noopener noreferrer"
     this.header.append(this.title, this.story)
     // Embedded, the surrounding panel names the add-on; the page it is about is the heading.
-    this.title.hidden = embedded
+    this.header.hidden = embedded
     this.messages.className = "addon_conversation_messages"
     this.controls.className = "addon_tray_actions addon_tray_controls"
     this.notice.className = "addon_conversation_notice"
@@ -61,6 +61,7 @@ class ConversationPage {
     this.input.maxLength = 8000
     this.input.rows = 3
     this.input.addEventListener("input", () => this.draftChanged())
+    this.input.addEventListener("blur", () => this.flushDraft())
     this.input.addEventListener("keydown", event => {
       // Enter asks (Ctrl/Cmd+Enter still does); Shift+Enter keeps writing on a new line.
       if (event.key !== "Enter" || event.shiftKey || event.isComposing) return
@@ -88,8 +89,15 @@ class ConversationPage {
 
   dispose(): void {
     this.unsubscribe()
-    if (this.draftTimer) clearTimeout(this.draftTimer)
+    this.flushDraft()
     this.root.replaceChildren()
+  }
+
+  private flushDraft(): void {
+    if (!this.draftTimer) return
+    clearTimeout(this.draftTimer)
+    this.draftTimer = null
+    if (this.connected && this.snapshot) this.port.send({ type: "draft", text: this.input.value })
   }
 
   /** Typed here, remembered by the tray: sent after a pause, not per keystroke. */
@@ -120,13 +128,28 @@ class ConversationPage {
         for (const action of snapshot.view.actions ?? []) this.controls.append(trayButton(action.label, () => this.port.send({ type: "action", action: action.id })))
         if (snapshot.error) this.controls.append(trayButton("Retry", () => this.port.send({ type: "retry" })))
       }
-      this.controls.append(trayButton("Clear conversation", () => this.port.send({ type: "clear" })))
+      this.controls.append(trayButton("Clear conversation", () => {
+        if (this.draftTimer) clearTimeout(this.draftTimer)
+        this.draftTimer = null
+        this.input.value = ""
+        this.port.send({ type: "clear" })
+      }))
+      if (snapshot.canRefresh && !busy) {
+        const refresh = trayButton("Refresh source and restart", () => {
+          if (this.draftTimer) clearTimeout(this.draftTimer)
+          this.draftTimer = null
+          this.input.value = ""
+          this.port.send({ type: "refresh" })
+        })
+        refresh.title = "Clears this conversation and fetches the article again. This does not read the live browser page."
+        this.controls.append(refresh)
+      }
     }
     this.notice.hidden = usable
     this.notice.textContent = usable ? "" : this.connected ? UNAVAILABLE : DISCONNECTED
     this.form.hidden = !snapshot?.view.composer && !!snapshot
     this.input.placeholder = snapshot?.view.composer ?? "Question"
-    this.input.setAttribute("aria-label", this.input.placeholder)
+    this.input.setAttribute("aria-label", snapshot ? `${this.input.placeholder} — ${snapshot.story.title}` : this.input.placeholder)
     this.input.disabled = !usable || busy
     this.send.disabled = !usable || busy
     // The tray's draft arrives with every snapshot; a composer being typed in keeps its own text.

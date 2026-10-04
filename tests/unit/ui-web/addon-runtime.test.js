@@ -46,3 +46,34 @@ test("badge updates target the owning add-on even when computation names match",
     assert.equal(document.querySelector('[data-addon-owner="second"]').textContent, "updated")
   } finally { global.CSS = previous }
 })
+
+test("only an explicit refreshed invocation bypasses the saved article", async () => {
+  const sent = []
+  let receive
+  const scope = { parent: { postMessage: message => sent.push(message) }, addEventListener: (_event, handler) => { receive = handler } }
+  const context = vm.createContext({ exports: {}, AbortController,
+    Blob: function FixtureBlob(parts) { this.code = parts.join("") },
+    URL: { createObjectURL: blob => `data:text/javascript,${encodeURIComponent(blob.code)}`, revokeObjectURL() {} }
+  })
+  new vm.Script(fs.readFileSync(path.resolve(__dirname, "../../../packages/ui-web/dist/addons/sandboxRuntime.js"), "utf8"), {
+    importModuleDynamically: vm.constants.USE_MAIN_CONTEXT_DEFAULT_LOADER
+  }).runInContext(context)
+  context.exports.startSandboxRuntime(scope)
+  const send = data => receive({ source: scope.parent, data })
+  const tick = () => new Promise(resolve => setImmediate(resolve))
+  send({ type: "load", protocol: 1, settings: {}, code: `export default once => {
+    once.onTray(async (_tray, _event, _story, context) => {
+      await context.getStoryContent()
+      return { messages: [] }
+    })
+  }` })
+  for (let attempt = 0; attempt < 20 && !sent.some(message => message.type === "ready"); attempt++) await tick()
+  for (const [requestId, refreshSource] of [[1, false], [2, true]]) {
+    send({ type: "tray", requestId, tray: "summary", event: { type: "open", refreshSource }, story: { href: "https://example.test/a" } })
+    const operation = sent.find(message => message.type === "op" && message.requestId === requestId)
+    assert.equal(operation.op.name, "story.content")
+    assert.equal(operation.op.fresh === true, refreshSource)
+    send({ type: "opResult", opId: operation.opId, ok: true, value: {} })
+    await tick()
+  }
+})

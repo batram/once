@@ -29,6 +29,8 @@ export interface AddonTrayView {
 }
 export interface AddonTrayEvent {
   type: "open" | "action" | "submit" | "clear"
+  /** An explicit restart: content requested through the context bypasses saved articles. */
+  refreshSource?: boolean
   action?: string
   text?: string
 }
@@ -54,6 +56,7 @@ export interface AddonConversationSnapshot {
   busy: boolean
   error: string
   draft: string
+  canRefresh?: boolean
 }
 
 /**
@@ -95,13 +98,14 @@ export type AddonConversationCommand =
   | { type: "retry" }
   | { type: "stop" }
   | { type: "clear" }
+  | { type: "refresh" }
   | { type: "draft"; text: string }
 
 export function readConversationCommand(value: unknown): AddonConversationCommand {
   const command = value as { type?: unknown; text?: unknown; action?: unknown } | null
   if (!command || typeof command !== "object") throw new Error("Invalid conversation command")
   switch (command.type) {
-    case "retry": case "stop": case "clear": return { type: command.type }
+    case "retry": case "stop": case "clear": case "refresh": return { type: command.type }
     case "submit": case "draft":
       if (typeof command.text !== "string" || command.text.length > 8000) throw new Error("Invalid conversation text")
       return { type: command.type, text: command.text }
@@ -122,13 +126,15 @@ export function readConversationSnapshot(value: unknown): AddonConversationSnaps
   const href = new URL(text(snapshot.story?.href, 4096))
   if (!["http:", "https:"].includes(href.protocol)) throw new Error("Invalid conversation story")
   return {
-    addon: { id: text(snapshot.addon?.id, 100), name: text(snapshot.addon?.name, 200) },
+    addon: { id: text(snapshot.addon?.id, 100), name: text(snapshot.addon?.name, 200),
+      ...(snapshot.addon?.shortName ? { shortName: text(snapshot.addon.shortName, 12) } : {}) },
     tray: { id: text(snapshot.tray?.id, 100), title: text(snapshot.tray?.title, 200) },
     story: { href: href.href, title: text(snapshot.story?.title, 1000) },
     view: readTrayView(snapshot.view),
     busy: snapshot.busy === true,
     error: text(snapshot.error ?? "", 1000),
-    draft: text(snapshot.draft ?? "", 8000)
+    draft: text(snapshot.draft ?? "", 8000),
+    canRefresh: snapshot.canRefresh === true
   }
 }
 

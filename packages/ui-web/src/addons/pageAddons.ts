@@ -35,6 +35,8 @@ export interface PageAddonAction {
   requiresPanel?: boolean
   /** The action opens a tray's conversation, which can show in a tab or the panel. */
   converses?: boolean
+  /** The tray this action opens; keeps multi-tool add-ons distinct. */
+  tray?: string
   /** Set when the reader chose to see this add-on's page conversations in the Once panel. */
   place?: "panel"
 }
@@ -50,6 +52,20 @@ export const PAGE_ADDON_ACTIONS_CHANGED = "once-page-addon-actions-changed"
 
 const actions = new Map<string, RegisteredPageAction>()
 const trays = new Map<string, (href: string) => HTMLElement | null>()
+let placementAvailable = false
+
+export function setConversationPlacementAvailable(available: boolean): void { placementAvailable = available }
+export function canChooseConversationPlacement(): boolean { return placementAvailable }
+
+/** Reader wrappers keep the identity of their source article. */
+export function pageSourceUrl(href: string): string {
+  try {
+    const url = new URL(href)
+    if (url.protocol === "once-reader:" && ["http", "https"].includes(url.hostname)) return new URL(`${url.hostname}:${url.pathname}${url.search}${url.hash}`).href
+    if (href.startsWith("about:reader?")) return url.searchParams.get("url") || href
+  } catch { /* A loading or empty tab has no article identity. */ }
+  return href
+}
 
 /** Only web pages get add-on actions: the shells' own pages and blank tabs do not. */
 export function isAddonPage(href: string): boolean {
@@ -65,7 +81,7 @@ export function pageStoryView(page: AddonPage): StoryView {
 export function pageStoryRow(href: string): StoryListItem | undefined {
   const rows = Array.from(document.querySelectorAll<StoryListItem>("story-item"))
   return rows.find(row => row.story.href === href) ?? rows.find(row =>
-    row.story.comment_url === href || (row.dataset.redirected_url || URLRedirect.redirect_url(row.story.href)) === href)
+    row.story.matches_comment_url?.(href) || row.story.comment_url === href || (row.dataset.redirected_url || URLRedirect.redirect_url(row.story.href)) === href)
 }
 
 function announce(): void {
@@ -96,7 +112,8 @@ export function registerPageTray(id: string, render: (href: string) => HTMLEleme
 export function pageAddonActions(surface: PageActionSurface, page?: AddonPage): PageAddonAction[] {
   const list = [...actions.values()].filter(action => action.surfaces.includes(surface))
   const shown = page ? list.filter(action => isAddonPage(page.href) && action.appliesTo(page)) : list
-  return shown.map(({ id, label, icon, surfaces, when, requiresPanel, converses }) => ({ id, label, icon, surfaces,
+  return shown.map(({ id, label, icon, surfaces, when, requiresPanel, converses, tray }) => ({ id, label, icon, surfaces,
+    ...(tray ? { tray } : {}),
     ...(when ? { when } : {}), ...(requiresPanel ? { requiresPanel } : {}), ...(converses ? { converses } : {}),
     ...(converses && pageConversationPlace(addonOf(id)) === "panel" ? { place: "panel" as const } : {}) }))
 }

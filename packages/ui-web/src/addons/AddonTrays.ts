@@ -205,7 +205,7 @@ export class AddonTrays {
       addon: { id: this.manifest.id, name: this.manifest.name, ...(this.manifest.shortName ? { shortName: this.manifest.shortName } : {}) },
       tray: { id: tray, title: this.manifest.trays?.find(item => item.id === tray)?.title ?? tray },
       story: { href, title: state.title },
-      view: state.view, busy: !!state.controller, error: state.error, draft: state.draft
+      view: state.view, busy: !!state.controller, error: state.error, draft: state.draft, canRefresh: Boolean(this.sandbox)
     }
   }
 
@@ -224,6 +224,13 @@ export class AddonTrays {
       case "retry": if (!state.controller) void this.run(href, tray, state.last); return
       case "stop": this.stop(href, tray, state); return
       case "clear": this.clear(href, tray, state); return
+      case "refresh":
+        if (!state.controller) {
+          state.draft = ""
+          state.disclosed.clear()
+          void this.run(href, tray, { type: "open", refreshSource: true })
+        }
+        return
       case "draft":
         // Typed elsewhere: remembered for the next redraw, but no redraw now, or
         // the composer the reader is typing into would lose its focus.
@@ -278,6 +285,11 @@ export class AddonTrays {
       if (!this.sandbox) throw new Error("Configure the addon sandbox on this platform first")
       const session = await this.sandbox.ensure()
       controller.signal.throwIfAborted()
+      if (event.refreshSource) {
+        await session.tray(tray, { type: "clear" }, state.story, controller.signal)
+        controller.signal.throwIfAborted()
+        state.view = { messages: [] }
+      }
       // A stopped invocation never recorded what it showed early, so the tray
       // goes back to the last view the addon did return.
       const before = state.view

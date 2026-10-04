@@ -10,6 +10,7 @@ export interface AddonRequestOptions {
 export interface AddonTrayContext {
   readonly signal: AbortSignal
   request(connectionId: string, request: AddonRequest, options?: AddonRequestOptions): Promise<AddonResponse>
+  /** Uses saved content normally; an explicit refresh-and-restart bypasses saved articles. */
   getStoryContent(): Promise<AddonStoryContent>
   /** Shows a view while this invocation is still working; the view it returns replaces it. */
   update(view: AddonTrayView): void

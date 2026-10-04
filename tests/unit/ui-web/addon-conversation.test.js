@@ -69,13 +69,18 @@ test("a tray hands out a conversation handle that mirrors its state and takes co
     assert.equal(events.at(-1).type, "clear")
     assert.equal(opened.snapshot().view.messages.length, 0)
     assert.equal(opened.snapshot().draft, "")
+    opened.send({ type: "refresh" })
+    await settle()
+    assert.deepEqual(events.slice(-2), [{ type: "clear" }, { type: "open", refreshSource: true }])
+    assert.equal(opened.snapshot().canRefresh, true)
+    assert.equal(opened.snapshot().view.messages[0].text, "Opening answer")
     release()
     const count = snapshots.length
     opened.send({ type: "draft", text: "unheard" })
     assert.equal(snapshots.length, count)
     // A page asking by story gets the held conversation, a fresh one for a
     // listed story, and nothing for an unknown story or tray.
-    assert.equal(trays.handleFor("assistant", "https://story.test/").snapshot().view.messages.length, 0)
+    assert.equal(trays.handleFor("assistant", "https://story.test/").snapshot().view.messages.length, 1)
     const other = document.createElement("story-item")
     other.story = { href: "https://other.test/", title: "Other", type: "HN" }
     document.querySelector("#stories").append(other)
