@@ -2,7 +2,7 @@ const test = require("node:test")
 const assert = require("node:assert/strict")
 const tick = () => new Promise(resolve => setImmediate(resolve))
 
-function harness({ defaults, saved = {} } = {}) {
+function harness({ defaults, saved = {}, chrome = false } = {}) {
   const entries = new Map()
   const sent = []
   const opened = []
@@ -17,7 +17,9 @@ function harness({ defaults, saved = {} } = {}) {
     onShown: { addListener(listener) { shown = listener } },
     onClicked: { addListener(listener) { clicked = listener } }
   }
-  const api = { menus, contextMenus: menus,
+  // Chrome has contextMenus only: no menus namespace, no onShown.
+  if (chrome) delete menus.onShown
+  const api = { ...(chrome ? {} : { menus }), contextMenus: menus,
     storage: { local: { get: async () => saved, set: async values => Object.assign(saved, values) } },
     tabs: { async create(properties) { opened.push(properties) } },
     runtime: {
@@ -43,21 +45,46 @@ function harness({ defaults, saved = {} } = {}) {
 }
 const state = (items, contextId = "panel-1") => ({ onceCommand: "page-actions-context", contextId, items })
 
-test("page and link entries carry native target filters and respect conditions", async () => {
-  const h = harness()
-  await h.receive(state([
-    { id: "example", label: "Example", when: { domain: ["*.example.test"], notDomain: ["blocked.example.test"], scheme: ["https"] } },
-    { id: "story-only", label: "Story only", when: { type: ["HN"] } },
-    { id: "bad", label: "Bad", when: { domain: "invalid" } }
-  ]))
+const conditioned = [
+  { id: "example", label: "Example", when: { domain: ["*.example.test"], notDomain: ["blocked.example.test"], scheme: ["https"] } },
+  { id: "story-only", label: "Story only", when: { type: ["HN"] } },
+  { id: "bad", label: "Bad", when: { domain: "invalid" } }
+]
+
+test("Chrome page and link entries carry native target filters and respect conditions", async () => {
+  const h = harness({ chrome: true })
+  await h.receive(state(conditioned))
   assert.equal(h.entries.size, 2)
   assert.deepEqual(h.entries.get("once_page_example").documentUrlPatterns, ["https://*.example.test/*"])
   assert.deepEqual(h.entries.get("once_page_link:example").targetUrlPatterns, ["https://*.example.test/*"])
+  assert.equal(h.entries.get("once_page_example").title, "Example")
+  assert.equal(h.entries.get("once_page_link:example").title, "Example for Link")
   await h.receive({ onceCommand: "page-actions-target", href: "https://blocked.example.test/" }, { tab: { id: 1 }, url: "https://blocked.example.test/" })
   assert.equal(h.entries.get("once_page_example").enabled, false)
+})
+
+// Firefox checks targetUrlPatterns against a media srcUrl too; a link around a
+// streamed video has none it can parse, and the throw empties the rest of the
+// menu. Link entries there carry no target filter and are hidden on show.
+test("Firefox link entries are filtered by their link when the menu opens", async () => {
+  const h = harness()
+  await h.receive(state(conditioned))
+  const link = h.entries.get("once_page_link:example")
+  assert.equal(link.targetUrlPatterns, undefined)
+  assert.deepEqual(link.documentUrlPatterns, ["http://*/*", "https://*/*"])
+  assert.equal(link.title, "Example for Link")
   h.show({ linkUrl: "https://ok.example.test/", pageUrl: "https://other.test/" })
   await tick()
-  assert.equal(h.entries.get("once_page_link:example").enabled, true)
+  assert.deepEqual([link.visible, link.enabled], [true, true])
+  for (const linkUrl of ["https://blocked.example.test/", "http://ok.example.test/", "https://elsewhere.test/", "mailto:a@example.test"]) {
+    h.show({ linkUrl, pageUrl: "https://other.test/" })
+    await tick()
+    assert.equal(link.visible, false, linkUrl)
+  }
+  // A page menu leaves the link entry alone; it is not in that context anyway.
+  h.show({ pageUrl: "https://ok.example.test/" })
+  await tick()
+  assert.equal(h.entries.get("once_page_example").enabled, true)
 })
 
 test("a retained menu finds a live panel after worker restart and routes page and link clicks", async () => {

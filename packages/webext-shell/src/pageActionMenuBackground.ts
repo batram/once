@@ -50,6 +50,13 @@ export function installPageActionMenuBackground(
   // Loading this script is what rebuilds the menus; a listener makes the browser load it at startup.
   browserApi.runtime.onStartup?.addListener(() => undefined)
   const ids = (id: string) => [prefix + id, prefix + "link:" + id]
+  // Firefox matches targetUrlPatterns against a media element's srcUrl too,
+  // and a link around a streamed video (YouTube's hover previews) has none it
+  // can parse: the check throws and takes every extension item after it out
+  // of the menu. Firefox shows link entries for every web page instead and
+  // hides those whose link does not match when the menu opens (onShown).
+  // Chrome checks only the link, and has no onShown, so it keeps the filter.
+  const filtersOnShow = Boolean(browserApi.menus?.onShown)
   const apply = async (items: PageActionMenuItem[]): Promise<void> => {
     for (const item of known) {
       for (const id of ids(item.id)) await menus.remove(id).catch(() => undefined)
@@ -59,9 +66,9 @@ export function installPageActionMenuBackground(
       if (!patterns.length) continue
       for (const [index, id] of ids(item.id).entries()) {
         await menus.remove(id).catch(() => undefined)
-        menus.create({ id, title: item.label, contexts: [index ? "link" : "page"],
+        menus.create({ id, title: index ? `${item.label} for Link` : item.label, contexts: [index ? "link" : "page"],
           documentUrlPatterns: index ? ["http://*/*", "https://*/*"] : patterns,
-          ...(index ? { targetUrlPatterns: patterns } : {}) })
+          ...(index && !filtersOnShow ? { targetUrlPatterns: patterns } : {}) })
       }
     }
     known = items
@@ -71,10 +78,14 @@ export function installPageActionMenuBackground(
     applying = applying.then(work).catch(error => console.error("Could not update page action menus", error))
     return applying
   }
-  const target = (href: string): Promise<void> => enqueue(async () => {
+  const target = (href: string, link?: string): Promise<void> => enqueue(async () => {
     for (const item of known) {
       if (!pageActionMenuPatterns(item.when).length) continue
       for (const id of ids(item.id)) await menus.update(id, { enabled: pageMatchesCondition(item.when, href) })
+      // What targetUrlPatterns would have hidden, decided from the link alone.
+      if (link !== undefined) {
+        await menus.update(ids(item.id)[1], { visible: /^https?:/i.test(link) && pageMatchesCondition(item.when, link) })
+      }
     }
   })
 
@@ -92,7 +103,7 @@ export function installPageActionMenuBackground(
   })
   browserApi.menus?.onShown.addListener(info => {
     const href = info.linkUrl ?? info.pageUrl
-    if (href) void target(href).then(() => browserApi.menus.refresh())
+    if (href) void target(href, info.linkUrl).then(() => browserApi.menus.refresh())
   })
 
   menus.onClicked.addListener((info, tab) => {
