@@ -28,6 +28,8 @@ test("Gecko settings reconnect after activity loss and accept settings on the ne
     }
   })
   vm.runInContext(fs.readFileSync(path.resolve(__dirname,
+    "../../../apps/mobile/extensions/once-surface/filterRules.js"), "utf8"), context)
+  vm.runInContext(fs.readFileSync(path.resolve(__dirname,
     "../../../apps/mobile/extensions/once-surface/background.js"), "utf8"), context)
   assert.equal(ports.length, 1)
   ports[0].disconnect()

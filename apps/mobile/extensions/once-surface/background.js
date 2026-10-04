@@ -4,8 +4,9 @@
 // hand-off rather than attempting to mutate uBlock or Violentmonkey internals.
 let registrations = []
 let filterRegistration
-let blocked = []
-let allowed = []
+let blocks = () => false
+let allows = () => false
+let listening = false
 let settingsRevision = 0
 let settingsQueue = Promise.resolve()
 
@@ -29,18 +30,23 @@ async function loadLists(document, current) {
     runAt: "document_start", allFrames: true
   }) : undefined
   if (!current()) { await next?.unregister(); return }
-  blocked = rules
-  allowed = exceptions
+  blocks = onceFilterRules.matcher(rules)
+  allows = onceFilterRules.matcher(exceptions)
+  if (rules.length && !listening) {
+    browser.webRequest.onBeforeRequest.addListener(onRequest, { urls: ["<all_urls>"] }, ["blocking"])
+    listening = true
+  } else if (!rules.length && listening) {
+    browser.webRequest.onBeforeRequest.removeListener(onRequest)
+    listening = false
+  }
   if (filterRegistration) await filterRegistration.unregister()
   filterRegistration = next
   console.info(`Once filter lists: ${rules.length} network rules; ${skipped} unsupported rules skipped`)
 }
 
-browser.webRequest.onBeforeRequest.addListener(
-  details => !allowed.some(pattern => pattern.test(details.url)) && blocked.some(pattern => pattern.test(details.url)) ? { cancel: true } : {},
-  { urls: ["<all_urls>"] },
-  ["blocking"]
-)
+function onRequest(details) {
+  return blocks(details.url) && !allows(details.url) ? { cancel: true } : {}
+}
 
 async function installUserscripts(document, current) {
   const next = []

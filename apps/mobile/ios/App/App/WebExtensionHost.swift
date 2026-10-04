@@ -62,7 +62,11 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
         contexts[bundle.id] = context
         if UserDefaults.standard.bool(forKey: "once.extension.disabled.\(bundle.id)") != true {
             try controller.load(context)
-            try await context.loadBackgroundContent()
+            // uBO installs its rules before the first navigation. Other event-page
+            // backgrounds wake through WebKit when content scripts or tools need them.
+            if bundle.directory == "ublock-origin-lite" {
+                try await context.loadBackgroundContent()
+            }
         }
     }
 

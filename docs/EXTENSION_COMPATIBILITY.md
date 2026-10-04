@@ -7,7 +7,7 @@ embedded browsing surface. Their configuration and runtime ownership are separat
 | --- | --- | --- |
 | Electron | Declarative contributions and sandboxed scripts | Bundled extensions plus user-installed Firefox MV2 and MV3 XPIs; see the management and API limits below |
 | Android | Declarative contributions and sandboxed scripts in the app shell | GeckoView built-ins and user-installed signed Firefox extensions; synced additions handled by Once's bridge |
-| iOS | Shared add-on implementation; device validation remains required | WebKit content rules and the documented small GM shim |
+| iOS | Shared add-on implementation; device validation remains required | Explicit WebKit-adapted bundles through `WKWebExtensionController`, plus supplemental content rules and the small GM shim |
 | Chrome side panel | Declarative contributions and sandboxed scripts | Browser-native extensions remain the user's browser configuration |
 | Firefox side panel | Declarative contributions and sandboxed scripts in the packaged MV2 extension; no hosting setup | Browser-native extensions remain the user's browser configuration |
 
@@ -74,10 +74,26 @@ committing it. Failed downloads keep the previously applied rules. Script and CS
 registrations are prepared before their predecessors are removed; a failed new
 registration is cleaned up. Changes to content scripts affect future documents.
 
+Android registers the supplemental blocking listener only while effective network
+rules exist. Domain-anchored rules use hostname buckets; generic patterns retain
+a linear fallback. On iOS, download/export work runs off the main actor, equal
+selections and downloaded text are reused for one hour, and compiled rule lists
+are cached by content hash (four recent identifiers). An empty list clears the
+installed rules; failed compilation preserves the working rules.
+
+The iOS host loads bundled uBlock Origin Lite, Dark Reader, SponsorBlock and
+Violentmonkey contexts. It awaits uBO background readiness before navigation;
+the other backgrounds wake through WebKit events as needed. These are adapted,
+pinned bundles, not support for installing arbitrary Firefox XPIs. The host needs
+iOS 18.4 or later; the bundled uBO Lite release requires iOS 18.6 or later.
+
 The portable examples live in `tests/fixtures/extensions/portable-filters.json`.
 Node tests execute the actual Android parser and bridge. Those checks and mobile
 web tests do not establish native iOS behavior; WebKit compilation and the shared
-add-on sandbox must still be validated on an Apple device or simulator.
+add-on sandbox require separate Apple-device or simulator validation. The
+[performance follow-up](benchmarks/mobile-extension-improvements.md) records the
+physical iPhone content-rule checks and simulator bundled-extension behavior
+checks completed for these changes; it does not validate the shared add-on sandbox.
 
 ## Author and maintenance references
 
@@ -204,7 +220,7 @@ background-page load is not proof that every feature works. This custom runtime
 is not a full implementation of Firefox's API or permission model. Install only
 extensions whose source you trust. Android uses GeckoView's own installer and
 permission model, described below. Arbitrary storage sync selection remains an
-Electron feature; iOS cannot execute Firefox WebExtensions.
+Electron feature; iOS hosts only the explicit WebKit-adapted bundles described above.
 
 ## Installing and managing Firefox extensions on Android
 

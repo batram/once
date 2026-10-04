@@ -33,6 +33,9 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     private var extensionSettingsGeneration = 0
     /// Bumped by close() so an open/navigate still waiting on extensions doesn't revive the surface.
     private var closeGeneration = 0
+    private let filterPreparation = IOSFilterPreparation()
+    private let ruleCompiler = IOSContentRuleCompiler()
+    private var installedRuleJSON: String?
     private var contentRuleList: WKContentRuleList?
     private var extensionUserScripts: [WKUserScript] = []
     private lazy var extensions: WebExtensionHost = {
@@ -336,14 +339,16 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             // Warm extensions without holding startup; content rules don't depend on them.
             Task { @MainActor in await self.extensions.prepare() }
             do {
-                let texts = try await IOSContentBlockerExporter.fetchLists(entries)
-                let encodedRules = try IOSContentBlockerExporter.export(texts.joined(separator: "\n"))
+                let encodedRules = try await filterPreparation.prepare(entries).value
+                guard generation == extensionSettingsGeneration else { call.resolve(); return }
                 try await compileAndInstallRules(encodedRules, generation: generation)
                 if generation == extensionSettingsGeneration { call.resolve() }
                 else { call.resolve() }
             } catch {
-                if generation == extensionSettingsGeneration { call.reject(error.localizedDescription) }
-                else { call.resolve() }
+                if generation == extensionSettingsGeneration {
+                    filterPreparation.retryAfterFailure()
+                    call.reject(error.localizedDescription)
+                } else { call.resolve() }
             }
         }
     }
@@ -477,26 +482,16 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     @MainActor
     private func compileAndInstallRules(_ encodedRules: String, generation: Int) async throws {
         guard generation == extensionSettingsGeneration else { return }
-        let identifier = "once-synced-filter-lists"
-        let list = try await withCheckedThrowingContinuation {
-                (continuation: CheckedContinuation<WKContentRuleList, Error>) in
-                WKContentRuleListStore.default().compileContentRuleList(
-                    forIdentifier: identifier,
-                    encodedContentRuleList: encodedRules
-                ) { list, error in
-                    if let list { continuation.resume(returning: list) }
-                    else { continuation.resume(throwing: error ?? NSError(
-                        domain: "OnceContentBlocker", code: 2,
-                        userInfo: [NSLocalizedDescriptionKey: "WebKit did not compile the content rules"]
-                    )) }
-                }
-            }
+        guard encodedRules != installedRuleJSON else { return }
+        // An empty update clears existing rules without compiling an invalid [].
+        let list = try await ruleCompiler.compile(encodedRules)
         guard generation == extensionSettingsGeneration else { return }
         if let previous = contentRuleList {
             surface?.configuration.userContentController.remove(previous)
         }
-        surface?.configuration.userContentController.add(list)
+        if let list { surface?.configuration.userContentController.add(list) }
         contentRuleList = list
+        installedRuleJSON = encodedRules
     }
 
     private func installUserscripts(_ document: JSObject) {
@@ -530,6 +525,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             self.surface = nil
             self.refreshControl = nil
             self.contentRuleList = nil
+            self.installedRuleJSON = nil
             call.resolve()
         }
     }

@@ -30,11 +30,45 @@ globalThis.onceFilterRules = (() => {
         if (exception || value.includes("$badfilter")) unsafeException = true
         continue
       }
-      try { (exception ? allowed : blocked).push(pattern(value)) } catch { skipped++ }
+      try {
+        const rule = pattern(value)
+        // Only index an actual hostname boundary. A bare ||example.com also
+        // matches example.com.other, so it must stay in the fallback bucket.
+        rule.onceDomain = /^\|\|([a-z0-9.-]+)(?=[/^]|\|$)/i.exec(value)?.[1].toLowerCase()
+        ;(exception ? allowed : blocked).push(rule)
+      } catch { skipped++ }
     }
     const cosmeticException = text.includes("#@#")
     return { blocked: unsafeException ? [] : blocked, allowed,
       selectors: cosmeticException ? [] : selectors, skipped }
   }
-  return { parse }
+  function matcher(rules) {
+    const domains = new Map(), fallback = []
+    for (const rule of rules) {
+      if (!rule.onceDomain) { fallback.push(rule); continue }
+      const bucket = domains.get(rule.onceDomain) || []
+      bucket.push(rule)
+      domains.set(rule.onceDomain, bucket)
+    }
+    return url => {
+      if (fallback.some(rule => rule.test(url))) return true
+      if (!domains.size) return false
+      let host
+      try {
+        const parsed = new URL(url)
+        if (parsed.username || parsed.password) return rules.some(rule => rule.test(url))
+        host = parsed.hostname.toLowerCase()
+      } catch {
+        // Preserve the parser's behavior for noncanonical callers as well.
+        return rules.some(rule => rule.test(url))
+      }
+      for (;;) {
+        if (domains.get(host)?.some(rule => rule.test(url))) return true
+        const dot = host.indexOf(".")
+        if (dot < 0) return false
+        host = host.slice(dot + 1)
+      }
+    }
+  }
+  return { parse, matcher }
 })()
