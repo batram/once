@@ -2759,7 +2759,18 @@
     width: 100%;
     min-height: 0;
     border: 0;
-    background: white;
+    background: rgb(246, 246, 239);
+  }
+
+  /* Matches --reader-bg in readerDocument.css; visible on iOS overscroll. */
+  .once-reader-host-frame[data-theme="dark"] {
+    background: #282a36;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .once-reader-host-frame[data-theme="system"] {
+      background: #282a36;
+    }
   }
 
   body.once-reader-open {

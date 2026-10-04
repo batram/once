@@ -68,6 +68,9 @@ export class ReaderDocumentHost {
     const version = ++this.documentVersion
     const document = await this.injectRuntime(html)
     if (version !== this.documentVersion) return
+    // Mirrors the document theme onto the frame element so its backdrop
+    // (exposed by iOS rubber-band overscroll) matches the reader background.
+    this.frame.dataset.theme = /<html[^>]*\sdata-theme="([a-z]+)"/i.exec(html)?.[1] ?? "system"
     this.frame.srcdoc = document
     this.root.hidden = false
     globalThis.document.body.classList.add("once-reader-open")
