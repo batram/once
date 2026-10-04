@@ -104,6 +104,7 @@ usual review.
   "protocol": 1,
   "id": "archive-today",              // 3–40 of a-z 0-9 -, unique by convention
   "name": "Archive.today",
+  "shortName": "Archive",              // optional, up to 12 characters, for narrow places such as a menu button
   "version": "1.2.0",
   "author": "…",                       // optional
   "homepage": "https://…",             // optional, http(s)
@@ -326,7 +327,12 @@ context menu, and in the mobile browser sheet. The action then runs on a story
 whose `href` is the page, `type` is `"page"`, and `title` is the page title when
 the shell knows it, else the URL; `when: { "type": [...] }` without `"page"` keeps
 an action to real stories. A tray opens its conversation in a new tab on Electron
-and in the extensions, and above the page on mobile.
+and in the extensions, and above the page on mobile. On Electron and in the
+extensions the reader can choose, per add-on under its settings ("On web pages"),
+to see these conversations in the Once panel beside the page instead: the panel
+gets a temporary menu entry, named by the add-on's `shortName` (or its initials
+when the name is too long), that goes away when the conversation is closed. The
+extensions open their side panel for it from the context menu.
 
 Page actions respect `when` on toolbar tools and native page/link menus as well
 as at execution. Electron reader tabs use the article's source URL. Mobile's
@@ -334,7 +340,7 @@ browser menu is available without Android browser extensions; listed URLs,
 configured redirects, and comments pages share the listed story's conversation
 while opening it in the reading view. Extension menu execution resolves a live
 Once panel in the clicked browser window, including after a background restart;
-keep that panel open to own the addon and its conversations.
+with none open, a conversation tab runs the action over the stored add-ons itself.
 
 ```js
 once.onTray(async (tray, event, story, context) => {

@@ -2,7 +2,7 @@ const test = require("node:test")
 const assert = require("node:assert/strict")
 const tick = () => new Promise(resolve => setImmediate(resolve))
 
-function harness({ defaults, saved = {}, chrome = false } = {}) {
+function harness({ defaults, saved = {}, chrome = false, openPanel } = {}) {
   const entries = new Map()
   const sent = []
   const opened = []
@@ -34,7 +34,7 @@ function harness({ defaults, saved = {}, chrome = false } = {}) {
   }
   const restart = () => {
     // A background restart starts from the menus the browser still holds; rebuilding them must be idempotent.
-    require("../../../packages/webext-shell/dist/pageActionMenuBackground").installPageActionMenuBackground(api, defaults)
+    require("../../../packages/webext-shell/dist/pageActionMenuBackground").installPageActionMenuBackground(api, defaults, { openPanel })
   }
   restart()
   return { entries, sent, opened, saved, restart,
@@ -112,6 +112,34 @@ test("execution rechecks the live addon and its condition", async () => {
   h.click({ menuItemId: "once_page_removed", pageUrl: "https://example.test/" }, {})
   await tick()
   assert.equal(h.sent.filter(message => message.onceCommand === "page-addon-action").length, 0)
+})
+
+// An add-on whose page conversations the reader put in the panel: the click
+// opens the panel before anything asynchronous (the browser refuses it later),
+// then hands the action over once the starting panel has registered it.
+test("a panel entry opens the panel inside the click and runs there once it is ready", async () => {
+  const windows = []
+  const h = harness({ openPanel: tab => windows.push(tab?.windowId) })
+  await h.receive(state([{ id: "addon:wwww/explain", label: "Explain", place: "panel" }]))
+  assert.deepEqual([...h.entries.keys()].sort(), ["once_page_link:panel:addon:wwww/explain", "once_page_panel:addon:wwww/explain"])
+  h.restart() // the click wakes a worker that has not read its retained list yet
+  h.panel(undefined)
+  h.click({ menuItemId: "once_page_panel:addon:wwww/explain", pageUrl: "https://a.test/page" }, { title: "A page", windowId: 4 })
+  assert.deepEqual(windows, [4], "opened synchronously, inside the user gesture")
+  await new Promise(resolve => setTimeout(resolve, 300))
+  h.panel(state([], "starting")) // up, but its add-ons are not registered yet
+  await new Promise(resolve => setTimeout(resolve, 300))
+  assert.equal(h.sent.filter(message => message.onceCommand === "page-addon-action").length, 0)
+  h.panel(state([{ id: "addon:wwww/explain", label: "Explain", place: "panel" }], "ready"))
+  await new Promise(resolve => setTimeout(resolve, 600))
+  assert.deepEqual(h.sent.filter(message => message.onceCommand === "page-addon-action"),
+    [{ onceCommand: "page-addon-action", action: "addon:wwww/explain", contextId: "ready", href: "https://a.test/page", title: "A page" }])
+  assert.equal(h.opened.length, 0, "no conversation tab")
+  // Back to tabs: the entry loses its marker and a click no longer opens the panel.
+  await h.receive(state([{ id: "addon:wwww/explain", label: "Explain" }]))
+  assert.deepEqual([...h.entries.keys()].sort(), ["once_page_addon:wwww/explain", "once_page_link:addon:wwww/explain"])
+  h.click({ menuItemId: "once_page_addon:wwww/explain", pageUrl: "https://a.test/page" }, { windowId: 4 })
+  assert.deepEqual(windows, [4])
 })
 
 // A fresh install has never run a panel: the bundled add-ons' actions are in

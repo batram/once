@@ -68,6 +68,70 @@
   display: flex;
 }
 
+/* A page's add-on conversation beside the page; it exists only while shown.
+   Its title bar is a sibling of the panels, ordered first, so the layout
+   matches the other panels: title bar, then the story matching the page,
+   then the conversation. */
+#addon_panel_bar,
+#addon_panel {
+  display: none;
+}
+
+#left_panel[active_panel="addon"] #addon_panel_bar {
+  display: flex;
+  flex: 0 0 auto;
+  order: -1;
+}
+
+#left_panel[active_panel="addon"] #addon_panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* The stories panel shrinks to its selected story, which is empty (and so
+   takes no room) when nothing matches or Electron shows it by the browser. */
+#left_panel[active_panel="addon"] #stories_panel {
+  display: flex;
+  flex: 0 0 auto;
+}
+
+#left_panel[active_panel="addon"] #stories_panel > :not(#selected_container) {
+  display: none;
+}
+
+#menu > #addon_menu_btn {
+  margin-top: var(--sp-2);
+}
+
+#addon_panel_bar .addon_panel_close {
+  --icon-size: 0.7rem;
+  border-color: transparent;
+  background: transparent;
+}
+
+#addon_panel_bar .addon_panel_close:hover,
+#addon_panel_bar .addon_panel_close:focus-visible {
+  border-color: var(--border-color);
+}
+
+#addon_panel_bar .addon_panel_title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  padding-inline: var(--sp-2);
+}
+
+#addon_panel .addon_panel_body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--sp-2) var(--sp-3);
+}
+
 #menu > #reading_menu_btn {
   display: none;
 }

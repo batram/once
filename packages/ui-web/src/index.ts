@@ -35,7 +35,7 @@ export { renderStoryTrays, STORY_TRAYS_CHANGED } from "./story/storyElements"
 export { requestReading } from "./ReadingSession"
 export type { AddonConversationHandle, AddonConversationSurface } from "./addons/AddonTrays"
 export {
-  PAGE_ADDON_ACTIONS_CHANGED, isAddonPage, pageAddonActions, renderPageTrays, runPageAddonAction
+  PAGE_ADDON_ACTIONS_CHANGED, isAddonPage, pageAddonActions, pageRunMode, renderPageTrays, runPageAddonAction
 } from "./addons/pageAddons"
 export type { AddonPage } from "./addons/pageAddons"
 export { showChoiceDialog } from "./confirmDialog"

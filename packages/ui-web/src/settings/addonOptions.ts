@@ -4,6 +4,7 @@ import { requireElement } from "../dom"
 import { createSchemaControl } from "./schemaControls"
 import { addonButton } from "./addonManagement"
 import { getAddonStatus, onAddonStatus, retryAddon } from "../addons/addonStatus"
+import { pageConversationPlace, setPageConversationPlace } from "../addons/pageAddons"
 
 const groups = new Map<string, { signature: string; element: HTMLElement }>()
 const updateStatus = (group: HTMLElement): void => {
@@ -144,6 +145,7 @@ function settingsGroup(client: OnceClient, entry: AddonEntry, dev: boolean, cont
     fields.push({ element: field, schema: property })
     group.append(field)
   }
+  group.append(...conversationPlaceField(manifest))
   updateVisibility()
   group.addEventListener("addon-options-received", event => {
     const incoming = validateConfig(schema, (event as CustomEvent).detail) as Record<string, unknown>
@@ -283,6 +285,36 @@ function secretField(client: OnceClient, entry: AddonEntry, name: string, values
   }
   field.append(input, addonButton("Save token", () => save(input.value)), addonButton("Clear token", () => save("")), status)
   return field
+}
+
+/**
+ * The host's own setting for any add-on whose tray runs on web pages: where
+ * those conversations open. Not part of the add-on's options; remembered on
+ * this device, like the other layout choices. Mobile shows them inline instead.
+ */
+function conversationPlaceField(manifest: AddonEntry["manifest"]): HTMLElement[] {
+  const converses = (manifest.contributions ?? []).some(contribution => contribution.kind === "action" && "tray" in contribution.run
+    && contribution.surfaces.some(surface => surface === "menu" || surface === "button"))
+  if (!converses || document.body.dataset.platform === "mobile") return []
+  const heading = document.createElement("h3")
+  heading.className = "settings_subheading"
+  heading.textContent = "On web pages"
+  const select = document.createElement("select")
+  select.id = `addon_place_${manifest.id}`
+  select.dataset.testid = `addon-place-${manifest.id}`
+  for (const [value, text] of [["tab", "A new tab"], ["panel", "The Once panel, beside the page"]]) select.append(new Option(text, value))
+  select.value = pageConversationPlace(manifest.id)
+  const field = fieldShell({ type: "string", label: "Open conversations in",
+    description: "For this add-on's actions on a web page, such as its entry in the page's context menu. The Once panel keeps the page in view, and its menu entry goes away when you close it. Remembered on this device." },
+  "place", select.id)
+  const status = document.createElement("span")
+  status.setAttribute("role", "status")
+  select.addEventListener("change", () => {
+    setPageConversationPlace(manifest.id, select.value === "panel" ? "panel" : "tab")
+    status.textContent = "Saved"
+  })
+  field.append(select, status)
+  return [heading, field]
 }
 
 function fieldShell(property: ConfigSchema, name: string, id: string): HTMLElement {

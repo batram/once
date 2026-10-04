@@ -15,8 +15,14 @@ export interface AddonPage {
 /** Where a shell shows a page action: its toolbar, or a page's menu. */
 export type PageActionSurface = "button" | "menu"
 
-/** How a shell runs one: `toggle` beside the page, `continue` on the platform's larger surface. */
-export type PageActionMode = "toggle" | "continue"
+/**
+ * How a shell runs one: `toggle` beside the page, `continue` on the
+ * platform's larger surface (a tab), `panel` in the Once panel beside the page.
+ */
+export type PageActionMode = "toggle" | "continue" | "panel"
+
+/** Where a page action's conversation opens, chosen per add-on in its settings. */
+export type PageConversationPlace = "tab" | "panel"
 
 /** An action as the shells list it: on a toolbar, in a page's context menu. */
 export interface PageAddonAction {
@@ -27,6 +33,10 @@ export interface PageAddonAction {
   when?: AddonCondition
   /** The action needs the story list and search controls of a full panel. */
   requiresPanel?: boolean
+  /** The action opens a tray's conversation, which can show in a tab or the panel. */
+  converses?: boolean
+  /** Set when the reader chose to see this add-on's page conversations in the Once panel. */
+  place?: "panel"
 }
 
 export interface RegisteredPageAction extends PageAddonAction {
@@ -86,7 +96,9 @@ export function registerPageTray(id: string, render: (href: string) => HTMLEleme
 export function pageAddonActions(surface: PageActionSurface, page?: AddonPage): PageAddonAction[] {
   const list = [...actions.values()].filter(action => action.surfaces.includes(surface))
   const shown = page ? list.filter(action => isAddonPage(page.href) && action.appliesTo(page)) : list
-  return shown.map(({ id, label, icon, surfaces, when, requiresPanel }) => ({ id, label, icon, surfaces, ...(when ? { when } : {}), ...(requiresPanel ? { requiresPanel } : {}) }))
+  return shown.map(({ id, label, icon, surfaces, when, requiresPanel, converses }) => ({ id, label, icon, surfaces,
+    ...(when ? { when } : {}), ...(requiresPanel ? { requiresPanel } : {}), ...(converses ? { converses } : {}),
+    ...(converses && pageConversationPlace(addonOf(id)) === "panel" ? { place: "panel" as const } : {}) }))
 }
 
 /** Runs an action on a page. False when it is unknown, does not apply, or could not run. */
@@ -94,6 +106,32 @@ export function runPageAddonAction(id: string, page: AddonPage, how: PageActionM
   const action = actions.get(id)
   if (!action || !isAddonPage(page.href) || !action.appliesTo(page)) return false
   return action.run(page, how)
+}
+
+/** The add-on an action belongs to, from its `addon:<id>/<contribution>` id. */
+function addonOf(actionId: string): string {
+  return /^addon:([^/]+)\//.exec(actionId)?.[1] ?? ""
+}
+
+const placeKey = (addon: string) => `once:addon-conversation-place:${addon}`
+
+/** Where this add-on's page conversations open on this device; a tab unless the reader chose the panel. */
+export function pageConversationPlace(addon: string): PageConversationPlace {
+  try { return localStorage.getItem(placeKey(addon)) === "panel" ? "panel" : "tab" } catch { return "tab" }
+}
+
+/** Remembered on this device; shells republish their page menus, which carry the choice. */
+export function setPageConversationPlace(addon: string, place: PageConversationPlace): void {
+  try {
+    if (place === "panel") localStorage.setItem(placeKey(addon), "panel")
+    else localStorage.removeItem(placeKey(addon))
+  } catch { return }
+  announce()
+}
+
+/** The mode a shell runs a page action in when the reader picks it from a page: their choice of tab or panel. */
+export function pageRunMode(actionId: string): PageActionMode {
+  return pageConversationPlace(addonOf(actionId)) === "panel" ? "panel" : "continue"
 }
 
 export function renderPageTrays(href: string, host: HTMLElement): void {

@@ -4,6 +4,8 @@ export interface PageActionMenuItem {
   id: string
   label: string
   when?: AddonCondition
+  /** The reader shows this add-on's page conversations in the Once panel. */
+  place?: "panel"
 }
 
 export function readPageActionMenuItems(value: unknown): PageActionMenuItem[] {
@@ -12,7 +14,7 @@ export function readPageActionMenuItems(value: unknown): PageActionMenuItem[] {
     if (typeof item?.id !== "string" || typeof item.label !== "string") return []
     try {
       const when = readAddonCondition(item.when)
-      return [{ id: item.id, label: item.label, ...(when ? { when } : {}) }]
+      return [{ id: item.id, label: item.label, ...(when ? { when } : {}), ...(item.place === "panel" ? { place: "panel" as const } : {}) }]
     } catch { return [] }
   })
 }

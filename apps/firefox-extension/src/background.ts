@@ -21,7 +21,12 @@ browser.browserAction.onClicked.addListener(() => {
 installReaderBackground(browser)
 installPickerBackground(browser)
 installStoryMenuBackground(browser)
-installPageActionMenuBackground(browser, bundledPageActions(__ONCE_BUNDLED_ADDONS__))
+installPageActionMenuBackground(browser, bundledPageActions(__ONCE_BUNDLED_ADDONS__), {
+  // The sidebar opens in the current window, which is the one clicked in.
+  openPanel: () => {
+    browser.sidebarAction.open().catch((error: unknown) => console.error("Unable to open the sidebar", error))
+  }
+})
 installKeyCommandBackground(browser)
 // Not in the polyfill's types; Firefox has had it in Manifest V2 since 113.
 installConnectionOriginBackground(

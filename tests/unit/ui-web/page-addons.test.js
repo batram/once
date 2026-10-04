@@ -90,6 +90,40 @@ test("continuing a page opens the surface on a conversation started once, and is
   } finally { h.restore() }
 })
 
+// The reader picks, per add-on, whether page conversations open in a tab or
+// in the Once panel beside the page; shells list the choice and run with it.
+test("an add-on's page conversations open where the reader chose, a tab unless the panel was picked", async () => {
+  const h = harness()
+  const previousStorage = global.localStorage
+  const stored = new Map()
+  global.localStorage = { getItem: key => stored.get(key) ?? null, setItem: (key, value) => stored.set(key, String(value)), removeItem: key => stored.delete(key) }
+  try {
+    const panelOpened = []
+    const trays = h.make(h.surface)
+    const release = h.page.registerPageAction({
+      id: "addon:example/explain", label: "Explain", surfaces: ["menu"], converses: true, appliesTo: () => true,
+      run: (target, how) => trays.continuePage(target, "assistant", how === "panel" ? { label: "Panel", open: handle => panelOpened.push(handle) } : undefined)
+    })
+    assert.equal(h.page.pageConversationPlace("example"), "tab")
+    assert.equal(h.page.pageRunMode("addon:example/explain"), "continue")
+    assert.equal(h.page.pageAddonActions("menu")[0].place, undefined)
+    let announced = 0
+    h.document.addEventListener(h.page.PAGE_ADDON_ACTIONS_CHANGED, () => announced++)
+    h.page.setPageConversationPlace("example", "panel")
+    assert.equal(announced, 1, "shells hear the change and republish their menus")
+    assert.deepEqual(h.page.pageAddonActions("menu")[0], { id: "addon:example/explain", label: "Explain", icon: undefined, surfaces: ["menu"], converses: true, place: "panel" })
+    assert.equal(h.page.pageRunMode("addon:example/explain"), "panel")
+    assert.equal(h.page.runPageAddonAction("addon:example/explain", { href: "https://example.test/p" }, h.page.pageRunMode("addon:example/explain")), true)
+    await tick()
+    assert.deepEqual([panelOpened.length, h.opened.length], [1, 0], "the conversation opened in the panel, not a tab")
+    h.page.setPageConversationPlace("example", "tab")
+    assert.equal(stored.size, 0, "the default is not stored")
+    assert.equal(h.page.pageRunMode("addon:example/explain"), "continue")
+    release()
+    trays.dispose()
+  } finally { global.localStorage = previousStorage; h.restore() }
+})
+
 test("a listed page shares the story conversation while opening it in the reading host", async () => {
   const h = harness()
   try {

@@ -33,10 +33,36 @@ const cacheKey = "oncePageActionMenus"
  * After that, the panel's last published list is kept and rebuilt on every
  * background start, so entries survive browser restarts without a panel.
  * A click runs in the live panel of its window, or, with none open, in a
- * conversation tab of its own.
+ * conversation tab of its own. An add-on whose page conversations the reader
+ * put in the panel opens the panel first, and runs there once it has started.
  */
+/**
+ * The live panel of a window. With `awaiting`, keeps asking until it lists
+ * that action, for a panel that is still starting; without, asks once.
+ * With no panel listening at all, sending rejects rather than answering.
+ */
+async function livePanel(browserApi: typeof browser, windowId: number | undefined, awaiting: string | null): Promise<PageActionMenuState | undefined> {
+  const deadline = Date.now() + (awaiting ? 15_000 : 0)
+  for (;;) {
+    const state: PageActionMenuState | undefined = await browserApi.runtime.sendMessage({
+      onceCommand: "page-actions-query", windowId
+    }).catch(() => undefined)
+    const ready = state?.contextId && (!awaiting || readPageActionMenuItems(state.items).some(item => item.id === awaiting))
+    if (ready || Date.now() >= deadline) return ready ? state : awaiting ? undefined : state
+    await new Promise(resolve => setTimeout(resolve, 250))
+  }
+}
+
+export interface PageActionMenuOptions {
+  /**
+   * Opens the Once panel in the clicked tab's window. Called synchronously
+   * from the click, the only moment the browser lets an extension open it.
+   */
+  openPanel?(tab: { windowId?: number } | undefined): void
+}
+
 export function installPageActionMenuBackground(
-  browserApi: typeof browser, defaults: PageActionMenuItem[] | Promise<PageActionMenuItem[]> = []
+  browserApi: typeof browser, defaults: PageActionMenuItem[] | Promise<PageActionMenuItem[]> = [], options: PageActionMenuOptions = {}
 ): void {
   const menus = browserApi.menus ?? browserApi.contextMenus
   if (!menus) throw new Error("The WebExtension menus API is unavailable")
@@ -49,7 +75,12 @@ export function installPageActionMenuBackground(
   }).catch(error => console.error("Could not restore page action menus", error))
   // Loading this script is what rebuilds the menus; a listener makes the browser load it at startup.
   browserApi.runtime.onStartup?.addListener(() => undefined)
-  const ids = (id: string) => [prefix + id, prefix + "link:" + id]
+  // A panel entry says so in its own id: a click must open the panel before
+  // anything asynchronous, including reading the retained list after a wake.
+  const ids = (item: PageActionMenuItem) => {
+    const id = (item.place === "panel" ? "panel:" : "") + item.id
+    return [prefix + id, prefix + "link:" + id]
+  }
   // Firefox matches targetUrlPatterns against a media element's srcUrl too,
   // and a link around a streamed video (YouTube's hover previews) has none it
   // can parse: the check throws and takes every extension item after it out
@@ -59,12 +90,12 @@ export function installPageActionMenuBackground(
   const filtersOnShow = Boolean(browserApi.menus?.onShown)
   const apply = async (items: PageActionMenuItem[]): Promise<void> => {
     for (const item of known) {
-      for (const id of ids(item.id)) await menus.remove(id).catch(() => undefined)
+      for (const id of ids(item)) await menus.remove(id).catch(() => undefined)
     }
     for (const item of items) {
       const patterns = pageActionMenuPatterns(item.when)
       if (!patterns.length) continue
-      for (const [index, id] of ids(item.id).entries()) {
+      for (const [index, id] of ids(item).entries()) {
         await menus.remove(id).catch(() => undefined)
         menus.create({ id, title: index ? `${item.label} for Link` : item.label, contexts: [index ? "link" : "page"],
           documentUrlPatterns: index ? ["http://*/*", "https://*/*"] : patterns,
@@ -81,10 +112,10 @@ export function installPageActionMenuBackground(
   const target = (href: string, link?: string): Promise<void> => enqueue(async () => {
     for (const item of known) {
       if (!pageActionMenuPatterns(item.when).length) continue
-      for (const id of ids(item.id)) await menus.update(id, { enabled: pageMatchesCondition(item.when, href) })
+      for (const id of ids(item)) await menus.update(id, { enabled: pageMatchesCondition(item.when, href) })
       // What targetUrlPatterns would have hidden, decided from the link alone.
       if (link !== undefined) {
-        await menus.update(ids(item.id)[1], { visible: /^https?:/i.test(link) && pageMatchesCondition(item.when, link) })
+        await menus.update(ids(item)[1], { visible: /^https?:/i.test(link) && pageMatchesCondition(item.when, link) })
       }
     }
   })
@@ -109,17 +140,20 @@ export function installPageActionMenuBackground(
   menus.onClicked.addListener((info, tab) => {
     const id = String(info.menuItemId)
     if (!id.startsWith(prefix)) return
-    const action = id.slice(prefix.length).replace(/^link:/, "")
+    const marked = id.slice(prefix.length).replace(/^link:/, "")
+    const inPanel = marked.startsWith("panel:")
+    const action = inPanel ? marked.slice("panel:".length) : marked
     const href = info.linkUrl ?? info.pageUrl
     if (!href) return
     const title = info.linkUrl ? (info as { linkText?: string }).linkText ?? "" : tab?.title ?? ""
+    // Opening the panel later than this, after any await, is refused as not user-initiated.
+    if (inPanel) options.openPanel?.(tab)
     void (async () => {
       // A worker restart loses panel identity; an old identity can also name
       // a closed panel. Resolve a live panel in the clicked window each time.
-      // With no panel listening at all, sending rejects rather than answering.
-      const state: PageActionMenuState | undefined = await browserApi.runtime.sendMessage({
-        onceCommand: "page-actions-query", windowId: tab?.windowId
-      }).catch(() => undefined)
+      // A panel opened just now answers once it has started and registered
+      // the action, so a panel entry waits for that.
+      const state = await livePanel(browserApi, tab?.windowId, inPanel && options.openPanel ? action : null)
       if (!state?.contextId) {
         // No panel in this window: a conversation tab runs the action itself.
         // A click can wake the worker: the retained items load from storage first.

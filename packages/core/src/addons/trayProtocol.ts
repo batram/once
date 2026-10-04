@@ -47,7 +47,7 @@ export interface AddonStoryContent {
  * surface never holds anything the tray does not.
  */
 export interface AddonConversationSnapshot {
-  addon: { id: string; name: string }
+  addon: { id: string; name: string; shortName?: string }
   tray: AddonTray
   story: { href: string; title: string }
   view: AddonTrayView

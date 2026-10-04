@@ -16,6 +16,7 @@ export const ADDON_LIMITS = Object.freeze({
   idPattern: /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/,
   contributions: 24,
   label: 60,
+  shortName: 12,
   template: 2000,
   iconName: 40,
   conditionValues: 32
@@ -114,6 +115,8 @@ export interface AddonManifest {
   protocol: number
   id: string
   name: string
+  /** Up to 12 characters where the name does not fit, such as a menu button. */
+  shortName?: string
   version: string
   author?: string
   homepage?: string
@@ -481,6 +484,7 @@ export function readAddonManifest(value: unknown): AddonManifestRead {
     reader.fail("id", "must be 3–40 lower-case letters, digits, or dashes")
   }
   const name = reader.string(value.name, "name", ADDON_LIMITS.label)
+  const shortName = reader.string(value.shortName, "shortName", ADDON_LIMITS.shortName, false)
   const version = reader.string(value.version, "version", 32)
   const author = reader.string(value.author, "author", ADDON_LIMITS.label, false)
   const homepage = reader.string(value.homepage, "homepage", ADDON_LIMITS.template, false)
@@ -563,7 +567,7 @@ export function readAddonManifest(value: unknown): AddonManifestRead {
     ok: true,
     reports: [],
     manifest: {
-      protocol: ADDON_PROTOCOL, id, name, version, author, homepage, script,
+      protocol: ADDON_PROTOCOL, id, name, ...(shortName ? { shortName } : {}), version, author, homepage, script,
       contributions, collectors, panelActions, capabilities, settings,
       ...(connections.length ? { connections } : {}), ...(trays.length ? { trays } : {})
     }

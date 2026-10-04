@@ -11,9 +11,13 @@ export interface AddonConversationPort {
   send(command: AddonConversationCommand): void
 }
 
-/** Mounts the page into `root`; returns the function that unmounts it. */
-export function mountAddonConversation(root: HTMLElement, port: AddonConversationPort): () => void {
-  const page = new ConversationPage(root, port)
+/**
+ * Mounts the page into `root`; returns the function that unmounts it.
+ * `embedded` shows it inside another surface (the Once panel), which keeps
+ * its own document title.
+ */
+export function mountAddonConversation(root: HTMLElement, port: AddonConversationPort, embedded = false): () => void {
+  const page = new ConversationPage(root, port, embedded)
   return () => page.dispose()
 }
 
@@ -37,7 +41,7 @@ class ConversationPage {
   private draftTimer: ReturnType<typeof setTimeout> | null = null
   private readonly unsubscribe: () => void
 
-  constructor(private readonly root: HTMLElement, private readonly port: AddonConversationPort) {
+  constructor(private readonly root: HTMLElement, private readonly port: AddonConversationPort, private readonly embedded: boolean) {
     root.classList.add("addon_conversation")
     root.dataset.testid = "addon-conversation"
     this.header.className = "addon_conversation_header"
@@ -46,6 +50,8 @@ class ConversationPage {
     this.story.target = "_blank"
     this.story.rel = "noopener noreferrer"
     this.header.append(this.title, this.story)
+    // Embedded, the surrounding panel names the add-on; the page it is about is the heading.
+    this.title.hidden = embedded
     this.messages.className = "addon_conversation_messages"
     this.controls.className = "addon_tray_actions addon_tray_controls"
     this.notice.className = "addon_conversation_notice"
@@ -104,7 +110,7 @@ class ConversationPage {
     this.story.textContent = snapshot?.story.title ?? ""
     this.story.href = snapshot?.story.href ?? ""
     this.story.hidden = !snapshot
-    document.title = snapshot ? `${snapshot.story.title} · ${snapshot.addon.name}` : "Once conversation"
+    if (!this.embedded) document.title = snapshot ? `${snapshot.story.title} · ${snapshot.addon.name}` : "Once conversation"
     this.messages.replaceChildren(...(snapshot ? renderTrayMessages(snapshot.view, this.disclosed) : []))
     this.status.replaceChildren(...(snapshot ? [renderTrayStatus(snapshot.view, busy, snapshot.error)] : []))
     this.controls.replaceChildren()

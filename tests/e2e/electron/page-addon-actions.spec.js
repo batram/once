@@ -6,6 +6,103 @@ const { installAiAddon } = require("../shared/ai-addon-ui")
 const ACTION = "addon:what-wait-who-why/explain"
 const LABEL = "What? Wait, who, why?"
 
+// The reader can keep a page's add-on conversation beside the page: in the
+// Once panel, under a menu entry that lasts until the conversation is closed.
+test("a page menu conversation opens in the Once panel when the add-on is set to it", async () => {
+  test.setTimeout(60000)
+  const server = await startPageServer()
+  const { electronApp, userData, window } = await launchApp({ env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0" } })
+  try {
+    const urls = storyFixture.storyUrls(server.origin)
+    await seedLocalSource(window, storyFixture.sourceLine(server.origin), urls.alpha)
+    await openSettingsSection(window, "addons", "#addons_area")
+    await installAiAddon(window, server.origin)
+    // The add-on's own settings page carries the host's choice of place.
+    await window.getByTestId("addon-place-what-wait-who-why").selectOption("panel")
+
+    const page = `${server.origin}/article`
+    await window.locator("#urlfield").fill(page)
+    await window.locator("#urlfield").press("Enter")
+    await expect.poll(() => window.evaluate(url => window.onceElectron.tabs.getAll().then(all => all.find(tab => tab.url === url)?.title), page))
+      .toBe("Regenerated Article")
+    await electronApp.evaluate(({ Menu }) => {
+      globalThis.__onceOriginalBuildFromTemplate = Menu.buildFromTemplate
+      Menu.buildFromTemplate = (template) => {
+        globalThis.__onceLastMenuTemplate = template
+        return { popup() {} }
+      }
+    })
+    await electronApp.evaluate(({ webContents }, pageUrl) => {
+      const remote = webContents.getAllWebContents().find((contents) => contents.getURL() === pageUrl)
+      remote.emit("context-menu", {}, { x: 4, y: 4, isEditable: false, selectionText: "", pageURL: pageUrl, linkURL: "", linkText: "", editFlags: {} })
+    }, page)
+    await electronApp.evaluate(({ Menu }, label) => {
+      globalThis.__onceLastMenuTemplate.find((item) => item.label === label).click()
+      Menu.buildFromTemplate = globalThis.__onceOriginalBuildFromTemplate
+    }, LABEL)
+
+    const panel = window.getByTestId("addon-panel")
+    await expect(panel).toBeVisible()
+    await expect(panel).toContainText("ExampleApp is software", { timeout: 15000 })
+    await expect(panel).toContainText("Regenerated Article")
+    await expect(window.getByTestId("addon-panel-menu")).toHaveText("WWWW")
+    await expect(window.locator("#left_panel")).toHaveAttribute("active_panel", "addon")
+    // Beside the page, not in place of it: no conversation tab, the page stays active.
+    const tabs = await window.evaluate(() => window.onceElectron.tabs.getAll())
+    expect(tabs.filter(tab => tab.url.startsWith("once-addon://"))).toHaveLength(0)
+    expect(tabs.find(tab => tab.active)?.url).toBe(page)
+    // The entry outlives switching panels and goes with the conversation.
+    await window.getByTestId("stories-menu").click()
+    await expect(panel).toBeHidden()
+    await window.getByTestId("addon-panel-menu").click()
+    await expect(panel).toBeVisible()
+    await window.getByTestId("addon-panel-close").click()
+    await expect(panel).toHaveCount(0)
+    await expect(window.getByTestId("addon-panel-menu")).toHaveCount(0)
+    await expect(window.locator("#left_panel")).toHaveAttribute("active_panel", "stories")
+
+    // A page that is a listed story: the story stays in view above its conversation.
+    await window.locator("#urlfield").fill(urls.alpha)
+    await window.locator("#urlfield").press("Enter")
+    const selected = window.locator(`#selected_container story-item[data-href="${urls.alpha}"]`)
+    await expect(selected).toBeVisible()
+    await electronApp.evaluate(({ Menu }) => {
+      Menu.buildFromTemplate = (template) => {
+        globalThis.__onceLastMenuTemplate = template
+        return { popup() {} }
+      }
+    })
+    // The tab's own URL, as the browser settled on it.
+    const alphaTab = await window.evaluate(() => window.onceElectron.tabs.getAll().then(all => all.find(tab => tab.active)?.url))
+    await electronApp.evaluate(({ webContents }, pageUrl) => {
+      const remote = webContents.getAllWebContents().find((contents) => contents.getURL() === pageUrl)
+      remote.emit("context-menu", {}, { x: 4, y: 4, isEditable: false, selectionText: "", pageURL: pageUrl, linkURL: "", linkText: "", editFlags: {} })
+    }, alphaTab)
+    await electronApp.evaluate(({ Menu }, label) => {
+      globalThis.__onceLastMenuTemplate.find((item) => item.label === label).click()
+      Menu.buildFromTemplate = globalThis.__onceOriginalBuildFromTemplate
+    }, LABEL)
+    await expect(panel).toContainText("ExampleApp is software", { timeout: 15000 })
+    await expect(window.locator("#left_panel")).toHaveAttribute("active_panel", "addon")
+    await expect(selected).toBeVisible()
+    await expect(window.locator("#stories")).toBeHidden()
+    // Laid out like the other panels: its title bar first, then the story, then the conversation.
+    const barBox = await window.getByTestId("addon-panel-close").locator("xpath=..").boundingBox()
+    const storyBox = await selected.boundingBox()
+    const panelBox = await panel.boundingBox()
+    expect(barBox.y + barBox.height).toBeLessThanOrEqual(storyBox.y + 1)
+    expect(storyBox.y + storyBox.height).toBeLessThanOrEqual(panelBox.y + 1)
+    // The menu entry sits under the story filters, not below the status dock at the bottom.
+    const filtersBox = await window.locator("#stories_menu_btn").boundingBox()
+    const entryBox = await window.getByTestId("addon-panel-menu").boundingBox()
+    expect(entryBox.y - (filtersBox.y + filtersBox.height)).toBeLessThan(40)
+    await window.screenshot({ path: test.info().outputPath("panel-with-story.png") })
+  } finally {
+    await closeApp(electronApp, userData)
+    await server.close()
+  }
+})
+
 test("a tray add-on runs on a page that is no story: from the toolbar, and from the page's menu", async () => {
   test.setTimeout(60000)
   const server = await startPageServer()

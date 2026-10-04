@@ -354,3 +354,14 @@ test("editor text round-trips through the document and reports errors loudly", (
     /\[0\]\.version must not be empty/
   )
 })
+
+// A name like "What? Wait, who, why?" does not fit a menu button; the add-on can say what does.
+test("a manifest may declare a short name of up to 12 characters", () => {
+  const short = readAddonManifest({ ...manifest(), shortName: "Archive" })
+  assert.equal(short.ok, true)
+  assert.equal(short.manifest.shortName, "Archive")
+  assert.equal("shortName" in readAddonManifest(manifest()).manifest, false)
+  const long = readAddonManifest({ ...manifest(), shortName: "Archive.today mirror" })
+  assert.equal(long.ok, false)
+  assert.ok(long.reports.some(report => report.path === "shortName"), JSON.stringify(long.reports))
+})

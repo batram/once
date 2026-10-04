@@ -1,5 +1,5 @@
 import { ElectronBridge, ElectronTabState, ElectronToolbarTool } from "@once/platform-electron/bridge"
-import { AddonPage, PAGE_ADDON_ACTIONS_CHANGED, isAddonPage, pageAddonActions, runPageAddonAction } from "@once/ui-web"
+import { AddonPage, PAGE_ADDON_ACTIONS_CHANGED, isAddonPage, pageAddonActions, pageRunMode, runPageAddonAction } from "@once/ui-web"
 import { TOOLBAR_PINS_CHANGED, bindUnpinMenu, isToolPinned, shellIconData, unpinTool } from "../ExtensionToolbar"
 import { sourceUrlFromReaderUrl } from "./reader-url"
 
@@ -8,7 +8,8 @@ const toolId = (actionId: string) => `addon:${actionId}`
 /**
  * Add-on actions for the page in the active tab, beside the reader button:
  * those an add-on declared for the `button` surface. A tray continues its
- * conversation in a new tab, so it works for any page, listed story or not.
+ * conversation in a new tab, or in the Once panel beside the page when the
+ * reader chose that for the add-on, so it works for any page, listed or not.
  * The `menu` ones go to main, which offers them in every page's context
  * menu and reports the choice. Each button is pinnable from the extensions
  * menu like an extension's; an unpinned one only hides.
@@ -20,7 +21,7 @@ export class PageAddonActions {
     document.addEventListener(PAGE_ADDON_ACTIONS_CHANGED, () => this.render())
     document.addEventListener(TOOLBAR_PINS_CHANGED, () => this.render())
     bridge.addons.pageActions.onRun((id, page) => {
-      if (typeof id === "string" && typeof page?.href === "string") runPageAddonAction(id, { href: page.href, title: String(page.title ?? "") }, "continue")
+      if (typeof id === "string" && typeof page?.href === "string") runPageAddonAction(id, { href: page.href, title: String(page.title ?? "") }, pageRunMode(id))
     })
     this.render()
   }
@@ -43,7 +44,7 @@ export class PageAddonActions {
   /** Runs the action behind a tool id the menu chose. */
   run(id: string): void {
     const action = pageAddonActions("button").find(action => toolId(action.id) === id)
-    if (action && this.page) runPageAddonAction(action.id, this.page, "continue")
+    if (action && this.page) runPageAddonAction(action.id, this.page, pageRunMode(action.id))
   }
 
   private render(): void {
@@ -61,7 +62,7 @@ export class PageAddonActions {
       icon.className = `icon icon--chrome icon--${action.icon ?? "link"}`
       icon.setAttribute("aria-hidden", "true")
       button.append(icon)
-      button.addEventListener("click", () => { if (this.page) runPageAddonAction(action.id, this.page, "continue") })
+      button.addEventListener("click", () => { if (this.page) runPageAddonAction(action.id, this.page, pageRunMode(action.id)) })
       bindUnpinMenu(this.bridge, button, action.label, () => unpinTool(toolId(action.id)))
       return button
     }))

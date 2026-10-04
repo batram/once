@@ -88,15 +88,16 @@ export class AddonTrays {
   }
 
   /**
-   * Continues a page's conversation on the platform's larger surface,
-   * starting it when it is new. False when this platform has no such surface.
+   * Continues a page's conversation on the platform's larger surface, or on
+   * `surface` (the Once panel), starting it when it is new. False when there
+   * is no such surface here.
    */
-  continuePage(page: AddonPage, tray: string): boolean {
-    if (!this.surface) return false
+  continuePage(page: AddonPage, tray: string, surface: AddonConversationSurface | undefined = this.surface): boolean {
+    if (!surface) return false
     const state = this.pageState(page, tray)
     const href = state.story.href
     if (this.fresh(state)) void this.run(href, tray, { type: "open" })
-    this.surface.open(this.handleOf(href, tray))
+    surface.open(this.handleOf(href, tray))
     return true
   }
 
@@ -201,7 +202,7 @@ export class AddonTrays {
   private snapshot(href: string, tray: string): AddonConversationSnapshot {
     const state = this.stateFor(href, tray)
     return {
-      addon: { id: this.manifest.id, name: this.manifest.name },
+      addon: { id: this.manifest.id, name: this.manifest.name, ...(this.manifest.shortName ? { shortName: this.manifest.shortName } : {}) },
       tray: { id: tray, title: this.manifest.trays?.find(item => item.id === tray)?.title ?? tray },
       story: { href, title: state.title },
       view: state.view, busy: !!state.controller, error: state.error, draft: state.draft

@@ -8,6 +8,7 @@
     "protocol": { "const": 1 },
     "id": { "type": "string", "pattern": "^[a-z0-9-]{3,40}$" },
     "name": { "type": "string", "minLength": 1 },
+    "shortName": { "type": "string", "minLength": 1, "maxLength": 12, "description": "Shown where the name does not fit, such as a menu button." },
     "version": { "type": "string", "minLength": 1 },
     "author": { "type": "string" },
     "homepage": { "type": "string", "format": "uri" },

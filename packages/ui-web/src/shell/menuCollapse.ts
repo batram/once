@@ -1,8 +1,19 @@
+let announceCollapsed: ((collapsed: boolean) => void) | undefined
+
+/** Opens a collapsed sidebar, as a click on its menu would, for a panel that needs to be seen. */
+export function expandMenu(): void {
+  const menu = document.querySelector<HTMLElement>("#menu")
+  if (!menu?.classList.contains("collapse")) return
+  setMenuCollapsed(menu, false)
+  announceCollapsed?.(false)
+}
+
 export function bindMenuCollapseControls(
   onMenuCollapsedChanged?: (collapsed: boolean) => void
 ): void {
   const menu = document.querySelector<HTMLElement>("#menu")
-  
+  announceCollapsed = onMenuCollapsedChanged
+
   document.querySelectorAll<HTMLElement>(".collapsebutton").forEach((element) => {
     element.onclick = () => {
       const collapsed = toggleMenu(menu)

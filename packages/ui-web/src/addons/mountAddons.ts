@@ -56,6 +56,8 @@ export interface MountAddonsOptions {
   bundledAddons?: readonly BundledAddonFiles[]
   /** Where a tray's conversation can continue at full size; absent means trays offer no such button. */
   conversations?: AddonConversationSurface
+  /** The Once panel, for page conversations the reader chose to see beside the page. */
+  panelConversations?: AddonConversationSurface
   /**
    * A page that runs page actions and nothing else, such as a conversation
    * tab opened from the browser's context menu with no panel to run it: no
@@ -232,10 +234,13 @@ async function registerManifest(
         releases.push(registerPageAction({
           id, label: contribution.label, icon: contribution.icon, surfaces, when: contribution.when,
           ...("search" in pageRun ? { requiresPanel: true } : {}),
+          ...("tray" in pageRun ? { converses: true } : {}),
           appliesTo: page => storyMatchesCondition(contribution.when, pageStoryView(page)),
           run: (page, how) => {
             if (!("tray" in pageRun)) { runAction(manifest, pageRun, pageStoryView(page), sandbox); return true }
-            if (how === "continue") return storyTrays.continuePage(page, pageRun.tray)
+            // Without a panel here (a tab hosting the run alone), the panel choice falls back to a tab.
+            if (how === "panel" && options.panelConversations) return storyTrays.continuePage(page, pageRun.tray, options.panelConversations)
+            if (how === "continue" || how === "panel") return storyTrays.continuePage(page, pageRun.tray)
             storyTrays.togglePage(page, pageRun.tray)
             return true
           }

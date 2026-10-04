@@ -22,7 +22,13 @@ declare const chrome: {
 installReaderBackground(browser)
 installPickerBackground(browser)
 installStoryMenuBackground(browser)
-installPageActionMenuBackground(browser, bundledPageActions(__ONCE_BUNDLED_ADDONS__))
+installPageActionMenuBackground(browser, bundledPageActions(__ONCE_BUNDLED_ADDONS__), {
+  openPanel: tab => {
+    if (tab?.windowId === undefined) return
+    chrome.sidePanel.open({ windowId: tab.windowId })
+      .catch((error: unknown) => console.error("Unable to open the side panel", error))
+  }
+})
 installKeyCommandBackground(browser)
 installConnectionOriginBackground(chrome.declarativeNetRequest, browser.runtime.getURL("/"))
   .catch((error: unknown) => console.error("Unable to install the connection request rules", error))
