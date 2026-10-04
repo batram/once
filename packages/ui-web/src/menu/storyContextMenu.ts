@@ -77,8 +77,8 @@ export function describeStoryMenu(
   const story = context.story
   const history = StoryHistory.instance
   const items: StoryMenuItemDescriptor[] = []
-  // Touch gets a short, single-column menu under the thumb: no tab targets to
-  // choose between, and undo/redo belong to a keyboard, not a long-press.
+  // Mobile supports tab targets in its single-column menu, but omits desktop
+  // panel, window, redirect and history actions.
   const touch = context.platform === "mobile"
 
   if (story) {

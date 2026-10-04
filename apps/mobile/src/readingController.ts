@@ -75,6 +75,7 @@ export class MobileReadingController {
     } })
     this.findBar = new ReadingFindBar(surface, readerProxy, this.session, () => this.runtime.pageSurface)
     this.tabDialog = new ReadingTabDialog(this.tabs, {
+      preview: () => this.runtime.capturePreview(),
       select: id => { this.tabs.select(id); PanelNavigation.open_panel("reading") },
       create: () => { this.tabs.create(); PanelNavigation.open_panel("reading"); required<HTMLInputElement>("#reading_url").focus() }
     })

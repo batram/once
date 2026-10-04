@@ -7,6 +7,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     public let identifier = "InAppBrowserSurfacePlugin"
     public let jsName = "InAppBrowserSurface"
     public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "capturePreview", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "selectTab", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "open", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "navigate", returnType: CAPPluginReturnPromise),

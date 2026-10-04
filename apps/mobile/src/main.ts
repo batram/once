@@ -162,6 +162,39 @@ function captureNavigationListeners(browserSurface: ReturnType<typeof createInAp
   return navigationListeners
 }
 
+function installMobileTestHooks(
+  app: ReturnType<typeof createOnceApp>,
+  reading: MobileReadingController,
+  browserSurface: ReturnType<typeof createInAppBrowserSurface>,
+  navigationListeners: Map<string, (event: BrowserNavigationEvent) => void>
+): void {
+  // Lets the e2e suite await queued story saves instead of pausing blindly.
+  ;(window as { __onceE2E__?: unknown }).__onceE2E__ = {
+    setTabPreview: (id: string, preview: string) => {
+      const tab = reading.tabs.tabs.find(tab => tab.id === id)
+      if (tab) reading.tabs.setPreview(id, tab.generation, tab.session.snapshot().currentUrl, preview)
+    },
+    settledStoryWrites: () => app.client.settledStoryWrites(),
+    handleBack: () => reading.handleBack(),
+    handleForward: () => reading.handleForward(),
+    finishReading: (url: string, statusCode = 200) => {
+      const state = reading.session.snapshot()
+      const event = { navigationId: state.navigationId, url, statusCode, sourceUrl: state.pageContext?.sourceUrl }
+      navigationListeners.get(`${reading.tabs.activeId}:navigationCommitted`)?.(event)
+      navigationListeners.get(`${reading.tabs.activeId}:navigationFinished`)?.(event)
+    },
+    failReading: (message: string) => {
+      const state = reading.session.snapshot()
+      reading.session.navigationFailed(state.navigationId, state.currentUrl, message)
+    },
+    evaluateSurface: (script: string) => browserSurface.evaluateJavaScript(script),
+    applyExtensionSettings: async () => browserSurface.applyExtensionSettings(
+      await app.client.getFilterLists(),
+      await app.client.getUserscripts()
+    )
+  }
+}
+
 async function startMobileApp(): Promise<void> {
   document.body.dataset.platform = "mobile"
   document.body.dataset.buildChannel = __ONCE_BUILD_CHANNEL__
@@ -255,29 +288,7 @@ async function startMobileApp(): Promise<void> {
   }
   bindMobileExtensionToolbar(browserExtensions, browserSurface, readingPageActions(() => reading.session.snapshot().currentUrl))
   mountTouchNavigation(reading)
-  if (__ONCE_MOBILE_E2E__) {
-    // Lets the e2e suite await queued story saves instead of pausing blindly.
-    ;(window as { __onceE2E__?: unknown }).__onceE2E__ = {
-      settledStoryWrites: () => app.client.settledStoryWrites(),
-      handleBack: () => reading.handleBack(),
-      handleForward: () => reading.handleForward(),
-      finishReading: (url: string, statusCode = 200) => {
-        const state = reading.session.snapshot()
-        const event = { navigationId: state.navigationId, url, statusCode, sourceUrl: state.pageContext?.sourceUrl }
-        navigationListeners.get(`${reading.tabs.activeId}:navigationCommitted`)?.(event)
-        navigationListeners.get(`${reading.tabs.activeId}:navigationFinished`)?.(event)
-      },
-      failReading: (message: string) => {
-        const state = reading.session.snapshot()
-        reading.session.navigationFailed(state.navigationId, state.currentUrl, message)
-      },
-      evaluateSurface: (script: string) => browserSurface.evaluateJavaScript(script),
-      applyExtensionSettings: async () => browserSurface.applyExtensionSettings(
-        await app.client.getFilterLists(),
-        await app.client.getUserscripts()
-      )
-    }
-  }
+  if (__ONCE_MOBILE_E2E__) installMobileTestHooks(app, reading, browserSurface, navigationListeners)
   document.body.dataset.onceStage = "ready"
   document.body.dataset.onceReady = "true"
   showStartupState("Ready", "ready")

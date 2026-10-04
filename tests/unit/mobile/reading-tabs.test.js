@@ -108,3 +108,23 @@ test("malformed snapshots and unavailable storage leave tab operations usable", 
     assert.equal(tabs.tabs.length, 1)
   }
 })
+
+
+test("previews stay in memory and discard navigated or closed generations", () => {
+  const storage = memory()
+  const tabs = new ReadingTabs(storage)
+  const tab = tabs.create()
+  tab.session.navigate("https://one.test/")
+  const preview = "data:image/jpeg;base64,fixture"
+  tabs.setPreview(tab.id, tab.generation, "https://one.test/", preview)
+  assert.equal(tab.preview, preview)
+  assert.equal(new ReadingTabs(storage).selected.preview, undefined)
+  tab.session.navigate("https://two.test/")
+  assert.equal(tab.preview, undefined)
+  tabs.setPreview(tab.id, tab.generation, "https://one.test/", preview)
+  assert.equal(tab.preview, undefined)
+  tabs.close(tab.id)
+  tabs.undo()
+  tabs.setPreview(tab.id, tab.generation, "https://two.test/", preview)
+  assert.equal(tabs.selected.preview, undefined)
+})

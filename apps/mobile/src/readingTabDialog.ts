@@ -13,15 +13,22 @@ export class ReadingTabDialog {
   private readonly undoMessage = document.createElement("span")
   private readonly status = document.createElement("span")
 
-  constructor(private readonly tabs: ReadingTabs, actions: { select(id: string): void; create(): void }) {
+  constructor(private readonly tabs: ReadingTabs, actions: { select(id: string): void; create(): void; preview(): Promise<void> }) {
     this.count.type = "button"
     this.count.id = "reading_tabs"
     this.count.className = "button"
     this.count.setAttribute("aria-haspopup", "dialog")
     this.count.setAttribute("aria-controls", "reading_tabs_dialog")
     this.count.setAttribute("aria-expanded", "false")
-    this.count.onclick = () => {
+    let opening = false
+    this.count.onclick = async () => {
       if (this.dialog.open) { this.dialog.close(); return }
+      if (opening) return
+      opening = true
+      // Capture while the native content is still visible; never block the UI indefinitely.
+      await Promise.race([actions.preview(), new Promise(resolve => setTimeout(resolve, 250))])
+      opening = false
+      if (document.querySelector("#left_panel")?.getAttribute("active_panel") !== "reading") return
       this.dialog.show()
       this.count.setAttribute("aria-expanded", "true")
       this.rows.querySelector('[aria-current="true"]')?.scrollIntoView({ block: "nearest" })
@@ -184,6 +191,13 @@ export class ReadingTabDialog {
       const identity = document.createElement("span")
       identity.className = "reading_tab_identity"
       identity.textContent = hostname ? hostname[0].toUpperCase() : "+"
+      if (tab.preview) {
+        const preview = document.createElement("img")
+        preview.src = tab.preview
+        preview.alt = ""
+        preview.className = "reading_tab_preview"
+        identity.replaceChildren(preview)
+      }
       identity.setAttribute("aria-hidden", "true")
       const text = document.createElement("span")
       text.className = "reading_tab_text"

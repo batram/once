@@ -291,6 +291,14 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
     }
 
     @PluginMethod
+    public void capturePreview(PluginCall call) {
+        InAppBrowserSurfacePlugin target = target(call);
+        if (target == null) return;
+        if (target != this) { target.capturePreview(call); return; }
+        getActivity().runOnUiThread(() -> ReadingPreview.capture(this, getBridge().getWebView(), call));
+    }
+
+    @PluginMethod
     public void setBounds(PluginCall call) {
         InAppBrowserSurfacePlugin target = target(call);
         if (target == null) return;
@@ -304,14 +312,9 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
     /** The shell frames the visible extension page: it draws the controls and reports the rectangle. */
     @PluginMethod
     public void extensionPage(PluginCall call) {
-        String action = call.getString("action", "");
         getActivity().runOnUiThread(() -> {
             if (extensions == null) { call.reject("Extensions are not ready"); return; }
-            if ("close".equals(action)) extensions.pages.closeVisible();
-            else if ("reload".equals(action)) extensions.pages.reloadVisible();
-            else if ("bounds".equals(action)) extensions.pages.setBounds(call.getObject("bounds", new JSObject()));
-            else { call.reject("Unknown extension page action"); return; }
-            call.resolve();
+            extensions.pages.handleCommand(call);
         });
     }
 

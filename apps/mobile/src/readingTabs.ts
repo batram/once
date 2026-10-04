@@ -19,6 +19,7 @@ export interface ReadingTab {
   title: string
   readerScroll: number
   restored: boolean
+  preview?: string
 }
 interface Snapshot { version: 1; activeId: string | null; tabs: SavedTab[] }
 
@@ -104,6 +105,13 @@ export class ReadingTabs {
     for (const tab of this.entries) tab.session.setVisibleStories(stories)
   }
 
+  setPreview(id: string, generation: string, url: string, preview: string): void {
+    const tab = this.entries.find(entry => entry.id === id && entry.generation === generation)
+    if (!tab || tab.session.snapshot().currentUrl !== url || !/^data:image\/jpeg;base64,/.test(preview)) return
+    tab.preview = preview
+    this.listeners.forEach(listener => listener())
+  }
+
   update(id: string, generation: string, value: { title?: string; readerScroll?: number }): void {
     const tab = this.entries.find(entry => entry.id === id && entry.generation === generation)
     if (!tab) return
@@ -120,6 +128,7 @@ export class ReadingTabs {
       if (state.currentUrl !== previousUrl) {
         previousUrl = state.currentUrl
         tab.title = ""
+        tab.preview = undefined
         tab.readerScroll = 0
       }
       if (!initial) this.publish()

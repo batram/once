@@ -3171,13 +3171,23 @@
 
   .reading_tab_identity {
     display: grid;
-    flex: 0 0 36px;
-    height: 36px;
+    flex: 0 0 clamp(64px, 20vw, 96px);
+    height: 96px;
+    overflow: hidden;
+    border: var(--bw) solid var(--sep-color);
     place-items: center;
     border-radius: var(--radius-md);
     background: var(--second-bg-color);
     font-size: var(--fs-title);
     font-weight: 600;
+  }
+
+  .reading_tab_preview {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: top;
   }
 
   .reading_tab_text {

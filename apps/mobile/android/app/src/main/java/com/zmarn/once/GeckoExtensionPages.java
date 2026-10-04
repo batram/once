@@ -6,6 +6,7 @@ import android.view.ViewGroup;
 import android.webkit.WebView;
 import android.widget.FrameLayout;
 import com.getcapacitor.JSObject;
+import com.getcapacitor.PluginCall;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -40,6 +41,16 @@ final class GeckoExtensionPages {
         this.engine = engine;
         this.manager = manager;
         this.state = state;
+    }
+
+    /** Commands from the shell for the currently visible extension page. */
+    void handleCommand(PluginCall call) {
+        String action = call.getString("action", "");
+        if ("close".equals(action)) closeVisible();
+        else if ("reload".equals(action)) reloadVisible();
+        else if ("bounds".equals(action)) setBounds(call.getObject("bounds", new JSObject()));
+        else { call.reject("Unknown extension page action"); return; }
+        call.resolve();
     }
 
     static boolean allowed(String url) {

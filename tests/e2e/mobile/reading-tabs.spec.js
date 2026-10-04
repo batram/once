@@ -95,7 +95,13 @@ test("tab dialog fits phone and tablet viewports in both themes", async ({ page 
       { id: "empty", url: "", title: "", mode: "browser", story: null, readerScroll: 0 }
     ]
   })))
+  // A real fixture-page screenshot stands in for the native capture bridge.
+  const article = await page.context().newPage()
+  await article.goto(new URL("/fixtures/article.html", test.info().project.use.baseURL).href)
+  const preview = "data:image/jpeg;base64," + (await article.screenshot({ type: "jpeg", quality: 65 })).toString("base64")
+  await article.close()
   await gotoMobileApp(page)
+  await page.evaluate(preview => window.__onceE2E__.setTabPreview("docs", preview), preview)
   for (const theme of ["light", "dark"]) {
     await openSettingsSection(page, "theme")
     await page.locator("#theme_select").selectOption(theme)
@@ -136,6 +142,8 @@ test("tab dialog fits phone and tablet viewports in both themes", async ({ page 
         if (control.iconOffset) control.iconOffset.forEach(offset => expect(Math.abs(offset)).toBeLessThan(0.1))
         expect(control.right).toBeLessThanOrEqual(viewport.width)
       }
+      await expect(switcher(page).locator(".reading_tab_preview")).toHaveCount(1)
+      expect(await switcher(page).locator(".reading_tab_preview").evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true)
       const rows = await switcher(page).locator(".reading_tab_row").evaluateAll(elements => elements.map(row => {
         const select = row.querySelector('[data-action="select"]').getBoundingClientRect()
         const close = row.querySelector('[data-action="close"]').getBoundingClientRect()
@@ -153,7 +161,7 @@ test("tab dialog fits phone and tablet viewports in both themes", async ({ page 
       }
       await expect(switcher(page).locator(".reading_tab_row strong").nth(2)).toHaveText("example.test")
       await expect(switcher(page).getByRole("button", { name: "Undo close", exact: true })).toBeHidden()
-      if (viewport.width === 412) await page.screenshot({ path: `/tmp/once-tabs-top-controls-${theme}.png` })
+      if (viewport.width === 412) await page.screenshot({ path: `/tmp/once-tabs-previews-${theme}.png` })
     }
     await switcher(page).getByRole("button", { name: "Close tab view", exact: true }).click()
     await expect(page.locator("#reading_tabs")).toBeFocused()

@@ -4,6 +4,40 @@ import WebKit
 
 // Page commands capture the scoped plugin before crossing the main queue.
 extension InAppBrowserSurfacePlugin {
+    @objc func capturePreview(_ call: CAPPluginCall) {
+        guard let target = target(call) else { return }
+        if target !== self { target.capturePreview(call); return }
+        DispatchQueue.main.async {
+            let reader = call.getBool("reader") ?? false
+            guard let view = reader ? self.webView : self.surface,
+                  !view.isHidden, view.bounds.width > 0 else { call.resolve(); return }
+            let configuration = WKSnapshotConfiguration()
+            var rect = view.bounds
+            if reader, let bounds = call.getObject("bounds") {
+                rect = CGRect(x: bounds["x"] as? Double ?? 0, y: bounds["y"] as? Double ?? 0,
+                              width: bounds["width"] as? Double ?? 0, height: bounds["height"] as? Double ?? 0)
+                rect = rect.intersection(view.bounds)
+            }
+            guard !rect.isEmpty, !rect.isNull else { call.resolve(); return }
+            rect.size.height = min(rect.height, rect.width * 1.2)
+            configuration.rect = rect
+            configuration.snapshotWidth = 240
+            configuration.afterScreenUpdates = false
+            view.takeSnapshot(with: configuration) { image, _ in
+                guard let image else { call.resolve(); return }
+                let format = UIGraphicsImageRendererFormat()
+                format.scale = 1
+                format.opaque = true
+                let size = CGSize(width: 240, height: 240 * rect.height / rect.width)
+                let thumbnail = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+                    image.draw(in: CGRect(origin: .zero, size: size))
+                }
+                guard let data = thumbnail.jpegData(compressionQuality: 0.65) else { call.resolve(); return }
+                call.resolve(["dataUrl": "data:image/jpeg;base64," + data.base64EncodedString()])
+            }
+        }
+    }
+
     @objc func evaluateJavaScript(_ call: CAPPluginCall) {
         guard let target = target(call) else { return }
         if target !== self { target.evaluateJavaScript(call); return }

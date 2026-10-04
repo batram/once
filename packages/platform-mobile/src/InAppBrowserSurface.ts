@@ -126,6 +126,8 @@ export interface PageFindResult {
 }
 
 export interface InAppBrowserSurface {
+  /** Captures the visible content only; thumbnails are never persisted. */
+  capturePreview?(options: { reader: boolean; bounds: BrowserSurfaceBounds }): Promise<string | null>
   readonly available: boolean
   forTab?(identity: BrowserTabIdentity): InAppBrowserSurface
   selectTab?(identity: BrowserTabIdentity | null): Promise<void>
@@ -165,6 +167,7 @@ export interface InAppBrowserSurface {
 }
 
 interface NativeInAppBrowserPlugin {
+  capturePreview(options: { reader: boolean; bounds: BrowserSurfaceBounds }): Promise<{ dataUrl?: string }>
   selectTab(options: { tabId: string | null; generation?: string }): Promise<void>
   open(options: BrowserSurfaceOpenOptions): Promise<void>
   navigate(options: { url: string }): Promise<void>
@@ -282,6 +285,7 @@ export function createNativeInAppBrowserSurface(identity?: BrowserTabIdentity): 
       return NativeInAppBrowser.selectTab(tab ?? { tabId: null })
     },
     available: true,
+    capturePreview: async options => (await plugin.capturePreview(options)).dataUrl ?? null,
     async open(options) {
       assertUrl(options.url)
       await plugin.open({

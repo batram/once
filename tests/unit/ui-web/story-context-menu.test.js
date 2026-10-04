@@ -82,7 +82,7 @@ test("the offline action names an update once the page was saved", () => {
   assert.equal(items.find((item) => item.id === "save-content").label, "Update saved copy")
 })
 
-test("mobile gets the short single-column menu the redesign specifies", () => {
+test("mobile includes foreground and background tab actions in its menu", () => {
   const { describeStoryMenu } = loadMenuModule()
   const items = describeStoryMenu({
     platform: "mobile",
@@ -90,11 +90,13 @@ test("mobile gets the short single-column menu the redesign specifies", () => {
     story: fakeStory()
   }).filter((item) => item.visible)
 
-  // No tab targets to choose between, and undo/redo belong to a keyboard.
+  // Mobile supports tabs while keeping desktop window and history actions hidden.
   assert.deepEqual(items.map((item) => item.id), [
     "open",
     "open-comments",
     "open-browser",
+    "open-new-tab",
+    "open-background-tab",
     "open-reader",
     "toggle-read",
     "toggle-bookmark",
@@ -123,20 +125,28 @@ test("open comments is hidden without a primary comments URL", () => {
   )
 })
 
-test("mobile hides the redirect actions even when a redirect applies", () => {
+test("mobile hides redirect actions while retaining tab actions when a redirect applies", t => {
   const { describeStoryMenu } = loadMenuModule()
-  const hidden = describeStoryMenu({
+  const { URLRedirect } = require("../../../packages/core/dist")
+  t.mock.method(URLRedirect, "redirect_url", () => "https://redirect.example/story")
+  const items = describeStoryMenu({
     platform: "mobile",
     buildChannel: "release",
-    // URLRedirect has no rules loaded here, so assert on the flags directly:
-    // the mobile branch must not depend on whether a redirect matched.
     story: fakeStory()
-  }).filter((item) => !item.visible).map((item) => item.id)
+  })
+  const hidden = items.filter(item => !item.visible).map(item => item.id)
 
   assert.ok(hidden.includes("open-original"))
   assert.ok(hidden.includes("copy-original-link"))
-  assert.ok(hidden.includes("open-new-tab"))
-  assert.ok(hidden.includes("open-background-tab"))
+  for (const id of ["open-new-tab", "open-background-tab"]) {
+    const action = items.find(item => item.id === id)
+    assert.equal(action.visible, true)
+    assert.equal(action.enabled, true)
+  }
+  const desktop = describeStoryMenu({ platform: "electron", buildChannel: "release", story: fakeStory() })
+  for (const id of ["open-original", "copy-original-link"]) {
+    assert.equal(desktop.find(item => item.id === id).visible, true)
+  }
 })
 
 test("story-list background exposes only history actions", () => {

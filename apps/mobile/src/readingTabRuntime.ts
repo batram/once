@@ -68,6 +68,21 @@ export class ReadingTabRuntime {
     for (const runtime of this.runtimes.values()) runtime.coordinator.setDialogOpen(open)
   }
 
+  async capturePreview(): Promise<void> {
+    const tab = this.tabs.selected
+    if (!tab || !this.panelVisible) return
+    const state = tab.session.snapshot()
+    if (!state.currentUrl || state.loadState === "error") return
+    const rect = this.content.getBoundingClientRect()
+    try {
+      const preview = await this.pageSurface.capturePreview?.({
+        reader: state.mode === "reader",
+        bounds: { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
+      })
+      if (preview && tab.session.snapshot().navigationId === state.navigationId && tab.session.snapshot().mode === state.mode) this.tabs.setPreview(tab.id, tab.generation, state.currentUrl, preview)
+    } catch { /* A missing or reclaimed surface keeps its last preview. */ }
+  }
+
   private sync(): void {
     if (this.syncingTabs) return
     this.syncingTabs = true
