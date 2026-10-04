@@ -21,6 +21,7 @@ import { ReadingTabRuntime } from "./readingTabRuntime"
 import { ReadingTabDialog } from "./readingTabDialog"
 import { ReadingFindBar } from "./readingFindBar"
 import { ReadingSurfaceCoordinator } from "./readingSurfaceCoordinator"
+import { clearAddress, installAddressMenu } from "./addressMenu"
 
 export class MobileReadingController {
   readonly session: ReadingSession
@@ -367,6 +368,24 @@ export class MobileReadingController {
       event.preventDefault()
       void this.submitAddress()
     })
+    const clear = required<HTMLButtonElement>("#reading_url_clear")
+    // A tap would blur the field first, which restores the page address and
+    // hides this button before its click. Handling the touch itself keeps the
+    // field focused and the keyboard up; WebKit ignores pointerdown here.
+    clear.addEventListener("pointerdown", event => event.preventDefault())
+    clear.addEventListener("touchend", (event) => {
+      event.preventDefault()
+      clearAddress(address)
+    })
+    clear.onclick = () => clearAddress(address)
+    installAddressMenu(address, {
+      go: (text) => {
+        PanelNavigation.open_panel("reading")
+        address.value = text
+        void this.submitAddress()
+      },
+      clear: () => clearAddress(address)
+    })
     required<HTMLButtonElement>("#reading_story_menu").onclick = (event) => {
       const story = this.storyElement()
       if (!story) return
@@ -683,6 +702,7 @@ export class MobileReadingController {
     const input = required<HTMLInputElement>("#reading_url")
     const action = required<HTMLButtonElement>("#reading_navigate")
     const changed = input.value.trim() !== state.currentUrl
+    required("#reading_url_clear").hidden = !this.editingAddress || input.value === ""
     action.classList.toggle("reading-go", changed)
     action.classList.toggle(
       "loading",

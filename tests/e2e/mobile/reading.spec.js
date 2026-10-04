@@ -292,3 +292,27 @@ test("the optional reader button opens the mobile Reading session on tap", async
   await expect(reader.locator("article").first()).toContainText("Once mobile reader fixture content")
   await page.screenshot({ path: "/tmp/once-mobile-reader-button.png" })
 })
+
+test("the address field clears in one tap and keeps focus", async ({ page }) => {
+  await gotoMobileApp(page)
+  await page.getByTestId("reading-menu").click()
+  const address = page.getByTestId("reading-url-input")
+  const clear = page.getByTestId("reading-url-clear")
+  await expect(clear).toBeHidden()
+
+  await address.tap()
+  await expect(clear).toBeHidden()
+  await address.pressSequentially("example.com/some/long path")
+  await expect(clear).toBeVisible()
+
+  // A tap that blurred the field first would restore the address instead.
+  await clear.tap()
+  await expect(address).toHaveValue("")
+  await expect(address).toBeFocused()
+  await expect(clear).toBeHidden()
+
+  await address.pressSequentially("example.com")
+  await expect(clear).toBeVisible()
+  await address.blur()
+  await expect(clear).toBeHidden()
+})

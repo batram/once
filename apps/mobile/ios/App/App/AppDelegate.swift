@@ -1,8 +1,18 @@
 import UIKit
 import Capacitor
+import WebKit
 
 class ViewController: CAPBridgeViewController {
+    private let addressBar = AddressBarPlugin()
+
+    override func webView(with frame: CGRect, configuration: WKWebViewConfiguration) -> WKWebView {
+        let view = ShellWebView(frame: frame, configuration: configuration)
+        view.addressBar = addressBar
+        return view
+    }
+
     override func capacitorDidLoad() {
+        bridge?.registerPluginInstance(addressBar)
         bridge?.registerPluginInstance(SecureSettingsPlugin())
         bridge?.registerPluginInstance(InAppBrowserSurfacePlugin())
     }

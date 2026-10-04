@@ -992,6 +992,29 @@
     padding: 0 var(--sp-2);
   }
 
+  #reading_url_clear {
+    flex: 0 0 auto;
+    min-width: var(--touch);
+    min-height: var(--touch);
+    margin: 0;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  #reading_url_clear[hidden] {
+    display: none;
+  }
+
+  #reading_url_clear .icon {
+    --icon-size: var(--icon-md);
+    opacity: 0.6;
+  }
+
   #reading_reader_toggle {
     border: 0;
     border-left: var(--m-bw) solid var(--m-ink);
