@@ -17,6 +17,11 @@ export class OnceApp {
   start(): Promise<void> {
     return this.runtime.start()
   }
+
+  /** Follow add-on settings and the vault as other pages change them, without starting the app. */
+  watchAddonSettings(): () => void {
+    return this.runtime.watchAddonSettings()
+  }
 }
 
 export function createOnceApp(platform: OncePlatformPorts): OnceApp {

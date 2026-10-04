@@ -1,11 +1,19 @@
 // Entry of the extension's addon conversation page: a tab that continues a
 // tray's conversation, named by the page's URL. The panel keeps the
 // conversation; this page shows what arrives over its runtime port and sends
-// input back, on first load and again when history brings it back.
+// input back, on first load and again when history brings it back. A page
+// action from the browser's context menu, chosen while no panel was open,
+// arrives here instead as `run`, and this page runs it itself.
 import browser from "webextension-polyfill"
 import { readConversationKey, readConversationSnapshot } from "@once/core"
 import { mountAddonConversation, AddonConversationPort } from "@once/ui-web/addons/conversationPage"
-import { CONVERSATION_PORT } from "./addonConversations"
+import { hostPageAction } from "@once/ui-web/addons/pageActionHost"
+import type { BundledAddonFiles } from "@once/ui-web"
+import { createOnceApp } from "@once/app"
+import { createWebExtPlatform } from "@once/platform-webext"
+import { CONVERSATION_PORT, PAGE_ACTION_RUN } from "./addonConversations"
+
+declare const __ONCE_BUNDLED_ADDONS__: BundledAddonFiles[]
 
 function connect(): AddonConversationPort {
   let port: ReturnType<typeof browser.runtime.connect> | null = null
@@ -60,7 +68,18 @@ function connect(): AddonConversationPort {
 }
 
 const root = document.getElementById("addon_conversation") ?? document.body
-if (!readConversationKey(location.href)) {
+const query = new URLSearchParams(location.search)
+const run = query.get(PAGE_ACTION_RUN)
+if (run) {
+  // Opened from the page context menu while no panel in this window could
+  // take the action: this tab runs it over the stored add-ons, without a panel.
+  const app = createOnceApp(createWebExtPlatform(browser))
+  app.watchAddonSettings()
+  void hostPageAction(app.client, root, run,
+    { href: query.get("href") ?? "", title: query.get("title") ?? "" },
+    { sandboxUrl: browser.runtime.getURL("static/addon-sandbox.html"), bundledAddons: __ONCE_BUNDLED_ADDONS__ })
+    .catch(error => { root.textContent = "The add-on action could not run."; console.error(error) })
+} else if (!readConversationKey(location.href)) {
   root.textContent = "This page does not name a conversation. Open a story's tray in Once and continue from there."
 } else {
   mountAddonConversation(root, connect())

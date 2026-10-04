@@ -5,6 +5,10 @@ import { installStoryMenuBackground } from "@once/webext-shell/dist/storyMenuBac
 import { installPageActionMenuBackground } from "@once/webext-shell/dist/pageActionMenuBackground"
 import { installKeyCommandBackground } from "@once/webext-shell/dist/keyCommandBackground"
 import { installConnectionOriginBackground, RequestRulesApi } from "@once/webext-shell/dist/connectionOriginBackground"
+import { bundledPageActions } from "@once/ui-web/addons/bundledPageActions"
+import type { BundledAddonFiles } from "@once/ui-web"
+
+declare const __ONCE_BUNDLED_ADDONS__: BundledAddonFiles[]
 
 // Firefox uses a non-persistent event page: every listener
 // must be registered synchronously in the first turn of the event loop,
@@ -17,7 +21,7 @@ browser.browserAction.onClicked.addListener(() => {
 installReaderBackground(browser)
 installPickerBackground(browser)
 installStoryMenuBackground(browser)
-installPageActionMenuBackground(browser)
+installPageActionMenuBackground(browser, bundledPageActions(__ONCE_BUNDLED_ADDONS__))
 installKeyCommandBackground(browser)
 // Not in the polyfill's types; Firefox has had it in Manifest V2 since 113.
 installConnectionOriginBackground(

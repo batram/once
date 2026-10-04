@@ -129,6 +129,9 @@ export class AppRuntime {
     this.client = this.createClient()
   }
 
+  /** For a page that runs add-ons without start(). */
+  watchAddonSettings(): () => void { return this.addonSync.watch() }
+
   async start(): Promise<void> {
     this.platform.storyStore.onDiagnostic?.((error) => this.reportDiagnostic(error))
     this.platform.syncService?.onDiagnostic?.((error) =>

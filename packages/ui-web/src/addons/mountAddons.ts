@@ -56,6 +56,12 @@ export interface MountAddonsOptions {
   bundledAddons?: readonly BundledAddonFiles[]
   /** Where a tray's conversation can continue at full size; absent means trays offer no such button. */
   conversations?: AddonConversationSurface
+  /**
+   * A page that runs page actions and nothing else, such as a conversation
+   * tab opened from the browser's context menu with no panel to run it: no
+   * settings pages, and add-on collectors never reload the story list.
+   */
+  pageOnly?: boolean
 }
 
 /**
@@ -81,7 +87,7 @@ export function mountAddons(client: OnceClient, options: MountAddonsOptions = {}
     ({ entry, code }) => registerManifest(client, entry, options, code ?? null),
     (collectors) => {
       refreshStoryElements()
-      if (collectors) {
+      if (collectors && !options.pageOnly) {
         addCollectorColorStyles()
         void client.reloadStories("cache-first")
       }
@@ -137,7 +143,7 @@ export function mountAddons(client: OnceClient, options: MountAddonsOptions = {}
       candidates.push({ entry: { enabled: devAddonEnabled(read.manifest.id), manifest: read.manifest, options: readDevAddonOptions(read.manifest.id) }, code: dev.code })
     }
     await reconciler.apply(candidates)
-    renderAddonOptions(client, candidates.map(candidate => candidate.entry), devIds, devControls)
+    if (!options.pageOnly) renderAddonOptions(client, candidates.map(candidate => candidate.entry), devIds, devControls)
   }
   const refresh = (): void => {
     refreshing = refreshing.then(apply).catch((error) => report("Add-ons could not be loaded", error))

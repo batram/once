@@ -12,7 +12,9 @@
       "reader/readerPageRuntime": ["dist/reader/readerPageRuntime.d.ts"],
       "picker/sourcePicker": ["dist/picker/sourcePicker.d.ts"],
       "gesture/touchGestureLock": ["dist/gesture/touchGestureLock.d.ts"],
-      "addons/conversationPage": ["dist/addons/conversationPage.d.ts"]
+      "addons/conversationPage": ["dist/addons/conversationPage.d.ts"],
+      "addons/pageActionHost": ["dist/addons/pageActionHost.d.ts"],
+      "addons/bundledPageActions": ["dist/addons/bundledPageActions.d.ts"]
     }
   },
   "exports": {
@@ -43,6 +45,14 @@
     "./addons/conversationPage": {
       "types": "./dist/addons/conversationPage.d.ts",
       "default": "./dist/addons/conversationPage.js"
+    },
+    "./addons/pageActionHost": {
+      "types": "./dist/addons/pageActionHost.d.ts",
+      "default": "./dist/addons/pageActionHost.js"
+    },
+    "./addons/bundledPageActions": {
+      "types": "./dist/addons/bundledPageActions.d.ts",
+      "default": "./dist/addons/bundledPageActions.js"
     },
     "./picker/sourcePicker": {
       "types": "./dist/picker/sourcePicker.d.ts",

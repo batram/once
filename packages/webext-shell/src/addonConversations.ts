@@ -4,6 +4,9 @@ import type { AddonConversationHandle, AddonConversationSurface } from "@once/ui
 /** The port name every conversation page connects with; its sender URL names the conversation. */
 export const CONVERSATION_PORT = "once-addon-conversation"
 
+/** The query parameter naming a page action the conversation page runs itself, with `href` and `title`. */
+export const PAGE_ACTION_RUN = "run"
+
 /**
  * Continues a tray in a browser tab. The tab's URL names the conversation by
  * addon, tray, story and owning panel instance. The panel keeps the conversation and its sandbox; a

@@ -5,6 +5,10 @@ import { installStoryMenuBackground } from "@once/webext-shell/dist/storyMenuBac
 import { installPageActionMenuBackground } from "@once/webext-shell/dist/pageActionMenuBackground"
 import { installKeyCommandBackground } from "@once/webext-shell/dist/keyCommandBackground"
 import { installConnectionOriginBackground, RequestRulesApi } from "@once/webext-shell/dist/connectionOriginBackground"
+import { bundledPageActions } from "@once/ui-web/addons/bundledPageActions"
+import type { BundledAddonFiles } from "@once/ui-web"
+
+declare const __ONCE_BUNDLED_ADDONS__: BundledAddonFiles[]
 
 // Chrome-only API, not covered by the Firefox-flavored polyfill types.
 declare const chrome: {
@@ -18,7 +22,7 @@ declare const chrome: {
 installReaderBackground(browser)
 installPickerBackground(browser)
 installStoryMenuBackground(browser)
-installPageActionMenuBackground(browser)
+installPageActionMenuBackground(browser, bundledPageActions(__ONCE_BUNDLED_ADDONS__))
 installKeyCommandBackground(browser)
 installConnectionOriginBackground(chrome.declarativeNetRequest, browser.runtime.getURL("/"))
   .catch((error: unknown) => console.error("Unable to install the connection request rules", error))

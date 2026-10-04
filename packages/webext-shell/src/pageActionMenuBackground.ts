@@ -1,6 +1,7 @@
 import { pageMatchesCondition } from "@once/core"
 import { PageActionMenuItem, pageActionMenuPatterns, readPageActionMenuItems } from "./pageActionMenuItems"
 import { isExtensionPageSender, isTabContentSender } from "./messageSender"
+import { PAGE_ACTION_RUN } from "./addonConversations"
 
 export interface PageActionMenuState {
   onceCommand: "page-actions-context"
@@ -25,16 +26,29 @@ export function isPageActionRunForContext(
 const prefix = "once_page_"
 const cacheKey = "oncePageActionMenus"
 
-/** Menus retain descriptors across worker restarts; execution always finds a live panel. */
-export function installPageActionMenuBackground(browserApi: typeof browser): void {
+/**
+ * The menu entries exist from the moment the extension does. Until a panel
+ * has published the add-ons it actually has, they are the `defaults`: the
+ * actions of the add-ons this build carries, which every first start installs.
+ * After that, the panel's last published list is kept and rebuilt on every
+ * background start, so entries survive browser restarts without a panel.
+ * A click runs in the live panel of its window, or, with none open, in a
+ * conversation tab of its own.
+ */
+export function installPageActionMenuBackground(
+  browserApi: typeof browser, defaults: PageActionMenuItem[] | Promise<PageActionMenuItem[]> = []
+): void {
   const menus = browserApi.menus ?? browserApi.contextMenus
   if (!menus) throw new Error("The WebExtension menus API is unavailable")
   let known: PageActionMenuItem[] = []
   // Remember retained menu ids so removing an addon after a restart also
   // removes its old menu entries.
-  let applying = browserApi.storage.local.get(cacheKey).then(saved => {
+  let applying = browserApi.storage.local.get(cacheKey).then(async saved => {
     known = readPageActionMenuItems(saved[cacheKey])
-  })
+    await apply(cacheKey in saved ? known : readPageActionMenuItems(await defaults))
+  }).catch(error => console.error("Could not restore page action menus", error))
+  // Loading this script is what rebuilds the menus; a listener makes the browser load it at startup.
+  browserApi.runtime.onStartup?.addListener(() => undefined)
   const ids = (id: string) => [prefix + id, prefix + "link:" + id]
   const apply = async (items: PageActionMenuItem[]): Promise<void> => {
     for (const item of known) {
@@ -87,20 +101,31 @@ export function installPageActionMenuBackground(browserApi: typeof browser): voi
     const action = id.slice(prefix.length).replace(/^link:/, "")
     const href = info.linkUrl ?? info.pageUrl
     if (!href) return
+    const title = info.linkUrl ? (info as { linkText?: string }).linkText ?? "" : tab?.title ?? ""
     void (async () => {
       // A worker restart loses panel identity; an old identity can also name
       // a closed panel. Resolve a live panel in the clicked window each time.
+      // With no panel listening at all, sending rejects rather than answering.
       const state: PageActionMenuState | undefined = await browserApi.runtime.sendMessage({
         onceCommand: "page-actions-query", windowId: tab?.windowId
-      })
-      if (!state?.contextId) return
+      }).catch(() => undefined)
+      if (!state?.contextId) {
+        // No panel in this window: a conversation tab runs the action itself.
+        // A click can wake the worker: the retained items load from storage first.
+        await enqueue(async () => undefined)
+        const item = known.find(item => item.id === action)
+        if (!item || !pageMatchesCondition(item.when, href)) return
+        const search = new URLSearchParams({ [PAGE_ACTION_RUN]: action, href, title })
+        await browserApi.tabs.create({
+          url: browserApi.runtime.getURL(`static/addon-conversation.html?${search}`),
+          active: true, windowId: tab?.windowId, ...(tab?.index !== undefined ? { index: tab.index + 1 } : {})
+        })
+        return
+      }
       const item = readPageActionMenuItems(state.items).find(item => item.id === action)
       if (!item || !pageMatchesCondition(item.when, href)) return
-      const run: PageActionMenuRun = {
-        onceCommand: "page-addon-action", action, contextId: state.contextId, href,
-        title: info.linkUrl ? (info as { linkText?: string }).linkText ?? "" : tab?.title ?? ""
-      }
+      const run: PageActionMenuRun = { onceCommand: "page-addon-action", action, contextId: state.contextId, href, title }
       await browserApi.runtime.sendMessage(run)
-    })().catch(error => console.error("Could not run page action; open the Once panel in this window", error))
+    })().catch(error => console.error("Could not run page action", error))
   })
 }

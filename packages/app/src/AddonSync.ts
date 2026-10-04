@@ -1,4 +1,4 @@
-import { AddonEntry, AddonManifest, AddonsDocument, addonEndpoint, emptyAddonsDocument, readAddonsDocument, validateConfig } from "@once/core"
+import { ADDONS_DOCUMENT_ID, AddonEntry, AddonManifest, AddonsDocument, addonEndpoint, emptyAddonsDocument, readAddonsDocument, validateConfig } from "@once/core"
 import { AppSettings } from "./AppSettings"
 import { AddonVault } from "./AddonVault"
 import { AddonConnections } from "./addonConnections"
@@ -12,7 +12,7 @@ export class AddonSync {
   private readonly local: AddonConnections
   private readonly synced: AddonConnections
   private writes: Promise<unknown> = Promise.resolve()
-  constructor(private readonly platform: OncePlatformPorts, private readonly settings: AppSettings, changed: () => void) {
+  constructor(private readonly platform: OncePlatformPorts, private readonly settings: AppSettings, private readonly changed: () => void) {
     this.vault = new AddonVault(platform.listStore, platform.secretStore, changed)
     this.local = new AddonConnections(platform.addonFetch ?? platform.fetch, platform.secretStore)
     this.synced = new AddonConnections(platform.addonFetch ?? platform.fetch, {
@@ -22,6 +22,18 @@ export class AddonSync {
         if (value) data.secrets[name] = value
       })
     })
+  }
+
+  /**
+   * The add-on document and the vault as other pages change them, for a page
+   * that runs add-ons without starting the app (whose start() watches every
+   * document). The settings' own echo filter keeps this page's writes quiet.
+   */
+  watch(): () => void {
+    return this.platform.onDatabaseChange?.(change => {
+      if (change.id === "addon_vault") this.changed()
+      else if (change.id === ADDONS_DOCUMENT_ID) this.settings.handleObservedChange(change)
+    }) ?? (() => undefined)
   }
 
   async document(): Promise<AddonsDocument> {

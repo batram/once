@@ -348,7 +348,18 @@ replace its transcript or receive its commands. The tab reconnects to its owner
 if Firefox disconnects the shared port when an unrelated panel closes. Reloading
 the owning panel creates a new instance, so continue from its tray to open a
 fresh tab. Both extension targets resolve conversation URLs back to their story
-for the selected-story row.
+for the selected-story row. A page action chosen from the browser's context
+menu while no panel is open in that window opens the conversation page with
+`run=<action>` instead; that page owns the run itself
+(`packages/ui-web/src/addons/pageActionHost.ts`): it builds the app client
+without starting it and mounts the stored add-ons page-only, so the sandbox,
+options and tokens are the panel's, while the story list, database sync and
+collectors never start. The page follows the add-on document and vault as the
+panel changes them, restarting the run when options change, and asks for the
+vault passphrase when the synced add-ons are locked. The menu entries exist
+before any panel has run: the background registers the bundled add-ons'
+actions at install, keeps the list a panel last published, and rebuilds it
+on every start.
 `examples/addons/what-wait-who-why` is the shipped example, an AI assistant
 over the story's article with optional web search.
 
