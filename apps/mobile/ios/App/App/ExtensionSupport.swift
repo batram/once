@@ -170,7 +170,11 @@ enum IOSContentBlockerExporter {
         var endVariants: [String] = []
         for (index, fragment) in fragments.enumerated() {
             if index > 0 {
-                if fragments[index...].allSatisfy({ $0.allSatisfy { $0 == "*" } }) {
+                // An http(s) URL always has a path after the host, so a bare
+                // ||host^ can never end at the separator; skip that variant.
+                let hostOnly = index == 1 && !prefix.isEmpty && prefix != "^"
+                    && !fragments[0].contains(where: { "/*?".contains($0) })
+                if !hostOnly, fragments[index...].allSatisfy({ $0.allSatisfy { $0 == "*" } }) {
                     endVariants.append(expression + "$")
                 }
                 expression += "[^A-Za-z0-9_.%-]"
@@ -242,6 +246,8 @@ final class IOSContentRuleCompiler {
         recent.removeAll { $0 == id }; recent.insert(id, at: 0)
         UserDefaults.standard.set(Array(recent.prefix(4)), forKey: key)
         for old in recent.dropFirst(4) { store.removeContentRuleList(forIdentifier: old) { _ in } }
+        // Drop the pre-hash identifier left by earlier builds.
+        store.removeContentRuleList(forIdentifier: "once-synced-filter-lists") { _ in }
         return list
     }
 }
