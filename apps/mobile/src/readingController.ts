@@ -275,6 +275,13 @@ export class MobileReadingController {
       if (state.mode !== "reader" || !state.currentUrl) return
       this.session.retry()
     }
+    required<HTMLButtonElement>("#reading_browser_retry").onclick = () => {
+      void this.nativeReading.reload()
+    }
+    required<HTMLButtonElement>("#reading_browser_edit_address").onclick = () => {
+      address.focus()
+      address.select()
+    }
     required<HTMLButtonElement>("#reading_reader_open_page").onclick = () => {
       const state = this.session.snapshot()
       if (!state.currentUrl) return
@@ -522,9 +529,11 @@ export class MobileReadingController {
     )
     this.renderAddressAction()
     const error = required("#reading_error")
-    const browserError = state.mode !== "reader" ? state.error : null
-    error.hidden = browserError == null
-    error.textContent = browserError ?? ""
+    const browserFailed = state.mode !== "reader" && state.loadState === "error"
+    error.hidden = !browserFailed
+    required("#reading_browser_error_message").textContent = browserFailed
+      ? state.error || "The page did not load. Check the address or try again."
+      : ""
     const readerStatus = required("#reading_reader_status")
     const readerLoading = required("#reading_reader_loading")
     const readerFailure = required("#reading_reader_failure")

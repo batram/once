@@ -183,7 +183,9 @@ export class ReadingSurfaceCoordinator {
   }
 
   async reload(): Promise<void> {
-    if (!this.browserOpened) {
+    if (!this.browserOpened || this.session.snapshot().loadState === "error") {
+      // WebKit's reload can target the last committed page after an early failure.
+      this.browserUrl = ""
       this.session.retry()
       return
     }
@@ -227,7 +229,10 @@ export class ReadingSurfaceCoordinator {
     this.reader.close()
     // Publishing a failed open must not queue another open automatically.
     // The next explicit navigation will put the session back into loading.
-    if (state.loadState === "error" && !this.browserOpened) return
+    if (state.loadState === "error") {
+      if (this.browserOpened) await this.surface.setVisible(false)
+      return
+    }
     const bounds = this.bounds()
     if (!this.browserOpened) {
       await this.surface.open({
@@ -259,6 +264,7 @@ export class ReadingSurfaceCoordinator {
     const state = this.session.snapshot()
     const visible = this.readingPanelVisible &&
       Boolean(state.currentUrl) &&
+      state.loadState !== "error" &&
       state.mode !== "reader" &&
       !this.menuOpen && !this.overlayOpen && !this.dialogOpen && !this.extensionPageOpen
     await this.enqueue(async () => {

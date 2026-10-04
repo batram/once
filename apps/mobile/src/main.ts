@@ -229,6 +229,10 @@ async function startMobileApp(): Promise<void> {
       settledStoryWrites: () => app.client.settledStoryWrites(),
       handleBack: () => reading.handleBack(),
       handleForward: () => reading.handleForward(),
+      failReading: (message: string) => {
+        const state = reading.session.snapshot()
+        reading.session.navigationFailed(state.navigationId, state.currentUrl, message)
+      },
       evaluateSurface: (script: string) => browserSurface.evaluateJavaScript(script),
       applyExtensionSettings: async () => browserSurface.applyExtensionSettings(
         await app.client.getFilterLists(),

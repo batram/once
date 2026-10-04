@@ -1113,8 +1113,7 @@
     padding: 0;
   }
 
-  #reading_url_validation,
-  #reading_error {
+  #reading_url_validation {
     flex: 0 0 auto;
     padding: var(--sp-1) var(--sp-4) var(--sp-2);
     color: var(--error-color);
@@ -1276,6 +1275,7 @@
     text-align: center;
   }
 
+  #reading_error,
   #reading_reader_status {
     display: grid;
     position: absolute;
@@ -1283,6 +1283,7 @@
     inset: 0;
     place-items: center;
     box-sizing: border-box;
+    overflow: auto;
     padding: var(--sp-5) var(--sp-4);
     background: var(--main-bg-color);
     color: var(--text-color);
@@ -1290,14 +1291,17 @@
     text-align: center;
   }
 
+  #reading_browser_failure,
   #reading_reader_loading,
   #reading_reader_failure {
     max-width: 32rem;
   }
 
+  #reading_browser_failure p,
   #reading_reader_loading p,
   #reading_reader_failure p {
     margin: var(--sp-3) 0 0;
+    overflow-wrap: anywhere;
   }
 
   .reading_status_spinner {
@@ -1310,6 +1314,7 @@
     animation: reading-status-spin 800ms linear infinite;
   }
 
+  #reading_browser_error_message,
   #reading_reader_error_message {
     color: var(--error-color);
   }

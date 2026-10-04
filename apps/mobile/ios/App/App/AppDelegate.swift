@@ -30,6 +30,10 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     private var refreshControl: UIRefreshControl?
     private var navigationSequence = 0
     private var activeNavigation = 0
+    private var activeWebNavigation: WKNavigation?
+    private var activeRequestURL: URL?
+    private var failedRequestURL: URL?
+    private var requestedURLs: [ObjectIdentifier: URL] = [:]
     private var extensionSettingsGeneration = 0
     /// Bumped by close() so an open/navigate still waiting on extensions doesn't revive the surface.
     private var closeGeneration = 0
@@ -130,7 +134,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             sender.endRefreshing()
             return
         }
-        surface.reload()
+        reloadSurface(surface)
     }
 
     private func finishRefresh() {
@@ -163,7 +167,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             }
             self.applyBounds(call.getObject("bounds") ?? [:])
             view.isHidden = !(call.getBool("visible") ?? true)
-            view.load(URLRequest(url: url))
+            self.load(url, in: view)
             call.resolve()
         }
     }
@@ -181,13 +185,16 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
                 call.reject("Unable to create the embedded browser surface")
                 return
             }
-            view.load(URLRequest(url: url))
+            self.load(url, in: view)
             call.resolve()
         }
     }
 
     @objc func reload(_ call: CAPPluginCall) {
-        DispatchQueue.main.async { self.surface?.reload(); call.resolve() }
+        DispatchQueue.main.async {
+            if let surface = self.surface { self.reloadSurface(surface) }
+            call.resolve()
+        }
     }
 
     @objc func goBack(_ call: CAPPluginCall) {
@@ -280,7 +287,9 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             canReload: surface != nil,
             back: { surface?.goBack() },
             forward: { surface?.goForward() },
-            reload: { surface?.reload() }
+            reload: { [weak self] in
+                if let surface { self?.reloadSurface(surface) }
+            }
         ), dark: dark)
         sheet.configureSheet()
         presenter.present(sheet, animated: true)
@@ -523,6 +532,10 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             self.surface?.uiDelegate = nil
             self.surface?.removeFromSuperview()
             self.surface = nil
+            self.activeWebNavigation = nil
+            self.activeRequestURL = nil
+            self.failedRequestURL = nil
+            self.requestedURLs.removeAll()
             self.refreshControl = nil
             self.contentRuleList = nil
             self.installedRuleJSON = nil
@@ -532,6 +545,17 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
 
     private func payload(_ url: URL?) -> JSObject {
         ["navigationId": activeNavigation, "url": url?.absoluteString ?? ""]
+    }
+
+    private func load(_ url: URL, in view: WKWebView) {
+        if let navigation = view.load(URLRequest(url: url)) {
+            requestedURLs[ObjectIdentifier(navigation)] = url
+        }
+    }
+
+    private func reloadSurface(_ view: WKWebView) {
+        if let failedRequestURL { load(failedRequestURL, in: view) }
+        else { view.reload() }
     }
 
     private func history(_ view: WKWebView) {
@@ -545,15 +569,20 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
         navigationSequence += 1
         activeNavigation = navigationSequence
-        notifyListeners("navigationStarted", data: payload(webView.url))
+        activeWebNavigation = navigation
+        failedRequestURL = nil
+        activeRequestURL = navigation.flatMap { requestedURLs.removeValue(forKey: ObjectIdentifier($0)) } ?? webView.url
+        notifyListeners("navigationStarted", data: payload(activeRequestURL))
     }
 
     public func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        guard navigation === activeWebNavigation else { return }
         notifyListeners("navigationCommitted", data: payload(webView.url))
         history(webView)
     }
 
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        guard navigation === activeWebNavigation else { return }
         finishRefresh()
         notifyListeners("navigationFinished", data: payload(webView.url))
         history(webView)
@@ -564,7 +593,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         didFailProvisionalNavigation navigation: WKNavigation!,
         withError error: Error
     ) {
-        navigationFailed(webView, error: error)
+        navigationFailed(webView, navigation: navigation, error: error)
     }
 
     public func webView(
@@ -572,12 +601,18 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         didFail navigation: WKNavigation!,
         withError error: Error
     ) {
-        navigationFailed(webView, error: error)
+        navigationFailed(webView, navigation: navigation, error: error)
     }
 
-    private func navigationFailed(_ webView: WKWebView, error: Error) {
+    private func navigationFailed(_ webView: WKWebView, navigation: WKNavigation?, error: Error) {
+        if let navigation { requestedURLs.removeValue(forKey: ObjectIdentifier(navigation)) }
+        // Cancellation from a replaced load must not fail the new page.
+        guard navigation === activeWebNavigation else { return }
         finishRefresh()
-        var value = payload(webView.url)
+        // After a provisional failure WebKit can expose nil or the previous page.
+        // Keep the requested address so the shell can accept the failure and retry it.
+        var value = payload(activeRequestURL ?? webView.url)
+        failedRequestURL = activeRequestURL ?? webView.url
         value["code"] = (error as NSError).code
         value["message"] = error.localizedDescription
         notifyListeners("navigationFailed", data: value)
