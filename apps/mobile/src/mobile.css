@@ -694,8 +694,8 @@
     inset: auto;
     visibility: visible;
     box-sizing: border-box;
-    flex: 0 0 var(--touch);
-    width: var(--touch);
+    flex: 0 0 var(--tab-control-size);
+    width: var(--tab-control-size);
     height: var(--touch);
     margin: 0;
     padding: 0;
@@ -2666,8 +2666,8 @@
   }
 
   .structured_remove {
-    flex: 0 0 var(--touch);
-    width: var(--touch);
+    flex: 0 0 var(--tab-control-size);
+    width: var(--tab-control-size);
     margin: 0;
     /* settings.css declares padding 0, but layer(platform) outranks it, so the
      glyph target has to restore it here or the button baseline's 16px inline
@@ -3028,46 +3028,117 @@
 
   #reading_tabs_dialog {
     box-sizing: border-box;
-    width: min(100%, 640px);
-    height: 100dvh;
-    max-width: 100%;
-    max-height: 100dvh;
-    margin: auto;
-    padding: max(var(--sp-4), env(safe-area-inset-top)) var(--sp-4) max(var(--sp-4), env(safe-area-inset-bottom));
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    overflow: hidden;
+    padding: 0;
     color: var(--text-high-color);
     background: var(--main-bg-color);
-    border: 1px solid var(--sep-color);
+    border: 0;
+  }
+
+  #reading_panel:has(#reading_tabs_dialog[open]) :is(#reader_tts_pill, #reading_find_bar),
+  #reading_content:has(> #reading_tabs_dialog[open]) > :not(#reading_tabs_dialog) {
+    visibility: hidden;
   }
 
   #reading_tabs_dialog[open] {
     display: flex;
     flex-direction: column;
-    gap: var(--sp-4);
   }
 
-  #reading_tabs_dialog header,
-  #reading_tabs_dialog footer {
+  #reading_tabs_dialog .button {
+    min-height: 44px;
+    min-width: 44px;
+    margin: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+  }
+
+  #reading_tabs_dialog .button:focus-visible {
+    outline: 2px solid var(--text-high-color);
+    outline-offset: -2px;
+  }
+
+  #reading_tabs_dialog header {
     display: flex;
     flex: 0 0 auto;
-    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: var(--sp-2);
+    gap: var(--sp-1);
+    padding: var(--sp-2) var(--sp-3);
+  }
+
+  #reading_tabs_dialog header {
+    position: relative;
+    z-index: 1;
   }
 
   #reading_tabs_dialog h2 {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
     margin: 0;
+    font-size: calc(var(--fs-title) * 1.375);
+    font-weight: 650;
+    letter-spacing: -0.02em;
   }
 
-  #reading_tabs_dialog .button,
-  .reading_tabs_confirm .button {
-    min-height: 44px;
-    min-width: 44px;
+  .reading_tab_total {
+    display: inline-grid;
+    place-items: center;
+    min-width: 26px;
+    height: 26px;
+    border-radius: var(--radius-sm);
+    background: var(--second-bg-color);
+    font-size: var(--fs-dense);
+    font-weight: 500;
+    letter-spacing: normal;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .reading_tab_controls {
+    --tab-control-size: 32px;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-1);
+  }
+
+  #reading_tabs_dialog .reading_tab_controls .button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--tab-control-size);
+    min-height: var(--tab-control-size);
+    height: var(--tab-control-size);
+    font-size: var(--fs-dense);
+    line-height: 1;
+    border: var(--m-bw) solid var(--m-ink);
+    border-radius: var(--m-radius);
+    background: var(--main-bg-color);
+    padding-inline: var(--sp-2);
+    white-space: nowrap;
+  }
+
+  #reading_tabs_dialog .reading_tab_icon {
+    flex: 0 0 var(--tab-control-size);
+    width: var(--tab-control-size);
+    padding: 0;
+    font-size: var(--icon-lg);
+    font-weight: 400;
   }
 
   .reading_tab_rows {
     flex: 1;
     min-height: 0;
+    padding: var(--sp-1) var(--sp-3) var(--sp-3);
     overflow: auto;
     overscroll-behavior: contain;
   }
@@ -3075,28 +3146,118 @@
   .reading_tab_row {
     display: flex;
     align-items: center;
-    gap: var(--sp-2);
-    padding-block: var(--sp-2);
-    border-bottom: 1px solid var(--sep-color);
+    min-height: 80px;
+    margin-bottom: var(--sp-1);
+    padding-inline-end: var(--sp-1);
+    border: var(--bw) solid transparent;
+    border-radius: var(--radius-lg);
   }
 
-  .reading_tab_row > :first-child {
+  .reading_tab_row.reading_tab_selected {
+    background: color-mix(in srgb, var(--cursor-color) 10%, var(--main-bg-color));
+    border-color: color-mix(in srgb, var(--cursor-color) 35%, var(--sep-color));
+  }
+
+  #reading_tabs_dialog .reading_tab_row > :first-child {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    align-self: stretch;
+    gap: var(--sp-3);
+    min-width: 0;
+    padding: var(--sp-3);
+    text-align: start;
+  }
+
+  .reading_tab_identity {
+    display: grid;
+    flex: 0 0 36px;
+    height: 36px;
+    place-items: center;
+    border-radius: var(--radius-md);
+    background: var(--second-bg-color);
+    font-size: var(--fs-title);
+    font-weight: 600;
+  }
+
+  .reading_tab_text {
     display: flex;
     flex: 1;
     flex-direction: column;
-    align-items: flex-start;
     gap: var(--sp-1);
     min-width: 0;
-    text-align: start;
+  }
+
+  .reading_tab_text strong {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
     overflow-wrap: anywhere;
+    font-size: var(--fs-title);
+    font-weight: 600;
+    line-height: 1.35;
   }
 
-  .reading_tab_row [aria-current="true"] {
-    background: var(--highlight-bg-color);
-  }
-
-  .reading_tab_row span {
+  .reading_tab_detail {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: color-mix(in srgb, var(--text-high-color) 78%, var(--main-bg-color));
     font-size: var(--fs-meta);
+    line-height: 1.4;
+  }
+
+  .reading_tab_current {
+    font-size: var(--fs-caption);
+    font-weight: 600;
+    line-height: 1.2;
+  }
+
+  .reading_tab_current::before {
+    content: "✓ ";
+  }
+
+  #reading_tabs_dialog [data-action="close"] {
+    flex: 0 0 44px;
+    padding: 0;
+    font-size: calc(var(--fs-title) * 1.375);
+    color: color-mix(in srgb, var(--text-high-color) 75%, var(--main-bg-color));
+  }
+
+  #reading_tabs_dialog .button:active {
+    background: var(--second-bg-color);
+  }
+
+  .reading_tab_undo {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-2);
+    margin: var(--sp-2) var(--sp-4);
+    padding-inline-start: var(--sp-3);
+    border-radius: var(--radius-md);
+    background: var(--second-bg-color);
+    font-size: var(--fs-dense);
+  }
+
+  .reading_tabs_empty {
+    max-width: 28ch;
+    margin: var(--sp-6) auto;
+    padding: var(--sp-6) var(--sp-3);
+    text-align: center;
+  }
+
+  .reading_tabs_empty h3 {
+    margin: 0 0 var(--sp-2);
+    font-size: var(--fs-title);
+  }
+
+  .reading_tabs_empty p {
+    margin: 0;
+    font-size: var(--fs-body);
+    line-height: 1.6;
   }
 
   .reading_tab_status {

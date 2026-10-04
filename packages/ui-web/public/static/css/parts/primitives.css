@@ -64,6 +64,7 @@
 .icon--gear { --icon: url("../../imgs/gear.svg"); }
 .icon--pause { --icon: url("../../imgs/pause.svg"); }
 .icon--play { --icon: url("../../imgs/play.svg"); }
+.icon--plus { --icon: url("../../imgs/plus.svg"); }
 .icon--popout { --icon: url("../../imgs/popout.svg"); }
 .icon--read { --icon: url("../../imgs/read.svg"); }
 .icon--reading { --icon: url("../../imgs/reading.svg"); }
