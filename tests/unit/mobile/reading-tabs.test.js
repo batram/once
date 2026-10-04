@@ -128,3 +128,22 @@ test("previews stay in memory and discard navigated or closed generations", () =
   tabs.setPreview(tab.id, tab.generation, "https://two.test/", preview)
   assert.equal(tabs.selected.preview, undefined)
 })
+
+test("reader scroll reports save lazily without republishing, and story refreshes publish once", () => {
+  const storage = memory()
+  const tabs = new ReadingTabs(storage)
+  const story = new Story("rss", "https://one.test/", "Story")
+  const first = tabs.create()
+  first.session.open(story, "reader")
+  const second = tabs.create(false)
+  second.session.open(story, "browser")
+  let published = 0
+  tabs.subscribe(() => { published += 1 })
+  published = 0
+  tabs.update(first.id, first.generation, { readerScroll: 300 })
+  assert.equal(published, 0)
+  assert.equal(first.readerScroll, 300)
+  tabs.refreshStories([story])
+  assert.equal(published, 1)
+  assert.equal(new ReadingTabs(storage).tabs[0].readerScroll, 300, "the next publish persists pending scroll")
+})

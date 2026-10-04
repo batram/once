@@ -1,6 +1,6 @@
 import { PanelNavigation } from "@once/ui-web"
 import { ReadingTabs } from "./readingTabs"
-import { attachReadingTabSwipe } from "./readingTabSwipe"
+import { attachReadingTabSwipe, ReadingTabSwipe } from "./readingTabSwipe"
 
 /** An in-content dialog keeps the browser chrome available while choosing tabs. */
 export class ReadingTabDialog {
@@ -13,7 +13,9 @@ export class ReadingTabDialog {
   private readonly undoBar = document.createElement("div")
   private readonly undoMessage = document.createElement("span")
   private readonly status = document.createElement("span")
-  private readonly cancelSwipe: () => void
+  private readonly swipe: ReadingTabSwipe
+  // Rows rebuild only while visible and between gestures; tab updates are frequent.
+  private rowsStale = true
 
   constructor(private readonly tabs: ReadingTabs, actions: { select(id: string): void; create(): void; preview(): Promise<void> }) {
     this.count.type = "button"
@@ -32,6 +34,7 @@ export class ReadingTabDialog {
       opening = false
       if (document.querySelector("#left_panel")?.getAttribute("active_panel") !== "reading") return
       this.dialog.show()
+      this.renderRows()
       this.count.setAttribute("aria-expanded", "true")
       this.rows.querySelector('[aria-current="true"]')?.scrollIntoView({ block: "nearest" })
     }
@@ -47,7 +50,7 @@ export class ReadingTabDialog {
     title.append(this.total)
     header.append(title)
     this.rows.className = "reading_tab_rows"
-    this.cancelSwipe = attachReadingTabSwipe(this.rows)
+    this.swipe = attachReadingTabSwipe(this.rows, () => { if (this.rowsStale) this.renderRows() })
     this.rows.setAttribute("aria-label", "Open tabs")
     this.rows.setAttribute("role", "list")
     this.undo = button("Undo close", () => {
@@ -86,7 +89,7 @@ export class ReadingTabDialog {
     if (!content) throw new Error("Missing mobile reading content")
     content.append(this.dialog)
     this.dialog.addEventListener("close", () => {
-      this.cancelSwipe()
+      this.swipe.cancel()
       this.count.setAttribute("aria-expanded", "false")
       if (document.querySelector("#left_panel")?.getAttribute("active_panel") !== "reading") return
       if (!this.tabs.tabs.length) { PanelNavigation.open_panel("stories"); return }
@@ -150,13 +153,19 @@ export class ReadingTabDialog {
   }
 
   private render(): void {
-    this.cancelSwipe()
     this.count.textContent = String(this.tabs.tabs.length)
     this.count.setAttribute("aria-label", `Tabs: ${this.tabs.tabs.length} open`)
     this.total.textContent = String(this.tabs.tabs.length)
     this.undoBar.hidden = !this.tabs.canUndo
     if (this.tabs.canUndo && !this.undoMessage.textContent) this.undoMessage.textContent = "Tabs closed"
     this.closeAll.disabled = !this.tabs.tabs.length
+    this.rowsStale = true
+    this.renderRows()
+  }
+
+  private renderRows(): void {
+    if (!this.rowsStale || !this.dialog.open || this.swipe.active) return
+    this.rowsStale = false
     // Retain focus across loading/title updates by identifying the row control.
     const focused = this.dialog.contains(document.activeElement) ? document.activeElement as HTMLElement : null
     const focusId = focused?.dataset.tabId

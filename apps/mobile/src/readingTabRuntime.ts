@@ -106,7 +106,7 @@ export class ReadingTabRuntime {
           const surface = this.surface.forTab?.({ tabId: tab.id, generation: tab.generation }) ?? this.surface
           const reader = this.usedInitialReader ? this.initialReader.createSibling() : this.initialReader
           this.usedInitialReader = true
-          reader.setScrollPosition(tab.readerScroll)
+          reader.setScrollPosition(() => tab.readerScroll)
           const coordinator = new ReadingSurfaceCoordinator(tab.session, surface, reader, this.content)
           coordinator.setDialogOpen(Boolean(document.querySelector("dialog[open]")))
           runtime = { generation: tab.generation, reader, coordinator, surface }

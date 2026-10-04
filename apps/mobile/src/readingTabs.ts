@@ -30,6 +30,9 @@ export class ReadingTabs {
   private listeners = new Set<() => void>()
   private removers = new Map<string, () => void>()
   private restoring = false
+  private batching = false
+  private batchChanged = false
+  private persistTimer: ReturnType<typeof setTimeout> | undefined
   private closed: Snapshot | null = null
   private storage: Pick<Storage, "getItem" | "setItem"> | undefined
 
@@ -39,6 +42,9 @@ export class ReadingTabs {
       const raw = this.storage?.getItem(STORAGE_KEY)
       if (raw) { this.restoring = true; this.restore(JSON.parse(raw)); this.restoring = false }
     } catch { this.restoring = false /* malformed or unavailable storage starts with no tabs */ }
+    // Scroll positions are saved lazily; write them out before the app is suspended.
+    globalThis.addEventListener?.("pagehide", () => this.persist())
+    globalThis.document?.addEventListener("visibilitychange", () => { if (document.hidden) this.persist() })
   }
 
   get tabs(): readonly ReadingTab[] { return this.entries }
@@ -102,7 +108,10 @@ export class ReadingTabs {
   }
 
   refreshStories(stories: Story[]): void {
-    for (const tab of this.entries) tab.session.setVisibleStories(stories)
+    // Every tab's session republishes; coalesce them into one tab update.
+    this.batching = true
+    try { for (const tab of this.entries) tab.session.setVisibleStories(stories) } finally { this.batching = false }
+    if (this.batchChanged) { this.batchChanged = false; this.publish() }
   }
 
   setPreview(id: string, generation: string, url: string, preview: string): void {
@@ -115,8 +124,10 @@ export class ReadingTabs {
   update(id: string, generation: string, value: { title?: string; readerScroll?: number }): void {
     const tab = this.entries.find(entry => entry.id === id && entry.generation === generation)
     if (!tab) return
-    if (value.title !== undefined) tab.title = value.title
     if (value.readerScroll !== undefined && Number.isFinite(value.readerScroll)) tab.readerScroll = Math.max(0, value.readerScroll)
+    // Reader scroll reports arrive continuously and nothing renders them.
+    if (value.title === undefined) { this.persistSoon(); return }
+    tab.title = value.title
     this.publish()
   }
 
@@ -173,9 +184,21 @@ export class ReadingTabs {
     }) }
   }
 
+  private persistSoon(): void {
+    if (this.restoring || this.persistTimer !== undefined) return
+    this.persistTimer = setTimeout(() => this.persist(), 1000)
+  }
+
+  private persist(): void {
+    clearTimeout(this.persistTimer)
+    this.persistTimer = undefined
+    try { this.storage?.setItem(STORAGE_KEY, JSON.stringify(this.snapshot())) } catch { /* session remains usable */ }
+  }
+
   private publish(): void {
     if (this.restoring) return
-    try { this.storage?.setItem(STORAGE_KEY, JSON.stringify(this.snapshot())) } catch { /* session remains usable */ }
+    if (this.batching) { this.batchChanged = true; return }
+    this.persist()
     this.listeners.forEach(listener => listener())
   }
 }

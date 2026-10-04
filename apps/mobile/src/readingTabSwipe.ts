@@ -1,5 +1,13 @@
-/** One-stage tab gestures: horizontal drags reveal their action and commit on release. */
-export function attachReadingTabSwipe(rows: HTMLElement): () => void {
+export interface ReadingTabSwipe {
+  cancel(): void
+  readonly active: boolean
+}
+
+/**
+ * One-stage tab gestures: horizontal drags reveal their action and commit on release.
+ * `onIdle` runs once a gesture ends, after any action its release committed.
+ */
+export function attachReadingTabSwipe(rows: HTMLElement, onIdle: () => void = () => undefined): ReadingTabSwipe {
   let gesture: { row: HTMLElement; pointer: number; x: number; y: number; horizontal: boolean; travel: number } | null = null
   let suppressClickUntil = 0
   const threshold = 72
@@ -13,6 +21,7 @@ export function attachReadingTabSwipe(rows: HTMLElement): () => void {
     row.style.removeProperty("--tab-swipe-offset")
     row.style.removeProperty("--tab-swipe-distance")
     if (row.hasPointerCapture(pointer)) row.releasePointerCapture(pointer)
+    queueMicrotask(onIdle)
   }
 
   rows.addEventListener("pointerdown", event => {
@@ -75,5 +84,5 @@ export function attachReadingTabSwipe(rows: HTMLElement): () => void {
   })
   rows.addEventListener("scroll", reset)
   window.addEventListener("blur", reset)
-  return reset
+  return { cancel: reset, get active() { return gesture !== null } }
 }

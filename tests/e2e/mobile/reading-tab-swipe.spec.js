@@ -43,6 +43,8 @@ test("tab swipes reveal their action, close left with undo, and open right in bo
     await expect(rows(page).nth(1)).toHaveAttribute("data-swipe-direction", "close")
     await expect(rows(page).nth(1)).toHaveAttribute("data-swipe-ready", "true")
     await expect(rows(page).nth(1).locator(".reading_tab_swipe_hint")).toHaveText("Release to close")
+    // Ready triggers on an earlier move; wait until the final one is delivered.
+    await expect(rows(page).nth(1)).toHaveAttribute("style", /--tab-swipe-distance: 100px/)
     const feedback = await rows(page).nth(1).evaluate(row => {
       const hint = row.querySelector(".reading_tab_swipe_hint")
       return { width: hint.getBoundingClientRect().width, transform: getComputedStyle(row.querySelector("button")).transform,

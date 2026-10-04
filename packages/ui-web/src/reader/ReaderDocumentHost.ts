@@ -3,7 +3,7 @@ export class ReaderDocumentHost {
   private readonly frame: HTMLIFrameElement
   private readonly runtimeUrl: string | null
   private documentVersion = 0
-  private scrollPosition = 0
+  private scrollPosition: () => number = () => 0
   private runtimeSource: Promise<string | null> | null = null
 
   constructor(private readonly parent: HTMLElement = document.body, runtimeUrl: string | null = null) {
@@ -27,13 +27,14 @@ export class ReaderDocumentHost {
     this.frame.setAttribute("sandbox", "allow-scripts")
 
     this.frame.addEventListener("load", () => {
-      this.frame.contentWindow?.postMessage({ channel: "once-reader-scroll", type: "restore", y: this.scrollPosition }, "*")
+      this.frame.contentWindow?.postMessage({ channel: "once-reader-scroll", type: "restore", y: this.scrollPosition() }, "*")
     })
     this.root.append(close, this.frame)
     parent.append(this.root)
   }
 
-  setScrollPosition(position: number): void { this.scrollPosition = position }
+  /** Read at each document load, so a later document restores the latest position. */
+  setScrollPosition(position: () => number): void { this.scrollPosition = position }
 
   createSibling(): ReaderDocumentHost {
     return new ReaderDocumentHost(this.parent, this.runtimeUrl)
