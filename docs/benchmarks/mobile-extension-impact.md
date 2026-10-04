@@ -43,7 +43,7 @@ The median per-page 95th-percentile animation-frame interval was 17 ms in every 
 
 Apple documents that [`loadBackgroundContent`](https://developer.apple.com/documentation/webkit/wkwebextensioncontext/loadbackgroundcontent%28completionhandler%3A%29) forces loading that would otherwise occur on demand. That establishes an optimization candidate, not proof that removing the call preserves content-script registration, filtering or recovery. Likewise, the measured total does not establish how much parallelizing initialization would save.
 
-[The production plugin](../../apps/mobile/ios/App/App/AppDelegate.swift) warms extensions during settings application, before a browsing surface is necessarily opened. Its navigation methods also await preparation. Therefore some or all of this cost can overlap time spent in the story UI; it is not necessarily an additional 290 ms on every first article tap. Conversely, the work can consume resources even if the user never opens a webpage. The harness does not quantify that shell interaction.
+[The production plugin](../../apps/mobile/ios/App/App/InAppBrowserSurfacePlugin.swift) warms extensions during settings application, before a browsing surface is necessarily opened. Its navigation methods also await preparation. Therefore some or all of this cost can overlap time spent in the story UI; it is not necessarily an additional 290 ms on every first article tap. Conversely, the work can consume resources even if the user never opens a webpage. The harness does not quantify that shell interaction.
 
 ## iOS supplemental filters fail native compilation
 

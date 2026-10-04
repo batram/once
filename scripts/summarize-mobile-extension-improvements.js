@@ -37,6 +37,7 @@ evidence.sourceState = "Uncommitted implementation changes on the recorded base 
 evidence.sourceSHA256 = Object.fromEntries([
   "apps/mobile/extensions/once-surface/background.js", "apps/mobile/extensions/once-surface/filterRules.js",
   "apps/mobile/extensions/once-surface/manifest.json", "apps/mobile/ios/App/App/AppDelegate.swift",
+  "apps/mobile/ios/App/App/InAppBrowserSurfacePlugin.swift",
   "apps/mobile/ios/App/App/ExtensionSupport.swift", "apps/mobile/ios/App/App/WebExtensionHost.swift"
 ].map(file => [file, createHash("sha256").update(fs.readFileSync(file)).digest("hex")]))
 evidence.methodology.ios = "Four fresh-process all-extension launches on Iphi, selective background loading with uBO readiness awaited. Same fixture and persistent-storage conditioning as baseline. Behavior suite separately run on iOS 26.5 simulator; filter regression on physical Iphi."

@@ -111,7 +111,7 @@ test("native embedded browsers use a bounded foreground sibling", () => {
   ), "utf8")
   const ios = fs.readFileSync(path.join(
     root,
-    "apps/mobile/ios/App/App/AppDelegate.swift"
+    "apps/mobile/ios/App/App/InAppBrowserSurfacePlugin.swift"
   ), "utf8")
 
   assert.match(android, /parent\.addView\(\s*refreshSurface,\s*shellIndex \+ 1,/)
@@ -132,7 +132,7 @@ test("native embedded browsers report forward history and iOS hands unhandled ed
   ), "utf8")
   const ios = fs.readFileSync(path.join(
     root,
-    "apps/mobile/ios/App/App/AppDelegate.swift"
+    "apps/mobile/ios/App/App/InAppBrowserSurfacePlugin.swift"
   ), "utf8")
 
   assert.match(androidHost, /payload\.put\("canGoForward", canGoForward\)/)
@@ -153,7 +153,7 @@ test("native embedded browsers support pull-to-refresh", () => {
   ), "utf8")
   const ios = fs.readFileSync(path.join(
     root,
-    "apps/mobile/ios/App/App/AppDelegate.swift"
+    "apps/mobile/ios/App/App/InAppBrowserSurfacePlugin.swift"
   ), "utf8")
 
   assert.match(android, /new SwipeRefreshLayout/)
@@ -171,7 +171,7 @@ test("iOS installs synced content rules and parsed userscripts", () => {
   ), "utf8")
   const mobile = fs.readFileSync(path.join(root, "apps/mobile/src/mobileExtensionSettings.ts"), "utf8")
   const ios = fs.readFileSync(path.join(
-    root, "apps/mobile/ios/App/App/AppDelegate.swift"
+    root, "apps/mobile/ios/App/App/InAppBrowserSurfacePlugin.swift"
   ), "utf8")
   const iosSupport = fs.readFileSync(path.join(
     root, "apps/mobile/ios/App/App/ExtensionSupport.swift"
@@ -220,7 +220,7 @@ test("native embedded browsers present menus and prompts above web content", () 
   ), "utf8")
   const ios = fs.readFileSync(path.join(
     root,
-    "apps/mobile/ios/App/App/AppDelegate.swift"
+    "apps/mobile/ios/App/App/InAppBrowserSurfacePlugin.swift"
   ), "utf8")
   const storyMenu = fs.readFileSync(path.join(
     root,
