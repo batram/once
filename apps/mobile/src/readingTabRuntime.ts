@@ -126,6 +126,11 @@ export class ReadingTabRuntime {
           runtime = { generation: tab.generation, reader, coordinator, surface }
           this.runtimes.set(tab.id, runtime)
           coordinator.onEdgeSwipe(direction => { if (tab.id === this.tabs.activeId) this.edgeSwipe(direction) })
+          coordinator.onCloseRequested(() => {
+            if (!this.tabs.tabs.includes(tab)) return
+            this.tabs.close(tab.id)
+            this.announce("The page closed its tab")
+          })
           coordinator.onNavigationFinished(event => {
             this.tabs.update(tab.id, tab.generation, { title: event.title ?? tab.session.snapshot().story?.title ?? "" })
             if (tab.id !== this.tabs.activeId) this.announce(`Background tab loaded: ${tab.title || event.url}`)

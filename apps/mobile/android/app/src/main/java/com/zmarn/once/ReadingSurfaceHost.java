@@ -262,7 +262,8 @@ abstract class ReadingSurfaceHost extends Plugin {
                 Log.w(TAG, "Slow script: " + filename);
                 if (navigationDeadline == 0) navigationDeadline = SystemClock.elapsedRealtime() + RESPONSE_TIMEOUT_MS;
                 resumeWatchdog();
-            }, title -> { if (session == created) pageTitle = title; }));
+            }, title -> { if (session == created) pageTitle = title; },
+            () -> { if (session == created) pageCloseRequested(); }));
         session.setScrollDelegate(new GeckoSession.ScrollDelegate() {
             @Override
             public void onScrollChanged(GeckoSession ignored, int x, int y) {
@@ -691,6 +692,9 @@ abstract class ReadingSurfaceHost extends Plugin {
             }, error -> Log.w(TAG, "isPdfJs failed: " + error));
         }
     }
+
+    /** window.close() from the page; only a page-opened window may honour it. */
+    protected void pageCloseRequested() {}
 
     protected void processStopped(String message) {
         forgetPageState(message);

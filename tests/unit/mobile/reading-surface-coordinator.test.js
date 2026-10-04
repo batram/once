@@ -365,3 +365,20 @@ test("a late finish of the previous page neither loads nor labels the new addres
   assert.deepEqual(finished, [])
   assert.equal(session.snapshot().loadState, "loading")
 })
+
+test("a page's close request reaches the tab only once its browser is open", async () => {
+  const { ReadingSurfaceCoordinator } = await loadCoordinator()
+  const session = new ReadingSession(), surface = createSurface()
+  const coordinator = new ReadingSurfaceCoordinator(session, surface, createReader(), {
+    getBoundingClientRect: () => ({ x: 0, y: 0, width: 320, height: 500 })
+  })
+  let closes = 0
+  coordinator.onCloseRequested(() => { closes += 1 })
+  await coordinator.install()
+  surface.listeners.get("closeRequested")({})
+  assert.equal(closes, 0)
+  session.navigate("https://example.test/popup")
+  await flushCoordinator()
+  surface.listeners.get("closeRequested")({})
+  assert.equal(closes, 1)
+})

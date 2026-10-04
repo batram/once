@@ -37,6 +37,8 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
     private String tabGeneration;
     private String selectedTab;
     private boolean adoptedWindow;
+    // Opened by a page's window.open, so that page's script may close it again.
+    private boolean openedByPage;
     private final Map<String, InAppBrowserSurfacePlugin> tabs = new HashMap<>();
     // Only identities still likely to receive late calls need remembering.
     private final java.util.Set<String> retiredTabs = new java.util.LinkedHashSet<>();
@@ -147,6 +149,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
         root.tabs.put(tab.tabId, tab);
         tab.navigationReady = true;
         tab.adoptedWindow = true;
+        tab.openedByPage = true;
         tab.pageRequested = true;
         tab.requestedUrl = url;
         tab.currentUrl = url;
@@ -155,6 +158,12 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
         root.notifyListeners("newTabRequested", new JSObject().put("tabId", tab.tabId)
             .put("generation", tab.tabGeneration).put("url", url).put("navigationId", 0));
         return tab.session;
+    }
+
+    @Override
+    protected void pageCloseRequested() {
+        // The shell owns the tab list, so it decides how the tab goes away.
+        if (owner != null && openedByPage) notifyListeners("closeRequested", new JSObject());
     }
 
     @Override

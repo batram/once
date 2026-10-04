@@ -97,6 +97,12 @@ export interface ExtensionPageCommand {
   bounds?: BrowserSurfaceBounds
 }
 
+/** A page-opened tab's script called window.close(); the shell closes the tab. */
+export interface BrowserCloseRequestedEvent {
+  tabId?: string
+  generation?: string
+}
+
 export interface InAppBrowserSurfaceEvents {
   newTabRequested: BrowserNavigationEvent & BrowserTabIdentity
   navigationStarted: BrowserNavigationEvent
@@ -105,6 +111,7 @@ export interface InAppBrowserSurfaceEvents {
   navigationFailed: BrowserNavigationFailedEvent
   historyChanged: BrowserHistoryEvent
   edgeSwipe: BrowserEdgeSwipeEvent
+  closeRequested: BrowserCloseRequestedEvent
   extensionPageChanged: ExtensionPageState
 }
 

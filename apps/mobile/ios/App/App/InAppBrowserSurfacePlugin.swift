@@ -32,6 +32,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     private var memoryObserver: NSObjectProtocol?
     private var reclaimedURL: URL?
     private var adoptedWindow = false
+    // Opened by a page's window.open, so that page's script may close it again.
+    private var openedByPage = false
     private var tabId = ""
     private var tabGeneration = ""
     private var selectedTab: String?
@@ -670,6 +672,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
 
     public func webViewDidClose(_ webView: WKWebView) {
         extensions.closePage(requestedBy: webView)
+        // The shell owns the tab list, so it decides how the tab goes away.
+        if webView === surface, openedByPage { pageEvent("closeRequested", data: [:]) }
     }
 
     public func webView(
@@ -691,6 +695,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         tab.contentRuleList = contentRuleList
         tab.extensionUserScripts = extensionUserScripts
         tab.adoptedWindow = true
+        tab.openedByPage = true
         root.tabs[tab.tabId] = tab
         // Not selected and not asked to be visible, so it starts hidden.
         guard let view = tab.ensureSurface(configuration: configuration) else { root.tabs.removeValue(forKey: tab.tabId); return nil }

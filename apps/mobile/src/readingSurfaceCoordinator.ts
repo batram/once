@@ -39,9 +39,11 @@ export class ReadingSurfaceCoordinator {
   private dialogOpen = false
   private extensionPageOpen = false
   private surfaceGeneration = 0
+  private surfaceKey: string | null = null
   private readerRequestId = 0
   private surfaceQueue: Promise<void> = Promise.resolve()
   private edgeSwipeHandler: ((direction: "back" | "forward") => void) | null = null
+  private closeRequestedHandler: (() => void) | null = null
   private finishedHandler: ((event: BrowserNavigationEvent) => void) | null = null
 
   constructor(
@@ -64,6 +66,11 @@ export class ReadingSurfaceCoordinator {
         // across the asynchronous setBounds/navigate bridge calls.
         this.pendingNavigationUrl = state.currentUrl
       }
+      // Story refreshes and history flags republish the session; only these
+      // fields change what the native surface or reader should show.
+      const surfaceKey = `${state.mode}\n${state.loadState}\n${state.currentUrl}`
+      if (surfaceKey === this.surfaceKey) return
+      this.surfaceKey = surfaceKey
       const generation = ++this.surfaceGeneration
       void this.enqueue(async () => {
         try {
@@ -147,15 +154,22 @@ export class ReadingSurfaceCoordinator {
       if (!this.browserOpened || !this.readingPanelVisible) return
       this.edgeSwipeHandler?.(event.direction)
     })
+    const close = await this.surface.addListener("closeRequested", () => {
+      if (this.browserOpened) this.closeRequestedHandler?.()
+    })
     // Listener lifetimes match the application lifetime. Retaining the
     // removers makes ownership explicit and prevents premature collection in
     // native bridge implementations.
-    if (this.disposed) [started, committed, finished, failed, history, edge].forEach(remove => remove())
-    else this.listenerRemovers.push(started, committed, finished, failed, history, edge)
+    if (this.disposed) [started, committed, finished, failed, history, edge, close].forEach(remove => remove())
+    else this.listenerRemovers.push(started, committed, finished, failed, history, edge, close)
   }
 
   onEdgeSwipe(handler: (direction: "back" | "forward") => void): void {
     this.edgeSwipeHandler = handler
+  }
+
+  onCloseRequested(handler: () => void): void {
+    this.closeRequestedHandler = handler
   }
 
   /** Only finishes this coordinator accepted, so late events of an older page never reach it. */
