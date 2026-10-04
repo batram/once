@@ -31,8 +31,9 @@ test("the ⋮ button opens the story menu anchored above the tab bar", async ({ 
   await expect(page.getByTestId("story-menu-open-comments")).toBeVisible()
   await expect(page.getByTestId("story-menu-open-browser")).toBeVisible()
   await expect(page.getByTestId("story-menu-open-reader")).toBeVisible()
-  // Tab-target actions belong to desktop only.
-  await expect(page.getByTestId("story-menu-open-new-tab")).toHaveCount(0)
+  // Mobile tabs expose explicit foreground and background actions.
+  await expect(page.getByTestId("story-menu-open-new-tab")).toBeVisible()
+  await expect(page.getByTestId("story-menu-open-background-tab")).toBeVisible()
 
   const geometry = await menu.evaluate((panel) => {
     const rect = panel.getBoundingClientRect()

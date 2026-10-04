@@ -62,3 +62,19 @@ installReaderTts({
     return () => controlListeners.delete(listener)
   }
 })
+
+// The sandbox reports scroll only to its parent; retained frames keep their own
+// scroll naturally, while a lazily restored document receives the saved offset.
+let scrollReportPending = false
+window.addEventListener("scroll", () => {
+  if (scrollReportPending) return
+  scrollReportPending = true
+  window.setTimeout(() => {
+    scrollReportPending = false
+    window.parent.postMessage({ channel: "once-reader-scroll", type: "position", y: window.scrollY }, "*")
+  }, 150)
+}, { passive: true })
+window.addEventListener("message", event => {
+  if (event.source !== window.parent || event.data?.channel !== "once-reader-scroll" || event.data.type !== "restore") return
+  if (Number.isFinite(event.data.y)) window.scrollTo(0, Math.max(0, event.data.y))
+})

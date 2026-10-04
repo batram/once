@@ -3017,4 +3017,93 @@
       animation-iteration-count: 1 !important;
     }
   }
+
+  #reading_tabs {
+    margin: 0;
+    flex: 0 0 44px;
+    min-width: 44px;
+    min-height: 44px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  #reading_tabs_dialog {
+    box-sizing: border-box;
+    width: min(100%, 640px);
+    height: 100dvh;
+    max-width: 100%;
+    max-height: 100dvh;
+    margin: auto;
+    padding: max(var(--sp-4), env(safe-area-inset-top)) var(--sp-4) max(var(--sp-4), env(safe-area-inset-bottom));
+    color: var(--text-high-color);
+    background: var(--main-bg-color);
+    border: 1px solid var(--sep-color);
+  }
+
+  #reading_tabs_dialog[open] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+  }
+
+  #reading_tabs_dialog header,
+  #reading_tabs_dialog footer {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-2);
+  }
+
+  #reading_tabs_dialog h2 {
+    margin: 0;
+  }
+
+  #reading_tabs_dialog .button,
+  .reading_tabs_confirm .button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .reading_tab_rows {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+
+  .reading_tab_row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding-block: var(--sp-2);
+    border-bottom: 1px solid var(--sep-color);
+  }
+
+  .reading_tab_row > :first-child {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--sp-1);
+    min-width: 0;
+    text-align: start;
+    overflow-wrap: anywhere;
+  }
+
+  .reading_tab_row [aria-current="true"] {
+    background: var(--highlight-bg-color);
+  }
+
+  .reading_tab_row span {
+    font-size: var(--fs-meta);
+  }
+
+  .reading_tab_status {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
 }

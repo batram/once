@@ -143,12 +143,20 @@ function installTransientScrollbars(): void {
 function captureNavigationListeners(browserSurface: ReturnType<typeof createInAppBrowserSurface>) {
   const navigationListeners = new Map<string, (event: BrowserNavigationEvent) => void>()
   if (__ONCE_MOBILE_E2E__) {
-    const addListener = browserSurface.addListener.bind(browserSurface)
-    browserSurface.addListener = async (name, listener) => {
-      if (!navigationListeners.has(name) && (name === "navigationCommitted" || name === "navigationFinished")) {
-        navigationListeners.set(name, listener as (event: BrowserNavigationEvent) => void)
+    const forTab = browserSurface.forTab?.bind(browserSurface)
+    if (forTab) browserSurface.forTab = identity => {
+      const scoped = forTab(identity)
+      const addListener = scoped.addListener.bind(scoped)
+      scoped.addListener = async (name, listener) => {
+        if (name === "navigationCommitted" || name === "navigationFinished") {
+          const key = `${identity.tabId}:${name}`
+          navigationListeners.set(key, listener as (event: BrowserNavigationEvent) => void)
+          const remove = await addListener(name, listener)
+          return () => { navigationListeners.delete(key); remove() }
+        }
+        return addListener(name, listener)
       }
-      return addListener(name, listener)
+      return scoped
     }
   }
   return navigationListeners
@@ -176,18 +184,26 @@ async function startMobileApp(): Promise<void> {
     document.querySelector<HTMLElement>("#reading_content") ?? document.body,
     new URL("reader-runtime.js", document.baseURI).href
   )
-  const tts = installReaderTtsHostBridge((source) => reader.isReaderWindow(source))
+  const tts = installReaderTtsHostBridge((source) => reading.reader.isReaderWindow(source))
   const ttsControls = installReaderTtsControls(tts)
   const reading = new MobileReadingController(browserSurface, reader, ttsControls)
   await reading.install()
+  // A tab owns its saved story even when the feed removes it. Refresh its
+  // metadata from the working set whenever new evidence becomes available.
+  const refreshTabStories = () => reading.tabs.refreshStories(app.client.getStorySnapshot())
+  app.client.subscribe("storiesChanged", refreshTabStories)
+  app.client.subscribe("storyChanged", refreshTabStories)
+  refreshTabStories()
   // Web links leave the reader for the browser surface; mail goes to the system.
-  installReaderLinkHost((source) => reader.isReaderWindow(source), (url) => {
+  installReaderLinkHost((source) => reading.reader.isReaderWindow(source), (url) => {
     if (url.startsWith("mailto:")) void nativeBridge.openExternal(url)
     else reading.openBrowserUrl(url)
   })
   ReaderView.mount(app.client)
   const sourcePicker = new MobileSourcePicker({
     surface: browserSurface,
+    currentSurface: () => reading.prepareBrowserSurface(),
+    currentUrl: () => reading.session.snapshot().currentUrl,
     openBrowserUrl: (url) => reading.openBrowserUrl(url),
     activateSurface: () => PanelNavigation.open_panel("reading"),
     loadInjection: loadMobilePickerInjection
@@ -248,8 +264,8 @@ async function startMobileApp(): Promise<void> {
       finishReading: (url: string, statusCode = 200) => {
         const state = reading.session.snapshot()
         const event = { navigationId: state.navigationId, url, statusCode, sourceUrl: state.pageContext?.sourceUrl }
-        navigationListeners.get("navigationCommitted")?.(event)
-        navigationListeners.get("navigationFinished")?.(event)
+        navigationListeners.get(`${reading.tabs.activeId}:navigationCommitted`)?.(event)
+        navigationListeners.get(`${reading.tabs.activeId}:navigationFinished`)?.(event)
       },
       failReading: (message: string) => {
         const state = reading.session.snapshot()

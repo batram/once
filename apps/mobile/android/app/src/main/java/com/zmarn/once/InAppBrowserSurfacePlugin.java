@@ -18,7 +18,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import org.json.JSONObject;
 import org.mozilla.geckoview.GeckoSession;
-import org.mozilla.geckoview.SessionFinder;
 import org.mozilla.geckoview.WebExtension;
 
 /**
@@ -30,6 +29,128 @@ import org.mozilla.geckoview.WebExtension;
  */
 @CapacitorPlugin(name = "InAppBrowserSurface")
 public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
+    // Each child owns the complete recovery/media/navigation lifecycle of one page.
+    // The registered plugin alone owns extension settings and the shared profile.
+    private InAppBrowserSurfacePlugin owner;
+    private String tabId;
+    private String tabGeneration;
+    private String selectedTab;
+    private boolean adoptedWindow;
+    private final Map<String, InAppBrowserSurfacePlugin> tabs = new HashMap<>();
+    private final java.util.Set<String> retiredTabs = new java.util.HashSet<>();
+
+    private InAppBrowserSurfacePlugin target(PluginCall call) {
+        if (owner != null) return this;
+        String id = call.getString("tabId", selectedTab);
+        if (id == null) return this;
+        String generation = call.getString("generation", "");
+        InAppBrowserSurfacePlugin tab = tabs.get(id);
+        if (tab != null && (generation.isEmpty() || generation.equals(tab.tabGeneration))) return tab;
+        if (retiredTabs.contains(id + ":" + generation)) {
+            call.reject("The tab runtime was closed");
+            return null;
+        }
+        if (tab != null) {
+            InAppBrowserSurfacePlugin previous = tab;
+            retiredTabs.add(id + ":" + previous.tabGeneration);
+            previous.destroyed = true;
+            getActivity().runOnUiThread(previous::destroySurface);
+        }
+        tab = new InAppBrowserSurfacePlugin();
+        tab.owner = this;
+        tab.tabId = id;
+        tab.tabGeneration = generation;
+        tab.setBridge(getBridge());
+        tab.backgroundMedia = new BackgroundMedia(getContext());
+        tabs.put(id, tab);
+        return tab;
+    }
+
+    @PluginMethod
+    public void selectTab(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            selectedTab = call.getString("tabId");
+            for (InAppBrowserSurfacePlugin tab : tabs.values()) {
+                if (!tab.tabId.equals(selectedTab)) {
+                    tab.setSurfaceVisible(false);
+                    if (engine != null && tab.session != null && tab.session.isOpen()) engine.runtime.getWebExtensionController().setTabActive(tab.session, false);
+                }
+            }
+            if (extensions != null) extensions.foregroundChanged();
+            call.resolve();
+        });
+    }
+
+    @Override
+    protected void setSurfaceVisible(boolean visible) {
+        super.setSurfaceVisible(visible && ownsForeground());
+    }
+
+    @Override
+    protected boolean ownsForeground() { return owner == null || tabId.equals(owner.selectedTab); }
+
+    @Override
+    protected GeckoSession createWindow(String url) {
+        if (!isEmbeddable(url)) { openExternal(url); return null; }
+        InAppBrowserSurfacePlugin root = owner == null ? this : owner;
+        InAppBrowserSurfacePlugin tab = new InAppBrowserSurfacePlugin();
+        tab.owner = root;
+        tab.tabId = java.util.UUID.randomUUID().toString();
+        tab.tabGeneration = java.util.UUID.randomUUID().toString();
+        tab.setBridge(getBridge());
+        tab.backgroundMedia = new BackgroundMedia(getContext());
+        tab.ensureEngine();
+        root.tabs.put(tab.tabId, tab);
+        tab.navigationReady = true;
+        tab.adoptedWindow = true;
+        tab.pageRequested = true;
+        tab.requestedUrl = url;
+        tab.currentUrl = url;
+        tab.createReadingSession(false);
+        // Gecko opens the returned session itself, preserving the opener.
+        root.notifyListeners("newTabRequested", new JSObject().put("tabId", tab.tabId)
+            .put("generation", tab.tabGeneration).put("url", url).put("navigationId", 0));
+        return tab.session;
+    }
+
+    @Override
+    protected void notifyListeners(String name, JSObject payload) {
+        if (owner == null) { super.notifyListeners(name, payload); return; }
+        if (owner.tabs.get(tabId) != this) return;
+        payload.put("tabId", tabId);
+        payload.put("generation", tabGeneration);
+        owner.notifyListeners(name, payload);
+    }
+
+    @Override
+    protected void handleOnStop() {
+        super.handleOnStop();
+        for (InAppBrowserSurfacePlugin tab : tabs.values()) tab.handleOnStop();
+    }
+
+    @Override
+    protected void handleOnResume() {
+        super.handleOnResume();
+        for (InAppBrowserSurfacePlugin tab : tabs.values()) tab.handleOnResume();
+    }
+
+    @Override
+    void trimMemory(int level) {
+        super.trimMemory(level);
+        for (InAppBrowserSurfacePlugin tab : tabs.values()) tab.trimMemory(level);
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        for (InAppBrowserSurfacePlugin tab : new ArrayList<>(tabs.values())) {
+            tab.destroyed = true;
+            tab.destroySurface();
+            tab.handler.removeCallbacksAndMessages(null);
+        }
+        tabs.clear();
+        super.handleOnDestroy();
+    }
+
     private final Map<Long, Runnable> evaluationTimeouts = new HashMap<>();
     private final Map<Long, PluginCall> pendingEvaluations = new HashMap<>();
     private final AtomicLong evaluationSequence = new AtomicLong();
@@ -51,8 +172,17 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
 
     private void ensureEngine() {
         if (engine != null) return;
+        if (owner != null) {
+            owner.ensureEngine();
+            engine = owner.engine;
+            extensions = owner.extensions;
+            return;
+        }
         engine = GeckoEngine.get(getContext());
-        extensions = new GeckoExtensionManager(getActivity(), getBridge().getWebView(), engine, () -> session,
+        extensions = new GeckoExtensionManager(getActivity(), getBridge().getWebView(), engine, () -> {
+            InAppBrowserSurfacePlugin tab = tabs.get(selectedTab);
+            return tab == null ? session : tab.session;
+        },
             () -> notifyListeners("extensionsChanged", new JSObject()),
             payload -> notifyListeners("extensionPageChanged", payload));
     }
@@ -88,6 +218,9 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
 
     @PluginMethod
     public void open(PluginCall call) {
+        InAppBrowserSurfacePlugin target = target(call);
+        if (target == null) return;
+        if (target != this) { target.open(call); return; }
         String url = call.getString("url");
         if (!isEmbeddable(url)) {
             call.reject("Embedded browsing only supports http and https URLs");
@@ -99,13 +232,17 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
             ensureSurface();
             applyBounds(call.getObject("bounds", new JSObject()));
             setSurfaceVisible(call.getBoolean("visible", true));
-            requestNavigation(url);
+            if (adoptedWindow) adoptedWindow = false;
+            else requestNavigation(url);
             call.resolve();
         });
     }
 
     @PluginMethod
     public void navigate(PluginCall call) {
+        InAppBrowserSurfacePlugin target = target(call);
+        if (target == null) return;
+        if (target != this) { target.navigate(call); return; }
         String url = call.getString("url");
         if (!isEmbeddable(url)) {
             call.reject("Embedded browsing only supports http and https URLs");
@@ -122,6 +259,9 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
 
     @PluginMethod
     public void reload(PluginCall call) {
+        InAppBrowserSurfacePlugin target = target(call);
+        if (target == null) return;
+        if (target != this) { target.reload(call); return; }
         ready(call, () -> {
             reloadSession();
             call.resolve();
@@ -130,6 +270,9 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
 
     @PluginMethod
     public void goBack(PluginCall call) {
+        InAppBrowserSurfacePlugin target = target(call);
+        if (target == null) return;
+        if (target != this) { target.goBack(call); return; }
         getActivity().runOnUiThread(() -> {
             moveHistory(false);
             call.resolve();
@@ -138,6 +281,9 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
 
     @PluginMethod
     public void goForward(PluginCall call) {
+        InAppBrowserSurfacePlugin target = target(call);
+        if (target == null) return;
+        if (target != this) { target.goForward(call); return; }
         getActivity().runOnUiThread(() -> {
             moveHistory(true);
             call.resolve();
@@ -146,6 +292,9 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
 
     @PluginMethod
     public void setBounds(PluginCall call) {
+        InAppBrowserSurfacePlugin target = target(call);
+        if (target == null) return;
+        if (target != this) { target.setBounds(call); return; }
         getActivity().runOnUiThread(() -> {
             if (surface != null) applyBounds(call.getData());
             call.resolve();
@@ -168,6 +317,9 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
 
     @PluginMethod
     public void setVisible(PluginCall call) {
+        InAppBrowserSurfacePlugin target = target(call);
+        if (target == null) return;
+        if (target != this) { target.setVisible(call); return; }
         getActivity().runOnUiThread(() -> {
             setSurfaceVisible(call.getBoolean("visible", false));
             call.resolve();
@@ -176,6 +328,9 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
 
     @PluginMethod
     public void showMenu(PluginCall call) {
+        InAppBrowserSurfacePlugin target = target(call);
+        if (target == null) return;
+        if (target != this) { target.showMenu(call); return; }
         if (call.getBoolean("browserControls", false)) getActivity().runOnUiThread(() ->
             NativeBrowserMenu.show(getActivity(), call, session, canGoBack, canGoForward,
                 () -> moveHistory(false), () -> moveHistory(true), this::reloadSession, backgroundMedia));
@@ -193,6 +348,9 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
      */
     @PluginMethod
     public void evaluateJavaScript(PluginCall call) {
+        InAppBrowserSurfacePlugin target = target(call);
+        if (target == null) return;
+        if (target != this) { target.evaluateJavaScript(call); return; }
         String script = call.getString("script");
         if (script == null || script.isEmpty()) {
             call.reject("JavaScript source is required");
@@ -252,33 +410,17 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
      */
     @PluginMethod
     public void findInPage(PluginCall call) {
-        String query = call.getString("query");
-        if (query == null || query.isEmpty()) {
-            call.reject("Search text is required");
-            return;
-        }
-        boolean forward = call.getBoolean("forward", true);
-        getActivity().runOnUiThread(() -> {
-            if (session == null) {
-                call.reject("There is no open page");
-                return;
-            }
-            SessionFinder finder = session.getFinder();
-            finder.setDisplayFlags(GeckoSession.FINDER_DISPLAY_HIGHLIGHT_ALL);
-            int flags = forward ? 0 : GeckoSession.FINDER_FIND_BACKWARDS;
-            finder.find(query, flags).accept(result -> {
-                JSObject payload = new JSObject();
-                payload.put("found", result != null && result.found);
-                payload.put("wrapped", result != null && result.wrapped);
-                payload.put("current", result == null ? 0 : result.current);
-                payload.put("total", result == null ? 0 : result.total);
-                call.resolve(payload);
-            }, error -> call.reject("The page could not be searched: " + error));
-        });
+        InAppBrowserSurfacePlugin target = target(call);
+        if (target == null) return;
+        if (target != this) { target.findInPage(call); return; }
+        getActivity().runOnUiThread(() -> ReadingPageFinder.find(call, session));
     }
 
     @PluginMethod
     public void clearFind(PluginCall call) {
+        InAppBrowserSurfacePlugin target = target(call);
+        if (target == null) return;
+        if (target != this) { target.clearFind(call); return; }
         getActivity().runOnUiThread(() -> {
             if (session != null) session.getFinder().clear();
             call.resolve();
@@ -288,6 +430,9 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
     /** GeckoView has no find panel of its own; the shell's bar searches. */
     @PluginMethod
     public void presentFind(PluginCall call) {
+        InAppBrowserSurfacePlugin target = target(call);
+        if (target == null) return;
+        if (target != this) { target.presentFind(call); return; }
         JSObject payload = new JSObject();
         payload.put("presented", false);
         call.resolve(payload);
@@ -295,8 +440,15 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
 
     @PluginMethod
     public void close(PluginCall call) {
+        InAppBrowserSurfacePlugin target = target(call);
+        if (target == null) return;
+        if (target != this) { target.close(call); return; }
         getActivity().runOnUiThread(() -> {
             destroySurface();
+            if (owner != null) {
+                owner.tabs.remove(tabId, this);
+                owner.retiredTabs.add(tabId + ":" + tabGeneration);
+            }
             call.resolve();
         });
     }
@@ -370,6 +522,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
     }
 
     private void whenExtensionSettingsApplied(Runnable work) {
+        if (owner != null) { owner.whenExtensionSettingsApplied(work); return; }
         if (extensionSettings == null || appliedSettingsRevision >= settingsRevision) { work.run(); return; }
         SettingsWaiter waiter = new SettingsWaiter(work);
         settingsWaiters.add(waiter);
@@ -408,7 +561,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
         // background pages arrive through the extension-wide delegate.
         WebExtension.MessageDelegate router = new PortRouter();
         if (session != null) session.getWebExtensionController().setMessageDelegate(bridgeExtension, router, BRIDGE_NATIVE_APP);
-        bridgeExtension.setMessageDelegate(router, BRIDGE_NATIVE_APP);
+        bridgeExtension.setMessageDelegate(owner == null ? router : owner.new PortRouter(), BRIDGE_NATIVE_APP);
     }
 
     private final class PortRouter implements WebExtension.MessageDelegate {

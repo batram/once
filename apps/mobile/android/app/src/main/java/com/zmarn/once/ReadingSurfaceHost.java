@@ -79,6 +79,7 @@ abstract class ReadingSurfaceHost extends Plugin {
     protected final AtomicLong navigationSequence = new AtomicLong();
     protected long activeNavigation;
     protected String currentUrl = "";
+    protected String pageTitle = "";
     protected String documentSourceUrl = "";
     protected int documentStatus;
     protected boolean canGoBack;
@@ -237,7 +238,9 @@ abstract class ReadingSurfaceHost extends Plugin {
         parent.addView(refreshSurface, shellIndex + 1, new ViewGroup.LayoutParams(1, 1));
     }
 
-    protected void createReadingSession() {
+    protected void createReadingSession() { createReadingSession(true); }
+
+    protected void createReadingSession(boolean open) {
         GeckoSession created = new GeckoSession();
         session = created;
         sessionState = null;
@@ -258,7 +261,7 @@ abstract class ReadingSurfaceHost extends Plugin {
                 Log.w(TAG, "Slow script: " + filename);
                 if (navigationDeadline == 0) navigationDeadline = SystemClock.elapsedRealtime() + RESPONSE_TIMEOUT_MS;
                 resumeWatchdog();
-            }));
+            }, title -> { if (session == created) pageTitle = title; }));
         session.setScrollDelegate(new GeckoSession.ScrollDelegate() {
             @Override
             public void onScrollChanged(GeckoSession ignored, int x, int y) {
@@ -266,7 +269,7 @@ abstract class ReadingSurfaceHost extends Plugin {
                 scrollY = y;
             }
         });
-        session.open(engine.runtime);
+        if (open) session.open(engine.runtime);
         extensions.attachSession(session);
         attachBridge();
         attachDisplay();
@@ -335,7 +338,7 @@ abstract class ReadingSurfaceHost extends Plugin {
         // cached bucket, and the low-memory killer emptied it before popups closed.
         if (backgroundMedia != null) backgroundMedia.setActive((visible || (extensions != null && extensions.pages.hasPopup())) && resumed);
         recoverKilledPage();
-        if (extensions != null) extensions.setReadingVisible(visible);
+        if (extensions != null && ownsForeground()) extensions.setReadingVisible(visible);
         if (refreshSurface != null) {
             refreshSurface.setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
         }
@@ -481,6 +484,9 @@ abstract class ReadingSurfaceHost extends Plugin {
         return "moz-extension".equalsIgnoreCase(Uri.parse(value).getScheme());
     }
 
+    protected abstract GeckoSession createWindow(String url);
+    protected abstract boolean ownsForeground();
+
     protected void openExternal(String url) {
         try {
             Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
@@ -493,6 +499,7 @@ abstract class ReadingSurfaceHost extends Plugin {
     protected void event(String name, long navigationId, String url) {
         if (!pageRequested || initialBlank) return;
         JSObject payload = new JSObject();
+        payload.put("title", pageTitle);
         payload.put("navigationId", navigationId);
         payload.put("url", url == null ? "" : url);
         payload.put("sourceUrl", documentSourceUrl);
@@ -506,6 +513,7 @@ abstract class ReadingSurfaceHost extends Plugin {
         // makes the shell clear the destination and close the reading surface.
         if (!pageRequested || initialBlank || !sawRequestedPage || awaitingRequestedStart) return;
         JSObject payload = new JSObject();
+        payload.put("title", pageTitle);
         payload.put("navigationId", navigationId);
         payload.put("url", currentUrl);
         payload.put("canGoBack", canGoBack);
@@ -584,10 +592,7 @@ abstract class ReadingSurfaceHost extends Plugin {
         @Override
         public GeckoResult<GeckoSession> onNewSession(GeckoSession ignored, String uri) {
             if (ignored != session) return GeckoResult.fromValue(null);
-            // A link that wants its own window opens in the system browser,
-            // as it did with the WebView.
-            openExternal(uri);
-            return GeckoResult.fromValue(null);
+            return GeckoResult.fromValue(createWindow(uri));
         }
 
         @Override
@@ -625,6 +630,7 @@ abstract class ReadingSurfaceHost extends Plugin {
             if (!initialBlank) sawRequestedPage = true;
             activeNavigation = navigationSequence.incrementAndGet();
             currentUrl = url == null ? "" : url;
+            pageTitle = "";
             documentSourceUrl = currentUrl;
             documentStatus = 0;
             if (!initialBlank && isSurfaceUrl(currentUrl)) { requestedUrl = currentUrl; armNavigation(); }
@@ -640,6 +646,7 @@ abstract class ReadingSurfaceHost extends Plugin {
             // superseded load cover the next document with an error. Real load
             // errors arrive in onLoadError; missing completion stays bounded.
             if (!success) return;
+            if (!visible) { documentReady(); return; }
             if (!isEmbeddable(currentUrl)) navigationDeadline = 0;
             // A successful network stop does not mean a visible, responsive
             // document. The matching content-port health reply completes web

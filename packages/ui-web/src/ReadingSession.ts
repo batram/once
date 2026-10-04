@@ -1,6 +1,7 @@
 import { Story, URLRedirect, StoryPageContext } from "@once/core"
 
 export type ReadingMode = "reader" | "browser" | "comments"
+export type ReadingDisposition = "current" | "new-foreground" | "new-background"
 export type ReadingLoadState = "idle" | "loading" | "ready" | "error"
 
 export interface ReadingSessionState {
@@ -27,7 +28,8 @@ export class ReadingRequestEvent extends Event {
   constructor(
     readonly story: Story,
     readonly mode: ReadingMode,
-    readonly url?: string
+    readonly url?: string,
+    readonly disposition: ReadingDisposition = "current"
   ) {
     super(READING_REQUEST, { bubbles: true, cancelable: true })
   }
@@ -37,10 +39,11 @@ export class ReadingRequestEvent extends Event {
 export function requestReading(
   story: Story,
   mode: ReadingMode,
-  url?: string
+  url?: string,
+  disposition: ReadingDisposition = "current"
 ): boolean {
   if (document.body.dataset.platform !== "mobile") return false
-  return !document.body.dispatchEvent(new ReadingRequestEvent(story, mode, url))
+  return !document.body.dispatchEvent(new ReadingRequestEvent(story, mode, url, disposition))
 }
 
 /**
@@ -48,6 +51,12 @@ export function requestReading(
  * native navigation events are rejected when they belong to an older load.
  */
 export class ReadingSession {
+  constructor(private readonly retainMissingStory = false) {}
+
+  restore(state: Pick<ReadingSessionState, "story" | "mode" | "currentUrl">): void {
+    this.patch({ ...state, loadState: "idle", canGoBack: false, canGoForward: false, error: null })
+  }
+
   private visibleStories: Story[] = []
   private listeners = new Set<ReadingSessionListener>()
   private state: ReadingSessionState = {
@@ -249,6 +258,10 @@ export class ReadingSession {
     if (!active) return
     const index = this.indexOf(active)
     if (index < 0) {
+      if (this.retainMissingStory) {
+        this.patch({ visibleStoryIndex: -1 })
+        return
+      }
       this.close()
       return
     }

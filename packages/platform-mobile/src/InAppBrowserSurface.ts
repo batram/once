@@ -11,6 +11,11 @@ export interface BrowserSurfaceBounds {
   height: number
 }
 
+export interface BrowserTabIdentity {
+  tabId: string
+  generation: string
+}
+
 export interface BrowserSurfaceOpenOptions {
   url: string
   bounds: BrowserSurfaceBounds
@@ -49,6 +54,9 @@ export interface NativeOverlayPromptOptions {
 }
 
 export interface BrowserNavigationEvent extends StoryPageContext {
+  tabId?: string
+  generation?: string
+  title?: string
   navigationId: number
   url: string
 }
@@ -70,6 +78,8 @@ export interface BrowserHistoryEvent extends BrowserNavigationEvent {
  * its own back stack (back) or settings history (forward).
  */
 export interface BrowserEdgeSwipeEvent {
+  tabId?: string
+  generation?: string
   direction: "back" | "forward"
 }
 
@@ -88,6 +98,7 @@ export interface ExtensionPageCommand {
 }
 
 export interface InAppBrowserSurfaceEvents {
+  newTabRequested: BrowserNavigationEvent & BrowserTabIdentity
   navigationStarted: BrowserNavigationEvent
   navigationCommitted: BrowserNavigationEvent
   navigationFinished: BrowserNavigationEvent
@@ -116,6 +127,8 @@ export interface PageFindResult {
 
 export interface InAppBrowserSurface {
   readonly available: boolean
+  forTab?(identity: BrowserTabIdentity): InAppBrowserSurface
+  selectTab?(identity: BrowserTabIdentity | null): Promise<void>
   open(options: BrowserSurfaceOpenOptions): Promise<void>
   navigate(url: string): Promise<void>
   reload(): Promise<void>
@@ -152,6 +165,7 @@ export interface InAppBrowserSurface {
 }
 
 interface NativeInAppBrowserPlugin {
+  selectTab(options: { tabId: string | null; generation?: string }): Promise<void>
   open(options: BrowserSurfaceOpenOptions): Promise<void>
   navigate(options: { url: string }): Promise<void>
   reload(): Promise<void>
@@ -249,43 +263,58 @@ function normalizeBounds(bounds: BrowserSurfaceBounds): BrowserSurfaceBounds {
   }
 }
 
-/** Native adapter. One plugin-owned view is reused until close(). */
-export function createNativeInAppBrowserSurface(): InAppBrowserSurface {
+/** Each scoped adapter owns one native page, including all asynchronous commands. */
+export function createNativeInAppBrowserSurface(identity?: BrowserTabIdentity): InAppBrowserSurface {
+  let selectedIdentity: BrowserTabIdentity | undefined
+  const plugin = new Proxy(NativeInAppBrowser, {
+    get(target, property: keyof NativeInAppBrowserPlugin) {
+      if (property === "addListener") return target.addListener.bind(target)
+      return (options: object = {}) => {
+        const global = ["selectTab", "extensionPage", "applyExtensionSettings"].includes(property)
+        return (target[property] as (options: object) => Promise<unknown>)({ ...options, ...(global ? {} : identity ?? selectedIdentity) })
+      }
+    }
+  })
   return {
+    forTab: createNativeInAppBrowserSurface,
+    selectTab: (tab) => {
+      selectedIdentity = tab ?? undefined
+      return NativeInAppBrowser.selectTab(tab ?? { tabId: null })
+    },
     available: true,
     async open(options) {
       assertUrl(options.url)
-      await NativeInAppBrowser.open({
+      await plugin.open({
         ...options,
         bounds: normalizeBounds(options.bounds)
       })
     },
     async navigate(url) {
       assertUrl(url)
-      await NativeInAppBrowser.navigate({ url })
+      await plugin.navigate({ url })
     },
-    reload: () => NativeInAppBrowser.reload(),
-    goBack: () => NativeInAppBrowser.goBack(),
-    goForward: () => NativeInAppBrowser.goForward(),
-    setBounds: (bounds) => NativeInAppBrowser.setBounds(normalizeBounds(bounds)),
-    setVisible: (visible) => NativeInAppBrowser.setVisible({ visible }),
+    reload: () => plugin.reload(),
+    goBack: () => plugin.goBack(),
+    goForward: () => plugin.goForward(),
+    setBounds: (bounds) => plugin.setBounds(normalizeBounds(bounds)),
+    setVisible: (visible) => plugin.setVisible({ visible }),
     async showMenu(options) {
-      const result = await NativeInAppBrowser.showMenu({
+      const result = await plugin.showMenu({
         ...options,
         anchor: options.anchor ? normalizeBounds(options.anchor) : undefined
       })
       return result?.id ?? null
     },
     async showPrompt(options) {
-      const result = await NativeInAppBrowser.showPrompt(options)
+      const result = await plugin.showPrompt(options)
       return result?.value ?? null
     },
     async evaluateJavaScript(script) {
-      const result = await NativeInAppBrowser.evaluateJavaScript({ script })
+      const result = await plugin.evaluateJavaScript({ script })
       return result?.value ?? null
     },
     async findInPage(query, options) {
-      const result = await NativeInAppBrowser.findInPage({
+      const result = await plugin.findInPage({
         query,
         forward: options?.forward !== false
       })
@@ -296,27 +325,31 @@ export function createNativeInAppBrowserSurface(): InAppBrowserSurface {
         total: Number(result.total) || 0
       }
     },
-    clearFind: () => NativeInAppBrowser.clearFind(),
+    clearFind: () => plugin.clearFind(),
     async presentFind() {
       // Platforms without the method reject the call; that is a plain "no".
       try {
-        return (await NativeInAppBrowser.presentFind()).presented === true
+        return (await plugin.presentFind()).presented === true
       } catch {
         return false
       }
     },
     applyExtensionSettings: (filterLists, userscripts) =>
-      NativeInAppBrowser.applyExtensionSettings(
+      plugin.applyExtensionSettings(
         nativeExtensionSettings(filterLists, userscripts)
       ),
-    extensionPage: (command) => NativeInAppBrowser.extensionPage(
+    extensionPage: (command) => plugin.extensionPage(
       command.bounds ? { ...command, bounds: normalizeBounds(command.bounds) } : command
     ),
-    close: () => NativeInAppBrowser.close(),
+    close: () => plugin.close(),
     async addListener(event, listener) {
-      const handle = await NativeInAppBrowser.addListener(
+      const handle = await plugin.addListener(
         event,
-        listener as (payload: unknown) => void
+        (payload: unknown) => {
+          const event = payload as BrowserNavigationEvent
+          if (identity && (event.tabId !== identity.tabId || event.generation !== identity.generation)) return
+          listener(payload as never)
+        }
       )
       return () => {
         void handle.remove()
@@ -330,7 +363,9 @@ export function createNativeInAppBrowserSurface(): InAppBrowserSurface {
  * exits to a normal browser instead of pretending an iframe proves embedding.
  */
 export function createFallbackInAppBrowserSurface(
-  openExternal: (url: string) => Promise<void>
+  openExternal: (url: string) => Promise<void>,
+  identity?: BrowserTabIdentity,
+  forwardEvent?: (event: BrowserSurfaceEventName, payload: never) => void
 ): InAppBrowserSurface {
   let currentUrl = ""
   const listeners = new Map<BrowserSurfaceEventName, Set<(payload: never) => void>>()
@@ -338,6 +373,7 @@ export function createFallbackInAppBrowserSurface(
     event: K,
     payload: InAppBrowserSurfaceEvents[K]
   ): void => {
+    forwardEvent?.(event, payload as never)
     listeners.get(event)?.forEach((listener) => listener(payload as never))
   }
   let navigationId = 0
@@ -346,7 +382,7 @@ export function createFallbackInAppBrowserSurface(
     assertUrl(url)
     currentUrl = url
     navigationId += 1
-    const payload = { navigationId, url }
+    const payload = { navigationId, url, ...identity }
     emit("navigationStarted", payload)
     await openExternal(url)
     emit("navigationCommitted", payload)
@@ -356,6 +392,8 @@ export function createFallbackInAppBrowserSurface(
 
   return {
     available: false,
+    forTab: (tab) => createFallbackInAppBrowserSurface(openExternal, tab, emit),
+    selectTab: async () => undefined,
     open: ({ url }) => open(url),
     navigate: open,
     reload: () => currentUrl ? open(currentUrl) : Promise.resolve(),

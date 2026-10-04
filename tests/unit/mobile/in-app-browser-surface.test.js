@@ -112,7 +112,7 @@ test("native embedded browsers use a bounded foreground sibling", () => {
   const ios = fs.readFileSync(path.join(
     root,
     "apps/mobile/ios/App/App/InAppBrowserSurfacePlugin.swift"
-  ), "utf8")
+  ), "utf8") + fs.readFileSync(path.join(root, "apps/mobile/ios/App/App/ReadingPageCommands.swift"), "utf8")
 
   assert.match(android, /parent\.addView\(\s*refreshSurface,\s*shellIndex \+ 1,/)
   assert.doesNotMatch(android, /shell\.setBackgroundColor\(Color\.TRANSPARENT\)/)
@@ -133,7 +133,7 @@ test("native embedded browsers report forward history and iOS hands unhandled ed
   const ios = fs.readFileSync(path.join(
     root,
     "apps/mobile/ios/App/App/InAppBrowserSurfacePlugin.swift"
-  ), "utf8")
+  ), "utf8") + fs.readFileSync(path.join(root, "apps/mobile/ios/App/App/ReadingPageCommands.swift"), "utf8")
 
   assert.match(androidHost, /payload\.put\("canGoForward", canGoForward\)/)
   assert.match(androidPlugin, /public void goForward\(PluginCall call\)/)
@@ -142,7 +142,7 @@ test("native embedded browsers report forward history and iOS hands unhandled ed
   assert.match(ios, /@objc func goForward\(_ call: CAPPluginCall\)/)
   // The shell only hears about the edges WebKit cannot navigate itself.
   assert.match(ios, /edge\.edges == \.left \? !surface\.canGoBack : !surface\.canGoForward/)
-  assert.match(ios, /notifyListeners\("edgeSwipe"/)
+  assert.match(ios, /pageEvent\("edgeSwipe"/)
 })
 
 test("native embedded browsers support pull-to-refresh", () => {
@@ -154,7 +154,7 @@ test("native embedded browsers support pull-to-refresh", () => {
   const ios = fs.readFileSync(path.join(
     root,
     "apps/mobile/ios/App/App/InAppBrowserSurfacePlugin.swift"
-  ), "utf8")
+  ), "utf8") + fs.readFileSync(path.join(root, "apps/mobile/ios/App/App/ReadingPageCommands.swift"), "utf8")
 
   assert.match(android, /new SwipeRefreshLayout/)
   assert.match(android, /setOnRefreshListener\(this::reloadSession\)/)
@@ -172,13 +172,13 @@ test("iOS installs synced content rules and parsed userscripts", () => {
   const mobile = fs.readFileSync(path.join(root, "apps/mobile/src/mobileExtensionSettings.ts"), "utf8")
   const ios = fs.readFileSync(path.join(
     root, "apps/mobile/ios/App/App/InAppBrowserSurfacePlugin.swift"
-  ), "utf8")
+  ), "utf8") + fs.readFileSync(path.join(root, "apps/mobile/ios/App/App/ReadingPageCommands.swift"), "utf8")
   const iosSupport = fs.readFileSync(path.join(
     root, "apps/mobile/ios/App/App/ExtensionSupport.swift"
   ), "utf8")
 
   assert.match(adapter, /parseUserscript\(script\.source\)/)
-  assert.match(adapter, /NativeInAppBrowser\.applyExtensionSettings/)
+  assert.match(adapter, /plugin\.applyExtensionSettings/)
   assert.match(mobile, /subscribe\("extensionSettingsChanged"/)
   assert.match(ios, /ruleCompiler\.compile/)
   assert.match(iosSupport, /compileContentRuleList/)
@@ -221,7 +221,7 @@ test("native embedded browsers present menus and prompts above web content", () 
   const ios = fs.readFileSync(path.join(
     root,
     "apps/mobile/ios/App/App/InAppBrowserSurfacePlugin.swift"
-  ), "utf8")
+  ), "utf8") + fs.readFileSync(path.join(root, "apps/mobile/ios/App/App/ReadingPageCommands.swift"), "utf8")
   const storyMenu = fs.readFileSync(path.join(
     root,
     "apps/mobile/src/storyMenu.ts"

@@ -80,7 +80,9 @@ test("story buttons default to the menu and have independent persistent platform
     await expect(menu.getByText("What? Wait, who, why?", { exact: true })).toBeVisible()
     const menuBox = await menu.boundingBox()
     const anchorBox = await story.getByTestId("story-menu-button").boundingBox()
-    expect(menuBox.y).toBeGreaterThanOrEqual(anchorBox.y + anchorBox.height)
+    // The taller menu may move above its anchor; it must stay on screen.
+    expect(menuBox.y).toBeGreaterThanOrEqual(0)
+    expect(menuBox.y + menuBox.height).toBeLessThanOrEqual(page.viewportSize().height)
     expect(menuBox.height).toBeGreaterThan(200)
     expect(Math.abs(menuBox.x + menuBox.width - anchorBox.x - anchorBox.width)).toBeLessThan(1)
     await page.screenshot({ path: `/tmp/once-expanded-tray-menu-${theme}.png` })

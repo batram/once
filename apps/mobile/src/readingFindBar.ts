@@ -38,7 +38,8 @@ export class ReadingFindBar {
   constructor(
     private readonly surface: InAppBrowserSurface,
     private readonly reader: ReaderDocumentHost,
-    private readonly session: ReadingSession
+    private readonly session: ReadingSession,
+    private readonly currentSurface: () => InAppBrowserSurface = () => surface
   ) {
     this.bar = required("#reading_find_bar")
     this.input = required<HTMLInputElement>("#reading_find_field")
@@ -65,14 +66,15 @@ export class ReadingFindBar {
    */
   open(): void {
     const state = this.session.snapshot()
+    const surface = this.currentSurface()
     if (!state.currentUrl) return
     if (state.mode === "reader") {
       this.openBar()
       return
     }
     window.setTimeout(() => {
-      if (this.session.snapshot().currentUrl !== state.currentUrl) return
-      void this.surface.presentFind()
+      if (this.currentSurface() !== surface || this.session.snapshot().currentUrl !== state.currentUrl) return
+      void surface.presentFind()
         .then((presented) => { if (!presented) this.openBar() }, () => this.openBar())
     }, SHEET_DISMISS_MS)
   }
@@ -150,7 +152,8 @@ export class ReadingFindBar {
       this.reader.post(readerFindRequest({ type: "find", query, forward }))
       return Promise.resolve()
     }
-    return this.enqueue(() => this.findInBrowser(query, forward))
+    const surface = this.currentSurface()
+    return this.enqueue(() => this.findInBrowser(query, forward, surface))
   }
 
   private enqueue(task: () => Promise<void>): Promise<void> {
@@ -159,10 +162,10 @@ export class ReadingFindBar {
     return next
   }
 
-  private async findInBrowser(query: string, forward: boolean): Promise<void> {
+  private async findInBrowser(query: string, forward: boolean, surface: InAppBrowserSurface): Promise<void> {
     try {
-      const result = await this.surface.findInPage(query, { forward })
-      if (this.input.value !== query) return
+      const result = await surface.findInPage(query, { forward })
+      if (this.currentSurface() !== surface || this.input.value !== query || !this.isOpen) return
       if (!result) this.setCount("Not available here")
       // Gecko answers a fresh query before it has counted the matches, so a
       // found match with no total is an unknown count, not an empty one.
@@ -175,7 +178,8 @@ export class ReadingFindBar {
 
   private clearHighlights(): void {
     this.reader.post(readerFindRequest({ type: "clear" }))
-    void this.enqueue(() => this.surface.clearFind().catch(() => undefined))
+    const surface = this.currentSurface()
+    void this.enqueue(() => surface.clearFind().catch(() => undefined))
   }
 
   private showCount(current: number, total: number): void {

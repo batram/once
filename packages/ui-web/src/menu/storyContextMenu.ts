@@ -106,13 +106,11 @@ export function describeStoryMenu(
         true,
         touch
       ),
-      item("open-new-tab", "Open in new tab", "navigation", true, !touch),
+      item("open-new-tab", "Open in new tab", "navigation"),
       item(
         "open-background-tab",
         "Open in background tab",
-        "navigation",
-        true,
-        !touch
+        "navigation"
       ),
       item(
         "open-new-window",
@@ -194,6 +192,12 @@ export async function executeStoryMenuAction(
   if (id === "undo") return StoryHistory.instance?.undo()
   if (id === "redo") return StoryHistory.instance?.redo()
   if (!story) return
+
+  if (document.body.dataset.platform === "mobile" && (id === "open-new-tab" || id === "open-background-tab")) {
+    const { requestReading } = await import("../ReadingSession.js")
+    requestReading(story.story, "browser", undefined, id === "open-new-tab" ? "new-foreground" : "new-background")
+    return
+  }
 
   switch (id) {
     case "open":

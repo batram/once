@@ -43,6 +43,8 @@ function createSurface() {
 
 function createReader() {
   return {
+    setVisible() {},
+    destroy() {},
     opened: [],
     closes: 0,
     async open(html) { this.opened.push(html) },

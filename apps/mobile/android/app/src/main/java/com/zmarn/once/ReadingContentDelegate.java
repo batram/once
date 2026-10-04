@@ -16,10 +16,11 @@ final class ReadingContentDelegate implements GeckoSession.ContentDelegate {
     private final Runnable painted;
     private final Runnable paintReset;
     private final Consumer<String> slowScript;
+    private final Consumer<String> title;
 
     ReadingContentDelegate(Consumer<String> external, Consumer<String> stopped,
                            BooleanSupplier foreground, Runnable killedWhileHidden,
-                           Runnable painted, Runnable paintReset, Consumer<String> slowScript) {
+                           Runnable painted, Runnable paintReset, Consumer<String> slowScript, Consumer<String> title) {
         this.external = external;
         this.stopped = stopped;
         this.foreground = foreground;
@@ -27,8 +28,10 @@ final class ReadingContentDelegate implements GeckoSession.ContentDelegate {
         this.painted = painted;
         this.paintReset = paintReset;
         this.slowScript = slowScript;
+        this.title = title;
     }
 
+    @Override public void onTitleChange(GeckoSession session, String value) { title.accept(value); }
     @Override public void onExternalResponse(GeckoSession session, WebResponse response) { external.accept(response.uri); }
     @Override public void onCrash(GeckoSession session) { stopped.accept("The page process crashed. Reload to recover."); }
     @Override public void onKill(GeckoSession session) {

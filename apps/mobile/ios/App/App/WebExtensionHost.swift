@@ -10,6 +10,7 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
     private var failures: [String: String] = [:]
     private var loading: Task<Void, Never>?
     private var reading: ExtensionTab?
+    private var readingTabs: [ObjectIdentifier: ExtensionTab] = [:]
     private var page: ExtensionTab?
     private var popup: WKWebExtension.Action?
     private weak var parent: UIView?
@@ -73,23 +74,29 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
     func attach(_ view: WKWebView, parent: UIView) {
         self.parent = parent
         let tab = ExtensionTab(view: view, owner: self)
-        reading = tab
+        readingTabs[ObjectIdentifier(view)] = tab
+        if reading == nil { reading = tab }
         controller.didOpenWindow(self)
         controller.didOpenTab(tab)
         controller.didFocusWindow(self)
     }
 
-    func navigationChanged() {
-        if let reading { controller.didChangeTabProperties([.URL, .title, .loading], for: reading) }
+    func select(_ view: WKWebView) {
+        reading = readingTabs[ObjectIdentifier(view)]
     }
 
-    func detach() {
-        closePage()
-        guard let reading else { return }
-        controller.didCloseTab(reading, windowIsClosing: true)
-        controller.didCloseWindow(self)
-        self.reading = nil
-        parent = nil
+    func navigationChanged(_ view: WKWebView) {
+        if let tab = readingTabs[ObjectIdentifier(view)] { controller.didChangeTabProperties([.URL, .title, .loading], for: tab) }
+    }
+
+    func detach(_ view: WKWebView) {
+        guard let tab = readingTabs.removeValue(forKey: ObjectIdentifier(view)) else { return }
+        controller.didCloseTab(tab, windowIsClosing: readingTabs.isEmpty)
+        if reading === tab { reading = readingTabs.values.first }
+        if readingTabs.isEmpty {
+            controller.didCloseWindow(self)
+            parent = nil
+        }
     }
 
     func catalog() -> [[String: Any]] {
@@ -187,7 +194,7 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
     }
 
     func tabs(for context: WKWebExtensionContext) -> [any WKWebExtensionTab] {
-        [reading, popup == nil ? page : nil].compactMap { $0 }
+        Array(readingTabs.values) + [popup == nil ? page : nil].compactMap { $0 }
     }
     func activeTab(for context: WKWebExtensionContext) -> (any WKWebExtensionTab)? { popup == nil ? page ?? reading : reading }
     func webExtensionController(_ controller: WKWebExtensionController, openWindowsFor context: WKWebExtensionContext) -> [any WKWebExtensionWindow] { reading == nil ? [] : [self] }

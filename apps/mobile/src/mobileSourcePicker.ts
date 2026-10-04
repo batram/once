@@ -10,6 +10,8 @@ const READ_PICKER_RESULT_SCRIPT =
 
 export interface MobileSourcePickerOptions {
   surface: InAppBrowserSurface
+  currentSurface?: () => InAppBrowserSurface
+  currentUrl?: () => string
   openBrowserUrl: (url: string) => void
   activateSurface: () => void
   loadInjection: () => Promise<string>
@@ -45,31 +47,34 @@ export class MobileSourcePicker {
     if (!this.options.surface.available) {
       throw new Error("There is no active tab to pick from")
     }
+    const surface = this.options.currentSurface?.() ?? this.options.surface
+    let pageUrl = this.options.currentUrl?.() ?? this.currentUrl
     if (requestedUrl) {
-      await this.navigate(requestedUrl)
-    } else if (!/^https?:\/\//i.test(this.currentUrl)) {
+      pageUrl = await this.navigate(requestedUrl, surface)
+    } else if (!/^https?:\/\//i.test(pageUrl)) {
       throw new Error("There is no active tab to pick from")
     }
 
     this.options.activateSurface()
-    await this.options.surface.setVisible(true)
-    await this.options.surface.evaluateJavaScript(await this.options.loadInjection())
-    await this.options.surface.evaluateJavaScript(START_PICKER_SCRIPT)
-    const result = await this.pollResult()
+    await surface.setVisible(true)
+    await surface.evaluateJavaScript(await this.options.loadInjection())
+    await surface.evaluateJavaScript(START_PICKER_SCRIPT)
+    const result = await this.pollResult(surface)
     if (result === null) return null
     return build_source(
       sanitize_selector_conf(JSON.parse(result)),
-      this.currentUrl
+      pageUrl
     )
   }
 
-  private async navigate(url: string): Promise<void> {
+  private async navigate(url: string, surface: InAppBrowserSurface): Promise<string> {
     let removeFinished = (): void => undefined
     let removeFailed = (): void => undefined
     const cleanup = (): void => {
       removeFinished()
       removeFailed()
     }
+    let finalUrl = url
     let resolveFinished = (): void => undefined
     let rejectFinished = (_error: Error): void => undefined
     const finished = new Promise<void>((resolve, reject) => {
@@ -77,14 +82,15 @@ export class MobileSourcePicker {
       rejectFinished = reject
     })
     try {
-      removeFinished = await this.options.surface.addListener(
+      removeFinished = await surface.addListener(
         "navigationFinished",
-        () => {
+        event => {
+          finalUrl = event.url
           cleanup()
           resolveFinished()
         }
       )
-      removeFailed = await this.options.surface.addListener(
+      removeFailed = await surface.addListener(
         "navigationFailed",
         ({ message }) => {
           cleanup()
@@ -97,12 +103,13 @@ export class MobileSourcePicker {
       throw error
     }
     await finished
+    return finalUrl
   }
 
-  private async pollResult(): Promise<string | null> {
+  private async pollResult(surface: InAppBrowserSurface): Promise<string | null> {
     for (let attempt = 0; attempt < this.pollAttempts; attempt += 1) {
       await this.delay(this.pollDelayMs)
-      const value = await this.options.surface.evaluateJavaScript(
+      const value = await surface.evaluateJavaScript(
         READ_PICKER_RESULT_SCRIPT
       )
       if (value && value !== "null") return decodePickerResult(value)

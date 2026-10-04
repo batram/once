@@ -25,6 +25,8 @@ export class ReadingSurfaceCoordinator {
   private readonly reader: ReaderDocumentHost
   private readonly content: HTMLElement
   private readonly documentLoader: ReadingDocumentLoader
+  private disposed = false
+  private readerLoaded = false
   private browserOpened = false
   private browserUrl = ""
   private browserReady = false
@@ -51,7 +53,7 @@ export class ReadingSurfaceCoordinator {
     this.reader = reader
     this.content = content
     this.documentLoader = documentLoader
-    this.session.subscribe((state) => {
+    this.unsubscribe = this.session.subscribe((state) => {
       if (!state.currentUrl || state.mode === "reader") this.pendingNavigationUrl = null
       else if (state.loadState === "loading" && state.currentUrl !== this.browserUrl) {
         // Native events already in flight still carry the previous navigation
@@ -77,7 +79,26 @@ export class ReadingSurfaceCoordinator {
     })
   }
 
-  async install(): Promise<void> {
+  private readonly unsubscribe: () => void
+
+  dispose(): void {
+    this.disposed = true
+    this.unsubscribe()
+    this.readerRequestId += 1
+    this.surfaceGeneration += 1
+    this.listenerRemovers.forEach(remove => remove())
+    this.reader.destroy()
+    void this.enqueue(() => this.surface.close())
+  }
+
+  private installation: Promise<void> | null = null
+
+  install(): Promise<void> {
+    this.installation ??= this.installListeners()
+    return this.installation
+  }
+
+  private async installListeners(): Promise<void> {
     const started = await this.surface.addListener("navigationStarted", (event) => {
       if (!this.acceptsNavigation(event.navigationId, event.url, true)) return
       this.pendingNavigationUrl = null
@@ -122,7 +143,8 @@ export class ReadingSurfaceCoordinator {
     // Listener lifetimes match the application lifetime. Retaining the
     // removers makes ownership explicit and prevents premature collection in
     // native bridge implementations.
-    this.listenerRemovers.push(started, committed, finished, failed, history, edge)
+    if (this.disposed) [started, committed, finished, failed, history, edge].forEach(remove => remove())
+    else this.listenerRemovers.push(started, committed, finished, failed, history, edge)
   }
 
   onEdgeSwipe(handler: (direction: "back" | "forward") => void): void {
@@ -133,6 +155,7 @@ export class ReadingSurfaceCoordinator {
 
   setReadingPanelVisible(visible: boolean): void {
     this.readingPanelVisible = visible
+    this.reader.setVisible(visible && this.session.snapshot().mode === "reader")
     void this.updateVisibility()
   }
 
@@ -201,7 +224,9 @@ export class ReadingSurfaceCoordinator {
     state: Readonly<ReadingSessionState>,
     generation: number
   ): Promise<void> {
-    if (generation !== this.surfaceGeneration) return
+    if (this.installation) await this.installation
+    if (state.currentUrl && state.loadState === "idle") return
+    if (this.disposed || generation !== this.surfaceGeneration) return
     if (!state.currentUrl) {
       this.readerRequestId += 1
       this.reader.close()
@@ -215,18 +240,20 @@ export class ReadingSurfaceCoordinator {
     }
     if (state.mode === "reader") {
       await this.surface.setVisible(false)
-      if (generation !== this.surfaceGeneration) return
+      if (this.disposed || generation !== this.surfaceGeneration) return
       if (state.loadState !== "loading") {
         if (state.loadState === "error") this.reader.close()
         return
       }
+      this.readerLoaded = false
       this.reader.close()
       const requestId = ++this.readerRequestId
       void this.loadReader(state.currentUrl, requestId)
       return
     }
     this.readerRequestId += 1
-    this.reader.close()
+    if (this.readerLoaded) this.reader.setVisible(false)
+    else this.reader.close()
     // Publishing a failed open must not queue another open automatically.
     // The next explicit navigation will put the session back into loading.
     if (state.loadState === "error") {
@@ -245,14 +272,14 @@ export class ReadingSurfaceCoordinator {
       this.browserReady = false
     } else {
       await this.surface.setBounds(bounds)
-      if (generation !== this.surfaceGeneration) return
+      if (this.disposed || generation !== this.surfaceGeneration) return
       if (this.browserUrl !== state.currentUrl) {
         this.browserUrl = state.currentUrl
         this.browserReady = false
         await this.surface.navigate(state.currentUrl)
       }
     }
-    if (generation !== this.surfaceGeneration) return
+    if (this.disposed || generation !== this.surfaceGeneration) return
     await this.surface.setVisible(this.readingPanelVisible && !this.menuOpen && !this.overlayOpen && !this.dialogOpen && !this.extensionPageOpen)
     document.body.classList.toggle(
       "once-native-reading-surface",
@@ -283,6 +310,8 @@ export class ReadingSurfaceCoordinator {
       await this.documentLoader.load(url, async (html, sourceUrl) => {
         if (!this.acceptsReaderRequest(requestId, sourceUrl)) return
         await this.reader.open(html)
+        this.readerLoaded = true
+        this.reader.setVisible(this.readingPanelVisible)
       })
       if (!this.acceptsReaderRequest(requestId, url)) return
       this.session.readerFinished(url)
@@ -298,7 +327,7 @@ export class ReadingSurfaceCoordinator {
 
   private acceptsReaderRequest(requestId: number, url: string): boolean {
     const state = this.session.snapshot()
-    return requestId === this.readerRequestId &&
+    return !this.disposed && requestId === this.readerRequestId &&
       state.mode === "reader" &&
       state.currentUrl === url
   }
@@ -313,7 +342,7 @@ export class ReadingSurfaceCoordinator {
 
   private acceptsNavigation(navigationId: number, url: string, startsOrFails = false): boolean {
     const state = this.session.snapshot()
-    if (!url) return false
+    if (this.disposed || !url) return false
     if (this.pendingNavigationUrl !== null) {
       if (!startsOrFails) return false
       try {

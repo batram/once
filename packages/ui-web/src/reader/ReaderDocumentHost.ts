@@ -2,9 +2,11 @@ export class ReaderDocumentHost {
   private readonly root: HTMLElement
   private readonly frame: HTMLIFrameElement
   private readonly runtimeUrl: string | null
+  private documentVersion = 0
+  private scrollPosition = 0
   private runtimeSource: Promise<string | null> | null = null
 
-  constructor(parent: HTMLElement = document.body, runtimeUrl: string | null = null) {
+  constructor(private readonly parent: HTMLElement = document.body, runtimeUrl: string | null = null) {
     this.runtimeUrl = runtimeUrl
     this.root = document.createElement("section")
     this.root.className = "once-reader-host"
@@ -24,8 +26,27 @@ export class ReaderDocumentHost {
     this.frame.title = "Reader mode"
     this.frame.setAttribute("sandbox", "allow-scripts")
 
+    this.frame.addEventListener("load", () => {
+      this.frame.contentWindow?.postMessage({ channel: "once-reader-scroll", type: "restore", y: this.scrollPosition }, "*")
+    })
     this.root.append(close, this.frame)
     parent.append(this.root)
+  }
+
+  setScrollPosition(position: number): void { this.scrollPosition = position }
+
+  createSibling(): ReaderDocumentHost {
+    return new ReaderDocumentHost(this.parent, this.runtimeUrl)
+  }
+
+  setVisible(visible: boolean): void {
+    this.root.hidden = !visible || !this.frame.hasAttribute("srcdoc")
+    document.body.classList.toggle("once-reader-open", Boolean(document.querySelector(".once-reader-host:not([hidden])")))
+  }
+
+  destroy(): void {
+    this.close()
+    this.root.remove()
   }
 
   isOpen(): boolean {
@@ -43,9 +64,12 @@ export class ReaderDocumentHost {
   }
 
   async open(html: string): Promise<void> {
-    this.frame.srcdoc = await this.injectRuntime(html)
+    const version = ++this.documentVersion
+    const document = await this.injectRuntime(html)
+    if (version !== this.documentVersion) return
+    this.frame.srcdoc = document
     this.root.hidden = false
-    document.body.classList.add("once-reader-open")
+    globalThis.document.body.classList.add("once-reader-open")
   }
 
   // Swaps the document's inert runtime marker for the platform bundle. The
@@ -76,9 +100,10 @@ export class ReaderDocumentHost {
   }
 
   close(): void {
+    this.documentVersion += 1
     this.root.hidden = true
     this.frame.removeAttribute("srcdoc")
-    document.body.classList.remove("once-reader-open")
+    document.body.classList.toggle("once-reader-open", Boolean(document.querySelector(".once-reader-host:not([hidden])")))
   }
 }
 

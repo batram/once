@@ -1,3 +1,4 @@
+import { storedStoryCardCollapsed, rememberStoryCardCollapsed, renderStoryTags } from "./readingStoryCard"
 import { InAppBrowserSurface, normalizeReadingUrl } from "@once/platform-mobile"
 import { humanTime, URLRedirect, storyPageUrls } from "@once/core"
 import { ReaderTtsUiControls } from "./readerTtsControls"
@@ -15,31 +16,21 @@ import {
 } from "@once/ui-web"
 import { ReaderDocumentHost } from "@once/ui-web"
 import { ReadingAddonTrays } from "./readingAddonTrays"
+import { ReadingTabs, type ReadingTab } from "./readingTabs"
+import { ReadingTabRuntime } from "./readingTabRuntime"
+import { ReadingTabDialog } from "./readingTabDialog"
 import { ReadingFindBar } from "./readingFindBar"
 import { ReadingSurfaceCoordinator } from "./readingSurfaceCoordinator"
 
-// The one remembered choice for the current-story card: the Settings select
-// shows it, and collapsing or expanding the card while reading overwrites it,
-// so every later story opens the way the last one was left.
-const STORY_CARD_STATE_KEY = "once:mobile-story-card-state"
-
-function storedStoryCardCollapsed(): boolean {
-  try {
-    return localStorage.getItem(STORY_CARD_STATE_KEY) === "collapsed"
-  } catch { return false }
-}
-
-function rememberStoryCardCollapsed(collapsed: boolean): void {
-  try {
-    localStorage.setItem(STORY_CARD_STATE_KEY, collapsed ? "collapsed" : "expanded")
-  } catch { /* private mode or quota: the choice lasts the session */ }
-}
-
 export class MobileReadingController {
-  readonly session
+  readonly session: ReadingSession
+  readonly tabs = new ReadingTabs()
+  private readonly runtime: ReadingTabRuntime
+  private readonly tabDialog: ReadingTabDialog
   private readonly addonTrays: ReadingAddonTrays
   private readonly content: HTMLElement
-  private readonly nativeReading: ReadingSurfaceCoordinator
+  private get nativeReading(): ReadingSurfaceCoordinator { return this.runtime.coordinator }
+  get reader(): ReaderDocumentHost { return this.runtime.reader }
   private readonly findBar: ReadingFindBar
   private activePanel = "stories"
   private settingsReturnPanel: "stories" | "reading" = "stories"
@@ -49,26 +40,44 @@ export class MobileReadingController {
   private currentCardStoryHref = ""
   private currentStoryCollapsed = false
 
+  prepareBrowserSurface(): InAppBrowserSurface {
+    this.ensureCurrentTab()
+    return this.runtime.pageSurface
+  }
+
   openBrowserUrl(url: string): void {
     PanelNavigation.open_panel("reading")
+    this.ensureCurrentTab()
     this.session.navigate(url)
   }
 
   constructor(
-    surface: InAppBrowserSurface,
-    reader: ReaderDocumentHost,
+    private readonly surface: InAppBrowserSurface,
+    initialReader: ReaderDocumentHost,
     private readonly ttsControls: ReaderTtsUiControls
   ) {
     this.content = required("#reading_content")
-    this.nativeReading = new ReadingSurfaceCoordinator(
-      new ReadingSession(),
-      surface,
-      reader,
-      this.content
-    )
+    this.runtime = new ReadingTabRuntime(this.tabs, surface, initialReader, this.content,
+      () => {
+        this.findBar.close()
+        this.addonTrays.close()
+        closeStoryAnchoredMenu()
+        this.ttsControls.dismiss()
+        this.editingAddress = false
+      },
+      direction => { void (direction === "back" ? this.handleBack() : this.handleForward()) },
+      message => this.tabDialog.announce(message))
     this.addonTrays = new ReadingAddonTrays(this.content, open => this.nativeReading.setOverlayOpen(open))
-    this.session = this.nativeReading.session
-    this.findBar = new ReadingFindBar(surface, reader, this.session)
+    this.session = this.runtime.session
+    const readerProxy = new Proxy(initialReader, { get: (_target, property) => {
+      const value = Reflect.get(this.reader, property)
+      return typeof value === "function" ? value.bind(this.reader) : value
+    } })
+    this.findBar = new ReadingFindBar(surface, readerProxy, this.session, () => this.runtime.pageSurface)
+    this.tabDialog = new ReadingTabDialog(this.tabs, {
+      select: id => { this.tabs.select(id); PanelNavigation.open_panel("reading") },
+      create: () => { this.tabs.create(); PanelNavigation.open_panel("reading"); required<HTMLInputElement>("#reading_url").focus() }
+    })
     this.bindControls()
     this.bindEvents()
     this.nativeReading.onEdgeSwipe((direction) => {
@@ -77,10 +86,15 @@ export class MobileReadingController {
     this.session.subscribe((state) => {
       this.render(state)
     })
+    this.runtime.start()
   }
 
   async install(): Promise<void> {
-    await this.nativeReading.install()
+    await this.surface.addListener("newTabRequested", event => {
+      const tab = this.tabs.create(true, event.tabId, event.generation)
+      PanelNavigation.open_panel("reading")
+      tab.session.navigate(event.url)
+    })
   }
 
   setExtensionPageOpen(open: boolean): void {
@@ -88,7 +102,7 @@ export class MobileReadingController {
   }
 
   async handleBack(): Promise<boolean> {
-    const dialog = document.querySelector<HTMLDialogElement>("dialog[open]")
+    const dialog = Array.from(document.querySelectorAll<HTMLDialogElement>("dialog[open]")).at(-1)
     if (dialog) {
       dialog.close()
       return true
@@ -178,14 +192,13 @@ export class MobileReadingController {
   }
 
   close(): void {
-    this.clearReading()
+    this.findBar.close()
+    this.ttsControls.dismiss()
     PanelNavigation.open_panel("stories")
   }
 
-  private clearReading(): void {
-    this.findBar.close()
-    this.ttsControls.dismiss()
-    this.nativeReading.closeReading()
+  private ensureCurrentTab(): ReadingTab {
+    return this.tabs.selected ?? this.tabs.create()
   }
 
   private bindEvents(): void {
@@ -195,12 +208,20 @@ export class MobileReadingController {
       const open = Boolean(document.querySelector("dialog[open]"))
       if (open === dialogOpen) return
       dialogOpen = open
-      this.nativeReading.setDialogOpen(open)
+      this.runtime.setDialogOpen(open)
     }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["open"] })
     document.body.addEventListener(READING_REQUEST, (rawEvent) => {
       const event = rawEvent as ReadingRequestEvent
       event.preventDefault()
-      this.session.setVisibleStories(StoryList.visibleStories())
+      this.tabs.refreshStories(StoryList.visibleStories())
+      if (event.disposition === "new-background") {
+        const tab = this.tabs.create(false)
+        tab.session.open(event.story, event.mode, event.url)
+        this.tabDialog.announce("Opened in background tab")
+        return
+      }
+      if (event.disposition === "new-foreground") this.tabs.create()
+      else this.ensureCurrentTab()
       // Panel selection is synchronous: expose and lay out #reading_content
       // before session.open publishes the state that measures its bounds.
       this.activePanel = "reading"
@@ -216,6 +237,7 @@ export class MobileReadingController {
           : "stories"
       }
       this.activePanel = nextPanel
+      this.runtime.setPanelVisible(nextPanel === "reading")
       const state = this.session.snapshot()
       this.ttsControls.setReaderMode(
         this.activePanel === "reading" &&
@@ -482,7 +504,7 @@ export class MobileReadingController {
       this.currentCardStoryHref = storyHref
       this.currentStoryCollapsed = storedStoryCardCollapsed()
     }
-    currentCard.hidden = matchingStory == null
+    currentCard.hidden = !isStoryPage
     currentCard.classList.toggle("stared", Boolean(displayedStory?.stared))
     this.renderCurrentStoryCollapse()
     const title = required<HTMLAnchorElement>("#reading_title")
@@ -503,14 +525,14 @@ export class MobileReadingController {
     title.href = toggleUrl ?? ""
     title.setAttribute("aria-label", toggleLabel)
     sourceTag.setAttribute("aria-label", toggleLabel)
-    comments.hidden = matchingStory == null || !displayedStory?.comment_url
+    comments.hidden = !isStoryPage || !displayedStory?.comment_url
     required("#reading_story_time").textContent =
       displayedStory ? humanTime(displayedStory.timestamp) : ""
     required("#reading_story_meta").dataset.type =
       displayedStory ? `[${displayedStory.type}]` : ""
     required("#reading_story_menu").dataset.type =
       displayedStory ? `[${displayedStory.type}]` : ""
-    this.renderStoryTags(displayedStory?.tags ?? [])
+    renderStoryTags(displayedStory?.tags ?? [])
     const address = required<HTMLInputElement>("#reading_url")
     if (!this.editingAddress) address.value = state.currentUrl
     required("#reading_reader_toggle").classList.toggle(
@@ -544,26 +566,6 @@ export class MobileReadingController {
     readerError.textContent = state.mode === "reader" ? state.error ?? "" : ""
   }
 
-  private renderStoryTags(tags: Array<{
-    class: string
-    text: string
-    href?: string
-    icon?: string
-  }>): void {
-    const container = required("#reading_story_tags")
-    container.replaceChildren()
-    for (const tag of tags) {
-      const element = document.createElement("span")
-      element.classList.add("tag", `tag_${tag.class}`)
-      element.textContent = tag.text
-      if (tag.icon) {
-        element.classList.add("tag--icon")
-        element.style.setProperty("--tag-icon", `url(${tag.icon})`)
-      }
-      container.append(element)
-    }
-  }
-
   private async submitAddress(): Promise<void> {
     const state = this.session.snapshot()
     const input = required<HTMLInputElement>("#reading_url")
@@ -576,6 +578,7 @@ export class MobileReadingController {
       return
     }
     this.clearValidation()
+    this.ensureCurrentTab()
     if (normalized.url === state.currentUrl && state.mode !== "reader") {
       if (state.loadState !== "loading") {
         await this.nativeReading.reload()

@@ -7,6 +7,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     public let identifier = "InAppBrowserSurfacePlugin"
     public let jsName = "InAppBrowserSurface"
     public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "selectTab", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "open", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "navigate", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "reload", returnType: CAPPluginReturnPromise),
@@ -26,7 +27,93 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         CAPPluginMethod(name: "close", returnType: CAPPluginReturnPromise)
     ]
 
-    private var surface: WKWebView?
+    private weak var owner: InAppBrowserSurfacePlugin?
+    private var memoryObserver: NSObjectProtocol?
+    private var reclaimedURL: URL?
+    private var adoptedWindow = false
+    private var tabId = ""
+    private var tabGeneration = ""
+    private var selectedTab: String?
+    private var tabs: [String: InAppBrowserSurfacePlugin] = [:]
+    private var retiredTabs = Set<String>()
+
+    public override func load() {
+        memoryObserver = NotificationCenter.default.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification,
+                                                                object: nil, queue: .main) { [weak self] _ in
+            guard let self else { return }
+            for (id, tab) in self.tabs where id != self.selectedTab {
+                guard let view = tab.surface, !view.isLoading else { continue }
+                // Conservatively retain pages with playing media or opaque frames.
+                view.evaluateJavaScript("document.querySelector('iframe') !== null || Array.from(document.querySelectorAll('audio,video')).some(m => !m.paused && !m.ended)") { [weak self, weak tab] value, error in
+                    guard let self, let tab, error == nil, value as? Bool == false,
+                          self.tabs[id] === tab, id != self.selectedTab, tab.surface === view else { return }
+                    tab.reclaimedURL = view.url
+                    tab.extensions.detach(view)
+                    view.navigationDelegate = nil
+                    view.uiDelegate = nil
+                    view.removeFromSuperview()
+                    tab.urlObservation = nil
+                    tab.surface = nil
+                    tab.refreshControl = nil
+                    tab.navigationState.reset()
+                }
+            }
+        }
+    }
+
+    deinit {
+        if let memoryObserver { NotificationCenter.default.removeObserver(memoryObserver) }
+    }
+
+    func target(_ call: CAPPluginCall) -> InAppBrowserSurfacePlugin? {
+        if owner != nil { return self }
+        guard let id = call.getString("tabId") ?? selectedTab else { return self }
+        let generation = call.getString("generation") ?? ""
+        if let tab = tabs[id], generation.isEmpty || tab.tabGeneration == generation { return tab }
+        if retiredTabs.contains(id + ":" + generation) {
+            call.reject("The tab runtime was closed")
+            return nil
+        }
+        if let previous = tabs[id] {
+            retiredTabs.insert(id + ":" + previous.tabGeneration)
+            previous.closeGeneration += 1
+            previous.surface?.stopLoading()
+            if let view = previous.surface { extensions.detach(view); view.removeFromSuperview() }
+        }
+        let tab = InAppBrowserSurfacePlugin()
+        tab.owner = self
+        tab.tabId = id
+        tab.tabGeneration = generation
+        tab.bridge = bridge
+        tab.webView = webView
+        tab.extensions = extensions
+        tab.contentRuleList = contentRuleList
+        tab.extensionUserScripts = extensionUserScripts
+        tabs[id] = tab
+        return tab
+    }
+
+    @objc func selectTab(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            self.selectedTab = call.getString("tabId")
+            for (id, tab) in self.tabs where id != self.selectedTab { tab.surface?.isHidden = true }
+            if let id = self.selectedTab, let view = self.tabs[id]?.surface { self.extensions.select(view) }
+            call.resolve()
+        }
+    }
+
+    private func pageEvent(_ name: String, data: [String: Any]) {
+        guard let owner else { notifyListeners(name, data: data); return }
+        guard owner.tabs[tabId] === self else { return }
+        var payload = data
+        payload["tabId"] = tabId
+        payload["generation"] = tabGeneration
+        payload["title"] = surface?.title ?? ""
+        owner.notifyListeners(name, data: payload)
+    }
+
+    private var savedBounds: JSObject = [:]
+    var surface: WKWebView?
     private var refreshControl: UIRefreshControl?
     private let navigationState = BrowserNavigationState()
     private var urlObservation: NSKeyValueObservation?
@@ -49,7 +136,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     /// (apps/mobile/src/pageFindRuntime.ts). WebKit's own finder reports no
     /// count and highlights only the current match, so the page runs this
     /// instead; it installs `window.__onceFind` once and is cheap afterwards.
-    private lazy var pageFindSource: String? = {
+    lazy var pageFindSource: String? = {
         guard let url = Bundle.main.url(forResource: "page-find", withExtension: "js", subdirectory: "public")
         else { return nil }
         return try? String(contentsOf: url, encoding: .utf8)
@@ -62,16 +149,19 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         return url
     }
 
-    private func ensureSurface() -> WKWebView? {
+    private func ensureSurface(configuration supplied: WKWebViewConfiguration? = nil) -> WKWebView? {
         if let surface { return surface }
         guard let shell = bridge?.webView, let parent = shell.superview else { return nil }
-        let configuration = WKWebViewConfiguration()
-        configuration.webExtensionController = extensions.controller
-        configuration.websiteDataStore = .default()
-        if let contentRuleList { configuration.userContentController.add(contentRuleList) }
-        for script in extensionUserScripts { configuration.userContentController.addUserScript(script) }
+        let configuration = supplied ?? WKWebViewConfiguration()
+        if supplied == nil {
+            configuration.webExtensionController = extensions.controller
+            configuration.websiteDataStore = .default()
+            if let contentRuleList { configuration.userContentController.add(contentRuleList) }
+            for script in extensionUserScripts { configuration.userContentController.addUserScript(script) }
+        }
         let view = WKWebView(frame: .zero, configuration: configuration)
         extensions.attach(view, parent: parent)
+        if owner?.selectedTab == tabId { extensions.select(view) }
         view.navigationDelegate = self
         view.uiDelegate = self
         // Safari's edge swipes for the page's own history. The recognizers
@@ -98,6 +188,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         parent.insertSubview(view, aboveSubview: shell)
         self.refreshControl = refreshControl
         surface = view
+        applyBounds(savedBounds)
         urlObservation = view.observe(\.url, options: [.new]) { [weak self] view, _ in
             // Fragment/history changes may have no navigation delegate callbacks.
             if !view.isLoading { self?.history(view) }
@@ -126,7 +217,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         let back = recognizer.edges == .left
         // Mirrors the shell gesture's commit distance.
         guard back ? travel >= 72 : travel <= -72 else { return }
-        notifyListeners("edgeSwipe", data: ["direction": back ? "back" : "forward"])
+        pageEvent("edgeSwipe", data: ["direction": back ? "back" : "forward"])
     }
 
     @objc private func refreshBrowser(_ sender: UIRefreshControl) {
@@ -142,6 +233,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     }
 
     private func applyBounds(_ object: JSObject) {
+        savedBounds = object
         guard let surface else { return }
         // CSS viewport pixels and UIKit points share the same logical scale.
         surface.frame = CGRect(
@@ -153,6 +245,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     }
 
     @objc func open(_ call: CAPPluginCall) {
+        guard let target = target(call) else { return }
+        if target !== self { target.open(call); return }
         guard let url = embeddable(call.getString("url")) else {
             call.reject("Embedded browsing only supports http and https URLs")
             return
@@ -167,12 +261,15 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             }
             self.applyBounds(call.getObject("bounds") ?? [:])
             view.isHidden = !(call.getBool("visible") ?? true)
-            self.navigationState.load(url, in: view)
+            if self.adoptedWindow { self.adoptedWindow = false }
+            else { self.navigationState.load(url, in: view) }
             call.resolve()
         }
     }
 
     @objc func navigate(_ call: CAPPluginCall) {
+        guard let target = target(call) else { return }
+        if target !== self { target.navigate(call); return }
         guard let url = embeddable(call.getString("url")) else {
             call.reject("Embedded browsing only supports http and https URLs")
             return
@@ -191,6 +288,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     }
 
     @objc func reload(_ call: CAPPluginCall) {
+        guard let target = target(call) else { return }
+        if target !== self { target.reload(call); return }
         DispatchQueue.main.async {
             if let surface = self.surface { self.navigationState.reload(surface) }
             call.resolve()
@@ -198,6 +297,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     }
 
     @objc func goBack(_ call: CAPPluginCall) {
+        guard let target = target(call) else { return }
+        if target !== self { target.goBack(call); return }
         DispatchQueue.main.async {
             if self.surface?.canGoBack == true { self.surface?.goBack() }
             call.resolve()
@@ -205,6 +306,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     }
 
     @objc func goForward(_ call: CAPPluginCall) {
+        guard let target = target(call) else { return }
+        if target !== self { target.goForward(call); return }
         DispatchQueue.main.async {
             if self.surface?.canGoForward == true { self.surface?.goForward() }
             call.resolve()
@@ -212,6 +315,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     }
 
     @objc func setBounds(_ call: CAPPluginCall) {
+        guard let target = target(call) else { return }
+        if target !== self { target.setBounds(call); return }
         DispatchQueue.main.async {
             self.applyBounds(call.jsObjectRepresentation)
             call.resolve()
@@ -219,21 +324,22 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     }
 
     @objc func setVisible(_ call: CAPPluginCall) {
+        guard let target = target(call) else { return }
+        if target !== self { target.setVisible(call); return }
         DispatchQueue.main.async {
-            self.surface?.isHidden = !(call.getBool("visible") ?? false)
+            let visible = (call.getBool("visible") ?? false) && (self.owner == nil || self.owner?.selectedTab == self.tabId)
+            if visible, let url = self.reclaimedURL {
+                self.reclaimedURL = nil
+                if let view = self.ensureSurface() { self.navigationState.load(url, in: view) }
+            }
+            self.surface?.isHidden = !visible
             call.resolve()
         }
     }
 
-    private func presenter() -> UIViewController? {
-        var current = bridge?.viewController
-        while let presented = current?.presentedViewController {
-            current = presented
-        }
-        return current
-    }
-
     @objc func showMenu(_ call: CAPPluginCall) {
+        guard let target = target(call) else { return }
+        if target !== self { target.showMenu(call); return }
         DispatchQueue.main.async {
             guard let presenter = self.presenter() else {
                 call.reject("Unable to present the native menu")
@@ -295,38 +401,6 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         presenter.present(sheet, animated: true)
     }
 
-    @objc func showPrompt(_ call: CAPPluginCall) {
-        DispatchQueue.main.async {
-            guard let presenter = self.presenter() else {
-                call.reject("Unable to present the native prompt")
-                return
-            }
-            let alert = UIAlertController(
-                title: call.getString("title"),
-                message: call.getString("message"),
-                preferredStyle: .alert
-            )
-            alert.addTextField { field in
-                field.text = call.getString("value") ?? ""
-                field.clearButtonMode = .whileEditing
-                field.autocapitalizationType = .none
-                field.autocorrectionType = .no
-                field.keyboardType = .URL
-            }
-            alert.addAction(UIAlertAction(
-                title: call.getString("cancelLabel") ?? "Cancel",
-                style: .cancel
-            ) { _ in call.resolve() })
-            alert.addAction(UIAlertAction(
-                title: call.getString("confirmLabel") ?? "OK",
-                style: .default
-            ) { _ in
-                call.resolve(["value": alert.textFields?.first?.text ?? ""])
-            })
-            presenter.present(alert, animated: true)
-        }
-    }
-
     @objc func applyExtensionSettings(_ call: CAPPluginCall) {
         guard let filterLists = call.getObject("filterLists"),
               let userscripts = call.getObject("userscripts") else {
@@ -386,108 +460,6 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         }
     }
 
-    @objc func evaluateJavaScript(_ call: CAPPluginCall) {
-        guard let script = call.getString("script"), !script.isEmpty else {
-            call.reject("JavaScript source is required")
-            return
-        }
-        DispatchQueue.main.async {
-            guard let surface = self.surface else {
-                call.reject("There is no open page")
-                return
-            }
-            surface.evaluateJavaScript(script) { value, error in
-                if let error {
-                    call.reject("The script failed: \(error.localizedDescription)")
-                    return
-                }
-                if value == nil || value is NSNull {
-                    call.resolve(["value": "null"])
-                } else if JSONSerialization.isValidJSONObject([value!]),
-                          let data = try? JSONSerialization.data(withJSONObject: value!, options: [.fragmentsAllowed]) {
-                    call.resolve(["value": String(decoding: data, as: UTF8.self)])
-                } else {
-                    call.resolve(["value": "null"])
-                }
-            }
-        }
-    }
-
-    @objc func findInPage(_ call: CAPPluginCall) {
-        guard let query = call.getString("query"), !query.isEmpty else {
-            call.reject("Search text is required")
-            return
-        }
-        let forward = call.getBool("forward") ?? true
-        DispatchQueue.main.async {
-            guard let surface = self.surface else {
-                call.reject("There is no open page")
-                return
-            }
-            guard let runtime = self.pageFindSource,
-                  let encodedQuery = try? JSONSerialization.data(withJSONObject: [query], options: [.fragmentsAllowed]),
-                  let queryLiteral = String(data: encodedQuery, encoding: .utf8) else {
-                call.reject("The page could not be searched")
-                return
-            }
-            // The literal is a one-element JSON array, so [0] reads the string
-            // back. The runtime may end in a line comment, so the brace that
-            // closes the block gets a line of its own.
-            let script = """
-            if (!window.__onceFind) {
-            \(runtime)
-            }
-            JSON.stringify(window.__onceFind.find(\(queryLiteral)[0], \(forward ? "true" : "false")))
-            """
-            surface.evaluateJavaScript(script) { value, error in
-                if let error {
-                    call.reject("The page could not be searched: \(error.localizedDescription)")
-                    return
-                }
-                guard let text = value as? String,
-                      let data = text.data(using: .utf8),
-                      let result = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                    call.reject("The page could not be searched")
-                    return
-                }
-                let current = result["current"] as? Int ?? 0
-                let total = result["total"] as? Int ?? 0
-                call.resolve([
-                    "found": total > 0,
-                    "wrapped": false,
-                    "current": current,
-                    "total": total
-                ])
-            }
-        }
-    }
-
-    @objc func clearFind(_ call: CAPPluginCall) {
-        DispatchQueue.main.async {
-            self.surface?.evaluateJavaScript("window.__onceFind && window.__onceFind.clear()") { _, _ in }
-            call.resolve()
-        }
-    }
-
-    /// The system find panel (iOS 16 and later). WebKit searches the whole
-    /// document itself, including PDFs in its native viewer, which the
-    /// injected engine above cannot see because they have no DOM text.
-    @objc func presentFind(_ call: CAPPluginCall) {
-        DispatchQueue.main.async {
-            guard let surface = self.surface else {
-                call.reject("There is no open page")
-                return
-            }
-            if #available(iOS 16.0, *) {
-                surface.isFindInteractionEnabled = true
-                surface.findInteraction?.presentFindNavigator(showingReplace: false)
-                call.resolve(["presented": true])
-            } else {
-                call.resolve(["presented": false])
-            }
-        }
-    }
-
     @MainActor
     private func compileAndInstallRules(_ encodedRules: String, generation: Int) async throws {
         guard generation == extensionSettingsGeneration else { return }
@@ -501,9 +473,15 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         if let list { surface?.configuration.userContentController.add(list) }
         contentRuleList = list
         installedRuleJSON = encodedRules
+        for tab in tabs.values {
+            if let previous = tab.contentRuleList { tab.surface?.configuration.userContentController.remove(previous) }
+            if let list { tab.surface?.configuration.userContentController.add(list) }
+            tab.contentRuleList = list
+        }
     }
 
     private func installUserscripts(_ document: JSObject) {
+        for tab in tabs.values { tab.installUserscripts(document) }
         let controller = surface?.configuration.userContentController
         controller?.removeAllUserScripts()
         extensionUserScripts = []
@@ -524,9 +502,11 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     }
 
     @objc func close(_ call: CAPPluginCall) {
+        guard let target = target(call) else { return }
+        if target !== self { target.close(call); return }
         DispatchQueue.main.async {
             self.closeGeneration += 1
-            self.extensions.detach()
+            if let view = self.surface { self.extensions.detach(view) }
             self.surface?.stopLoading()
             self.surface?.navigationDelegate = nil
             self.surface?.uiDelegate = nil
@@ -537,34 +517,39 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             self.refreshControl = nil
             self.contentRuleList = nil
             self.installedRuleJSON = nil
+            if let owner = self.owner {
+                if owner.tabs[self.tabId] === self { owner.tabs.removeValue(forKey: self.tabId) }
+                owner.retiredTabs.insert(self.tabId + ":" + self.tabGeneration)
+            }
             call.resolve()
         }
     }
 
     private func history(_ view: WKWebView) {
-        extensions.navigationChanged()
+        extensions.navigationChanged(view)
         var value = navigationState.payload(view.url)
         value["canGoBack"] = view.canGoBack
         value["canGoForward"] = view.canGoForward
-        notifyListeners("historyChanged", data: value)
+        pageEvent("historyChanged", data: value)
     }
 
     public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        guard webView === surface else { return }
         navigationState.started(navigation, url: webView.url)
-        notifyListeners("navigationStarted", data: navigationState.payload(navigationState.sourceURL))
+        pageEvent("navigationStarted", data: navigationState.payload(navigationState.sourceURL))
     }
 
     public func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
-        guard navigationState.isCurrent(navigation) else { return }
-        notifyListeners("navigationCommitted", data: navigationState.payload(webView.url))
+        guard webView === surface, navigationState.isCurrent(navigation) else { return }
+        pageEvent("navigationCommitted", data: navigationState.payload(webView.url))
         history(webView)
     }
 
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        guard navigationState.isCurrent(navigation) else { return }
+        guard webView === surface, navigationState.isCurrent(navigation) else { return }
         finishRefresh()
         navigationState.finished(webView.url)
-        notifyListeners("navigationFinished", data: navigationState.payload(webView.url))
+        pageEvent("navigationFinished", data: navigationState.payload(webView.url))
         history(webView)
     }
 
@@ -585,9 +570,10 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     }
 
     private func navigationFailed(_ webView: WKWebView, navigation: WKNavigation?, error: Error) {
+        guard webView === surface else { return }
         guard let value = navigationState.failed(navigation, url: webView.url, error: error) else { return }
         finishRefresh()
-        notifyListeners("navigationFailed", data: value)
+        pageEvent("navigationFailed", data: value)
     }
 
     public func webView(
@@ -597,6 +583,13 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     ) {
         guard let url = navigationAction.request.url else {
             decisionHandler(.cancel)
+            return
+        }
+        // A user-activated HTTP(S) link may request an in-app window. Keep the
+        // shared subframe/external-scheme policy unchanged for every other request.
+        if navigationAction.targetFrame == nil, navigationAction.navigationType == .linkActivated,
+           embeddable(url.absoluteString) != nil {
+            decisionHandler(.allow)
             return
         }
         switch extensions.navigationDisposition(for: url, targetIsMainFrame: navigationAction.targetFrame?.isMainFrame) {
@@ -640,7 +633,24 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         for navigationAction: WKNavigationAction,
         windowFeatures: WKWindowFeatures
     ) -> WKWebView? {
-        if let url = navigationAction.request.url { UIApplication.shared.open(url) }
-        return nil
+        guard let url = navigationAction.request.url else { return nil }
+        guard embeddable(url.absoluteString) != nil else { UIApplication.shared.open(url); return nil }
+        let root = owner ?? self
+        let tab = InAppBrowserSurfacePlugin()
+        tab.owner = root
+        tab.tabId = UUID().uuidString
+        tab.tabGeneration = UUID().uuidString
+        tab.bridge = bridge
+        tab.webView = self.webView
+        tab.extensions = extensions
+        tab.contentRuleList = contentRuleList
+        tab.extensionUserScripts = extensionUserScripts
+        tab.adoptedWindow = true
+        root.tabs[tab.tabId] = tab
+        guard let view = tab.ensureSurface(configuration: configuration) else { root.tabs.removeValue(forKey: tab.tabId); return nil }
+        view.isHidden = true
+        root.notifyListeners("newTabRequested", data: ["tabId": tab.tabId, "generation": tab.tabGeneration,
+                                                     "url": url.absoluteString, "navigationId": 0])
+        return view
     }
 }
