@@ -30,6 +30,7 @@ const prefix = "once_story_"
 const defaults = [
   ["open", "Open story", "navigation"],
   ["open-comments", "Open comments", "navigation"],
+  ["open-comments-panel", "Open comments in panel", "navigation"],
   ["open-new-tab", "Open in new tab", "navigation"],
   ["open-background-tab", "Open in background tab", "navigation"],
   ["open-original", "Open original URL", "navigation"],

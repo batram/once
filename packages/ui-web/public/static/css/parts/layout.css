@@ -68,22 +68,24 @@
   display: flex;
 }
 
-/* A page's add-on conversation beside the page; it exists only while shown.
-   Its title bar is a sibling of the panels, ordered first, so the layout
-   matches the other panels: title bar, then the story matching the page,
-   then the conversation. */
-#addon_panel_bar,
-#addon_panel {
+/* Panels that exist only while shown: a page's add-on conversation beside the
+   page, a story's comments. Each title bar is a sibling of the panels, ordered
+   first, so the layout matches the other panels: title bar, then the story
+   matching the page, then the panel's body. */
+.temporary_panel_bar,
+.temporary_panel {
   display: none;
 }
 
-#left_panel[active_panel="addon"] #addon_panel_bar {
+#left_panel[active_panel="addon"] #addon_panel_bar,
+#left_panel[active_panel="comments"] #comments_panel_bar {
   display: flex;
   flex: 0 0 auto;
   order: -1;
 }
 
-#left_panel[active_panel="addon"] #addon_panel {
+#left_panel[active_panel="addon"] #addon_panel,
+#left_panel[active_panel="comments"] #comments_panel {
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -91,31 +93,31 @@
 
 /* The stories panel shrinks to its selected story, which is empty (and so
    takes no room) when nothing matches or Electron shows it by the browser. */
-#left_panel[active_panel="addon"] #stories_panel {
+#left_panel:is([active_panel="addon"], [active_panel="comments"]) #stories_panel {
   display: flex;
   flex: 0 0 auto;
 }
 
-#left_panel[active_panel="addon"] #stories_panel > :not(#selected_container) {
+#left_panel:is([active_panel="addon"], [active_panel="comments"]) #stories_panel > :not(#selected_container) {
   display: none;
 }
 
-#menu > #addon_menu_btn {
+#menu > :not(.temporary_panel_menu) + .temporary_panel_menu {
   margin-top: var(--sp-2);
 }
 
-#addon_panel_bar .addon_panel_close {
+.temporary_panel_bar .temporary_panel_btn {
   --icon-size: 0.7rem;
   border-color: transparent;
   background: transparent;
 }
 
-#addon_panel_bar .addon_panel_close:hover,
-#addon_panel_bar .addon_panel_close:focus-visible {
+.temporary_panel_bar .temporary_panel_btn:hover,
+.temporary_panel_bar .temporary_panel_btn:focus-visible {
   border-color: var(--border-color);
 }
 
-#addon_panel_bar .addon_panel_title {
+.temporary_panel_bar .temporary_panel_title {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
@@ -125,11 +127,26 @@
   padding-inline: var(--sp-2);
 }
 
-#addon_panel .addon_panel_body {
+.temporary_panel .temporary_panel_body {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
   padding: var(--sp-2) var(--sp-3);
+}
+
+/* The comments page fills the body edge to edge: an iframe in the extensions,
+   a native view laid over the empty body on Electron. */
+#comments_panel .temporary_panel_body {
+  display: flex;
+  overflow: hidden;
+  padding: 0;
+}
+
+#comments_panel .comments_panel_frame {
+  flex: 1 1 auto;
+  border: 0;
+  /* A page without a background of its own is drawn on white, as in a tab. */
+  background: #fff;
 }
 
 #menu > #reading_menu_btn {

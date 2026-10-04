@@ -12,6 +12,7 @@ import { showConfirmDialog } from "../confirmDialog"
 import { StoryMenuRequestEvent } from "../menu/storyContextMenu"
 import { requestReading } from "../ReadingSession"
 import { finishStoryExitTransition } from "./storyExitTransition"
+import { openCommentsInPanel } from "./commentsPanel"
 import { open_story, openStoryUrl } from "./storyLinks"
 import {
   buildFilterButton,
@@ -287,6 +288,13 @@ export class StoryListItem extends HTMLElement {
     if (!requestReading(this.story, "comments")) {
       openStoryUrl(commentsUrl, this.selfTarget(), false)
     }
+  }
+
+  /** The comments (or `url`, another aggregator's) in the Once panel, beside the current page. */
+  openCommentsInPanel(url = this.story.comment_url): void {
+    if (!url) return
+    this.read_btn.classList.add("user_interaction")
+    openCommentsInPanel(this.story, url)
   }
 
   toggleReadState(): void {

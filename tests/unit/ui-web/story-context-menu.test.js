@@ -49,6 +49,7 @@ test("story menu descriptors are ordered, contextual, and platform-aware", () =>
   assert.deepEqual(items.map((item) => item.id), [
     "open",
     "open-comments",
+    "open-comments-panel",
     "open-new-tab",
     "open-background-tab",
     "open-new-window",
@@ -114,6 +115,10 @@ test("open comments is hidden without a primary comments URL", () => {
 
   assert.equal(
     items.find((item) => item.id === "open-comments").visible,
+    false
+  )
+  assert.equal(
+    items.find((item) => item.id === "open-comments-panel").visible,
     false
   )
 })

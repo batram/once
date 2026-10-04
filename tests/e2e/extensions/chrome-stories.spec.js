@@ -255,6 +255,41 @@ test("opens story, comment, substory, and original links", async () => {
   }
 })
 
+test("shows a story's comments in the side panel beside the page", async () => {
+  const harness = await launchStoryExtension()
+  const { context, page, source } = harness
+  try {
+    const beta = storyItem(page, source.urls.beta)
+    const pagesBefore = context.pages().length
+    await beta.getByTestId("comments-in-panel").first().click()
+    const panel = page.getByTestId("comments-panel")
+    await expect(panel).toBeVisible()
+    await expect(page.locator("#left_panel")).toHaveAttribute("active_panel", "comments")
+    await expect(page.getByTestId("comments-panel-menu")).toHaveText("Thread")
+    await expect(page.frameLocator("[data-testid='comments-panel-frame']").locator("h1")).toHaveText("Beta-1")
+    // In the panel, not in a tab of its own.
+    expect(context.pages()).toHaveLength(pagesBefore)
+    // Pages reached by links inside the frame are let in by a rule for frames
+    // outside any tab; this harness hosts the panel in a tab, and Chrome opens
+    // the real side panel only from a user gesture, so that one goes untested here.
+
+    // Another source's comments take the same panel.
+    await page.getByTestId("comments-panel-menu").click()
+    await page.getByTestId("stories-menu").click()
+    await beta.getByTestId("comments-in-panel").nth(1).click()
+    await expect(page.frameLocator("[data-testid='comments-panel-frame']").locator("h1")).toHaveText("Beta-2")
+    await expect(page.getByTestId("comments-panel-menu")).toHaveCount(1)
+
+    await page.getByTestId("comments-panel-close").click()
+    await expect(panel).toHaveCount(0)
+    await expect(page.getByTestId("comments-panel-menu")).toHaveCount(0)
+    await expect(page.locator("#left_panel")).toHaveAttribute("active_panel", "stories")
+    expectCleanHarness(harness)
+  } finally {
+    await closeStoryExtension(harness)
+  }
+})
+
 test("opens the reader and marks the story read", async () => {
   const harness = await launchStoryExtension()
   const { context, page, source } = harness

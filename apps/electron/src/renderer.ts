@@ -16,6 +16,7 @@ import {
 } from "@once/ui-web"
 import { BrowserShell } from "./BrowserShell"
 import { electronAddonConversations } from "./addonConversations"
+import { electronPanelPages } from "./browser/PanelPageHost"
 import { bindBrowserExtensionSettings } from "./BrowserExtensionSettings"
 import { bindAccessibilitySetting } from "./AccessibilitySetting"
 import "./electron.css"
@@ -155,6 +156,7 @@ async function startRenderer(): Promise<void> {
     devAddons: DEV_ADDONS,
     bundledAddons: flags.has("disableBundledAddons") ? [] : __ONCE_BUNDLED_ADDONS__,
     addonConversations: electronAddonConversations(window.onceElectron),
+    panelPages: electronPanelPages(window.onceElectron),
     appVersion: buildInfo.version,
     buildChannel: buildInfo.channel,
     buildIdentifier: buildInfo.buildIdentifier,

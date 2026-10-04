@@ -151,8 +151,12 @@ module.exports = (env = {}, argv = {}) => {
             from: path.join(root, "packages", "ui-web", "public", "shell.html"),
             to: "static/sidepanel.html",
             transform(content) {
-              return content
-                .toString()
+              const source = content.toString()
+              // The comments panel frames a story's comments page; Electron's
+              // shell lays a native view over the panel instead and keeps the tight policy.
+              const framed = source.replace("frame-src 'self' blob: once-addon:;", "frame-src 'self' blob: once-addon: http: https:;")
+              if (framed === source) throw new Error("shell.html no longer carries the expected frame-src policy")
+              return framed
                 .replace(
                   '<link rel="stylesheet" href="css/style.css" />',
                   [

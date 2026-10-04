@@ -17,6 +17,7 @@ import {
 } from "@once/platform-electron/bridge"
 import { SecureSettings } from "./SecureSettings"
 import { registerIpcHandlers } from "./IpcHandlers"
+import { registerPanelPageHandlers } from "./browser/PanelPages"
 import { BROWSER_SESSION_PARTITION, BrowserCoordinator } from "./TabManager"
 import { OFFSCREEN_TEST_POSITION, isBackgroundMode } from "./browser/WindowLifecycle"
 import {
@@ -351,6 +352,7 @@ app
         shellOf: tab => browserCoordinator?.shellOf(tab)
       })
     })
+    registerPanelPageHandlers(browserCoordinator)
     extensions.manager.onSyncChanged = document => {
       for (const window of BrowserWindow.getAllWindows()) {
         if (!window.isDestroyed()) window.webContents.send(ELECTRON_IPC.extensionsSyncChanged, document)

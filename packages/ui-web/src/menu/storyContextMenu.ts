@@ -8,6 +8,7 @@ import { findStoryAction, registeredStoryActions } from "./storyActionRegistry"
 export type BuiltinStoryMenuActionId =
   | "open"
   | "open-comments"
+  | "open-comments-panel"
   | "open-browser"
   | "open-new-tab"
   | "open-background-tab"
@@ -90,6 +91,13 @@ export function describeStoryMenu(
         "navigation",
         true,
         Boolean(story.story.comment_url)
+      ),
+      item(
+        "open-comments-panel",
+        "Open comments in panel",
+        "navigation",
+        true,
+        !touch && Boolean(story.story.comment_url)
       ),
       item(
         "open-browser",
@@ -192,6 +200,8 @@ export async function executeStoryMenuAction(
       return story.openStory("_self")
     case "open-comments":
       return story.openComments()
+    case "open-comments-panel":
+      return story.openCommentsInPanel()
     case "open-browser":
       return story.openStory("blank")
     case "open-new-tab":

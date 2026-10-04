@@ -246,7 +246,14 @@ function handleRequest(request, response, origin) {
   if (/^\/(story|rewritten|comments)\//.test(path)) {
     const name = path.split("/").pop() || "page"
     const title = name.charAt(0).toUpperCase() + name.slice(1)
-    response.writeHead(200, { "content-type": "text/html; charset=utf-8" })
+    // Comments pages forbid framing as Hacker News's do, which the comments
+    // panel has to get past in the extensions.
+    response.writeHead(200, {
+      "content-type": "text/html; charset=utf-8",
+      ...(path.startsWith("/comments/")
+        ? { "x-frame-options": "DENY", "content-security-policy": "frame-ancestors 'self'" }
+        : {})
+    })
     response.end(`<!doctype html>
       <title>${title}</title>
       <h1>${title}</h1>`)

@@ -3,6 +3,7 @@ import { humanTime, SubStory } from "@once/core"
 import { getOnceClient } from "../client"
 import { requestReading } from "../ReadingSession"
 import { bindLinkBehavior, openStoryUrl } from "./storyLinks"
+import { canOpenCommentsInPanel } from "./commentsPanel"
 import type { StoryListItem } from "./StoryListItem"
 
 /**
@@ -50,6 +51,28 @@ function tagElement(
   return tag_el
 }
 
+/** Beside the comments link: the same comments in the Once panel, keeping the current page in view. */
+function commentsInPanelLink(row: StoryListItem, commentsUrl: string): HTMLAnchorElement {
+  const link = document.createElement("a")
+  link.classList.add("comment_panel_url")
+  link.href = commentsUrl
+  link.title = "Open comments in the Once panel"
+  link.setAttribute("aria-label", link.title)
+  link.dataset.testid = "comments-in-panel"
+  const icon = document.createElement("span")
+  icon.className = "icon icon--inline icon--comments"
+  icon.setAttribute("aria-hidden", "true")
+  link.append(icon)
+  bindLinkBehavior(link, {
+    onClick: () => row.openCommentsInPanel(commentsUrl),
+    onMiddleClick: () => {
+      row.read_btn.classList.add("user_interaction")
+      openStoryUrl(commentsUrl, "middle", false)
+    }
+  })
+  return link
+}
+
 /** One source line: type badge, comments link, time, tags. */
 function buildInfoBlock(
   row: StoryListItem,
@@ -89,6 +112,9 @@ function buildInfoBlock(
       openStoryUrl(commentsUrl, "middle", false)
     }
   })
+  if (sub_story_ob.comment_url && canOpenCommentsInPanel()) {
+    info.appendChild(commentsInPanelLink(row, sub_story_ob.comment_url))
+  }
 
   const time = document.createElement("div")
   time.innerText = humanTime(sub_story_ob.timestamp)

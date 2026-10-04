@@ -100,6 +100,20 @@ test(
         budget(15_000)
       )
 
+      // Comments in the panel: framed beside the page even though the
+      // fixture's comments pages forbid framing, as Hacker News's do.
+      await driver.findElement(By.css(`${storySelector(source.urls.beta)} [data-testid="comments-in-panel"]`)).click()
+      const commentsFrame = await driver.wait(
+        until.elementLocated(By.css('[data-testid="comments-panel-frame"]')),
+        budget(10_000)
+      )
+      await driver.switchTo().frame(commentsFrame)
+      const heading = await driver.wait(until.elementLocated(By.css("h1")), budget(10_000), "the framed comments page did not load")
+      assert.equal(await heading.getText(), "Beta-1")
+      await driver.switchTo().defaultContent()
+      await driver.findElement(By.css('[data-testid="comments-panel-close"]')).click()
+      await driver.wait(async () => (await driver.findElements(By.css('[data-testid="comments-panel"]'))).length === 0, budget(5_000))
+
       const alphaSelector = storySelector(source.urls.alpha)
       const alphaTitle = await driver.findElement(
         By.css(`${alphaSelector} ${storyFixture.SELECTORS.title}`)

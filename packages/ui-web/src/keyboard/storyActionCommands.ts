@@ -20,6 +20,7 @@ const BINDABLE_STORY_ACTIONS: {
   label: string
   shells?: KeyCommandDefinition["shells"]
 }[] = [
+  { id: "open-comments-panel", label: "Open comments in the Once panel", shells: ["electron", "webext"] },
   { id: "open-browser", label: "Open story in browser" },
   { id: "open-new-tab", label: "Open story in a new tab" },
   { id: "open-background-tab", label: "Open story in a background tab" },

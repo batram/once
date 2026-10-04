@@ -349,6 +349,18 @@ export interface ElectronBridge {
       onCommand(handler: (tabId: number, command: unknown) => void): () => void
     }
   }
+  /**
+   * A web page inside the panel, such as a story's comments beside the
+   * current page: one per window, in the tabs' session, laid over `bounds`.
+   */
+  panelPage: {
+    show(url: string, bounds: ElectronRect | null): Promise<void>
+    /** Where the panel keeps room for it; null or an empty rect hides it. */
+    setBounds(bounds: ElectronRect | null): Promise<void>
+    close(): Promise<void>
+    /** The page's address after each navigation, or null once it closed. */
+    onChanged(handler: (url: string | null) => void): () => void
+  }
   window: {
     setFullscreen(fullscreen: boolean): Promise<void>
     create(): Promise<void>
@@ -413,6 +425,10 @@ export const ELECTRON_IPC = {
   tabsFoundInPage: "once:tabs:found-in-page",
   tabsChanged: "once:tabs:changed",
   tabsRegenerateReader: "once:tabs:regenerate-reader",
+  panelPageShow: "once:panel-page:show",
+  panelPageSetBounds: "once:panel-page:set-bounds",
+  panelPageClose: "once:panel-page:close",
+  panelPageChanged: "once:panel-page:changed",
   storyMenuShow: "once:story-menu:show",
   storyMenuOpenExternal: "once:story-menu:open-external",
   storyMenuOpenWindow: "once:story-menu:open-window",

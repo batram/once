@@ -1,6 +1,7 @@
 import { OnceClient } from "@once/app"
 import { DevAddonSource, mountAddons } from "./addons/mountAddons"
 import { addonPanelConversations } from "./addons/addonPanel"
+import { PanelPageHost, setPanelPageHost } from "./story/commentsPanel"
 import type { BundledAddonFiles } from "./addons/bundledAddons"
 import type { AddonConversationSurface } from "./addons/AddonTrays"
 import { addCollectorColorStyles } from "./collectorStyles"
@@ -98,6 +99,11 @@ export interface MountOnceUiOptions {
   bundledAddons?: readonly BundledAddonFiles[]
   /** How this shell continues an addon tray's conversation in its main browser surface. */
   addonConversations?: AddonConversationSurface
+  /**
+   * How this shell shows a web page inside the panel, such as a story's
+   * comments beside the current page. Absent means an iframe.
+   */
+  panelPages?: PanelPageHost
 }
 
 export async function mountOnceUi(
@@ -107,6 +113,7 @@ export async function mountOnceUi(
   // Before anything touches the keyboard: getKeyboardDispatcher() loads the
   // stored bindings on first use, and those are filtered against the shell.
   setShell(options.shell ?? "electron")
+  if (options.panelPages) setPanelPageHost(options.panelPages)
   setOnceClient(client)
   StoryListItem.devToolsEnabled = options.buildChannel === "dev"
   if (StoryListItem.devToolsEnabled) registerStoryButton("purge", "Purge story (development)")

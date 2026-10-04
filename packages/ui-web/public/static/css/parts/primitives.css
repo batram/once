@@ -59,6 +59,7 @@
 .icon--ai-question { --icon: url("../../imgs/ai-question.svg"); }
 .icon--chevron-left { --icon: url("../../imgs/chevron-left.svg"); }
 .icon--collapse { --icon: url("../../imgs/collapse.svg"); }
+.icon--comments { --icon: url("../../imgs/comments.svg"); }
 .icon--filter { --icon: url("../../imgs/filter.svg"); }
 .icon--gear { --icon: url("../../imgs/gear.svg"); }
 .icon--pause { --icon: url("../../imgs/pause.svg"); }

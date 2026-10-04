@@ -225,6 +225,16 @@ const bridge: ElectronBridge = {
       }
     }
   },
+  panelPage: {
+    show: (url, bounds) => ipcRenderer.invoke(ELECTRON_IPC.panelPageShow, url, bounds),
+    setBounds: (bounds) => ipcRenderer.invoke(ELECTRON_IPC.panelPageSetBounds, bounds),
+    close: () => ipcRenderer.invoke(ELECTRON_IPC.panelPageClose),
+    onChanged(handler: (url: string | null) => void) {
+      const listener = (_event: Electron.IpcRendererEvent, url: string | null) => handler(url)
+      ipcRenderer.on(ELECTRON_IPC.panelPageChanged, listener)
+      return () => ipcRenderer.removeListener(ELECTRON_IPC.panelPageChanged, listener)
+    }
+  },
   window: {
     setFullscreen: (fullscreen) =>
       ipcRenderer.invoke(ELECTRON_IPC.windowSetFullscreen, fullscreen),
