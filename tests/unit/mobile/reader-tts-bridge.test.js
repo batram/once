@@ -86,6 +86,7 @@ async function setUp() {
     "./ReaderTtsAdapter": adapter
   })
   const { installReaderTtsHostBridge } = loadModule("apps/mobile/src/readerTtsHostBridge.ts", {
+    "./readerTtsFrames": loadModule("apps/mobile/src/readerTtsFrames.ts", { "./readerTtsProtocol": protocol }),
     "./readerTtsProtocol": protocol,
     "@capacitor-community/text-to-speech": {
       TextToSpeech: {},
@@ -422,6 +423,7 @@ test("adapter reports active errors but cancellation resets state and ignores la
 test("background tab readers keep speaking; a new speaker preempts the owner and controls follow the selected tab", async () => {
   const protocol = loadModule("apps/mobile/src/readerTtsProtocol.ts")
   const { installReaderTtsHostBridge } = loadModule("apps/mobile/src/readerTtsHostBridge.ts", {
+    "./readerTtsFrames": loadModule("apps/mobile/src/readerTtsFrames.ts", { "./readerTtsProtocol": protocol }),
     "./readerTtsProtocol": protocol,
     "@capacitor-community/text-to-speech": { TextToSpeech: {}, QueueStrategy: { Flush: 0, Add: 1 } }
   })
@@ -466,4 +468,46 @@ test("background tab readers keep speaking; a new speaker preempts the owner and
   bridge.release(source => source === b)
   assert.equal(engine.stops, 2, "a closed reader document stops its queued speech")
   assert.deepEqual(audible, [["a", true]])
+})
+
+test("system media commands reach the speaking reader, even when another tab is selected", async () => {
+  const protocol = loadModule("apps/mobile/src/readerTtsProtocol.ts")
+  const { installReaderTtsHostBridge } = loadModule("apps/mobile/src/readerTtsHostBridge.ts", {
+    "./readerTtsFrames": loadModule("apps/mobile/src/readerTtsFrames.ts", { "./readerTtsProtocol": protocol }),
+    "./readerTtsProtocol": protocol,
+    "@capacitor-community/text-to-speech": { TextToSpeech: {}, QueueStrategy: { Flush: 0, Add: 1 } }
+  })
+  let hostListener
+  const frame = () => ({ posted: [], postMessage(message) { this.posted.push(message) } })
+  const a = frame(), b = frame()
+  const { engine } = createFakeEngine()
+  const bridge = installReaderTtsHostBridge(
+    source => source === a || source === b, engine,
+    { addEventListener: (type, listener) => { hostListener = listener } },
+    source => source === b
+  )
+  const state = (source, sessionId, playing, paused, segment = 0) => hostListener({ source, data: {
+    channel: "once-reader-tts", version: 1, sessionId, type: "ui-state",
+    playing, paused, rate: 1, segment, segments: 4, voice: "", voices: []
+  } })
+  const speech = []
+  bridge.onSpeech((source, value) => speech.push(source === a ? ["a", value.paused, value.segments] : source))
+
+  state(a, "ui-a", true, false)
+  bridge.command("play")
+  assert.equal(a.posted.length, 0, "play while playing changes nothing")
+  bridge.command("pause")
+  bridge.command("next")
+  bridge.command("previous")
+  assert.deepEqual(a.posted.map(message => message.type), ["ui-play-toggle", "ui-next", "ui-prev"])
+  assert.equal(b.posted.length, 0, "the selected tab is not the speaker")
+  state(a, "ui-a", true, true)
+  bridge.command("pause")
+  bridge.command("play")
+  bridge.command("stop")
+  assert.deepEqual(a.posted.slice(3).map(message => message.type), ["ui-play-toggle", "ui-stop"])
+  state(a, "ui-a", false, false)
+  bridge.command("next")
+  assert.equal(a.posted.length, 5, "nothing is speaking after stop")
+  assert.deepEqual(speech, [["a", false, 4], ["a", true, 4], null])
 })

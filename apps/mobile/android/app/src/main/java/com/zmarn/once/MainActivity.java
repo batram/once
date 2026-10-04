@@ -9,6 +9,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(AddressBarPlugin.class);
         registerPlugin(SecureSettingsPlugin.class);
         registerPlugin(InAppBrowserSurfacePlugin.class);
+        registerPlugin(ReaderMediaSessionPlugin.class);
         super.onCreate(savedInstanceState);
     }
 

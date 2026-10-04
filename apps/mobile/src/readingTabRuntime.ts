@@ -1,6 +1,6 @@
 import { InAppBrowserSurface } from "@once/platform-mobile"
 import { ReadingSession, ReaderDocumentHost, ReadingSessionState } from "@once/ui-web"
-import { ReadingTabs } from "./readingTabs"
+import { ReadingTabs, type ReadingTab } from "./readingTabs"
 import { ReadingSurfaceCoordinator } from "./readingSurfaceCoordinator"
 
 type Cover = "menu" | "overlay" | "dialog" | "extensionPage"
@@ -67,6 +67,13 @@ export class ReadingTabRuntime {
   isReaderWindow(source: unknown): boolean {
     return this.initialReader.isReaderWindow(source) ||
       [...this.runtimes.values()].some(runtime => runtime.reader.isReaderWindow(source))
+  }
+
+  tabForReaderWindow(source: unknown): ReadingTab | undefined {
+    for (const [id, runtime] of this.runtimes) {
+      if (runtime.reader.isReaderWindow(source)) return this.tabs.tabs.find(tab => tab.id === id && tab.generation === runtime.generation)
+    }
+    return undefined
   }
 
   /** Reader speech is reported per frame; the tab owning that frame plays it. */

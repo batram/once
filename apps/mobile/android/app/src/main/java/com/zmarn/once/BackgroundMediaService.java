@@ -17,7 +17,7 @@ import android.os.PowerManager;
 /** Foreground only while playing; paused controls remain available without a wake lock. */
 public final class BackgroundMediaService extends Service {
     static final int NOTIFICATION = 4101;
-    private static BackgroundMedia current;
+    private static Owner current;
     private static BackgroundMediaService instance;
     private static boolean starting;
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -31,19 +31,25 @@ public final class BackgroundMediaService extends Service {
         @Override public void onReceive(Context context, Intent intent) { dispatch("pause", 0); }
     };
 
-    static void update(Context context, BackgroundMedia media) {
-        current = media;
+    /** Page media or reader speech; whichever updated most recently drives the controls. */
+    interface Owner {
+        ReadingMediaState mediaState();
+        void command(String action, long position);
+    }
+
+    static void update(Context context, Owner owner) {
+        current = owner;
         if (instance != null) instance.refresh();
-        else if (media.state.playing && !starting) {
+        else if (owner.mediaState().playing && !starting) {
             starting = true;
             try { context.startForegroundService(new Intent(context, BackgroundMediaService.class)); }
             catch (RuntimeException error) { starting = false; throw error; }
         }
     }
 
-    /** Each tab owns a BackgroundMedia; only the one driving the service may stop it. */
-    static void release(Context context, BackgroundMedia media) {
-        if (current == null || current == media) stop(context);
+    /** Each tab and the reader voice are separate owners; only the one driving the service may stop it. */
+    static void release(Context context, Owner owner) {
+        if (current == null || current == owner) stop(context);
     }
 
     static void stop(Context context) {
@@ -62,7 +68,7 @@ public final class BackgroundMediaService extends Service {
         controls.setCallback(new android.media.session.MediaSession.Callback() {
             @Override public void onPlay() { dispatch("play", 0); }
             @Override public void onPause() { dispatch("pause", 0); }
-            @Override public void onStop() { dispatch("pause", 0); stop(BackgroundMediaService.this); }
+            @Override public void onStop() { dispatch("stop", 0); stop(BackgroundMediaService.this); }
             @Override public void onSeekTo(long position) { dispatch("seek", position); }
             @Override public void onRewind() { dispatch("back", 0); }
             @Override public void onFastForward() { dispatch("forward", 0); }
@@ -84,12 +90,12 @@ public final class BackgroundMediaService extends Service {
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         // Fulfil a pending foreground start even if playback stopped before delivery.
-        ReadingMediaState state = current == null ? new ReadingMediaState() : current.state;
+        ReadingMediaState state = current == null ? new ReadingMediaState() : current.mediaState();
         startForeground(NOTIFICATION, ReadingMediaNotification.build(this, controls, state));
         foreground = true;
         if (current == null) { stopSelf(startId); return START_NOT_STICKY; }
         if (intent != null && intent.getAction() != null) {
-            if ("stop".equals(intent.getAction())) { dispatch("pause", 0); stop(this); return START_NOT_STICKY; }
+            if ("stop".equals(intent.getAction())) { dispatch("stop", 0); stop(this); return START_NOT_STICKY; }
             dispatch(intent.getAction(), 0);
         }
         refresh();
@@ -105,7 +111,7 @@ public final class BackgroundMediaService extends Service {
     @android.annotation.SuppressLint("NotificationPermission")
     private void refresh() {
         if (current == null || controls == null) return;
-        ReadingMediaState state = current.state;
+        ReadingMediaState state = current.mediaState();
         controls.setMetadata(state.metadata());
         controls.setPlaybackState(state.playbackState());
         android.app.Notification notification = ReadingMediaNotification.build(this, controls, state);
@@ -143,7 +149,7 @@ public final class BackgroundMediaService extends Service {
         wakeLock = null;
     }
 
-    @Override public void onTaskRemoved(Intent rootIntent) { dispatch("pause", 0); stop(this); }
+    @Override public void onTaskRemoved(Intent rootIntent) { dispatch("stop", 0); stop(this); }
 
     @Override public void onDestroy() {
         instance = null;

@@ -170,8 +170,11 @@ public class GeckoTabsTest {
                 + "for (let i = 0; i < n; i++) view.setInt16(44 + i * 2, Math.sin(i * 2 * Math.PI * 440 / rate) * 8000, true);"
                 + "const audio = document.createElement('audio'); audio.id = 'media'; audio.loop = true;"
                 + "audio.src = URL.createObjectURL(new Blob([view], {type: 'audio/wav'})); document.body.append(audio);"
-                + "audio.play(); return true; })()");
-            assertEquals("Play reports playing", Boolean.TRUE, events.poll(15, java.util.concurrent.TimeUnit.SECONDS));
+                + "audio.play().then(() => document.body.dataset.play = 'ok', e => document.body.dataset.play = String(e)); return true; })()");
+            Boolean played = events.poll(15, java.util.concurrent.TimeUnit.SECONDS);
+            if (played == null) fail("No playing report; page media: " + evaluate(t, id, generation, "(() => { const a = document.querySelector('#media');"
+                + "return JSON.stringify({play: document.body.dataset.play, paused: a.paused, time: a.currentTime, ready: a.readyState, muted: a.muted, volume: a.volume}) })()"));
+            assertEquals("Play reports playing", Boolean.TRUE, played);
             evaluate(t, id, generation, "document.querySelector('#media').pause(); true");
             assertEquals("Pause reports stopped", Boolean.FALSE, events.poll(10, java.util.concurrent.TimeUnit.SECONDS));
             evaluate(t, id, generation, "document.querySelector('#media').play(); true");

@@ -133,7 +133,8 @@ test("native embedded browsers report forward history and iOS hands unhandled ed
   const ios = fs.readFileSync(path.join(
     root,
     "apps/mobile/ios/App/App/InAppBrowserSurfacePlugin.swift"
-  ), "utf8") + fs.readFileSync(path.join(root, "apps/mobile/ios/App/App/ReadingPageCommands.swift"), "utf8")
+  ), "utf8") + fs.readFileSync(path.join(root, "apps/mobile/ios/App/App/ReadingPageCommands.swift"), "utf8") +
+    fs.readFileSync(path.join(root, "apps/mobile/ios/App/App/InAppBrowserSurfaceNavigation.swift"), "utf8")
 
   assert.match(androidHost, /payload\.put\("canGoForward", canGoForward\)/)
   assert.match(androidPlugin, /public void goForward\(PluginCall call\)/)
@@ -197,6 +198,10 @@ test("Android hands synced settings to its trusted Gecko bridge", () => {
     root,
     "apps/mobile/android/app/src/main/java/com/zmarn/once/InAppBrowserSurfacePlugin.java"
   ), "utf8")
+  const androidSettings = fs.readFileSync(path.join(
+    root,
+    "apps/mobile/android/app/src/main/java/com/zmarn/once/ExtensionSettingsSync.java"
+  ), "utf8")
   const manifest = JSON.parse(fs.readFileSync(path.join(
     root, "apps/mobile/extensions/once-surface/manifest.json"
   ), "utf8"))
@@ -205,7 +210,7 @@ test("Android hands synced settings to its trusted Gecko bridge", () => {
   ), "utf8")
 
   assert.match(android, /public void applyExtensionSettings\(PluginCall call\)/)
-  assert.match(android, /settingsPort\.postMessage\(message\)/)
+  assert.match(androidSettings, /settingsPort\.postMessage\(message\)/)
   assert.deepEqual(manifest.background.scripts, ["filterRules.js", "documentContext.js", "background.js"])
   assert.ok(manifest.permissions.includes("webRequestBlocking"))
   assert.match(background, /browser\.webRequest\.onBeforeRequest\.addListener/)

@@ -8,6 +8,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.drawable.Icon;
 import android.media.session.MediaSession;
+import java.util.ArrayList;
+import java.util.List;
+import org.mozilla.geckoview.MediaSession.Feature;
 
 final class ReadingMediaNotification {
     private static final String CHANNEL = "background-media";
@@ -28,13 +31,26 @@ final class ReadingMediaNotification {
             .setDeleteIntent(command(context, "stop"))
             .setVisibility(Notification.VISIBILITY_PUBLIC);
         if (state.artwork != null) notification.setLargeIcon(state.artwork);
-        if (state.canSeek()) notification.addAction(action(context, "back", "Back 10 seconds", android.R.drawable.ic_media_rew));
-        notification.addAction(action(context, state.playing ? "pause" : "play", state.playing ? "Pause" : "Play",
+        boolean seek = state.canSeek();
+        List<Notification.Action> actions = new ArrayList<>();
+        List<Integer> compact = new ArrayList<>();
+        // Compact view fits three: seek controls for page media, otherwise track skips.
+        if (state.supports(Feature.PREVIOUS_TRACK)) add(actions, compact, !seek, action(context, "previous", "Previous", android.R.drawable.ic_media_previous));
+        if (seek) add(actions, compact, true, action(context, "back", "Back 10 seconds", android.R.drawable.ic_media_rew));
+        add(actions, compact, true, action(context, state.playing ? "pause" : "play", state.playing ? "Pause" : "Play",
             state.playing ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play));
-        if (state.canSeek()) notification.addAction(action(context, "forward", "Forward 10 seconds", android.R.drawable.ic_media_ff));
+        if (seek) add(actions, compact, true, action(context, "forward", "Forward 10 seconds", android.R.drawable.ic_media_ff));
+        if (state.supports(Feature.NEXT_TRACK)) add(actions, compact, !seek, action(context, "next", "Next", android.R.drawable.ic_media_next));
+        if (state.stoppable) add(actions, compact, false, action(context, "stop", "Stop", android.R.drawable.ic_menu_close_clear_cancel));
+        for (Notification.Action action : actions) notification.addAction(action);
         notification.setStyle(new Notification.MediaStyle().setMediaSession(controls.getSessionToken())
-            .setShowActionsInCompactView(state.canSeek() ? new int[] {0, 1, 2} : new int[] {0}));
+            .setShowActionsInCompactView(compact.stream().mapToInt(Integer::intValue).toArray()));
         return notification.build();
+    }
+
+    private static void add(List<Notification.Action> actions, List<Integer> compact, boolean compacted, Notification.Action action) {
+        if (compacted) compact.add(actions.size());
+        actions.add(action);
     }
 
     private static PendingIntent command(Context context, String action) {

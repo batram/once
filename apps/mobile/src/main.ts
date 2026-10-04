@@ -26,6 +26,7 @@ import { attachEdgeSwipe } from "./edgeSwipe"
 import { mobileAddonConversations } from "./addonConversations"
 import { installReaderTtsHostBridge } from "./readerTtsHostBridge"
 import { installReaderTtsControls } from "./readerTtsControls"
+import { installReaderMediaSession, nativeReaderSpeechEngine } from "./readerMediaSession"
 import { installReaderLinkHost } from "./readerLinks"
 import { MobileReadingController } from "./readingController"
 import { readingPageActions } from "./readingPageActions"
@@ -225,7 +226,7 @@ async function startMobileApp(): Promise<void> {
   // Every tab's reader may speak; the controls follow the selected tab's reader.
   const tts = installReaderTtsHostBridge(
     (source) => reading.runtimeReaderWindow(source),
-    undefined,
+    nativeReaderSpeechEngine(),
     undefined,
     (source) => reading.reader.isReaderWindow(source)
   )
@@ -233,6 +234,7 @@ async function startMobileApp(): Promise<void> {
   const reading = new MobileReadingController(browserSurface, reader, ttsControls)
   tts.onAudible((source, audible) => reading.setReaderAudible(source, audible))
   reading.onReaderClosed((closed) => tts.release((source) => closed.isReaderWindow(source)))
+  installReaderMediaSession(tts, (frame) => reading.describeReader(frame))
   await reading.install()
   // A tab owns its saved story even when the feed removes it. Refresh its
   // metadata from the working set whenever new evidence becomes available.

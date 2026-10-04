@@ -29,14 +29,18 @@ final class BrowserMenuSheet: UIViewController, UIAdaptivePresentationController
 
     private let call: CAPPluginCall
     private let navigation: Navigation
+    private let keepsMedia: Bool
+    private let keepMedia: (Bool) -> Void
     private let palette: Palette
     private var settled = false
     private var fittedHeight: CGFloat = 0
     private let content = UIStackView()
 
-    init(call: CAPPluginCall, navigation: Navigation, dark: Bool) {
+    init(call: CAPPluginCall, navigation: Navigation, keepsMedia: Bool, dark: Bool, keepMedia: @escaping (Bool) -> Void) {
         self.call = call
         self.navigation = navigation
+        self.keepsMedia = keepsMedia
+        self.keepMedia = keepMedia
         palette = Palette(dark: dark)
         super.init(nibName: nil, bundle: nil)
         modalPresentationStyle = .pageSheet
@@ -111,6 +115,7 @@ final class BrowserMenuSheet: UIViewController, UIAdaptivePresentationController
         controls.distribution = .fillEqually
         controls.spacing = 8
         content.addArrangedSubview(controls)
+        content.addArrangedSubview(toggle("Keep media playing in background", isOn: keepsMedia, changed: keepMedia))
 
         for item in call.getArray("items", JSObject.self) ?? [] {
             guard let id = item["id"] as? String, let label = item["label"] as? String else { continue }
@@ -185,6 +190,35 @@ final class BrowserMenuSheet: UIViewController, UIAdaptivePresentationController
         }
         tile.accessibilityLabel = label
         return tile
+    }
+
+    /// A setting that applies in place; the sheet stays open.
+    private func toggle(_ label: String, isOn: Bool, changed: @escaping (Bool) -> Void) -> UIView {
+        let title = UILabel()
+        title.text = label
+        title.font = .systemFont(ofSize: 16)
+        title.textColor = palette.text
+        title.adjustsFontSizeToFitWidth = true
+        title.minimumScaleFactor = 0.8
+        let control = UISwitch()
+        control.isOn = isOn
+        // Android's switch accent, rgb(64, 80, 172) light and rgb(90, 104, 200) dark.
+        control.onTintColor = overrideUserInterfaceStyle == .dark
+            ? UIColor(red: 90 / 255, green: 104 / 255, blue: 200 / 255, alpha: 1)
+            : UIColor(red: 64 / 255, green: 80 / 255, blue: 172 / 255, alpha: 1)
+        control.accessibilityLabel = label
+        control.addAction(UIAction { [weak control] _ in
+            if let control { changed(control.isOn) }
+        }, for: .valueChanged)
+        let row = UIStackView(arrangedSubviews: [title, control])
+        row.alignment = .center
+        row.spacing = 12
+        row.isLayoutMarginsRelativeArrangement = true
+        row.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16)
+        row.backgroundColor = palette.card
+        row.layer.cornerRadius = 12
+        row.heightAnchor.constraint(equalToConstant: 48).isActive = true
+        return row
     }
 
     private func entry(id: String, label: String, enabled: Bool, iconDataUrl: String?, settingsId: String?) -> UIView {

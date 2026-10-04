@@ -24,6 +24,8 @@ export type ReaderTtsRequestBody =
     paused: boolean
     rate: number
     segment: number
+    /** Paragraph count; absent from readers built before it was reported. */
+    segments?: number
     voices: ReaderTtsVoice[]
     voice: string
   }

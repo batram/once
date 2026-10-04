@@ -11,7 +11,7 @@ import org.mozilla.geckoview.MediaSession;
 import org.mozilla.geckoview.WebExtension;
 
 /** The reading session's persisted playback policy, independent of view visibility. */
-final class BackgroundMedia implements MediaSession.Delegate {
+final class BackgroundMedia implements MediaSession.Delegate, BackgroundMediaService.Owner {
     private final Context context;
     private final SharedPreferences preferences;
     private GeckoSession session;
@@ -148,11 +148,14 @@ final class BackgroundMedia implements MediaSession.Delegate {
         updateService();
     }
 
-    void command(String action, long position) {
+    @Override public ReadingMediaState mediaState() { return state; }
+
+    @Override public void command(String action, long position) {
         if (playing == null) return;
         switch (action) {
             case "play": if (isEnabled() || active) playing.play(); break;
-            case "pause": playing.pause(); break;
+            // Dismissing the controls only pauses page media; the page keeps its own player.
+            case "pause": case "stop": playing.pause(); break;
             case "next": if (state.supports(MediaSession.Feature.NEXT_TRACK)) playing.nextTrack(); break;
             case "previous": if (state.supports(MediaSession.Feature.PREVIOUS_TRACK)) playing.previousTrack(); break;
             case "back": seek(state.positionNow() - 10000); break;

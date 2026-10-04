@@ -28,8 +28,9 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         CAPPluginMethod(name: "close", returnType: CAPPluginReturnPromise)
     ]
 
-    private weak var owner: InAppBrowserSurfacePlugin?
+    private(set) weak var owner: InAppBrowserSurfacePlugin?
     private var memoryObserver: NSObjectProtocol?
+    private var backgroundObserver: NSObjectProtocol?
     private var reclaimedURL: URL?
     private var adoptedWindow = false
     // Opened by a page's window.open, so that page's script may close it again.
@@ -37,7 +38,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     private var tabId = ""
     private var tabGeneration = ""
     private var selectedTab: String?
-    private var tabs: [String: InAppBrowserSurfacePlugin] = [:]
+    private(set) var tabs: [String: InAppBrowserSurfacePlugin] = [:]
     private var retiredTabs = Set<String>()
 
     public override func load() {
@@ -55,10 +56,20 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
                 }
             }
         }
+        // The audio background mode (for reader speech) would otherwise let
+        // page audio play on; unless the user keeps it, pause it as before.
+        backgroundObserver = NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification,
+                                                                    object: nil, queue: .main) { [weak self] _ in
+            guard let self, !PlaybackAudioSession.shared.keepsPageMedia else { return }
+            for view in ([self.surface] + self.tabs.values.map(\.surface)).compactMap({ $0 }) {
+                view.pauseAllMediaPlayback {}
+            }
+        }
     }
 
     deinit {
         if let memoryObserver { NotificationCenter.default.removeObserver(memoryObserver) }
+        if let backgroundObserver { NotificationCenter.default.removeObserver(backgroundObserver) }
     }
 
     // Capacitor invokes plugin methods on its bridge queue, but the tab maps and
@@ -111,7 +122,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         }
     }
 
-    private func pageEvent(_ name: String, data: [String: Any]) {
+    func pageEvent(_ name: String, data: [String: Any]) {
         guard let owner else { notifyListeners(name, data: data); return }
         guard owner.tabs[tabId] === self else { return }
         var payload = data
@@ -130,7 +141,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     /// The bare root plugin is the single legacy surface while no tabs exist.
     private var isSelected: Bool { owner.map { $0.selectedTab == tabId } ?? tabs.isEmpty }
     private var refreshControl: UIRefreshControl?
-    private let navigationState = BrowserNavigationState()
+    let navigationState = BrowserNavigationState()
     private var urlObservation: NSKeyValueObservation?
     private var extensionSettingsGeneration = 0
     /// Bumped by close() so an open/navigate still waiting on extensions doesn't revive the surface.
@@ -141,14 +152,14 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     private var contentRuleList: WKContentRuleList?
     private var extensionUserScripts: [WKUserScript] = []
     /// Frames (by their script's token) currently playing audible media.
-    private var playingFrames = Set<String>()
-    private var mediaPlaying = false
+    var playingFrames = Set<String>()
+    var mediaPlaying = false
     /// Root-only: a popup's configuration shares its opener's controller, and
     /// adding a second handler under the same name throws.
-    private let mediaControllers = NSHashTable<WKUserContentController>.weakObjects()
-    private lazy var mediaScript = WKUserScript(source: MediaObserver.source, injectionTime: .atDocumentStart,
+    let mediaControllers = NSHashTable<WKUserContentController>.weakObjects()
+    lazy var mediaScript = WKUserScript(source: MediaObserver.source, injectionTime: .atDocumentStart,
                                                 forMainFrameOnly: false, in: MediaObserver.world)
-    private lazy var extensions: WebExtensionHost = {
+    private(set) lazy var extensions: WebExtensionHost = {
         let host = WebExtensionHost()
         host.changed = { [weak self] in self?.notifyListeners("extensionsChanged", data: [:]) }
         host.pageChanged = { [weak self] in self?.notifyListeners("extensionPageChanged", data: $0) }
@@ -165,7 +176,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         return try? String(contentsOf: url, encoding: .utf8)
     }()
 
-    private func embeddable(_ raw: String?) -> URL? {
+    func embeddable(_ raw: String?) -> URL? {
         guard let raw, let url = URL(string: raw),
               url.scheme?.lowercased() == "http" || url.scheme?.lowercased() == "https"
         else { return nil }
@@ -257,7 +268,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         navigationState.reload(surface)
     }
 
-    private func finishRefresh() {
+    func finishRefresh() {
         refreshControl?.endRefreshing()
     }
 
@@ -424,7 +435,9 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             reload: { [weak self] in
                 if let surface { self?.navigationState.reload(surface) }
             }
-        ), dark: dark)
+        ), keepsMedia: PlaybackAudioSession.shared.keepsPageMedia, dark: dark) {
+            PlaybackAudioSession.shared.keepsPageMedia = $0
+        }
         sheet.configureSheet()
         presenter.present(sheet, animated: true)
     }
@@ -573,155 +586,6 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         navigationState.reset()
     }
 
-    /// A popup's tab navigates before JS has created the tab and installed its
-    /// listeners, so open() replays where that navigation has got to.
-    private func replayNavigation(_ view: WKWebView) {
-        let state = navigationState
-        guard state.phase != .idle else { return } // Its events are still to come.
-        pageEvent("navigationStarted", data: state.payload(view.url))
-        if state.phase == .committed || state.phase == .finished {
-            pageEvent("navigationCommitted", data: state.payload(view.url))
-        }
-        if state.phase == .finished { pageEvent("navigationFinished", data: state.payload(view.url)) }
-        if state.phase == .failed, let failure = state.failure { pageEvent("navigationFailed", data: failure) }
-        history(view)
-    }
-
-    private func history(_ view: WKWebView) {
-        extensions.navigationChanged(view)
-        var value = navigationState.payload(view.url)
-        value["canGoBack"] = view.canGoBack
-        value["canGoForward"] = view.canGoForward
-        pageEvent("historyChanged", data: value)
-    }
-
-    public func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
-        guard webView === surface else { return }
-        navigationState.started(navigation, url: webView.url)
-        pageEvent("navigationStarted", data: navigationState.payload(navigationState.sourceURL))
-    }
-
-    public func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
-        guard webView === surface, navigationState.isCurrent(navigation) else { return }
-        navigationState.committed()
-        // The previous document and its frames are gone, whatever they last said.
-        resetMedia()
-        pageEvent("navigationCommitted", data: navigationState.payload(webView.url))
-        history(webView)
-    }
-
-    public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        guard webView === surface, navigationState.isCurrent(navigation) else { return }
-        finishRefresh()
-        navigationState.finished(webView.url)
-        pageEvent("navigationFinished", data: navigationState.payload(webView.url))
-        history(webView)
-    }
-
-    public func webView(
-        _ webView: WKWebView,
-        didFailProvisionalNavigation navigation: WKNavigation!,
-        withError error: Error
-    ) {
-        navigationFailed(webView, navigation: navigation, error: error)
-    }
-
-    public func webView(
-        _ webView: WKWebView,
-        didFail navigation: WKNavigation!,
-        withError error: Error
-    ) {
-        navigationFailed(webView, navigation: navigation, error: error)
-    }
-
-    private func navigationFailed(_ webView: WKWebView, navigation: WKNavigation?, error: Error) {
-        guard webView === surface else { return }
-        guard let value = navigationState.failed(navigation, url: webView.url, error: error) else { return }
-        finishRefresh()
-        pageEvent("navigationFailed", data: value)
-    }
-
-    public func webView(
-        _ webView: WKWebView,
-        decidePolicyFor navigationAction: WKNavigationAction,
-        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
-    ) {
-        guard let url = navigationAction.request.url else {
-            decisionHandler(.cancel)
-            return
-        }
-        // A user-activated HTTP(S) link may request an in-app window. Keep the
-        // shared subframe/external-scheme policy unchanged for every other request.
-        if navigationAction.targetFrame == nil, navigationAction.navigationType == .linkActivated,
-           embeddable(url.absoluteString) != nil {
-            decisionHandler(.allow)
-            return
-        }
-        switch extensions.navigationDisposition(for: url, targetIsMainFrame: navigationAction.targetFrame?.isMainFrame) {
-        case .allow: decisionHandler(.allow)
-        case .external:
-            UIApplication.shared.open(url)
-            decisionHandler(.cancel)
-        case .cancel: decisionHandler(.cancel)
-        }
-    }
-
-    public func webView(
-        _ webView: WKWebView,
-        decidePolicyFor navigationResponse: WKNavigationResponse,
-        decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void
-    ) {
-        if navigationResponse.isForMainFrame,
-           let response = navigationResponse.response as? HTTPURLResponse {
-            navigationState.statusCode = response.statusCode
-        }
-        if !navigationResponse.canShowMIMEType,
-           let url = navigationResponse.response.url {
-            UIApplication.shared.open(url)
-            decisionHandler(.cancel)
-            return
-        }
-        decisionHandler(.allow)
-    }
-
-    public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
-        if webView === surface { resetMedia() }
-        webView.reload()
-    }
-
-    private func installMediaObserver(_ controller: WKUserContentController) {
-        let root = owner ?? self
-        if !controller.userScripts.contains(where: { $0 === root.mediaScript }) {
-            controller.addUserScript(root.mediaScript)
-        }
-        guard !root.mediaControllers.contains(controller) else { return }
-        root.mediaControllers.add(controller)
-        controller.add(MediaObserver(root), contentWorld: MediaObserver.world, name: "onceMedia")
-    }
-
-    /// Root-only: one handler may serve several surfaces, so find the sender's tab.
-    fileprivate func mediaMessage(_ message: WKScriptMessage) {
-        guard let view = message.webView,
-              let tab = surface === view ? self : tabs.values.first(where: { $0.surface === view }),
-              let body = message.body as? [String: Any],
-              let frame = body["frame"] as? String,
-              let playing = body["playing"] as? Bool else { return }
-        if playing { tab.playingFrames.insert(frame) } else { tab.playingFrames.remove(frame) }
-        tab.publishMedia()
-    }
-
-    private func resetMedia() {
-        playingFrames.removeAll()
-        publishMedia()
-    }
-
-    private func publishMedia() {
-        let playing = !playingFrames.isEmpty
-        guard playing != mediaPlaying else { return }
-        mediaPlaying = playing
-        pageEvent("mediaStateChanged", data: ["playing": playing])
-    }
-
     public func webViewDidClose(_ webView: WKWebView) {
         extensions.closePage(requestedBy: webView)
         // The shell owns the tab list, so it decides how the tab goes away.
@@ -754,61 +618,5 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         root.notifyListeners("newTabRequested", data: ["tabId": tab.tabId, "generation": tab.tabGeneration,
                                                      "url": url.absoluteString, "navigationId": 0])
         return view
-    }
-}
-
-/// Reports, per frame, whether any <audio>/<video> plays audibly. WebKit exposes
-/// no such state publicly. Runs in its own content world so page script can
-/// neither post to the handler nor tamper with the observer.
-private final class MediaObserver: NSObject, WKScriptMessageHandler {
-    static let world = WKContentWorld.world(name: "OnceMedia")
-    // Media events don't bubble, hence capture on document. An element that
-    // played gets direct listeners too: removed from the document, WebKit
-    // pauses it where the document no longer hears.
-    static let source = """
-    (function () {
-      if (window.__onceMedia) return;
-      window.__onceMedia = true;
-      var frame = Math.random().toString(36).slice(2) + Date.now().toString(36);
-      var active = new Set();
-      var tracked = new WeakSet();
-      var types = ['play', 'playing', 'pause', 'ended', 'emptied', 'volumechange'];
-      var audible = false;
-      function post(value) {
-        if (value === audible) return;
-        audible = value;
-        try { window.webkit.messageHandlers.onceMedia.postMessage({ frame: frame, playing: value }); } catch (e) {}
-      }
-      function update() {
-        var playing = false;
-        active.forEach(function (media) {
-          if (media.paused || media.ended) active.delete(media);
-          else if (!media.muted && media.volume > 0) playing = true;
-        });
-        post(playing);
-      }
-      function seen(event) {
-        var media = event.target;
-        if (!(media instanceof HTMLMediaElement)) return;
-        if (!tracked.has(media)) {
-          tracked.add(media);
-          types.forEach(function (type) { media.addEventListener(type, seen); });
-        }
-        if (!media.paused && !media.ended) active.add(media);
-        update();
-      }
-      types.forEach(function (type) { document.addEventListener(type, seen, true); });
-      window.addEventListener('pagehide', function () { post(false); });
-      window.addEventListener('pageshow', function (event) { if (event.persisted) update(); });
-    })();
-    """
-
-    /// The controller retains its handlers; weak so it doesn't retain the plugin.
-    private weak var root: InAppBrowserSurfacePlugin?
-
-    init(_ root: InAppBrowserSurfacePlugin) { self.root = root }
-
-    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-        root?.mediaMessage(message)
     }
 }

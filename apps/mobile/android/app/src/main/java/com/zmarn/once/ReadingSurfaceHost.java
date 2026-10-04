@@ -21,13 +21,9 @@ import com.getcapacitor.PluginCall;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
-import org.mozilla.geckoview.AllowOrDeny;
-import org.mozilla.geckoview.GeckoResult;
 import org.mozilla.geckoview.GeckoSession;
 import org.mozilla.geckoview.GeckoView;
 import org.mozilla.geckoview.WebExtension;
-import org.mozilla.geckoview.WebRequestError;
-import static com.zmarn.once.ReadingNavigationError.describe;
 
 /** Native reading session, view ownership, navigation and bounded recovery.
  * The Capacitor adapter supplies extension messaging and script-call settlement. */
@@ -250,8 +246,8 @@ abstract class ReadingSurfaceHost extends Plugin {
         // The reading page is the selected tab: keep its process bound above the
         // cached-app bucket so the low-memory killer takes other things first.
         session.setPriorityHint(visible && resumed ? GeckoSession.PRIORITY_HIGH : GeckoSession.PRIORITY_DEFAULT);
-        session.setNavigationDelegate(new Navigation());
-        session.setProgressDelegate(new Progress());
+        session.setNavigationDelegate(new ReadingNavigationDelegate(this));
+        session.setProgressDelegate(new ReadingProgressDelegate(this));
         session.setContentDelegate(new ReadingContentDelegate(url -> { if (session == created) openExternal(url); },
             message -> { if (session == created) processStopped(message); },
             () -> visible && resumed, () -> {
@@ -557,141 +553,6 @@ abstract class ReadingSurfaceHost extends Plugin {
         traceLoad("ready");
         event("navigationFinished", activeNavigation, currentUrl);
         history(activeNavigation);
-    }
-
-    private final class Navigation implements GeckoSession.NavigationDelegate {
-        @Override
-        public void onLocationChange(
-            GeckoSession ignored,
-            String url,
-            java.util.List<GeckoSession.PermissionDelegate.ContentPermission> permissions,
-            Boolean hasUserGesture
-        ) {
-            if (ignored != session || awaitingRequestedStart) return;
-            currentUrl = url == null ? "" : url;
-            if (isSurfaceUrl(url)) requestedUrl = currentUrl;
-            committedNavigation = activeNavigation;
-            event("navigationCommitted", activeNavigation, currentUrl);
-            history(activeNavigation);
-        }
-
-        @Override
-        public void onCanGoBack(GeckoSession ignored, boolean value) {
-            if (ignored != session) return;
-            canGoBack = value;
-            history(activeNavigation);
-        }
-
-        @Override
-        public void onCanGoForward(GeckoSession ignored, boolean value) {
-            if (ignored != session) return;
-            canGoForward = value;
-            history(activeNavigation);
-        }
-
-        @Override
-        public GeckoResult<AllowOrDeny> onLoadRequest(GeckoSession ignored, LoadRequest request) {
-            if (ignored != session) return GeckoResult.deny();
-            if (awaitingRequestedStart) {
-                if (sameAddress(request.uri, requestedUrl)) requestedLoadAccepted = true;
-                else if (request.isRedirect && requestedLoadAccepted) requestedUrl = request.uri;
-                else if (request.isDirectNavigation) return GeckoResult.deny();
-            }
-            if (isSurfaceUrl(request.uri)) return GeckoResult.fromValue(AllowOrDeny.ALLOW);
-            openExternal(request.uri);
-            return GeckoResult.fromValue(AllowOrDeny.DENY);
-        }
-
-        @Override
-        public GeckoResult<GeckoSession> onNewSession(GeckoSession ignored, String uri) {
-            if (ignored != session) return GeckoResult.fromValue(null);
-            return GeckoResult.fromValue(createWindow(uri));
-        }
-
-        @Override
-        public GeckoResult<String> onLoadError(GeckoSession ignored, String uri, WebRequestError error) {
-            if (ignored != session || awaitingRequestedStart && !uri.equals(requestedUrl)) return null;
-            failed(uri, error.code, describe(error));
-            showRecovery(describe(error) + ". Retry the page or choose another story.");
-            return null;
-        }
-    }
-
-    private final class Progress implements GeckoSession.ProgressDelegate {
-        @Override public void onProgressChange(GeckoSession source, int progress) { display.progress(source, progress); }
-        @Override public void onSessionStateChange(GeckoSession source, GeckoSession.SessionState state) {
-            if (source == session && !awaitingRequestedStart && !initialBlank) sessionState = state;
-        }
-        @Override
-        public void onPageStart(GeckoSession ignored, String url) {
-            if (ignored != session) return;
-            if (awaitingRequestedStart && !sameAddress(requestedUrl, url)) return;
-            awaitingRequestedStart = false;
-            painted = false;
-            documentPainted = false;
-            repairVerified = false;
-            displayReattached = false;
-            backgroundMedia.reset();
-            backgroundMedia.attachPort(null);
-            // A new session loads about:blank on its own before the first
-            // requested page; the shell never asked for that one.
-            failPendingEvaluations("The page navigated away");
-            bridgePort = null;
-            healthSentAt = 0;
-            scrollY = 0;
-            initialBlank = !sawRequestedPage && "about:blank".equals(url);
-            if (!initialBlank) sawRequestedPage = true;
-            activeNavigation = navigationSequence.incrementAndGet();
-            currentUrl = url == null ? "" : url;
-            pageTitle = "";
-            documentSourceUrl = currentUrl;
-            documentStatus = 0;
-            if (!initialBlank && isSurfaceUrl(currentUrl)) { requestedUrl = currentUrl; armNavigation(); }
-            if (!initialBlank) traceLoad("started");
-            event("navigationStarted", activeNavigation, currentUrl);
-        }
-
-        @Override
-        public void onPageStop(GeckoSession ignored, boolean success) {
-            if (ignored != session || awaitingRequestedStart) return;
-            finishRefresh();
-            // stop() also produces an unsuccessful PageStop. Do not let a
-            // superseded load cover the next document with an error. Real load
-            // errors arrive in onLoadError; missing completion stays bounded.
-            if (!success) return;
-            // Only a background tab skips verification; a selected tab hidden
-            // under a dialog or panel is verified once it is shown again.
-            if (!visible && !ownsForeground()) { documentReady(); return; }
-            if (!isEmbeddable(currentUrl)) navigationDeadline = 0;
-            // A successful network stop does not mean a visible, responsive
-            // document. The matching content-port health reply completes web
-            // navigation, including BFCache restores and stalled subresources.
-            if (!isEmbeddable(currentUrl)) documentReady();
-            else if (!navigationCompleted) completeIfPdfViewer();
-            nextHealthAt = 0;
-            if (!initialBlank) {
-                if (loadStatus != null && !navigationCompleted) loadStatus.show("Displaying page…");
-                traceLoad("network-stopped");
-                requestHealthCheck();
-            }
-        }
-
-        /**
-         * An http(s) PDF renders in Gecko's privileged pdf.js viewer, where the
-         * content-script bridge never connects, so no health reply can finish
-         * the navigation. Treat a stopped PDF load as ready, as for other
-         * documents the bridge cannot reach.
-         */
-        private void completeIfPdfViewer() {
-            GeckoSession loaded = session;
-            long navigation = activeNavigation;
-            loaded.isPdfJs().accept(pdf -> {
-                if (loaded != session || navigation != activeNavigation || destroyed) return;
-                traceLoad(Boolean.TRUE.equals(pdf) ? "pdf-viewer" : "not-pdf-viewer");
-                if (!Boolean.TRUE.equals(pdf)) return;
-                documentReady();
-            }, error -> Log.w(TAG, "isPdfJs failed: " + error));
-        }
     }
 
     /** window.close() from the page; only a page-opened window may honour it. */

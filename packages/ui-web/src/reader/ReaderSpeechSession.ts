@@ -11,6 +11,7 @@ export interface ReaderSpeechState {
   paused: boolean
   rate: number
   segment: number
+  segments: number
   voices: ReaderSpeechVoice[]
   voice: string
 }
@@ -63,6 +64,7 @@ export class ReaderSpeechSession {
       paused: this.paused,
       rate: this.rate,
       segment: this.position,
+      segments: this.options.texts.length,
       voices: this.options.engine.getVoices().map((voice) => ({
         voiceURI: voice.voiceURI,
         name: voice.name,

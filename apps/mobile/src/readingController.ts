@@ -1,4 +1,4 @@
-import { storedStoryCardCollapsed, rememberStoryCardCollapsed, renderStoryTags } from "./readingStoryCard"
+import { StoryCardCollapse, renderStoryTags } from "./readingStoryCard"
 import { InAppBrowserSurface, normalizeReadingUrl } from "@once/platform-mobile"
 import { humanTime, URLRedirect, storyPageUrls } from "@once/core"
 import { ReaderTtsUiControls } from "./readerTtsControls"
@@ -38,8 +38,7 @@ export class MobileReadingController {
   private editingAddress = false
   private renderedNavigationId = 0
   private currentStoryRow: StoryListItem | null = null
-  private currentCardStoryHref = ""
-  private currentStoryCollapsed = false
+  private readonly storyCollapse = new StoryCardCollapse(() => void this.nativeReading.updateBounds())
   // Which tab last rendered in Reader mode; leaving it in that same tab stops its speech.
   private readerModeTab: ReadingTab | null = null
 
@@ -69,6 +68,15 @@ export class MobileReadingController {
 
   runtimeReaderWindow(source: unknown): boolean {
     return this.runtime.isReaderWindow(source)
+  }
+
+  /** What system media controls show for a speaking reader. */
+  describeReader(source: unknown): { title: string; subtitle: string } {
+    const tab = this.runtime.tabForReaderWindow(source)
+    const state = tab?.session.snapshot()
+    let site = ""
+    try { site = new URL(state?.currentUrl ?? "").hostname.replace(/^www\./, "") } catch { /* no page */ }
+    return { title: tab?.title || state?.story?.title || site || "Article", subtitle: site }
   }
 
   setReaderAudible(source: unknown, audible: boolean): void {
@@ -315,11 +323,7 @@ export class MobileReadingController {
       event.preventDefault()
       void this.toggleStoryAndComments()
     }
-    required<HTMLButtonElement>("#reading_story_collapse").onclick = () => {
-      this.setCurrentStoryCollapsed(!this.currentStoryCollapsed, true)
-    }
-    this.bindStoryCardStateSetting()
-    this.bindCurrentStorySwipe(currentCard)
+    this.storyCollapse.bind(currentCard)
     required<HTMLButtonElement>("#reading_reader_toggle").onclick = () => {
       this.editingAddress = false
       address.value = this.session.snapshot().currentUrl
@@ -410,107 +414,6 @@ export class MobileReadingController {
       .find((row) => row.story.href === href) ?? null
   }
 
-  private bindCurrentStorySwipe(card: HTMLElement): void {
-    let pointerId: number | null = null
-    let startX = 0
-    let startY = 0
-    let vertical = false
-    let suppressClick = false
-
-    const finish = (event: PointerEvent): void => {
-      if (event.pointerId !== pointerId) return
-      const distance = event.clientY - startY
-      pointerId = null
-      card.classList.remove("reading_story_dragging")
-      card.style.removeProperty("--reading-story-drag")
-      if (!vertical) return
-      suppressClick = Math.abs(distance) > 12
-      if (distance <= -32) this.setCurrentStoryCollapsed(true, true)
-      if (distance >= 32) this.setCurrentStoryCollapsed(false, true)
-    }
-
-    card.addEventListener("pointerdown", (event) => {
-      if (!event.isPrimary || event.button !== 0) return
-      if ((event.target as Element | null)?.closest(
-        'a, button, [role="link"], input, select, textarea'
-      )) return
-      pointerId = event.pointerId
-      startX = event.clientX
-      startY = event.clientY
-      vertical = false
-      card.setPointerCapture(event.pointerId)
-    })
-    card.addEventListener("pointermove", (event) => {
-      if (event.pointerId !== pointerId) return
-      const distanceX = event.clientX - startX
-      const distanceY = event.clientY - startY
-      if (!vertical && Math.max(Math.abs(distanceX), Math.abs(distanceY)) < 8) {
-        return
-      }
-      if (!vertical && Math.abs(distanceX) >= Math.abs(distanceY)) {
-        pointerId = null
-        return
-      }
-      vertical = true
-      event.preventDefault()
-      const drag = Math.max(-40, Math.min(40, distanceY))
-      card.classList.add("reading_story_dragging")
-      card.style.setProperty("--reading-story-drag", `${drag}px`)
-    })
-    card.addEventListener("pointerup", finish)
-    card.addEventListener("pointercancel", finish)
-    card.addEventListener("click", (event) => {
-      if (!suppressClick) return
-      suppressClick = false
-      event.preventDefault()
-      event.stopPropagation()
-    }, true)
-  }
-
-  private setCurrentStoryCollapsed(collapsed: boolean, remember = false): void {
-    if (remember) {
-      rememberStoryCardCollapsed(collapsed)
-      this.renderStoryCardStateSetting()
-    }
-    if (this.currentStoryCollapsed === collapsed) return
-    this.currentStoryCollapsed = collapsed
-    this.renderCurrentStoryCollapse()
-    void this.nativeReading.updateBounds()
-  }
-
-  // Reveals the mobile-only Layout group before mountOnceUi builds the
-  // settings navigation, the same handshake Electron's story position uses.
-  private bindStoryCardStateSetting(): void {
-    required("#mobile_layout_settings").hidden = false
-    const select = required<HTMLSelectElement>("#mobile_story_card_state")
-    this.renderStoryCardStateSetting()
-    select.addEventListener("change", () => {
-      this.setCurrentStoryCollapsed(select.value === "collapsed", true)
-    })
-  }
-
-  private renderStoryCardStateSetting(): void {
-    required<HTMLSelectElement>("#mobile_story_card_state").value =
-      storedStoryCardCollapsed() ? "collapsed" : "expanded"
-  }
-
-  private renderCurrentStoryCollapse(): void {
-    const card = required("#reading_current_card")
-    const button = required<HTMLButtonElement>("#reading_story_collapse")
-    card.classList.toggle(
-      "reading_story_collapsed",
-      this.currentStoryCollapsed
-    )
-    button.textContent = this.currentStoryCollapsed ? "⌄" : "⌃"
-    button.setAttribute("aria-expanded", String(!this.currentStoryCollapsed))
-    button.setAttribute(
-      "aria-label",
-      this.currentStoryCollapsed
-        ? "Expand current story"
-        : "Collapse current story"
-    )
-  }
-
   private observeCurrentStory(row: StoryListItem | null): void {
     if (this.currentStoryRow === row) return
     this.currentStoryRow?.removeEventListener(
@@ -557,15 +460,12 @@ export class MobileReadingController {
     const displayedStory = matchingStory?.story ?? story
     const currentCard = required("#reading_current_card")
     const storyHref = displayedStory?.href ?? ""
-    if (storyHref !== this.currentCardStoryHref) {
-      this.currentCardStoryHref = storyHref
-      this.currentStoryCollapsed = storedStoryCardCollapsed()
-    }
+    this.storyCollapse.showStory(storyHref)
     currentCard.hidden = !isStoryPage
     // The actions belong to the feed row; a story the feed dropped has none.
     required("#reading_story_menu").hidden = !matchingStory
     currentCard.classList.toggle("stared", Boolean(displayedStory?.stared))
-    this.renderCurrentStoryCollapse()
+    this.storyCollapse.render()
     const title = required<HTMLAnchorElement>("#reading_title")
     title.textContent = displayedStory?.title ?? "Reading"
     const comments = required<HTMLButtonElement>("#reading_comments")

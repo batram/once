@@ -15,6 +15,7 @@ class ViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(addressBar)
         bridge?.registerPluginInstance(SecureSettingsPlugin())
         bridge?.registerPluginInstance(InAppBrowserSurfacePlugin())
+        bridge?.registerPluginInstance(ReaderMediaSessionPlugin())
     }
 }
 

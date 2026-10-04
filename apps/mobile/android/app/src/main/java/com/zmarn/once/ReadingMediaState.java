@@ -13,7 +13,7 @@ final class ReadingMediaState {
     long duration = -1, position = PlaybackState.PLAYBACK_POSITION_UNKNOWN;
     long updatedAt = SystemClock.elapsedRealtime(), features;
     double rate = 1;
-    boolean playing, pageSeekable;
+    boolean playing, pageSeekable, stoppable;
 
     void position(double seconds, double length, double speed) {
         duration = Double.isFinite(length) && length > 0 ? (long) (length * 1000) : -1;
