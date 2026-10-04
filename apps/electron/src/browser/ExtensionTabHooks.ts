@@ -39,8 +39,40 @@ export function tabSnapshots(ownership: TabOwnership): TabSnapshot[] {
         pinned: false
       })
     })
+    const panel = owner.panelPage
+    if (panel && !panel.isDestroyed()) {
+      snapshots.push({
+        id: panel.id,
+        windowId: owner.id,
+        index: owner.tabs.length,
+        url: panel.getURL(),
+        title: panel.getTitle(),
+        active: false,
+        status: panel.isLoading() ? "loading" : "complete",
+        audible: panel.isCurrentlyAudible(),
+        mutedInfo: { muted: panel.isAudioMuted() },
+        incognito: false,
+        highlighted: false,
+        pinned: false
+      })
+    }
   }
   return snapshots
+}
+
+/**
+ * The panel's page, before it loads: content scripts, userscripts and request
+ * blocking reach only pages the extension runtime knows as tabs.
+ */
+export function adoptPanelPage(
+  owner: WindowEntry, contents: WebContents, tabCreated: Iterable<(contents: WebContents) => void>
+): void {
+  owner.panelPage = contents
+  for (const listener of tabCreated) listener(contents)
+  // After the runtime's own listener, which still asks for the window.
+  contents.once("destroyed", () => {
+    if (owner.panelPage === contents) owner.panelPage = undefined
+  })
 }
 
 /** The webContents id of the window's active tab, the id extensions use. */

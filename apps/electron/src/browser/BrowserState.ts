@@ -2,6 +2,7 @@ import type { StoryPageContext } from "@once/core"
 import {
   BrowserWindow,
   Rectangle,
+  WebContents,
   WebContentsView
 } from "electron"
 import { TabHistorySnapshot } from "./ClosedTabs"
@@ -60,4 +61,9 @@ export interface WindowEntry {
   closing: boolean
   /** Chords the renderer asked the main process to steal from focused pages. */
   forwardedKeys: Set<string>
+  /**
+   * The page the shell's panel shows (a story's comments). No tab, yet read
+   * like one: extensions see it after the window's tabs.
+   */
+  panelPage?: WebContents
 }

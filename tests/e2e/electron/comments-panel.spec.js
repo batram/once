@@ -1,3 +1,4 @@
+const path = require("node:path")
 const { test, expect } = require("./electron-harness")
 const { launchApp, closeApp, startPageServer, seedLocalSource, openSettingsSection } = require("./electron-harness")
 const storyFixture = require("../shared/story-fixture")
@@ -134,6 +135,44 @@ test("comments open in the Once panel beside the current page", async () => {
     await expect(window.locator("#left_panel")).toHaveAttribute("active_panel", "settings")
     await expect.poll(() => window.evaluate(() => window.onceElectron.tabs.getAll().then(all => all.find(tab => tab.active)?.url)))
       .toBe(urls.betaSubstoryComments)
+  } finally {
+    await closeApp(electronApp, userData)
+    await server.close()
+  }
+})
+
+// Userscripts, blockers and themes apply to the panel's page as to a tab's:
+// content scripts run there and their sender is a tab extensions can look up.
+test("extensions reach the comments in the Once panel", async () => {
+  test.setTimeout(60000)
+  const server = await startPageServer()
+  const { electronApp, userData, window } = await launchApp({ env: {
+    ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0",
+    ONCE_ELECTRON_EXTENSIONS: path.resolve(__dirname, "../../fixtures/extensions/content-probe")
+  } })
+  const panelPage = (script) => electronApp.evaluate(async ({ webContents }, code) => {
+    const found = webContents.getAllWebContents().find(contents => contents.getURL().includes("/comments/"))
+    return found ? found.executeJavaScript(code) : "no panel page"
+  }, script)
+  try {
+    await expect.poll(async () => (await window.evaluate(() => window.onceElectron.extensions.list())).map(item => item.name),
+      { timeout: 15_000 }).toContain("Once content probe fixture")
+    const urls = storyFixture.storyUrls(server.origin)
+    await seedLocalSource(window, storyFixture.sourceLine(server.origin), urls.alpha)
+    await window.locator(`#stories story-item[data-href="${urls.alpha}"] a.title`).click()
+    await window.locator(`#stories story-item[data-href="${urls.beta}"]`).getByTestId("comments-in-panel").first().click()
+    await expect.poll(() => panelPage("document.querySelector('h1')?.textContent")).toBe("Beta-1")
+
+    expect(await panelPage("document.documentElement.dataset.contentProbe")).toBe("ran")
+    await expect.poll(() => panelPage("document.documentElement.dataset.contentProbeReply ?? null")).not.toBeNull()
+    const reply = JSON.parse(await panelPage("document.documentElement.dataset.contentProbeReply"))
+    expect(reply.tabId).toEqual(reply.found)
+    expect(reply.tabId).not.toBeNull()
+    expect(reply.tabUrl).toContain("/comments/")
+
+    // Still no tab of its own in the strip.
+    const tabs = await window.evaluate(() => window.onceElectron.tabs.getAll())
+    expect(tabs.filter(tab => tab.url.includes("/comments/"))).toHaveLength(0)
   } finally {
     await closeApp(electronApp, userData)
     await server.close()

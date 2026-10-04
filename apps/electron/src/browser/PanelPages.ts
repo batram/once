@@ -2,6 +2,7 @@ import { ipcMain, WebContentsView } from "electron"
 import { ELECTRON_IPC, ElectronRect } from "@once/platform-electron/bridge"
 import { BROWSER_SESSION_PARTITION, BrowserCoordinator } from "../TabManager"
 import { WindowEntry } from "./BrowserState"
+import { adoptPanelPage } from "./ExtensionTabHooks"
 import { createTabView } from "./TabView"
 
 function webUrl(value: unknown): string {
@@ -42,6 +43,7 @@ class PanelPage {
     this.view.setVisible(false)
     owner.window.contentView.addChildView(this.view)
     const contents = this.view.webContents
+    adoptPanelPage(owner, contents, coordinator.tabCreated)
     contents.setWindowOpenHandler(({ url, disposition }) => {
       if (/^https?:/i.test(url)) void coordinator.createTab(owner, url, disposition !== "background-tab")
       return { action: "deny" }

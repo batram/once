@@ -67,7 +67,7 @@ export class BrowserCoordinator {
   private readonly tabEvents: TabEvents
   private readonly ownership: TabOwnership
   private readonly windowLifecycle: WindowLifecycle
-  private readonly tabCreated = new Set<(contents: WebContents) => void>()
+  readonly tabCreated = new Set<(contents: WebContents) => void>()
   private pageProfile: (url: string) => PageProfile | null = () => null
   private redirects: CompiledRedirect[] = []
 
