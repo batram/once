@@ -10,7 +10,11 @@ const READ_PICKER_RESULT_SCRIPT =
 
 export interface MobileSourcePickerOptions {
   surface: InAppBrowserSurface
-  currentSurface?: () => InAppBrowserSurface
+  /**
+   * The current tab's own page, resolved once its navigation settles. Without
+   * it the picker drives the unscoped surface and follows its raw events.
+   */
+  loadedPage?: () => Promise<{ surface: InAppBrowserSurface; url: string }>
   currentUrl?: () => string
   openBrowserUrl: (url: string) => void
   activateSurface: () => void
@@ -47,12 +51,18 @@ export class MobileSourcePicker {
     if (!this.options.surface.available) {
       throw new Error("There is no active tab to pick from")
     }
-    const surface = this.options.currentSurface?.() ?? this.options.surface
+    let surface = this.options.surface
     let pageUrl = this.options.currentUrl?.() ?? this.currentUrl
-    if (requestedUrl) {
-      pageUrl = await this.navigate(requestedUrl, surface)
-    } else if (!/^https?:\/\//i.test(pageUrl)) {
+    if (!requestedUrl && !/^https?:\/\//i.test(pageUrl)) {
       throw new Error("There is no active tab to pick from")
+    }
+    if (this.options.loadedPage) {
+      if (requestedUrl) this.options.openBrowserUrl(requestedUrl)
+      const page = await this.options.loadedPage()
+      surface = page.surface
+      pageUrl = page.url
+    } else if (requestedUrl) {
+      pageUrl = await this.navigate(requestedUrl, surface)
     }
 
     this.options.activateSurface()

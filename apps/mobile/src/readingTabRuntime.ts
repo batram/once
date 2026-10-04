@@ -3,17 +3,21 @@ import { ReadingSession, ReaderDocumentHost, ReadingSessionState } from "@once/u
 import { ReadingTabs } from "./readingTabs"
 import { ReadingSurfaceCoordinator } from "./readingSurfaceCoordinator"
 
+type Cover = "menu" | "overlay" | "dialog" | "extensionPage"
+
 /** Keeps page lifetimes independent of the selected shell panel and tab. */
 export class ReadingTabRuntime {
   readonly session: ReadingSession
   private panelVisible = false
-  private readonly runtimes = new Map<string, { generation: string; coordinator: ReadingSurfaceCoordinator; surface: InAppBrowserSurface; reader: ReaderDocumentHost; removeTitle?: () => void }>()
+  private readonly runtimes = new Map<string, { generation: string; coordinator: ReadingSurfaceCoordinator; surface: InAppBrowserSurface; reader: ReaderDocumentHost }>()
   private readonly emptySession = new ReadingSession(true)
   private readonly emptyCoordinator: ReadingSurfaceCoordinator
   private selectedId: string | null = null
   private sessionListeners = new Set<(state: Readonly<ReadingSessionState>) => void>()
   private syncingTabs = false
   private usedInitialReader = false
+  // Shell UI covering the panel; a tab created or selected under it must stay hidden too.
+  private readonly covers: Record<Cover, boolean> = { menu: false, overlay: false, dialog: false, extensionPage: false }
 
   constructor(
     readonly tabs: ReadingTabs,
@@ -64,8 +68,16 @@ export class ReadingTabRuntime {
     this.sync()
   }
 
-  setDialogOpen(open: boolean): void {
-    for (const runtime of this.runtimes.values()) runtime.coordinator.setDialogOpen(open)
+  setCovered(cover: Cover, open: boolean): void {
+    this.covers[cover] = open
+    for (const coordinator of [this.emptyCoordinator, ...Array.from(this.runtimes.values(), runtime => runtime.coordinator)]) {
+      applyCover(coordinator, cover, open)
+    }
+  }
+
+  /** A native popup tab whose page was already loading before its runtime listened. */
+  adopt(id: string, url: string): void {
+    this.runtimes.get(id)?.coordinator.adopt(url)
   }
 
   async capturePreview(): Promise<void> {
@@ -94,8 +106,10 @@ export class ReadingTabRuntime {
       }
       for (const [id, runtime] of this.runtimes) {
         if (!this.tabs.tabs.some(tab => tab.id === id && tab.generation === runtime.generation)) {
-          runtime.removeTitle?.()
-          runtime.coordinator.dispose()
+          // The initial reader is also the fallback without a tab; keep it alive for reuse.
+          const shared = runtime.reader === this.initialReader
+          runtime.coordinator.dispose(shared)
+          if (shared) this.usedInitialReader = false
           this.runtimes.delete(id)
         }
       }
@@ -108,21 +122,17 @@ export class ReadingTabRuntime {
           this.usedInitialReader = true
           reader.setScrollPosition(() => tab.readerScroll)
           const coordinator = new ReadingSurfaceCoordinator(tab.session, surface, reader, this.content)
-          coordinator.setDialogOpen(Boolean(document.querySelector("dialog[open]")))
+          for (const cover of Object.keys(this.covers) as Cover[]) applyCover(coordinator, cover, this.covers[cover])
           runtime = { generation: tab.generation, reader, coordinator, surface }
           this.runtimes.set(tab.id, runtime)
           coordinator.onEdgeSwipe(direction => { if (tab.id === this.tabs.activeId) this.edgeSwipe(direction) })
+          coordinator.onNavigationFinished(event => {
+            this.tabs.update(tab.id, tab.generation, { title: event.title ?? tab.session.snapshot().story?.title ?? "" })
+            if (tab.id !== this.tabs.activeId) this.announce(`Background tab loaded: ${tab.title || event.url}`)
+          })
           void coordinator.install().then(() => {
             if (!this.tabs.tabs.includes(tab)) return
             if (tab.restored) { tab.restored = false; tab.session.retry() }
-          })
-          void surface.addListener("navigationFinished", event => {
-            this.tabs.update(tab.id, tab.generation, { title: event.title ?? tab.session.snapshot().story?.title ?? "" })
-            if (tab.id !== this.tabs.activeId) this.announce(`Background tab loaded: ${tab.title || event.url}`)
-          }).then(remove => {
-            const retained = this.runtimes.get(tab.id)
-            if (retained?.generation === tab.generation) retained.removeTitle = remove
-            else remove()
           })
         }
         runtime?.coordinator.setReadingPanelVisible(selected)
@@ -131,4 +141,11 @@ export class ReadingTabRuntime {
     } finally { this.syncingTabs = false }
   }
 
+}
+
+function applyCover(coordinator: ReadingSurfaceCoordinator, cover: Cover, open: boolean): void {
+  if (cover === "menu") coordinator.setMenuOpen(open)
+  else if (cover === "overlay") coordinator.setOverlayOpen(open)
+  else if (cover === "dialog") coordinator.setDialogOpen(open)
+  else coordinator.setExtensionPageOpen(open)
 }

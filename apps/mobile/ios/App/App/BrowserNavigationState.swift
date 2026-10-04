@@ -10,6 +10,10 @@ final class BrowserNavigationState {
     private var documentURL: URL?
     private(set) var sourceURL: URL?
     var statusCode: Int?
+    /// How far the current navigation got, so a late listener can be caught up.
+    enum Phase { case idle, started, committed, finished, failed }
+    private(set) var phase = Phase.idle
+    private(set) var failure: JSObject?
 
     func load(_ url: URL, in view: WKWebView) {
         if let navigation = view.load(URLRequest(url: url)) {
@@ -25,6 +29,8 @@ final class BrowserNavigationState {
     func started(_ navigation: WKNavigation?, url: URL?) {
         sequence += 1
         active = navigation
+        phase = .started
+        failure = nil
         statusCode = nil
         failedURL = nil
         let requested = navigation.flatMap { requestedURLs.removeValue(forKey: ObjectIdentifier($0)) } ?? url
@@ -38,7 +44,12 @@ final class BrowserNavigationState {
         return parts?.string
     }
 
-    func finished(_ url: URL?) { documentURL = url }
+    func committed() { phase = .committed }
+
+    func finished(_ url: URL?) {
+        documentURL = url
+        phase = .finished
+    }
 
     func isCurrent(_ navigation: WKNavigation?) -> Bool { navigation === active }
 
@@ -57,6 +68,8 @@ final class BrowserNavigationState {
         var value = payload(failedURL)
         value["code"] = (error as NSError).code
         value["message"] = error.localizedDescription
+        phase = .failed
+        failure = value
         return value
     }
 
@@ -66,6 +79,8 @@ final class BrowserNavigationState {
         sourceURL = nil
         failedURL = nil
         statusCode = nil
+        phase = .idle
+        failure = nil
         requestedURLs.removeAll()
     }
 }

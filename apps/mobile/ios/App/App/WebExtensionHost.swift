@@ -12,6 +12,8 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
     private var reading: ExtensionTab?
     private var readingTabs: [ObjectIdentifier: ExtensionTab] = [:]
     private var page: ExtensionTab?
+    /// The browsing surface the page or popup was opened over.
+    private var pageOwner: ObjectIdentifier?
     private var popup: WKWebExtension.Action?
     private weak var parent: UIView?
     var changed: () -> Void = {}
@@ -71,18 +73,22 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
         }
     }
 
+    /// Every surface is a tab of this one window: it opens with the first and
+    /// closes with the last. Selection, not attachment, focuses it.
     func attach(_ view: WKWebView, parent: UIView) {
         self.parent = parent
         let tab = ExtensionTab(view: view, owner: self)
+        if readingTabs.isEmpty { controller.didOpenWindow(self) }
         readingTabs[ObjectIdentifier(view)] = tab
-        if reading == nil { reading = tab }
-        controller.didOpenWindow(self)
         controller.didOpenTab(tab)
-        controller.didFocusWindow(self)
     }
 
-    func select(_ view: WKWebView) {
-        reading = readingTabs[ObjectIdentifier(view)]
+    /// nil when the selected tab has no surface (reader mode, not yet opened),
+    /// so actions never land on a hidden background page.
+    func select(_ view: WKWebView?) {
+        let wasFocused = reading != nil
+        reading = view.flatMap { readingTabs[ObjectIdentifier($0)] }
+        if (reading != nil) != wasFocused { controller.didFocusWindow(reading == nil ? nil : self) }
     }
 
     func navigationChanged(_ view: WKWebView) {
@@ -91,8 +97,11 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
 
     func detach(_ view: WKWebView) {
         guard let tab = readingTabs.removeValue(forKey: ObjectIdentifier(view)) else { return }
+        // A page left behind would sit in the hierarchy over no browser.
+        if page != nil || popup != nil, pageOwner == ObjectIdentifier(view) || readingTabs.isEmpty { closePage() }
         controller.didCloseTab(tab, windowIsClosing: readingTabs.isEmpty)
-        if reading === tab { reading = readingTabs.values.first }
+        // The selected tab lost its surface; the plugin reselects when it returns.
+        if reading === tab { reading = nil }
         if readingTabs.isEmpty {
             controller.didCloseWindow(self)
             parent = nil
@@ -158,6 +167,7 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
             if popup == nil { controller.didCloseTab(page, windowIsClosing: false) }
         }
         page = nil
+        pageOwner = nil
         popup?.closePopup()
         popup = nil
         pageChanged(["open": false, "popup": false, "title": "", "status": "", "count": 0])
@@ -167,6 +177,7 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
         guard let parent else { throw hostError("Open a webpage before opening extension settings") }
         let tab = ExtensionTab(view: view, owner: self)
         page = tab
+        pageOwner = reading.map { ObjectIdentifier($0.view) }
         view.uiDelegate = reading?.view.uiDelegate
         view.frame = .zero // The shell measures its toolbar and sends bounds before display.
         parent.addSubview(view)
@@ -197,7 +208,7 @@ final class WebExtensionHost: NSObject, WKWebExtensionControllerDelegate, WKWebE
         Array(readingTabs.values) + [popup == nil ? page : nil].compactMap { $0 }
     }
     func activeTab(for context: WKWebExtensionContext) -> (any WKWebExtensionTab)? { popup == nil ? page ?? reading : reading }
-    func webExtensionController(_ controller: WKWebExtensionController, openWindowsFor context: WKWebExtensionContext) -> [any WKWebExtensionWindow] { reading == nil ? [] : [self] }
+    func webExtensionController(_ controller: WKWebExtensionController, openWindowsFor context: WKWebExtensionContext) -> [any WKWebExtensionWindow] { readingTabs.isEmpty ? [] : [self] }
     func webExtensionController(_ controller: WKWebExtensionController, focusedWindowFor context: WKWebExtensionContext) -> (any WKWebExtensionWindow)? { reading == nil ? nil : self }
 
     func webExtensionController(_ controller: WKWebExtensionController, openOptionsPageFor context: WKWebExtensionContext, completionHandler: @escaping (Error?) -> Void) {

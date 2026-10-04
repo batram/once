@@ -34,6 +34,8 @@ export class ReadingTabs {
   private batchChanged = false
   private persistTimer: ReturnType<typeof setTimeout> | undefined
   private closed: Snapshot | null = null
+  // The selection a close left behind; any other selection was the user's own since.
+  private selectionAfterClose: string | null = null
   private storage: Pick<Storage, "getItem" | "setItem"> | undefined
 
   constructor(storage?: Pick<Storage, "getItem" | "setItem">) {
@@ -80,6 +82,7 @@ export class ReadingTabs {
     this.removers.delete(id)
     this.entries.splice(index, 1)
     if (this.active === id) this.active = this.entries[Math.max(0, index - 1)]?.id ?? null
+    this.selectionAfterClose = this.active
     this.publish()
   }
 
@@ -90,6 +93,7 @@ export class ReadingTabs {
     this.removers.clear()
     this.entries = []
     this.active = null
+    this.selectionAfterClose = null
     this.publish()
   }
 
@@ -102,7 +106,7 @@ export class ReadingTabs {
     const existing = new Map(this.entries.map(tab => [tab.id, tab]))
     this.entries = saved.tabs.map(value => existing.get(value.id) ?? this.fromSaved(value))
     for (const tab of existing.values()) if (!this.entries.includes(tab)) this.entries.push(tab)
-    this.active = saved.activeId
+    if (this.active === this.selectionAfterClose) this.active = saved.activeId
     this.restoring = false
     this.publish()
   }
@@ -135,13 +139,17 @@ export class ReadingTabs {
     const tab: ReadingTab = { id, generation, session: new ReadingSession(true), title: "", readerScroll: 0, restored: false }
     let initial = true
     let previousUrl = ""
+    let previousNavigation = 0
     this.removers.set(id, tab.session.subscribe(state => {
-      if (state.currentUrl !== previousUrl) {
-        previousUrl = state.currentUrl
+      // Only a new document resets; same-document history (pushState) keeps it.
+      const newDocument = !state.currentUrl || state.loadState === "loading" || state.navigationId !== previousNavigation
+      if (state.currentUrl !== previousUrl && newDocument) {
         tab.title = ""
         tab.preview = undefined
         tab.readerScroll = 0
       }
+      previousUrl = state.currentUrl
+      previousNavigation = state.navigationId
       if (!initial) this.publish()
     }))
     initial = false

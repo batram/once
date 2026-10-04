@@ -78,6 +78,7 @@ abstract class ReadingSurfaceHost extends Plugin {
     protected TextView recoveryMessage;
     protected final AtomicLong navigationSequence = new AtomicLong();
     protected long activeNavigation;
+    protected long committedNavigation;
     protected String currentUrl = "";
     protected String pageTitle = "";
     protected String documentSourceUrl = "";
@@ -532,6 +533,15 @@ abstract class ReadingSurfaceHost extends Plugin {
         notifyListeners("navigationFailed", payload);
     }
 
+    /** Re-sends the current navigation to listeners that attached after it began. */
+    protected void replayNavigation() {
+        if (activeNavigation == 0) return;
+        event("navigationStarted", activeNavigation, currentUrl);
+        if (committedNavigation == activeNavigation) event("navigationCommitted", activeNavigation, currentUrl);
+        if (navigationCompleted) event("navigationFinished", activeNavigation, currentUrl);
+        history(activeNavigation);
+    }
+
     protected void documentReady() {
         navigationDeadline = 0;
         recoveryAttempts = 0;
@@ -558,6 +568,7 @@ abstract class ReadingSurfaceHost extends Plugin {
             if (ignored != session || awaitingRequestedStart) return;
             currentUrl = url == null ? "" : url;
             if (isSurfaceUrl(url)) requestedUrl = currentUrl;
+            committedNavigation = activeNavigation;
             event("navigationCommitted", activeNavigation, currentUrl);
             history(activeNavigation);
         }
@@ -646,7 +657,9 @@ abstract class ReadingSurfaceHost extends Plugin {
             // superseded load cover the next document with an error. Real load
             // errors arrive in onLoadError; missing completion stays bounded.
             if (!success) return;
-            if (!visible) { documentReady(); return; }
+            // Only a background tab skips verification; a selected tab hidden
+            // under a dialog or panel is verified once it is shown again.
+            if (!visible && !ownsForeground()) { documentReady(); return; }
             if (!isEmbeddable(currentUrl)) navigationDeadline = 0;
             // A successful network stop does not mean a visible, responsive
             // document. The matching content-port health reply completes web

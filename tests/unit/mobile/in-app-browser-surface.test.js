@@ -183,7 +183,7 @@ test("iOS installs synced content rules and parsed userscripts", () => {
   assert.match(ios, /ruleCompiler\.compile/)
   assert.match(iosSupport, /compileContentRuleList/)
   assert.match(ios, /configuration\.userContentController\.add\(contentRuleList\)/)
-  assert.match(ios, /self\.contentRuleList = nil\s+self\.installedRuleJSON = nil/,
+  assert.match(ios, /(?:self\.)?contentRuleList = nil\s+(?:self\.)?installedRuleJSON = nil/,
     "Closing the surface must invalidate the installed-rule marker so reopening can reinstall cached rules")
   assert.match(ios, /runAt == "document-start" \? \.atDocumentStart : \.atDocumentEnd/)
   assert.match(iosSupport, /const GM_addStyle/)

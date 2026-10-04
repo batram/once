@@ -49,14 +49,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
                     guard let self, let tab, error == nil, value as? Bool == false,
                           self.tabs[id] === tab, id != self.selectedTab, tab.surface === view else { return }
                     tab.reclaimedURL = view.url
-                    tab.extensions.detach(view)
-                    view.navigationDelegate = nil
-                    view.uiDelegate = nil
-                    view.removeFromSuperview()
-                    tab.urlObservation = nil
-                    tab.surface = nil
-                    tab.refreshControl = nil
-                    tab.navigationState.reset()
+                    tab.dropSurface()
                 }
             }
         }
@@ -92,9 +85,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         }
         if let previous = tabs[id] {
             retiredTabs.insert(id + ":" + previous.tabGeneration)
-            previous.closeGeneration += 1
-            previous.surface?.stopLoading()
-            if let view = previous.surface { extensions.detach(view); view.removeFromSuperview() }
+            previous.retire()
         }
         let tab = InAppBrowserSurfacePlugin()
         tab.owner = self
@@ -113,7 +104,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         DispatchQueue.main.async {
             self.selectedTab = call.getString("tabId")
             for (id, tab) in self.tabs where id != self.selectedTab { tab.surface?.isHidden = true }
-            if let id = self.selectedTab, let view = self.tabs[id]?.surface { self.extensions.select(view) }
+            self.extensions.select(self.selectedTab.flatMap { self.tabs[$0]?.surface })
             call.resolve()
         }
     }
@@ -130,6 +121,12 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
 
     private var savedBounds: JSObject = [:]
     var surface: WKWebView?
+    /// Set once a tab instance is closed or superseded; it never gets a surface again.
+    private var retired = false
+    /// What open/setVisible last asked for; a surface created later starts that way.
+    private var wantsVisible = false
+    /// The bare root plugin is the single legacy surface while no tabs exist.
+    private var isSelected: Bool { owner.map { $0.selectedTab == tabId } ?? tabs.isEmpty }
     private var refreshControl: UIRefreshControl?
     private let navigationState = BrowserNavigationState()
     private var urlObservation: NSKeyValueObservation?
@@ -167,7 +164,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
 
     private func ensureSurface(configuration supplied: WKWebViewConfiguration? = nil) -> WKWebView? {
         if let surface { return surface }
-        guard let shell = bridge?.webView, let parent = shell.superview else { return nil }
+        guard !retired, let shell = bridge?.webView, let parent = shell.superview else { return nil }
         let configuration = supplied ?? WKWebViewConfiguration()
         if supplied == nil {
             configuration.webExtensionController = extensions.controller
@@ -176,8 +173,10 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             for script in extensionUserScripts { configuration.userContentController.addUserScript(script) }
         }
         let view = WKWebView(frame: .zero, configuration: configuration)
+        // A background tab's surface must not flash over the selected one.
+        view.isHidden = !(wantsVisible && isSelected)
         extensions.attach(view, parent: parent)
-        if owner?.selectedTab == tabId { extensions.select(view) }
+        if isSelected { extensions.select(view) }
         view.navigationDelegate = self
         view.uiDelegate = self
         // Safari's edge swipes for the page's own history. The recognizers
@@ -266,18 +265,23 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             call.reject("Embedded browsing only supports http and https URLs")
             return
         }
+        // A newer page supersedes whatever a memory warning reclaimed.
+        reclaimedURL = nil
         Task { @MainActor in
             let generation = self.closeGeneration
             await self.extensions.prepare()
             guard generation == self.closeGeneration else { call.resolve(); return }
+            self.wantsVisible = call.getBool("visible") ?? true
             guard let view = self.ensureSurface() else {
                 call.reject("Unable to create the embedded browser surface")
                 return
             }
             self.applyBounds(call.getObject("bounds") ?? [:])
-            view.isHidden = !(call.getBool("visible") ?? true)
-            if self.adoptedWindow { self.adoptedWindow = false }
-            else { self.navigationState.load(url, in: view) }
+            view.isHidden = !(self.wantsVisible && self.isSelected)
+            if self.adoptedWindow {
+                self.adoptedWindow = false
+                self.replayNavigation(view)
+            } else { self.navigationState.load(url, in: view) }
             call.resolve()
         }
     }
@@ -288,6 +292,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             call.reject("Embedded browsing only supports http and https URLs")
             return
         }
+        reclaimedURL = nil
         Task { @MainActor in
             let generation = self.closeGeneration
             await self.extensions.prepare()
@@ -336,7 +341,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     @objc func setVisible(_ call: CAPPluginCall) {
         guard route(call, { $0.setVisible(call) }) else { return }
         DispatchQueue.main.async {
-            let visible = (call.getBool("visible") ?? false) && (self.owner == nil || self.owner?.selectedTab == self.tabId)
+            self.wantsVisible = call.getBool("visible") ?? false
+            let visible = self.wantsVisible && (self.owner == nil || self.isSelected)
             if visible, let url = self.reclaimedURL {
                 self.reclaimedURL = nil
                 if let view = self.ensureSurface() { self.navigationState.load(url, in: view) }
@@ -518,21 +524,49 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             owner.retiredTabs.insert(tabId + ":" + tabGeneration)
             if owner.selectedTab == tabId { owner.selectedTab = nil }
         }
-        DispatchQueue.main.async {
-            self.closeGeneration += 1
-            if let view = self.surface { self.extensions.detach(view) }
-            self.surface?.stopLoading()
-            self.surface?.navigationDelegate = nil
-            self.surface?.uiDelegate = nil
-            self.surface?.removeFromSuperview()
-            self.urlObservation = nil
-            self.surface = nil
-            self.navigationState.reset()
-            self.refreshControl = nil
-            self.contentRuleList = nil
-            self.installedRuleJSON = nil
-            call.resolve()
+        retire()
+        call.resolve()
+    }
+
+    /// Shared by close() and a superseded generation. Work already holding this
+    /// instance (an open awaiting extensions, a reclaim probe) finds nothing to revive.
+    private func retire() {
+        if owner != nil { retired = true }
+        closeGeneration += 1
+        reclaimedURL = nil
+        adoptedWindow = false
+        dropSurface()
+        contentRuleList = nil
+        installedRuleJSON = nil
+    }
+
+    /// Removes the page but keeps the tab identity; a reclaim may recreate it.
+    private func dropSurface() {
+        if let view = surface {
+            extensions.detach(view)
+            view.stopLoading()
+            view.navigationDelegate = nil
+            view.uiDelegate = nil
+            view.removeFromSuperview()
         }
+        urlObservation = nil
+        surface = nil
+        refreshControl = nil
+        navigationState.reset()
+    }
+
+    /// A popup's tab navigates before JS has created the tab and installed its
+    /// listeners, so open() replays where that navigation has got to.
+    private func replayNavigation(_ view: WKWebView) {
+        let state = navigationState
+        guard state.phase != .idle else { return } // Its events are still to come.
+        pageEvent("navigationStarted", data: state.payload(view.url))
+        if state.phase == .committed || state.phase == .finished {
+            pageEvent("navigationCommitted", data: state.payload(view.url))
+        }
+        if state.phase == .finished { pageEvent("navigationFinished", data: state.payload(view.url)) }
+        if state.phase == .failed, let failure = state.failure { pageEvent("navigationFailed", data: failure) }
+        history(view)
     }
 
     private func history(_ view: WKWebView) {
@@ -551,6 +585,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
 
     public func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
         guard webView === surface, navigationState.isCurrent(navigation) else { return }
+        navigationState.committed()
         pageEvent("navigationCommitted", data: navigationState.payload(webView.url))
         history(webView)
     }
@@ -657,8 +692,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         tab.extensionUserScripts = extensionUserScripts
         tab.adoptedWindow = true
         root.tabs[tab.tabId] = tab
+        // Not selected and not asked to be visible, so it starts hidden.
         guard let view = tab.ensureSurface(configuration: configuration) else { root.tabs.removeValue(forKey: tab.tabId); return nil }
-        view.isHidden = true
         root.notifyListeners("newTabRequested", data: ["tabId": tab.tabId, "generation": tab.tabGeneration,
                                                      "url": url.absoluteString, "navigationId": 0])
         return view

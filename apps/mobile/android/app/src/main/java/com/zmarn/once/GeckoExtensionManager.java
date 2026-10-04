@@ -25,6 +25,7 @@ final class GeckoExtensionManager implements WebExtension.ActionDelegate, WebExt
     final GeckoEngine engine;
     final GeckoExtensionPages pages;
     private final Supplier<GeckoSession> reading;
+    private final Supplier<Iterable<GeckoSession>> readingSessions;
     private final Runnable changed;
     private final Map<String, WebExtension> extensions = new LinkedHashMap<>();
     private final Map<String, WebExtension.Action> actions = new HashMap<>();
@@ -39,10 +40,11 @@ final class GeckoExtensionManager implements WebExtension.ActionDelegate, WebExt
     private boolean declined;
 
     GeckoExtensionManager(Activity activity, android.webkit.WebView shell, GeckoEngine engine, Supplier<GeckoSession> reading,
-                          Runnable changed, java.util.function.Consumer<JSObject> pageState) {
+                          Supplier<Iterable<GeckoSession>> readingSessions, Runnable changed, java.util.function.Consumer<JSObject> pageState) {
         this.activity = activity;
         this.engine = engine;
         this.reading = reading;
+        this.readingSessions = readingSessions;
         this.changed = changed;
         icons = new GeckoExtensionIcons(() -> { if (!disposed) changed.run(); });
         pages = new GeckoExtensionPages(activity, shell, engine, this, pageState);
@@ -56,7 +58,8 @@ final class GeckoExtensionManager implements WebExtension.ActionDelegate, WebExt
             extensions.put(extension.id, extension);
             extension.setTabDelegate(this);
             extension.setActionDelegate(this);
-            if (reading.get() != null) attachSessionExtension(reading.get(), extension);
+            // Background tabs keep their own action state and tab delegates too.
+            for (GeckoSession session : readingSessions.get()) attachSessionExtension(session, extension);
             pages.attach(extension);
         }
         actions.keySet().retainAll(extensions.keySet());

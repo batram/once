@@ -138,3 +138,21 @@ test("rejects malformed native serialization", async () => {
   })
   await assert.rejects(context.picker.pick(""), /malformed result/)
 })
+
+test("picks on the tab's own loaded page instead of the unscoped surface", async () => {
+  const root = createSurface()
+  const scoped = createSurface([encodedPickerResult(null)])
+  const opened = []
+  const context = await installedPicker({
+    surface: root,
+    currentUrl: () => "",
+    openBrowserUrl: url => opened.push(url),
+    loadedPage: async () => ({ surface: scoped, url: "https://example.test/redirected" })
+  })
+  assert.equal(await context.picker.pick("https://example.test/new"), null)
+  assert.deepEqual(opened, ["https://example.test/new"])
+  assert.equal(root.listeners.has("navigationFinished"), false)
+  assert.equal(root.calls.length, 0)
+  assert.deepEqual(scoped.calls[0], ["visible", true])
+  await assert.rejects(context.picker.pick(""), /no active tab/)
+})

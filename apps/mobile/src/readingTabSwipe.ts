@@ -25,7 +25,8 @@ export function attachReadingTabSwipe(rows: HTMLElement, onIdle: () => void = ()
   }
 
   rows.addEventListener("pointerdown", event => {
-    if (gesture) { reset(); return }
+    // A second finger cancels the gesture; a new primary press replaces a stale one.
+    if (gesture) reset()
     if (!event.isPrimary || event.button !== 0) return
     const target = event.target as Element
     if (target.closest('[data-action="close"]')) return
@@ -84,5 +85,9 @@ export function attachReadingTabSwipe(rows: HTMLElement, onIdle: () => void = ()
   })
   rows.addEventListener("scroll", reset)
   window.addEventListener("blur", reset)
+  // A mouse released outside the rows before the drag went horizontal never reaches them.
+  const release = (event: PointerEvent): void => { if (gesture && event.pointerId === gesture.pointer) reset() }
+  window.addEventListener("pointerup", release)
+  window.addEventListener("pointercancel", release)
   return { cancel: reset, get active() { return gesture !== null } }
 }

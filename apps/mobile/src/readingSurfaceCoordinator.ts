@@ -1,4 +1,4 @@
-import type { InAppBrowserSurface } from "@once/platform-mobile"
+import type { BrowserNavigationEvent, InAppBrowserSurface } from "@once/platform-mobile"
 import type {
   ReaderDocumentHost,
   ReadingSession,
@@ -31,6 +31,8 @@ export class ReadingSurfaceCoordinator {
   private browserUrl = ""
   private browserReady = false
   private pendingNavigationUrl: string | null = null
+  // A popup's page was already loading natively under its own (possibly redirected) URL.
+  private adoptedUrl: string | null = null
   private readingPanelVisible = false
   private menuOpen = false
   private overlayOpen = false
@@ -40,6 +42,7 @@ export class ReadingSurfaceCoordinator {
   private readerRequestId = 0
   private surfaceQueue: Promise<void> = Promise.resolve()
   private edgeSwipeHandler: ((direction: "back" | "forward") => void) | null = null
+  private finishedHandler: ((event: BrowserNavigationEvent) => void) | null = null
 
   constructor(
     session: ReadingSession,
@@ -81,13 +84,14 @@ export class ReadingSurfaceCoordinator {
 
   private readonly unsubscribe: () => void
 
-  dispose(): void {
+  /** `keepReader` leaves a shared reader usable by whoever owns it next. */
+  dispose(keepReader = false): void {
     this.disposed = true
     this.unsubscribe()
     this.readerRequestId += 1
     this.surfaceGeneration += 1
     this.listenerRemovers.forEach(remove => remove())
-    this.reader.destroy()
+    if (keepReader) { this.reader.close(); this.reader.setVisible(false) } else this.reader.destroy()
     void this.enqueue(() => this.surface.close())
   }
 
@@ -102,6 +106,7 @@ export class ReadingSurfaceCoordinator {
     const started = await this.surface.addListener("navigationStarted", (event) => {
       if (!this.acceptsNavigation(event.navigationId, event.url, true)) return
       this.pendingNavigationUrl = null
+      this.adoptedUrl = null
       this.browserUrl = event.url
       this.browserReady = false
       this.session.navigationStarted(event.navigationId, event.url, event)
@@ -121,11 +126,13 @@ export class ReadingSurfaceCoordinator {
         this.browserUrl = event.url
         this.browserReady = true
         this.session.navigationFinished(event.navigationId, event.url, event)
+        this.finishedHandler?.(event)
       }
     )
     const failed = await this.surface.addListener("navigationFailed", (event) => {
       if (!this.acceptsNavigation(event.navigationId, event.url, true)) return
       this.pendingNavigationUrl = null
+      this.adoptedUrl = null
       this.browserReady = false
       this.session.navigationFailed(event.navigationId, event.url, event.message)
     })
@@ -149,6 +156,20 @@ export class ReadingSurfaceCoordinator {
 
   onEdgeSwipe(handler: (direction: "back" | "forward") => void): void {
     this.edgeSwipeHandler = handler
+  }
+
+  /** Only finishes this coordinator accepted, so late events of an older page never reach it. */
+  onNavigationFinished(handler: (event: BrowserNavigationEvent) => void): void {
+    this.finishedHandler = handler
+  }
+
+  /**
+   * The native page behind `url` started loading before this coordinator
+   * listened; open() replays its current navigation, whose URL may already
+   * be a redirect target, so that replay is accepted as this page's start.
+   */
+  adopt(url: string): void {
+    this.adoptedUrl = url
   }
 
   private readonly listenerRemovers: Array<() => void> = []
@@ -240,8 +261,9 @@ export class ReadingSurfaceCoordinator {
       this.readerRequestId += 1
       this.reader.close()
       if (this.browserOpened) {
-        await this.surface.close()
-        this.browserOpened = false
+        // Closing retires a tab-scoped native identity for good; this one is
+        // reused for the next address, so only dispose() closes it.
+        await this.surface.setVisible(false)
         this.browserUrl = ""
         this.browserReady = false
       }
@@ -271,14 +293,15 @@ export class ReadingSurfaceCoordinator {
     }
     const bounds = this.bounds()
     if (!this.browserOpened) {
+      // Set first: an adopted page replays its events while open() is pending.
+      this.browserUrl = state.currentUrl
+      this.browserReady = false
       await this.surface.open({
         url: state.currentUrl,
         bounds,
         visible: false
       })
       this.browserOpened = true
-      this.browserUrl = state.currentUrl
-      this.browserReady = false
     } else {
       await this.surface.setBounds(bounds)
       if (this.disposed || generation !== this.surfaceGeneration) return
@@ -354,6 +377,7 @@ export class ReadingSurfaceCoordinator {
     if (this.disposed || !url) return false
     if (this.pendingNavigationUrl !== null) {
       if (!startsOrFails) return false
+      if (this.pendingNavigationUrl === this.adoptedUrl) return navigationId >= state.navigationId
       try {
         if (new URL(url).href !== new URL(this.pendingNavigationUrl).href) return false
       } catch { if (url !== this.pendingNavigationUrl) return false }

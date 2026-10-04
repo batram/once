@@ -140,8 +140,10 @@ function installTransientScrollbars(): void {
   }, true)
 }
 
+type NavigationListeners = Map<string, Set<(event: BrowserNavigationEvent) => void>>
+
 function captureNavigationListeners(browserSurface: ReturnType<typeof createInAppBrowserSurface>) {
-  const navigationListeners = new Map<string, (event: BrowserNavigationEvent) => void>()
+  const navigationListeners: NavigationListeners = new Map()
   if (__ONCE_MOBILE_E2E__) {
     const forTab = browserSurface.forTab?.bind(browserSurface)
     if (forTab) browserSurface.forTab = identity => {
@@ -150,9 +152,11 @@ function captureNavigationListeners(browserSurface: ReturnType<typeof createInAp
       scoped.addListener = async (name, listener) => {
         if (name === "navigationCommitted" || name === "navigationFinished") {
           const key = `${identity.tabId}:${name}`
-          navigationListeners.set(key, listener as (event: BrowserNavigationEvent) => void)
+          const captured = listener as (event: BrowserNavigationEvent) => void
+          const bucket = navigationListeners.get(key) ?? new Set()
+          navigationListeners.set(key, bucket.add(captured))
           const remove = await addListener(name, listener)
-          return () => { navigationListeners.delete(key); remove() }
+          return () => { bucket.delete(captured); remove() }
         }
         return addListener(name, listener)
       }
@@ -166,7 +170,7 @@ function installMobileTestHooks(
   app: ReturnType<typeof createOnceApp>,
   reading: MobileReadingController,
   browserSurface: ReturnType<typeof createInAppBrowserSurface>,
-  navigationListeners: Map<string, (event: BrowserNavigationEvent) => void>
+  navigationListeners: NavigationListeners
 ): void {
   // Lets the e2e suite await queued story saves instead of pausing blindly.
   ;(window as { __onceE2E__?: unknown }).__onceE2E__ = {
@@ -180,8 +184,9 @@ function installMobileTestHooks(
     finishReading: (url: string, statusCode = 200) => {
       const state = reading.session.snapshot()
       const event = { navigationId: state.navigationId, url, statusCode, sourceUrl: state.pageContext?.sourceUrl }
-      navigationListeners.get(`${reading.tabs.activeId}:navigationCommitted`)?.(event)
-      navigationListeners.get(`${reading.tabs.activeId}:navigationFinished`)?.(event)
+      for (const name of ["navigationCommitted", "navigationFinished"]) {
+        navigationListeners.get(`${reading.tabs.activeId}:${name}`)?.forEach(listener => listener(event))
+      }
     },
     failReading: (message: string) => {
       const state = reading.session.snapshot()
@@ -235,7 +240,7 @@ async function startMobileApp(): Promise<void> {
   ReaderView.mount(app.client)
   const sourcePicker = new MobileSourcePicker({
     surface: browserSurface,
-    currentSurface: () => reading.prepareBrowserSurface(),
+    loadedPage: () => reading.loadedBrowserPage(),
     currentUrl: () => reading.session.snapshot().currentUrl,
     openBrowserUrl: (url) => reading.openBrowserUrl(url),
     activateSurface: () => PanelNavigation.open_panel("reading"),

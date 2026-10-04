@@ -48,6 +48,99 @@ public class GeckoTabsTest {
         }
     }
 
+    /** Capacitor delivers calls on its own thread while the shell switches tabs on the UI thread. */
+    @Test public void callsFromThePluginThreadRouteToTheirTabWhileTabsChange() throws Exception {
+        GeckoTestSupport t = new GeckoTestSupport(); t.start();
+        String previous = (String) GeckoTestSupport.field(t.plugin, "selectedTab");
+        TabState before = tabs(t);
+        String first = UUID.randomUUID().toString(), second = UUID.randomUUID().toString();
+        String generation = UUID.randomUUID().toString();
+        try (GeckoTestSupport.Fixture fixture = new GeckoTestSupport.Fixture()) {
+            select(t, first);
+            open(t, first, generation, fixture.url("/first"));
+            open(t, second, generation, fixture.url("/second"));
+            ready(t, first, generation, "first");
+            ready(t, second, generation, "second");
+            java.util.concurrent.atomic.AtomicBoolean running = new java.util.concurrent.atomic.AtomicBoolean(true);
+            java.util.concurrent.atomic.AtomicReference<Throwable> churnFailure = new java.util.concurrent.atomic.AtomicReference<>();
+            Thread churn = new Thread(() -> {
+                try {
+                    for (int i = 0; running.get(); i++) {
+                        String extra = UUID.randomUUID().toString();
+                        GeckoTestSupport.Call select = new GeckoTestSupport.Call(new JSObject().put("tabId", i % 2 == 0 ? first : second));
+                        GeckoTestSupport.Call close = new GeckoTestSupport.Call(identity(extra, generation));
+                        GeckoTestSupport.Call open = new GeckoTestSupport.Call(identity(extra, generation).put("url", fixture.url("/third")).put("visible", false));
+                        t.ui(() -> { t.plugin.selectTab(select); t.plugin.open(open); t.plugin.close(close); });
+                        select.await(); close.await();
+                        // The open raced a close of the same identity; it may settle either way.
+                        assertTrue(open.done.await(40, java.util.concurrent.TimeUnit.SECONDS));
+                    }
+                } catch (Throwable error) { churnFailure.set(error); }
+            }, "tab-churn");
+            churn.start();
+            try {
+                for (int i = 0; i < 20; i++) {
+                    String id = i % 2 == 0 ? first : second;
+                    // Deliberately not t.ui(): the plugin itself must hop to the UI thread.
+                    GeckoTestSupport.Call bounds = new GeckoTestSupport.Call(identity(id, generation)
+                        .put("x", 0).put("y", 100).put("width", 320).put("height", 500));
+                    t.plugin.setBounds(bounds);
+                    GeckoTestSupport.Call hide = new GeckoTestSupport.Call(identity(id, generation).put("visible", false));
+                    t.plugin.setVisible(hide);
+                    GeckoTestSupport.Call script = new GeckoTestSupport.Call(identity(id, generation)
+                        .put("script", "document.querySelector('#ready').textContent"));
+                    t.plugin.evaluateJavaScript(script);
+                    bounds.await(); hide.await(); script.await();
+                    assertEquals("\"" + (id.equals(first) ? "first" : "second") + "\"", script.value.getString("value"));
+                }
+            } finally { running.set(false); churn.join(60000); }
+            if (churnFailure.get() != null) throw new AssertionError(churnFailure.get());
+            select(t, second);
+            GeckoTestSupport.Call unscoped = new GeckoTestSupport.Call(new JSObject().put("script", "document.querySelector('#ready').textContent"));
+            t.plugin.evaluateJavaScript(unscoped); unscoped.await();
+            assertEquals("Unscoped calls follow the selected tab", "\"second\"", unscoped.value.getString("value"));
+            java.util.Set<Object> remaining = tabs(t).ids;
+            remaining.removeAll(before.ids);
+            assertEquals("Closed transient tabs leave no runtime behind", new java.util.HashSet<>(java.util.Arrays.asList(first, second)), remaining);
+        } finally {
+            close(t, first, generation);
+            close(t, second, generation);
+            select(t, previous);
+        }
+    }
+
+    @Test public void callsForUnknownTabsCreateNothing() throws Exception {
+        GeckoTestSupport t = new GeckoTestSupport(); t.start();
+        TabState before = tabs(t);
+        String unknown = UUID.randomUUID().toString(), generation = UUID.randomUUID().toString();
+        for (String method : new String[] { "close", "clearFind", "setVisible", "setBounds", "capturePreview" }) {
+            GeckoTestSupport.Call call = new GeckoTestSupport.Call(identity(unknown, generation));
+            t.plugin.getClass().getMethod(method, com.getcapacitor.PluginCall.class).invoke(t.plugin, call);
+            call.await();
+            assertNull(method + " on an unknown tab has no result", call.value);
+        }
+        GeckoTestSupport.Call script = new GeckoTestSupport.Call(identity(unknown, generation).put("script", "1"));
+        t.plugin.evaluateJavaScript(script);
+        assertTrue(script.done.await(5, java.util.concurrent.TimeUnit.SECONDS));
+        assertEquals("No such tab", script.error);
+        TabState after = tabs(t);
+        assertFalse("No runtime is created for an unknown tab", after.ids.contains(unknown));
+        assertEquals(before.ids, after.ids);
+        assertFalse("Nothing was opened, so nothing is retired", after.retired.stream().anyMatch(key -> key.startsWith(unknown)));
+    }
+
+    private static final class TabState { java.util.Set<Object> ids; java.util.Set<String> retired; }
+    @SuppressWarnings("unchecked")
+    private TabState tabs(GeckoTestSupport t) {
+        TabState result = new TabState();
+        t.ui(() -> {
+            Map<Object, ?> tabs = (Map<Object, ?>) GeckoTestSupport.field(t.plugin, "tabs");
+            result.ids = new java.util.HashSet<>(tabs.keySet());
+            result.retired = new java.util.HashSet<>((java.util.Set<String>) GeckoTestSupport.field(t.plugin, "retiredTabs"));
+        });
+        return result;
+    }
+
     private JSObject identity(String id, String generation) { return new JSObject().put("tabId", id).put("generation", generation); }
     private void select(GeckoTestSupport t, String id) throws Exception {
         GeckoTestSupport.Call call = new GeckoTestSupport.Call(new JSObject().put("tabId", id));

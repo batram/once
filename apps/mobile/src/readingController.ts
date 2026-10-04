@@ -40,9 +40,28 @@ export class MobileReadingController {
   private currentCardStoryHref = ""
   private currentStoryCollapsed = false
 
-  prepareBrowserSurface(): InAppBrowserSurface {
-    this.ensureCurrentTab()
-    return this.runtime.pageSurface
+  /**
+   * The selected tab's own page once its current navigation has settled. A
+   * restored tab has no runtime until the panel shows it, and that runtime
+   * reloads the page; anything injected before then would be wiped.
+   */
+  async loadedBrowserPage(): Promise<{ surface: InAppBrowserSurface; url: string }> {
+    const tab = this.ensureCurrentTab()
+    PanelNavigation.open_panel("reading")
+    if (tab.session.snapshot().mode === "reader") tab.session.setMode("browser", this.nativeReading.isBrowserReady())
+    const state = await new Promise<Readonly<ReadingSessionState>>((resolve, reject) => {
+      let settled = false
+      const remove = tab.session.subscribe(next => {
+        if (settled || next.mode === "reader" || next.loadState === "idle" || next.loadState === "loading") return
+        settled = true
+        // subscribe() reports synchronously, before `remove` exists.
+        queueMicrotask(() => remove())
+        if (next.loadState === "error") reject(new Error(`The page could not be loaded: ${next.error ?? next.currentUrl}`))
+        else resolve(next)
+      })
+    })
+    if (this.tabs.selected !== tab) throw new Error("The tab changed before its page loaded")
+    return { surface: this.runtime.pageSurface, url: state.currentUrl }
   }
 
   openBrowserUrl(url: string): void {
@@ -67,7 +86,7 @@ export class MobileReadingController {
       },
       direction => { void (direction === "back" ? this.handleBack() : this.handleForward()) },
       message => this.tabDialog.announce(message))
-    this.addonTrays = new ReadingAddonTrays(this.content, open => this.nativeReading.setOverlayOpen(open))
+    this.addonTrays = new ReadingAddonTrays(this.content, open => this.runtime.setCovered("overlay", open))
     this.session = this.runtime.session
     const readerProxy = new Proxy(initialReader, { get: (_target, property) => {
       const value = Reflect.get(this.reader, property)
@@ -95,11 +114,12 @@ export class MobileReadingController {
       const tab = this.tabs.create(true, event.tabId, event.generation)
       PanelNavigation.open_panel("reading")
       tab.session.navigate(event.url)
+      this.runtime.adopt(tab.id, event.url)
     })
   }
 
   setExtensionPageOpen(open: boolean): void {
-    this.nativeReading.setExtensionPageOpen(open)
+    this.runtime.setCovered("extensionPage", open)
   }
 
   async handleBack(): Promise<boolean> {
@@ -209,7 +229,7 @@ export class MobileReadingController {
       const open = Boolean(document.querySelector("dialog[open]"))
       if (open === dialogOpen) return
       dialogOpen = open
-      this.runtime.setDialogOpen(open)
+      this.runtime.setCovered("dialog", open)
     }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["open"] })
     document.body.addEventListener(READING_REQUEST, (rawEvent) => {
       const event = rawEvent as ReadingRequestEvent
@@ -338,7 +358,7 @@ export class MobileReadingController {
       if (!story) return
       const anchor = event.currentTarget as HTMLElement
       if (!this.nativeReading.isAvailable()) {
-        this.nativeReading.setMenuOpen(true)
+        this.runtime.setCovered("menu", true)
       }
       story.requestMenu(anchor)
     }
@@ -346,7 +366,7 @@ export class MobileReadingController {
       // The anchored menu closes before it executes its action. Refresh on the
       // next microtask so synchronous changes such as bookmarking are visible.
       queueMicrotask(() => this.render(this.session.snapshot()))
-      this.nativeReading.setMenuOpen(false)
+      this.runtime.setCovered("menu", false)
     })
   }
 
@@ -506,6 +526,8 @@ export class MobileReadingController {
       this.currentStoryCollapsed = storedStoryCardCollapsed()
     }
     currentCard.hidden = !isStoryPage
+    // The actions belong to the feed row; a story the feed dropped has none.
+    required("#reading_story_menu").hidden = !matchingStory
     currentCard.classList.toggle("stared", Boolean(displayedStory?.stared))
     this.renderCurrentStoryCollapse()
     const title = required<HTMLAnchorElement>("#reading_title")

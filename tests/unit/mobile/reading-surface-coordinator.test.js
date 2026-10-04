@@ -302,3 +302,66 @@ test("a failed navigation hides the native page and retry navigates to the faile
   assert.equal(session.snapshot().currentUrl, "http://example.test/redirected/")
   assert.deepEqual(surface.calls.at(-1), ["setVisible", true])
 })
+
+function createContent() {
+  return { getBoundingClientRect: () => ({ x: 0, y: 0, width: 320, height: 500 }) }
+}
+
+test("an emptied tab hides its page instead of retiring it, and the next address navigates", async () => {
+  const { ReadingSurfaceCoordinator } = await loadCoordinator()
+  const session = new ReadingSession(true), surface = createSurface()
+  const coordinator = new ReadingSurfaceCoordinator(session, surface, createReader(), createContent())
+  await coordinator.install()
+  coordinator.setReadingPanelVisible(true)
+  session.navigate("https://example.test/first")
+  await flushCoordinator()
+  session.close()
+  await flushCoordinator()
+  assert.equal(surface.calls.some(([name]) => name === "close"), false)
+  assert.deepEqual(surface.calls.at(-1), ["setVisible", false])
+  session.navigate("https://example.test/first")
+  await flushCoordinator()
+  assert.deepEqual(surface.calls.filter(([name]) => name === "open" || name === "navigate").map(([name]) => name), ["open", "navigate"])
+  coordinator.dispose(true)
+  await flushCoordinator()
+  assert.deepEqual(surface.calls.at(-1), ["close"])
+})
+
+test("an adopted popup accepts its replayed, redirected navigation", async () => {
+  const { ReadingSurfaceCoordinator } = await loadCoordinator()
+  const session = new ReadingSession(true), surface = createSurface()
+  const coordinator = new ReadingSurfaceCoordinator(session, surface, createReader(), createContent())
+  const finished = []
+  coordinator.onNavigationFinished(event => finished.push(event.url))
+  await coordinator.install()
+  session.navigate("https://example.test/popup")
+  coordinator.adopt("https://example.test/popup")
+  surface.open = async options => {
+    surface.calls.push(["open", options])
+    surface.listeners.get("navigationStarted")({ navigationId: 7, url: "https://example.test/landing" })
+    surface.listeners.get("navigationCommitted")({ navigationId: 7, url: "https://example.test/landing" })
+    surface.listeners.get("navigationFinished")({ navigationId: 7, url: "https://example.test/landing", title: "Landing" })
+  }
+  await flushCoordinator()
+  assert.equal(session.snapshot().loadState, "ready")
+  assert.equal(session.snapshot().currentUrl, "https://example.test/landing")
+  assert.equal(coordinator.isBrowserReady(), true)
+  assert.deepEqual(finished, ["https://example.test/landing"])
+  assert.equal(surface.calls.some(([name]) => name === "navigate"), false)
+})
+
+test("a late finish of the previous page neither loads nor labels the new address", async () => {
+  const { ReadingSurfaceCoordinator } = await loadCoordinator()
+  const session = new ReadingSession(true), surface = createSurface()
+  const coordinator = new ReadingSurfaceCoordinator(session, surface, createReader(), createContent())
+  const finished = []
+  coordinator.onNavigationFinished(event => finished.push(event.url))
+  await coordinator.install()
+  session.navigate("https://example.test/old")
+  await flushCoordinator()
+  surface.listeners.get("navigationStarted")({ navigationId: 1, url: "https://example.test/old" })
+  session.navigate("https://example.test/new")
+  surface.listeners.get("navigationFinished")({ navigationId: 1, url: "https://example.test/old", title: "Old" })
+  assert.deepEqual(finished, [])
+  assert.equal(session.snapshot().loadState, "loading")
+})
