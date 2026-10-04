@@ -16,7 +16,8 @@
     "contextMenus",
     "clipboardWrite",
     "unlimitedStorage",
-    "tabs"
+    "tabs",
+    "declarativeNetRequestWithHostAccess"
   ],
   "host_permissions": ["<all_urls>"],
   "content_scripts": [{

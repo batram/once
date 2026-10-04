@@ -4,6 +4,7 @@ import { installPickerBackground } from "@once/webext-shell/dist/pickerBackgroun
 import { installStoryMenuBackground } from "@once/webext-shell/dist/storyMenuBackground"
 import { installPageActionMenuBackground } from "@once/webext-shell/dist/pageActionMenuBackground"
 import { installKeyCommandBackground } from "@once/webext-shell/dist/keyCommandBackground"
+import { installConnectionOriginBackground, RequestRulesApi } from "@once/webext-shell/dist/connectionOriginBackground"
 
 // Firefox uses a non-persistent event page: every listener
 // must be registered synchronously in the first turn of the event loop,
@@ -18,3 +19,8 @@ installPickerBackground(browser)
 installStoryMenuBackground(browser)
 installPageActionMenuBackground(browser)
 installKeyCommandBackground(browser)
+// Not in the polyfill's types; Firefox has had it in Manifest V2 since 113.
+installConnectionOriginBackground(
+  (browser as unknown as { declarativeNetRequest?: RequestRulesApi }).declarativeNetRequest,
+  browser.runtime.getURL("/")
+).catch((error: unknown) => console.error("Unable to install the connection request rules", error))

@@ -145,6 +145,13 @@ a proxy or a future URL change and normally stays at its default. YouTube change
 this interface without notice: if transcripts stop arriving, the fallback keeps
 the addon working and the client identity in `main.js` is the first thing to update.
 
+The player endpoint answers 403 to any request carrying a foreign `Origin`
+header. Electron and the mobile apps send none; the Chrome and Firefox side
+panels remove theirs for `youtube.com/youtubei/` with a `declarativeNetRequest`
+rule (`packages/webext-shell/src/connectionOriginBackground.ts`). A player
+endpoint moved to another host through a proxy needs that host to accept the
+extension's Origin, or a matching rule.
+
 Close hides the tray; reopening reuses the answer. Row redraws and sorting preserve
 the conversation. Clear conversation starts fresh; disabling the addon, changing
 its options, restarting its sandbox, or restarting Once clears the session.

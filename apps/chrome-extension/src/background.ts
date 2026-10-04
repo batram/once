@@ -4,12 +4,7 @@ import { installPickerBackground } from "@once/webext-shell/dist/pickerBackgroun
 import { installStoryMenuBackground } from "@once/webext-shell/dist/storyMenuBackground"
 import { installPageActionMenuBackground } from "@once/webext-shell/dist/pageActionMenuBackground"
 import { installKeyCommandBackground } from "@once/webext-shell/dist/keyCommandBackground"
-
-installReaderBackground(browser)
-installPickerBackground(browser)
-installStoryMenuBackground(browser)
-installPageActionMenuBackground(browser)
-installKeyCommandBackground(browser)
+import { installConnectionOriginBackground, RequestRulesApi } from "@once/webext-shell/dist/connectionOriginBackground"
 
 // Chrome-only API, not covered by the Firefox-flavored polyfill types.
 declare const chrome: {
@@ -17,7 +12,16 @@ declare const chrome: {
     setPanelBehavior(options: { openPanelOnActionClick: boolean }): Promise<void>
     open(options: { windowId: number }): Promise<void>
   }
+  declarativeNetRequest?: RequestRulesApi
 }
+
+installReaderBackground(browser)
+installPickerBackground(browser)
+installStoryMenuBackground(browser)
+installPageActionMenuBackground(browser)
+installKeyCommandBackground(browser)
+installConnectionOriginBackground(chrome.declarativeNetRequest, browser.runtime.getURL("/"))
+  .catch((error: unknown) => console.error("Unable to install the connection request rules", error))
 
 chrome.sidePanel
   .setPanelBehavior({ openPanelOnActionClick: true })

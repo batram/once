@@ -35,6 +35,7 @@
     "history",
     "unlimitedStorage",
     "tabs",
+    "declarativeNetRequestWithHostAccess",
     "<all_urls>"
   ],
   "web_accessible_resources": ["static/wafli-module.wasm"],
