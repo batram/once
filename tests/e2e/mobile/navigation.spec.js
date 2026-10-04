@@ -70,7 +70,8 @@ test("mobile back dismisses transient story interactions before exiting", async 
   const story = await seedFixtureStories(page)
   const searchfield = page.locator("#searchfield")
 
-  await story.locator(".hostname").click()
+  await story.getByTestId("story-menu-button").click()
+  await page.getByTestId("story-menu-search-domain").click()
   await expect(searchfield).toHaveValue(/^domain:/)
   await expect(page.locator("#stories")).toBeHidden()
 

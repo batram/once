@@ -2,6 +2,7 @@ import { getOnceClient } from "../client"
 import { requestReading } from "../ReadingSession"
 import { SettingsPanel } from "../settings/SettingsPanel"
 import { bindLinkBehavior, open_story, openStoryUrl } from "./storyLinks"
+import { domainSearchEnabled, updateDomainLink } from "./domainLinkPreference"
 import * as StorySearch from "./storySearch"
 import type { StoryListItem } from "./StoryListItem"
 
@@ -53,7 +54,7 @@ export function buildTitleLine(
   link.classList.add("title")
   link.dataset.testid = "story-title"
   link.innerText = row.story.title
-  bindLinkBehavior(link, {
+  const titleBehavior = {
     onClick: () => {
       row.read_btn.classList.add("user_interaction")
       if (!requestReading(row.story, "browser")) {
@@ -70,7 +71,8 @@ export function buildTitleLine(
       row.read_btn.classList.add("user_interaction")
       open_story(row.story.href, "middle")
     }
-  })
+  }
+  bindLinkBehavior(link, titleBehavior)
 
   container.appendChild(link)
 
@@ -98,11 +100,19 @@ export function buildTitleLine(
   const hostname = document.createElement("a")
   hostname.classList.add("hostname")
   hostname.innerText = " (" + og_link.hostname + ") "
-  hostname.href = "search:domain:" + og_link.hostname
-  hostname.target = "search"
+  hostname.dataset.domain = og_link.hostname
+  hostname.dataset.storyUrl = redirected_url
+  updateDomainLink(hostname)
   bindLinkBehavior(hostname, {
     onClick: () => {
-      StorySearch.searchStories("domain:" + og_link.hostname)
+      if (domainSearchEnabled()) {
+        StorySearch.searchStories("domain:" + og_link.hostname)
+      } else {
+        titleBehavior.onClick()
+      }
+    },
+    onMiddleClick: () => {
+      if (!domainSearchEnabled()) titleBehavior.onMiddleClick()
     }
   })
   container.appendChild(hostname)

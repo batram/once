@@ -1,3 +1,4 @@
+import { mountDomainLinkSetting } from "../story/domainLinkPreference"
 import { mountStoryButtonSettings } from "../story/storyButtonPreferences"
 import { SourceError } from "@once/app"
 import { requireClosestElement, requireElement } from "../dom"
@@ -99,6 +100,7 @@ export function bindThemeAnimationControls(
   saveTheme: (theme: string) => void,
   saveAnimation: (enabled: boolean) => void
 ): void {
+  mountDomainLinkSetting(requireElement<HTMLInputElement>("#domain_search_checkbox"))
   mountStoryButtonSettings(requireElement<HTMLElement>("#story_button_settings"))
   const theme = requireElement<HTMLSelectElement>("#theme_select")
   theme.addEventListener("change", () => saveTheme(theme.value))
