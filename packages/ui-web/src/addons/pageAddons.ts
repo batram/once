@@ -25,6 +25,8 @@ export interface PageAddonAction {
   icon?: string
   surfaces: readonly PageActionSurface[]
   when?: AddonCondition
+  /** The action needs the story list and search controls of a full panel. */
+  requiresPanel?: boolean
 }
 
 export interface RegisteredPageAction extends PageAddonAction {
@@ -84,7 +86,7 @@ export function registerPageTray(id: string, render: (href: string) => HTMLEleme
 export function pageAddonActions(surface: PageActionSurface, page?: AddonPage): PageAddonAction[] {
   const list = [...actions.values()].filter(action => action.surfaces.includes(surface))
   const shown = page ? list.filter(action => isAddonPage(page.href) && action.appliesTo(page)) : list
-  return shown.map(({ id, label, icon, surfaces, when }) => ({ id, label, icon, surfaces, ...(when ? { when } : {}) }))
+  return shown.map(({ id, label, icon, surfaces, when, requiresPanel }) => ({ id, label, icon, surfaces, ...(when ? { when } : {}), ...(requiresPanel ? { requiresPanel } : {}) }))
 }
 
 /** Runs an action on a page. False when it is unknown, does not apply, or could not run. */

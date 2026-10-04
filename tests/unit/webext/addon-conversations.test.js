@@ -12,6 +12,21 @@ function port(name, url) {
     postMessage(message) { this.posted.push(message) }, disconnect() { this.disconnected = true } }
 }
 
+test("standalone page actions resolve their story only on this extension's conversation page", () => {
+  const surface = webextAddonConversations({ runtime: {
+    onConnect: event(), getURL: path => `moz-extension://once/${path}`
+  } })
+  const page = "moz-extension://once/static/addon-conversation.html"
+  const search = new URLSearchParams({ run: "addon:example/explain", href: "https://story.test/article?a=1#section", title: "Story" })
+  assert.equal(surface.storyHref(`${page}?${search}`), "https://story.test/article?a=1#section")
+  assert.equal(surface.storyHref(`${page.replace("once/", "other/")}?${search}`), null)
+  assert.equal(surface.storyHref(`${page.replace("addon-conversation", "sidepanel")}?${search}`), null)
+  for (const href of ["", "not a URL", "javascript:alert(1)", "file:///article", "https://story.test/" + "a".repeat(4096)]) {
+    search.set("href", href)
+    assert.equal(surface.storyHref(`${page}?${search}`), null)
+  }
+})
+
 test("the panel opens a tab named by the conversation and answers every port whose page names one it holds", async () => {
   const onConnect = event()
   const created = []

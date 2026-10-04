@@ -51,7 +51,17 @@ export function webextAddonConversations(browserApi: typeof browser): AddonConve
   })
   return {
     label: "Continue in a tab",
-    storyHref: url => pageKey(url)?.story ?? null,
+    storyHref: value => {
+      try {
+        const url = new URL(value)
+        if (`${url.protocol}//${url.host}${url.pathname}` !== pageUrl) return null
+        if (!url.searchParams.get(PAGE_ACTION_RUN)) return pageKey(value)?.story ?? null
+        const href = url.searchParams.get("href") ?? ""
+        if (href.length > 4096) return null
+        const story = new URL(href)
+        return ["http:", "https:"].includes(story.protocol) ? story.href : null
+      } catch { return null }
+    },
     connect(finder) { find = finder },
     open(handle) {
       const snapshot = handle.snapshot()

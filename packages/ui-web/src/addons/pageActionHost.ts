@@ -62,7 +62,15 @@ export async function hostPageAction(
     root.textContent = text
   }
   const start = async (): Promise<boolean> => {
-    if (!await registered(action, page, timeout) || !runPageAddonAction(action, page, "continue")) {
+    if (!await registered(action, page, timeout)) {
+      show(NOT_AVAILABLE)
+      return false
+    }
+    if (pageAddonActions("menu", page).find(item => item.id === action)?.requiresPanel) {
+      show("This action needs the Once panel. Open the panel, then choose the action again.")
+      return false
+    }
+    if (!runPageAddonAction(action, page, "continue")) {
       show(NOT_AVAILABLE)
       return false
     }

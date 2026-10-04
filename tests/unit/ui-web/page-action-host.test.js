@@ -14,6 +14,43 @@ const client = (state, unlock = async () => undefined) => {
     unlockAddonVault: async (...args) => { unlocked.push(args); return unlock(...args) } }
 }
 
+test("the standalone host refuses panel search actions without running them or reporting success", async () => {
+  const previous = { document: global.document, window: global.window, Event: global.Event }
+  const dom = parseHTML("<html><body><main></main></body></html>")
+  Object.assign(global, { document: dom.document, window: dom.window, Event: dom.Event })
+  const mountPath = require.resolve("../../../packages/ui-web/dist/addons/mountAddons")
+  const hostPath = require.resolve("../../../packages/ui-web/dist/addons/pageActionHost")
+  const previousMount = require.cache[mountPath]
+  const previousHost = require.cache[hostPath]
+  const actions = require("../../../packages/ui-web/dist/addons/pageAddons")
+  let release
+  let runs = 0
+  require.cache[mountPath] = { id: mountPath, filename: mountPath, loaded: true, exports: {
+    mountAddons() {
+      release = actions.registerPageAction({ id: "addon:example/search", label: "Search", surfaces: ["menu"],
+        requiresPanel: true, appliesTo: () => true, run: () => { runs++; return true } })
+    }
+  } }
+  Reflect.deleteProperty(require.cache, hostPath)
+  try {
+    const { hostPageAction } = require(hostPath)
+    const host = dom.document.querySelector("main")
+    const fakeClient = { ...client("disabled"), subscribe: () => () => {} }
+    assert.equal(await hostPageAction(fakeClient, host, "addon:example/search",
+      { href: "https://story.test/" }, { sandboxUrl: "sandbox.html", registrationMs: 50 }), false)
+    assert.equal(runs, 0)
+    assert.match(host.textContent, /Open the panel/)
+    assert.doesNotMatch(host.textContent, /Done/)
+  } finally {
+    release?.()
+    if (previousMount) require.cache[mountPath] = previousMount
+    else Reflect.deleteProperty(require.cache, mountPath)
+    if (previousHost) require.cache[hostPath] = previousHost
+    else Reflect.deleteProperty(require.cache, hostPath)
+    Object.assign(global, previous)
+  }
+})
+
 // A tab running a page action without the panel reads the same stored
 // add-ons; when they are in a locked vault it must ask, not report them missing.
 test("readable add-on storage lets the page action run at once", async () => {

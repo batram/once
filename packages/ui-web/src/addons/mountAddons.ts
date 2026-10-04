@@ -231,6 +231,7 @@ async function registerManifest(
         const surfaces = contribution.surfaces.filter((surface): surface is "button" | "menu" => surface === "button" || surface === "menu")
         releases.push(registerPageAction({
           id, label: contribution.label, icon: contribution.icon, surfaces, when: contribution.when,
+          ...("search" in pageRun ? { requiresPanel: true } : {}),
           appliesTo: page => storyMatchesCondition(contribution.when, pageStoryView(page)),
           run: (page, how) => {
             if (!("tray" in pageRun)) { runAction(manifest, pageRun, pageStoryView(page), sandbox); return true }
