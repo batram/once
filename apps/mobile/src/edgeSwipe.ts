@@ -61,7 +61,7 @@ export function attachEdgeSwipe(options: EdgeSwipeOptions): () => void {
     if (!touch) return
     const target = event.target as Element | null
     // The swipe settings sample row is a horizontal gesture of its own.
-    if (target?.closest('[data-swipe-preview="true"]')) return
+    if (target?.closest('[data-swipe-preview="true"], .reading_tab_row')) return
     const width = window.innerWidth
     if (touch.clientX <= edgeWidth) direction = "back"
     else if (touch.clientX >= width - edgeWidth) direction = "forward"

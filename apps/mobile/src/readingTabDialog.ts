@@ -1,5 +1,6 @@
 import { PanelNavigation } from "@once/ui-web"
 import { ReadingTabs } from "./readingTabs"
+import { attachReadingTabSwipe } from "./readingTabSwipe"
 
 /** An in-content dialog keeps the browser chrome available while choosing tabs. */
 export class ReadingTabDialog {
@@ -12,6 +13,7 @@ export class ReadingTabDialog {
   private readonly undoBar = document.createElement("div")
   private readonly undoMessage = document.createElement("span")
   private readonly status = document.createElement("span")
+  private readonly cancelSwipe: () => void
 
   constructor(private readonly tabs: ReadingTabs, actions: { select(id: string): void; create(): void; preview(): Promise<void> }) {
     this.count.type = "button"
@@ -45,6 +47,7 @@ export class ReadingTabDialog {
     title.append(this.total)
     header.append(title)
     this.rows.className = "reading_tab_rows"
+    this.cancelSwipe = attachReadingTabSwipe(this.rows)
     this.rows.setAttribute("aria-label", "Open tabs")
     this.rows.setAttribute("role", "list")
     this.undo = button("Undo close", () => {
@@ -83,6 +86,7 @@ export class ReadingTabDialog {
     if (!content) throw new Error("Missing mobile reading content")
     content.append(this.dialog)
     this.dialog.addEventListener("close", () => {
+      this.cancelSwipe()
       this.count.setAttribute("aria-expanded", "false")
       if (document.querySelector("#left_panel")?.getAttribute("active_panel") !== "reading") return
       if (!this.tabs.tabs.length) { PanelNavigation.open_panel("stories"); return }
@@ -146,6 +150,7 @@ export class ReadingTabDialog {
   }
 
   private render(): void {
+    this.cancelSwipe()
     this.count.textContent = String(this.tabs.tabs.length)
     this.count.setAttribute("aria-label", `Tabs: ${this.tabs.tabs.length} open`)
     this.total.textContent = String(this.tabs.tabs.length)
@@ -219,7 +224,10 @@ export class ReadingTabDialog {
       close.dataset.tabId = tab.id
       close.dataset.action = "close"
       close.setAttribute("aria-label", `Close tab: ${title.textContent}`)
-      row.append(select, close)
+      const swipeHint = document.createElement("span")
+      swipeHint.className = "reading_tab_swipe_hint"
+      swipeHint.setAttribute("aria-hidden", "true")
+      row.append(select, close, swipeHint)
       this.rows.append(row)
       if (focusId === tab.id) (focusAction === "close" ? close : select).focus({ preventScroll: true })
     }

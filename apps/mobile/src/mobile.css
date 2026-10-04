@@ -3144,6 +3144,12 @@
   }
 
   .reading_tab_row {
+    --tab-swipe-offset: 0px;
+    --tab-swipe-distance: 0px;
+
+    position: relative;
+    overflow: hidden;
+    touch-action: pan-y;
     display: flex;
     align-items: center;
     min-height: 80px;
@@ -3151,6 +3157,44 @@
     padding-inline-end: var(--sp-1);
     border: var(--bw) solid transparent;
     border-radius: var(--radius-lg);
+  }
+
+  .reading_tab_row > button {
+    transform: translateX(var(--tab-swipe-offset));
+  }
+
+  .reading_tab_swipe_hint {
+    position: absolute;
+    inset-block: 0;
+    display: none;
+    box-sizing: border-box;
+    width: var(--tab-swipe-distance);
+    overflow: hidden;
+    padding-inline: var(--sp-1);
+    place-items: center;
+    background: var(--second-bg-color);
+    color: var(--text-high-color);
+    font-size: var(--fs-caption);
+    font-weight: 600;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  .reading_tab_row[data-swipe-direction] .reading_tab_swipe_hint {
+    display: grid;
+  }
+
+  .reading_tab_row[data-swipe-direction="open"] .reading_tab_swipe_hint {
+    inset-inline-start: 0;
+  }
+
+  .reading_tab_row[data-swipe-direction="close"] .reading_tab_swipe_hint {
+    inset-inline-end: 0;
+  }
+
+  .reading_tab_row[data-swipe-ready="true"] .reading_tab_swipe_hint {
+    background: color-mix(in srgb, var(--cursor-color) 30%, var(--main-bg-color));
+    box-shadow: inset 0 0 0 var(--bw) var(--cursor-color);
   }
 
   .reading_tab_row.reading_tab_selected {
