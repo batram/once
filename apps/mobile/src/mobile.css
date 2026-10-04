@@ -3225,6 +3225,7 @@
   }
 
   .reading_tab_identity {
+    position: relative;
     display: grid;
     flex: 0 0 clamp(64px, 20vw, 96px);
     height: 96px;
@@ -3235,6 +3236,29 @@
     background: var(--second-bg-color);
     font-size: var(--fs-title);
     font-weight: 600;
+  }
+
+  .reading_tab_audio {
+    position: absolute;
+    inset-block-end: var(--sp-1);
+    inset-inline-end: var(--sp-1);
+    display: grid;
+    padding: var(--sp-1);
+    place-items: center;
+    border-radius: var(--radius-pill);
+    background: var(--main-bg-color);
+    color: var(--text-muted-color);
+    box-shadow: 0 0 0 var(--bw) var(--sep-color);
+  }
+
+  .reading_tab_audio .icon {
+    --icon-size: var(--icon-md);
+  }
+
+  /* Sound is coming out of this tab right now; a tab that played earlier keeps a muted mark. */
+  .reading_tab_audio[data-audio="playing"] {
+    color: var(--audio-playing-color);
+    box-shadow: 0 0 0 calc(var(--bw) * 2) var(--audio-playing-color);
   }
 
   .reading_tab_preview {

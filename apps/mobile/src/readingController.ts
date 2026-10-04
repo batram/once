@@ -39,6 +39,8 @@ export class MobileReadingController {
   private currentStoryRow: StoryListItem | null = null
   private currentCardStoryHref = ""
   private currentStoryCollapsed = false
+  // Which tab last rendered in Reader mode; leaving it in that same tab stops its speech.
+  private readerModeTab: ReadingTab | null = null
 
   /**
    * The selected tab's own page once its current navigation has settled. A
@@ -64,6 +66,18 @@ export class MobileReadingController {
     return { surface: this.runtime.pageSurface, url: state.currentUrl }
   }
 
+  runtimeReaderWindow(source: unknown): boolean {
+    return this.runtime.isReaderWindow(source)
+  }
+
+  setReaderAudible(source: unknown, audible: boolean): void {
+    this.runtime.setReaderAudible(source, audible)
+  }
+
+  onReaderClosed(listener: (reader: ReaderDocumentHost) => void): void {
+    this.runtime.onReaderClosed(listener)
+  }
+
   openBrowserUrl(url: string): void {
     PanelNavigation.open_panel("reading")
     this.ensureCurrentTab()
@@ -81,7 +95,7 @@ export class MobileReadingController {
         this.findBar.close()
         this.addonTrays.close()
         closeStoryAnchoredMenu()
-        this.ttsControls.dismiss()
+        this.ttsControls.tabChanged()
         this.editingAddress = false
       },
       direction => { void (direction === "back" ? this.handleBack() : this.handleForward()) },
@@ -494,6 +508,9 @@ export class MobileReadingController {
   }
 
   private render(state: Readonly<ReadingSessionState>): void {
+    const tab = this.tabs.selected ?? null
+    if (this.readerModeTab && this.readerModeTab === tab && state.mode !== "reader") this.ttsControls.stop()
+    this.readerModeTab = state.mode === "reader" ? tab : null
     const story = state.story
     // Keep the native navigation state observable from the Capacitor shell.
     // Besides driving styling/debugging, this gives native acceptance tests a

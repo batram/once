@@ -212,6 +212,14 @@ export class ReadingTabDialog {
         preview.className = "reading_tab_preview"
         identity.replaceChildren(preview)
       }
+      if (tab.audio) {
+        // Green while sound is coming from the tab; muted once it has stopped.
+        const audio = document.createElement("span")
+        audio.className = "reading_tab_audio"
+        audio.dataset.audio = tab.audio
+        audio.append(icon("volume"))
+        identity.append(audio)
+      }
       identity.setAttribute("aria-hidden", "true")
       const text = document.createElement("span")
       text.className = "reading_tab_text"
@@ -220,6 +228,12 @@ export class ReadingTabDialog {
       const address = pageTitle ? hostname : path || (hostname ? "Web page" : "Enter an address to get started")
       detail.textContent = [state.loadState === "loading" ? "Loading…" : state.loadState === "error" ? "Could not load page" : "", address].filter(Boolean).join(" · ")
       text.append(title, detail)
+      if (tab.audio) {
+        const audioStatus = document.createElement("span")
+        audioStatus.className = "visually_hidden"
+        audioStatus.textContent = tab.audio === "playing" ? "Playing audio" : "Played audio"
+        text.append(audioStatus)
+      }
       if (tab.id === this.tabs.activeId) {
         const current = document.createElement("span")
         current.className = "reading_tab_current"
@@ -253,7 +267,7 @@ function button(label: string, action: () => void): HTMLButtonElement {
   return element
 }
 
-function icon(name: "plus" | "x"): HTMLElement {
+function icon(name: "plus" | "x" | "volume"): HTMLElement {
   const element = document.createElement("span")
   element.className = `icon icon--chrome icon--${name}`
   element.setAttribute("aria-hidden", "true")

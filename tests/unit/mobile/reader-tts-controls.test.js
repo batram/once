@@ -45,7 +45,8 @@ test("host TTS bar is the single control surface in Reader mode", () => {
   const sent = []
   const controller = {
     send: (message) => sent.push(message),
-    subscribe: () => () => undefined
+    subscribe: () => () => undefined,
+    refresh: () => undefined
   }
   const controls = loadControls(document)(controller)
   const pill = document.querySelector("#reader_tts_pill")
@@ -63,5 +64,43 @@ test("host TTS bar is the single control surface in Reader mode", () => {
   controls.setReaderMode(false)
   assert.equal(pill.hidden, true)
   assert.equal(settings.open, false)
+  assert.deepEqual(sent.at(-1), { type: "ui-stop" })
+})
+
+test("hiding the bar or switching tabs keeps speech running; only stop and dismiss stop it", () => {
+  const { document } = parseHTML(`
+    <div id="reader_tts_pill" hidden>
+      <button data-host-tts="prev"></button>
+      <button data-host-tts="play"></button>
+      <button data-host-tts="next"></button>
+      <button data-host-tts="stop"></button>
+      <details id="reader_tts_settings" open></details>
+      <span id="reader_tts_rate_label"></span>
+      <select id="reader_tts_voice"></select>
+      <div id="reader_tts_rates"></div>
+    </div>
+  `)
+  const sent = []
+  let refreshed = 0
+  const controller = {
+    send: (message) => sent.push(message),
+    subscribe: () => () => undefined,
+    refresh: () => { refreshed += 1 }
+  }
+  const controls = loadControls(document)(controller)
+  const pill = document.querySelector("#reader_tts_pill")
+  controls.setReaderMode(true)
+  controls.setReaderMode(false)
+  assert.equal(pill.hidden, true)
+  controls.tabChanged()
+  controls.setReaderMode(true)
+  assert.equal(refreshed, 2, "showing the bar replays the selected reader")
+  controls.setReaderMode(false)
+  assert.deepEqual(sent, [], "leaving the panel or tab must not stop background speech")
+  controls.stop()
+  assert.deepEqual(sent, [{ type: "ui-stop" }])
+  controls.setReaderMode(true)
+  controls.dismiss()
+  assert.equal(pill.hidden, true)
   assert.deepEqual(sent.at(-1), { type: "ui-stop" })
 })

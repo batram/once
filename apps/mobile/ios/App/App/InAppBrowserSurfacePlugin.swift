@@ -140,6 +140,14 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     private var installedRuleJSON: String?
     private var contentRuleList: WKContentRuleList?
     private var extensionUserScripts: [WKUserScript] = []
+    /// Frames (by their script's token) currently playing audible media.
+    private var playingFrames = Set<String>()
+    private var mediaPlaying = false
+    /// Root-only: a popup's configuration shares its opener's controller, and
+    /// adding a second handler under the same name throws.
+    private let mediaControllers = NSHashTable<WKUserContentController>.weakObjects()
+    private lazy var mediaScript = WKUserScript(source: MediaObserver.source, injectionTime: .atDocumentStart,
+                                                forMainFrameOnly: false, in: MediaObserver.world)
     private lazy var extensions: WebExtensionHost = {
         let host = WebExtensionHost()
         host.changed = { [weak self] in self?.notifyListeners("extensionsChanged", data: [:]) }
@@ -174,6 +182,10 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             if let contentRuleList { configuration.userContentController.add(contentRuleList) }
             for script in extensionUserScripts { configuration.userContentController.addUserScript(script) }
         }
+        installMediaObserver(configuration.userContentController)
+        // iPhone WebKit defaults to fullscreen-only video; like Safari, play
+        // inline wherever the page allows it (playsinline).
+        configuration.allowsInlineMediaPlayback = true
         let view = WKWebView(frame: .zero, configuration: configuration)
         // A background tab's surface must not flash over the selected one.
         view.isHidden = !(wantsVisible && isSelected)
@@ -500,6 +512,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         for tab in tabs.values { tab.installUserscripts(document) }
         let controller = surface?.configuration.userContentController
         controller?.removeAllUserScripts()
+        if let controller { installMediaObserver(controller) }
         extensionUserScripts = []
         for entry in document["scripts"] as? [JSObject] ?? [] {
             guard entry["enabled"] as? Bool != false,
@@ -519,6 +532,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
 
     @objc func close(_ call: CAPPluginCall) {
         guard route(call, { $0.close(call) }) else { return }
+        // While still routed, so the shell hears it before the tab goes.
+        resetMedia()
         // Routed tabs run here on the main queue: retire the identity now so
         // calls already queued behind this close cannot revive the tab.
         if let owner {
@@ -544,6 +559,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
 
     /// Removes the page but keeps the tab identity; a reclaim may recreate it.
     private func dropSurface() {
+        resetMedia()
         if let view = surface {
             extensions.detach(view)
             view.stopLoading()
@@ -588,6 +604,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     public func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
         guard webView === surface, navigationState.isCurrent(navigation) else { return }
         navigationState.committed()
+        // The previous document and its frames are gone, whatever they last said.
+        resetMedia()
         pageEvent("navigationCommitted", data: navigationState.payload(webView.url))
         history(webView)
     }
@@ -667,7 +685,41 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     }
 
     public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        if webView === surface { resetMedia() }
         webView.reload()
+    }
+
+    private func installMediaObserver(_ controller: WKUserContentController) {
+        let root = owner ?? self
+        if !controller.userScripts.contains(where: { $0 === root.mediaScript }) {
+            controller.addUserScript(root.mediaScript)
+        }
+        guard !root.mediaControllers.contains(controller) else { return }
+        root.mediaControllers.add(controller)
+        controller.add(MediaObserver(root), contentWorld: MediaObserver.world, name: "onceMedia")
+    }
+
+    /// Root-only: one handler may serve several surfaces, so find the sender's tab.
+    fileprivate func mediaMessage(_ message: WKScriptMessage) {
+        guard let view = message.webView,
+              let tab = surface === view ? self : tabs.values.first(where: { $0.surface === view }),
+              let body = message.body as? [String: Any],
+              let frame = body["frame"] as? String,
+              let playing = body["playing"] as? Bool else { return }
+        if playing { tab.playingFrames.insert(frame) } else { tab.playingFrames.remove(frame) }
+        tab.publishMedia()
+    }
+
+    private func resetMedia() {
+        playingFrames.removeAll()
+        publishMedia()
+    }
+
+    private func publishMedia() {
+        let playing = !playingFrames.isEmpty
+        guard playing != mediaPlaying else { return }
+        mediaPlaying = playing
+        pageEvent("mediaStateChanged", data: ["playing": playing])
     }
 
     public func webViewDidClose(_ webView: WKWebView) {
@@ -702,5 +754,61 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         root.notifyListeners("newTabRequested", data: ["tabId": tab.tabId, "generation": tab.tabGeneration,
                                                      "url": url.absoluteString, "navigationId": 0])
         return view
+    }
+}
+
+/// Reports, per frame, whether any <audio>/<video> plays audibly. WebKit exposes
+/// no such state publicly. Runs in its own content world so page script can
+/// neither post to the handler nor tamper with the observer.
+private final class MediaObserver: NSObject, WKScriptMessageHandler {
+    static let world = WKContentWorld.world(name: "OnceMedia")
+    // Media events don't bubble, hence capture on document. An element that
+    // played gets direct listeners too: removed from the document, WebKit
+    // pauses it where the document no longer hears.
+    static let source = """
+    (function () {
+      if (window.__onceMedia) return;
+      window.__onceMedia = true;
+      var frame = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      var active = new Set();
+      var tracked = new WeakSet();
+      var types = ['play', 'playing', 'pause', 'ended', 'emptied', 'volumechange'];
+      var audible = false;
+      function post(value) {
+        if (value === audible) return;
+        audible = value;
+        try { window.webkit.messageHandlers.onceMedia.postMessage({ frame: frame, playing: value }); } catch (e) {}
+      }
+      function update() {
+        var playing = false;
+        active.forEach(function (media) {
+          if (media.paused || media.ended) active.delete(media);
+          else if (!media.muted && media.volume > 0) playing = true;
+        });
+        post(playing);
+      }
+      function seen(event) {
+        var media = event.target;
+        if (!(media instanceof HTMLMediaElement)) return;
+        if (!tracked.has(media)) {
+          tracked.add(media);
+          types.forEach(function (type) { media.addEventListener(type, seen); });
+        }
+        if (!media.paused && !media.ended) active.add(media);
+        update();
+      }
+      types.forEach(function (type) { document.addEventListener(type, seen, true); });
+      window.addEventListener('pagehide', function () { post(false); });
+      window.addEventListener('pageshow', function (event) { if (event.persisted) update(); });
+    })();
+    """
+
+    /// The controller retains its handlers; weak so it doesn't retain the plugin.
+    private weak var root: InAppBrowserSurfacePlugin?
+
+    init(_ root: InAppBrowserSurfacePlugin) { self.root = root }
+
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        root?.mediaMessage(message)
     }
 }

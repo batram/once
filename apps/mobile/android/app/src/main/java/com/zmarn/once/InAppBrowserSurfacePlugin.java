@@ -44,7 +44,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
     private final java.util.Set<String> retiredTabs = new java.util.LinkedHashSet<>();
     private static final int RETIRED_TAB_LIMIT = 256;
 
-    /** What a call for a tab that has no runtime does: only loads create one. */
+    /** What a call for a tab that has no runtime does: loads and menus create one. */
     private enum Missing { CREATE, RESOLVE, REJECT }
 
     // Capacitor invokes plugin methods on its plugin thread, but the tab maps and
@@ -373,7 +373,9 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
 
     @PluginMethod
     public void showMenu(PluginCall call) {
-        if (!route(call, Missing.REJECT, tab -> tab.showMenu(call))) return;
+        // A restored Reader-mode tab has no page yet but still owns its menu;
+        // without a session the browser controls show disabled.
+        if (!route(call, Missing.CREATE, tab -> tab.showMenu(call))) return;
         if (call.getBoolean("browserControls", false)) getActivity().runOnUiThread(() ->
             NativeBrowserMenu.show(getActivity(), call, session, canGoBack, canGoForward,
                 () -> moveHistory(false), () -> moveHistory(true), this::reloadSession, backgroundMedia));

@@ -103,6 +103,13 @@ export interface BrowserCloseRequestedEvent {
   generation?: string
 }
 
+/** The page started or stopped playing media; drives the tab's audio indicator. */
+export interface BrowserMediaStateEvent {
+  tabId?: string
+  generation?: string
+  playing: boolean
+}
+
 export interface InAppBrowserSurfaceEvents {
   newTabRequested: BrowserNavigationEvent & BrowserTabIdentity
   navigationStarted: BrowserNavigationEvent
@@ -112,6 +119,7 @@ export interface InAppBrowserSurfaceEvents {
   historyChanged: BrowserHistoryEvent
   edgeSwipe: BrowserEdgeSwipeEvent
   closeRequested: BrowserCloseRequestedEvent
+  mediaStateChanged: BrowserMediaStateEvent
   extensionPageChanged: ExtensionPageState
 }
 

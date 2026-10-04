@@ -17,6 +17,9 @@ export class ReadingTabRuntime {
   private syncingTabs = false
   private usedInitialReader = false
   // Shell UI covering the panel; a tab created or selected under it must stay hidden too.
+  private readerClosedListener: ((reader: ReaderDocumentHost) => void) | null = null
+  // A tab is audible while its reader speaks or its page plays media.
+  private readonly audible = new Map<string, { reader: boolean; page: boolean }>()
   private readonly covers: Record<Cover, boolean> = { menu: false, overlay: false, dialog: false, extensionPage: false }
 
   constructor(
@@ -29,6 +32,7 @@ export class ReadingTabRuntime {
     private readonly announce: (message: string) => void
   ) {
     this.emptyCoordinator = new ReadingSurfaceCoordinator(this.emptySession, surface, initialReader, content)
+    initialReader.onDocumentClosed(() => this.readerClosedListener?.(initialReader))
     this.session = new Proxy(this.emptySession, {
       get: (_target, property) => {
         if (property === "subscribe") return (listener: (state: Readonly<ReadingSessionState>) => void) => {
@@ -53,6 +57,30 @@ export class ReadingTabRuntime {
 
   get coordinator(): ReadingSurfaceCoordinator {
     return this.runtimes.get(this.selectedId ?? "")?.coordinator ?? this.emptyCoordinator
+  }
+
+  /** A reader document closing or being replaced, in any tab. */
+  onReaderClosed(listener: (reader: ReaderDocumentHost) => void): void {
+    this.readerClosedListener = listener
+  }
+
+  isReaderWindow(source: unknown): boolean {
+    return this.initialReader.isReaderWindow(source) ||
+      [...this.runtimes.values()].some(runtime => runtime.reader.isReaderWindow(source))
+  }
+
+  /** Reader speech is reported per frame; the tab owning that frame plays it. */
+  setReaderAudible(source: unknown, audible: boolean): void {
+    for (const [id, runtime] of this.runtimes) {
+      if (runtime.reader.isReaderWindow(source)) this.setAudible(id, runtime.generation, "reader", audible)
+    }
+  }
+
+  private setAudible(id: string, generation: string, kind: "reader" | "page", audible: boolean): void {
+    const key = `${id}:${generation}`
+    const state = { ...(this.audible.get(key) ?? { reader: false, page: false }), [kind]: audible }
+    this.audible.set(key, state)
+    this.tabs.setAudio(id, generation, state.reader || state.page)
   }
 
   get reader(): ReaderDocumentHost {
@@ -107,6 +135,7 @@ export class ReadingTabRuntime {
       for (const [id, runtime] of this.runtimes) {
         if (!this.tabs.tabs.some(tab => tab.id === id && tab.generation === runtime.generation)) {
           // The initial reader is also the fallback without a tab; keep it alive for reuse.
+          this.audible.delete(`${id}:${runtime.generation}`)
           const shared = runtime.reader === this.initialReader
           runtime.coordinator.dispose(shared)
           if (shared) this.usedInitialReader = false
@@ -120,12 +149,14 @@ export class ReadingTabRuntime {
           const surface = this.surface.forTab?.({ tabId: tab.id, generation: tab.generation }) ?? this.surface
           const reader = this.usedInitialReader ? this.initialReader.createSibling() : this.initialReader
           this.usedInitialReader = true
+          if (reader !== this.initialReader) reader.onDocumentClosed(() => this.readerClosedListener?.(reader))
           reader.setScrollPosition(() => tab.readerScroll)
           const coordinator = new ReadingSurfaceCoordinator(tab.session, surface, reader, this.content)
           for (const cover of Object.keys(this.covers) as Cover[]) applyCover(coordinator, cover, this.covers[cover])
           runtime = { generation: tab.generation, reader, coordinator, surface }
           this.runtimes.set(tab.id, runtime)
           coordinator.onEdgeSwipe(direction => { if (tab.id === this.tabs.activeId) this.edgeSwipe(direction) })
+          coordinator.onMediaStateChanged(playing => this.setAudible(tab.id, tab.generation, "page", playing))
           coordinator.onCloseRequested(() => {
             if (!this.tabs.tabs.includes(tab)) return
             this.tabs.close(tab.id)

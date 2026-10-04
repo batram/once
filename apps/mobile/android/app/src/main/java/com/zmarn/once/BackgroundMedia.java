@@ -23,6 +23,9 @@ final class BackgroundMedia implements MediaSession.Delegate {
     private boolean nativePosition;
     private String nativeTitle = "", nativeArtist = "";
     ReadingMediaState state = new ReadingMediaState();
+    // Observed for every tab, whether or not background playback is enabled.
+    java.util.function.Consumer<Boolean> playingChanged;
+    private boolean reportedPlaying;
 
     BackgroundMedia(Context context) {
         this.context = context.getApplicationContext();
@@ -72,6 +75,7 @@ final class BackgroundMedia implements MediaSession.Delegate {
         if (source != session) return;
         playing = media;
         state.playing(true);
+        reportPlaying();
         observePage();
         if (!active && !isEnabled()) { media.pause(); return; }
         updateService();
@@ -80,6 +84,7 @@ final class BackgroundMedia implements MediaSession.Delegate {
     @Override public void onPause(GeckoSession source, MediaSession media) {
         if (source != session || playing != media) return;
         state.playing(false);
+        reportPlaying();
         updateService();
     }
     @Override public void onStop(GeckoSession source, MediaSession media) { stopped(source, media); }
@@ -99,6 +104,13 @@ final class BackgroundMedia implements MediaSession.Delegate {
         nativeArtist = "";
         state = new ReadingMediaState();
         BackgroundMediaService.release(context, this);
+        reportPlaying();
+    }
+
+    private void reportPlaying() {
+        if (reportedPlaying == state.playing) return;
+        reportedPlaying = state.playing;
+        if (playingChanged != null) playingChanged.accept(reportedPlaying);
     }
 
     void detach() {

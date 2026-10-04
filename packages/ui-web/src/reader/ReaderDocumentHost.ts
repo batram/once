@@ -5,6 +5,7 @@ export class ReaderDocumentHost {
   private documentVersion = 0
   private scrollPosition: () => number = () => 0
   private runtimeSource: Promise<string | null> | null = null
+  private documentClosed: (() => void) | null = null
 
   constructor(private readonly parent: HTMLElement = document.body, runtimeUrl: string | null = null) {
     this.runtimeUrl = runtimeUrl
@@ -35,6 +36,9 @@ export class ReaderDocumentHost {
 
   /** Read at each document load, so a later document restores the latest position. */
   setScrollPosition(position: () => number): void { this.scrollPosition = position }
+
+  /** Runs while the frame still holds a document that is about to be replaced or closed. */
+  onDocumentClosed(listener: () => void): void { this.documentClosed = listener }
 
   createSibling(): ReaderDocumentHost {
     return new ReaderDocumentHost(this.parent, this.runtimeUrl)
@@ -71,6 +75,7 @@ export class ReaderDocumentHost {
     // Mirrors the document theme onto the frame element so its backdrop
     // (exposed by iOS rubber-band overscroll) matches the reader background.
     this.frame.dataset.theme = /<html[^>]*\sdata-theme="([a-z]+)"/i.exec(html)?.[1] ?? "system"
+    if (this.frame.hasAttribute("srcdoc")) this.documentClosed?.()
     this.frame.srcdoc = document
     this.root.hidden = false
     globalThis.document.body.classList.add("once-reader-open")
@@ -106,6 +111,7 @@ export class ReaderDocumentHost {
   close(): void {
     this.documentVersion += 1
     this.root.hidden = true
+    if (this.frame.hasAttribute("srcdoc")) this.documentClosed?.()
     this.frame.removeAttribute("srcdoc")
     document.body.classList.toggle("once-reader-open", Boolean(document.querySelector(".once-reader-host:not([hidden])")))
   }

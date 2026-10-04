@@ -1,7 +1,12 @@
 import { ReaderTtsHostController } from "./readerTtsHostBridge"
 
 export interface ReaderTtsUiControls {
+  /** Shows the bar for the selected tab's reader; hiding it leaves speech running. */
   setReaderMode(active: boolean): void
+  /** The selected tab changed: show its reader's state, keep the old one speaking. */
+  tabChanged(): void
+  /** Stops the selected tab's reader speech. */
+  stop(): void
   dismiss(): void
 }
 
@@ -52,21 +57,29 @@ export function installReaderTtsControls(
     voice.value = state.voice || selected
   })
 
-  let readerMode = false
-  const leaveReaderMode = (): void => {
-    controller.send({ type: "ui-stop" })
+  const hide = (): void => {
     pill.hidden = true
     required<HTMLDetailsElement>("#reader_tts_settings").open = false
   }
   return {
     setReaderMode(active) {
-      if (readerMode && !active) leaveReaderMode()
-      readerMode = active
-      pill.hidden = !active
+      if (!active) { hide(); return }
+      // Shown for a (possibly different) tab: reflect that tab's reader.
+      if (pill.hidden) controller.refresh()
+      pill.hidden = false
+    },
+    tabChanged() {
+      hide()
+      // Nothing may linger from the previous tab when the new one never spoke.
+      play.textContent = "▶"
+      play.setAttribute("aria-label", "Play article")
+    },
+    stop() {
+      controller.send({ type: "ui-stop" })
     },
     dismiss() {
-      readerMode = false
-      leaveReaderMode()
+      controller.send({ type: "ui-stop" })
+      hide()
     }
   }
 }

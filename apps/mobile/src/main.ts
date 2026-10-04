@@ -222,9 +222,17 @@ async function startMobileApp(): Promise<void> {
     document.querySelector<HTMLElement>("#reading_content") ?? document.body,
     new URL("reader-runtime.js", document.baseURI).href
   )
-  const tts = installReaderTtsHostBridge((source) => reading.reader.isReaderWindow(source))
+  // Every tab's reader may speak; the controls follow the selected tab's reader.
+  const tts = installReaderTtsHostBridge(
+    (source) => reading.runtimeReaderWindow(source),
+    undefined,
+    undefined,
+    (source) => reading.reader.isReaderWindow(source)
+  )
   const ttsControls = installReaderTtsControls(tts)
   const reading = new MobileReadingController(browserSurface, reader, ttsControls)
+  tts.onAudible((source, audible) => reading.setReaderAudible(source, audible))
+  reading.onReaderClosed((closed) => tts.release((source) => closed.isReaderWindow(source)))
   await reading.install()
   // A tab owns its saved story even when the feed removes it. Refresh its
   // metadata from the working set whenever new evidence becomes available.

@@ -26,41 +26,83 @@ export interface ReaderTtsHostWindow {
 }
 
 export interface ReaderTtsHostController {
+  /** Posts a control message to the selected tab's reader. */
   send(message: ReaderTtsEventBody): void
+  /** UI state of the selected tab's reader. */
   subscribe(
     listener: (state: Extract<ReaderTtsRequest, { type: "ui-state" }>) => void
   ): () => void
+  /** Replays the selected reader's last state, e.g. after a tab switch. */
+  refresh(): void
+  /** Whether a reader is audibly speaking, reported per reader window. */
+  onAudible(listener: (source: Window, audible: boolean) => void): () => void
+  /** A reader's document went away; its queued speech must not outlive it. */
+  release(isWindow: (source: MessageEventSource) => boolean): void
 }
+
+type UiState = Extract<ReaderTtsRequest, { type: "ui-state" }>
 
 /**
  * Host-page half of the reader TTS bridge: receives speech requests from the
- * sandboxed reader frame (see readerTtsPolyfill.ts) and drives the native
+ * sandboxed reader frames (see readerTtsPolyfill.ts) and drives the native
  * text-to-speech plugin. Utterances queue natively (QueueStrategy.Add) so
  * paragraph transitions stay gapless; a cancel bumps the generation so
  * settlements of stopped utterances are never reported back as playback events.
+ *
+ * Every tab's reader may speak, including background tabs, but there is one
+ * native voice: the reader that queued the current speech owns it, and a
+ * different reader starting to speak stops the owner first.
  */
 export function installReaderTtsHostBridge(
   isReaderWindow: (source: MessageEventSource | null) => boolean,
   engine: ReaderTtsEngine = TextToSpeech,
-  host: ReaderTtsHostWindow = window
+  host: ReaderTtsHostWindow = window,
+  isSelectedReader: (source: MessageEventSource) => boolean = () => true
 ): ReaderTtsHostController {
   let generation = 0
   let queueTail: Promise<void> = Promise.resolve()
-  let uiSource: Window | null = null
-  let uiSessionId = ""
-  const uiListeners = new Set<
-    (state: Extract<ReaderTtsRequest, { type: "ui-state" }>) => void
-  >()
+  let owner: Window | null = null
+  const frames = new Map<Window, { sessionId: string; state: UiState; audible: boolean }>()
+  const uiListeners = new Set<(state: UiState) => void>()
+  const audibleListeners = new Set<(source: Window, audible: boolean) => void>()
+
+  const stopEngine = (): void => {
+    generation += 1
+    queueTail = Promise.resolve()
+    owner = null
+    void engine.stop().catch(() => undefined)
+  }
+  const postUi = (frame: Window, message: ReaderTtsEventBody): void => {
+    const sessionId = frames.get(frame)?.sessionId
+    if (!sessionId) return
+    frame.postMessage({
+      ...message,
+      channel: READER_TTS_CHANNEL,
+      version: READER_TTS_VERSION,
+      sessionId
+    }, "*")
+  }
+  const setAudible = (frame: Window, audible: boolean): void => {
+    const entry = frames.get(frame)
+    if (!entry || entry.audible === audible) return
+    entry.audible = audible
+    audibleListeners.forEach((listener) => listener(frame, audible))
+  }
+  const selectedFrame = (): Window | null => {
+    for (const frame of frames.keys()) if (isSelectedReader(frame)) return frame
+    return null
+  }
 
   host.addEventListener("message", (event) => {
     const request = event.data as ReaderTtsRequest | undefined
     if (!isReaderTtsRequest(request)) return
     const source = event.source
     if (!source || !isReaderWindow(source)) return
+    const frame = source as Window
     const reply = (
       message: ReaderTtsEventBody
     ): void => {
-      ;(source as Window).postMessage({
+      frame.postMessage({
         ...message,
         channel: READER_TTS_CHANNEL,
         version: READER_TTS_VERSION,
@@ -69,16 +111,17 @@ export function installReaderTtsHostBridge(
     }
 
     if (request.type === "ui-state") {
-      uiSource = source as Window
-      uiSessionId = request.sessionId
-      uiListeners.forEach((listener) => listener(request))
+      const audible = frames.get(frame)?.audible ?? false
+      frames.set(frame, { sessionId: request.sessionId, state: request, audible })
+      setAudible(frame, request.playing && !request.paused)
+      if (isSelectedReader(frame)) uiListeners.forEach((listener) => listener(request))
       return
     }
 
     if (request.type === "cancel") {
-      generation += 1
-      queueTail = Promise.resolve()
-      void engine.stop().catch(() => undefined)
+      // A preempted reader acknowledging its stop must not silence the new owner.
+      if (owner && owner !== frame) return
+      stopEngine()
       return
     }
 
@@ -96,6 +139,12 @@ export function installReaderTtsHostBridge(
       return
     }
 
+    if (owner && owner !== frame) {
+      const previous = owner
+      stopEngine()
+      postUi(previous, { type: "ui-stop" })
+    }
+    owner = frame
     const run = generation
     const { id, text, rate, voice, lang } = request
     void queueTail.then(() => {
@@ -120,17 +169,29 @@ export function installReaderTtsHostBridge(
 
   return {
     send(message) {
-      if (!uiSource || !uiSessionId) return
-      uiSource.postMessage({
-        ...message,
-        channel: READER_TTS_CHANNEL,
-        version: READER_TTS_VERSION,
-        sessionId: uiSessionId
-      }, "*")
+      const frame = selectedFrame()
+      if (frame) postUi(frame, message)
     },
     subscribe(listener) {
       uiListeners.add(listener)
       return () => uiListeners.delete(listener)
+    },
+    refresh() {
+      const frame = selectedFrame()
+      const state = frame && frames.get(frame)?.state
+      if (state) uiListeners.forEach((listener) => listener(state))
+    },
+    onAudible(listener) {
+      audibleListeners.add(listener)
+      return () => audibleListeners.delete(listener)
+    },
+    release(isWindow) {
+      if (owner && isWindow(owner)) stopEngine()
+      for (const frame of [...frames.keys()]) {
+        if (!isWindow(frame)) continue
+        setAudible(frame, false)
+        frames.delete(frame)
+      }
     }
   }
 }

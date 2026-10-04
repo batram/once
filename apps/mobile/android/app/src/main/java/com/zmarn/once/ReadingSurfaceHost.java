@@ -245,6 +245,7 @@ abstract class ReadingSurfaceHost extends Plugin {
         GeckoSession created = new GeckoSession();
         session = created;
         sessionState = null;
+        backgroundMedia.playingChanged = playing -> notifyListeners("mediaStateChanged", new JSObject().put("playing", playing));
         backgroundMedia.attach(created);
         // The reading page is the selected tab: keep its process bound above the
         // cached-app bucket so the low-memory killer takes other things first.

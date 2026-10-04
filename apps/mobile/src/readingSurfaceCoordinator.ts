@@ -44,6 +44,7 @@ export class ReadingSurfaceCoordinator {
   private surfaceQueue: Promise<void> = Promise.resolve()
   private edgeSwipeHandler: ((direction: "back" | "forward") => void) | null = null
   private closeRequestedHandler: (() => void) | null = null
+  private mediaStateHandler: ((playing: boolean) => void) | null = null
   private finishedHandler: ((event: BrowserNavigationEvent) => void) | null = null
 
   constructor(
@@ -157,15 +158,23 @@ export class ReadingSurfaceCoordinator {
     const close = await this.surface.addListener("closeRequested", () => {
       if (this.browserOpened) this.closeRequestedHandler?.()
     })
+    const media = await this.surface.addListener("mediaStateChanged", (event) => {
+      this.mediaStateHandler?.(event.playing)
+    })
     // Listener lifetimes match the application lifetime. Retaining the
     // removers makes ownership explicit and prevents premature collection in
     // native bridge implementations.
-    if (this.disposed) [started, committed, finished, failed, history, edge, close].forEach(remove => remove())
-    else this.listenerRemovers.push(started, committed, finished, failed, history, edge, close)
+    if (this.disposed) [started, committed, finished, failed, history, edge, close, media].forEach(remove => remove())
+    else this.listenerRemovers.push(started, committed, finished, failed, history, edge, close, media)
   }
 
   onEdgeSwipe(handler: (direction: "back" | "forward") => void): void {
     this.edgeSwipeHandler = handler
+  }
+
+  /** The page's own media (not reader speech) started or stopped playing. */
+  onMediaStateChanged(handler: (playing: boolean) => void): void {
+    this.mediaStateHandler = handler
   }
 
   onCloseRequested(handler: () => void): void {

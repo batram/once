@@ -197,3 +197,44 @@ test("tabs occupy reading content while the URL bar and bottom navigation stay u
   await expect(page.locator("#reading_tabs")).toBeFocused()
   await expect(page.locator("#reading_empty")).toBeVisible()
 })
+
+test("reader speech keeps playing across tab switches and the switcher marks playing and played tabs", async ({ page }) => {
+  // Fake the host voice so speech never ends on its own and cancels are counted.
+  await page.addInitScript(() => {
+    if (window.parent !== window) return
+    const speech = { spoken: [], cancels: 0 }
+    window.__onceSpeech = speech
+    Object.defineProperty(window, "speechSynthesis", { configurable: true, value: {
+      speaking: false, pending: false, paused: false, onvoiceschanged: null,
+      getVoices: () => [{ voiceURI: "fake", name: "Fake voice", lang: "en-US", default: true, localService: true }],
+      speak: utterance => { speech.spoken.push(utterance.text) },
+      cancel: () => { speech.cancels += 1 },
+      pause() {}, resume() {}, addEventListener() {}, removeEventListener() {}
+    } })
+  })
+  const story = await seedFixtureStories(page)
+  await openStoryMenu(page, story)
+  await page.getByTestId("story-menu-open-reader").click()
+  const reader = page.locator(".once-reader-host-frame").first().contentFrame()
+  await expect(reader.locator("article .tts-segment")).not.toHaveCount(0)
+  await page.locator('[data-host-tts="play"]').click()
+  await expect.poll(() => page.evaluate(() => window.__onceSpeech.spoken.length)).toBeGreaterThan(0)
+  const cancels = await page.evaluate(() => window.__onceSpeech.cancels)
+
+  await newTab(page)
+  await openTabs(page)
+  const rows = switcher(page).locator(".reading_tab_row")
+  await expect(rows.nth(0).locator(".reading_tab_audio")).toHaveAttribute("data-audio", "playing")
+  await expect(rows.nth(0)).toContainText("Playing audio")
+  await expect(rows.nth(1).locator(".reading_tab_audio")).toHaveCount(0)
+  await rows.nth(0).locator('[data-action="select"]').click()
+  await expect(page.locator("#reading_content")).toHaveAttribute("data-mode", "reader")
+  await expect(page.locator('[data-host-tts="play"]')).toHaveAttribute("aria-label", "Pause article")
+  expect(await page.evaluate(() => window.__onceSpeech.cancels)).toBe(cancels)
+
+  await page.locator('[data-host-tts="stop"]').click()
+  await expect.poll(() => page.evaluate(() => window.__onceSpeech.cancels)).toBeGreaterThan(cancels)
+  await openTabs(page)
+  await expect(rows.nth(0).locator(".reading_tab_audio")).toHaveAttribute("data-audio", "played")
+  await expect(rows.nth(0)).toContainText("Played audio")
+})

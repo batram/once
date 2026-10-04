@@ -418,3 +418,52 @@ test("adapter reports active errors but cancellation resets state and ignores la
   })
   assert.deepEqual(errors, ["native-failure"])
 })
+
+test("background tab readers keep speaking; a new speaker preempts the owner and controls follow the selected tab", async () => {
+  const protocol = loadModule("apps/mobile/src/readerTtsProtocol.ts")
+  const { installReaderTtsHostBridge } = loadModule("apps/mobile/src/readerTtsHostBridge.ts", {
+    "./readerTtsProtocol": protocol,
+    "@capacitor-community/text-to-speech": { TextToSpeech: {}, QueueStrategy: { Flush: 0, Add: 1 } }
+  })
+  let hostListener
+  const frame = () => ({ posted: [], postMessage(message) { this.posted.push(message) } })
+  const a = frame(), b = frame()
+  let selected = a
+  const { engine, requests } = createFakeEngine()
+  const bridge = installReaderTtsHostBridge(
+    source => source === a || source === b, engine,
+    { addEventListener: (type, listener) => { hostListener = listener } },
+    source => source === selected
+  )
+  const envelope = { channel: "once-reader-tts", version: 1 }
+  const post = (source, body) => hostListener({ source, data: { ...envelope, ...body } })
+  const audible = []
+  bridge.onAudible((source, value) => audible.push([source === a ? "a" : "b", value]))
+  const states = []
+  bridge.subscribe(state => states.push(state.sessionId))
+
+  post(a, { sessionId: "ui-a", type: "ui-state", playing: true, paused: false, rate: 1, segment: 0, voice: "", voices: [] })
+  post(a, { sessionId: "reader-a", type: "speak", id: 1, text: "A", rate: 1 })
+  selected = b
+  post(b, { sessionId: "ui-b", type: "ui-state", playing: false, paused: false, rate: 1, segment: 0, voice: "", voices: [] })
+  bridge.send({ type: "ui-play-toggle" })
+  assert.equal(b.posted.at(-1).type, "ui-play-toggle", "controls target the selected tab")
+  assert.equal(a.posted.some(message => message.type === "ui-stop"), false, "switching tabs never stops the speaker")
+  post(b, { sessionId: "reader-b", type: "cancel" })
+  assert.equal(engine.stops, 0, "a non-owner's cancel leaves the background speech alone")
+
+  post(b, { sessionId: "reader-b", type: "speak", id: 1, text: "B", rate: 1 })
+  assert.equal(engine.stops, 1, "a second speaker stops the first")
+  assert.equal(a.posted.at(-1).type, "ui-stop")
+  assert.equal(a.posted.at(-1).sessionId, "ui-a")
+  post(a, { sessionId: "reader-a", type: "cancel" })
+  assert.equal(engine.stops, 1, "the preempted reader's acknowledgement is ignored")
+  assert.deepEqual(requests.map(request => request.options.text), ["A", "B"])
+
+  selected = a
+  bridge.refresh()
+  assert.equal(states.at(-1), "ui-a")
+  bridge.release(source => source === b)
+  assert.equal(engine.stops, 2, "a closed reader document stops its queued speech")
+  assert.deepEqual(audible, [["a", true]])
+})

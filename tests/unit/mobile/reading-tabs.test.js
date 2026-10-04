@@ -176,3 +176,21 @@ test("undo keeps a tab the user selected after the close", () => {
   tabs.undo()
   assert.equal(tabs.activeId, d.id)
 })
+
+test("tab audio is playing while audible and stays marked as played afterwards", () => {
+  const tabs = new ReadingTabs(memory())
+  const tab = tabs.create()
+  let published = 0
+  tabs.subscribe(() => { published += 1 })
+  published = 0
+  tabs.setAudio(tab.id, tab.generation, false)
+  assert.equal(tab.audio, undefined, "silence never marks a tab")
+  tabs.setAudio(tab.id, tab.generation, true)
+  assert.equal(tab.audio, "playing")
+  tabs.setAudio(tab.id, tab.generation, true)
+  tabs.setAudio(tab.id, tab.generation, false)
+  assert.equal(tab.audio, "played")
+  tabs.setAudio(tab.id, "stale", true)
+  assert.equal(tab.audio, "played", "a replaced generation cannot mark the tab")
+  assert.equal(published, 2)
+})

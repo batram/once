@@ -20,6 +20,8 @@ export interface ReadingTab {
   readerScroll: number
   restored: boolean
   preview?: string
+  /** Audio this session: playing now, or played earlier and since stopped. */
+  audio?: "playing" | "played"
 }
 interface Snapshot { version: 1; activeId: string | null; tabs: SavedTab[] }
 
@@ -122,6 +124,15 @@ export class ReadingTabs {
     const tab = this.entries.find(entry => entry.id === id && entry.generation === generation)
     if (!tab || tab.session.snapshot().currentUrl !== url || !/^data:image\/jpeg;base64,/.test(preview)) return
     tab.preview = preview
+    this.listeners.forEach(listener => listener())
+  }
+
+  setAudio(id: string, generation: string, playing: boolean): void {
+    const tab = this.entries.find(entry => entry.id === id && entry.generation === generation)
+    if (!tab) return
+    const audio = playing ? "playing" : tab.audio && "played"
+    if (audio === tab.audio) return
+    tab.audio = audio
     this.listeners.forEach(listener => listener())
   }
 
