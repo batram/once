@@ -7,6 +7,10 @@ import {
   ReaderTtsRequest,
   ReaderTtsVoice
 } from "./readerTtsProtocol"
+import {
+  normalizeReaderTtsPreferences,
+  ReaderTtsPreferences
+} from "@once/ui-web/reader/readerTtsPreferences"
 import { ReaderTtsFrames, type ReaderMediaAction, type ReaderUiState } from "./readerTtsFrames"
 
 export interface ReaderTtsEngine {
@@ -20,6 +24,36 @@ export interface ReaderTtsEngine {
   }): Promise<void>
   stop(): Promise<void>
   getSupportedVoices(): Promise<{ voices: ReaderTtsVoice[] }>
+}
+
+export interface ReaderTtsPreferenceStore {
+  load(): ReaderTtsPreferences
+  save(preferences: ReaderTtsPreferences): void
+}
+
+const PREFERENCES_KEY = "once:mobile:reader-tts"
+
+/** The host page's local storage; the reader frames have none that lasts. */
+export function localReaderTtsPreferenceStore(
+  storage: Pick<Storage, "getItem" | "setItem"> | undefined = globalThis.localStorage
+): ReaderTtsPreferenceStore {
+  return {
+    load() {
+      try {
+        const stored = storage?.getItem(PREFERENCES_KEY)
+        return normalizeReaderTtsPreferences(stored ? JSON.parse(stored) : null)
+      } catch {
+        return normalizeReaderTtsPreferences(null)
+      }
+    },
+    save(preferences) {
+      try {
+        storage?.setItem(PREFERENCES_KEY, JSON.stringify(normalizeReaderTtsPreferences(preferences)))
+      } catch {
+        // Speech keeps working with this session's settings.
+      }
+    }
+  }
 }
 
 export interface ReaderTtsHostWindow {
@@ -65,7 +99,8 @@ export function installReaderTtsHostBridge(
   isReaderWindow: (source: MessageEventSource | null) => boolean,
   engine: ReaderTtsEngine = TextToSpeech,
   host: ReaderTtsHostWindow = window,
-  isSelectedReader: (source: MessageEventSource) => boolean = () => true
+  isSelectedReader: (source: MessageEventSource) => boolean = () => true,
+  preferences: ReaderTtsPreferenceStore = localReaderTtsPreferenceStore()
 ): ReaderTtsHostController {
   let generation = 0
   let queueTail: Promise<void> = Promise.resolve()
@@ -95,6 +130,16 @@ export function installReaderTtsHostBridge(
 
     if (request.type === "ui-state") {
       frames.receive(frame, request)
+      return
+    }
+
+    if (request.type === "preferences") {
+      reply({ type: "preferences", preferences: preferences.load() })
+      return
+    }
+
+    if (request.type === "save-preferences") {
+      preferences.save(request.preferences)
       return
     }
 

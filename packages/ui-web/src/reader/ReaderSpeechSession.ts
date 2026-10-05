@@ -29,6 +29,7 @@ export interface ReaderSpeechSessionOptions {
   createUtterance: (text: string) => SpeechSynthesisUtterance
   texts: string[]
   initialRate: number
+  initialVoice?: string
   claimOwnership?: () => void
   releaseOwnership?: () => void
   ownershipChannel?: {
@@ -52,6 +53,7 @@ export class ReaderSpeechSession {
 
   constructor(private readonly options: ReaderSpeechSessionOptions) {
     this.rate = options.initialRate
+    this.voice = options.initialVoice ?? ""
     options.ownershipChannel?.addEventListener("message", (event) => {
       const message = event.data as { type?: string; ownerId?: string } | null
       if (message?.type === "claim" && message.ownerId !== options.ownerId) this.yield()
@@ -161,8 +163,10 @@ export class ReaderSpeechSession {
     this.notify()
   }
 
-  setVoice(voice: string): void {
+  /** Switches voice, and speed with it when the voice has its own. */
+  setVoice(voice: string, rate?: number): void {
     this.voice = voice
+    if (rate != null) this.rate = Math.min(6, Math.max(0.5, rate))
     if (this.active) this.start(this.position)
     else this.notify()
   }

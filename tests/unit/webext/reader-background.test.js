@@ -25,6 +25,7 @@ function createBrowser() {
   const stored = {}
   return {
     calls,
+    stored,
     onMessage,
     onRemoved,
     api: {
@@ -37,7 +38,9 @@ function createBrowser() {
         async sendMessage(tabId, message) { calls.push(["sendMessage", tabId, message]) }
       },
       storage: { local: {
-        async get(key) { return { [key]: stored[key] } },
+        async get(keys) {
+          return Object.fromEntries([keys].flat().map((key) => [key, stored[key]]))
+        },
         async set(values) { Object.assign(stored, values); calls.push(["store", values]) },
         async remove(key) { stored[key] = undefined; calls.push(["remove", key]) }
       } },
@@ -92,13 +95,17 @@ test("parks a stored reader document for its page and hands it over once", async
   assert.throws(() => handler({ onceCommand: "openStoredReader", html: "" }, panelSender), /required/)
 })
 
-test("stores validated speech rate and transfers speech ownership", async () => {
+test("stores validated speech speeds per voice and transfers speech ownership", async () => {
   const fake = createBrowser()
   installReaderBackground(fake.api)
   const handler = fake.onMessage.listeners[0]
-  await handler({ onceCommand: "setReaderTtsRate", rate: 1.7 }, readerSender)
-  assert.deepEqual(await handler({ onceCommand: "getReaderTtsRate" }, readerSender), { rate: 1.7 })
-  assert.throws(() => handler({ onceCommand: "setReaderTtsRate", rate: 20 }, readerSender), /Invalid reader TTS speed/)
+  const preferences = { voice: "en-voice", rates: { "": 1.2, "en-voice": 2.5 } }
+  await handler({ onceCommand: "setReaderTtsPreferences", preferences }, readerSender)
+  assert.deepEqual(await handler({ onceCommand: "getReaderTtsPreferences" }, contentSender(1)), preferences)
+  assert.throws(
+    () => handler({ onceCommand: "setReaderTtsPreferences", preferences: { voice: "", rates: { "": 20 } } }, readerSender),
+    /Invalid reader TTS settings/
+  )
   await handler({ onceCommand: "claimReaderTts" }, contentSender(1))
   await handler({ onceCommand: "claimReaderTts" }, contentSender(2))
   await Promise.resolve()
@@ -112,7 +119,18 @@ test("rejects privileged commands from the wrong sender document", async () => {
   assert.equal(handler({ onceCommand: "openReader", url: "https://example.com" }, readerSender), undefined)
   assert.equal(handler({ onceCommand: "openStoredReader", html: "secret" }, contentSender(1)), undefined)
   assert.equal(handler({ onceCommand: "getStoredReader", token: "secret" }, panelSender), undefined)
-  assert.equal(handler({ onceCommand: "setReaderTtsRate", rate: 2 }, panelSender), undefined)
+  assert.equal(handler({ onceCommand: "setReaderTtsPreferences", preferences: { voice: "", rates: {} } }, panelSender), undefined)
   assert.equal(handler({ onceCommand: "claimReaderTts" }, { tab: { id: 1 }, url: "moz-extension://once/static/sidepanel.html" }), undefined)
   assert.deepEqual(fake.calls, [])
+})
+
+test("a speed stored before speeds were per voice becomes the default voice's", async () => {
+  const fake = createBrowser()
+  installReaderBackground(fake.api)
+  const handler = fake.onMessage.listeners[0]
+  fake.stored.onceReaderTtsRate = 1.7
+  assert.deepEqual(await handler({ onceCommand: "getReaderTtsPreferences" }, readerSender), {
+    voice: "",
+    rates: { "": 1.7 }
+  })
 })

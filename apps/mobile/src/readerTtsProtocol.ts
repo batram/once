@@ -1,3 +1,5 @@
+import type { ReaderTtsPreferences } from "@once/ui-web/reader/readerTtsPreferences"
+
 export const READER_TTS_CHANNEL = "once-reader-tts"
 export const READER_TTS_VERSION = 1
 
@@ -18,6 +20,9 @@ export interface ReaderTtsVoice {
 export type ReaderTtsRequestBody =
   | { type: "voices" }
   | { type: "cancel" }
+  /** The frame's storage is opaque; the host keeps the reader's voice and speeds. */
+  | { type: "preferences" }
+  | { type: "save-preferences"; preferences: ReaderTtsPreferences }
   | {
     type: "ui-state"
     playing: boolean
@@ -41,6 +46,7 @@ export type ReaderTtsRequest = ReaderTtsEnvelope & ReaderTtsRequestBody
 
 export type ReaderTtsEventBody =
   | { type: "voices"; voices: ReaderTtsVoice[] }
+  | { type: "preferences"; preferences: ReaderTtsPreferences }
   | { type: "start"; id: number }
   | { type: "end"; id: number }
   | { type: "error"; id: number; error: string }
@@ -65,7 +71,14 @@ export function isReaderTtsEnvelope(value: unknown): value is ReaderTtsEnvelope 
 export function isReaderTtsRequest(value: unknown): value is ReaderTtsRequest {
   if (!isReaderTtsEnvelope(value)) return false
   const candidate = value as Partial<ReaderTtsRequest>
-  if (candidate.type === "voices" || candidate.type === "cancel") return true
+  if (
+    candidate.type === "voices" ||
+    candidate.type === "cancel" ||
+    candidate.type === "preferences"
+  ) return true
+  if (candidate.type === "save-preferences") {
+    return Boolean(candidate.preferences) && typeof candidate.preferences === "object"
+  }
   if (candidate.type === "ui-state") {
     return typeof candidate.playing === "boolean" &&
       typeof candidate.paused === "boolean" &&
@@ -87,6 +100,9 @@ export function isReaderTtsEvent(value: unknown): value is ReaderTtsEvent {
   if (!isReaderTtsEnvelope(value)) return false
   const candidate = value as Partial<ReaderTtsEvent>
   if (candidate.type === "voices") return Array.isArray(candidate.voices)
+  if (candidate.type === "preferences") {
+    return Boolean(candidate.preferences) && typeof candidate.preferences === "object"
+  }
   if (
     candidate.type === "ui-play-toggle" ||
     candidate.type === "ui-stop" ||

@@ -5,6 +5,10 @@
 // the same way.
 
 import { installReaderTts } from "./readerTts"
+import {
+  emptyReaderTtsPreferences,
+  normalizeReaderTtsPreferences
+} from "./readerTtsPreferences"
 
 /** Swaps the current document for the rendered reader document. */
 export function installReaderDocument(html: string): void {
@@ -14,29 +18,27 @@ export function installReaderDocument(html: string): void {
 }
 
 /**
- * Wires the reader's speech controls to the background: the stored rate, and
- * ownership so two reader tabs do not read aloud at once.
+ * Wires the reader's speech controls to the background: the stored voice and
+ * speeds, and ownership so two reader tabs do not read aloud at once.
  */
 export async function installReaderPageTts(): Promise<void> {
-  let initialRate = 1
+  let preferences = emptyReaderTtsPreferences()
   try {
-    const stored = await browser.runtime.sendMessage({
-      onceCommand: "getReaderTtsRate"
-    }) as { rate?: unknown }
-    const parsedRate = Number(stored?.rate)
-    if (Number.isFinite(parsedRate)) initialRate = parsedRate
+    preferences = normalizeReaderTtsPreferences(await browser.runtime.sendMessage({
+      onceCommand: "getReaderTtsPreferences"
+    }))
   } catch {
     // TTS remains available with defaults when extension storage is unavailable.
   }
   installReaderTts({
-    initialRate,
+    preferences,
     wafli: { wasmUrl: browser.runtime.getURL("static/wafli-module.wasm") },
-    onRateChange: (rate) => {
+    onPreferencesChange: (changed) => {
       void browser.runtime.sendMessage({
-        onceCommand: "setReaderTtsRate",
-        rate
+        onceCommand: "setReaderTtsPreferences",
+        preferences: changed
       }).catch((error) => {
-        console.warn("Unable to save reader TTS speed", error)
+        console.warn("Unable to save reader TTS settings", error)
       })
     },
     claimOwnership: () => {

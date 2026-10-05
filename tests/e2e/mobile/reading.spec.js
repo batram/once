@@ -219,6 +219,54 @@ test("reader TTS bridges through the host when the frame lacks speech synthesis"
   await page.locator('[data-host-tts="stop"]').click()
 })
 
+test("reader speech remembers the chosen voice and a speed per voice", async ({ page }) => {
+  const story = await seedFixtureStories(page)
+  const openReader = async (open) => {
+    await open()
+    const reader = page.locator(".once-reader-host-frame").contentFrame()
+    await expect(reader.locator("html")).toHaveAttribute("data-once-tts-installed", "true")
+    await expect(page.locator("#reader_tts_voice option").filter({
+      hasText: "Wafli SLT — offline"
+    })).toHaveCount(1)
+  }
+  const voice = page.locator("#reader_tts_voice")
+  const rateLabel = page.locator("#reader_tts_rate_label")
+  const chooseVoice = (value) => voice.evaluate((select, chosen) => {
+    select.value = chosen
+    select.dispatchEvent(new Event("change", { bubbles: true }))
+  }, value)
+  const chooseRate = async (label) => {
+    await page.locator("#reader_tts_settings > summary").click()
+    await page.locator("#reader_tts_rates button", { hasText: label }).click()
+  }
+
+  await openReader(async () => {
+    await openStoryMenu(page, story)
+    await page.getByTestId("story-menu-open-reader").click()
+  })
+  await expect(rateLabel).toHaveText("1×")
+  await chooseRate("2×")
+  await expect(rateLabel).toHaveText("2×")
+  // A voice never adjusted starts at the default voice's speed.
+  await chooseVoice("once-wafli-slt")
+  await expect(rateLabel).toHaveText("2×")
+  await chooseRate("1.25×")
+  await expect(rateLabel).toHaveText("1.25×")
+  await chooseVoice("")
+  await expect(rateLabel).toHaveText("2×")
+  await chooseVoice("once-wafli-slt")
+  await expect(rateLabel).toHaveText("1.25×")
+
+  // The sandboxed reader frame has no lasting storage; the host keeps both
+  // for the restored reader tab's fresh frame.
+  await reloadMobileApp(page)
+  await openReader(() => page.getByTestId("reading-menu").click())
+  await expect(voice).toHaveValue("once-wafli-slt")
+  await expect(rateLabel).toHaveText("1.25×")
+  await chooseVoice("")
+  await expect(rateLabel).toHaveText("2×")
+})
+
 test("Reader mode explains failures and offers clean recovery", async ({ page }) => {
   let attempts = 0
   await page.route("**/fixtures/reader-failure*", async (route) => {

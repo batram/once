@@ -248,3 +248,47 @@ test("regenerates a missing reader document from its source URL", async () => {
     await closeApp(electronApp, userData)
   }
 })
+
+test("reader speech remembers the chosen voice and a speed per voice", async () => {
+  const { electronApp, userData, window } = await launchApp({
+    env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0" }
+  })
+  const inReader = (script) => electronApp.evaluate(async ({ webContents }, source) => {
+    const contents = webContents
+      .getAllWebContents()
+      .find((candidate) => candidate.getURL().startsWith("once-reader://"))
+    if (!contents) return null
+    return contents.executeJavaScript(source)
+  }, script)
+  const controls = () => inReader(`document.documentElement.dataset.onceTtsInstalled === "true" && ({
+    voice: document.querySelector("[data-tts-voice]").value,
+    rate: document.querySelector("[data-tts-rate]").value
+  })`)
+  const choose = (selector, value) => inReader(`(() => {
+    const control = document.querySelector(${JSON.stringify(selector)});
+    control.value = ${JSON.stringify(value)};
+    control.dispatchEvent(new Event(control.tagName === "SELECT" ? "change" : "input"));
+    control.dispatchEvent(new Event("change"));
+  })()`)
+  try {
+    const address = window.locator("#urlfield")
+    await address.fill(`once-reader://${origin}/article`)
+    await address.press("Enter")
+    await expect.poll(controls).toEqual({ voice: "", rate: "1" })
+
+    await choose("[data-tts-rate]", "2")
+    await choose("[data-tts-voice]", "once-wafli-slt")
+    // A voice never adjusted starts at the default voice's speed.
+    expect(await controls()).toEqual({ voice: "once-wafli-slt", rate: "2" })
+    await choose("[data-tts-rate]", "1.5")
+    await choose("[data-tts-voice]", "")
+    expect(await controls()).toEqual({ voice: "", rate: "2" })
+    await choose("[data-tts-voice]", "once-wafli-slt")
+    expect(await controls()).toEqual({ voice: "once-wafli-slt", rate: "1.5" })
+
+    await inReader("location.reload()")
+    await expect.poll(controls).toEqual({ voice: "once-wafli-slt", rate: "1.5" })
+  } finally {
+    await closeApp(electronApp, userData)
+  }
+})

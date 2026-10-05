@@ -125,3 +125,15 @@ test("reader speech session arbitrates ownership and closes its channel", () => 
   session.dispose()
   assert.equal(closed, true)
 })
+
+test("switching voice can carry that voice's speed in one restart", () => {
+  const fixture = createFixture()
+  fixture.session.start(0)
+  fixture.utterances.length = 0
+  fixture.session.setVoice("voice-1", 2.5)
+  assert.equal(fixture.session.state.voice, "voice-1")
+  assert.equal(fixture.session.state.rate, 2.5)
+  assert.deepEqual(fixture.utterances.map(({ rate }) => rate), [2.5, 2.5, 2.5])
+  fixture.session.setVoice("", undefined)
+  assert.equal(fixture.session.state.rate, 2.5, "a voice without its own speed keeps the current one")
+})

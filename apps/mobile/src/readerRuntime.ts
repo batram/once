@@ -1,4 +1,8 @@
 import { installReaderTts } from "@once/ui-web/reader/readerTts"
+import {
+  emptyReaderTtsPreferences,
+  ReaderTtsPreferences
+} from "@once/ui-web/reader/readerTtsPreferences"
 import { installReaderTtsPolyfill } from "./readerTtsPolyfill"
 import { installReaderFind } from "./readerFind"
 import { installReaderLinks } from "./readerLinks"
@@ -6,7 +10,8 @@ import {
   isReaderTtsEvent,
   READER_TTS_CHANNEL,
   READER_TTS_VERSION,
-  ReaderTtsEvent
+  ReaderTtsEvent,
+  ReaderTtsRequestBody
 } from "./readerTtsProtocol"
 
 installReaderTtsPolyfill(window, { force: true })
@@ -22,19 +27,40 @@ window.addEventListener("message", (event) => {
   ) return
   controlListeners.forEach((listener) => listener(event.data))
 })
+const postToHost = (body: ReaderTtsRequestBody): void => {
+  window.parent.postMessage({
+    channel: READER_TTS_CHANNEL,
+    version: READER_TTS_VERSION,
+    sessionId,
+    ...body
+  }, "*")
+}
+// The sandboxed frame cannot keep storage, so the host holds the voice and
+// speeds; an unanswered request falls back to defaults.
+const storedPreferences = new Promise<ReaderTtsPreferences>((resolve) => {
+  const timeout = window.setTimeout(() => finish(emptyReaderTtsPreferences()), 1000)
+  const listener = (message: ReaderTtsEvent): void => {
+    if (message.type === "preferences") finish(message.preferences)
+  }
+  const finish = (preferences: ReaderTtsPreferences): void => {
+    window.clearTimeout(timeout)
+    controlListeners.delete(listener)
+    resolve(preferences)
+  }
+  controlListeners.add(listener)
+  postToHost({ type: "preferences" })
+})
 // Mobile owns navigation and speech controls outside the sandboxed document.
 // Hide the legacy reader header as a unit so its duplicate TTS controls and
 // Original link do not consume article space.
 document.querySelector<HTMLElement>(".toolbar")?.setAttribute("hidden", "")
-installReaderTts({
+void storedPreferences.then((preferences) => installReaderTts({
+  preferences,
+  onPreferencesChange(changed) {
+    postToHost({ type: "save-preferences", preferences: changed })
+  },
   onStateChange(state) {
-    window.parent.postMessage({
-      channel: READER_TTS_CHANNEL,
-      version: READER_TTS_VERSION,
-      sessionId,
-      type: "ui-state",
-      ...state
-    }, "*")
+    postToHost({ type: "ui-state", ...state })
   },
   subscribeToControl(handler) {
     const listener = (message: ReaderTtsEvent): void => {
@@ -61,7 +87,7 @@ installReaderTts({
     controlListeners.add(listener)
     return () => controlListeners.delete(listener)
   }
-})
+}))
 
 // The sandbox reports scroll only to its parent; retained frames keep their own
 // scroll naturally, while a lazily restored document receives the saved offset.

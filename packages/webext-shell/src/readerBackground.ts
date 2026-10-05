@@ -1,3 +1,7 @@
+import {
+  isReaderTtsRate,
+  normalizeReaderTtsPreferences
+} from "@once/ui-web/reader/readerTtsPreferences"
 import { isExtensionPageSender, isTabContentSender } from "./messageSender"
 
 const STORED_READER_PREFIX = "onceStoredReader:"
@@ -16,7 +20,7 @@ export function installReaderBackground(
     url?: string
     active?: boolean
     theme?: "system" | "light" | "dark"
-    rate?: number
+    preferences?: { voice?: unknown; rates?: Record<string, unknown> }
     html?: string
     sourceUrl?: string
     token?: string
@@ -39,19 +43,29 @@ export function installReaderBackground(
       if (sender.tab?.id === activeReaderTabId) activeReaderTabId = null
       return Promise.resolve()
     }
-    if (message?.onceCommand === "getReaderTtsRate") {
+    if (message?.onceCommand === "getReaderTtsPreferences") {
       if (!isTabContentSender(sender) && !isExtensionPageSender(browserApi, sender, "reader")) return undefined
-      return browserApi.storage.local.get("onceReaderTtsRate").then((stored) => ({
-        rate: stored.onceReaderTtsRate
-      }))
+      return browserApi.storage.local
+        .get(["onceReaderTtsPreferences", "onceReaderTtsRate"])
+        .then((stored) => normalizeReaderTtsPreferences(
+          stored.onceReaderTtsPreferences,
+          stored.onceReaderTtsRate
+        ))
     }
-    if (message?.onceCommand === "setReaderTtsRate") {
+    if (message?.onceCommand === "setReaderTtsPreferences") {
       if (!isTabContentSender(sender) && !isExtensionPageSender(browserApi, sender, "reader")) return undefined
-      const rate = Number(message.rate)
-      if (!Number.isFinite(rate) || rate < 0.5 || rate > 6) {
-        throw new Error("Invalid reader TTS speed")
+      const preferences = message.preferences
+      const rates = preferences?.rates
+      if (
+        typeof preferences?.voice !== "string" ||
+        !rates || typeof rates !== "object" ||
+        !Object.values(rates).every(isReaderTtsRate)
+      ) {
+        throw new Error("Invalid reader TTS settings")
       }
-      return browserApi.storage.local.set({ onceReaderTtsRate: rate })
+      return browserApi.storage.local.set({
+        onceReaderTtsPreferences: normalizeReaderTtsPreferences(preferences)
+      })
     }
     if (message?.onceCommand === "openStoredReader") {
       if (!isExtensionPageSender(browserApi, sender, "sidepanel")) return undefined

@@ -30,6 +30,10 @@
       "types": "./dist/reader/readerTts.d.ts",
       "default": "./dist/reader/readerTts.js"
     },
+    "./reader/readerTtsPreferences": {
+      "types": "./dist/reader/readerTtsPreferences.d.ts",
+      "default": "./dist/reader/readerTtsPreferences.js"
+    },
     "./gesture/touchGestureLock": {
       "types": "./dist/gesture/touchGestureLock.d.ts",
       "default": "./dist/gesture/touchGestureLock.js"

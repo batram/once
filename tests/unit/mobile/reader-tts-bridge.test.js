@@ -77,7 +77,9 @@ function createFakeEngine() {
   return { engine, requests }
 }
 
-async function setUp() {
+const preferencesModule = loadModule("packages/ui-web/src/reader/readerTtsPreferences.ts")
+
+async function setUp(preferenceStore) {
   const protocol = loadModule("apps/mobile/src/readerTtsProtocol.ts")
   const adapter = loadModule("apps/mobile/src/ReaderTtsAdapter.ts", {
     "./readerTtsProtocol": protocol
@@ -88,6 +90,7 @@ async function setUp() {
   const { installReaderTtsHostBridge } = loadModule("apps/mobile/src/readerTtsHostBridge.ts", {
     "./readerTtsFrames": loadModule("apps/mobile/src/readerTtsFrames.ts", { "./readerTtsProtocol": protocol }),
     "./readerTtsProtocol": protocol,
+    "@once/ui-web/reader/readerTtsPreferences": preferencesModule,
     "@capacitor-community/text-to-speech": {
       TextToSpeech: {},
       QueueStrategy: { Flush: 0, Add: 1 }
@@ -99,10 +102,12 @@ async function setUp() {
   installReaderTtsHostBridge(
     (source) => source === pair.frameHandle,
     engine,
-    pair.hostWindow
+    pair.hostWindow,
+    undefined,
+    preferenceStore
   )
   await pair.settle()
-  return { ...pair, engine, requests }
+  return { ...pair, engine, requests, protocol }
 }
 
 function trackedUtterance(frameWindow, text) {
@@ -425,6 +430,7 @@ test("background tab readers keep speaking; a new speaker preempts the owner and
   const { installReaderTtsHostBridge } = loadModule("apps/mobile/src/readerTtsHostBridge.ts", {
     "./readerTtsFrames": loadModule("apps/mobile/src/readerTtsFrames.ts", { "./readerTtsProtocol": protocol }),
     "./readerTtsProtocol": protocol,
+    "@once/ui-web/reader/readerTtsPreferences": preferencesModule,
     "@capacitor-community/text-to-speech": { TextToSpeech: {}, QueueStrategy: { Flush: 0, Add: 1 } }
   })
   let hostListener
@@ -475,6 +481,7 @@ test("system media commands reach the speaking reader, even when another tab is 
   const { installReaderTtsHostBridge } = loadModule("apps/mobile/src/readerTtsHostBridge.ts", {
     "./readerTtsFrames": loadModule("apps/mobile/src/readerTtsFrames.ts", { "./readerTtsProtocol": protocol }),
     "./readerTtsProtocol": protocol,
+    "@once/ui-web/reader/readerTtsPreferences": preferencesModule,
     "@capacitor-community/text-to-speech": { TextToSpeech: {}, QueueStrategy: { Flush: 0, Add: 1 } }
   })
   let hostListener
@@ -510,4 +517,39 @@ test("system media commands reach the speaking reader, even when another tab is 
   bridge.command("next")
   assert.equal(a.posted.length, 5, "nothing is speaking after stop")
   assert.deepEqual(speech, [["a", false, 4], ["a", true, 4], null])
+})
+
+test("the host keeps reader voice and speeds in its own storage", async () => {
+  const items = new Map()
+  const storage = {
+    getItem: (key) => items.get(key) ?? null,
+    setItem: (key, value) => items.set(key, value)
+  }
+  const { installReaderTtsHostBridge, localReaderTtsPreferenceStore } = loadModule("apps/mobile/src/readerTtsHostBridge.ts", {
+    "./readerTtsFrames": { ReaderTtsFrames: class { receive() {} } },
+    "./readerTtsProtocol": loadModule("apps/mobile/src/readerTtsProtocol.ts"),
+    "@once/ui-web/reader/readerTtsPreferences": preferencesModule,
+    "@capacitor-community/text-to-speech": { TextToSpeech: {}, QueueStrategy: { Flush: 0, Add: 1 } }
+  })
+  const pair = createBridgePair()
+  const replies = []
+  pair.frameWindow.addEventListener("message", (event) => replies.push(event.data))
+  installReaderTtsHostBridge(
+    (source) => source === pair.frameHandle,
+    createFakeEngine().engine,
+    pair.hostWindow,
+    undefined,
+    localReaderTtsPreferenceStore(storage)
+  )
+  const envelope = { channel: "once-reader-tts", version: 1, sessionId: "ui-1" }
+  pair.frameWindow.parent.postMessage({ ...envelope, type: "preferences" }, "*")
+  await pair.settle()
+  assert.deepEqual(replies.at(-1), { ...envelope, type: "preferences", preferences: { voice: "", rates: {} } })
+
+  const saved = { voice: "de-voice", rates: { "": 1.25, "de-voice": 2 } }
+  pair.frameWindow.parent.postMessage({ ...envelope, type: "save-preferences", preferences: saved }, "*")
+  pair.frameWindow.parent.postMessage({ ...envelope, type: "preferences" }, "*")
+  await pair.settle()
+  assert.deepEqual(replies.at(-1).preferences, saved)
+  assert.deepEqual(localReaderTtsPreferenceStore(storage).load(), saved, "survives the session")
 })

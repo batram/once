@@ -1,6 +1,11 @@
 import { ReaderSpeechSession, ReaderSpeechState } from "./ReaderSpeechSession"
 import { createReaderSpeechSegments } from "./readerSpeechText"
 import {
+  normalizeReaderTtsPreferences,
+  ReaderTtsPreferences,
+  readerTtsRateForVoice
+} from "./readerTtsPreferences"
+import {
   createWafli,
   toAudioBuffer,
   wafliVoice,
@@ -19,8 +24,10 @@ export type ReaderTtsControl =
 export type ReaderTtsState = ReaderSpeechState
 
 export interface ReaderTtsOptions {
-  initialRate?: number
-  onRateChange?: (rate: number) => void
+  /** Stored voice and speeds; read from local storage when not given. */
+  preferences?: ReaderTtsPreferences
+  /** Stores changed preferences; local storage is used when not given. */
+  onPreferencesChange?: (preferences: ReaderTtsPreferences) => void
   claimOwnership?: () => void
   releaseOwnership?: () => void
   subscribeToStop?: (handler: () => void) => (() => void) | undefined
@@ -35,8 +42,8 @@ interface ReaderTtsRuntime {
   applyControl: typeof applyExternalControl
   bindDom: typeof bindReaderTtsDom
   createChannel: typeof createOwnershipChannel
-  initialRate: typeof readInitialRate
-  persistRate: typeof storeRate
+  loadPreferences: typeof readPreferences
+  savePreferences: typeof storePreferences
   populateVoiceOptions: typeof populateVoices
   showTtsUnavailable: typeof showUnavailable
 }
@@ -215,8 +222,8 @@ const readerTtsRuntime: ReaderTtsRuntime = {
   applyControl: applyExternalControl,
   bindDom: bindReaderTtsDom,
   createChannel: createOwnershipChannel,
-  initialRate: readInitialRate,
-  persistRate: storeRate,
+  loadPreferences: readPreferences,
+  savePreferences: storePreferences,
   populateVoiceOptions: populateVoices,
   showTtsUnavailable: showUnavailable
 }
@@ -240,7 +247,8 @@ function runReaderTts(
     applyControl,
     bindDom,
     createChannel,
-    initialRate: resolveInitialRate,
+    loadPreferences,
+    savePreferences,
     populateVoiceOptions,
     showTtsUnavailable
   } = runtime
@@ -269,9 +277,11 @@ function runReaderTts(
   }
 
   const segments = createSegments(article)
-  const storageKey = "once:reader:tts-rate"
-  const initialRate = resolveInitialRate(options.initialRate, storageKey)
-  if (initialRate >= 0.5 && initialRate <= 6) rateInput.value = String(initialRate)
+  const preferences = options.preferences
+    ? normalizeReaderTtsPreferences(options.preferences)
+    : loadPreferences()
+  const initialRate = readerTtsRateForVoice(preferences, preferences.voice)
+  rateInput.value = String(initialRate)
 
   const ownerId = `${Date.now()}-${Math.random()}`
   const ownershipChannel = createChannel(options)
@@ -293,6 +303,7 @@ function runReaderTts(
     createUtterance: (text) => new Utterance(text) as SpeechSynthesisUtterance,
     texts: segments.map((segment) => segment.text),
     initialRate,
+    initialVoice: preferences.voice,
     claimOwnership: () => {
       options.claimOwnership?.()
     },
@@ -320,25 +331,23 @@ function runReaderTts(
     if (!state.playing && state.segment === 0) clearHighlight()
   }
 
+  const remember = rememberPreferences(
+    session,
+    preferences,
+    () => savePreferences(options, preferences)
+  )
   bindDom({
     play, stop, back, forward, voiceSelect, voiceSettings, rateInput, rateValue,
-    segments, session, options, storageKey
-  }, runtime.persistRate)
-  populateVoiceOptions(voiceSelect, synth.getVoices())
+    segments, session
+  }, remember)
+  populateVoiceOptions(voiceSelect, synth.getVoices(), preferences.voice)
   synth.addEventListener?.("voiceschanged", () => {
-    populateVoiceOptions(voiceSelect, synth.getVoices())
+    populateVoiceOptions(voiceSelect, synth.getVoices(), session.state.voice)
     session.notify()
   })
   const unsubscribeStop = options.subscribeToStop?.(() => session.yield())
   const unsubscribeControl = options.subscribeToControl?.((control) => {
-    applyControl(
-      control,
-      session,
-      voiceSelect,
-      options,
-      storageKey,
-      runtime.persistRate
-    )
+    applyControl(control, session, voiceSelect, remember)
   })
   window.addEventListener("pagehide", () => {
     session.dispose()
@@ -358,6 +367,33 @@ function createOwnershipChannel(options: ReaderTtsOptions): BroadcastChannel | u
   }
 }
 
+interface ReaderTtsRemember {
+  /** Sets and stores the speed of the current voice. */
+  rate(rate: number): void
+  /** Sets and stores the voice, switching to that voice's stored speed. */
+  voice(voice: string): void
+}
+
+function rememberPreferences(
+  session: ReaderSpeechSession,
+  preferences: ReaderTtsPreferences,
+  save: () => void
+): ReaderTtsRemember {
+  return {
+    rate(rate) {
+      const clamped = Math.min(6, Math.max(0.5, rate))
+      preferences.rates[session.state.voice] = clamped
+      save()
+      session.setRate(clamped)
+    },
+    voice(voice) {
+      preferences.voice = voice
+      save()
+      session.setVoice(voice, readerTtsRateForVoice(preferences, voice))
+    }
+  }
+}
+
 interface ReaderTtsDomBinding {
   play: HTMLButtonElement
   stop: HTMLButtonElement
@@ -369,17 +405,15 @@ interface ReaderTtsDomBinding {
   rateValue: HTMLElement
   segments: ReturnType<typeof createReaderSpeechSegments>
   session: ReaderSpeechSession
-  options: ReaderTtsOptions
-  storageKey: string
 }
 
 function bindReaderTtsDom(
   binding: ReaderTtsDomBinding,
-  persistRate: typeof storeRate
+  remember: ReaderTtsRemember
 ): void {
   const {
     play, stop, back, forward, voiceSelect, voiceSettings, rateInput, rateValue,
-    segments, session, options, storageKey
+    segments, session
   } = binding
   play.addEventListener("click", () => session.toggle())
   stop.addEventListener("click", () => session.stop())
@@ -387,16 +421,14 @@ function bindReaderTtsDom(
   forward.addEventListener("click", () => session.next())
   voiceSelect.addEventListener("change", () => {
     if (voiceSettings) voiceSettings.open = false
-    session.setVoice(voiceSelect.value)
+    remember.voice(voiceSelect.value)
   })
   rateInput.addEventListener("input", () => {
     rateValue.textContent = `${Number(rateInput.value).toFixed(1)}×`
     session.previewRate(Number(rateInput.value))
   })
   rateInput.addEventListener("change", () => {
-    const rate = Number(rateInput.value)
-    persistRate(options, storageKey, rate)
-    session.setRate(rate)
+    remember.rate(Number(rateInput.value))
   })
   document.addEventListener("pointerdown", (event) => {
     if (voiceSettings?.open && event.target instanceof Node && !voiceSettings.contains(event.target)) {
@@ -419,9 +451,7 @@ function applyExternalControl(
   control: ReaderTtsControl,
   session: ReaderSpeechSession,
   voiceSelect: HTMLSelectElement,
-  options: ReaderTtsOptions,
-  storageKey: string,
-  persistRate: typeof storeRate
+  remember: ReaderTtsRemember
 ): void {
   switch (control.type) {
     case "play-toggle": session.toggle(); break
@@ -429,31 +459,39 @@ function applyExternalControl(
     case "prev": session.previous(); break
     case "next": session.next(); break
     case "set-rate":
-      persistRate(options, storageKey, Math.min(6, Math.max(0.5, control.rate)))
-      session.setRate(control.rate)
+      remember.rate(control.rate)
       break
     case "set-voice":
       voiceSelect.value = control.voice
-      session.setVoice(control.voice)
+      remember.voice(control.voice)
       break
   }
 }
 
-function readInitialRate(provided: number | undefined, storageKey: string): number {
-  if (provided != null) return Number.isFinite(provided) ? provided : 1
+const PREFERENCES_KEY = "once:reader:tts"
+const LEGACY_RATE_KEY = "once:reader:tts-rate"
+
+function readPreferences(): ReaderTtsPreferences {
   try {
-    const stored = Number(localStorage.getItem(storageKey))
-    return Number.isFinite(stored) && stored > 0 ? stored : 1
+    const stored = localStorage.getItem(PREFERENCES_KEY)
+    return normalizeReaderTtsPreferences(
+      stored ? JSON.parse(stored) : null,
+      localStorage.getItem(LEGACY_RATE_KEY)
+    )
   } catch {
-    return 1
+    return normalizeReaderTtsPreferences(null)
   }
 }
 
-function storeRate(options: ReaderTtsOptions, storageKey: string, rate: number): void {
-  if (options.onRateChange) options.onRateChange(rate)
+function storePreferences(
+  options: ReaderTtsOptions,
+  preferences: ReaderTtsPreferences
+): void {
+  const snapshot = { voice: preferences.voice, rates: { ...preferences.rates } }
+  if (options.onPreferencesChange) options.onPreferencesChange(snapshot)
   else {
     try {
-      localStorage.setItem(storageKey, String(rate))
+      localStorage.setItem(PREFERENCES_KEY, JSON.stringify(snapshot))
     } catch {
       // Reader playback remains usable when storage is disabled.
     }
@@ -477,8 +515,12 @@ function showUnavailable(
   document.querySelector(".tts-controls")?.append(notice)
 }
 
-function populateVoices(select: HTMLSelectElement, voices: SpeechSynthesisVoice[]): void {
-  const previous = select.value
+function populateVoices(
+  select: HTMLSelectElement,
+  voices: SpeechSynthesisVoice[],
+  selected: string
+): void {
+  const previous = selected
   const available = [...voices].sort((a, b) =>
     `${a.lang} ${a.name}`.localeCompare(`${b.lang} ${b.name}`)
   )
