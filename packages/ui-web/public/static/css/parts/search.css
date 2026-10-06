@@ -69,6 +69,9 @@
   inset: 0 auto 0 0;
   height: 100%;
   z-index: 2;
+  /* Firefox's UA sheet pads a select 4px each side (Chromium: 0); the trailing
+     pad alone widened it onto the search text, which starts at a fixed offset. */
+  padding-inline-end: 0;
   border: none;
   border-right: thin solid black;
   background: none;

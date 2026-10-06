@@ -316,6 +316,11 @@ test("tokenized shared and mobile geometry resolves to the public scale", async 
     const field = await page.locator("#searchfield").boundingBox()
     return Math.round(field.x - (collapse.x + collapse.width))
   }).toBeGreaterThanOrEqual(0)
+  await expect.poll(async () => {
+    const scope = await page.locator("#search_scope").boundingBox()
+    const field = await page.locator("#searchfield").boundingBox()
+    return Math.round(scope.x - field.x)
+  }).toBe(8)
   await expect(page.locator("#search_bar")).toHaveCSS("padding-right", "8px")
   await expect.poll(async () => {
     const bar = await page.locator("#search_bar").boundingBox()
