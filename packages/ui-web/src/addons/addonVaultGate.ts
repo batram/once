@@ -11,7 +11,7 @@ type VaultClient = Pick<OnceClient, "getAddonVaultStatus" | "unlockAddonVault">
  */
 export async function addonVaultReady(client: VaultClient, root: HTMLElement): Promise<boolean> {
   const status = await client.getAddonVaultStatus()
-  if (status.state === "ready" || status.state === "disabled" || status.state === "unavailable") return true
+  if (["ready", "disabled", "unavailable", "off"].includes(status.state)) return true
   if (status.state !== "locked") {
     root.textContent = `${status.message} Open the Once panel to resolve it, then choose the action again.`
     return false

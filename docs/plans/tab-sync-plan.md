@@ -823,6 +823,10 @@ the user:
   from the view go quiet; the Tabs entry, the Electron tab bar button and the mobile "Other devices"
   section hide (`watchTabSyncEnabled`). `effectiveTabSyncOptions` is the one place that applies it.
   A device that shared before the switch existed reads as on. Turning it on counts as rejoining.
+- **Add-on sync page** shows its choices directly (no folded section) and offers **Turn off on this
+  device**: the device copies its add-ons, packages and tokens into its own storage and leaves the
+  vault; other devices keep syncing. Unlocking again rejoins. Its overview summary reads Not set up,
+  On, Off on this device, Locked on this device or Needs attention. See `docs/addon-sync-vault.md`.
 - **Sync status** sits at the right of the titlebar while Settings › Sync or one of its pages is open
   (a dot and the message, the full text as its tooltip); from a page it returns to the overview.
 - **First-run offer** once sync connects: *Share and see tabs*, *Only see others' tabs*, *Not now*

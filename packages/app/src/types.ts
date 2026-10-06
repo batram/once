@@ -157,6 +157,8 @@ export interface OnceClient {
   createAddonVault(passphrase: string, remember: boolean, deviceName: string): Promise<{ recoveryKey: string; warning?: string }>
   unlockAddonVault(secret: string, recovery: boolean, remember: boolean, deviceName: string): Promise<void>
   lockAddonVault(): Promise<void>
+  /** Turns add-on sync off on this device only; its add-ons and tokens stay here. Unlocking turns it back on. */
+  leaveAddonVault(): Promise<void>
   /** Whether a passphrase opens the synced add-on vault; nothing is unlocked or stored. */
   verifyAddonVaultPassphrase(passphrase: string): Promise<boolean>
   changeAddonVaultPassphrase(passphrase: string): Promise<void>

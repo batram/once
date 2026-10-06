@@ -2,6 +2,7 @@ import { OnceClient } from "@once/app"
 import { AddonVaultStatus } from "@once/core"
 import { refreshAddonCollectionSummary } from "./addonAvailability"
 import { renderAddonVaultReview } from "./addonVaultReview"
+import { showConfirmDialog } from "../confirmDialog"
 
 /** One vault unlock covers every installed add-on. Secret inputs never enter settings JSON. */
 export function bindAddonVaultControls(client: OnceClient, parent: HTMLElement): void {
@@ -24,9 +25,10 @@ export function bindAddonVaultControls(client: OnceClient, parent: HTMLElement):
   const recovery = document.createElement("div")
   recovery.hidden = true
   recovery.className = "settings_group"
-  const options = document.createElement("details")
-  const summary = document.createElement("summary")
-  options.append(summary, hint, form)
+  // Its own page now (Settings › Sync › Add-on sync): the choices show at once.
+  const options = document.createElement("div")
+  options.className = "addon_vault_options"
+  options.append(hint, form)
   const review = document.createElement("div")
   group.append(title, status, options, feedback, review, recovery)
   parent.prepend(group)
@@ -41,47 +43,30 @@ export function bindAddonVaultControls(client: OnceClient, parent: HTMLElement):
     finally { busy = false; signature = ""; await refresh() }
   }
   const showReview = () => void run(() => renderAddonVaultReview(client, review, run))
-  const recoveryNotice = (key: string, warning?: string) => {
-    recovery.replaceChildren()
-    recovery.hidden = false
-    const label = document.createElement("p")
-    label.textContent = "Save this recovery key in your password manager. It unlocks the vault if you forget the passphrase. Without either the key or an unlocked device, your tokens cannot be recovered."
-    const output = document.createElement("textarea")
-    output.readOnly = true
-    output.value = key
-    output.setAttribute("aria-label", "Vault recovery key")
-    output.dataset.testid = "addon-vault-recovery-key"
-    const saved = button("I saved my recovery key", () => { output.value = ""; recovery.replaceChildren(); recovery.hidden = true })
-    recovery.append(label, output, saved)
-    if (warning) { const text = document.createElement("p"); text.textContent = warning; recovery.append(text) }
-  }
+  const recoveryNotice = (key: string, warning?: string) => showRecoveryKey(recovery, key, warning)
   const configure = (state: AddonVaultStatus) => {
     form.replaceChildren()
     if (state.state !== "conflict") review.replaceChildren()
     for (const control of review.querySelectorAll<HTMLButtonElement>("button")) control.disabled = false
-    options.open = ["locked", "conflict"].includes(state.state)
     options.hidden = ["error", "unavailable"].includes(state.state)
-    summary.textContent = state.state === "ready" ? "Manage sync" : state.state === "disabled" ? "Set up encrypted sync…" : state.state === "conflict" ? "Resolve sync conflict" : "Unlock add-on sync"
     hint.textContent = state.state === "conflict"
       ? "Your synced add-ons are paused, not removed. Choose a version to restore them on all devices. Linked folders remain available on this device."
-      : state.state === "ready" ? "Packages, settings and saved connections sync together. Linked folders stay on this device."
-        : "Sync packages, settings and saved connections between devices. Set up once, then unlock on each new device."
+      : state.state === "ready" ? "Packages, settings and saved connections sync together, encrypted. Linked folders stay on this device."
+        : state.state === "off" ? "This device keeps its add-ons and their tokens, and no longer syncs them. Other devices still sync. " +
+          "Turning it back on replaces this device's add-ons with the synced ones."
+          : state.state === "locked" ? "Enter the sync passphrase to use your synced add-ons on this device."
+            : "Sync packages, settings and saved connections between devices, encrypted. Set up once, then unlock on each new device."
     if (["error", "unavailable"].includes(state.state)) return
     if (state.state === "conflict" && state.unlockRequired === false) {
       form.append(button("Review concurrent versions", showReview))
       return
     }
     if (state.state === "ready") {
-      const passphrase = field(form, "New sync passphrase", "password")
-      passphrase.autocomplete = "new-password"
-      form.append(button("Change passphrase", () => void run(async () => { await client.changeAddonVaultPassphrase(passphrase.value); passphrase.value = "" })),
-        button("Lock and forget on this device", () => void run(async () => {
-          recovery.replaceChildren(); recovery.hidden = true
-          await client.lockAddonVault()
-        })))
+      readyActions(form, client, run, () => { recovery.replaceChildren(); recovery.hidden = true })
       return
     }
     const creating = state.state === "disabled"
+    const rejoining = state.state === "off"
     const secret = field(form, creating ? "Sync passphrase (at least 12 characters)" : "Sync passphrase or recovery key", "password")
     secret.dataset.testid = "addon-vault-secret"
     secret.autocomplete = creating ? "new-password" : "current-password"
@@ -89,7 +74,7 @@ export function bindAddonVaultControls(client: OnceClient, parent: HTMLElement):
     if (confirmation) confirmation.autocomplete = "new-password"
     const useRecovery = creating ? null : check(form, "Use recovery key", false)
     const remember = check(form, state.protectedStorage ? "Remember on this device using protected storage" : "Remember in this browser (weaker protection on a shared or compromised profile)", state.protectedStorage)
-    form.append(button(creating ? "Enable encrypted addon sync" : "Unlock add-on sync", () => void run(async () => {
+    const submit = button(creating ? "Enable encrypted addon sync" : rejoining ? "Turn on on this device" : "Unlock add-on sync", () => void run(async () => {
       // Snapshots name their author with the device name set above in the Sync section.
       const name = { value: (await client.getTabSync().catch(() => null))?.self?.name ?? "" }
       if (creating) {
@@ -99,7 +84,9 @@ export function bindAddonVaultControls(client: OnceClient, parent: HTMLElement):
       } else await client.unlockAddonVault(secret.value, useRecovery?.checked === true, remember.checked, name.value)
       secret.value = ""
       if (confirmation) confirmation.value = ""
-    })))
+    }))
+    submit.dataset.testid = "addon-vault-submit"
+    form.append(submit)
   }
   const refresh = async () => {
     const current = ++revision
@@ -122,6 +109,45 @@ export function bindAddonVaultControls(client: OnceClient, parent: HTMLElement):
   }
   client.subscribe("settingsChanged", ({ section }) => { if (section === "addons" || section === "sync") void refresh() })
   void refresh()
+}
+
+/**
+ * On: turn it off here (other devices keep syncing), change the passphrase,
+ * or lock and forget the key on this device.
+ */
+function readyActions(form: HTMLElement, client: OnceClient, run: (work: () => Promise<void>) => Promise<void>, hideRecovery: () => void): void {
+  const off = button("Turn off on this device…", () => void showConfirmDialog({
+    message: "Turn add-on sync off on this device? Its add-ons and tokens stay here but stop syncing. Other devices keep syncing.",
+    confirmLabel: "Turn off"
+  }).then((confirmed) => { if (confirmed) void run(() => client.leaveAddonVault()) }))
+  off.dataset.testid = "addon-vault-leave"
+  form.append(off)
+  const passphrase = field(form, "New sync passphrase", "password")
+  passphrase.autocomplete = "new-password"
+  const actions = document.createElement("div")
+  actions.className = "settings_actions cluster"
+  actions.append(button("Change passphrase", () => void run(async () => { await client.changeAddonVaultPassphrase(passphrase.value); passphrase.value = "" })),
+    button("Lock and forget on this device", () => void run(async () => {
+      hideRecovery()
+      await client.lockAddonVault()
+    })))
+  form.append(actions)
+}
+
+/** The recovery key, shown once after setup until the reader confirms saving it. */
+function showRecoveryKey(recovery: HTMLElement, key: string, warning?: string): void {
+  recovery.replaceChildren()
+  recovery.hidden = false
+  const label = document.createElement("p")
+  label.textContent = "Save this recovery key in your password manager. It unlocks the vault if you forget the passphrase. Without either the key or an unlocked device, your tokens cannot be recovered."
+  const output = document.createElement("textarea")
+  output.readOnly = true
+  output.value = key
+  output.setAttribute("aria-label", "Vault recovery key")
+  output.dataset.testid = "addon-vault-recovery-key"
+  const saved = button("I saved my recovery key", () => { output.value = ""; recovery.replaceChildren(); recovery.hidden = true })
+  recovery.append(label, output, saved)
+  if (warning) { const text = document.createElement("p"); text.textContent = warning; recovery.append(text) }
 }
 
 function button(text: string, run: () => void): HTMLButtonElement {

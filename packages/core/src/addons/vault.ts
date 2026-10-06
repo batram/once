@@ -13,7 +13,8 @@ export interface VaultStorePort {
 }
 
 export interface AddonVaultStatus {
-  state: "unavailable" | "disabled" | "locked" | "ready" | "conflict" | "error"
+  /** "off": this device left the vault; its add-ons stay here, other devices keep syncing. */
+  state: "unavailable" | "disabled" | "locked" | "ready" | "conflict" | "error" | "off"
   message: string
   protectedStorage: boolean
   /** Conflicts can be reviewed with an already remembered key. */

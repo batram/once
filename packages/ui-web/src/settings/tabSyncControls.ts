@@ -145,7 +145,8 @@ export function bindTabSyncControls(client: OnceClient): void {
 }
 
 const VAULT_SUMMARIES: Record<string, string> = {
-  disabled: "Off", locked: "Locked on this device", ready: "On", conflict: "Needs attention", error: "Needs attention"
+  disabled: "Not set up", locked: "Locked on this device", ready: "On", off: "Off on this device",
+  conflict: "Needs attention", error: "Needs attention"
 }
 
 function tabsSummary(view: TabSyncView | null, connected: boolean): string {

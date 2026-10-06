@@ -81,7 +81,6 @@ test("a pairing code can carry the add-on sync passphrase, which unlocks add-on 
     await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "up-to-date", { timeout: 20000 })
     await page.getByTestId("sync-page-addons").click()
     const vault = page.locator("#addon_vault_controls")
-    await vault.locator("summary").click()
     await vault.getByTestId("addon-vault-secret").fill("pairing passphrase for tests")
     await vault.getByLabel("Confirm sync passphrase").fill("pairing passphrase for tests")
     await vault.getByRole("button", { name: "Enable encrypted addon sync" }).click()

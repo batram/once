@@ -4,7 +4,7 @@ import { createEnvelope, decryptVault, encryptVault, randomHex, readEnvelope, re
 import { readVaultData, VaultData } from "./vaultData"
 
 const PIN = "once:addon-vault"
-interface Pin { id: string; key: string; generation: number; commit: string; deviceName: string }
+interface Pin { id: string; key: string; generation: number; commit: string; deviceName: string; left?: boolean }
 class VaultStateError extends Error {
   constructor(readonly state: AddonVaultStatus["state"], message: string) { super(message) }
 }
@@ -34,11 +34,19 @@ export class AddonVault {
     if (!records.length && this.pin) throw new VaultStateError("error", "The synced vault is missing. Restore it from backup; local protection remains enabled.")
     return records
   }
-  async enabled(): Promise<boolean> { return (await this.revisions()).length > 0 }
+  /** Whether this device's add-ons live in the vault: one exists and this device has not left it. */
+  async enabled(): Promise<boolean> { return (await this.revisions()).length > 0 && !this.pin?.left }
+
+  /** This device turned add-on sync off for itself; the vault goes on for the others. */
+  async left(): Promise<boolean> {
+    await this.init()
+    return this.pin?.left === true
+  }
 
   async status(): Promise<AddonVaultStatus> {
     const protectedStorage = this.secrets?.protection === "os"
     if (!this.store.readVault || !this.store.writeVault || !this.secrets) return { state: "unavailable", message: "Secure addon sync is unavailable on this client", protectedStorage }
+    if (await this.left()) return { state: "off", message: "Off on this device · other devices still sync", protectedStorage }
     try {
       const value = await this.read()
       return { state: value ? "ready" : "disabled", message: value ? "Ready · Encrypted sync enabled" : "Add-ons sync separately; tokens stay on this device", protectedStorage }
@@ -64,8 +72,8 @@ export class AddonVault {
   private async trust(envelope: VaultEnvelope, data: VaultData): Promise<void> {
     if (this.pin && data.generation < this.pin.generation) return
     if (this.pin?.generation === data.generation && this.pin.commit === data.commit) return
-    const pin = { id: envelope.id, key: this.pin?.key ? this.rawKey : "", generation: data.generation,
-      commit: data.commit, deviceName: this.pin?.deviceName || `Device ${randomHex(3)}` }
+    const pin: Pin = { id: envelope.id, key: this.pin?.key ? this.rawKey : "", generation: data.generation,
+      commit: data.commit, deviceName: this.pin?.deviceName || `Device ${randomHex(3)}`, ...(this.pin?.left ? { left: true } : {}) }
     await this.secrets?.set(PIN, JSON.stringify(pin))
     this.pin = pin
   }
@@ -146,6 +154,22 @@ export class AddonVault {
     } catch {
       return false
     }
+  }
+
+  /**
+   * Stops using the vault on this device only: forgets its key and marks the
+   * device as having left, keeping the vault's identity so turning sync back
+   * on unlocks the same vault. The shared vault is not touched.
+   */
+  async leave(): Promise<void> {
+    await this.serialize(async () => {
+      await this.init()
+      if (!this.pin) throw new Error("Add-on sync is not set up on this device")
+      this.rawKey = ""
+      this.pin = { ...this.pin, key: "", left: true }
+      await this.secrets?.set(PIN, JSON.stringify(this.pin))
+      this.changed()
+    })
   }
 
   async lock(): Promise<void> {

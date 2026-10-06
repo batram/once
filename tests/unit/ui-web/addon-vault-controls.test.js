@@ -45,7 +45,7 @@ test("conflict recovery guides an unlocked device without offering reinstall or 
     button("Keep version from Phone").click()
     await settle()
     assert.equal(button("Keep version from Phone"), undefined, "stale choices disappear after resolution")
-    assert.equal(vault.querySelector("details").open, false)
+    assert.ok(vault.querySelector('[data-testid="addon-vault-leave"]'), "a ready vault offers turning it off on this device")
     assert.equal(addonCollectionSummary(), "1 add-on")
     assert.equal(document.querySelector('[data-testid="open-addon-import"]').disabled, false)
     await requireAddonAvailability(client)

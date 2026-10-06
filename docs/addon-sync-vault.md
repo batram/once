@@ -11,7 +11,7 @@ other Once settings.
    Use the same database on each device. All clients using the vault need a
    Once build that supports it. Name the device under **This device**;
    snapshots show that name as their author.
-2. In the same section, open **Add-on sync → Set up encrypted sync**.
+2. In the same section, open the **Add-on sync** page.
 3. Choose a separate sync passphrase of at least 12 characters and confirm it.
    Choose **Enable encrypted addon sync**. This migrates all
    installed addons, their settings, available packages, and saved tokens.
@@ -28,6 +28,15 @@ local storage. Browser profiles default to forgetting it across restarts;
 **Remember in this browser** explicitly accepts weaker local protection.
 An unlocked or compromised client can use its credentials regardless of storage
 encryption. Secrets still never enter addon sandbox settings or scripts.
+
+**Turn off on this device** stops add-on sync here only. The device first copies
+its add-ons, their packages and saved tokens into its own storage, so they keep
+working; then it forgets the vault key. From then on its add-on changes stay on
+this device and are not synced, not even unencrypted. Other devices and the
+shared vault are untouched. Entering the passphrase again (**Turn on on this
+device**) rejoins: the synced add-ons replace this device's own, so changes made
+while it was off are dropped. Turning add-on sync off for every device is not
+offered.
 
 **Lock and forget on this device** removes its remembered vault key, pauses synced
 addons and requests, and leaves encrypted replicated data available for the next

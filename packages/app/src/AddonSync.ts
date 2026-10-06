@@ -7,6 +7,9 @@ import { fetchText } from "./fetchDocument"
 import { OnceClient, OncePlatformPorts } from "./types"
 import { VaultData, verifyVaultScript } from "./vaultData"
 
+/** This device's add-ons while it has left add-on sync: kept here, never synced. */
+const LOCAL_DOCUMENT = "once:addon-local-document"
+
 export class AddonSync {
   readonly vault: AddonVault
   private readonly local: AddonConnections
@@ -37,8 +40,15 @@ export class AddonSync {
   }
 
   async document(): Promise<AddonsDocument> {
-    try { return await this.vault.enabled() ? (await this.vault.read())?.document ?? emptyAddonsDocument() : await this.settings.getAddons() }
-    catch { return emptyAddonsDocument() } // Fail closed: dispose installed runtimes while locked or conflicted.
+    try {
+      if (await this.vault.left()) return await this.localDocument()
+      return await this.vault.enabled() ? (await this.vault.read())?.document ?? emptyAddonsDocument() : await this.settings.getAddons()
+    } catch { return emptyAddonsDocument() } // Fail closed: dispose installed runtimes while locked or conflicted.
+  }
+
+  private async localDocument(): Promise<AddonsDocument> {
+    const saved = await this.platform.secretStore?.get(LOCAL_DOCUMENT)
+    return saved ? readAddonsDocument(JSON.parse(saved)) : emptyAddonsDocument()
   }
 
   private serialize<T>(work: () => Promise<T>): Promise<T> {
@@ -52,6 +62,11 @@ export class AddonSync {
   }
 
   private async updateNow(change: (doc: AddonsDocument) => AddonsDocument): Promise<void> {
+    if (await this.vault.left()) {
+      await this.platform.secretStore?.set(LOCAL_DOCUMENT, JSON.stringify(readAddonsDocument(change(await this.localDocument()))))
+      this.changed()
+      return
+    }
     if (!await this.vault.enabled()) return this.settings.updateAddons(change)
     await this.vault.update(async data => {
       data.document = readAddonsDocument(change(data.document))
@@ -102,6 +117,29 @@ export class AddonSync {
     return { recoveryKey: result.recoveryKey, ...(warning ? { warning } : {}) }
   }
 
+  /**
+   * Turns add-on sync off on this device only. Its add-ons, their packages
+   * and tokens are copied to this device's own storage first, so everything
+   * keeps working here; then the device leaves the vault. Other devices and
+   * the shared vault are untouched.
+   */
+  private async leaveNow(): Promise<void> {
+    if (!this.platform.secretStore) throw new Error("Add-on sync cannot be turned off on this client")
+    const data = await this.vault.read()
+    if (!data) throw new Error("Add-on sync is not set up")
+    for (const [integrity, code] of Object.entries(data.scripts)) await storeAddonScript(this.platform.cacheStore, integrity, code)
+    for (const [name, value] of Object.entries(data.secrets)) await this.platform.secretStore.set(name, value)
+    await this.platform.secretStore.set(LOCAL_DOCUMENT, JSON.stringify(data.document))
+    await this.vault.leave()
+  }
+
+  /** Unlocking after leaving rejoins: the synced add-ons take the place of this device's own. */
+  private async unlockNow(secret: string, recovery: boolean, remember: boolean, name: string): Promise<void> {
+    const rejoining = await this.vault.left()
+    await this.vault.unlock(secret, recovery, remember, name)
+    if (rejoining) await this.platform.secretStore?.set(LOCAL_DOCUMENT, "")
+  }
+
   async script(integrity: string): Promise<string | null> {
     if (await this.vault.enabled()) {
       const code = (await this.vault.read())?.scripts[integrity]
@@ -119,7 +157,7 @@ export class AddonSync {
   }
 
   private async share(entry: AddonEntry, code: string | null, replace = false): Promise<void> {
-    if (!await this.vault.enabled()) throw new Error("Enable encrypted addon sync first")
+    if (!await this.vault.enabled()) throw new Error(await this.vault.left() ? "Turn add-on sync on on this device first" : "Enable encrypted addon sync first")
     const snapshot = structuredClone(entry)
     if (snapshot.manifest.script) {
       if (code === null) throw new Error("The directory's script is unavailable")
@@ -146,12 +184,13 @@ export class AddonSync {
   methods(): Pick<OnceClient, "getAddonVaultStatus" | "unlockAddonVault" | "lockAddonVault" | "changeAddonVaultPassphrase" |
     "getAddonVaultChoices" | "resolveAddonVault" | "getAddons" | "saveAddons" | "updateAddons" | "getAddonScript" |
     "storeAddonScript" | "saveAddonSecret" | "hasAddonSecret" | "requestAddonConnection" | "shareAddonSnapshot" |
-    "verifyAddonVaultPassphrase"> {
+    "verifyAddonVaultPassphrase" | "leaveAddonVault"> {
     return {
       getAddonVaultStatus: () => this.vault.status(),
       verifyAddonVaultPassphrase: passphrase => this.vault.verifyPassphrase(passphrase),
       shareAddonSnapshot: (entry, code, replace) => this.serialize(() => this.share(entry, code, replace)),
-      unlockAddonVault: (secret, recovery, remember, name) => this.vault.unlock(secret, recovery, remember, name),
+      unlockAddonVault: (secret, recovery, remember, name) => this.serialize(() => this.unlockNow(secret, recovery, remember, name)),
+      leaveAddonVault: () => this.serialize(() => this.leaveNow()),
       lockAddonVault: () => this.vault.lock(),
       changeAddonVaultPassphrase: passphrase => this.vault.update(() => undefined, passphrase),
       getAddonVaultChoices: () => this.vault.choices(),
