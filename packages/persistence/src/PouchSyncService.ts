@@ -1,4 +1,4 @@
-import { normalizeSyncUrl } from "@once/core"
+import { isRoutedTabDocId, normalizeSyncUrl, ROUTED_TAB_DOC_PREFIXES, TAB_SYNC_SETTINGS_ID } from "@once/core"
 import {
   PouchMaintenanceDatabase,
   PouchMaintenanceService
@@ -20,6 +20,7 @@ export interface PouchSyncDatabase extends PouchMaintenanceDatabase {
     target: string | PouchSyncDatabase,
     options: Record<string, unknown>
   ): PouchEventChain
+  allDocs?(options: Record<string, unknown>): Promise<{ rows: Array<{ id: string }> }>
   createIndex?(options: Record<string, unknown>): Promise<unknown>
   find?(options: Record<string, unknown>): Promise<{
     docs: Array<{ _id?: string }>
@@ -66,7 +67,8 @@ export class PouchSyncService {
     "theme",
     "animation",
     "swipe",
-    "save_bookmarked_content"
+    "save_bookmarked_content",
+    TAB_SYNC_SETTINGS_ID
   ]
   private syncHandler?: PouchEventChain
   private initialReplication?: PouchEventChain
@@ -84,6 +86,9 @@ export class PouchSyncService {
   }) => void>()
   private statusHandlers = new Set<(status: PouchSyncStatus) => void>()
   private remoteChangeHandlers = new Set<
+    (change: PouchRemoteChange) => void
+  >()
+  private remoteTabChangeHandlers = new Set<
     (change: PouchRemoteChange) => void
   >()
   private status: PouchSyncStatus = {
@@ -120,6 +125,19 @@ export class PouchSyncService {
   onRemoteChange(handler: (change: PouchRemoteChange) => void): () => void {
     this.remoteChangeHandlers.add(handler)
     return () => this.remoteChangeHandlers.delete(handler)
+  }
+
+  /** Pulled tab sync documents; thumbnails are fetched on demand instead. */
+  onRemoteTabChange(handler: (change: PouchRemoteChange) => void): () => void {
+    this.remoteTabChangeHandlers.add(handler)
+    return () => this.remoteTabChangeHandlers.delete(handler)
+  }
+
+  async hasLocalData(): Promise<boolean> {
+    if (!this.db.allDocs) return false
+    // Design documents (the local story index) say nothing about synced data.
+    const result = await this.db.allDocs({ startkey: "_design\uffff", limit: 1 })
+    return result.rows.length > 0
   }
 
   onSettingsReplicated(handler: () => void): () => void {
@@ -281,6 +299,12 @@ export class PouchSyncService {
     this.settingsReplicatedGeneration = generation
     this.settingsReplicatedHandlers.forEach((handler) => handler())
 
+    // Other devices' tabs show soon after connecting, before the stories.
+    const tabDocIds = await this.findTabDocIds(remote, generation)
+    if (tabDocIds.length > 0) {
+      await replicateStage("Syncing tabs from other devices…", { doc_ids: tabDocIds })
+    }
+
     const loadedStoryIds = Array.from(new Set(getLoadedStoryIds?.() ?? []))
     if (loadedStoryIds.length > 0) {
       await replicateStage(
@@ -388,6 +412,27 @@ export class PouchSyncService {
     }
   }
 
+  /** The ids of routed tab documents on the remote, by id range; none when it cannot list them. */
+  private async findTabDocIds(
+    remote: string | PouchSyncDatabase,
+    generation: number
+  ): Promise<string[]> {
+    if (typeof remote === "string" || !remote.allDocs) return []
+    const listDocs = remote.allDocs.bind(remote)
+    try {
+      const ids: string[] = []
+      for (const prefix of ROUTED_TAB_DOC_PREFIXES) {
+        const result = await listDocs({ startkey: prefix, endkey: `${prefix}\uffff` })
+        if (this.generation !== generation) return []
+        ids.push(...result.rows.map((row) => row.id).filter(isRoutedTabDocId))
+      }
+      return ids
+    } catch (error) {
+      console.warn("Tab documents will arrive with the full database", error)
+      return []
+    }
+  }
+
   private startLiveSync(
     remote: string | PouchSyncDatabase,
     syncOps: Record<string, unknown>,
@@ -461,13 +506,18 @@ export class PouchSyncService {
     if (requirePull && record.direction !== "pull") return
     const docs = record.docs ?? record.change?.docs ?? []
     docs.forEach((doc) => {
-      if (typeof doc._id !== "string" || !doc._id.startsWith("sto_")) return
+      if (typeof doc._id !== "string") return
       const change = {
         id: doc._id,
         doc,
         presentation
       }
-      this.remoteChangeHandlers.forEach((handler) => handler(change))
+      if (doc._id.startsWith("sto_")) {
+        this.remoteChangeHandlers.forEach((handler) => handler(change))
+      } else if (isRoutedTabDocId(doc._id)) {
+        // Deletions arrive as `_deleted` stubs and are routed the same way.
+        this.remoteTabChangeHandlers.forEach((handler) => handler(change))
+      }
     })
   }
 

@@ -94,6 +94,25 @@ export type ElectronOpenTarget = "_self" | "middle" | "blank" | string
 
 export type ElectronBuildChannel = "release" | "dev"
 
+/** One window's tabs as tab sync reads them; times are epoch milliseconds. */
+export interface ElectronSyncWindow {
+  id: string
+  focused: boolean
+  tabs: Array<{
+    id: string
+    navSeq: number
+    url: string
+    title: string
+    mode: "web" | "reader"
+    active: boolean
+    audible: boolean
+    openedAt: number
+    navigatedAt: number
+    selectedAt: number
+    activityAt: number
+  }>
+}
+
 export interface ElectronBuildInfo {
   version: string
   channel: ElectronBuildChannel
@@ -285,6 +304,11 @@ export interface ElectronBridge {
       handler: (sourceUrl: string, tabId: string) => void
     ): () => void
   }
+  tabSync: {
+    /** Every window's tabs, not just this one's. */
+    snapshot(): Promise<ElectronSyncWindow[]>
+    onChanged(handler: () => void): () => void
+  }
   storyMenu: {
     show(
       items: ElectronStoryMenuItem[],
@@ -426,6 +450,8 @@ export const ELECTRON_IPC = {
   tabsFoundInPage: "once:tabs:found-in-page",
   tabsChanged: "once:tabs:changed",
   tabsRegenerateReader: "once:tabs:regenerate-reader",
+  tabSyncSnapshot: "once:tabsync:snapshot",
+  tabSyncChanged: "once:tabsync:changed",
   panelPageShow: "once:panel-page:show",
   panelPageSetBounds: "once:panel-page:set-bounds",
   panelPageClose: "once:panel-page:close",

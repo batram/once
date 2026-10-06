@@ -6,6 +6,7 @@ import { NavigationErrors, sameUrl } from "./NavigationErrors"
 import { fallbackTabTitle } from "./reader-url"
 import { TabEntry, WindowEntry } from "./BrowserState"
 import { TabPopups } from "./TabPopups"
+import { markActivity, markNavigated } from "./TabSyncTimes"
 import { PopupWindowOptions } from "./TabView"
 
 interface TabOwnerAccess {
@@ -116,6 +117,7 @@ class TabNavigationEvents {
     }
     this.reset(entry, url)
     entry.storyPageUrl = url
+    markNavigated(entry)
     this.snapshotHistory(entry)
     changed()
   }
@@ -311,6 +313,7 @@ class TabLifecycleEvents {
     contents.on("audio-state-changed", (event) => {
       entry.audible = event.audible
       if (event.audible) entry.hasPlayedAudio = true
+      markActivity(entry)
       changed()
     })
     contents.on("destroyed", () => this.actions.finalizeClosedTab(entry))

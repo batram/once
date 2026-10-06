@@ -22,7 +22,7 @@ see [Development](docs/DEVELOPMENT.md) to build them.
 - Collect and merge stories from different sources
 - Mark stories as read or skip them
 - Search local stories and online on the different sources
-- Sync state via couchdb
+- Sync state via couchdb, and see or open the tabs of your other devices
 - Filter stories based on keywords
 - Dark and Light theme
 - Reader mode, with saved article text for offline reading, read aloud with

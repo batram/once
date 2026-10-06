@@ -6,6 +6,7 @@ import {
   WebContentsView
 } from "electron"
 import { TabHistorySnapshot } from "./ClosedTabs"
+import type { TabSyncTimes } from "./TabSyncTimes"
 
 export interface ErrorPageState {
   url: string
@@ -40,6 +41,8 @@ export interface TabEntry {
   historySnapshot: TabHistorySnapshot | null
   /** Kept only for the current document; request bodies stay in main. */
   blockedPopups?: Electron.HandlerDetails[]
+  /** What tab sync publishes about the tab's life: opened, navigated, selected, used. */
+  sync: TabSyncTimes
 }
 
 export interface WindowEntry {

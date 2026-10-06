@@ -137,6 +137,14 @@ const bridge: ElectronBridge = {
         ipcRenderer.removeListener(ELECTRON_IPC.tabsRegenerateReader, listener)
     }
   },
+  tabSync: {
+    snapshot: () => ipcRenderer.invoke(ELECTRON_IPC.tabSyncSnapshot),
+    onChanged(handler: () => void) {
+      const listener = () => handler()
+      ipcRenderer.on(ELECTRON_IPC.tabSyncChanged, listener)
+      return () => ipcRenderer.removeListener(ELECTRON_IPC.tabSyncChanged, listener)
+    }
+  },
   storyMenu: {
     show: (items, point) =>
       ipcRenderer.invoke(ELECTRON_IPC.storyMenuShow, items, point),

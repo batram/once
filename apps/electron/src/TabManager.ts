@@ -5,13 +5,7 @@ import { randomUUID } from "node:crypto"
  * logged in. A source that asks for the session fetches through it.
  */
 export const BROWSER_SESSION_PARTITION = "persist:once-browser-v2"
-import {
-  app,
-  BrowserWindow,
-  IpcMainInvokeEvent,
-  Rectangle,
-  WebContents
-} from "electron"
+import { app, BrowserWindow, IpcMainInvokeEvent, Rectangle, WebContents } from "electron"
 import {
   ELECTRON_IPC,
   ElectronOpenTarget,
@@ -31,6 +25,7 @@ import { createTabView, PopupWindowOptions } from "./browser/TabView"
 import { isAddonConversationUrl } from "./AddonConversationRelay"
 import { fallbackTabTitle, sourceUrlFromReaderUrl } from "./browser/reader-url"
 import { TabEntry, WindowEntry } from "./browser/BrowserState"
+import { newTabSyncTimes, TabSyncFeed, tabSyncFeed } from "./browser/TabSyncTimes"
 import { NativeMenus } from "./browser/NativeMenus"
 import { NavigationErrors } from "./browser/NavigationErrors"
 import { SourcePicker } from "./browser/SourcePicker"
@@ -180,6 +175,11 @@ export class BrowserCoordinator {
     return this.ownership.getAll(state)
   }
 
+  /** Every window's tabs and their change notices, for tab sync. */
+  tabSync(): TabSyncFeed {
+    return tabSyncFeed(this.ownership)
+  }
+
   showBlockedPopups(state: WindowEntry, id: string, point: ElectronPoint): void {
     this.tabEvents.showBlockedPopups(this.ownership.requireOwned(state, id), point)
   }
@@ -224,7 +224,8 @@ export class BrowserCoordinator {
       htmlFullscreen: false,
       extensionPage: profile !== null,
       pickerSession: null,
-      historySnapshot: null
+      historySnapshot: null,
+      sync: newTabSyncTimes()
     }
     this.ownership.addTab(state, entry, after)
     this.tabEvents.bind(entry)

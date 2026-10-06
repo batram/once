@@ -12,6 +12,18 @@ export class WebExtSyncStorage {
     await this.browserApi.storage.sync.set({ sync_url: syncUrl })
   }
 
+  /**
+   * The browser carries `sync_url` between installations signed into the
+   * same profile, so it can change under a running panel.
+   */
+  onSyncUrlChanged(handler: () => void): () => void {
+    const listener = (changes: Record<string, unknown>, area: string) => {
+      if (area === "sync" && Object.hasOwn(changes, "sync_url")) handler()
+    }
+    this.browserApi.storage.onChanged.addListener(listener)
+    return () => this.browserApi.storage.onChanged.removeListener(listener)
+  }
+
   async getCacheTime(): Promise<number> {
     const data = await this.browserApi.storage.sync.get("cache_time")
     const time = parseInt(data.cache_time)

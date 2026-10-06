@@ -88,11 +88,10 @@ export function bindAddonVaultControls(client: OnceClient, parent: HTMLElement):
     const confirmation = creating ? field(form, "Confirm sync passphrase", "password") : null
     if (confirmation) confirmation.autocomplete = "new-password"
     const useRecovery = creating ? null : check(form, "Use recovery key", false)
-    const name = field(form, "Name this device", "text")
-    name.placeholder = "For example, laptop or phone"
-    name.maxLength = 80
     const remember = check(form, state.protectedStorage ? "Remember on this device using protected storage" : "Remember in this browser (weaker protection on a shared or compromised profile)", state.protectedStorage)
     form.append(button(creating ? "Enable encrypted addon sync" : "Unlock add-on sync", () => void run(async () => {
+      // Snapshots name their author with the device name set above in the Sync section.
+      const name = { value: (await client.getTabSync().catch(() => null))?.self?.name ?? "" }
       if (creating) {
         if (secret.value !== confirmation?.value) throw new Error("The passphrases do not match")
         const result = await client.createAddonVault(secret.value, remember.checked, name.value)
@@ -108,7 +107,7 @@ export function bindAddonVaultControls(client: OnceClient, parent: HTMLElement):
       const state = await client.getAddonVaultStatus()
       if (current !== revision) return
       status.textContent = state.message
-      const root = parent.closest<HTMLElement>("#addon_install_settings")
+      const root = parent.closest<HTMLElement>("#addon_install_settings") ?? document.querySelector<HTMLElement>("#addon_install_settings")
       if (root) {
         root.dataset.vaultState = state.state
         const paused = ["locked", "conflict", "error"].includes(state.state)

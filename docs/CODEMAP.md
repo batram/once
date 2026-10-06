@@ -39,6 +39,7 @@ target lifecycle, permissions, native bridges, and packaging belong in an app.
 | Source resolution and collectors | `packages/collectors/src/resolveSource.ts`, `registry.ts` | May depend only on core; collector configuration is validated here |
 | Loading, settings, story state | `packages/app/src/OnceApp.ts`, `packages/app/src/AppRuntime.ts` | Public facade and application service composition |
 | PouchDB storage and sync | `packages/persistence/src` | Storage implementations |
+| Tab sync, device identity, sync destination binding and consent | `packages/core/src/tabsync`, `packages/app/src/tabsync`, `packages/persistence/src/PouchTabDocs.ts`, `packages/ui-web/src/settings/tabSyncControls.ts`, `apps/electron/src/browser/TabSyncTimes.ts` | Core owns the records and filters; the app owns publishing, retirement and the gate every sync connection passes; see [the plan](plans/tab-sync-plan.md) |
 | Story list and actions | `packages/ui-web/src/story` | Shared DOM UI |
 | Keyboard commands and story cursor | `packages/ui-web/src/keyboard`, `story/storyCursor.ts`, `shell/paneFocus.ts` | Core owns chord syntax; shared UI owns bindings, conflicts, dispatch, and position |
 | Story and settings popup menus | `packages/ui-web/src/menu` | Action model plus anchored renderer |

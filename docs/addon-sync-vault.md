@@ -7,11 +7,13 @@ other Once settings.
 
 ## Setup
 
-1. Configure CouchDB Sync and wait for **Up to date**. Use the same database on
-   each device. All clients using the vault need a Once build that supports it.
-2. Open **Settings → Once Add-ons → Add-on sync → Set up encrypted sync**.
-3. Choose a separate sync passphrase of at least 12 characters, confirm it, and
-   name the device. Choose **Enable encrypted addon sync**. This migrates all
+1. Configure the database in **Settings → Sync** and wait for **Up to date**.
+   Use the same database on each device. All clients using the vault need a
+   Once build that supports it. Name the device under **This device**;
+   snapshots show that name as their author.
+2. In the same section, open **Add-on sync → Set up encrypted sync**.
+3. Choose a separate sync passphrase of at least 12 characters and confirm it.
+   Choose **Enable encrypted addon sync**. This migrates all
    installed addons, their settings, available packages, and saved tokens.
 4. Save the generated recovery key in a password manager. It is shown once.
 5. On another device, connect sync, then choose **Unlock add-on sync**

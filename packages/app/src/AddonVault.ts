@@ -107,6 +107,16 @@ export class AddonVault {
     })
   }
 
+  /** Follows the shared device name, so later snapshots carry the current one. */
+  async renameDevice(name: string): Promise<void> {
+    await this.serialize(async () => {
+      await this.init()
+      if (!this.pin || !name.trim()) return
+      this.pin = { ...this.pin, deviceName: name.trim().slice(0, 80) }
+      await this.secrets?.set(PIN, JSON.stringify(this.pin))
+    })
+  }
+
   private deviceName(name: string): string { return name.trim().slice(0, 80) || this.pin?.deviceName || `Device ${randomHex(3)}` }
 
   async unlock(secret: string, recovery: boolean, remember: boolean, deviceName: string): Promise<void> {

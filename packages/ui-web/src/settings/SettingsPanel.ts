@@ -13,6 +13,7 @@ import { highlightStorySourceTextarea, highlightTextareaContent,
   scrollTextareaSelectionIntoView } from "./textareaHighlight"
 import * as settingsControls from "./settingsControlBindings"
 import { bindSyncSettingsControls } from "./syncSettingsControls"
+import { bindTabSyncControls } from "./tabSyncControls"
 import { bindSettingsSubscriptions } from "./settingsSubscriptions"
 import { bindExtensionSettingsEditors, ExtensionSettingsEditors } from "./extensionSettingsEditors"
 import settingsSectionDefinitions from "./settingsSectionDefinitions"
@@ -72,6 +73,7 @@ export class SettingsPanel {
       () => this.reset_couch_settings(),
       () => this.save_couch_settings()
     )
+    bindTabSyncControls(client)
 
     this.ready = this.set_sources_area()
 

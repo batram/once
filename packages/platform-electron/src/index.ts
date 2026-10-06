@@ -8,10 +8,12 @@ import {
   PouchListStore,
   PouchStoryStore,
   PouchSyncDatabase,
-  PouchSyncService
+  PouchSyncService,
+  PouchTabDocsDatabase,
+  pouchTabDocs
 } from "@once/persistence"
 import { bridgeFetch, bridgeStreamingFetch } from "./fetch"
-import { ElectronBridge, ElectronTabState } from "./types"
+import { ElectronBridge, ElectronBuildInfo, ElectronTabState } from "./types"
 
 export * from "./types"
 export * from "./fetch"
@@ -19,8 +21,11 @@ export * from "./navigation"
 
 PouchDB.plugin(PouchDBFind)
 
+const OS_NAMES: Record<string, string> = { darwin: "macOS", win32: "Windows", linux: "Linux" }
+
 export function createElectronPlatform(
-  bridge: ElectronBridge
+  bridge: ElectronBridge,
+  buildInfo?: ElectronBuildInfo
 ): OncePlatformPorts {
   const syncWindowBackground = () => {
     const color = getComputedStyle(document.body).backgroundColor
@@ -86,6 +91,16 @@ export function createElectronPlatform(
         bridge.tabs.getAll().then(notify)
         return bridge.tabs.onChanged(notify)
       }
+    },
+    tabDocs: pouchTabDocs(onceDb as unknown as PouchTabDocsDatabase),
+    tabSource: {
+      snapshot: () => bridge.tabSync.snapshot(),
+      onChanged: (handler) => bridge.tabSync.onChanged(handler)
+    },
+    device: {
+      platform: "electron",
+      defaultName: `Once on ${OS_NAMES[buildInfo?.platform ?? ""] ?? "desktop"}`,
+      appVersion: buildInfo?.version ?? ""
     },
     fetch: fetchThroughMain,
     // Addon connections stream, so a tray can show an answer as it is written.

@@ -299,6 +299,12 @@ function registerSettingsHandlers(
 }
 
 function registerTabNavigation(coordinator: BrowserCoordinator): void {
+  const tabSync = coordinator.tabSync()
+  ipcMain.handle(ELECTRON_IPC.tabSyncSnapshot, (event) => {
+    trusted(event, coordinator)
+    return tabSync.snapshot()
+  })
+  tabSync.observe()
   ipcMain.handle(ELECTRON_IPC.tabsGetAll, (event) => {
     const target = browser(event, coordinator)
     return coordinator.getAll(target.window)

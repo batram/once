@@ -2781,3 +2781,37 @@
   flex: 0 0 auto;
   white-space: nowrap;
 }
+
+/* Other devices in tab sync: name and details stacked, the remove action at
+   the trailing edge, like a settings row without a form control. */
+.tab_sync_devices {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tab_sync_device {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "name action"
+    "hint action";
+  align-items: center;
+  gap: var(--sp-1) var(--sp-4);
+  padding: var(--sp-3) 0;
+  border-bottom: 1px solid var(--divider-color);
+}
+
+.tab_sync_device_name {
+  grid-area: name;
+  color: var(--text-high-color);
+  font-weight: 700;
+}
+
+.tab_sync_device > .button {
+  grid-area: action;
+}
+
+.tab_sync_device[data-stale="true"] .tab_sync_device_name {
+  color: var(--text-muted-color);
+}

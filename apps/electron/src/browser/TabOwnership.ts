@@ -4,6 +4,7 @@ import { NavigationErrors } from "./NavigationErrors"
 import { TabEntry, WindowEntry } from "./BrowserState"
 import { ClosedTabs, isThrowaway } from "./ClosedTabs"
 import { OpenTabs, stackOrder } from "./OpenTabs"
+import { markSelected } from "./TabSyncTimes"
 
 interface TabOwnershipActions {
   createBlankTab(owner: WindowEntry): Promise<unknown>
@@ -92,6 +93,7 @@ export class TabOwnership {
     const previous = owner.activeId ? this.tabs.get(owner.activeId) : undefined
     if (previous) previous.view.setVisible(false)
     owner.activeId = id
+    markSelected(entry)
     this.show(owner, entry)
     entry.view.webContents.focus()
     this.notify(owner)

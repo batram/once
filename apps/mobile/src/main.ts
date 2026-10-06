@@ -216,7 +216,8 @@ async function startMobileApp(): Promise<void> {
   const nativeBridge = createDefaultMobileNativeBridge()
   // The reading controller is built below; the closure only runs on a tap.
   const platform = createMobilePlatform(nativeBridge, undefined, {
-    openInApp: (url) => reading.openBrowserUrl(url)
+    openInApp: (url) => reading.openBrowserUrl(url),
+    appVersion: __ONCE_APP_VERSION__
   })
   const app = createOnceApp(platform)
   const browserSurface = createInAppBrowserSurface((url) =>

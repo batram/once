@@ -353,6 +353,126 @@
                   >
                     Sync is not configured
                   </div>
+                  <section class="settings_rows" id="sync_consent" data-testid="sync-consent-settings" hidden>
+                    <h4 class="settings_subheading">Data sharing</h4>
+                    <div class="settings_row">
+                      <p class="settings_row_name">Allow sync to send data</p>
+                      <p class="settings_row_hint" id="sync_consent_hint">
+                        Firefox asks before data leaves this browser for your sync server:
+                        the pages you visit, page content such as saved articles and screenshots,
+                        and reading positions. Sync stays paused until all three are allowed.
+                      </p>
+                      <button type="button" class="button" id="sync_consent_button"
+                        data-testid="sync-consent" aria-describedby="sync_consent_hint">Allow…</button>
+                    </div>
+                  </section>
+                  <section class="settings_rows" id="sync_device_settings" hidden>
+                    <h4 class="settings_subheading">This device</h4>
+                    <div class="settings_row">
+                      <label class="settings_row_name" for="device_name_input">Device name</label>
+                      <p class="settings_row_hint" id="device_name_hint">
+                        Other devices and add-on sync show this name.
+                      </p>
+                      <input type="text" id="device_name_input" maxlength="80" spellcheck="false"
+                        data-testid="device-name" aria-describedby="device_name_hint" />
+                    </div>
+                    <div class="settings_row">
+                      <p class="settings_row_name">Device identity</p>
+                      <p class="settings_row_hint" id="reset_device_hint">
+                        Only needed when this profile was copied from another device: both copies
+                        would otherwise share one entry. The old entry is removed from tab sync.
+                      </p>
+                      <button type="button" class="button" id="reset_device_button"
+                        data-testid="reset-device-identity" aria-describedby="reset_device_hint">Reset…</button>
+                    </div>
+                  </section>
+                  <section class="settings_rows" id="tab_sync_settings" data-testid="tab-sync-settings" hidden>
+                    <h4 class="settings_subheading">Tabs</h4>
+                    <p class="settings_row_hint" id="tab_sync_hint">
+                      Shared tabs are stored unencrypted in the sync database, like your stories:
+                      addresses, titles and when they were used.
+                    </p>
+                    <p class="settings_row_hint" id="tab_sync_notice" role="status" data-testid="tab-sync-notice" hidden></p>
+                    <div class="settings_row settings_row_inline" data-tab-sync-share>
+                      <label class="settings_row_name" for="tab_sync_share">Share this device's tabs</label>
+                      <p class="settings_row_hint" id="tab_sync_share_hint">
+                        Other devices see the tabs open here. Private windows are never shared.
+                      </p>
+                      <input type="checkbox" class="switch" id="tab_sync_share" data-option="sharing"
+                        data-testid="tab-sync-share" aria-describedby="tab_sync_share_hint" />
+                    </div>
+                    <div class="settings_row settings_row_inline" data-tab-sync-share>
+                      <label class="settings_row_name" for="tab_sync_screenshots">Include screenshots</label>
+                      <p class="settings_row_hint" id="tab_sync_screenshots_hint">
+                        A small picture of each shared tab.
+                      </p>
+                      <input type="checkbox" class="switch" id="tab_sync_screenshots" data-option="screenshots"
+                        aria-describedby="tab_sync_screenshots_hint" />
+                    </div>
+                    <div class="settings_row" data-tab-sync-share>
+                      <label class="settings_row_name" for="tab_sync_excluded">Never share</label>
+                      <p class="settings_row_hint" id="tab_sync_excluded_hint">
+                        Domains whose tabs stay on this device, subdomains included. One per line.
+                      </p>
+                      <textarea id="tab_sync_excluded" rows="3" spellcheck="false" data-option="excludedDomains"
+                        data-testid="tab-sync-excluded" aria-describedby="tab_sync_excluded_hint"
+                        placeholder="bank.example"></textarea>
+                    </div>
+                    <div class="settings_row settings_row_inline" data-tab-sync-share>
+                      <label class="settings_row_name" for="tab_sync_send_target">Receive sent tabs</label>
+                      <p class="settings_row_hint" id="tab_sync_send_target_hint">
+                        Other devices can send tabs here, even when this device does not share its own.
+                      </p>
+                      <input type="checkbox" class="switch" id="tab_sync_send_target" data-option="sendTarget"
+                        aria-describedby="tab_sync_send_target_hint" />
+                    </div>
+                    <div class="settings_row settings_row_inline">
+                      <label class="settings_row_name" for="tab_sync_continue">Offer to continue</label>
+                      <p class="settings_row_hint" id="tab_sync_continue_hint">
+                        Suggests the video or article you just had open on another device.
+                      </p>
+                      <input type="checkbox" class="switch" id="tab_sync_continue" data-option="continueBanner"
+                        aria-describedby="tab_sync_continue_hint" />
+                    </div>
+                    <div class="settings_row">
+                      <label class="settings_row_name" for="tab_sync_activity">Recently used</label>
+                      <p class="settings_row_hint" id="tab_sync_activity_hint">
+                        How recent a tab's use must be to offer continuing it.
+                      </p>
+                      <select id="tab_sync_activity" data-option="activityWindowMinutes" data-unit="minutes"
+                        aria-describedby="tab_sync_activity_hint"></select>
+                    </div>
+                    <div class="settings_row">
+                      <label class="settings_row_name" for="tab_sync_freshness">Recently seen</label>
+                      <p class="settings_row_hint" id="tab_sync_freshness_hint">
+                        How recently the other device must have reported its tabs.
+                      </p>
+                      <select id="tab_sync_freshness" data-option="freshnessWindowMinutes" data-unit="minutes"
+                        aria-describedby="tab_sync_freshness_hint"></select>
+                    </div>
+                    <div class="settings_row">
+                      <label class="settings_row_name" for="tab_sync_stale">Inactive after</label>
+                      <p class="settings_row_hint" id="tab_sync_stale_hint">
+                        Devices not seen for this long are marked inactive.
+                      </p>
+                      <select id="tab_sync_stale" data-option="staleDeviceDays" data-unit="days"
+                        aria-describedby="tab_sync_stale_hint"></select>
+                    </div>
+                    <div class="settings_row">
+                      <label class="settings_row_name" for="tab_sync_retention">Keep sent tabs</label>
+                      <p class="settings_row_hint" id="tab_sync_retention_hint">
+                        Unopened sent tabs are removed after this. Applies to all devices.
+                      </p>
+                      <select id="tab_sync_retention" data-shared="sendRetentionDays" data-unit="days"
+                        aria-describedby="tab_sync_retention_hint"></select>
+                    </div>
+                    <div class="settings_row">
+                      <button type="button" class="button" id="tab_sync_defaults">Reset times to defaults</button>
+                    </div>
+                    <h4 class="settings_subheading">Devices</h4>
+                    <ul class="tab_sync_devices" id="tab_sync_devices" data-testid="tab-sync-devices"></ul>
+                  </section>
+                  <section class="settings_rows" id="sync_addon_vault"></section>
                 </div>
                 <div class="settings_block">
                   <section class="settings_rows">

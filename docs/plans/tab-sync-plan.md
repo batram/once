@@ -694,6 +694,30 @@ and screenshots from database A would therefore be uploaded to database B.
 6. **QR pairing**: generation, warnings and paste-link first, then mobile scanning and the `once://` link.
    This phase can run in parallel with phases 2–5 once §9 is in.
 
+### Phase 1 status (implemented)
+
+- Core records, filters, options and destination rules: `packages/core/src/tabsync`,
+  `packages/core/src/settings/syncDestination.ts`.
+- App: `DeviceIdentity`, `SyncDestinationBinding`, `SyncGate`, `TabDocRepository`, `TabSyncService`
+  and the runtime wiring `SyncControls` in `packages/app/src/tabsync`. The gate runs in
+  `AppSettings.startSync`, so startup, URL edits, browser-synced URL changes and consent changes all
+  pass it before replication starts.
+- Persistence: `PouchSyncService` routes `dev_`/`tsend_`/`tret_` changes (deletions included), pulls
+  them in a stage before stories and lists `tabsync` among the settings records; `pouchTabDocs`
+  adapts the local database.
+- Electron publishes every window's tabs from one runtime (`TabSyncTimes.ts`, IPC
+  `once:tabsync:*`). Extensions and mobile can view devices and manage options; their tab sources
+  (the extension background publisher, §4a, and the mobile tab view) arrive in phase 2.
+- Settings: one **Sync** section with the connection, Firefox consent, this device's name and
+  identity reset, tab options with the configurable times, the device list with **Remove from tab
+  sync**, and add-on sync moved from the add-ons section.
+- Firefox declares the three categories as optional and requests them from Settings › Sync.
+- A browser-synced URL over existing local data without a binding waits until the user presses
+  **Save** for that URL, which confirms it.
+- Tests: `tests/unit/core/tab-sync.test.js`, `tests/unit/persistence/tab-docs.test.js`,
+  `tests/integration/app/tab-sync.test.js`, `tests/integration/app/sync-gate.test.js`,
+  `tests/e2e/electron/tab-sync.spec.js`.
+
 ## Nice-to-haves (not v1)
 
 - Recently closed tabs from other devices.

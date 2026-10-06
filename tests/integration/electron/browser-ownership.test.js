@@ -129,7 +129,8 @@ function entry(id, ownerId) {
     muted: false,
     loadError: null,
     errorPages: new Map(),
-    historySnapshot: null
+    historySnapshot: null,
+    sync: { navSeq: 0, openedAt: 0, navigatedAt: 0, selectedAt: 0, activityAt: 0 }
   }
 }
 

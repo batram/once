@@ -105,7 +105,7 @@ async function startRenderer(): Promise<void> {
   const buildInfo = await window.onceElectron.app.getBuildInfo()
   document.body.classList.add(`electron-platform-${buildInfo.platform}`)
 
-  const platform = createElectronPlatform(window.onceElectron)
+  const platform = createElectronPlatform(window.onceElectron, buildInfo)
   const app = createOnceApp(platform)
   ReaderView.mount(
     app.client,

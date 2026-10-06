@@ -39,6 +39,7 @@ import { AddonSync } from "./AddonSync"
 import { waitForStartupStorage } from "./startupStorage"
 import { StoryContentService } from "./storyContent"
 import { StoryChangeReconciler } from "./storyChangeReconciler"
+import { SyncControls } from "./tabsync/SyncControls"
 
 export class AppRuntime {
   private readonly storyIngestion = new StoryIngestionQueue()
@@ -82,8 +83,12 @@ export class AppRuntime {
     message: "Sync is not configured"
   }
   private sourceSettingsReady: Promise<void> = Promise.resolve()
+  private readonly sync: SyncControls
 
   constructor(private platform: OncePlatformPorts) {
+    this.sync = new SyncControls(platform, { status: () => this.syncStatus, setStatus: (status) => this.publishSyncStatus(status),
+      tabSyncChanged: () => this.events.publish("tabSyncChanged", {}), reportDiagnostic: (error) => this.reportDiagnostic(error),
+      renameVaultDevice: (name) => this.addonSync.vault.renameDevice(name) })
     this.settings = new AppSettings(
       platform.listStore,
       platform.syncSettingsStore,
@@ -103,7 +108,9 @@ export class AppRuntime {
         loadedStoryIds: () =>
           this.workingSet.hrefs().map((href) =>
             this.platform.storyStore.storyId(href)
-          )
+          ),
+        authorizeSync: (url, origin) => this.sync.authorize(url, origin),
+        reportSyncBlocked: (message) => this.sync.reportBlocked(message)
       }
     )
     this.cacheMaintenance = new CacheMaintenance(
@@ -137,10 +144,7 @@ export class AppRuntime {
     this.platform.syncService?.onDiagnostic?.((error) =>
       this.reportDiagnostic(error)
     )
-    this.platform.syncService?.onStatus?.((status) => {
-      this.syncStatus = status
-      this.events.publish("syncStatusChanged", status)
-    })
+    this.platform.syncService?.onStatus?.((status) => this.sync.statusChanged(status))
     this.platform.syncService?.onRemoteChange?.((change) => {
       const href =
         typeof change.doc?.href === "string"
@@ -160,6 +164,8 @@ export class AppRuntime {
         this.events.publish("settingsChanged", { section: "addons" })
         return
       }
+      // Tab documents written here, by another window or panel, or pulled.
+      if (this.sync.routeChange(change)) return
       if (!change.id.startsWith("sto_")) {
         this.settings.handleObservedChange(change)
         return
@@ -196,6 +202,7 @@ export class AppRuntime {
     this.sourceSettingsReady = this.settings.getSyncUrl()
       .then((syncUrl) => this.settings.startSync(syncUrl))
     await this.waitForStartupStorage("sync", () => this.sourceSettingsReady)
+    this.sync.start(this.settings)
 
     this.platform.activeTab?.onSelectedUrlChanged((url, context) => {
       this.client.selectUrl(url, context)
@@ -220,16 +227,8 @@ export class AppRuntime {
         if (this.syncStatus.state !== "up-to-date") throw new Error("Connect sync and wait until it is up to date before creating a vault")
         return this.addonSync.create(passphrase, remember, deviceName)
       },
-      setSyncUrl: async url => {
-        if (await this.addonSync.vault.enabled()) {
-          const destination = (value: string) => { const parsed = new URL(value); return parsed.origin + parsed.pathname.replace(/\/$/, "") }
-          const old = await this.settings.getSyncUrl()
-          const saved = old ? destination(old) : await this.platform.secretStore?.get("once:addon-vault-destination")
-          if (url.trim() && saved !== destination(url)) throw new Error("Use a separate Once profile for another sync database while secure addon sync is enabled")
-          if (saved) await this.platform.secretStore?.set("once:addon-vault-destination", saved)
-        }
-        await this.settings.setSyncUrl(url)
-      },
+      setSyncUrl: (url) => this.settings.setSyncUrl(url),
+      ...this.sync.clientMethods(),
       reloadStories: (policy = "cache-first") => this.reloadStories(policy),
       refetchSource: (sourceId) => this.reloadStories("network-only", sourceId),
       getSourceCacheStatus: () => this.cacheMaintenance.status(),
@@ -643,6 +642,11 @@ export class AppRuntime {
       animated: this.settings.animated
     }
     this.events.publish("storyChanged", detail)
+  }
+
+  private publishSyncStatus(status: SyncStatus): void {
+    this.syncStatus = status
+    this.events.publish("syncStatusChanged", status)
   }
 
   private reportDiagnostic(error: DiagnosticError): void {

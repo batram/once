@@ -12,7 +12,9 @@ import {
   PouchListStore,
   PouchStoryStore,
   PouchSyncDatabase,
-  PouchSyncService
+  PouchSyncService,
+  PouchTabDocsDatabase,
+  pouchTabDocs
 } from "@once/persistence"
 export * from "./InAppBrowserSurface"
 export * from "./ReadingUrl"
@@ -120,6 +122,8 @@ export interface MobilePlatformOptions {
    * explicit choice of the system browser and stay external.
    */
   openInApp?: (url: string) => void
+  /** The app's version, which other devices show for this one. */
+  appVersion?: string
 }
 
 export function createMobilePlatform(
@@ -171,6 +175,8 @@ export function createMobilePlatform(
         return () => undefined
       }
     },
+    tabDocs: pouchTabDocs(onceDb as unknown as PouchTabDocsDatabase),
+    device: mobileDevice(options.appVersion ?? ""),
     fetch: window.fetch.bind(window),
     addonFetch: mobileAddonFetch,
     onDatabaseChange(handler) {
@@ -179,5 +185,16 @@ export function createMobilePlatform(
         .on("change", (change) => handler(change as unknown as DatabaseChange))
       return () => changes.cancel()
     }
+  }
+}
+
+/** What other devices call this one until the user names it. */
+function mobileDevice(appVersion: string): NonNullable<OncePlatformPorts["device"]> {
+  const ios = Capacitor.getPlatform() === "ios" || (!Capacitor.isNativePlatform() && /iPhone|iPad/.test(navigator.userAgent))
+  const tablet = /iPad/.test(navigator.userAgent) || (ios && navigator.maxTouchPoints > 1 && !/iPhone/.test(navigator.userAgent))
+  return {
+    platform: ios ? "ios" : "android",
+    defaultName: ios ? (tablet ? "iPad" : "iPhone") : "Android",
+    appVersion
   }
 }

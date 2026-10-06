@@ -23,7 +23,8 @@ function harness(initial = {}, configured = false) {
       publishChanged: (section) => events.push(section),
       reportDiagnostic: (error) => diagnostics.push(error), reloadStories: () => events.push("reload"),
       refilterStories() {}, refreshRedirects() {}, updateSourceMenu() {},
-      evictRemovedSources() {}, loadedStoryIds: () => []
+      evictRemovedSources() {}, loadedStoryIds: () => [],
+      authorizeSync: async () => null, reportSyncBlocked() {}
     })
   return { settings, values, diagnostics, events,
     replicate: () => settingsReplicated?.() }

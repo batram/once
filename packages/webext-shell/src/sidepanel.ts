@@ -79,7 +79,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.body.dataset.platform = "webext"
   document.body.dataset.webextTarget = __ONCE_WEBEXT_TARGET__
   const storyMenuContextId = crypto.randomUUID()
-  const platform = createWebExtPlatform(browser)
+  const platform = createWebExtPlatform(browser, {
+    target: __ONCE_WEBEXT_TARGET__,
+    appVersion: browser.runtime.getManifest().version
+  })
   const query = new URLSearchParams(window.location.search)
   const testMode = query.has("once-e2e")
   const app = createOnceApp(platform)

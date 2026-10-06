@@ -135,5 +135,6 @@ export function bindAddonInstallControls(client: OnceClient, onChanged: () => vo
     say(parts.join(" · "), failed.length > 0)
   })())
   bindAddonSettingsPages(block)
-  bindAddonVaultControls(client, requireElement<HTMLElement>("#addon_overview", block))
+  // Add-on sync lives with the rest of sync, in the Sync section.
+  bindAddonVaultControls(client, document.querySelector<HTMLElement>("#sync_addon_vault") ?? requireElement<HTMLElement>("#addon_overview", block))
 }

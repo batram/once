@@ -71,7 +71,17 @@ export interface AppSettingsActions {
     current: StorySourceDocument
   ): Promise<void> | void
   loadedStoryIds(): string[]
+  /**
+   * Null when `url` may be used for sync now, otherwise why not. Runs before
+   * every transport start: the destination binding and data consent.
+   */
+  authorizeSync(url: string, origin: SyncStartOrigin): Promise<string | null>
+  /** Shows why sync is not running, or clears that once it runs again. */
+  reportSyncBlocked(message: string | null): void
 }
+
+/** Who asked for a connection: decides whether a URL counts as the user's choice. */
+export type SyncStartOrigin = "startup" | "user" | "external"
 
 export class AppSettings {
   private addonWrites: Promise<void> = Promise.resolve()
@@ -80,6 +90,8 @@ export class AppSettings {
   private sourcesState: "pending" | "resolved" = "pending"
   private sourcesDocument?: StorySourceDocument
   private localSourcesResolution?: Promise<void>
+  private connectionGeneration = 0
+  private syncBlocked = false
   animated: AnimationSetting = true
 
   constructor(
@@ -226,29 +238,65 @@ export class AppSettings {
       )
       throw error
     }
-    if (normalizedUrl !== await this.getSyncUrl()) {
-      try {
-        await this.syncStore.setSyncUrl(normalizedUrl)
-      } catch (error) {
-        this.reportSaveError(
-          "settings.save.sync",
-          "The sync setting could not be saved",
-          error
-        )
-        throw error
+    const changed = normalizedUrl !== await this.getSyncUrl()
+    if (changed || this.syncBlocked) {
+      // Refuse before saving, so a URL this profile may not use never
+      // replaces the one it may.
+      const refusal = normalizedUrl ? await this.actions.authorizeSync(normalizedUrl, "user") : null
+      if (refusal) throw new Error(refusal)
+      if (changed) {
+        try {
+          await this.syncStore.setSyncUrl(normalizedUrl)
+        } catch (error) {
+          this.reportSaveError(
+            "settings.save.sync",
+            "The sync setting could not be saved",
+            error
+          )
+          throw error
+        }
       }
-      await this.startSync(normalizedUrl)
+      await this.startSync(normalizedUrl, "user")
     }
     this.actions.publishChanged("sync")
   }
 
-  async startSync(syncUrl: string): Promise<void> {
+  /**
+   * (Re)starts replication with `syncUrl`, after the gate allows it. A newer
+   * call supersedes one still waiting on the gate, so a URL replaced in the
+   * meantime is never connected to.
+   */
+  async startSync(syncUrl: string, origin: SyncStartOrigin = "startup"): Promise<void> {
+    const generation = ++this.connectionGeneration
     // The stored sources answer from the start; the replicated settings
     // replace them later, or never do while offline. Only a local-only setup
     // writes the defaults: with sync, an absent document is the remote's to fill.
     this.localSourcesResolution ??= this.resolveStorySources(false, !syncUrl.trim())
     await this.localSourcesResolution
+    if (generation !== this.connectionGeneration) return
+    if (!syncUrl.trim()) {
+      this.setSyncBlocked(null)
+      this.syncService?.syncFrom("", () => this.actions.loadedStoryIds())
+      return
+    }
+    // Cancel the current connection while the new one is checked: old
+    // queued work must not continue against a URL being replaced.
+    this.syncService?.syncFrom("", () => this.actions.loadedStoryIds())
+    const refusal = await this.actions.authorizeSync(syncUrl, origin)
+    if (generation !== this.connectionGeneration) return
+    this.setSyncBlocked(refusal)
+    if (refusal) return
     this.syncService?.syncFrom(syncUrl, () => this.actions.loadedStoryIds())
+  }
+
+  /** Stops replication without forgetting the URL, e.g. when consent is withdrawn. */
+  async restartSync(origin: SyncStartOrigin): Promise<void> {
+    await this.startSync(await this.getSyncUrl(), origin)
+  }
+
+  private setSyncBlocked(message: string | null): void {
+    this.syncBlocked = message !== null
+    this.actions.reportSyncBlocked(message)
   }
 
   async getCacheTime(): Promise<number> {

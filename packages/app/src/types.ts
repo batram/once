@@ -79,6 +79,8 @@ export interface StoryChangeDetail {
 export interface OnceAppEvents {
   diagnosticError: DiagnosticError
   syncStatusChanged: SyncStatus
+  /** Tab sync options, this device or another device's tabs changed. */
+  tabSyncChanged: Record<string, never>
   loaderChanged: {
     processing: ProcessingSource[]
     visible: boolean
@@ -181,6 +183,19 @@ export interface OnceClient {
   saveUserscripts(document: UserscriptsDocument): Promise<void>
   getSyncUrl(): Promise<string>
   setSyncUrl(syncUrl: string): Promise<void>
+  /** Whether this client must ask before sending data to the sync server, and whether it has. */
+  getSyncConsent(): Promise<"not-needed" | "required" | "granted">
+  /** Shows the browser's consent prompt; call it directly from a user gesture. */
+  requestSyncConsent(): Promise<boolean>
+  /** This device, its tab sync options and other devices' tabs; null where tab sync is unavailable. */
+  getTabSync(): Promise<import("./tabsync/TabSyncService").TabSyncView | null>
+  setTabSyncOptions(change: Partial<import("@once/core").TabSyncOptions>): Promise<void>
+  setTabSyncShared(change: Partial<import("@once/core").TabSyncSharedSettings>): Promise<void>
+  /** The name other devices and add-on sync snapshots show for this one. */
+  renameDevice(name: string): Promise<void>
+  /** Removes another device from tab sync until it turns sharing on again. */
+  forgetDevice(deviceId: string): Promise<void>
+  resetDeviceIdentity(): Promise<void>
   /**
    * The token a source sends, kept on this device only. Absent reads as "";
    * setting "" removes it. Rejects when this shell has no secret store.
@@ -306,6 +321,10 @@ export interface SyncServicePort {
   onDiagnostic?(handler: (error: DiagnosticError) => void): () => void
   onStatus?(handler: (status: SyncStatus) => void): () => void
   onRemoteChange?(handler: (change: DatabaseChange) => void): () => void
+  /** Pulled tab sync documents (`dev_`, `tsend_`, `tret_`), deletions included. */
+  onRemoteTabChange?(handler: (change: DatabaseChange) => void): () => void
+  /** Whether the local database holds any documents, which an earlier connection may have brought. */
+  hasLocalData?(): Promise<boolean>
 }
 
 export interface CacheStorePort {
@@ -320,6 +339,8 @@ export interface CacheStorePort {
 export interface SyncSettingsStorePort {
   getSyncUrl(): Promise<string>
   setSyncUrl(syncUrl: string): Promise<void>
+  /** The URL changed elsewhere: another window, or the browser's own settings sync. */
+  onSyncUrlChanged?(handler: () => void): () => void
   getCacheTime(): Promise<number>
   setCacheTime(cacheTime: string): Promise<void>
 }
@@ -334,6 +355,63 @@ export interface SecretStorePort {
   protection?: "os"
   get(key: string): Promise<string>
   set(key: string, value: string): Promise<void>
+}
+
+/**
+ * Consent to send data to the sync server, where the browser asks for it
+ * (Firefox's data collection permissions). Without this port no consent is
+ * needed. `request` must be called directly from a user gesture.
+ */
+export interface SyncConsentPort {
+  granted(): Promise<boolean>
+  /** False when this browser cannot ask at all; sync then stays off. */
+  supported?(): Promise<boolean>
+  request(): Promise<boolean>
+  onChanged(handler: () => void): () => void
+}
+
+/**
+ * The few document operations tab sync needs, so the same logic runs on the
+ * local PouchDB and, in an extension background, on CouchDB over HTTP.
+ * `get` resolves null for a missing or deleted document.
+ */
+export interface TabDocDatabase {
+  get(id: string, options?: { conflicts?: boolean; rev?: string }): Promise<Record<string, unknown> | null>
+  put(doc: Record<string, unknown>): Promise<{ rev: string }>
+  remove(id: string, rev: string): Promise<void>
+  /** Every live document whose id starts with `prefix`, with its `_conflicts`. */
+  list(prefix: string): Promise<Array<Record<string, unknown>>>
+}
+
+/** One open tab as this device sees it, before filtering for publication. */
+export interface LocalTab {
+  id: string
+  navSeq: number
+  url: string
+  title: string
+  mode: "web" | "reader"
+  active: boolean
+  pinned?: boolean
+  audible?: boolean
+  openedAt: number
+  navigatedAt: number
+  selectedAt: number
+  activityAt: number
+  storyId?: string
+}
+
+export interface LocalWindow {
+  id: string
+  focused: boolean
+  /** Private windows are never published. */
+  incognito?: boolean
+  tabs: LocalTab[]
+}
+
+/** This device's open tabs, for the platforms that publish them. */
+export interface TabSourcePort {
+  snapshot(): Promise<LocalWindow[]>
+  onChanged(handler: () => void): () => void
 }
 
 export interface ThemePort {
@@ -366,6 +444,19 @@ export interface OncePlatformPorts {
   syncService?: SyncServicePort
   cacheStore?: CacheStorePort
   syncSettingsStore: SyncSettingsStorePort
+  /**
+   * "browser" when the sync URL arrives through the browser's settings sync
+   * from other installations; such a URL is not proof of where this profile's
+   * data came from. Defaults to "device".
+   */
+  syncUrlProvenance?: "device" | "browser"
+  syncConsent?: SyncConsentPort
+  /** Tab sync documents in the local database; without it tab sync is unavailable. */
+  tabDocs?: TabDocDatabase
+  /** This device's tabs; without it the device can view other devices' tabs but not share its own. */
+  tabSource?: TabSourcePort
+  /** What this device is to the others; required for tab sync. */
+  device?: { platform: import("@once/core").TabSyncPlatform; defaultName: string; appVersion: string }
   /** Without one, sources that need a token report that they cannot have one. */
   secretStore?: SecretStorePort
   theme: ThemePort
