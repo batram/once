@@ -92,6 +92,13 @@ test("a pairing code can carry the add-on sync passphrase, which unlocks add-on 
     await page.getByTestId("sync-page-pair").click()
     const panel = page.getByTestId("pair-panel")
     await panel.getByTestId("pair-include-passphrase").check()
+    // Replication moving the status on must not redraw the offer under the reader.
+    const remote = new Db("once")
+    await remote.put({ _id: `pairing-probe-${Date.now()}`, note: "status churn" })
+    await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "up-to-date", { timeout: 20000 })
+    await page.waitForTimeout(1500)
+    await expect(panel.getByTestId("pair-include-passphrase")).toBeChecked()
+    await expect(panel.getByTestId("pair-passphrase")).toBeVisible()
     await expect(panel).toContainText("also opens your synced add-on tokens")
     await panel.getByTestId("pair-passphrase").fill("not the passphrase")
     await panel.getByTestId("pair-make").click()

@@ -167,3 +167,33 @@ test("a tab sent to the phone is announced in its own band above the tab bar, ne
   await expect(page.locator("#reading_url")).toHaveValue("https://sent.example/a-page-with-a-rather-long-title")
   await expect(toast).toBeHidden()
 })
+
+test("never-share domains take the row's full width on a wide phone and grow with their lines", async ({ page, request, baseURL }) => {
+  const database = "web_tab_sync_excluded"
+  const server = new URL(baseURL).origin
+  await request.post(`${server}/test/databases/${database}/reset`, { data: { docs: [] } })
+  await gotoMobileApp(page)
+  // iPhone Pro Max width: wide enough for the two-column rows.
+  await page.setViewportSize({ width: 440, height: 956 })
+  await openSettingsSection(page, "sync")
+  await page.getByTestId("sync-url").fill(`${server.replace("http://", "http://once-test:once-test@")}/db/${database}`)
+  await page.getByTestId("save-sync").click()
+  await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "up-to-date", { timeout: 15_000 })
+  await page.getByTestId("tab-sync-offer-share").click()
+  await page.getByTestId("sync-page-tabs").click()
+  const field = page.getByTestId("tab-sync-excluded")
+  const box = async () => field.evaluate((element) => {
+    const own = element.getBoundingClientRect()
+    const row = element.closest(".settings_row").getBoundingClientRect()
+    const name = element.closest(".settings_row").querySelector(".settings_row_name").getBoundingClientRect()
+    return { width: own.width, rowWidth: row.width, height: own.height, top: own.top, nameBottom: name.bottom }
+  })
+  const before = await box()
+  expect(before.width).toBeGreaterThan(before.rowWidth - 2)
+  expect(before.top).toBeGreaterThanOrEqual(before.nameBottom)
+  await field.fill(["a.example", "b.example", "c.example", "d.example", "e.example", "f.example"].join("\n"))
+  const after = await box()
+  expect(after.height).toBeGreaterThan(before.height)
+  expect(await field.evaluate((element) => element.scrollHeight - element.clientHeight)).toBeLessThanOrEqual(1)
+  await page.locator("#sync_page_tabs").screenshot({ path: "artifacts/tab-sync/never-share-wide-phone.png" })
+})

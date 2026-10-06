@@ -133,6 +133,23 @@
   justify-self: end;
 }
 
+/* A text area needs the width at any panel size: it takes its own line under
+   the name, as every row does in a narrow panel, and grows with its lines
+   (settings/textareaGrow.ts) since a phone cannot drag its corner. */
+.settings_row:has(> textarea) {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "name"
+    "control"
+    "hint";
+}
+
+.settings_row > textarea {
+  min-height: 4.5em;
+  overflow-y: hidden;
+  resize: none;
+}
+
 /* A switch is small enough to stay beside its name at any width, so its column
    is only as wide as it is and the row never stacks. */
 .settings_row_inline {

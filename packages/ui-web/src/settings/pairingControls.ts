@@ -2,6 +2,7 @@ import type { OnceClient } from "@once/app"
 import { decodePairingLink, describeSyncConnection, encodePairingLink, PairingPayload } from "@once/core"
 import qrcode from "qrcode-generator"
 import { requireElement } from "../dom"
+import { SYNC_PAGE_SHOWN } from "./syncSettingsPages"
 
 const SHOWN_FOR_MS = 60_000
 
@@ -35,7 +36,18 @@ export function bindPairingControls(client: OnceClient, scan?: () => Promise<str
     })
   }
   offer()
-  client.subscribe("syncStatusChanged", () => { if (!showingCode) offer() })
+  // Opening the page brings the offer up to date (add-on sync may have been
+  // set up meanwhile); so do connecting and disconnecting. Status flips
+  // between syncing and up to date all the time: redrawing on each would
+  // reset the passphrase choice the reader is making.
+  panel.closest("[data-sync-page]")?.addEventListener(SYNC_PAGE_SHOWN, () => { if (!showingCode) offer() })
+  let configured = client.getSyncStatus().state !== "disabled"
+  client.subscribe("syncStatusChanged", () => {
+    const now = client.getSyncStatus().state !== "disabled"
+    if (now === configured) return
+    configured = now
+    if (!showingCode) offer()
+  })
 
   const connect = (link: string) => {
     let payload: PairingPayload

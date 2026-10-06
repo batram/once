@@ -3,6 +3,9 @@ import { requireClosestElement, requireElement } from "../dom"
 /** The pages of Settings › Sync; the overview links to the others. */
 export type SyncPage = "overview" | "tabs" | "pair" | "addons"
 
+/** Raised on a page's element each time it is shown, for content to bring itself up to date. */
+export const SYNC_PAGE_SHOWN = "once:sync-page-shown"
+
 /** Asks Settings › Sync to show one of its pages, from anywhere in the shell. */
 export const SYNC_PAGE_EVENT = "once:sync-page"
 
@@ -38,6 +41,7 @@ export function bindSyncSettingsPages(root: HTMLElement, onShow: (page: SyncPage
     root.closest(".settings_section")?.scrollTo?.({ top: 0 })
     root.scrollTop = 0
     onShow(target)
+    pages.get(target)?.dispatchEvent(new Event(SYNC_PAGE_SHOWN))
     if (!focus) return
     const link = root.querySelector<HTMLElement>(`[data-sync-target="${returnFocus?.dataset.syncTarget ?? ""}"]`)
     const destination = target === "overview" ? (link ?? returnFocus) : back

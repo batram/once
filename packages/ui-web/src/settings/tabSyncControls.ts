@@ -11,6 +11,7 @@ import {
   TabSyncOptions
 } from "@once/core"
 import { requireElement } from "../dom"
+import { growWithContent } from "./textareaGrow"
 import { showConfirmDialog } from "../confirmDialog"
 import { platformName } from "../tabsync/devicePresentation"
 
@@ -44,6 +45,7 @@ export function bindTabSyncControls(client: OnceClient): void {
   const list = requireElement<HTMLUListElement>("#tab_sync_devices")
   const excluded = requireElement<HTMLTextAreaElement>("#tab_sync_excluded")
   let revision = 0
+  const fitExcluded = growWithContent(excluded)
 
   fillChoices(page)
   requireElement<HTMLButtonElement>("#sync_consent_button").addEventListener("click", () => {
@@ -109,7 +111,10 @@ export function bindTabSyncControls(client: OnceClient): void {
 
   const render = (view: TabSyncView) => {
     if (document.activeElement !== name) name.value = view.self?.name ?? ""
-    if (document.activeElement !== excluded) excluded.value = view.options.excludedDomains.join("\n")
+    if (document.activeElement !== excluded) {
+      excluded.value = view.options.excludedDomains.join("\n")
+      fitExcluded()
+    }
     for (const section of page.querySelectorAll<HTMLElement>("[data-tab-sync-on]")) {
       // The Electron placement group stays hidden on every other shell.
       if (section.id === "remote_tabs_placement_row" && !section.dataset.platformShown) continue
