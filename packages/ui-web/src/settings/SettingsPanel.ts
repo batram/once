@@ -21,7 +21,6 @@ import { bindExtensionSettingsEditors, ExtensionSettingsEditors } from "./extens
 import settingsSectionDefinitions from "./settingsSectionDefinitions"
 import { SettingsNavigation, SettingsPanelOptions } from "./SettingsNavigation"
 import { trackSettingsSave } from "./settingsStatus"
-import { bindHelpTips } from "../helpTip"
 import { bindSyncStatusButton } from "./syncStatusButton"
 
 export class SettingsPanel {
@@ -46,7 +45,7 @@ export class SettingsPanel {
       (sourceId) => this.highlightSource(sourceId)
     )
     SettingsPanel.instance = this
-    bindHelpTips(requireElement<HTMLElement>("#settings_panel"))
+    settingsControls.bindSettingsRows(requireElement<HTMLElement>("#settings_panel"))
     bindSettingsSubscriptions(client, {
       filters: () => void this.set_filter_area(),
       redirects: () => void this.set_redirect_area(),

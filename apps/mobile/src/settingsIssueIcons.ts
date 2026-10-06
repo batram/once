@@ -13,11 +13,10 @@ function apply(shown: boolean): void {
   document.body.classList.toggle("once-hide-settings-issue-icons", !shown)
 }
 
-/** Reveals the switch before mountOnceUi builds the settings navigation. */
+/** Binds the switch in the mobile Layout group, which the story card reveals. */
 export function bindSettingsIssueIcons(): void {
   const box = document.querySelector<HTMLInputElement>("#mobile_settings_issue_icons")
   if (!box) return
-  document.querySelector<HTMLElement>("#mobile_layout_settings")?.removeAttribute("hidden")
   box.checked = storedIssueIconsShown()
   apply(box.checked)
   box.addEventListener("change", () => {

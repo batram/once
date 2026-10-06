@@ -3,6 +3,7 @@ import { mountStoryButtonSettings } from "../story/storyButtonPreferences"
 import { SourceError } from "@once/app"
 import { requireClosestElement, requireElement } from "../dom"
 import { SETTINGS_EDITOR_SCOPE } from "./settingsStatus"
+import { bindHelpTips } from "../helpTip"
 
 interface TextSettingBinding {
   textareaId: string
@@ -106,4 +107,22 @@ export function bindThemeAnimationControls(
   theme.addEventListener("change", () => saveTheme(theme.value))
   const animation = requireElement<HTMLInputElement>("#anim_checkbox")
   animation.addEventListener("change", () => saveAnimation(animation.checked))
+}
+
+/**
+ * Puts each row's long hint behind a (?), and lets a switch row toggle from
+ * anywhere in it, not only its label: the (?) shrinks the label to its text,
+ * and the hint and padding were never part of it. Taps on the row's own
+ * controls and help text keep their meaning.
+ */
+export function bindSettingsRows(root: HTMLElement): void {
+  bindHelpTips(root)
+  root.addEventListener("click", (event) => {
+    const target = event.target
+    if (!(target instanceof Element)) return
+    const row = target.closest(".settings_row_inline")
+    const toggle = row?.querySelector<HTMLInputElement>(":scope > input.switch")
+    if (!toggle || target.closest("a, button, input, select, textarea, label, .help_tip_text")) return
+    toggle.click()
+  })
 }

@@ -1,3 +1,5 @@
+import { bindSettingsIssueIcons } from "./settingsIssueIcons"
+
 // The one remembered choice for the current-story card: the Settings select
 // shows it, and collapsing or expanding the card while reading overwrites it,
 // so every later story opens the way the last one was left.
@@ -55,6 +57,7 @@ export class StoryCardCollapse {
     // Reveals the mobile-only Layout group before mountOnceUi builds the
     // settings navigation, the same handshake Electron's story position uses.
     required("#mobile_layout_settings").hidden = false
+    bindSettingsIssueIcons()
     const select = required<HTMLSelectElement>("#mobile_story_card_state")
     this.renderSetting()
     select.addEventListener("change", () => this.set(select.value === "collapsed", true))
