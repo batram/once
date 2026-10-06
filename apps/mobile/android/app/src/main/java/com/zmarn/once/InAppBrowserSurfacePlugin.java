@@ -330,6 +330,15 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
     }
 
     @PluginMethod
+    public void goToHistoryIndex(PluginCall call) {
+        if (!route(call, Missing.REJECT, tab -> tab.goToHistoryIndex(call))) return;
+        getActivity().runOnUiThread(() -> {
+            gotoHistory(call.getInt("index", -1));
+            call.resolve();
+        });
+    }
+
+    @PluginMethod
     public void capturePreview(PluginCall call) {
         if (!route(call, Missing.RESOLVE, tab -> tab.capturePreview(call))) return;
         getActivity().runOnUiThread(() -> ReadingPreview.capture(this, getBridge().getWebView(), call));
@@ -368,9 +377,38 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
         // without a session the browser controls show disabled.
         if (!route(call, Missing.CREATE, tab -> tab.showMenu(call))) return;
         if (call.getBoolean("browserControls", false)) getActivity().runOnUiThread(() ->
-            NativeBrowserMenu.show(getActivity(), call, session, canGoBack, canGoForward,
-                () -> moveHistory(false), () -> moveHistory(true), this::reloadSession, backgroundMedia));
+            showBrowserMenu(call));
         else NativeSurfaceDialogs.showMenu(getBridge(), call);
+    }
+
+    /** The long-press menu for the shell's own Reader frame, which the system WebView draws none for. */
+    @PluginMethod
+    public void showContextMenu(PluginCall call) {
+        String link = call.getString("link");
+        String image = call.getString("image");
+        LinkContextMenu.Target target = new LinkContextMenu.Target(link, call.getString("linkText"), image,
+            image == null ? GeckoSession.ContentDelegate.ContextElement.TYPE_NONE : GeckoSession.ContentDelegate.ContextElement.TYPE_IMAGE,
+            call.getString("referrer"));
+        getActivity().runOnUiThread(() -> {
+            LinkContextMenu.show(getActivity(), engine.runtime, target, (url, background) ->
+                notifyListeners("openLinkRequested", new JSObject().put("url", url).put("background", background)));
+            call.resolve();
+        });
+    }
+
+    /** With Reader-mode entries in its history, the shell owns Back and Forward. */
+    private void showBrowserMenu(PluginCall call) {
+        JSObject history = call.getObject("history", null);
+        boolean back = history != null ? history.optBoolean("back") : canGoBack;
+        boolean forward = history != null ? history.optBoolean("forward") : canGoForward;
+        NativeBrowserMenu.show(getActivity(), call, session, back, forward,
+            () -> { if (history != null) requestHistory("back"); else moveHistory(false); },
+            () -> { if (history != null) requestHistory("forward"); else moveHistory(true); },
+            this::reloadSession, backgroundMedia);
+    }
+
+    private void requestHistory(String direction) {
+        notifyListeners("historyRequested", new JSObject().put("direction", direction));
     }
 
     @PluginMethod

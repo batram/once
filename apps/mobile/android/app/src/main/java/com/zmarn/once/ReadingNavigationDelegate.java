@@ -21,6 +21,7 @@ final class ReadingNavigationDelegate implements GeckoSession.NavigationDelegate
         if (ignored != h.session || h.awaitingRequestedStart) return;
         h.currentUrl = url == null ? "" : url;
         if (h.isSurfaceUrl(url)) h.requestedUrl = h.currentUrl;
+        h.locationChanged(h.currentUrl);
         h.committedNavigation = h.activeNavigation;
         h.event("navigationCommitted", h.activeNavigation, h.currentUrl);
         h.history(h.activeNavigation);

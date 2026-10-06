@@ -158,6 +158,20 @@ export class ReadingSession {
     })
   }
 
+  /**
+   * Shows a history entry: a page the browser holds, which it is moving to or
+   * already shows (`ready`), or a Reader view of an address.
+   */
+  showHistoryEntry(url: string, mode: ReadingMode, ready = false): void {
+    this.patch({
+      mode,
+      currentUrl: url,
+      pageContext: { sourceUrl: url },
+      loadState: mode !== "reader" && ready ? "ready" : "loading",
+      error: null
+    })
+  }
+
   move(delta: -1 | 1): Story | null {
     if (this.visibleStories.length === 0) return null
     const current = this.state.visibleStoryIndex

@@ -1,6 +1,7 @@
 import { Story } from "@once/core"
 import { ReadingSession } from "@once/ui-web"
 import type { ReadingSessionState } from "@once/ui-web"
+import { ReadingHistory } from "./readingHistory"
 type ReadingMode = ReadingSessionState["mode"]
 
 const STORAGE_KEY = "once:mobile-reading-tabs:v1"
@@ -16,6 +17,8 @@ export interface ReadingTab {
   readonly id: string
   readonly generation: string
   readonly session: ReadingSession
+  /** Back/forward as the reader sees it, Reader-mode entries included. */
+  readonly history: ReadingHistory
   title: string
   readerScroll: number
   restored: boolean
@@ -147,11 +150,12 @@ export class ReadingTabs {
   }
 
   private make(id: string, generation: string = crypto.randomUUID()): ReadingTab {
-    const tab: ReadingTab = { id, generation, session: new ReadingSession(true), title: "", readerScroll: 0, restored: false }
+    const tab: ReadingTab = { id, generation, session: new ReadingSession(true), history: new ReadingHistory(), title: "", readerScroll: 0, restored: false }
     let initial = true
     let previousUrl = ""
     let previousNavigation = 0
     this.removers.set(id, tab.session.subscribe(state => {
+      tab.history.observe(state.mode, state.currentUrl)
       // Only a new document resets; same-document history (pushState) keeps it.
       const newDocument = !state.currentUrl || state.loadState === "loading" || state.navigationId !== previousNavigation
       if (state.currentUrl !== previousUrl && newDocument) {

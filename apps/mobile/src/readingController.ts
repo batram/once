@@ -139,6 +139,10 @@ export class MobileReadingController {
       tab.session.navigate(event.url)
       this.runtime.adopt(tab.id, event.url)
     })
+    // The browser sheet's Back and Forward, which the shell carries out.
+    await this.surface.addListener("historyRequested", event => {
+      void (event.direction === "back" ? this.handleBack() : this.handleForward())
+    })
     await this.surface.addListener("openLinkRequested", event => {
       const tab = this.tabs.create(!event.background)
       tab.session.navigate(event.url)
@@ -208,6 +212,8 @@ export class MobileReadingController {
       PanelNavigation.open_panel("stories")
       return true
     }
+    if (await this.nativeReading.stepHistory("back")) return true
+    // An engine without a history list still has its own Back.
     if (state.mode !== "reader" && state.canGoBack) {
       await this.nativeReading.goBack()
       return true
@@ -225,10 +231,21 @@ export class MobileReadingController {
   async handleForward(): Promise<boolean> {
     if (this.settingsNavigate("forward")) return true
     if (this.activePanel !== "reading") return false
+    if (await this.nativeReading.stepHistory("forward")) return true
     const state = this.session.snapshot()
     if (state.mode === "reader" || !state.canGoForward) return false
     await this.nativeReading.goForward()
     return true
+  }
+
+  /** Back/Forward availability for the browser sheet, Reader-mode entries included. */
+  historyState(): { back: boolean; forward: boolean } {
+    const state = this.session.snapshot()
+    const browser = state.mode !== "reader"
+    return {
+      back: this.nativeReading.canStep("back") || (browser && state.canGoBack),
+      forward: this.nativeReading.canStep("forward") || (browser && state.canGoForward)
+    }
   }
 
   /** Offers the step to the settings visit history; true when it took it. */

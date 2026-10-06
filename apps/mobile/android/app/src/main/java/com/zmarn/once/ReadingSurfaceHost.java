@@ -81,6 +81,16 @@ abstract class ReadingSurfaceHost extends Plugin {
     protected int documentStatus;
     protected boolean canGoBack;
     protected boolean canGoForward;
+    /**
+     * Gecko's history list, so the shell can keep its Reader-mode entries in
+     * step. Gecko reports it only with session-store snapshots, seconds after a
+     * load, so the list follows locations and this host's own moves at once;
+     * a snapshot that agrees with the current page then corrects it.
+     */
+    protected java.util.List<String> historyUrls = new java.util.ArrayList<>();
+    protected int historyIndex = -1;
+    /** The position a move this host asked Gecko for lands on. */
+    protected int pendingHistoryIndex = -1;
     protected int scrollY;
 
     /** Set once the shell asked for a page; the session's initial about:blank is not one. */
@@ -262,6 +272,12 @@ abstract class ReadingSurfaceHost extends Plugin {
             }, title -> { if (session == created) pageTitle = title; },
             () -> { if (session == created) pageCloseRequested(); },
             element -> { if (session == created) showContextMenu(element); }));
+        session.setHistoryDelegate(new GeckoSession.HistoryDelegate() {
+            @Override
+            public void onHistoryStateChange(GeckoSession source, GeckoSession.HistoryDelegate.HistoryList list) {
+                if (source == session) historyListChanged(list);
+            }
+        });
         session.setScrollDelegate(new GeckoSession.ScrollDelegate() {
             @Override
             public void onScrollChanged(GeckoSession ignored, int x, int y) {
@@ -309,6 +325,9 @@ abstract class ReadingSurfaceHost extends Plugin {
         scrollY = 0;
         canGoBack = false;
         canGoForward = false;
+        historyUrls = new java.util.ArrayList<>();
+        historyIndex = -1;
+        pendingHistoryIndex = -1;
         session = null;
         surface = null;
         refreshSurface = null;
@@ -369,8 +388,53 @@ abstract class ReadingSurfaceHost extends Plugin {
         session.loadUri(url);
     }
 
+    /** Gecko's own list, from a history or session-store snapshot; possibly seconds old. */
+    protected void historyListChanged(GeckoSession.HistoryDelegate.HistoryList list) {
+        if (pendingHistoryIndex >= 0 || initialBlank || awaitingRequestedStart) return;
+        java.util.List<String> urls = new java.util.ArrayList<>();
+        for (GeckoSession.HistoryDelegate.HistoryItem item : list) urls.add(item.getUri());
+        int index = list.getCurrentIndex();
+        // A snapshot taken before the latest move names another current page.
+        if (index < 0 || index >= urls.size() || !urls.get(index).equals(currentUrl)) return;
+        if (urls.equals(historyUrls) && index == historyIndex) return;
+        historyUrls = urls;
+        historyIndex = index;
+        history(activeNavigation);
+    }
+
+    /** The page's location changed: a move this host asked for, or a new entry. */
+    protected void locationChanged(String url) {
+        if (url == null || url.isEmpty() || initialBlank) return;
+        if (pendingHistoryIndex >= 0 && pendingHistoryIndex < historyUrls.size()) {
+            historyIndex = pendingHistoryIndex;
+            historyUrls.set(historyIndex, url);
+            pendingHistoryIndex = -1;
+            return;
+        }
+        pendingHistoryIndex = -1;
+        if (historyIndex >= 0 && historyIndex < historyUrls.size() && historyUrls.get(historyIndex).equals(url)) return;
+        java.util.List<String> urls = new java.util.ArrayList<>(historyUrls.subList(0, Math.max(0, Math.min(historyIndex + 1, historyUrls.size()))));
+        urls.add(url);
+        historyUrls = urls;
+        historyIndex = urls.size() - 1;
+    }
+
+    /** A position in Gecko's history, as reported in historyChanged. */
+    protected void gotoHistory(int index) {
+        if (session == null || !session.isOpen() || index < 0 || index >= historyUrls.size() || index == historyIndex) return;
+        pendingHistoryIndex = index;
+        requestedSequence.incrementAndGet();
+        awaitingRequestedStart = false;
+        requestedUrl = currentUrl;
+        recoveryAttempts = 0;
+        armNavigation();
+        session.gotoHistoryIndex(index);
+    }
+
     protected void moveHistory(boolean forward) {
         if (session == null || !session.isOpen() || !(forward ? canGoForward : canGoBack)) return;
+        int target = historyIndex + (forward ? 1 : -1);
+        pendingHistoryIndex = target >= 0 && target < historyUrls.size() ? target : -1;
         requestedSequence.incrementAndGet();
         awaitingRequestedStart = false;
         requestedUrl = currentUrl;
@@ -488,7 +552,7 @@ abstract class ReadingSurfaceHost extends Plugin {
     protected abstract boolean ownsForeground();
 
     protected void showContextMenu(GeckoSession.ContentDelegate.ContextElement element) {
-        LinkContextMenu.show(getActivity(), engine.runtime, element, (url, background) ->
+        LinkContextMenu.show(getActivity(), engine.runtime, LinkContextMenu.Target.of(element), (url, background) ->
             notifyListeners("openLinkRequested", new JSObject().put("url", url).put("background", background)));
     }
 
@@ -523,6 +587,10 @@ abstract class ReadingSurfaceHost extends Plugin {
         payload.put("url", currentUrl);
         payload.put("canGoBack", canGoBack);
         payload.put("canGoForward", canGoForward);
+        if (historyIndex >= 0) {
+            payload.put("historyUrls", new com.getcapacitor.JSArray(historyUrls));
+            payload.put("historyIndex", historyIndex);
+        }
         notifyListeners("historyChanged", payload);
     }
 
@@ -579,6 +647,9 @@ abstract class ReadingSurfaceHost extends Plugin {
         bridgePort = null;
         failPendingEvaluations(message);
         canGoBack = false;
+        historyUrls = new java.util.ArrayList<>();
+        historyIndex = -1;
+        pendingHistoryIndex = -1;
         scrollY = 0;
     }
 

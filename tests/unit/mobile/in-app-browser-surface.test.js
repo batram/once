@@ -140,10 +140,15 @@ test("native embedded browsers report forward history and iOS hands unhandled ed
 
   assert.match(androidHost, /payload\.put\("canGoForward", canGoForward\)/)
   assert.match(androidPlugin, /public void goForward\(PluginCall call\)/)
-  assert.match(ios, /allowsBackForwardNavigationGestures = true/)
+  // WebKit swipes only through what the shell's history also has next to the page.
+  assert.match(ios, /allowsBackForwardNavigationGestures = webKitSwipes/)
+  assert.match(ios, /value\["historyIndex"\] = list\.backList\.count/)
+  assert.match(androidHost, /payload\.put\("historyIndex", historyIndex\)/)
+  assert.match(androidHost, /session\.gotoHistoryIndex\(index\)/)
   assert.match(ios, /value\["canGoForward"\] = view\.canGoForward/)
   assert.match(ios, /@objc func goForward\(_ call: CAPPluginCall\)/)
   // The shell only hears about the edges WebKit cannot navigate itself.
+  assert.match(ios, /guard surface\.allowsBackForwardNavigationGestures else \{ return true \}/)
   assert.match(ios, /edge\.edges == \.left \? !surface\.canGoBack : !surface\.canGoForward/)
   assert.match(ios, /pageEvent\("edgeSwipe"/)
 })

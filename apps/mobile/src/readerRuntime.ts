@@ -5,7 +5,8 @@ import {
 } from "@once/ui-web/reader/readerTtsPreferences"
 import { installReaderTtsPolyfill } from "./readerTtsPolyfill"
 import { installReaderFind } from "./readerFind"
-import { installReaderLinks } from "./readerLinks"
+import { installReaderLinkMenu, installReaderLinks } from "./readerLinks"
+import { installReaderEdgeSwipe } from "./readerEdgeSwipe"
 import {
   isReaderTtsEvent,
   READER_TTS_CHANNEL,
@@ -17,6 +18,8 @@ import {
 installReaderTtsPolyfill(window, { force: true })
 installReaderFind(window)
 installReaderLinks(window)
+installReaderLinkMenu(window)
+installReaderEdgeSwipe(window)
 const sessionId = `ui-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
 const controlListeners = new Set<(message: ReaderTtsEvent) => void>()
 window.addEventListener("message", (event) => {

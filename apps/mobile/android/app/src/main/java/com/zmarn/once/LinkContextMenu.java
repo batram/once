@@ -18,11 +18,33 @@ import org.mozilla.geckoview.GeckoSession.ContentDelegate.ContextElement;
 final class LinkContextMenu {
     private LinkContextMenu() {}
 
+    /** What was pressed: a link, media, or both. Each field may be null. */
+    static final class Target {
+        final String link;
+        final String linkText;
+        final String media;
+        final int mediaType;
+        final String referrer;
+
+        Target(String link, String linkText, String media, int mediaType, String referrer) {
+            this.link = link;
+            this.linkText = linkText;
+            this.media = media;
+            this.mediaType = mediaType;
+            this.referrer = referrer;
+        }
+
+        static Target of(ContextElement element) {
+            return new Target(element.linkUri, element.linkText,
+                element.type == ContextElement.TYPE_NONE ? null : element.srcUri, element.type, element.baseUri);
+        }
+    }
+
     /** openInTab receives the URL and whether the new tab stays in the background. */
-    static void show(Activity activity, GeckoRuntime runtime, ContextElement element,
+    static void show(Activity activity, GeckoRuntime runtime, Target target,
                      BiConsumer<String, Boolean> openInTab) {
-        String link = element.linkUri;
-        String media = element.type == ContextElement.TYPE_NONE ? null : element.srcUri;
+        String link = target.link;
+        String media = target.media;
         if (link == null && media == null) return;
 
         List<String> labels = new ArrayList<>();
@@ -36,27 +58,27 @@ final class LinkContextMenu {
             }
             labels.add("Copy link address");
             actions.add(() -> copy(activity, "Link", link));
-            if (!TextUtils.isEmpty(element.linkText)) {
+            if (!TextUtils.isEmpty(target.linkText)) {
                 labels.add("Copy link text");
-                actions.add(() -> copy(activity, "Link text", element.linkText.trim()));
+                actions.add(() -> copy(activity, "Link text", target.linkText.trim()));
             }
             labels.add("Share link");
             actions.add(() -> share(activity, link));
         }
         if (media != null) {
-            String noun = mediaNoun(element.type);
+            String noun = mediaNoun(target.mediaType);
             if (isWebUrl(media)) {
                 labels.add("Open " + noun + " in new tab");
                 actions.add(() -> openInTab.accept(media, false));
             }
-            if (element.type == ContextElement.TYPE_IMAGE) {
+            if (target.mediaType == ContextElement.TYPE_IMAGE) {
                 labels.add("Copy image");
-                actions.add(() -> ImageShare.copy(activity, runtime, media, element.baseUri));
+                actions.add(() -> ImageShare.copy(activity, runtime, media, target.referrer));
                 labels.add("Share image");
-                actions.add(() -> ImageShare.share(activity, runtime, media, element.baseUri));
+                actions.add(() -> ImageShare.share(activity, runtime, media, target.referrer));
                 if (ImageShare.canSave()) {
                     labels.add("Save image");
-                    actions.add(() -> ImageShare.save(activity, runtime, media, element.baseUri));
+                    actions.add(() -> ImageShare.save(activity, runtime, media, target.referrer));
                 }
             }
             labels.add("Copy " + noun + " address");

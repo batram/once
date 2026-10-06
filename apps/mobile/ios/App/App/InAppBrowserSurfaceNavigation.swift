@@ -22,6 +22,11 @@ extension InAppBrowserSurfacePlugin {
         var value = navigationState.payload(view.url)
         value["canGoBack"] = view.canGoBack
         value["canGoForward"] = view.canGoForward
+        // The whole list, so the shell can keep its Reader-mode entries in step.
+        let list = view.backForwardList
+        let pages = list.backList + [list.currentItem].compactMap { $0 } + list.forwardList
+        value["historyUrls"] = pages.map { $0.url.absoluteString }
+        value["historyIndex"] = list.backList.count
         pageEvent("historyChanged", data: value)
     }
 

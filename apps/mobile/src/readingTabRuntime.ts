@@ -158,7 +158,7 @@ export class ReadingTabRuntime {
           this.usedInitialReader = true
           if (reader !== this.initialReader) reader.onDocumentClosed(() => this.readerClosedListener?.(reader))
           reader.setScrollPosition(() => tab.readerScroll)
-          const coordinator = new ReadingSurfaceCoordinator(tab.session, surface, reader, this.content)
+          const coordinator = new ReadingSurfaceCoordinator(tab.session, surface, reader, this.content, undefined, tab.history)
           for (const cover of Object.keys(this.covers) as Cover[]) applyCover(coordinator, cover, this.covers[cover])
           runtime = { generation: tab.generation, reader, coordinator, surface }
           this.runtimes.set(tab.id, runtime)

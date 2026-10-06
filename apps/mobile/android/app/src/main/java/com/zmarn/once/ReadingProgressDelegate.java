@@ -11,6 +11,7 @@ final class ReadingProgressDelegate implements GeckoSession.ProgressDelegate {
     @Override public void onProgressChange(GeckoSession source, int progress) { h.display.progress(source, progress); }
     @Override public void onSessionStateChange(GeckoSession source, GeckoSession.SessionState state) {
         if (source == h.session && !h.awaitingRequestedStart && !h.initialBlank) h.sessionState = state;
+        if (source == h.session && state != null) h.historyListChanged(state);
     }
     @Override
     public void onPageStart(GeckoSession ignored, String url) {

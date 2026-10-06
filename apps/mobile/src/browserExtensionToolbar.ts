@@ -31,7 +31,9 @@ function setStatus(message: string): void {
 export function bindMobileExtensionToolbar(
   api: MobileBrowserExtensions | null,
   surface: InAppBrowserSurface,
-  pageActions: ReadingPageActions = { list: () => [], run() {} }
+  pageActions: ReadingPageActions = { list: () => [], run() {} },
+  /** The shell's Back/Forward, which the sheet shows and hands back as historyRequested. */
+  history?: () => { back: boolean; forward: boolean }
 ): void {
   const navigate = document.querySelector<HTMLButtonElement>("#reading_navigate")
   if (!navigate) return
@@ -68,7 +70,7 @@ export function bindMobileExtensionToolbar(
       }
       // Both native surfaces draw the sheet (iOS without the extension rows).
       const selected = api || surface.available
-        ? await surface.showMenu({ items, browserControls: true, dark: shellIsDark() })
+        ? await surface.showMenu({ items, browserControls: true, dark: shellIsDark(), history: history?.() })
         : await showBrowserMenu(items)
       if (selected === "once:manage") {
         openExtensionManager()

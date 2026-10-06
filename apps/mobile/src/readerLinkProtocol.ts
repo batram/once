@@ -44,6 +44,27 @@ export function classifyReaderLink(href: string | null): ReaderLinkAction {
   }
 }
 
+/**
+ * A long-press on a link or image. Android's WebView fires contextmenu but
+ * draws no menu of its own, so the host asks the native side for one.
+ */
+export interface ReaderMenuRequest {
+  channel: typeof READER_LINK_CHANNEL
+  version: typeof READER_LINK_VERSION
+  type: "menu"
+  link?: string
+  linkText?: string
+  image?: string
+}
+
+export function isReaderMenuRequest(value: unknown): value is ReaderMenuRequest {
+  if (!value || typeof value !== "object") return false
+  const candidate = value as Partial<ReaderMenuRequest>
+  return candidate.channel === READER_LINK_CHANNEL &&
+    candidate.version === READER_LINK_VERSION &&
+    candidate.type === "menu"
+}
+
 export function readerLinkRequest(url: string): ReaderLinkRequest {
   return { channel: READER_LINK_CHANNEL, version: READER_LINK_VERSION, type: "open", url }
 }

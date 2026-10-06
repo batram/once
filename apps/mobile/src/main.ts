@@ -27,7 +27,8 @@ import { mobileAddonConversations } from "./addonConversations"
 import { installReaderTtsHostBridge } from "./readerTtsHostBridge"
 import { installReaderTtsControls } from "./readerTtsControls"
 import { installReaderMediaSession, nativeReaderSpeechEngine } from "./readerMediaSession"
-import { installReaderLinkHost } from "./readerLinks"
+import { installReaderLinkHost, installReaderLinkMenuHost } from "./readerLinks"
+import { installReaderEdgeSwipeHost } from "./readerEdgeSwipe"
 import { MobileReadingController } from "./readingController"
 import { readingPageActions } from "./readingPageActions"
 import { bindReloadStatus, RELOAD_SPIN_TIMEOUT_MS } from "./reloadStatus"
@@ -63,6 +64,10 @@ function mountTouchNavigation(reading: MobileReadingController): void {
     onForward: () => void reading.handleForward(),
     enabled: () =>
       document.querySelector("#left_panel")?.getAttribute("active_panel") !== "stories"
+  })
+  // The Reader frame's own touches never reach the shell; it reports its swipes.
+  installReaderEdgeSwipeHost((source) => reading.runtimeReaderWindow(source), (direction) => {
+    void (direction === "back" ? reading.handleBack() : reading.handleForward())
   })
 }
 
@@ -247,6 +252,12 @@ async function startMobileApp(): Promise<void> {
     if (url.startsWith("mailto:")) void nativeBridge.openExternal(url)
     else reading.openBrowserUrl(url)
   })
+  // Android's WebView draws no long-press menu for the Reader frame; the native one does.
+  if (Capacitor.getPlatform() === "android") {
+    installReaderLinkMenuHost((source) => reading.runtimeReaderWindow(source), (request) => {
+      void browserSurface.showContextMenu?.({ ...request, referrer: reading.session.snapshot().currentUrl })
+    })
+  }
   ReaderView.mount(app.client)
   const sourcePicker = new MobileSourcePicker({
     surface: browserSurface,
@@ -301,7 +312,8 @@ async function startMobileApp(): Promise<void> {
   if (browserExtensions) {
     bindMobileBrowserExtensionSettings(browserExtensions, url => reading.openBrowserUrl(url))
   }
-  bindMobileExtensionToolbar(browserExtensions, browserSurface, readingPageActions(() => reading.session.snapshot().currentUrl))
+  bindMobileExtensionToolbar(browserExtensions, browserSurface, readingPageActions(() => reading.session.snapshot().currentUrl),
+    () => reading.historyState())
   mountTouchNavigation(reading)
   if (__ONCE_MOBILE_E2E__) installMobileTestHooks(app, reading, browserSurface, navigationListeners)
   document.body.dataset.onceStage = "ready"

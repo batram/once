@@ -14,6 +14,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         CAPPluginMethod(name: "reload", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "goBack", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "goForward", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "goToHistoryIndex", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setHistoryGestures", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setBounds", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setVisible", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "showMenu", returnType: CAPPluginReturnPromise),
@@ -133,6 +135,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     }
 
     private var savedBounds: JSObject = [:]
+    /// Off while the shell's history differs from WebKit's next to the current page.
+    private var webKitSwipes = true
     var surface: WKWebView?
     /// Set once a tab instance is closed or superseded; it never gets a surface again.
     private var retired = false
@@ -208,7 +212,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         // Safari's edge swipes for the page's own history. The recognizers
         // below pick up the edges WebKit leaves alone (no history that way)
         // and hand them to the shell, which continues its back stack.
-        view.allowsBackForwardNavigationGestures = true
+        view.allowsBackForwardNavigationGestures = webKitSwipes
         for edge in [UIRectEdge.left, UIRectEdge.right] {
             let recognizer = UIScreenEdgePanGestureRecognizer(
                 target: self,
@@ -245,6 +249,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     /// web view's own gesture runs and this one stays out of the way.
     public func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
         guard let edge = recognizer as? UIScreenEdgePanGestureRecognizer, let surface else { return true }
+        guard surface.allowsBackForwardNavigationGestures else { return true }
         return edge.edges == .left ? !surface.canGoBack : !surface.canGoForward
     }
 
@@ -360,6 +365,29 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         }
     }
 
+    /// A position in the page's own history, as reported in historyChanged.
+    @objc func goToHistoryIndex(_ call: CAPPluginCall) {
+        guard route(call, { $0.goToHistoryIndex(call) }) else { return }
+        DispatchQueue.main.async {
+            if let surface = self.surface, let index = call.getInt("index"),
+               let item = surface.backForwardList.item(at: index - surface.backForwardList.backList.count) {
+                surface.go(to: item)
+            }
+            call.resolve()
+        }
+    }
+
+    /// Which directions WebKit's own swipe may take. The shell takes the others:
+    /// a Reader-mode entry there is not a page WebKit holds.
+    @objc func setHistoryGestures(_ call: CAPPluginCall) {
+        guard route(call, { $0.setHistoryGestures(call) }) else { return }
+        DispatchQueue.main.async {
+            self.webKitSwipes = call.getBool("back", true) && call.getBool("forward", true)
+            self.surface?.allowsBackForwardNavigationGestures = self.webKitSwipes
+            call.resolve()
+        }
+    }
+
     @objc func setBounds(_ call: CAPPluginCall) {
         guard route(call, { $0.setBounds(call) }) else { return }
         DispatchQueue.main.async {
@@ -431,12 +459,18 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         let surface = self.surface
         // The shell says which theme it resolved; without that, follow the system.
         let dark = call.getBool("dark") ?? (presenter.traitCollection.userInterfaceStyle == .dark)
+        let history = call.getObject("history")
         let sheet = BrowserMenuSheet(call: call, navigation: .init(
-            canBack: surface?.canGoBack == true,
-            canForward: surface?.canGoForward == true,
+            canBack: history?["back"] as? Bool ?? (surface?.canGoBack == true),
+            canForward: history?["forward"] as? Bool ?? (surface?.canGoForward == true),
             canReload: surface != nil,
-            back: { surface?.goBack() },
-            forward: { surface?.goForward() },
+            // With Reader-mode entries the shell owns the steps, not WebKit.
+            back: { [weak self] in
+                if history != nil { self?.pageEvent("historyRequested", data: ["direction": "back"]) } else { surface?.goBack() }
+            },
+            forward: { [weak self] in
+                if history != nil { self?.pageEvent("historyRequested", data: ["direction": "forward"]) } else { surface?.goForward() }
+            },
             reload: { [weak self] in
                 if let surface { self?.navigationState.reload(surface) }
             }

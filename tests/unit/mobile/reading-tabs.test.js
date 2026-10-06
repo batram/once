@@ -7,8 +7,14 @@ const { Story } = require("../../../packages/core/dist/story/Story")
 const compiled = ts.transpileModule(fs.readFileSync(require("node:path").join(__dirname, "../../../apps/mobile/src/readingTabs.ts"), "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
 }).outputText
+const transpile = file => ts.transpileModule(fs.readFileSync(require("node:path").join(__dirname, "../../../apps/mobile/src", file), "utf8"), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
+}).outputText
+const historyExports = {}
+Function("exports", "require", transpile("readingHistory.ts"))(historyExports, () => ({}))
 const moduleExports = {}
-Function("exports", "require", compiled)(moduleExports, name => name === "@once/core" ? { Story } : { ReadingSession })
+Function("exports", "require", compiled)(moduleExports, name =>
+  name === "@once/core" ? { Story } : name === "./readingHistory" ? historyExports : { ReadingSession })
 const { ReadingTabs } = moduleExports
 const memory = () => {
   const values = new Map()

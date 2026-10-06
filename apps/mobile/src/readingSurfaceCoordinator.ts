@@ -4,6 +4,7 @@ import type {
   ReadingSession,
   ReadingSessionState
 } from "@once/ui-web"
+import type { HistoryDirection, HistoryEntry, ReadingHistory } from "./readingHistory"
 
 export interface ReadingDocumentLoader {
   load(
@@ -46,14 +47,19 @@ export class ReadingSurfaceCoordinator {
   private closeRequestedHandler: (() => void) | null = null
   private mediaStateHandler: ((playing: boolean) => void) | null = null
   private finishedHandler: ((event: BrowserNavigationEvent) => void) | null = null
+  private publishedGestures = ""
+  private readonly history: ReadingHistory | null
 
   constructor(
     session: ReadingSession,
     surface: InAppBrowserSurface,
     reader: ReaderDocumentHost,
     content: HTMLElement,
-    documentLoader: ReadingDocumentLoader = defaultDocumentLoader
+    documentLoader: ReadingDocumentLoader = defaultDocumentLoader,
+    /** The tab's history; without one, Back and Forward are the engine's alone. */
+    history: ReadingHistory | null = null
   ) {
+    this.history = history
     this.session = session
     this.surface = surface
     this.reader = reader
@@ -69,6 +75,7 @@ export class ReadingSurfaceCoordinator {
       }
       // Story refreshes and history flags republish the session; only these
       // fields change what the native surface or reader should show.
+      this.publishHistory()
       const surfaceKey = `${state.mode}\n${state.loadState}\n${state.currentUrl}`
       if (surfaceKey === this.surfaceKey) return
       this.surfaceKey = surfaceKey
@@ -112,6 +119,7 @@ export class ReadingSurfaceCoordinator {
 
   private async installListeners(): Promise<void> {
     const started = await this.surface.addListener("navigationStarted", (event) => {
+      if (this.readerShown()) { this.browserReady = false; return }
       if (!this.acceptsNavigation(event.navigationId, event.url, true)) return
       this.pendingNavigationUrl = null
       this.adoptedUrl = null
@@ -122,6 +130,7 @@ export class ReadingSurfaceCoordinator {
     const committed = await this.surface.addListener(
       "navigationCommitted",
       (event) => {
+        if (this.readerShown()) { this.browserUrl = event.url; return }
         if (!this.acceptsNavigation(event.navigationId, event.url)) return
         this.browserUrl = event.url
         this.session.navigationCommitted(event.navigationId, event.url, undefined, event)
@@ -130,6 +139,7 @@ export class ReadingSurfaceCoordinator {
     const finished = await this.surface.addListener(
       "navigationFinished",
       (event) => {
+        if (this.readerShown()) { this.browserUrl = event.url; this.browserReady = true; return }
         if (!this.acceptsNavigation(event.navigationId, event.url)) return
         this.browserUrl = event.url
         this.browserReady = true
@@ -138,6 +148,7 @@ export class ReadingSurfaceCoordinator {
       }
     )
     const failed = await this.surface.addListener("navigationFailed", (event) => {
+      if (this.readerShown()) { this.browserReady = false; return }
       if (!this.acceptsNavigation(event.navigationId, event.url, true)) return
       this.pendingNavigationUrl = null
       this.adoptedUrl = null
@@ -145,6 +156,14 @@ export class ReadingSurfaceCoordinator {
       this.session.navigationFailed(event.navigationId, event.url, event.message)
     })
     const history = await this.surface.addListener("historyChanged", (event) => {
+      if (this.disposed) return
+      if (this.history && event.historyUrls && typeof event.historyIndex === "number") {
+        const moved = this.history.nativeReported(event.historyUrls, event.historyIndex)
+        // The page went back or forward by itself, onto an entry read in Reader mode.
+        if (moved?.reader) this.showEntry(moved, false)
+        this.publishHistory()
+      }
+      if (this.readerShown()) return
       if (!this.acceptsNavigation(event.navigationId, event.url)) return
       this.browserUrl = event.url
       this.session.historyChanged(event.navigationId, event.url, event.canGoBack, event.canGoForward === true)
@@ -248,6 +267,51 @@ export class ReadingSurfaceCoordinator {
   closeReading(): void {
     this.reader.close()
     this.session.close()
+  }
+
+  canStep(direction: HistoryDirection): boolean {
+    return this.history?.canStep(direction) ?? false
+  }
+
+  /**
+   * One step through the tab's history, Reader-mode entries included. False
+   * when there is nothing that way, so the caller decides what Back means then.
+   */
+  async stepHistory(direction: HistoryDirection): Promise<boolean> {
+    const step = this.history?.step(direction)
+    if (!step) return false
+    this.showEntry(step.entry, step.nativeIndex === null)
+    const index = step.nativeIndex
+    if (index !== null) await this.enqueue(async () => { await this.surface.goToHistoryIndex?.(index) })
+    this.publishHistory()
+    return true
+  }
+
+  /** Shows an entry without loading anything new: the page is there or moving there. */
+  private showEntry(entry: Readonly<HistoryEntry>, pageThere: boolean): void {
+    if (entry.reader) {
+      this.session.showHistoryEntry(entry.url, "reader")
+      return
+    }
+    this.browserUrl = entry.url
+    const story = this.session.snapshot().story
+    const mode = story?.comment_url === entry.url ? "comments" : "browser"
+    this.session.showHistoryEntry(entry.url, mode, pageThere && this.browserReady)
+  }
+
+  /** iOS: WebKit's own swipe may only take steps that are its pages here too. */
+  private publishHistory(): void {
+    if (this.disposed || !this.history || !this.surface.setHistoryGestures) return
+    const gestures = { back: this.history.nativeMayStep("back"), forward: this.history.nativeMayStep("forward") }
+    const key = `${gestures.back}/${gestures.forward}`
+    if (key === this.publishedGestures) return
+    this.publishedGestures = key
+    void this.enqueue(async () => { await this.surface.setHistoryGestures?.(gestures) })
+  }
+
+  /** The hidden page behind a reader never changes what the session shows. */
+  private readerShown(): boolean {
+    return this.session.snapshot().mode === "reader"
   }
 
   async goBack(): Promise<void> {

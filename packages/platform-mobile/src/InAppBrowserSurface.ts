@@ -43,6 +43,12 @@ export interface NativeOverlayMenuOptions {
   title?: string
   items: NativeOverlayMenuItem[]
   anchor?: NativeOverlayAnchor
+  /**
+   * The shell's own Back/Forward availability. Given, the browser sheet shows
+   * these and reports its Back/Forward as historyRequested instead of moving
+   * the page itself: Reader-mode entries are not pages the engine holds.
+   */
+  history?: { back: boolean; forward: boolean }
 }
 
 export interface NativeOverlayPromptOptions {
@@ -69,6 +75,25 @@ export interface BrowserNavigationFailedEvent extends BrowserNavigationEvent {
 export interface BrowserHistoryEvent extends BrowserNavigationEvent {
   canGoBack: boolean
   canGoForward: boolean
+  /** The engine's whole history list and its current position, where reported. */
+  historyUrls?: string[]
+  historyIndex?: number
+}
+
+/** The browser sheet's Back or Forward, for the shell to carry out. */
+export interface BrowserHistoryRequestedEvent {
+  tabId?: string
+  generation?: string
+  direction: "back" | "forward"
+}
+
+/** A long-press in the shell's Reader frame; the native menu offers what applies. */
+export interface ReaderContextMenuTarget {
+  link?: string
+  linkText?: string
+  image?: string
+  /** The article's address, sent as the image request's referrer. */
+  referrer?: string
 }
 
 /**
@@ -129,6 +154,7 @@ export interface InAppBrowserSurfaceEvents {
   edgeSwipe: BrowserEdgeSwipeEvent
   closeRequested: BrowserCloseRequestedEvent
   openLinkRequested: BrowserOpenLinkRequestedEvent
+  historyRequested: BrowserHistoryRequestedEvent
   mediaStateChanged: BrowserMediaStateEvent
   extensionPageChanged: ExtensionPageState
 }
@@ -161,6 +187,12 @@ export interface InAppBrowserSurface {
   reload(): Promise<void>
   goBack(): Promise<void>
   goForward(): Promise<void>
+  /** Moves to a position of the engine's history list (see historyChanged). */
+  goToHistoryIndex?(index: number): Promise<void>
+  /** Which directions the engine's own swipe may take (iOS); the shell takes the rest. */
+  setHistoryGestures?(gestures: { back: boolean; forward: boolean }): Promise<void>
+  /** Shows the native long-press menu for the Reader frame (Android). */
+  showContextMenu?(target: ReaderContextMenuTarget): Promise<void>
   setBounds(bounds: BrowserSurfaceBounds): Promise<void>
   setVisible(visible: boolean): Promise<void>
   showMenu(options: NativeOverlayMenuOptions): Promise<string | null>
@@ -199,6 +231,9 @@ interface NativeInAppBrowserPlugin {
   reload(): Promise<void>
   goBack(): Promise<void>
   goForward(): Promise<void>
+  goToHistoryIndex(options: { index: number }): Promise<void>
+  setHistoryGestures(options: { back: boolean; forward: boolean }): Promise<void>
+  showContextMenu(options: ReaderContextMenuTarget): Promise<void>
   setBounds(options: BrowserSurfaceBounds): Promise<void>
   setVisible(options: { visible: boolean }): Promise<void>
   showMenu(options: NativeOverlayMenuOptions): Promise<{ id?: string }>
@@ -298,7 +333,7 @@ export function createNativeInAppBrowserSurface(identity?: BrowserTabIdentity): 
     get(target, property: keyof NativeInAppBrowserPlugin) {
       if (property === "addListener") return target.addListener.bind(target)
       return (options: object = {}) => {
-        const global = ["selectTab", "extensionPage", "applyExtensionSettings"].includes(property)
+        const global = ["selectTab", "extensionPage", "applyExtensionSettings", "showContextMenu"].includes(property)
         return (target[property] as (options: object) => Promise<unknown>)({ ...options, ...(global ? {} : identity ?? selectedIdentity) })
       }
     }
@@ -325,6 +360,12 @@ export function createNativeInAppBrowserSurface(identity?: BrowserTabIdentity): 
     reload: () => plugin.reload(),
     goBack: () => plugin.goBack(),
     goForward: () => plugin.goForward(),
+    goToHistoryIndex: (index) => plugin.goToHistoryIndex({ index }),
+    async setHistoryGestures(gestures) {
+      // Only iOS has engine swipes to hand over; elsewhere there is no method.
+      try { await plugin.setHistoryGestures(gestures) } catch { /* nothing to configure */ }
+    },
+    showContextMenu: (target) => plugin.showContextMenu(target),
     setBounds: (bounds) => plugin.setBounds(normalizeBounds(bounds)),
     setVisible: (visible) => plugin.setVisible({ visible }),
     async showMenu(options) {
