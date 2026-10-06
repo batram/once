@@ -18,7 +18,8 @@ export class RemoteTabGroups {
   private readonly unfolded = new Set<string>()
   private readonly thumbs: ThumbnailCache
 
-  constructor(private readonly port: RemoteTabsPort, private readonly state: () => RemoteTabsState, private readonly rerender: () => void) {
+  constructor(private readonly port: RemoteTabsPort, private readonly state: () => RemoteTabsState, private readonly rerender: () => void,
+    private readonly report: (message: string, retry?: () => void) => void = () => undefined) {
     this.thumbs = new ThumbnailCache(port.thumbnail)
   }
 
@@ -49,6 +50,7 @@ export class RemoteTabGroups {
       return element
     }))
     section.replaceChildren(heading, list)
+    markFocus(section, "inbox")
     return section
   }
 
@@ -105,6 +107,7 @@ export class RemoteTabGroups {
       })
     }
     section.replaceChildren(...children)
+    markFocus(section, device.deviceId)
     return section
   }
 
@@ -122,9 +125,19 @@ export class RemoteTabGroups {
       else if (choice === "copy") port.copyLink?.(tab.url)
       else if (choice === "send") {
         const target = await chooseDevice(devices, anchor.isConnected ? anchor : null, showMenu, from)
-        if (target) await port.send?.(target, tab)
+        if (target) {
+          const send = async () => {
+            try {
+              await port.send?.(target, tab)
+              this.report(`Sent to ${devices.find((device) => device.deviceId === target)?.name ?? "device"}`)
+            } catch (error) {
+              this.report(error instanceof Error ? error.message : "Could not send the tab", () => void send())
+            }
+          }
+          await send()
+        }
       }
-    }).catch((error) => console.error("Could not send the tab", error))
+    }).catch(() => this.report("Could not open the send menu. Try again."))
   }
 
   private openAll(tabs: SyncedTab[]): void {
@@ -134,6 +147,7 @@ export class RemoteTabGroups {
   private row(key: string): HTMLLIElement {
     let element = this.rows.get(key)
     if (!element) { element = tabRow(); this.rows.set(key, element) }
+    element.dataset.rowKey = key
     return element
   }
 
@@ -222,4 +236,12 @@ export function notice(text: string, actions: Array<{ label: string; run: () => 
 
 function matches(tab: SyncedTab, query: string): boolean {
   return !query || tab.title.toLowerCase().includes(query) || tab.url.toLowerCase().includes(query)
+}
+
+/** Stable keys let a refresh restore keyboard focus after moving retained rows. */
+function markFocus(section: HTMLElement, device: string): void {
+  for (const [index, control] of [...section.querySelectorAll<HTMLElement>("button, a")].entries()) {
+    const row = control.closest<HTMLElement>("[data-row-key]")
+    control.dataset.focusKey = row ? `${row.dataset.rowKey}:${control.className}` : `${device}:header:${index}`
+  }
 }

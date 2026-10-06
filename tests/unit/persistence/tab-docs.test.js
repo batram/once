@@ -114,6 +114,11 @@ test("the HTTP store authenticates from the URL, pages within its prefix and sto
   let allowed = true
   try {
     const url = `http://user:p%40ss@127.0.0.1:${server.address().port}/once`
+    const freshDocs = couchHttpTabDocs(url.replace(/once$/, "fresh"), recordingFetch, async () => allowed)
+    assert.deepEqual(await freshDocs.page("tth_"), { docs: [] })
+    const fresh = new TabDocRepository(freshDocs)
+    const reference = await fresh.putThumb(id, Buffer.from("new database").toString("base64"), 320, 200)
+    assert.ok(await fresh.thumbnail(reference), "the first screenshot can create the remote database")
     const docs = couchHttpTabDocs(url, recordingFetch, async () => allowed)
     const repo = new TabDocRepository(docs)
     await repo.publish(deviceDocument(identity(1), windows("https://example.com/"), true))
@@ -145,23 +150,88 @@ test("the HTTP store authenticates from the URL, pages within its prefix and sto
   }
 })
 
-test("screenshots are content-addressed, read back as data URLs, and kept through their grace period", async () => {
+test("screenshots use reusable slots, read back as data URLs, and respect collection grace", async () => {
   const { dbs: [db], close } = await databases(["db"])
   try {
     const repo = new TabDocRepository(pouchTabDocs(db))
     const jpeg = Buffer.from("not really a jpeg").toString("base64")
     const first = await repo.putThumb(id, jpeg, 320, 200)
     assert.equal(await repo.putThumb(id, jpeg, 320, 200), first, "the same picture is stored once")
-    assert.match(first, new RegExp(`^tth_${id}_[0-9a-f]{40}$`))
+    assert.match(first, new RegExp(`^tth_${id}_slot_[0-9]{3}#[0-9a-f]{40}$`))
     assert.equal(await repo.thumbnail(first), `data:image/jpeg;base64,${jpeg}`)
     assert.equal(await repo.thumbnail(`dev_${id}`), null)
     const old = await repo.putThumb(id, Buffer.from("older").toString("base64"), 320, 200)
-    const stored = await db.get(old)
+    const stored = await db.get(old.split("#")[0])
     await db.put({ ...stored, createdAt: new Date(Date.now() - 2 * 3600_000).toISOString() })
     await repo.deleteThumbs(id, new Set(), Date.now() - 3600_000)
     const left = (await db.allDocs({ startkey: "tth_", endkey: "tth_￿" })).rows.map((row) => row.id)
-    assert.deepEqual(left, [first], "only the unreferenced screenshot older than the grace period goes")
+    assert.deepEqual(left, [first.split("#")[0]], "only the unreferenced screenshot older than the grace period goes")
   } finally {
     await close()
   }
+})
+
+
+test("many distinct screenshots keep bounded IDs and old references never show a replacement image", async () => {
+  const { dbs: [db], close } = await databases(["db"])
+  try {
+    const repo = new TabDocRepository(pouchTabDocs(db))
+    const first = await repo.putThumb(id, Buffer.from("first").toString("base64"), 320, 200)
+    for (let index = 0; index < 140; index++) await repo.putThumb(id, Buffer.from(`shot-${index}`).toString("base64"), 320, 200)
+    const rows = (await db.allDocs({ startkey: "tth_", endkey: "tth_￿" })).rows
+    assert.equal(rows.length, 128)
+    assert.equal(await repo.thumbnail(first), null)
+    const huge = Buffer.alloc(65537).toString("base64")
+    assert.equal(await repo.putThumb(id, huge, 320, 200), null)
+  } finally { await close() }
+})
+
+test("maintenance resumes bounded pages after deletion and worker restart, without publishing", async () => {
+  const { TabSyncMaintenance } = require("../../../packages/app/dist/tabsync/TabSyncMaintenance")
+  const { DeviceIdentity } = require("../../../packages/app/dist/tabsync/DeviceIdentity")
+  const { dbs: [db], close } = await databases(["db"])
+  const secrets = new Map()
+  const identity = new DeviceIdentity({ get: async key => secrets.get(key) || "", set: async (key, value) => secrets.set(key, value) }, "chrome", "Test")
+  const adapter = pouchTabDocs(db)
+  let pages = 0
+  const repo = new TabDocRepository({ ...adapter, page: (...args) => { pages++; return adapter.page(...args) } })
+  const old = new Date(Date.now() - 20 * 86400_000).toISOString()
+  try {
+    await db.bulkDocs(Array.from({ length: 205 }, (_, index) => ({ _id: `tsend_${id}_${String(index).padStart(4, "0")}`,
+      type: "send", from: id, fromName: "Test", url: "https://example.com/", title: "old", mode: "web", createdAt: old })))
+    await db.bulkDocs(Array.from({ length: 205 }, (_, index) => ({ _id: `tth_${id}_legacy_${String(index).padStart(4, "0")}`,
+      type: "thumb", deviceId: id, createdAt: old })))
+    const make = () => new TabSyncMaintenance(repo, identity, async () => true, 3600_000)
+    await make().run(14)
+    assert.equal((await repo.listSends()).length, 105)
+    assert.equal(JSON.parse(await identity.readMaintenance()).pending, true)
+    await make().run(14)
+    assert.equal((await repo.listSends()).length, 5)
+    await make().run(14)
+    assert.equal((await repo.listSends()).length, 0)
+    assert.equal((await adapter.list("tth_")).length, 0)
+    assert.equal(JSON.parse(await identity.readMaintenance()).pending, false)
+    const before = pages
+    await make().run(14)
+    assert.equal(pages, before, "completed maintenance is throttled across worker restarts")
+    assert.ok((await make().storage()).lastCompletedAt)
+  } finally { await close() }
+})
+
+test("reused screenshot conflicts discard losing attachment leaves deterministically", async () => {
+  const { dbs: [db], close } = await databases(["db"])
+  try {
+    const repo = new TabDocRepository(pouchTabDocs(db))
+    const first = await repo.putThumb(id, Buffer.from("first").toString("base64"), 320, 200)
+    const slot = first.split("#")[0]
+    const hash = "f".repeat(40)
+    await db.bulkDocs([{ _id: slot, _rev: "2-aaaa", _revisions: { start: 2, ids: ["aaaa", "bbbb"] },
+      type: "thumb", deviceId: id, contentHash: hash, createdAt: "2099-01-01T00:00:00.000Z",
+      _attachments: { "thumb.jpg": { content_type: "image/jpeg", data: Buffer.from("newest").toString("base64") } }
+    }], { new_edits: false })
+    assert.ok((await db.get(slot, { conflicts: true }))._conflicts.length)
+    assert.equal(await repo.thumbnail(`${slot}#${hash}`), `data:image/jpeg;base64,${Buffer.from("newest").toString("base64")}`)
+    assert.equal((await db.get(slot, { conflicts: true }))._conflicts, undefined)
+    assert.equal(await repo.thumbnail(first), null)
+  } finally { await close() }
 })

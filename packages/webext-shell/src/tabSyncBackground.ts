@@ -76,7 +76,7 @@ export function installTabSyncBackground(api: typeof browser, target: "chrome" |
   api.storage.onChanged.addListener((changes, area) => {
     if (area === "sync" && Object.hasOwn(changes, "sync_url")) restart()
     // A panel changed this device's options or identity.
-    else if (area === "local" && Object.keys(changes).some((key) => key.startsWith("secret:once:"))) {
+    else if (area === "local" && Object.keys(changes).some((key) => ["secret:once:device-identity", "secret:once:tabsync-options"].includes(key))) {
       identity.invalidate()
       current?.service.optionsChangedElsewhere()
     }
@@ -86,7 +86,7 @@ export function installTabSyncBackground(api: typeof browser, target: "chrome" |
     if (alarm.name === SAMPLE_ALARM) void current?.service.sampleNow()
     else if (alarm.name === HEARTBEAT_ALARM || alarm.name === RETRY_ALARM) {
       // Without a change feed here, the heartbeat is also when sent tabs are noticed.
-      if (current) { current.service.publishSoon(); current.service.refreshSoon() }
+      if (current) { current.service.publishSoon(); current.service.refreshSoon(); current.service.maintainSoon() }
       else restart()
     }
   })

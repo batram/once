@@ -11,6 +11,7 @@ import {
   TabSyncOptions
 } from "@once/core"
 import { requireElement } from "../dom"
+import { bindTabSyncStorageControls } from "./tabSyncStorageControls"
 import { growWithContent } from "./textareaGrow"
 import { showConfirmDialog } from "../confirmDialog"
 import { platformName } from "../tabsync/devicePresentation"
@@ -47,6 +48,7 @@ export function bindTabSyncControls(client: OnceClient): void {
   let revision = 0
   const fitExcluded = growWithContent(excluded)
 
+  bindTabSyncStorageControls(client)
   fillChoices(page)
   requireElement<HTMLButtonElement>("#sync_consent_button").addEventListener("click", () => {
     // Straight from the click: Firefox shows its prompt only during a user gesture.

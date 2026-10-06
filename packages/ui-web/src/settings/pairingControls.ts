@@ -2,6 +2,7 @@ import type { OnceClient } from "@once/app"
 import { decodePairingLink, describeSyncConnection, encodePairingLink, PairingPayload } from "@once/core"
 import qrcode from "qrcode-generator"
 import { requireElement } from "../dom"
+import { waitForPairingSync } from "./pairingSyncStatus"
 import { SYNC_PAGE_SHOWN } from "./syncSettingsPages"
 
 const SHOWN_FOR_MS = 60_000
@@ -25,10 +26,13 @@ export function bindPairingControls(client: OnceClient, scan?: () => Promise<str
   // The page offers a code straight away; showing one replaces the offer
   // until it is hidden again, by hand or after a minute.
   let showingCode = false
+  let offerRevision = 0
+  let connecting = false
   const offer = () => {
     clearTimeout(hideTimer)
     showingCode = false
-    void renderOffer(client, panel, (link) => {
+    const revision = ++offerRevision
+    void renderOffer(client, panel, () => revision === offerRevision && !showingCode, (link) => {
       showingCode = true
       renderCode(panel, link, offer)
       clearTimeout(hideTimer)
@@ -50,6 +54,7 @@ export function bindPairingControls(client: OnceClient, scan?: () => Promise<str
   })
 
   const connect = (link: string) => {
+    if (connecting) return
     let payload: PairingPayload
     try {
       payload = decodePairingLink(link)
@@ -57,6 +62,7 @@ export function bindPairingControls(client: OnceClient, scan?: () => Promise<str
       status.textContent = error instanceof Error ? error.message : "This is not a pairing link"
       return
     }
+    connecting = true
     const { database, user } = describeSyncConnection(payload.syncUrl)
     void confirmPairing(`Connect to ${database}${user ? ` as ${user}` : ""}?`,
       payload.passphrase
@@ -66,14 +72,15 @@ export function bindPairingControls(client: OnceClient, scan?: () => Promise<str
       () => consent === "required" ? client.requestSyncConsent() : Promise.resolve(true))
       .then(async (confirmed) => {
         if (!confirmed) return
-        input.value = ""
         status.textContent = "Connecting…"
         await client.setSyncUrl(payload.syncUrl)
+        await waitForPairingSync(client)
+        input.value = ""
         status.textContent = payload.passphrase ? "Connected. Waiting for add-on sync…" : "Connected"
         if (payload.passphrase) status.textContent = await unlockAddonSync(client, payload.passphrase)
       })
       .catch((error) => { status.textContent = error instanceof Error ? error.message : "Pairing failed" })
-      .finally(refreshConsent)
+      .finally(() => { connecting = false; refreshConsent() })
   }
   requireElement<HTMLButtonElement>("#pair_connect").addEventListener("click", () => connect(input.value))
   if (scan) {
@@ -85,8 +92,10 @@ export function bindPairingControls(client: OnceClient, scan?: () => Promise<str
 }
 
 /** The warning, the passphrase choice, and the button that makes the code. */
-async function renderOffer(client: OnceClient, panel: HTMLElement, showCode: (link: string) => void): Promise<void> {
+async function renderOffer(client: OnceClient, panel: HTMLElement, current: () => boolean, showCode: (link: string) => void): Promise<void> {
   const syncUrl = await client.getSyncUrl()
+  const vault = await client.getAddonVaultStatus().catch(() => null)
+  if (!current()) return
   const warning = document.createElement("p")
   warning.className = "pair_warning"
   warning.textContent = syncUrl
@@ -95,7 +104,6 @@ async function renderOffer(client: OnceClient, panel: HTMLElement, showCode: (li
   delete panel.dataset.showing
   panel.replaceChildren(warning)
   if (!syncUrl) return
-  const vault = await client.getAddonVaultStatus().catch(() => null)
   const hasVault = vault?.state === "ready" || vault?.state === "locked"
   const include = document.createElement("label")
   include.className = "field_check pair_include"
@@ -128,6 +136,7 @@ async function renderOffer(client: OnceClient, panel: HTMLElement, showCode: (li
       feedback.textContent = "That passphrase does not open add-on sync"
       return
     }
+    if (!current()) return
     showCode(encodePairingLink({ syncUrl, ...(withPassphrase ? { passphrase: passphrase.value } : {}) }))
     passphrase.value = ""
   })().catch(() => { feedback.textContent = "The code could not be made" }))

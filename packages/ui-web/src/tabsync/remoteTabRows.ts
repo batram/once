@@ -50,12 +50,13 @@ export class ThumbnailCache {
 
 /** The screenshot replaces the site's initial only once it has decoded, so nothing blinks. */
 function place(frame: HTMLElement, src: string): void {
+  const reference = frame.dataset.thumb
   const current = frame.querySelector("img")
   if (current?.getAttribute("src") === src) return
   const image = document.createElement("img")
   image.alt = ""
   image.src = src
-  const swap = () => { if (frame.dataset.thumb) frame.replaceChildren(image) }
+  const swap = () => { if (frame.dataset.thumb === reference) frame.replaceChildren(image) }
   if (image.complete || typeof image.decode !== "function") swap()
   else void image.decode().then(swap, () => undefined)
 }

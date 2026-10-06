@@ -18,10 +18,10 @@ export function installTabSyncTimes(api: typeof browser): TabSourcePort {
   const listeners = new Set<() => void>()
   const deselected = new Set<(tabId: string) => void>()
   const changed = () => listeners.forEach((listener) => listener())
-  const update = (change: (state: TimesState, now: number) => void) => {
+  const update = (change: (state: TimesState, now: number) => void | Promise<void>) => {
     queue = queue.then(async () => {
       const state = ((await storage.get(KEY))[KEY] as TimesState | undefined) ?? { times: {}, active: {} }
-      change(state, Date.now())
+      await change(state, Date.now())
       await storage.set({ [KEY]: state })
     }).catch((error) => console.error("Unable to track tab times", error))
     void queue.then(changed)
@@ -61,9 +61,22 @@ export function installTabSyncTimes(api: typeof browser): TabSourcePort {
   api.tabs.onUpdated.addListener((_tabId, change) => {
     if (change.title !== undefined || change.audible !== undefined || change.pinned !== undefined) changed()
   })
-  for (const event of [api.tabs.onAttached, api.tabs.onDetached, api.windows.onRemoved, api.windows.onFocusChanged]) {
-    (event as { addListener(listener: () => void): void }).addListener(changed)
+  // Reconcile existing tabs at startup and after cross-window moves. Queue this
+  // with events so a slow browser query cannot overwrite a newer activation.
+  const reconcile = () => update(async (state) => {
+    const windows = await api.windows.getAll({ populate: true, windowTypes: ["normal"] })
+    state.active = Object.fromEntries(windows.flatMap((window) => {
+      const active = window.tabs?.find((tab) => tab.active)
+      return active?.id === undefined ? [] : [[String(window.id), active.id]]
+    }))
+    const open = new Set(windows.flatMap((window) => (window.tabs ?? []).map((tab) => String(tab.id))))
+    state.times = Object.fromEntries(Object.entries(state.times).filter(([id]) => open.has(id)))
+  })
+  for (const event of [api.tabs.onAttached, api.tabs.onDetached, api.windows.onRemoved]) {
+    (event as { addListener(listener: () => void): void }).addListener(reconcile)
   }
+  api.windows.onFocusChanged.addListener(changed)
+  reconcile()
 
   return {
     async snapshot(): Promise<LocalWindow[]> {

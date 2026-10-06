@@ -81,6 +81,10 @@ export class DeviceIdentity {
     return next
   }
 
+  /** Device-local maintenance progress survives extension worker suspension. */
+  async readMaintenance(): Promise<string> { return this.secrets.get("once:tabsync-maintenance") }
+  async writeMaintenance(value: string): Promise<void> { await this.secrets.set("once:tabsync-maintenance", value) }
+
   /** Another window, panel or the background changed the stored options or identity. */
   invalidate(): void {
     this.record = undefined

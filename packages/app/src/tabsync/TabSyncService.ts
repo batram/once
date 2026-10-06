@@ -19,8 +19,9 @@ import { DeviceIdentity } from "./DeviceIdentity"
 import { holdLock } from "./locks"
 import { TabDocRepository } from "./TabDocRepository"
 import { TabThumbnails } from "./TabThumbnails"
+import { TabSyncMaintenance } from "./TabSyncMaintenance"
 import { TabStates } from "./TabStates"
-import { deviceDocument, expiredSends, publicationFingerprint, publishedWindows, visibleDevice } from "./tabPublication"
+import { deviceDocument, publicationFingerprint, publishedWindows, visibleDevice } from "./tabPublication"
 
 const TIMING = { debounce: 3000, minInterval: 15000, heartbeat: 10 * 60 * 1000, refresh: 250, thumbnailGrace: 60 * 60 * 1000, sample: 15000 }
 const CHANNEL = "once-tabsync"
@@ -52,6 +53,7 @@ export interface RemoteDeviceView {
   name: string
   platform: TabSyncPlatform
   sharing: boolean
+  sendTarget?: boolean
   updatedAt: string
   stale: boolean
   windows: DeviceDoc["windows"]
@@ -135,6 +137,9 @@ export class TabSyncService {
   private readonly timing: typeof TIMING
   private readonly thumbnails: TabThumbnails
   private readonly states: TabStates
+  private maintenanceTimer?: ReturnType<typeof setInterval>
+  private disposed = false
+  private readonly maintenance: TabSyncMaintenance
   private sampler?: ReturnType<typeof setInterval>
   private stopDeselected?: () => void
   /** The tabs of the last publication, to read a tab's state when it is left. */
@@ -142,8 +147,10 @@ export class TabSyncService {
 
   constructor(private readonly deps: TabSyncDependencies) {
     this.timing = { ...TIMING, ...deps.timing }
-    this.thumbnails = new TabThumbnails(deps.repository, deps.source, this.timing.thumbnailGrace)
+    this.thumbnails = new TabThumbnails(deps.repository, deps.source)
     this.states = new TabStates(deps.source)
+    this.maintenance = new TabSyncMaintenance(deps.repository, deps.identity,
+      async () => !this.disposed && deps.syncActive() && (await this.activeOptions()).enabled, this.timing.thumbnailGrace)
   }
 
   async start(): Promise<void> {
@@ -153,6 +160,8 @@ export class TabSyncService {
     }
     this.disposers.push(this.deps.identity.onChanged(() => this.deps.changed()))
     await this.refresh()
+    this.maintenanceTimer = setInterval(() => this.maintainSoon(), 10 * 60 * 1000)
+    this.maintainSoon()
     if (this.deps.source) {
       this.releasePublisher = holdLock("once-tabsync-publisher", () => {
         this.publisher = true
@@ -167,6 +176,9 @@ export class TabSyncService {
   }
 
   dispose(): void {
+    this.disposed = true
+    clearTimeout(this.refreshTimer)
+    clearInterval(this.maintenanceTimer)
     this.generation++
     this.stopPublishing()
     this.releasePublisher?.()
@@ -213,6 +225,28 @@ export class TabSyncService {
     this.scheduleRefresh()
   }
 
+  /** Independent from publishing, also called by extension alarms after worker sleep. */
+  maintainSoon(): void {
+    void this.maintenance.run(this.shared.sendRetentionDays).catch((error) => this.deps.reportError("tabsync.maintenance", error))
+  }
+
+  storage() { return this.maintenance.storage() }
+
+  async cleanStorage(): Promise<void> {
+    await this.maintenance.run(this.shared.sendRetentionDays, true)
+    await this.refresh()
+  }
+
+  async removeInactive(ids: string[]): Promise<void> {
+    const view = await this.view()
+    for (const device of view.devices.filter((entry) => entry.stale && ids.includes(entry.deviceId))) {
+      const latest = await this.deps.repository.resolveDevice(device.deviceId)
+      if (latest && Date.now() - Date.parse(latest.updatedAt) > view.options.staleDeviceDays * 86400_000) {
+        await this.forget(device.deviceId)
+      }
+    }
+  }
+
   /** A heartbeat or retry: publish now, even if nothing changed. */
   publishSoon(): void {
     this.schedule(0, true)
@@ -251,7 +285,7 @@ export class TabSyncService {
       .flatMap((device) => {
         const visible = visibleDevice(device, this.retirements.get(device.deviceId))
         return visible ? [{
-          deviceId: visible.deviceId, name: visible.name, platform: visible.platform, sharing: visible.sharing,
+          deviceId: visible.deviceId, name: visible.name, platform: visible.platform, sharing: visible.sharing, sendTarget: visible.sendTarget !== false,
           updatedAt: visible.updatedAt, stale: Date.parse(visible.updatedAt) < staleBefore, windows: visible.windows
         }] : []
       })
@@ -263,7 +297,7 @@ export class TabSyncService {
       available: true, canShare: Boolean(this.deps.source) || this.deps.sharesElsewhere === true,
       self: { deviceId: record.id, name: record.name, platform: this.deps.identity.platform },
       options, shared: this.shared, devices: on ? devices : [], notice: this.notice,
-      inbox: (on ? this.inbox : []).map((send) => ({ id: send._id, fromName: send.fromName, url: send.url, title: send.title,
+      inbox: (on && options.sendTarget ? this.inbox : []).map((send) => ({ id: send._id, fromName: send.fromName, url: send.url, title: send.title,
         mode: send.mode, createdAt: send.createdAt, ...(send.state ? { state: send.state } : {}) }))
     }
   }
@@ -284,6 +318,7 @@ export class TabSyncService {
     await this.deps.identity.setOptions(change)
     this.channel?.postMessage({ type: "options" })
     await this.reevaluate(true)
+    this.maintainSoon()
   }
 
   async rename(name: string): Promise<void> {
@@ -295,9 +330,13 @@ export class TabSyncService {
 
   /** Sends a tab to another device, which lists it until it is opened or dismissed there. */
   async send(target: string, tab: Pick<SendDoc, "url" | "title" | "mode" | "state">): Promise<void> {
+    const options = await this.activeOptions()
+    if (!options.enabled) throw new Error("Tab sync is off on this device")
     const record = await this.deps.identity.get()
-    const device = this.devices.get(target)
-    if (target === record.id || !device || !visibleDevice(device, this.retirements.get(target))) {
+    const device = await this.deps.repository.resolveDevice(target)
+    if (target === record.id || !device || device.sendTarget === false ||
+      Date.now() - Date.parse(device.updatedAt) > options.staleDeviceDays * 86400_000 ||
+      !visibleDevice(device, await this.deps.repository.readRetirement(target) ?? undefined)) {
       throw new Error("That device can no longer receive tabs")
     }
     if (!/^https?:\/\//i.test(tab.url)) throw new Error("Only web pages can be sent")
@@ -320,6 +359,7 @@ export class TabSyncService {
 
   /** Takes a sent tab out of the inbox: opened or dismissed, it is gone on every device. */
   async takeSent(id: string): Promise<SentTabView | null> {
+    if (!(await this.activeOptions()).sendTarget) return null
     const send = this.inbox.find((item) => item._id === id)
     if (!send) return null
     this.inbox = this.inbox.filter((item) => item !== send)
@@ -351,7 +391,7 @@ export class TabSyncService {
       await this.deps.repository.deleteDevice(deviceId)
       await this.deps.repository.deleteThumbs(deviceId)
       for (const send of await this.deps.repository.listSends(deviceId)) await this.deps.repository.deleteSend(send)
-    })
+    }, true)
     await this.refresh()
   }
 
@@ -469,6 +509,7 @@ export class TabSyncService {
     if (generation !== this.generation) return
     for (const tab of this.states.sampled(listed)) await this.states.capture(tab)
     this.lastTabs = new Map(listed.flatMap((window) => window.tabs.map((tab) => [tab.id, tab] as const)))
+    this.states.prune(listed)
     const withState = this.states.attach(listed)
     if (generation !== this.generation) return
     const windows = options.sharing && options.screenshots
@@ -476,7 +517,7 @@ export class TabSyncService {
       : withState
     if (generation !== this.generation) return
     const draft = deviceDocument({ deviceId: record.id, epoch: record.epoch, seq: record.seq, name: record.name,
-      platform: this.deps.identity.platform, appVersion: this.deps.appVersion }, windows, options.sharing)
+      platform: this.deps.identity.platform, appVersion: this.deps.appVersion }, windows, options.sharing, Date.now(), options.sendTarget)
     const fingerprint = publicationFingerprint(draft)
     if (!force && fingerprint === this.lastFingerprint) return
     const { epoch, seq } = await this.deps.identity.nextSeq()
@@ -485,10 +526,8 @@ export class TabSyncService {
     this.lastFingerprint = fingerprint
     this.lastPublishedAt = Date.now()
     this.devices.set(published.deviceId, published)
-    // Unreferenced screenshots go after a grace period; with screenshots off, at once.
-    if (options.sharing && options.screenshots) await this.thumbnails.collect(record.id, windows)
-    else await this.deps.repository.deleteThumbs(record.id)
-    await this.collectGarbage()
+    // Turning screenshots off withdraws them immediately. Routine collection is independent.
+    if (!options.sharing || !options.screenshots) await this.deps.repository.deleteThumbs(record.id)
   }
 
   private async retireSelf(retirement: RetirementDoc): Promise<void> {
@@ -509,12 +548,6 @@ export class TabSyncService {
     if (await this.deps.repository.resolveDevice(record.id)) await this.deps.repository.deleteDevice(record.id)
     await this.deps.repository.deleteThumbs(record.id)
     this.lastFingerprint = ""
-  }
-
-  private async collectGarbage(): Promise<void> {
-    const sends = await this.deps.repository.listSends()
-    const expired = expiredSends(sends, this.devices, this.retirements, this.shared.sendRetentionDays)
-    for (const send of expired) await this.deps.repository.deleteSend(send)
   }
 
   private scheduleRefresh(): void {
@@ -547,9 +580,10 @@ export class TabSyncService {
     this.deps.changed()
   }
 
-  private enqueue(work: () => Promise<void>): Promise<void> {
-    const run = this.queue.then(work).catch((error) => this.deps.reportError("tabsync.publish", error))
-    this.queue = run
-    return run
+  private enqueue(work: () => Promise<void>, propagate = false): Promise<void> {
+    const run = this.queue.then(work)
+    const reported = run.catch((error) => this.deps.reportError("tabsync.publish", error))
+    this.queue = reported
+    return propagate ? run : reported
   }
 }

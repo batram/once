@@ -59,10 +59,25 @@ export function mountRemoteTabs(root: HTMLElement, port: RemoteTabsPort, options
   if (port.openSettings) toolbar.append(settingsButton(() => port.openSettings?.("tabs")))
   const body = document.createElement("div")
   body.className = "remote_tabs_body"
-  root.replaceChildren(toolbar, body)
+  const feedback = document.createElement("div")
+  feedback.className = "remote_tabs_feedback"
+  feedback.setAttribute("role", "status")
+  feedback.hidden = true
+  root.replaceChildren(toolbar, feedback, body)
   const inboxHost = options.inbox ?? body
   let state: RemoteTabsState = { view: null, connected: false }
-  const groups = new RemoteTabGroups(port, () => state, () => render(true))
+  const groups = new RemoteTabGroups(port, () => state, () => render(true), (message, retry) => {
+    feedback.hidden = false
+    feedback.textContent = message
+    if (retry) {
+      const button = document.createElement("button")
+      button.type = "button"
+      button.className = "button"
+      button.textContent = "Retry"
+      button.addEventListener("click", () => { feedback.textContent = "Sending…"; retry() })
+      feedback.append(" ", button)
+    }
+  })
   let revision = 0
   let signature = ""
 
@@ -79,6 +94,8 @@ export function mountRemoteTabs(root: HTMLElement, port: RemoteTabsPort, options
       if (inboxHost !== body) inboxHost.replaceChildren()
       return
     }
+    const focused = document.activeElement as HTMLElement | null
+    const focusKey = focused && (root.contains(focused) || inboxHost.contains(focused)) ? focused.dataset.focusKey : undefined
     const devices = groups.devices(query)
     const inbox = groups.inbox()
     const missing = query && !devices.length ? [notice(`No tabs match “${filter.value.trim()}”.`)] : []
@@ -88,6 +105,11 @@ export function mountRemoteTabs(root: HTMLElement, port: RemoteTabsPort, options
       body.replaceChildren(...devices, ...missing)
     }
     groups.prune()
+    if (focusKey) {
+      const controls = [...root.querySelectorAll<HTMLElement>("[data-focus-key]"), ...inboxHost.querySelectorAll<HTMLElement>("[data-focus-key]")]
+      const target = controls.find((control) => control.dataset.focusKey === focusKey)
+      ;(target ?? filter).focus({ preventScroll: true })
+    }
   }
 
   const refresh = () => {

@@ -208,6 +208,7 @@ test("any device deletes sends past the shared retention or addressed to a remov
     await h.settle(laptop.service)
     await laptop.service.setOptions({ sharing: true })
     await h.settle(laptop.service)
+    await laptop.service.cleanStorage()
     const ids = (await laptop.db.allDocs({ startkey: "tsend_", endkey: "tsend_￿" })).rows.map((row) => row.id)
     assert.deepEqual(ids, [`tsend_${kept}_new`])
   } finally {
@@ -260,7 +261,7 @@ test("screenshots are stored once per page, reach other devices, and go when unr
     const second = await published()
     assert.notEqual(second[0].thumb.id, first[0].thumb.id)
     const thumbIds = async () => (await laptop.db.allDocs({ startkey: "tth_", endkey: "tth_￿" })).rows.map((row) => row.id).sort()
-    assert.deepEqual(await thumbIds(), [first[0].thumb.id, second[0].thumb.id, second[1].thumb.id].sort(), "the replaced screenshot stays for the grace period")
+    assert.deepEqual(await thumbIds(), [first[0].thumb.id, second[0].thumb.id, second[1].thumb.id].map((id) => id.split("#")[0]).sort(), "the replaced screenshot stays for the grace period")
 
     await laptop.push()
     const phone = await h.device("phone", undefined)
@@ -344,4 +345,37 @@ test("a tab sent to another device waits in its inbox until opened there, and on
   } finally {
     await h.close()
   }
+})
+
+
+test("receiving opt-out is published, refuses new sends and hides queued sends until re-enabled", async () => {
+  const h = await harness()
+  try {
+    const receiver = await h.device("receiver", source([{ id: "w", focused: true, tabs: [] }]))
+    await receiver.service.setOptions({ sharing: true })
+    await h.settle(receiver.service)
+    await receiver.push()
+    const sender = await h.device("sender", undefined)
+    await sender.pull()
+    await h.settle(sender.service)
+    const target = (await receiver.identity.get()).id
+    const payload = { url: "https://example.com/", title: "Queued", mode: "web" }
+    await sender.service.send(target, payload)
+    await sender.push()
+    await receiver.pull()
+    await h.settle(receiver.service)
+    const sent = (await receiver.service.view()).inbox[0]
+    assert.ok(sent)
+    await receiver.service.setOptions({ sendTarget: false })
+    await h.settle(receiver.service)
+    assert.deepEqual((await receiver.service.view()).inbox, [])
+    assert.equal(await receiver.service.takeSent(sent.id), null)
+    await receiver.push()
+    await sender.pull()
+    await h.settle(sender.service)
+    assert.equal((await sender.service.view()).devices[0].sendTarget, false)
+    await assert.rejects(sender.service.send(target, payload), /no longer receive/)
+    await receiver.service.setOptions({ sendTarget: true })
+    assert.equal((await receiver.service.view()).inbox.length, 1)
+  } finally { await h.close() }
 })

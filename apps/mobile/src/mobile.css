@@ -3521,4 +3521,16 @@
     overflow: hidden;
     clip-path: inset(50%);
   }
+
+
+  .reading_tab_jump:not([hidden]) {
+    display: flex;
+    gap: var(--sp-2);
+    padding: var(--sp-2) var(--sp-3);
+    flex-shrink: 0;
+  }
+
+  .reading_tab_jump > button {
+    flex: 1;
+  }
 }

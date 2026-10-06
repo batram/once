@@ -19,8 +19,7 @@ export class TabThumbnails {
   /** `graceMs`: how long an unreferenced screenshot stays, for devices still showing an older publication. */
   constructor(
     private readonly repository: TabDocRepository,
-    private readonly source: TabSourcePort | undefined,
-    private readonly graceMs: number
+    private readonly source: TabSourcePort | undefined
   ) {}
 
   /** The windows with screenshot references; `current` says whether the publication still counts. */
@@ -37,7 +36,9 @@ export class TabThumbnails {
         if (!current()) return windows
         const shot = await capture(tab.id).catch(() => null)
         if (!shot || !current()) continue
-        const id = await this.repository.putThumb(deviceId, shot.jpeg, shot.width, shot.height)
+        const keep = new Set([...this.cache.entries()].filter(([key]) => key !== tab.id).map(([, entry]) => entry.thumb.id))
+        const id = await this.repository.putThumb(deviceId, shot.jpeg, shot.width, shot.height, keep)
+        if (!id) continue
         this.cache.set(tab.id, { navSeq: tab.navSeq, url: tab.url, thumb: { id, w: shot.width, h: shot.height } })
       }
     }
@@ -48,12 +49,6 @@ export class TabThumbnails {
         return cached ? { ...tab, thumb: cached.thumb } : tab
       })
     }))
-  }
-
-  /** Removes this device's screenshots that the publication no longer references. */
-  async collect(deviceId: string, windows: SyncedWindow[], now = Date.now()): Promise<void> {
-    const referenced = new Set(windows.flatMap((window) => window.tabs.flatMap((tab) => tab.thumb ? [tab.thumb.id] : [])))
-    await this.repository.deleteThumbs(deviceId, referenced, now - this.graceMs)
   }
 
   /** Screenshots were turned off or the identity changed: take new ones next time. */

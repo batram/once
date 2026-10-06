@@ -12,6 +12,7 @@ export class ReadingTabDialog {
   private readonly total = document.createElement("span")
   private readonly undoBar = document.createElement("div")
   private readonly undoMessage = document.createElement("span")
+  private readonly jumps = document.createElement("nav")
   private readonly status = document.createElement("span")
   private readonly swipe: ReadingTabSwipe
   // Rows rebuild only while visible and between gestures; tab updates are frequent.
@@ -89,7 +90,8 @@ export class ReadingTabDialog {
     this.status.setAttribute("aria-live", "polite")
     this.status.className = "reading_tab_status"
     document.body.append(this.status)
-    this.dialog.append(header, this.undoBar, this.rows)
+    this.bindGroupNavigation()
+    this.dialog.append(header, this.jumps, this.undoBar, this.rows)
     const content = document.querySelector("#reading_content")
     if (!content) throw new Error("Missing mobile reading content")
     content.append(this.dialog)
@@ -150,10 +152,25 @@ export class ReadingTabDialog {
     })
   }
 
+  private bindGroupNavigation(): void {
+    this.jumps.className = "reading_tab_jump"
+    this.jumps.setAttribute("aria-label", "Tab groups")
+    this.jumps.hidden = true
+    this.jumps.append(button("This device", () => {
+      this.rows.scrollTop = 0
+      this.rows.querySelector<HTMLButtonElement>('button[data-action="select"]')?.focus({ preventScroll: true })
+    }), button("Other devices", () => {
+      this.remote?.scrollIntoView({ block: "start" })
+      const target = [...this.remote?.querySelectorAll<HTMLElement>("input, button") ?? []].find((element) => element.getClientRects().length)
+      target?.focus({ preventScroll: true })
+    }))
+  }
+
   /** Off, tab sync has no part in the tab view: no other devices, no sent tabs. */
   setOtherDevicesVisible(visible: boolean): void {
     if (this.remoteVisible === visible) return
     this.remoteVisible = visible
+    this.jumps.hidden = !visible
     this.rowsStale = true
     this.renderRows()
   }
@@ -229,6 +246,7 @@ export class ReadingTabDialog {
     this.rowsStale = false
     // Retain focus across loading/title updates by identifying the row control.
     const focused = this.dialog.contains(document.activeElement) ? document.activeElement as HTMLElement : null
+    const remoteFocus = focused && (this.remote?.contains(focused) || this.inbox?.contains(focused))
     const focusId = focused?.dataset.tabId
     const focusAction = focused?.dataset.action
     const scrollTop = this.rows.scrollTop
@@ -320,6 +338,7 @@ export class ReadingTabDialog {
     // Moved, not rebuilt: its filter and folded devices stay as they were.
     if (this.remote && this.remoteVisible) this.rows.append(this.remote)
     this.rows.scrollTop = scrollTop
+    if (remoteFocus && focused.isConnected) focused.focus({ preventScroll: true })
   }
 }
 

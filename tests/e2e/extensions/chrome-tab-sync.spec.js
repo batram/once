@@ -60,7 +60,7 @@ test("the Chrome background publishes every window's tabs with no panel open, an
       const [doc] = await published()
       const ids = doc.windows.flatMap((window) => window.tabs.map((tab) => tab.thumb?.id)).filter(Boolean)
       const sizes = await Promise.all(ids.map(async (id) => {
-        const response = await fetch(`${couch.url("once")}/${id}/thumb.jpg`)
+        const response = await fetch(`${couch.url("once")}/${id.split("#")[0]}/thumb.jpg`)
         return response.ok ? (await response.arrayBuffer()).byteLength : 0
       }))
       return sizes.filter((size) => size > 500).length

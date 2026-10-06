@@ -386,7 +386,9 @@
                     <p class="tab_sync_offer_title" id="tab_sync_offer_title">Use tab sync on this device?</p>
                     <p class="tab_sync_offer_text">
                       See the tabs open on your other devices, send tabs between them and continue
-                      a video or article where you left it.
+                      a video or article where you left it. Sharing includes page addresses, titles,
+                      reading and video positions, and screenshots. These are stored unencrypted on
+                      your sync server. You can turn screenshots off in Tab sync settings.
                     </p>
                     <div class="settings_actions cluster">
                       <button type="button" class="button tab_sync_offer_primary" data-offer="share"
@@ -521,6 +523,21 @@
                       <h4 class="settings_subheading">Devices</h4>
                       <ul class="tab_sync_devices" id="tab_sync_devices" data-testid="tab-sync-devices"></ul>
                     </section>
+                    <details class="sync_advanced" id="tab_sync_storage" data-tab-sync-on>
+                      <summary>Storage and cleanup</summary>
+                      <p class="settings_description">Screenshots use a reusable cache of up to 128 pictures per device.
+                        Old unused pictures and expired sends are cleaned up while sync is on.
+                        Inactive devices keep their last tabs until you remove them.</p>
+                      <div class="settings_actions cluster">
+                        <button type="button" class="button" id="tab_sync_storage_refresh">Check storage</button>
+                        <button type="button" class="button" id="tab_sync_storage_clean">Clean up now</button>
+                        <button type="button" class="button" id="tab_sync_remove_inactive">Remove inactive devices…</button>
+                      </div>
+                      <p id="tab_sync_storage_status" class="settings_description" role="status">Check this device’s local copy of the synced data.</p>
+                      <p class="settings_row_hint">Deleting leaves small records needed for offline sync.
+                        Local compaction removes old content; your server manages its own compaction.
+                        Removal records keep forgotten devices from reappearing.</p>
+                    </details>
                     <details class="sync_advanced" id="tab_sync_advanced" data-tab-sync-on>
                       <summary>Advanced</summary>
                       <section class="settings_rows">

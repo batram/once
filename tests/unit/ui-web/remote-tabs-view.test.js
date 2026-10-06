@@ -153,3 +153,29 @@ test("tabs sent here come first (or where the shell lists them), open or go away
   assert.deepEqual(offered, [["background", "send"], ["b"]], "only another active device can receive the phone's tab")
   assert.deepEqual(calls, [["open", "tsend_1", false], ["dismiss", "tsend_1"], ["send", "b", "https://x.example/"]])
 }))
+
+test("remote sending reports failure and a retry reports the destination", withDocument(async (document) => {
+  const root = document.querySelector("#root")
+  const choices = ["send", "b"]
+  let attempts = 0
+  mountRemoteTabs(root, {
+    load: async () => ({ connected: true, view: view([
+      device("a", "Phone", [{ id: "w", tabs: [tab("1", "https://example.com/", "Article")] }]),
+      device("b", "Laptop", []), device("c", "Receiving off", [], { sendTarget: false })
+    ]) }), subscribe: () => () => undefined, open: () => undefined,
+    showMenu: async (_anchor, items) => {
+      assert.equal(items.some(item => item.id === "c"), false)
+      return choices.shift()
+    },
+    send: async () => { if (++attempts === 1) throw new Error("Offline, try again") }
+  })
+  await settle()
+  root.querySelector(".remote_tab_more").click()
+  await settle()
+  const status = root.querySelector(".remote_tabs_feedback")
+  assert.match(status.textContent, /Offline, try again/)
+  status.querySelector("button").click()
+  await settle()
+  assert.equal(status.textContent, "Sent to Laptop")
+  assert.equal(attempts, 2)
+}))

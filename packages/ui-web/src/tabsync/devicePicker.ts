@@ -2,7 +2,7 @@ import { openAnchoredMenu } from "../menu/storyAnchoredMenu"
 import { ago } from "./remoteTabRows"
 
 /** A device a tab can be sent to, as the view lists it. */
-export interface SendTarget { deviceId: string; name: string; platform: string; updatedAt: string; stale?: boolean }
+export interface SendTarget { deviceId: string; name: string; platform: string; updatedAt: string; stale?: boolean; sendTarget?: boolean }
 
 /** One menu entry; the shell's own menu shows these where it has one (mobile's native sheet). */
 export interface MenuChoice { id: string; label: string }
@@ -29,7 +29,7 @@ export const domMenu: ShowMenu = (anchor, items, title) => {
  * quiet for longer than the inactive limit.
  */
 export function sendTargets<T extends SendTarget>(devices: readonly T[], from?: string): T[] {
-  return devices.filter((device) => device.deviceId !== from && !device.stale)
+  return devices.filter((device) => device.deviceId !== from && !device.stale && device.sendTarget !== false)
 }
 
 /**

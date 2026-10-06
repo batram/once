@@ -52,6 +52,8 @@ export interface DeviceDoc {
   appVersion: string
   /** False: a presence-only record that keeps the device available as a send target. */
   sharing: boolean
+  /** Older publications without this field accept sends. */
+  sendTarget?: boolean
   /** The owner's clock at publication; for display and freshness heuristics, never ordering. */
   updatedAt: string
   windows: SyncedWindow[]
@@ -168,7 +170,7 @@ export function readDeviceDoc(value: unknown): DeviceDoc | null {
   const doc: DeviceDoc = {
     _id: value._id, type: "device", schema: 1, deviceId: value.deviceId, epoch, seq,
     name: text(value.name, 80) || "Unnamed device", platform, appVersion: text(value.appVersion, 40),
-    sharing, updatedAt: value.updatedAt as string,
+    sharing, sendTarget: value.sendTarget !== false, updatedAt: value.updatedAt as string,
     windows: sharing && Array.isArray(value.windows)
       ? value.windows.map(readWindow).filter((entry): entry is SyncedWindow => entry !== null)
       : []

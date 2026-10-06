@@ -17,6 +17,8 @@ export function couchHttpTabDocs(
   get(id: string, options?: { conflicts?: boolean; rev?: string; attachments?: boolean }): Promise<Record<string, unknown> | null>
   put(doc: Record<string, unknown>): Promise<{ rev: string }>
   remove(id: string, rev: string): Promise<void>
+  info(): Promise<{ doc_count?: number; doc_del_count?: number; sizes?: { file?: number; active?: number }; compact_running?: boolean }>
+  page(prefix: string, after?: string, limit?: number): Promise<{ docs: Array<Record<string, unknown>>; next?: string }>
   list(prefix: string): Promise<Array<Record<string, unknown>>>
 } {
   const parsed = new URL(syncUrl)
@@ -40,6 +42,23 @@ export function couchHttpTabDocs(
   }
 
   return {
+    async info() {
+      const response = await request(base)
+      if (!response.ok) throw statusError(response.status, "Reading database storage failed")
+      return response.json()
+    },
+    async page(prefix, after, limit = 100) {
+      const query = new URLSearchParams({ startkey: JSON.stringify(after ? `${after}\u0000` : prefix),
+        endkey: JSON.stringify(`${prefix}￿`), include_docs: "true", conflicts: "true", limit: String(limit + 1) })
+      const response = await request(`${base}/_all_docs?${query}`)
+      if (response.status === 404) return { docs: [] }
+      if (!response.ok) throw statusError(response.status, `Listing ${prefix} failed`)
+      const rows = (await response.json() as { rows: Array<{ id: string; doc?: Record<string, unknown> }> }).rows
+      const docs = rows.flatMap((row) => row.id.startsWith(prefix) && row.doc ? [row.doc] : [])
+      const more = docs.length > limit
+      docs.length = Math.min(docs.length, limit)
+      return { docs, ...(more ? { next: String(docs[docs.length - 1]._id) } : {}) }
+    },
     async get(id, options = {}) {
       const query: Record<string, string> = {}
       if (options.conflicts) query.conflicts = "true"
@@ -80,6 +99,7 @@ export function couchHttpTabDocs(
           include_docs: "true", conflicts: "true", limit: String(PAGE_SIZE), skip: String(skip)
         })
         const response = await request(`${base}/_all_docs?${query}`)
+        if (response.status === 404) return []
         if (!response.ok) throw statusError(response.status, `Listing ${prefix} failed`)
         const rows = (await response.json() as { rows?: Array<{ id?: unknown; doc?: Record<string, unknown> | null }> }).rows ?? []
         for (const row of rows) {

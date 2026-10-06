@@ -37,3 +37,17 @@ test("a restore plan starts YouTube by URL, seeks other media in the page and sc
   assert.deepEqual(plan.restore.args, [0.3, 4, "Fourth"])
   assert.deepEqual(restorePlan("https://video.example/a", "web", { media: { v: 9, capturedAt: at, data: {} } }), { url: "https://video.example/a" }, "a newer version is left alone")
 })
+
+
+test("projecting one sent tab keeps every other tab's position until explicit pruning", async () => {
+  const states = new TabStates({ readerPosition: async () => ({ fraction: 0.7, anchor: null }) })
+  const first = tab({ id: "a", mode: "reader" })
+  const second = tab({ id: "b", mode: "reader" })
+  const windows = tabs => [{ id: "w", tabs }]
+  await states.capture(first)
+  await states.capture(second)
+  states.attach(windows([second]))
+  assert.equal(states.attach(windows([first]))[0].tabs[0].state["reader.scroll"].data.fraction, 0.7)
+  states.prune(windows([second]))
+  assert.equal(states.attach(windows([first]))[0].tabs[0].state, undefined)
+})

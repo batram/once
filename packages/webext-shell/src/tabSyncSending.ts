@@ -70,7 +70,7 @@ export function installTabSyncSending(
   return {
     changed() {
       void service()?.view().then((view) => {
-        rebuildMenu(view.devices.map(({ deviceId, name }) => ({ deviceId, name })))
+        rebuildMenu(view.devices.filter((device) => !device.stale && device.sendTarget !== false).map(({ deviceId, name }) => ({ deviceId, name })))
         return notify(view.inbox)
       }).catch(() => undefined)
     }

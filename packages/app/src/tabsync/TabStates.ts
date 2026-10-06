@@ -62,10 +62,14 @@ export class TabStates {
     return changed
   }
 
-  /** The windows with each tab's known state; a change in state counts as use of the tab. */
-  attach(windows: SyncedWindow[]): SyncedWindow[] {
+  /** Only a complete snapshot may remove closed tabs from the cache. */
+  prune(windows: SyncedWindow[]): void {
     const open = new Set(windows.flatMap((window) => window.tabs.map((tab) => tab.id)))
     for (const id of this.cache.keys()) if (!open.has(id)) this.cache.delete(id)
+  }
+
+  /** Pure projection: sending one tab must not discard the others' positions. */
+  attach(windows: SyncedWindow[]): SyncedWindow[] {
     return windows.map((window) => ({
       ...window,
       tabs: window.tabs.map((tab) => {

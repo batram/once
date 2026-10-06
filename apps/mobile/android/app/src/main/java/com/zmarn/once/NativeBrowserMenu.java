@@ -212,7 +212,12 @@ final class NativeBrowserMenu {
         button.setMinimumHeight(0);
         int inset = Math.round(8 * activity.getResources().getDisplayMetrics().density);
         button.setPadding(inset, inset, inset, inset);
-        button.setOnClickListener(ignored -> action.run());
+        button.setOnClickListener(clicked -> {
+            int[] at = new int[2];
+            clicked.getLocationOnScreen(at);
+            NativeSurfaceDialogs.touched(at[0] + clicked.getWidth() / 2f, at[1] + clicked.getHeight() / 2f);
+            action.run();
+        });
         return button;
     }
 

@@ -10,6 +10,7 @@ export interface PouchEventChain {
 }
 
 export interface PouchSyncDatabase extends PouchMaintenanceDatabase {
+  info?(): Promise<{ doc_count?: number; doc_del_count?: number; sizes?: { file?: number; active?: number }; compact_running?: boolean }>
   replicate: {
     from(
       target: string | PouchSyncDatabase,
@@ -72,6 +73,7 @@ export class PouchSyncService {
   ]
   private syncHandler?: PouchEventChain
   private initialReplication?: PouchEventChain
+  private remoteDatabase?: PouchSyncDatabase
   private generation = 0
   private settingsReplicatedGeneration = 0
   private settingsReplicatedHandlers = new Set<() => void>()
@@ -169,6 +171,13 @@ export class PouchSyncService {
     )
   }
 
+  /** Inspect only the currently authorized transport; never create a new destination. */
+  async storageInfo() {
+    const generation = this.generation
+    const info = await this.remoteDatabase?.info?.()
+    return generation === this.generation ? info ?? null : null
+  }
+
   syncFrom(couchdbUrl: string, getLoadedStoryIds?: () => string[]): void {
     const syncOps = {
       ...PouchSyncService.REPLICATION_OPTIONS,
@@ -177,6 +186,7 @@ export class PouchSyncService {
     }
 
     const generation = ++this.generation
+    this.remoteDatabase = undefined
     this.settingsReplicatedGeneration = 0
     this.initialReplication?.cancel?.()
     this.syncHandler?.cancel?.()
@@ -210,6 +220,7 @@ export class PouchSyncService {
     let remote: string | PouchSyncDatabase
     try {
       remote = this.createRemote(couchdbUrl)
+      this.remoteDatabase = typeof remote === "string" ? undefined : remote
     } catch (error) {
       this.updateStatus({
         state: "error",

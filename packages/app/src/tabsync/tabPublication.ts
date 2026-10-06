@@ -48,12 +48,12 @@ export interface PublicationIdentity {
   appVersion: string
 }
 
-export function deviceDocument(identity: PublicationIdentity, windows: SyncedWindow[], sharing: boolean, now = Date.now()): Omit<DeviceDoc, "_rev"> {
+export function deviceDocument(identity: PublicationIdentity, windows: SyncedWindow[], sharing: boolean, now = Date.now(), sendTarget = true): Omit<DeviceDoc, "_rev"> {
   return {
     _id: deviceDocId(identity.deviceId), type: "device", schema: 1,
     deviceId: identity.deviceId, epoch: identity.epoch, seq: identity.seq,
     name: identity.name, platform: identity.platform, appVersion: identity.appVersion,
-    sharing, updatedAt: new Date(now).toISOString(), windows: sharing ? windows : []
+    sharing, sendTarget, updatedAt: new Date(now).toISOString(), windows: sharing ? windows : []
   }
 }
 
@@ -86,6 +86,6 @@ export function expiredSends(
 }
 
 /** A stable fingerprint of what a publication says, to skip republishing nothing new. */
-export function publicationFingerprint(doc: Pick<DeviceDoc, "name" | "sharing" | "windows" | "appVersion" | "epoch">): string {
-  return JSON.stringify([doc.epoch, doc.name, doc.sharing, doc.appVersion, doc.windows])
+export function publicationFingerprint(doc: Pick<DeviceDoc, "name" | "sharing" | "sendTarget" | "windows" | "appVersion" | "epoch">): string {
+  return JSON.stringify([doc.epoch, doc.name, doc.sharing, doc.sendTarget, doc.appVersion, doc.windows])
 }

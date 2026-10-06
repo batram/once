@@ -33,6 +33,7 @@ final class BrowserMenuSheet: UIViewController, UIAdaptivePresentationController
     private let keepMedia: (Bool) -> Void
     private let palette: Palette
     private var settled = false
+    private var chosen: String?
     private var fittedHeight: CGFloat = 0
     private let content = UIStackView()
 
@@ -58,9 +59,12 @@ final class BrowserMenuSheet: UIViewController, UIAdaptivePresentationController
         if let id { call.resolve(["id": id]) } else { call.resolve() }
     }
 
+    /// Resolves once the sheet is gone: the shell may present a menu of its
+    /// own for the choice ("Send page to device…"), which UIKit drops while
+    /// this sheet is still dismissing.
     private func choose(_ id: String) {
-        settle(id)
-        dismiss(animated: true)
+        chosen = id
+        dismiss(animated: true) { self.settle(id) }
     }
 
     private func run(_ action: @escaping () -> Void) {
@@ -75,7 +79,8 @@ final class BrowserMenuSheet: UIViewController, UIAdaptivePresentationController
 
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
-        settle(nil)
+        // A chosen row settles in its dismiss completion, which runs after this.
+        if chosen == nil { settle(nil) }
     }
 
     override func viewDidLoad() {

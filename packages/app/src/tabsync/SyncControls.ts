@@ -12,7 +12,8 @@ import { restorePlan } from "./TabStates"
 type SyncClientMethods = Pick<OnceClient,
   "getSyncConsent" | "requestSyncConsent" | "getTabSync" | "setTabSyncOptions" | "setTabSyncShared" |
   "renameDevice" | "forgetDevice" | "resetDeviceIdentity" | "openRemoteTab" | "getTabThumbnail" |
-  "sendTab" | "sendLocalTab" | "openSentTab" | "dismissSentTab">
+  "sendTab" | "sendLocalTab" | "openSentTab" | "dismissSentTab" |
+  "getTabSyncStorage" | "cleanTabSyncStorage" | "removeInactiveDevices">
 
 export interface SyncControlsHost {
   status(): SyncStatus
@@ -111,6 +112,16 @@ export class SyncControls {
           this.platform.tabOpener.open(plan.url, { background, mode, restore: plan.restore, readerPosition: plan.readerPosition })
         } else this.platform.activeTab?.openUrl(plan.url, background ? "middle" : "_self")
       },
+      getTabSyncStorage: async () => {
+        const stats = await this.require().storage()
+        if (this.active(this.host.status())) {
+          try { stats.server = await this.platform.syncService?.storageInfo?.() }
+          catch { stats.serverUnavailable = true }
+        }
+        return stats
+      },
+      cleanTabSyncStorage: () => this.require().cleanStorage(),
+      removeInactiveDevices: (ids) => this.require().removeInactive(ids),
       resetDeviceIdentity: () => this.require().resetIdentity()
     }
     return methods

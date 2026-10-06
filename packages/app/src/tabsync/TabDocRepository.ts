@@ -12,10 +12,10 @@ import {
   sendDocPrefix,
   SEND_DOC_PREFIX,
   thumbDocPrefix,
-  THUMB_DOC_PREFIX,
   winningPublication,
   winningRetirement
 } from "@once/core"
+import { ThumbnailStore, thumbnailDocumentId } from "./ThumbnailStore"
 import type { TabDocDatabase } from "../types"
 
 /**
@@ -24,7 +24,7 @@ import type { TabDocDatabase } from "../types"
  * conflict handling lives here so both resolve the same way.
  */
 export class TabDocRepository {
-  constructor(private readonly db: TabDocDatabase) {}
+  constructor(readonly db: TabDocDatabase) {}
 
   /**
    * The winning publication of a device, after deleting the losing leaves.
@@ -122,37 +122,21 @@ export class TabDocRepository {
    * not yet received the newer publication can still show them).
    */
   async deleteThumbs(deviceId: string, keep: ReadonlySet<string> = new Set(), before = Infinity): Promise<void> {
+    const kept = new Set([...keep].map(thumbnailDocumentId))
     for (const doc of await this.db.list(thumbDocPrefix(deviceId))) {
       const stored = typeof doc.createdAt === "string" ? Date.parse(doc.createdAt) : 0
-      if (typeof doc._id === "string" && typeof doc._rev === "string" && !keep.has(doc._id) && !(stored > before)) {
+      if (typeof doc._id === "string" && typeof doc._rev === "string" && !kept.has(doc._id) && !(stored > before)) {
         await this.db.remove(doc._id, doc._rev)
       }
     }
   }
 
-  /**
-   * Stores a screenshot under a name derived from its content, once: an
-   * unchanged picture is never written or replicated twice.
-   */
-  async putThumb(deviceId: string, jpeg: string, width: number, height: number): Promise<string> {
-    const id = `${thumbDocPrefix(deviceId)}${await sha1Hex(jpeg)}`
-    if (await this.db.get(id)) return id
-    try {
-      await this.db.put({ _id: id, type: "thumb", deviceId, width, height, createdAt: new Date().toISOString(),
-        _attachments: { [THUMB_ATTACHMENT]: { content_type: "image/jpeg", data: jpeg } } })
-    } catch (error) {
-      if (!isConflict(error)) throw error
-    }
-    return id
+  /** Bounded reusable screenshot slots; the hash in the reference rejects stale images. */
+  putThumb(deviceId: string, jpeg: string, width: number, height: number, keep: ReadonlySet<string> = new Set()): Promise<string | null> {
+    return new ThumbnailStore(this.db).put(deviceId, jpeg, width, height, keep)
   }
 
-  /** A screenshot as a data URL, or null while it has not arrived. */
-  async thumbnail(id: string): Promise<string | null> {
-    if (!id.startsWith(THUMB_DOC_PREFIX)) return null
-    const doc = await this.db.get(id, { attachments: true })
-    const attachment = (doc?._attachments as Record<string, { data?: unknown }> | undefined)?.[THUMB_ATTACHMENT]
-    return typeof attachment?.data === "string" ? `data:image/jpeg;base64,${attachment.data}` : null
-  }
+  thumbnail(id: string): Promise<string | null> { return new ThumbnailStore(this.db).get(id) }
 
   async listSends(target?: string): Promise<SendDoc[]> {
     const docs = await this.db.list(target ? sendDocPrefix(target) : SEND_DOC_PREFIX)
@@ -186,16 +170,6 @@ export class TabDocRepository {
     }
     return winner
   }
-}
-
-const THUMB_ATTACHMENT = "thumb.jpg"
-
-async function sha1Hex(base64: string): Promise<string> {
-  const binary = atob(base64)
-  const bytes = new Uint8Array(binary.length)
-  for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index)
-  const digest = await globalThis.crypto.subtle.digest("SHA-1", bytes)
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")
 }
 
 function isConflict(error: unknown): boolean {

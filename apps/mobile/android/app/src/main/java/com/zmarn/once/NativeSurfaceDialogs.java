@@ -16,6 +16,13 @@ import org.json.JSONObject;
 
 
 final class NativeSurfaceDialogs {
+    /** Where on screen the user last touched, for a menu with no anchor of its own. */
+    private static volatile int[] lastTouch;
+
+    static void touched(float screenX, float screenY) {
+        lastTouch = new int[] { Math.round(screenX), Math.round(screenY) };
+    }
+
     static void showMenu(Bridge bridge, PluginCall call) {
         bridge.getActivity().runOnUiThread(() -> {
             JSArray items = call.getArray("items");
@@ -49,8 +56,18 @@ final class NativeSurfaceDialogs {
                 (float) bounds.optDouble("height", 1) * density
             ));
             parent.addView(anchor, new ViewGroup.LayoutParams(width, height));
-            anchor.setX(shell.getX() + Math.round((float) bounds.optDouble("x", 0) * density));
-            anchor.setY(shell.getY() + Math.round((float) bounds.optDouble("y", 0) * density));
+            if (call.getObject("anchor") != null) {
+                anchor.setX(shell.getX() + Math.round((float) bounds.optDouble("x", 0) * density));
+                anchor.setY(shell.getY() + Math.round((float) bounds.optDouble("y", 0) * density));
+            } else {
+                // No element to open from (a row in a native sheet, a link's
+                // long press): open where the user last touched, else the
+                // bottom right, nearest the thumb.
+                int[] origin = new int[2];
+                parent.getLocationOnScreen(origin);
+                anchor.setX(lastTouch != null ? lastTouch[0] - origin[0] : parent.getWidth() - width);
+                anchor.setY(lastTouch != null ? lastTouch[1] - origin[1] : parent.getHeight() - height);
+            }
 
             PopupMenu popup = new PopupMenu(bridge.getActivity(), anchor, Gravity.END);
             for (int index = 0; index < labels.length; index++) {

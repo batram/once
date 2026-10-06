@@ -1028,3 +1028,49 @@ tab sync, because it uses the same consent mechanism.
 | P2 Chrome activation has no `previousTabId` | §5 persists a per-window active-tab map across worker suspension, with optional Firefox shortcut and lifecycle cleanup; Chrome-shaped event tests. |
 | P2 Incoming-send query has no upper bound or target validation | §4a bounds and paginates the exact inbox prefix, retrieves bodies and revalidates the target before actions; two-target and identity-reset tests. |
 | P2 30-second alarms require Chrome 120, but the manifest supports 114 | §4a and phase 2 explicitly raise the minimum to 120; manifest and packaged-alarm verification. |
+
+## Review fixes and storage lifecycle (October 2026)
+
+- Device publications advertise `sendTarget`; absence means true for older writers. Receiving off
+  keeps existing sends queued but hides their inbox/notices and prevents opening them until receiving
+  is enabled again. Senders recheck the target, retirement and age before writing.
+- State projection no longer prunes the position cache. Only complete publication snapshots prune it.
+  Extension startup and cross-window changes seed/reconcile the active-tab map before later events.
+- Pairing waits for transport success, keeps the link on failure, and commits only the latest offer
+  render. Remote-list refreshes restore keyboard focus by stable action keys. Sends report success
+  and offer retry on failure. Mobile's tab view has direct navigation to both groups.
+- The sharing offer explains addresses, titles, positions, screenshots, and unencrypted storage before
+  opt-in. Storage and cleanup lists counts, attachment bytes, last successful cleanup, local deleted
+  records and available server size/compaction information. Statistics are fetched on demand.
+- Screenshot writes reuse at most **128 document IDs per device**, each holding at most **64 KiB** of
+  image bytes (8 MiB of current image payload per device, excluding metadata/revisions). References
+  are `tth_<device>_slot_<number>#<contentHash>`; readers strip the hash to fetch the document and reject
+  mismatches. A replaced image therefore cannot appear on the wrong page in an old snapshot. Once
+  the cache is full, unprotected slots can be reused; when all slots are protected, additional tabs
+  use placeholders. This is a cache, not an archive. New readers still accept old content-addressed
+  screenshots. Older clients may show placeholders for slot references; upgrade all clients to get
+  the bounded writer behavior. Existing screenshot tombstones are not purged.
+- Maintenance runs independently of publication. A device-local checkpoint throttles completed sweeps
+  to once an hour; each invocation handles up to 100 screenshots and 100 sends. Incomplete sweeps
+  resume on the next ten-minute tick or extension alarm, including after a worker restart. Errors
+  retain the checkpoint for retry. The master switch/connection gate also gates maintenance. Turning
+  screenshots off still withdraws the owner's images immediately.
+- Any participating runtime can remove unreferenced screenshots older than an hour (including legacy
+  orphaned images), independently of whether their owner is online. Slot collection clears attachment
+  payloads while retaining reusable IDs; legacy image documents are deleted. Referenced images remain
+  with their device until explicitly removed. Sends use the shared retention period, default 14 days.
+- Inactive age remains a presentation choice, not automatic destructive retention. **Remove inactive
+  devices…** names the affected devices, asks for confirmation, rechecks age, retires each identity,
+  and removes its snapshot, images, and queued sends. A returning device must explicitly rejoin.
+- `dev_` snapshots still reuse one ID per device. Local databases use automatic compaction and 20
+  ancestry entries; the existing maintenance pass compacts locally once. Remote compaction belongs
+  to the CouchDB administrator (smoosh); the app reports available metrics but never purges replicas
+  or changes server administration settings. `tsend_` tombstones and retained `tret_` records still
+  accumulate over time. The screenshot change bounds new screenshot IDs per installation, not total
+  database size across indefinitely many installations or sends.
+
+Operational checks: inspect CouchDB `GET /<db>` for `doc_count`, `doc_del_count`, `sizes.file`,
+`sizes.active` and `compact_running`, and monitor the configured automatic compaction service. A rising
+`update_seq` alone is not document growth. Do not purge deletion/retirement records without a separate
+replica retirement/rebootstrap plan; offline replicas rely on them. Counts in the app's local-copy
+summary can lag the server while offline or replicating.

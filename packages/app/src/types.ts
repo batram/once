@@ -213,6 +213,9 @@ export interface OnceClient {
   /** Removes another device from tab sync until it turns sharing on again. */
   forgetDevice(deviceId: string): Promise<void>
   resetDeviceIdentity(): Promise<void>
+  getTabSyncStorage(): Promise<import("./tabsync/TabSyncMaintenance").TabSyncStorage>
+  cleanTabSyncStorage(): Promise<void>
+  removeInactiveDevices(deviceIds: string[]): Promise<void>
   /**
    * The token a source sends, kept on this device only. Absent reads as "";
    * setting "" removes it. Rejects when this shell has no secret store.
@@ -333,6 +336,7 @@ export interface StoryStorePort {
 }
 
 export interface SyncServicePort {
+  storageInfo?(): Promise<{ doc_count?: number; doc_del_count?: number; sizes?: { file?: number; active?: number }; compact_running?: boolean } | null>
   syncFrom(couchdbUrl: string, getLoadedStoryIds?: () => string[]): void
   onSettingsReplicated?(handler: () => void): () => void
   onDiagnostic?(handler: (error: DiagnosticError) => void): () => void
@@ -401,6 +405,8 @@ export interface TabDocDatabase {
   remove(id: string, rev: string): Promise<void>
   /** Every live document whose id starts with `prefix`, with its `_conflicts`. */
   list(prefix: string): Promise<Array<Record<string, unknown>>>
+  page?(prefix: string, after?: string, limit?: number): Promise<{ docs: Array<Record<string, unknown>>; next?: string }>
+  info?(): Promise<{ doc_count?: number; doc_del_count?: number; sizes?: { file?: number; active?: number }; compact_running?: boolean }>
 }
 
 /** One open tab as this device sees it, before filtering for publication. */

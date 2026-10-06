@@ -59,12 +59,12 @@ test("a sharing desktop publishes the tabs of both windows, and can remove anoth
       const [desktop] = (await remote.allDocs({ startkey: "dev_", endkey: "dev_\uffff", include_docs: true })).rows
         .map((row) => row.doc).filter((doc) => doc.deviceId !== otherDevice)
       const thumbs = desktop.windows.flatMap((window) => window.tabs.map((tab) => tab.thumb?.id)).filter(Boolean)
-      const stored = await Promise.all(thumbs.map((id) => remote.getAttachment(id, "thumb.jpg").then((data) => data.length > 500, () => false)))
+      const stored = await Promise.all(thumbs.map((id) => remote.getAttachment(id.split("#")[0], "thumb.jpg").then((data) => data.length > 500, () => false)))
       return stored.filter(Boolean).length
     }, { timeout: 30000 }).toBe(2)
     const [shot] = (await remote.allDocs({ startkey: "tth_", endkey: "tth_\uffff" })).rows
     await fs.mkdir("artifacts/tab-sync", { recursive: true })
-    await fs.writeFile("artifacts/tab-sync/published-thumb-electron.jpg", await remote.getAttachment(shot.id, "thumb.jpg"))
+    await fs.writeFile("artifacts/tab-sync/published-thumb-electron.jpg", await remote.getAttachment(shot.id.split("#")[0], "thumb.jpg"))
 
     await page.getByTestId("tab-sync-device").getByRole("button", { name: "Remove Test phone from tab sync" }).click()
     await page.getByTestId("confirm-accept").click()
