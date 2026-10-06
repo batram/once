@@ -210,6 +210,10 @@ test("Ctrl+L focuses the address bar; Ctrl+F finds in the page or the stories", 
       `${server.origin}/article`
     )
     await expect.poll(() => activeTabUrl(window)).toContain("/article")
+    // Find runs once per keystroke, so the article must be loaded before typing.
+    await expect.poll(() => electronApp.evaluate(({ webContents }, url) =>
+      webContents.getAllWebContents().some((contents) => contents.getURL() === url && !contents.isLoading()),
+    `${server.origin}/article`)).toBe(true)
 
     await window.keyboard.press("Control+l")
     await expectDocumentFocus(window.locator("#urlfield"))
