@@ -134,6 +134,13 @@ test("the HTTP store authenticates from the URL, pages within its prefix and sto
     server.closeAllConnections()
     await new Promise((resolve) => server.close(resolve))
     await remote.destroy()
+    // express-pouchdb installs pouchdb-all-dbs, whose registry database stays
+    // open; on Windows its LevelDB log cannot be unlinked until it is closed.
+    // allDbs() drains its queue first. resetAllDbs() would not do: with a prefix
+    // the registry's own destroy event re-registers it. Closing any instance of
+    // the same name closes the shared LevelDB store.
+    await Db.allDbs()
+    await new Db("pouch__all_dbs__").close()
     await fs.rm(directory, { recursive: true, force: true })
   }
 })
