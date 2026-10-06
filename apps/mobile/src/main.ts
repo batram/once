@@ -31,6 +31,7 @@ import { installReaderLinkHost, installReaderLinkMenuHost } from "./readerLinks"
 import { installReaderEdgeSwipeHost } from "./readerEdgeSwipe"
 import { MobileReadingController } from "./readingController"
 import { setUpPairing } from "./pairing"
+import { bindSettingsIssueIcons } from "./settingsIssueIcons"
 import { mountTabSyncInTabView, readingTabOpener, readingTabSource } from "./readingTabSync"
 import { linkAddonItems, readingPageActions } from "./readingPageActions"
 import { sendLinkItems } from "./tabSyncMenus"
@@ -294,6 +295,7 @@ async function startMobileApp(): Promise<void> {
   mountTabSyncInTabView(reading, app.client, browserSurface)
   document.body.dataset.onceStage = "ui-mount"
   beginStoryLoading(app.client)
+  bindSettingsIssueIcons()
   await mountOnceUi(app.client, {
     reloadSpinTimeout: RELOAD_SPIN_TIMEOUT_MS,
     shell: "mobile",

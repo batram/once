@@ -912,6 +912,15 @@
     opacity: 1;
   }
 
+  /* Appearance can turn the tab's issue glyphs off; the error log keeps them. */
+  body.once-hide-settings-issue-icons #status_dock {
+    display: none;
+  }
+
+  body.once-hide-settings-issue-icons #settings_menu_btn {
+    opacity: 0.55;
+  }
+
   #menu .heading {
     position: relative;
     flex-direction: column;

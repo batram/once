@@ -36,6 +36,11 @@ export function updateSettingsSummaries(
         ? " · story collapsed"
         : " · story expanded"
       : ""
+  const issueIcons =
+    document.querySelector<HTMLInputElement>("#mobile_settings_issue_icons")
+      ?.checked === false && storyCard
+      ? " · no issue icons"
+      : ""
   const swipeRight = document.querySelector<HTMLSelectElement>(
     '[data-swipe="right-0"]'
   )?.selectedOptions[0]?.textContent || "Read"
@@ -58,7 +63,7 @@ export function updateSettingsSummaries(
     },
     theme: {
       text: `${theme[0]?.toUpperCase()}${theme.slice(1)} · ${animation}` +
-        storyPosition + storyCard
+        storyPosition + storyCard + issueIcons
     },
     keyboard: { text: keyboardSummary() },
     swipe: { text: `${swipeRight} · ${swipeLeft}` },

@@ -702,6 +702,22 @@
                         <option value="collapsed">Collapsed</option>
                       </select>
                     </div>
+                    <div class="settings_row settings_row_inline">
+                      <label class="settings_row_name" for="mobile_settings_issue_icons">
+                        Issue icons on Settings
+                      </label>
+                      <p class="settings_row_hint" id="mobile_settings_issue_icons_hint" data-help>
+                        Marks the Settings tab when there are errors or warnings. The
+                        error log still lists them. Remembered on this device.
+                      </p>
+                      <input
+                        type="checkbox"
+                        class="switch"
+                        id="mobile_settings_issue_icons"
+                        data-testid="mobile-settings-issue-icons"
+                        aria-describedby="mobile_settings_issue_icons_hint"
+                      />
+                    </div>
                   </section>
                   <section
                     class="settings_rows"
