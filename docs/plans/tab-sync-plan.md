@@ -1,6 +1,6 @@
-# Tab sync across devices — design plan (rev 5)
+# Tab sync across devices — design plan (rev 6)
 
-> Status: draft for review (rev 5, revised after four review rounds; see "Review changes" at the end).
+> Status: draft for review (rev 6, revised after five review rounds; see "Review changes" at the end).
 
 ## Context
 
@@ -289,39 +289,54 @@ event page (`"persistent": false`). PouchDB's live sync can't be kept running th
     - `CouchHttpTabDocWriter` (`packages/persistence`, used by `packages/webext-shell`'s background):
       - It uses `fetch` against the sync URL: `GET dev_<id>?conflicts=true`, `PUT`, `DELETE ?rev=`,
         `PUT` for the `tth_` attachments, and `GET tret_<id>`.
-      - The sync URL is read from `storage.sync` (`WebExtSyncStorage`).
+      - The sync URL is read from `storage.sync` (`WebExtSyncStorage`), but it is never used directly:
+        every operation passes through destination binding (§9) and the Firefox consent gate below.
+        The background establishes the binding before its first request, even if no panel or local
+        PouchDB has ever been opened.
       - Credentials are moved out of the URL into an `Authorization: Basic` header, because `fetch`
         rejects URLs that contain userinfo.
       - The `<all_urls>` host permission covers the cross-origin request.
 - **Wake-ups:**
   - `tabs.onCreated/onUpdated/onActivated/onRemoved`, `windows.onFocusChanged`,
-    `webNavigation.onCommitted`, `storage.onChanged` (options), and `alarms`. This needs a new `alarms`
-    permission in both manifests.
+    `webNavigation.onCommitted`, `storage.onChanged` (options and `sync_url`), and `alarms`. This needs
+    a new `alarms` permission in both manifests. URL changes invalidate queued network work and are
+    revalidated against the device-local destination binding before another request (§9).
 - **Timing under MV3 limits:**
   - The 3 s debounce runs in memory, since the worker stays alive for at least 30 s after an event.
     It falls back to a one-shot alarm.
-  - Sampling is an alarm every 30 s (Chrome's minimum) while an audible or selected tab has a state
-    provider.
+  - Sampling is an alarm every 30 s while an audible or selected tab has a state provider. Raise
+    `minimum_chrome_version` from 114 to **120**, where 30-second repeating alarms are supported.
+    This is an explicit compatibility change; there is no Chrome 114–119 fallback in v1.
   - The heartbeat is an alarm every 10 min.
   - `seq`, the epoch, the last published hash, pending dirty flags and the state cache are persisted
     in `storage.session` and `storage.local`, so a restarted worker resumes without losing them.
 - **State capture without the panel:**
   - `scripting.executeScript` for `page` providers.
   - Messages to open reader pages (`readerPage.ts`) for `reader` providers.
-  - `previousTabId` capture on `tabs.onActivated`.
+  - Outgoing-tab capture uses a per-window active-tab map (§5); Chrome's activation event has no
+    `previousTabId`. Firefox's field is an optional shortcut.
   - Thumbnails via `captureVisibleTab` from the background.
 - **Offline:** a failed request leaves the dirty flag set and schedules a retry alarm with backoff.
-  Nothing is written locally. The panel's local PouchDB receives the published docs through normal
+  No tab documents are written to local PouchDB; the binding and pending state remain in extension
+  storage. The panel's local PouchDB receives the published docs through normal
   replication like any other device's docs, so the panel's `RemoteTabsView` shows this device's own
   doc consistently.
 - **Incoming sends without the panel:**
-  - The background polls `_all_docs?startkey="tsend_<id>_"` on the heartbeat and sampling alarms.
-    `_changes` long-polling is avoided because the worker can't hold it open.
+  - On heartbeat and sampling alarms, the background polls `_all_docs` with both bounds:
+    `startkey = JSON.stringify(prefix)` and `endkey = JSON.stringify(prefix + "\uffff")`, where
+    `prefix = "tsend_" + ownDeviceId + "_"`, plus `include_docs=true`. Encode the query parameters
+    with `URLSearchParams`; paginate within these same bounds. `_changes` long-polling is avoided
+    because the worker can't hold it open.
+  - Validate the exact target prefix, send schema and non-deleted document before displaying a
+    notification. Revalidate the target, current identity and pending send before opening or
+    acknowledging it; a notification is not authority to act on an arbitrary document ID.
   - New sends raise a browser notification (optional `notifications` permission). Clicking it opens the
     tab and deletes the send doc over HTTP.
 - **Manifest and store review:**
   - Add `alarms` (both) and optional `notifications`.
+  - Set Chrome's minimum version to 120 and note it in the release documentation.
   - Firefox data collection declaration: see "Firefox data collection declaration" below.
+
 **Firefox data collection declaration**
 
 - **Does this count as collection?** By Mozilla's wording, yes. The Extension Workshop defines data
@@ -332,20 +347,33 @@ event page (`"persistent": false`). PouchDB's live sync can't be kept running th
 - **Existing gap:** today's story sync already sends story URLs, read state and saved article text to
   the same CouchDB while declaring `required: ["none"]`. Tab sync makes the gap bigger rather than
   creating it.
-- **Plan:** keep `required: ["none"]`, because the extension works fully without sync. Add
-  **optional** categories and request them at runtime with
-  `browser.permissions.request({ data_collection: [...] })` when the user turns the feature on:
-  - `browsingActivity`: tab URLs and titles, and story URLs and read state. Requested when sync is
-    connected or tab sharing is turned on.
-  - `websiteContent`: screenshots and saved article content. Requested when screenshots or saved-article
-    sync are on.
-  - `websiteActivity`: reader scroll and media playback positions. Requested when tab sharing is on.
-- If the user declines a category, the matching data is not published. For example, declining
-  `websiteContent` turns "Include screenshots" off. The settings UI explains why the prompt appears.
+- **Plan:** keep `required: ["none"]`, because the extension works fully without sync. Declare these
+  categories as **optional at installation**, and request them together from a user action when
+  connecting or resuming sync with `browser.permissions.request({ data_collection: [...] })`:
+  - `browsingActivity`: tab URLs and titles, and story URLs and read state.
+  - `websiteContent`: screenshots and saved article content.
+  - `websiteActivity`: reader scroll and media playback positions.
+- **v1 consent applies to the whole sync connection.** Require all three categories before any
+  shared-database replication or background HTTP sync operation. The database is replicated without
+  filtering and can contain previously queued data and other devices' documents, regardless of this
+  device's capture toggles. Disabling screenshots or new article saving cannot prevent existing
+  attachments from being uploaded. Per-category replication is out of scope for v1.
+- A shared consent gate checks granted permissions before startup, resume and retries, and before
+  direct HTTP requests. Existing installations with a saved URL stay disconnected until consent is
+  granted. Background startup never prompts; Settings shows an action to grant consent and resume.
+  On Firefox versions without the built-in consent API, sync remains disabled with an explanation
+  to upgrade; local reading remains available.
+- Listen for permission removal. Revocation of any category cancels all panel replication, aborts
+  pending background requests, invalidates queued network work and pauses retries across contexts.
+  Work already accepted by the server cannot be recalled. Keep local data and the destination binding;
+  granting consent again permits a guarded restart. Recheck permissions after asynchronous startup
+  work so revocation during initialization cannot start a replication afterwards.
+- If a category is declined, the connection remains paused. The UI explains that the shared database
+  requires all three categories and that local sharing/screenshot toggles control new capture only.
 - Chrome has no manifest equivalent. The Chrome Web Store privacy disclosure gets the same categories
   and states that data goes only to the user's own server.
-- Requesting the categories for the existing story sync could be a separate small change. It is listed
-  under phase 1 so it doesn't get lost.
+- This gate covers existing story sync as well as tab sync and ships in phase 1, before any new
+  background publisher. See [Mozilla's consent documentation](https://extensionworkshop.com/documentation/develop/firefox-builtin-data-consent/).
 
 - **Mobile and Electron** don't get a background publisher in v1. Mobile flushes on pause, and Electron
   runs while its windows are open.
@@ -370,7 +398,13 @@ event page (`"persistent": false`). PouchDB's live sync can't be kept running th
   tabs.
 - **Outgoing tab on deactivation:**
   - Electron: the `TabOwnership.activate` previous id.
-  - Extensions: `tabs.onActivated.previousTabId`.
+  - Extensions: maintain `activeTabByWindow` in `storage.session`, serialized with activation handling
+    so it survives background-worker suspension. Seed it from the window snapshot on first startup;
+    capture the saved outgoing ID before replacing it with the event's `tabId`. Chrome events contain
+    only `tabId` and `windowId`; Firefox's optional `previousTabId` can supply the outgoing ID directly.
+    Update the map on tab removal, attachment/detachment and window removal. If the previous tab has
+    closed or the map is unavailable after browser restart, skip that capture and use the last cached
+    state; do not guess an outgoing ID. See the [Chrome activation API](https://developer.chrome.com/docs/extensions/reference/api/tabs#event-onActivated).
   - Mobile: `ReadingTabs.select`.
   - This also covers a video paused and then switched away from.
 - Best-effort flush on background or close.
@@ -426,25 +460,30 @@ bound to the new tab's `navSeq`.
 The banner requires all of the following:
 
 - **Tab activity:**
-  - `doc.updatedAt − tab.activityAt ≤ activityWindow` (default 15 min, set by the user). Both values
+  - `0 ≤ doc.updatedAt − tab.activityAt ≤ activityWindow` (default 15 min, set by the user). Both values
     come from the same clock, so skew doesn't matter.
   - The tab has a `media` or `reader.scroll` entry with `capturedAt ≥ activityAt − 1 min`.
-- **Snapshot freshness:**
-  - If the device's doc was **observed live**, meaning a new `(epoch, seq)` arrived through live sync in
-    this runtime, the snapshot is fresh while `now − receivedAt ≤ freshnessWindow` (default 30 min, set by the user). This uses the local clock
-    only.
-  - If it was only seen in the initial pull or loaded from cache, it is fresh only if
-    `−2 min ≤ now − doc.updatedAt ≤ freshnessWindow`.
-    - A doc dated in the future beyond the 2-minute tolerance counts as skewed, and is not eligible until
-      it is observed live.
-    - An old offline snapshot received on first sync is therefore not shown.
+- **Snapshot freshness (conservative v1 rule):**
+  - For every delivery path—cache, initial pull, live sync and reconnect catch-up—require
+    `−2 min ≤ now − doc.updatedAt ≤ freshnessWindow` (default 30 min, set by the user).
+  - A new `(epoch, seq)` or a recent local `receivedAt` proves only that this receiver has received a
+    publication, not when the owner made it. Live sync can deliver days-old queued publications after
+    a network interruption. Receipt never renews freshness or bypasses the timestamp check.
+  - Future-dated snapshots beyond the 2-minute tolerance are marked as having uncertain clock times
+    and excluded from the banner. Large source-clock skew can also make current snapshots appear old;
+    v1 deliberately suppresses those banners. Remote tabs remain available to open manually. There is
+    no claim of skew-independent freshness without a separate clock/liveness protocol.
+  - Re-evaluate eligibility as time passes, on resume and after reconnect; do not retain a previously
+    eligible banner indefinitely. `receivedAt` may be stored for diagnostics only.
 - The tab is not dismissed. Dismissals are stored locally by `deviceId + tabId + navSeq`.
 - The device is not retired, and is not this device.
 
 Text: "Continue *Title* from *iPhone* at 12:34". Actions: Open, Dismiss.
 
-**Displayed ages:** for live-observed docs, `(updatedAt − activityAt) + (now − receivedAt)`, which is
-skew-free. Otherwise, the age relative to `updatedAt`, marked "as of *n* min ago".
+**Displayed ages:** label `max(0, now − updatedAt)` as an approximate snapshot age based on device
+clocks, and `updatedAt − activityAt` as activity age **at that snapshot**. Never replace snapshot age
+with time since receipt. For future-dated or inconsistent timestamps, show "Device time differs;
+freshness unknown" instead of an apparently precise age. Cross-device ages remain approximate in v1.
 
 ### 7. UI — `packages/ui-web/src/tabsync/`
 
@@ -563,18 +602,41 @@ Problem: `setSyncUrl` re-points the same local PouchDB, and live sync is unfilte
 and screenshots from database A would therefore be uploaded to database B.
 
 - Generalize the vault check in `AppRuntime` (:223) into **`SyncDestinationBinding`**:
-  - It stores `once:sync-destination` (origin plus path, no credentials).
-  - The binding is set when the vault is enabled **or** when any tab doc (`dev_`, `tth_`, `tsend_`,
-    `tret_`) exists locally.
-- Every URL change is classified:
-  - **Initial pairing**: no binding and no URL. Allowed.
+  - It stores `once:sync-destination` (normalized origin plus path, no credentials) in device-local
+    storage, shared by the device's runtimes. It is never kept in `storage.sync`.
+  - Establish it **before starting replication or making the first background HTTP sync request**,
+    under a shared initialization lock. Do not wait for a tab document to appear locally: the
+    background publisher may never open PouchDB, and unfiltered replication may import tab documents
+    immediately. Persisting the binding must succeed before any network operation is allowed.
+  - This conservatively binds all v1 sync connections, including a connection currently used only for
+    stories. Switching databases within one profile is no longer offered after the first connection.
+    Clearing the URL, disabling sharing or revoking consent does not clear the binding.
+  - On upgrade, migrate an existing vault destination first, or bind the previously configured URL
+    before starting the new sync code. If existing local data has no trustworthy destination, require
+    a separate profile rather than infer its source from a newly received browser-synced URL. Migration
+    must not silently rebind data from a known destination to the latest value of `sync_url`.
+- Every requested URL is classified, whether it comes from settings, pairing, startup or browser sync:
+  - **Initial pairing**: no binding and no data requiring a known previous destination. Allowed;
+    create the binding before connecting. A saved URL alone is not authorization to bypass migration.
   - **Same destination, new credentials**: same origin and path. Allowed.
   - **Different destination while bound**: rejected with "Use a separate Once profile for another sync
     database". This includes after clearing the URL, because the binding persists, matching vault
     behavior.
+- **Enforcement is at the transport boundary**, not just `client.setSyncUrl`:
+  - `AppSettings.startSync`/`PouchSyncService.syncFrom` must pass the gate on startup, resume and
+    replacement of a replication. The same gate covers initial pull and live replication.
+  - `CouchHttpTabDocWriter` and background inbox/ack/GC requests pass it before every operation,
+    together with the consent gate (§4a). Background-only use creates the same durable binding as a
+    panel connection.
+  - Observe `storage.sync` URL changes in the background and open panels. Cancel the current transport,
+    invalidate queued requests using a connection generation, and reclassify the new URL against the
+    existing binding. Re-read the generation after asynchronous gate checks. Never redirect old queued
+    work to a replacement URL. Same-destination credential changes may restart after validation.
+  - A different destination pauses this device's sync and shows the separate-profile error. Keep the
+    local binding unchanged; do not write an old URL back into browser sync and cause a cross-device
+    settings loop. A restart must perform the same validation even if no change event was observed.
 - PouchDB purge is adapter-specific and deletions would leave tombstones in B, so local isolation is out
   of scope for v1.
-- Story docs keep their current behavior when unbound.
 
 ### 10. QR pairing
 
@@ -619,9 +681,10 @@ and screenshots from database A would therefore be uploaded to database B.
      disable and retire) and the Sync settings consolidation.
    - Electron `TabSourcePort`.
    - Firefox optional `data_collection` categories and runtime requests, including for the existing
-     story sync.
+     story sync; shared consent gate for startup, queued data and revocation.
 2. **Remote tabs UI and open**: Electron first, then the mobile tab view, then the extension background
-   publisher (§4a, with `CouchHttpTabDocWriter`) and its panel view.
+   publisher (§4a, with `CouchHttpTabDocWriter`) and its panel view. This includes bounded inbox polling,
+   the per-window active-tab map, transport guards and Chrome's minimum-version bump to 120.
 3. **Thumbnails** (`tth_`, per-platform capture, GC, toggle).
 4. **State**:
    - `TabStateCache`, the triggers and `navSeq` binding.
@@ -645,6 +708,7 @@ and screenshots from database A would therefore be uploaded to database B.
 - Favicons.
 - Local isolation for switching databases in one profile.
 - Clone detection.
+- Per-category Firefox replication consent and clock/liveness protocols for skew-independent banners.
 
 ## Decisions from review round 2
 
@@ -670,6 +734,18 @@ and screenshots from database A would therefore be uploaded to database B.
 None outstanding. The Firefox declaration fix for the existing story sync ships in phase 1 together with
 tab sync, because it uses the same consent mechanism.
 
+## Decisions from review round 5 (rev 6)
+
+1. Bind every sync connection before transport startup, including story-only and background-only use.
+   Check startup and externally synchronized URL changes as well as explicit URL edits (§9).
+2. Firefox requires all three declared categories for the shared sync connection. Declining or revoking
+   one pauses both replication and background HTTP sync; capture toggles cannot filter queued data (§4a).
+3. Use the conservative source-timestamp freshness rule for every delivery path. Significant clock skew
+   can suppress the banner in v1; receiving an old publication through live sync never refreshes it (§6).
+4. Track outgoing tabs per window for Chrome, and bound and validate background inbox queries (§4a/§5).
+5. Raise the Chrome minimum to 120 for 30-second repeating alarms. See the
+   [Chrome lifecycle version history](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle#chrome-120).
+
 ## Verification
 
 - **Unit** (`tests/unit/core`, `tests/unit/app`):
@@ -677,17 +753,25 @@ tab sync, because it uses the same consent mechanism.
   - The `(epoch, seq)` winner choice.
   - Retirement filtering.
   - Destination classification: initial, same-destination credentials, different destination.
+  - Destination normalization, migration precedence and connection-generation invalidation.
+  - Inbox bounds and exact target-prefix validation, including unrelated document types.
   - Provider passthrough of unknown ids and versions.
   - YouTube `rewriteUrl`.
   - Reader anchor and fraction restore.
-  - Banner eligibility table: long uninterrupted session, stale snapshot from initial sync, ±1 h skew,
-    future-dated doc.
+  - Banner eligibility table: long uninterrupted session, stale snapshots from cache, initial sync and
+    live reconnect catch-up, ±1 h skew, future-dated doc and expiry while displayed. Skewed or old
+    publications do not become eligible merely because a new sequence was received.
   - QR payload round-trip.
   - `DeviceIdentity` concurrent init under the lock.
 - **Integration** (`tests/integration/app`, `tests/helpers/fake-platform.js`, two `AppRuntime`s on memory
   PouchDBs):
   - **A → B pairing:** A is bound to DB1 with tab docs, and pairing to DB2 is rejected. Assert DB2
     contains no doc from A.
+  - **Startup binding:** a bound local DB restarts with a different saved URL; no initial pull or live
+    replication starts against the new destination. Exercise vault-binding migration and missing
+    destination provenance without silently assigning existing data to a newly supplied URL.
+  - **Connection change race:** changing the URL while validation or a retry is pending invalidates
+    that work. Same-destination credential replacement can restart; a different destination cannot.
   - **Forget, offline return:** forget device X while X is offline. X publishes more and then
     reconnects; X stays hidden, then self-retires and deletes its docs. After X re-enables sharing it is
     visible again with `epoch + 1`.
@@ -704,18 +788,37 @@ tab sync, because it uses the same consent mechanism.
   - **Send retention:** a send to an abandoned target is removed by another device after the synced
     retention. Test with the default and with a changed value.
   - **Configurable windows:** changing the activity and freshness windows changes banner eligibility.
+  - **Delayed live delivery:** keep live replication configured, disconnect the receiver, publish a
+    snapshot on the source and stop the source. Reconnect after the freshness window. The unseen
+    sequence arrives through live sync but does not show a banner or acquire a new snapshot age.
 - **Electron e2e** (`npm run test:electron:e2e`):
   - Tabs in two windows are grouped in `dev_`.
   - Opening a remote tab restores `media` on a local video fixture and reader scroll.
 - **Extensions** (`npm run test:extensions`):
   - Two windows are captured and an incognito window is excluded.
   - `captureVisibleTab` produces a thumbnail.
-  - `previousTabId` capture works.
+  - Chrome activation with only `{tabId, windowId}` captures the outgoing tab from the per-window map,
+    including after worker suspension. Cover removal, cross-window movement and a missing map after
+    browser restart; Firefox's optional `previousTabId` also works.
   - A remote tab opens.
   - **Panel closed:** with no side panel open, opening and navigating tabs publishes `dev_` to a test
     CouchDB over HTTP. A service-worker restart (Chrome) keeps `seq` increasing.
   - A failed request while offline is retried on the next alarm.
-  - A send to this device raises a notification and opens the tab.
+  - **Background-only binding:** publish with no panel or local PouchDB, restart the worker and attempt
+    a different destination. The binding persists and no request is sent to the new database.
+  - **Browser-synced URL change:** simulate `storage.sync` replacing the URL from another installation,
+    both with an open panel and with the panel closed, then restart. Background requests and panel
+    replication remain blocked for the different destination; the device-local binding is unchanged.
+  - **Firefox consent:** upgrade with an existing URL, local saved article attachments and queued tab
+    documents but without the new grants. Neither replication nor direct HTTP sync starts. Grant all
+    categories, then revoke each in turn during initialization and active sync; no new requests start
+    after revocation is handled. Regranting resumes through both gates. Test the unsupported-consent-API
+    path and a saved URL arriving through browser sync without a user gesture.
+  - **Inbox isolation:** seed sends to two devices and documents outside the inbox prefix; only this
+    target's pending sends produce notifications. Clicking opens and acknowledges only its send.
+    Test pagination and identity reset between notification display and click.
+  - **Chrome compatibility:** assert the manifest minimum is 120 and verify 30-second alarm creation
+    with packaged-extension timing semantics, including alarm setup after worker/browser restart.
 - **Mobile** (`npm run test:mobile`, then `test:mobile:web` with a single spec, then iOS and Android e2e):
   - The "Other devices" section.
   - Open in reader with scroll restored.
@@ -742,3 +845,14 @@ tab sync, because it uses the same consent mechanism.
 | Send retention unbounded | Any device GCs sends older than the synced retention (default 14 days) or sent to retired targets. |
 | Toggle scope and defaults | §2 device-local option table; sharing is opt-in. |
 | Domain exclusion inconsistency | Excluded domains are in v1 (`tabFilter`, settings). |
+
+## Review changes (round 5 → rev 6)
+
+| Finding | Resolution |
+|---|---|
+| P1 Destination binding misses background-only use and startup/browser-synced URL changes | §9 binds before transport startup, persists device-locally, guards replication and every HTTP operation, handles URL changes with connection generations and preserves migration provenance; startup and background-only tests. |
+| P1 Firefox capture toggles cannot gate existing unfiltered replication data | §4a requires all three categories for the connection and gates startup, queued work, retries and revocation across panels/background; upgrade and revocation tests. |
+| P2 Live delivery does not prove snapshot freshness | §6 applies a conservative source-timestamp check to every delivery path, states the clock-skew limitation and never renews age on receipt; delayed-live-delivery test. |
+| P2 Chrome activation has no `previousTabId` | §5 persists a per-window active-tab map across worker suspension, with optional Firefox shortcut and lifecycle cleanup; Chrome-shaped event tests. |
+| P2 Incoming-send query has no upper bound or target validation | §4a bounds and paginates the exact inbox prefix, retrieves bodies and revalidates the target before actions; two-target and identity-reset tests. |
+| P2 30-second alarms require Chrome 120, but the manifest supports 114 | §4a and phase 2 explicitly raise the minimum to 120; manifest and packaged-alarm verification. |
