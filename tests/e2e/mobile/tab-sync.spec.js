@@ -179,8 +179,13 @@ test("never-share domains take the row's full width on a wide phone and grow wit
   await page.getByTestId("sync-url").fill(`${server.replace("http://", "http://once-test:once-test@")}/db/${database}`)
   await page.getByTestId("save-sync").click()
   await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "up-to-date", { timeout: 15_000 })
+  // Sync's state shows in the titlebar of Sync and its pages, nowhere else in Settings.
+  const status = page.locator("#sync_status_button")
+  await expect(status).toBeVisible()
+  await expect(status).toHaveAttribute("title", "Up to date")
   await page.getByTestId("tab-sync-offer-share").click()
   await page.getByTestId("sync-page-tabs").click()
+  await expect(status).toBeVisible()
   const field = page.getByTestId("tab-sync-excluded")
   const box = async () => field.evaluate((element) => {
     const own = element.getBoundingClientRect()
@@ -196,4 +201,6 @@ test("never-share domains take the row's full width on a wide phone and grow wit
   expect(after.height).toBeGreaterThan(before.height)
   expect(await field.evaluate((element) => element.scrollHeight - element.clientHeight)).toBeLessThanOrEqual(1)
   await page.locator("#sync_page_tabs").screenshot({ path: "artifacts/tab-sync/never-share-wide-phone.png" })
+  await openSettingsSection(page, "theme")
+  await expect(status).toBeHidden()
 })

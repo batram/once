@@ -196,7 +196,7 @@ interface StateEntry { v: number; capturedAt: string; data: unknown }
 | Include screenshots | on (when sharing) | `tth_` docs |
 | Excluded domains | empty | tabs on these domains (and subdomains) are never published |
 | Appear as a send target | on while sync is connected | presence-only `dev_` doc when sharing is off |
-| Continue banner | on | §6 |
+| Continue banner | **off** (opt-in, Settings › Sync › Tab sync) | §6 |
 | Continue: recent-activity window | 15 min | §6 tab activity rule |
 | Continue: snapshot freshness window | 30 min | §6 snapshot freshness rule |
 | Stale device after | 30 days | device list shows it as stale; never deletes anything |
@@ -823,6 +823,8 @@ the user:
   from the view go quiet; the Tabs entry, the Electron tab bar button and the mobile "Other devices"
   section hide (`watchTabSyncEnabled`). `effectiveTabSyncOptions` is the one place that applies it.
   A device that shared before the switch existed reads as on. Turning it on counts as rejoining.
+- **Sync status** sits at the right of the titlebar while Settings › Sync or one of its pages is open
+  (a dot and the message, the full text as its tooltip); from a page it returns to the overview.
 - **First-run offer** once sync connects: *Share and see tabs*, *Only see others' tabs*, *Not now*
   (`offerAnswered`).
 - **Tab sync page**: the switch, then Sharing (share, screenshots, never share), Receiving (receive sent

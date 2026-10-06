@@ -120,6 +120,11 @@
               <div class="bar toolbar panel_titlebar">
                 <div class="settings_title">Settings</div>
                 <button type="button" class="button" id="settings_section_back">Settings</button>
+                <!-- Sync's state while Settings › Sync is open; from a page it goes back to the overview. -->
+                <button type="button" class="sync_status_button" id="sync_status_button">
+                  <span id="couch_status" class="couch-status" data-state="disabled" data-testid="sync-status"
+                    role="status" aria-live="polite">Sync is not configured</span>
+                </button>
                 <button
                   type="button"
                   class="button bar_btn collapsebutton"
@@ -363,16 +368,6 @@
                       Save
                     </button>
                     <button type="button" class="button" data-action="cancel">Cancel</button>
-                  </div>
-                  <div
-                    id="couch_status"
-                    class="couch-status"
-                    data-state="disabled"
-                    data-testid="sync-status"
-                    role="status"
-                    aria-live="polite"
-                  >
-                    Sync is not configured
                   </div>
                   <section class="settings_rows" id="sync_consent" data-testid="sync-consent-settings" hidden>
                     <div class="settings_row">

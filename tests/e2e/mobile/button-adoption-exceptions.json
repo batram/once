@@ -55,6 +55,18 @@
       "reason": "The name of a cached feed, which opens the source it names. It is the row title rather than an action beside one, so it presents as text with a dotted underline and owns no button box",
       "phase": "3.1",
       "removeWhen": "The cached-feed rows gain a separate edit control and the name stops being interactive. It uses <button> for semantics, not for appearance, so the entry is a recorded decision rather than pending debt."
+    },
+    {
+      "family": "sync_page_link",
+      "reason": "A full-width navigation row into a page of Settings › Sync, with its summary line and chevron; it presents as a settings index row, not a button",
+      "phase": "3.1",
+      "removeWhen": "Settings navigation rows are redesigned to present as primitive buttons. It uses <button> for semantics, not for appearance, so the entry is a recorded decision rather than pending debt."
+    },
+    {
+      "family": "sync_status_button",
+      "reason": "The sync state read-out in the Settings titlebar: a dot and a truncated message with no border or fill, which opens Settings › Sync when chosen",
+      "phase": "3.1",
+      "removeWhen": "The titlebar status is redesigned to present as a primitive button. It uses <button> for semantics, not for appearance, so the entry is a recorded decision rather than pending debt."
     }
   ],
   "unclassified": []

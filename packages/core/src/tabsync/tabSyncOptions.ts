@@ -32,7 +32,7 @@ export const DEFAULT_TAB_SYNC_OPTIONS: Readonly<TabSyncOptions> = Object.freeze(
   screenshots: true,
   excludedDomains: [],
   sendTarget: true,
-  continueBanner: true,
+  continueBanner: false,
   activityWindowMinutes: 15,
   freshnessWindowMinutes: 30,
   staleDeviceDays: 30

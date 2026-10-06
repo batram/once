@@ -558,7 +558,8 @@ body[data-electron-story-position="browser"] #selected_container {
   margin-left: auto;
 }
 
-#settings_panel .bar:has(.structured_mode_toggle_topbar) .collapsebutton {
+#settings_panel .bar:has(.structured_mode_toggle_topbar) .collapsebutton,
+#settings_panel:has(.settings_section[data-settings-section="sync"].active) .bar .collapsebutton {
   margin-left: 0;
 }
 

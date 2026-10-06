@@ -2156,10 +2156,49 @@
   opacity: 1;
 }
 
+/* Sync's state at the trailing end of the titlebar while Settings › Sync or
+   one of its pages is open: a quiet dot and the message, cut short when the
+   bar is tight (the tooltip has it all). The bar's own button skin does not
+   apply; this is a status, not an action row. */
+#settings_panel .bar.panel_titlebar > button.sync_status_button {
+  display: flex;
+  /* Gives way first: the section title keeps its room, and in a tight bar
+     the status shrinks to its dot. After a mode toggle (order 3). */
+  flex: 0 1000 auto;
+  align-items: center;
+  order: 4;
+  min-width: calc(var(--fs-meta) + 2 * var(--sp-1));
+  max-width: 50%;
+  margin: 0 0 0 auto;
+  padding: 0 var(--sp-1);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted-color);
+  cursor: pointer;
+  font-size: var(--fs-meta);
+}
+
+#settings_panel:not(:has(.settings_section[data-settings-section="sync"].active))
+  .bar.panel_titlebar > button.sync_status_button {
+  display: none;
+}
+
+#settings_panel .bar.panel_titlebar > button.sync_status_button:hover,
+#settings_panel .bar.panel_titlebar > button.sync_status_button:focus-visible {
+  color: var(--text-high-color);
+}
+
+/* A mode toggle in the bar already takes the free space before it. */
+#settings_panel .bar:has(.structured_mode_toggle_topbar) > button.sync_status_button {
+  margin-left: var(--sp-2);
+}
+
 .couch-status {
-  margin-top: var(--sp-2);
-  font-size: 0.85em;
-  color: var(--subtle-text-color, #777);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .couch-status::before {

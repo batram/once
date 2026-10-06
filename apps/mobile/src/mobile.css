@@ -1627,6 +1627,13 @@
     padding: var(--sp-1) var(--sp-2);
   }
 
+  /* The status keeps the bar's caption size, not the body size every
+     button takes here, and a finger-sized target. */
+  #settings_panel .bar.panel_titlebar > button.sync_status_button {
+    min-width: var(--touch);
+    font-size: var(--fs-meta);
+  }
+
   #settings_panel .settings_title {
     order: 0;
     margin-top: 0;

@@ -22,6 +22,7 @@ import settingsSectionDefinitions from "./settingsSectionDefinitions"
 import { SettingsNavigation, SettingsPanelOptions } from "./SettingsNavigation"
 import { trackSettingsSave } from "./settingsStatus"
 import { bindHelpTips } from "../helpTip"
+import { bindSyncStatusButton } from "./syncStatusButton"
 
 export class SettingsPanel {
   static instance: SettingsPanel
@@ -150,6 +151,7 @@ export class SettingsPanel {
     this.structuredEditors = this.createStructuredEditors()
     this.installSettingsNavigation()
     bindSyncSettingsPages(requireElement<HTMLElement>("#sync_settings"))
+    bindSyncStatusButton()
   }
 
   private createStructuredEditors(): StructuredSettingsEditors {

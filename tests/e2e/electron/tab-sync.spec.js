@@ -268,7 +268,11 @@ test("a tab sent here shows as a toast and opens; the tab just used on another d
     await expect.poll(async () => (await page.evaluate(() => window.onceElectron.tabs.getAll())).find((tab) => tab.active)?.url).toBe(urls.zeta)
     await expect.poll(async () => (await remote.allDocs({ startkey: "tsend_", endkey: "tsend_￿" })).rows.length, { timeout: 20000 }).toBe(0)
 
+    // Offering to continue is opt-in: nothing until it is turned on.
     const banner = page.getByTestId("continue-banner")
+    await expect(banner).toHaveCount(0)
+    await page.getByTestId("sync-page-tabs").click()
+    await page.locator("#tab_sync_continue").check()
     await expect(banner).toContainText("Continue “Epsilon watched on the phone”")
     await expect(banner).toContainText("Test phone · ⏸\uFE0E 0:33 / 1:00")
     await banner.screenshot({ path: "artifacts/tab-sync/continue-banner-electron.png" })
