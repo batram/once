@@ -637,7 +637,7 @@
     align-items: center;
     gap: var(--sp-2);
     padding: var(--sp-1) var(--sp-3);
-    border-bottom: var(--m-bw) solid var(--m-ink);
+    border-bottom: var(--m-bw) solid var(--border-high-color);
   }
 
   .search_query {
@@ -955,6 +955,8 @@
     align-items: center;
     gap: var(--sp-2);
     padding: var(--sp-1) var(--sp-2);
+    /* The same quiet divider as the settings title bar and story search. */
+    border-bottom: var(--m-bw) solid var(--border-high-color);
     background: var(--main-bg-color);
   }
 
