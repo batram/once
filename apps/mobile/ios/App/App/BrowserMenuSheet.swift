@@ -278,3 +278,132 @@ private extension UIColor {
         return UIColor(red: r1 + (r2 - r1) * a2, green: g1 + (g2 - g1) * a2, blue: b1 + (b2 - b1) * a2, alpha: a1)
     }
 }
+
+/// Remembers where the user last touched the window, so a menu that has no
+/// element to open from (the device picker after a sheet row) opens there.
+final class LastTouchRecorder: UIGestureRecognizer {
+    /// In window coordinates.
+    private(set) static var location: CGPoint?
+
+    static func install(on window: UIWindow) {
+        guard !(window.gestureRecognizers ?? []).contains(where: { $0 is LastTouchRecorder }) else { return }
+        let recorder = LastTouchRecorder(target: nil, action: nil)
+        recorder.cancelsTouchesInView = false
+        recorder.delaysTouchesEnded = false
+        window.addGestureRecognizer(recorder)
+    }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        if let touch = touches.first { Self.location = touch.location(in: nil) }
+        // Only watches: never recognizes, so every other gesture runs as before.
+        state = .failed
+    }
+}
+
+/// The shell's short menus (send to which device, a tab card's actions) as a
+/// popover beside where they were asked for, Android's PopupMenu rather than
+/// an action sheet at the bottom of the screen.
+final class AnchoredMenu: UIViewController, UIPopoverPresentationControllerDelegate {
+    private let call: CAPPluginCall
+    private let stack = UIStackView()
+    private var settled = false
+    private var chosen: String?
+
+    init(call: CAPPluginCall, dark: Bool, sourceView: UIView, sourceRect: CGRect) {
+        self.call = call
+        super.init(nibName: nil, bundle: nil)
+        overrideUserInterfaceStyle = dark ? .dark : .light
+        modalPresentationStyle = .popover
+        if let popover = popoverPresentationController {
+            popover.sourceView = sourceView
+            popover.sourceRect = sourceRect
+            popover.permittedArrowDirections = .any
+            popover.delegate = self
+        }
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    private func settle(_ id: String?) {
+        guard !settled else { return }
+        settled = true
+        if let id { call.resolve(["id": id]) } else { call.resolve() }
+    }
+
+    /// Settles after the popover is gone, so the shell can present what the
+    /// choice opens next (the device picker after "Send to device…").
+    private func choose(_ id: String) {
+        chosen = id
+        dismiss(animated: true) { self.settle(id) }
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        stack.axis = .vertical
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        // Scrolls when the popover is held shorter than its rows.
+        let scroll = UIScrollView()
+        scroll.alwaysBounceVertical = false
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(scroll)
+        scroll.addSubview(stack)
+        NSLayoutConstraint.activate([
+            scroll.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            scroll.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+            scroll.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
+            scroll.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
+            stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 6),
+            stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -6),
+            stack.leadingAnchor.constraint(equalTo: scroll.frameLayoutGuide.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: scroll.frameLayoutGuide.trailingAnchor)
+        ])
+        if let title = call.getString("title"), !title.isEmpty {
+            let label = UILabel()
+            label.text = title
+            label.font = .preferredFont(forTextStyle: .footnote)
+            label.textColor = .secondaryLabel
+            label.numberOfLines = 2
+            label.lineBreakMode = .byTruncatingMiddle
+            let wrap = UIView()
+            label.translatesAutoresizingMaskIntoConstraints = false
+            wrap.addSubview(label)
+            NSLayoutConstraint.activate([
+                label.topAnchor.constraint(equalTo: wrap.topAnchor, constant: 6),
+                label.bottomAnchor.constraint(equalTo: wrap.bottomAnchor, constant: -6),
+                label.leadingAnchor.constraint(equalTo: wrap.leadingAnchor, constant: 16),
+                label.trailingAnchor.constraint(equalTo: wrap.trailingAnchor, constant: -16)
+            ])
+            stack.addArrangedSubview(wrap)
+        }
+        for item in call.getArray("items", JSObject.self) ?? [] {
+            guard let id = item["id"] as? String, let label = item["label"] as? String else { continue }
+            var configuration = UIButton.Configuration.plain()
+            configuration.title = label
+            configuration.baseForegroundColor = .label
+            configuration.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16)
+            configuration.titleLineBreakMode = .byTruncatingTail
+            let button = UIButton(configuration: configuration, primaryAction: UIAction { [weak self] _ in self?.choose(id) })
+            button.contentHorizontalAlignment = .leading
+            button.isEnabled = item["enabled"] as? Bool ?? true
+            button.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+            stack.addArrangedSubview(button)
+        }
+        let fitted = stack.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize)
+        preferredContentSize = CGSize(width: min(320, max(200, fitted.width)), height: fitted.height + 12)
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        if chosen == nil { settle(nil) }
+    }
+
+    // A popover on iPhone too, instead of adapting to a full-screen sheet.
+    func adaptivePresentationStyle(for controller: UIPresentationController, traitCollection: UITraitCollection) -> UIModalPresentationStyle {
+        .none
+    }
+
+    func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+        settle(nil)
+    }
+}

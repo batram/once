@@ -22,6 +22,11 @@ class ViewController: CAPBridgeViewController {
         webView.uiDelegate = menus
     }
 
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        if let window = view.window { LastTouchRecorder.install(on: window) }
+    }
+
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(addressBar)
         bridge?.registerPluginInstance(SecureSettingsPlugin())

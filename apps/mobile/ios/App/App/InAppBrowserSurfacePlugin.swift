@@ -424,35 +424,26 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
                 self.presentBrowserMenu(call, from: presenter)
                 return
             }
-            let alert = UIAlertController(
-                title: call.getString("title"),
-                message: nil,
-                preferredStyle: .actionSheet
-            )
-            let items = call.getArray("items", JSObject.self) ?? []
-            for item in items {
-                guard let id = item["id"] as? String,
-                      let label = item["label"] as? String else { continue }
-                let action = UIAlertAction(title: label, style: .default) {
-                    _ in call.resolve(["id": id])
-                }
-                action.isEnabled = item["enabled"] as? Bool ?? true
-                alert.addAction(action)
-            }
-            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) {
-                _ in call.resolve()
-            })
-            if let popover = alert.popoverPresentationController {
-                let anchor = call.getObject("anchor") ?? [:]
-                popover.sourceView = presenter.view
-                popover.sourceRect = CGRect(
-                    x: anchor["x"] as? Double ?? presenter.view.bounds.midX,
-                    y: anchor["y"] as? Double ?? presenter.view.bounds.midY,
+            // The element the shell opened it from, else where the user last
+            // touched (a row in the sheet that just closed), else the bottom
+            // right, nearest the thumb.
+            let view = presenter.view!
+            let source: CGRect
+            if let anchor = call.getObject("anchor") {
+                source = CGRect(
+                    x: anchor["x"] as? Double ?? 0,
+                    y: anchor["y"] as? Double ?? 0,
                     width: max(1, anchor["width"] as? Double ?? 1),
                     height: max(1, anchor["height"] as? Double ?? 1)
                 )
+            } else if let touch = LastTouchRecorder.location {
+                source = CGRect(origin: view.convert(touch, from: nil), size: CGSize(width: 1, height: 1))
+            } else {
+                let safe = view.bounds.inset(by: view.safeAreaInsets)
+                source = CGRect(x: safe.maxX - 24, y: safe.maxY - 24, width: 1, height: 1)
             }
-            presenter.present(alert, animated: true)
+            let dark = call.getBool("dark") ?? (presenter.traitCollection.userInterfaceStyle == .dark)
+            presenter.present(AnchoredMenu(call: call, dark: dark, sourceView: view, sourceRect: source), animated: true)
         }
     }
 
