@@ -61,7 +61,8 @@ test("a pairing code shows behind a warning, and its link connects another profi
     await closeApp(first.electronApp, first.userData)
     http.closeAllConnections()
     await new Promise((resolve) => http.close(resolve))
-    await fs.rm(directory, { recursive: true, force: true })
+    // express-pouchdb keeps its LevelDB files open, which Windows refuses to unlink.
+    await fs.rm(directory, { recursive: true, force: true }).catch(() => {})
   }
 })
 
@@ -124,6 +125,7 @@ test("a pairing code can carry the add-on sync passphrase, which unlocks add-on 
     await closeApp(first.electronApp, first.userData)
     http.closeAllConnections()
     await new Promise((resolve) => http.close(resolve))
-    await fs.rm(directory, { recursive: true, force: true })
+    // express-pouchdb keeps its LevelDB files open, which Windows refuses to unlink.
+    await fs.rm(directory, { recursive: true, force: true }).catch(() => {})
   }
 })
