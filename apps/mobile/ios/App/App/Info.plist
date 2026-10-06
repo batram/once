@@ -30,6 +30,20 @@
 		<key>NSAllowsArbitraryLoadsInWebContent</key>
 		<true/>
 	</dict>
+	<!-- Pairing: a code shown on another device carries its sync connection. -->
+	<key>NSCameraUsageDescription</key>
+	<string>Once uses the camera to scan a pairing code from your other device.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.zmarn.once.pair</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>once</string>
+			</array>
+		</dict>
+	</array>
 	<!-- Reader speech, and page media when kept playing, continue while locked. -->
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Once saves images you choose from web pages to your photo library.</string>

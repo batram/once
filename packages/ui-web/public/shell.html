@@ -506,6 +506,31 @@
                     <h4 class="settings_subheading">Devices</h4>
                     <ul class="tab_sync_devices" id="tab_sync_devices" data-testid="tab-sync-devices"></ul>
                   </section>
+                  <section class="settings_rows" id="sync_pairing" data-testid="sync-pairing">
+                    <h4 class="settings_subheading">Pair a device</h4>
+                    <div class="settings_row">
+                      <p class="settings_row_name">Pairing code</p>
+                      <p class="settings_row_hint" id="pair_show_hint">
+                        Scan it with Once on another device to connect it to this sync database.
+                      </p>
+                      <button type="button" class="button" id="pair_show" data-testid="pair-show"
+                        aria-describedby="pair_show_hint" aria-expanded="false" aria-controls="pair_panel">Show…</button>
+                    </div>
+                    <div id="pair_panel" class="pair_panel" data-testid="pair-panel" hidden></div>
+                    <div class="settings_row">
+                      <label class="settings_row_name" for="pair_link_input">Pairing link</label>
+                      <p class="settings_row_hint" id="pair_link_hint">
+                        Paste a link copied on another device, or scan its code.
+                      </p>
+                      <input id="pair_link_input" type="text" spellcheck="false" autocomplete="off"
+                        data-testid="pair-link" aria-describedby="pair_link_hint" />
+                    </div>
+                    <div class="settings_actions cluster">
+                      <button type="button" class="button" id="pair_connect" data-testid="pair-connect">Connect</button>
+                      <button type="button" class="button" id="pair_scan" data-testid="pair-scan" hidden>Scan code…</button>
+                    </div>
+                    <p class="settings_row_hint" id="pair_status" role="status" data-testid="pair-status"></p>
+                  </section>
                   <section class="settings_rows" id="sync_addon_vault"></section>
                 </div>
                 <div class="settings_block">

@@ -138,3 +138,19 @@ test("the continue banner offers only a tab used moments before a recent publica
   assert.equal(pick([deviceOf("phone", 1, [tabOf("a", 5), tabOf("b", 2)]), deviceOf("tablet", 1, [tabOf("c", 4)])]), "b")
   assert.equal(pick([deviceOf("phone", 1, [tabOf("a", 5), tabOf("b", 2)])], new Set(["phone:b:1"])), "a", "a dismissed tab is skipped")
 })
+
+test("pairing links round-trip the sync URL and an optional passphrase, and reject anything else", () => {
+  const { encodePairingLink, decodePairingLink, describeSyncConnection } = require("../../../packages/core/dist")
+  const syncUrl = "https://user:p%40ss%2Fword@sync.example.test/once"
+  const link = encodePairingLink({ syncUrl })
+  assert.match(link, /^once:\/\/pair\?v=1&u=[\w-]+$/)
+  assert.deepEqual(decodePairingLink(link), { syncUrl })
+  const withPassphrase = encodePairingLink({ syncUrl, passphrase: "correct horse ünïcode staple" })
+  assert.deepEqual(decodePairingLink(` ${withPassphrase}\n`), { syncUrl, passphrase: "correct horse ünïcode staple" })
+  assert.throws(() => decodePairingLink("https://example.com/?u=x"), /not a Once pairing link/)
+  assert.throws(() => decodePairingLink("once://pair?v=2&u=x"), /newer Once/)
+  assert.throws(() => decodePairingLink("once://pair?v=1&u=%%%"), /damaged/)
+  assert.throws(() => decodePairingLink(`once://pair?v=1&u=${Buffer.from("ftp://x").toString("base64url")}`), /http/)
+  assert.throws(() => encodePairingLink({ syncUrl: "" }), /Connect sync/)
+  assert.deepEqual(describeSyncConnection(syncUrl), { database: "sync.example.test/once", user: "user" })
+})

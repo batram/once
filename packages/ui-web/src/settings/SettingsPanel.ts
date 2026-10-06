@@ -14,6 +14,7 @@ import { highlightStorySourceTextarea, highlightTextareaContent,
 import * as settingsControls from "./settingsControlBindings"
 import { bindSyncSettingsControls } from "./syncSettingsControls"
 import { bindTabSyncControls } from "./tabSyncControls"
+import { bindPairingControls } from "./pairingControls"
 import { bindSettingsSubscriptions } from "./settingsSubscriptions"
 import { bindExtensionSettingsEditors, ExtensionSettingsEditors } from "./extensionSettingsEditors"
 import settingsSectionDefinitions from "./settingsSectionDefinitions"
@@ -29,6 +30,8 @@ export class SettingsPanel {
   private sourcesSaveChain = Promise.resolve()
   private sourcesReloadPending = false
   private persistence: SettingsPersistence
+  /** Connects from a pairing link, after asking: a deep link or a scanned code. */
+  readonly connectPairingLink: (link: string) => void
 
   constructor(
     private client: OnceClient,
@@ -74,6 +77,7 @@ export class SettingsPanel {
       () => this.save_couch_settings()
     )
     bindTabSyncControls(client)
+    this.connectPairingLink = bindPairingControls(client, options.scanPairingCode)
 
     this.ready = this.set_sources_area()
 

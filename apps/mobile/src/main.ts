@@ -30,6 +30,7 @@ import { installReaderMediaSession, nativeReaderSpeechEngine } from "./readerMed
 import { installReaderLinkHost, installReaderLinkMenuHost } from "./readerLinks"
 import { installReaderEdgeSwipeHost } from "./readerEdgeSwipe"
 import { MobileReadingController } from "./readingController"
+import { setUpPairing } from "./pairing"
 import { mountTabSyncInTabView, readingTabOpener, readingTabSource } from "./readingTabSync"
 import { linkAddonItems, readingPageActions } from "./readingPageActions"
 import { bindReloadStatus, RELOAD_SPIN_TIMEOUT_MS } from "./reloadStatus"
@@ -313,7 +314,7 @@ async function startMobileApp(): Promise<void> {
     backgroundInitialStoryLoad: true,
     // Settings participates in the same back stack as the hardware key, so the
     // chevron stays live on the section index and leaves the panel from there.
-    exitSettings: () => void reading.handleBack()
+    exitSettings: () => void reading.handleBack(), scanPairingCode: setUpPairing()
   })
   const browserExtensions = createMobileBrowserExtensions()
   if (browserExtensions) {

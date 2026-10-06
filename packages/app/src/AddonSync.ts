@@ -145,9 +145,11 @@ export class AddonSync {
 
   methods(): Pick<OnceClient, "getAddonVaultStatus" | "unlockAddonVault" | "lockAddonVault" | "changeAddonVaultPassphrase" |
     "getAddonVaultChoices" | "resolveAddonVault" | "getAddons" | "saveAddons" | "updateAddons" | "getAddonScript" |
-    "storeAddonScript" | "saveAddonSecret" | "hasAddonSecret" | "requestAddonConnection" | "shareAddonSnapshot"> {
+    "storeAddonScript" | "saveAddonSecret" | "hasAddonSecret" | "requestAddonConnection" | "shareAddonSnapshot" |
+    "verifyAddonVaultPassphrase"> {
     return {
       getAddonVaultStatus: () => this.vault.status(),
+      verifyAddonVaultPassphrase: passphrase => this.vault.verifyPassphrase(passphrase),
       shareAddonSnapshot: (entry, code, replace) => this.serialize(() => this.share(entry, code, replace)),
       unlockAddonVault: (secret, recovery, remember, name) => this.vault.unlock(secret, recovery, remember, name),
       lockAddonVault: () => this.vault.lock(),

@@ -18,7 +18,10 @@ other Once settings.
 4. Save the generated recovery key in a password manager. It is shown once.
 5. On another device, connect sync, then choose **Unlock add-on sync**
    and enter the passphrase once. Packages, settings, and tokens become ready
-   together; no per-addon key entry or ZIP import is needed.
+   together; no per-addon key entry or ZIP import is needed. Alternatively,
+   **Settings → Sync → Pair a device** shows a code that can carry the
+   passphrase too, when you choose to include it; anyone who sees that code
+   can open your synced tokens.
 
 Native desktop and mobile clients offer remembering the vault key in protected
 local storage. Browser profiles default to forgetting it across restarts;

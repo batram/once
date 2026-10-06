@@ -56,6 +56,8 @@ export interface MountOnceUiOptions {
   updater?: AppUpdater
   /** Shows the Tabs entry in the side panel menu (the extensions; Electron by choice). */
   tabsPanel?: boolean
+  /** Scans a pairing code with the camera, where the device has one (mobile). */
+  scanPairingCode?: () => Promise<string | null>
   sourcePicker?: boolean
   /**
    * Leaves Settings entirely when the back chevron is pressed on the section
@@ -179,7 +181,8 @@ export async function mountOnceUi(
   if (options.extensionSettings && extensionSettings) extensionSettings.hidden = false
 
   const settingsPanel = new SettingsPanel(client, {
-    exitSettings: options.exitSettings
+    exitSettings: options.exitSettings,
+    scanPairingCode: options.scanPairingCode
   })
   if (options.sourcePicker === false) {
     const picker = document.querySelector<HTMLElement>("#pick_source_button")

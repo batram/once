@@ -136,6 +136,18 @@ export class AddonVault {
     })
   }
 
+  /** Whether `passphrase` opens the synced vault, without changing anything here. */
+  async verifyPassphrase(passphrase: string): Promise<boolean> {
+    const records = await this.revisions()
+    if (!records.length) return false
+    try {
+      await unlockEnvelope(readEnvelope(records[0].value), passphrase, false)
+      return true
+    } catch {
+      return false
+    }
+  }
+
   async lock(): Promise<void> {
     await this.serialize(async () => {
       await this.init()

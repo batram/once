@@ -3,6 +3,8 @@ import { open_panel } from "../shell/panelNavigation"
 export interface SettingsPanelOptions {
   /** Last rung of the header Back chain, used by mobile to exit Settings. */
   exitSettings?: () => void
+  /** Scans a pairing code with the camera; resolves with its link, or null when cancelled. */
+  scanPairingCode?: () => Promise<string | null>
 }
 
 interface SettingsNavigationHost {

@@ -652,11 +652,9 @@ and screenshots from database A would therefore be uploaded to database B.
     checks and the license inventory.
   - "Copy pairing link" gives the same payload as text.
 - **Scan or receive** (mobile):
-  - Scanner: **`@capacitor-mlkit/barcode-scanning`** (Capawesome). It scans inside the app on iOS and
-    Android, and supports Capacitor 8 (check the exact version when adding it). It needs
-    `NSCameraUsageDescription` and the Android `CAMERA` permission. Its Android module downloads the
-    scanner through Google Play services, so check this on a device without Play services, and fall back
-    to "Paste pairing link".
+  - Scanner: `@capacitor/barcode-scanner` (see Phase 6 status for why it replaced the ML Kit plugin).
+    It needs `NSCameraUsageDescription` and the Android `CAMERA` permission; "Paste pairing link"
+    remains the fallback.
   - A `once://` URL scheme (iOS `CFBundleURLTypes`, an Android intent filter, `App.addListener("appUrlOpen")`).
   - A "Paste pairing link" field works on every platform.
 - **Apply**:
@@ -791,6 +789,24 @@ and screenshots from database A would therefore be uploaded to database B.
   app and on changes; dismissals kept per device, tab and page.
 - Not covered end to end: the extensions' page menu and notifications.
 
+### Phase 6 status (implemented)
+
+- `packages/core/src/settings/pairingLink.ts`: `once://pair?v=1&u=…[&p=…]` with base64url values,
+  validated on the way in; `describeSyncConnection` names database and user for the confirmation.
+- Settings › Sync › Pair a device (`pairingControls.ts`): a warning before any code; the add-on sync
+  passphrase only when asked, after `verifyAddonVaultPassphrase` checks it (nothing is unlocked or
+  stored); the code (`qrcode-generator`, MIT, drawn as SVG) is blurred until clicked and hides after a
+  minute; "Copy pairing link" gives the same text. Connecting from a pasted link, a scanned code or a
+  `once://` link names the database and user and asks first; the destination binding still refuses
+  another database; a passphrase in the link unlocks add-on sync once the vault has arrived.
+- Scanner: **`@capacitor/barcode-scanner`** instead of the ML Kit plugin picked earlier, because the
+  ML Kit plugin ships only CocoaPods support and this iOS project uses Swift Package Manager. The
+  official plugin supports SPM (Apple Vision on iOS) and bundles its Android models, so it also works
+  without Google Play services. iOS declares `NSCameraUsageDescription` and the `once` URL scheme;
+  Android the `CAMERA` permission and a `once://pair` intent filter. Both native projects build.
+- Not tested end to end: the native scan and deep link (no camera in the simulator or harness); the
+  rendered code was decoded back to its link with jsQR during development.
+
 ## Nice-to-haves (not v1)
 
 - Recently closed tabs from other devices.
@@ -811,7 +827,7 @@ and screenshots from database A would therefore be uploaded to database B.
 
 1. Remote tabs on mobile live in the tab view (§7). Electron and the extensions use the proposed entry
    points, so a reviewer may still want to adjust those.
-2. Scanner: `@capacitor-mlkit/barcode-scanning` (no user preference).
+2. Scanner: no user preference; `@capacitor/barcode-scanner` in the end (Phase 6 status).
 3. All time limits can be set by the user, with the suggested values as defaults (§2 "Timing settings").
    Send retention is synced so that devices agree.
 4. Extensions publish without the panel open, through the background publisher (§4a).
