@@ -1,4 +1,3 @@
-import { PanelNavigation } from "@once/ui-web"
 import { ReadingTabs } from "./readingTabs"
 import { attachReadingTabSwipe, ReadingTabSwipe } from "./readingTabSwipe"
 
@@ -91,8 +90,8 @@ export class ReadingTabDialog {
     this.dialog.addEventListener("close", () => {
       this.swipe.cancel()
       this.count.setAttribute("aria-expanded", "false")
+      // Without tabs the panel stays put: its empty page takes an address.
       if (document.querySelector("#left_panel")?.getAttribute("active_panel") !== "reading") return
-      if (!this.tabs.tabs.length) { PanelNavigation.open_panel("stories"); return }
       if (document.activeElement === document.body || this.dialog.contains(document.activeElement)) this.count.focus()
     })
     document.addEventListener("once-panel-changed", event => {

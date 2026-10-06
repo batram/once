@@ -238,3 +238,36 @@ test("reader speech keeps playing across tab switches and the switcher marks pla
   await expect(rows.nth(0).locator(".reading_tab_audio")).toHaveAttribute("data-audio", "played")
   await expect(rows.nth(0)).toContainText("Played audio")
 })
+
+test("leaving the tab view without tabs stays in Reading with the address usable", async ({ page }) => {
+  await gotoMobileApp(page)
+  await page.getByRole("button", { name: "Reading", exact: true }).click()
+  await page.locator("#reading_url").fill("https://first.example/")
+  await page.locator("#reading_url").press("Enter")
+  await openTabs(page)
+  await switcher(page).getByRole("button", { name: "Close tab: first.example", exact: true }).click()
+  await expect(switcher(page).getByText("No open tabs")).toBeVisible()
+  const leaves = [
+    () => switcher(page).getByRole("button", { name: "Close tab view", exact: true }).click(),
+    () => page.keyboard.press("Escape"),
+    () => triggerMobileBack(page),
+    () => page.locator("#reading_tabs").click()
+  ]
+  for (const leave of leaves) {
+    if (!await switcher(page).evaluate(dialog => dialog.open)) await openTabs(page)
+    await leave()
+    await expect(switcher(page)).toBeHidden()
+    await expect(page.locator("#reading_panel")).toBeVisible()
+    await expect(page.locator("#reading_empty")).toBeVisible()
+    await expect(page.locator("#reading_tabs")).toBeFocused()
+  }
+  await openTabs(page)
+  await page.locator("#reading_url").click()
+  await expect(switcher(page)).toBeHidden()
+  await expect(page.locator("#reading_panel")).toBeVisible()
+  await expect(page.locator("#reading_url")).toBeFocused()
+  await page.locator("#reading_url").fill("https://second.example/")
+  await page.locator("#reading_url").press("Enter")
+  await expect(page.locator("#reading_tabs")).toHaveText("1")
+  await expect(page.locator("#reading_url")).toHaveValue("https://second.example/")
+})
