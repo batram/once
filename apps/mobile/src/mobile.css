@@ -3048,6 +3048,13 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* Lit like the active reader toggle while the tab view is open. */
+  #reading_tabs[aria-expanded="true"] {
+    color: var(--highlight-color);
+    background: var(--highlight-bg-color);
+    border-color: var(--highlight-color);
+  }
+
   #reading_tabs_dialog {
     box-sizing: border-box;
     position: absolute;
