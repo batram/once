@@ -570,6 +570,7 @@ them at the end of the menu with `menu.insertBefore(button, #status_dock)`.
   4. Add-on sync: `addonVaultControls` moved here from `addonInstallControls.ts:138`. It uses the shared
      name.
   5. Pair a device: show QR or copy link, and scan or paste a link.
+  (Superseded by pages within Sync; see "UI rework".)
 - Also update `settingsSummaries.ts`, `settingsSubscriptions.ts`, `docs/addon-sync-vault.md` and the
   README.
 - The help text states that tab data is stored unencrypted in the sync database.
@@ -806,6 +807,58 @@ and screenshots from database A would therefore be uploaded to database B.
   Android the `CAMERA` permission and a `once://pair` intent filter. Both native projects build.
 - Not tested end to end: the native scan and deep link (no camera in the simulator or harness); the
   rendered code was decoded back to its link with jsQR during development.
+
+## UI rework (after phase 6)
+
+A review of every tab sync surface on Electron, the Chrome side panel, the mobile web harness, the iOS
+simulator and the Android emulator found the first UI noisy and inconsistent. Decisions, agreed with
+the user:
+
+- **Settings › Sync as pages** (`syncSettingsPages.ts`, the add-on pages' pattern). The overview has the
+  connection, Firefox consent, the first-run offer and the device name, then links with a one-line
+  summary to **Tab sync**, **Pair a device** and **Add-on sync**. Search results and deep links show the
+  page that holds them (`once:settings-reveal`); the header Back steps to the overview.
+- **Master switch** (`TabSyncOptions.enabled`, default off). Off, the device publishes nothing, not even
+  presence, and its view lists no devices and no inbox, so menus, badges, notices and notifications built
+  from the view go quiet; the Tabs entry, the Electron tab bar button and the mobile "Other devices"
+  section hide (`watchTabSyncEnabled`). `effectiveTabSyncOptions` is the one place that applies it.
+  A device that shared before the switch existed reads as on. Turning it on counts as rejoining.
+- **First-run offer** once sync connects: *Share and see tabs*, *Only see others' tabs*, *Not now*
+  (`offerAnswered`).
+- **Tab sync page**: the switch, then Sharing (share, screenshots, never share), Receiving (receive sent
+  tabs, browser notifications, offer to continue), Show other devices' tabs in (Electron), Devices
+  (compact rows, *Remove…* with an in-app confirmation), and a folded Advanced group with the four times,
+  their reset and *Reset device identity*.
+- **Help tips** for every longer explanation in all settings (`helpTip.ts`, `data-help`,
+  `explained()`), documented in `DESIGN_SYSTEM.md`.
+- **Tabs list** (`RemoteTabsView.ts`, `remoteTabRows.ts`): a toolbar with the filter and a gear that opens
+  the Tab sync page; tabs sent here first; devices with a chevron, quiet devices (inactive or not
+  sharing) last and folded; *Open all* in the device header for one window, per window otherwise. A row
+  opens on click (⌘/middle click behind); everything else is behind one ⋯ menu, a right click or a long
+  press: *Open in background*, *Send to device…*, *Copy link*. Rows are kept per tab and updated in
+  place, and a screenshot replaces the site's initial only once decoded, so updates no longer blink.
+  Empty states say what to do and link to it.
+- **Device menu** (`devicePicker.ts`): a menu at the button (the native sheet on mobile) listing only
+  devices that can receive: not the tab's own device and not inactive ones.
+- **Notices** (`tabSyncNotices.ts`): one at a time, gone after 12 seconds (not while pointed at or
+  focused) with a ×; several sends collapse into "N tabs sent to this device". On desktop and in the
+  extensions they dock at the bottom of the side panel, which is the shell's document and cannot sit under
+  a tab's view; on mobile they take their own band above the tab bar, so the reading view and the native
+  page above it shrink instead of covering them. Electron also raises a system notification while its
+  window is in the background.
+- **Mobile sending** says what is sent: a tab card's own menu in the tab view (*Send to device…*,
+  *Copy link*, *Close tab*; long press), *Send page to device…* in the browser sheet (with Back,
+  Forward, Reload and Find on Android, `placement: "page"`), and *Send link to device…* in a link's
+  long-press menu. The tab view's header *Send* button is gone.
+- **Fixes**: the Electron tabs page scrolls; the side panel Tabs entry keeps the temporary entries'
+  spacing from the Stories filter lists; the Electron tab bar count sits beside its icon; URL fields no
+  longer autocapitalize on iOS; playback glyphs render as text, not emoji; a settings report of this
+  runtime's own write no longer restarts publishing (that dropped a position read when a tab was left).
+- **Tests**: e2e tests shorten the publisher's debounce and interval through a test-only hook
+  (`ONCE_ELECTRON_TABSYNC_TIMING`, `once:e2e:tabsync-timing` in extension storage), so the tab sync
+  suites run in seconds. New: `tests/unit/ui-web/help-tip.test.js`, the master switch in
+  `tests/unit/core/tab-sync.test.js` and `tests/integration/app/tab-sync.test.js`, and the mobile notice
+  band in `tests/e2e/mobile/tab-sync.spec.js`.
 
 ## Nice-to-haves (not v1)
 

@@ -35,7 +35,8 @@ if (!bridge) {
     send: async (deviceId, tab) => bridge.send({ type: "send", deviceId, tab: { url: tab.url, title: tab.title, mode: tab.mode, state: tab.state } }),
     openSent: (id, background) => bridge.send({ type: "open-sent", id, background }),
     dismissSent: (id) => bridge.send({ type: "dismiss-sent", id }),
-    openSettings: () => bridge.send({ type: "settings" })
+    openSettings: (page) => bridge.send({ type: "settings", page }),
+    copyLink: (url) => void navigator.clipboard.writeText(url).catch(() => undefined)
   })
   void bridge.connect()
 }

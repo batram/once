@@ -12,7 +12,7 @@ import * as SidebarFilters from "./shell/sidebarFilters"
 import * as StorySearch from "./story/storySearch"
 import { setOnceClient } from "./client"
 import { mountTabsPanel } from "./tabsync/tabsPanel"
-import { mountTabSyncNotices } from "./tabsync/tabSyncNotices"
+import { mountTabSyncNotices, type TabSyncNoticeOptions } from "./tabsync/tabSyncNotices"
 import { SettingsPanel } from "./settings/SettingsPanel"
 import { StoryHistory } from "./story/StoryHistory"
 import { setSelectedUrl } from "./story/selectedStoryToggle"
@@ -56,6 +56,8 @@ export interface MountOnceUiOptions {
   updater?: AppUpdater
   /** Shows the Tabs entry in the side panel menu (the extensions; Electron by choice). */
   tabsPanel?: boolean
+  /** Where tab sync notices dock and what they may do beyond the shared default. */
+  tabSyncNotices?: TabSyncNoticeOptions
   /** Scans a pairing code with the camera, where the device has one (mobile). */
   scanPairingCode?: () => Promise<string | null>
   sourcePicker?: boolean
@@ -202,7 +204,7 @@ export async function mountOnceUi(
 
   StoryList.init(client, { spinTimeout: options.reloadSpinTimeout })
   mountTabsPanel(client, options.tabsPanel === true)
-  mountTabSyncNotices(client)
+  mountTabSyncNotices(client, options.tabSyncNotices)
   PanelNavigation.init()
   SidebarFilters.init(client)
   LoaderInsights.init(client, {

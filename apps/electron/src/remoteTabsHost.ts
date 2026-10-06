@@ -1,6 +1,6 @@
 import { pageScriptSource, type OnceClient, type TabOpenerPort } from "@once/app"
 import type { ElectronBridge } from "@once/platform-electron/bridge"
-import { clientRemoteTabsPort, openSyncSettings, ReaderView } from "@once/ui-web"
+import { clientRemoteTabsPort, openSyncSettings, ReaderView, sendTargets } from "@once/ui-web"
 
 /**
  * Feeds the tabs pages shown in this window's tabs with the same view the
@@ -9,7 +9,7 @@ import { clientRemoteTabsPort, openSyncSettings, ReaderView } from "@once/ui-web
 export function hostRemoteTabsPages(bridge: ElectronBridge, client: OnceClient): void {
   // The tab menu offers "Send Tab to Device" for the devices listed here.
   const reportTargets = () => void client.getTabSync().then((view) =>
-    bridge.tabSync.setSendTargets((view?.devices ?? []).map(({ deviceId, name }) => ({ deviceId, name }))))
+    bridge.tabSync.setSendTargets(sendTargets(view?.devices ?? []).map(({ deviceId, name }) => ({ deviceId, name }))))
     .catch(() => undefined)
   client.subscribe("tabSyncChanged", reportTargets)
   reportTargets()
@@ -50,7 +50,7 @@ export function hostRemoteTabsPages(bridge: ElectronBridge, client: OnceClient):
   bridge.remoteTabs.onCommand((tabId, value) => {
     if (!pages.has(tabId) || !value || typeof value !== "object") return
     const command = value as { type?: unknown; url?: unknown; mode?: unknown; background?: unknown; id?: unknown; deviceId?: unknown; tab?: unknown }
-    if (command.type === "settings") openSyncSettings()
+    if (command.type === "settings") openSyncSettings((command as { page?: unknown }).page === "pair" ? "pair" : "tabs")
     else if (command.type === "open-sent" && typeof command.id === "string") void client.openSentTab(command.id, command.background === true)
     else if (command.type === "dismiss-sent" && typeof command.id === "string") void client.dismissSentTab(command.id)
     else if (command.type === "send" && typeof command.deviceId === "string" && command.tab && typeof command.tab === "object") {

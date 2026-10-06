@@ -62,6 +62,8 @@
 .icon--comments { --icon: url("../../imgs/comments.svg"); }
 .icon--filter { --icon: url("../../imgs/filter.svg"); }
 .icon--gear { --icon: url("../../imgs/gear.svg"); }
+.icon--help { --icon: url("../../imgs/help.svg"); }
+.icon--more { --icon: url("../../imgs/more.svg"); }
 .icon--pause { --icon: url("../../imgs/pause.svg"); }
 .icon--play { --icon: url("../../imgs/play.svg"); }
 .icon--plus { --icon: url("../../imgs/plus.svg"); }
@@ -70,6 +72,7 @@
 .icon--reading { --icon: url("../../imgs/reading.svg"); }
 .icon--real-read { --icon: url("../../imgs/real_read.svg"); }
 .icon--reload { --icon: url("../../imgs/reload.svg"); }
+.icon--send { --icon: url("../../imgs/send.svg"); }
 .icon--skipped-read { --icon: url("../../imgs/skipped_read.svg"); }
 .icon--star { --icon: url("../../imgs/star.svg"); }
 .icon--star-fill { --icon: url("../../imgs/star_fill.svg"); }
@@ -241,4 +244,56 @@
 
 .collapsebutton--collapsed .collapsebutton_icon {
   transform: rotate(180deg);
+}
+
+/**
+ * Help tip: a setting's longer explanation behind a (?) beside its name
+ * (helpTip.ts). The button is a quiet glyph until hovered or focused; the
+ * text floats against the viewport so no scrolling container clips it.
+ */
+.help_tip {
+  --icon-size: var(--icon-sm);
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted-color);
+  vertical-align: middle;
+}
+
+/* Not base.css's green for icons inside an .active ancestor: the open
+   settings section is one. */
+.help_tip > .icon {
+  color: inherit;
+}
+
+.help_tip:hover,
+.help_tip:focus-visible,
+.help_tip[aria-expanded="true"] {
+  color: var(--text-high-color);
+}
+
+.help_tip_name {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.help_tip_text {
+  position: fixed;
+  z-index: 1000;
+  box-sizing: border-box;
+  max-width: min(22rem, calc(100vw - 2 * var(--sp-4)));
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--bw) solid var(--border-high-color);
+  border-radius: var(--radius-md);
+  background: var(--read-bg-color);
+  color: var(--text-high-color);
+  font-size: var(--fs-caption);
+  font-weight: 400;
+  letter-spacing: normal;
+  line-height: 1.45;
+  text-transform: none;
+  white-space: normal;
 }

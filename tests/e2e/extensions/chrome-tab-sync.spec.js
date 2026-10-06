@@ -45,7 +45,7 @@ test("the Chrome background publishes every window's tabs with no panel open, an
   try {
     const worker = await waitForExtensionWorker(context)
     await worker.evaluate(async (syncUrl) => {
-      await globalThis.chrome.storage.local.set({ "secret:once:tabsync-options": JSON.stringify({ sharing: true }) })
+      await globalThis.chrome.storage.local.set({ "once:e2e:tabsync-timing": { debounce: 100, minInterval: 300 }, "secret:once:tabsync-options": JSON.stringify({ sharing: true }) })
       await globalThis.chrome.storage.sync.set({ sync_url: syncUrl })
     }, couch.url("once"))
     const page = await context.newPage()
@@ -75,7 +75,8 @@ test("the Chrome background publishes every window's tabs with no panel open, an
     // Another installation of this browser profile points sync elsewhere.
     await worker.evaluate((syncUrl) => globalThis.chrome.storage.sync.set({ sync_url: syncUrl }), couch.url("other"))
     await page.goto(fixture.urls.delta)
-    await new Promise((resolve) => setTimeout(resolve, 5_000))
+    // Publishing is due within 0.3 s here; a second and a half would have seen one.
+    await new Promise((resolve) => setTimeout(resolve, 1_500))
     expect(await couch.devices("other")).toEqual([])
     const binding = await worker.evaluate(async () => (await globalThis.chrome.storage.local.get("secret:once:sync-destination"))["secret:once:sync-destination"])
     expect(binding).toBe(couch.url("once"))
@@ -116,6 +117,10 @@ test("the side panel's Tabs entry lists other devices' tabs and opens one in a n
     await page.getByTestId("sync-url").fill(couch.url("once"))
     await page.getByTestId("save-sync").click()
     await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "up-to-date", { timeout: 20_000 })
+    // Until tab sync is turned on, the panel has no Tabs entry.
+    await expect(page.getByTestId("tabs-menu")).toBeHidden()
+    await page.getByTestId("tab-sync-offer-see").click()
+    await page.getByTestId("sync-page-tabs").click()
     await expect(page.getByTestId("tab-sync-share")).toBeVisible()
 
     await page.getByTestId("tabs-menu").click()
@@ -126,6 +131,7 @@ test("the side panel's Tabs entry lists other devices' tabs and opens one in a n
     await panel.getByText("Epsilon on the phone").click()
     expect((await opened).url()).toBe(fixture.urls.epsilon)
     await panel.screenshot({ path: "artifacts/tab-sync/tabs-panel-chrome.png" })
+    await page.screenshot({ path: "artifacts/tab-sync/side-panel-chrome.png" })
   } finally {
     await context.close()
     await fixture.close()
@@ -147,7 +153,7 @@ test("the Chrome background reads a media position when its tab is left", async 
   try {
     const worker = await waitForExtensionWorker(context)
     await worker.evaluate(async (syncUrl) => {
-      await globalThis.chrome.storage.local.set({ "secret:once:tabsync-options": JSON.stringify({ sharing: true, screenshots: false }) })
+      await globalThis.chrome.storage.local.set({ "once:e2e:tabsync-timing": { debounce: 100, minInterval: 300 }, "secret:once:tabsync-options": JSON.stringify({ sharing: true, screenshots: false }) })
       await globalThis.chrome.storage.sync.set({ sync_url: syncUrl })
     }, couch.url("once"))
     const page = await context.newPage()

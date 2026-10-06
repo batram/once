@@ -12,6 +12,7 @@ import {
 } from "@once/core"
 import { showConfirmDialog } from "../confirmDialog"
 import { requireElement } from "../dom"
+import { explained } from "../helpTip"
 
 /**
  * The userscripts group: a list with one row per script, each with its own
@@ -310,11 +311,11 @@ class UserscriptSettingsView implements UserscriptSettings {
     const enabled = scripts.filter((script) => script.enabled).length
     this.root.dataset.scriptCount = String(scripts.length)
     this.root.dataset.enabledCount = String(enabled)
-    const intro = element("p", "settings_group_hint userscripts_intro",
-      "Small scripts that change the pages Once opens. They sync with your other settings, " +
-      (this.isPhone
+    const intro = explained("Small scripts that change the pages Once opens.",
+      "They sync with your other settings, " + (this.isPhone
         ? "and this phone runs them itself."
-        : "and the desktop app hands them to Violentmonkey, whose own edits come back here."))
+        : "and the desktop app hands them to Violentmonkey, whose own edits come back here."),
+      "settings_group_hint userscripts_intro")
     const toolbar = element("div", "userscripts_toolbar")
     const off = scripts.length - enabled
     toolbar.append(
@@ -335,7 +336,7 @@ class UserscriptSettingsView implements UserscriptSettings {
     const focused = document.activeElement instanceof HTMLElement && this.list.contains(document.activeElement)
       ? document.activeElement : null
     const focusedId = focused?.closest<HTMLElement>(".userscript_row")?.dataset.userscriptId
-    this.list.replaceChildren(intro, toolbar, rows, empty, asText)
+    this.list.replaceChildren(...intro, toolbar, rows, empty, asText)
     if (!focusedId) return
     const row = rows.querySelector<HTMLElement>(`[data-userscript-id="${CSS.escape(focusedId)}"]`)
     row?.querySelector<HTMLElement>(focused?.matches(".switch") ? ".switch" : ".userscript_row_main")
@@ -375,9 +376,9 @@ class UserscriptSettingsView implements UserscriptSettings {
     if (editing && summary?.description) parts.push(element("p", "userscript_detail_description", summary.description))
     if (editing && summary) parts.push(...scriptFacts(summary, this.isPhone))
     if (!editing) {
-      parts.push(element("p", "settings_group_hint userscript_new_hint",
-        "Paste a script or fill in the header below. @match decides which sites it runs on; " +
-        "the name and namespace identify it on every device."))
+      parts.push(...explained("Paste a script or fill in the header below.",
+        "@match decides which sites it runs on; the name and namespace identify it on every device.",
+        "settings_group_hint userscript_new_hint"))
     }
     const notice = element("p", "userscript_notice")
     notice.setAttribute("role", "status")

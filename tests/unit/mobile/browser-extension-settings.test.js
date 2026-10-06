@@ -26,7 +26,12 @@ function harness(command, active = true, platform = "android") {
   const reports = []
   const require = name => {
     assert.equal(name, "@once/ui-web")
-    return { reportInstalledExtensions: (installed, enabled) => reports.push({ installed, enabled }) }
+    const paragraph = (text, className = "") => Object.assign(document.createElement("p"), { textContent: text, className })
+    return {
+      reportInstalledExtensions: (installed, enabled) => reports.push({ installed, enabled }),
+      // The line and its help tip's text, as the real one appends them.
+      explained: (short, more) => [paragraph(short, "settings_description"), paragraph(more)]
+    }
   }
   Function("exports", "require", "document", "MutationObserver", compiled)(exports, require, document, Observer)
   const openedUrls = []

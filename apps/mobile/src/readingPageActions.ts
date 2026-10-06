@@ -1,14 +1,21 @@
 import { isAddonPage, pageAddonActions, runPageAddonAction } from "@once/ui-web"
+import { runSendItem, sendPageItems } from "./tabSyncMenus"
 
 /** The add-on tray actions the browser sheet offers for the page being read. */
 export interface ReadingPageActions {
-  list(): { id: string; label: string }[]
+  list(): { id: string; label: string; placement?: "page" }[]
   /** Opens or closes the tray above the page; nothing when the page went away. */
   run(id: string): void
 }
 
-/** `currentUrl` is the reading session's page; only a web page gets actions. */
-export function readingPageActions(currentUrl: () => string): ReadingPageActions {
+/**
+ * For the reading session's page; only a web page gets actions: its add-on
+ * trays, and sending it to another device (the reading tab showing it, sent
+ * with where it was left).
+ */
+export function readingPageActions(reading: { session: { snapshot(): { currentUrl: string } }; tabs: { activeId: string | null } }): ReadingPageActions {
+  const currentUrl = () => reading.session.snapshot().currentUrl
+  const currentTab = () => reading.tabs.activeId
   const page = () => {
     const href = currentUrl()
     return isAddonPage(href) ? { href } : null
@@ -16,9 +23,11 @@ export function readingPageActions(currentUrl: () => string): ReadingPageActions
   return {
     list: () => {
       const current = page()
-      return current ? pageAddonActions("menu", current).map(({ id, label }) => ({ id, label })) : []
+      const trays = current ? pageAddonActions("menu", current).map(({ id, label }) => ({ id, label })) : []
+      return [...sendPageItems(currentUrl()), ...trays]
     },
     run: id => {
+      if (runSendItem(id, { url: currentUrl(), tabId: currentTab() ?? undefined })) return
       const current = page()
       if (current) runPageAddonAction(id, current, "toggle")
     }

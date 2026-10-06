@@ -1,5 +1,7 @@
 import type { ElectronBridge } from "@once/platform-electron/bridge"
-import { setTabsMenuVisible } from "@once/ui-web"
+import type { OnceClient, OncePlatformPorts } from "@once/app"
+import { tabSyncTestTiming } from "@once/app/tabsync"
+import { setTabsMenuVisible, watchTabSyncEnabled } from "@once/ui-web"
 
 const PLACEMENT_KEY = "once:remote-tabs-placement"
 type Placement = "button" | "panel" | "both"
@@ -23,18 +25,21 @@ export function remoteTabsInPanel(): boolean {
  * new tab button that opens them as a page, the side panel's Tabs entry, or
  * both. A per-device choice, kept with the other window layout preferences.
  */
-export function bindRemoteTabsPlacement(bridge: ElectronBridge): void {
+export function bindRemoteTabsPlacement(bridge: ElectronBridge, client: OnceClient): void {
   const button = document.querySelector<HTMLButtonElement>("#tab_sync_btn")
   const row = document.querySelector<HTMLElement>("#remote_tabs_placement_row")
   const select = document.querySelector<HTMLSelectElement>("#remote_tabs_placement")
   if (!button || !row || !select) return
+  // Nothing shows while tab sync is off on this device, whatever the placement.
+  let enabled = false
   const apply = (placement: Placement) => {
     select.value = placement
-    button.hidden = placement === "panel"
+    button.hidden = !enabled || placement === "panel"
     setTabsMenuVisible(placement !== "button")
     window.dispatchEvent(new Event("resize"))
   }
-  row.hidden = false
+  // Shown with the rest of the Tab sync page once tab sync is on.
+  row.dataset.platformShown = "true"
   button.addEventListener("click", () => {
     void bridge.remoteTabs.open().catch((error) => console.error("Could not open the tabs page", error))
   })
@@ -44,4 +49,29 @@ export function bindRemoteTabsPlacement(bridge: ElectronBridge): void {
     apply(placement)
   })
   apply(readPlacement())
+  watchTabSyncEnabled(client, (on) => {
+    enabled = on
+    apply(readPlacement())
+  })
+}
+
+/**
+ * In the background the desktop app still says a tab arrived; "Show" opens
+ * the list where this window keeps it.
+ */
+export function desktopTabSyncNotices(bridge: ElectronBridge): { systemNotifications: boolean; showTabs: () => void } {
+  return {
+    systemNotifications: true,
+    showTabs: () => {
+      const entry = document.querySelector<HTMLElement>("#tabs_menu_btn:not([hidden])")
+      if (entry) entry.click()
+      else void bridge.remoteTabs.open()
+    }
+  }
+}
+
+/** End-to-end tests publish within seconds instead of the real intervals. */
+export function applyTabSyncTestTiming(platform: Pick<OncePlatformPorts, "device">): void {
+  const timing = tabSyncTestTiming(new URL(window.location.href).searchParams.get("tabSyncTiming"))
+  if (platform.device && timing) platform.device.tabSyncTiming = timing
 }

@@ -242,15 +242,41 @@
    the primary action, which left its white label on the page colour. */
   .addon_primary_action.button,
   .userscripts_add.button,
-  .userscript_primary.button:not(:disabled) {
+  .userscript_primary.button:not(:disabled),
+  .tab_sync_offer_primary.button {
     border-color: var(--cursor-color);
     background: var(--cursor-color);
   }
 
   .addon_primary_action.button:active,
   .userscripts_add.button:active,
-  .userscript_primary.button:not(:disabled):active {
+  .userscript_primary.button:not(:disabled):active,
+  .tab_sync_offer_primary.button:active {
     background: color-mix(in srgb, var(--cursor-color) 85%, black);
+  }
+
+  /* Glyph-only controls keep the finger-sized target but not the box: a
+     setting's (?), a tab row's ⋯ and ×, the tabs list's gear, a notice's ×. */
+  .help_tip.button,
+  .remote_tab_action.button,
+  .remote_tabs_settings.button,
+  .tab_sync_notice_close.button {
+    margin: 0;
+    padding: 0;
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .help_tip.button {
+    --icon-size: var(--icon-md);
+    min-width: var(--touch);
+    min-height: var(--touch);
+    margin-block: calc((var(--touch) - var(--icon-md)) / -2);
+  }
+
+  .tab_sync_notice .button,
+  .remote_open_all.button {
+    margin: 0;
   }
 
   /* ---------- Story rows ---------- */
@@ -3190,6 +3216,94 @@
 
   .reading_tab_remote .remote_tabs {
     padding: 0;
+  }
+
+  /* A long press on a card opens its menu; it must not start selecting the
+     card's text or raise the system's link preview. */
+  #reading_tabs_dialog .reading_tab_row,
+  #reading_tabs_dialog .remote_tab {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  /* Other devices' tabs read like this phone's cards: a larger picture, a
+     two-line title and finger-sized actions. */
+  .reading_tab_remote .remote_tab_link,
+  .reading_tab_inbox .remote_tab_link {
+    min-height: 56px;
+    gap: var(--sp-3);
+  }
+
+  .reading_tab_remote .remote_tab_preview,
+  .reading_tab_inbox .remote_tab_preview {
+    width: clamp(56px, 18vw, 80px);
+    height: 50px;
+  }
+
+  .reading_tab_remote .remote_tab_title,
+  .reading_tab_inbox .remote_tab_title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    font-size: var(--fs-body);
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  .reading_tab_inbox .remote_tabs_body {
+    gap: 0;
+  }
+
+  .reading_tab_inbox {
+    margin-bottom: var(--sp-3);
+    padding: var(--sp-1) var(--sp-1) var(--sp-2);
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--cursor-color) 8%, var(--main-bg-color));
+  }
+
+  .reading_tab_inbox:empty {
+    display: none;
+  }
+
+  .reading_tab_remote .remote_tabs_filter {
+    min-height: 36px;
+  }
+
+  #reading_tabs_dialog .remote_open_all {
+    min-height: 36px;
+    border: var(--m-bw) solid var(--border-high-color);
+    border-radius: var(--m-radius);
+  }
+
+  /* Tab sync's notices take their own line above the tab bar instead of
+     floating: over the reading view they would sit under the native page,
+     which is drawn above the WebView. The reading view shrinks to make room
+     and the page is resized with it. */
+  .tab_sync_dock {
+    position: static;
+    flex: none;
+    padding: var(--sp-1) max(var(--sp-2), env(safe-area-inset-right)) var(--sp-1) max(var(--sp-2), env(safe-area-inset-left));
+    border-top: var(--m-bw) solid var(--border-high-color);
+    background: var(--main-bg-color);
+  }
+
+  .tab_sync_notice {
+    min-height: 44px;
+    padding-block: var(--sp-1);
+    border: 0;
+    box-shadow: none;
+    background: transparent;
+  }
+
+  .tab_sync_notice .button {
+    min-height: 36px;
+  }
+
+  .tab_sync_notice_close {
+    min-width: 36px;
   }
 
   .reading_tab_row {

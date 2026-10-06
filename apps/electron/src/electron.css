@@ -252,6 +252,27 @@ body #titlebar-text {
   font-size: var(--fs-title);
 }
 
+/* The tabs button counts tabs sent here beside its icon: a corner badge
+   would cover a glyph this small. */
+#tab_sync_btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+#tab_sync_btn[hidden] {
+  display: none;
+}
+
+#tab_sync_btn[data-sent-count] {
+  flex-basis: auto;
+}
+
+#tab_sync_btn[data-sent-count]::after {
+  position: static;
+  font-size: var(--fs-meta);
+}
+
 #controlbar {
   flex: 0 0 34px;
   box-sizing: border-box;

@@ -31,6 +31,8 @@ export interface NativeOverlayMenuItem {
   enabled: boolean
   /** Resolves instead of `id` when the row's trailing settings control is chosen. */
   settingsId?: string
+  /** "page": an action on the page itself, shown with the browser controls rather than among extensions. */
+  placement?: "page"
 }
 
 export interface NativeOverlayMenuOptions {

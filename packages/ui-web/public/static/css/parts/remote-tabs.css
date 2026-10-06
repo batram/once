@@ -26,7 +26,10 @@
   overflow-y: auto;
 }
 
+/* The list measures itself, so the side panel, a phone and a browser tab
+   each get the row that fits them. */
 .remote_tabs {
+  container: remote-tabs / inline-size;
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
@@ -34,20 +37,59 @@
   font-size: var(--fs-dense);
 }
 
+.remote_tabs_toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.remote_tabs_toolbar[hidden] {
+  display: none;
+}
+
 .remote_tabs_filter {
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: var(--sp-1) var(--sp-2);
+  font: inherit;
+}
+
+.remote_tabs_settings {
+  flex: none;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted-color);
+}
+
+/* The list's own glyphs keep its colours inside an .active panel. */
+:is(.remote_tabs_settings, .remote_tab_action, .tab_sync_notice_close) > .icon {
+  color: inherit;
+}
+
+.remote_tabs_settings:hover,
+.remote_tabs_settings:focus-visible {
+  color: var(--text-high-color);
 }
 
 .remote_tabs_body {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-3);
+  gap: var(--sp-2);
 }
 
 .remote_tabs_notice {
-  margin: var(--sp-2) 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-1);
   color: var(--text-muted-color);
   line-height: 1.4;
+}
+
+.remote_tabs_notice > p {
+  margin: 0;
 }
 
 .remote_tabs_meta {
@@ -56,18 +98,34 @@
   line-height: 1.4;
 }
 
-.remote_device {
-  border-bottom: 1px solid var(--divider-color);
-  padding-bottom: var(--sp-2);
+.remote_device + .remote_device {
+  padding-top: var(--sp-1);
+  border-top: 1px solid var(--divider-color);
+}
+
+.remote_group_title {
+  margin: 0;
+  padding: var(--sp-1) var(--sp-1) 0;
+  color: var(--text-high-color);
+  font-size: inherit;
+  font-weight: 700;
 }
 
 .remote_device_header {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  width: 100%;
-  padding: var(--sp-1) 0;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.remote_device_toggle {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--sp-1-5);
+  min-width: 0;
+  padding: var(--sp-1);
   border: 0;
+  border-radius: var(--radius-md);
   background: none;
   color: inherit;
   font: inherit;
@@ -75,13 +133,52 @@
   cursor: pointer;
 }
 
-.remote_device_name {
-  color: var(--text-high-color);
-  font-weight: 700;
+.remote_device_toggle:hover,
+.remote_device_toggle:focus-visible {
+  background: var(--input-bg-color);
 }
 
-.remote_device[data-stale="true"] .remote_device_name {
+.remote_device_chevron {
+  flex: none;
+  width: 1em;
   color: var(--text-muted-color);
+  font-size: var(--fs-title);
+  line-height: 1;
+  text-align: center;
+  transition: transform 120ms ease;
+}
+
+.remote_device_toggle[aria-expanded="true"] .remote_device_chevron {
+  transform: rotate(90deg);
+}
+
+.remote_device_text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.remote_device_text > .remote_tabs_meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.remote_device_name {
+  overflow: hidden;
+  color: var(--text-high-color);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.remote_device[data-quiet="true"] .remote_device_name {
+  color: var(--text-muted-color);
+}
+
+.remote_open_all {
+  flex: none;
+  font-size: var(--fs-meta);
 }
 
 .remote_window_heading {
@@ -89,7 +186,8 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-2);
-  margin-top: var(--sp-2);
+  margin-top: var(--sp-1);
+  padding-inline: var(--sp-1);
 }
 
 .remote_tab_list {
@@ -101,7 +199,13 @@
 .remote_tab {
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
+  gap: var(--sp-0-5);
+  border-radius: var(--radius-md);
+}
+
+.remote_tab:hover,
+.remote_tab:focus-within {
+  background: var(--input-bg-color);
 }
 
 .remote_tab_link {
@@ -110,15 +214,24 @@
   align-items: center;
   gap: var(--sp-2);
   min-width: 0;
-  padding: var(--sp-1-5) var(--sp-1);
+  padding: var(--sp-1) var(--sp-1);
   border-radius: var(--radius-md);
   color: var(--text-high-color);
   text-decoration: none;
+  /* The list's own menu answers a long press, not the system's link sheet. */
+  -webkit-touch-callout: none;
 }
 
-.remote_tab_link:hover,
 .remote_tab_link:focus-visible {
-  background: var(--input-bg-color);
+  outline: 2px solid var(--text-high-color);
+  outline-offset: -2px;
+}
+
+.remote_tab_text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .remote_tab_title,
@@ -128,12 +241,79 @@
   white-space: nowrap;
 }
 
-.remote_tab_background {
-  flex: 0 0 auto;
+/* The row's ⋯ (and a sent tab's ×) stay quiet until the row is pointed at,
+   so titles read first; on touch there is no hover, so they always show. */
+.remote_tab_action {
+  flex: none;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted-color);
 }
 
-/* The same list as a page in a browser tab, at reading width. */
+.remote_tab_action:hover,
+.remote_tab_action:focus-visible {
+  color: var(--text-high-color);
+}
+
+@media (hover: hover) {
+  .remote_tab:not(:hover, :focus-within) .remote_tab_more {
+    opacity: 0;
+  }
+}
+
+/* A screenshot at the shape tabs are captured in (16:10); without one, a
+   small mark with the site's initial so letterless rows stay light. */
+.remote_tab_preview {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 35px;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  color: var(--text-muted-color);
+  font-size: var(--fs-meta);
+  font-weight: 700;
+}
+
+.remote_tab_preview[data-shot="true"] {
+  border: 1px solid var(--divider-color);
+  background: var(--second-bg-color);
+}
+
+.remote_tab_preview:not([data-shot="true"]) > span {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--second-bg-color);
+}
+
+.remote_tab_preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+}
+
+/* A narrow side panel keeps the title's width: no picture column. */
+@container remote-tabs (max-width: 260px) {
+  .remote_tab_preview {
+    display: none;
+  }
+}
+
+/* The same list as a page in a browser tab, at reading width. The shell's
+   html and body never scroll; this page's body does, within the window. */
+.remote_tabs_page {
+  overflow-y: auto;
+}
+
 .remote_tabs_page main {
+  box-sizing: border-box;
+  width: 100%;
   max-width: 48rem;
   margin: 0 auto;
   padding: var(--sp-4);
@@ -145,69 +325,34 @@
   font-size: var(--fs-title);
 }
 
-.remote_tab_text {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-width: 0;
-}
-
-/* A screenshot at the shape tabs are captured in (16:10), or the site's
-   initial until one arrives. */
-.remote_tab_preview {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  width: 64px;
-  height: 40px;
-  overflow: hidden;
-  border: 1px solid var(--divider-color);
-  border-radius: var(--radius-md);
-  background: var(--input-bg-color);
-  color: var(--text-muted-color);
-  font-weight: 700;
-}
-
-.remote_tab_preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: top;
-}
-
-.remote_tab_preview img[hidden] {
-  display: none;
-}
-
-.remote_tab_send {
-  flex: 0 0 auto;
-}
-
-/* Tabs sent here, and the tab to continue, float above the shell. */
-.tab_sync_notices {
-  position: fixed;
-  right: var(--sp-3);
-  bottom: var(--sp-3);
-  left: var(--sp-3);
-  z-index: 50;
+/* Tabs sent here and the offer to continue: one notice at a time, docked at
+   the bottom of the side panel. That is the shell's own document, so no
+   page drawn over the content area can hide it. */
+.tab_sync_dock {
+  position: absolute;
+  right: var(--sp-2);
+  bottom: var(--sp-2);
+  left: var(--sp-2);
+  z-index: 30;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: var(--sp-2);
   pointer-events: none;
+}
+
+.tab_sync_dock:empty {
+  display: none;
 }
 
 .tab_sync_notice {
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
-  max-width: min(32rem, 100%);
-  padding: var(--sp-2) var(--sp-3);
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-1) var(--sp-2) var(--sp-3);
   border: 1px solid var(--border-high-color);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-lg);
   background: var(--read-bg-color);
   color: var(--text-high-color);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 25%);
   font-size: var(--fs-dense);
   pointer-events: auto;
 }
@@ -216,18 +361,39 @@
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
+  gap: var(--sp-0-5);
   min-width: 0;
 }
 
-.tab_sync_notice_text > * {
+/* Two lines for the title: in a narrow panel one would leave only "Continue “A…". */
+.tab_sync_notice_title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
+.tab_sync_notice_detail {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.tab_sync_notice_text > span {
+.tab_sync_notice_detail {
   color: var(--text-muted-color);
   font-size: var(--fs-meta);
+}
+
+.tab_sync_notice_action {
+  flex: none;
+}
+
+.tab_sync_notice_close {
+  flex: none;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted-color);
 }
 
 /* How many tabs other devices sent here, on the entries that list them. */
@@ -238,8 +404,8 @@
 [data-sent-count]::after {
   content: attr(data-sent-count);
   position: absolute;
-  top: 0;
-  right: 0;
+  top: calc(var(--sp-1) * -1);
+  right: calc(var(--sp-1) * -1);
   min-width: 1.4em;
   padding: 0 var(--sp-1);
   border-radius: var(--radius-pill);
@@ -248,13 +414,16 @@
   font-size: var(--fs-caption);
   line-height: 1.4;
   text-align: center;
+  pointer-events: none;
 }
 
+/* The fallback chooser where no button can anchor a menu. */
 .device_picker {
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
-  min-width: 16rem;
+  width: min(22rem, calc(100vw - 2 * var(--sp-4)));
+  box-sizing: border-box;
   border: 1px solid var(--border-high-color);
   border-radius: var(--radius-xl);
   background: var(--read-bg-color);
@@ -268,4 +437,9 @@
 .device_picker_title {
   margin: 0;
   font-weight: 700;
+}
+
+.device_picker_choice {
+  justify-content: flex-start;
+  text-align: left;
 }

@@ -88,6 +88,11 @@
   border-bottom: 1px solid var(--divider-color);
 }
 
+/* A row whose explanation went behind a help tip has no hint line to keep. */
+.settings_row:not(:has(> .settings_row_hint)) {
+  grid-template-areas: "name control";
+}
+
 .settings_row_name {
   grid-area: name;
   align-self: center;
@@ -2050,6 +2055,12 @@
       "hint";
   }
 
+  .settings_row:not(.settings_row_inline, :has(> .settings_row_hint)) {
+    grid-template-areas:
+      "name"
+      "control";
+  }
+
   /* Finger-sized rather than pointer-sized. */
   .switch {
     --switch-size: 30px;
@@ -2780,74 +2791,4 @@
 .cache_source_row .button {
   flex: 0 0 auto;
   white-space: nowrap;
-}
-
-/* Other devices in tab sync: name and details stacked, the remove action at
-   the trailing edge, like a settings row without a form control. */
-.tab_sync_devices {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.tab_sync_device {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas:
-    "name action"
-    "hint action";
-  align-items: center;
-  gap: var(--sp-1) var(--sp-4);
-  padding: var(--sp-3) 0;
-  border-bottom: 1px solid var(--divider-color);
-}
-
-.tab_sync_device_name {
-  grid-area: name;
-  color: var(--text-high-color);
-  font-weight: 700;
-}
-
-.tab_sync_device > .button {
-  grid-area: action;
-}
-
-.tab_sync_device[data-stale="true"] .tab_sync_device_name {
-  color: var(--text-muted-color);
-}
-
-/* Pairing: a warning before the code, and the code itself blurred until
-   the reader chooses to reveal it, so a glance or a screenshot of the
-   settings does not carry the database password away. */
-.pair_panel {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--sp-2);
-  padding: var(--sp-2) 0;
-}
-
-.pair_warning {
-  margin: 0;
-  color: var(--error-color);
-  line-height: 1.4;
-}
-
-.pair_code {
-  width: min(16rem, 100%);
-  padding: 0;
-  border: 1px solid var(--divider-color);
-  border-radius: var(--radius-lg);
-  background: #fff;
-  cursor: pointer;
-}
-
-.pair_code svg {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-.pair_code[data-blurred="true"] svg {
-  filter: blur(8px);
 }

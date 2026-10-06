@@ -1,5 +1,5 @@
 import { createOnceApp, OnceClient } from "@once/app"
-import { bindRemoteTabsPlacement, remoteTabsInPanel } from "./remoteTabsPlacement"
+import { applyTabSyncTestTiming, bindRemoteTabsPlacement, desktopTabSyncNotices, remoteTabsInPanel } from "./remoteTabsPlacement"
 import { electronTabOpener, hostRemoteTabsPages } from "./remoteTabsHost"
 import { FilterListsDocument, UserscriptsDocument } from "@once/core"
 import { createElectronPlatform } from "@once/platform-electron"
@@ -108,6 +108,7 @@ async function startRenderer(): Promise<void> {
   document.body.classList.add(`electron-platform-${buildInfo.platform}`)
 
   const platform = createElectronPlatform(window.onceElectron, buildInfo)
+  applyTabSyncTestTiming(platform)
   platform.tabOpener = electronTabOpener(window.onceElectron)
   const app = createOnceApp(platform)
   ReaderView.mount(
@@ -169,6 +170,7 @@ async function startRenderer(): Promise<void> {
     extensionSettings: true,
     showHoveredLinks: true,
     tabsPanel: remoteTabsInPanel(),
+    tabSyncNotices: desktopTabSyncNotices(window.onceElectron),
     initialStoryLoad: flags.has("disableStoryLoading") ? "disabled" : "cache",
     onMenuCollapsedChanged,
     // The renderer owns the keybinding config; main only mirrors the chords it
@@ -179,7 +181,7 @@ async function startRenderer(): Promise<void> {
   })
   startupStage("bind-shell")
   bindBrowserExtensionSettings(app.client, window.onceElectron)
-  bindRemoteTabsPlacement(window.onceElectron)
+  bindRemoteTabsPlacement(window.onceElectron, app.client)
   hostRemoteTabsPages(window.onceElectron, app.client)
   document.addEventListener("contextmenu", (event) => {
     const story = storyFromTarget(event.target)

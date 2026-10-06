@@ -9,6 +9,8 @@ const stories = require("../shared/story-fixture")
 const { startMediaServer } = require("../shared/media-server")
 
 const otherDevice = "fedcba9876543210fedcba9876543210"
+// Publish within a fraction of a second rather than the real 3 s debounce and 15 s interval.
+const QUICK_PUBLISHING = JSON.stringify({ debounce: 100, minInterval: 300 })
 
 test("a sharing desktop publishes the tabs of both windows, and can remove another device", async () => {
   test.setTimeout(90000)
@@ -24,7 +26,7 @@ test("a sharing desktop publishes the tabs of both windows, and can remove anoth
   const http = await new Promise((resolve) => { const server = api.listen(0, "127.0.0.1", () => resolve(server)) })
   const syncUrl = `http://127.0.0.1:${http.address().port}/once`
   const feed = await startPageServer()
-  const app = await launchApp({ env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0" } })
+  const app = await launchApp({ env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0", ONCE_ELECTRON_TABSYNC_TIMING: QUICK_PUBLISHING } })
   try {
     const page = app.window
     const urls = stories.storyUrls(feed.origin)
@@ -32,12 +34,18 @@ test("a sharing desktop publishes the tabs of both windows, and can remove anoth
     await page.getByTestId("sync-url").fill(syncUrl)
     await page.getByTestId("save-sync").click()
     await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "up-to-date", { timeout: 20000 })
-    const settings = page.getByTestId("tab-sync-settings")
-    await expect(settings).toBeVisible()
-    await expect(page.getByTestId("tab-sync-device")).toContainText("Test phone")
+    // Tab sync is off until the first-run offer is taken; Share turns sharing on with it.
+    await expect(page.getByTestId("sync-page-tabs")).toContainText("Off")
+    await page.getByTestId("tab-sync-offer-share").click()
+    await expect(page.getByTestId("tab-sync-offer")).toBeHidden()
     await page.getByTestId("device-name").fill("Test desktop")
     await page.getByTestId("device-name").press("Tab")
-    await page.getByTestId("tab-sync-share").check()
+    await page.getByTestId("sync-page-tabs").click()
+    const settings = page.getByTestId("tab-sync-settings")
+    await expect(settings).toBeVisible()
+    await expect(page.getByTestId("tab-sync-enabled")).toBeChecked()
+    await expect(page.getByTestId("tab-sync-share")).toBeChecked()
+    await expect(page.getByTestId("tab-sync-device")).toContainText("Test phone")
 
     await page.evaluate((url) => window.onceElectron.tabs.create(url), urls.alpha)
     await page.evaluate((url) => window.onceElectron.storyMenu.openWindow(url), urls.beta)
@@ -58,11 +66,16 @@ test("a sharing desktop publishes the tabs of both windows, and can remove anoth
     await fs.mkdir("artifacts/tab-sync", { recursive: true })
     await fs.writeFile("artifacts/tab-sync/published-thumb-electron.jpg", await remote.getAttachment(shot.id, "thumb.jpg"))
 
-    page.once("dialog", (dialog) => dialog.accept())
-    await page.getByTestId("tab-sync-device").getByRole("button", { name: "Remove from tab sync" }).click()
+    await page.getByTestId("tab-sync-device").getByRole("button", { name: "Remove Test phone from tab sync" }).click()
+    await page.getByTestId("confirm-accept").click()
     await expect(page.getByTestId("tab-sync-devices")).toContainText("No other devices yet")
     await expect.poll(async () => (await remote.get(`tret_${otherDevice}`).catch(() => null))?.retiredEpoch, { timeout: 20000 }).toBe(1)
-    await settings.screenshot({ path: "artifacts/tab-sync/sync-section-electron.png" })
+    await page.locator("#sync_page_tabs").screenshot({ path: "artifacts/tab-sync/sync-section-electron.png" })
+
+    // Off, nothing of tab sync shows and this device's record goes.
+    await page.getByTestId("tab-sync-enabled").uncheck()
+    await expect(page.getByTestId("tab-sync-button")).toBeHidden()
+    await expect.poll(async () => (await remote.allDocs({ startkey: "dev_", endkey: "dev_\uffff" })).rows.length, { timeout: 20000 }).toBe(0)
   } finally {
     await closeApp(app.electronApp, app.userData)
     await feed.close()
@@ -84,7 +97,7 @@ test("the tab bar button opens other devices' tabs as a page; the side panel can
     openedAt: at, navigatedAt: at, selectedAt: at, activityAt: at })
   const api = expressPouchDB(Db, { mode: "minimumForPouchDB", inMemoryConfig: true })
   const http = await new Promise((resolve) => { const server = api.listen(0, "127.0.0.1", () => resolve(server)) })
-  const app = await launchApp({ env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0" } })
+  const app = await launchApp({ env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0", ONCE_ELECTRON_TABSYNC_TIMING: QUICK_PUBLISHING } })
   try {
     // A real JPEG for the screenshot, made by Electron itself.
     const jpeg = await app.electronApp.evaluate(({ nativeImage }) => nativeImage
@@ -103,6 +116,8 @@ test("the tab bar button opens other devices' tabs as a page; the side panel can
     await page.getByTestId("sync-url").fill(`http://127.0.0.1:${http.address().port}/once`)
     await page.getByTestId("save-sync").click()
     await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "up-to-date", { timeout: 20000 })
+    await expect(page.getByTestId("tab-sync-button")).toBeHidden()
+    await page.getByTestId("tab-sync-offer-see").click()
     await expect(page.getByTestId("tabs-menu")).toBeHidden()
 
     await page.getByTestId("tab-sync-button").click()
@@ -134,6 +149,7 @@ test("the tab bar button opens other devices' tabs as a page; the side panel can
     await expect.poll(async () => (await page.evaluate(() => window.onceElectron.tabs.getAll()))
       .find((tab) => tab.active)?.url).toBe(urls.gamma)
 
+    await page.getByTestId("sync-page-tabs").click()
     await page.getByTestId("remote-tabs-placement").selectOption("panel")
     await expect(page.getByTestId("tab-sync-button")).toBeHidden()
     await page.getByTestId("tabs-menu").click()
@@ -165,7 +181,7 @@ test("a media position is read when its tab is left, and restored when another d
   })
   const api = expressPouchDB(Db, { mode: "minimumForPouchDB", inMemoryConfig: true })
   const http = await new Promise((resolve) => { const server = api.listen(0, "127.0.0.1", () => resolve(server)) })
-  const app = await launchApp({ env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0" } })
+  const app = await launchApp({ env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0", ONCE_ELECTRON_TABSYNC_TIMING: QUICK_PUBLISHING } })
   const inTab = (url, script) => app.electronApp.evaluate(({ webContents }, [target, source]) => {
     const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL() === target)
     return contents ? contents.executeJavaScript(source) : null
@@ -176,7 +192,10 @@ test("a media position is read when its tab is left, and restored when another d
     await page.getByTestId("sync-url").fill(`http://127.0.0.1:${http.address().port}/once`)
     await page.getByTestId("save-sync").click()
     await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "up-to-date", { timeout: 20000 })
-    await page.getByTestId("tab-sync-share").check()
+    await page.getByTestId("tab-sync-offer-share").click()
+    // Turning tab sync on restarts publishing; the tabs are used once it is under way.
+    await expect.poll(async () => (await remote.allDocs({ startkey: "dev_", endkey: "dev_\uffff", include_docs: true })).rows
+      .some((row) => row.doc.deviceId !== otherDevice && row.doc.sharing), { timeout: 20000 }).toBe(true)
 
     const listening = `${media.origin}/listen`
     await page.evaluate((url) => window.onceElectron.tabs.create(url), listening)
@@ -197,7 +216,7 @@ test("a media position is read when its tab is left, and restored when another d
     const tabsPage = await app.electronApp.evaluate(({ webContents }) => webContents.getAllWebContents()
       .find((candidate) => candidate.getURL().startsWith("once-tabs://")).id)
     await expect.poll(() => app.electronApp.evaluate(({ webContents }, id) =>
-      webContents.fromId(id).executeJavaScript("document.body.innerText"), tabsPage), { timeout: 15000 }).toContain("⏸ 0:33 / 1:00")
+      webContents.fromId(id).executeJavaScript("document.body.innerText"), tabsPage), { timeout: 15000 }).toContain("⏸\uFE0E 0:33 / 1:00")
     await app.electronApp.evaluate(({ webContents }, id) => webContents.fromId(id).executeJavaScript(
       "[...document.querySelectorAll('.remote_tab_link')].find((link) => link.textContent.includes('Listening on the phone')).click()"), tabsPage)
     await expect.poll(() => inTab(`${media.origin}/listen?remote`, "Math.round(document.querySelector('audio')?.currentTime ?? -1)"),
@@ -221,13 +240,14 @@ test("a tab sent here shows as a toast and opens; the tab just used on another d
   const urls = stories.storyUrls(feed.origin)
   const api = expressPouchDB(Db, { mode: "minimumForPouchDB", inMemoryConfig: true })
   const http = await new Promise((resolve) => { const server = api.listen(0, "127.0.0.1", () => resolve(server)) })
-  const app = await launchApp({ env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0" } })
+  const app = await launchApp({ env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0", ONCE_ELECTRON_TABSYNC_TIMING: QUICK_PUBLISHING } })
   try {
     const page = app.window
     await openSettingsSection(page, "sync", "#couch_input")
     await page.getByTestId("sync-url").fill(`http://127.0.0.1:${http.address().port}/once`)
     await page.getByTestId("save-sync").click()
     await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "up-to-date", { timeout: 20000 })
+    await page.getByTestId("tab-sync-offer-see").click()
     const self = JSON.parse(await page.evaluate(() => window.onceElectron.settings.getSecret("once:device-identity"))).id
     const at = new Date().toISOString()
     await remote.bulkDocs([{
@@ -249,10 +269,10 @@ test("a tab sent here shows as a toast and opens; the tab just used on another d
     await expect.poll(async () => (await remote.allDocs({ startkey: "tsend_", endkey: "tsend_￿" })).rows.length, { timeout: 20000 }).toBe(0)
 
     const banner = page.getByTestId("continue-banner")
-    await expect(banner).toContainText("Continue Epsilon watched on the phone")
-    await expect(banner).toContainText("from Test phone · ⏸ 0:33 / 1:00")
+    await expect(banner).toContainText("Continue “Epsilon watched on the phone”")
+    await expect(banner).toContainText("Test phone · ⏸\uFE0E 0:33 / 1:00")
     await banner.screenshot({ path: "artifacts/tab-sync/continue-banner-electron.png" })
-    await banner.getByRole("button", { name: "Dismiss" }).click()
+    await banner.getByRole("button", { name: "Close" }).click()
     await expect(banner).toBeHidden()
   } finally {
     await closeApp(app.electronApp, app.userData)

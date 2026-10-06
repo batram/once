@@ -12,7 +12,6 @@ const SHOWN_FOR_MS = 60_000
  * code names the database and user before anything changes.
  */
 export function bindPairingControls(client: OnceClient, scan?: () => Promise<string | null>): (link: string) => void {
-  const show = requireElement<HTMLButtonElement>("#pair_show")
   const panel = requireElement<HTMLElement>("#pair_panel")
   const input = requireElement<HTMLInputElement>("#pair_link_input")
   const status = requireElement<HTMLElement>("#pair_status")
@@ -22,22 +21,21 @@ export function bindPairingControls(client: OnceClient, scan?: () => Promise<str
   const refreshConsent = () => void client.getSyncConsent().then((state) => { consent = state }).catch(() => undefined)
   refreshConsent()
 
-  const hide = () => {
+  // The page offers a code straight away; showing one replaces the offer
+  // until it is hidden again, by hand or after a minute.
+  let showingCode = false
+  const offer = () => {
     clearTimeout(hideTimer)
-    panel.replaceChildren()
-    panel.hidden = true
-    show.setAttribute("aria-expanded", "false")
-  }
-  show.addEventListener("click", () => {
-    if (!panel.hidden) { hide(); return }
-    show.setAttribute("aria-expanded", "true")
-    panel.hidden = false
+    showingCode = false
     void renderOffer(client, panel, (link) => {
-      renderCode(panel, link, hide)
+      showingCode = true
+      renderCode(panel, link, offer)
       clearTimeout(hideTimer)
-      hideTimer = setTimeout(hide, SHOWN_FOR_MS)
+      hideTimer = setTimeout(offer, SHOWN_FOR_MS)
     })
-  })
+  }
+  offer()
+  client.subscribe("syncStatusChanged", () => { if (!showingCode) offer() })
 
   const connect = (link: string) => {
     let payload: PairingPayload
@@ -81,13 +79,14 @@ async function renderOffer(client: OnceClient, panel: HTMLElement, showCode: (li
   warning.className = "pair_warning"
   warning.textContent = syncUrl
     ? "This code contains your sync password. Anyone who sees or photographs it can read and change your synced data."
-    : "Connect sync on this device first."
+    : "Connect sync on this device first; then it can show a code for your other devices."
+  delete panel.dataset.showing
   panel.replaceChildren(warning)
   if (!syncUrl) return
   const vault = await client.getAddonVaultStatus().catch(() => null)
   const hasVault = vault?.state === "ready" || vault?.state === "locked"
   const include = document.createElement("label")
-  include.className = "field"
+  include.className = "field_check pair_include"
   const includeBox = document.createElement("input")
   includeBox.type = "checkbox"
   includeBox.dataset.testid = "pair-include-passphrase"
@@ -106,7 +105,7 @@ async function renderOffer(client: OnceClient, panel: HTMLElement, showCode: (li
   includeBox.addEventListener("change", () => { passphrase.hidden = stronger.hidden = !includeBox.checked })
   const make = document.createElement("button")
   make.type = "button"
-  make.className = "button"
+  make.className = "button pair_make"
   make.textContent = "Show code"
   make.dataset.testid = "pair-make"
   const feedback = document.createElement("p")
@@ -126,6 +125,7 @@ async function renderOffer(client: OnceClient, panel: HTMLElement, showCode: (li
 
 /** The QR code, blurred until clicked, with the same link to copy; it goes away after a minute. */
 function renderCode(panel: HTMLElement, link: string, hide: () => void): void {
+  panel.dataset.showing = "code"
   const code = qrcode(0, "M")
   code.addData(link)
   code.make()

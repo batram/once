@@ -1,6 +1,7 @@
 import {
   DeviceDoc,
   DEVICE_DOC_PREFIX,
+  effectiveTabSyncOptions,
   readTabSyncSharedSettings,
   RetirementDoc,
   RETIREMENT_DOC_PREFIX,
@@ -23,6 +24,28 @@ import { deviceDocument, expiredSends, publicationFingerprint, publishedWindows,
 
 const TIMING = { debounce: 3000, minInterval: 15000, heartbeat: 10 * 60 * 1000, refresh: 250, thumbnailGrace: 60 * 60 * 1000, sample: 15000 }
 const CHANNEL = "once-tabsync"
+
+/** Publication timings an end-to-end test may shorten. */
+export type TabSyncTestTiming = Partial<Pick<typeof TIMING, "debounce" | "minInterval">>
+
+/**
+ * Reads shorter publication timings handed in by an end-to-end test (a JSON
+ * object, or its text). Only the debounce and the minimum interval, and only
+ * values no longer than the real ones; anything else is ignored.
+ */
+export function tabSyncTestTiming(value: unknown): TabSyncTestTiming | undefined {
+  let record: unknown = value
+  if (typeof value === "string") {
+    try { record = JSON.parse(value) } catch { return undefined }
+  }
+  if (!record || typeof record !== "object") return undefined
+  const timing: TabSyncTestTiming = {}
+  for (const key of ["debounce", "minInterval"] as const) {
+    const number = (record as Record<string, unknown>)[key]
+    if (typeof number === "number" && number >= 0 && number <= TIMING[key]) timing[key] = number
+  }
+  return Object.keys(timing).length ? timing : undefined
+}
 
 export interface RemoteDeviceView {
   deviceId: string
@@ -98,6 +121,8 @@ export class TabSyncService {
   private queue: Promise<unknown> = Promise.resolve()
   private generation = 0
   private publisher = false
+  /** The settings the last reevaluation acted on. */
+  private appliedSettings = ""
   private releasePublisher?: () => void
   private debounce?: ReturnType<typeof setTimeout>
   private heartbeat?: ReturnType<typeof setInterval>
@@ -172,10 +197,15 @@ export class TabSyncService {
     void this.reevaluate()
   }
 
-  /** Another context (a panel, the background) changed the options or identity. */
+  /**
+   * Another context (a panel, the background) changed the options or identity.
+   * The store also reports this runtime's own writes, after the fact; those
+   * change nothing here, and restarting for them would drop what was read
+   * from tabs in between.
+   */
   optionsChangedElsewhere(): void {
     this.deps.identity.invalidate()
-    void this.reevaluate(true)
+    void this.settingsFingerprint().then((fingerprint) => this.reevaluate(fingerprint !== this.appliedSettings))
   }
 
   /** Rereads the other devices and this device's inbox, for a context without a change feed. */
@@ -196,7 +226,7 @@ export class TabSyncService {
   async sampleNow(): Promise<void> {
     if (!this.heartbeat || !this.deps.source) return
     const generation = this.generation
-    const options = await this.deps.identity.getOptions()
+    const options = await this.activeOptions()
     if (!options.sharing) return
     const listed = publishedWindows(await this.deps.source.snapshot(), options)
     let changed = false
@@ -226,18 +256,24 @@ export class TabSyncService {
         }] : []
       })
       .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+    // Off, this device lists nobody and nothing waits for it: every menu,
+    // badge and notification built from the view goes quiet with it.
+    const on = options.enabled
     return {
       available: true, canShare: Boolean(this.deps.source) || this.deps.sharesElsewhere === true,
       self: { deviceId: record.id, name: record.name, platform: this.deps.identity.platform },
-      options, shared: this.shared, devices, notice: this.notice,
-      inbox: this.inbox.map((send) => ({ id: send._id, fromName: send.fromName, url: send.url, title: send.title,
+      options, shared: this.shared, devices: on ? devices : [], notice: this.notice,
+      inbox: (on ? this.inbox : []).map((send) => ({ id: send._id, fromName: send.fromName, url: send.url, title: send.title,
         mode: send.mode, createdAt: send.createdAt, ...(send.state ? { state: send.state } : {}) }))
     }
   }
 
   async setOptions(change: Partial<TabSyncOptions>): Promise<void> {
-    const before = await this.deps.identity.getOptions()
-    const turningOn = (change.sharing && !before.sharing) || (change.sendTarget && !before.sendTarget)
+    const stored = await this.deps.identity.getOptions()
+    const before = effectiveTabSyncOptions(stored)
+    const after = effectiveTabSyncOptions({ ...stored, ...change })
+    // Turning tab sync itself on counts too: it brings sharing or presence back.
+    const turningOn = (after.sharing && !before.sharing) || (after.sendTarget && !before.sendTarget)
     if (turningOn) {
       // Turning sharing on again is how a removed device rejoins.
       const record = await this.deps.identity.get()
@@ -341,8 +377,20 @@ export class TabSyncService {
    * lock. `restart` drops anything queued under the previous options, so a
    * capture still in flight cannot publish what was just turned off.
    */
+  /** The options as they act: with tab sync off, nothing is shared or received. */
+  private async activeOptions(): Promise<TabSyncOptions> {
+    return effectiveTabSyncOptions(await this.deps.identity.getOptions())
+  }
+
+  /** What publishing depends on besides tabs: the options and who this device is. */
+  private async settingsFingerprint(): Promise<string> {
+    const [options, record] = await Promise.all([this.deps.identity.getOptions(), this.deps.identity.get()])
+    return JSON.stringify([options, record.id, record.epoch, record.name])
+  }
+
   private async reevaluate(restart = false): Promise<void> {
-    const options = await this.deps.identity.getOptions()
+    this.appliedSettings = await this.settingsFingerprint()
+    const options = await this.activeOptions()
     const wanted = this.publisher && this.deps.syncActive() && (options.sharing || options.sendTarget)
     if (restart || !wanted) {
       this.generation++
@@ -375,7 +423,7 @@ export class TabSyncService {
   private async captureLeft(tabId: string): Promise<void> {
     let tab = this.lastTabs.get(tabId)
     if (!tab && this.deps.source) {
-      const options = await this.deps.identity.getOptions()
+      const options = await this.activeOptions()
       tab = publishedWindows(await this.deps.source.snapshot(), options)
         .flatMap((window) => window.tabs).find((item) => item.id === tabId)
     }
@@ -408,7 +456,7 @@ export class TabSyncService {
 
   private async publish(generation: number, force: boolean): Promise<void> {
     if (generation !== this.generation) return
-    const options = await this.deps.identity.getOptions()
+    const options = await this.activeOptions()
     const record = await this.deps.identity.get()
     const retirement = await this.deps.repository.readRetirement(record.id)
     if (retirement && retirement.retiredEpoch >= record.epoch) {

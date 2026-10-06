@@ -550,7 +550,7 @@ export interface ElectronRemoteTabsPageBridge {
 
 export type ElectronRemoteTabsCommand =
   | { type: "open"; url: string; mode: "web" | "reader"; background: boolean; state?: unknown }
-  | { type: "settings" }
+  | { type: "settings"; page?: "tabs" | "pair" }
   | { type: "send"; deviceId: string; tab: { url: string; title: string; mode: "web" | "reader"; state?: unknown } }
   | { type: "open-sent"; id: string; background: boolean }
   | { type: "dismiss-sent"; id: string }

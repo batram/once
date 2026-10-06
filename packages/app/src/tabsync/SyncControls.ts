@@ -126,6 +126,7 @@ export class SyncControls {
       source: this.platform.tabSource,
       sharesElsewhere: device.sharesElsewhere,
       appVersion: device.appVersion,
+      timing: device.tabSyncTiming,
       syncActive: () => this.active(this.host.status()),
       changed: () => this.host.tabSyncChanged(),
       reportError: (operation, error) => this.host.reportDiagnostic({

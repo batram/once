@@ -1,6 +1,6 @@
 import { OnceClient } from "@once/app"
 import { ElectronBridge, ElectronManagedExtension } from "@once/platform-electron/bridge"
-import { reportInstalledExtensions } from "@once/ui-web"
+import { explained, reportInstalledExtensions } from "@once/ui-web"
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, text = "", className = ""): HTMLElementTagNameMap[K] {
   const result = document.createElement(tag)
@@ -197,7 +197,7 @@ function renderInstallPage({ page, bridge, button, show, isCurrent }: PageContex
 
 async function renderExtensionPage({ target, selected, page, bridge, client, button, show, isCurrent }: PageContext): Promise<void> {
   if (target === "overview") {
-    page.append(element("p", "Install Firefox extensions for pages opened in Once. Installation and enabled state belong to this device.", "settings_description"))
+    page.append(...explained("Install Firefox extensions for pages opened in Once.", "Installation and enabled state belong to this device."))
     const actions = element("div", "", "settings_actions cluster")
     actions.append(button("Install extension", () => show("install")), button("Filter lists & userscripts", () => show("supplemental")))
     page.append(actions)
@@ -236,13 +236,14 @@ async function renderExtensionPage({ target, selected, page, bridge, client, but
       await bridge.extensions.remove(selected.id)
       await show("overview")
     }))
-    page.append(actions, element("p", "Reload open pages to apply enable/disable changes. Removing an extension keeps its local settings for a later reinstall.", "settings_description"),
+    page.append(actions, ...explained("Reload open pages to apply enable/disable changes.", "Removing an extension keeps its local settings for a later reinstall."),
       ...permissionList(selected))
     for (const warning of selected.warnings) page.append(element("p", warning, "settings_description"))
   } else if (target === "sync" && selected) {
     const [storage, doc] = await Promise.all([bridge.extensions.storage(selected.id), client.getBrowserExtensionSync()])
     if (!isCurrent()) return
-    page.append(element("p", "Choose individual storage keys to share through Once’s CouchDB sync. Nothing is selected by default. A key can contain several preferences; select only data you want on your other devices. Cookies, IndexedDB, and localStorage are not included.", "settings_description"))
+    page.append(...explained("Choose storage keys to share through Once’s CouchDB sync. Nothing is selected by default.",
+      "A key can contain several preferences; select only data you want on your other devices. Cookies, IndexedDB, and localStorage are not included."))
     const controls: { area: "local" | "sync"; key: string; input: HTMLInputElement }[] = []
     for (const area of ["local", "sync"] as const) {
       const group = element("fieldset", "", "settings_group")

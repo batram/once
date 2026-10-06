@@ -1,5 +1,5 @@
 import type { MobileBrowserExtension, MobileBrowserExtensions } from "@once/platform-mobile"
-import { reportInstalledExtensions } from "@once/ui-web"
+import { explained, reportInstalledExtensions } from "@once/ui-web"
 
 /** Marks a control the mobile e2e suite navigates through. */
 function withTestId<T extends HTMLElement>(node: T, id: string): T {
@@ -84,9 +84,10 @@ export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions,
       back.textContent = target === "overview" ? "Settings" : "Browser Extensions"
     }
     if (target === "overview") {
-      page.append(element("p", api.platform === "ios"
-        ? "Bundled Safari-compatible extensions for pages opened in Once. Extension settings stay on this device."
-        : "Firefox extensions for pages opened in Once. Installation and settings stay on this device.", "settings_description"))
+      page.append(...explained(api.platform === "ios"
+        ? "Bundled Safari-compatible extensions for pages opened in Once."
+        : "Firefox extensions for pages opened in Once.",
+      api.platform === "ios" ? "Extension settings stay on this device." : "Installation and settings stay on this device."))
       if (api.platform !== "ios") page.append(link("Install extension", "install"))
       page.append(withTestId(link("Filter lists & userscripts", "supplemental"), "extension-supplemental"))
       const result = await api.command({ action: "list" })
@@ -191,8 +192,9 @@ function renderDetail(page: HTMLElement, api: MobileBrowserExtensions, extension
       await refreshSelected()
     }), link("Remove extension…", "remove", extension))
   }
-  page.append(element("p", "Reload open pages after enabling or disabling. Removing an extension also removes its extension data. Included extensions update with Once.", "settings_description"),
-    element("h4", "Requested access"), element("p", extension.permissions.join(", ") || "None"))
+  page.append(...explained("Reload open pages after enabling or disabling.",
+    "Removing an extension also removes its extension data. Included extensions update with Once."),
+  element("h4", "Requested access"), element("p", extension.permissions.join(", ") || "None"))
 }
 
 function renderInstall(
@@ -215,7 +217,8 @@ function renderInstall(
     openBrowserUrl(catalogLink.href)
   })
   catalog.append(catalogLink, " and paste an add-on's page URL above.")
-  page.append(label, input, catalog, element("p", "Choose an Android-compatible Firefox extension. Once will download it and show its verified identity and requested access before installation.", "settings_description"))
+  page.append(label, input, catalog, ...explained("Choose an Android-compatible Firefox extension.",
+    "Once will download it and show its verified identity and requested access before installation."))
   const install = async (source: string) => {
     const result = await api.command({ action: "install", source })
     if (!result.cancelled) await done()
@@ -231,5 +234,6 @@ function renderInstall(
     const result = await api.command({ action: "chooseFile" })
     if (!result.cancelled) await done()
   }))
-  page.append(element("p", "Local XPI files must be signed by Mozilla. Extension compatibility depends on Firefox for Android and the browser APIs Once supports.", "settings_description"))
+  page.append(...explained("Local XPI files must be signed by Mozilla.",
+    "Extension compatibility depends on Firefox for Android and the browser APIs Once supports."))
 }

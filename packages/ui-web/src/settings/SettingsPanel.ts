@@ -15,11 +15,13 @@ import * as settingsControls from "./settingsControlBindings"
 import { bindSyncSettingsControls } from "./syncSettingsControls"
 import { bindTabSyncControls } from "./tabSyncControls"
 import { bindPairingControls } from "./pairingControls"
+import { bindSyncSettingsPages } from "./syncSettingsPages"
 import { bindSettingsSubscriptions } from "./settingsSubscriptions"
 import { bindExtensionSettingsEditors, ExtensionSettingsEditors } from "./extensionSettingsEditors"
 import settingsSectionDefinitions from "./settingsSectionDefinitions"
 import { SettingsNavigation, SettingsPanelOptions } from "./SettingsNavigation"
 import { trackSettingsSave } from "./settingsStatus"
+import { bindHelpTips } from "../helpTip"
 
 export class SettingsPanel {
   static instance: SettingsPanel
@@ -43,6 +45,7 @@ export class SettingsPanel {
       (sourceId) => this.highlightSource(sourceId)
     )
     SettingsPanel.instance = this
+    bindHelpTips(requireElement<HTMLElement>("#settings_panel"))
     bindSettingsSubscriptions(client, {
       filters: () => void this.set_filter_area(),
       redirects: () => void this.set_redirect_area(),
@@ -146,6 +149,7 @@ export class SettingsPanel {
 
     this.structuredEditors = this.createStructuredEditors()
     this.installSettingsNavigation()
+    bindSyncSettingsPages(requireElement<HTMLElement>("#sync_settings"))
   }
 
   private createStructuredEditors(): StructuredSettingsEditors {
@@ -370,6 +374,7 @@ export class SettingsPanel {
           const target = document.getElementById(targetId)
           if (!target) return
           if (target instanceof HTMLDetailsElement) target.open = true
+          target.dispatchEvent(new CustomEvent("once:settings-reveal", { bubbles: true }))
           target.focus({ preventScroll: true })
           revealElement(target, { block: "center" })
           return
@@ -382,6 +387,8 @@ export class SettingsPanel {
           return
         }
         control.closest("#addon_install_settings")?.dispatchEvent(new CustomEvent("once:addon-reveal", { detail: control }))
+        // A page inside a section (Settings › Sync) shows the one holding it.
+        control.dispatchEvent(new CustomEvent("once:settings-reveal", { bubbles: true }))
         control.focus({ preventScroll: true })
         if ((control instanceof HTMLInputElement ||
              control instanceof HTMLTextAreaElement) &&

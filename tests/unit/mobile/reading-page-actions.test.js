@@ -16,7 +16,8 @@ test("mobile menu actions render for direct, comments, redirected and unlisted p
       compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
     }).outputText
     const exports = {}
-    Function("exports", "require", code)(exports, () => ui)
+    // Sending to another device has nothing to offer without tab sync.
+    Function("exports", "require", code)(exports, () => ({ ...ui, sendPageItems: () => [], runSendItem: () => false }))
     return exports
   }
   const content = document.createElement("div")
@@ -27,7 +28,7 @@ test("mobile menu actions render for direct, comments, redirected and unlisted p
   row.dataset.redirected_url = "https://mirror.test/"
   document.body.append(row)
   let currentUrl = ""
-  const actions = load("readingPageActions.ts").readingPageActions(() => currentUrl)
+  const actions = load("readingPageActions.ts").readingPageActions({ session: { snapshot: () => ({ currentUrl }) }, tabs: { activeId: null } })
   const trays = new AddonTrays({ id: "generic", trays: [{ id: "assistant", title: "Assistant" }] }, {
     ensure: async () => ({ tray: async () => ({ messages: [{ role: "assistant", text: "Ready" }] }) })
   })

@@ -86,7 +86,8 @@ export function describeTabState(state: Record<string, { data: unknown }> | unde
   const media = readMediaState(state?.[MEDIA_STATE.id]?.data)
   if (media) {
     const total = media.duration > 0 ? ` / ${formatPlaybackTime(media.duration)}` : ""
-    return `${media.paused ? "⏸" : "▶"} ${formatPlaybackTime(media.currentTime)}${total}`
+    // U+FE0E keeps both as text: iOS otherwise draws them as emoji tiles.
+    return `${media.paused ? "⏸\uFE0E" : "▶\uFE0E"} ${formatPlaybackTime(media.currentTime)}${total}`
   }
   const reader = readReaderPosition(state?.[READER_STATE.id]?.data)
   return reader ? `Read ${Math.round(reader.fraction * 100)} %` : ""

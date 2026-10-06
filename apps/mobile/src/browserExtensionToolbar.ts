@@ -66,7 +66,8 @@ export function bindMobileExtensionToolbar(
       if (api) items.push({ id: "once:manage", label: "Manage extensions", enabled: true, iconDataUrl: undefined, settingsId: undefined })
       // Add-on trays for the open page, listed or not; they open above the page.
       for (const action of pageActions.list()) {
-        items.push({ id: PAGE_ACTION_PREFIX + action.id, label: action.label, enabled: true, iconDataUrl: undefined, settingsId: undefined })
+        items.push({ id: PAGE_ACTION_PREFIX + action.id, label: action.label, enabled: true, iconDataUrl: undefined, settingsId: undefined,
+          ...(action.placement ? { placement: action.placement } : {}) })
       }
       // Both native surfaces draw the sheet (iOS without the extension rows).
       const selected = api || surface.available

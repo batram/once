@@ -10,6 +10,7 @@ test("a pasted pairing link connects the phone after naming the database", async
   const link = `once://pair?v=1&u=${Buffer.from(syncUrl).toString("base64url")}`
   await gotoMobileApp(page)
   await openSettingsSection(page, "sync")
+  await page.getByTestId("sync-page-pair").click()
   // The browser build has no camera to scan with.
   await expect(page.getByTestId("pair-scan")).toBeHidden()
   await page.getByTestId("pair-link").fill("https://not-a-pairing-link.example/")

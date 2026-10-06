@@ -100,7 +100,8 @@ Shared shell, under `packages/ui-web/public/static/css/`:
 | `parts/settings.css` | Settings panel, structured lists, forms, swipe lab |
 | `parts/search.css` | Search bar, scope, global results |
 | `parts/notifications.css` | Status bar, status dock, issue bubbles |
-| `parts/remote-tabs.css` | Tabs panel and page: other devices' tabs |
+| `parts/sync-settings.css` | Settings › Sync pages, the tab sync offer, device list, pairing |
+| `parts/remote-tabs.css` | Tabs panel and page: other devices' tabs, tab sync notices |
 | `parts/dialogs.css` | `.once-confirm-dialog` |
 
 Platform and separate documents:
@@ -219,6 +220,29 @@ test instead of looking plausibly undersized.
 Source SVGs live in `packages/ui-web/public/static/imgs/` on a 16×16 grid. The
 icon audit rejects off-grid, empty, clipped, oversized, and grossly undersized
 files. Branded marks (titlebar logo, About Once) stay `<img>` and are exempt.
+
+### Help tip
+
+A setting's explanation longer than one short line goes behind a (?) beside
+its name. Write the explanation as usual and mark it `data-help`:
+
+```html
+<div class="settings_row settings_row_inline">
+  <label class="settings_row_name" for="x">Receive sent tabs</label>
+  <p class="settings_row_hint" id="x_hint" data-help>Other devices can send…</p>
+  <input type="checkbox" class="switch" id="x" aria-describedby="x_hint" />
+</div>
+```
+
+`bindHelpTips` (`helpTip.ts`, run by `SettingsPanel`) moves the text into a
+bubble: hover shows it, a click or tap pins it, Escape or a tap elsewhere
+closes it. The element keeps its id, so `aria-describedby` and settings
+search still read it. A `data-help` text outside a row attaches to the heading
+or one-line `.settings_description` before it. Pages built in code use
+`explained(short, more)`, which returns the inline line and its tip.
+
+The rule: one short line stays inline; anything longer, or anything that
+explains rather than labels, goes behind a tip.
 
 ### Layout
 

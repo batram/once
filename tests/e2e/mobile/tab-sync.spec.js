@@ -22,7 +22,7 @@ test("the phone shares its reading tabs and lists other devices' tabs in the tab
   await page.getByTestId("sync-url").fill(`${server.replace("http://", "http://once-test:once-test@")}/db/${database}`)
   await page.getByTestId("save-sync").click()
   await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "up-to-date", { timeout: 15_000 })
-  await page.getByTestId("tab-sync-share").check()
+  await page.getByTestId("tab-sync-offer-share").click()
 
   await page.getByRole("button", { name: "Reading", exact: true }).click()
   await page.locator("#reading_url").fill("https://first.example/")
@@ -65,7 +65,7 @@ test("an article opened from another device continues where it was read, and its
   await page.getByTestId("sync-url").fill(`${server.replace("http://", "http://once-test:once-test@")}/db/${database}`)
   await page.getByTestId("save-sync").click()
   await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "up-to-date", { timeout: 15_000 })
-  await page.getByTestId("tab-sync-share").check()
+  await page.getByTestId("tab-sync-offer-share").click()
 
   await page.getByRole("button", { name: "Reading", exact: true }).click()
   await page.locator("#reading_tabs").click()
@@ -90,7 +90,7 @@ test("an article opened from another device continues where it was read, and its
   }, { timeout: 40_000 }).toBeGreaterThan(0.9)
 })
 
-test("the tab view sends the current tab to another device", async ({ page, request, baseURL }) => {
+test("a tab card's own menu in the tab view sends that tab to another device", async ({ page, request, baseURL }) => {
   const database = "web_tab_sync_send"
   const server = new URL(baseURL).origin
   const at = new Date().toISOString()
@@ -103,6 +103,7 @@ test("the tab view sends the current tab to another device", async ({ page, requ
   await page.getByTestId("sync-url").fill(`${server.replace("http://", "http://once-test:once-test@")}/db/${database}`)
   await page.getByTestId("save-sync").click()
   await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "up-to-date", { timeout: 15_000 })
+  await page.getByTestId("tab-sync-offer-see").click()
 
   await page.getByRole("button", { name: "Reading", exact: true }).click()
   await page.locator("#reading_url").fill("https://first.example/to-send")
@@ -110,10 +111,59 @@ test("the tab view sends the current tab to another device", async ({ page, requ
   await page.locator("#reading_tabs").click()
   // The other device has arrived once the tab view lists it.
   await expect(page.getByTestId("reading-tabs-other-devices")).toContainText("Test laptop")
-  await page.getByTestId("reading-tabs-send").click()
-  await page.getByTestId("device-picker").getByRole("button", { name: "Test laptop" }).click()
+  // The card says what is sent: its own menu, from a long press (a right click here).
+  await expect(page.getByTestId("reading-tabs-send")).toHaveCount(0)
+  await page.locator('#reading_tabs_dialog button[data-action="select"]').first().click({ button: "right" })
+  await page.getByTestId("menu-send").click()
+  await page.getByTestId(`menu-${otherDevice}`).click()
   await expect(page.locator(".reading_tab_status")).toHaveText("Sent to Test laptop")
   const response = await request.get(`${server}/db/${database}/_all_docs?include_docs=true&startkey=%22tsend_${otherDevice}_%22&endkey=%22tsend_${otherDevice}_%EF%BF%BF%22`, { headers: auth })
   const sends = (await response.json()).rows.map((row) => row.doc)
   expect(sends.map((send) => send.url)).toEqual(["https://first.example/to-send"])
+})
+
+test("a tab sent to the phone is announced in its own band above the tab bar, never over it or off screen", async ({ page, request, baseURL }) => {
+  const database = "web_tab_sync_notice"
+  const server = new URL(baseURL).origin
+  const at = new Date().toISOString()
+  await request.post(`${server}/test/databases/${database}/reset`, {
+    data: { docs: [{ _id: `dev_${otherDevice}`, type: "device", schema: 1, deviceId: otherDevice, epoch: 1, seq: 2,
+      name: "Test laptop", platform: "electron", appVersion: "1", sharing: false, updatedAt: at, windows: [] }] }
+  })
+  await gotoMobileApp(page)
+  await page.setViewportSize({ width: 375, height: 700 })
+  await openSettingsSection(page, "sync")
+  await page.getByTestId("sync-url").fill(`${server.replace("http://", "http://once-test:once-test@")}/db/${database}`)
+  await page.getByTestId("save-sync").click()
+  await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "up-to-date", { timeout: 15_000 })
+  await page.getByTestId("tab-sync-offer-see").click()
+  // The phone appears as a place to send to once its presence is published.
+  let self
+  await expect.poll(async () => {
+    const response = await request.get(`${server}/db/${database}/_all_docs?startkey=%22dev_%22&endkey=%22dev_%EF%BF%BF%22`, { headers: auth })
+    self = (response.ok() ? (await response.json()).rows : []).map((row) => row.id.slice(4)).find((id) => id !== otherDevice)
+    return Boolean(self)
+  }, { timeout: 30_000 }).toBe(true)
+  await request.post(`${server}/db/${database}/_bulk_docs`, { headers: auth, data: { docs: [{
+    _id: `tsend_${self}_0123456789abcdef0123456789abcdef`, type: "send", from: otherDevice, fromName: "Test laptop",
+    url: "https://sent.example/a-page-with-a-rather-long-title", title: "A page sent from the laptop with a rather long title", mode: "web", createdAt: at
+  }] } })
+  await page.getByRole("button", { name: "Reading", exact: true }).click()
+  const toast = page.getByTestId("sent-tab-toast")
+  await expect(toast).toContainText("Sent from Test laptop", { timeout: 20_000 })
+  const geometry = await page.evaluate(() => {
+    const notice = document.querySelector("[data-testid=sent-tab-toast]").getBoundingClientRect()
+    const menu = document.querySelector("#menu").getBoundingClientRect()
+    const content = document.querySelector("#reading_content").getBoundingClientRect()
+    return { left: notice.left, right: notice.right, bottom: notice.bottom, top: notice.top, menuTop: menu.top, contentBottom: content.bottom, width: innerWidth }
+  })
+  expect(geometry.left).toBeGreaterThanOrEqual(0)
+  expect(geometry.right).toBeLessThanOrEqual(geometry.width)
+  expect(geometry.bottom).toBeLessThanOrEqual(geometry.menuTop + 1)
+  // The reading view (where the native page is drawn) ends above the notice.
+  expect(geometry.contentBottom).toBeLessThanOrEqual(geometry.top + 1)
+  await page.screenshot({ path: "artifacts/tab-sync/sent-notice-mobile.png" })
+  await toast.getByRole("button", { name: "Open" }).click()
+  await expect(page.locator("#reading_url")).toHaveValue("https://sent.example/a-page-with-a-rather-long-title")
+  await expect(toast).toBeHidden()
 })

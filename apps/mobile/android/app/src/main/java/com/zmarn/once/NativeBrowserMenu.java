@@ -86,6 +86,11 @@ final class NativeBrowserMenu {
             dialog.dismiss();
         }), cell(gap, true));
         content.addView(navigation);
+        // Actions on the page itself (send it to another device) sit with the
+        // browser controls, not among the extensions.
+        LinearLayout pageActions = new LinearLayout(activity);
+        pageActions.setOrientation(LinearLayout.VERTICAL);
+        content.addView(pageActions);
         android.widget.Switch backgroundPlayback = new android.widget.Switch(activity);
         backgroundPlayback.setText("Keep media playing in background");
         backgroundPlayback.setTextSize(16);
@@ -111,7 +116,8 @@ final class NativeBrowserMenu {
             for (int index = 0; index < items.length(); index++) {
                 JSONObject item = items.getJSONObject(index);
                 String id = item.getString("id");
-                if (!"once:manage".equals(id)) count++;
+                boolean page = "page".equals(item.optString("placement", ""));
+                if (!"once:manage".equals(id) && !page) count++;
                 String label = item.getString("label");
                 Button row = control(activity, palette, label, item.optBoolean("enabled", true), () -> {
                     if (settled.compareAndSet(false, true)) call.resolve(new JSObject().put("id", id));
@@ -123,6 +129,7 @@ final class NativeBrowserMenu {
                 // than its gear and spill into the entry below.
                 row.setSingleLine(true);
                 row.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                if (page) { pageActions.addView(row, row(gap, entry)); continue; }
                 setIcon(activity, palette, row, item.optString("iconDataUrl", ""), "once:manage".equals(id));
                 String settingsId = item.optString("settingsId", "");
                 if (settingsId.isEmpty()) { entries.addView(row, row(gap, entry)); continue; }

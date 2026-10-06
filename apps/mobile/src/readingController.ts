@@ -24,6 +24,7 @@ import { ReadingFindBar } from "./readingFindBar"
 import { ReadingSurfaceCoordinator } from "./readingSurfaceCoordinator"
 import { clearAddress, installAddressMenu } from "./addressMenu"
 import { linkAddonItems } from "./readingPageActions"
+import { runSendItem, sendLinkItems } from "./tabSyncMenus"
 
 export class MobileReadingController {
   readonly session: ReadingSession
@@ -149,10 +150,11 @@ export class MobileReadingController {
     })
     // Add-on actions in a page's long-press menu, as desktop has in its link menu.
     await this.surface.addListener("contextMenuRequested", event => {
-      void this.surface.setContextMenuItems?.(event.requestId, linkAddonItems(event.link, event.linkText))
+      void this.surface.setContextMenuItems?.(event.requestId, [...sendLinkItems(event.link), ...linkAddonItems(event.link, event.linkText)])
     })
     await this.surface.addListener("contextMenuAction", event => {
-      if (event.link) this.runLinkAction(event.id, event.link, event.linkText)
+      if (!event.link || runSendItem(event.id, { url: event.link, title: event.linkText })) return
+      this.runLinkAction(event.id, event.link, event.linkText)
     })
     await this.surface.addListener("openLinkRequested", event => {
       if (event.current) { this.openBrowserUrl(event.url); return }

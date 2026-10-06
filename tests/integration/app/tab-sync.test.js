@@ -34,6 +34,8 @@ async function harness() {
     const db = new PouchDB(path.join(directory, name), { revs_limit: 20 })
     const secrets = new Map()
     const identity = new DeviceIdentity({ get: async (key) => secrets.get(key) || "", set: async (key, value) => { secrets.set(key, value) } }, "electron", name)
+    // These devices use tab sync; the master switch has its own test below.
+    if (options.enabled !== false) await identity.setOptions({ enabled: true, offerAnswered: true })
     const errors = []
     const lists = new Map()
     const service = new TabSyncService({
@@ -87,6 +89,39 @@ test("a sharing device publishes only normal-window http(s) tabs, and other devi
     assert.equal(view.canShare, false)
     assert.deepEqual(view.devices.map((item) => item.name), ["laptop"])
     assert.deepEqual(laptop.errors, [])
+  } finally {
+    await h.close()
+  }
+})
+
+test("with tab sync off a device publishes nothing, lists nobody and has no inbox, whatever else is chosen", async () => {
+  const h = await harness()
+  try {
+    const laptop = await h.device("laptop", source([{ id: "w1", focused: true, tabs: [tab("a", "https://example.com/a", { active: true })] }]))
+    await laptop.service.setOptions({ sharing: true })
+    await h.settle(laptop.service)
+    await laptop.push()
+    // One process holds one publisher lock: the laptop lets go of it.
+    laptop.service.dispose()
+    const phone = await h.device("phone", source([{ id: "p", focused: true, tabs: [tab("p", "https://phone.example/", { active: true })] }]), { enabled: false })
+    await phone.service.setOptions({ sharing: true, sendTarget: true })
+    await h.settle(phone.service)
+    const phoneRecord = await phone.identity.get()
+    assert.equal(await phone.db.get(`dev_${phoneRecord.id}`).catch(() => null), null, "neither tabs nor presence are published")
+    await phone.pull()
+    await h.settle(phone.service)
+    const off = await phone.service.view()
+    assert.equal(off.options.enabled, false)
+    assert.deepEqual([off.devices.length, off.inbox.length], [0, 0])
+    await phone.service.setOptions({ enabled: true })
+    await h.settle(phone.service)
+    assert.deepEqual((await phone.service.view()).devices.map((item) => item.name), ["laptop"])
+    let published = null
+    for (let attempt = 0; attempt < 40 && !published; attempt++) {
+      await h.settle(phone.service)
+      published = await phone.db.get(`dev_${phoneRecord.id}`).catch(() => null)
+    }
+    assert.ok(published, "turned on, it publishes")
   } finally {
     await h.close()
   }
@@ -266,6 +301,14 @@ test("the position of a tab is read when it is left, and published while another
     laptopSource.emit()
     await h.settle(laptop.service)
     assert.equal((await readerState()).fraction, 0.7, "the article keeps the position it was left at")
+
+    // The settings store reports this runtime's own writes too. With nothing
+    // changed, that is no reason to forget what was read from the tabs.
+    fraction = 0.1
+    laptop.service.optionsChangedElsewhere()
+    laptopSource.emit()
+    await h.settle(laptop.service)
+    assert.equal((await readerState()).fraction, 0.7, "the position read on leaving survives an unchanged settings report")
   } finally {
     await h.close()
   }

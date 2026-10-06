@@ -103,6 +103,21 @@ test("tab sync options fall back to defaults and accept only offered choices", (
   assert.equal(readTabSyncSharedSettings({ sendRetentionDays: 2 }).sendRetentionDays, 14)
 })
 
+test("tab sync starts off until asked, keeps devices that already shared on, and off means nothing acts", () => {
+  const { effectiveTabSyncOptions } = require("../../../packages/core/dist")
+  const fresh = readTabSyncOptions(null)
+  assert.equal(fresh.enabled, false)
+  assert.equal(fresh.offerAnswered, false)
+  const sharedBefore = readTabSyncOptions({ sharing: true })
+  assert.equal(sharedBefore.enabled, true, "a device sharing before the switch existed stays on")
+  assert.equal(sharedBefore.offerAnswered, true, "and is not asked again")
+  assert.equal(readTabSyncOptions({ sharing: true, enabled: false }).enabled, false)
+  const off = effectiveTabSyncOptions({ ...fresh, sharing: true, sendTarget: true, continueBanner: true })
+  assert.deepEqual([off.sharing, off.sendTarget, off.continueBanner], [false, false, false])
+  const on = effectiveTabSyncOptions({ ...fresh, enabled: true, sharing: true })
+  assert.deepEqual([on.sharing, on.sendTarget, on.continueBanner], [true, true, true])
+})
+
 test("tab state: YouTube starts where it was left, and states are validated and described", () => {
   const { withYouTubeStart, isYouTubeVideo, readMediaState, readReaderPosition, describeTabState } = require("../../../packages/core/dist")
   assert.equal(withYouTubeStart("https://www.youtube.com/watch?v=abc&t=5s", 754.9), "https://www.youtube.com/watch?v=abc&t=754s")
@@ -114,7 +129,7 @@ test("tab state: YouTube starts where it was left, and states are validated and 
   assert.deepEqual(readMediaState({ currentTime: 12, duration: 600, paused: false, rate: 1.5 }), { currentTime: 12, duration: 600, paused: false, rate: 1.5 })
   assert.equal(readReaderPosition({ fraction: 1.2, anchor: null }), null)
   assert.deepEqual(readReaderPosition({ fraction: 0.4, anchor: { index: 7, text: "x".repeat(100) } }).anchor.text.length, 64)
-  assert.equal(describeTabState({ media: { data: { currentTime: 754, duration: 3910, paused: false, rate: 1 } } }), "▶ 12:34 / 1:05:10")
+  assert.equal(describeTabState({ media: { data: { currentTime: 754, duration: 3910, paused: false, rate: 1 } } }), "▶\uFE0E 12:34 / 1:05:10")
   assert.equal(describeTabState({ "reader.scroll": { data: { fraction: 0.4, anchor: null } } }), "Read 40 %")
   assert.equal(describeTabState({ "addon:x": { data: 1 } }), "")
 })

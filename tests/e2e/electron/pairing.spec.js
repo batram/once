@@ -22,7 +22,7 @@ test("a pairing code shows behind a warning, and its link connects another profi
     await page.getByTestId("save-sync").click()
     await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "up-to-date", { timeout: 20000 })
 
-    await page.getByTestId("pair-show").click()
+    await page.getByTestId("sync-page-pair").click()
     const panel = page.getByTestId("pair-panel")
     await expect(panel).toContainText("This code contains your sync password")
     await panel.getByTestId("pair-make").click()
@@ -40,6 +40,7 @@ test("a pairing code shows behind a warning, and its link connects another profi
     second = await launchApp({ env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0" } })
     const other = second.window
     await openSettingsSection(other, "sync", "#couch_input")
+    await other.getByTestId("sync-page-pair").click()
     await other.getByTestId("pair-link").fill(link)
     await other.getByTestId("pair-connect").click()
     const confirm = other.getByTestId("pair-confirm")
@@ -78,6 +79,7 @@ test("a pairing code can carry the add-on sync passphrase, which unlocks add-on 
     await page.getByTestId("sync-url").fill(`http://127.0.0.1:${http.address().port}/once`)
     await page.getByTestId("save-sync").click()
     await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "up-to-date", { timeout: 20000 })
+    await page.getByTestId("sync-page-addons").click()
     const vault = page.locator("#addon_vault_controls")
     await vault.locator("summary").click()
     await vault.getByTestId("addon-vault-secret").fill("pairing passphrase for tests")
@@ -86,7 +88,8 @@ test("a pairing code can carry the add-on sync passphrase, which unlocks add-on 
     await expect(vault.getByTestId("addon-vault-status")).toContainText("Ready", { timeout: 10000 })
     await vault.getByRole("button", { name: "I saved my recovery key" }).click()
 
-    await page.getByTestId("pair-show").click()
+    await page.locator("#settings_section_back").click()
+    await page.getByTestId("sync-page-pair").click()
     const panel = page.getByTestId("pair-panel")
     await panel.getByTestId("pair-include-passphrase").check()
     await expect(panel).toContainText("also opens your synced add-on tokens")
@@ -103,6 +106,7 @@ test("a pairing code can carry the add-on sync passphrase, which unlocks add-on 
     second = await launchApp({ env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0" } })
     const other = second.window
     await openSettingsSection(other, "sync", "#couch_input")
+    await other.getByTestId("sync-page-pair").click()
     await other.getByTestId("pair-link").fill(link)
     await other.getByTestId("pair-connect").click()
     await expect(other.getByTestId("pair-confirm")).toContainText("unlocks add-on sync")

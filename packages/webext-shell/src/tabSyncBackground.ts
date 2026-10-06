@@ -3,8 +3,11 @@ import {
   SyncDestinationBinding,
   SyncGate,
   TabDocRepository,
-  TabSyncService
+  TabSyncService,
+  tabSyncTestTiming
 } from "@once/app/tabsync"
+
+const TEST_TIMING_KEY = "once:e2e:tabsync-timing"
 import { installTabSyncSending } from "./tabSyncSending"
 import type { ListStorePort, SyncConsentPort } from "@once/app"
 import { couchHttpTabDocs } from "@once/persistence"
@@ -48,9 +51,12 @@ export function installTabSyncBackground(api: typeof browser, target: "chrome" |
     // Each request re-checks: consent can be withdrawn and the URL replaced at any time.
     const allowed = async () => generation === connection && !await gate.check(url, "external").catch(() => "unavailable")
     const docs = couchHttpTabDocs(url, fetch.bind(globalThis), allowed)
+    // Only an end-to-end test writes this key, to wait seconds rather than the real intervals.
+    const timing = tabSyncTestTiming((await api.storage.local.get(TEST_TIMING_KEY))[TEST_TIMING_KEY])
     const service = new TabSyncService({
       identity, repository: new TabDocRepository(docs), listStore: sharedSettings(docs), source,
       appVersion: api.runtime.getManifest().version,
+      timing,
       syncActive: () => generation === connection,
       samplingNeeded: (needed) => {
         if (needed) void api.alarms.create(SAMPLE_ALARM, { periodInMinutes: 0.5 })

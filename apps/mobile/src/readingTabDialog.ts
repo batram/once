@@ -17,6 +17,10 @@ export class ReadingTabDialog {
   // Rows rebuild only while visible and between gestures; tab updates are frequent.
   private rowsStale = true
   private remote?: HTMLElement
+  /** Tabs other devices sent here, listed first. */
+  private inbox?: HTMLElement
+  private remoteVisible = false
+  private tabMenu?: (tab: { id: string; url: string; title: string }, anchor: HTMLElement) => void
 
   constructor(private readonly tabs: ReadingTabs, actions: { select(id: string): void; create(): void; preview(): Promise<void> }) {
     this.count.type = "button"
@@ -105,13 +109,16 @@ export class ReadingTabDialog {
       this.dialog.close()
     })
     document.addEventListener("keydown", event => {
-      if (event.key !== "Escape" || !this.dialog.open || document.querySelector("dialog:modal")) return
+      // A menu over the tab view takes its own Escape.
+      if (event.key !== "Escape" || event.defaultPrevented || !this.dialog.open || document.querySelector("dialog:modal")) return
       event.preventDefault()
       this.dialog.close()
     })
     this.rows.addEventListener("click", event => {
       const target = (event.target as HTMLElement).closest<HTMLButtonElement>("button[data-tab-id]")
       if (!target?.dataset.tabId || !target.parentElement) return
+      // The lift after a long press opened the card's menu, not the tab.
+      if (target.dataset.pressed === "menu") return
       if (target.dataset.action === "close") {
         const index = [...this.rows.children].indexOf(target.parentElement)
         this.undoMessage.textContent = "Tab closed"
@@ -129,17 +136,26 @@ export class ReadingTabDialog {
 
   announce(message: string): void { this.status.textContent = message }
 
-  /** A header button that sends the current tab to another device. */
-  enableSending(send: () => Promise<string | null>): void {
-    const controls = this.dialog.querySelector(".reading_tab_controls")
-    if (!controls || controls.querySelector('[data-testid="reading-tabs-send"]')) return
-    const sendButton = button("Send", () => {
-      void send().then((name) => { if (name) this.announce(`Sent to ${name}`) })
-        .catch(() => this.announce("The tab could not be sent"))
+  /**
+   * A tab card's own menu (send it to another device, copy its link, close
+   * it), on a long press or a right click: the card says what is sent.
+   */
+  enableTabMenu(open: (tab: { id: string; url: string; title: string }, anchor: HTMLElement) => void): void {
+    this.tabMenu = open
+    attachRowPress(this.rows, (select) => {
+      const tab = this.tabs.tabs.find((entry) => entry.id === select.dataset.tabId)
+      if (!tab) return
+      const state = tab.session.snapshot()
+      this.tabMenu?.({ id: tab.id, url: state.currentUrl, title: tab.title || state.story?.title || "" }, select)
     })
-    sendButton.dataset.testid = "reading-tabs-send"
-    sendButton.setAttribute("aria-label", "Send current tab to another device")
-    controls.prepend(sendButton)
+  }
+
+  /** Off, tab sync has no part in the tab view: no other devices, no sent tabs. */
+  setOtherDevicesVisible(visible: boolean): void {
+    if (this.remoteVisible === visible) return
+    this.remoteVisible = visible
+    this.rowsStale = true
+    this.renderRows()
   }
 
   /**
@@ -148,6 +164,10 @@ export class ReadingTabDialog {
    */
   showOtherDevices(port: RemoteTabsPort): void {
     if (this.remote) return
+    const inbox = document.createElement("div")
+    inbox.className = "reading_tab_inbox"
+    inbox.setAttribute("role", "listitem")
+    this.inbox = inbox
     const section = document.createElement("section")
     section.className = "reading_tab_remote"
     section.setAttribute("role", "listitem")
@@ -161,8 +181,9 @@ export class ReadingTabDialog {
     mountRemoteTabs(view, {
       ...port,
       open: (tab, background) => { if (!background) this.dialog.close(); port.open(tab, background) },
-      openSettings: port.openSettings && (() => { this.dialog.close(); port.openSettings?.() })
-    })
+      openSent: port.openSent && ((id, background) => { if (!background) this.dialog.close(); port.openSent?.(id, background) }),
+      openSettings: port.openSettings && ((page) => { this.dialog.close(); port.openSettings?.(page) })
+    }, { inbox })
     this.remote = section
     this.rowsStale = true
     this.renderRows()
@@ -212,6 +233,8 @@ export class ReadingTabDialog {
     const focusAction = focused?.dataset.action
     const scrollTop = this.rows.scrollTop
     this.rows.replaceChildren()
+    // Sent here first, above this phone's own tabs; moved, not rebuilt.
+    if (this.inbox && this.remoteVisible) this.rows.append(this.inbox)
     if (!this.tabs.tabs.length) {
       const empty = document.createElement("div")
       empty.className = "reading_tabs_empty"
@@ -295,7 +318,7 @@ export class ReadingTabDialog {
       if (focusId === tab.id) (focusAction === "close" ? close : select).focus({ preventScroll: true })
     }
     // Moved, not rebuilt: its filter and folded devices stay as they were.
-    if (this.remote) this.rows.append(this.remote)
+    if (this.remote && this.remoteVisible) this.rows.append(this.remote)
     this.rows.scrollTop = scrollTop
   }
 }
@@ -314,4 +337,44 @@ function icon(name: "plus" | "x" | "volume"): HTMLElement {
   element.className = `icon icon--chrome icon--${name}`
   element.setAttribute("aria-hidden", "true")
   return element
+}
+
+const LONG_PRESS_MS = 500
+const MOVE_TOLERANCE_PX = 10
+
+/**
+ * A touch held still on a tab card (or a right click) opens its menu. A
+ * finger that moves is a swipe or a scroll, which the rows own.
+ */
+function attachRowPress(rows: HTMLElement, open: (select: HTMLButtonElement) => void): void {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let start = { x: 0, y: 0 }
+  const cancel = () => { clearTimeout(timer); timer = undefined }
+  const card = (target: EventTarget | null) =>
+    target instanceof Element ? target.closest<HTMLButtonElement>('button[data-action="select"]') : null
+  rows.addEventListener("pointerdown", (event) => {
+    const select = card(event.target)
+    if (!select || event.pointerType !== "touch" || !event.isPrimary) return
+    delete select.dataset.pressed
+    start = { x: event.clientX, y: event.clientY }
+    cancel()
+    timer = setTimeout(() => {
+      timer = undefined
+      select.dataset.pressed = "menu"
+      setTimeout(() => { delete select.dataset.pressed }, 600)
+      open(select)
+    }, LONG_PRESS_MS)
+  })
+  rows.addEventListener("pointermove", (event) => {
+    if (timer && Math.hypot(event.clientX - start.x, event.clientY - start.y) > MOVE_TOLERANCE_PX) cancel()
+  })
+  rows.addEventListener("pointerup", cancel)
+  rows.addEventListener("pointercancel", cancel)
+  rows.addEventListener("contextmenu", (event) => {
+    const select = card(event.target)
+    if (!select) return
+    event.preventDefault()
+    cancel()
+    open(select)
+  })
 }

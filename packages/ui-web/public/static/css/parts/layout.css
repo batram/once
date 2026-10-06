@@ -162,7 +162,10 @@
   max-inline-size: none;
 }
 
-#menu > :not(.temporary_panel_menu) + .temporary_panel_menu {
+/* An entry after the Stories filter lists, or the first temporary entry,
+   keeps clear of the list above it. */
+#menu > :not(.temporary_panel_menu) + .temporary_panel_menu,
+#menu > #stories_menu_btn + #tabs_menu_btn {
   margin-top: var(--sp-2);
 }
 

@@ -33,6 +33,7 @@ import { MobileReadingController } from "./readingController"
 import { setUpPairing } from "./pairing"
 import { mountTabSyncInTabView, readingTabOpener, readingTabSource } from "./readingTabSync"
 import { linkAddonItems, readingPageActions } from "./readingPageActions"
+import { sendLinkItems } from "./tabSyncMenus"
 import { bindReloadStatus, RELOAD_SPIN_TIMEOUT_MS } from "./reloadStatus"
 import {
   loadMobilePickerInjection,
@@ -262,7 +263,7 @@ async function startMobileApp(): Promise<void> {
   if (Capacitor.getPlatform() === "android") {
     installReaderLinkMenuHost((source) => reading.runtimeReaderWindow(source), (request) => {
       void browserSurface.showContextMenu?.({ ...request, referrer: reading.session.snapshot().currentUrl,
-        items: linkAddonItems(request.link, request.linkText) })
+        items: [...sendLinkItems(request.link), ...linkAddonItems(request.link, request.linkText)] })
     })
   }
   ReaderView.mount(app.client)
@@ -290,7 +291,7 @@ async function startMobileApp(): Promise<void> {
   showStartupState("Opening saved stories and settings…")
   await app.start()
   if (Capacitor.isNativePlatform()) await bindMobileExtensionSettings(app.client, browserSurface)
-  mountTabSyncInTabView(reading, app.client)
+  mountTabSyncInTabView(reading, app.client, browserSurface)
   document.body.dataset.onceStage = "ui-mount"
   beginStoryLoading(app.client)
   await mountOnceUi(app.client, {
@@ -320,7 +321,7 @@ async function startMobileApp(): Promise<void> {
   if (browserExtensions) {
     bindMobileBrowserExtensionSettings(browserExtensions, url => reading.openBrowserUrl(url))
   }
-  bindMobileExtensionToolbar(browserExtensions, browserSurface, readingPageActions(() => reading.session.snapshot().currentUrl),
+  bindMobileExtensionToolbar(browserExtensions, browserSurface, readingPageActions(reading),
     () => reading.historyState())
   mountTouchNavigation(reading)
   if (__ONCE_MOBILE_E2E__) installMobileTestHooks(app, reading, browserSurface, navigationListeners)

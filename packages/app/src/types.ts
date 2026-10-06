@@ -526,6 +526,8 @@ export interface OncePlatformPorts {
     appVersion: string
     /** This device's tabs are published by another context, e.g. an extension's background. */
     sharesElsewhere?: boolean
+    /** Shorter publication timings, set only by end-to-end tests. */
+    tabSyncTiming?: { debounce?: number; minInterval?: number }
   }
   /** Without one, sources that need a token report that they cannot have one. */
   secretStore?: SecretStorePort

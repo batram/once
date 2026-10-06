@@ -1,5 +1,6 @@
 import { LocalAddonPackage, readAddonFolder, readAddonZip } from "../addons/localAddonPackage"
 import { addonButton } from "./addonManagement"
+import { explained } from "../helpTip"
 
 export function bindAddonFileImport(parent: HTMLElement, preview: (pack: LocalAddonPackage) => Promise<void>): void {
   const actions = document.createElement("div")
@@ -31,8 +32,7 @@ export function bindAddonFileImport(parent: HTMLElement, preview: (pack: LocalAd
   }
   addPicker(false)
   if (document.body.dataset.platform !== "mobile" && "webkitdirectory" in document.createElement("input")) addPicker(true)
-  const hint = document.createElement("p")
-  hint.className = "settings_group_hint"
-  hint.textContent = "Import a ZIP or folder containing once-addon.json and its script. Files are copied into this device's addon cache; reimport to update."
-  parent.prepend(actions, hint, status)
+  const hint = explained("Import a ZIP or folder containing once-addon.json and its script.",
+    "Files are copied into this device's addon cache; reimport to update.", "settings_group_hint")
+  parent.prepend(actions, ...hint, status)
 }

@@ -316,6 +316,7 @@ app
     const shellFlags = new URLSearchParams()
     if (process.env.ONCE_ELECTRON_DISABLE_STORY_LOADING === "1") shellFlags.set("disableStoryLoading", "")
     if (process.env.ONCE_ELECTRON_DISABLE_BUNDLED_ADDONS === "1") shellFlags.set("disableBundledAddons", "")
+    if (process.env.ONCE_ELECTRON_TABSYNC_TIMING) shellFlags.set("tabSyncTiming", process.env.ONCE_ELECTRON_TABSYNC_TIMING)
     const shellQuery = shellFlags.toString().replace(/=(&|$)/g, "$1")
     browserCoordinator = new BrowserCoordinator(
       createShellWindow,

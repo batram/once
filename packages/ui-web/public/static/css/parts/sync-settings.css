@@ -1,0 +1,220 @@
+/* Settings › Sync: the overview's links to its pages, the offer to use tab
+   sync, the Tab sync page's device list and Advanced group, and pairing.
+   Rows and switches are the ordinary settings rows (settings.css). */
+
+/* A link to a page within Sync: a settings row whose control is the page. */
+.sync_page_links {
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--sp-2);
+}
+
+.sync_page_link {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  margin: 0;
+  padding: var(--sp-3) var(--sp-1);
+  border: 0;
+  border-bottom: 1px solid var(--divider-color);
+  color: var(--text-high-color);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+@media (hover: hover) {
+  .sync_page_link:hover {
+    background: var(--highlight-bg-color);
+  }
+}
+
+/* Focus coming back from a page is shown as a ring, not as the hover fill a
+   tap would leave lit. */
+.sync_page_link:focus-visible {
+  outline: 2px solid var(--text-high-color);
+  outline-offset: -2px;
+}
+
+.sync_page_link_text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--sp-0-5);
+  min-width: 0;
+  font-weight: 700;
+}
+
+.sync_page_link_summary {
+  color: var(--text-muted-color);
+  font-size: var(--fs-caption);
+  font-weight: 400;
+}
+
+.sync_page_link_summary:empty {
+  display: none;
+}
+
+.sync_page_link_arrow {
+  flex: none;
+  color: var(--text-muted-color);
+  font-size: var(--fs-title);
+}
+
+/* The first-run question, once sync is connected: a card above the rows. */
+.tab_sync_offer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--border-high-color);
+  border-radius: var(--radius-lg);
+  background: var(--input-bg-color);
+}
+
+.tab_sync_offer_title {
+  margin: 0;
+  color: var(--text-high-color);
+  font-weight: 700;
+}
+
+.tab_sync_offer_text {
+  margin: 0;
+  color: var(--text-color);
+  font-size: var(--fs-caption);
+  line-height: 1.4;
+}
+
+.tab_sync_offer .settings_actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+/* White on the accent, as the add-on page's primary action. */
+#settings_panel .tab_sync_offer .tab_sync_offer_primary {
+  border-color: var(--cursor-color);
+  color: white;
+  background: var(--cursor-color);
+}
+
+/* Times and identity: rarely changed, folded under the rest. */
+.sync_advanced {
+  margin-top: var(--sp-4);
+}
+
+.sync_advanced > summary {
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--divider-color);
+  color: var(--text-muted-color);
+  cursor: pointer;
+  font-size: var(--fs-meta);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Other devices in tab sync: name and details stacked, Remove at the
+   trailing edge, like a settings row without a form control. */
+.tab_sync_devices {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tab_sync_device {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--divider-color);
+}
+
+.tab_sync_device_text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--sp-0-5);
+  min-width: 0;
+}
+
+.tab_sync_device_name {
+  color: var(--text-high-color);
+  font-weight: 700;
+}
+
+.tab_sync_device_meta,
+.tab_sync_devices_empty {
+  color: var(--text-muted-color);
+  font-size: var(--fs-caption);
+  line-height: 1.4;
+}
+
+.tab_sync_devices_empty {
+  padding: var(--sp-3) 0;
+}
+
+.tab_sync_device > .button {
+  flex: none;
+}
+
+.tab_sync_device[data-stale="true"] .tab_sync_device_name {
+  color: var(--text-muted-color);
+}
+
+/* The Add-on sync page is titled by the header; its group needs no legend. */
+#sync_page_addons .settings_group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+#sync_page_addons .settings_group > legend {
+  display: none;
+}
+
+/* Pairing: a warning before the code, and the code itself blurred until
+   the reader chooses to reveal it, so a glance or a screenshot of the
+   settings does not carry the database password away. */
+.pair_panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: var(--sp-3) 0;
+}
+
+.pair_include {
+  gap: var(--sp-2);
+}
+
+.pair_warning {
+  margin: 0;
+  color: var(--error-color);
+  line-height: 1.4;
+}
+
+.pair_actions {
+  padding-top: var(--sp-2);
+}
+
+.pair_code {
+  width: min(16rem, 100%);
+  padding: 0;
+  border: 1px solid var(--divider-color);
+  border-radius: var(--radius-lg);
+  background: #fff;
+  cursor: pointer;
+}
+
+.pair_code svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.pair_code[data-blurred="true"] svg {
+  filter: blur(8px);
+}

@@ -1,5 +1,6 @@
 import type { DevAddonSource } from "../addons/mountAddons"
 import { addonButton } from "./addonManagement"
+import { explained } from "../helpTip"
 
 export function bindAddonDirectories(source?: DevAddonSource): (entries: Awaited<ReturnType<DevAddonSource["list"]>>) => void {
   const host = document.querySelector("#addon_directory_import") ?? document.querySelector("#addon_install_settings")
@@ -8,9 +9,9 @@ export function bindAddonDirectories(source?: DevAddonSource): (entries: Awaited
   group.className = "settings_group"
   const legend = document.createElement("legend")
   legend.textContent = "Link a development folder"
-  const hint = document.createElement("p")
-  hint.className = "settings_group_hint"
-  hint.textContent = "Working on an addon? Link its folder to run it from there and reload it when files change. The link stays on this device; unloading leaves your files intact. An installed copy with the same addon ID takes precedence, and the addon's page then says so."
+  const hint = explained("Working on an addon? Link its folder to run it from there.",
+    "It reloads when files change. The link stays on this device; unloading leaves your files intact. " +
+    "An installed copy with the same addon ID takes precedence, and the addon's page then says so.", "settings_group_hint")
   const status = document.createElement("p")
   status.setAttribute("role", "status")
   const pick = addonButton("Load directory…", async () => {
@@ -19,7 +20,7 @@ export function bindAddonDirectories(source?: DevAddonSource): (entries: Awaited
   })
   pick.dataset.testid = "load-addon-directory"
   const list = document.createElement("div")
-  group.append(legend, hint, pick, status, list)
+  group.append(legend, ...hint, pick, status, list)
   host.prepend(group)
   let signature = ""
   return entries => {
