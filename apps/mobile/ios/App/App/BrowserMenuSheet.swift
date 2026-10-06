@@ -237,6 +237,9 @@ final class BrowserMenuSheet: UIViewController, UIAdaptivePresentationController
         row.backgroundColor = palette.card
         row.layer.cornerRadius = 12
         row.heightAnchor.constraint(equalToConstant: 48).isActive = true
+        // The whole row flips the switch, as on Android, not just the switch.
+        row.addGestureRecognizer(RowToggleTap(control: control) { changed($0) })
+        row.accessibilityElements = [control]
         return row
     }
 
@@ -432,5 +435,31 @@ final class AnchoredMenu: UIViewController, UIPopoverPresentationControllerDeleg
         settle(nil)
         // Tapped away: the held sheet has nothing left to answer, so it goes too.
         heldSheet?.dismiss(animated: true)
+    }
+}
+
+/// A tap anywhere on a setting row flips its switch; taps on the switch
+/// itself stay with the switch.
+private final class RowToggleTap: UITapGestureRecognizer, UIGestureRecognizerDelegate {
+    private weak var control: UISwitch?
+    private let changed: (Bool) -> Void
+
+    init(control: UISwitch, changed: @escaping (Bool) -> Void) {
+        self.control = control
+        self.changed = changed
+        super.init(target: nil, action: nil)
+        addTarget(self, action: #selector(flip))
+        delegate = self
+    }
+
+    @objc private func flip() {
+        guard let control, control.isEnabled else { return }
+        control.setOn(!control.isOn, animated: true)
+        changed(control.isOn)
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        guard let control, let view = touch.view else { return true }
+        return !view.isDescendant(of: control)
     }
 }

@@ -86,33 +86,42 @@ final class NativeBrowserMenu {
         dialog.setOnDismissListener(ignored -> { if (settled.compareAndSet(false, true)) call.resolve(); });
         LinearLayout navigation = new LinearLayout(activity);
         boolean open = session != null && session.isOpen();
-        navigation.addView(control(activity, palette, "←\nBack", open && canBack, () -> {
+        // Squarish tiles like iOS's: an outline icon over a one-line label.
+        int tileHeight = Math.round(76 * density);
+        navigation.addView(tile(activity, palette, R.drawable.browser_back, "Back", open && canBack, () -> {
             dialog.dismiss(); back.run();
-        }), cell(gap, false));
-        navigation.addView(control(activity, palette, "→\nForward", open && canForward, () -> {
+        }), cell(gap, false, tileHeight));
+        navigation.addView(tile(activity, palette, R.drawable.browser_forward, "Forward", open && canForward, () -> {
             dialog.dismiss(); forward.run();
-        }), cell(gap, false));
-        navigation.addView(control(activity, palette, "↻\nReload", session != null, () -> {
+        }), cell(gap, false, tileHeight));
+        navigation.addView(tile(activity, palette, R.drawable.browser_reload, "Reload", session != null, () -> {
             dialog.dismiss(); reload.run();
-        }), cell(gap, false));
+        }), cell(gap, false, tileHeight));
         // Find in page: the shell opens its find bar, which searches the page or
         // the reader document, so it needs no Gecko session of its own.
-        navigation.addView(control(activity, palette, "⌕\nFind", true, () -> {
+        navigation.addView(tile(activity, palette, R.drawable.browser_find, "Find", true, () -> {
             if (settled.compareAndSet(false, true)) call.resolve(new JSObject().put("id", "once:find"));
             dialog.dismiss();
-        }), cell(gap, false));
+        }), cell(gap, false, tileHeight));
         // Closes the tab being read; the shell owns its tabs.
-        navigation.addView(control(activity, palette, "✕\nClose", true, () -> {
+        navigation.addView(tile(activity, palette, R.drawable.browser_close, "Close", true, () -> {
             if (settled.compareAndSet(false, true)) call.resolve(new JSObject().put("id", "once:close-tab"));
             dialog.dismiss();
-        }), cell(gap, true));
-        // Five tiles share the row: tighter sides, and a label shrinks
-        // rather than wrapping ("Forward" on a narrow phone).
+        }), cell(gap, true, tileHeight));
+        // One label size for the row, the largest at which the longest label
+        // ("Forward") still fits its tile on this screen.
+        int tileWidth = (activity.getResources().getDisplayMetrics().widthPixels - 2 * spacing - 4 * gap) / 5
+            - 2 * Math.round(2 * density);
+        float labelSize = 15;
+        android.graphics.Paint measure = new android.graphics.Paint();
         for (int index = 0; index < navigation.getChildCount(); index++) {
             Button tile = (Button) navigation.getChildAt(index);
-            tile.setPadding(Math.round(2 * density), tile.getPaddingTop(), Math.round(2 * density), tile.getPaddingBottom());
-            tile.setMaxLines(2);
-            tile.setAutoSizeTextTypeUniformWithConfiguration(10, 16, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
+            measure.setTextSize(labelSize * activity.getResources().getDisplayMetrics().scaledDensity);
+            float width = measure.measureText(tile.getText().toString());
+            if (width > tileWidth) labelSize = labelSize * tileWidth / width;
+        }
+        for (int index = 0; index < navigation.getChildCount(); index++) {
+            ((Button) navigation.getChildAt(index)).setTextSize(labelSize);
         }
         content.addView(navigation);
         // Actions on the page itself (send it to another device) sit with the
@@ -126,6 +135,11 @@ final class NativeBrowserMenu {
         backgroundPlayback.setTextColor(palette.text);
         backgroundPlayback.setPadding(spacing, 0, spacing, 0);
         backgroundPlayback.setGravity(Gravity.CENTER_VERTICAL);
+        // A card like the rows around it (and iOS's); the whole row toggles.
+        GradientDrawable switchCard = new GradientDrawable();
+        switchCard.setColor(palette.card);
+        switchCard.setCornerRadius(12 * density);
+        backgroundPlayback.setBackground(new RippleDrawable(ColorStateList.valueOf(palette.ripple), switchCard, null));
         backgroundPlayback.setThumbTintList(new ColorStateList(
             new int[][] { { android.R.attr.state_checked }, {} },
             new int[] { palette.accent, dark ? Color.rgb(188, 194, 205) : Color.WHITE }));
@@ -252,6 +266,25 @@ final class NativeBrowserMenu {
             NativeSurfaceDialogs.touched(at[0] + clicked.getWidth() / 2f, at[1] + clicked.getHeight() / 2f);
             action.run();
         });
+        return button;
+    }
+
+    /** A navigation tile: the outline icon over its label, dimmed when it cannot act. */
+    private static Button tile(Activity activity, Palette palette, int icon, String label, boolean enabled, Runnable action) {
+        Button button = control(activity, palette, label, enabled, action);
+        float density = activity.getResources().getDisplayMetrics().density;
+        android.graphics.drawable.Drawable glyph = activity.getDrawable(icon).mutate();
+        int size = Math.round(26 * density);
+        glyph.setBounds(0, 0, size, size);
+        glyph.setTint(enabled ? palette.text : palette.muted);
+        button.setCompoundDrawables(null, glyph, null, null);
+        button.setCompoundDrawablePadding(Math.round(6 * density));
+        button.setSingleLine(true);
+        button.setGravity(Gravity.CENTER);
+        // Regular weight, as iOS draws these labels; a Button defaults to medium.
+        button.setTypeface(android.graphics.Typeface.DEFAULT);
+        int inset = Math.round(2 * density);
+        button.setPadding(inset, Math.round(12 * density), inset, Math.round(10 * density));
         return button;
     }
 
