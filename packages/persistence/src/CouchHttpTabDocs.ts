@@ -14,7 +14,7 @@ export function couchHttpTabDocs(
   fetchImpl: typeof fetch,
   allowed: () => Promise<boolean>
 ): {
-  get(id: string, options?: { conflicts?: boolean; rev?: string }): Promise<Record<string, unknown> | null>
+  get(id: string, options?: { conflicts?: boolean; rev?: string; attachments?: boolean }): Promise<Record<string, unknown> | null>
   put(doc: Record<string, unknown>): Promise<{ rev: string }>
   remove(id: string, rev: string): Promise<void>
   list(prefix: string): Promise<Array<Record<string, unknown>>>
@@ -44,6 +44,7 @@ export function couchHttpTabDocs(
       const query: Record<string, string> = {}
       if (options.conflicts) query.conflicts = "true"
       if (options.rev) query.rev = options.rev
+      if (options.attachments) query.attachments = "true"
       const response = await request(docUrl(id, query))
       if (response.status === 404) return null
       if (!response.ok) throw statusError(response.status, `Reading ${id} failed`)

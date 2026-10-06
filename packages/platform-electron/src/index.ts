@@ -95,7 +95,8 @@ export function createElectronPlatform(
     tabDocs: pouchTabDocs(onceDb as unknown as PouchTabDocsDatabase),
     tabSource: {
       snapshot: () => bridge.tabSync.snapshot(),
-      onChanged: (handler) => bridge.tabSync.onChanged(handler)
+      onChanged: (handler) => bridge.tabSync.onChanged(handler),
+      captureThumbnail: (tabId) => bridge.tabSync.capture(tabId)
     },
     device: {
       platform: "electron",

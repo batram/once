@@ -1,4 +1,4 @@
-import { isRoutedTabDocId, normalizeSyncUrl, ROUTED_TAB_DOC_PREFIXES, TAB_SYNC_SETTINGS_ID } from "@once/core"
+import { isRoutedTabDocId, isTabSyncChangeId, normalizeSyncUrl, ROUTED_TAB_DOC_PREFIXES, TAB_SYNC_SETTINGS_ID } from "@once/core"
 import {
   PouchMaintenanceDatabase,
   PouchMaintenanceService
@@ -127,7 +127,7 @@ export class PouchSyncService {
     return () => this.remoteChangeHandlers.delete(handler)
   }
 
-  /** Pulled tab sync documents; thumbnails are fetched on demand instead. */
+  /** Pulled tab sync records and screenshots, deletions included. */
   onRemoteTabChange(handler: (change: PouchRemoteChange) => void): () => void {
     this.remoteTabChangeHandlers.add(handler)
     return () => this.remoteTabChangeHandlers.delete(handler)
@@ -514,7 +514,7 @@ export class PouchSyncService {
       }
       if (doc._id.startsWith("sto_")) {
         this.remoteChangeHandlers.forEach((handler) => handler(change))
-      } else if (isRoutedTabDocId(doc._id)) {
+      } else if (isTabSyncChangeId(doc._id)) {
         // Deletions arrive as `_deleted` stubs and are routed the same way.
         this.remoteTabChangeHandlers.forEach((handler) => handler(change))
       }

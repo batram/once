@@ -1,4 +1,4 @@
-import { isRoutedTabDocId, TAB_SYNC_SETTINGS_ID } from "@once/core"
+import { isTabSyncChangeId, TAB_SYNC_SETTINGS_ID } from "@once/core"
 import type { AppSettings, SyncStartOrigin } from "../AppSettings"
 import { errorDetails } from "../DiagnosticLog"
 import type { DatabaseChange, DiagnosticError, OnceClient, OncePlatformPorts, SyncStatus } from "../types"
@@ -10,7 +10,7 @@ import { TabSyncService } from "./TabSyncService"
 
 type SyncClientMethods = Pick<OnceClient,
   "getSyncConsent" | "requestSyncConsent" | "getTabSync" | "setTabSyncOptions" | "setTabSyncShared" |
-  "renameDevice" | "forgetDevice" | "resetDeviceIdentity" | "openRemoteTab">
+  "renameDevice" | "forgetDevice" | "resetDeviceIdentity" | "openRemoteTab" | "getTabThumbnail">
 
 export interface SyncControlsHost {
   status(): SyncStatus
@@ -58,7 +58,7 @@ export class SyncControls {
 
   /** Routes a local or pulled document change; true when it was a tab sync document. */
   routeChange(change: DatabaseChange): boolean {
-    if (isRoutedTabDocId(change.id)) {
+    if (isTabSyncChangeId(change.id)) {
       this.tabSync?.handleChange(change)
       return true
     }
@@ -93,6 +93,7 @@ export class SyncControls {
         await this.host.renameVaultDevice(name)
       },
       forgetDevice: (deviceId) => this.require().forget(deviceId),
+      getTabThumbnail: async (id) => this.tabSync ? this.tabSync.thumbnail(id) : null,
       openRemoteTab: (url, mode, background) => {
         if (!/^https?:\/\//i.test(url)) return
         if (this.platform.tabOpener) this.platform.tabOpener.open(url, { background, mode })

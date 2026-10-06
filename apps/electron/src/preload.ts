@@ -139,6 +139,7 @@ const bridge: ElectronBridge = {
   },
   tabSync: {
     snapshot: () => ipcRenderer.invoke(ELECTRON_IPC.tabSyncSnapshot),
+    capture: (tabId) => ipcRenderer.invoke(ELECTRON_IPC.tabSyncCapture, tabId),
     onChanged(handler: () => void) {
       const listener = () => handler()
       ipcRenderer.on(ELECTRON_IPC.tabSyncChanged, listener)

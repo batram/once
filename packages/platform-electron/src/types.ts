@@ -308,6 +308,8 @@ export interface ElectronBridge {
     /** Every window's tabs, not just this one's. */
     snapshot(): Promise<ElectronSyncWindow[]>
     onChanged(handler: () => void): () => void
+    /** A small JPEG of a tab of any window, or null while it loads. */
+    capture(tabId: string): Promise<{ jpeg: string; width: number; height: number } | null>
   }
   /** The tabs page in this window's tabs: opened or focused here, fed with the shell's view. */
   remoteTabs: {
@@ -460,6 +462,7 @@ export const ELECTRON_IPC = {
   tabsRegenerateReader: "once:tabs:regenerate-reader",
   tabSyncSnapshot: "once:tabsync:snapshot",
   tabSyncChanged: "once:tabsync:changed",
+  tabSyncCapture: "once:tabsync:capture",
   panelPageShow: "once:panel-page:show",
   panelPageSetBounds: "once:panel-page:set-bounds",
   panelPageClose: "once:panel-page:close",

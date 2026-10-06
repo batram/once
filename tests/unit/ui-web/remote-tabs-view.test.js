@@ -21,20 +21,26 @@ test("lists devices and windows, filters, opens in front or behind, and keeps fo
   try {
     const listeners = new Set()
     let state = { connected: true, view: view([
-      device("a", "Phone", [{ id: "w", focused: true, tabs: [tab("1", "https://news.example/a", "Alpha", "reader"), tab("2", "https://www.video.example/b", "Beta")] }]),
+      device("a", "Phone", [{ id: "w", focused: true, tabs: [{ ...tab("1", "https://news.example/a", "Alpha", "reader"), thumb: { id: "tth_x_1", w: 320, h: 200 } },
+        tab("2", "https://www.video.example/b", "Beta")] }]),
       device("b", "Laptop", [
         { id: "w1", focused: true, tabs: [tab("3", "https://docs.example/c", "Gamma")] },
         { id: "w2", focused: false, tabs: [tab("4", "https://docs.example/d", "Delta")] }
       ])
     ]) }
     const opened = []
+    const thumbnailRequests = []
     const root = document.querySelector("#root")
     const handle = mountRemoteTabs(root, {
       load: async () => state,
       subscribe: (listener) => { listeners.add(listener); return () => listeners.delete(listener) },
-      open: (item, background) => opened.push([item.url, background])
+      open: (item, background) => opened.push([item.url, background]),
+      thumbnail: async (id) => { thumbnailRequests.push(id); return "data:image/jpeg;base64,AAAA" }
     })
     await settle()
+    const images = () => [...root.querySelectorAll(".remote_tab_preview img")]
+    assert.deepEqual(images().map((image) => image.getAttribute("src")), ["data:image/jpeg;base64,AAAA"])
+    assert.equal(root.querySelectorAll(".remote_tab_preview")[1].textContent, "V", "a tab without a screenshot shows its site's initial")
     const devices = () => [...root.querySelectorAll("[data-testid=remote-device]")]
     assert.deepEqual(devices().map((section) => section.querySelector(".remote_device_name").textContent), ["Phone", "Laptop"])
     assert.match(devices()[0].textContent, /news\.example · Reader/)
@@ -54,6 +60,7 @@ test("lists devices and windows, filters, opens in front or behind, and keeps fo
     listeners.forEach((listener) => listener())
     await settle()
     assert.equal(devices()[0].querySelectorAll(".remote_tab").length, 0, "folding survives new data")
+    assert.deepEqual(thumbnailRequests, ["tth_x_1"], "a screenshot is fetched once")
     assert.match(devices()[2].textContent, /Not sharing its tabs/)
 
     const filter = root.querySelector("[data-testid=remote-tabs-filter]")

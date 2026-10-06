@@ -8,6 +8,7 @@ import {
 import type { ListStorePort, SyncConsentPort } from "@once/app"
 import { couchHttpTabDocs } from "@once/persistence"
 import { createFirefoxSyncConsent, deviceName, WebExtSecretStorage, WebExtSyncStorage } from "@once/platform-webext/backgroundPorts"
+import { installTabSyncCapture } from "./tabSyncCapture"
 import { installTabSyncTimes } from "./tabSyncTimes"
 
 const HEARTBEAT_ALARM = "once-tabsync-heartbeat"
@@ -23,7 +24,7 @@ const RETRY_ALARM = "once-tabsync-retry"
  * registered synchronously so the browser can wake the background for them.
  */
 export function installTabSyncBackground(api: typeof browser, target: "chrome" | "firefox"): void {
-  const source = installTabSyncTimes(api)
+  const source = { ...installTabSyncTimes(api), captureThumbnail: installTabSyncCapture(api) }
   const secrets = new WebExtSecretStorage(api)
   const syncStorage = new WebExtSyncStorage(api)
   const consent: SyncConsentPort | undefined = target === "firefox" ? createFirefoxSyncConsent(api) : undefined

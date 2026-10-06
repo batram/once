@@ -2,12 +2,11 @@ import { BrowserWindow, WebContents, WebContentsView } from "electron"
 import { ElectronRect, ElectronTabHoverTheme, ElectronTabState } from "@once/platform-electron/bridge"
 import { isReadableUrl, sourceUrlFromReaderUrl } from "./reader-url"
 import cardMarkup from "./tab-hover-card.html"
+import { captureTab } from "./tabCapture"
 
 /** The view's width; the card inside it leaves room for its shadow. */
 const VIEW_WIDTH = 280
 const THUMB_WIDTH = 520
-/** Tall pages are cut to this shape, top first, as other browsers do. */
-const MAX_THUMB_ASPECT = 10 / 16
 
 interface Thumbnail {
   image: string
@@ -86,21 +85,10 @@ export class TabHoverCard {
     this.window.contentView.addChildView(view)
   }
 
-  // stayHidden keeps a background tab hidden to its page (no visibilitychange)
-  // while Chromium still paints it for the capture.
   private async capture(source: TabHoverSource, id: string): Promise<Thumbnail | null> {
     try {
-      const contents = source.contents(id)
-      const image = await contents.capturePage(undefined, { stayHidden: true })
-      if (image.isEmpty()) return null
-      const size = image.getSize()
-      const height = Math.min(size.height, Math.round(size.width * MAX_THUMB_ASPECT))
-      const cropped = image.crop({ x: 0, y: 0, width: size.width, height })
-      const scaled = cropped.resize({ width: Math.min(THUMB_WIDTH, size.width), quality: "good" })
-      return {
-        image: `data:image/jpeg;base64,${scaled.toJPEG(80).toString("base64")}`,
-        aspect: `${size.width} / ${height}`
-      }
+      const shot = await captureTab(source.contents(id), THUMB_WIDTH, 80)
+      return shot && { image: `data:image/jpeg;base64,${shot.jpeg}`, aspect: `${shot.width} / ${shot.height}` }
     } catch {
       return null
     }

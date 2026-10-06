@@ -741,6 +741,20 @@ and screenshots from database A would therefore be uploaded to database B.
   (HTTP store), `tests/unit/mobile/reading-tabs.test.js`, `tests/e2e/electron/tab-sync.spec.js`,
   `tests/e2e/extensions/chrome-tab-sync.spec.js`, `tests/e2e/mobile/tab-sync.spec.js`.
 
+### Phase 3 status (implemented)
+
+- `TabThumbnails` (`packages/app/src/tabsync`) takes at most three new screenshots per publication,
+  selected tabs first, once per page (navigation and URL); `TabDocRepository.putThumb` stores each
+  under `tth_<device>_<sha1>` with a `thumb.jpg` attachment, so an unchanged picture is written once.
+  Unreferenced screenshots go after a one-hour grace period, and at once when screenshots are off.
+- Capture: Electron `capturePage` of any tab once loaded (shared with the hover card in
+  `browser/tabCapture.ts`); extensions capture each window's visible tab when it is selected or
+  finishes loading and keep it in session storage by tab and URL (`tabSyncCapture.ts`); mobile uses
+  the tab view's previews, refreshing the selected tab's.
+- Screenshot arrivals are routed like the other tab records, so a view updates when a picture lands
+  after the publication naming it. The shared view shows them (or the site's initial), and the
+  Electron page receives them with the view.
+
 ## Nice-to-haves (not v1)
 
 - Recently closed tabs from other devices.

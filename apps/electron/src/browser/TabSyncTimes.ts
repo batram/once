@@ -2,6 +2,7 @@ import { ELECTRON_IPC, ElectronSyncWindow } from "@once/platform-electron/bridge
 import type { TabEntry, WindowEntry } from "./BrowserState"
 import type { TabOwnership } from "./TabOwnership"
 import { isReadableUrl, sourceUrlFromReaderUrl } from "./reader-url"
+import { captureTab } from "./tabCapture"
 
 /**
  * When a tab was opened, navigated, selected and last used, and which
@@ -63,6 +64,8 @@ export function tabSyncSnapshot(
 
 export interface TabSyncFeed {
   snapshot(): ElectronSyncWindow[]
+  /** A small screenshot for other devices, once the tab has finished loading. */
+  capture(tabId: string): Promise<{ jpeg: string; width: number; height: number } | null>
   /** Starts telling every shell when some window's tabs change. */
   observe(): () => void
 }
@@ -75,6 +78,12 @@ export interface TabSyncFeed {
 export function tabSyncFeed(ownership: TabOwnership): TabSyncFeed {
   return {
     snapshot: () => tabSyncSnapshot(ownership.windows.values(), (id) => ownership.get(id)),
+    async capture(tabId) {
+      const entry = ownership.get(tabId)
+      const contents = entry?.view.webContents
+      if (!entry || entry.loading || entry.loadError || !contents || contents.isDestroyed()) return null
+      return captureTab(contents, 320, 60)
+    },
     observe() {
       let timer: ReturnType<typeof setTimeout> | undefined
       const stop = ownership.observe(() => {

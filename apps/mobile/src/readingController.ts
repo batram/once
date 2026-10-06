@@ -28,7 +28,8 @@ import { linkAddonItems } from "./readingPageActions"
 export class MobileReadingController {
   readonly session: ReadingSession
   readonly tabs = new ReadingTabs()
-  private readonly runtime: ReadingTabRuntime
+  /** Native surfaces per tab; tab sync asks it for the selected tab's screenshot. */
+  readonly runtime: ReadingTabRuntime
   /** The tab view; it also lists other devices' tabs once the app runs. */
   readonly tabDialog: ReadingTabDialog
   private readonly addonTrays: ReadingAddonTrays

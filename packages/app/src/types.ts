@@ -193,6 +193,8 @@ export interface OnceClient {
   setTabSyncShared(change: Partial<import("@once/core").TabSyncSharedSettings>): Promise<void>
   /** The name other devices and add-on sync snapshots show for this one. */
   renameDevice(name: string): Promise<void>
+  /** Another device's tab screenshot as a data URL, or null while it has not arrived. */
+  getTabThumbnail(id: string): Promise<string | null>
   /** Opens another device's tab here, in a new tab; never replaces the page being read. */
   openRemoteTab(url: string, mode: "web" | "reader", background: boolean): void
   /** Removes another device from tab sync until it turns sharing on again. */
@@ -380,7 +382,8 @@ export interface SyncConsentPort {
  * `get` resolves null for a missing or deleted document.
  */
 export interface TabDocDatabase {
-  get(id: string, options?: { conflicts?: boolean; rev?: string }): Promise<Record<string, unknown> | null>
+  /** `attachments` inlines attachment bodies as base64 `data`. */
+  get(id: string, options?: { conflicts?: boolean; rev?: string; attachments?: boolean }): Promise<Record<string, unknown> | null>
   put(doc: Record<string, unknown>): Promise<{ rev: string }>
   remove(id: string, rev: string): Promise<void>
   /** Every live document whose id starts with `prefix`, with its `_conflicts`. */
@@ -417,10 +420,18 @@ export interface TabOpenerPort {
   open(url: string, options: { background: boolean; mode: "web" | "reader" }): void
 }
 
+/** A small JPEG of a tab, base64 without a data URL prefix. */
+export interface TabThumbnail { jpeg: string; width: number; height: number }
+
 /** This device's open tabs, for the platforms that publish them. */
 export interface TabSourcePort {
   snapshot(): Promise<LocalWindow[]>
   onChanged(handler: () => void): () => void
+  /**
+   * A screenshot of the tab as it shows now, or null when the platform
+   * cannot take one (e.g. a browser can only capture each window's visible tab).
+   */
+  captureThumbnail?(tabId: string): Promise<TabThumbnail | null>
 }
 
 export interface ThemePort {

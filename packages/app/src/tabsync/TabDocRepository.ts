@@ -12,6 +12,7 @@ import {
   sendDocPrefix,
   SEND_DOC_PREFIX,
   thumbDocPrefix,
+  THUMB_DOC_PREFIX,
   winningPublication,
   winningRetirement
 } from "@once/core"
@@ -115,13 +116,42 @@ export class TabDocRepository {
     for (const rev of revs) if (typeof rev === "string") await this.db.remove(id, rev)
   }
 
-  /** Removes a device's screenshots; `keep` are still referenced. */
-  async deleteThumbs(deviceId: string, keep: ReadonlySet<string> = new Set()): Promise<void> {
+  /**
+   * Removes a device's screenshots, except those in `keep` (still referenced)
+   * and those stored after `before` (a grace period, so a device that has
+   * not yet received the newer publication can still show them).
+   */
+  async deleteThumbs(deviceId: string, keep: ReadonlySet<string> = new Set(), before = Infinity): Promise<void> {
     for (const doc of await this.db.list(thumbDocPrefix(deviceId))) {
-      if (typeof doc._id === "string" && typeof doc._rev === "string" && !keep.has(doc._id)) {
+      const stored = typeof doc.createdAt === "string" ? Date.parse(doc.createdAt) : 0
+      if (typeof doc._id === "string" && typeof doc._rev === "string" && !keep.has(doc._id) && !(stored > before)) {
         await this.db.remove(doc._id, doc._rev)
       }
     }
+  }
+
+  /**
+   * Stores a screenshot under a name derived from its content, once: an
+   * unchanged picture is never written or replicated twice.
+   */
+  async putThumb(deviceId: string, jpeg: string, width: number, height: number): Promise<string> {
+    const id = `${thumbDocPrefix(deviceId)}${await sha1Hex(jpeg)}`
+    if (await this.db.get(id)) return id
+    try {
+      await this.db.put({ _id: id, type: "thumb", deviceId, width, height, createdAt: new Date().toISOString(),
+        _attachments: { [THUMB_ATTACHMENT]: { content_type: "image/jpeg", data: jpeg } } })
+    } catch (error) {
+      if (!isConflict(error)) throw error
+    }
+    return id
+  }
+
+  /** A screenshot as a data URL, or null while it has not arrived. */
+  async thumbnail(id: string): Promise<string | null> {
+    if (!id.startsWith(THUMB_DOC_PREFIX)) return null
+    const doc = await this.db.get(id, { attachments: true })
+    const attachment = (doc?._attachments as Record<string, { data?: unknown }> | undefined)?.[THUMB_ATTACHMENT]
+    return typeof attachment?.data === "string" ? `data:image/jpeg;base64,${attachment.data}` : null
   }
 
   async listSends(target?: string): Promise<SendDoc[]> {
@@ -148,6 +178,16 @@ export class TabDocRepository {
     }
     return winner
   }
+}
+
+const THUMB_ATTACHMENT = "thumb.jpg"
+
+async function sha1Hex(base64: string): Promise<string> {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index)
+  const digest = await globalThis.crypto.subtle.digest("SHA-1", bytes)
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")
 }
 
 function isConflict(error: unknown): boolean {

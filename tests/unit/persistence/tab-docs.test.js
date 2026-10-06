@@ -137,3 +137,24 @@ test("the HTTP store authenticates from the URL, pages within its prefix and sto
     await fs.rm(directory, { recursive: true, force: true })
   }
 })
+
+test("screenshots are content-addressed, read back as data URLs, and kept through their grace period", async () => {
+  const { dbs: [db], close } = await databases(["db"])
+  try {
+    const repo = new TabDocRepository(pouchTabDocs(db))
+    const jpeg = Buffer.from("not really a jpeg").toString("base64")
+    const first = await repo.putThumb(id, jpeg, 320, 200)
+    assert.equal(await repo.putThumb(id, jpeg, 320, 200), first, "the same picture is stored once")
+    assert.match(first, new RegExp(`^tth_${id}_[0-9a-f]{40}$`))
+    assert.equal(await repo.thumbnail(first), `data:image/jpeg;base64,${jpeg}`)
+    assert.equal(await repo.thumbnail(`dev_${id}`), null)
+    const old = await repo.putThumb(id, Buffer.from("older").toString("base64"), 320, 200)
+    const stored = await db.get(old)
+    await db.put({ ...stored, createdAt: new Date(Date.now() - 2 * 3600_000).toISOString() })
+    await repo.deleteThumbs(id, new Set(), Date.now() - 3600_000)
+    const left = (await db.allDocs({ startkey: "tth_", endkey: "tth_￿" })).rows.map((row) => row.id)
+    assert.deepEqual(left, [first], "only the unreferenced screenshot older than the grace period goes")
+  } finally {
+    await close()
+  }
+})

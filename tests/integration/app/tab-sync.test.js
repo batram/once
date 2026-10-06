@@ -194,3 +194,50 @@ test("concurrent first starts share one device identity, and the vault's name is
   assert.equal(previous.id, a.id)
   assert.notEqual(current.id, a.id)
 })
+
+test("screenshots are stored once per page, reach other devices, and go when unreferenced or turned off", async () => {
+  const h = await harness()
+  try {
+    const jpeg = (text) => Buffer.from(`jpeg:${text}`).toString("base64")
+    const laptopSource = source([{ id: "w", focused: true, tabs: [tab("a", "https://example.com/1", { active: true }), tab("b", "https://example.com/2")] }])
+    const captures = []
+    laptopSource.captureThumbnail = async (tabId) => {
+      captures.push(tabId)
+      const page = laptopSource.windows[0].tabs.find((item) => item.id === tabId)
+      return { jpeg: jpeg(`${tabId}@${page.url}`), width: 320, height: 200 }
+    }
+    const laptop = await h.device("laptop", laptopSource)
+    await laptop.service.setOptions({ sharing: true })
+    await h.settle(laptop.service)
+    const id = (await laptop.identity.get()).id
+    const published = async () => (await laptop.db.get(`dev_${id}`)).windows[0].tabs
+    const first = await published()
+    assert.ok(first.every((item) => item.thumb?.id.startsWith(`tth_${id}_`)))
+    assert.deepEqual(captures.sort(), ["a", "b"])
+
+    laptopSource.emit()
+    await h.settle(laptop.service)
+    assert.equal(captures.length, 2, "an unchanged page is not captured again")
+
+    laptopSource.windows[0].tabs[0] = tab("a", "https://example.com/3", { active: true, navSeq: 2 })
+    laptopSource.emit()
+    await h.settle(laptop.service)
+    const second = await published()
+    assert.notEqual(second[0].thumb.id, first[0].thumb.id)
+    const thumbIds = async () => (await laptop.db.allDocs({ startkey: "tth_", endkey: "tth_￿" })).rows.map((row) => row.id).sort()
+    assert.deepEqual(await thumbIds(), [first[0].thumb.id, second[0].thumb.id, second[1].thumb.id].sort(), "the replaced screenshot stays for the grace period")
+
+    await laptop.push()
+    const phone = await h.device("phone", undefined)
+    await phone.pull()
+    await h.settle(phone.service)
+    assert.equal(await phone.service.thumbnail(second[0].thumb.id), `data:image/jpeg;base64,${jpeg("a@https://example.com/3")}`)
+
+    await laptop.service.setOptions({ screenshots: false })
+    await h.settle(laptop.service)
+    assert.deepEqual(await thumbIds(), [])
+    assert.ok((await published()).every((item) => !item.thumb))
+  } finally {
+    await h.close()
+  }
+})

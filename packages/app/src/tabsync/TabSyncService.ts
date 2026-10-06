@@ -5,6 +5,7 @@ import {
   RetirementDoc,
   RETIREMENT_DOC_PREFIX,
   TAB_SYNC_SETTINGS_ID,
+  THUMB_DOC_PREFIX,
   TabSyncOptions,
   TabSyncPlatform,
   TabSyncSharedSettings
@@ -13,9 +14,10 @@ import type { DatabaseChange, ListStorePort, TabSourcePort } from "../types"
 import { DeviceIdentity } from "./DeviceIdentity"
 import { holdLock } from "./locks"
 import { TabDocRepository } from "./TabDocRepository"
+import { TabThumbnails } from "./TabThumbnails"
 import { deviceDocument, expiredSends, publicationFingerprint, publishedWindows, visibleDevice } from "./tabPublication"
 
-const TIMING = { debounce: 3000, minInterval: 15000, heartbeat: 10 * 60 * 1000, refresh: 250 }
+const TIMING = { debounce: 3000, minInterval: 15000, heartbeat: 10 * 60 * 1000, refresh: 250, thumbnailGrace: 60 * 60 * 1000 }
 const CHANNEL = "once-tabsync"
 
 export interface RemoteDeviceView {
@@ -82,9 +84,11 @@ export class TabSyncService {
   private channel?: BroadcastChannel
   private readonly disposers: Array<() => void> = []
   private readonly timing: typeof TIMING
+  private readonly thumbnails: TabThumbnails
 
   constructor(private readonly deps: TabSyncDependencies) {
     this.timing = { ...TIMING, ...deps.timing }
+    this.thumbnails = new TabThumbnails(deps.repository, deps.source, this.timing.thumbnailGrace)
   }
 
   async start(): Promise<void> {
@@ -127,6 +131,8 @@ export class TabSyncService {
   /** A routed tab document changed, here, in another runtime, or by replication. */
   handleChange(change: DatabaseChange): void {
     if (change.id === "tabsync") this.scheduleRefresh()
+    // A screenshot arrived after the publication naming it: views can show it now.
+    else if (change.id.startsWith(THUMB_DOC_PREFIX)) this.deps.changed()
     else if (change.id.startsWith(DEVICE_DOC_PREFIX) || change.id.startsWith(RETIREMENT_DOC_PREFIX)) this.scheduleRefresh()
   }
 
@@ -144,6 +150,11 @@ export class TabSyncService {
   /** A heartbeat or retry: publish now, even if nothing changed. */
   publishSoon(): void {
     this.schedule(0, true)
+  }
+
+  /** Another device's tab screenshot as a data URL, or null while it has not arrived. */
+  thumbnail(id: string): Promise<string | null> {
+    return this.deps.repository.thumbnail(id)
   }
 
   async view(): Promise<TabSyncView> {
@@ -242,6 +253,7 @@ export class TabSyncService {
     if (restart || !wanted) {
       this.generation++
       this.stopPublishing()
+      this.thumbnails.reset()
     }
     if (!wanted) {
       // Only the publisher withdraws, after anything it queued before.
@@ -291,9 +303,13 @@ export class TabSyncService {
       await this.retireSelf(retirement)
       return
     }
-    const windows = options.sharing && this.deps.source
+    const listed = options.sharing && this.deps.source
       ? publishedWindows(await this.deps.source.snapshot(), options)
       : []
+    if (generation !== this.generation) return
+    const windows = options.sharing && options.screenshots
+      ? await this.thumbnails.attach(record.id, listed, () => generation === this.generation)
+      : listed
     if (generation !== this.generation) return
     const draft = deviceDocument({ deviceId: record.id, epoch: record.epoch, seq: record.seq, name: record.name,
       platform: this.deps.identity.platform, appVersion: this.deps.appVersion }, windows, options.sharing)
@@ -305,8 +321,9 @@ export class TabSyncService {
     this.lastFingerprint = fingerprint
     this.lastPublishedAt = Date.now()
     this.devices.set(published.deviceId, published)
-    // A presence-only device shows no tabs, so it keeps no screenshots either.
-    if (!options.sharing) await this.deps.repository.deleteThumbs(record.id)
+    // Unreferenced screenshots go after a grace period; with screenshots off, at once.
+    if (options.sharing && options.screenshots) await this.thumbnails.collect(record.id, windows)
+    else await this.deps.repository.deleteThumbs(record.id)
     await this.collectGarbage()
   }
 

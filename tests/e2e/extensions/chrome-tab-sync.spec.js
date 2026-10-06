@@ -55,6 +55,16 @@ test("the Chrome background publishes every window's tabs with no panel open, an
     const published = async () => (await couch.devices("once")).filter((doc) => doc.platform === "chrome")
     await expect.poll(async () => (await published()).map((doc) => doc.windows.flatMap((window) => window.tabs.map((tab) => tab.url)).sort()),
       { timeout: 30_000 }).toEqual([[fixture.urls.alpha, fixture.urls.beta].sort()])
+    // Each window's visible tab gets a screenshot, stored under its own record.
+    await expect.poll(async () => {
+      const [doc] = await published()
+      const ids = doc.windows.flatMap((window) => window.tabs.map((tab) => tab.thumb?.id)).filter(Boolean)
+      const sizes = await Promise.all(ids.map(async (id) => {
+        const response = await fetch(`${couch.url("once")}/${id}/thumb.jpg`)
+        return response.ok ? (await response.arrayBuffer()).byteLength : 0
+      }))
+      return sizes.filter((size) => size > 500).length
+    }, { timeout: 30_000 }).toBe(2)
     const [first] = await published()
     expect(first.windows.length).toBe(2)
     expect(first.name).toMatch(/^Chrome/)

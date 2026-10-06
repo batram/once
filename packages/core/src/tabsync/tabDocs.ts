@@ -95,6 +95,11 @@ export function isRoutedTabDocId(id: string): boolean {
   return ROUTED_TAB_DOC_PREFIXES.some((prefix) => id.startsWith(prefix))
 }
 
+/** Whether tab sync hears about a change: its routed records, and screenshots arriving after the publication naming them. */
+export function isTabSyncChangeId(id: string): boolean {
+  return isRoutedTabDocId(id) || id.startsWith(THUMB_DOC_PREFIX)
+}
+
 /** The target device of a send record id, or null when the id is not one. */
 export function sendTarget(id: string): string | null {
   if (!id.startsWith(SEND_DOC_PREFIX)) return null

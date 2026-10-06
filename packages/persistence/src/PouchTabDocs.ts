@@ -12,7 +12,7 @@ export interface PouchTabDocsDatabase {
  * already gone, e.g. removed by another device's resolver, is not an error.
  */
 export function pouchTabDocs(db: PouchTabDocsDatabase): {
-  get(id: string, options?: { conflicts?: boolean; rev?: string }): Promise<Record<string, unknown> | null>
+  get(id: string, options?: { conflicts?: boolean; rev?: string; attachments?: boolean }): Promise<Record<string, unknown> | null>
   put(doc: Record<string, unknown>): Promise<{ rev: string }>
   remove(id: string, rev: string): Promise<void>
   list(prefix: string): Promise<Array<Record<string, unknown>>>

@@ -6,6 +6,8 @@ export interface RemoteTabsPort {
   load(): Promise<RemoteTabsState>
   subscribe(listener: () => void): () => void
   open(tab: Pick<SyncedTab, "url" | "mode">, background: boolean): void
+  /** A tab's screenshot as a data URL, or null while it has not arrived. */
+  thumbnail?(id: string): Promise<string | null>
   /** Shows the Sync settings, where sync and sharing are set up. */
   openSettings?(): void
 }
@@ -42,6 +44,16 @@ export function mountRemoteTabs(root: HTMLElement, port: RemoteTabsPort): Remote
   body.className = "remote_tabs_body"
   root.replaceChildren(filter, body)
   const collapsed = new Set<string>()
+  const thumbs = new Map<string, string>()
+  const showThumb = (image: HTMLImageElement, id: string) => {
+    const known = thumbs.get(id)
+    if (known) { image.src = known; return }
+    void port.thumbnail?.(id).then((src) => {
+      if (!src) return
+      thumbs.set(id, src)
+      image.src = src
+    }).catch(() => undefined)
+  }
   let state: RemoteTabsState = { view: null, connected: false }
   let revision = 0
 
@@ -55,7 +67,7 @@ export function mountRemoteTabs(root: HTMLElement, port: RemoteTabsPort): Remote
     }
     filter.hidden = false
     const sections = (state.view?.devices ?? []).flatMap((device) => {
-      const section = deviceSection(device, query, collapsed, port, render)
+      const section = deviceSection(device, query, collapsed, port, render, showThumb)
       return section ? [section] : []
     })
     body.replaceChildren(...(sections.length ? sections : [notice("No tabs match the filter.")]))
@@ -94,7 +106,8 @@ function deviceSection(
   query: string,
   collapsed: Set<string>,
   port: RemoteTabsPort,
-  rerender: () => void
+  rerender: () => void,
+  showThumb: (image: HTMLImageElement, id: string) => void
 ): HTMLElement | null {
   const windows = device.windows
     .map((entry) => ({ ...entry, tabs: entry.tabs.filter((tab) => matches(tab, query)) }))
@@ -137,7 +150,7 @@ function deviceSection(
     }
     const list = document.createElement("ul")
     list.className = "remote_tab_list"
-    list.append(...entry.tabs.map((tab) => tabRow(tab, port)))
+    list.append(...entry.tabs.map((tab) => tabRow(tab, port, showThumb)))
     section.append(list)
   })
   return section
@@ -158,7 +171,7 @@ function windowHeading(label: string, tabs: SyncedTab[], port: RemoteTabsPort): 
   return heading
 }
 
-function tabRow(tab: SyncedTab, port: RemoteTabsPort): HTMLLIElement {
+function tabRow(tab: SyncedTab, port: RemoteTabsPort, showThumb: (image: HTMLImageElement, id: string) => void): HTMLLIElement {
   const row = document.createElement("li")
   row.className = "remote_tab"
   row.dataset.testid = "remote-tab"
@@ -176,7 +189,10 @@ function tabRow(tab: SyncedTab, port: RemoteTabsPort): HTMLLIElement {
     ...(tab.mode === "reader" ? ["Reader"] : []),
     `used ${humanTime(Date.parse(tab.activityAt))}`
   ].join(" · ")
-  link.append(title, detail)
+  const text = document.createElement("span")
+  text.className = "remote_tab_text"
+  text.append(title, detail)
+  link.append(preview(tab, showThumb), text)
   // A link, so it can be focused, copied and middle-clicked like one; the
   // shell decides where it opens.
   link.addEventListener("click", (event) => {
@@ -200,6 +216,26 @@ function tabRow(tab: SyncedTab, port: RemoteTabsPort): HTMLLIElement {
   background.addEventListener("click", () => port.open(tab, true))
   row.append(link, background)
   return row
+}
+
+/** The tab's screenshot, or its site's initial until one arrives. */
+function preview(tab: SyncedTab, showThumb: (image: HTMLImageElement, id: string) => void): HTMLElement {
+  const frame = document.createElement("span")
+  frame.className = "remote_tab_preview"
+  frame.setAttribute("aria-hidden", "true")
+  const initial = document.createElement("span")
+  initial.textContent = hostOf(tab.url).charAt(0).toUpperCase()
+  frame.append(initial)
+  if (tab.thumb) {
+    const image = document.createElement("img")
+    image.alt = ""
+    image.decoding = "async"
+    image.hidden = true
+    image.addEventListener("load", () => { initial.remove(); image.hidden = false }, { once: true })
+    frame.append(image)
+    showThumb(image, tab.thumb.id)
+  }
+  return frame
 }
 
 function notice(text: string, openSettings?: () => void): HTMLElement {

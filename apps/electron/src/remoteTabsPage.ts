@@ -14,9 +14,11 @@ if (!bridge) {
   root.textContent = "Open this page from the tabs button next to the new tab button."
 } else {
   let latest: RemoteTabsState = { view: null, connected: false }
+  let thumbs: Record<string, string> = {}
   const listeners = new Set<() => void>()
   bridge.onState((state) => {
-    const { theme, ...rest } = state as RemoteTabsState & { theme?: string }
+    const { theme, thumbs: images, ...rest } = state as RemoteTabsState & { theme?: string; thumbs?: Record<string, string> }
+    thumbs = images ?? {}
     if (theme) document.body.dataset.theme = theme
     else delete document.body.dataset.theme
     latest = rest
@@ -29,6 +31,7 @@ if (!bridge) {
       return () => listeners.delete(listener)
     },
     open: (tab, background) => bridge.send({ type: "open", url: tab.url, mode: tab.mode, background }),
+    thumbnail: async (id) => thumbs[id] ?? null,
     openSettings: () => bridge.send({ type: "settings" })
   })
   void bridge.connect()

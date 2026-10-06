@@ -5,8 +5,21 @@ import type { ReadingTabs } from "./readingTabs"
  * This phone's tabs for tab sync: one window, the reading tabs in order. A
  * Reader-mode tab is its page in reader mode; comments are a page like any.
  */
-export function readingTabSource(tabs: () => ReadingTabs): TabSourcePort {
+export function readingTabSource(tabs: () => ReadingTabs, capturePreview: () => Promise<void>): TabSourcePort {
   return {
+    /**
+     * The tab view's own preview: refreshed for the selected tab while it
+     * shows, kept from earlier for the others until they navigate.
+     */
+    async captureThumbnail(tabId) {
+      const reading = tabs()
+      if (reading.activeId === tabId) await capturePreview().catch(() => undefined)
+      const preview = reading.tabs.find((tab) => tab.id === tabId)?.preview
+      const match = preview && /^data:image\/jpeg;base64,(.+)$/.exec(preview)
+      if (!match) return null
+      const size = await imageSize(preview).catch(() => null)
+      return size && { jpeg: match[1], ...size }
+    },
     snapshot: async (): Promise<LocalWindow[]> => {
       const reading = tabs()
       return [{
@@ -30,4 +43,11 @@ export function readingTabSource(tabs: () => ReadingTabs): TabSourcePort {
 /** Opens another device's tab as a new reading tab, in front or behind. */
 export function readingTabOpener(open: () => (url: string, background: boolean) => void): TabOpenerPort {
   return { open: (url, { background }) => open()(url, background) }
+}
+
+async function imageSize(src: string): Promise<{ width: number; height: number }> {
+  const image = new Image()
+  image.src = src
+  await image.decode()
+  return { width: image.naturalWidth, height: image.naturalHeight }
 }
