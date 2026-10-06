@@ -11,7 +11,8 @@ import { restorePlan } from "./TabStates"
 
 type SyncClientMethods = Pick<OnceClient,
   "getSyncConsent" | "requestSyncConsent" | "getTabSync" | "setTabSyncOptions" | "setTabSyncShared" |
-  "renameDevice" | "forgetDevice" | "resetDeviceIdentity" | "openRemoteTab" | "getTabThumbnail">
+  "renameDevice" | "forgetDevice" | "resetDeviceIdentity" | "openRemoteTab" | "getTabThumbnail" |
+  "sendTab" | "sendLocalTab" | "openSentTab" | "dismissSentTab">
 
 export interface SyncControlsHost {
   status(): SyncStatus
@@ -82,7 +83,7 @@ export class SyncControls {
 
   clientMethods(): SyncClientMethods {
     const consent = this.platform.syncConsent
-    return {
+    const methods: SyncClientMethods = {
       getSyncConsent: async () => consent ? await consent.granted() ? "granted" : "required" : "not-needed",
       // Called straight from a click: the browser only shows its prompt for a user gesture.
       requestSyncConsent: () => consent?.request() ?? Promise.resolve(true),
@@ -95,6 +96,13 @@ export class SyncControls {
       },
       forgetDevice: (deviceId) => this.require().forget(deviceId),
       getTabThumbnail: async (id) => this.tabSync ? this.tabSync.thumbnail(id) : null,
+      sendTab: (deviceId, tab) => this.require().send(deviceId, tab),
+      sendLocalTab: (deviceId, tabId) => this.require().sendLocal(deviceId, tabId),
+      openSentTab: async (id, background) => {
+        const sent = await this.require().takeSent(id)
+        if (sent) methods.openRemoteTab(sent.url, sent.mode, background, sent.state)
+      },
+      dismissSentTab: async (id) => { await this.require().takeSent(id) },
       openRemoteTab: (url, mode, background, state) => {
         if (!/^https?:\/\//i.test(url)) return
         // Where it was left: a start time in the URL, or a script for the opened page.
@@ -105,6 +113,7 @@ export class SyncControls {
       },
       resetDeviceIdentity: () => this.require().resetIdentity()
     }
+    return methods
   }
 
   private createTabSync(): TabSyncService | undefined {

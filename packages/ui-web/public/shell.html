@@ -440,6 +440,14 @@
                       <input type="checkbox" class="switch" id="tab_sync_send_target" data-option="sendTarget"
                         aria-describedby="tab_sync_send_target_hint" />
                     </div>
+                    <div class="settings_row" id="tab_sync_notifications_row" hidden>
+                      <p class="settings_row_name">Notifications for sent tabs</p>
+                      <p class="settings_row_hint" id="tab_sync_notifications_hint">
+                        The browser shows tabs sent here even while the Once panel is closed.
+                      </p>
+                      <button type="button" class="button" id="tab_sync_notifications"
+                        data-testid="tab-sync-notifications" aria-describedby="tab_sync_notifications_hint">Allow…</button>
+                    </div>
                     <div class="settings_row settings_row_inline">
                       <label class="settings_row_name" for="tab_sync_continue">Offer to continue</label>
                       <p class="settings_row_hint" id="tab_sync_continue_hint">

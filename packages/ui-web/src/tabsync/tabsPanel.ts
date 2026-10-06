@@ -17,6 +17,9 @@ export function clientRemoteTabsPort(client: OnceClient): RemoteTabsPort {
     },
     open: (tab, background) => client.openRemoteTab(tab.url, tab.mode, background, tab.state),
     thumbnail: (id) => client.getTabThumbnail(id),
+    send: (deviceId, tab) => client.sendTab(deviceId, tab),
+    openSent: (id, background) => void client.openSentTab(id, background),
+    dismissSent: (id) => void client.dismissSentTab(id),
     openSettings: openSyncSettings
   }
 }

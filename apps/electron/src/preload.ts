@@ -142,6 +142,12 @@ const bridge: ElectronBridge = {
     capture: (tabId) => ipcRenderer.invoke(ELECTRON_IPC.tabSyncCapture, tabId),
     run: (tabId, source) => ipcRenderer.invoke(ELECTRON_IPC.tabSyncRun, tabId, source),
     expectRestore: (url, source) => ipcRenderer.invoke(ELECTRON_IPC.tabSyncExpectRestore, url, source),
+    setSendTargets: (targets) => ipcRenderer.invoke(ELECTRON_IPC.tabSyncSendTargets, targets),
+    onSendTab(handler: (tabId: string, deviceId: string) => void) {
+      const listener = (_event: Electron.IpcRendererEvent, tabId: string, deviceId: string) => handler(tabId, deviceId)
+      ipcRenderer.on(ELECTRON_IPC.tabSyncSendTab, listener)
+      return () => ipcRenderer.removeListener(ELECTRON_IPC.tabSyncSendTab, listener)
+    },
     onDeselected(handler: (tabId: string) => void) {
       const listener = (_event: Electron.IpcRendererEvent, tabId: string) => handler(tabId)
       ipcRenderer.on(ELECTRON_IPC.tabSyncDeselected, listener)

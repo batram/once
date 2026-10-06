@@ -159,6 +159,14 @@ export class TabDocRepository {
     return docs.map(readSendDoc).filter((doc): doc is SendDoc => doc !== null)
   }
 
+  /** A tab sent to another device; only the target removes it, or anyone once it has expired. */
+  async putSend(target: string, send: Omit<SendDoc, "_id" | "_rev" | "type">): Promise<SendDoc> {
+    const id = `${sendDocPrefix(target)}${globalThis.crypto.randomUUID().replace(/-/g, "")}`
+    const doc = { _id: id, type: "send" as const, ...send }
+    const { rev } = await this.db.put(doc as unknown as Record<string, unknown>)
+    return { ...doc, _rev: rev }
+  }
+
   async deleteSend(doc: Pick<SendDoc, "_id" | "_rev">): Promise<void> {
     if (doc._rev) await this.db.remove(doc._id, doc._rev)
   }

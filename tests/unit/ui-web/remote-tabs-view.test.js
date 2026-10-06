@@ -10,8 +10,8 @@ const tab = (id, url, title, mode = "web") => ({ id, navSeq: 1, url, title, mode
 const device = (deviceId, name, windows, fields = {}) => ({ deviceId, name, platform: "android", sharing: true,
   updatedAt: now, stale: false, windows, ...fields })
 
-function view(devices) {
-  return { available: true, canShare: false, self: null, options: {}, shared: {}, devices, notice: null }
+function view(devices, inbox = []) {
+  return { available: true, canShare: false, self: null, options: {}, shared: {}, devices, notice: null, inbox }
 }
 
 test("lists devices and windows, filters, opens in front or behind, and keeps folding across updates", async () => {
@@ -87,6 +87,35 @@ test("explains what is missing instead of showing an empty list", async () => {
     assert.match(root.textContent, /Connect sync to see tabs from your other devices/)
     root.querySelector(".remote_tabs_notice button").click()
     assert.equal(opened, 1)
+  } finally {
+    global.document = previous
+  }
+})
+
+test("tabs sent here come first, open or go away, and listed tabs can be sent on", async () => {
+  const { document, window } = parseHTML("<html><body><div id='root'></div></body></html>")
+  const previous = global.document
+  global.document = document
+  try {
+    const calls = []
+    const root = document.querySelector("#root")
+    const inbox = [{ id: "tsend_1", fromName: "Laptop", url: "https://sent.example/", title: "Sent page", mode: "web", createdAt: now }]
+    mountRemoteTabs(root, {
+      load: async () => ({ connected: true, view: view([device("a", "Phone", [{ id: "w", focused: true, tabs: [tab("1", "https://x.example/", "X")] }])], inbox) }),
+      subscribe: () => () => undefined,
+      open: () => undefined,
+      openSent: (id, background) => calls.push(["open", id, background]),
+      dismissSent: (id) => calls.push(["dismiss", id]),
+      send: async () => undefined
+    })
+    await settle()
+    const section = root.querySelector("[data-testid=remote-inbox]")
+    assert.equal(root.querySelector(".remote_tabs_body").firstElementChild, section)
+    assert.match(section.textContent, /Sent page.*from Laptop/)
+    section.querySelector(".remote_tab_link").dispatchEvent(Object.assign(new window.Event("click", { cancelable: true }), {}))
+    section.querySelector("button").click()
+    assert.deepEqual(calls, [["open", "tsend_1", false], ["dismiss", "tsend_1"]])
+    assert.ok(root.querySelector(".remote_tab_send"), "listed tabs offer sending")
   } finally {
     global.document = previous
   }

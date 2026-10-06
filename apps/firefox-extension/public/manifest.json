@@ -41,6 +41,7 @@
     "declarativeNetRequestWithHostAccess",
     "<all_urls>"
   ],
+  "optional_permissions": ["notifications"],
   "web_accessible_resources": ["static/wafli-module.wasm"],
   "browser_action": {
     "default_icon": {

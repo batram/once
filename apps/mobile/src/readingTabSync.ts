@@ -1,5 +1,5 @@
-import { pageScriptSource, type LocalWindow, type TabOpenerPort, type TabSourcePort } from "@once/app"
-import { PanelNavigation } from "@once/ui-web"
+import { pageScriptSource, type LocalWindow, type OnceClient, type TabOpenerPort, type TabSourcePort } from "@once/app"
+import { clientRemoteTabsPort, PanelNavigation, pickDevice } from "@once/ui-web"
 import type { MobileReadingController } from "./readingController"
 import type { ReadingTab, ReadingTabs } from "./readingTabs"
 
@@ -112,4 +112,21 @@ export function restoreWhenLoaded(tab: ReadingTab, url: string, script: string, 
     if (loaded) void evaluate(script).catch(() => undefined)
   })
   if (done) subscription.stop()
+}
+
+/** Other devices' tabs under this phone's in the tab view, and sending the current tab from it. */
+export function mountTabSyncInTabView(reading: Pick<MobileReadingController, "tabs" | "tabDialog">, client: OnceClient): void {
+  reading.tabDialog.showOtherDevices(clientRemoteTabsPort(client))
+  reading.tabDialog.enableSending(() => sendCurrentTab(client, reading.tabs))
+}
+
+/** Sends the selected reading tab to a device the reader picks; resolves with its name, or null. */
+async function sendCurrentTab(client: OnceClient, tabs: ReadingTabs): Promise<string | null> {
+  const tabId = tabs.activeId
+  const view = await client.getTabSync()
+  if (!tabId || !view) return null
+  const target = await pickDevice(view.devices, "Send this tab to")
+  if (!target) return null
+  await client.sendLocalTab(target, tabId)
+  return view.devices.find((device) => device.deviceId === target)?.name ?? null
 }

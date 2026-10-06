@@ -91,3 +91,52 @@ export function describeTabState(state: Record<string, { data: unknown }> | unde
   const reader = readReaderPosition(state?.[READER_STATE.id]?.data)
   return reader ? `Read ${Math.round(reader.fraction * 100)} %` : ""
 }
+
+const MINUTE = 60_000
+
+export interface ContinueCandidate {
+  deviceId: string
+  deviceName: string
+  tab: import("./tabDocs").SyncedTab
+  /** What a dismissal remembers: this page of this tab on this device. */
+  key: string
+}
+
+/**
+ * The tab worth offering to continue here: one another device was using
+ * moments ago, with a video or article position to continue from.
+ *
+ * Two clocks are involved. The tab's use is measured against its own
+ * device's publication time, both from that device's clock, so skew does
+ * not matter. Whether the publication itself is recent compares the other
+ * device's clock with this one: a snapshot from the future beyond two
+ * minutes, or older than the freshness limit, is not offered. Receiving a
+ * publication only now never makes it recent: live sync can deliver one
+ * queued days ago.
+ */
+export function continueCandidate(
+  devices: ReadonlyArray<{ deviceId: string; name: string; updatedAt: string; windows: import("./tabDocs").SyncedWindow[] }>,
+  limits: { activityWindowMinutes: number; freshnessWindowMinutes: number },
+  dismissed: ReadonlySet<string>,
+  now = Date.now()
+): ContinueCandidate | null {
+  let best: ContinueCandidate | null = null
+  let bestActivity = -Infinity
+  for (const device of devices) {
+    const published = Date.parse(device.updatedAt)
+    const age = now - published
+    if (!Number.isFinite(published) || age < -2 * MINUTE || age > limits.freshnessWindowMinutes * MINUTE) continue
+    for (const tab of device.windows.flatMap((group) => group.tabs)) {
+      const activity = Date.parse(tab.activityAt)
+      const lag = published - activity
+      if (!Number.isFinite(activity) || lag < 0 || lag > limits.activityWindowMinutes * MINUTE) continue
+      const position = tab.state?.[MEDIA_STATE.id] ?? tab.state?.[READER_STATE.id]
+      if (!position || Date.parse(position.capturedAt) < activity - MINUTE || !describeTabState(tab.state)) continue
+      const key = `${device.deviceId}:${tab.id}:${tab.navSeq}`
+      if (dismissed.has(key) || activity <= bestActivity) continue
+      best = { deviceId: device.deviceId, deviceName: device.name, tab, key }
+      bestActivity = activity
+    }
+  }
+  return best
+}

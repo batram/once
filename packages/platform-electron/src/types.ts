@@ -315,6 +315,10 @@ export interface ElectronBridge {
     /** Runs `source` once the next tab showing `url`, or its reader, has loaded. */
     expectRestore(url: string, source: string): Promise<void>
     onDeselected(handler: (tabId: string) => void): () => void
+    /** The devices the tab menu offers to send a tab to. */
+    setSendTargets(targets: Array<{ deviceId: string; name: string }>): Promise<void>
+    /** The tab menu's "Send Tab to Device" was chosen for a tab of this window. */
+    onSendTab(handler: (tabId: string, deviceId: string) => void): () => void
   }
   /** The tabs page in this window's tabs: opened or focused here, fed with the shell's view. */
   remoteTabs: {
@@ -471,6 +475,8 @@ export const ELECTRON_IPC = {
   tabSyncRun: "once:tabsync:run",
   tabSyncExpectRestore: "once:tabsync:expect-restore",
   tabSyncDeselected: "once:tabsync:deselected",
+  tabSyncSendTargets: "once:tabsync:send-targets",
+  tabSyncSendTab: "once:tabsync:send-tab",
   panelPageShow: "once:panel-page:show",
   panelPageSetBounds: "once:panel-page:set-bounds",
   panelPageClose: "once:panel-page:close",
@@ -545,6 +551,9 @@ export interface ElectronRemoteTabsPageBridge {
 export type ElectronRemoteTabsCommand =
   | { type: "open"; url: string; mode: "web" | "reader"; background: boolean; state?: unknown }
   | { type: "settings" }
+  | { type: "send"; deviceId: string; tab: { url: string; title: string; mode: "web" | "reader"; state?: unknown } }
+  | { type: "open-sent"; id: string; background: boolean }
+  | { type: "dismiss-sent"; id: string }
 
 /** The conversation page's location; its query names the conversation. */
 export const ADDON_CONVERSATION_URL = "once-addon://conversation/index.html"

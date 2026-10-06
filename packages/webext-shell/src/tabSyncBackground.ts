@@ -5,6 +5,7 @@ import {
   TabDocRepository,
   TabSyncService
 } from "@once/app/tabsync"
+import { installTabSyncSending } from "./tabSyncSending"
 import type { ListStorePort, SyncConsentPort } from "@once/app"
 import { couchHttpTabDocs } from "@once/persistence"
 import { createFirefoxSyncConsent, deviceName, WebExtSecretStorage, WebExtSyncStorage } from "@once/platform-webext/backgroundPorts"
@@ -34,6 +35,7 @@ export function installTabSyncBackground(api: typeof browser, target: "chrome" |
   const identity = new DeviceIdentity(secrets, target, deviceName(target))
   let connection = 0
   let current: { service: TabSyncService; generation: number } | null = null
+  const sending = installTabSyncSending(api, target, () => current?.service ?? null)
 
   const connect = async () => {
     const generation = ++connection
@@ -54,7 +56,7 @@ export function installTabSyncBackground(api: typeof browser, target: "chrome" |
         if (needed) void api.alarms.create(SAMPLE_ALARM, { periodInMinutes: 0.5 })
         else void api.alarms.clear(SAMPLE_ALARM)
       },
-      changed: () => undefined,
+      changed: () => sending.changed(),
       reportError: (operation, error) => {
         console.warn(`Tab sync ${operation} failed; retrying later`, error)
         void api.alarms.create(RETRY_ALARM, { delayInMinutes: 1 })
@@ -77,7 +79,8 @@ export function installTabSyncBackground(api: typeof browser, target: "chrome" |
   api.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === SAMPLE_ALARM) void current?.service.sampleNow()
     else if (alarm.name === HEARTBEAT_ALARM || alarm.name === RETRY_ALARM) {
-      if (current) current.service.publishSoon()
+      // Without a change feed here, the heartbeat is also when sent tabs are noticed.
+      if (current) { current.service.publishSoon(); current.service.refreshSoon() }
       else restart()
     }
   })

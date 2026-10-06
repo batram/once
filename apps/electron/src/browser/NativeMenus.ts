@@ -6,7 +6,7 @@ import {
   shell,
   WebContents
 } from "electron"
-import { ElectronPoint } from "@once/platform-electron/bridge"
+import { ELECTRON_IPC, ElectronPoint } from "@once/platform-electron/bridge"
 import { ElectronStoryMenuItem } from "@once/platform-electron/bridge"
 import { WindowEntry } from "./BrowserState"
 import { PageActions } from "./PageActions"
@@ -27,6 +27,8 @@ const isWebUrl = (url: unknown): url is string => typeof url === "string" && (ur
 export class NativeMenus {
   /** The add-on actions each window's renderer offers for pages; the page menu lists them. */
   readonly pageActions = new PageActions()
+  /** The devices a tab can be sent to, as the renderer last reported them. */
+  sendTargets: Array<{ deviceId: string; name: string }> = []
 
   constructor(private readonly actions: NativeMenuActions) {}
 
@@ -50,6 +52,15 @@ export class NativeMenus {
         click: () => this.actions.toggleMuted(owner, id)
       })
       template.push({ type: "separator" })
+    }
+    if (this.sendTargets.length) {
+      template.push({
+        label: "Send Tab to Device",
+        submenu: this.sendTargets.map((target) => ({
+          label: target.name,
+          click: () => { if (!owner.window.isDestroyed()) owner.window.webContents.send(ELECTRON_IPC.tabSyncSendTab, id, target.deviceId) }
+        }))
+      }, { type: "separator" })
     }
     template.push(
       { label: "Duplicate Tab", click: () => void this.actions.duplicate(owner, id) },

@@ -118,3 +118,23 @@ test("tab state: YouTube starts where it was left, and states are validated and 
   assert.equal(describeTabState({ "reader.scroll": { data: { fraction: 0.4, anchor: null } } }), "Read 40 %")
   assert.equal(describeTabState({ "addon:x": { data: 1 } }), "")
 })
+
+test("the continue banner offers only a tab used moments before a recent publication, with a position", () => {
+  const { continueCandidate } = require("../../../packages/core/dist")
+  const now = Date.parse("2026-10-06T12:00:00.000Z")
+  const iso = (minutesAgo) => new Date(now - minutesAgo * 60_000).toISOString()
+  const media = (minutesAgo) => ({ media: { v: 1, capturedAt: iso(minutesAgo), data: { currentTime: 754, duration: 3600, paused: false, rate: 1 } } })
+  const tabOf = (id, activityAgo, fields = {}) => ({ id, navSeq: 1, url: `https://video.example/${id}`, title: id, mode: "web", active: true,
+    openedAt: iso(300), navigatedAt: iso(300), selectedAt: iso(300), activityAt: iso(activityAgo), state: media(activityAgo), ...fields })
+  const deviceOf = (deviceId, updatedAgo, tabs) => ({ deviceId, name: deviceId, updatedAt: iso(updatedAgo), windows: [{ id: "w", focused: true, tabs }] })
+  const limits = { activityWindowMinutes: 15, freshnessWindowMinutes: 30 }
+  const pick = (devices, dismissed = new Set()) => continueCandidate(devices, limits, dismissed, now)?.tab.id ?? null
+
+  assert.equal(pick([deviceOf("phone", 2, [tabOf("long-session", 3)])]), "long-session", "selected long ago, used just now")
+  assert.equal(pick([deviceOf("phone", 45, [tabOf("stale", 46)])]), null, "an old snapshot, however it arrived")
+  assert.equal(pick([deviceOf("phone", -60, [tabOf("future", -61)])]), null, "a device clock an hour ahead")
+  assert.equal(pick([deviceOf("phone", 1, [tabOf("idle", 20)])]), null, "not used recently before its publication")
+  assert.equal(pick([deviceOf("phone", 1, [tabOf("plain", 2, { state: undefined })])]), null, "nothing to continue from")
+  assert.equal(pick([deviceOf("phone", 1, [tabOf("a", 5), tabOf("b", 2)]), deviceOf("tablet", 1, [tabOf("c", 4)])]), "b")
+  assert.equal(pick([deviceOf("phone", 1, [tabOf("a", 5), tabOf("b", 2)])], new Set(["phone:b:1"])), "a", "a dismissed tab is skipped")
+})

@@ -270,3 +270,35 @@ test("the position of a tab is read when it is left, and published while another
     await h.close()
   }
 })
+
+test("a tab sent to another device waits in its inbox until opened there, and only listed devices receive", async () => {
+  const h = await harness()
+  try {
+    const laptop = await h.device("laptop", source([{ id: "w", focused: true, tabs: [] }]))
+    await laptop.service.setOptions({ sharing: false, sendTarget: true })
+    await h.settle(laptop.service)
+    await laptop.push()
+    const phoneSource = source([{ id: "w", focused: true, tabs: [tab("a", "https://news.example/a", { active: true, title: "News" })] }])
+    phoneSource.runInPage = async () => ({ currentTime: 42, duration: 100, paused: true, rate: 1 })
+    const phone = await h.device("phone", phoneSource)
+    await phone.pull()
+    await h.settle(phone.service)
+    const laptopId = (await laptop.identity.get()).id
+    await assert.rejects(phone.service.send("fedcba9876543210fedcba9876543210", { url: "https://x.example/", title: "x", mode: "web" }), /can no longer receive/)
+    await phone.service.sendLocal(laptopId, "a")
+    await phone.push()
+    await laptop.pull()
+    await h.settle(laptop.service)
+    const [sent] = (await laptop.service.view()).inbox
+    assert.equal(sent.fromName, "phone")
+    assert.equal(sent.state.media.data.currentTime, 42)
+    assert.deepEqual((await phone.service.view()).inbox, [], "the sender's own inbox stays empty")
+    const taken = await laptop.service.takeSent(sent.id)
+    assert.equal(taken.url, "https://news.example/a")
+    await h.settle(laptop.service)
+    assert.deepEqual((await laptop.service.view()).inbox, [])
+    assert.deepEqual((await laptop.db.allDocs({ startkey: "tsend_", endkey: "tsend_￿" })).rows, [])
+  } finally {
+    await h.close()
+  }
+})

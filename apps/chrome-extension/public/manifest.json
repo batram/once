@@ -23,6 +23,7 @@
     "declarativeNetRequestWithHostAccess"
   ],
   "host_permissions": ["<all_urls>"],
+  "optional_permissions": ["notifications"],
   "content_scripts": [{
     "matches": ["http://*/*", "https://*/*"],
     "js": ["page-action-target.js"],

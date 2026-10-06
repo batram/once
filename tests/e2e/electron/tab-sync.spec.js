@@ -210,3 +210,55 @@ test("a media position is read when its tab is left, and restored when another d
     await remote.destroy()
   }
 })
+
+test("a tab sent here shows as a toast and opens; the tab just used on another device is offered to continue", async () => {
+  test.setTimeout(90000)
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "once-tab-sync-send-"))
+  const Db = PouchDB.defaults({ prefix: directory + path.sep })
+  const remote = new Db("once")
+  await remote.info()
+  const feed = await startPageServer()
+  const urls = stories.storyUrls(feed.origin)
+  const api = expressPouchDB(Db, { mode: "minimumForPouchDB", inMemoryConfig: true })
+  const http = await new Promise((resolve) => { const server = api.listen(0, "127.0.0.1", () => resolve(server)) })
+  const app = await launchApp({ env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0" } })
+  try {
+    const page = app.window
+    await openSettingsSection(page, "sync", "#couch_input")
+    await page.getByTestId("sync-url").fill(`http://127.0.0.1:${http.address().port}/once`)
+    await page.getByTestId("save-sync").click()
+    await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "up-to-date", { timeout: 20000 })
+    const self = JSON.parse(await page.evaluate(() => window.onceElectron.settings.getSecret("once:device-identity"))).id
+    const at = new Date().toISOString()
+    await remote.bulkDocs([{
+      _id: `dev_${otherDevice}`, type: "device", schema: 1, deviceId: otherDevice, epoch: 1, seq: 4, name: "Test phone",
+      platform: "android", appVersion: "1", sharing: true, updatedAt: at,
+      windows: [{ id: "phone", focused: true, tabs: [{ id: "a", navSeq: 1, url: urls.epsilon, title: "Epsilon watched on the phone",
+        mode: "web", active: true, openedAt: at, navigatedAt: at, selectedAt: at, activityAt: at,
+        state: { media: { v: 1, capturedAt: at, data: { currentTime: 33, duration: 60, paused: true, rate: 1 } } } }] }]
+    }, {
+      _id: `tsend_${self}_0123456789abcdef0123456789abcdef`, type: "send", from: otherDevice, fromName: "Test phone",
+      url: urls.zeta, title: "Zeta sent from the phone", mode: "web", createdAt: at
+    }])
+
+    const toast = page.getByTestId("sent-tab-toast")
+    await expect(toast).toContainText("Zeta sent from the phone", { timeout: 20000 })
+    await expect(toast).toContainText("Sent from Test phone")
+    await toast.getByRole("button", { name: "Open" }).click()
+    await expect.poll(async () => (await page.evaluate(() => window.onceElectron.tabs.getAll())).find((tab) => tab.active)?.url).toBe(urls.zeta)
+    await expect.poll(async () => (await remote.allDocs({ startkey: "tsend_", endkey: "tsend_￿" })).rows.length, { timeout: 20000 }).toBe(0)
+
+    const banner = page.getByTestId("continue-banner")
+    await expect(banner).toContainText("Continue Epsilon watched on the phone")
+    await expect(banner).toContainText("from Test phone · ⏸ 0:33 / 1:00")
+    await banner.screenshot({ path: "artifacts/tab-sync/continue-banner-electron.png" })
+    await banner.getByRole("button", { name: "Dismiss" }).click()
+    await expect(banner).toBeHidden()
+  } finally {
+    await closeApp(app.electronApp, app.userData)
+    await feed.close()
+    http.closeAllConnections()
+    await new Promise((resolve) => http.close(resolve))
+    await remote.destroy()
+  }
+})

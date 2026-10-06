@@ -774,6 +774,23 @@ and screenshots from database A would therefore be uploaded to database B.
   leave-a-tab integration test, media capture and restore end to end on Electron and capture on Chrome
   (`tests/e2e/shared/media-server.js`), and reader restore and capture in `tests/e2e/mobile/tab-sync.spec.js`.
 
+### Phase 5 status (implemented)
+
+- Sending: `TabSyncService.send`/`sendLocal` write `tsend_<target>_<uuid>` to devices the view lists
+  (with the tab's state when sent from this device); the target's inbox (`view.inbox`) lists them
+  until `takeSent` opens or dismisses them. Entry points: "Send" on every listed tab (all shells),
+  "Send Tab to Device" in the Electron tab menu, "Send tab to device" in the extensions' page menu
+  (from the background), and "Send" in the mobile tab view for the current tab.
+- Receiving: a toast with Open/Later (`tabSyncNotices.ts`), a count on the Tabs entries, and a
+  "Sent to this device" section at the top of the list. The extension background notices sends on its
+  heartbeat and shows a browser notification when the optional `notifications` permission was granted
+  from Settings › Sync.
+- Continue banner: `continueCandidate` in core applies §6 (use within the activity window before a
+  publication that is itself recent by the freshness window, two minutes of tolerance for clocks
+  ahead, a position captured with that use, not dismissed); re-judged every minute, on return to the
+  app and on changes; dismissals kept per device, tab and page.
+- Not covered end to end: the extensions' page menu and notifications.
+
 ## Nice-to-haves (not v1)
 
 - Recently closed tabs from other devices.

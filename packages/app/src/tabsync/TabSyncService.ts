@@ -4,6 +4,8 @@ import {
   readTabSyncSharedSettings,
   RetirementDoc,
   RETIREMENT_DOC_PREFIX,
+  SendDoc,
+  SEND_DOC_PREFIX,
   SyncedTab,
   TAB_SYNC_SETTINGS_ID,
   THUMB_DOC_PREFIX,
@@ -32,6 +34,17 @@ export interface RemoteDeviceView {
   windows: DeviceDoc["windows"]
 }
 
+/** A tab another device sent here, waiting to be opened or dismissed. */
+export interface SentTabView {
+  id: string
+  fromName: string
+  url: string
+  title: string
+  mode: "web" | "reader"
+  createdAt: string
+  state?: SendDoc["state"]
+}
+
 export interface TabSyncView {
   /** False on a client without the storage tab sync needs. */
   available: boolean
@@ -44,6 +57,8 @@ export interface TabSyncView {
   devices: RemoteDeviceView[]
   /** Why this device stopped sharing, when another device removed it. */
   notice: string | null
+  /** Tabs other devices sent here, newest first. */
+  inbox: SentTabView[]
 }
 
 export interface TabSyncDependencies {
@@ -77,6 +92,7 @@ export interface TabSyncDependencies {
 export class TabSyncService {
   private devices = new Map<string, DeviceDoc>()
   private retirements = new Map<string, RetirementDoc>()
+  private inbox: SendDoc[] = []
   private shared: TabSyncSharedSettings = { sendRetentionDays: 14 }
   private notice: string | null = null
   private queue: Promise<unknown> = Promise.resolve()
@@ -147,7 +163,8 @@ export class TabSyncService {
     if (change.id === "tabsync") this.scheduleRefresh()
     // A screenshot arrived after the publication naming it: views can show it now.
     else if (change.id.startsWith(THUMB_DOC_PREFIX)) this.deps.changed()
-    else if (change.id.startsWith(DEVICE_DOC_PREFIX) || change.id.startsWith(RETIREMENT_DOC_PREFIX)) this.scheduleRefresh()
+    else if (change.id.startsWith(DEVICE_DOC_PREFIX) || change.id.startsWith(RETIREMENT_DOC_PREFIX) ||
+      change.id.startsWith(SEND_DOC_PREFIX)) this.scheduleRefresh()
   }
 
   /** Sync connected, disconnected or was blocked. */
@@ -159,6 +176,11 @@ export class TabSyncService {
   optionsChangedElsewhere(): void {
     this.deps.identity.invalidate()
     void this.reevaluate(true)
+  }
+
+  /** Rereads the other devices and this device's inbox, for a context without a change feed. */
+  refreshSoon(): void {
+    this.scheduleRefresh()
   }
 
   /** A heartbeat or retry: publish now, even if nothing changed. */
@@ -207,7 +229,9 @@ export class TabSyncService {
     return {
       available: true, canShare: Boolean(this.deps.source) || this.deps.sharesElsewhere === true,
       self: { deviceId: record.id, name: record.name, platform: this.deps.identity.platform },
-      options, shared: this.shared, devices, notice: this.notice
+      options, shared: this.shared, devices, notice: this.notice,
+      inbox: this.inbox.map((send) => ({ id: send._id, fromName: send.fromName, url: send.url, title: send.title,
+        mode: send.mode, createdAt: send.createdAt, ...(send.state ? { state: send.state } : {}) }))
     }
   }
 
@@ -231,6 +255,42 @@ export class TabSyncService {
     this.channel?.postMessage({ type: "identity" })
     this.lastFingerprint = ""
     this.schedule(0)
+  }
+
+  /** Sends a tab to another device, which lists it until it is opened or dismissed there. */
+  async send(target: string, tab: Pick<SendDoc, "url" | "title" | "mode" | "state">): Promise<void> {
+    const record = await this.deps.identity.get()
+    const device = this.devices.get(target)
+    if (target === record.id || !device || !visibleDevice(device, this.retirements.get(target))) {
+      throw new Error("That device can no longer receive tabs")
+    }
+    if (!/^https?:\/\//i.test(tab.url)) throw new Error("Only web pages can be sent")
+    await this.deps.repository.putSend(target, {
+      from: record.id, fromName: record.name, url: tab.url, title: tab.title.slice(0, 512), mode: tab.mode,
+      ...(tab.state ? { state: tab.state } : {}), createdAt: new Date().toISOString()
+    })
+  }
+
+  /** Sends one of this device's tabs, with where it was left. */
+  async sendLocal(target: string, tabId: string): Promise<void> {
+    if (!this.deps.source) throw new Error("This device's tabs cannot be sent from here")
+    const listed = publishedWindows(await this.deps.source.snapshot(), { ...await this.deps.identity.getOptions(), excludedDomains: [] })
+    const tab = listed.flatMap((window) => window.tabs).find((item) => item.id === tabId)
+    if (!tab) throw new Error("Only web pages can be sent")
+    await this.states.capture(tab)
+    const [withState] = this.states.attach([{ id: "", focused: false, tabs: [tab] }])
+    await this.send(target, { url: tab.url, title: tab.title, mode: tab.mode, state: withState.tabs[0].state })
+  }
+
+  /** Takes a sent tab out of the inbox: opened or dismissed, it is gone on every device. */
+  async takeSent(id: string): Promise<SentTabView | null> {
+    const send = this.inbox.find((item) => item._id === id)
+    if (!send) return null
+    this.inbox = this.inbox.filter((item) => item !== send)
+    this.deps.changed()
+    await this.deps.repository.deleteSend(send)
+    return { id: send._id, fromName: send.fromName, url: send.url, title: send.title, mode: send.mode, createdAt: send.createdAt,
+      ...(send.state ? { state: send.state } : {}) }
   }
 
   async setShared(change: Partial<TabSyncSharedSettings>): Promise<void> {
@@ -426,6 +486,9 @@ export class TabSyncService {
       this.retirements = new Map(retirements.map((record) => [record.deviceId, record]))
       this.shared = readTabSyncSharedSettings(shared)
       const record = await this.deps.identity.get()
+      // Only this device's own inbox, by its exact prefix.
+      this.inbox = (await this.deps.repository.listSends(record.id))
+        .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
       const own = this.retirements.get(record.id)
       if (this.publisher && own && own.retiredEpoch >= record.epoch && this.heartbeat) {
         await this.enqueue(() => this.retireSelf(own))

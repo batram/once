@@ -12,6 +12,7 @@ import * as SidebarFilters from "./shell/sidebarFilters"
 import * as StorySearch from "./story/storySearch"
 import { setOnceClient } from "./client"
 import { mountTabsPanel } from "./tabsync/tabsPanel"
+import { mountTabSyncNotices } from "./tabsync/tabSyncNotices"
 import { SettingsPanel } from "./settings/SettingsPanel"
 import { StoryHistory } from "./story/StoryHistory"
 import { setSelectedUrl } from "./story/selectedStoryToggle"
@@ -198,6 +199,7 @@ export async function mountOnceUi(
 
   StoryList.init(client, { spinTimeout: options.reloadSpinTimeout })
   mountTabsPanel(client, options.tabsPanel === true)
+  mountTabSyncNotices(client)
   PanelNavigation.init()
   SidebarFilters.init(client)
   LoaderInsights.init(client, {

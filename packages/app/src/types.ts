@@ -198,6 +198,14 @@ export interface OnceClient {
   /** Opens another device's tab here, in a new tab; never replaces the page being read. */
   openRemoteTab(url: string, mode: "web" | "reader", background: boolean,
     state?: Record<string, import("@once/core").TabStateEntry>): void
+  /** Sends a tab (another device's, from a list) to a device, which lists it until opened. */
+  sendTab(deviceId: string, tab: { url: string; title: string; mode: "web" | "reader";
+    state?: Record<string, import("@once/core").TabStateEntry> }): Promise<void>
+  /** Sends one of this device's tabs, by its id here, with where it was left. */
+  sendLocalTab(deviceId: string, tabId: string): Promise<void>
+  /** Opens a tab sent here where it was left, and takes it out of the inbox. */
+  openSentTab(id: string, background: boolean): Promise<void>
+  dismissSentTab(id: string): Promise<void>
   /** Removes another device from tab sync until it turns sharing on again. */
   forgetDevice(deviceId: string): Promise<void>
   resetDeviceIdentity(): Promise<void>

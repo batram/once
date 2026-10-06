@@ -89,3 +89,31 @@ test("an article opened from another device continues where it was read, and its
     return tab?.state?.["reader.scroll"]?.data.fraction ?? 0
   }, { timeout: 40_000 }).toBeGreaterThan(0.9)
 })
+
+test("the tab view sends the current tab to another device", async ({ page, request, baseURL }) => {
+  const database = "web_tab_sync_send"
+  const server = new URL(baseURL).origin
+  const at = new Date().toISOString()
+  await request.post(`${server}/test/databases/${database}/reset`, {
+    data: { docs: [{ _id: `dev_${otherDevice}`, type: "device", schema: 1, deviceId: otherDevice, epoch: 1, seq: 2,
+      name: "Test laptop", platform: "electron", appVersion: "1", sharing: false, updatedAt: at, windows: [] }] }
+  })
+  await gotoMobileApp(page)
+  await openSettingsSection(page, "sync")
+  await page.getByTestId("sync-url").fill(`${server.replace("http://", "http://once-test:once-test@")}/db/${database}`)
+  await page.getByTestId("save-sync").click()
+  await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "up-to-date", { timeout: 15_000 })
+
+  await page.getByRole("button", { name: "Reading", exact: true }).click()
+  await page.locator("#reading_url").fill("https://first.example/to-send")
+  await page.locator("#reading_url").press("Enter")
+  await page.locator("#reading_tabs").click()
+  // The other device has arrived once the tab view lists it.
+  await expect(page.getByTestId("reading-tabs-other-devices")).toContainText("Test laptop")
+  await page.getByTestId("reading-tabs-send").click()
+  await page.getByTestId("device-picker").getByRole("button", { name: "Test laptop" }).click()
+  await expect(page.locator(".reading_tab_status")).toHaveText("Sent to Test laptop")
+  const response = await request.get(`${server}/db/${database}/_all_docs?include_docs=true&startkey=%22tsend_${otherDevice}_%22&endkey=%22tsend_${otherDevice}_%EF%BF%BF%22`, { headers: auth })
+  const sends = (await response.json()).rows.map((row) => row.doc)
+  expect(sends.map((send) => send.url)).toEqual(["https://first.example/to-send"])
+})

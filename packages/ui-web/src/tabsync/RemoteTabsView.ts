@@ -1,4 +1,5 @@
-import type { RemoteDeviceView, TabSyncView } from "@once/app"
+import type { RemoteDeviceView, SentTabView, TabSyncView } from "@once/app"
+import { pickDevice } from "./devicePicker"
 import { describeTabState, humanTime, SyncedTab } from "@once/core"
 
 /** What the view needs, from the app client or from a page relaying to it. */
@@ -8,6 +9,11 @@ export interface RemoteTabsPort {
   open(tab: Pick<SyncedTab, "url" | "mode" | "state">, background: boolean): void
   /** A tab's screenshot as a data URL, or null while it has not arrived. */
   thumbnail?(id: string): Promise<string | null>
+  /** Sends a listed tab on to another device. */
+  send?(deviceId: string, tab: Pick<SyncedTab, "url" | "title" | "mode" | "state">): Promise<void>
+  /** Opens or dismisses a tab another device sent here. */
+  openSent?(id: string, background: boolean): void
+  dismissSent?(id: string): void
   /** Shows the Sync settings, where sync and sharing are set up. */
   openSettings?(): void
 }
@@ -66,11 +72,15 @@ export function mountRemoteTabs(root: HTMLElement, port: RemoteTabsPort): Remote
       return
     }
     filter.hidden = false
-    const sections = (state.view?.devices ?? []).flatMap((device) => {
-      const section = deviceSection(device, query, collapsed, port, render, showThumb)
+    const devices = state.view?.devices ?? []
+    const send = port.send && ((tab: SyncedTab) => void pickDevice(devices, `Send “${tab.title || tab.url}” to`)
+      .then((target) => target ? port.send?.(target, tab) : undefined).catch((error) => console.error("Could not send the tab", error)))
+    const sections = devices.flatMap((device) => {
+      const section = deviceSection(device, query, collapsed, port, render, showThumb, send)
       return section ? [section] : []
     })
-    body.replaceChildren(...(sections.length ? sections : [notice("No tabs match the filter.")]))
+    const inbox = inboxSection(state.view?.inbox ?? [], port)
+    body.replaceChildren(...(inbox ? [inbox] : []), ...(sections.length ? sections : [notice("No tabs match the filter.")]))
   }
 
   const refresh = () => {
@@ -97,7 +107,7 @@ export function mountRemoteTabs(root: HTMLElement, port: RemoteTabsPort): Remote
 function emptyMessage({ view, connected }: RemoteTabsState): string | null {
   if (!view) return "Tabs from other devices are not available here."
   if (!connected && !view.devices.length) return "Connect sync to see tabs from your other devices."
-  if (!view.devices.length) return "No other devices yet. Turn on sharing in Settings › Sync on another device."
+  if (!view.devices.length && !view.inbox.length) return "No other devices yet. Turn on sharing in Settings › Sync on another device."
   return null
 }
 
@@ -107,7 +117,8 @@ function deviceSection(
   collapsed: Set<string>,
   port: RemoteTabsPort,
   rerender: () => void,
-  showThumb: (image: HTMLImageElement, id: string) => void
+  showThumb: (image: HTMLImageElement, id: string) => void,
+  send?: (tab: SyncedTab) => void
 ): HTMLElement | null {
   const windows = device.windows
     .map((entry) => ({ ...entry, tabs: entry.tabs.filter((tab) => matches(tab, query)) }))
@@ -150,7 +161,7 @@ function deviceSection(
     }
     const list = document.createElement("ul")
     list.className = "remote_tab_list"
-    list.append(...entry.tabs.map((tab) => tabRow(tab, port, showThumb)))
+    list.append(...entry.tabs.map((tab) => tabRow(tab, port, showThumb, send)))
     section.append(list)
   })
   return section
@@ -171,7 +182,12 @@ function windowHeading(label: string, tabs: SyncedTab[], port: RemoteTabsPort): 
   return heading
 }
 
-function tabRow(tab: SyncedTab, port: RemoteTabsPort, showThumb: (image: HTMLImageElement, id: string) => void): HTMLLIElement {
+function tabRow(
+  tab: SyncedTab,
+  port: RemoteTabsPort,
+  showThumb: (image: HTMLImageElement, id: string) => void,
+  send?: (tab: SyncedTab) => void
+): HTMLLIElement {
   const row = document.createElement("li")
   row.className = "remote_tab"
   row.dataset.testid = "remote-tab"
@@ -216,7 +232,62 @@ function tabRow(tab: SyncedTab, port: RemoteTabsPort, showThumb: (image: HTMLIma
   background.append(icon)
   background.addEventListener("click", () => port.open(tab, true))
   row.append(link, background)
+  if (send) {
+    const sendButton = document.createElement("button")
+    sendButton.type = "button"
+    sendButton.className = "button remote_tab_send"
+    sendButton.textContent = "Send"
+    sendButton.title = "Send to another device"
+    sendButton.setAttribute("aria-label", `Send ${tab.title || "tab"} to another device`)
+    sendButton.addEventListener("click", () => send(tab))
+    row.append(sendButton)
+  }
   return row
+}
+
+/** Tabs other devices sent here, above everything else until opened or dismissed. */
+function inboxSection(inbox: SentTabView[], port: RemoteTabsPort): HTMLElement | null {
+  if (!inbox.length || !port.openSent) return null
+  const section = document.createElement("section")
+  section.className = "remote_device remote_inbox"
+  section.dataset.testid = "remote-inbox"
+  const heading = document.createElement("p")
+  heading.className = "remote_device_name"
+  heading.textContent = "Sent to this device"
+  const list = document.createElement("ul")
+  list.className = "remote_tab_list"
+  for (const sent of inbox) {
+    const row = document.createElement("li")
+    row.className = "remote_tab"
+    const link = document.createElement("a")
+    link.className = "remote_tab_link"
+    link.href = sent.url
+    const text = document.createElement("span")
+    text.className = "remote_tab_text"
+    const title = document.createElement("span")
+    title.className = "remote_tab_title"
+    title.textContent = sent.title || sent.url
+    const detail = document.createElement("span")
+    detail.className = "remote_tabs_meta"
+    detail.textContent = [`from ${sent.fromName}`, ...(describeTabState(sent.state) ? [describeTabState(sent.state)] : []),
+      humanTime(Date.parse(sent.createdAt))].join(" · ")
+    text.append(title, detail)
+    link.append(text)
+    link.addEventListener("click", (event) => {
+      event.preventDefault()
+      port.openSent?.(sent.id, Boolean(event.metaKey || event.ctrlKey || event.shiftKey))
+    })
+    const dismiss = document.createElement("button")
+    dismiss.type = "button"
+    dismiss.className = "button"
+    dismiss.textContent = "Dismiss"
+    dismiss.setAttribute("aria-label", `Dismiss ${sent.title || "sent tab"}`)
+    dismiss.addEventListener("click", () => port.dismissSent?.(sent.id))
+    row.append(link, dismiss)
+    list.append(row)
+  }
+  section.append(heading, list)
+  return section
 }
 
 /** The tab's screenshot, or its site's initial until one arrives. */

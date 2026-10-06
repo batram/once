@@ -32,6 +32,9 @@ if (!bridge) {
     },
     open: (tab, background) => bridge.send({ type: "open", url: tab.url, mode: tab.mode, background, state: tab.state }),
     thumbnail: async (id) => thumbs[id] ?? null,
+    send: async (deviceId, tab) => bridge.send({ type: "send", deviceId, tab: { url: tab.url, title: tab.title, mode: tab.mode, state: tab.state } }),
+    openSent: (id, background) => bridge.send({ type: "open-sent", id, background }),
+    dismissSent: (id) => bridge.send({ type: "dismiss-sent", id }),
     openSettings: () => bridge.send({ type: "settings" })
   })
   void bridge.connect()

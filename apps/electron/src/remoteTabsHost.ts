@@ -7,6 +7,15 @@ import { clientRemoteTabsPort, openSyncSettings, ReaderView } from "@once/ui-web
  * side panel shows, and carries out what the reader picks there.
  */
 export function hostRemoteTabsPages(bridge: ElectronBridge, client: OnceClient): void {
+  // The tab menu offers "Send Tab to Device" for the devices listed here.
+  const reportTargets = () => void client.getTabSync().then((view) =>
+    bridge.tabSync.setSendTargets((view?.devices ?? []).map(({ deviceId, name }) => ({ deviceId, name }))))
+    .catch(() => undefined)
+  client.subscribe("tabSyncChanged", reportTargets)
+  reportTargets()
+  bridge.tabSync.onSendTab((tabId, deviceId) => {
+    void client.sendLocalTab(deviceId, tabId).catch((error) => console.error("Could not send the tab", error))
+  })
   const port = clientRemoteTabsPort(client)
   const pages = new Map<number, () => void>()
   // Screenshots go along with the view: the page has no database to ask.
@@ -40,8 +49,18 @@ export function hostRemoteTabsPages(bridge: ElectronBridge, client: OnceClient):
   })
   bridge.remoteTabs.onCommand((tabId, value) => {
     if (!pages.has(tabId) || !value || typeof value !== "object") return
-    const command = value as { type?: unknown; url?: unknown; mode?: unknown; background?: unknown }
+    const command = value as { type?: unknown; url?: unknown; mode?: unknown; background?: unknown; id?: unknown; deviceId?: unknown; tab?: unknown }
     if (command.type === "settings") openSyncSettings()
+    else if (command.type === "open-sent" && typeof command.id === "string") void client.openSentTab(command.id, command.background === true)
+    else if (command.type === "dismiss-sent" && typeof command.id === "string") void client.dismissSentTab(command.id)
+    else if (command.type === "send" && typeof command.deviceId === "string" && command.tab && typeof command.tab === "object") {
+      const tab = command.tab as { url?: unknown; title?: unknown; mode?: unknown; state?: unknown }
+      if (typeof tab.url === "string") {
+        void client.sendTab(command.deviceId, { url: tab.url, title: typeof tab.title === "string" ? tab.title : "",
+          mode: tab.mode === "reader" ? "reader" : "web", state: tab.state as Parameters<OnceClient["sendTab"]>[1]["state"] })
+          .catch((error) => console.error("Could not send the tab", error))
+      }
+    }
     else if (command.type === "open" && typeof command.url === "string") {
       const state = (command as { state?: unknown }).state
       client.openRemoteTab(command.url, command.mode === "reader" ? "reader" : "web", command.background === true,

@@ -134,7 +134,7 @@ test("tab dialog fits phone and tablet viewports in both themes", async ({ page 
         return { name: button.getAttribute("aria-label"), ...bounds.toJSON(),
           iconOffset: icon ? [icon.x + icon.width / 2 - bounds.x - bounds.width / 2, icon.y + icon.height / 2 - bounds.y - bounds.height / 2] : null }
       }))
-      expect(controls.map(control => control.name)).toEqual(["Close all tabs", "New tab", "Close tab view"])
+      expect(controls.map(control => control.name)).toEqual(["Send current tab to another device", "Close all tabs", "New tab", "Close tab view"])
       for (const control of controls) {
         expect(control.height).toBe(32)
         expect(control.width).toBeGreaterThanOrEqual(32)

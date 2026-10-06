@@ -129,6 +129,19 @@ export class ReadingTabDialog {
 
   announce(message: string): void { this.status.textContent = message }
 
+  /** A header button that sends the current tab to another device. */
+  enableSending(send: () => Promise<string | null>): void {
+    const controls = this.dialog.querySelector(".reading_tab_controls")
+    if (!controls || controls.querySelector('[data-testid="reading-tabs-send"]')) return
+    const sendButton = button("Send", () => {
+      void send().then((name) => { if (name) this.announce(`Sent to ${name}`) })
+        .catch(() => this.announce("The tab could not be sent"))
+    })
+    sendButton.dataset.testid = "reading-tabs-send"
+    sendButton.setAttribute("aria-label", "Send current tab to another device")
+    controls.prepend(sendButton)
+  }
+
   /**
    * Other devices' tabs under this device's, in the same scrolling list.
    * Choosing one closes the tab view, like choosing a tab of this device.

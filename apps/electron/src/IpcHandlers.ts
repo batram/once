@@ -313,6 +313,13 @@ function registerTabNavigation(coordinator: BrowserCoordinator): void {
     trusted(event, coordinator)
     return typeof tabId === "string" && typeof source === "string" ? tabSync.run(tabId, source) : null
   })
+  ipcMain.handle(ELECTRON_IPC.tabSyncSendTargets, (event, targets: unknown) => {
+    trusted(event, coordinator)
+    coordinator.menus.sendTargets = Array.isArray(targets)
+      ? targets.flatMap((target) => typeof target?.deviceId === "string" && typeof target?.name === "string"
+        ? [{ deviceId: target.deviceId, name: target.name.slice(0, 80) }] : [])
+      : []
+  })
   ipcMain.handle(ELECTRON_IPC.tabSyncExpectRestore, (event, url: string, source: string) => {
     trusted(event, coordinator)
     if (typeof url === "string" && typeof source === "string") tabSync.expectRestore(url, source)

@@ -16,8 +16,7 @@ import {
   ReaderDocumentHost,
   ReaderView,
   SourcePickerView,
-  UndoButton,
-  clientRemoteTabsPort
+  UndoButton
 } from "@once/ui-web"
 import { installStoryMenu } from "./storyMenu"
 import { bindMobileBrowserExtensionSettings } from "./browserExtensionSettings"
@@ -31,7 +30,7 @@ import { installReaderMediaSession, nativeReaderSpeechEngine } from "./readerMed
 import { installReaderLinkHost, installReaderLinkMenuHost } from "./readerLinks"
 import { installReaderEdgeSwipeHost } from "./readerEdgeSwipe"
 import { MobileReadingController } from "./readingController"
-import { readingTabOpener, readingTabSource } from "./readingTabSync"
+import { mountTabSyncInTabView, readingTabOpener, readingTabSource } from "./readingTabSync"
 import { linkAddonItems, readingPageActions } from "./readingPageActions"
 import { bindReloadStatus, RELOAD_SPIN_TIMEOUT_MS } from "./reloadStatus"
 import {
@@ -290,7 +289,7 @@ async function startMobileApp(): Promise<void> {
   showStartupState("Opening saved stories and settings…")
   await app.start()
   if (Capacitor.isNativePlatform()) await bindMobileExtensionSettings(app.client, browserSurface)
-  reading.tabDialog.showOtherDevices(clientRemoteTabsPort(app.client))
+  mountTabSyncInTabView(reading, app.client)
   document.body.dataset.onceStage = "ui-mount"
   beginStoryLoading(app.client)
   await mountOnceUi(app.client, {

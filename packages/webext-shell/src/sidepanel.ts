@@ -104,6 +104,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     tabsPanel: true,
     initialStoryLoad: testMode ? "disabled" : "cache"
   })
+  bindSentTabNotifications(browser)
   // A manifest command pressed while the page had focus. It arrives as a
   // message because only the background is delivered browser-level keys.
   browser.runtime.onMessage.addListener((message: {
@@ -167,3 +168,23 @@ document.addEventListener("DOMContentLoaded", async () => {
   })
   document.body.dataset.onceReady = "true"
 })
+
+/**
+ * Notifications for tabs sent here are optional: the browser asks once,
+ * from this button, and the background shows them from then on.
+ */
+function bindSentTabNotifications(api: typeof browser): void {
+  const row = document.querySelector<HTMLElement>("#tab_sync_notifications_row")
+  const button = document.querySelector<HTMLButtonElement>("#tab_sync_notifications")
+  if (!row || !button) return
+  const show = (granted: boolean) => {
+    row.hidden = false
+    button.disabled = granted
+    button.textContent = granted ? "Allowed" : "Allow…"
+  }
+  void api.permissions.contains({ permissions: ["notifications"] }).then(show)
+  // Straight from the click: the browser only asks during a user gesture.
+  button.addEventListener("click", () => {
+    void api.permissions.request({ permissions: ["notifications"] }).then(show).catch(() => show(false))
+  })
+}
