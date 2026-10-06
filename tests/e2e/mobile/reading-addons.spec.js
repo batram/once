@@ -24,7 +24,7 @@ test("the browser menu opens an unlisted page conversation without native extens
 })
 
 for (const mode of ["reader", "browser"]) {
-  test(`Reading ${mode} shows and dismisses the shared WWWW conversation`, async ({ page }) => {
+  test(`Reading ${mode} shows and dismisses the shared What4 conversation`, async ({ page }) => {
     const story = await seedFixtureStories(page)
     await openSettingsSection(page, "addons")
     await installAiAddon(page, new URL(page.url()).origin)

@@ -40,9 +40,24 @@ final class LinkContextMenu {
         }
     }
 
-    /** openInTab receives the URL and whether the new tab stays in the background. */
+    /** One of the shell's own items for the link, such as an add-on's page action. */
+    static final class Item {
+        final String id;
+        final String label;
+        Item(String id, String label) { this.id = id; this.label = label; }
+    }
+
     static void show(Activity activity, GeckoRuntime runtime, Target target,
                      BiConsumer<String, Boolean> openInTab) {
+        show(activity, runtime, target, java.util.Collections.emptyList(), openInTab, id -> {});
+    }
+
+    /**
+     * openInTab receives the URL and whether the new tab stays in the
+     * background; runItem the id of a chosen shell item.
+     */
+    static void show(Activity activity, GeckoRuntime runtime, Target target, List<Item> items,
+                     BiConsumer<String, Boolean> openInTab, java.util.function.Consumer<String> runItem) {
         String link = target.link;
         String media = target.media;
         if (link == null && media == null) return;
@@ -64,6 +79,10 @@ final class LinkContextMenu {
             }
             labels.add("Share link");
             actions.add(() -> share(activity, link));
+            for (Item item : items) {
+                labels.add(item.label);
+                actions.add(() -> runItem.accept(item.id));
+            }
         }
         if (media != null) {
             String noun = mediaNoun(target.mediaType);

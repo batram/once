@@ -4,6 +4,8 @@ import WebKit
 
 class ViewController: CAPBridgeViewController {
     private let addressBar = AddressBarPlugin()
+    private let surface = InAppBrowserSurfacePlugin()
+    private var shellMenus: ShellUIDelegate?
 
     override func webView(with frame: CGRect, configuration: WKWebViewConfiguration) -> WKWebView {
         let view = ShellWebView(frame: frame, configuration: configuration)
@@ -11,10 +13,19 @@ class ViewController: CAPBridgeViewController {
         return view
     }
 
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        // The web view keeps its UI delegate weakly; this controller holds it.
+        guard let webView else { return }
+        let menus = ShellUIDelegate(base: webView.uiDelegate, plugin: surface)
+        shellMenus = menus
+        webView.uiDelegate = menus
+    }
+
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(addressBar)
         bridge?.registerPluginInstance(SecureSettingsPlugin())
-        bridge?.registerPluginInstance(InAppBrowserSurfacePlugin())
+        bridge?.registerPluginInstance(surface)
         bridge?.registerPluginInstance(ReaderMediaSessionPlugin())
     }
 }

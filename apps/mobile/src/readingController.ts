@@ -12,7 +12,8 @@ import {
   StoryList,
   StoryListItem,
   closeStoryAnchoredMenu,
-  isStoryAnchoredMenuOpen
+  isStoryAnchoredMenuOpen,
+  runPageAddonAction
 } from "@once/ui-web"
 import { ReaderDocumentHost } from "@once/ui-web"
 import { ReadingAddonTrays } from "./readingAddonTrays"
@@ -22,6 +23,7 @@ import { ReadingTabDialog } from "./readingTabDialog"
 import { ReadingFindBar } from "./readingFindBar"
 import { ReadingSurfaceCoordinator } from "./readingSurfaceCoordinator"
 import { clearAddress, installAddressMenu } from "./addressMenu"
+import { linkAddonItems } from "./readingPageActions"
 
 export class MobileReadingController {
   readonly session: ReadingSession
@@ -143,11 +145,40 @@ export class MobileReadingController {
     await this.surface.addListener("historyRequested", event => {
       void (event.direction === "back" ? this.handleBack() : this.handleForward())
     })
+    // Add-on actions in a page's long-press menu, as desktop has in its link menu.
+    await this.surface.addListener("contextMenuRequested", event => {
+      void this.surface.setContextMenuItems?.(event.requestId, linkAddonItems(event.link, event.linkText))
+    })
+    await this.surface.addListener("contextMenuAction", event => {
+      if (event.link) this.runLinkAction(event.id, event.link, event.linkText)
+    })
     await this.surface.addListener("openLinkRequested", event => {
+      if (event.current) { this.openBrowserUrl(event.url); return }
       const tab = this.tabs.create(!event.background)
       tab.session.navigate(event.url)
       if (event.background) this.tabDialog.announce("Opened in background tab")
       else PanelNavigation.open_panel("reading")
+    })
+  }
+
+  /**
+   * An add-on action chosen for a link: the link opens in a tab of its own
+   * and the action's tray opens on that page once it settles, under the
+   * address it ended up at.
+   */
+  runLinkAction(id: string, link: string, title?: string): void {
+    const tab = this.tabs.create()
+    PanelNavigation.open_panel("reading")
+    tab.session.navigate(link)
+    let settled = false
+    const remove = tab.session.subscribe(state => {
+      if (settled || (state.loadState !== "ready" && state.loadState !== "error")) return
+      settled = true
+      // subscribe() reports synchronously, before `remove` exists.
+      queueMicrotask(() => remove())
+      if (!this.tabs.tabs.includes(tab)) return
+      const page = { href: state.currentUrl || link, title: tab.title || title }
+      if (!runPageAddonAction(id, page, "toggle")) runPageAddonAction(id, { href: link, title }, "toggle")
     })
   }
 

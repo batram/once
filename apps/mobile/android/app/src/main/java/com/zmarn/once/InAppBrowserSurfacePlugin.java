@@ -44,6 +44,9 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
 
     /** What a call for a tab that has no runtime does: loads and menus create one. */
     private enum Missing { CREATE, RESOLVE, REJECT }
+    /** Long-press menus waiting for the shell's items, by request; held by the root plugin. */
+    private final Map<String, java.util.function.Consumer<List<LinkContextMenu.Item>>> pendingMenus = new HashMap<>();
+    private static final long MENU_ITEMS_TIMEOUT_MS = 400;
 
     // Capacitor invokes plugin methods on its plugin thread, but the tab maps and
     // their sessions are UI-thread state. Returns true when the receiver should
@@ -389,11 +392,61 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
         LinkContextMenu.Target target = new LinkContextMenu.Target(link, call.getString("linkText"), image,
             image == null ? GeckoSession.ContentDelegate.ContextElement.TYPE_NONE : GeckoSession.ContentDelegate.ContextElement.TYPE_IMAGE,
             call.getString("referrer"));
+        List<LinkContextMenu.Item> items = menuItems(call.getArray("items"));
         getActivity().runOnUiThread(() -> {
-            LinkContextMenu.show(getActivity(), engine.runtime, target, (url, background) ->
-                notifyListeners("openLinkRequested", new JSObject().put("url", url).put("background", background)));
+            showLinkMenu(target, items);
             call.resolve();
         });
+    }
+
+    /** A page's long-press: the shell names its own items for the link before the menu opens. */
+    @Override
+    protected void showPageContextMenu(GeckoSession.ContentDelegate.ContextElement element) {
+        LinkContextMenu.Target target = LinkContextMenu.Target.of(element);
+        if (target.link == null) { showLinkMenu(target, new ArrayList<>()); return; }
+        InAppBrowserSurfacePlugin root = owner != null ? owner : this;
+        String requestId = java.util.UUID.randomUUID().toString();
+        java.util.concurrent.atomic.AtomicBoolean shown = new java.util.concurrent.atomic.AtomicBoolean();
+        java.util.function.Consumer<List<LinkContextMenu.Item>> show = items -> {
+            if (shown.compareAndSet(false, true)) showLinkMenu(target, items);
+        };
+        root.pendingMenus.put(requestId, show);
+        notifyListeners("contextMenuRequested", new JSObject().put("requestId", requestId)
+            .put("link", target.link).put("linkText", target.linkText));
+        // A shell that does not answer still gets its menu, without its items.
+        handler.postDelayed(() -> {
+            if (root.pendingMenus.remove(requestId) != null) show.accept(new ArrayList<>());
+        }, MENU_ITEMS_TIMEOUT_MS);
+    }
+
+    /** The shell's answer to contextMenuRequested. */
+    @PluginMethod
+    public void setContextMenuItems(PluginCall call) {
+        String requestId = call.getString("requestId", "");
+        List<LinkContextMenu.Item> items = menuItems(call.getArray("items"));
+        getActivity().runOnUiThread(() -> {
+            java.util.function.Consumer<List<LinkContextMenu.Item>> show = pendingMenus.remove(requestId);
+            if (show != null) show.accept(items);
+            call.resolve();
+        });
+    }
+
+    private void showLinkMenu(LinkContextMenu.Target target, List<LinkContextMenu.Item> items) {
+        LinkContextMenu.show(getActivity(), engine.runtime, target, items,
+            (url, background) -> notifyListeners("openLinkRequested", new JSObject().put("url", url).put("background", background)),
+            id -> notifyListeners("contextMenuAction", new JSObject().put("id", id)
+                .put("link", target.link).put("linkText", target.linkText)));
+    }
+
+    private static List<LinkContextMenu.Item> menuItems(com.getcapacitor.JSArray array) {
+        List<LinkContextMenu.Item> items = new ArrayList<>();
+        if (array == null) return items;
+        for (int index = 0; index < array.length(); index++) {
+            org.json.JSONObject item = array.optJSONObject(index);
+            if (item == null || item.optString("id").isEmpty() || item.optString("label").isEmpty()) continue;
+            items.add(new LinkContextMenu.Item(item.optString("id"), item.optString("label")));
+        }
+        return items;
     }
 
     /** With Reader-mode entries in its history, the shell owns Back and Forward. */

@@ -87,6 +87,12 @@ export interface BrowserHistoryRequestedEvent {
   direction: "back" | "forward"
 }
 
+/** An item the shell adds to a native long-press menu, such as an add-on's page action. */
+export interface ContextMenuItem {
+  id: string
+  label: string
+}
+
 /** A long-press in the shell's Reader frame; the native menu offers what applies. */
 export interface ReaderContextMenuTarget {
   link?: string
@@ -94,6 +100,29 @@ export interface ReaderContextMenuTarget {
   image?: string
   /** The article's address, sent as the image request's referrer. */
   referrer?: string
+  /** The shell's own items for the link, shown after the built-in ones. */
+  items?: ContextMenuItem[]
+}
+
+/**
+ * A native long-press menu is opening on a link; the shell answers with its
+ * items through setContextMenuItems. Unanswered, the menu opens without them.
+ */
+export interface ContextMenuRequestedEvent {
+  tabId?: string
+  generation?: string
+  requestId: string
+  link?: string
+  linkText?: string
+}
+
+/** One of the shell's items was chosen from a long-press menu. */
+export interface ContextMenuActionEvent {
+  tabId?: string
+  generation?: string
+  id: string
+  link?: string
+  linkText?: string
 }
 
 /**
@@ -142,6 +171,8 @@ export interface BrowserOpenLinkRequestedEvent {
   url: string
   /** Leave the current tab selected. */
   background: boolean
+  /** Open it in the current tab instead, as a tap on the link would. */
+  current?: boolean
 }
 
 export interface InAppBrowserSurfaceEvents {
@@ -155,6 +186,8 @@ export interface InAppBrowserSurfaceEvents {
   closeRequested: BrowserCloseRequestedEvent
   openLinkRequested: BrowserOpenLinkRequestedEvent
   historyRequested: BrowserHistoryRequestedEvent
+  contextMenuRequested: ContextMenuRequestedEvent
+  contextMenuAction: ContextMenuActionEvent
   mediaStateChanged: BrowserMediaStateEvent
   extensionPageChanged: ExtensionPageState
 }
@@ -193,6 +226,8 @@ export interface InAppBrowserSurface {
   setHistoryGestures?(gestures: { back: boolean; forward: boolean }): Promise<void>
   /** Shows the native long-press menu for the Reader frame (Android). */
   showContextMenu?(target: ReaderContextMenuTarget): Promise<void>
+  /** Answers contextMenuRequested with the shell's items for that menu. */
+  setContextMenuItems?(requestId: string, items: ContextMenuItem[]): Promise<void>
   setBounds(bounds: BrowserSurfaceBounds): Promise<void>
   setVisible(visible: boolean): Promise<void>
   showMenu(options: NativeOverlayMenuOptions): Promise<string | null>
@@ -234,6 +269,7 @@ interface NativeInAppBrowserPlugin {
   goToHistoryIndex(options: { index: number }): Promise<void>
   setHistoryGestures(options: { back: boolean; forward: boolean }): Promise<void>
   showContextMenu(options: ReaderContextMenuTarget): Promise<void>
+  setContextMenuItems(options: { requestId: string; items: ContextMenuItem[] }): Promise<void>
   setBounds(options: BrowserSurfaceBounds): Promise<void>
   setVisible(options: { visible: boolean }): Promise<void>
   showMenu(options: NativeOverlayMenuOptions): Promise<{ id?: string }>
@@ -333,7 +369,7 @@ export function createNativeInAppBrowserSurface(identity?: BrowserTabIdentity): 
     get(target, property: keyof NativeInAppBrowserPlugin) {
       if (property === "addListener") return target.addListener.bind(target)
       return (options: object = {}) => {
-        const global = ["selectTab", "extensionPage", "applyExtensionSettings", "showContextMenu"].includes(property)
+        const global = ["selectTab", "extensionPage", "applyExtensionSettings", "showContextMenu", "setContextMenuItems"].includes(property)
         return (target[property] as (options: object) => Promise<unknown>)({ ...options, ...(global ? {} : identity ?? selectedIdentity) })
       }
     }
@@ -366,6 +402,7 @@ export function createNativeInAppBrowserSurface(identity?: BrowserTabIdentity): 
       try { await plugin.setHistoryGestures(gestures) } catch { /* nothing to configure */ }
     },
     showContextMenu: (target) => plugin.showContextMenu(target),
+    setContextMenuItems: (requestId, items) => plugin.setContextMenuItems({ requestId, items }),
     setBounds: (bounds) => plugin.setBounds(normalizeBounds(bounds)),
     setVisible: (visible) => plugin.setVisible({ visible }),
     async showMenu(options) {

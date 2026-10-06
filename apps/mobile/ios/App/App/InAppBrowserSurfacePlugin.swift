@@ -16,6 +16,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         CAPPluginMethod(name: "goForward", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "goToHistoryIndex", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setHistoryGestures", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setContextMenuItems", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setBounds", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setVisible", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "showMenu", returnType: CAPPluginReturnPromise),
@@ -137,6 +138,8 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
     private var savedBounds: JSObject = [:]
     /// Off while the shell's history differs from WebKit's next to the current page.
     private var webKitSwipes = true
+    /// Long-press menus waiting for the shell's items, by request; the root plugin holds them.
+    var pendingMenus: [String: ([ShellMenuItem]) -> Void] = [:]
     var surface: WKWebView?
     /// Set once a tab instance is closed or superseded; it never gets a surface again.
     private var retired = false

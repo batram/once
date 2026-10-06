@@ -1,3 +1,4 @@
+import Capacitor
 import Photos
 import UIKit
 import UniformTypeIdentifiers
@@ -8,8 +9,8 @@ import WebKit
 // in place and its image actions cannot be extended.
 extension InAppBrowserSurfacePlugin {
     /// WKContextMenuElementInfo carries only the link, so the page side records
-    /// where the press landed and names the image under it. Runs in its own
-    /// content world, out of the page's reach.
+    /// where the press landed and names the image and link text under it. Runs
+    /// in its own content world, out of the page's reach.
     static let contextMenuWorld = WKContentWorld.world(name: "OnceContextMenu")
     static let contextMenuScript = WKUserScript(source: """
         (() => {
@@ -18,12 +19,15 @@ extension InAppBrowserSurfacePlugin {
             const touch = event.touches[0]
             if (touch) point = [touch.clientX, touch.clientY]
           }, { capture: true, passive: true })
-          window.__onceImageAtTouch = () => {
+          window.__onceTouchTarget = () => {
             if (!point) return null
+            const found = {}
             for (const element of document.elementsFromPoint(point[0], point[1])) {
-              if (element instanceof HTMLImageElement) return element.currentSrc || element.src || null
+              if (!found.image && element instanceof HTMLImageElement) found.image = element.currentSrc || element.src || ""
+              const link = element.closest?.("a[href]")
+              if (!found.linkText && link) found.linkText = (link.textContent || "").trim().slice(0, 300)
             }
-            return null
+            return found
           }
         })()
         """, injectionTime: .atDocumentStart, forMainFrameOnly: true, in: contextMenuWorld)
@@ -39,17 +43,93 @@ extension InAppBrowserSurfacePlugin {
         completionHandler: @escaping (UIContextMenuConfiguration?) -> Void
     ) {
         let link = elementInfo.linkURL
-        webView.evaluateJavaScript("window.__onceImageAtTouch?.() ?? null", in: nil, in: Self.contextMenuWorld) { [weak self, weak webView] result in
-            let image = ((try? result.get()) as? String).flatMap(URL.init(string:))
+        webView.evaluateJavaScript("window.__onceTouchTarget?.() ?? null", in: nil, in: Self.contextMenuWorld) { [weak self, weak webView] result in
+            let target = (try? result.get()) as? [String: Any]
+            let image = (target?["image"] as? String).flatMap(URL.init(string:))
                 .flatMap { ["http", "https", "data"].contains($0.scheme?.lowercased() ?? "") ? $0 : nil }
-            guard let self, let webView, link != nil || image != nil else { completionHandler(nil); return }
-            completionHandler(UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self, weak webView] _ in
-                guard let self, let webView else { return nil }
-                var sections: [UIMenuElement] = []
-                if let link { sections.append(self.linkActions(link, in: webView)) }
-                if let image { sections.append(self.imageActions(image, in: webView)) }
-                return UIMenu(title: String((link ?? image)?.absoluteString.prefix(300) ?? ""), children: sections)
-            })
+            let linkText = target?["linkText"] as? String
+            guard let self, link != nil || image != nil else { completionHandler(nil); return }
+            self.shellItems(for: link, linkText: linkText) { [weak self, weak webView] items in
+                guard let self, let webView else { completionHandler(nil); return }
+                completionHandler(self.menuConfiguration(link: link, linkText: linkText, image: image, items: items, in: webView))
+            }
+        }
+    }
+
+    /**
+     * The shell's web view, which holds the Reader frame: Capacitor is its UI
+     * delegate, and ShellUIDelegate hands long-presses on its web links here.
+     */
+    func shellContextMenu(_ webView: WKWebView, link: URL?, completionHandler: @escaping (UIContextMenuConfiguration?) -> Void) {
+        // The shell's own pages are no web links to open or hand to add-ons.
+        guard let link, ["http", "https"].contains(link.scheme?.lowercased() ?? ""),
+              link.host != bridge?.config.serverURL.host else { completionHandler(nil); return }
+        shellItems(for: link, linkText: nil) { [weak self, weak webView] items in
+            guard let self, let webView else { completionHandler(nil); return }
+            completionHandler(self.menuConfiguration(link: link, linkText: nil, image: nil, items: items, in: webView))
+        }
+    }
+
+    /// Tapping a Reader link's lifted preview opens it in the reading view, as a tap would.
+    func shellContextMenuCommitted(_ link: URL?, animator: UIContextMenuInteractionCommitAnimating) {
+        animator.preferredCommitStyle = .dismiss
+        guard let link else { return }
+        animator.addCompletion { [weak self] in
+            self?.pageEvent("openLinkRequested", data: ["url": link.absoluteString, "background": false, "current": true])
+        }
+    }
+
+    private func menuConfiguration(link: URL?, linkText: String?, image: URL?, items: [ShellMenuItem], in webView: WKWebView) -> UIContextMenuConfiguration {
+        UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self, weak webView] _ in
+            guard let self, let webView else { return nil }
+            var sections: [UIMenuElement] = []
+            if let link { sections.append(self.linkActions(link, in: webView)) }
+            if let link, !items.isEmpty { sections.append(self.shellActions(items, link: link, linkText: linkText)) }
+            if let image { sections.append(self.imageActions(image, in: webView)) }
+            return UIMenu(title: String((link ?? image)?.absoluteString.prefix(300) ?? ""), children: sections)
+        }
+    }
+
+    /// The shell's items for a link, such as add-ons' page actions; none after a short wait.
+    private func shellItems(for link: URL?, linkText: String?, _ done: @escaping ([ShellMenuItem]) -> Void) {
+        guard let link, ["http", "https"].contains(link.scheme?.lowercased() ?? "") else { done([]); return }
+        let root = owner ?? self
+        let requestId = UUID().uuidString
+        var finished = false
+        let finish: ([ShellMenuItem]) -> Void = { items in
+            guard !finished else { return }
+            finished = true
+            done(items)
+        }
+        root.pendingMenus[requestId] = finish
+        var data: [String: Any] = ["requestId": requestId, "link": link.absoluteString]
+        if let linkText { data["linkText"] = linkText }
+        pageEvent("contextMenuRequested", data: data)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            root.pendingMenus.removeValue(forKey: requestId)?([])
+        }
+    }
+
+    private func shellActions(_ items: [ShellMenuItem], link: URL, linkText: String?) -> UIMenu {
+        UIMenu(options: .displayInline, children: items.map { item in
+            UIAction(title: item.label, image: UIImage(systemName: "puzzlepiece.extension")) { [weak self] _ in
+                var data: [String: Any] = ["id": item.id, "link": link.absoluteString]
+                if let linkText { data["linkText"] = linkText }
+                self?.pageEvent("contextMenuAction", data: data)
+            }
+        })
+    }
+
+    /// The shell's answer to contextMenuRequested; the root plugin holds the waiting menus.
+    @objc func setContextMenuItems(_ call: CAPPluginCall) {
+        let requestId = call.getString("requestId") ?? ""
+        let items = (call.getArray("items", JSObject.self) ?? []).compactMap { item -> ShellMenuItem? in
+            guard let id = item["id"] as? String, let label = item["label"] as? String, !id.isEmpty, !label.isEmpty else { return nil }
+            return ShellMenuItem(id: id, label: label)
+        }
+        DispatchQueue.main.async {
+            self.pendingMenus.removeValue(forKey: requestId)?(items)
+            call.resolve()
         }
     }
 
@@ -154,6 +234,51 @@ extension InAppBrowserSurfacePlugin {
         sheet.popoverPresentationController?.sourceView = view
         sheet.popoverPresentationController?.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1)
         presenter.present(sheet, animated: true)
+    }
+}
+
+struct ShellMenuItem {
+    let id: String
+    let label: String
+}
+
+/**
+ * Capacitor is the shell web view's UI delegate and draws no menu of its own
+ * for links, so WebKit's default one showed over the Reader frame. This one
+ * gives those links the page surface's menu and forwards everything else.
+ */
+final class ShellUIDelegate: NSObject, WKUIDelegate {
+    private weak var base: WKUIDelegate?
+    private weak var plugin: InAppBrowserSurfacePlugin?
+
+    init(base: WKUIDelegate?, plugin: InAppBrowserSurfacePlugin) {
+        self.base = base
+        self.plugin = plugin
+    }
+
+    override func responds(to selector: Selector!) -> Bool {
+        super.responds(to: selector) || base?.responds(to: selector) == true
+    }
+
+    override func forwardingTarget(for selector: Selector!) -> Any? {
+        base?.responds(to: selector) == true ? base : nil
+    }
+
+    func webView(
+        _ webView: WKWebView,
+        contextMenuConfigurationForElement elementInfo: WKContextMenuElementInfo,
+        completionHandler: @escaping (UIContextMenuConfiguration?) -> Void
+    ) {
+        guard let plugin else { completionHandler(nil); return }
+        plugin.shellContextMenu(webView, link: elementInfo.linkURL, completionHandler: completionHandler)
+    }
+
+    func webView(
+        _ webView: WKWebView,
+        contextMenuForElement elementInfo: WKContextMenuElementInfo,
+        willCommitWithAnimator animator: UIContextMenuInteractionCommitAnimating
+    ) {
+        plugin?.shellContextMenuCommitted(elementInfo.linkURL, animator: animator)
     }
 }
 

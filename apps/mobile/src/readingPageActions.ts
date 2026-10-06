@@ -24,3 +24,12 @@ export function readingPageActions(currentUrl: () => string): ReadingPageActions
     }
   }
 }
+
+/**
+ * Add-on actions a long-press menu offers for a link: the same `menu`
+ * actions desktop puts in its link menu, matched against the link.
+ */
+export function linkAddonItems(link: string | undefined, title?: string): { id: string; label: string }[] {
+  if (!link || !isAddonPage(link)) return []
+  return pageAddonActions("menu", { href: link, title }).map(({ id, label }) => ({ id, label }))
+}

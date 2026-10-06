@@ -271,7 +271,7 @@ abstract class ReadingSurfaceHost extends Plugin {
                 resumeWatchdog();
             }, title -> { if (session == created) pageTitle = title; },
             () -> { if (session == created) pageCloseRequested(); },
-            element -> { if (session == created) showContextMenu(element); }));
+            element -> { if (session == created) showPageContextMenu(element); }));
         session.setHistoryDelegate(new GeckoSession.HistoryDelegate() {
             @Override
             public void onHistoryStateChange(GeckoSession source, GeckoSession.HistoryDelegate.HistoryList list) {
@@ -551,7 +551,7 @@ abstract class ReadingSurfaceHost extends Plugin {
     protected abstract GeckoSession createWindow(String url);
     protected abstract boolean ownsForeground();
 
-    protected void showContextMenu(GeckoSession.ContentDelegate.ContextElement element) {
+    protected void showPageContextMenu(GeckoSession.ContentDelegate.ContextElement element) {
         LinkContextMenu.show(getActivity(), engine.runtime, LinkContextMenu.Target.of(element), (url, background) ->
             notifyListeners("openLinkRequested", new JSObject().put("url", url).put("background", background)));
     }

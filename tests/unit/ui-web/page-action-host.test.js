@@ -89,7 +89,7 @@ test("a conflicted or broken vault is named instead of running without add-ons",
 // The Once panel's temporary menu button is narrow.
 test("the panel's menu button names an add-on by its short name, its name when that fits, or initials", () => {
   const { menuName } = require("../../../packages/ui-web/dist/addons/addonPanel")
-  assert.equal(menuName({ name: "What? Wait, who, why?", shortName: "WWWW" }), "WWWW")
+  assert.equal(menuName({ name: "What? Wait, who, why?", shortName: "What4" }), "What4")
   assert.equal(menuName({ name: "What? Wait, who, why?" }), "WWWW")
   assert.equal(menuName({ name: "Archive" }), "Archive")
   assert.equal(menuName({ name: "Über lange Zusammenfassung" }), "ÜLZ")

@@ -30,7 +30,7 @@ import { installReaderMediaSession, nativeReaderSpeechEngine } from "./readerMed
 import { installReaderLinkHost, installReaderLinkMenuHost } from "./readerLinks"
 import { installReaderEdgeSwipeHost } from "./readerEdgeSwipe"
 import { MobileReadingController } from "./readingController"
-import { readingPageActions } from "./readingPageActions"
+import { linkAddonItems, readingPageActions } from "./readingPageActions"
 import { bindReloadStatus, RELOAD_SPIN_TIMEOUT_MS } from "./reloadStatus"
 import {
   loadMobilePickerInjection,
@@ -255,7 +255,8 @@ async function startMobileApp(): Promise<void> {
   // Android's WebView draws no long-press menu for the Reader frame; the native one does.
   if (Capacitor.getPlatform() === "android") {
     installReaderLinkMenuHost((source) => reading.runtimeReaderWindow(source), (request) => {
-      void browserSurface.showContextMenu?.({ ...request, referrer: reading.session.snapshot().currentUrl })
+      void browserSurface.showContextMenu?.({ ...request, referrer: reading.session.snapshot().currentUrl,
+        items: linkAddonItems(request.link, request.linkText) })
     })
   }
   ReaderView.mount(app.client)

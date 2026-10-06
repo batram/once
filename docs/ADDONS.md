@@ -323,7 +323,9 @@ Every action except `tag` and `setReadState` is also offered for pages that are
 no listed story, on the surfaces it declares: `button` puts it beside Electron's
 reader button; `menu` puts it in every page's context menu on Electron (for the
 page, and for a link under the cursor), in the browser extensions' page and link
-context menu, and in the mobile browser sheet. The action then runs on a story
+context menu, and in the mobile browser sheet and long-press link menus (web
+pages and Reader mode alike; there the link opens in a new tab and the action
+runs on that page once it loads). The action then runs on a story
 whose `href` is the page, `type` is `"page"`, and `title` is the page title when
 the shell knows it, else the URL; `when: { "type": [...] }` without `"page"` keeps
 an action to real stories. A tray opens its conversation in a new tab on Electron
@@ -350,7 +352,7 @@ The host sends the existing `clear` event followed by `open` with
 the saved article and fetches the source URL. This is separate from browser
 navigation or reload and does not capture the browser's live DOM. Add-ons should
 discard their own cached context on `clear`, and use the invocation's context
-for article access. WWWW labels saved versus fetched article content explicitly.
+for article access. What4 labels saved versus fetched article content explicitly.
 
 Page actions respect `when` on toolbar tools and native page/link menus as well
 as at execution. Electron reader tabs use the article's source URL. Mobile's

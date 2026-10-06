@@ -45,7 +45,7 @@ test("a page menu conversation opens in the Once panel when the add-on is set to
     await expect(panel).toBeVisible()
     await expect(panel).toContainText("ExampleApp is software", { timeout: 15000 })
     await expect(panel).toContainText("Regenerated Article")
-    await expect(window.getByTestId("addon-panel-menu")).toHaveText("WWWW")
+    await expect(window.getByTestId("addon-panel-menu")).toHaveText("What4")
     await expect(window.locator("#left_panel")).toHaveAttribute("active_panel", "addon")
     // Beside the page, not in place of it: no conversation tab, the page stays active.
     const tabs = await window.evaluate(() => window.onceElectron.tabs.getAll())
