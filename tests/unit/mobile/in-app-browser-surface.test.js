@@ -103,7 +103,7 @@ test("mobile reading atomically opens a visible native surface", () => {
   )
 })
 
-test("native embedded browsers use a bounded foreground sibling", () => {
+test("native embedded browsers sit in front of the shell", () => {
   const root = path.resolve(__dirname, "../../..")
   const android = fs.readFileSync(path.join(
     root,
@@ -116,8 +116,10 @@ test("native embedded browsers use a bounded foreground sibling", () => {
 
   assert.match(android, /parent\.addView\(\s*refreshSurface,\s*shellIndex \+ 1,/)
   assert.doesNotMatch(android, /shell\.setBackgroundColor\(Color\.TRANSPARENT\)/)
-  assert.match(ios, /insertSubview\(view, aboveSubview: shell\)/)
-  assert.doesNotMatch(ios, /insertSubview\(view, belowSubview: shell\)/)
+  // Inside the shell, the bridge controller's root view, so UIKit can present
+  // WebKit's context menus; a sibling of the shell has no view controller.
+  assert.match(ios, /shell\.addSubview\(view\)/)
+  assert.doesNotMatch(ios, /insertSubview\(view, (above|below)Subview: shell\)/)
 })
 
 test("native embedded browsers report forward history and iOS hands unhandled edge swipes to the shell", () => {

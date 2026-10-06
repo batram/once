@@ -194,6 +194,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             for script in extensionUserScripts { configuration.userContentController.addUserScript(script) }
         }
         installMediaObserver(configuration.userContentController)
+        installContextMenuTracker(configuration.userContentController)
         // iPhone WebKit defaults to fullscreen-only video; like Safari, play
         // inline wherever the page allows it (playsinline).
         configuration.allowsInlineMediaPlayback = true
@@ -225,7 +226,11 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             for: .valueChanged
         )
         view.scrollView.refreshControl = refreshControl
-        parent.insertSubview(view, aboveSubview: shell)
+        // Inside the shell, which is the bridge controller's root view: UIKit
+        // presents WebKit's context menus from the nearest view controller
+        // above the page, and a sibling of the shell has none. The shell sits
+        // at the parent's origin, so bounds keep meaning shell CSS pixels.
+        shell.addSubview(view)
         self.refreshControl = refreshControl
         surface = view
         applyBounds(savedBounds)
@@ -620,3 +625,4 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         return view
     }
 }
+

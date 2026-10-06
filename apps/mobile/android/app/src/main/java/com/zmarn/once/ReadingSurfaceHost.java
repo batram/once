@@ -260,7 +260,8 @@ abstract class ReadingSurfaceHost extends Plugin {
                 if (navigationDeadline == 0) navigationDeadline = SystemClock.elapsedRealtime() + RESPONSE_TIMEOUT_MS;
                 resumeWatchdog();
             }, title -> { if (session == created) pageTitle = title; },
-            () -> { if (session == created) pageCloseRequested(); }));
+            () -> { if (session == created) pageCloseRequested(); },
+            element -> { if (session == created) showContextMenu(element); }));
         session.setScrollDelegate(new GeckoSession.ScrollDelegate() {
             @Override
             public void onScrollChanged(GeckoSession ignored, int x, int y) {
@@ -486,7 +487,12 @@ abstract class ReadingSurfaceHost extends Plugin {
     protected abstract GeckoSession createWindow(String url);
     protected abstract boolean ownsForeground();
 
-    protected void openExternal(String url) {
+    protected void showContextMenu(GeckoSession.ContentDelegate.ContextElement element) {
+        LinkContextMenu.show(getActivity(), engine.runtime, element, (url, background) ->
+            notifyListeners("openLinkRequested", new JSObject().put("url", url).put("background", background)));
+    }
+
+        protected void openExternal(String url) {
         try {
             Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
             getActivity().startActivity(intent);

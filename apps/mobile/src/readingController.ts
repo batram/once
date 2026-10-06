@@ -139,6 +139,12 @@ export class MobileReadingController {
       tab.session.navigate(event.url)
       this.runtime.adopt(tab.id, event.url)
     })
+    await this.surface.addListener("openLinkRequested", event => {
+      const tab = this.tabs.create(!event.background)
+      tab.session.navigate(event.url)
+      if (event.background) this.tabDialog.announce("Opened in background tab")
+      else PanelNavigation.open_panel("reading")
+    })
   }
 
   setExtensionPageOpen(open: boolean): void {

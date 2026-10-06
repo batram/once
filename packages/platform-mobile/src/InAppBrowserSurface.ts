@@ -110,6 +110,15 @@ export interface BrowserMediaStateEvent {
   playing: boolean
 }
 
+/** The page's long-press menu asked for a link in another tab. */
+export interface BrowserOpenLinkRequestedEvent {
+  tabId?: string
+  generation?: string
+  url: string
+  /** Leave the current tab selected. */
+  background: boolean
+}
+
 export interface InAppBrowserSurfaceEvents {
   newTabRequested: BrowserNavigationEvent & BrowserTabIdentity
   navigationStarted: BrowserNavigationEvent
@@ -119,6 +128,7 @@ export interface InAppBrowserSurfaceEvents {
   historyChanged: BrowserHistoryEvent
   edgeSwipe: BrowserEdgeSwipeEvent
   closeRequested: BrowserCloseRequestedEvent
+  openLinkRequested: BrowserOpenLinkRequestedEvent
   mediaStateChanged: BrowserMediaStateEvent
   extensionPageChanged: ExtensionPageState
 }

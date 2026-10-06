@@ -6,6 +6,7 @@ import org.mozilla.geckoview.GeckoSession;
 import org.mozilla.geckoview.WebResponse;
 import org.mozilla.geckoview.GeckoResult;
 import org.mozilla.geckoview.SlowScriptResponse;
+import org.mozilla.geckoview.GeckoSession.ContentDelegate.ContextElement;
 
 /** Routes content-process loss through the surface's page and media cleanup. */
 final class ReadingContentDelegate implements GeckoSession.ContentDelegate {
@@ -18,11 +19,12 @@ final class ReadingContentDelegate implements GeckoSession.ContentDelegate {
     private final Consumer<String> slowScript;
     private final Consumer<String> title;
     private final Runnable closeRequested;
+    private final Consumer<ContextElement> contextMenu;
 
     ReadingContentDelegate(Consumer<String> external, Consumer<String> stopped,
                            BooleanSupplier foreground, Runnable killedWhileHidden,
                            Runnable painted, Runnable paintReset, Consumer<String> slowScript, Consumer<String> title,
-                           Runnable closeRequested) {
+                           Runnable closeRequested, Consumer<ContextElement> contextMenu) {
         this.external = external;
         this.stopped = stopped;
         this.foreground = foreground;
@@ -32,8 +34,12 @@ final class ReadingContentDelegate implements GeckoSession.ContentDelegate {
         this.slowScript = slowScript;
         this.title = title;
         this.closeRequested = closeRequested;
+        this.contextMenu = contextMenu;
     }
 
+    @Override public void onContextMenu(GeckoSession session, int screenX, int screenY, ContextElement element) {
+        contextMenu.accept(element);
+    }
     @Override public void onCloseRequest(GeckoSession session) { closeRequested.run(); }
     @Override public void onTitleChange(GeckoSession session, String value) { title.accept(value); }
     @Override public void onExternalResponse(GeckoSession session, WebResponse response) { external.accept(response.uri); }
