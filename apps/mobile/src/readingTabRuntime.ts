@@ -1,4 +1,5 @@
 import { InAppBrowserSurface } from "@once/platform-mobile"
+import { readReaderPosition } from "@once/core"
 import { ReadingSession, ReaderDocumentHost, ReadingSessionState } from "@once/ui-web"
 import { ReadingTabs, type ReadingTab } from "./readingTabs"
 import { ReadingSurfaceCoordinator } from "./readingSurfaceCoordinator"
@@ -47,8 +48,9 @@ export class ReadingTabRuntime {
     })
     window.addEventListener("message", event => {
       if (event.data?.channel !== "once-reader-scroll" || event.data.type !== "position" || !Number.isFinite(event.data.y)) return
+      const readerPosition = readReaderPosition(event.data.position) ?? undefined
       for (const [id, runtime] of this.runtimes) {
-        if (runtime.reader.isReaderWindow(event.source)) this.tabs.update(id, runtime.generation, { readerScroll: event.data.y })
+        if (runtime.reader.isReaderWindow(event.source)) this.tabs.update(id, runtime.generation, { readerScroll: event.data.y, readerPosition })
       }
     })
   }
@@ -115,6 +117,12 @@ export class ReadingTabRuntime {
     this.runtimes.get(id)?.coordinator.adopt(url)
   }
 
+  /** Runs a script in a tab's page, for tabs with a live native surface; null otherwise. */
+  async evaluate(tabId: string, script: string): Promise<string | null> {
+    const runtime = this.runtimes.get(tabId)
+    return runtime ? runtime.surface.evaluateJavaScript(script) : null
+  }
+
   async capturePreview(): Promise<void> {
     const tab = this.tabs.selected
     if (!tab || !this.panelVisible) return
@@ -158,6 +166,7 @@ export class ReadingTabRuntime {
           this.usedInitialReader = true
           if (reader !== this.initialReader) reader.onDocumentClosed(() => this.readerClosedListener?.(reader))
           reader.setScrollPosition(() => tab.readerScroll)
+          reader.setReaderPosition(() => tab.pendingReaderPosition)
           const coordinator = new ReadingSurfaceCoordinator(tab.session, surface, reader, this.content, undefined, tab.history)
           for (const cover of Object.keys(this.covers) as Cover[]) applyCover(coordinator, cover, this.covers[cover])
           runtime = { generation: tab.generation, reader, coordinator, surface }

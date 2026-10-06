@@ -196,7 +196,8 @@ export interface OnceClient {
   /** Another device's tab screenshot as a data URL, or null while it has not arrived. */
   getTabThumbnail(id: string): Promise<string | null>
   /** Opens another device's tab here, in a new tab; never replaces the page being read. */
-  openRemoteTab(url: string, mode: "web" | "reader", background: boolean): void
+  openRemoteTab(url: string, mode: "web" | "reader", background: boolean,
+    state?: Record<string, import("@once/core").TabStateEntry>): void
   /** Removes another device from tab sync until it turns sharing on again. */
   forgetDevice(deviceId: string): Promise<void>
   resetDeviceIdentity(): Promise<void>
@@ -415,9 +416,34 @@ export interface LocalWindow {
   tabs: LocalTab[]
 }
 
+/**
+ * A self-contained function to run inside a page, with JSON arguments; see
+ * tabsync/pageScripts. Platforms run it as source text or hand the function
+ * to their scripting API.
+ */
+export interface PageScriptCall<A extends unknown[] = unknown[], R = unknown> {
+  /** Any function: each call names its own argument types. */
+  fn: (...args: never[]) => R
+  args: A
+}
+
+/** Serializes a page script call for platforms that run source text. */
+export function pageScriptSource(call: PageScriptCall): string {
+  return `(${call.fn.toString()})(...${JSON.stringify(call.args)})`
+}
+
 /** Opens a page in a new tab of this shell, for tabs that come from other devices. */
 export interface TabOpenerPort {
-  open(url: string, options: { background: boolean; mode: "web" | "reader" }): void
+  /**
+   * `restore` runs in the opened page once it has loaded; `readerPosition`
+   * is where a Reader-mode tab continues, for readers a script cannot reach.
+   */
+  open(url: string, options: {
+    background: boolean
+    mode: "web" | "reader"
+    restore?: PageScriptCall
+    readerPosition?: import("@once/core").ReaderPosition
+  }): void
 }
 
 /** A small JPEG of a tab, base64 without a data URL prefix. */
@@ -432,6 +458,12 @@ export interface TabSourcePort {
    * cannot take one (e.g. a browser can only capture each window's visible tab).
    */
   captureThumbnail?(tabId: string): Promise<TabThumbnail | null>
+  /** Runs a page script in a tab's page; null when the tab cannot be scripted now. */
+  runInPage?<R>(tabId: string, call: PageScriptCall<unknown[], R>): Promise<R | null>
+  /** How far a Reader-mode tab was read, for readers a page script cannot reach. */
+  readerPosition?(tabId: string): Promise<import("@once/core").ReaderPosition | null>
+  /** A tab stopped being the selected one: the moment to read where it was left. */
+  onDeselected?(handler: (tabId: string) => void): () => void
 }
 
 export interface ThemePort {

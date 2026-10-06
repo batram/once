@@ -91,14 +91,6 @@ export class MobileReadingController {
     this.runtime.onReaderClosed(listener)
   }
 
-  /** A page from another device, in a tab of its own; the current page stays. */
-  openTab(url: string, background: boolean): void {
-    const tab = this.tabs.create(!background)
-    tab.session.navigate(url)
-    if (background) this.tabDialog.announce("Opened in background tab")
-    else PanelNavigation.open_panel("reading")
-  }
-
   openBrowserUrl(url: string): void {
     PanelNavigation.open_panel("reading")
     this.ensureCurrentTab()

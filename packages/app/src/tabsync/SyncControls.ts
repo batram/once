@@ -7,6 +7,7 @@ import { SyncDestinationBinding } from "./SyncDestinationBinding"
 import { SyncGate } from "./SyncGate"
 import { TabDocRepository } from "./TabDocRepository"
 import { TabSyncService } from "./TabSyncService"
+import { restorePlan } from "./TabStates"
 
 type SyncClientMethods = Pick<OnceClient,
   "getSyncConsent" | "requestSyncConsent" | "getTabSync" | "setTabSyncOptions" | "setTabSyncShared" |
@@ -94,10 +95,13 @@ export class SyncControls {
       },
       forgetDevice: (deviceId) => this.require().forget(deviceId),
       getTabThumbnail: async (id) => this.tabSync ? this.tabSync.thumbnail(id) : null,
-      openRemoteTab: (url, mode, background) => {
+      openRemoteTab: (url, mode, background, state) => {
         if (!/^https?:\/\//i.test(url)) return
-        if (this.platform.tabOpener) this.platform.tabOpener.open(url, { background, mode })
-        else this.platform.activeTab?.openUrl(url, background ? "middle" : "_self")
+        // Where it was left: a start time in the URL, or a script for the opened page.
+        const plan = restorePlan(url, mode, state)
+        if (this.platform.tabOpener) {
+          this.platform.tabOpener.open(plan.url, { background, mode, restore: plan.restore, readerPosition: plan.readerPosition })
+        } else this.platform.activeTab?.openUrl(plan.url, background ? "middle" : "_self")
       },
       resetDeviceIdentity: () => this.require().resetIdentity()
     }

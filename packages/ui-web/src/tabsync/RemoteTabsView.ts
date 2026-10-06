@@ -1,11 +1,11 @@
 import type { RemoteDeviceView, TabSyncView } from "@once/app"
-import { humanTime, SyncedTab } from "@once/core"
+import { describeTabState, humanTime, SyncedTab } from "@once/core"
 
 /** What the view needs, from the app client or from a page relaying to it. */
 export interface RemoteTabsPort {
   load(): Promise<RemoteTabsState>
   subscribe(listener: () => void): () => void
-  open(tab: Pick<SyncedTab, "url" | "mode">, background: boolean): void
+  open(tab: Pick<SyncedTab, "url" | "mode" | "state">, background: boolean): void
   /** A tab's screenshot as a data URL, or null while it has not arrived. */
   thumbnail?(id: string): Promise<string | null>
   /** Shows the Sync settings, where sync and sharing are set up. */
@@ -187,6 +187,7 @@ function tabRow(tab: SyncedTab, port: RemoteTabsPort, showThumb: (image: HTMLIma
   detail.textContent = [
     hostOf(tab.url),
     ...(tab.mode === "reader" ? ["Reader"] : []),
+    ...(describeTabState(tab.state) ? [describeTabState(tab.state)] : []),
     `used ${humanTime(Date.parse(tab.activityAt))}`
   ].join(" · ")
   const text = document.createElement("span")

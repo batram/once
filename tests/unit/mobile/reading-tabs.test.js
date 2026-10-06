@@ -4,6 +4,7 @@ const fs = require("node:fs")
 const ts = require("typescript")
 const { ReadingSession } = require("../../../packages/ui-web/dist/ReadingSession")
 const { Story } = require("../../../packages/core/dist/story/Story")
+const { readReaderPosition } = require("../../../packages/core/dist/tabsync/tabState")
 const compiled = ts.transpileModule(fs.readFileSync(require("node:path").join(__dirname, "../../../apps/mobile/src/readingTabs.ts"), "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
 }).outputText
@@ -14,7 +15,7 @@ const historyExports = {}
 Function("exports", "require", transpile("readingHistory.ts"))(historyExports, () => ({}))
 const moduleExports = {}
 Function("exports", "require", compiled)(moduleExports, name =>
-  name === "@once/core" ? { Story } : name === "./readingHistory" ? historyExports : { ReadingSession })
+  name === "@once/core" ? { Story, readReaderPosition } : name === "./readingHistory" ? historyExports : { ReadingSession })
 const { ReadingTabs } = moduleExports
 const memory = () => {
   const values = new Map()

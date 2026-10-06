@@ -1,6 +1,7 @@
 import PouchDB from "pouchdb-browser"
 import PouchDBFind from "pouchdb-find"
-import { DatabaseChange, OncePlatformPorts, ThemeName } from "@once/app"
+import { DatabaseChange, OncePlatformPorts, pageScriptSource, ThemeName } from "@once/app"
+import { captureReaderPositionInPage } from "@once/app/tabsync"
 import { Story } from "@once/core"
 import {
   IndexedDbCacheStore,
@@ -96,7 +97,12 @@ export function createElectronPlatform(
     tabSource: {
       snapshot: () => bridge.tabSync.snapshot(),
       onChanged: (handler) => bridge.tabSync.onChanged(handler),
-      captureThumbnail: (tabId) => bridge.tabSync.capture(tabId)
+      captureThumbnail: (tabId) => bridge.tabSync.capture(tabId),
+      runInPage: async (tabId, call) => await bridge.tabSync.run(tabId, pageScriptSource(call)) as never,
+      // The reader is a page in its tab here, so a page script reads it.
+      readerPosition: async (tabId) =>
+        await bridge.tabSync.run(tabId, pageScriptSource({ fn: captureReaderPositionInPage, args: [] })) as never,
+      onDeselected: (handler) => bridge.tabSync.onDeselected(handler)
     },
     device: {
       platform: "electron",

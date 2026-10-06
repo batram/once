@@ -1,4 +1,5 @@
 import { installReaderTts } from "@once/ui-web/reader/readerTts"
+import { captureReaderPositionInPage, restoreReaderPositionInPage } from "@once/app/tabsync/pageScripts"
 import {
   emptyReaderTtsPreferences,
   ReaderTtsPreferences
@@ -100,10 +101,15 @@ window.addEventListener("scroll", () => {
   scrollReportPending = true
   window.setTimeout(() => {
     scrollReportPending = false
-    window.parent.postMessage({ channel: "once-reader-scroll", type: "position", y: window.scrollY }, "*")
+    // The block in view travels to other devices, whose screens lay the article out differently.
+    window.parent.postMessage({ channel: "once-reader-scroll", type: "position", y: window.scrollY,
+      position: captureReaderPositionInPage() }, "*")
   }, 150)
 }, { passive: true })
 window.addEventListener("message", event => {
   if (event.source !== window.parent || event.data?.channel !== "once-reader-scroll" || event.data.type !== "restore") return
-  if (Number.isFinite(event.data.y)) window.scrollTo(0, Math.max(0, event.data.y))
+  const position = event.data.position as { fraction?: unknown; anchor?: { index?: unknown; text?: unknown } | null } | undefined
+  if (position && typeof position.fraction === "number") {
+    restoreReaderPositionInPage(position.fraction, Number(position.anchor?.index ?? -1), String(position.anchor?.text ?? ""))
+  } else if (Number.isFinite(event.data.y)) window.scrollTo(0, Math.max(0, event.data.y))
 })

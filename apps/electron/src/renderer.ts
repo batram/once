@@ -1,6 +1,6 @@
 import { createOnceApp, OnceClient } from "@once/app"
 import { bindRemoteTabsPlacement, remoteTabsInPanel } from "./remoteTabsPlacement"
-import { hostRemoteTabsPages } from "./remoteTabsHost"
+import { electronTabOpener, hostRemoteTabsPages } from "./remoteTabsHost"
 import { FilterListsDocument, UserscriptsDocument } from "@once/core"
 import { createElectronPlatform } from "@once/platform-electron"
 import { ElectronRedirectRule, ElectronUpdateStatus } from "@once/platform-electron/bridge"
@@ -108,6 +108,7 @@ async function startRenderer(): Promise<void> {
   document.body.classList.add(`electron-platform-${buildInfo.platform}`)
 
   const platform = createElectronPlatform(window.onceElectron, buildInfo)
+  platform.tabOpener = electronTabOpener(window.onceElectron)
   const app = createOnceApp(platform)
   ReaderView.mount(
     app.client,

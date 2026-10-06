@@ -133,3 +133,38 @@ test("the side panel's Tabs entry lists other devices' tabs and opens one in a n
     await fs.rm(userDataDir, { recursive: true, force: true })
   }
 })
+
+test("the Chrome background reads a media position when its tab is left", async () => {
+  const { startMediaServer } = require("../shared/media-server")
+  const extensionPath = path.resolve(__dirname, "../../../apps/chrome-extension/dist/release")
+  const userDataDir = await fs.mkdtemp(path.join(os.tmpdir(), "once-chrome-tabsync-media-"))
+  const couch = await startCouch()
+  const media = await startMediaServer()
+  const context = await chromium.launchPersistentContext(userDataDir, {
+    channel: "chromium",
+    args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`]
+  })
+  try {
+    const worker = await waitForExtensionWorker(context)
+    await worker.evaluate(async (syncUrl) => {
+      await globalThis.chrome.storage.local.set({ "secret:once:tabsync-options": JSON.stringify({ sharing: true, screenshots: false }) })
+      await globalThis.chrome.storage.sync.set({ sync_url: syncUrl })
+    }, couch.url("once"))
+    const page = await context.newPage()
+    await page.goto(`${media.origin}/listen`)
+    await expect.poll(() => page.evaluate(() => document.querySelector("audio").duration || 0)).toBeGreaterThan(50)
+    await page.evaluate(() => { document.querySelector("audio").currentTime = 21 })
+    const other = await context.newPage()
+    await other.goto(`${media.origin}/elsewhere`)
+    await expect.poll(async () => {
+      const [doc] = (await couch.devices("once")).filter((item) => item.platform === "chrome")
+      const tab = doc?.windows.flatMap((window) => window.tabs).find((item) => item.url === `${media.origin}/listen`)
+      return Math.round(tab?.state?.media?.data.currentTime ?? -1)
+    }, { timeout: 30_000 }).toBe(21)
+  } finally {
+    await context.close()
+    await media.close()
+    await couch.close()
+    await fs.rm(userDataDir, { recursive: true, force: true })
+  }
+})

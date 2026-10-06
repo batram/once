@@ -6,6 +6,7 @@ const PouchDB = require("pouchdb")
 const expressPouchDB = require("express-pouchdb")
 const { launchApp, closeApp, startPageServer, openSettingsSection } = require("./electron-harness")
 const stories = require("../shared/story-fixture")
+const { startMediaServer } = require("../shared/media-server")
 
 const otherDevice = "fedcba9876543210fedcba9876543210"
 
@@ -142,6 +143,68 @@ test("the tab bar button opens other devices' tabs as a page; the side panel can
   } finally {
     await closeApp(app.electronApp, app.userData)
     await feed.close()
+    http.closeAllConnections()
+    await new Promise((resolve) => http.close(resolve))
+    await remote.destroy()
+  }
+})
+
+test("a media position is read when its tab is left, and restored when another device opens it", async () => {
+  test.setTimeout(90000)
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "once-tab-sync-media-"))
+  const Db = PouchDB.defaults({ prefix: directory + path.sep })
+  const remote = new Db("once")
+  const media = await startMediaServer()
+  const at = new Date().toISOString()
+  await remote.put({
+    _id: `dev_${otherDevice}`, type: "device", schema: 1, deviceId: otherDevice, epoch: 1, seq: 4, name: "Test phone",
+    platform: "android", appVersion: "1", sharing: true, updatedAt: at,
+    windows: [{ id: "phone", focused: true, tabs: [{ id: "a", navSeq: 1, url: `${media.origin}/listen?remote`, title: "Listening on the phone",
+      mode: "web", active: true, openedAt: at, navigatedAt: at, selectedAt: at, activityAt: at,
+      state: { media: { v: 1, capturedAt: at, data: { currentTime: 33, duration: 60, paused: true, rate: 1 } } } }] }]
+  })
+  const api = expressPouchDB(Db, { mode: "minimumForPouchDB", inMemoryConfig: true })
+  const http = await new Promise((resolve) => { const server = api.listen(0, "127.0.0.1", () => resolve(server)) })
+  const app = await launchApp({ env: { ONCE_ELECTRON_DISABLE_NETWORK_FETCH: "0" } })
+  const inTab = (url, script) => app.electronApp.evaluate(({ webContents }, [target, source]) => {
+    const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL() === target)
+    return contents ? contents.executeJavaScript(source) : null
+  }, [url, script])
+  try {
+    const page = app.window
+    await openSettingsSection(page, "sync", "#couch_input")
+    await page.getByTestId("sync-url").fill(`http://127.0.0.1:${http.address().port}/once`)
+    await page.getByTestId("save-sync").click()
+    await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "up-to-date", { timeout: 20000 })
+    await page.getByTestId("tab-sync-share").check()
+
+    const listening = `${media.origin}/listen`
+    await page.evaluate((url) => window.onceElectron.tabs.create(url), listening)
+    await expect.poll(() => inTab(listening, "document.querySelector('audio')?.duration || 0"), { timeout: 15000 }).toBeGreaterThan(50)
+    await inTab(listening, "document.querySelector('audio').currentTime = 12")
+    // Leaving the tab is when its position is read.
+    await page.evaluate((url) => window.onceElectron.tabs.create(url), `${media.origin}/elsewhere`)
+    await expect.poll(async () => {
+      const [desktop] = (await remote.allDocs({ startkey: "dev_", endkey: "dev_￿", include_docs: true })).rows
+        .map((row) => row.doc).filter((doc) => doc.deviceId !== otherDevice)
+      const tab = desktop?.windows.flatMap((window) => window.tabs).find((item) => item.url === listening)
+      return Math.round(tab?.state?.media?.data.currentTime ?? -1)
+    }, { timeout: 30000 }).toBe(12)
+
+    await page.getByTestId("tab-sync-button").click()
+    await expect.poll(() => app.electronApp.evaluate(({ webContents }) => webContents.getAllWebContents()
+      .some((candidate) => candidate.getURL().startsWith("once-tabs://"))), { timeout: 10000 }).toBe(true)
+    const tabsPage = await app.electronApp.evaluate(({ webContents }) => webContents.getAllWebContents()
+      .find((candidate) => candidate.getURL().startsWith("once-tabs://")).id)
+    await expect.poll(() => app.electronApp.evaluate(({ webContents }, id) =>
+      webContents.fromId(id).executeJavaScript("document.body.innerText"), tabsPage), { timeout: 15000 }).toContain("⏸ 0:33 / 1:00")
+    await app.electronApp.evaluate(({ webContents }, id) => webContents.fromId(id).executeJavaScript(
+      "[...document.querySelectorAll('.remote_tab_link')].find((link) => link.textContent.includes('Listening on the phone')).click()"), tabsPage)
+    await expect.poll(() => inTab(`${media.origin}/listen?remote`, "Math.round(document.querySelector('audio')?.currentTime ?? -1)"),
+      { timeout: 20000 }).toBe(33)
+  } finally {
+    await closeApp(app.electronApp, app.userData)
+    await media.close()
     http.closeAllConnections()
     await new Promise((resolve) => http.close(resolve))
     await remote.destroy()

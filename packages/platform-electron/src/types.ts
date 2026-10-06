@@ -310,6 +310,11 @@ export interface ElectronBridge {
     onChanged(handler: () => void): () => void
     /** A small JPEG of a tab of any window, or null while it loads. */
     capture(tabId: string): Promise<{ jpeg: string; width: number; height: number } | null>
+    /** Runs page script source in a tab of any window; null where it cannot. */
+    run(tabId: string, source: string): Promise<unknown>
+    /** Runs `source` once the next tab showing `url`, or its reader, has loaded. */
+    expectRestore(url: string, source: string): Promise<void>
+    onDeselected(handler: (tabId: string) => void): () => void
   }
   /** The tabs page in this window's tabs: opened or focused here, fed with the shell's view. */
   remoteTabs: {
@@ -463,6 +468,9 @@ export const ELECTRON_IPC = {
   tabSyncSnapshot: "once:tabsync:snapshot",
   tabSyncChanged: "once:tabsync:changed",
   tabSyncCapture: "once:tabsync:capture",
+  tabSyncRun: "once:tabsync:run",
+  tabSyncExpectRestore: "once:tabsync:expect-restore",
+  tabSyncDeselected: "once:tabsync:deselected",
   panelPageShow: "once:panel-page:show",
   panelPageSetBounds: "once:panel-page:set-bounds",
   panelPageClose: "once:panel-page:close",
@@ -535,7 +543,7 @@ export interface ElectronRemoteTabsPageBridge {
 }
 
 export type ElectronRemoteTabsCommand =
-  | { type: "open"; url: string; mode: "web" | "reader"; background: boolean }
+  | { type: "open"; url: string; mode: "web" | "reader"; background: boolean; state?: unknown }
   | { type: "settings" }
 
 /** The conversation page's location; its query names the conversation. */

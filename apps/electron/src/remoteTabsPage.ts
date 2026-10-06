@@ -30,7 +30,7 @@ if (!bridge) {
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
-    open: (tab, background) => bridge.send({ type: "open", url: tab.url, mode: tab.mode, background }),
+    open: (tab, background) => bridge.send({ type: "open", url: tab.url, mode: tab.mode, background, state: tab.state }),
     thumbnail: async (id) => thumbs[id] ?? null,
     openSettings: () => bridge.send({ type: "settings" })
   })

@@ -309,6 +309,14 @@ function registerTabNavigation(coordinator: BrowserCoordinator): void {
     trusted(event, coordinator)
     return typeof tabId === "string" ? tabSync.capture(tabId) : null
   })
+  ipcMain.handle(ELECTRON_IPC.tabSyncRun, (event, tabId: string, source: string) => {
+    trusted(event, coordinator)
+    return typeof tabId === "string" && typeof source === "string" ? tabSync.run(tabId, source) : null
+  })
+  ipcMain.handle(ELECTRON_IPC.tabSyncExpectRestore, (event, url: string, source: string) => {
+    trusted(event, coordinator)
+    if (typeof url === "string" && typeof source === "string") tabSync.expectRestore(url, source)
+  })
   ipcMain.handle(ELECTRON_IPC.tabsGetAll, (event) => {
     const target = browser(event, coordinator)
     return coordinator.getAll(target.window)

@@ -14,6 +14,8 @@ export class TabOwnership {
   readonly tabs = new Map<string, TabEntry>()
   readonly windows = new Map<number, WindowEntry>()
   private readonly observers = new Set<() => void>()
+  /** Told when a tab stops being its window's selected one, while its page is still there. */
+  readonly deselected = new Set<(entry: TabEntry) => void>()
 
   constructor(
     private readonly errors: NavigationErrors,
@@ -92,6 +94,7 @@ export class TabOwnership {
     if (owner.activeId === id) return
     const previous = owner.activeId ? this.tabs.get(owner.activeId) : undefined
     if (previous) previous.view.setVisible(false)
+    if (previous) for (const listener of this.deselected) listener(previous)
     owner.activeId = id
     markSelected(entry)
     this.show(owner, entry)

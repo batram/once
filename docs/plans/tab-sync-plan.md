@@ -755,6 +755,25 @@ and screenshots from database A would therefore be uploaded to database B.
   after the publication naming it. The shared view shows them (or the site's initial), and the
   Electron page receives them with the view.
 
+### Phase 4 status (implemented)
+
+- Core: `tabState.ts` (media and reader position records with versions, validation, the YouTube
+  start time, summaries such as "▶ 12:34 / 45:10" and "Read 40 %").
+- App: page scripts in `tabsync/pageScripts.ts`, self-contained so they run as source text
+  (Electron, mobile) or through an extension's scripting API; `TabStates` keeps each tab's state by
+  page (navigation and URL), counts a change as activity, and keeps what it knew while a page cannot
+  be read; `restorePlan` turns state into a YouTube `t=` URL, a seek script, or a reader position.
+- Triggers: every publication reads the selected and audible tabs; a sampler reads them every
+  15 seconds (on alarms every 30 seconds in the extension background); leaving a tab reads it.
+- Restore: Electron runs the script once the page or its reader loads (main keeps it by URL for a
+  minute) and opens Reader-mode tabs as readers; the extensions run it once the new tab completes;
+  mobile seeks once the page is ready and opens Reader tabs at their block through the reader frame.
+- Not yet: extension reader pages (token URLs) are neither published nor restored as readers; the
+  desktop reader position is covered by the shared scripts, not by its own end-to-end test.
+- Tests: `tests/unit/app/tab-state.test.js`, state helpers in `tests/unit/core/tab-sync.test.js`, the
+  leave-a-tab integration test, media capture and restore end to end on Electron and capture on Chrome
+  (`tests/e2e/shared/media-server.js`), and reader restore and capture in `tests/e2e/mobile/tab-sync.spec.js`.
+
 ## Nice-to-haves (not v1)
 
 - Recently closed tabs from other devices.

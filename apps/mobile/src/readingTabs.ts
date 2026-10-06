@@ -1,4 +1,4 @@
-import { Story } from "@once/core"
+import { readReaderPosition, Story, type ReaderPosition } from "@once/core"
 import { ReadingSession } from "@once/ui-web"
 import type { ReadingSessionState } from "@once/ui-web"
 import { ReadingHistory } from "./readingHistory"
@@ -14,6 +14,7 @@ interface SavedTab {
   readerScroll: number
   /** Absent in tabs saved before tab sync; a restored tab then starts now. */
   times?: TabTimes
+  readerPosition?: ReaderPosition
 }
 /** What tab sync publishes about a tab's life: its navigation, and when it was opened, navigated, selected, used. */
 export interface TabTimes { navSeq: number; openedAt: number; navigatedAt: number; selectedAt: number; activityAt: number }
@@ -30,6 +31,10 @@ export interface ReadingTab {
   /** Audio this session: playing now, or played earlier and since stopped. */
   audio?: "playing" | "played"
   times: TabTimes
+  /** How far the article is read, by block; travels to other devices. */
+  readerPosition?: ReaderPosition
+  /** A position from another device, applied when the reader opens and then forgotten. */
+  pendingReaderPosition?: ReaderPosition
 }
 interface Snapshot { version: 1; activeId: string | null; tabs: SavedTab[] }
 
@@ -38,6 +43,7 @@ export class ReadingTabs {
   private entries: ReadingTab[] = []
   private active: string | null = null
   private listeners = new Set<() => void>()
+  private readonly deselected = new Set<(id: string) => void>()
   private removers = new Map<string, () => void>()
   private restoring = false
   private batching = false
@@ -86,8 +92,18 @@ export class ReadingTabs {
   }
 
   private choose(tab: ReadingTab): void {
-    if (this.active !== tab.id) tab.times.selectedAt = tab.times.activityAt = Date.now()
+    if (this.active !== tab.id) {
+      tab.times.selectedAt = tab.times.activityAt = Date.now()
+      const left = this.active
+      if (left) this.deselected.forEach(listener => listener(left))
+    }
     this.active = tab.id
+  }
+
+  /** Told when a tab stops being the selected one, while its page is still there. */
+  onDeselected(listener: (id: string) => void): () => void {
+    this.deselected.add(listener)
+    return () => this.deselected.delete(listener)
   }
 
   close(id: string): void {
@@ -151,12 +167,16 @@ export class ReadingTabs {
     this.listeners.forEach(listener => listener())
   }
 
-  update(id: string, generation: string, value: { title?: string; readerScroll?: number }): void {
+  update(id: string, generation: string, value: { title?: string; readerScroll?: number; readerPosition?: ReaderPosition }): void {
     const tab = this.entries.find(entry => entry.id === id && entry.generation === generation)
     if (!tab) return
     if (value.readerScroll !== undefined && Number.isFinite(value.readerScroll)) {
       tab.readerScroll = Math.max(0, value.readerScroll)
       tab.times.activityAt = Date.now()
+    }
+    if (value.readerPosition) {
+      tab.readerPosition = value.readerPosition
+      tab.pendingReaderPosition = undefined
     }
     // Reader scroll reports arrive continuously and nothing renders them.
     if (value.title === undefined) { this.persistSoon(); return }
@@ -179,6 +199,7 @@ export class ReadingTabs {
         tab.title = ""
         tab.preview = undefined
         tab.readerScroll = 0
+        tab.readerPosition = undefined
         if (!this.restoring) {
           tab.times.navSeq++
           tab.times.navigatedAt = tab.times.activityAt = Date.now()
@@ -199,6 +220,7 @@ export class ReadingTabs {
     tab.title = value.title
     tab.readerScroll = value.readerScroll
     if (value.times) tab.times = { ...value.times }
+    if (value.readerPosition) tab.readerPosition = value.readerPosition
     return tab
   }
 
@@ -214,7 +236,8 @@ export class ReadingTabs {
       if (!["reader", "browser", "comments"].includes(tab.mode)) continue
       if (tab.story) { try { Story.from_obj(tab.story) } catch { continue } }
       ids.add(tab.id)
-      validated.push({ ...tab, readerScroll: Number.isFinite(tab.readerScroll) ? Math.max(0, tab.readerScroll) : 0, times: readTimes(tab.times) })
+      validated.push({ ...tab, readerScroll: Number.isFinite(tab.readerScroll) ? Math.max(0, tab.readerScroll) : 0, times: readTimes(tab.times),
+        readerPosition: readReaderPosition(tab.readerPosition) ?? undefined })
     }
     this.entries = validated.map(tab => this.fromSaved(tab))
     this.active = value.activeId === null || ids.has(value.activeId ?? "") ? value.activeId : this.entries[0]?.id ?? null
@@ -225,6 +248,7 @@ export class ReadingTabs {
       const state = tab.session.snapshot()
       const story = state.story
       return { id: tab.id, url: state.currentUrl, title: tab.title, mode: state.mode, readerScroll: tab.readerScroll, times: tab.times,
+        readerPosition: tab.readerPosition,
         story: story ? { type: story.type, href: story.href, title: story.title, comment_url: story.comment_url, timestamp: story.timestamp, tags: story.tags, stared: story.stared, read_state: story.read_state } : null }
     }) }
   }

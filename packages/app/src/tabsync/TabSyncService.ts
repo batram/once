@@ -4,6 +4,7 @@ import {
   readTabSyncSharedSettings,
   RetirementDoc,
   RETIREMENT_DOC_PREFIX,
+  SyncedTab,
   TAB_SYNC_SETTINGS_ID,
   THUMB_DOC_PREFIX,
   TabSyncOptions,
@@ -15,9 +16,10 @@ import { DeviceIdentity } from "./DeviceIdentity"
 import { holdLock } from "./locks"
 import { TabDocRepository } from "./TabDocRepository"
 import { TabThumbnails } from "./TabThumbnails"
+import { TabStates } from "./TabStates"
 import { deviceDocument, expiredSends, publicationFingerprint, publishedWindows, visibleDevice } from "./tabPublication"
 
-const TIMING = { debounce: 3000, minInterval: 15000, heartbeat: 10 * 60 * 1000, refresh: 250, thumbnailGrace: 60 * 60 * 1000 }
+const TIMING = { debounce: 3000, minInterval: 15000, heartbeat: 10 * 60 * 1000, refresh: 250, thumbnailGrace: 60 * 60 * 1000, sample: 15000 }
 const CHANNEL = "once-tabsync"
 
 export interface RemoteDeviceView {
@@ -58,6 +60,12 @@ export interface TabSyncDependencies {
   reportError(operation: string, error: unknown): void
   /** Shorter delays for tests. */
   timing?: Partial<typeof TIMING>
+  /**
+   * Whether a selected or playing tab has state worth sampling, for a
+   * context whose timers do not survive sleep (an extension background
+   * samples on alarms instead).
+   */
+  samplingNeeded?(needed: boolean): void
 }
 
 /**
@@ -85,10 +93,16 @@ export class TabSyncService {
   private readonly disposers: Array<() => void> = []
   private readonly timing: typeof TIMING
   private readonly thumbnails: TabThumbnails
+  private readonly states: TabStates
+  private sampler?: ReturnType<typeof setInterval>
+  private stopDeselected?: () => void
+  /** The tabs of the last publication, to read a tab's state when it is left. */
+  private lastTabs = new Map<string, SyncedTab>()
 
   constructor(private readonly deps: TabSyncDependencies) {
     this.timing = { ...TIMING, ...deps.timing }
     this.thumbnails = new TabThumbnails(deps.repository, deps.source, this.timing.thumbnailGrace)
+    this.states = new TabStates(deps.source)
   }
 
   async start(): Promise<void> {
@@ -150,6 +164,26 @@ export class TabSyncService {
   /** A heartbeat or retry: publish now, even if nothing changed. */
   publishSoon(): void {
     this.schedule(0, true)
+  }
+
+  /**
+   * Reads the state of the selected and playing tabs, and publishes when it
+   * changed: a video played on, an article scrolled. A tab held still is
+   * not republished.
+   */
+  async sampleNow(): Promise<void> {
+    if (!this.heartbeat || !this.deps.source) return
+    const generation = this.generation
+    const options = await this.deps.identity.getOptions()
+    if (!options.sharing) return
+    const listed = publishedWindows(await this.deps.source.snapshot(), options)
+    let changed = false
+    for (const tab of this.states.sampled(listed)) {
+      if (generation !== this.generation) return
+      if (await this.states.capture(tab)) changed = true
+    }
+    this.deps.samplingNeeded?.(this.states.sampled(this.states.attach(listed)).some((tab) => tab.audible || tab.state))
+    if (changed) this.schedule()
   }
 
   /** Another device's tab screenshot as a data URL, or null while it has not arrived. */
@@ -254,6 +288,7 @@ export class TabSyncService {
       this.generation++
       this.stopPublishing()
       this.thumbnails.reset()
+      this.states.reset()
     }
     if (!wanted) {
       // Only the publisher withdraws, after anything it queued before.
@@ -267,15 +302,32 @@ export class TabSyncService {
     if (!this.heartbeat) {
       this.heartbeat = setInterval(() => this.schedule(0, true), this.timing.heartbeat)
       this.stopSource = this.deps.source?.onChanged(() => this.schedule())
+      this.sampler = setInterval(() => void this.sampleNow(), this.timing.sample)
+      // The tab being left is read before the reader is gone from it.
+      this.stopDeselected = this.deps.source?.onDeselected?.((tabId) => void this.captureLeft(tabId))
       this.lastFingerprint = ""
     }
     this.schedule(0)
     this.deps.changed()
   }
 
+  /** Reads the state of a tab just left; one opened since the last publication is looked up first. */
+  private async captureLeft(tabId: string): Promise<void> {
+    let tab = this.lastTabs.get(tabId)
+    if (!tab && this.deps.source) {
+      const options = await this.deps.identity.getOptions()
+      tab = publishedWindows(await this.deps.source.snapshot(), options)
+        .flatMap((window) => window.tabs).find((item) => item.id === tabId)
+    }
+    if (tab && await this.states.capture(tab)) this.schedule()
+  }
+
   private stopPublishing(): void {
     clearTimeout(this.debounce)
     clearInterval(this.heartbeat)
+    clearInterval(this.sampler)
+    this.stopDeselected?.()
+    this.stopDeselected = undefined
     this.debounce = undefined
     this.heartbeat = undefined
     this.stopSource?.()
@@ -307,9 +359,13 @@ export class TabSyncService {
       ? publishedWindows(await this.deps.source.snapshot(), options)
       : []
     if (generation !== this.generation) return
+    for (const tab of this.states.sampled(listed)) await this.states.capture(tab)
+    this.lastTabs = new Map(listed.flatMap((window) => window.tabs.map((tab) => [tab.id, tab] as const)))
+    const withState = this.states.attach(listed)
+    if (generation !== this.generation) return
     const windows = options.sharing && options.screenshots
-      ? await this.thumbnails.attach(record.id, listed, () => generation === this.generation)
-      : listed
+      ? await this.thumbnails.attach(record.id, withState, () => generation === this.generation)
+      : withState
     if (generation !== this.generation) return
     const draft = deviceDocument({ deviceId: record.id, epoch: record.epoch, seq: record.seq, name: record.name,
       platform: this.deps.identity.platform, appVersion: this.deps.appVersion }, windows, options.sharing)

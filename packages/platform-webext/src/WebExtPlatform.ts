@@ -22,7 +22,8 @@ import { WebExtSyncStorage } from "./storage/WebExtSyncStorage"
 import { setDocumentTheme } from "./ui/WebExtTheme"
 import {
   createWebExtActiveTab,
-  createWebExtHistorySubscription
+  createWebExtHistorySubscription,
+  createWebExtTabOpener
 } from "./webextPorts"
 
 PouchDB.plugin(PouchDBFind)
@@ -70,6 +71,7 @@ export function createWebExtPlatform(
       setTheme: (theme: ThemeName) => setDocumentTheme(theme)
     },
     activeTab: createWebExtActiveTab(browserApi, window),
+    tabOpener: createWebExtTabOpener(browserApi),
     fetch: window.fetch.bind(window),
     onHistoryCommand: createWebExtHistorySubscription(browserApi),
     onDatabaseChange(handler) {

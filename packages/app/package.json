@@ -6,7 +6,8 @@
   "types": "dist/index.d.ts",
   "typesVersions": {
     "*": {
-      "tabsync": ["dist/tabsync/index.d.ts"]
+      "tabsync": ["dist/tabsync/index.d.ts"],
+      "tabsync/pageScripts": ["dist/tabsync/pageScripts.d.ts"]
     }
   },
   "exports": {
@@ -17,6 +18,10 @@
     "./tabsync": {
       "types": "./dist/tabsync/index.d.ts",
       "default": "./dist/tabsync/index.js"
+    },
+    "./tabsync/pageScripts": {
+      "types": "./dist/tabsync/pageScripts.d.ts",
+      "default": "./dist/tabsync/pageScripts.js"
     }
   },
   "dependencies": {

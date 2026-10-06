@@ -221,8 +221,8 @@ async function startMobileApp(): Promise<void> {
     openInApp: (url) => reading.openBrowserUrl(url),
     appVersion: __ONCE_APP_VERSION__,
     // The reading controller exists before the app starts, which is when these first run.
-    tabSource: readingTabSource(() => reading.tabs, () => reading.runtime.capturePreview()),
-    tabOpener: readingTabOpener(() => (url, background) => reading.openTab(url, background))
+    tabSource: readingTabSource(() => reading.tabs, () => reading.runtime.capturePreview(), (tabId, script) => reading.runtime.evaluate(tabId, script)),
+    tabOpener: readingTabOpener(() => reading)
   })
   const app = createOnceApp(platform)
   const browserSurface = createInAppBrowserSurface((url) =>

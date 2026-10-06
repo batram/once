@@ -4,6 +4,7 @@ export class ReaderDocumentHost {
   private readonly runtimeUrl: string | null
   private documentVersion = 0
   private scrollPosition: () => number = () => 0
+  private readerPosition: () => unknown = () => undefined
   private runtimeSource: Promise<string | null> | null = null
   private documentClosed: (() => void) | null = null
 
@@ -28,7 +29,8 @@ export class ReaderDocumentHost {
     this.frame.setAttribute("sandbox", "allow-scripts")
 
     this.frame.addEventListener("load", () => {
-      this.frame.contentWindow?.postMessage({ channel: "once-reader-scroll", type: "restore", y: this.scrollPosition() }, "*")
+      this.frame.contentWindow?.postMessage({ channel: "once-reader-scroll", type: "restore", y: this.scrollPosition(),
+        position: this.readerPosition() }, "*")
     })
     this.root.append(close, this.frame)
     parent.append(this.root)
@@ -36,6 +38,9 @@ export class ReaderDocumentHost {
 
   /** Read at each document load, so a later document restores the latest position. */
   setScrollPosition(position: () => number): void { this.scrollPosition = position }
+
+  /** A position from another device, by block, which wins over the pixel offset while set. */
+  setReaderPosition(position: () => unknown): void { this.readerPosition = position }
 
   /** Runs while the frame still holds a document that is about to be replaced or closed. */
   onDocumentClosed(listener: () => void): void { this.documentClosed = listener }

@@ -1,4 +1,4 @@
-import { OncePlatformPorts } from "@once/app"
+import { OncePlatformPorts, TabOpenerPort } from "@once/app"
 
 export function createWebExtActiveTab(
   browserApi: typeof browser,
@@ -81,5 +81,30 @@ export function createWebExtHistorySubscription(
     }
     browserApi.runtime.onMessage.addListener(listener)
     return () => browserApi.runtime.onMessage.removeListener(listener)
+  }
+}
+
+/**
+ * Opens another device's tab and, once the page has loaded, runs the script
+ * that puts it where it was left. Reader-mode tabs open as pages: the
+ * extension's reader keeps its documents to itself.
+ */
+export function createWebExtTabOpener(browserApi: typeof browser): TabOpenerPort {
+  return {
+    open(url, { background, restore }) {
+      void browserApi.tabs.create({ url, active: !background }).then((tab) => {
+        if (!restore || tab.id === undefined) return
+        const tabId = tab.id
+        const timeout = setTimeout(() => browserApi.tabs.onUpdated.removeListener(loaded), 60_000)
+        const loaded = (updatedId: number, change: browser.tabs._OnUpdatedChangeInfo) => {
+          if (updatedId !== tabId || change.status !== "complete") return
+          clearTimeout(timeout)
+          browserApi.tabs.onUpdated.removeListener(loaded)
+          void browserApi.scripting.executeScript({ target: { tabId }, func: restore.fn as unknown as (...args: unknown[]) => void, args: restore.args })
+            .catch((error) => console.warn("Could not restore the tab's position", error))
+        }
+        browserApi.tabs.onUpdated.addListener(loaded)
+      }).catch((error) => console.error("Could not open the tab from another device", error))
+    }
   }
 }

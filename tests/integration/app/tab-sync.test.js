@@ -241,3 +241,32 @@ test("screenshots are stored once per page, reach other devices, and go when unr
     await h.close()
   }
 })
+
+test("the position of a tab is read when it is left, and published while another tab is selected", async () => {
+  const h = await harness()
+  try {
+    let fraction = 0.3
+    const deselected = new Set()
+    const laptopSource = source([{ id: "w", focused: true, tabs: [
+      tab("a", "https://news.example/article", { active: true, mode: "reader" }), tab("b", "https://example.com/other")] }])
+    laptopSource.readerPosition = async (tabId) => tabId === "a" ? { fraction, anchor: { index: 3, text: "Third" } } : null
+    laptopSource.runInPage = async () => null
+    laptopSource.onDeselected = (handler) => { deselected.add(handler); return () => deselected.delete(handler) }
+    const laptop = await h.device("laptop", laptopSource)
+    await laptop.service.setOptions({ sharing: true, screenshots: false })
+    await h.settle(laptop.service)
+    const id = (await laptop.identity.get()).id
+    const readerState = async () => (await laptop.db.get(`dev_${id}`)).windows[0].tabs[0].state?.["reader.scroll"]?.data
+    assert.equal((await readerState()).fraction, 0.3)
+
+    fraction = 0.7
+    laptopSource.windows[0].tabs[0].active = false
+    laptopSource.windows[0].tabs[1].active = true
+    deselected.forEach((handler) => handler("a"))
+    laptopSource.emit()
+    await h.settle(laptop.service)
+    assert.equal((await readerState()).fraction, 0.7, "the article keeps the position it was left at")
+  } finally {
+    await h.close()
+  }
+})

@@ -15,7 +15,7 @@ export function clientRemoteTabsPort(client: OnceClient): RemoteTabsPort {
       ]
       return () => releases.forEach((release) => release())
     },
-    open: (tab, background) => client.openRemoteTab(tab.url, tab.mode, background),
+    open: (tab, background) => client.openRemoteTab(tab.url, tab.mode, background, tab.state),
     thumbnail: (id) => client.getTabThumbnail(id),
     openSettings: openSyncSettings
   }

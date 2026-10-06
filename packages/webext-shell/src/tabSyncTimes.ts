@@ -16,6 +16,7 @@ export function installTabSyncTimes(api: typeof browser): TabSourcePort {
   const storage = api.storage.session
   let queue: Promise<unknown> = Promise.resolve()
   const listeners = new Set<() => void>()
+  const deselected = new Set<(tabId: string) => void>()
   const changed = () => listeners.forEach((listener) => listener())
   const update = (change: (state: TimesState, now: number) => void) => {
     queue = queue.then(async () => {
@@ -39,12 +40,17 @@ export function installTabSyncTimes(api: typeof browser): TabSourcePort {
       times.navigatedAt = times.activityAt = now
     })
   })
+  // Chrome names only the newly selected tab; the one left comes from the
+  // window's last known selection, kept across the background's sleep.
   api.tabs.onActivated.addListener(({ tabId, windowId }) => {
+    let left: number | undefined
     update((state, now) => {
       const times = entry(state, tabId, now)
       times.selectedAt = times.activityAt = now
+      left = state.active[windowId]
       state.active[windowId] = tabId
     })
+    void queue.then(() => { if (left !== undefined && left !== tabId) deselected.forEach((listener) => listener(String(left))) })
   })
   api.tabs.onRemoved.addListener((tabId) => {
     update((state) => {
@@ -80,6 +86,20 @@ export function installTabSyncTimes(api: typeof browser): TabSourcePort {
     onChanged(handler) {
       listeners.add(handler)
       return () => listeners.delete(handler)
+    },
+    onDeselected(handler) {
+      deselected.add(handler)
+      return () => deselected.delete(handler)
+    },
+    async runInPage(tabId, call) {
+      const tab = await api.tabs.get(Number(tabId)).catch(() => null)
+      if (!tab?.url || !/^https?:/.test(tab.url)) return null
+      const [result] = await api.scripting.executeScript({
+        target: { tabId: Number(tabId) },
+        func: call.fn as unknown as (...args: unknown[]) => void,
+        args: call.args
+      }).catch(() => [])
+      return (result?.result ?? null) as never
     }
   }
 }

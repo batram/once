@@ -13,6 +13,8 @@ import { installTabSyncTimes } from "./tabSyncTimes"
 
 const HEARTBEAT_ALARM = "once-tabsync-heartbeat"
 const RETRY_ALARM = "once-tabsync-retry"
+/** Every thirty seconds while a selected or playing tab has a position to keep up with. */
+const SAMPLE_ALARM = "once-tabsync-sample"
 
 /**
  * Publishes this browser's tabs from the background, so they are shared
@@ -48,6 +50,10 @@ export function installTabSyncBackground(api: typeof browser, target: "chrome" |
       identity, repository: new TabDocRepository(docs), listStore: sharedSettings(docs), source,
       appVersion: api.runtime.getManifest().version,
       syncActive: () => generation === connection,
+      samplingNeeded: (needed) => {
+        if (needed) void api.alarms.create(SAMPLE_ALARM, { periodInMinutes: 0.5 })
+        else void api.alarms.clear(SAMPLE_ALARM)
+      },
       changed: () => undefined,
       reportError: (operation, error) => {
         console.warn(`Tab sync ${operation} failed; retrying later`, error)
@@ -69,7 +75,8 @@ export function installTabSyncBackground(api: typeof browser, target: "chrome" |
   })
   consent?.onChanged(restart)
   api.alarms.onAlarm.addListener((alarm) => {
-    if (alarm.name === HEARTBEAT_ALARM || alarm.name === RETRY_ALARM) {
+    if (alarm.name === SAMPLE_ALARM) void current?.service.sampleNow()
+    else if (alarm.name === HEARTBEAT_ALARM || alarm.name === RETRY_ALARM) {
       if (current) current.service.publishSoon()
       else restart()
     }
