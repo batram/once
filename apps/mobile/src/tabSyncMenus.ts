@@ -45,8 +45,9 @@ function canSend(): boolean {
 }
 
 /** "Send page to device…" in the browser sheet, for a web page being read. */
-export function sendPageItems(url: string): { id: string; label: string; placement: "page" }[] {
-  return canSend() && /^https?:\/\//i.test(url) ? [{ id: SEND_PAGE, label: "Send page to device…", placement: "page" }] : []
+export function sendPageItems(url: string): { id: string; label: string; placement: "page"; holdsSheet: true }[] {
+  // The device picker opens over the sheet; both close once a device is chosen.
+  return canSend() && /^https?:\/\//i.test(url) ? [{ id: SEND_PAGE, label: "Send page to device…", placement: "page", holdsSheet: true }] : []
 }
 
 /** "Send link to device…" in a link's long-press menu. */
@@ -54,11 +55,10 @@ export function sendLinkItems(link: string | undefined): { id: string; label: st
   return canSend() && link && /^https?:\/\//i.test(link) ? [{ id: SEND_LINK, label: "Send link to device…" }] : []
 }
 
-/** Runs a send chosen from the sheet or a link menu; false when `id` is not one. */
-export function runSendItem(id: string, page: { url: string; title?: string; mode?: "web" | "reader"; tabId?: string }): boolean {
-  if (id !== SEND_PAGE && id !== SEND_LINK) return false
-  void sendTo(null, page)
-  return true
+/** Runs a send chosen from the sheet or a link menu, settling once it is done; null when `id` is not one. */
+export function runSendItem(id: string, page: { url: string; title?: string; mode?: "web" | "reader"; tabId?: string }): Promise<void> | null {
+  if (id !== SEND_PAGE && id !== SEND_LINK) return null
+  return sendTo(null, page)
 }
 
 /** Asks for a device and sends there: this phone's tab with its position, or just an address. */

@@ -384,6 +384,15 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
         else NativeSurfaceDialogs.showMenu(getBridge(), call);
     }
 
+    /** Closes a browser sheet a row held open for its own menu, when the shell showed none after all. */
+    @PluginMethod
+    public void closeBrowserMenu(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            NativeBrowserMenu.closeHeld();
+            call.resolve();
+        });
+    }
+
     /** The long-press menu for the shell's own Reader frame, which the system WebView draws none for. */
     @PluginMethod
     public void showContextMenu(PluginCall call) {

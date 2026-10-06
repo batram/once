@@ -67,9 +67,11 @@ export function bindMobileExtensionToolbar(
         }))
       if (api) items.push({ id: "once:manage", label: "Manage extensions", enabled: true, iconDataUrl: undefined, settingsId: undefined })
       // Add-on trays for the open page, listed or not; they open above the page.
+      const holding = new Set<string>()
       for (const action of pageActions.list()) {
+        if (action.holdsSheet) holding.add(PAGE_ACTION_PREFIX + action.id)
         items.push({ id: PAGE_ACTION_PREFIX + action.id, label: action.label, enabled: true, iconDataUrl: undefined, settingsId: undefined,
-          ...(action.placement ? { placement: action.placement } : {}) })
+          ...(action.placement ? { placement: action.placement } : {}), ...(action.holdsSheet ? { holdsSheet: true } : {}) })
       }
       // Both native surfaces draw the sheet (iOS without the extension rows).
       const selected = api || surface.available
@@ -78,7 +80,12 @@ export function bindMobileExtensionToolbar(
       if (selected === "once:manage") {
         openExtensionManager()
       } else if (selected?.startsWith(PAGE_ACTION_PREFIX)) {
-        pageActions.run(selected.slice(PAGE_ACTION_PREFIX.length))
+        const held = holding.has(selected)
+        try { await pageActions.run(selected.slice(PAGE_ACTION_PREFIX.length)) } finally {
+          // The sheet stayed up for the row's own menu, which closes it; this
+          // only covers a run that showed none.
+          if (held) await surface.closeBrowserMenu?.()
+        }
       } else if (selected === "once:find") {
         // The sheet's own Find control; readingFindBar.ts owns the bar.
         document.dispatchEvent(new Event("once-find-in-page-request"))

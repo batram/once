@@ -33,6 +33,11 @@ export interface NativeOverlayMenuItem {
   settingsId?: string
   /** "page": an action on the page itself, shown with the browser controls rather than among extensions. */
   placement?: "page"
+  /**
+   * The row opens a menu of its own (which device to send to): the browser
+   * sheet stays up beneath it, and both close once that menu does.
+   */
+  holdsSheet?: boolean
 }
 
 export interface NativeOverlayMenuOptions {
@@ -233,6 +238,8 @@ export interface InAppBrowserSurface {
   setBounds(bounds: BrowserSurfaceBounds): Promise<void>
   setVisible(visible: boolean): Promise<void>
   showMenu(options: NativeOverlayMenuOptions): Promise<string | null>
+  /** Closes a browser sheet a `holdsSheet` row left up, when no menu followed it. */
+  closeBrowserMenu?(): Promise<void>
   showPrompt(options: NativeOverlayPromptOptions): Promise<string | null>
   evaluateJavaScript(script: string): Promise<string | null>
   /**
@@ -275,6 +282,7 @@ interface NativeInAppBrowserPlugin {
   setBounds(options: BrowserSurfaceBounds): Promise<void>
   setVisible(options: { visible: boolean }): Promise<void>
   showMenu(options: NativeOverlayMenuOptions): Promise<{ id?: string }>
+  closeBrowserMenu(): Promise<void>
   showPrompt(
     options: NativeOverlayPromptOptions
   ): Promise<{ value?: string }>
@@ -413,6 +421,9 @@ export function createNativeInAppBrowserSurface(identity?: BrowserTabIdentity): 
         anchor: options.anchor ? normalizeBounds(options.anchor) : undefined
       })
       return result?.id ?? null
+    },
+    async closeBrowserMenu() {
+      try { await plugin.closeBrowserMenu() } catch { /* an older shell build: the sheet closed itself */ }
     },
     async showPrompt(options) {
       const result = await plugin.showPrompt(options)

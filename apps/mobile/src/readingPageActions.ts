@@ -3,9 +3,9 @@ import { runSendItem, sendPageItems } from "./tabSyncMenus"
 
 /** The add-on tray actions the browser sheet offers for the page being read. */
 export interface ReadingPageActions {
-  list(): { id: string; label: string; placement?: "page" }[]
-  /** Opens or closes the tray above the page; nothing when the page went away. */
-  run(id: string): void
+  list(): { id: string; label: string; placement?: "page"; holdsSheet?: boolean }[]
+  /** Opens or closes the tray above the page; nothing when the page went away. Settles once a send is done. */
+  run(id: string): void | Promise<void>
 }
 
 /**
@@ -27,7 +27,8 @@ export function readingPageActions(reading: { session: { snapshot(): { currentUr
       return [...sendPageItems(currentUrl()), ...trays]
     },
     run: id => {
-      if (runSendItem(id, { url: currentUrl(), tabId: currentTab() ?? undefined })) return
+      const sent = runSendItem(id, { url: currentUrl(), tabId: currentTab() ?? undefined })
+      if (sent) return sent
       const current = page()
       if (current) runPageAddonAction(id, current, "toggle")
     }

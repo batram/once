@@ -20,6 +20,7 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
         CAPPluginMethod(name: "setBounds", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setVisible", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "showMenu", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "closeBrowserMenu", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "showPrompt", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "evaluateJavaScript", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "findInPage", returnType: CAPPluginReturnPromise),
@@ -444,6 +445,22 @@ public class InAppBrowserSurfacePlugin: CAPPlugin, CAPBridgedPlugin, WKNavigatio
             }
             let dark = call.getBool("dark") ?? (presenter.traitCollection.userInterfaceStyle == .dark)
             presenter.present(AnchoredMenu(call: call, dark: dark, sourceView: view, sourceRect: source), animated: true)
+        }
+    }
+
+    /// Closes a browser sheet a row held open for its own menu, when the
+    /// shell showed none after all. A sheet already gone is fine.
+    @objc func closeBrowserMenu(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            var current = self.bridge?.viewController
+            while let presented = current?.presentedViewController {
+                if let sheet = presented as? BrowserMenuSheet, sheet.isHeld {
+                    sheet.dismiss(animated: true)
+                    break
+                }
+                current = presented
+            }
+            call.resolve()
         }
     }
 

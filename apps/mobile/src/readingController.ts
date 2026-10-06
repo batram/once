@@ -153,7 +153,7 @@ export class MobileReadingController {
       void this.surface.setContextMenuItems?.(event.requestId, [...sendLinkItems(event.link), ...linkAddonItems(event.link, event.linkText)])
     })
     await this.surface.addListener("contextMenuAction", event => {
-      if (!event.link || runSendItem(event.id, { url: event.link, title: event.linkText })) return
+      if (!event.link || runSendItem(event.id, { url: event.link, title: event.linkText }) !== null) return
       this.runLinkAction(event.id, event.link, event.linkText)
     })
     await this.surface.addListener("openLinkRequested", event => {

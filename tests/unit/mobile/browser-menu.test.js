@@ -166,3 +166,33 @@ test("iOS opens the native browser sheet with page actions and no extension rows
   await button.onclick()
   assert.equal(closed, 1)
 })
+
+test("a row that holds the sheet keeps it up for its own menu and closes it once that run is done", async () => {
+  const { document, window } = parseHTML('<html><body><form><button id="reading_navigate">Go</button></form><p id="reading_url_validation" hidden></p></body></html>')
+  const compiled = ts.transpileModule(fs.readFileSync(path.resolve(__dirname,
+    "../../../apps/mobile/src/browserExtensionToolbar.ts"), "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
+  }).outputText
+  const exports = {}
+  Function("exports", "require", "document", "Event", compiled)(exports, () => ({}), document, window.Event)
+  const events = []
+  let menu
+  let selection = "once:page-action:once:send-page"
+  exports.bindMobileExtensionToolbar(null, {
+    available: true,
+    showMenu: async options => { menu = options; return selection },
+    closeBrowserMenu: async () => { events.push("closed") }
+  }, {
+    list: () => [{ id: "once:send-page", label: "Send page to device…", placement: "page", holdsSheet: true },
+      { id: "generic.explain", label: "Explain page" }],
+    run: async id => { await Promise.resolve(); events.push(`ran ${id}`) }
+  })
+  const button = document.querySelector("#reading_browser_menu")
+  await button.onclick()
+  assert.equal(menu.items.find(item => item.id === "once:page-action:once:send-page").holdsSheet, true)
+  assert.equal("holdsSheet" in menu.items.find(item => item.id === "once:page-action:generic.explain"), false)
+  assert.deepEqual(events, ["ran once:send-page", "closed"])
+  selection = "once:page-action:generic.explain"
+  await button.onclick()
+  assert.deepEqual(events, ["ran once:send-page", "closed", "ran generic.explain"])
+})

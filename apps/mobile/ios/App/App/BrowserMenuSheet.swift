@@ -34,6 +34,8 @@ final class BrowserMenuSheet: UIViewController, UIAdaptivePresentationController
     private let palette: Palette
     private var settled = false
     private var chosen: String?
+    /// A row's own menu is up over the sheet, which closes along with it.
+    private(set) var isHeld = false
     private var fittedHeight: CGFloat = 0
     private let content = UIStackView()
 
@@ -65,6 +67,13 @@ final class BrowserMenuSheet: UIViewController, UIAdaptivePresentationController
     private func choose(_ id: String) {
         chosen = id
         dismiss(animated: true) { self.settle(id) }
+    }
+
+    /// For a row that opens a menu of its own (which device to send to):
+    /// answers now and stays up beneath that menu, which closes both.
+    private func hold(_ id: String) {
+        isHeld = true
+        settle(id)
     }
 
     private func run(_ action: @escaping () -> Void) {
@@ -131,7 +140,8 @@ final class BrowserMenuSheet: UIViewController, UIAdaptivePresentationController
                 label: label,
                 enabled: item["enabled"] as? Bool ?? true,
                 iconDataUrl: item["iconDataUrl"] as? String,
-                settingsId: item["settingsId"] as? String
+                settingsId: item["settingsId"] as? String,
+                holds: item["holdsSheet"] as? Bool ?? false
             ))
         }
     }
@@ -230,8 +240,8 @@ final class BrowserMenuSheet: UIViewController, UIAdaptivePresentationController
         return row
     }
 
-    private func entry(id: String, label: String, enabled: Bool, iconDataUrl: String?, settingsId: String?) -> UIView {
-        let row = button(enabled: enabled) { [weak self] in self?.choose(id) }
+    private func entry(id: String, label: String, enabled: Bool, iconDataUrl: String?, settingsId: String?, holds: Bool) -> UIView {
+        let row = button(enabled: enabled) { [weak self] in if holds { self?.hold(id) } else { self?.choose(id) } }
         row.configuration?.title = label
         row.configuration?.image = icon(iconDataUrl, manage: id == "once:manage")
         row.configuration?.imagePadding = 12
@@ -339,7 +349,18 @@ final class AnchoredMenu: UIViewController, UIPopoverPresentationControllerDeleg
     /// choice opens next (the device picker after "Send to device…").
     private func choose(_ id: String) {
         chosen = id
-        dismiss(animated: true) { self.settle(id) }
+        // Over a held browser sheet, both go in one motion.
+        let base = heldSheet?.presentingViewController ?? presentingViewController
+        guard let base else { settle(id); return }
+        base.dismiss(animated: true) { self.settle(id) }
+    }
+
+    /// The browser sheet this menu was opened over, held open for it.
+    private weak var heldSheet: BrowserMenuSheet?
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        if let sheet = presentingViewController as? BrowserMenuSheet, sheet.isHeld { heldSheet = sheet }
     }
 
     override func viewDidLoad() {
@@ -409,5 +430,7 @@ final class AnchoredMenu: UIViewController, UIPopoverPresentationControllerDeleg
 
     func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
         settle(nil)
+        // Tapped away: the held sheet has nothing left to answer, so it goes too.
+        heldSheet?.dismiss(animated: true)
     }
 }

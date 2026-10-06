@@ -45,7 +45,12 @@ final class NativeSurfaceDialogs {
                 return;
             }
             WebView shell = bridge.getWebView();
-            ViewGroup parent = (ViewGroup) shell.getParent();
+            // Over a held browser sheet the menu has to live in the sheet's
+            // window: one anchored in the activity would open beneath it.
+            android.app.Dialog sheet = NativeBrowserMenu.held();
+            ViewGroup parent = sheet != null && call.getObject("anchor") == null
+                ? (ViewGroup) sheet.getWindow().getDecorView()
+                : (ViewGroup) shell.getParent();
             View anchor = new View(bridge.getActivity());
             JSObject bounds = call.getObject("anchor", new JSObject());
             float density = bridge.getContext().getResources().getDisplayMetrics().density;
@@ -69,7 +74,7 @@ final class NativeSurfaceDialogs {
                 anchor.setY(lastTouch != null ? lastTouch[1] - origin[1] : parent.getHeight() - height);
             }
 
-            PopupMenu popup = new PopupMenu(bridge.getActivity(), anchor, Gravity.END);
+            PopupMenu popup = new PopupMenu(parent.getContext(), anchor, Gravity.END);
             for (int index = 0; index < labels.length; index++) {
                 popup.getMenu()
                     .add(0, index, index, labels[index])
@@ -86,6 +91,8 @@ final class NativeSurfaceDialogs {
             popup.setOnDismissListener(ignored -> {
                 parent.removeView(anchor);
                 if (resolved.compareAndSet(false, true)) call.resolve();
+                // Chosen or tapped away, the sheet held for this menu goes with it.
+                if (sheet != null) NativeBrowserMenu.closeHeld();
             });
             // addView/setX/setY do not lay the synthetic anchor out
             // synchronously. Showing in the same turn makes PopupMenu observe

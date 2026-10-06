@@ -244,12 +244,12 @@ test("native embedded browsers present menus and prompts above web content", () 
     "apps/mobile/android/app/src/main/java/com/zmarn/once/NativeSurfaceDialogs.java"), "utf8")
   assert.match(
     dialogs,
-    /new PopupMenu\(bridge.getActivity\(\), anchor, Gravity\.END\)/
+    /new PopupMenu\(parent.getContext\(\), anchor, Gravity\.END\)/
   )
   assert.match(dialogs, /anchor\.post\(popup::show\)/)
   assert.match(android, /public void showPrompt\(PluginCall call\)/)
   assert.match(ios, /@objc func showMenu\(_ call: CAPPluginCall\)/)
-  assert.match(ios, /preferredStyle: \.actionSheet/)
+  assert.match(ios, /presenter\.present\(AnchoredMenu\(/)
   assert.match(ios, /@objc func showPrompt\(_ call: CAPPluginCall\)/)
   assert.match(ios, /preferredStyle: \.alert/)
   assert.match(storyMenu, /await surface\.showMenu\(/)

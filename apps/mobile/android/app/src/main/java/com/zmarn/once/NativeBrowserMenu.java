@@ -42,6 +42,22 @@ final class NativeBrowserMenu {
         }
     }
 
+    /** The sheet a row left up for its own menu (which device to send to); that menu closes it. */
+    private static java.lang.ref.WeakReference<Dialog> held = new java.lang.ref.WeakReference<>(null);
+
+    /** The held sheet, while it is still on screen. */
+    static Dialog held() {
+        Dialog dialog = held.get();
+        return dialog != null && dialog.isShowing() ? dialog : null;
+    }
+
+    /** Closes the held sheet, if one is up. */
+    static void closeHeld() {
+        Dialog dialog = held();
+        held = new java.lang.ref.WeakReference<>(null);
+        if (dialog != null) dialog.dismiss();
+    }
+
     static void show(Activity activity, PluginCall call, GeckoSession session,
                      boolean canBack, boolean canForward, Runnable back, Runnable forward, Runnable reload, BackgroundMedia media) {
         // The shell resolves its own theme setting (system, light, dark) and
@@ -132,9 +148,14 @@ final class NativeBrowserMenu {
                 boolean page = "page".equals(item.optString("placement", ""));
                 if (!"once:manage".equals(id) && !page) count++;
                 String label = item.getString("label");
+                boolean holds = item.optBoolean("holdsSheet", false);
                 Button row = control(activity, palette, label, item.optBoolean("enabled", true), () -> {
-                    if (settled.compareAndSet(false, true)) call.resolve(new JSObject().put("id", id));
-                    dialog.dismiss();
+                    if (!settled.compareAndSet(false, true)) return;
+                    // A row with a menu of its own answers now and stays up
+                    // beneath that menu, which closes both.
+                    if (holds) held = new java.lang.ref.WeakReference<>(dialog);
+                    call.resolve(new JSObject().put("id", id));
+                    if (!holds) dialog.dismiss();
                 });
                 row.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
                 row.setPadding(spacing, 0, spacing, 0);
