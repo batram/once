@@ -212,9 +212,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
     /** The story list does not need a second browser engine resident in memory. */
     @Override
     public void load() {
-        getActivity().runOnUiThread(() -> {
-            backgroundMedia = new BackgroundMedia(getContext());
-        });
+        getActivity().runOnUiThread(() -> backgroundMedia = new BackgroundMedia(getContext()));
     }
 
     private void ensureEngine() {
@@ -540,9 +538,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
     @PluginMethod
     public void presentFind(PluginCall call) {
         if (!route(call, Missing.REJECT, tab -> tab.presentFind(call))) return;
-        JSObject payload = new JSObject();
-        payload.put("presented", false);
-        call.resolve(payload);
+        call.resolve(new JSObject().put("presented", false));
     }
 
     @PluginMethod
