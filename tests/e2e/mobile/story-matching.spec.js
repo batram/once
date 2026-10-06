@@ -39,7 +39,7 @@ for (const theme of ["light", "dark"]) {
     await expect(card).toBeHidden()
     const address = page.getByTestId("reading-url-input")
     await address.fill("https://example.test/unrelated")
-    await page.getByTestId("reading-url-action").click()
+    await address.press("Enter")
     await expect(card).toBeHidden()
   })
 }

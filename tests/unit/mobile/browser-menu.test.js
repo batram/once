@@ -27,8 +27,8 @@ test("the browser menu offers page actions without Android's extension API", asy
   assert.deepEqual(ran, ["generic.explain"])
 })
 
-test("Android browser menu occupies the address action position and routes extension choices", async () => {
-  const { document, window } = parseHTML('<html><body><form><div id="reading_url_group"></div><button id="reading_navigate">Go</button></form><p id="reading_url_validation" hidden></p></body></html>')
+test("Android browser menu ends the address row and routes extension choices", async () => {
+  const { document, window } = parseHTML('<html><body><form><div id="reading_url_group"></div><button id="reading_navigate">Go</button><button id="reading_tabs">1</button></form><p id="reading_url_validation" hidden></p></body></html>')
   const compiled = ts.transpileModule(fs.readFileSync(path.resolve(__dirname,
     "../../../apps/mobile/src/browserExtensionToolbar.ts"), "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
@@ -56,7 +56,8 @@ test("Android browser menu occupies the address action position and routes exten
     ] }
   } }, { showMenu: async options => { menu = options; return selection } })
   const button = document.querySelector("#reading_browser_menu")
-  assert.equal(document.querySelector("#reading_navigate").nextElementSibling, button)
+  assert.equal(document.querySelector("#reading_tabs").nextElementSibling, button, "the menu follows the tabs button")
+  assert.equal(button.nextElementSibling, null)
   assert.equal(document.querySelector("#reading_url_group").children.length, 0)
   assert.equal(button.type, "button")
   await button.onclick()

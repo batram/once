@@ -1042,7 +1042,8 @@
     flex: 0 0 auto;
   }
 
-  .has-browser-menu #reading_navigate:not(.reading-go) {
+  .has-browser-menu #reading_navigate,
+  #reading_navigate.reading-go {
     display: none;
   }
 
@@ -1054,22 +1055,9 @@
     padding: 0 var(--sp-2);
   }
 
+  /* An edited address is submitted from the keyboard's Go key. */
   #reading_navigate span {
     display: none;
-  }
-
-  #reading_navigate.reading-go {
-    width: auto;
-    min-width: var(--touch);
-    padding: 0 var(--sp-2);
-  }
-
-  #reading_navigate.reading-go::before {
-    display: none;
-  }
-
-  #reading_navigate.reading-go span {
-    display: block;
   }
 
   /* Frames the native extension page under the active panel's header. The

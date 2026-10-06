@@ -10,7 +10,7 @@ test("the browser menu opens an unlisted page conversation without native extens
   await installAiAddon(page, new URL(page.url()).origin)
   await page.getByTestId("reading-menu").click()
   await page.getByTestId("reading-url-input").fill(new URL("/fixtures/article.html?standalone=1", page.url()).href)
-  await page.getByTestId("reading-url-action").click()
+  await page.getByTestId("reading-url-input").press("Enter")
   await expect(page.locator("#reading_current_card")).toBeHidden()
   await page.getByRole("button", { name: "Browser menu", exact: true }).click()
   const menu = page.getByRole("dialog", { name: "Browser menu", exact: true })

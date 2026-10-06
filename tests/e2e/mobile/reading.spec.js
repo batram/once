@@ -293,7 +293,7 @@ test("Reader mode explains failures and offers clean recovery", async ({ page })
   await page.getByTestId("reading-menu").click()
   const url = await testServerUrl(page, "/fixtures/reader-failure")
   await page.getByTestId("reading-url-input").fill(url)
-  await page.getByTestId("reading-url-action").click()
+  await page.getByTestId("reading-url-input").press("Enter")
   await page.locator("#reading_reader_toggle").click()
 
   const status = page.getByTestId("reading-reader-status")

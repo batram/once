@@ -14,7 +14,7 @@ for (const colorScheme of ["light", "dark"]) {
     const address = page.getByTestId("reading-url-input")
     const url = "https://example.test/unavailable"
     await address.fill(url)
-    await page.getByTestId("reading-url-action").click()
+    await address.press("Enter")
     await expect(page.locator("#reading_content")).toHaveAttribute("data-load-state", "ready")
     await page.evaluate(() => window.__onceE2E__.failReading("The Internet connection appears to be offline."))
     const error = page.locator("#reading_error")
@@ -56,7 +56,7 @@ for (const colorScheme of ["light", "dark"]) {
     await error.getByRole("button", { name: "Edit address" }).click()
     await expect(address).toBeFocused()
     await address.fill("http://example.test/recovered")
-    await page.getByTestId("reading-url-action").click()
+    await address.press("Enter")
     await expect(error).toBeHidden()
     await expect(page.locator("#reading_content")).toHaveAttribute("data-load-state", "ready")
   })

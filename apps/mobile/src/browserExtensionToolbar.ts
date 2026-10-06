@@ -45,8 +45,11 @@ export function bindMobileExtensionToolbar(
   button.setAttribute("aria-expanded", "false")
   // A wide burger, not ⋮: the story rows below use the three-dot glyph.
   button.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" aria-hidden="true"><path d="M5 5h14M5 12h14M5 19h14"/></svg>'
-  navigate.after(button)
-  navigate.parentElement?.classList.add("has-browser-menu")
+  // Last in the address row, after the tabs button.
+  const form = navigate.parentElement
+  if (form) form.append(button)
+  else navigate.after(button)
+  form?.classList.add("has-browser-menu")
   button.onclick = async () => {
     button.disabled = true
     button.setAttribute("aria-expanded", "true")
