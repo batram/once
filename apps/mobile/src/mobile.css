@@ -1138,6 +1138,8 @@
   #reading_current_card {
     flex: 0 0 auto;
     margin-top: 0;
+    /* The address row's divider already separates the card from it. */
+    border-top: 0;
     touch-action: none;
     transform: translateY(var(--reading-story-drag, 0));
     padding: var(--sp-2) var(--sp-3);
