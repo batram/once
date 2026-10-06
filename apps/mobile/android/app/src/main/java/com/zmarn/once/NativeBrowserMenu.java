@@ -124,11 +124,6 @@ final class NativeBrowserMenu {
             ((Button) navigation.getChildAt(index)).setTextSize(labelSize);
         }
         content.addView(navigation);
-        // Actions on the page itself (send it to another device) sit with the
-        // browser controls, not among the extensions.
-        LinearLayout pageActions = new LinearLayout(activity);
-        pageActions.setOrientation(LinearLayout.VERTICAL);
-        content.addView(pageActions);
         android.widget.Switch backgroundPlayback = new android.widget.Switch(activity);
         backgroundPlayback.setText("Keep media playing in background");
         backgroundPlayback.setTextSize(16);
@@ -150,6 +145,11 @@ final class NativeBrowserMenu {
         backgroundPlayback.setChecked(media.isEnabled());
         backgroundPlayback.setOnCheckedChangeListener((button, checked) -> media.setEnabled(checked));
         content.addView(backgroundPlayback, row(gap, entry));
+        // Actions on the page itself (send it to another device) sit below the
+        // media switch, as on iOS, not inside the collapsed extensions.
+        LinearLayout pageActions = new LinearLayout(activity);
+        pageActions.setOrientation(LinearLayout.VERTICAL);
+        content.addView(pageActions);
         LinearLayout entries = new LinearLayout(activity);
         entries.setOrientation(LinearLayout.VERTICAL);
         entries.setVisibility(View.GONE);
@@ -282,7 +282,10 @@ final class NativeBrowserMenu {
         button.setSingleLine(true);
         button.setGravity(Gravity.CENTER);
         // Regular weight, as iOS draws these labels; a Button defaults to medium.
-        button.setTypeface(android.graphics.Typeface.DEFAULT);
+        // The theme's button weight wins over a plain typeface from Android 9 on.
+        button.setTypeface(android.os.Build.VERSION.SDK_INT >= 28
+            ? android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, 400, false)
+            : android.graphics.Typeface.DEFAULT);
         int inset = Math.round(2 * density);
         button.setPadding(inset, Math.round(12 * density), inset, Math.round(10 * density));
         return button;
