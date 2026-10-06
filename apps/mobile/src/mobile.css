@@ -1633,7 +1633,9 @@
     min-height: var(--touch);
     height: auto;
     box-sizing: border-box;
-    padding: var(--sp-1) var(--sp-2);
+    /* One inset for the index and every subpage, so the ‹ and the title stay
+     put while navigating. */
+    padding: var(--sp-1) var(--sp-4);
   }
 
   /* The status keeps the bar's caption size, not the body size every
@@ -1734,11 +1736,6 @@
 
   #settings_panel.settings_detail_open {
     overflow: hidden;
-  }
-
-  #settings_panel.settings_detail_open > .bar {
-    padding-right: var(--sp-4);
-    padding-left: var(--sp-4);
   }
 
   #settings_panel.settings_detail_open .settings_container {
