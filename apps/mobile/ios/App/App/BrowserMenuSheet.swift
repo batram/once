@@ -114,7 +114,9 @@ final class BrowserMenuSheet: UIViewController, UIAdaptivePresentationController
             tile("arrow.clockwise", "Reload", navigation.canReload) { [weak self] in self?.run(navigation.reload) },
             // The shell's find flow answers this: the reader's bar, or the
             // system find panel over the page.
-            tile("magnifyingglass", "Find", true) { [weak self] in self?.choose("once:find") }
+            tile("magnifyingglass", "Find", true) { [weak self] in self?.choose("once:find") },
+            // Closes the tab being read; the shell owns its tabs.
+            tile("xmark", "Close", true) { [weak self] in self?.choose("once:close-tab") }
         ])
         controls.axis = .horizontal
         controls.distribution = .fillEqually
@@ -187,7 +189,9 @@ final class BrowserMenuSheet: UIViewController, UIAdaptivePresentationController
         tile.configuration?.imagePlacement = .top
         tile.configuration?.imagePadding = 6
         tile.configuration?.title = label
-        tile.configuration?.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 4, bottom: 10, trailing: 4)
+        tile.configuration?.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 2, bottom: 10, trailing: 2)
+        tile.configuration?.titleLineBreakMode = .byClipping
+        tile.titleLabel?.adjustsFontSizeToFitWidth = true
         tile.configuration?.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
             var attributes = attributes
             attributes.font = .systemFont(ofSize: 15)

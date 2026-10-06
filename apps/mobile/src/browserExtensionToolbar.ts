@@ -33,7 +33,9 @@ export function bindMobileExtensionToolbar(
   surface: InAppBrowserSurface,
   pageActions: ReadingPageActions = { list: () => [], run() {} },
   /** The shell's Back/Forward, which the sheet shows and hands back as historyRequested. */
-  history?: () => { back: boolean; forward: boolean }
+  history?: () => { back: boolean; forward: boolean },
+  /** The sheet's Close: closes the tab being read. */
+  closeTab: () => void = () => undefined
 ): void {
   const navigate = document.querySelector<HTMLButtonElement>("#reading_navigate")
   if (!navigate) return
@@ -80,6 +82,8 @@ export function bindMobileExtensionToolbar(
       } else if (selected === "once:find") {
         // The sheet's own Find control; readingFindBar.ts owns the bar.
         document.dispatchEvent(new Event("once-find-in-page-request"))
+      } else if (selected === "once:close-tab") {
+        closeTab()
       } else if (api && selected?.startsWith(SETTINGS_PREFIX)) {
         await api.command({ action: "options", id: selected.slice(SETTINGS_PREFIX.length) })
       } else if (api && selected) {
@@ -98,5 +102,5 @@ export function bindMobileExtensionToolbar(
 /** Platforms without the native extension sheet still have a browser menu. */
 function showBrowserMenu(items: { id: string; label: string }[]): Promise<string | null> {
   return showChoiceDialog({ title: "Browser menu", message: "", cancelLabel: "Close",
-    choices: [...items, { id: "once:find", label: "Find in page" }].map(item => ({ value: item.id, label: item.label })) })
+    choices: [...items, { id: "once:find", label: "Find in page" }, { id: "once:close-tab", label: "Close tab" }].map(item => ({ value: item.id, label: item.label })) })
 }

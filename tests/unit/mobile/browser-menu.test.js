@@ -22,7 +22,7 @@ test("the browser menu offers page actions without Android's extension API", asy
   })
   await document.querySelector("#reading_browser_menu").onclick()
   assert.equal(menu.title, "Browser menu")
-  assert.deepEqual(menu.choices.map(item => item.label), ["Explain page", "Find in page"])
+  assert.deepEqual(menu.choices.map(item => item.label), ["Explain page", "Find in page", "Close tab"])
   assert.equal(menu.cancelLabel, "Close")
   assert.deepEqual(ran, ["generic.explain"])
 })
@@ -147,9 +147,11 @@ test("iOS opens the native browser sheet with page actions and no extension rows
   let menu
   let selection = "once:page-action:generic.explain"
   const ran = []
+  let closed = 0
   exports.bindMobileExtensionToolbar(null,
     { available: true, showMenu: async options => { menu = options; return selection } },
-    { list: () => [{ id: "generic.explain", label: "Explain page" }], run: id => ran.push(id) })
+    { list: () => [{ id: "generic.explain", label: "Explain page" }], run: id => ran.push(id) },
+    undefined, () => { closed += 1 })
   const button = document.querySelector("#reading_browser_menu")
   await button.onclick()
   assert.equal(menu.browserControls, true)
@@ -160,4 +162,7 @@ test("iOS opens the native browser sheet with page actions and no extension rows
   selection = "once:find"
   await button.onclick()
   assert.equal(findRequests, 1)
+  selection = "once:close-tab"
+  await button.onclick()
+  assert.equal(closed, 1)
 })

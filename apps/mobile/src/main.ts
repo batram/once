@@ -322,7 +322,7 @@ async function startMobileApp(): Promise<void> {
     bindMobileBrowserExtensionSettings(browserExtensions, url => reading.openBrowserUrl(url))
   }
   bindMobileExtensionToolbar(browserExtensions, browserSurface, readingPageActions(reading),
-    () => reading.historyState())
+    () => reading.historyState(), () => { if (reading.tabs.activeId) reading.tabs.close(reading.tabs.activeId) })
   mountTouchNavigation(reading)
   if (__ONCE_MOBILE_E2E__) installMobileTestHooks(app, reading, browserSurface, navigationListeners)
   document.body.dataset.onceStage = "ready"

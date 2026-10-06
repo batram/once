@@ -84,7 +84,20 @@ final class NativeBrowserMenu {
         navigation.addView(control(activity, palette, "⌕\nFind", true, () -> {
             if (settled.compareAndSet(false, true)) call.resolve(new JSObject().put("id", "once:find"));
             dialog.dismiss();
+        }), cell(gap, false));
+        // Closes the tab being read; the shell owns its tabs.
+        navigation.addView(control(activity, palette, "✕\nClose", true, () -> {
+            if (settled.compareAndSet(false, true)) call.resolve(new JSObject().put("id", "once:close-tab"));
+            dialog.dismiss();
         }), cell(gap, true));
+        // Five tiles share the row: tighter sides, and a label shrinks
+        // rather than wrapping ("Forward" on a narrow phone).
+        for (int index = 0; index < navigation.getChildCount(); index++) {
+            Button tile = (Button) navigation.getChildAt(index);
+            tile.setPadding(Math.round(2 * density), tile.getPaddingTop(), Math.round(2 * density), tile.getPaddingBottom());
+            tile.setMaxLines(2);
+            tile.setAutoSizeTextTypeUniformWithConfiguration(10, 16, 1, android.util.TypedValue.COMPLEX_UNIT_SP);
+        }
         content.addView(navigation);
         // Actions on the page itself (send it to another device) sit with the
         // browser controls, not among the extensions.
