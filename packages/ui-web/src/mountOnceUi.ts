@@ -11,6 +11,7 @@ import * as PanelNavigation from "./shell/panelNavigation"
 import * as SidebarFilters from "./shell/sidebarFilters"
 import * as StorySearch from "./story/storySearch"
 import { setOnceClient } from "./client"
+import { mountTabsPanel } from "./tabsync/tabsPanel"
 import { SettingsPanel } from "./settings/SettingsPanel"
 import { StoryHistory } from "./story/StoryHistory"
 import { setSelectedUrl } from "./story/selectedStoryToggle"
@@ -52,6 +53,8 @@ export interface MountOnceUiOptions {
    */
   reloadSpinTimeout?: number
   updater?: AppUpdater
+  /** Shows the Tabs entry in the side panel menu (the extensions; Electron by choice). */
+  tabsPanel?: boolean
   sourcePicker?: boolean
   /**
    * Leaves Settings entirely when the back chevron is pressed on the section
@@ -194,6 +197,7 @@ export async function mountOnceUi(
   }
 
   StoryList.init(client, { spinTimeout: options.reloadSpinTimeout })
+  mountTabsPanel(client, options.tabsPanel === true)
   PanelNavigation.init()
   SidebarFilters.init(client)
   LoaderInsights.init(client, {

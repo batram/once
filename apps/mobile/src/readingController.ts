@@ -29,7 +29,8 @@ export class MobileReadingController {
   readonly session: ReadingSession
   readonly tabs = new ReadingTabs()
   private readonly runtime: ReadingTabRuntime
-  private readonly tabDialog: ReadingTabDialog
+  /** The tab view; it also lists other devices' tabs once the app runs. */
+  readonly tabDialog: ReadingTabDialog
   private readonly addonTrays: ReadingAddonTrays
   private readonly content: HTMLElement
   private get nativeReading(): ReadingSurfaceCoordinator { return this.runtime.coordinator }
@@ -87,6 +88,14 @@ export class MobileReadingController {
 
   onReaderClosed(listener: (reader: ReaderDocumentHost) => void): void {
     this.runtime.onReaderClosed(listener)
+  }
+
+  /** A page from another device, in a tab of its own; the current page stays. */
+  openTab(url: string, background: boolean): void {
+    const tab = this.tabs.create(!background)
+    tab.session.navigate(url)
+    if (background) this.tabDialog.announce("Opened in background tab")
+    else PanelNavigation.open_panel("reading")
   }
 
   openBrowserUrl(url: string): void {

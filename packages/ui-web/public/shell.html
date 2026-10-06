@@ -55,6 +55,20 @@
               <div id="types" class="sidebar_filter_list"></div>
               <div id="groups" class="sidebar_filter_list"></div>
             </section>
+            <button
+              type="button"
+              class="button sidebar_panel"
+              id="tabs_menu_btn"
+              data-panel="tabs"
+              data-testid="tabs-menu"
+              title="Tabs from other devices"
+              hidden
+            >
+              <span class="heading">
+                <span class="icon icon--chrome icon--tabs" aria-hidden="true"></span>
+                <p>Tabs</p>
+              </span>
+            </button>
           </div>
           <div id="left_main">
             <div id="stories_panel" class="panel" data-panel="stories">
@@ -469,6 +483,18 @@
                     <div class="settings_row">
                       <button type="button" class="button" id="tab_sync_defaults">Reset times to defaults</button>
                     </div>
+                    <div class="settings_row" id="remote_tabs_placement_row" hidden>
+                      <label class="settings_row_name" for="remote_tabs_placement">Show other devices' tabs</label>
+                      <p class="settings_row_hint" id="remote_tabs_placement_hint">
+                        A button beside the new tab button opens them as a page. Remembered on this device.
+                      </p>
+                      <select id="remote_tabs_placement" data-testid="remote-tabs-placement"
+                        aria-describedby="remote_tabs_placement_hint">
+                        <option value="button">Tab bar button</option>
+                        <option value="panel">Side panel menu</option>
+                        <option value="both">Both</option>
+                      </select>
+                    </div>
                     <h4 class="settings_subheading">Devices</h4>
                     <ul class="tab_sync_devices" id="tab_sync_devices" data-testid="tab-sync-devices"></ul>
                   </section>
@@ -689,6 +715,12 @@
                   ></span>
                 </div>
               </div>
+            </div>
+            <div id="tabs_panel" class="panel" data-panel="tabs" data-testid="tabs-panel">
+              <div class="bar toolbar panel_titlebar">
+                <div class="tabs_panel_title">Tabs from other devices</div>
+              </div>
+              <div id="remote_tabs" data-testid="remote-tabs"></div>
             </div>
             <div id="reading_panel" class="panel" data-panel="reading">
               <form id="reading_url_form" data-testid="reading-url-form" novalidate>

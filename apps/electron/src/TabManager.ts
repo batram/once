@@ -23,6 +23,7 @@ import {
 import { hasReaderDocument, storeReaderDocument } from "./ReaderProtocol"
 import { createTabView, PopupWindowOptions } from "./browser/TabView"
 import { isAddonConversationUrl } from "./AddonConversationRelay"
+import { isRemoteTabsUrl } from "./RemoteTabsRelay"
 import { fallbackTabTitle, sourceUrlFromReaderUrl } from "./browser/reader-url"
 import { TabEntry, WindowEntry } from "./browser/BrowserState"
 import { newTabSyncTimes, TabSyncFeed, tabSyncFeed } from "./browser/TabSyncTimes"
@@ -702,7 +703,7 @@ export class BrowserCoordinator {
   // applied to other navigable input.
   private normalizeTabUrl(url: string): string {
     const trimmed = url.trim()
-    if (sourceUrlFromReaderUrl(trimmed) || parseExtensionUrl(trimmed) || isAddonConversationUrl(trimmed)) return trimmed
+    if (sourceUrlFromReaderUrl(trimmed) || parseExtensionUrl(trimmed) || isAddonConversationUrl(trimmed) || isRemoteTabsUrl(trimmed)) return trimmed
     return normalizeBrowserUrl(trimmed)
   }
 

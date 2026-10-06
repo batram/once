@@ -140,6 +140,14 @@ module.exports = {
             js: "./src/addonConversation.ts",
             name: "addon_conversation",
             preload: { js: "./src/addonConversationPreload.ts" }
+          },
+          // Other devices' tabs in a browser tab, served under once-tabs://
+          // with a preload that only relays to the window's shell.
+          {
+            html: "../../packages/ui-web/public/remote-tabs.html",
+            js: "./src/remoteTabsPage.ts",
+            name: "remote_tabs",
+            preload: { js: "./src/remoteTabsPreload.ts" }
           }
         ]
       }

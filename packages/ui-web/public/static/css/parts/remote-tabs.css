@@ -1,0 +1,145 @@
+/* Other devices' tabs: the side panel's Tabs panel, the mobile tab view's
+   "Other devices" section and Electron's tabs page share this view. */
+#tabs_panel {
+  display: none;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
+}
+
+#left_panel[active_panel="tabs"] #tabs_panel {
+  display: flex;
+}
+
+#tabs_panel .bar {
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.tabs_panel_title {
+  font-size: var(--fs-dense);
+}
+
+#remote_tabs {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.remote_tabs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+  font-size: var(--fs-dense);
+}
+
+.remote_tabs_filter {
+  width: 100%;
+}
+
+.remote_tabs_body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.remote_tabs_notice {
+  margin: var(--sp-2) 0;
+  color: var(--text-muted-color);
+  line-height: 1.4;
+}
+
+.remote_tabs_meta {
+  color: var(--text-muted-color);
+  font-size: var(--fs-meta);
+  line-height: 1.4;
+}
+
+.remote_device {
+  border-bottom: 1px solid var(--divider-color);
+  padding-bottom: var(--sp-2);
+}
+
+.remote_device_header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  padding: var(--sp-1) 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.remote_device_name {
+  color: var(--text-high-color);
+  font-weight: 700;
+}
+
+.remote_device[data-stale="true"] .remote_device_name {
+  color: var(--text-muted-color);
+}
+
+.remote_window_heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+.remote_tab_list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.remote_tab {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.remote_tab_link {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--sp-1-5) var(--sp-1);
+  border-radius: var(--radius-md);
+  color: var(--text-high-color);
+  text-decoration: none;
+}
+
+.remote_tab_link:hover,
+.remote_tab_link:focus-visible {
+  background: var(--input-bg-color);
+}
+
+.remote_tab_title,
+.remote_tab_link .remote_tabs_meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.remote_tab_background {
+  flex: 0 0 auto;
+}
+
+/* The same list as a page in a browser tab, at reading width. */
+.remote_tabs_page main {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: var(--sp-4);
+}
+
+.remote_tabs_page_title {
+  margin: 0 0 var(--sp-2);
+  padding: 0 var(--sp-2);
+  font-size: var(--fs-title);
+}

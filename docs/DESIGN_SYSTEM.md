@@ -100,6 +100,7 @@ Shared shell, under `packages/ui-web/public/static/css/`:
 | `parts/settings.css` | Settings panel, structured lists, forms, swipe lab |
 | `parts/search.css` | Search bar, scope, global results |
 | `parts/notifications.css` | Status bar, status dock, issue bubbles |
+| `parts/remote-tabs.css` | Tabs panel and page: other devices' tabs |
 | `parts/dialogs.css` | `.once-confirm-dialog` |
 
 Platform and separate documents:

@@ -16,6 +16,7 @@ import {
   pouchTabDocs
 } from "@once/persistence"
 import { createFirefoxSyncConsent } from "./storage/WebExtSyncConsent"
+import { deviceName } from "./deviceName"
 import { WebExtSecretStorage } from "./storage/WebExtSecretStorage"
 import { WebExtSyncStorage } from "./storage/WebExtSyncStorage"
 import { setDocumentTheme } from "./ui/WebExtTheme"
@@ -61,7 +62,8 @@ export function createWebExtPlatform(
     ...(options?.target === "firefox" ? { syncConsent: createFirefoxSyncConsent(browserApi) } : {}),
     ...(options ? {
       tabDocs: pouchTabDocs(onceDb as unknown as PouchTabDocsDatabase),
-      device: { platform: options.target, defaultName: deviceName(options.target), appVersion: options.appVersion }
+      // The background publishes this browser's tabs, panel or not.
+      device: { platform: options.target, defaultName: deviceName(options.target), appVersion: options.appVersion, sharesElsewhere: true }
     } : {}),
     secretStore: new WebExtSecretStorage(browserApi),
     theme: {
@@ -86,12 +88,4 @@ export function createWebExtPlatform(
       }
     }
   }
-}
-
-function deviceName(target: "chrome" | "firefox"): string {
-  const browserName = target === "firefox" ? "Firefox" : "Chrome"
-  const agent = navigator.userAgent
-  const os = /Mac OS X/.test(agent) ? "macOS" : /Windows/.test(agent) ? "Windows" : /Android/.test(agent) ? "Android"
-    : /CrOS/.test(agent) ? "ChromeOS" : /Linux/.test(agent) ? "Linux" : ""
-  return os ? `${browserName} on ${os}` : browserName
 }

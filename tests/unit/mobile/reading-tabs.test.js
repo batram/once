@@ -200,3 +200,19 @@ test("tab audio is playing while audible and stays marked as played afterwards",
   assert.equal(tab.audio, "played", "a replaced generation cannot mark the tab")
   assert.equal(published, 2)
 })
+
+test("tab sync times count navigations and selections, and survive a restart", () => {
+  const storage = memory()
+  const tabs = new ReadingTabs(storage)
+  const first = tabs.create()
+  first.session.navigate("https://one.test/")
+  first.session.navigate("https://one.test/next")
+  assert.equal(first.times.navSeq, 2)
+  const second = tabs.create(false)
+  const selectedBefore = second.times.selectedAt
+  tabs.select(second.id)
+  assert.ok(second.times.selectedAt >= selectedBefore)
+  const restored = new ReadingTabs(storage)
+  assert.equal(restored.tabs[0].times.navSeq, 2, "a restore keeps the navigation count instead of counting the restore")
+  assert.equal(restored.tabs[0].times.openedAt, first.times.openedAt)
+})

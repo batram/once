@@ -5,10 +5,19 @@
   "description": "Firefox and Chrome extension platform adapters",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "backgroundPorts": ["dist/backgroundPorts.d.ts"]
+    }
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./backgroundPorts": {
+      "types": "./dist/backgroundPorts.d.ts",
+      "default": "./dist/backgroundPorts.js"
     }
   },
   "dependencies": {

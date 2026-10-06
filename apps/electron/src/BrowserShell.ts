@@ -624,13 +624,17 @@ export class BrowserShell {
     if (this.tabs.length === 0) return
 
     const dropzoneStyle = getComputedStyle(this.dropzone)
-    const buttonStyle = getComputedStyle(this.newTabButton)
+    // The new tab button and, when shown, the tabs-from-other-devices button.
+    const buttons = Array.from(this.dropzone.querySelectorAll<HTMLElement>(":scope > .legacy-tab-button"))
+      .filter((button) => !button.hidden)
+      .reduce((width, button) => {
+        const style = getComputedStyle(button)
+        return width + button.offsetWidth + Number.parseFloat(style.marginLeft) + Number.parseFloat(style.marginRight)
+      }, 0)
     const horizontalChrome =
       Number.parseFloat(dropzoneStyle.paddingLeft) +
       Number.parseFloat(dropzoneStyle.paddingRight) +
-      this.newTabButton.offsetWidth +
-      Number.parseFloat(buttonStyle.marginLeft) +
-      Number.parseFloat(buttonStyle.marginRight)
+      buttons
     const tabMargin = 2
     const availableWidth = this.dropzone.clientWidth - horizontalChrome
     const tabWidth = Math.max(

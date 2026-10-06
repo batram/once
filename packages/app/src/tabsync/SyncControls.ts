@@ -10,7 +10,7 @@ import { TabSyncService } from "./TabSyncService"
 
 type SyncClientMethods = Pick<OnceClient,
   "getSyncConsent" | "requestSyncConsent" | "getTabSync" | "setTabSyncOptions" | "setTabSyncShared" |
-  "renameDevice" | "forgetDevice" | "resetDeviceIdentity">
+  "renameDevice" | "forgetDevice" | "resetDeviceIdentity" | "openRemoteTab">
 
 export interface SyncControlsHost {
   status(): SyncStatus
@@ -69,6 +69,7 @@ export class SyncControls {
   /** After the first connection attempt: watch what may start, stop or redirect sync. */
   start(settings: AppSettings): void {
     this.platform.syncService?.onRemoteTabChange?.((change) => this.tabSync?.handleChange(change))
+    this.platform.secretStore?.onChanged?.(() => this.tabSync?.optionsChangedElsewhere())
     // A URL replaced from elsewhere, or consent granted or withdrawn, goes
     // through the same gate as a startup: never straight to the transport.
     this.platform.syncSettingsStore.onSyncUrlChanged?.(() => void settings.restartSync("external"))
@@ -92,6 +93,11 @@ export class SyncControls {
         await this.host.renameVaultDevice(name)
       },
       forgetDevice: (deviceId) => this.require().forget(deviceId),
+      openRemoteTab: (url, mode, background) => {
+        if (!/^https?:\/\//i.test(url)) return
+        if (this.platform.tabOpener) this.platform.tabOpener.open(url, { background, mode })
+        else this.platform.activeTab?.openUrl(url, background ? "middle" : "_self")
+      },
       resetDeviceIdentity: () => this.require().resetIdentity()
     }
   }
@@ -104,6 +110,7 @@ export class SyncControls {
       repository: new TabDocRepository(tabDocs),
       listStore: this.platform.listStore,
       source: this.platform.tabSource,
+      sharesElsewhere: device.sharesElsewhere,
       appVersion: device.appVersion,
       syncActive: () => this.active(this.host.status()),
       changed: () => this.host.tabSyncChanged(),

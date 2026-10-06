@@ -1,4 +1,5 @@
 import { installStoryNavigationBackground } from "@once/webext-shell/dist/storyNavigationBackground"
+import { installTabSyncBackground } from "@once/webext-shell/dist/tabSyncBackground"
 import browser from "webextension-polyfill"
 import { installReaderBackground } from "@once/webext-shell/dist/readerBackground"
 import { installPickerBackground } from "@once/webext-shell/dist/pickerBackground"
@@ -57,3 +58,4 @@ browser.commands.onCommand.addListener((command, tab) => {
 })
 
 installStoryNavigationBackground(browser)
+installTabSyncBackground(browser, "chrome")

@@ -4,7 +4,7 @@ import { Browser } from "@capacitor/browser"
 import { Capacitor, registerPlugin } from "@capacitor/core"
 import { mobileAddonFetch } from "./addonFetch"
 import { StatusBar, Style } from "@capacitor/status-bar"
-import { DatabaseChange, OncePlatformPorts, ThemeName } from "@once/app"
+import { DatabaseChange, OncePlatformPorts, TabOpenerPort, TabSourcePort, ThemeName } from "@once/app"
 import { DEFAULT_CACHE_MINUTES, Story } from "@once/core"
 import {
   IndexedDbCacheStore,
@@ -124,6 +124,9 @@ export interface MobilePlatformOptions {
   openInApp?: (url: string) => void
   /** The app's version, which other devices show for this one. */
   appVersion?: string
+  /** The reading tabs this device shares, and where another device's tab opens. */
+  tabSource?: TabSourcePort
+  tabOpener?: TabOpenerPort
 }
 
 export function createMobilePlatform(
@@ -176,6 +179,8 @@ export function createMobilePlatform(
       }
     },
     tabDocs: pouchTabDocs(onceDb as unknown as PouchTabDocsDatabase),
+    tabSource: options.tabSource,
+    tabOpener: options.tabOpener,
     device: mobileDevice(options.appVersion ?? ""),
     fetch: window.fetch.bind(window),
     addonFetch: mobileAddonFetch,

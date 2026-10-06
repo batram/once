@@ -1,0 +1,97 @@
+import {
+  DeviceIdentity,
+  SyncDestinationBinding,
+  SyncGate,
+  TabDocRepository,
+  TabSyncService
+} from "@once/app/tabsync"
+import type { ListStorePort, SyncConsentPort } from "@once/app"
+import { couchHttpTabDocs } from "@once/persistence"
+import { createFirefoxSyncConsent, deviceName, WebExtSecretStorage, WebExtSyncStorage } from "@once/platform-webext/backgroundPorts"
+import { installTabSyncTimes } from "./tabSyncTimes"
+
+const HEARTBEAT_ALARM = "once-tabsync-heartbeat"
+const RETRY_ALARM = "once-tabsync-retry"
+
+/**
+ * Publishes this browser's tabs from the background, so they are shared
+ * whether or not a Once panel is open. The background cannot keep PouchDB
+ * replication running, so it writes straight to CouchDB; every request
+ * passes the same database binding and consent checks as the panel's
+ * replication, and a URL replaced in the meantime ends the connection
+ * instead of redirecting work queued for the old one. Listeners are
+ * registered synchronously so the browser can wake the background for them.
+ */
+export function installTabSyncBackground(api: typeof browser, target: "chrome" | "firefox"): void {
+  const source = installTabSyncTimes(api)
+  const secrets = new WebExtSecretStorage(api)
+  const syncStorage = new WebExtSyncStorage(api)
+  const consent: SyncConsentPort | undefined = target === "firefox" ? createFirefoxSyncConsent(api) : undefined
+  const gate = new SyncGate(new SyncDestinationBinding(secrets, "browser"), consent, localPouchExists)
+  const identity = new DeviceIdentity(secrets, target, deviceName(target))
+  let connection = 0
+  let current: { service: TabSyncService; generation: number } | null = null
+
+  const connect = async () => {
+    const generation = ++connection
+    current?.service.dispose()
+    current = null
+    const url = await syncStorage.getSyncUrl()
+    if (!url.trim() || generation !== connection) return
+    const refusal = await gate.check(url, "external").catch(() => "unavailable")
+    if (refusal || generation !== connection) return
+    // Each request re-checks: consent can be withdrawn and the URL replaced at any time.
+    const allowed = async () => generation === connection && !await gate.check(url, "external").catch(() => "unavailable")
+    const docs = couchHttpTabDocs(url, fetch.bind(globalThis), allowed)
+    const service = new TabSyncService({
+      identity, repository: new TabDocRepository(docs), listStore: sharedSettings(docs), source,
+      appVersion: api.runtime.getManifest().version,
+      syncActive: () => generation === connection,
+      changed: () => undefined,
+      reportError: (operation, error) => {
+        console.warn(`Tab sync ${operation} failed; retrying later`, error)
+        void api.alarms.create(RETRY_ALARM, { delayInMinutes: 1 })
+      }
+    })
+    current = { service, generation }
+    await service.start()
+  }
+  const restart = () => void connect().catch((error) => console.error("Tab sync could not start", error))
+
+  api.storage.onChanged.addListener((changes, area) => {
+    if (area === "sync" && Object.hasOwn(changes, "sync_url")) restart()
+    // A panel changed this device's options or identity.
+    else if (area === "local" && Object.keys(changes).some((key) => key.startsWith("secret:once:"))) {
+      identity.invalidate()
+      current?.service.optionsChangedElsewhere()
+    }
+  })
+  consent?.onChanged(restart)
+  api.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === HEARTBEAT_ALARM || alarm.name === RETRY_ALARM) {
+      if (current) current.service.publishSoon()
+      else restart()
+    }
+  })
+  void api.alarms.create(HEARTBEAT_ALARM, { periodInMinutes: 10 })
+  restart()
+}
+
+/** The synced tab sync settings, read straight from the database. */
+function sharedSettings(docs: ReturnType<typeof couchHttpTabDocs>): ListStorePort {
+  return {
+    get: async <T>(id: string, fallback: T) => ((await docs.get(id).catch(() => null))?.list as T | undefined) ?? fallback,
+    set: async () => { throw new Error("Shared settings are changed from a panel") }
+  }
+}
+
+/**
+ * Whether the panel's database exists, which an earlier connection may have
+ * filled: then a browser-synced URL is not trusted until the user confirms it.
+ */
+async function localPouchExists(): Promise<boolean> {
+  const factory = (globalThis as { indexedDB?: IDBFactory & { databases?(): Promise<Array<{ name?: string }>> } }).indexedDB
+  if (!factory?.databases) return true
+  const names = (await factory.databases()).map((entry) => entry.name ?? "")
+  return names.some((name) => name.endsWith("once_db"))
+}

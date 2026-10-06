@@ -36,6 +36,7 @@ import { ExtensionRuntime } from "./extensions/ExtensionRuntime"
 import { bundledExtensionRoot, resolveBundledExtensions } from "./extensions/bundledExtensions"
 import { extensionScheme } from "./extensions/ExtensionScheme"
 import { addonSandboxScheme, configureAddonConversationProtocol, configureAddonSandboxProtocol } from "./AddonSandboxProtocol"
+import { configureRemoteTabsProtocol, RemoteTabsRelay, remoteTabsScheme } from "./RemoteTabsRelay"
 import { AddonConversationRelay } from "./AddonConversationRelay"
 import { devAddonDirectories } from "./devAddons"
 import { LocalAddonDirectories } from "./LocalAddonDirectories"
@@ -59,7 +60,8 @@ protocol.registerSchemesAsPrivileged([
   readerScheme(),
   errorPageScheme(),
   extensionScheme(),
-  addonSandboxScheme()
+  addonSandboxScheme(),
+  remoteTabsScheme()
 ])
 
 if (process.env.ONCE_ELECTRON_TEST_USER_DATA) {
@@ -269,6 +271,7 @@ function configureBrowserSession(): Session {
   configureReaderProtocol(browserSession, READER_RUNTIME_WEBPACK_ENTRY)
   configureErrorPageProtocol(browserSession)
   configureAddonConversationProtocol(browserSession, MAIN_WINDOW_WEBPACK_ENTRY)
+  configureRemoteTabsProtocol(browserSession, MAIN_WINDOW_WEBPACK_ENTRY)
   browserSession.setPermissionCheckHandler((_webContents, permission) => {
     return permission === "fullscreen"
   })
@@ -353,6 +356,7 @@ app
       })
     })
     registerPanelPageHandlers(browserCoordinator)
+    new RemoteTabsRelay(browserCoordinator).register()
     extensions.manager.onSyncChanged = document => {
       for (const window of BrowserWindow.getAllWindows()) {
         if (!window.isDestroyed()) window.webContents.send(ELECTRON_IPC.extensionsSyncChanged, document)

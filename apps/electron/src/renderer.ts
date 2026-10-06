@@ -1,4 +1,6 @@
 import { createOnceApp, OnceClient } from "@once/app"
+import { bindRemoteTabsPlacement, remoteTabsInPanel } from "./remoteTabsPlacement"
+import { hostRemoteTabsPages } from "./remoteTabsHost"
 import { FilterListsDocument, UserscriptsDocument } from "@once/core"
 import { createElectronPlatform } from "@once/platform-electron"
 import { ElectronRedirectRule, ElectronUpdateStatus } from "@once/platform-electron/bridge"
@@ -165,6 +167,7 @@ async function startRenderer(): Promise<void> {
     // The bundled uBlock Origin and Violentmonkey take both documents above.
     extensionSettings: true,
     showHoveredLinks: true,
+    tabsPanel: remoteTabsInPanel(),
     initialStoryLoad: flags.has("disableStoryLoading") ? "disabled" : "cache",
     onMenuCollapsedChanged,
     // The renderer owns the keybinding config; main only mirrors the chords it
@@ -175,6 +178,8 @@ async function startRenderer(): Promise<void> {
   })
   startupStage("bind-shell")
   bindBrowserExtensionSettings(app.client, window.onceElectron)
+  bindRemoteTabsPlacement(window.onceElectron)
+  hostRemoteTabsPages(window.onceElectron, app.client)
   document.addEventListener("contextmenu", (event) => {
     const story = storyFromTarget(event.target)
     const onStoryList = Boolean(

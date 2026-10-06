@@ -1,3 +1,4 @@
+import { mountRemoteTabs, type RemoteTabsPort } from "@once/ui-web"
 import { ReadingTabs } from "./readingTabs"
 import { attachReadingTabSwipe, ReadingTabSwipe } from "./readingTabSwipe"
 
@@ -15,6 +16,7 @@ export class ReadingTabDialog {
   private readonly swipe: ReadingTabSwipe
   // Rows rebuild only while visible and between gestures; tab updates are frequent.
   private rowsStale = true
+  private remote?: HTMLElement
 
   constructor(private readonly tabs: ReadingTabs, actions: { select(id: string): void; create(): void; preview(): Promise<void> }) {
     this.count.type = "button"
@@ -126,6 +128,32 @@ export class ReadingTabDialog {
   }
 
   announce(message: string): void { this.status.textContent = message }
+
+  /**
+   * Other devices' tabs under this device's, in the same scrolling list.
+   * Choosing one closes the tab view, like choosing a tab of this device.
+   */
+  showOtherDevices(port: RemoteTabsPort): void {
+    if (this.remote) return
+    const section = document.createElement("section")
+    section.className = "reading_tab_remote"
+    section.setAttribute("role", "listitem")
+    section.setAttribute("aria-labelledby", "reading_tab_remote_title")
+    section.dataset.testid = "reading-tabs-other-devices"
+    const heading = document.createElement("h3")
+    heading.id = "reading_tab_remote_title"
+    heading.textContent = "Other devices"
+    const view = document.createElement("div")
+    section.append(heading, view)
+    mountRemoteTabs(view, {
+      ...port,
+      open: (tab, background) => { if (!background) this.dialog.close(); port.open(tab, background) },
+      openSettings: port.openSettings && (() => { this.dialog.close(); port.openSettings?.() })
+    })
+    this.remote = section
+    this.rowsStale = true
+    this.renderRows()
+  }
 
   private confirmCloseAll(): void {
     let confirmed = false
@@ -253,6 +281,8 @@ export class ReadingTabDialog {
       this.rows.append(row)
       if (focusId === tab.id) (focusAction === "close" ? close : select).focus({ preventScroll: true })
     }
+    // Moved, not rebuilt: its filter and folded devices stay as they were.
+    if (this.remote) this.rows.append(this.remote)
     this.rows.scrollTop = scrollTop
   }
 }

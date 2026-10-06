@@ -193,6 +193,8 @@ export interface OnceClient {
   setTabSyncShared(change: Partial<import("@once/core").TabSyncSharedSettings>): Promise<void>
   /** The name other devices and add-on sync snapshots show for this one. */
   renameDevice(name: string): Promise<void>
+  /** Opens another device's tab here, in a new tab; never replaces the page being read. */
+  openRemoteTab(url: string, mode: "web" | "reader", background: boolean): void
   /** Removes another device from tab sync until it turns sharing on again. */
   forgetDevice(deviceId: string): Promise<void>
   resetDeviceIdentity(): Promise<void>
@@ -355,6 +357,8 @@ export interface SecretStorePort {
   protection?: "os"
   get(key: string): Promise<string>
   set(key: string, value: string): Promise<void>
+  /** Another context of this device changed a value. */
+  onChanged?(handler: () => void): () => void
 }
 
 /**
@@ -408,6 +412,11 @@ export interface LocalWindow {
   tabs: LocalTab[]
 }
 
+/** Opens a page in a new tab of this shell, for tabs that come from other devices. */
+export interface TabOpenerPort {
+  open(url: string, options: { background: boolean; mode: "web" | "reader" }): void
+}
+
 /** This device's open tabs, for the platforms that publish them. */
 export interface TabSourcePort {
   snapshot(): Promise<LocalWindow[]>
@@ -455,8 +464,16 @@ export interface OncePlatformPorts {
   tabDocs?: TabDocDatabase
   /** This device's tabs; without it the device can view other devices' tabs but not share its own. */
   tabSource?: TabSourcePort
+  /** Where another device's tab opens; without it a new foreground or background tab via `activeTab`. */
+  tabOpener?: TabOpenerPort
   /** What this device is to the others; required for tab sync. */
-  device?: { platform: import("@once/core").TabSyncPlatform; defaultName: string; appVersion: string }
+  device?: {
+    platform: import("@once/core").TabSyncPlatform
+    defaultName: string
+    appVersion: string
+    /** This device's tabs are published by another context, e.g. an extension's background. */
+    sharesElsewhere?: boolean
+  }
   /** Without one, sources that need a token report that they cannot have one. */
   secretStore?: SecretStorePort
   theme: ThemePort

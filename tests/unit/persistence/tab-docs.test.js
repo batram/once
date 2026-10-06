@@ -99,3 +99,41 @@ test("replication routes pulled tab records, deletions included, and pulls them 
     await close()
   }
 })
+
+test("the HTTP store authenticates from the URL, pages within its prefix and stops when not allowed", async () => {
+  const { couchHttpTabDocs } = require("../../../packages/persistence/dist")
+  const expressPouchDB = require("express-pouchdb")
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "once-tab-http-"))
+  const Db = PouchDB.defaults({ prefix: directory + path.sep })
+  const remote = new Db("once")
+  await remote.info()
+  const api = expressPouchDB(Db, { mode: "minimumForPouchDB", inMemoryConfig: true })
+  const server = await new Promise((resolve) => { const listening = api.listen(0, "127.0.0.1", () => resolve(listening)) })
+  const authorizations = []
+  const recordingFetch = (url, init) => { authorizations.push(init?.headers?.authorization ?? ""); return fetch(url, init) }
+  let allowed = true
+  try {
+    const url = `http://user:p%40ss@127.0.0.1:${server.address().port}/once`
+    const docs = couchHttpTabDocs(url, recordingFetch, async () => allowed)
+    const repo = new TabDocRepository(docs)
+    await repo.publish(deviceDocument(identity(1), windows("https://example.com/"), true))
+    await repo.publish(deviceDocument(identity(2), windows("https://example.com/2"), true))
+    assert.equal((await remote.get(`dev_${id}`)).seq, 2)
+    assert.equal(authorizations[0], `Basic ${Buffer.from("user:p@ss").toString("base64")}`)
+    const target = "fedcba9876543210fedcba9876543210"
+    const sends = Array.from({ length: 205 }, (_, index) => ({ _id: `tsend_${target}_${String(index).padStart(3, "0")}`, type: "send",
+      from: id, fromName: "x", url: "https://example.com/", title: "x", mode: "web", createdAt: new Date().toISOString() }))
+    await remote.bulkDocs([...sends, { _id: `tsend_${target}`, type: "send" }, { _id: `tsend_${target}0`, type: "send" }, { _id: "tsendz" }])
+    const listed = await docs.list(`tsend_${target}_`)
+    assert.equal(listed.length, 205, "pages past the first and stays within the prefix")
+    assert.equal((await repo.listSends(target)).length, 205)
+    allowed = false
+    await assert.rejects(repo.publish(deviceDocument(identity(3), windows("https://example.com/3"), true)), /not allowed/)
+    assert.equal((await remote.get(`dev_${id}`)).seq, 2)
+  } finally {
+    server.closeAllConnections()
+    await new Promise((resolve) => server.close(resolve))
+    await remote.destroy()
+    await fs.rm(directory, { recursive: true, force: true })
+  }
+})

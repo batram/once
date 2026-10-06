@@ -7,6 +7,7 @@
   "types": "dist/sidepanel.d.ts",
   "dependencies": {
     "@once/app": "*",
+    "@once/persistence": "*",
     "@once/platform-webext": "*",
     "@once/ui-web": "*",
     "webextension-polyfill": "^0.10.0"

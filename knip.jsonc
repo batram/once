@@ -77,6 +77,9 @@
         // The addon conversation page: a Forge entry in a browser tab, with the preload that relays to the shell.
         "src/addonConversation.ts",
         "src/addonConversationPreload.ts",
+        // The tabs page: a Forge entry in a browser tab, with the preload that relays to the shell.
+        "src/remoteTabsPage.ts",
+        "src/remoteTabsPreload.ts",
         "forge.config.js",
         "webpack.*.config.js",
         "scripts/*.js"

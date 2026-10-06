@@ -7,7 +7,7 @@ npm workspace; a single root install supplies every app and package.
 
 - Node.js 24 (`.nvmrc`) and npm
 - Firefox for Firefox extension testing
-- Chrome 114 or newer for Chrome extension testing
+- Chrome 120 or newer for Chrome extension testing
 - Windows for the current Electron packaging and end-to-end test workflows
 - Android Studio 2025.2.1+, Android SDK platform 37.1 with build-tools 37,
   Android Gradle plugin 9, and JDK 21 for Android (the pinned versions live in
@@ -139,8 +139,8 @@ builds and do not run in watch mode.
 Open `chrome://extensions`, enable **Developer mode**, choose **Load
 unpacked**, and select `apps/chrome-extension/dist/dev`.
 
-The Chrome build requires Chrome 114 or newer because it uses the Side Panel
-API.
+The Chrome build requires Chrome 120 or newer: it uses the Side Panel API, and
+tab sync's background needs the 30-second alarm periods Chrome 120 allows.
 
 ## Package and sign Firefox
 

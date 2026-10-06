@@ -12,7 +12,11 @@ interface SavedTab {
   mode: ReadingMode
   story: Record<string, unknown> | null
   readerScroll: number
+  /** Absent in tabs saved before tab sync; a restored tab then starts now. */
+  times?: TabTimes
 }
+/** What tab sync publishes about a tab's life: its navigation, and when it was opened, navigated, selected, used. */
+export interface TabTimes { navSeq: number; openedAt: number; navigatedAt: number; selectedAt: number; activityAt: number }
 export interface ReadingTab {
   readonly id: string
   readonly generation: string
@@ -25,6 +29,7 @@ export interface ReadingTab {
   preview?: string
   /** Audio this session: playing now, or played earlier and since stopped. */
   audio?: "playing" | "played"
+  times: TabTimes
 }
 interface Snapshot { version: 1; activeId: string | null; tabs: SavedTab[] }
 
@@ -68,15 +73,21 @@ export class ReadingTabs {
   create(select = true, id: string = crypto.randomUUID(), generation?: string): ReadingTab {
     const tab = this.make(id, generation)
     this.entries.push(tab)
-    if (select) this.active = tab.id
+    if (select) this.choose(tab)
     this.publish()
     return tab
   }
 
   select(id: string): void {
-    if (!this.entries.some(tab => tab.id === id)) return
-    this.active = id
+    const tab = this.entries.find(entry => entry.id === id)
+    if (!tab) return
+    this.choose(tab)
     this.publish()
+  }
+
+  private choose(tab: ReadingTab): void {
+    if (this.active !== tab.id) tab.times.selectedAt = tab.times.activityAt = Date.now()
+    this.active = tab.id
   }
 
   close(id: string): void {
@@ -134,6 +145,7 @@ export class ReadingTabs {
     const tab = this.entries.find(entry => entry.id === id && entry.generation === generation)
     if (!tab) return
     const audio = playing ? "playing" : tab.audio && "played"
+    if (playing) tab.times.activityAt = Date.now()
     if (audio === tab.audio) return
     tab.audio = audio
     this.listeners.forEach(listener => listener())
@@ -142,7 +154,10 @@ export class ReadingTabs {
   update(id: string, generation: string, value: { title?: string; readerScroll?: number }): void {
     const tab = this.entries.find(entry => entry.id === id && entry.generation === generation)
     if (!tab) return
-    if (value.readerScroll !== undefined && Number.isFinite(value.readerScroll)) tab.readerScroll = Math.max(0, value.readerScroll)
+    if (value.readerScroll !== undefined && Number.isFinite(value.readerScroll)) {
+      tab.readerScroll = Math.max(0, value.readerScroll)
+      tab.times.activityAt = Date.now()
+    }
     // Reader scroll reports arrive continuously and nothing renders them.
     if (value.title === undefined) { this.persistSoon(); return }
     tab.title = value.title
@@ -150,7 +165,9 @@ export class ReadingTabs {
   }
 
   private make(id: string, generation: string = crypto.randomUUID()): ReadingTab {
-    const tab: ReadingTab = { id, generation, session: new ReadingSession(true), history: new ReadingHistory(), title: "", readerScroll: 0, restored: false }
+    const now = Date.now()
+    const tab: ReadingTab = { id, generation, session: new ReadingSession(true), history: new ReadingHistory(), title: "", readerScroll: 0, restored: false,
+      times: { navSeq: 0, openedAt: now, navigatedAt: now, selectedAt: now, activityAt: now } }
     let initial = true
     let previousUrl = ""
     let previousNavigation = 0
@@ -162,6 +179,10 @@ export class ReadingTabs {
         tab.title = ""
         tab.preview = undefined
         tab.readerScroll = 0
+        if (!this.restoring) {
+          tab.times.navSeq++
+          tab.times.navigatedAt = tab.times.activityAt = Date.now()
+        }
       }
       previousUrl = state.currentUrl
       previousNavigation = state.navigationId
@@ -177,6 +198,7 @@ export class ReadingTabs {
     tab.session.restore({ story: value.story ? Story.from_obj(value.story) : null, mode: value.mode, currentUrl: value.url })
     tab.title = value.title
     tab.readerScroll = value.readerScroll
+    if (value.times) tab.times = { ...value.times }
     return tab
   }
 
@@ -192,7 +214,7 @@ export class ReadingTabs {
       if (!["reader", "browser", "comments"].includes(tab.mode)) continue
       if (tab.story) { try { Story.from_obj(tab.story) } catch { continue } }
       ids.add(tab.id)
-      validated.push({ ...tab, readerScroll: Number.isFinite(tab.readerScroll) ? Math.max(0, tab.readerScroll) : 0 })
+      validated.push({ ...tab, readerScroll: Number.isFinite(tab.readerScroll) ? Math.max(0, tab.readerScroll) : 0, times: readTimes(tab.times) })
     }
     this.entries = validated.map(tab => this.fromSaved(tab))
     this.active = value.activeId === null || ids.has(value.activeId ?? "") ? value.activeId : this.entries[0]?.id ?? null
@@ -202,7 +224,7 @@ export class ReadingTabs {
     return { version: 1, activeId: this.active, tabs: this.entries.map(tab => {
       const state = tab.session.snapshot()
       const story = state.story
-      return { id: tab.id, url: state.currentUrl, title: tab.title, mode: state.mode, readerScroll: tab.readerScroll,
+      return { id: tab.id, url: state.currentUrl, title: tab.title, mode: state.mode, readerScroll: tab.readerScroll, times: tab.times,
         story: story ? { type: story.type, href: story.href, title: story.title, comment_url: story.comment_url, timestamp: story.timestamp, tags: story.tags, stared: story.stared, read_state: story.read_state } : null }
     }) }
   }
@@ -224,4 +246,10 @@ export class ReadingTabs {
     this.persist()
     this.listeners.forEach(listener => listener())
   }
+}
+
+function readTimes(value: unknown): TabTimes | undefined {
+  const times = value as Partial<TabTimes> | undefined
+  const keys = ["navSeq", "openedAt", "navigatedAt", "selectedAt", "activityAt"] as const
+  return times && keys.every(key => Number.isSafeInteger(times[key]) && (times[key] as number) >= 0) ? times as TabTimes : undefined
 }

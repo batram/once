@@ -145,6 +145,25 @@ const bridge: ElectronBridge = {
       return () => ipcRenderer.removeListener(ELECTRON_IPC.tabSyncChanged, listener)
     }
   },
+  remoteTabs: {
+    open: () => ipcRenderer.invoke(ELECTRON_IPC.remoteTabsOpen),
+    push: (tabId, state) => ipcRenderer.send(ELECTRON_IPC.remoteTabsPush, tabId, state),
+    onAttach(handler) {
+      const listener = (_event: Electron.IpcRendererEvent, tabId: number) => handler(tabId)
+      ipcRenderer.on(ELECTRON_IPC.remoteTabsAttach, listener)
+      return () => ipcRenderer.removeListener(ELECTRON_IPC.remoteTabsAttach, listener)
+    },
+    onDetach(handler) {
+      const listener = (_event: Electron.IpcRendererEvent, tabId: number) => handler(tabId)
+      ipcRenderer.on(ELECTRON_IPC.remoteTabsDetach, listener)
+      return () => ipcRenderer.removeListener(ELECTRON_IPC.remoteTabsDetach, listener)
+    },
+    onCommand(handler) {
+      const listener = (_event: Electron.IpcRendererEvent, tabId: number, command: unknown) => handler(tabId, command)
+      ipcRenderer.on(ELECTRON_IPC.remoteTabsCommand, listener)
+      return () => ipcRenderer.removeListener(ELECTRON_IPC.remoteTabsCommand, listener)
+    }
+  },
   storyMenu: {
     show: (items, point) =>
       ipcRenderer.invoke(ELECTRON_IPC.storyMenuShow, items, point),

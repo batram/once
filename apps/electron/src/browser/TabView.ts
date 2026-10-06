@@ -1,8 +1,10 @@
 import { WebContentsView } from "electron"
 import { isAddonConversationUrl } from "../AddonConversationRelay"
+import { isRemoteTabsUrl } from "../RemoteTabsRelay"
 import { PageProfile } from "../extensions/runtimeTypes"
 
 declare const ADDON_CONVERSATION_PRELOAD_WEBPACK_ENTRY: string
+declare const REMOTE_TABS_PRELOAD_WEBPACK_ENTRY: string
 
 /**
  * What Electron hands a window-open `createWindow` callback. The pending
@@ -38,7 +40,9 @@ export function createTabView(
         ? { session: profile.session, preload: profile.preload }
         : isAddonConversationUrl(url)
           ? { partition, preload: ADDON_CONVERSATION_PRELOAD_WEBPACK_ENTRY }
-          : { partition })
+          : isRemoteTabsUrl(url)
+            ? { partition, preload: REMOTE_TABS_PRELOAD_WEBPACK_ENTRY }
+            : { partition })
     }
   })
 }

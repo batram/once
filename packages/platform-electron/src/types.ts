@@ -309,6 +309,14 @@ export interface ElectronBridge {
     snapshot(): Promise<ElectronSyncWindow[]>
     onChanged(handler: () => void): () => void
   }
+  /** The tabs page in this window's tabs: opened or focused here, fed with the shell's view. */
+  remoteTabs: {
+    open(): Promise<void>
+    push(tabId: number, state: unknown): void
+    onAttach(handler: (tabId: number) => void): () => void
+    onDetach(handler: (tabId: number) => void): () => void
+    onCommand(handler: (tabId: number, command: unknown) => void): () => void
+  }
   storyMenu: {
     show(
       items: ElectronStoryMenuItem[],
@@ -500,8 +508,32 @@ export const ELECTRON_IPC = {
   addonsConversationPush: "once:addons:conversation-push",
   addonsConversationCommand: "once:addons:conversation-command",
   addonsConversationConnect: "once:addons:conversation-connect",
-  addonsConversationState: "once:addons:conversation-state"
+  addonsConversationState: "once:addons:conversation-state",
+  remoteTabsOpen: "once:remote-tabs:open",
+  remoteTabsConnect: "once:remote-tabs:connect",
+  remoteTabsAttach: "once:remote-tabs:attach",
+  remoteTabsDetach: "once:remote-tabs:detach",
+  remoteTabsPush: "once:remote-tabs:push",
+  remoteTabsState: "once:remote-tabs:state",
+  remoteTabsCommand: "once:remote-tabs:command"
 } as const
+
+/** The page that lists other devices' tabs inside a browser tab. */
+export const REMOTE_TABS_URL = "once-tabs://view/index.html"
+
+/**
+ * The tabs page's only bridge: ask for the view, hear it as it changes, and
+ * send the reader's choices back to the window's shell, which owns the data.
+ */
+export interface ElectronRemoteTabsPageBridge {
+  connect(): Promise<void>
+  onState(handler: (state: unknown) => void): () => void
+  send(command: ElectronRemoteTabsCommand): void
+}
+
+export type ElectronRemoteTabsCommand =
+  | { type: "open"; url: string; mode: "web" | "reader"; background: boolean }
+  | { type: "settings" }
 
 /** The conversation page's location; its query names the conversation. */
 export const ADDON_CONVERSATION_URL = "once-addon://conversation/index.html"

@@ -42,7 +42,8 @@ for (const target of ["chrome", "firefox"]) {
     if (target === "chrome") {
       assert.equal(manifest.background.service_worker, "background.js")
       assert.equal(manifest.side_panel.default_path, "static/sidepanel.html")
-      assert.equal(manifest.minimum_chrome_version, "114")
+      // 120: the 30-second alarm periods tab sync's background needs.
+      assert.equal(manifest.minimum_chrome_version, "120")
       assert.match(manifest.content_security_policy.extension_pages, /wasm-unsafe-eval/)
       assert.deepEqual(
         manifest.web_accessible_resources[0].resources,

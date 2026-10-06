@@ -718,6 +718,29 @@ and screenshots from database A would therefore be uploaded to database B.
   `tests/integration/app/tab-sync.test.js`, `tests/integration/app/sync-gate.test.js`,
   `tests/e2e/electron/tab-sync.spec.js`.
 
+### Phase 2 status (implemented)
+
+- Shared view `packages/ui-web/src/tabsync/RemoteTabsView.ts` (devices, windows, filter, open in
+  front or behind, open all, folding kept across updates) over a `RemoteTabsPort`, with the client
+  adapter in `tabsPanel.ts`; styles in `parts/remote-tabs.css`.
+- Side panel **Tabs** entry right after Stories (temporary thread/comments entries still go to the
+  bottom); on in the extensions, a choice on Electron, hidden on mobile.
+- Electron: a tabs button beside "+" (default) opens `once-tabs://view/index.html` in a tab, fed by
+  `RemoteTabsRelay.ts` from the window's shell (`remoteTabsHost.ts`), following the shell's theme;
+  "Show other devices' tabs in" (button / side panel / both) in Settings › Sync.
+- Mobile: reading tabs carry tab sync times (`readingTabs.ts`), are published through
+  `readingTabSync.ts`, and the tab view lists "Other devices" below this phone's tabs.
+- Extensions: the background publishes every normal window's tabs over HTTP
+  (`packages/webext-shell/src/tabSyncBackground.ts`, `tabSyncTimes.ts`,
+  `packages/persistence/src/CouchHttpTabDocs.ts`) with every request passing the binding and consent
+  gate; a browser-synced URL change ends the connection. `alarms` permission added; Chrome minimum
+  raised to 120. Panels show the sharing options because the background shares.
+- Not yet: extension reader-page tabs are not published (their URL is a token; phase 4 maps them),
+  and incoming-send notifications wait for phase 5.
+- Tests: `tests/unit/ui-web/remote-tabs-view.test.js`, `tests/unit/persistence/tab-docs.test.js`
+  (HTTP store), `tests/unit/mobile/reading-tabs.test.js`, `tests/e2e/electron/tab-sync.spec.js`,
+  `tests/e2e/extensions/chrome-tab-sync.spec.js`, `tests/e2e/mobile/tab-sync.spec.js`.
+
 ## Nice-to-haves (not v1)
 
 - Recently closed tabs from other devices.

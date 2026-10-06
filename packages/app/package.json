@@ -4,10 +4,19 @@
   "private": true,
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "tabsync": ["dist/tabsync/index.d.ts"]
+    }
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./tabsync": {
+      "types": "./dist/tabsync/index.d.ts",
+      "default": "./dist/tabsync/index.js"
     }
   },
   "dependencies": {

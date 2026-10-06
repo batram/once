@@ -75,6 +75,7 @@
 .icon--star-fill { --icon: url("../../imgs/star_fill.svg"); }
 .icon--stored-content { --icon: url("../../imgs/stored_content.svg"); }
 .icon--story { --icon: url("../../imgs/story.svg"); }
+.icon--tabs { --icon: url("../../imgs/tabs.svg"); }
 .icon--undo { --icon: url("../../imgs/undo.svg"); }
 .icon--video { --icon: url("../../imgs/video.svg"); }
 .icon--volume-mute { --icon: url("../../imgs/volume-mute.svg"); }

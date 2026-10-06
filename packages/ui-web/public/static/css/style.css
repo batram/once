@@ -16,3 +16,4 @@
 @import "./parts/userscripts.css" layer(components);
 @import "./parts/search.css" layer(components);
 @import "./parts/notifications.css" layer(components);
+@import "./parts/remote-tabs.css" layer(components);

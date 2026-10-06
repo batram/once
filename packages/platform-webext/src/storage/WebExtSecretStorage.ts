@@ -18,6 +18,14 @@ export class WebExtSecretStorage {
     else await this.browserApi.storage.local.remove(name)
   }
 
+  onChanged(handler: () => void): () => void {
+    const listener = (changes: Record<string, unknown>, area: string) => {
+      if (area === "local" && Object.keys(changes).some((key) => key.startsWith("secret:"))) handler()
+    }
+    this.browserApi.storage.onChanged.addListener(listener)
+    return () => this.browserApi.storage.onChanged.removeListener(listener)
+  }
+
   private name(key: string): string {
     return `secret:${key}`
   }

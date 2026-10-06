@@ -41,3 +41,5 @@ export {
 export type { AddonPage } from "./addons/pageAddons"
 export { showChoiceDialog } from "./confirmDialog"
 export type { BundledAddonFiles } from "./addons/bundledAddons"
+export { mountRemoteTabs, type RemoteTabsPort } from "./tabsync/RemoteTabsView"
+export { clientRemoteTabsPort, openSyncSettings, setTabsMenuVisible } from "./tabsync/tabsPanel"

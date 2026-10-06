@@ -16,7 +16,8 @@ import {
   ReaderDocumentHost,
   ReaderView,
   SourcePickerView,
-  UndoButton
+  UndoButton,
+  clientRemoteTabsPort
 } from "@once/ui-web"
 import { installStoryMenu } from "./storyMenu"
 import { bindMobileBrowserExtensionSettings } from "./browserExtensionSettings"
@@ -30,6 +31,7 @@ import { installReaderMediaSession, nativeReaderSpeechEngine } from "./readerMed
 import { installReaderLinkHost, installReaderLinkMenuHost } from "./readerLinks"
 import { installReaderEdgeSwipeHost } from "./readerEdgeSwipe"
 import { MobileReadingController } from "./readingController"
+import { readingTabOpener, readingTabSource } from "./readingTabSync"
 import { linkAddonItems, readingPageActions } from "./readingPageActions"
 import { bindReloadStatus, RELOAD_SPIN_TIMEOUT_MS } from "./reloadStatus"
 import {
@@ -217,7 +219,10 @@ async function startMobileApp(): Promise<void> {
   // The reading controller is built below; the closure only runs on a tap.
   const platform = createMobilePlatform(nativeBridge, undefined, {
     openInApp: (url) => reading.openBrowserUrl(url),
-    appVersion: __ONCE_APP_VERSION__
+    appVersion: __ONCE_APP_VERSION__,
+    // The reading controller exists before the app starts, which is when these first run.
+    tabSource: readingTabSource(() => reading.tabs),
+    tabOpener: readingTabOpener(() => (url, background) => reading.openTab(url, background))
   })
   const app = createOnceApp(platform)
   const browserSurface = createInAppBrowserSurface((url) =>
@@ -285,6 +290,7 @@ async function startMobileApp(): Promise<void> {
   showStartupState("Opening saved stories and settings…")
   await app.start()
   if (Capacitor.isNativePlatform()) await bindMobileExtensionSettings(app.client, browserSurface)
+  reading.tabDialog.showOtherDevices(clientRemoteTabsPort(app.client))
   document.body.dataset.onceStage = "ui-mount"
   beginStoryLoading(app.client)
   await mountOnceUi(app.client, {

@@ -47,6 +47,8 @@ export interface TabSyncDependencies {
   repository: TabDocRepository
   listStore: ListStorePort
   source?: TabSourcePort
+  /** Another context publishes this device's tabs (an extension's background). */
+  sharesElsewhere?: boolean
   appVersion: string
   /** Whether sync is configured and allowed; nothing is published otherwise. */
   syncActive(): boolean
@@ -88,10 +90,7 @@ export class TabSyncService {
   async start(): Promise<void> {
     this.channel = typeof BroadcastChannel === "function" ? new BroadcastChannel(CHANNEL) : undefined
     if (this.channel) {
-      this.channel.onmessage = () => {
-        this.deps.identity.invalidate()
-        void this.reevaluate(true)
-      }
+      this.channel.onmessage = () => this.optionsChangedElsewhere()
     }
     this.disposers.push(this.deps.identity.onChanged(() => this.deps.changed()))
     await this.refresh()
@@ -136,6 +135,17 @@ export class TabSyncService {
     void this.reevaluate()
   }
 
+  /** Another context (a panel, the background) changed the options or identity. */
+  optionsChangedElsewhere(): void {
+    this.deps.identity.invalidate()
+    void this.reevaluate(true)
+  }
+
+  /** A heartbeat or retry: publish now, even if nothing changed. */
+  publishSoon(): void {
+    this.schedule(0, true)
+  }
+
   async view(): Promise<TabSyncView> {
     const [record, options] = await Promise.all([this.deps.identity.get(), this.deps.identity.getOptions()])
     const staleBefore = Date.now() - options.staleDeviceDays * 24 * 60 * 60 * 1000
@@ -150,7 +160,7 @@ export class TabSyncService {
       })
       .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
     return {
-      available: true, canShare: Boolean(this.deps.source),
+      available: true, canShare: Boolean(this.deps.source) || this.deps.sharesElsewhere === true,
       self: { deviceId: record.id, name: record.name, platform: this.deps.identity.platform },
       options, shared: this.shared, devices, notice: this.notice
     }

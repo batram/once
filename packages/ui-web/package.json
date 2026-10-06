@@ -14,13 +14,18 @@
       "gesture/touchGestureLock": ["dist/gesture/touchGestureLock.d.ts"],
       "addons/conversationPage": ["dist/addons/conversationPage.d.ts"],
       "addons/pageActionHost": ["dist/addons/pageActionHost.d.ts"],
-      "addons/bundledPageActions": ["dist/addons/bundledPageActions.d.ts"]
+      "addons/bundledPageActions": ["dist/addons/bundledPageActions.d.ts"],
+      "tabsync/RemoteTabsView": ["dist/tabsync/RemoteTabsView.d.ts"]
     }
   },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./tabsync/RemoteTabsView": {
+      "types": "./dist/tabsync/RemoteTabsView.d.ts",
+      "default": "./dist/tabsync/RemoteTabsView.js"
     },
     "./reader/readerDocument": {
       "types": "./dist/reader/readerDocument.d.ts",

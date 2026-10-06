@@ -3176,6 +3176,22 @@
     overscroll-behavior: contain;
   }
 
+  /* Other devices' tabs follow this device's in the same scroll. */
+  .reading_tab_remote {
+    margin-top: var(--sp-4);
+    padding-top: var(--sp-2);
+    border-top: 1px solid var(--divider-color);
+  }
+
+  .reading_tab_remote h3 {
+    margin: 0 0 var(--sp-1);
+    font-size: var(--fs-body);
+  }
+
+  .reading_tab_remote .remote_tabs {
+    padding: 0;
+  }
+
   .reading_tab_row {
     --tab-swipe-offset: 0px;
     --tab-swipe-distance: 0px;

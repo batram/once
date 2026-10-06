@@ -1,4 +1,5 @@
 import { installStoryNavigationBackground } from "@once/webext-shell/dist/storyNavigationBackground"
+import { installTabSyncBackground } from "@once/webext-shell/dist/tabSyncBackground"
 import browser from "webextension-polyfill"
 import { installReaderBackground } from "@once/webext-shell/dist/readerBackground"
 import { installPickerBackground } from "@once/webext-shell/dist/pickerBackground"
@@ -36,3 +37,4 @@ installConnectionOriginBackground(
 ).catch((error: unknown) => console.error("Unable to install the connection request rules", error))
 
 installStoryNavigationBackground(browser)
+installTabSyncBackground(browser, "firefox")
