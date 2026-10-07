@@ -8,7 +8,8 @@
     "scripts/visual-compare.js#computedStyleSnapshot": "The style companion's schema is its body: one curated selector list, the collected property groups, and the structural coverage pass are read together when deciding what a screenshot proves.",
     "scripts/visual-compare.js#computedStyleSnapshot.collectStyles": "The page.evaluate callback for the snapshot above. It is serialized into the browser context and cannot reference module scope, so every selector, property list, and traversal helper it uses must be declared inside it.",
     "scripts/visual-compare.js#captureMobile": "One linear capture sequence for the generated mobile web app: serve, load fixture data, then walk the screenshot matrix in order. The steps share page state and are only correct in sequence.",
-    "scripts/webpack.webext.config.js#module.exports": "One declarative Webpack build entrypoint keeps entries, output, optimization, rules, and plugins readable together; extracting object fragments would increase reading span.",
+    "apps/mobile/webpack.config.js#module.exports": "The mobile counterpart of the extension build below: one declarative Webpack entrypoint whose entries, loaders, reader-CSP and add-on-sandbox plugins, copy patterns and defines are read together; extracting object fragments would increase reading span.",
+    "scripts/webpack.webext.config.js#module.exports":"One declarative Webpack build entrypoint keeps entries, output, optimization, rules, and plugins readable together; extracting object fragments would increase reading span.",
     "tests/e2e/electron/story-list.debug.js#test(diagnoses Electron story loading and interactions)": "One numbered diagnostic journey intentionally shares its process, fixture, checkpoint, logging, failure-capture, and cleanup lifetime; splitting it would weaken the diagnostic narrative."
   }
 }
