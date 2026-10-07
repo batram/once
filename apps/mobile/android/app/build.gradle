@@ -33,15 +33,6 @@ android {
             abiFilters.addAll(onceDeployAbis)
         }
     }
-    sourceSets {
-        main {
-            // The built-in extensions: Once's own bridge, and the vendored bundles
-            // that scripts/fetch-extensions.js unpacks for every target. GeckoView
-            // loads them from resource://android/assets/<name>/.
-            assets.srcDirs += ['../../extensions', '../../../../vendor/extensions']
-            assets.exclude 'ublock-origin-lite/**', 'ios/**'
-        }
-    }
     // The flavours stamp app_name; AGP 9 no longer generates resValues unless asked.
     buildFeatures {
         resValues = true
@@ -66,6 +57,43 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+    }
+}
+
+// The built-in extensions GeckoView loads from resource://android/assets/<name>/
+// (see GeckoEngine): Once's own bridge, and the bundles scripts/fetch-extensions.js
+// unpacks into vendor/extensions. Violentmonkey comes from android/, the copy
+// carrying the app's userscript relay; the upstream, iOS and uBO Lite bundles
+// stay out. AGP ignores source-set excludes for assets, so the wanted bundles
+// are copied into a generated asset dir instead.
+abstract class OnceExtensionAssets extends DefaultTask {
+    @InputDirectory @PathSensitive(PathSensitivity.RELATIVE)
+    abstract DirectoryProperty getOnceExtensions()
+    @InputDirectory @PathSensitive(PathSensitivity.RELATIVE)
+    abstract DirectoryProperty getVendorExtensions()
+    @OutputDirectory
+    abstract DirectoryProperty getOutputDir()
+    @Inject
+    abstract FileSystemOperations getFs()
+
+    @TaskAction
+    void sync() {
+        fs.sync { spec ->
+            spec.into(outputDir)
+            spec.from(onceExtensions)
+            spec.from(vendorExtensions) { it.include('ublock-origin/**', 'android/violentmonkey/**') }
+        }
+    }
+}
+
+def onceExtensionAssets = tasks.register('onceExtensionAssets', OnceExtensionAssets) {
+    onceExtensions = file('../../extensions')
+    vendorExtensions = file('../../../../vendor/extensions')
+}
+
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(onceExtensionAssets, { it.outputDir })
     }
 }
 
