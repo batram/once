@@ -139,12 +139,15 @@ test("the HTTP store authenticates from the URL, pages within its prefix and sto
     server.closeAllConnections()
     await new Promise((resolve) => server.close(resolve))
     await remote.destroy()
-    // express-pouchdb installs pouchdb-all-dbs, whose registry database stays
-    // open; on Windows its LevelDB log cannot be unlinked until it is closed.
-    // allDbs() drains its queue first. resetAllDbs() would not do: with a prefix
-    // the registry's own destroy event re-registers it. Closing any instance of
-    // the same name closes the shared LevelDB store.
+    // HTTP requests open databases too (including fresh). Close every store in
+    // this fixture before removing it: Windows cannot unlink an open LevelDB log.
+    // Drain pouchdb-all-dbs first, and close its registry last. Destroying the
+    // registry instead would re-register it because this constructor has a prefix.
     await Db.allDbs()
+    const stores = await fs.readdir(directory, { withFileTypes: true })
+    for (const store of stores) {
+      if (store.isDirectory() && store.name !== "pouch__all_dbs__") await new Db(store.name).close()
+    }
     await new Db("pouch__all_dbs__").close()
     await fs.rm(directory, { recursive: true, force: true })
   }
