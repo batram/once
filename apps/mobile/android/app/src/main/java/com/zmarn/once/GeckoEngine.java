@@ -15,6 +15,7 @@ import org.mozilla.geckoview.WebExtension;
 /** Process-owned engine; activity-owned delegates are attached by the current host. */
 final class GeckoEngine {
     static final String BRIDGE_ID = "once-surface@zmarn.com";
+    static final String VIOLENTMONKEY_ID = "{aecec67f-0d10-4fa7-b7c7-609a2db280cf}";
     private static GeckoEngine instance;
     final GeckoRuntime runtime;
     private final Context context;
@@ -41,20 +42,21 @@ final class GeckoEngine {
         String[][] bundles = {
             { "once-surface", BRIDGE_ID },
             { "ublock-origin", "uBlock0@raymondhill.net" },
-            { "violentmonkey", "{aecec67f-0d10-4fa7-b7c7-609a2db280cf}" }
+            // The Android copy, which carries the relay for synced userscripts.
+            { "android/violentmonkey", VIOLENTMONKEY_ID }
         };
         for (String[] bundle : bundles) {
             installs.add(runtime.getWebExtensionController().ensureBuiltIn(
                 "resource://android/assets/" + bundle[0] + "/", bundle[1]));
         }
         ready = GeckoResult.allOf(installs).then(ignored -> runtime.getWebExtensionController().list());
-        ready.accept(ignored -> {}, error -> ready = null);
+        ready.accept(ViolentmonkeyRelayPlugin::attach, error -> ready = null);
         return ready;
     }
 
     static boolean bundled(String id) {
         return BRIDGE_ID.equals(id) || "uBlock0@raymondhill.net".equals(id) ||
-            "{aecec67f-0d10-4fa7-b7c7-609a2db280cf}".equals(id);
+            VIOLENTMONKEY_ID.equals(id);
     }
 
     /**

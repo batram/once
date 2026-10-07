@@ -6,14 +6,14 @@
 import { createHash, randomUUID } from "node:crypto"
 import { promises as fs } from "node:fs"
 import path from "node:path"
-import { FilterListSubscription, UserscriptEntry, UserscriptsDocument } from "@once/core"
-import { ElectronExtensionSettings } from "@once/platform-electron/bridge"
-import { ExtensionHost } from "./ExtensionHost"
 import {
   AppliedUserscript,
-  InstalledUserscript,
-  planUserscripts
-} from "./userscriptReconcile"
+  FilterListSubscription,
+  handUserscriptsToViolentmonkey,
+  UserscriptsDocument
+} from "@once/core"
+import { ElectronExtensionSettings } from "@once/platform-electron/bridge"
+import { ExtensionHost } from "./ExtensionHost"
 import { VirtualContext } from "./VirtualContext"
 
 export const UBLOCK_ORIGIN_ID = "uBlock0@raymondhill.net"
@@ -165,7 +165,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
-const hash = (value: string): string =>
+const digest = async (value: string): Promise<string> =>
   createHash("sha256").update(value).digest("hex")
 
 /**
@@ -192,85 +192,11 @@ async function readApplied(file: string): Promise<Record<string, AppliedUserscri
   }
 }
 
-interface ExportedScript {
-  script?: {
-    props?: { id?: number }
-    meta?: { name?: string; namespace?: string }
-    config?: { enabled?: number | boolean; removed?: number | boolean }
-  }
-  code?: string
-}
-
 /**
- * Everything Violentmonkey holds, with its code. `ExportZip` is the one
- * command that answers with both in a single round trip; without `values` it
- * carries no stored script data, only the scripts themselves.
- */
-async function installedUserscripts(context: VirtualContext): Promise<InstalledUserscript[]> {
-  const result = await context.sendMessage({
-    cmd: "ExportZip",
-    data: { values: false }
-  }) as { items?: ExportedScript[] } | undefined
-  if (!Array.isArray(result?.items)) throw new Error("Violentmonkey did not export its scripts")
-  const items = result.items
-  const scripts: InstalledUserscript[] = []
-  for (const item of items) {
-    const id = item?.script?.props?.id
-    const name = item?.script?.meta?.name
-    const enabled = item?.script?.config?.enabled
-    if (typeof id !== "number" || !name || typeof item.code !== "string") continue
-    if (item.script?.config?.removed) continue
-    scripts.push({
-      id,
-      name,
-      namespace: item.script?.meta?.namespace || null,
-      code: item.code,
-      enabled: enabled !== 0 && enabled !== false
-    })
-  }
-  return scripts
-}
-
-/** Writes one script, then reads back what Violentmonkey stored for it. */
-async function installUserscript(
-  context: VirtualContext,
-  script: UserscriptEntry
-): Promise<AppliedUserscript | undefined> {
-  const result = await context.sendMessage({
-    cmd: "ParseScript",
-    data: { code: script.source, message: "", url: "", from: "" }
-  }) as { update?: { props?: { id?: number } }; errors?: unknown } | undefined
-  const id = result?.update?.props?.id
-  if (typeof id !== "number") {
-    console.error(`Violentmonkey did not install "${script.name}"`, result?.errors ?? result)
-    return undefined
-  }
-  await context.sendMessage({
-    cmd: "UpdateScriptInfo",
-    data: { id, config: { enabled: script.enabled ? 1 : 0 } }
-  })
-  // The baseline has to be the text Violentmonkey ended up with rather than
-  // the text Once sent: an install may normalise it, and the difference would
-  // otherwise read as a dashboard edit on the very next hand-off.
-  const stored = await context.sendMessage({ cmd: "GetScriptCode", data: id })
-  return {
-    id,
-    source: hash(script.source),
-    code: hash(typeof stored === "string" ? stored : script.source),
-    enabled: script.enabled
-  }
-}
-
-/**
- * Violentmonkey's dashboard installs and edits through `runtime.sendMessage`
- * commands: `ExportZip` reads every script with its code, `ParseScript`
- * installs or updates by namespace and name, `GetScriptCode` reads one back,
- * `UpdateScriptInfo` toggles it, and `RemoveScripts` deletes by id.
- *
- * The dashboard is an editor in its own right, so this reconciles rather than
- * overwrites: what Once's document changed is written, and what the dashboard
- * changed is returned for the caller to save into the document, where it syncs
- * like any other change.
+ * Hands the document to Violentmonkey through its dashboard's commands, with
+ * the record of the last hand-off kept in a file beside its storage. A
+ * generation marker inside Violentmonkey's storage tells a deletion made in
+ * the dashboard apart from storage that was lost while the file survived.
  */
 export async function applyUserscriptsToViolentmonkey(
   host: ExtensionHost,
@@ -291,36 +217,21 @@ export async function applyUserscriptsToViolentmonkey(
   await host.contexts.whenListening("runtime", "onMessage", STARTUP_TIMEOUT_MS)
   const context = new VirtualContext(host)
   try {
-    const installed = await installedUserscripts(context)
-    const plan = planUserscripts(document, installed, applied, hash, previousGeneration === generation)
-    const next: Record<string, AppliedUserscript> = { ...plan.keep }
-    // Deleting takes both commands, as the dashboard's own delete does:
-    // `RemoveScripts` purges what is already in Violentmonkey's trash and
-    // leaves an installed script running, so it has to be put there first.
-    for (const id of plan.remove) {
-      await context.sendMessage({ cmd: "MarkRemoved", data: { id, removed: true } })
-    }
-    if (plan.remove.length > 0) {
-      await context.sendMessage({ cmd: "RemoveScripts", data: plan.remove })
-    }
-    for (const script of plan.install) {
-      const record = await installUserscript(context, script)
-      if (record) next[script.id] = record
-    }
-    for (const { id, enabled } of plan.toggle) {
-      await context.sendMessage({
-        cmd: "UpdateScriptInfo",
-        data: { id, config: { enabled: enabled ? 1 : 0 } }
-      })
-    }
+    const result = await handUserscriptsToViolentmonkey(
+      (cmd, data) => context.sendMessage({ cmd, data }),
+      document,
+      applied,
+      digest,
+      previousGeneration === generation
+    )
     await fs.mkdir(path.dirname(file), { recursive: true })
     await fs.writeFile(
       `${file}.tmp`,
-      JSON.stringify({ version: APPLIED_VERSION, generation, scripts: next }),
+      JSON.stringify({ version: APPLIED_VERSION, generation, scripts: result.applied }),
       "utf8"
     )
     await fs.rename(`${file}.tmp`, file)
-    return plan.adopted ? plan.document : undefined
+    return result.adopted
   } finally {
     context.close()
   }

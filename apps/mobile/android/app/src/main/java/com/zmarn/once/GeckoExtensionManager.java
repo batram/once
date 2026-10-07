@@ -64,6 +64,8 @@ final class GeckoExtensionManager implements WebExtension.ActionDelegate, WebExt
         }
         actions.keySet().retainAll(extensions.keySet());
         icons.adopt(installed);
+        // Enabling hands back a new object for the same extension.
+        ViolentmonkeyRelayPlugin.attach(installed);
     }
 
     WebExtension bridge() { return extensions.get(GeckoEngine.BRIDGE_ID); }

@@ -84,6 +84,9 @@ async function saveExtensionSettings(baseUrl, platform) {
 // @namespace once-e2e
 // @match <all_urls>
 // @run-at document-start
+// @grant GM_addStyle
+// @grant GM_getValue
+// @grant GM_setValue
 // ==/UserScript==
 document.documentElement.dataset.onceUserscriptStart = document.readyState;
 GM_addStyle('#once-userscript-target { display: none !important; }');

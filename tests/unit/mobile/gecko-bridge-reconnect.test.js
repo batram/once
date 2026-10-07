@@ -36,12 +36,9 @@ test("Gecko settings reconnect after activity loss and accept settings on the ne
   assert.equal(timers.length, 1)
   timers.shift()()
   assert.equal(ports.length, 2)
-  ports[1].receive({ type: "extension-settings", revision: 1, value: {
-    filterLists: { lists: [] }, userscripts: { scripts: [{ id: "test", body: "document.body.dataset.works='yes'", matches: ["https://example.com/*"] }] }
-  } })
+  ports[1].receive({ type: "extension-settings", revision: 1, value: { filterLists: { lists: [] } } })
   await vm.runInContext("settingsQueue", context)
-  assert.equal(registrations.length, 1)
-  assert.ok(registrations[0].js[0].code.includes("dataset.works"))
+  assert.equal(registrations.length, 0)
   assert.equal(ports[1].sent[0].type, "extension-settings-applied")
   assert.equal(ports[1].sent[0].revision, 1)
 })

@@ -601,7 +601,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
                     if (session == null || !session.isOpen()) createReadingSession();
                 } catch (RuntimeException error) { finishWaiting(call); call.reject("Browser operation failed", error); return; }
                 // The engine starts with the first page, so the bridge receives
-                // the synced filter lists and userscripts only now. That page
+                // the synced filter lists only now. That page
                 // waits until they are in place: a document that starts earlier
                 // neither gets its requests blocked nor its elements hidden.
                 whenExtensionSettingsApplied(() -> {

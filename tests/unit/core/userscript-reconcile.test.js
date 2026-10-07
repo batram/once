@@ -1,29 +1,9 @@
 const assert = require("node:assert/strict")
-const fs = require("node:fs")
-const Module = require("node:module")
 const path = require("node:path")
 const test = require("node:test")
-const ts = require("typescript")
-
-const originalTs = Module._extensions[".ts"]
-Module._extensions[".ts"] = (module, filename) => {
-  const source = fs.readFileSync(filename, "utf8")
-  const output = ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-    fileName: filename
-  }).outputText
-  module._compile(output, filename)
-}
-test.after(() => {
-  if (originalTs) Module._extensions[".ts"] = originalTs
-  else delete Module._extensions[".ts"]
-})
 
 const root = path.resolve(__dirname, "../../..")
-const { userscriptId } = require(path.join(root, "packages/core/dist/index.js"))
-const { planUserscripts } = require(
-  path.join(root, "apps/electron/src/extensions/userscriptReconcile.ts")
-)
+const { planUserscripts, userscriptId } = require(path.join(root, "packages/core/dist/index.js"))
 
 // The identity is enough to tell two texts apart, and keeps what a record
 // holds readable when a case fails.
@@ -62,7 +42,7 @@ test("a known storage generation allows deletion of the final dashboard script",
   const applied = { [script.id]: record(1, script) }
   const deleted = planUserscripts(document(script), [], applied, hash, true)
   assert.equal(deleted.adopted, true)
-  assert.deepEqual(deleted.document.scripts, [])
+  assert.deepEqual(deleted.doc.scripts, [])
   assert.deepEqual(deleted.install, [])
   const reset = planUserscripts(document(script), [], applied, hash, false)
   assert.equal(reset.adopted, false)
@@ -81,7 +61,7 @@ test("a settled script is left alone on both sides", () => {
   assert.deepEqual(plan.install, [])
   assert.deepEqual(plan.toggle, [])
   assert.deepEqual(plan.remove, [])
-  assert.deepEqual(plan.document.scripts, [script])
+  assert.deepEqual(plan.doc.scripts, [script])
 })
 
 test("an edit made in the dashboard is adopted instead of overwritten", () => {
@@ -94,7 +74,7 @@ test("an edit made in the dashboard is adopted instead of overwritten", () => {
   )
   assert.equal(plan.adopted, true)
   assert.deepEqual(plan.install, [])
-  assert.equal(plan.document.scripts[0].source, source("Probe", "edited()"))
+  assert.equal(plan.doc.scripts[0].source, source("Probe", "edited()"))
   assert.equal(plan.keep[script.id].code, source("Probe", "edited()"))
 })
 
@@ -109,7 +89,7 @@ test("the synced text wins when the document moved as well", () => {
   )
   assert.equal(plan.adopted, false)
   assert.deepEqual(plan.install, [edited])
-  assert.deepEqual(plan.document.scripts, [edited])
+  assert.deepEqual(plan.doc.scripts, [edited])
 })
 
 test("a script installed in the dashboard joins the document", () => {
@@ -121,8 +101,8 @@ test("a script installed in the dashboard joins the document", () => {
     hash
   )
   assert.equal(plan.adopted, true)
-  assert.deepEqual(plan.document.scripts.map((entry) => entry.name), ["Probe", "Elsewhere"])
-  assert.equal(plan.document.scripts[1].enabled, false)
+  assert.deepEqual(plan.doc.scripts.map((entry) => entry.name), ["Probe", "Elsewhere"])
+  assert.equal(plan.doc.scripts[1].enabled, false)
   assert.deepEqual(plan.install, [])
   assert.deepEqual(plan.remove, [])
 })
@@ -136,7 +116,7 @@ test("a switch flipped in the dashboard is adopted", () => {
     hash
   )
   assert.equal(plan.adopted, true)
-  assert.equal(plan.document.scripts[0].enabled, false)
+  assert.equal(plan.doc.scripts[0].enabled, false)
   assert.deepEqual(plan.toggle, [])
 })
 
@@ -163,7 +143,7 @@ test("a deletion in the dashboard is adopted while its neighbours survive", () =
     hash
   )
   assert.equal(plan.adopted, true)
-  assert.deepEqual(plan.document.scripts, [kept])
+  assert.deepEqual(plan.doc.scripts, [kept])
   assert.deepEqual(plan.install, [])
   assert.deepEqual(plan.remove, [])
 })
@@ -179,7 +159,7 @@ test("an emptied Violentmonkey is reinstalled rather than read as deletions", ()
   )
   assert.equal(plan.adopted, false)
   assert.deepEqual(plan.install, [first, second])
-  assert.deepEqual(plan.document.scripts, [first, second])
+  assert.deepEqual(plan.doc.scripts, [first, second])
 })
 
 test("a script dropped from the document is removed from Violentmonkey", () => {
@@ -193,7 +173,7 @@ test("a script dropped from the document is removed from Violentmonkey", () => {
   )
   assert.deepEqual(plan.remove, [2])
   // The dropped script is gone from Violentmonkey, so it is not adopted back.
-  assert.deepEqual(plan.document.scripts, [kept])
+  assert.deepEqual(plan.doc.scripts, [kept])
   assert.equal(plan.adopted, false)
 })
 

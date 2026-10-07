@@ -1,8 +1,8 @@
 /* global browser, onceFilterRules */
-// Applies Once's synced additions inside GeckoView. Third-party built-ins have
-// isolated storage/background pages, so the trusted bridge owns this narrow
-// hand-off rather than attempting to mutate uBlock or Violentmonkey internals.
-let registrations = []
+// Applies Once's synced filter lists inside GeckoView. Userscripts are not
+// handled here: the app hands them to the bundled Violentmonkey, which runs
+// them in its own sandbox, so third-party code never shares this bridge's
+// native-messaging access.
 let filterRegistration
 let blocks = () => false
 let allows = () => false
@@ -48,38 +48,6 @@ function onRequest(details) {
   return blocks(details.url) && !allows(details.url) ? { cancel: true } : {}
 }
 
-async function installUserscripts(document, current) {
-  const next = []
-  try {
-    for (const script of document?.scripts || []) {
-      if (script.enabled === false) continue
-      const matches = script.matches?.length ? script.matches : ["<all_urls>"]
-      const prefix = `once.userscript.${script.id}.`
-      const code = `(() => {
-      const GM_addStyle = css => { const node = document.createElement('style'); node.textContent = String(css); (document.head || document.documentElement).append(node); return node; };
-      const GM_getValue = (key, fallback) => { const value = localStorage.getItem(${JSON.stringify(prefix)} + key); if (value === null) return fallback; try { return JSON.parse(value); } catch { return fallback; } };
-      const GM_setValue = (key, value) => localStorage.setItem(${JSON.stringify(prefix)} + key, JSON.stringify(value));
-      try { ${script.body} } catch (error) { console.error(${JSON.stringify(`Once userscript ${script.id} failed`)}, error); }
-    })();`
-      const registration = {
-        matches,
-        js: [{ code }],
-        runAt: script.runAt === "document-start" ? "document_start" : "document_end",
-        allFrames: !script.noFrames
-      }
-      if (script.includes?.length) registration.includeGlobs = script.includes
-      if (script.excludes?.length) registration.excludeGlobs = script.excludes
-      next.push(await browser.contentScripts.register(registration))
-    }
-    if (!current()) { for (const registration of next) await registration.unregister(); return }
-    for (const registration of registrations) await registration.unregister()
-    registrations = next
-  } catch (error) {
-    for (const registration of next) await registration.unregister()
-    throw error
-  }
-}
-
 // The host holds its first page until the acknowledgement: lists fetched
 // after a page started loading cannot block its requests or hide its
 // elements. A failed list is reported and acknowledged, not retried.
@@ -89,12 +57,8 @@ function receiveSettings(port, message) {
   const current = () => revision === settingsRevision
   settingsQueue = settingsQueue.then(async () => {
     if (!current()) return
-    await Promise.allSettled([
-      loadLists(message.value.filterLists, current),
-      installUserscripts(message.value.userscripts, current)
-    ]).then(results => {
-      for (const result of results) if (result.status === "rejected") console.error("Unable to apply Once extension settings", result.reason)
-    })
+    await loadLists(message.value.filterLists, current)
+      .catch(error => console.error("Unable to apply Once extension settings", error))
     if (current()) port.postMessage({ type: "extension-settings-applied", revision: message.revision })
   }).catch(error => console.error("Unable to apply Once extension settings", error))
 }

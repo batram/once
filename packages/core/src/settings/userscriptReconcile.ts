@@ -1,18 +1,18 @@
-// Which side of the seam a userscript change came from. Once's document and
+// Which side of the seam a userscript change came from. Once's doc and
 // Violentmonkey's own dashboard are both editors of the same scripts, and
 // Once used to win every round: an edit made in the dashboard was replaced by
 // Once's copy at the next hand-off, and a script installed there stayed
 // invisible to Once and to every other device. This plans a reconciliation
-// instead — Once writes what the document changed, and adopts what the
-// dashboard changed into the document, so both surfaces stay true.
+// instead — Once writes what the doc changed, and adopts what the
+// dashboard changed into the doc, so both surfaces stay true.
 
+import { parseUserscript } from "../webext/userscript"
 import {
-  parseUserscript,
   UserscriptEntry,
   userscriptId,
   UserscriptsDocument,
   USERSCRIPTS_VERSION
-} from "@once/core"
+} from "./extensionSettings"
 
 /** One script as Violentmonkey currently holds it. */
 export interface InstalledUserscript {
@@ -26,7 +26,7 @@ export interface InstalledUserscript {
 
 /**
  * What the last hand-off left behind, keyed by Once's id. `source` is the
- * document's text and `code` what Violentmonkey held straight afterwards:
+ * doc's text and `code` what Violentmonkey held straight afterwards:
  * comparing each against today's value says which side moved, and the two are
  * not interchangeable because an install may normalise the text it stores.
  */
@@ -38,15 +38,15 @@ export interface AppliedUserscript {
 }
 
 export interface UserscriptPlan {
-  /** The document as it should now read, with adopted changes folded in. */
-  document: UserscriptsDocument
-  /** Whether that differs from the document handed in. */
+  /** The doc as it should now read, with adopted changes folded in. */
+  doc: UserscriptsDocument
+  /** Whether that differs from the doc handed in. */
   adopted: boolean
-  /** Scripts to write into Violentmonkey, in document order. */
+  /** Scripts to write into Violentmonkey, in doc order. */
   install: UserscriptEntry[]
   /** Switches to flip on scripts that are staying as they are. */
   toggle: { id: number; enabled: boolean }[]
-  /** Violentmonkey ids to delete, for scripts dropped from the document. */
+  /** Violentmonkey ids to delete, for scripts dropped from the doc. */
   remove: number[]
   /** Records to carry forward untouched, for everything not being written. */
   keep: Record<string, AppliedUserscript>
@@ -63,7 +63,7 @@ function entryFrom(installed: InstalledUserscript): UserscriptEntry | null {
     }
   } catch {
     // A script Violentmonkey accepted but Once cannot parse stays where it is,
-    // rather than entering a synced document no other device could read.
+    // rather than entering a synced doc no other device could read.
     return null
   }
 }
@@ -71,7 +71,7 @@ function entryFrom(installed: InstalledUserscript): UserscriptEntry | null {
 /**
  * A record whose script is gone from Violentmonkey means the user deleted it
  * there — unless Violentmonkey lost its storage, where every record would
- * read the same way and adopting that would empty the synced document. One
+ * read the same way and adopting that would empty the synced doc. One
  * surviving script is enough to tell the two apart.
  */
 function storageIntact(
@@ -85,14 +85,14 @@ function storageIntact(
 
 interface PlanState {
   scripts: UserscriptEntry[]
-  plan: Omit<UserscriptPlan, "document" | "adopted">
+  plan: Omit<UserscriptPlan, "doc" | "adopted">
   seen: Set<string>
   usedIds: Set<number>
 }
 
 export type Hash = (value: string) => string
 
-/** Takes the dashboard's version of a script into the document. */
+/** Takes the dashboard's version of a script into the doc. */
 function adopt(state: PlanState, installed: InstalledUserscript, hash: Hash): boolean {
   const entry = entryFrom(installed)
   // Claimed either way: a script Once cannot adopt, or one whose name another
@@ -120,7 +120,7 @@ function planScript(
 ): boolean {
   if (!installed) {
     // Nothing there: either the dashboard deleted it, which drops it from the
-    // document, or it is new here and has to be written.
+    // doc, or it is new here and has to be written.
     if (deleted) return true
     state.seen.add(script.id)
     state.scripts.push(script)
@@ -130,7 +130,7 @@ function planScript(
   state.usedIds.add(installed.id)
   const documentMoved = !record?.source || hash(script.source) !== record.source
   const dashboardMoved = Boolean(record?.code) && hash(installed.code) !== record?.code
-  // A dashboard edit is adopted only when the document itself stood still.
+  // A dashboard edit is adopted only when the doc itself stood still.
   // When both moved the synced text wins: it is the copy the user's other
   // devices are already running, and the one they can still see.
   if (dashboardMoved && !documentMoved) return adopt(state, installed, hash)
@@ -148,12 +148,12 @@ function planScript(
 }
 
 /**
- * What to write where, given the document, what Violentmonkey holds, and what
+ * What to write where, given the doc, what Violentmonkey holds, and what
  * the last hand-off left behind. Pure: the caller performs the writes and
  * records their result.
  */
 export function planUserscripts(
-  document: UserscriptsDocument,
+  doc: UserscriptsDocument,
   installed: readonly InstalledUserscript[],
   applied: Readonly<Record<string, AppliedUserscript>>,
   hash: Hash,
@@ -171,7 +171,7 @@ export function planUserscripts(
     usedIds: new Set()
   }
   let adopted = false
-  for (const script of document.scripts) {
+  for (const script of doc.scripts) {
     const record = applied[script.id]
     const current = (record && byVmId.get(record.id)) || byKey.get(script.id)
     // A record with nothing behind it, on a Violentmonkey that still holds its
@@ -180,8 +180,8 @@ export function planUserscripts(
     if (planScript(state, script, current, record, deleted, hash)) adopted = true
   }
   // What is left is a script the dashboard installed on its own, and it joins
-  // the document — unless Once put it there, in which case its absence from
-  // the document is a deletion made in Once and the removal below carries it.
+  // the doc — unless Once put it there, in which case its absence from
+  // the doc is a deletion made in Once and the removal below carries it.
   const recorded = new Set(Object.values(applied).map((record) => record.id))
   for (const script of installed) {
     if (state.usedIds.has(script.id) || recorded.has(script.id)) continue
@@ -193,7 +193,7 @@ export function planUserscripts(
   }
   return {
     ...state.plan,
-    document: { version: USERSCRIPTS_VERSION, scripts: state.scripts },
+    doc: { version: USERSCRIPTS_VERSION, scripts: state.scripts },
     adopted
   }
 }

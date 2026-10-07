@@ -7,8 +7,9 @@ import org.json.JSONObject;
 import org.mozilla.geckoview.WebExtension;
 
 /**
- * Hands the shell's synced filter lists and userscripts to the bridge
- * extension's background page, and holds pages back until it acknowledges them.
+ * Hands the shell's synced filter lists to the bridge extension's background
+ * page, and holds pages back until it acknowledges them. Userscripts go to
+ * Violentmonkey instead, through {@link ViolentmonkeyRelayPlugin}.
  */
 final class ExtensionSettingsSync {
     private final ReadingSurfaceHost h;
@@ -34,7 +35,9 @@ final class ExtensionSettingsSync {
         sendExtensionSettings();
     }
 
-    void whenApplied(Runnable work) {
+    void whenApplied(Runnable page) {
+        // Filter lists from the bridge, then userscripts from Violentmonkey.
+        Runnable work = () -> ViolentmonkeyRelayPlugin.whenSettled(page, SETTINGS_TIMEOUT_MS);
         if (extensionSettings == null || appliedSettingsRevision >= settingsRevision) { work.run(); return; }
         SettingsWaiter waiter = new SettingsWaiter(work);
         settingsWaiters.add(waiter);
@@ -68,7 +71,7 @@ final class ExtensionSettingsSync {
             JSONObject message = new JSONObject();
             message.put("type", "extension-settings");
             message.put("revision", settingsRevision);
-            message.put("value", extensionSettings);
+            message.put("value", new JSONObject().put("filterLists", extensionSettings.opt("filterLists")));
             settingsPort.postMessage(message);
         } catch (Exception error) {
             Log.e(ReadingSurfaceHost.TAG, "Unable to send extension settings", error);

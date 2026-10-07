@@ -222,6 +222,9 @@ test("Android hands synced settings to its trusted Gecko bridge", () => {
   assert.ok(manifest.permissions.includes("webRequestBlocking"))
   assert.match(background, /browser\.webRequest\.onBeforeRequest\.addListener/)
   assert.match(background, /browser\.contentScripts\.register/)
+  // Userscripts go to Violentmonkey, never into the bridge's own content scripts.
+  assert.doesNotMatch(background, /installUserscripts|GM_setValue|js: \[/)
+  assert.match(androidSettings, /put\("filterLists", extensionSettings\.opt\("filterLists"\)\)/)
 })
 
 test("native embedded browsers present menus and prompts above web content", () => {

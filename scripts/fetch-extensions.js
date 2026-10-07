@@ -13,6 +13,7 @@ const crypto = require("node:crypto")
 const fs = require("node:fs")
 const path = require("node:path")
 const AdmZip = require("adm-zip")
+const { adaptGeckoViolentmonkey } = require("./adapt-gecko-violentmonkey")
 const { downloadExtension } = require("./download-extension")
 
 const root = path.resolve(__dirname, "..")
@@ -75,6 +76,15 @@ async function fetchBundle(bundle) {
 async function main() {
   fs.mkdirSync(vendorRoot, { recursive: true })
   for (const bundle of BUNDLES) await fetchBundle(bundle)
+  // Android hands userscripts to its own copy of Violentmonkey, which carries
+  // the relay the app talks to.
+  const violentmonkey = BUNDLES.find((bundle) => bundle.name === "violentmonkey")
+  const adapted = adaptGeckoViolentmonkey(
+    path.join(vendorRoot, violentmonkey.name),
+    path.join(vendorRoot, "android", violentmonkey.name),
+    violentmonkey.sha256
+  )
+  if (adapted) console.log(`Adapted ${violentmonkey.name} ${violentmonkey.version} for Android`)
 }
 
 main().catch((error) => {

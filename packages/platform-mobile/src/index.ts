@@ -19,6 +19,7 @@ import {
 export * from "./InAppBrowserSurface"
 export * from "./ReadingUrl"
 export * from "./BrowserExtensions"
+export * from "./ViolentmonkeyHandOff"
 
 PouchDB.plugin(PouchDBFind)
 
