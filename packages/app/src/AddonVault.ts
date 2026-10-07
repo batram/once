@@ -126,12 +126,12 @@ export class AddonVault {
   /**
    * Concurrent branches that need no choice. Two devices that make the same
    * change at once (both installing the same bundled package on their first
-   * start, say) leave branches that differ only in who wrote them: keep the
-   * winner every replica already agrees on and drop the rest, writing nothing
-   * new. Branches that differ only in which bundled packages they recorded
-   * offering combine those records, newest version first, in one new snapshot;
-   * two devices combining at once write the same contents, which the next
-   * read drops as duplicates. Anything else, a passphrase change, or branches
+   * start, say) leave branches that differ only in who wrote them. Write a
+   * successor so even a device that misses settlement can accept it. Devices
+   * settling the same parents use the same commit: their duplicate successors
+   * can then be dropped without another write or invalidating a device's pin.
+   * Branches that differ only in bundled offers combine those records, newest
+   * version first, in that successor. Anything else, a passphrase change, or branches
    * older than this device has seen, waits for review.
    */
   private async settleConcurrent(records: VaultRevision[]): Promise<VaultData | null> {
@@ -148,14 +148,22 @@ export class AddonVault {
       const offered = (data: VaultData): VaultData => ({ ...data, document: withOffers(data.document, offers) })
       const merged = offered(winner.data)
       if (branches.some(branch => !sameVaultContents(merged, offered(branch.data)))) return null
-      if (sameVaultContents(merged, winner.data) && (!this.pin || winner.data.generation >= this.pin.generation)) {
+      if (branches.every(branch => branch.data.commit === winner.data.commit &&
+          branch.data.generation === winner.data.generation && sameVaultContents(branch.data, winner.data)) &&
+          (!this.pin || winner.data.generation >= this.pin.generation)) {
         await this.store.dropVaultBranches(records.slice(1).map(record => record.revision))
         await this.trust(winner.envelope, winner.data)
         this.changed()
         return winner.data
       }
       merged.generation = generation
-      await this.commit(winner.envelope, merged, records.map(record => record.revision))
+      const parents = records.map(record => record.revision)
+      // Immutable parent revisions identify the same settlement on every replica.
+      // A shared commit lets duplicate successors be dropped without stranding
+      // the device whose encrypted PouchDB branch loses the tie-break.
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify([...parents].sort())))
+      const commit = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("")
+      await this.commit(winner.envelope, merged, parents, commit)
       return merged
     } catch (error) {
       if (error instanceof VaultStateError) throw error
@@ -269,9 +277,9 @@ export class AddonVault {
     })
   }
 
-  private async commit(envelope: VaultEnvelope, data: VaultData, parents: string[]): Promise<void> {
+  private async commit(envelope: VaultEnvelope, data: VaultData, parents: string[], commit = randomHex(16)): Promise<void> {
     data.generation = Math.max(data.generation, this.pin?.generation ?? 0) + 1
-    data.commit = randomHex(16); data.author = this.deviceName(""); data.updatedAt = new Date().toISOString()
+    data.commit = commit; data.author = this.deviceName(""); data.updatedAt = new Date().toISOString()
     await this.store.writeVault?.(await encryptVault(envelope, this.rawKey, data), parents)
     await this.trust(envelope, data)
     this.changed()

@@ -63,10 +63,11 @@ encrypted data cannot be recovered by resetting the sync database password.
 
 Two devices that write at the same time do not always need a choice. Branches
 with the same add-ons, settings, tokens and packages (the same edit made twice)
-settle by themselves: every replica keeps the same winning branch and drops the
-rest, without writing a new snapshot. Branches that differ only in their bundled
-add-on offers are combined, newest version per add-on, into one new snapshot;
-if two devices combine at once, the identical results settle as above. A
+settle by themselves into a new snapshot, so a device that misses settlement
+can still accept the result. Branches that differ only in their bundled
+add-on offers are combined, newest version per add-on, into that snapshot.
+Devices settling the same branches use the same commit ID; duplicate results
+then settle by keeping the winning branch without another write. A
 passphrase change, any other difference, or branches older than the device has
 already seen still wait for review.
 

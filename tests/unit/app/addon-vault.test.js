@@ -130,7 +130,7 @@ test("offline concurrent edits pause connections until an explicitly selected sn
   assert.equal(await second.client.hasAddonSecret(manifest.id, "token", "https://provider.test/messages"), false)
 })
 
-test("the same edit made on two devices at once settles by itself, keeping the shared winner", async () => {
+test("the same edit made on two devices at once settles with a shared successor commit", async () => {
   const { first } = await setup()
   const second = device(first.state.records)
   await second.client.unlockAddonVault(passphrase, false, true, "Phone")
@@ -143,10 +143,20 @@ test("the same edit made on two devices at once settles by itself, keeping the s
   second.state.records = structuredClone([winner, second.state.records[0]])
   const changes = first.state.changes
   assert.equal((await first.client.getAddonVaultStatus()).state, "ready")
-  assert.deepEqual(first.state.records.map(item => item.revision), [winner.revision], "the losing branch is dropped, nothing new is written")
+  assert.equal(first.state.records.length, 1)
+  assert.notEqual(first.state.records[0].revision, winner.revision, "settlement writes a successor")
   assert.ok(first.state.changes > changes)
-  assert.equal((await second.client.getAddonVaultStatus()).state, "ready", "the device that wrote the losing branch adopts the winner")
-  assert.deepEqual(second.state.records.map(item => item.revision), [winner.revision])
+  assert.equal((await second.client.getAddonVaultStatus()).state, "ready")
+  const firstPin = JSON.parse(first.local.get("once:addon-vault"))
+  const secondPin = JSON.parse(second.local.get("once:addon-vault"))
+  assert.equal(firstPin.commit, secondPin.commit, "both devices settling the same parents use the same commit")
+  assert.equal(firstPin.generation, secondPin.generation)
+  const successor = first.state.records[0]
+  first.state.records.push(second.state.records[0])
+  assert.equal((await first.client.getAddonVaultStatus()).state, "ready")
+  assert.deepEqual(first.state.records.map(item => item.revision), [successor.revision], "duplicate successors are dropped without another write")
+  second.state.records = structuredClone(first.state.records)
+  assert.equal((await second.client.getAddonVaultStatus()).state, "ready", "the losing successor's device accepts the replicated winner")
   assert.equal(await second.client.hasAddonSecret(manifest.id, "token", "https://provider.test/messages"), true)
   await second.client.updateAddons(doc => ({ ...doc, addons: [] }))
   assert.equal(second.state.records.length, 1, "later edits build on the winner")
