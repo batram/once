@@ -423,6 +423,21 @@ else if (command === "run") {
   sync(platform, channel)
   console.log(`mobile: web build and sync completed in ${((performance.now() - webStarted) / 1000).toFixed(1)}s`)
   const nativeStarted = performance.now()
+  const apk = path.join(
+    appRoot,
+    "android",
+    "app",
+    "build",
+    "outputs",
+    "apk",
+    "production",
+    "debug",
+    "app-production-debug.apk"
+  )
+  // Incremental debug packaging rewrites the previous APK in place and leaves
+  // the space of replaced entries behind (150 MB of it after a GeckoView
+  // change). Packaging into a fresh file costs about a second.
+  fs.rmSync(apk, { force: true })
   run(android.command, [
     "-classpath",
     path.join(appRoot, "android", "gradle", "wrapper", "gradle-wrapper.jar"),
@@ -435,17 +450,6 @@ else if (command === "run") {
     env: android.env
   })
   console.log(`mobile: native build completed in ${((performance.now() - nativeStarted) / 1000).toFixed(1)}s`)
-  const apk = path.join(
-    appRoot,
-    "android",
-    "app",
-    "build",
-    "outputs",
-    "apk",
-    "production",
-    "debug",
-    "app-production-debug.apk"
-  )
   if (!fs.existsSync(apk)) fail(`built APK not found at ${apk}`)
   console.log(`mobile: APK ${(fs.statSync(apk).size / 1024 / 1024).toFixed(1)} MiB`)
   try { installApk(installAdb, address, apk, settings.installMode, android.env) } catch (error) { fail(error.message) }

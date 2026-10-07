@@ -61,6 +61,7 @@ function deploy({ local = "", exported = {}, mdns = "phone _adb-tls-connect._tcp
     require(name) {
       if (name === "fs") return {
         ...fs, existsSync: file => file !== missing, mkdirSync() {}, writeFileSync() {},
+        rmSync: file => calls.push({ command: "rm", args: [file] }),
         statSync: file => ({ size: 100, isFile: () => file !== directory }),
         readFileSync: (file, encoding) => file.endsWith(".env.android.local") ? local : fs.readFileSync(file, encoding)
       }
@@ -97,6 +98,9 @@ test("exported settings override local tuning and local address works without di
     mdns: "", local: "ONCE_ANDROID_INSTALL_MODE=streaming\nONCE_ANDROID_WIRELESS_ADDRESS=192.0.2.2:5678",
     exported: { ONCE_ANDROID_INSTALL_MODE: "push" }
   })
+  const removed = calls.findIndex(call => call.command === "rm")
+  assert.match(calls[removed].args[0], /app-production-debug\.apk$/)
+  assert.ok(removed < calls.findIndex(call => call.args.includes("assembleProductionDebug")))
   const install = calls.find(call => call.args.includes("install"))
   assert.equal(install.args[1], "192.0.2.2:5678")
   assert.ok(install.args.includes("--no-streaming"))

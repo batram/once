@@ -332,7 +332,9 @@ signed with a different key.
 
 Deployment builds only the connected device's preferred supported ABI, uses
 ADB's compressed push followed by installation (`--no-streaming`), and reuses
-the Gradle daemon. This avoids transferring the emulator's GeckoView libraries
+the Gradle daemon. It deletes the previous APK before packaging: incremental
+debug packaging otherwise rewrites the old file in place and keeps the space of
+replaced entries, which had grown a 224 MB APK to 376 MB. This avoids transferring the emulator's GeckoView libraries
 to an ARM64 phone. Normal package/run builds retain both ARM64 and x86-64.
 The command prints the selected device and ABIs, APK size, web/sync time,
 native build time, install time, and total deployment time.
@@ -381,6 +383,13 @@ repeat replacements, not build times or first-install guarantees. Fastdeploy
 was ignored by that ADB/device combination with an incorrect below-API-24
 warning, so it provided no patch-transfer benefit. Connection-interrupted
 and overlapping trials were excluded from this comparison.
+
+A repeat on 2026-10-07 with Platform Tools 35.0.2, which does apply the patch,
+measured a 224 MB ARM64 APK: fastdeploy took 47s even with every entry
+unchanged, against 36–38s for push. The time goes into the device rebuilding
+the full APK from the installed one before `pm install-commit`. ADB prints
+nothing during that phase, so a fastdeploy install looks stuck after its
+"bytes are equal" line for most of a minute. Push remains the recommended mode.
 
 `deploy:mobile:ios` is its iOS counterpart: a Release build of the `Once`
 scheme with release-channel web content, signed with the project's development
