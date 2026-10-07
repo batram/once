@@ -194,6 +194,10 @@ credential wired into `packagerConfig.osxSign` / `osxNotarize` and the release
 workflow's secrets; that is not set up.
 
 The DMG maker depends on two native modules (`macos-alias`, `fs-xattr`) whose
-install scripts the root `package.json` `allowScripts` block approves for npm
-versions that gate install scripts. Building the macOS packages locally needs
+install scripts the root `package.json` `allowScripts` block approves. That
+block is the full reviewed install-script policy: version-pinned approvals for
+the scripts the build needs, explicit denials for the rest. npm 12 runs only
+approved scripts; npm 11.17 and later honour only the denials; earlier npm
+ignores the block. Check it with `npm install-scripts ls` (npm 12) after a
+dependency change. Building the macOS packages locally needs
 Xcode Command Line Tools for `node-gyp` and `codesign`.

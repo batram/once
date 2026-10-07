@@ -125,7 +125,17 @@
     "uuid": "^11.1.1"
   },
   "allowScripts": {
+    "electron-winstaller@5.4.4": true,
+    "esbuild@0.28.1": true,
+    "fs-xattr@0.3.1": true,
+    "leveldown@5.6.0": true,
+    "leveldown@6.1.1": true,
     "macos-alias@0.2.12": true,
-    "fs-xattr@0.3.1": true
+    "sharp@0.32.6": true,
+    "appium": false,
+    "appium-ios-tuntap": false,
+    "edgedriver": false,
+    "fsevents": false,
+    "geckodriver": false
   }
 }
