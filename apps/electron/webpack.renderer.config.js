@@ -3,6 +3,7 @@ const CopyPlugin = require("copy-webpack-plugin")
 const webpack = require("webpack")
 const rules = require("./webpack.rules")
 const { bundledAddons } = require("../../scripts/bundled-addons")
+const { importMetaUrlDefine } = require("../../scripts/import-meta-url")
 
 const root = path.resolve(__dirname, "../..")
 
@@ -26,7 +27,8 @@ module.exports = {
   },
   plugins: [
     new webpack.DefinePlugin({
-      __ONCE_BUNDLED_ADDONS__: JSON.stringify(bundledAddons())
+      __ONCE_BUNDLED_ADDONS__: JSON.stringify(bundledAddons()),
+      ...importMetaUrlDefine
     }),
     new webpack.IgnorePlugin({ resourceRegExp: /^node:module$/ }),
     new CopyPlugin({

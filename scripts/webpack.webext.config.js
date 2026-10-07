@@ -3,6 +3,7 @@ const CopyPlugin = require("copy-webpack-plugin")
 const webpack = require("webpack")
 const { devBuildIdentifier } = require("./build-identifier")
 const { bundledAddons } = require("./bundled-addons")
+const { importMetaUrlDefine } = require("./import-meta-url")
 
 const root = path.resolve(__dirname, "..")
 const { version } = require(path.join(root, "package.json"))
@@ -91,7 +92,8 @@ module.exports = (env = {}, argv = {}) => {
         __ONCE_WEBEXT_TARGET__: JSON.stringify(target),
         __ONCE_BUILD_CHANNEL__: JSON.stringify(buildChannel),
         __ONCE_BUILD_IDENTIFIER__: JSON.stringify(devBuildIdentifier()),
-        __ONCE_BUNDLED_ADDONS__: JSON.stringify(bundledAddons())
+        __ONCE_BUNDLED_ADDONS__: JSON.stringify(bundledAddons()),
+        ...importMetaUrlDefine
       }),
       new webpack.IgnorePlugin({ resourceRegExp: /^node:module$/ }),
       new CopyPlugin({
