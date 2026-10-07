@@ -82,7 +82,7 @@ export function parse(doc: Document): Story[] {
 
 export function domain_search(needle: string): Promise<Story[]> {
   const domain_search_url =
-    "https://hn.algolia.com/api/v1/search_by_date?tags=story&restrictSearchableAttributes=url&query="
+    "https://hn.algolia.com/api/v1/search_by_date?tags=story&restrictSearchableAttributes=url&typoTolerance=false&query="
   return hn_search(needle, domain_search_url)
 }
 
@@ -92,7 +92,7 @@ export function global_search(needle: string): Promise<Story[]> {
 
 async function hn_search(needle: string, alt_url?: string): Promise<Story[]> {
   let search_url =
-    "https://hn.algolia.com/api/v1/search_by_date?tags=story&restrictSearchableAttributes=url,title&query="
+    "https://hn.algolia.com/api/v1/search_by_date?tags=story&restrictSearchableAttributes=url,title&typoTolerance=false&query="
   if (alt_url) {
     search_url = alt_url
   }
