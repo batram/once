@@ -29,7 +29,11 @@ export function createCapacitorConfig(
       scheme: dev ? "Once Dev" : "Once"
     },
     plugins: {
-      CapacitorHttp: { enabled: true },
+      // Off: enabling it patches fetch through a same-origin proxy path the
+      // web view also serves to <script> and workers, so `script-src 'self'`
+      // would admit any script on the web. Cross-origin requests go through
+      // CapacitorHttp.request instead (platform-mobile's nativeFetch).
+      CapacitorHttp: { enabled: false },
       // The web view shrinks above the keyboard, so bars along the bottom
       // (find in page) stay in view and the page is not scrolled away. The
       // window behind it takes the body's background, so the strip above the

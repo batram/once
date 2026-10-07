@@ -92,7 +92,8 @@ test("mobile build channels select stable names, identifiers, schemes, and flavo
   assert.deepEqual([release.appId, release.appName, release.android.flavor, release.ios.scheme], [
     "com.zmarn.once", "Once", "production", "Once"
   ])
-  assert.equal(dev.plugins.CapacitorHttp.enabled, true)
+  assert.equal(dev.plugins.CapacitorHttp.enabled, false)
+  assert.equal(release.plugins.CapacitorHttp.enabled, false)
   assert.equal(dev.android.allowMixedContent, true)
   assert.equal(release.android.allowMixedContent, false)
   assert.throws(() => mobileBuildChannel("preview"), /must be dev or release/)

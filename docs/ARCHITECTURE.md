@@ -52,8 +52,10 @@ packages/
 
 The Capacitor application embeds the shared Once web UI in WKWebView or Android
 WebView. It stores stories and lists in a target-specific PouchDB database,
-uses Capacitor's native HTTP patch for collector and CouchDB requests, and
-opens ordinary links in the platform browser. Reader documents stay inside a
+sends cross-origin collector and CouchDB requests through Capacitor's native
+HTTP plugin (`nativeFetch` in platform-mobile; Capacitor's own fetch patch
+stays off, since its proxy path would serve remote scripts at the app's
+origin), and opens ordinary links in the platform browser. Reader documents stay inside a
 sandboxed local reader surface.
 
 On Android the reading surface itself is a GeckoView, Firefox's engine,
