@@ -164,7 +164,9 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      # Only web-ext runs here, and it needs no install scripts; skipping them
+      # keeps every dependency's lifecycle code out of the job holding AMO keys.
+      - run: npm ci --ignore-scripts
       - uses: actions/download-artifact@v8
         with:
           name: extensions-unsigned
