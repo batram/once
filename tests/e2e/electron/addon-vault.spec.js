@@ -97,7 +97,7 @@ test("two Electron clients sync an imported package and AI token after one vault
     await unlock.getByTestId("addon-vault-submit").click()
     await expect(unlock.getByTestId("addon-vault-status")).toContainText("Ready")
     await expect(other.locator(".addon_list_row")).toHaveCount(2)
-    await unlock.getByRole("button", { name: "Lock and forget on this device" }).click()
+    await unlock.getByRole("button", { name: "Lock and forget" }).click()
     await expect(unlock.getByTestId("addon-vault-status")).toContainText("Unlock")
     await expect(other.locator(".addon_list_row")).toHaveCount(0)
     await unlock.screenshot({ path: "artifacts/addon-vault/locked-electron.png" })

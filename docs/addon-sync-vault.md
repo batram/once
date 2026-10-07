@@ -38,7 +38,7 @@ device**) rejoins: the synced add-ons replace this device's own, so changes made
 while it was off are dropped. Turning add-on sync off for every device is not
 offered.
 
-**Lock and forget on this device** removes its remembered vault key, pauses synced
+**Lock and forget** (under *This device*) removes its remembered vault key, pauses synced
 addons and requests, and leaves encrypted replicated data available for the next
 unlock. Linked development addons remain local. Normal operation works offline
 after a successful unlock; edits replicate when the connection returns.
@@ -61,7 +61,16 @@ it does not rotate provider tokens or revoke previously authorized devices.
 Without a passphrase, recovery key, or remembered key on a trusted device, the
 encrypted data cannot be recovered by resetting the sync database password.
 
-Concurrent offline edits pause synced addons instead of silently choosing a
+Two devices that write at the same time do not always need a choice. Branches
+with the same add-ons, settings, tokens and packages (the same edit made twice)
+settle by themselves: every replica keeps the same winning branch and drops the
+rest, without writing a new snapshot. Branches that differ only in their bundled
+add-on offers are combined, newest version per add-on, into one new snapshot;
+if two devices combine at once, the identical results settle as above. A
+passphrase change, any other difference, or branches older than the device has
+already seen still wait for review.
+
+Other concurrent offline edits pause synced addons instead of silently choosing a
 winner. The collection is unavailable during this pause; its addons have not
 been removed. Resolve the conflict before installing or updating packages.
 Devices with a remembered key can review immediately; other devices unlock first.

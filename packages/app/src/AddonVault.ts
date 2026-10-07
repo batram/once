@@ -1,12 +1,40 @@
-import { AddonVaultChoice, AddonVaultStatus, VaultRevision } from "@once/core"
+import { AddonsDocument, AddonVaultChoice, AddonVaultStatus, mergeBundledOffers, VaultRevision } from "@once/core"
 import type { ListStorePort, SecretStorePort } from "./types"
 import { createEnvelope, decryptVault, encryptVault, randomHex, readEnvelope, rewrapPassword, unlockEnvelope, VaultEnvelope } from "./vaultCrypto"
-import { readVaultData, VaultData } from "./vaultData"
+import { canonical, readVaultData, sameVaultContents, VaultData } from "./vaultData"
 
 const PIN = "once:addon-vault"
 interface Pin { id: string; key: string; generation: number; commit: string; deviceName: string; left?: boolean }
 class VaultStateError extends Error {
   constructor(readonly state: AddonVaultStatus["state"], message: string) { super(message) }
+}
+
+/**
+ * What the versions disagree on, named for the reader: two versions of the
+ * same add-on at the same version otherwise look identical in the review.
+ * Token values are compared, never shown.
+ */
+function vaultDifferences(versions: VaultData[]): string[] {
+  const facets = versions.map(data => {
+    const facet = new Map<string, string>()
+    for (const { manifest, enabled, options, storage } of data.document.addons) {
+      facet.set(`${manifest.name}: package`, canonical(manifest))
+      facet.set(`${manifest.name}: on or off`, String(enabled))
+      facet.set(`${manifest.name}: settings`, canonical(options ?? {}))
+      facet.set(`${manifest.name}: stored data`, canonical(storage ?? {}))
+    }
+    for (const [name, value] of Object.entries(data.secrets)) facet.set(`Token ${name.split(":").slice(1).join(":")}`, value)
+    facet.set("Bundled add-on offers", canonical(data.document.bundled ?? {}))
+    return facet
+  })
+  const names = [...new Set(facets.flatMap(facet => [...facet.keys()]))]
+  return names.filter(name => new Set(facets.map(facet => facet.get(name))).size > 1)
+}
+
+/** The doc with these bundled offers, in the field order the reader produces (the vault rejects any other). */
+function withOffers(doc: AddonsDocument, offers: Record<string, string> | undefined): AddonsDocument {
+  const { bundled: _bundled, ...rest } = doc
+  return offers ? { ...rest, bundled: offers } : rest
 }
 
 /** One encrypted snapshot is also the authenticated approval for its packages and settings. */
@@ -85,10 +113,54 @@ export class AddonVault {
   private async readNow(): Promise<VaultData | null> {
     const records = await this.revisions()
     if (!records.length) return null
-    if (records.length > 1) throw new VaultStateError("conflict", "Concurrent addon edits need review. Connections are paused until a version is chosen.")
+    if (records.length > 1) {
+      const settled = await this.settleConcurrent(records)
+      if (!settled) throw new VaultStateError("conflict", "Concurrent add-on edits need review. Connections are paused until a version is chosen.")
+      return settled
+    }
     const { envelope, data } = await this.decode(records[0])
     await this.trust(envelope, data)
     return data
+  }
+
+  /**
+   * Concurrent branches that need no choice. Two devices that make the same
+   * change at once (both installing the same bundled package on their first
+   * start, say) leave branches that differ only in who wrote them: keep the
+   * winner every replica already agrees on and drop the rest, writing nothing
+   * new. Branches that differ only in which bundled packages they recorded
+   * offering combine those records, newest version first, in one new snapshot;
+   * two devices combining at once write the same contents, which the next
+   * read drops as duplicates. Anything else, a passphrase change, or branches
+   * older than this device has seen, waits for review.
+   */
+  private async settleConcurrent(records: VaultRevision[]): Promise<VaultData | null> {
+    if (!this.rawKey || !this.store.dropVaultBranches) return null
+    try {
+      const branches = await Promise.all(records.map(record => this.decode(record, false)))
+      const [winner] = branches
+      // A passphrase change rewraps the key without touching the contents; dropping it would undo it.
+      const wrapping = ({ envelope }: { envelope: VaultEnvelope }) => [envelope.salt, envelope.password.iv, envelope.password.data, envelope.recovery.iv, envelope.recovery.data].join(".")
+      if (branches.some(branch => wrapping(branch) !== wrapping(winner))) return null
+      const generation = Math.max(...branches.map(branch => branch.data.generation))
+      if (this.pin && generation < this.pin.generation) return null
+      const offers = mergeBundledOffers(branches.map(branch => branch.data.document.bundled))
+      const offered = (data: VaultData): VaultData => ({ ...data, document: withOffers(data.document, offers) })
+      const merged = offered(winner.data)
+      if (branches.some(branch => !sameVaultContents(merged, offered(branch.data)))) return null
+      if (sameVaultContents(merged, winner.data) && (!this.pin || winner.data.generation >= this.pin.generation)) {
+        await this.store.dropVaultBranches(records.slice(1).map(record => record.revision))
+        await this.trust(winner.envelope, winner.data)
+        this.changed()
+        return winner.data
+      }
+      merged.generation = generation
+      await this.commit(winner.envelope, merged, records.map(record => record.revision))
+      return merged
+    } catch (error) {
+      if (error instanceof VaultStateError) throw error
+      return null
+    }
   }
 
   private serialize<T>(work: () => Promise<T>): Promise<T> {
@@ -206,14 +278,12 @@ export class AddonVault {
   }
 
   async choices(): Promise<AddonVaultChoice[]> {
-    const results: AddonVaultChoice[] = []
-    for (const record of await this.revisions()) {
-      const { data } = await this.decode(record, false)
-      results.push({ revision: record.revision, author: data.author, updatedAt: data.updatedAt,
-        addons: data.document.addons.map(item => `${item.manifest.name} ${item.manifest.version}`),
-        connections: Object.keys(data.secrets).map(name => name.replace(/^addon:/, "")) })
-    }
-    return results
+    const branches: { record: VaultRevision; data: VaultData }[] = []
+    for (const record of await this.revisions()) branches.push({ record, data: (await this.decode(record, false)).data })
+    const differences = vaultDifferences(branches.map(branch => branch.data))
+    return branches.map(({ record, data }) => ({ revision: record.revision, author: data.author, updatedAt: data.updatedAt,
+      addons: data.document.addons.map(item => `${item.manifest.name} ${item.manifest.version}`),
+      connections: Object.keys(data.secrets).map(name => name.replace(/^addon:/, "")), differences }))
   }
 
   resolve(revision: string, expected: string[]): Promise<void> {

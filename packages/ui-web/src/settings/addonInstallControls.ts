@@ -43,7 +43,7 @@ export function bindAddonInstallControls(client: OnceClient, onChanged: () => vo
     return read.entry
   }
 
-  const preview = async (entry: AddonEntry, code: string | null = null): Promise<void> => {
+  const preview = async (entry: AddonEntry, code: string | null = null, into: HTMLElement = previews): Promise<void> => {
     await requireAddonAvailability(client)
     const existing = (await client.getAddons()).addons.find(item => item.manifest.id === entry.manifest.id)
     const baseline = JSON.stringify(existing?.manifest)
@@ -83,8 +83,9 @@ export function bindAddonInstallControls(client: OnceClient, onChanged: () => vo
     actions.className = "settings_actions cluster"
     actions.append(confirm, addonButton("Cancel", () => panel.remove()))
     panel.append(title, grants, feedback, actions)
-    previews.append(panel)
-    block.dispatchEvent(new Event("once:addon-review"))
+    into.append(panel)
+    // From the panel, so the pages can tell an import's review from an update's.
+    panel.dispatchEvent(new Event("once:addon-review", { bubbles: true }))
   }
 
   const previewPackage = async (pack: LocalAddonPackage): Promise<void> => { previews.replaceChildren(); await preview(pack.entry, pack.code) }
@@ -109,32 +110,59 @@ export function bindAddonInstallControls(client: OnceClient, onChanged: () => vo
     }
   })())
 
-  update.addEventListener("click", () => void (async () => {
-    reportSettingsStatus(install, "saving")
-    const doc = await client.getAddons()
-    previews.replaceChildren()
-    const updated: string[] = []
-    const failed: string[] = []
-    for (const entry of doc.addons) {
-      if (!entry.source) continue
-      try {
-        const fresh = await fetchEntry(entry.source.url)
-        if (fresh.manifest.id !== entry.manifest.id) throw new Error("the manifest now has a different id")
-        if (fresh.manifest.version === entry.manifest.version) continue
-        await preview(fresh)
-        updated.push(`${fresh.manifest.name} ${fresh.manifest.version}`)
-      } catch (error) {
-        failed.push(`${entry.manifest.name}: ${error instanceof Error ? error.message : String(error)}`)
-      }
-    }
-    const checked = doc.addons.filter((entry) => entry.source).length
-    const parts = [
-      updated.length > 0 ? `Updates available: ${updated.join(", ")}` : `${checked} checked, nothing new`,
-      ...failed
-    ]
-    say(parts.join(" · "), failed.length > 0)
-  })())
+  update.addEventListener("click", () => void checkForUpdates(client, fetchEntry, (entry, into) => preview(entry, null, into),
+    block.querySelector<HTMLElement>("#addon_updates") ?? previews,
+    (text, detail = "") => {
+      // On the overview, beside the button that checked; a shell without one reports where imports do.
+      const status = block.querySelector<HTMLElement>('[data-testid="addon-overview-status"]')
+      if (!status) return say(text)
+      status.textContent = text
+      status.title = detail
+    }))
+  // Only an add-on installed from a manifest URL can be checked: a bundled one
+  // updates with Once, a ZIP or folder by importing it again. With none, the
+  // button is not offered rather than offered to report that it did nothing.
+  const offerUpdates = () => void client.getAddons()
+    .then(doc => { update.hidden = !doc.addons.some(entry => entry.source) })
+    .catch(() => undefined)
+  client.subscribe("settingsChanged", ({ section }) => { if (section === "addons") offerUpdates() })
+  block.addEventListener("once:addon-installed", offerUpdates)
+  offerUpdates()
   bindAddonSettingsPages(block)
   // Add-on sync lives with the rest of sync, in the Sync section.
   bindAddonVaultControls(client, document.querySelector<HTMLElement>("#sync_addon_vault") ?? requireElement<HTMLElement>("#addon_overview", block))
+}
+
+/**
+ * Refetches every URL-installed add-on's manifest and puts a review for each
+ * newer version into `updates`, the overview's slot above the list, so the
+ * check never leaves the page it was asked from. `say` reports the outcome
+ * in a few words, with any failures' details for a tooltip.
+ */
+async function checkForUpdates(client: OnceClient, fetchEntry: (url: string) => Promise<AddonEntry>,
+  preview: (entry: AddonEntry, into: HTMLElement) => Promise<void>, updates: HTMLElement,
+  say: (text: string, detail?: string) => void): Promise<void> {
+  say("Checking…")
+  const doc = await client.getAddons()
+  updates.replaceChildren()
+  const updated: string[] = []
+  const failed: string[] = []
+  for (const entry of doc.addons) {
+    if (!entry.source) continue
+    try {
+      const fresh = await fetchEntry(entry.source.url)
+      if (fresh.manifest.id !== entry.manifest.id) throw new Error("the manifest now has a different id")
+      if (fresh.manifest.version === entry.manifest.version) continue
+      await preview(fresh, updates)
+      updated.push(`${fresh.manifest.name} ${fresh.manifest.version}`)
+    } catch (error) {
+      failed.push(`${entry.manifest.name}: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+  const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? "" : "s"}`
+  if (!doc.addons.some(entry => entry.source)) return say("No add-on here was installed from a URL, so there is nothing to check")
+  say([
+    updated.length > 0 ? `${plural(updated.length, "update")} to review below` : failed.length > 0 ? "" : "Up to date",
+    failed.length > 0 ? `Could not check ${plural(failed.length, "add-on")}` : ""
+  ].filter(Boolean).join(" · "), [...updated.map(name => `Available: ${name}`), ...failed].join("\n"))
 }

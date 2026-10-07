@@ -1,4 +1,5 @@
 import { requireClosestElement, requireElement } from "../dom"
+import { SETTINGS_SUBPAGE_BACK } from "./SettingsNavigation"
 
 /** The pages of Settings › Sync; the overview links to the others. */
 export type SyncPage = "overview" | "tabs" | "pair" | "addons"
@@ -56,6 +57,12 @@ export function bindSyncSettingsPages(root: HTMLElement, onShow: (page: SyncPage
     event.stopImmediatePropagation()
     show("overview")
   }, true)
+  // The mouse's back button and other Back steps that do not go through the header.
+  document.addEventListener(SETTINGS_SUBPAGE_BACK, (event) => {
+    if (!active() || current === "overview") return
+    event.preventDefault()
+    show("overview")
+  })
   root.addEventListener("keydown", (event) => {
     if (event.key !== "Escape" || current === "overview" ||
         (event.target instanceof Element && event.target.matches("input,textarea,select"))) return

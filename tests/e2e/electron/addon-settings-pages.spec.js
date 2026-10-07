@@ -8,7 +8,7 @@ test("addon overview, isolated settings, import and advanced pages work with key
     await openSettingsSection(window, "addons")
     await expect(window.getByTestId("addons")).toBeHidden()
     await expect(window.getByTestId("addon-url")).toBeHidden()
-    await expect(window.locator("#addon_overview")).toContainText("No addons yet")
+    await expect(window.locator("#addon_overview")).toContainText("None are installed yet")
     await addonAdvanced(window)
     const manifests = ["First", "Second"].map(name => ({
       protocol: 1, id: name.toLowerCase(), name, version: "1.0.0", contributions: [],

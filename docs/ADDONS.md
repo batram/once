@@ -16,14 +16,19 @@ my-addon/
   main.js           optional: an ES module, present when any contribution needs code
 ```
 
-A user opens **Settings › Once Add-ons › Import addon…**, then uses **Import ZIP**,
+A user opens **Settings › Once Add-ons › Import add-on…**, then uses **Import ZIP**,
 **Import folder** where directory selection is supported, or the manifest URL.
 Electron also offers **Load directory** to keep a local addon linked to its files.
-The Once Add-ons overview lists installed and linked addons. Open a row for that addon's
-settings and management controls; **Once Add-ons** in the header returns to the list.
+The Once Add-ons overview lists installed and linked addons under a heading that
+carries **Check for updates** and **Import add-on…**. Checking stays on the
+overview: its outcome shows under the heading and each available update is
+reviewed there, above the list. The list ends with an **Add-on sync** row that
+shows the vault's state and opens Settings › Sync › Add-on sync. Open an addon's
+row for its settings and management controls; **Once Add-ons** in the header, or
+the mouse's back button, returns to the list.
 Fields stay mounted while navigating, so unfinished settings edits are preserved.
 The JSON editor and its Save/Cancel controls are hidden until you choose
-**Advanced: edit addon JSON…** on the overview. Pasting manifests there remains supported. The
+**Advanced: edit add-on JSON…** on the overview. Pasting manifests there remains supported. The
 manifest is stored in the synced `addons` settings document and follows the
 user's devices; the script is fetched per device, checked against the hash
 the manifest pins, and cached. With [encrypted addon sync](addon-sync-vault.md)
@@ -93,7 +98,10 @@ Another device that receives the entry through sync runs it from its own build's
 copy of the same version. A newer Once carrying a newer package version
 upgrades a still-installed bundled copy, keeping the user's options, storage
 and enabled flag; an add-on the user installed themselves under the same id
-is left alone. The overview lists a bundled add-on as "Bundled with Once", and
+is left alone. Every client seeds on start, so seeding writes only when it
+installs, upgrades, or records an id for the first time: an existing record is
+never bumped just because a newer build started, since two devices updated
+together would otherwise write the same change at once and conflict. The overview lists a bundled add-on as "Bundled with Once", and
 the import page offers removed ones again under the same heading, through the
 usual review.
 

@@ -7,6 +7,18 @@ export interface SettingsPanelOptions {
   scanPairingCode?: () => Promise<string | null>
 }
 
+/**
+ * Raised on `document`, cancelable, before a Back step leaves a section. A
+ * section with pages of its own (Once Add-ons, Sync) cancels it when it is
+ * showing one of them and steps to its overview instead.
+ */
+export const SETTINGS_SUBPAGE_BACK = "once:settings-subpage-back"
+
+/** Whether a section's own page took this Back step. */
+export function subpageBack(): boolean {
+  return !document.dispatchEvent(new CustomEvent(SETTINGS_SUBPAGE_BACK, { cancelable: true }))
+}
+
 interface SettingsNavigationHost {
   section(): string | null
   show(section: string | null): void

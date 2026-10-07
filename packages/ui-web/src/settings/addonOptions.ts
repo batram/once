@@ -2,18 +2,17 @@ import { OnceClient } from "@once/app"
 import { AddonEntry, ConfigSchema, validateConfig } from "@once/core"
 import { requireElement } from "../dom"
 import { createSchemaControl } from "./schemaControls"
-import { addonButton } from "./addonManagement"
+import { addonButton, addonHead } from "./addonManagement"
+import { addonOrigin, addonOriginSentence, addonRuntimeLabel, folderName, showAddonRuntime } from "./addonPresentation"
 import { getAddonStatus, onAddonStatus, retryAddon } from "../addons/addonStatus"
 import { canChooseConversationPlacement, pageConversationPlace, setPageConversationPlace } from "../addons/pageAddons"
 
 const groups = new Map<string, { signature: string; element: HTMLElement }>()
 const updateStatus = (group: HTMLElement): void => {
-  const status = group.querySelector(".addon_runtime_status")
+  const status = group.querySelector<HTMLElement>(".addon_runtime_status")
   if (!status) return
-  const state = getAddonStatus(group.dataset.addon ?? "")
-  const text = group.dataset.enabled === "false" ? "Disabled" :
-    state ? `${state.state}${state.error ? `: ${state.error}` : ""}` : "Enabled"
-  if (status.textContent !== text) status.textContent = text
+  showAddonRuntime(status, group.querySelector<HTMLElement>('[data-action="retry"]'),
+    addonRuntimeLabel(getAddonStatus(group.dataset.addon ?? ""), group.dataset.enabled !== "false"))
 }
 onAddonStatus(() => { for (const { element } of groups.values()) updateStatus(element) })
 export const DEV_OPTIONS_EVENT = "once:addon-options"
@@ -85,10 +84,12 @@ function settingsGroup(client: OnceClient, entry: AddonEntry, dev: boolean, cont
   group.dataset.enabled = String(entry.enabled)
   const legend = document.createElement("legend")
   legend.textContent = `${manifest.name} settings${dev ? " (linked folder)" : ""}`
-  group.append(legend, sourceCard(entry, dev, controls))
-  if (dev) group.dataset.addonOrigin = "Linked folder · This device"
-  else if (controls?.kind === "shadowed") group.dataset.addonOrigin = "Installed · Linked folder not in use"
+  group.append(legend)
+  // The list row names the source: a folder by its name, an ignored folder beside what runs instead.
+  if (dev) group.dataset.addonOrigin = controls ? `Linked folder ${folderName(controls.directory)} · this device` : "Linked folder · this device"
+  else if (controls?.kind === "shadowed") group.dataset.addonOrigin = `${addonOrigin(entry)} · linked folder ignored`
   if (dev) {
+    // A folder add-on has no installed row, so its page head is built here, the same way.
     const toggle = addonButton(devAddonEnabled(manifest.id) ? "Disable" : "Enable", () => {
       const enabled = !devAddonEnabled(manifest.id)
       localStorage.setItem(`once:dev-addon-enabled:${manifest.id}`, String(enabled))
@@ -97,15 +98,13 @@ function settingsGroup(client: OnceClient, entry: AddonEntry, dev: boolean, cont
       updateStatus(group)
       window.dispatchEvent(new Event(DEV_OPTIONS_EVENT))
     })
-    const actions = document.createElement("div")
-    actions.className = "settings_actions cluster"
-    actions.append(toggle, addonButton("Retry", () => retryAddon(manifest.id)))
-    const status = document.createElement("p")
-    status.className = "addon_runtime_status"
-    status.setAttribute("role", "status")
-    group.append(actions, status)
+    const retry = addonButton("Retry", () => retryAddon(manifest.id))
+    retry.dataset.action = "retry"
+    retry.hidden = true
+    group.append(addonHead(document.createElement("p"), [retry, toggle]))
     updateStatus(group)
   }
+  group.append(sourceCard(entry, dev, controls))
   const values = validateConfig(schema, entry.options ?? {}) as Record<string, unknown>
   const fields: { element: HTMLElement; schema: ConfigSchema }[] = []
   // A field hides with the field its condition names, so a hidden toggle takes its dependants along.
@@ -173,7 +172,7 @@ function sourceCard(entry: AddonEntry, dev: boolean, controls?: DevAddonControls
   card.dataset.testid = "addon-source"
   const heading = document.createElement("h3")
   heading.className = "settings_subheading"
-  heading.textContent = "Where this addon comes from"
+  heading.textContent = "Source"
   const summary = document.createElement("p")
   summary.className = "addon_source_summary"
   const status = document.createElement("p")
@@ -181,11 +180,11 @@ function sourceCard(entry: AddonEntry, dev: boolean, controls?: DevAddonControls
   const actions = document.createElement("div")
   actions.className = "addon_source_actions"
   card.append(heading, summary, status, actions)
-  const location = (text: string): void => {
+  const location = (text: string, after: Element = summary): void => {
     const path = document.createElement("code")
     path.className = "addon_source_path"
     path.textContent = text
-    summary.after(path)
+    after.after(path)
   }
   const action = (label: string, hint: string, run: () => Promise<void> | void, testid: string, primary = false): void => {
     const item = document.createElement("div")
@@ -200,25 +199,30 @@ function sourceCard(entry: AddonEntry, dev: boolean, controls?: DevAddonControls
     actions.append(item)
   }
   if (controls?.kind === "shadowed") {
+    // What runs first, then the folder that does not: one card, the folder as its notice.
     card.classList.add("addon_source--attention")
-    summary.textContent = "The installed copy is running. A linked folder with the same addon ID is being ignored, so edits there change nothing:"
-    location(controls.directory)
+    summary.textContent = addonOriginSentence(entry)
+    const notice = document.createElement("p")
+    notice.className = "addon_source_notice"
+    notice.textContent = "A linked folder with the same ID is being ignored, so edits in it change nothing:"
+    summary.after(notice)
+    location(controls.directory, notice)
     if (controls.useFolder) action("Use the folder instead", "Removes the installed copy with its settings and tokens; the folder then runs and reloads on edits.", controls.useFolder, "addon-source-use-folder", true)
-    if (controls.replace) action("Update installed copy from folder", "Overwrites the installed copy with the folder's current files and keeps its settings and tokens. Needs encrypted addon sync.", controls.replace, "addon-source-replace")
+    if (controls.replace) action("Update installed copy from folder", "Overwrites the installed copy with the folder's current files and keeps its settings and tokens. Needs add-on sync.", controls.replace, "addon-source-replace")
     if (controls.unload) action("Unload folder", "Forgets the folder link. The files stay where they are.", controls.unload, "addon-source-unload")
   } else if (dev) {
-    summary.textContent = "Runs from a linked folder on this device. Saved edits reload it automatically; nothing about it is synced."
+    summary.textContent = "Runs from a linked folder on this device and reloads when you save. Nothing about it is synced."
     if (controls) location(controls.directory)
-    if (controls?.install) action("Install this version", "Saves the folder's current files as an installed copy, synced to your devices with encrypted addon sync, then unloads the folder.", controls.install, "addon-source-install", true)
+    if (controls?.install) action("Install this version", "Saves the folder's current files as an installed copy, synced to your devices with add-on sync, then unloads the folder.", controls.install, "addon-source-install", true)
     if (controls?.unload) action("Unload folder", "Stops running the addon from this folder. The files and its local settings stay.", controls.unload, "addon-source-unload")
   } else if (entry.source) {
-    summary.textContent = "Installed from a manifest URL. Check for updates fetches the manifest again and shows what changed before installing."
+    summary.textContent = addonOriginSentence(entry)
     location(entry.source.url)
-    action("Check for updates", "Reviews every URL-installed addon for a newer version.", () => {
+    action("Check for updates", "Reviews every add-on installed from a URL for a newer version.", () => {
       document.querySelector<HTMLButtonElement>('[data-testid="update-addons"]')?.click()
     }, "addon-source-check-updates")
   } else {
-    summary.textContent = "Installed copy of a ZIP, folder or shared snapshot. To update it, import the new version again; to work on it live, link its folder on the Import page."
+    summary.textContent = addonOriginSentence(entry)
   }
   return card
 }
@@ -236,13 +240,37 @@ function optionField(addon: string, name: string, property: ConfigSchema, value:
   control.input.addEventListener("input", () => { control.input.dataset.dirty = "true"; status.textContent = "Unsaved" })
   control.input.addEventListener("change", () => { void commit() })
   field.append(control.input)
-  if ("default" in property && property.default !== undefined) field.append(addonButton("Restore default", async () => {
-    if (control.input instanceof HTMLInputElement && control.input.type === "checkbox") control.input.checked = property.default === true
-    else control.input.value = String(property.default)
-    await commit()
-  }))
+  if ("default" in property && property.default !== undefined) field.append(resetToDefault(field, control, property.default, commit))
   field.append(status)
   return field
+}
+
+/**
+ * A quiet "Restore default" on the field's label line, shown only while the
+ * value differs from the default (which its tooltip names), rather than a
+ * button under every field whether or not there is anything to restore.
+ */
+function resetToDefault(field: HTMLElement, control: { input: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement; read(): unknown },
+  fallback: unknown, commit: () => Promise<void>): HTMLButtonElement {
+  const shown = typeof fallback === "string" ? fallback : JSON.stringify(fallback)
+  const reset = addonButton("Restore default", async () => {
+    if (control.input instanceof HTMLInputElement && control.input.type === "checkbox") control.input.checked = fallback === true
+    else control.input.value = String(fallback)
+    await commit()
+    update()
+  })
+  reset.classList.add("addon_option_reset")
+  reset.title = `Default: ${shown.length > 200 ? `${shown.slice(0, 200)}…` : shown || "empty"}`
+  const update = (): void => {
+    let current: unknown
+    try { current = control.read() } catch { current = undefined }
+    reset.hidden = JSON.stringify(current) === JSON.stringify(fallback)
+  }
+  control.input.addEventListener("input", update)
+  control.input.addEventListener("change", update)
+  field.addEventListener("addon-options-received", update)
+  update()
+  return reset
 }
 
 function secretField(client: OnceClient, entry: AddonEntry, name: string, values: Record<string, unknown>, localOnly: boolean): HTMLElement {

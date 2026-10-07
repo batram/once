@@ -18,19 +18,19 @@ test("the shipped AI addon is installed on first start, stays removed across res
     await expect(row().locator(".addon_list_meta")).toContainText("Bundled with Once")
     await addonSettings(window, ID)
     const installed = window.locator(`#addon_installed [data-addon-id="${ID}"]`)
-    // "idle" is the sandbox with the script loaded and verified, waiting for a story.
-    await expect(installed.locator(".addon_runtime_status")).toHaveText("idle")
+    // "Ready" is the sandbox with the script loaded and verified, waiting for a story.
+    await expect(installed.locator(".addon_runtime_status")).toHaveText("Ready")
     await expect(window.getByTestId(`addon-option-${ID}-provider`)).toBeVisible()
     await installed.getByRole("button", { name: "Remove", exact: true }).click()
     await expect(window.locator("#addon_overview")).toBeVisible()
     await expect(row()).toHaveCount(0)
-    await expect(window.locator("#addon_overview")).toContainText("No addons yet")
+    await expect(window.locator("#addon_overview")).toContainText("None are installed yet")
 
     // A removed package is remembered as such, not offered again on the next start.
     await closeApp(electronApp, userData, { keepUserData: true })
     ;({ electronApp, window } = await launchApp({ ...BUNDLED, userData }))
     await openSettingsSection(window, "addons")
-    await expect(window.locator("#addon_overview")).toContainText("No addons yet")
+    await expect(window.locator("#addon_overview")).toContainText("None are installed yet")
     await expect(row()).toHaveCount(0)
 
     await addonImport(window)

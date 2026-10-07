@@ -10,6 +10,12 @@ export interface VaultStorePort {
   readVault(): Promise<VaultRevision[]>
   /** Compare-and-swap. Multiple parents are allowed only for an explicit resolution. */
   writeVault(value: unknown, parents: string[]): Promise<void>
+  /**
+   * Deletes losing branches, never the winner, and writes no new snapshot.
+   * Every replica picks the same winner, so two devices settling the same
+   * duplicate branches agree instead of racing each other again.
+   */
+  dropVaultBranches(revisions: string[]): Promise<void>
 }
 
 export interface AddonVaultStatus {
@@ -27,4 +33,6 @@ export interface AddonVaultChoice {
   updatedAt: string
   addons: string[]
   connections: string[]
+  /** What the versions disagree on, such as "Name: settings" or "Token name"; the same list on every choice. */
+  differences?: string[]
 }

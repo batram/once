@@ -1252,9 +1252,48 @@
   overflow: auto;
 }
 
+/* Every section's content starts --settings-section-inset in from the
+   section's edge, whatever the section holds, and the wide panel's title
+   (below) starts there too. Wider beside the index, where the index's
+   divider would otherwise crowd the content. */
+#settings_panel {
+  --settings-index-width: 300px;
+  --settings-section-inset: var(--sp-2);
+}
+
 #settings_panel.settings_detail_open #settings_index {
-  flex: 0 0 300px;
-  width: 300px;
+  flex: 0 0 var(--settings-index-width);
+  width: var(--settings-index-width);
+}
+
+/* With the index beside the section (a wide panel), the title names the
+   section, so it starts over the section's content rather than over the
+   index. Only the title moves: Back, the collapse button and anything pushed
+   to the far end keep their places, and Back is capped to the index column
+   so it never runs under the title. Narrower, the index hides and the bar
+   spans the section alone. */
+@container settings-panel (min-width: 761px) {
+  /* The container cannot restyle itself, so the inset is set on both of its
+     children that read it: the bar (the title) and the sections. */
+  #settings_panel.settings_detail_open :is(.bar.panel_titlebar, .settings_container) {
+    --settings-section-inset: var(--sp-4);
+  }
+
+  #settings_panel.settings_detail_open .bar.panel_titlebar {
+    position: relative;
+  }
+
+  #settings_panel.settings_detail_open .settings_title {
+    position: absolute;
+    top: 50%;
+    inset-inline-start: calc(var(--settings-index-width) + var(--settings-section-inset));
+    max-width: calc(100% - var(--settings-index-width) - var(--settings-section-inset) * 2 - var(--toolbar-control-size));
+    transform: translateY(-50%);
+  }
+
+  #settings_panel.settings_detail_open #settings_section_back {
+    max-width: calc(var(--settings-index-width) - var(--sp-6) * 2);
+  }
 }
 
 #settings_search {
@@ -1327,7 +1366,7 @@
   min-width: 0;
   min-height: 0;
   margin: 0;
-  --settings-settings_panel-settings_block-padding: 7px var(--sp-2) 0;
+  --settings-settings_panel-settings_block-padding: 7px var(--settings-section-inset) 0;
   padding: var(--settings-settings_panel-settings_block-padding);
   border: 0;
   overflow: auto;
@@ -1353,7 +1392,7 @@
   /* Without this the content-box default adds the inset outside the stretched
      width and the scroller overhangs the panel by exactly that inset. */
   box-sizing: border-box;
-  padding-right: var(--sp-2);
+  padding-right: var(--settings-section-inset);
   padding-bottom: var(--sp-2);
 }
 

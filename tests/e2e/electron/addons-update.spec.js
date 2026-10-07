@@ -48,7 +48,9 @@ test("reviewed updates preserve state and reject a broken replacement package", 
     await window.getByTestId("update-addons").click()
     await expect(confirm).toBeVisible()
     await confirm.click()
-    await expect(window.locator("#addon_previews [role=status]")).toContainText("integrity")
+    // Update reviews stay on the overview, above the list.
+    await expect(window.locator("#addon_overview")).toBeVisible()
+    await expect(window.locator("#addon_updates [role=status]")).toContainText("integrity")
     await expect(editor).toHaveValue(/2\.0\.0/)
     const installed = window.locator("#addon_installed")
     await require("../shared/addon-settings-ui").addonSettings(window, "harness-package")

@@ -175,6 +175,260 @@
   display: none;
 }
 
+/* Add-on sync (settings/addonVaultControls.ts): a card naming the state,
+   then the form for that state — fields stacked under their names, actions in
+   a row of their own, device actions as ordinary settings rows. */
+.addon_vault {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+  overflow: visible;
+}
+
+.addon_vault[hidden],
+.addon_vault [hidden] {
+  display: none;
+}
+
+.addon_vault_summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin-top: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--divider-color);
+  border-left: 3px solid var(--border-high-color);
+  border-radius: var(--radius-lg);
+  background: var(--input-bg-color);
+}
+
+.addon_vault_summary[data-state="ready"] {
+  border-left-color: var(--cursor-color);
+}
+
+.addon_vault_summary:is([data-state="conflict"], [data-state="locked"]) {
+  border-left-color: var(--warning-color);
+}
+
+.addon_vault_summary[data-state="error"] {
+  border-left-color: var(--error-color);
+}
+
+.addon_vault_status {
+  margin: 0;
+  color: var(--text-high-color);
+  font-size: var(--fs-body);
+  font-weight: 700;
+}
+
+.addon_vault_hint,
+.addon_vault_review_intro,
+.addon_vault_feedback {
+  margin: 0;
+  color: var(--text-muted-color);
+  font-size: var(--fs-caption);
+  line-height: 1.4;
+}
+
+.addon_vault_hint:empty,
+.addon_vault_feedback:empty {
+  display: none;
+}
+
+.addon_vault_form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.addon_vault_form:empty {
+  display: none;
+}
+
+.addon_vault_form > .settings_subheading {
+  margin: var(--sp-2) 0 0;
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--divider-color);
+}
+
+.addon_vault_form > .settings_subheading:first-child {
+  margin-top: 0;
+}
+
+/* Rows bring their own hairline, as in any settings list; the form's gap
+   already spaces each from the line above, so only the bottom padding stays. */
+.addon_vault_form > .settings_row {
+  padding-top: 0;
+}
+
+/* The name over the field: a passphrase needs the whole width, and an
+   uppercase name beside it read as a heading for the buttons below. */
+.addon_vault .field:not(.field_check) {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 28rem;
+}
+
+.addon_vault .field:not(.field_check) > .field_label {
+  color: var(--text-high-color);
+  font-size: var(--fs-dense);
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.addon_vault .field > input:not([type="checkbox"]),
+.addon_vault_recovery textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 32px;
+  padding: var(--sp-1-5) var(--sp-2);
+  border: 1px solid var(--border-high-color);
+  border-radius: var(--radius-md);
+  color: var(--text-high-color);
+  background: var(--input-bg-color);
+  font: inherit;
+}
+
+.addon_vault .field_check > .field_label {
+  color: var(--text-color);
+  font-size: var(--fs-dense);
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.addon_vault :is(input, textarea, button):focus-visible {
+  outline: 2px solid var(--cursor-color);
+  outline-offset: 2px;
+}
+
+.addon_vault_actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+/* White on the accent, as the add-on page's primary action. */
+#settings_panel .addon_vault .addon_vault_primary:not(:disabled) {
+  border-color: var(--cursor-color);
+  color: white;
+  background: var(--cursor-color);
+}
+
+/* Shown once after setup: the key must not be missed, so it is boxed. */
+.addon_vault_recovery {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--warning-color);
+  border-radius: var(--radius-lg);
+}
+
+.addon_vault_recovery > p {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.addon_vault_recovery textarea {
+  font-family: monospace;
+  overflow-wrap: anywhere;
+  resize: none;
+}
+
+.addon_vault_warning {
+  color: var(--warning-color);
+}
+
+/* Concurrent versions: one card each, the button that keeps it at its foot. */
+.addon_vault_review {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.addon_vault_review:empty {
+  display: none;
+}
+
+.addon_vault_choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.addon_vault_choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--divider-color);
+  border-radius: var(--radius-lg);
+}
+
+.addon_vault_choice_head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-2);
+}
+
+.addon_vault_choice_head > strong {
+  color: var(--text-high-color);
+}
+
+.addon_vault_choice_head > time {
+  color: var(--text-muted-color);
+  font-size: var(--fs-caption);
+}
+
+.addon_vault_choice_badge {
+  padding: 0 var(--sp-1-5);
+  border: 1px solid var(--cursor-color);
+  border-radius: var(--radius-md);
+  color: var(--text-high-color);
+  font-size: var(--fs-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.addon_vault_choice_details {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--sp-1) var(--sp-3);
+  margin: 0;
+  font-size: var(--fs-caption);
+}
+
+/* What the versions disagree on, above the cards: the reason to read them. */
+.addon_vault_differences > dd > .addon_vault_chip {
+  box-shadow: inset 0 0 0 1px var(--warning-color);
+}
+
+.addon_vault_choice_details > dt {
+  color: var(--text-muted-color);
+}
+
+.addon_vault_choice_details > dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  margin: 0;
+}
+
+.addon_vault_chip {
+  padding: 0 var(--sp-1-5);
+  border-radius: var(--radius-md);
+  color: var(--text-high-color);
+  background: var(--highlight-bg-color);
+  overflow-wrap: anywhere;
+}
+
 /* Pairing: a warning before the code, and the code itself blurred until
    the reader chooses to reveal it, so a glance or a screenshot of the
    settings does not carry the database password away. */

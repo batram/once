@@ -314,6 +314,7 @@ export interface SourceCacheStatus {
 export interface ListStorePort {
   readVault?: VaultStorePort["readVault"]
   writeVault?: VaultStorePort["writeVault"]
+  dropVaultBranches?: VaultStorePort["dropVaultBranches"]
   get<T>(id: string, fallbackValue: T): Promise<T>
   set<T>(id: string, value: T): Promise<void>
 }

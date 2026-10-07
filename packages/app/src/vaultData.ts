@@ -27,6 +27,26 @@ export function readVaultData(value: unknown): VaultData {
   return data as VaultData
 }
 
+/**
+ * Whether two snapshots hold the same add-ons, settings, tokens and packages.
+ * Generation, commit, author and time say who wrote it, not what it holds, so
+ * two devices making the same change at once compare equal.
+ */
+export function sameVaultContents(left: VaultData, right: VaultData): boolean {
+  const contents = ({ document, secrets, scripts }: VaultData) => canonical({ document, secrets, scripts })
+  return contents(left) === contents(right)
+}
+
+/** JSON with object keys sorted, so key order from different writers does not matter. */
+export function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value).filter(([, item]) => item !== undefined).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
+    return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`).join(",")}}`
+  }
+  return JSON.stringify(value)
+}
+
 export async function verifyVaultScript(hash: string, code: string): Promise<void> {
   const bytes = new TextEncoder().encode(code)
   if (bytes.length > SANDBOX_LIMITS.code) throw new Error("The add-on script is too large")

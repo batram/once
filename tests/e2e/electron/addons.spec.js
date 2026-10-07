@@ -251,7 +251,7 @@ test("an add-on installs from its manifest URL and reports on an update check", 
 
     await openSettingsSection(window, "addons", '[data-testid="update-addons"]')
     await window.getByTestId("update-addons").evaluate((button) => button.click())
-    await expect(status).toHaveText("1 checked, nothing new")
+    await expect(window.getByTestId("addon-overview-status")).toHaveText("Up to date")
   } finally {
     await closeApp(electronApp, userData)
   }

@@ -1,4 +1,4 @@
-import { readVault, writeVault } from "./pouchVault"
+import { dropVaultBranches, readVault, writeVault } from "./pouchVault"
 
 export interface PouchListDatabase {
   get(id: string, options?: Record<string, unknown>): Promise<{ _rev?: string; _conflicts?: string[]; list?: unknown }>
@@ -10,6 +10,7 @@ export class PouchListStore {
 
   readVault() { return readVault(this.db) }
   writeVault(value: unknown, parents: string[]): Promise<void> { return writeVault(this.db, value, parents) }
+  dropVaultBranches(revisions: string[]): Promise<void> { return dropVaultBranches(this.db, revisions) }
 
   async get<T>(id: string, fallbackValue: T): Promise<T> {
     try {

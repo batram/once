@@ -24,6 +24,10 @@ function device(records = [], protection = "os") {
       assert.deepEqual([...parents].sort(), state.records.map(item => item.revision).sort())
       state.records = [{ revision: `${++counter}-${crypto.randomUUID()}`, value: structuredClone(value) }]
     },
+    async dropVaultBranches(revisions) {
+      assert.equal(revisions.includes(state.records[0].revision), false, "the winner is never dropped")
+      state.records = state.records.filter(item => !revisions.includes(item.revision))
+    },
     get: async (_id, fallback) => fallback,
     set: async () => {}
   }
@@ -116,6 +120,7 @@ test("offline concurrent edits pause connections until an explicitly selected sn
   assert.equal((await first.client.getAddons()).addons.length, 0)
   const choices = await first.client.getAddonVaultChoices()
   assert.equal(choices.length, 2)
+  assert.deepEqual(choices[0].differences, ["Token vault-example:token"], "the review names what differs, never the token value")
   assert.equal(choices.find(item => item.revision === deletion.revision).connections.length, 0)
   await first.client.resolveAddonVault(deletion.revision, choices.map(item => item.revision))
   assert.equal((await first.client.getAddonVaultStatus()).state, "ready")
@@ -123,6 +128,68 @@ test("offline concurrent edits pause connections until an explicitly selected sn
   second.state.records = structuredClone(first.state.records)
   assert.equal((await second.client.getAddonVaultStatus()).state, "ready")
   assert.equal(await second.client.hasAddonSecret(manifest.id, "token", "https://provider.test/messages"), false)
+})
+
+test("the same edit made on two devices at once settles by itself, keeping the shared winner", async () => {
+  const { first } = await setup()
+  const second = device(first.state.records)
+  await second.client.unlockAddonVault(passphrase, false, true, "Phone")
+  // Both start a new build at once and record the same bundled offer.
+  const offer = doc => ({ ...doc, bundled: { ...doc.bundled, [manifest.id]: "1.0.0" } })
+  await first.client.updateAddons(offer)
+  await second.client.updateAddons(offer)
+  const winner = first.state.records[0]
+  first.state.records.push(second.state.records[0])
+  second.state.records = structuredClone([winner, second.state.records[0]])
+  const changes = first.state.changes
+  assert.equal((await first.client.getAddonVaultStatus()).state, "ready")
+  assert.deepEqual(first.state.records.map(item => item.revision), [winner.revision], "the losing branch is dropped, nothing new is written")
+  assert.ok(first.state.changes > changes)
+  assert.equal((await second.client.getAddonVaultStatus()).state, "ready", "the device that wrote the losing branch adopts the winner")
+  assert.deepEqual(second.state.records.map(item => item.revision), [winner.revision])
+  assert.equal(await second.client.hasAddonSecret(manifest.id, "token", "https://provider.test/messages"), true)
+  await second.client.updateAddons(doc => ({ ...doc, addons: [] }))
+  assert.equal(second.state.records.length, 1, "later edits build on the winner")
+})
+
+test("branches that differ only in bundled offers combine them, newest version kept", async () => {
+  const { first } = await setup()
+  const second = device(first.state.records)
+  await second.client.unlockAddonVault(passphrase, false, true, "Phone")
+  // Two builds of different ages record their offers at once.
+  const offer = version => doc => ({ ...doc, bundled: { ...doc.bundled, [manifest.id]: version, [`other-${version.replace(/\./g, "")}`]: version } })
+  await first.client.updateAddons(offer("1.2.0"))
+  await second.client.updateAddons(offer("1.10.0"))
+  first.state.records.push(second.state.records[0])
+  assert.equal((await first.client.getAddonVaultStatus()).state, "ready")
+  assert.equal(first.state.records.length, 1, "one combined snapshot replaces both branches")
+  assert.deepEqual((await first.client.getAddons()).bundled, { [manifest.id]: "1.10.0", "other-120": "1.2.0", "other-1100": "1.10.0" })
+  second.state.records = structuredClone(first.state.records)
+  assert.equal((await second.client.getAddonVaultStatus()).state, "ready", "the other device accepts the combined snapshot")
+  assert.equal(await second.client.hasAddonSecret(manifest.id, "token", "https://provider.test/messages"), true)
+})
+
+test("an offer difference beside any other difference still waits for review", async () => {
+  const { first } = await setup()
+  const second = device(first.state.records)
+  await second.client.unlockAddonVault(passphrase, false, true, "Phone")
+  await first.client.updateAddons(doc => ({ ...doc, bundled: { [manifest.id]: "1.0.0" } }))
+  await second.client.updateAddons(doc => ({ ...doc, addons: doc.addons.map(entry => ({ ...entry, enabled: false })) }))
+  first.state.records.push(second.state.records[0])
+  assert.equal((await first.client.getAddonVaultStatus()).state, "conflict")
+  const [choice] = await first.client.getAddonVaultChoices()
+  assert.deepEqual(choice.differences.sort(), ["Bundled add-on offers", "Vault example: on or off"])
+})
+
+test("identical contents under different passphrases still wait for review", async () => {
+  const { first } = await setup()
+  const second = device(first.state.records)
+  await second.client.unlockAddonVault(passphrase, false, true, "Phone")
+  await first.client.changeAddonVaultPassphrase("first new strong passphrase")
+  await second.client.changeAddonVaultPassphrase("second new strong passphrase")
+  first.state.records.push(second.state.records[0])
+  assert.equal((await first.client.getAddonVaultStatus()).state, "conflict")
+  assert.equal(first.state.records.length, 2)
 })
 
 test("recovery unlock, passphrase change, lock and history rollback checks", async () => {

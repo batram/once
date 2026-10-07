@@ -35,3 +35,12 @@ export async function writeVault(db: VaultDatabase, value: unknown, parents: str
     await db.put({ _id: ADDON_VAULT_ID, _rev: branch.revision, _deleted: true })
   }
 }
+
+export async function dropVaultBranches(db: VaultDatabase, revisions: string[]): Promise<void> {
+  const current = await readVault(db)
+  if (revisions.includes(current[0]?.revision ?? "")) throw new Error("The current vault version cannot be dropped")
+  // A branch already gone was dropped by another device settling the same pair.
+  for (const branch of current.slice(1)) {
+    if (revisions.includes(branch.revision)) await db.put({ _id: ADDON_VAULT_ID, _rev: branch.revision, _deleted: true })
+  }
+}

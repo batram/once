@@ -83,6 +83,16 @@ test("a newer shipped version replaces a still-installed bundled copy but not th
   await seedBundledAddons(own.client)
   assert.equal(own.state.doc.addons[0].manifest.version, "5.0.0", "an install of the user's own is left alone")
   assert.deepEqual(own.state.doc.bundled, { [shipped.id]: shipped.version })
+  // Every client seeds on start: a newer build must not rewrite the record, or
+  // two devices updated together write the same change at once and conflict.
+  const writes = own.state.writes
+  configureBundledAddons(bundledAddons().map(({ files }) => ({ files: { ...files,
+    "once-addon.json": JSON.stringify({ ...shipped, version: "99.0.0" }) } })))
+  await seedBundledAddons(own.client)
+  assert.equal(own.state.writes, writes, "a newer build beside the user's own install writes nothing")
+  own.state.doc = readAddonsDocument({ ...own.state.doc, addons: [] })
+  await seedBundledAddons(own.client)
+  assert.equal(own.state.doc.addons.length, 0, "and removing that install does not bring the package in")
 })
 
 test("different app versions converge without downgrading packages or reviving removals", async () => {

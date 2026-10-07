@@ -1,5 +1,5 @@
 import { OnceClient } from "@once/app"
-import { AddonEntry, AddonsDocument, upsertAddon } from "@once/core"
+import { AddonEntry, AddonsDocument, newerAddonVersion, upsertAddon } from "@once/core"
 import { BUNDLED_SCRIPT_PREFIX, LocalAddonPackage, readBundledAddon } from "./localAddonPackage"
 
 /**
@@ -43,36 +43,22 @@ export function isBundledAddon(entry: AddonEntry): boolean {
   return entry.manifest.script?.url.startsWith(BUNDLED_SCRIPT_PREFIX) ?? false
 }
 
-/** What the document still needs for a bundled package, if anything. */
+/**
+ * What the document still needs for a bundled package, if anything. Every
+ * client seeds on start, so a write here is one that two devices started at
+ * once both make; only what changes the add-ons, or the first record of an
+ * offer, is worth that. The offer record keeps a removed package out; the
+ * installed copy's own version keeps an older app from rolling it back.
+ */
 function plan(doc: AddonsDocument, pack: LocalAddonPackage): "install" | "upgrade" | "mark" | null {
   const { id, version } = pack.entry.manifest
   const installed = doc.addons.find(entry => entry.manifest.id === id)
-  const offered = doc.bundled?.[id]
-  // An older app must never roll a shared package (or its offer marker) back.
   // Unknown version formats require an explicit import instead of guessing.
-  if (offered !== undefined && !newerVersion(version, offered)) return null
-  if (installed && isBundledAddon(installed)) return newerVersion(version, installed.manifest.version) ? "upgrade" : "mark"
-  if (installed) return "mark"
-  return offered === undefined ? "install" : "mark"
-}
-
-function newerVersion(next: string, previous: string): boolean {
-  const parse = (value: string) => /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([\da-zA-Z.-]+))?(?:\+[\da-zA-Z.-]+)?$/.exec(value)
-  const left = parse(next), right = parse(previous)
-  if (!left || !right) return false
-  for (let i = 1; i <= 3; i++) {
-    if (Number(left[i]) !== Number(right[i])) return Number(left[i]) > Number(right[i])
-  }
-  if (!left[4] || !right[4]) return !left[4] && !!right[4]
-  const a = left[4].split("."), b = right[4].split(".")
-  for (let i = 0; i < Math.max(a.length, b.length); i++) {
-    if (a[i] === b[i]) continue
-    if (a[i] === undefined || b[i] === undefined) return b[i] === undefined
-    const an = /^\d+$/.test(a[i]), bn = /^\d+$/.test(b[i])
-    if (an && bn) return Number(a[i]) > Number(b[i])
-    return an !== bn ? !an : a[i] > b[i]
-  }
-  return false
+  if (installed && isBundledAddon(installed) && newerAddonVersion(version, installed.manifest.version)) return "upgrade"
+  if (doc.bundled?.[id] !== undefined) return null
+  // An installed copy (the user's own, or one recorded before offers were) is left alone;
+  // recording the offer keeps the package from arriving again once that copy is removed.
+  return installed ? "mark" : "install"
 }
 
 function applyPlan(doc: AddonsDocument, pack: LocalAddonPackage): AddonsDocument {

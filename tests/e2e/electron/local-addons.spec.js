@@ -60,7 +60,7 @@ test("an installed copy hides a linked folder until its page hands over to the f
     await expect(badge).toHaveText("Local package ready")
     await openSettingsSection(window, "addons", "#addon_url_input")
     await addonOverview(window)
-    await expect(window.locator('.addon_list_row[data-addon-id="local-package"] .addon_list_meta')).toContainText("Linked folder not in use")
+    await expect(window.locator('.addon_list_row[data-addon-id="local-package"] .addon_list_meta')).toContainText("linked folder ignored")
     await addonSettings(window, "local-package")
     const source = window.getByTestId("addon-source")
     await expect(source).toBeVisible()

@@ -4,6 +4,7 @@ const fs = require("node:fs")
 const { parseHTML } = require("linkedom")
 const { bindAddonSettingsPages } = require("../../../packages/ui-web/dist/settings/AddonSettingsPages")
 const { settingsSearchSegments } = require("../../../packages/ui-web/dist/settings/settingsSearch")
+const { subpageBack } = require("../../../packages/ui-web/dist/settings/SettingsNavigation")
 
 test("addon pages isolate settings, preserve drafts, reveal advanced JSON and recover after removal", async () => {
   const { window } = parseHTML(fs.readFileSync("packages/ui-web/public/shell.html", "utf8"))
@@ -41,6 +42,24 @@ test("addon pages isolate settings, preserve drafts, reveal advanced JSON and re
     assert.equal(root.querySelector('.addon_list_row[data-addon-id="first"]'), first)
     back.click()
     assert.equal(root.querySelector("#addon_overview").hidden, false)
+    // The mouse's back button asks the same question: an add-on's page steps to the overview,
+    // and only the overview lets the step leave the section.
+    first.click()
+    assert.equal(subpageBack(), true)
+    assert.equal(root.querySelector("#addon_overview").hidden, false)
+    assert.equal(subpageBack(), false)
+    // A review shows where it was asked for: an update's on the overview, an import's on its page.
+    first.click()
+    const review = document.createElement("fieldset")
+    root.querySelector("#addon_updates").append(review)
+    review.dispatchEvent(new window.Event("once:addon-review", { bubbles: true }))
+    assert.equal(root.querySelector("#addon_overview").hidden, false)
+    review.remove()
+    root.querySelector("#addon_previews").append(review)
+    review.dispatchEvent(new window.Event("once:addon-review", { bubbles: true }))
+    assert.equal(root.querySelector("#addon_import").hidden, false)
+    review.remove()
+    back.click()
     first.click()
     assert.equal(root.querySelector("#draft"), draft)
     assert.equal(draft.value, "Unfinished draft")

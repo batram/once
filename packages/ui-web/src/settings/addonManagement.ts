@@ -1,6 +1,6 @@
 import { OnceClient } from "@once/app"
 import { getAddonStatus, onAddonStatus, retryAddon } from "../addons/addonStatus"
-import { isBundledAddon } from "../addons/bundledAddons"
+import { addonOrigin, addonRuntimeLabel, showAddonRuntime } from "./addonPresentation"
 
 export function addonButton(label: string, run: () => Promise<void> | void): HTMLButtonElement {
   const button = document.createElement("button")
@@ -17,6 +17,22 @@ export function addonButton(label: string, run: () => Promise<void> | void): HTM
   return button
 }
 
+/**
+ * The head of an add-on's page: its state on one side, what can be done
+ * about it on the other. Retry shows only when the script failed or stopped.
+ */
+export function addonHead(state: HTMLElement, buttons: HTMLElement[]): HTMLElement {
+  const head = document.createElement("div")
+  head.className = "addon_head"
+  state.classList.add("addon_runtime_status")
+  state.setAttribute("role", "status")
+  const actions = document.createElement("div")
+  actions.className = "addon_head_actions"
+  actions.append(...buttons)
+  head.append(state, actions)
+  return head
+}
+
 /** Device status changes update text in place so focus stays on the user's control. */
 export function bindAddonManagement(client: OnceClient, parent: HTMLElement): void {
   const list = document.createElement("div")
@@ -27,11 +43,10 @@ export function bindAddonManagement(client: OnceClient, parent: HTMLElement): vo
   let signature = ""
   const status = (): void => {
     for (const row of list.querySelectorAll<HTMLElement>("[data-addon-id]")) {
-      const state = getAddonStatus(row.dataset.addonId ?? "")
-      const text = row.querySelector<HTMLElement>("[role=status]")
-      if (text && row.dataset.enabled === "true") {
-        text.textContent = state ? `${state.state}${state.error ? `: ${state.error}` : ""}` : "Waiting to load"
-      }
+      const text = row.querySelector<HTMLElement>(".addon_runtime_status")
+      if (!text) continue
+      showAddonRuntime(text, row.querySelector<HTMLElement>('[data-action="retry"]'),
+        addonRuntimeLabel(getAddonStatus(row.dataset.addonId ?? ""), row.dataset.enabled === "true"))
     }
   }
   const render = async (): Promise<void> => {
@@ -50,24 +65,23 @@ export function bindAddonManagement(client: OnceClient, parent: HTMLElement): vo
       row.dataset.enabled = String(entry.enabled)
       row.dataset.addonName = entry.manifest.name
       row.dataset.addonVersion = entry.manifest.version
-      row.dataset.addonOrigin = entry.source ? "Installed from URL" : isBundledAddon(entry) ? "Bundled with Once" : "Installed"
+      row.dataset.addonOrigin = addonOrigin(entry)
       const title = document.createElement("legend")
       title.textContent = `${entry.manifest.name} ${entry.manifest.version}`
-      const info = document.createElement("p")
-      info.className = "addon_runtime_status"
-      info.setAttribute("role", "status")
-      info.textContent = entry.enabled ? "Waiting to load" : "Disabled"
       const toggle = addonButton(entry.enabled ? "Disable" : "Enable", () => client.updateAddons(doc => ({
         ...doc, addons: doc.addons.map(item => item.manifest.id === id ? { ...item, enabled: !item.enabled } : item)
       })))
       const remove = addonButton("Remove", () => client.updateAddons(doc => ({
         ...doc, addons: doc.addons.filter(item => item.manifest.id !== id)
       })))
-      const actions = document.createElement("div")
-      actions.className = "settings_actions cluster"
-      actions.append(toggle, remove)
-      if (entry.enabled && entry.manifest.script) actions.append(addonButton("Retry", () => retryAddon(id)))
-      row.append(title, info, actions)
+      const buttons = [toggle, remove]
+      if (entry.enabled && entry.manifest.script) {
+        const retry = addonButton("Retry", () => retryAddon(id))
+        retry.dataset.action = "retry"
+        retry.hidden = true
+        buttons.unshift(retry)
+      }
+      row.append(title, addonHead(document.createElement("p"), buttons))
       list.append(row)
     }
     status()

@@ -19,7 +19,7 @@ import { bindSyncSettingsPages } from "./syncSettingsPages"
 import { bindSettingsSubscriptions } from "./settingsSubscriptions"
 import { bindExtensionSettingsEditors, ExtensionSettingsEditors } from "./extensionSettingsEditors"
 import settingsSectionDefinitions from "./settingsSectionDefinitions"
-import { SettingsNavigation, SettingsPanelOptions } from "./SettingsNavigation"
+import { SettingsNavigation, SettingsPanelOptions, subpageBack } from "./SettingsNavigation"
 import { trackSettingsSave } from "./settingsStatus"
 import { bindSyncStatusButton } from "./syncStatusButton"
 
@@ -288,7 +288,7 @@ export class SettingsPanel {
       // The editors' own Back chain keeps drafts (redirect forms) for Forward;
       // an inline row it does not track (filters) simply closes.
       backEditor: () => (this.structuredEditors?.handleBack(this.activeSettingsSection) || this.structuredEditors?.closeInlineEditor() ||
-        this.extensionEditors?.handleBack()) ?? false,
+        this.extensionEditors?.handleBack() || subpageBack()) ?? false,
       showIndex: () => this.showSettingsIndex(),
       exitSettings: () => this.options.exitSettings?.(),
       forwardEditor: () => this.structuredEditors?.handleForward(this.activeSettingsSection) ?? false,

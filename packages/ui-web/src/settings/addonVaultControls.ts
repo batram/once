@@ -4,33 +4,43 @@ import { refreshAddonCollectionSummary } from "./addonAvailability"
 import { renderAddonVaultReview } from "./addonVaultReview"
 import { showConfirmDialog } from "../confirmDialog"
 
+/** The vault's state in a few words, for the links that lead to its page. */
+export const VAULT_SUMMARIES: Record<string, string> = {
+  disabled: "Not set up", locked: "Locked on this device", ready: "On", off: "Off on this device",
+  conflict: "Needs attention", error: "Needs attention"
+}
+
 /** One vault unlock covers every installed add-on. Secret inputs never enter settings JSON. */
 export function bindAddonVaultControls(client: OnceClient, parent: HTMLElement): void {
   if (!client.getAddonVaultStatus || parent.querySelector("#addon_vault_controls")) return
   const group = document.createElement("fieldset")
   group.id = "addon_vault_controls"
-  group.className = "settings_group"
+  group.className = "settings_group addon_vault"
   const title = document.createElement("legend")
   title.textContent = "Add-on sync"
-  const hint = document.createElement("p")
-  hint.className = "settings_group_hint"
-  hint.textContent = "Set up once, then unlock on each new device. Packages, settings and tokens are encrypted before syncing. Linked development folders stay local until you share a snapshot."
+  // The state and what it means, as one card at the top of the page.
+  const summary = document.createElement("div")
+  summary.className = "addon_vault_summary"
   const status = document.createElement("p")
+  status.className = "addon_vault_status"
   status.setAttribute("role", "status")
   status.dataset.testid = "addon-vault-status"
+  const hint = document.createElement("p")
+  hint.className = "addon_vault_hint"
+  summary.append(status, hint)
   const form = document.createElement("div")
+  form.className = "addon_vault_form"
   const feedback = document.createElement("p")
+  feedback.className = "addon_vault_feedback"
   feedback.setAttribute("role", "status")
   feedback.dataset.testid = "addon-vault-feedback"
   const recovery = document.createElement("div")
   recovery.hidden = true
-  recovery.className = "settings_group"
+  recovery.className = "addon_vault_recovery"
   // Its own page now (Settings › Sync › Add-on sync): the choices show at once.
-  const options = document.createElement("div")
-  options.className = "addon_vault_options"
-  options.append(hint, form)
   const review = document.createElement("div")
-  group.append(title, status, options, feedback, review, recovery)
+  review.className = "addon_vault_review"
+  group.append(title, summary, recovery, form, review, feedback)
   parent.prepend(group)
   let signature = "", busy = false, revision = 0
   const run = async (work: () => Promise<void>) => {
@@ -46,19 +56,22 @@ export function bindAddonVaultControls(client: OnceClient, parent: HTMLElement):
   const recoveryNotice = (key: string, warning?: string) => showRecoveryKey(recovery, key, warning)
   const configure = (state: AddonVaultStatus) => {
     form.replaceChildren()
+    summary.dataset.state = state.state
     if (state.state !== "conflict") review.replaceChildren()
     for (const control of review.querySelectorAll<HTMLButtonElement>("button")) control.disabled = false
-    options.hidden = ["error", "unavailable"].includes(state.state)
+    form.hidden = ["error", "unavailable"].includes(state.state)
     hint.textContent = state.state === "conflict"
       ? "Your synced add-ons are paused, not removed. Choose a version to restore them on all devices. Linked folders remain available on this device."
       : state.state === "ready" ? "Packages, settings and saved connections sync together, encrypted. Linked folders stay on this device."
         : state.state === "off" ? "This device keeps its add-ons and their tokens, and no longer syncs them. Other devices still sync. " +
           "Turning it back on replaces this device's add-ons with the synced ones."
           : state.state === "locked" ? "Enter the sync passphrase to use your synced add-ons on this device."
-            : "Sync packages, settings and saved connections between devices, encrypted. Set up once, then unlock on each new device."
-    if (["error", "unavailable"].includes(state.state)) return
+            : ["error", "unavailable"].includes(state.state) ? ""
+              : "Sync packages, settings and saved connections between devices, encrypted. Set up once, then unlock on each new device."
+    if (form.hidden) return
     if (state.state === "conflict" && state.unlockRequired === false) {
-      form.append(button("Review concurrent versions", showReview))
+      // Once the versions are listed, they are the next step; the button would only repeat it.
+      if (!review.childElementCount) form.append(actions(primary(button("Review concurrent versions", showReview))))
       return
     }
     if (state.state === "ready") {
@@ -86,7 +99,7 @@ export function bindAddonVaultControls(client: OnceClient, parent: HTMLElement):
       if (confirmation) confirmation.value = ""
     }))
     submit.dataset.testid = "addon-vault-submit"
-    form.append(submit)
+    form.append(actions(primary(submit)))
   }
   const refresh = async () => {
     const current = ++revision
@@ -100,6 +113,13 @@ export function bindAddonVaultControls(client: OnceClient, parent: HTMLElement):
         const paused = ["locked", "conflict", "error"].includes(state.state)
         for (const control of root.querySelectorAll<HTMLButtonElement>('[data-testid="open-addon-import"], [data-testid="update-addons"], [data-testid="open-addon-advanced"]')) control.disabled = paused
       }
+      // The Add-ons page's link here says what it will find.
+      for (const link of document.querySelectorAll<HTMLElement>("[data-addon-sync-link]")) {
+        link.hidden = state.state === "unavailable"
+        link.dataset.vaultState = state.state
+        const summary = link.querySelector<HTMLElement>("[data-addon-sync-summary]")
+        if (summary) summary.textContent = VAULT_SUMMARIES[state.state] ?? ""
+      }
       refreshAddonCollectionSummary()
       const next = `${state.state}:${state.protectedStorage}:${state.unlockRequired}`
       if (busy || signature === next) return
@@ -112,26 +132,29 @@ export function bindAddonVaultControls(client: OnceClient, parent: HTMLElement):
 }
 
 /**
- * On: turn it off here (other devices keep syncing), change the passphrase,
- * or lock and forget the key on this device.
+ * On: change the passphrase, lock and forget the key on this device, or turn
+ * sync off here (other devices keep syncing). Each under its own heading, so
+ * the passphrase field reads as belonging to its button only.
  */
 function readyActions(form: HTMLElement, client: OnceClient, run: (work: () => Promise<void>) => Promise<void>, hideRecovery: () => void): void {
-  const off = button("Turn off on this device…", () => void showConfirmDialog({
+  form.append(heading("Passphrase"))
+  const passphrase = field(form, "New sync passphrase", "password")
+  passphrase.autocomplete = "new-password"
+  const change = button("Change passphrase", () => void run(async () => { await client.changeAddonVaultPassphrase(passphrase.value); passphrase.value = "" }))
+  change.disabled = true
+  passphrase.addEventListener("input", () => { change.disabled = passphrase.value === "" })
+  form.append(actions(change), heading("This device"))
+  const lock = button("Lock and forget", () => void run(async () => {
+    hideRecovery()
+    await client.lockAddonVault()
+  }))
+  row(form, "Lock on this device", "Forgets the key here. Unlock again with the passphrase or recovery key.", lock)
+  const off = button("Turn off…", () => void showConfirmDialog({
     message: "Turn add-on sync off on this device? Its add-ons and tokens stay here but stop syncing. Other devices keep syncing.",
     confirmLabel: "Turn off"
   }).then((confirmed) => { if (confirmed) void run(() => client.leaveAddonVault()) }))
   off.dataset.testid = "addon-vault-leave"
-  form.append(off)
-  const passphrase = field(form, "New sync passphrase", "password")
-  passphrase.autocomplete = "new-password"
-  const actions = document.createElement("div")
-  actions.className = "settings_actions cluster"
-  actions.append(button("Change passphrase", () => void run(async () => { await client.changeAddonVaultPassphrase(passphrase.value); passphrase.value = "" })),
-    button("Lock and forget on this device", () => void run(async () => {
-      hideRecovery()
-      await client.lockAddonVault()
-    })))
-  form.append(actions)
+  row(form, "Turn off on this device", "Keeps this device's add-ons and tokens, but stops syncing them. Other devices keep syncing.", off)
 }
 
 /** The recovery key, shown once after setup until the reader confirms saving it. */
@@ -142,12 +165,14 @@ function showRecoveryKey(recovery: HTMLElement, key: string, warning?: string): 
   label.textContent = "Save this recovery key in your password manager. It unlocks the vault if you forget the passphrase. Without either the key or an unlocked device, your tokens cannot be recovered."
   const output = document.createElement("textarea")
   output.readOnly = true
+  output.rows = 2
   output.value = key
   output.setAttribute("aria-label", "Vault recovery key")
   output.dataset.testid = "addon-vault-recovery-key"
   const saved = button("I saved my recovery key", () => { output.value = ""; recovery.replaceChildren(); recovery.hidden = true })
-  recovery.append(label, output, saved)
-  if (warning) { const text = document.createElement("p"); text.textContent = warning; recovery.append(text) }
+  recovery.append(label, output)
+  if (warning) { const text = document.createElement("p"); text.className = "addon_vault_warning"; text.textContent = warning; recovery.append(text) }
+  recovery.append(actions(primary(saved)))
 }
 
 function button(text: string, run: () => void): HTMLButtonElement {
@@ -157,6 +182,35 @@ function button(text: string, run: () => void): HTMLButtonElement {
   element.textContent = text
   element.addEventListener("click", run)
   return element
+}
+function primary(element: HTMLButtonElement): HTMLButtonElement {
+  element.classList.add("addon_vault_primary")
+  return element
+}
+function actions(...buttons: HTMLButtonElement[]): HTMLElement {
+  const element = document.createElement("div")
+  element.className = "addon_vault_actions"
+  element.append(...buttons)
+  return element
+}
+function heading(text: string): HTMLElement {
+  const element = document.createElement("h4")
+  element.className = "settings_subheading"
+  element.textContent = text
+  return element
+}
+/** A settings row whose control is a one-shot action. */
+function row(parent: HTMLElement, name: string, hint: string, control: HTMLButtonElement): void {
+  const element = document.createElement("div")
+  element.className = "settings_row"
+  const label = document.createElement("span")
+  label.className = "settings_row_name"
+  label.textContent = name
+  const text = document.createElement("p")
+  text.className = "settings_row_hint"
+  text.textContent = hint
+  element.append(label, text, control)
+  parent.append(element)
 }
 function field(parent: HTMLElement, text: string, type: string): HTMLInputElement {
   const label = document.createElement("label")
@@ -172,11 +226,14 @@ function field(parent: HTMLElement, text: string, type: string): HTMLInputElemen
 }
 function check(parent: HTMLElement, text: string, value: boolean): HTMLInputElement {
   const label = document.createElement("label")
-  label.className = "field"
+  label.className = "field field_check"
   const input = document.createElement("input")
   input.type = "checkbox"
   input.checked = value
-  label.append(input, document.createTextNode(text))
+  const caption = document.createElement("span")
+  caption.className = "field_label"
+  caption.textContent = text
+  label.append(input, caption)
   parent.append(label)
   return input
 }

@@ -51,3 +51,63 @@ test("real replication preserves encrypted packages and exposes conflicting offl
     await fs.rmdir(directory)
   }
 })
+
+test("the same edit on two replicas settles on both, each dropping the same branch, and stays settled after syncing", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "once-vault-duplicate-"))
+  const firstDb = new PouchDB(path.join(directory, "first"))
+  const secondDb = new PouchDB(path.join(directory, "second"))
+  const server = new PouchDB(path.join(directory, "server"))
+  const make = db => {
+    const local = new Map()
+    const store = new PouchListStore(db)
+    return { store, vault: new AddonVault(store, { get: async key => local.get(key) || "", set: async (key, value) => local.set(key, value) }, () => {}) }
+  }
+  const first = make(firstDb), second = make(secondDb)
+  const passphrase = "test passphrase for replication"
+  const sync = async () => {
+    for (const db of [firstDb, secondDb]) await db.replicate.to(server)
+    for (const db of [firstDb, secondDb]) await db.replicate.from(server)
+  }
+  try {
+    await first.vault.create(passphrase, true, "Laptop", { document: { version: 1, addons: [] }, secrets: {}, scripts: {},
+      generation: 1, commit: "", author: "", updatedAt: "" })
+    await sync()
+    await second.vault.unlock(passphrase, false, true, "Phone")
+    const offer = data => { data.document = { ...data.document, bundled: { "vault-example": "1.0.0" } } }
+    await first.vault.update(offer)
+    await second.vault.update(offer)
+    await sync()
+    assert.equal((await first.store.readVault()).length, 2, "both replicas hold both branches")
+    const winner = (await first.store.readVault())[0].revision
+    assert.equal((await second.store.readVault())[0].revision, winner, "every replica picks the same winner")
+    // Each device settles on its own before hearing from the other.
+    assert.equal((await first.vault.status()).state, "ready")
+    assert.equal((await second.vault.status()).state, "ready")
+    await sync()
+    for (const device of [first, second]) {
+      assert.deepEqual((await device.store.readVault()).map(item => item.revision), [winner])
+      assert.equal((await device.vault.status()).state, "ready")
+    }
+    await second.vault.update(data => { data.secrets = { "addon:vault-example:token": "later" } })
+    await sync()
+    assert.equal((await first.vault.read()).secrets["addon:vault-example:token"], "later", "later edits build on the winner")
+
+    // Different builds record different offers at once: both combine them,
+    // concurrently, and the two identical combinations then settle as duplicates.
+    await first.vault.update(data => { data.document = { ...data.document, bundled: { "vault-example": "1.2.0" } } })
+    await second.vault.update(data => { data.document = { ...data.document, bundled: { "vault-example": "1.10.0", "other-addon": "0.1.0" } } })
+    await sync()
+    assert.equal((await first.store.readVault()).length, 2)
+    assert.equal((await first.vault.status()).state, "ready")
+    assert.equal((await second.vault.status()).state, "ready")
+    await sync()
+    for (const device of [first, second]) {
+      assert.equal((await device.vault.status()).state, "ready")
+      assert.equal((await device.store.readVault()).length, 1)
+      assert.deepEqual((await device.vault.read()).document.bundled, { "vault-example": "1.10.0", "other-addon": "0.1.0" })
+    }
+  } finally {
+    await Promise.all([firstDb.destroy(), secondDb.destroy(), server.destroy()])
+    await fs.rm(directory, { recursive: true, force: true })
+  }
+})

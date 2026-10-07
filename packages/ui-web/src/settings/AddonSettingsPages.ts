@@ -1,6 +1,7 @@
 import { addonPageAction, createAddonSettingsLayout } from "./addonSettingsLayout"
 import { requireClosestElement, requireElement } from "../dom"
 import { refreshAddonCollectionSummary } from "./addonAvailability"
+import { SETTINGS_SUBPAGE_BACK } from "./SettingsNavigation"
 
 const groupsOf = (details: HTMLElement) => Array.from(details.querySelectorAll<HTMLElement>("[data-addon-id], .addon_options_group[data-addon]"))
 const idOf = (element: HTMLElement) => element.dataset.addonId ?? element.dataset.addon ?? ""
@@ -16,11 +17,29 @@ function describeCollection(root: HTMLElement, count: HTMLElement, empty: HTMLEl
   refreshAddonCollectionSummary()
 }
 
+/** An add-on's row on the overview: name, description and status line, filled in by the caller. */
+function listRow(id: string, open: () => void): HTMLButtonElement {
+  const row = addonPageAction("", "open-addon-settings", open)
+  row.className = "addon_list_row"
+  row.dataset.addonId = id
+  const name = document.createElement("strong")
+  const description = document.createElement("span")
+  description.className = "addon_list_description"
+  const metadata = document.createElement("span")
+  metadata.className = "addon_list_meta"
+  const arrow = document.createElement("span")
+  arrow.className = "addon_list_arrow"
+  arrow.textContent = "›"
+  arrow.setAttribute("aria-hidden", "true")
+  row.append(name, description, metadata, arrow)
+  return row
+}
+
 /** Navigation keeps the real controls mounted, including their drafts and listeners. */
 export function bindAddonSettingsPages(root: HTMLElement): void {
   if (root.dataset.addonPages) return
   root.dataset.addonPages = "true"
-  const { overview, imports, details, advanced, importButton, update, list, count, empty, notice } =
+  const { overview, imports, details, advanced, importButton, list, count, empty, notice } =
     createAddonSettingsLayout(root, target => show(target))
   let current = "overview"
   let returnFocus: HTMLElement = importButton
@@ -32,8 +51,8 @@ export function bindAddonSettingsPages(root: HTMLElement): void {
   const setHeader = () => {
     if (!active()) return
     back.textContent = current === "overview" ? "Settings" : "Once Add-ons"
-    title.textContent = current === "overview" ? "Once Add-ons" : current === "import" ? "Import addon" :
-      current === "advanced" ? "Advanced addons" : rows.get(current)?.dataset.addonName ?? "Addon settings"
+    title.textContent = current === "overview" ? "Once Add-ons" : current === "import" ? "Import add-on" :
+      current === "advanced" ? "Advanced add-ons" : rows.get(current)?.dataset.addonName ?? "Add-on settings"
   }
   const show = (target: string, focus = true) => {
     if (current === "overview" && target !== current) {
@@ -67,23 +86,11 @@ export function bindAddonSettingsPages(root: HTMLElement): void {
       const local = !group.dataset.addonId
       const enabled = group.dataset.enabled !== "false"
       const runtime = group.querySelector(".addon_runtime_status")?.textContent
-      const meta = [group.dataset.addonVersion, originOf(elements) ?? (local ? "Linked folder · This device" : "Installed"),
+      const meta = [group.dataset.addonVersion, originOf(elements) ?? (local ? "Linked folder · this device" : "Imported copy"),
         !enabled ? "Disabled" : runtime || "Enabled"].filter(Boolean).join(" · ")
       let row = rows.get(key)
       if (!row) {
-        row = addonPageAction("", "open-addon-settings", () => show(key))
-        row.className = "addon_list_row"
-        row.dataset.addonId = id
-        const nameElement = document.createElement("strong")
-        const description = document.createElement("span")
-        description.className = "addon_list_description"
-        const metadata = document.createElement("span")
-        metadata.className = "addon_list_meta"
-        const arrow = document.createElement("span")
-        arrow.className = "addon_list_arrow"
-        arrow.textContent = "›"
-        arrow.setAttribute("aria-hidden", "true")
-        row.append(nameElement, description, metadata, arrow)
+        row = listRow(id, () => show(key))
         rows.set(key, row)
         list.append(row)
       }
@@ -93,6 +100,9 @@ export function bindAddonSettingsPages(root: HTMLElement): void {
       row.children[1].textContent = group.dataset.addonDescription ?? ""
       row.children[2].textContent = meta
     }
+    // The Add-on sync row stays last, after add-ons installed since.
+    const syncLink = list.querySelector(":scope > .addon_sync_link")
+    if (syncLink && syncLink !== list.lastElementChild) list.append(syncLink)
     describeCollection(root, count, empty, addons.size)
     if (current.startsWith("addon:") && !rows.has(current)) show("overview")
     setHeader()
@@ -108,6 +118,12 @@ export function bindAddonSettingsPages(root: HTMLElement): void {
     event.stopImmediatePropagation()
     show("overview")
   }, true)
+  // The mouse's back button and other Back steps that do not go through the header.
+  document.addEventListener(SETTINGS_SUBPAGE_BACK, event => {
+    if (!active() || current === "overview") return
+    event.preventDefault()
+    show("overview")
+  })
   root.addEventListener("keydown", event => {
     if (event.key !== "Escape" || current === "overview" ||
         (event.target instanceof Element && event.target.matches("input,textarea,select"))) return
@@ -122,8 +138,10 @@ export function bindAddonSettingsPages(root: HTMLElement): void {
     if (!isActive) { show("overview", false); back.textContent = "Settings" }
     else setHeader()
   }).observe(header, { attributes: true, subtree: true, attributeFilter: ["class"] })
-  update.addEventListener("click", () => show("import"))
-  root.addEventListener("once:addon-review", () => show("import"))
+  // A review shows where it was asked for: an import's on the Import page,
+  // an update's on the overview above the list (even when asked from an
+  // add-on's own page).
+  root.addEventListener("once:addon-review", event => show(imports.contains(event.target as globalThis.Node | null) ? "import" : "overview"))
   root.addEventListener("once:addon-installed", event => {
     notice.textContent = (event as CustomEvent<string>).detail
     show("overview")

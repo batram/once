@@ -15,6 +15,7 @@ import { bindTabSyncStorageControls } from "./tabSyncStorageControls"
 import { growWithContent } from "./textareaGrow"
 import { showConfirmDialog } from "../confirmDialog"
 import { platformName } from "../tabsync/devicePresentation"
+import { VAULT_SUMMARIES } from "./addonVaultControls"
 
 const CHOICES: Record<string, readonly number[]> = {
   activityWindowMinutes: ACTIVITY_WINDOW_CHOICES,
@@ -144,11 +145,6 @@ export function bindTabSyncControls(client: OnceClient): void {
   client.subscribe("tabSyncChanged", () => void refresh())
   client.subscribe("syncStatusChanged", () => void refresh())
   void refresh()
-}
-
-const VAULT_SUMMARIES: Record<string, string> = {
-  disabled: "Not set up", locked: "Locked on this device", ready: "On", off: "Off on this device",
-  conflict: "Needs attention", error: "Needs attention"
 }
 
 function tabsSummary(view: TabSyncView | null, connected: boolean): string {
