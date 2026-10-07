@@ -8,13 +8,6 @@ const {
 } = require("./stop-packaged-app")
 
 const repositoryRoot = path.resolve(__dirname, "../../..")
-const nodeBinary = path.join(
-  repositoryRoot,
-  "node_modules",
-  "node",
-  "bin",
-  process.platform === "win32" ? "node.exe" : "node"
-)
 const forgeCli = path.join(
   repositoryRoot,
   "node_modules",
@@ -47,7 +40,7 @@ if (shouldStopPackagedApp(process.platform, args[0], skipPackagedAppStop)) {
   console.log("Skipping packaged Once app termination (--nokill).")
 }
 
-const result = spawnSync(nodeBinary, [forgeCli, ...args], {
+const result = spawnSync(process.execPath, [forgeCli, ...args], {
   cwd: path.resolve(__dirname, ".."),
   env: {
     ...process.env,
