@@ -16,8 +16,6 @@ import { bindUserscriptSettings } from "./userscriptSettings"
 export interface ExtensionSettingsEditors {
   /** Re-reads both documents into their editors, after a change elsewhere. */
   refresh(): void
-  /** Closes an open userscript page; false when there was none. */
-  handleBack(): boolean
 }
 
 interface TextDocumentEditor {
@@ -103,7 +101,6 @@ export function bindExtensionSettingsEditors(
       void restoreScripts()
       void restoreAddons()
       userscripts.refresh()
-    },
-    handleBack: () => userscripts.handleBack()
+    }
   }
 }

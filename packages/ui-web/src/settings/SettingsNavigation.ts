@@ -1,115 +1,201 @@
 import { open_panel } from "../shell/panelNavigation"
 
+/** Location changes let transient interactions finish without owning history. */
+export const SETTINGS_LOCATION_CHANGED = "once:settings-location-changed"
+
 export interface SettingsPanelOptions {
-  /** Last rung of the header Back chain, used by mobile to exit Settings. */
-  exitSettings?: () => void
-  /** Scans a pairing code with the camera; resolves with its link, or null when cancelled. */
   scanPairingCode?: () => Promise<string | null>
 }
 
-/**
- * Raised on `document`, cancelable, before a Back step leaves a section. A
- * section with pages of its own (Once Add-ons, Sync) cancels it when it is
- * showing one of them and steps to its overview instead.
- */
-export const SETTINGS_SUBPAGE_BACK = "once:settings-subpage-back"
+/** Views describe locations; only SettingsNavigation owns visit history. */
+export interface SettingsPage {
+  key: string
+  title: () => string
+  show(): void
+  /** Detach a draft without saving it. Mounted pages need no leave callback. */
+  leave?(): void
+  /** Deleted items and drafts whose underlying records changed cannot replay. */
+  valid?(): boolean
+}
 
-/** Whether a section's own page took this Back step. */
-export function subpageBack(): boolean {
-  return !document.dispatchEvent(new CustomEvent(SETTINGS_SUBPAGE_BACK, { cancelable: true }))
+interface Visit {
+  section: string | null
+  root?: HTMLElement
+  page?: SettingsPage
+  focus?: HTMLElement
+  scroll?: Array<[HTMLElement, number]>
 }
 
 interface SettingsNavigationHost {
   section(): string | null
+  /** Render only: this must not create another visit. */
   show(section: string | null): void
+  label(section: string | null): string
   back: HTMLButtonElement
-  backEditor(): boolean
-  showIndex(): void
-  exitSettings(): void
-  forwardEditor(): boolean
-  clearForwardEditors(): void
+  resetIndex?(): void
 }
 
-/** Settings visits have their own history; story read-state history is separate. */
+const navigations = new WeakMap<Document, SettingsNavigation>()
+const overviews = new WeakMap<Document, Map<HTMLElement, () => void>>()
+
+export function registerSettingsOverview(root: HTMLElement, show: () => void): void {
+  const views = overviews.get(document) ?? new Map<HTMLElement, () => void>()
+  views.set(root, show)
+  overviews.set(document, views)
+}
+
+/** Open a page through the shared history, including search and deep links. */
+export function openSettingsPage(root: HTMLElement, page: SettingsPage, alreadyShown = false): void {
+  const navigation = navigations.get(document)
+  if (navigation) navigation.openPage(root, page, alreadyShown)
+  else if (!alreadyShown) page.show()
+}
+
+/** Save/Cancel completes an editor: its abandoned draft must not replay. */
+export function completeSettingsPage(root: HTMLElement): void { navigations.get(document)?.complete(root) }
+export function invalidateSettingsPages(): void { navigations.get(document)?.prune() }
+/** One history for the index, sections and every nested settings page. */
 export class SettingsNavigation {
-  private backHistory: Array<string | null> = []
-  private forwardHistory: Array<string | null> = []
+  private current: Visit
+  private backHistory: Visit[] = []
+  private forwardHistory: Visit[] = []
   private replaying = false
   private returnPanel = "stories"
   private forwardToSettings = false
-  private restoringSettings = false
 
   constructor(private host: SettingsNavigationHost) {
-    host.back.onclick = () => {
-      if (host.backEditor()) return
-      if (host.section()) {
-        host.show(null)
-        return
-      }
-      // On the index the chevron leaves Settings outright. Without this the
-      // shared Back step would replay earlier section visits first.
-      this.backHistory = []
-      host.exitSettings()
-    }
-    document.addEventListener("once-settings-index-requested", () => host.showIndex())
-    document.addEventListener("once-settings-navigate", event => this.mouse(event))
+    this.current = { section: host.section() }
+    navigations.set(document, this)
+    host.back.onclick = () => this.navigate("back")
+    document.addEventListener("once-settings-index-requested", () => { this.open(null); host.resetIndex?.() })
+    document.addEventListener("once-settings-navigate", event => {
+      const direction = (event as CustomEvent<{ direction: string }>).detail.direction
+      if (direction !== "back" && direction !== "forward") return
+      if (!this.active() && !(direction === "forward" && this.forwardToSettings)) return
+      event.preventDefault()
+      this.navigate(direction)
+    })
+    document.querySelector("#settings_panel")?.addEventListener("keydown", event => {
+      const key = event as KeyboardEvent
+      if (key.key !== "Escape" || key.defaultPrevented ||
+          (key.target instanceof Element && key.target.matches("input,textarea,select"))) return
+      key.preventDefault()
+      key.stopPropagation()
+      this.navigate("back")
+    })
     document.addEventListener("once-panel-changed", event => {
       const { panel, previous } = (event as CustomEvent<{ panel: string; previous: string | null }>).detail
-      if (panel === previous) return
+      if (panel === previous || this.replaying) return
       this.forwardToSettings = false
-      if (panel !== "settings" || this.restoringSettings) return
+      if (panel !== "settings") return
       this.returnPanel = previous || "stories"
-      this.backHistory = this.host.section() === null ? [] : [null]
+      this.backHistory = this.current.section === null ? [] : [{ section: null }]
       this.forwardHistory = []
-      this.host.clearForwardEditors()
+      this.updateBack()
     })
   }
 
-  record(next: string | null): void {
-    if (this.replaying || next === this.host.section()) return
-    this.backHistory.push(this.host.section())
+  open(section: string | null): void { this.visit({ section }) }
+
+  openPage(root: HTMLElement, page: SettingsPage, alreadyShown = false): void {
+    const section = root.closest<HTMLElement>("[data-settings-section]")?.dataset.settingsSection
+    if (!section) { if (!alreadyShown) page.show(); return }
+    this.visit({ section, root, page }, alreadyShown)
+  }
+
+  private visit(next: Visit, alreadyShown = false): void {
+    if (!this.valid(next)) return
+    if (next.section === this.current.section && next.root === this.current.root && next.page?.key === this.current.page?.key) {
+      this.updateBack()
+      return
+    }
+    this.capture()
+    this.backHistory.push(this.current)
     this.forwardHistory = []
-    this.host.clearForwardEditors()
+    this.apply(next, alreadyShown)
   }
 
   navigate(direction: "back" | "forward"): void {
-    if (direction === "forward" && this.host.forwardEditor()) return
-    if (document.querySelector("#settings_panel.settings_form_open, " +
-      "#settings_panel .settings_section.active .structured_row_editing, " +
-      "#settings_panel .settings_section.active .structured_form")) return
+    if (!this.active()) {
+      if (direction !== "forward" || !this.forwardToSettings) return
+      this.replaying = true
+      try { open_panel("settings") } finally { this.replaying = false }
+      this.forwardToSettings = false
+      this.apply(this.current)
+      return
+    }
     const from = direction === "back" ? this.backHistory : this.forwardHistory
     const to = direction === "back" ? this.forwardHistory : this.backHistory
-    if (!from.length) {
-      if (direction === "back") {
-        open_panel(this.returnPanel)
-        this.forwardToSettings = true
-      }
+    while (from.length) {
+      const next = from.pop()
+      if (!next) return
+      if (!this.valid(next)) continue
+      this.capture()
+      to.push(this.current)
+      this.apply(next)
       return
     }
-    const next = from.pop()
-    if (next === undefined) return
-    to.push(this.host.section())
-    this.replaying = true
-    try { this.host.show(next) } finally { this.replaying = false }
+    if (direction === "back") {
+      this.capture()
+      this.replaying = true
+      try { open_panel(this.returnPanel) } finally { this.replaying = false }
+      this.forwardToSettings = true
+    }
   }
 
-  private mouse(event: Event): void {
-    const direction = (event as CustomEvent<{ direction: string }>).detail.direction
-    if (direction !== "back" && direction !== "forward") return
-    const active = document.querySelector("#left_panel")?.getAttribute("active_panel")
-    if (active !== "settings") {
-      if (direction !== "forward" || !this.forwardToSettings) return
-      event.preventDefault()
-      this.restoringSettings = true
-      try { open_panel("settings") } finally { this.restoringSettings = false }
-      return
-    }
-    event.preventDefault()
-    // Share the header's nested-editor handling, including add-on subpages.
-    // Not by clicking the chevron: the mobile shell sends this event from
-    // the chevron's own handler (exitSettings), and a click nested inside a
-    // click on the same button is dropped by the browser.
-    if (direction === "back" && this.host.backEditor()) return
-    this.navigate(direction)
+  complete(root: HTMLElement): void {
+    if (this.replaying || this.current.root !== root) return
+    const page = this.current.page
+    this.backHistory = this.backHistory.filter(visit => visit.page !== page)
+    this.forwardHistory = this.forwardHistory.filter(visit => visit.page !== page)
+    const previous = this.backHistory.at(-1)
+    this.current = previous?.section === this.current.section && !previous.page
+      ? this.backHistory.pop() ?? { section: this.current.section }
+      : { section: this.current.section }
+    this.updateBack()
+  }
+
+  prune(): void {
+    if (this.replaying) return
+    this.backHistory = this.backHistory.filter(visit => this.valid(visit))
+    this.forwardHistory = this.forwardHistory.filter(visit => this.valid(visit))
+    if (!this.valid(this.current)) this.apply({ section: this.current.section })
+    this.updateBack()
+  }
+
+  private valid(visit: Visit): boolean { return visit.page?.valid?.() !== false }
+  private active(): boolean { return document.querySelector("#left_panel")?.getAttribute("active_panel") === "settings" }
+
+  private capture(): void {
+    this.current.focus = document.activeElement instanceof HTMLElement ? document.activeElement : undefined
+    this.current.scroll = Array.from(document.querySelectorAll<HTMLElement>("#settings_panel, #settings_index, .settings_section.active"))
+      .map(element => [element, element.scrollTop])
+  }
+
+  private apply(next: Visit, alreadyShown = false): void {
+    this.replaying = true
+    try {
+      if (!alreadyShown) this.current.page?.leave?.()
+      this.current = next
+      if (!alreadyShown) {
+        this.host.show(next.section)
+        for (const [root, show] of overviews.get(document) ?? []) {
+          if (root.closest<HTMLElement>("[data-settings-section]")?.dataset.settingsSection === next.section) show()
+        }
+        next.page?.show()
+      }
+      this.updateBack()
+      document.dispatchEvent(new CustomEvent(SETTINGS_LOCATION_CHANGED))
+    } finally { this.replaying = false }
+    if (!alreadyShown && (next.focus || next.scroll)) requestAnimationFrame(() => {
+      if (this.current !== next || !this.active()) return
+      if (next.focus?.isConnected && !next.focus.closest("[hidden]")) next.focus.focus({ preventScroll: true })
+      for (const [element, top] of next.scroll ?? []) element.scrollTop = top
+    })
+  }
+
+  private updateBack(): void {
+    const previous = [...this.backHistory].reverse().find(visit => this.valid(visit))
+    this.host.back.textContent = previous?.page?.title() ?? (previous ? this.host.label(previous.section) : "Back")
   }
 }

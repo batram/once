@@ -28,6 +28,15 @@ async function startCouch() {
     close: async () => {
       server.closeAllConnections()
       await new Promise((resolve) => server.close(resolve))
+      // HTTP requests leave cached LevelDB handles open. Drain the database
+      // registry, close every store, then close the registry itself last;
+      // Windows cannot remove its files while any of those handles remain.
+      await Db.allDbs()
+      const stores = await fs.readdir(directory, { withFileTypes: true })
+      for (const store of stores) {
+        if (store.isDirectory() && store.name !== "pouch__all_dbs__") await new Db(store.name).close()
+      }
+      await new Db("pouch__all_dbs__").close()
       await fs.rm(directory, { recursive: true, force: true })
     }
   }

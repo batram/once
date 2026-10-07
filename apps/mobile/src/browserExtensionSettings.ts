@@ -1,5 +1,5 @@
 import type { MobileBrowserExtension, MobileBrowserExtensions } from "@once/platform-mobile"
-import { explained, reportInstalledExtensions } from "@once/ui-web"
+import { explained, invalidateSettingsPages, openSettingsPage, registerSettingsOverview, reportInstalledExtensions } from "@once/ui-web"
 
 /** Marks a control the mobile e2e suite navigates through. */
 function withTestId<T extends HTMLElement>(node: T, id: string): T {
@@ -14,13 +14,16 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, text = "", class
   return node
 }
 
+function pageTitle(target: string, extension?: MobileBrowserExtension): string {
+  return target === "overview" ? "Browser Extensions" : target === "install" ? "Install extension" :
+    target === "supplemental" ? "Filter lists & userscripts" : extension?.name ?? "Extension"
+}
+
 /** Extension management stays in the shared settings section; extension pages are native sessions. */
 export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions, openBrowserUrl: (url: string) => void): void {
   const root = document.querySelector<HTMLElement>("#extension_settings")
-  const panel = document.querySelector<HTMLElement>("#settings_panel")
-  const back = document.querySelector<HTMLButtonElement>("#settings_section_back")
-  const title = panel?.querySelector<HTMLElement>(".settings_title")
-  if (!root || !panel || !back || !title) throw new Error("Browser extension settings elements are missing")
+  const title = document.querySelector<HTMLElement>("#settings_panel .settings_title")
+  if (!root || !title) throw new Error("Browser extension settings elements are missing")
   const supplemental = wrapSupplemental(root)
   const page = element("div", "", "mobile_extension_page")
   const status = element("p", "", "settings_status")
@@ -31,6 +34,7 @@ export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions,
   let generation = 0
   let busy = false
   let refreshNeeded = false
+  const installed = new Map<string, MobileBrowserExtension>()
   const active = () => root.closest(".settings_section")?.classList.contains("active") === true
   const report = ({ extensions = [] }: { extensions?: MobileBrowserExtension[] }) =>
     reportInstalledExtensions(extensions.length, extensions.filter(item => item.enabled).length)
@@ -46,16 +50,26 @@ export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions,
       root.removeAttribute("aria-busy")
       if (refreshNeeded && active() && current === "overview") {
         refreshNeeded = false
-        void navigate("overview")
+        void show("overview")
       }
     }
   }
   // Page changes skip the busy guard: the overview's extension list may still
   // be loading when the user taps through to another page, and the generation
   // ticket discards that stale result. The guard stays for native commands.
-  const navigate = async (target: string, extension?: MobileBrowserExtension) => {
-    try { await show(target, extension) }
-    catch (error) { status.textContent = error instanceof Error ? error.message : String(error) }
+  const navigate = (target: string, extension?: MobileBrowserExtension) => {
+    let draft: Node[] | null = null
+    openSettingsPage(root, {
+      key: extension ? `${target}:${extension.id}` : target,
+      title: () => pageTitle(target, installed.get(extension?.id ?? "") ?? extension),
+      valid: () => !extension || installed.has(extension.id),
+      leave: () => { if (target === "install") draft = Array.from(page.childNodes) },
+      show: () => {
+        void show(target, installed.get(extension?.id ?? "") ?? extension).then(() => {
+          if (draft && current === target) page.replaceChildren(...draft)
+        }).catch(error => { status.textContent = String(error) })
+      }
+    })
   }
   const control = (label: string, onClick: () => void) => {
     const node = element("button", label, "button")
@@ -78,11 +92,7 @@ export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions,
     page.replaceChildren()
     supplemental.hidden = target !== "supplemental"
     page.hidden = target === "supplemental"
-    if (active()) {
-      title.textContent = target === "overview" ? "Browser Extensions" : target === "install" ? "Install extension" :
-        target === "supplemental" ? "Filter lists & userscripts" : extension?.name ?? "Extension"
-      back.textContent = target === "overview" ? "Settings" : "Browser Extensions"
-    }
+    if (active()) title.textContent = pageTitle(target, extension)
     if (target === "overview") {
       page.append(...explained(api.platform === "ios"
         ? "Bundled Safari-compatible extensions for pages opened in Once."
@@ -91,38 +101,31 @@ export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions,
       if (api.platform !== "ios") page.append(link("Install extension", "install"))
       page.append(withTestId(link("Filter lists & userscripts", "supplemental"), "extension-supplemental"))
       const result = await api.command({ action: "list" })
+      installed.clear()
+      for (const item of result.extensions ?? []) installed.set(item.id, item)
       report(result)
+      invalidateSettingsPages()
       if (generation !== ticket) return
       for (const item of result.extensions ?? []) {
         const row = link("", "detail", item)
         populateExtensionRow(row, item)
         page.append(row)
       }
-      page.append(link("Refresh extensions", "overview"))
+      page.append(control("Refresh extensions", () => void show("overview")))
     } else if (target === "install") {
-      renderInstall(page, api, button, () => show("overview"), openBrowserUrl)
+      renderInstall(page, api, button, async () => navigate("overview"), openBrowserUrl)
     } else if (target === "detail" && extension) {
       renderDetail(page, api, extension, { button, link, refreshSelected })
     } else if (target === "remove" && extension) {
-      page.append(element("p", `Remove ${extension.name} and its extension data from this device?`),
-        button("Remove extension and data", async () => {
-          await api.command({ action: "remove", id: extension.id })
-          await show("overview")
-        }), link("Keep extension", "detail", extension))
+      renderRemoval(page, api, extension, button, link, () => navigate("overview"))
     }
   }
-  back.addEventListener("click", event => {
-    if (!active() || current === "overview") return
-    event.stopImmediatePropagation()
-    if (!busy) void navigate("overview")
-  }, true)
-  let wasActive = active()
-  new MutationObserver(() => {
-    const now = active()
-    if (now === wasActive) return
-    wasActive = now
-    if (now) void navigate("overview")
-  }).observe(panel, { subtree: true, attributes: true, attributeFilter: ["class"] })
+  registerSettingsOverview(root, () => { void show("overview").catch(error => { status.textContent = String(error) }) })
+  root.addEventListener("once:settings-reveal", event => {
+    if (event.target instanceof Node && supplemental.contains(event.target) && current !== "supplemental") {
+      void show("supplemental")
+    }
+  })
   // Listing starts Gecko, so the row learns its count from the overview's own
   // list call and from change events, never from an eager query at bind.
   void api.onChanged(() => {
@@ -131,9 +134,18 @@ export function bindMobileBrowserExtensionSettings(api: MobileBrowserExtensions,
       return
     }
     if (busy) refreshNeeded = true
-    else void navigate("overview")
+    else void show("overview")
   }).catch(error => { status.textContent = String(error) })
-  if (active()) void navigate("overview")
+  if (active()) void show("overview")
+}
+
+function renderRemoval(page: HTMLElement, api: MobileBrowserExtensions, extension: MobileBrowserExtension,
+  button: PageControls["button"], link: PageControls["link"], done: () => void): void {
+  page.append(element("p", `Remove ${extension.name} and its extension data from this device?`),
+    button("Remove extension and data", async () => {
+      await api.command({ action: "remove", id: extension.id })
+      done()
+    }), link("Keep extension", "detail", extension))
 }
 
 function wrapSupplemental(root: HTMLElement): HTMLElement {

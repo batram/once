@@ -17,6 +17,7 @@ import { FlatSettingsEditors } from "./structured/FlatSettingsEditors"
 import { SourceSettingsEditor } from "./structured/SourceSettingsEditor"
 import { StructuredAddButtons } from "./structured/StructuredAddButtons"
 import { highlightStorySourceTextarea } from "./textareaHighlight"
+import { completeSettingsPage, invalidateSettingsPages, openSettingsPage, registerSettingsOverview } from "./SettingsNavigation"
 
 export { parseFilterRows } from "./structured/filters"
 export {
@@ -67,19 +68,7 @@ export class StructuredSettingsEditors {
    * nothing new is discarded when it runs.
    */
   private openEditor: (() => void) | null = null
-  private resumeEditor: (() => void) | null = null
-  private forwardEditors = new Map<string, () => void>()
-
-  clearForwardNavigation(): void { this.forwardEditors.clear() }
-
-  handleForward(section: string | null): boolean {
-    if (!section || this.detailSections.has(section as Section)) return false
-    const resume = this.forwardEditors.get(section)
-    if (!resume) return false
-    this.forwardEditors.delete(section)
-    resume()
-    return true
-  }
+  private editorVisit = 0
 
   constructor(private options: StructuredSettingsOptions) {
     this.sourceEditor = new SourceSettingsEditor({
@@ -123,6 +112,7 @@ export class StructuredSettingsEditors {
         this.detailSections.add("filters")
         this.updateAddButton("filters")
       },
+      trackEditor: (root, row) => this.trackEditor(root, row),
       listActions: (section) => this.listActions(section),
       renderListStatus: (root, count, noun) =>
         this.renderListStatus(root, count, noun),
@@ -209,6 +199,12 @@ export class StructuredSettingsEditors {
     root.dataset.testid = `${section}-structured-list`
     input.before(root)
     this.roots.set(section, root)
+    registerSettingsOverview(root, () => {
+      this.modes.set(section, "list")
+      this.read(section)
+      this.render(section)
+      this.updateActionVisibility(section)
+    })
     // Every list gets the footer: it is where the desktop reference puts the
     // count ("12 keywords", "3 rules") and the save state. It hides itself in
     // text mode through the .structured_settings[hidden] + … adjacency.
@@ -236,27 +232,40 @@ export class StructuredSettingsEditors {
 
   private toggleMode(section: Section): void {
     const mode = this.modes.get(section) || "list"
+    const editingSource = section === "sources" ? this.sourceEditor.editingSourceId() : null
     if (mode === "text") {
       const textarea = this.textarea(section)
       if (textarea.value !== this.baselines.get(section) &&
           !window.confirm("Discard unsaved text changes and return to the list?")) {
         return
       }
-      textarea.value = this.baselines.get(section) || textarea.value
+      textarea.value = this.baselines.get(section) ?? textarea.value
       textarea.dispatchEvent(new Event("input"))
       this.modes.set(section, "list")
       this.read(section)
       this.render(section)
     } else {
-      this.baselines.set(section, this.textarea(section).value)
-      this.modes.set(section, "text")
+      const root = this.roots.get(section)
+      if (!root) return
+      const baseline = this.textarea(section).value
+      let draft = baseline
+      this.baselines.set(section, baseline)
+      openSettingsPage(root, {
+        key: "text",
+        title: () => `${section === "sources" ? "Story sources" : section === "filters" ? "Keyword filters" : "Redirects"} as text`,
+        show: () => {
+          this.textarea(section).value = draft
+          this.modes.set(section, "text")
+          this.updateActionVisibility(section)
+        },
+        leave: () => { draft = this.textarea(section).value; this.textarea(section).value = this.baselines.get(section) ?? baseline }
+      })
     }
     this.updateActionVisibility(section)
     // Coming from a source's form, land on that source in the text rather
     // than at the top of the JSON.
     if (mode === "list" && section === "sources") {
-      const editing = this.sourceEditor.editingSourceId()
-      if (editing) highlightStorySourceTextarea(editing)
+      if (editingSource) highlightStorySourceTextarea(editingSource)
     }
   }
 
@@ -372,7 +381,7 @@ export class StructuredSettingsEditors {
 
   setErrors(errors: SourceError[]): void {
     this.sourceEditor.setErrors(errors)
-    if (this.modes.get("sources") === "list") this.render("sources")
+    if (this.modes.get("sources") === "list" && !this.detailSections.has("sources")) this.render("sources")
   }
 
   isTextMode(section: Section): boolean {
@@ -457,28 +466,6 @@ export class StructuredSettingsEditors {
   }
 
   /**
-   * Unwind an item/group editor before SettingsPanel closes the whole section.
-   * Mobile's native back handling clicks the same settings back button, so this
-   * covers both the visible header control and the platform back gesture.
-   */
-  handleBack(section: string | null): boolean {
-    if (section !== "sources" && section !== "filters" &&
-        section !== "redirects") {
-      return false
-    }
-    if (!this.detailSections.has(section)) return false
-    const resume = this.resumeEditor
-    this.detailSections.delete(section)
-    this.read(section)
-    this.render(section)
-    if (resume) this.forwardEditors.set(section, resume)
-    this.roots.get(section)?.querySelector<HTMLElement>(
-      ".structured_toolbar button, .structured_row_main"
-    )?.focus()
-    return true
-  }
-
-  /**
    * Close whatever edit surface is open. Each editor registers its own close
    * action, which is that editor's ordinary exit — so this commits or reverts
    * exactly as clicking away from it would, and can never fail and leave two
@@ -490,18 +477,10 @@ export class StructuredSettingsEditors {
     close?.()
   }
 
-  /** Back's first rung: an inline row editor (filters, redirects) closes before anything else. */
-  closeInlineEditor(): boolean {
-    if (!this.openEditor) return false
-    this.closeOpenEditor()
-    return true
-  }
-
   private render(section: Section): void {
     const root = this.roots.get(section)
     if (!root) return
-    this.forwardEditors.delete(section)
-    this.resumeEditor = null
+    completeSettingsPage(root)
     this.preserveDesktopActions(section, root)
     this.detailSections.delete(section)
     // Rebuilding the list destroys any editor inside it, so the registered
@@ -517,6 +496,7 @@ export class StructuredSettingsEditors {
     this.placeDesktopActions(section)
     this.updateAddButton(section)
     this.placePickerStatus(section)
+    invalidateSettingsPages()
   }
 
   private preserveDesktopActions(section: Section, root: HTMLElement): void {
@@ -607,7 +587,6 @@ export class StructuredSettingsEditors {
     }
   ): void {
     const section = root.dataset.structuredSection as Section
-    this.clearForwardNavigation()
     this.detailSections.add(section)
     this.updateAddButton(section)
     this.preserveDesktopActions(section, root)
@@ -641,26 +620,39 @@ export class StructuredSettingsEditors {
     // underlying list changes, where the original row index could mean another rule.
     const host = presentation?.host
     const form = (host || root).querySelector<HTMLElement>(".structured_form")
-    const rowIndex = host?.parentElement ? Array.from(host.parentElement.children).indexOf(host) : -1
+    if (form) this.trackEditor(root, host ?? form, titleText)
+  }
+
+  /** Keep the mounted editor's draft, guarded by the list it was opened from. */
+  private trackEditor(root: HTMLElement, editor: HTMLElement, title = "Edit item"): void {
+    const section = root.dataset.structuredSection as Section
+    const inline = editor.classList.contains("structured_row")
+    const rowIndex = inline && editor.parentElement ? Array.from(editor.parentElement.children).indexOf(editor) : -1
     const baseline = this.textarea(section).value
     const close = this.openEditor
-    const resume = () => {
-      if (!form || this.textarea(section).value !== baseline) return
-      this.detailSections.add(section)
-      this.updateAddButton(section)
-      this.listActions(section)
-      if (host) {
-        const rows = root.querySelector(".structured_rows")
-        const row = rows?.children.item(rowIndex)
-        if (row) row.replaceWith(host)
-        else rows?.append(host)
-      } else root.replaceChildren(form)
-      this.openEditor = close
-      this.resumeEditor = resume
-      if (this.onTouch) this.options.setDetailTitle?.(titleText)
-      form.querySelector<HTMLElement>("input, textarea, select")?.focus({ preventScroll: true })
-    }
-    this.resumeEditor = resume
+    openSettingsPage(root, {
+      key: `editor:${++this.editorVisit}`,
+      title: () => title,
+      valid: () => this.baselines.get(section) === baseline,
+      leave: () => { this.read(section); this.render(section) },
+      show: () => {
+        this.modes.set(section, "list")
+        this.detailSections.add(section)
+        this.updateAddButton(section)
+        this.preserveDesktopActions(section, root)
+        this.listActions(section)
+        if (inline) {
+          const rows = root.querySelector(".structured_rows")
+          const row = rows?.children.item(rowIndex)
+          if (row) row.replaceWith(editor)
+          else rows?.append(editor)
+        } else root.replaceChildren(editor)
+        this.openEditor = close
+        this.updateActionVisibility(section)
+        if (this.onTouch && !inline) this.options.setDetailTitle?.(title)
+        editor.querySelector<HTMLElement>("input, textarea, select")?.focus({ preventScroll: true })
+      }
+    }, true)
   }
 
 }

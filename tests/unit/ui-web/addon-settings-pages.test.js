@@ -4,20 +4,26 @@ const fs = require("node:fs")
 const { parseHTML } = require("linkedom")
 const { bindAddonSettingsPages } = require("../../../packages/ui-web/dist/settings/AddonSettingsPages")
 const { settingsSearchSegments } = require("../../../packages/ui-web/dist/settings/settingsSearch")
-const { subpageBack } = require("../../../packages/ui-web/dist/settings/SettingsNavigation")
+const { SettingsNavigation } = require("../../../packages/ui-web/dist/settings/SettingsNavigation")
 
 test("addon pages isolate settings, preserve drafts, reveal advanced JSON and recover after removal", async () => {
   const { window } = parseHTML(fs.readFileSync("packages/ui-web/public/shell.html", "utf8"))
-  const names = ["document", "HTMLElement", "Element", "MutationObserver", "HTMLInputElement", "HTMLTextAreaElement", "HTMLSelectElement", "CustomEvent", "Event"]
+  const names = ["document", "HTMLElement", "Element", "MutationObserver", "HTMLInputElement", "HTMLTextAreaElement", "HTMLSelectElement", "CustomEvent", "Event", "requestAnimationFrame"]
   const previous = Object.fromEntries(names.map(name => [name, globalThis[name]]))
-  for (const name of names) globalThis[name] = window[name]
+  for (const name of names) globalThis[name] = name === "requestAnimationFrame" ? () => 0 : window[name]
   const settle = () => new Promise(resolve => setImmediate(resolve))
   try {
     const root = document.querySelector("#addon_install_settings")
     const section = document.createElement("section")
     section.className = "settings_section active"
+    section.dataset.settingsSection = "addons"
     root.parentElement.insertBefore(section, root)
     section.append(root)
+    document.querySelector("#left_panel").setAttribute("active_panel", "settings")
+    const navigation = new SettingsNavigation({
+      section: () => "addons", show: () => {}, label: () => "Once Add-ons",
+      back: document.querySelector("#settings_section_back")
+    })
     const imports = document.createElement("div")
     imports.innerHTML = '<div class="settings_actions"><button data-testid="import-addon-zip">ZIP</button></div><p>Package help</p><p role="status"></p><div id="addon_installed"></div><div id="addon_previews"></div>'
     root.prepend(...imports.children)
@@ -45,9 +51,11 @@ test("addon pages isolate settings, preserve drafts, reveal advanced JSON and re
     // The mouse's back button asks the same question: an add-on's page steps to the overview,
     // and only the overview lets the step leave the section.
     first.click()
-    assert.equal(subpageBack(), true)
+    navigation.navigate("back")
     assert.equal(root.querySelector("#addon_overview").hidden, false)
-    assert.equal(subpageBack(), false)
+    navigation.navigate("forward")
+    assert.equal(options.children[0].hidden, false)
+    navigation.navigate("back")
     // A review shows where it was asked for: an update's on the overview, an import's on its page.
     first.click()
     const review = document.createElement("fieldset")

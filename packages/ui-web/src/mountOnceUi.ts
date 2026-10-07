@@ -62,12 +62,6 @@ export interface MountOnceUiOptions {
   scanPairingCode?: () => Promise<string | null>
   sourcePicker?: boolean
   /**
-   * Leaves Settings entirely when the back chevron is pressed on the section
-   * index. Supplying it also keeps that chevron visible there — see
-   * SettingsPanelOptions.exitSettings.
-   */
-  exitSettings?: () => void
-  /**
    * Called with every bound chord whenever the user edits their shortcuts.
    * The Electron shell forwards these to the main process so keys pressed
    * inside a page still reach the shell.
@@ -183,7 +177,6 @@ export async function mountOnceUi(
   if (options.extensionSettings && extensionSettings) extensionSettings.hidden = false
 
   const settingsPanel = new SettingsPanel(client, {
-    exitSettings: options.exitSettings,
     scanPairingCode: options.scanPairingCode
   })
   if (options.sourcePicker === false) {

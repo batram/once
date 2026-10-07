@@ -19,7 +19,7 @@ import { bindSyncSettingsPages } from "./syncSettingsPages"
 import { bindSettingsSubscriptions } from "./settingsSubscriptions"
 import { bindExtensionSettingsEditors, ExtensionSettingsEditors } from "./extensionSettingsEditors"
 import settingsSectionDefinitions from "./settingsSectionDefinitions"
-import { SettingsNavigation, SettingsPanelOptions, subpageBack } from "./SettingsNavigation"
+import { SettingsNavigation, SettingsPanelOptions } from "./SettingsNavigation"
 import { trackSettingsSave } from "./settingsStatus"
 import { bindSyncStatusButton } from "./syncStatusButton"
 
@@ -283,16 +283,14 @@ export class SettingsPanel {
     this.updateSettingsSummaries()
     this.navigation = new SettingsNavigation({
       section: () => this.activeSettingsSection,
-      show: section => section === null ? this.closeSettingsSection() : this.openSettingsSection(section),
+      show: section => section === null ? this.renderSettingsIndex() : this.renderSettingsSection(section),
+      label: section => section === null ? "Settings" : this.settingsSectionButtons.get(section)?.dataset.settingsLabel ?? "Settings",
       back,
-      // The editors' own Back chain keeps drafts (redirect forms) for Forward;
-      // an inline row it does not track (filters) simply closes.
-      backEditor: () => (this.structuredEditors?.handleBack(this.activeSettingsSection) || this.structuredEditors?.closeInlineEditor() ||
-        this.extensionEditors?.handleBack() || subpageBack()) ?? false,
-      showIndex: () => this.showSettingsIndex(),
-      exitSettings: () => this.options.exitSettings?.(),
-      forwardEditor: () => this.structuredEditors?.handleForward(this.activeSettingsSection) ?? false,
-      clearForwardEditors: () => this.structuredEditors?.clearForwardNavigation()
+      resetIndex: () => {
+        search.value = ""
+        this.filterSettingsSections("")
+        requireElement<HTMLElement>("#settings_index").scrollTop = 0
+      }
     })
     if (document.body.dataset.platform !== "mobile") {
       this.openSettingsSection("sources")
@@ -359,7 +357,7 @@ export class SettingsPanel {
     key: string,
     match: SettingsSearchMatch
   ): void {
-    this.openSettingsSection(key)
+    if (this.activeSettingsSection !== key) this.openSettingsSection(key)
     if (!match.controlId && !match.targetId) return
     const { controlId, targetId } = match
     requestAnimationFrame(() => {
@@ -409,7 +407,10 @@ export class SettingsPanel {
   }
 
   private openSettingsSection(key: string): void {
-    this.navigation?.record(key)
+    this.navigation?.open(key)
+  }
+
+  private renderSettingsSection(key: string): void {
     this.activeSettingsSection = key
     this.settingsSectionButtons.forEach((button, buttonKey) => {
       if (buttonKey === key) button.setAttribute("aria-current", "page")
@@ -424,6 +425,7 @@ export class SettingsPanel {
     requireElement("#settings_panel .settings_title").textContent = label || "Settings"
     this.structuredEditors?.setActiveSection(key)
     requestAnimationFrame(() => {
+      if (this.activeSettingsSection !== key) return
       // On touch, focusing a control opens its picker or the keyboard over
       // the section the user just opened. Only a section that is essentially
       // one text field (the sync URL) keeps that shortcut there; the rest
@@ -463,8 +465,7 @@ export class SettingsPanel {
       label || "Settings"
   }
 
-  private closeSettingsSection(): void {
-    this.navigation?.record(null)
+  private renderSettingsIndex(): void {
     const previous = this.activeSettingsSection
     if (previous === "sources" && this.sourcesReloadPending) {
       this.sourcesReloadPending = false
@@ -483,14 +484,6 @@ export class SettingsPanel {
     requireElement("#settings_panel .settings_title").textContent = "Settings"
     this.structuredEditors?.setActiveSection(null)
     if (previous) this.settingsSectionButtons.get(previous)?.focus()
-  }
-
-  private showSettingsIndex(): void {
-    this.closeSettingsSection()
-    const search = requireElement<HTMLInputElement>("#settings_search")
-    search.value = ""
-    this.filterSettingsSections("")
-    requireElement<HTMLElement>("#settings_index").scrollTop = 0
   }
 
   showErrorLog(logId: string): void {

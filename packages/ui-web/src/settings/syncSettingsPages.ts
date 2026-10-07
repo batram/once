@@ -1,5 +1,5 @@
 import { requireClosestElement, requireElement } from "../dom"
-import { SETTINGS_SUBPAGE_BACK } from "./SettingsNavigation"
+import { openSettingsPage, registerSettingsOverview } from "./SettingsNavigation"
 
 /** The pages of Settings › Sync; the overview links to the others. */
 export type SyncPage = "overview" | "tabs" | "pair" | "addons"
@@ -28,10 +28,15 @@ export function bindSyncSettingsPages(root: HTMLElement, onShow: (page: SyncPage
 
   const setHeader = () => {
     if (!active()) return
-    back.textContent = current === "overview" ? "Settings" : "Sync"
     title.textContent = current === "overview" ? "Sync" : pages.get(current)?.dataset.syncTitle ?? "Sync"
   }
-  const show = (target: SyncPage, focus = true) => {
+  const show = (target: SyncPage, focus = true) => openSettingsPage(root, {
+    key: target,
+    title: () => target === "overview" ? "Sync" : pages.get(target)?.dataset.syncTitle ?? "Sync",
+    show: () => render(target, focus),
+    valid: () => pages.has(target)
+  })
+  const render = (target: SyncPage, focus = true) => {
     if (!pages.has(target)) return
     if (current === "overview" && target !== "overview") {
       returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -52,23 +57,6 @@ export function bindSyncSettingsPages(root: HTMLElement, onShow: (page: SyncPage
   for (const link of root.querySelectorAll<HTMLButtonElement>("[data-sync-target]")) {
     link.addEventListener("click", () => show(link.dataset.syncTarget as SyncPage))
   }
-  back.addEventListener("click", (event) => {
-    if (!active() || current === "overview") return
-    event.stopImmediatePropagation()
-    show("overview")
-  }, true)
-  // The mouse's back button and other Back steps that do not go through the header.
-  document.addEventListener(SETTINGS_SUBPAGE_BACK, (event) => {
-    if (!active() || current === "overview") return
-    event.preventDefault()
-    show("overview")
-  })
-  root.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape" || current === "overview" ||
-        (event.target instanceof Element && event.target.matches("input,textarea,select"))) return
-    event.stopPropagation()
-    show("overview")
-  })
   // Search results and deep links can point into a page that is not showing.
   root.addEventListener("once:settings-reveal", (event) => {
     const target = event.target instanceof HTMLElement ? event.target : null
@@ -83,8 +71,8 @@ export function bindSyncSettingsPages(root: HTMLElement, onShow: (page: SyncPage
     const isActive = active()
     if (isActive === wasActive) return
     wasActive = isActive
-    if (!isActive) { show("overview", false); back.textContent = "Settings" }
-    else setHeader()
+    if (isActive) setHeader()
   }).observe(header, { attributes: true, subtree: true, attributeFilter: ["class"] })
-  show("overview", false)
+  registerSettingsOverview(root, () => render("overview", false))
+  render("overview", false)
 }

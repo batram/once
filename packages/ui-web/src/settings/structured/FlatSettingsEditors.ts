@@ -21,6 +21,7 @@ export interface FlatSettingsHost {
   closeOpenEditor(): void
   setOpenEditor(close: (() => void) | null): void
   enterFilterDetail(): void
+  trackEditor(root: HTMLElement, row: HTMLElement): void
   listActions(section: "filters" | "redirects"): HTMLElement | null
   renderListStatus(root: HTMLElement, count: number, noun: string): void
   render(section: "filters" | "redirects"): void
@@ -225,6 +226,7 @@ export class FlatSettingsEditors {
     input.focus({ preventScroll: true })
     input.select()
     if (isNew) this.revealEditor(row)
+    this.host.trackEditor(root, row)
   }
 
   renderRedirects(root: HTMLElement): void {

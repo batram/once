@@ -192,6 +192,7 @@ test("flat settings editor renders and saves filter edits through its host", () 
     const host = {
       onTouch: () => false,
       closeOpenEditor: () => openEditor?.(),
+      trackEditor: () => {},
       setOpenEditor: (close) => {
         openEditor = close
       },
@@ -240,6 +241,7 @@ test("flat settings editor preserves malformed redirect rows", () => {
       onTouch: () => false,
       closeOpenEditor: () => {},
       setOpenEditor: () => {},
+      trackEditor: () => {},
       enterFilterDetail: () => {},
       listActions: () => null,
       renderListStatus: () => {},

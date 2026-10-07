@@ -2,12 +2,12 @@ const test = require("node:test")
 const assert = require("node:assert/strict")
 const { parseHTML } = require("linkedom")
 const { StoryHistory } = require("../../../packages/ui-web/dist/story/StoryHistory")
-const { SettingsNavigation } = require("../../../packages/ui-web/dist/settings/SettingsNavigation")
+const { SettingsNavigation, openSettingsPage, registerSettingsOverview, invalidateSettingsPages, completeSettingsPage } = require("../../../packages/ui-web/dist/settings/SettingsNavigation")
 const { open_panel } = require("../../../packages/ui-web/dist/shell/panelNavigation")
 
 function withDom(run) {
   const { window } = parseHTML('<html><body><main id="left_panel" active_panel="settings"><div id="settings_panel"><span class="settings_title"></span><button id="settings_section_back"></button><section class="settings_section" data-settings-section="sources"></section><section class="settings_section" data-settings-section="filters"></section></div></main></body></html>')
-  const names = ["window", "document", "CustomEvent", "HTMLElement", "requestAnimationFrame"]
+  const names = ["window", "document", "CustomEvent", "HTMLElement", "Element", "requestAnimationFrame"]
   const previous = names.map(name => globalThis[name])
   for (const name of names) globalThis[name] = name === "requestAnimationFrame" ? () => 0 : window[name]
   try { run(window) } finally {
@@ -92,19 +92,15 @@ test("undoable changes list the latest change per story and undo only the picked
 test("settings section history supports back, forward, boundaries and branching", () => {
   withDom(() => {
     let section = null
-    const show = next => { navigation.record(next); section = next }
+    const show = next => { section = next }
     const navigation = new SettingsNavigation({
       section: () => section,
       show,
       back: document.querySelector("#settings_section_back"),
-      backEditor: () => false,
-      showIndex: () => show(null),
-      exitSettings: () => {},
-      forwardEditor: () => false,
-      clearForwardEditors: () => {}
+      label: next => next ?? "Settings"
     })
-    show("sources")
-    show("filters")
+    navigation.open("sources")
+    navigation.open("filters")
     navigation.navigate("back")
     assert.equal(section, "sources")
     navigation.navigate("back")
@@ -120,18 +116,80 @@ test("settings section history supports back, forward, boundaries and branching"
     navigation.navigate("forward")
     assert.equal(section, "filters")
     navigation.navigate("back")
-    show(null)
+    navigation.open(null)
     navigation.navigate("forward")
     assert.equal(section, null)
     navigation.navigate("back")
-    document.querySelector("#settings_panel").classList.add("settings_form_open")
     navigation.navigate("forward")
-    assert.equal(section, "sources")
-    document.querySelector("#settings_panel").classList.remove("settings_form_open")
+    assert.equal(section, null)
     open_panel("stories")
-    show(null)
+    navigation.open(null)
     open_panel("settings")
     navigation.navigate("back")
     assert.equal(document.querySelector("#left_panel").getAttribute("active_panel"), "stories")
+  })
+})
+
+test("one history replays nested pages across sections through header and native steps", () => {
+  withDom(window => {
+    let section = null
+    let visible = "index"
+    const back = document.querySelector("#settings_section_back")
+    const navigation = new SettingsNavigation({
+      section: () => section,
+      show: next => { section = next; visible = next ?? "index" },
+      label: next => next ?? "Settings", back
+    })
+    const sources = document.querySelector('[data-settings-section="sources"]')
+    const filters = document.querySelector('[data-settings-section="filters"]')
+    registerSettingsOverview(sources, () => { visible = "sources" })
+    registerSettingsOverview(filters, () => { visible = "filters" })
+    const visit = (root, key) => openSettingsPage(root, { key, title: () => key, show: () => { visible = key } })
+    navigation.open("sources")
+    visit(sources, "source")
+    visit(sources, "source options")
+    navigation.open("filters")
+    visit(filters, "filter")
+    for (const expected of ["filters", "source options", "source", "sources", "index"]) {
+      back.click()
+      assert.equal(visible, expected)
+    }
+    for (const expected of ["sources", "source", "source options", "filters", "filter"]) {
+      const event = new window.CustomEvent("once-settings-navigate", { cancelable: true, detail: { direction: "forward" } })
+      document.dispatchEvent(event)
+      assert.equal(event.defaultPrevented, true)
+      assert.equal(visible, expected)
+    }
+    navigation.navigate("back")
+    visit(filters, "another filter")
+    navigation.navigate("forward")
+    assert.equal(visible, "another filter", "a new page drops the old forward branch")
+  })
+})
+
+test("deleted pages and completed drafts cannot replay, while history traversal retains drafts", () => {
+  withDom(() => {
+    let section = "sources", visible = "sources", exists = true, draft = "unsaved"
+    const root = document.querySelector('[data-settings-section="sources"]')
+    const navigation = new SettingsNavigation({
+      section: () => section, show: next => { section = next; visible = next }, label: next => next ?? "Settings",
+      back: document.querySelector("#settings_section_back")
+    })
+    registerSettingsOverview(root, () => { visible = "sources" })
+    openSettingsPage(root, { key: "draft", title: () => "Draft", valid: () => exists, show: () => { visible = draft } })
+    navigation.navigate("back")
+    navigation.navigate("forward")
+    assert.equal(visible, "unsaved")
+    navigation.navigate("back")
+    exists = false
+    invalidateSettingsPages()
+    navigation.navigate("forward")
+    assert.equal(visible, "sources")
+    openSettingsPage(root, { key: "new draft", title: () => "Draft", show: () => { visible = draft } })
+    completeSettingsPage(root)
+    visible = "sources"
+    draft = "discarded"
+    navigation.navigate("forward")
+    assert.equal(visible, "sources")
   })
 })

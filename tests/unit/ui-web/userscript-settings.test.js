@@ -3,6 +3,7 @@ const assert = require("node:assert/strict")
 const fs = require("node:fs")
 const { parseHTML } = require("linkedom")
 const { bindUserscriptSettings, userscriptSiteLabel } = require("../../../packages/ui-web/dist/settings/userscriptSettings")
+const { SettingsNavigation } = require("../../../packages/ui-web/dist/settings/SettingsNavigation")
 
 const script = (name, extra = "") => `// ==UserScript==
 // @name ${name}
@@ -26,17 +27,25 @@ function fakeClient(scripts) {
 
 function mountShell() {
   const { window } = parseHTML(fs.readFileSync("packages/ui-web/public/shell.html", "utf8"))
-  const names = ["document", "HTMLElement", "Element", "MutationObserver", "HTMLInputElement", "HTMLTextAreaElement", "CustomEvent", "Event", "CSS"]
+  const names = ["document", "HTMLElement", "Element", "MutationObserver", "HTMLInputElement", "HTMLTextAreaElement", "CustomEvent", "Event", "CSS", "requestAnimationFrame"]
   const previous = Object.fromEntries(names.map(name => [name, globalThis[name]]))
-  for (const name of names) globalThis[name] = window[name]
+  for (const name of names) globalThis[name] = name === "requestAnimationFrame" ? () => 0 : window[name]
   globalThis.CSS ??= { escape: value => value }
   const settings = document.querySelector("#extension_settings")
   settings.hidden = false
   const section = document.createElement("section")
   section.className = "settings_section active"
+  section.dataset.settingsSection = "extensions"
   settings.parentElement.insertBefore(section, settings)
   section.append(settings)
-  return () => { for (const name of names) globalThis[name] = previous[name] }
+  document.querySelector("#left_panel").setAttribute("active_panel", "settings")
+  const navigation = new SettingsNavigation({
+    section: () => "extensions", show: () => {}, label: () => "Userscripts",
+    back: document.querySelector("#settings_section_back")
+  })
+  const restore = () => { for (const name of names) globalThis[name] = previous[name] }
+  restore.navigation = navigation
+  return restore
 }
 
 const settle = () => new Promise(resolve => setImmediate(resolve))
@@ -113,7 +122,6 @@ test("userscripts list each script, switch one alone, and edit it on its own pag
     // Back leaves the page for the list.
     document.querySelector("#settings_section_back").click()
     assert.equal(root.dataset.page, "list")
-    assert.equal(view.handleBack(), false)
   } finally {
     restore()
   }
@@ -137,4 +145,49 @@ test("a new userscript starts from a template and adds to the end", async () => 
   } finally {
     restore()
   }
+})
+
+test("Back and Forward retain an unsaved userscript without saving or prompting", async () => {
+  const restore = mountShell()
+  try {
+    const client = fakeClient([{ id: "a", name: "Alpha", source: script("Alpha"), enabled: true }])
+    const root = document.querySelector("#userscripts_settings")
+    bindUserscriptSettings(client, root, document.querySelector("#userscripts_bulk"), () => {})
+    await settle()
+    root.querySelector(".userscript_row_main").click()
+    const textarea = root.querySelector('[data-testid="userscript-source"]')
+    textarea.value += "\n// unfinished"
+    for (let cycle = 0; cycle < 3; cycle++) {
+      restore.navigation.navigate("back")
+      assert.equal(root.dataset.page, "list")
+      restore.navigation.navigate("forward")
+      assert.equal(root.dataset.page, "script")
+      assert.equal(root.querySelector('[data-testid="userscript-source"]') === textarea, true)
+      assert.match(textarea.value, /unfinished/)
+    }
+    assert.equal(client.saves.length, 0)
+    assert.equal(document.querySelector("dialog"), null)
+  } finally { restore() }
+})
+
+test("deleting a userscript elsewhere keeps its unsaved draft available for review", async () => {
+  const restore = mountShell()
+  try {
+    const client = fakeClient([{ id: "a", name: "Alpha", source: script("Alpha"), enabled: true }])
+    const root = document.querySelector("#userscripts_settings")
+    const view = bindUserscriptSettings(client, root, document.querySelector("#userscripts_bulk"), () => {})
+    await settle()
+    root.querySelector(".userscript_row_main").click()
+    const textarea = root.querySelector('[data-testid="userscript-source"]')
+    textarea.value += "\n// unfinished"
+    client.replace({ version: 1, scripts: [] })
+    view.refresh()
+    await settle()
+    assert.equal(root.dataset.page, "script")
+    assert.equal(root.querySelector(".userscript_notice").hidden, false)
+    restore.navigation.navigate("back")
+    restore.navigation.navigate("forward")
+    assert.equal(root.querySelector('[data-testid="userscript-source"]') === textarea, true)
+    assert.match(textarea.value, /unfinished/)
+  } finally { restore() }
 })

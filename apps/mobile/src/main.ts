@@ -313,9 +313,7 @@ async function startMobileApp(): Promise<void> {
     extensionSettings: Capacitor.isNativePlatform() || __ONCE_MOBILE_E2E__,
     initialStoryLoad: __ONCE_MOBILE_E2E__ ? "disabled" : "cache",
     backgroundInitialStoryLoad: true,
-    // Settings participates in the same back stack as the hardware key, so the
-    // chevron stays live on the section index and leaves the panel from there.
-    exitSettings: () => void reading.handleBack(), scanPairingCode: setUpPairing()
+    scanPairingCode: setUpPairing()
   })
   const browserExtensions = createMobileBrowserExtensions()
   if (browserExtensions) {

@@ -4,14 +4,24 @@ const fs = require("node:fs")
 const path = require("node:path")
 const ts = require("typescript")
 const { parseHTML } = require("linkedom")
+const navigationApi = require("../../../packages/ui-web/dist/settings/SettingsNavigation")
 
 const settle = () => new Promise(resolve => setImmediate(resolve))
 
 function harness(command, active = true, platform = "android") {
-  const { window, document } = parseHTML(`<html><body><div id="settings_panel">
+  const { window, document } = parseHTML(`<html><body><main id="left_panel" active_panel="settings"><div id="stories_panel"></div><div id="settings_panel">
     <button id="settings_section_back">Settings</button><h2 class="settings_title"></h2>
-    <div class="settings_section ${active ? "active" : ""}"><div id="extension_settings"><p id="supplemental">Filters</p></div></div>
-    </div></body></html>`)
+    <div class="settings_section ${active ? "active" : ""}" data-settings-section="extensions"><div id="extension_settings"><p id="supplemental">Filters</p></div></div>
+    </div></main></body></html>`)
+  for (const name of ["document", "Node", "Element", "HTMLElement", "CustomEvent"]) globalThis[name] = window[name]
+  globalThis.requestAnimationFrame = () => 0
+  let section = active ? "extensions" : null
+  const navigation = new navigationApi.SettingsNavigation({
+    section: () => section,
+    show: next => { section = next; document.querySelector(".settings_section").classList.toggle("active", next === "extensions") },
+    label: next => next === "extensions" ? "Browser Extensions" : "Settings",
+    back: document.querySelector("#settings_section_back")
+  })
   const compiled = ts.transpileModule(fs.readFileSync(path.resolve(__dirname,
     "../../../apps/mobile/src/browserExtensionSettings.ts"), "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
@@ -28,12 +38,13 @@ function harness(command, active = true, platform = "android") {
     assert.equal(name, "@once/ui-web")
     const paragraph = (text, className = "") => Object.assign(document.createElement("p"), { textContent: text, className })
     return {
+      ...navigationApi,
       reportInstalledExtensions: (installed, enabled) => reports.push({ installed, enabled }),
       // The line and its help tip's text, as the real one appends them.
       explained: (short, more) => [paragraph(short, "settings_description"), paragraph(more)]
     }
   }
-  Function("exports", "require", "document", "MutationObserver", compiled)(exports, require, document, Observer)
+  Function("exports", "require", "document", "MutationObserver", "Node", compiled)(exports, require, document, Observer, window.Node)
   const openedUrls = []
   exports.bindMobileBrowserExtensionSettings({ command, platform, onChanged: async () => () => {} }, url => openedUrls.push(url))
   const click = text => {
@@ -42,7 +53,7 @@ function harness(command, active = true, platform = "android") {
     button.click()
     return settle()
   }
-  return { document, click, reports, openedUrls }
+  return { document, click, reports, openedUrls, navigation }
 }
 
 test("Firefox Add-ons catalog opens in the mobile reading view", async () => {
@@ -73,7 +84,7 @@ test("Hidden extension settings do not start Gecko until opened", async () => {
   const ui = harness(async command => { calls.push(command); return { extensions: [] } }, false)
   await settle()
   assert.deepEqual(calls, [])
-  ui.document.querySelector(".settings_section").classList.add("active")
+  ui.navigation.open("extensions")
   await settle()
   assert.deepEqual(calls, [{ action: "list" }])
   await ui.click("Install extension")
@@ -141,4 +152,29 @@ test("Android install errors remain visible and file cancellation preserves the 
   await ui.click("Browser Extensions")
   await ui.click("Filter lists & userscripts")
   assert.equal(ui.document.querySelector("#supplemental").parentElement.hidden, false)
+})
+
+test("mobile extension subpages and install drafts share Back and Forward history", async () => {
+  const ui = harness(async () => ({ extensions: [{ id: "dark", name: "Dark", description: "Colors", version: "1", enabled: true,
+    bundled: false, hasOptions: true, hasAction: false, permissions: [] }] }))
+  await settle()
+  await ui.click("Install extension")
+  const input = ui.document.querySelector("#mobile-extension-source")
+  input.value = "https://example.test/unfinished"
+  ui.navigation.navigate("back")
+  await settle()
+  ui.navigation.navigate("forward")
+  await settle()
+  assert.equal(ui.document.querySelector("#mobile-extension-source") === input, true)
+  assert.equal(input.value, "https://example.test/unfinished")
+  ui.navigation.navigate("back")
+  await settle()
+  await ui.click("Manage Dark")
+  await ui.click("Remove extension…")
+  ui.navigation.navigate("back")
+  await settle()
+  assert.ok([...ui.document.querySelectorAll("button")].some(button => button.textContent === "Disable extension"))
+  ui.navigation.navigate("forward")
+  await settle()
+  assert.ok([...ui.document.querySelectorAll("button")].some(button => button.textContent === "Remove extension and data"))
 })

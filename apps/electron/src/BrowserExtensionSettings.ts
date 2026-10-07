@@ -1,6 +1,6 @@
 import { OnceClient } from "@once/app"
 import { ElectronBridge, ElectronManagedExtension } from "@once/platform-electron/bridge"
-import { explained, reportInstalledExtensions } from "@once/ui-web"
+import { explained, invalidateSettingsPages, openSettingsPage, registerSettingsOverview, reportInstalledExtensions } from "@once/ui-web"
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, text = "", className = ""): HTMLElementTagNameMap[K] {
   const result = document.createElement(tag)
@@ -37,9 +37,8 @@ function permissionList(item: ExtensionSummary): HTMLElement[] {
 export function bindBrowserExtensionSettings(client: OnceClient, bridge: ElectronBridge): void {
   const root = document.querySelector<HTMLElement>("#extension_settings")
   const panel = document.querySelector<HTMLElement>("#settings_panel")
-  const back = panel?.querySelector<HTMLButtonElement>("#settings_section_back")
   const title = panel?.querySelector<HTMLElement>(".settings_title")
-  if (!root || !panel || !back || !title) throw new Error("Browser extension settings elements are missing")
+  if (!root || !panel || !title) throw new Error("Browser extension settings elements are missing")
   const supplemental = element("div")
   supplemental.append(...Array.from(root.children))
   const page = element("div", "", "browser_extension_page")
@@ -50,12 +49,12 @@ export function bindBrowserExtensionSettings(client: OnceClient, bridge: Electro
   let extension: ElectronManagedExtension | undefined
   let generation = 0
   let busy = false
+  const installed = new Map<string, ElectronManagedExtension>()
   const active = () => root.closest(".settings_section")?.classList.contains("active") === true
   const header = () => {
     if (!active()) return
     title.textContent = current === "overview" ? "Browser Extensions" : current === "install" ? "Install extension" :
       current === "supplemental" ? "Filter lists & userscripts" : current === "sync" ? `${extension?.name} · Sync` : extension?.name ?? "Extension"
-    back.textContent = current === "overview" ? "Settings" : current === "sync" ? extension?.name ?? "Extension" : "Browser Extensions"
   }
   const run = async (work: () => Promise<void>) => {
     if (busy) return
@@ -66,13 +65,16 @@ export function bindBrowserExtensionSettings(client: OnceClient, bridge: Electro
     catch (error) { status.textContent = error instanceof Error ? error.message : String(error) }
     finally { busy = false; root.removeAttribute("aria-busy") }
   }
-  const button = (label: string, work: () => Promise<void>) => {
+  const button = (label: string, work: () => Promise<void>, navigation = false) => {
     const control = element("button", label, "button")
     control.type = "button"
-    control.addEventListener("click", () => void run(work))
+    control.addEventListener("click", () => {
+      if (navigation) void work().catch(error => { status.textContent = String(error) })
+      else void run(work)
+    })
     return control
   }
-  const show = async (target: string, selected = extension): Promise<void> => {
+  const render = async (target: string, selected = extension): Promise<void> => {
     const ticket = ++generation
     current = target
     extension = selected
@@ -80,36 +82,62 @@ export function bindBrowserExtensionSettings(client: OnceClient, bridge: Electro
     supplemental.hidden = target !== "supplemental"
     page.hidden = target === "supplemental"
     header()
-    await renderExtensionPage({ target, selected, page, bridge, client, button, show, isCurrent: () => ticket === generation })
+    await renderExtensionPage({ target, selected, page, bridge, client, button, show,
+      link: (label, target, selected) => button(label, () => show(target, selected), true),
+      isCurrent: () => ticket === generation || (current === target && extension?.id === selected?.id) })
   }
-
-  back.addEventListener("click", event => {
-    if (!active() || current === "overview") return
-    event.stopImmediatePropagation()
-    void run(() => show(current === "sync" ? "detail" : "overview"))
-  }, true)
-  root.addEventListener("keydown", event => {
-    if (event.key !== "Escape" || current === "overview" || (event.target instanceof Element && event.target.matches("input,textarea,select"))) return
-    event.stopPropagation()
-    void run(() => show(current === "sync" ? "detail" : "overview"))
+  const show = async (target: string, selected = extension): Promise<void> => {
+    // Commands can refresh their current view without adding another visit.
+    if (current === target && selected?.id === extension?.id && target !== "supplemental") {
+      await render(target, selected)
+      return
+    }
+    let draft: Node[] | null = null
+    let pending = Promise.resolve()
+    openSettingsPage(root, {
+      key: selected && ["detail", "sync"].includes(target) ? `${target}:${selected.id}` : target,
+      title: () => target === "overview" ? "Browser Extensions" : target === "install" ? "Install extension" :
+        target === "supplemental" ? "Filter lists & userscripts" : target === "sync" ? `${selected?.name} · Sync` : selected?.name ?? "Extension",
+      valid: () => !selected || !["detail", "sync"].includes(target) || installed.has(selected.id),
+      leave: () => { if (["install", "sync"].includes(target)) draft = Array.from(page.childNodes) },
+      show: () => {
+        if (draft) {
+          ++generation
+          current = target
+          extension = selected
+          page.replaceChildren(...draft)
+          page.hidden = false
+          supplemental.hidden = true
+          header()
+        } else pending = render(target, installed.get(selected?.id ?? "") ?? selected)
+          .catch(error => { status.textContent = String(error) })
+      }
+    })
+    await pending
+  }
+  registerSettingsOverview(root, () => { void render("overview").catch(error => { status.textContent = String(error) }) })
+  root.addEventListener("once:settings-reveal", event => {
+    if (event.target instanceof Node && supplemental.contains(event.target) && current !== "supplemental") void render("supplemental")
   })
-  let wasActive = false
-  new MutationObserver(() => {
-    const now = active()
-    if (now === wasActive) return
-    wasActive = now
-    if (now) void run(() => show("overview"))
-  }).observe(panel, { subtree: true, attributes: true, attributeFilter: ["class"] })
   // The settings row summarises what is installed whether or not this section
   // is open, so the count is reported on every change, not only when rendering.
-  const report = () => bridge.extensions.installed().then(installed =>
-    reportInstalledExtensions(installed.length, installed.filter(item => item.running).length)
-  ).catch(() => undefined)
+  const report = () => bridge.extensions.installed().then(items => {
+    installed.clear()
+    for (const item of items) installed.set(item.id, item)
+    reportInstalledExtensions(items.length, items.filter(item => item.running).length)
+    invalidateSettingsPages()
+  }).catch(() => undefined)
   bridge.extensions.onInstalledChanged(() => {
     void report()
-    if (active() && current === "overview" && !busy) void run(() => show("overview"))
+    if (active() && current === "overview" && !busy) void run(() => render("overview"))
   })
   void report()
+  bindBrowserExtensionSync(client, bridge, status)
+  void render("overview").catch(error => { status.textContent = String(error) })
+}
+
+/** Settings synchronization does not participate in navigation or its busy state. */
+function bindBrowserExtensionSync(client: OnceClient, bridge: ElectronBridge, status: HTMLElement): void {
   let exchange = Promise.resolve()
   const apply = () => {
     exchange = exchange.then(async () => bridge.extensions.applySync(await client.getBrowserExtensionSync())).catch(error => { status.textContent = `Extension sync failed: ${error}` })
@@ -134,7 +162,6 @@ export function bindBrowserExtensionSettings(client: OnceClient, bridge: Electro
     })).catch(error => { status.textContent = `Could not save extension sync: ${error}` })
   })
   apply()
-  void run(() => show("overview"))
 }
 
 interface PageContext {
@@ -145,6 +172,7 @@ interface PageContext {
   client: OnceClient
   button(label: string, work: () => Promise<void>): HTMLButtonElement
   show(target: string, selected?: ElectronManagedExtension): Promise<void>
+  link(label: string, target: string, selected?: ElectronManagedExtension): HTMLButtonElement
   isCurrent(): boolean
 }
 
@@ -195,17 +223,17 @@ function renderInstallPage({ page, bridge, button, show, isCurrent }: PageContex
   page.append(actions, catalog, element("p", "Extensions can read and change pages within their requested access. Review the source and permissions before installing.", "settings_description"), review)
 }
 
-async function renderExtensionPage({ target, selected, page, bridge, client, button, show, isCurrent }: PageContext): Promise<void> {
+async function renderExtensionPage({ target, selected, page, bridge, client, button, link, show, isCurrent }: PageContext): Promise<void> {
   if (target === "overview") {
     page.append(...explained("Install Firefox extensions for pages opened in Once.", "Installation and enabled state belong to this device."))
     const actions = element("div", "", "settings_actions cluster")
-    actions.append(button("Install extension", () => show("install")), button("Filter lists & userscripts", () => show("supplemental")))
+    actions.append(link("Install extension", "install"), link("Filter lists & userscripts", "supplemental"))
     page.append(actions)
     const installed = await bridge.extensions.installed()
     if (!isCurrent()) return
     page.append(element("h4", `Your extensions (${installed.length})`, "settings_group_title"))
     for (const item of installed) {
-      const row = button("", () => show("detail", item))
+      const row = link("", "detail", item)
       row.className = "browser_extension_row"
       row.setAttribute("aria-label", `Manage ${item.name}`)
       row.append(extensionHeading(item), element("span", item.description, "addon_list_description"),
@@ -213,7 +241,7 @@ async function renderExtensionPage({ target, selected, page, bridge, client, but
       page.append(row)
     }
   } else if (target === "install") {
-    renderInstallPage({ target, selected, page, bridge, client, button, show, isCurrent })
+    renderInstallPage({ target, selected, page, bridge, client, button, link, show, isCurrent })
   } else if (target === "detail" && selected) {
     const heading = element("h4")
     heading.append(extensionHeading(selected, `${selected.name} ${selected.version}`))
@@ -229,7 +257,7 @@ async function renderExtensionPage({ target, selected, page, bridge, client, but
       options.disabled = !selected.running
       actions.append(options)
     }
-    const sync = button("Choose settings to sync", () => show("sync", selected))
+    const sync = link("Choose settings to sync", "sync", selected)
     sync.disabled = !selected.running
     actions.append(sync)
     if (!selected.bundled) actions.append(button("Remove extension", async () => {

@@ -88,6 +88,34 @@ presentation, and platform sheets own platform behavior through a cascade layer
 rather than through selector specificity. See
 [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md).
 
+## Settings navigation
+
+`SettingsNavigation` owns one session history of settings locations: the index,
+a section overview, or a page within a section. Header Back, mouse Back/Forward,
+Escape outside an input, and mobile native Back/Forward traverse that same
+history. A new visit after Back clears the Forward branch. Back at the entry
+boundary returns to the shell panel Settings was opened from; Forward restores
+Settings before replaying its later visits. Selecting another shell panel
+directly ends that return path.
+
+Views register an overview renderer and open pages with `openSettingsPage`.
+Each page supplies its identity, title, renderer, and optional draft-detachment
+and validity callbacks. This includes structured source/group/filter/redirect
+editors, their text mode, add-on pages, sync pages, userscripts, and desktop and
+mobile browser-extension management. Views do not intercept the shared Back
+button or maintain their own Back/Forward stacks.
+
+Back retains unfinished drafts without saving or prompting. Forward reattaches
+the original editor where possible, and history restores focus and scroll.
+Save or Cancel calls `completeSettingsPage` to retire the draft. Deleted items
+and structured drafts whose underlying list changed are pruned rather than
+replayed against a different row. Search and deep links enter pages through the
+same history, while focusing a match in the current editor keeps that editor.
+An unsaved userscript deleted elsewhere stays available with its conflict
+notice, so navigation does not discard the user's work.
+Disclosure groups, switches, modal confirmations, and shortcut capture are
+interaction state within a location, rather than separate navigation visits.
+
 ## Feature boundaries
 
 Package boundaries prevent invalid dependency directions; feature boundaries

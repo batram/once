@@ -13,6 +13,7 @@ import {
 import { showConfirmDialog } from "../confirmDialog"
 import { requireElement } from "../dom"
 import { explained } from "../helpTip"
+import { completeSettingsPage, invalidateSettingsPages, openSettingsPage, registerSettingsOverview } from "./SettingsNavigation"
 
 /**
  * The userscripts group: a list with one row per script, each with its own
@@ -23,8 +24,6 @@ import { explained } from "../helpTip"
 export interface UserscriptSettings {
   /** Re-reads the document after a change made elsewhere. */
   refresh(): void
-  /** Steps back out of a script page; false when the list is already showing. */
-  handleBack(): boolean
 }
 
 type Page = { kind: "list" } | { kind: "script"; id: string } | { kind: "new" } | { kind: "bulk" }
@@ -183,7 +182,7 @@ class UserscriptSettingsView implements UserscriptSettings {
   private doc: UserscriptsDocument = emptyUserscriptsDocument()
   private page: Page = { kind: "list" }
   private returnFocus: HTMLElement | null = null
-  private savedHeader: { title: string; back: string } | null = null
+  private savedTitle: string | null = null
   private draft: Draft | null = null
   // Writes go one at a time, each against the latest document, so two quick
   // toggles never race each other back to an older list.
@@ -202,8 +201,8 @@ class UserscriptSettingsView implements UserscriptSettings {
     bulk.hidden = false
     requireElement<HTMLElement>("h3", bulk).tabIndex = -1
     root.append(this.list, this.detail, this.bulkPage)
-    this.bindNavigation()
-    this.show({ kind: "list" })
+    registerSettingsOverview(root, () => this.renderPage({ kind: "list" }))
+    this.renderPage({ kind: "list" })
     this.refresh()
   }
 
@@ -214,12 +213,6 @@ class UserscriptSettingsView implements UserscriptSettings {
     }).catch((error: unknown) => this.report(String(error), "failed"))
   }
 
-  handleBack(): boolean {
-    if (!this.active() || this.page.kind === "list" || this.root.closest("[hidden]")) return false
-    void this.leave()
-    return true
-  }
-
   private active(): boolean {
     return this.root.closest(".settings_section")?.classList.contains("active") === true
   }
@@ -228,37 +221,9 @@ class UserscriptSettingsView implements UserscriptSettings {
     return this.draft !== null && this.draft.textarea.value !== this.draft.loaded
   }
 
-  private header(): { title: HTMLElement | null; back: HTMLButtonElement | null } {
+  private header(): HTMLElement | null {
     const panel = this.root.closest<HTMLElement>("#settings_panel")
-    return {
-      title: panel?.querySelector<HTMLElement>(".settings_title") ?? null,
-      back: panel?.querySelector<HTMLButtonElement>("#settings_section_back") ?? null
-    }
-  }
-
-  private bindNavigation(): void {
-    // Ahead of the shells' own Back handlers, which would otherwise leave the
-    // whole page, script and all.
-    this.header().back?.addEventListener("click", (event) => {
-      if (this.handleBack()) event.stopImmediatePropagation()
-    }, true)
-    this.root.addEventListener("keydown", (event) => {
-      if (event.key !== "Escape" || this.page.kind === "list") return
-      if (event.target instanceof Element && event.target.matches("textarea")) return
-      event.stopPropagation()
-      void this.leave()
-    })
-    const panel = this.root.closest<HTMLElement>("#settings_panel")
-    if (!panel) return
-    let wasActive = this.active()
-    new MutationObserver(() => {
-      const now = this.active()
-      if (now === wasActive) return
-      wasActive = now
-      if (now) return
-      this.savedHeader = null
-      if (!this.dirty()) this.show({ kind: "list" })
-    }).observe(panel, { subtree: true, attributes: true, attributeFilter: ["class"] })
+    return panel?.querySelector<HTMLElement>(".settings_title") ?? null
   }
 
   private report(text: string, state?: "saving" | "saved" | "failed"): void {
@@ -291,6 +256,7 @@ class UserscriptSettingsView implements UserscriptSettings {
     if (this.page.kind === "script" || this.page.kind === "new") this.renderOpenScript(this.page)
     this.placeStatus()
     this.onChanged()
+    invalidateSettingsPages()
   }
 
   private renderOpenScript(page: Page & { kind: "script" | "new" }): void {
@@ -436,11 +402,8 @@ class UserscriptSettingsView implements UserscriptSettings {
     } catch {
       return
     }
-    this.page = { kind: "script", id: savedId }
-    this.root.dataset.page = "script"
-    this.draft = null
-    this.render()
-    this.setHeader()
+    completeSettingsPage(this.root)
+    this.show({ kind: "script", id: savedId })
   }
 
   private async deleteScript(script: UserscriptEntry): Promise<void> {
@@ -485,23 +448,44 @@ class UserscriptSettingsView implements UserscriptSettings {
 
   private setHeader(): void {
     if (!this.active()) return
-    const { title, back } = this.header()
-    if (!title || !back) return
+    const title = this.header()
+    if (!title) return
     const page = this.page
     if (page.kind === "list") {
-      if (!this.savedHeader) return
-      title.textContent = this.savedHeader.title
-      back.textContent = this.savedHeader.back
-      this.savedHeader = null
+      if (this.savedTitle === null) return
+      title.textContent = this.savedTitle
+      this.savedTitle = null
       return
     }
-    this.savedHeader ??= { title: title.textContent ?? "", back: back.textContent ?? "" }
+    this.savedTitle ??= title.textContent ?? ""
     title.textContent = page.kind === "bulk" ? "All userscripts" : page.kind === "new" ? "New userscript" :
       this.doc.scripts.find((script) => script.id === page.id)?.name ?? "Userscript"
-    back.textContent = "Userscripts"
   }
 
   private show(next: Page): void {
+    let draft: Draft | null = null
+    let children: Node[] | null = null
+    openSettingsPage(this.root, {
+      key: next.kind === "script" ? `script:${next.id}` : next.kind,
+      title: () => next.kind === "script" ? this.doc.scripts.find(script => script.id === next.id)?.name ?? "Userscript" :
+        next.kind === "bulk" ? "All userscripts" : next.kind === "new" ? "New userscript" : "Userscripts",
+      valid: () => next.kind !== "script" || this.doc.scripts.some(script => script.id === next.id) ||
+        (draft !== null && draft.textarea.value !== draft.loaded) ||
+        (this.page.kind === "script" && this.page.id === next.id && this.dirty()),
+      leave: () => { draft = this.draft; children = Array.from(this.detail.childNodes) },
+      show: () => {
+        this.renderPage(next)
+        if (children && draft && (next.kind === "script" || next.kind === "new")) {
+          this.detail.replaceChildren(...children)
+          this.draft = draft
+          this.renderOpenScript(next)
+        }
+      }
+    })
+  }
+
+  private renderPage(next: Page): void {
+    this.root.dispatchEvent(new CustomEvent("once:settings-reveal", { bubbles: true }))
     if (this.page.kind === "list" && next.kind !== "list") {
       this.returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
     }
@@ -553,7 +537,8 @@ class UserscriptSettingsView implements UserscriptSettings {
       })
       if (!discard) return
     }
-    this.show({ kind: "list" })
+    completeSettingsPage(this.root)
+    this.renderPage({ kind: "list" })
   }
 }
 

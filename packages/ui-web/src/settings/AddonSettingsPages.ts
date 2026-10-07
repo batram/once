@@ -1,7 +1,7 @@
 import { addonPageAction, createAddonSettingsLayout } from "./addonSettingsLayout"
 import { requireClosestElement, requireElement } from "../dom"
 import { refreshAddonCollectionSummary } from "./addonAvailability"
-import { SETTINGS_SUBPAGE_BACK } from "./SettingsNavigation"
+import { invalidateSettingsPages, openSettingsPage, registerSettingsOverview } from "./SettingsNavigation"
 
 const groupsOf = (details: HTMLElement) => Array.from(details.querySelectorAll<HTMLElement>("[data-addon-id], .addon_options_group[data-addon]"))
 const idOf = (element: HTMLElement) => element.dataset.addonId ?? element.dataset.addon ?? ""
@@ -50,11 +50,17 @@ export function bindAddonSettingsPages(root: HTMLElement): void {
   const active = () => root.closest(".settings_section")?.classList.contains("active") === true
   const setHeader = () => {
     if (!active()) return
-    back.textContent = current === "overview" ? "Settings" : "Once Add-ons"
     title.textContent = current === "overview" ? "Once Add-ons" : current === "import" ? "Import add-on" :
       current === "advanced" ? "Advanced add-ons" : rows.get(current)?.dataset.addonName ?? "Add-on settings"
   }
-  const show = (target: string, focus = true) => {
+  const show = (target: string, focus = true) => openSettingsPage(root, {
+    key: target,
+    title: () => target === "overview" ? "Once Add-ons" : target === "import" ? "Import add-on" :
+      target === "advanced" ? "Advanced add-ons" : rows.get(target)?.dataset.addonName ?? "Add-on settings",
+    show: () => render(target, focus),
+    valid: () => !target.startsWith("addon:") || rows.has(target)
+  })
+  const render = (target: string, focus = true) => {
     if (current === "overview" && target !== current) {
       returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : importButton
     }
@@ -104,7 +110,8 @@ export function bindAddonSettingsPages(root: HTMLElement): void {
     const syncLink = list.querySelector(":scope > .addon_sync_link")
     if (syncLink && syncLink !== list.lastElementChild) list.append(syncLink)
     describeCollection(root, count, empty, addons.size)
-    if (current.startsWith("addon:") && !rows.has(current)) show("overview")
+    invalidateSettingsPages()
+    if (current.startsWith("addon:") && !rows.has(current)) render("overview")
     setHeader()
   }
   // Status updates touch existing rows; they never replace the settings forms.
@@ -113,30 +120,12 @@ export function bindAddonSettingsPages(root: HTMLElement): void {
     attributeFilter: ["data-enabled", "data-addon-name", "data-addon-version"]
   })
   new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ["data-vault-state"] })
-  back.addEventListener("click", event => {
-    if (!active() || current === "overview") return
-    event.stopImmediatePropagation()
-    show("overview")
-  }, true)
-  // The mouse's back button and other Back steps that do not go through the header.
-  document.addEventListener(SETTINGS_SUBPAGE_BACK, event => {
-    if (!active() || current === "overview") return
-    event.preventDefault()
-    show("overview")
-  })
-  root.addEventListener("keydown", event => {
-    if (event.key !== "Escape" || current === "overview" ||
-        (event.target instanceof Element && event.target.matches("input,textarea,select"))) return
-    event.stopPropagation()
-    show("overview")
-  })
   let wasActive = false
   new MutationObserver(() => {
     const isActive = active()
     if (isActive === wasActive) return
     wasActive = isActive
-    if (!isActive) { show("overview", false); back.textContent = "Settings" }
-    else setHeader()
+    if (isActive) setHeader()
   }).observe(header, { attributes: true, subtree: true, attributeFilter: ["class"] })
   // A review shows where it was asked for: an import's on the Import page,
   // an update's on the overview above the list (even when asked from an
@@ -153,5 +142,6 @@ export function bindAddonSettingsPages(root: HTMLElement): void {
     show(group ? `addon:${idOf(group)}` : advanced.contains(target) ? "advanced" : "import", false)
   })
   sync()
-  show("overview", false)
+  registerSettingsOverview(root, () => render("overview", false))
+  render("overview", false)
 }

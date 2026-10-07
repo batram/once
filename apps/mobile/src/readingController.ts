@@ -39,7 +39,6 @@ export class MobileReadingController {
   get reader(): ReaderDocumentHost { return this.runtime.reader }
   private readonly findBar: ReadingFindBar
   private activePanel = "stories"
-  private settingsReturnPanel: "stories" | "reading" = "stories"
   private editingAddress = false
   private renderedNavigationId = 0
   private currentStoryRow: StoryListItem | null = null
@@ -206,16 +205,7 @@ export class MobileReadingController {
     if (this.activePanel === "reading" && this.findBar.close()) return true
 
     if (this.activePanel === "settings") {
-      // The same step the desktop mouse button takes, so the visit it leaves
-      // stays reachable by Forward; the header chevron alone would drop it.
-      if (this.settingsNavigate("back")) return true
-      const settingsPanel = document.querySelector<HTMLElement>("#settings_panel")
-      if (settingsPanel?.classList.contains("settings_detail_open")) {
-        document.querySelector<HTMLButtonElement>("#settings_section_back")?.click()
-        return true
-      }
-      PanelNavigation.open_panel(this.settingsReturnPanel)
-      return true
+      return this.settingsNavigate("back")
     }
 
     if (this.activePanel === "stories") {
@@ -333,11 +323,6 @@ export class MobileReadingController {
     document.addEventListener("once-panel-changed", (rawEvent) => {
       const event = rawEvent as CustomEvent<{ panel: string }>
       const nextPanel = event.detail.panel
-      if (nextPanel === "settings" && this.activePanel !== "settings") {
-        this.settingsReturnPanel = this.activePanel === "reading"
-          ? "reading"
-          : "stories"
-      }
       this.activePanel = nextPanel
       this.runtime.setPanelVisible(nextPanel === "reading")
       const state = this.session.snapshot()

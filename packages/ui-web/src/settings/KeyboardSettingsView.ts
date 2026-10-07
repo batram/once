@@ -11,6 +11,7 @@ import { conflictingCommand } from "../keyboard/conflicts"
 import { defaultKeybindings } from "../keyboard/keybindingStore"
 import { chordsFor } from "../keyboard/KeyboardDispatcher"
 import { getKeyboardDispatcher, getKeybindings, updateKeybindings } from "../keyboard"
+import { SETTINGS_LOCATION_CHANGED } from "./SettingsNavigation"
 
 // Order is the reading order of the settings section. Story actions sit last:
 // it is the longest group and the one nothing is bound in by default.
@@ -70,6 +71,14 @@ export class KeyboardSettingsView {
     this.status.setAttribute("role", "alert")
     this.render()
     onKeyCommandsChanged(() => this.render())
+    const finishCapture = () => {
+      if (!this.capturing) return
+      this.stopCapture()
+      this.render()
+      this.announce("", false)
+    }
+    document.addEventListener(SETTINGS_LOCATION_CHANGED, finishCapture)
+    document.addEventListener("once-panel-changed", finishCapture)
   }
 
   private render(): void {
