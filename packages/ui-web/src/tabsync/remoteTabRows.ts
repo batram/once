@@ -56,7 +56,12 @@ function place(frame: HTMLElement, src: string): void {
   const image = document.createElement("img")
   image.alt = ""
   image.src = src
-  const swap = () => { if (frame.dataset.thumb === reference) frame.replaceChildren(image) }
+  const swap = () => {
+    if (frame.dataset.thumb !== reference) return
+    frame.replaceChildren(image)
+    // A phone's shot also fills the frame behind itself, blurred.
+    frame.style.setProperty("--shot", `url("${src}")`)
+  }
   if (image.complete || typeof image.decode !== "function") swap()
   else void image.decode().then(swap, () => undefined)
 }
@@ -101,6 +106,9 @@ export function updateTabRow(row: HTMLLIElement, tab: SyncedTab, actions: RowAct
   if (link.getAttribute("href") !== tab.url) link.href = tab.url
   link.title = tab.url
   showPreview(frame, tab.url, tab.thumb?.id, thumbs)
+  // A phone's capture is tall: the frame shows it whole rather than cropped.
+  if (tab.thumb && tab.thumb.h > tab.thumb.w) frame.dataset.portrait = "true"
+  else delete frame.dataset.portrait
   bindRow(row, link, tab.title || tab.url, actions)
 }
 
@@ -128,9 +136,13 @@ function showPreview(frame: HTMLElement, url: string, thumb: string | undefined,
     return
   }
   frame.dataset.thumb = thumb ?? ""
+  const host = hostOf(url)
+  // Each site keeps one of a few tints, so its rows are told apart before they are read.
+  frame.dataset.tone = String([...host].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 4)
   const initial = document.createElement("span")
-  initial.textContent = hostOf(url).charAt(0).toUpperCase()
+  initial.textContent = host.charAt(0).toUpperCase()
   frame.replaceChildren(initial)
+  frame.style.removeProperty("--shot")
   if (thumb) thumbs.show(frame, thumb)
 }
 

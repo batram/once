@@ -23,10 +23,16 @@ export class RemoteTabGroups {
     this.thumbs = new ThumbnailCache(port.thumbnail)
   }
 
-  /** Devices in order, quiet ones last; null when the filter leaves nothing. */
-  devices(query: string): HTMLElement[] {
-    const devices = [...this.state().view?.devices ?? []].sort((a, b) => Number(isQuiet(a)) - Number(isQuiet(b)))
-    return devices.flatMap((device) => this.device(device, query) ?? [])
+  /** The devices in list order, quiet ones last. */
+  ordered(): RemoteDeviceView[] {
+    return [...this.state().view?.devices ?? []].sort((a, b) => Number(isQuiet(a)) - Number(isQuiet(b)))
+  }
+
+  /** Each device's section, or only `only`'s; devices the filter leaves empty are left out. */
+  devices(query: string, only: string | null = null): HTMLElement[] {
+    return this.ordered()
+      .filter((device) => !only || device.deviceId === only)
+      .flatMap((device) => this.device(device, query) ?? [])
   }
 
   inbox(): HTMLElement | null {
@@ -85,7 +91,7 @@ export class RemoteTabGroups {
       if (set.has(device.deviceId)) set.delete(device.deviceId)
       else set.add(device.deviceId)
       this.rerender()
-    }, open && windows.length === 1 && all.length > 1 ? () => this.openAll(all) : undefined)
+    }, open && all.length > 1 ? () => this.openAll(all) : undefined)
     const children: HTMLElement[] = [header]
     if (open) {
       if (!device.sharing || !device.windows.length) {
@@ -170,10 +176,12 @@ function deviceHeader(device: RemoteDeviceView, open: boolean, toggle: () => voi
   button.type = "button"
   button.className = "remote_device_toggle"
   button.setAttribute("aria-expanded", String(open))
-  const chevron = document.createElement("span")
-  chevron.className = "remote_device_chevron"
-  chevron.setAttribute("aria-hidden", "true")
-  chevron.textContent = "›"
+  const glyph = document.createElement("span")
+  glyph.className = "remote_device_icon"
+  glyph.setAttribute("aria-hidden", "true")
+  const icon = document.createElement("span")
+  icon.className = `icon icon--chrome icon--${deviceKind(device.platform)}`
+  glyph.append(icon)
   const text = document.createElement("span")
   text.className = "remote_device_text"
   const name = document.createElement("span")
@@ -184,25 +192,67 @@ function deviceHeader(device: RemoteDeviceView, open: boolean, toggle: () => voi
   const count = device.windows.reduce((total, entry) => total + entry.tabs.length, 0)
   meta.textContent = [
     platformName(device.platform),
-    device.sharing ? `${count} tab${count === 1 ? "" : "s"}` : "not sharing",
+    device.sharing ? `${count} tab${count === 1 ? "" : "s"}${device.windows.length > 1 ? ` in ${device.windows.length} windows` : ""}` : "not sharing",
     device.stale ? `inactive, seen ${ago(device.updatedAt)}` : ago(device.updatedAt)
   ].join(" · ")
   text.append(name, meta)
-  button.append(chevron, text)
+  button.append(glyph, text)
   button.addEventListener("click", toggle)
   header.append(button)
   if (openAll) header.append(openAllButton(count, openAll))
+  header.append(foldButton(open, toggle))
   return header
 }
 
+/**
+ * The chevron at the header's end, for the pointer. The name is the
+ * device's one fold control for keys and screen readers, so this one
+ * stays out of both.
+ */
+function foldButton(open: boolean, toggle: () => void): HTMLButtonElement {
+  const button = document.createElement("button")
+  button.type = "button"
+  button.className = "remote_device_fold"
+  button.tabIndex = -1
+  button.dataset.open = String(open)
+  button.setAttribute("aria-hidden", "true")
+  const chevron = document.createElement("span")
+  chevron.className = "icon icon--chrome icon--chevron-down remote_device_chevron"
+  button.append(chevron)
+  button.addEventListener("click", toggle)
+  return button
+}
+
+/** Phones and tablets show as a phone; browsers and the desktop app as a screen. */
+function deviceKind(platform: string): "phone" | "desktop" {
+  return platform === "android" || platform === "ios" ? "phone" : "desktop"
+}
+
+/** A window's label, a rule out to its quiet Open window. */
 function windowHeading(label: string, tabs: SyncedTab[], openAll: () => void): HTMLElement {
   const heading = document.createElement("div")
   heading.className = "remote_window_heading"
-  const text = document.createElement("span")
-  text.className = "remote_tabs_meta"
-  text.textContent = `${label} · ${tabs.length} tab${tabs.length === 1 ? "" : "s"}`
-  heading.append(text)
-  if (tabs.length > 1) heading.append(openAllButton(tabs.length, openAll))
+  const glyph = document.createElement("span")
+  glyph.className = "icon icon--chrome icon--window"
+  glyph.setAttribute("aria-hidden", "true")
+  const name = document.createElement("span")
+  name.className = "remote_window_name"
+  name.textContent = label
+  const count = document.createElement("span")
+  count.className = "remote_tabs_meta"
+  count.textContent = `${tabs.length} tab${tabs.length === 1 ? "" : "s"}`
+  const rule = document.createElement("span")
+  rule.className = "remote_window_rule"
+  heading.append(glyph, name, count, rule)
+  if (tabs.length > 1) {
+    const button = document.createElement("button")
+    button.type = "button"
+    button.className = "remote_open_window"
+    button.textContent = "Open window"
+    button.setAttribute("aria-label", `Open ${label.toLowerCase()}'s ${tabs.length} tabs`)
+    button.addEventListener("click", openAll)
+    heading.append(button)
+  }
   return heading
 }
 
@@ -210,7 +260,7 @@ function openAllButton(count: number, run: () => void): HTMLButtonElement {
   const button = document.createElement("button")
   button.type = "button"
   button.className = "button remote_open_all"
-  button.textContent = "Open all"
+  button.textContent = `Open all ${count}`
   button.setAttribute("aria-label", `Open all ${count} tabs`)
   button.addEventListener("click", run)
   return button

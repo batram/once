@@ -61,11 +61,15 @@
 .icon--collapse { --icon: url("../../imgs/collapse.svg"); }
 .icon--comments { --icon: url("../../imgs/comments.svg"); }
 .icon--filter { --icon: url("../../imgs/filter.svg"); }
+.icon--chevron-down { --icon: url("../../imgs/chevron-down.svg"); }
+.icon--desktop { --icon: url("../../imgs/desktop.svg"); }
 .icon--gear { --icon: url("../../imgs/gear.svg"); }
 .icon--help { --icon: url("../../imgs/help.svg"); }
 .icon--more { --icon: url("../../imgs/more.svg"); }
 .icon--pause { --icon: url("../../imgs/pause.svg"); }
+.icon--phone { --icon: url("../../imgs/phone.svg"); }
 .icon--play { --icon: url("../../imgs/play.svg"); }
+.icon--search { --icon: url("../../imgs/search.svg"); }
 .icon--plus { --icon: url("../../imgs/plus.svg"); }
 .icon--popout { --icon: url("../../imgs/popout.svg"); }
 .icon--read { --icon: url("../../imgs/read.svg"); }
@@ -81,6 +85,7 @@
 .icon--tabs { --icon: url("../../imgs/tabs.svg"); }
 .icon--undo { --icon: url("../../imgs/undo.svg"); }
 .icon--video { --icon: url("../../imgs/video.svg"); }
+.icon--window { --icon: url("../../imgs/window.svg"); }
 .icon--volume-mute { --icon: url("../../imgs/volume-mute.svg"); }
 .icon--volume { --icon: url("../../imgs/volume.svg"); }
 .icon--x { --icon: url("../../imgs/x.svg"); }

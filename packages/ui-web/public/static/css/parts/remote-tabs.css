@@ -29,6 +29,10 @@
 /* The list measures itself, so the side panel, a phone and a browser tab
    each get the row that fits them. */
 .remote_tabs {
+  /* A device card's surface: a step lighter than the page in either theme. */
+  --remote-card-bg: color-mix(in srgb, var(--input-bg-color) 55%, var(--main-bg-color));
+  --remote-hover-bg: color-mix(in srgb, var(--text-high-color) 6%, var(--remote-card-bg));
+  --remote-chip-border: color-mix(in srgb, var(--sep-color) 45%, transparent);
   container: remote-tabs / inline-size;
   display: flex;
   flex-direction: column;
@@ -37,45 +41,180 @@
   font-size: var(--fs-dense);
 }
 
+/* Summary and sync settings, the filter, then the device rail. */
 .remote_tabs_toolbar {
   display: flex;
-  align-items: center;
-  gap: var(--sp-1);
+  flex-direction: column;
+  gap: var(--sp-2);
 }
 
 .remote_tabs_toolbar[hidden] {
   display: none;
 }
 
-.remote_tabs_filter {
-  flex: 1 1 auto;
+/* Title over summary on the left, sync settings centred beside them. */
+.remote_tabs_head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  min-height: 28px;
+}
+
+.remote_tabs_head[hidden] {
+  display: none;
+}
+
+.remote_tabs_heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-0-5);
   min-width: 0;
+}
+
+.remote_tabs_title {
+  margin: 0;
+  color: var(--text-high-color);
+  font-size: calc(var(--fs-title) + var(--sp-1));
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.remote_tabs_summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.remote_tabs_summary[hidden] {
+  display: none;
+}
+
+/* The filter is a field with its lens inside, the frame on the label. */
+.remote_tabs_search {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
   box-sizing: border-box;
-  padding: var(--sp-1) var(--sp-2);
-  font: inherit;
-}
-
-.remote_tabs_settings {
-  flex: none;
-  border-color: transparent;
-  background: transparent;
+  height: 36px;
+  padding-inline: var(--sp-3);
+  border: var(--bw) solid var(--text-high-color);
+  border-radius: var(--radius-md);
+  background: var(--remote-card-bg);
   color: var(--text-muted-color);
+  cursor: text;
 }
 
-/* The list's own glyphs keep its colours inside an .active panel. */
-:is(.remote_tabs_settings, .remote_tab_action, .tab_sync_notice_close) > .icon {
+.remote_tabs_search:focus-within {
+  outline: 2px solid var(--text-high-color);
+  outline-offset: 1px;
+}
+
+.remote_tabs_search > .icon {
+  flex: none;
   color: inherit;
 }
 
-.remote_tabs_settings:hover,
-.remote_tabs_settings:focus-visible {
+.remote_tabs_filter {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
   color: var(--text-high-color);
+  font: inherit;
+  font-size: var(--fs-body);
+}
+
+/* The header's two buttons share one shape: outlined, 28px, card-filled. */
+.remote_tabs_settings,
+.remote_open_all {
+  flex: none;
+  gap: var(--sp-1-5);
+  height: 28px;
+  padding: 0 calc(var(--sp-2) + var(--sp-0-5));
+  border-color: var(--text-high-color);
+  border-radius: var(--radius-md);
+  background: var(--remote-card-bg);
+  font-size: var(--fs-dense);
+}
+
+.remote_tabs_settings:hover,
+.remote_open_all:hover {
+  background: var(--remote-hover-bg);
+}
+
+.remote_tabs_settings[hidden] {
+  display: none;
+}
+
+/* The list's own glyphs keep its colours inside an .active panel. */
+:is(.remote_tabs_settings, .remote_tab_action, .tab_sync_notice_close, .remote_device_icon) .icon {
+  color: inherit;
+}
+
+.remote_tabs_rail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1-5);
+}
+
+.remote_tabs_rail[hidden] {
+  display: none;
+}
+
+.remote_tabs_chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1-5);
+  min-width: 0;
+  max-width: 100%;
+  height: 28px;
+  box-sizing: border-box;
+  padding: 0 var(--sp-2);
+  border: var(--bw) solid var(--remote-chip-border);
+  border-radius: var(--radius-md);
+  background: var(--remote-card-bg);
+  color: var(--text-high-color);
+  font: inherit;
+  font-size: var(--fs-meta);
+  cursor: pointer;
+}
+
+.remote_tabs_chip:hover {
+  border-color: var(--text-high-color);
+}
+
+.remote_tabs_chip:focus-visible {
+  outline: 2px solid var(--text-high-color);
+  outline-offset: 2px;
+}
+
+.remote_tabs_chip[aria-pressed="true"] {
+  border-color: var(--text-high-color);
+  background: var(--text-high-color);
+  color: var(--main-bg-color);
+}
+
+.remote_tabs_chip_name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.remote_tabs_chip_count {
+  flex: none;
+  opacity: 0.75;
+  font-size: var(--fs-caption);
 }
 
 .remote_tabs_body {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
+  gap: var(--sp-3);
 }
 
 .remote_tabs_notice {
@@ -98,34 +237,54 @@
   line-height: 1.4;
 }
 
-.remote_device + .remote_device {
-  padding-top: var(--sp-1);
-  border-top: 1px solid var(--divider-color);
+/* Each device (and the tabs sent here) is a card, so devices never run together. */
+.remote_device {
+  border: var(--bw) solid var(--divider-color);
+  border-radius: var(--radius-xl);
+  background: var(--remote-card-bg);
 }
 
 .remote_group_title {
   margin: 0;
-  padding: var(--sp-1) var(--sp-1) 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: var(--bw) solid var(--divider-color);
   color: var(--text-high-color);
   font-size: inherit;
   font-weight: 700;
 }
 
+/* The whole header row lights up, buttons included, from edge to edge of
+   the card; its corners follow the card's while the device is folded. */
 .remote_device_header {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-1-5);
+  border-radius: calc(var(--radius-xl) - var(--bw)) calc(var(--radius-xl) - var(--bw)) 0 0;
+}
+
+.remote_device_header:last-child {
+  border-radius: calc(var(--radius-xl) - var(--bw));
+}
+
+.remote_device_header:hover,
+.remote_device_header:has(.remote_device_toggle:focus-visible) {
+  background: var(--remote-hover-bg);
+}
+
+.remote_device_header:not(:last-child) {
+  border-bottom: var(--bw) solid var(--divider-color);
 }
 
 .remote_device_toggle {
   display: flex;
   flex: 1 1 auto;
   align-items: center;
-  gap: var(--sp-1-5);
+  gap: var(--sp-2);
   min-width: 0;
   padding: var(--sp-1);
   border: 0;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   background: none;
   color: inherit;
   font: inherit;
@@ -133,23 +292,54 @@
   cursor: pointer;
 }
 
-.remote_device_toggle:hover,
 .remote_device_toggle:focus-visible {
-  background: var(--input-bg-color);
+  outline: 2px solid var(--text-high-color);
+  outline-offset: -2px;
+}
+
+.remote_device_icon {
+  display: grid;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--text-high-color) 9%, var(--remote-card-bg));
+  color: var(--text-high-color);
+}
+
+.remote_device[data-quiet="true"] .remote_device_icon {
+  color: var(--text-muted-color);
+}
+
+/* The fold button at the header's end: down when folded, up when open. */
+.remote_device_fold {
+  display: grid;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  padding: 0;
+  border: var(--bw) solid transparent;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--text-muted-color);
+  cursor: pointer;
+}
+
+.remote_device_fold:hover {
+  border-color: var(--text-high-color);
+  background: var(--remote-card-bg);
+  color: var(--text-high-color);
 }
 
 .remote_device_chevron {
-  flex: none;
-  width: 1em;
-  color: var(--text-muted-color);
-  font-size: var(--fs-title);
-  line-height: 1;
-  text-align: center;
+  color: inherit;
   transition: transform 120ms ease;
 }
 
-.remote_device_toggle[aria-expanded="true"] .remote_device_chevron {
-  transform: rotate(90deg);
+.remote_device_fold[data-open="true"] .remote_device_chevron {
+  transform: rotate(180deg);
 }
 
 .remote_device_text {
@@ -167,6 +357,7 @@
 .remote_device_name {
   overflow: hidden;
   color: var(--text-high-color);
+  font-size: var(--fs-body);
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -176,46 +367,97 @@
   color: var(--text-muted-color);
 }
 
-.remote_open_all {
-  flex: none;
-  font-size: var(--fs-meta);
-}
-
+/* "WINDOW 1  2 tabs ───── Open window": a label, not another header. */
 .remote_window_heading {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--sp-2);
-  margin-top: var(--sp-1);
-  padding-inline: var(--sp-1);
+  padding: var(--sp-2) var(--sp-2) 0 var(--sp-3);
 }
 
+.remote_window_name {
+  flex: none;
+  color: var(--text-high-color);
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.remote_window_heading > .icon {
+  flex: none;
+  color: var(--text-muted-color);
+}
+
+.remote_window_heading > .remote_tabs_meta {
+  flex: none;
+}
+
+.remote_window_rule {
+  flex: 1 1 auto;
+  min-width: var(--sp-2);
+  height: var(--bw);
+  background: var(--divider-color);
+}
+
+.remote_open_window {
+  flex: none;
+  padding: var(--sp-0-5) var(--sp-1);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-muted-color);
+  font: inherit;
+  font-size: var(--fs-meta);
+  cursor: pointer;
+}
+
+.remote_open_window:hover,
+.remote_open_window:focus-visible {
+  color: var(--text-high-color);
+  text-decoration: underline;
+}
+
+/* Rows run from edge to edge of the card; the last one ends flush with its
+   bottom border, so its highlight takes the card's rounded corners. */
 .remote_tab_list {
   margin: 0;
-  padding: 0;
+  padding: var(--sp-1) 0;
   list-style: none;
 }
 
+.remote_tab_list:last-child {
+  padding-bottom: 0;
+}
+
+.remote_tab_list:last-child > .remote_tab:last-child {
+  border-radius: 0 0 calc(var(--radius-xl) - var(--bw)) calc(var(--radius-xl) - var(--bw));
+}
+
+.remote_device > .remote_tabs_notice {
+  padding-inline: var(--sp-3);
+}
+
+/* The row's trailing button sits centred, a fixed step in from the card's edge. */
 .remote_tab {
   display: flex;
   align-items: center;
-  gap: var(--sp-0-5);
-  border-radius: var(--radius-md);
+  gap: var(--sp-1);
+  padding-inline-end: calc(var(--sp-2) + var(--sp-0-5));
 }
 
 .remote_tab:hover,
 .remote_tab:focus-within {
-  background: var(--input-bg-color);
+  background: var(--remote-hover-bg);
 }
 
 .remote_tab_link {
   display: flex;
   flex: 1 1 auto;
   align-items: center;
-  gap: var(--sp-2);
+  gap: var(--sp-3);
   min-width: 0;
-  padding: var(--sp-1) var(--sp-1);
-  border-radius: var(--radius-md);
+  padding: var(--sp-1-5) var(--sp-2) var(--sp-1-5) var(--sp-3);
   color: var(--text-high-color);
   text-decoration: none;
   /* The list's own menu answers a long press, not the system's link sheet. */
@@ -245,13 +487,20 @@
    so titles read first; on touch there is no hover, so they always show. */
 .remote_tab_action {
   flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   border-color: transparent;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--text-muted-color);
 }
 
 .remote_tab_action:hover,
-.remote_tab_action:focus-visible {
+.remote_tab_action:focus-visible,
+.remote_tab_action[aria-expanded="true"] {
+  border-color: var(--remote-chip-border);
+  background: var(--remote-card-bg);
   color: var(--text-high-color);
 }
 
@@ -261,33 +510,32 @@
   }
 }
 
-/* A screenshot at the shape tabs are captured in (16:10); without one, a
-   small mark with the site's initial so letterless rows stay light. */
+/* Every row gets the same 16:10 frame, the shape tabs are captured in:
+   a screenshot fills it, a tab without one shows its site's initial on a
+   tint, so the two never look like different kinds of row. */
 .remote_tab_preview {
+  --tone: #8a7a5c;
   display: flex;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  width: 56px;
-  height: 35px;
+  box-sizing: border-box;
+  width: 64px;
+  height: 40px;
   overflow: hidden;
+  border: var(--bw) solid var(--divider-color);
   border-radius: var(--radius-md);
-  color: var(--text-muted-color);
-  font-size: var(--fs-meta);
-  font-weight: 700;
+  background: color-mix(in srgb, var(--tone) 22%, var(--remote-card-bg));
+  color: var(--text-high-color);
+  font-size: var(--fs-title);
+  font-weight: 600;
 }
+
+.remote_tab_preview[data-tone="1"] { --tone: #6d8a55; }
+.remote_tab_preview[data-tone="2"] { --tone: #5a6f9c; }
+.remote_tab_preview[data-tone="3"] { --tone: #9c5f62; }
 
 .remote_tab_preview[data-shot="true"] {
-  border: 1px solid var(--divider-color);
-  background: var(--second-bg-color);
-}
-
-.remote_tab_preview:not([data-shot="true"]) > span {
-  display: grid;
-  width: 24px;
-  height: 24px;
-  place-items: center;
-  border-radius: var(--radius-md);
   background: var(--second-bg-color);
 }
 
@@ -296,6 +544,45 @@
   height: 100%;
   object-fit: cover;
   object-position: top;
+}
+
+/* A phone's capture is tall: cropped to the frame it reads as a squeezed
+   page. It shows whole instead, a screen standing on a blurred, dimmed copy
+   of itself, so the frame keeps the shape every other row has. */
+.remote_tab_preview[data-portrait="true"] {
+  position: relative;
+  isolation: isolate;
+  background: #222;
+}
+
+.remote_tab_preview[data-portrait="true"]::before {
+  content: "";
+  position: absolute;
+  inset: calc(var(--sp-2) * -1);
+  z-index: -1;
+  background: var(--shot, none) center / cover;
+  filter: blur(6px) brightness(0.7);
+}
+
+.remote_tab_preview[data-portrait="true"] img {
+  width: auto;
+  object-fit: contain;
+  box-shadow: 0 0 6px rgb(0 0 0 / 45%);
+}
+
+@container remote-tabs (min-width: 520px) {
+  .remote_tab_preview {
+    width: 80px;
+    height: 50px;
+  }
+}
+
+/* Narrow: the settings button keeps only its gear, devices only their names. */
+@container remote-tabs (max-width: 360px) {
+  .remote_tabs_settings_label,
+  .remote_device_icon {
+    display: none;
+  }
 }
 
 /* A narrow side panel keeps the title's width: no picture column. */
@@ -307,8 +594,63 @@
 
 /* The same list as a page in a browser tab, at reading width. The shell's
    html and body never scroll; this page's body does, within the window. */
+/* As a page there is room to breathe: larger text, wider margins and more
+   air between the header, the filter and each device. */
+.remote_tabs_page .remote_tabs {
+  gap: calc(var(--sp-4) + var(--sp-1));
+  padding: var(--sp-2) var(--sp-4);
+  font-size: var(--fs-body);
+}
+
+.remote_tabs_page .remote_tabs_toolbar {
+  gap: var(--sp-3);
+}
+
+.remote_tabs_page .remote_tabs_body {
+  gap: calc(var(--sp-4) + var(--sp-1));
+}
+
+.remote_tabs_page .remote_tabs_chip {
+  height: 30px;
+  padding: 0 calc(var(--sp-2) + var(--sp-0-5));
+  font-size: var(--fs-dense);
+}
+
+.remote_tabs_page .remote_device_header {
+  padding: var(--sp-2) var(--sp-3) var(--sp-2) var(--sp-2);
+}
+
+.remote_tabs_page .remote_device_toggle {
+  gap: var(--sp-3);
+}
+
+.remote_tabs_page .remote_device_icon {
+  width: 36px;
+  height: 36px;
+}
+
+.remote_tabs_page .remote_device_name {
+  font-size: calc(var(--fs-body) + var(--bw));
+}
+
+.remote_tabs_page .remote_window_heading {
+  padding: calc(var(--sp-2) + var(--sp-0-5)) var(--sp-3) var(--sp-1) var(--sp-4);
+}
+
+.remote_tabs_page .remote_tab_list {
+  padding-top: var(--sp-1-5);
+}
+
+.remote_tabs_page .remote_tab_link {
+  gap: calc(var(--sp-3) + var(--sp-0-5));
+  padding: calc(var(--sp-2) + var(--sp-0-5)) var(--sp-2) calc(var(--sp-2) + var(--sp-0-5)) calc(var(--sp-4) + var(--sp-0-5));
+}
+
+/* The gutter is kept whether or not the list overflows, so a scrollbar
+   appearing never narrows the page. */
 .remote_tabs_page {
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .remote_tabs_page main {
@@ -316,13 +658,7 @@
   width: 100%;
   max-width: 48rem;
   margin: 0 auto;
-  padding: var(--sp-4);
-}
-
-.remote_tabs_page_title {
-  margin: 0 0 var(--sp-2);
-  padding: 0 var(--sp-2);
-  font-size: var(--fs-title);
+  padding: var(--sp-5) var(--sp-4);
 }
 
 /* Tabs sent here and the offer to continue: one notice at a time, docked at

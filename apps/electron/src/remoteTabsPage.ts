@@ -37,6 +37,6 @@ if (!bridge) {
     dismissSent: (id) => bridge.send({ type: "dismiss-sent", id }),
     openSettings: (page) => bridge.send({ type: "settings", page }),
     copyLink: (url) => void navigator.clipboard.writeText(url).catch(() => undefined)
-  })
+  }, { title: "Tabs from other devices" })
   void bridge.connect()
 }

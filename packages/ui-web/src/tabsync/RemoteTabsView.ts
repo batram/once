@@ -1,7 +1,9 @@
-import type { TabSyncView } from "@once/app"
+import type { RemoteDeviceView, TabSyncView } from "@once/app"
 import type { SyncedTab } from "@once/core"
 import type { ShowMenu } from "./devicePicker"
+import { deviceRail, tabCount } from "./deviceRail"
 import { notice, RemoteTabGroups } from "./remoteTabGroups"
+import { ago } from "./remoteTabRows"
 
 /** What the view needs, from the app client or from a page relaying to it. */
 export interface RemoteTabsPort {
@@ -37,6 +39,8 @@ export interface RemoteTabsHandle {
 export interface RemoteTabsOptions {
   /** Lists tabs sent here somewhere else than above the devices: mobile's tab view, above its own tabs. */
   inbox?: HTMLElement
+  /** A heading over the summary, where the page has no title bar of its own: Electron's tabs page. */
+  title?: string
 }
 
 /**
@@ -49,21 +53,23 @@ export function mountRemoteTabs(root: HTMLElement, port: RemoteTabsPort, options
   root.classList.add("remote_tabs")
   const toolbar = document.createElement("div")
   toolbar.className = "remote_tabs_toolbar"
-  const filter = document.createElement("input")
-  filter.type = "search"
-  filter.className = "remote_tabs_filter"
-  filter.placeholder = "Filter tabs"
-  filter.setAttribute("aria-label", "Filter tabs from other devices")
-  filter.dataset.testid = "remote-tabs-filter"
-  toolbar.append(filter)
-  if (port.openSettings) toolbar.append(settingsButton(() => port.openSettings?.("tabs")))
+  const { head, summary, settings } = viewHeader(port, options.title)
+  const { search, filter } = filterField()
+  const rail = document.createElement("div")
+  rail.className = "remote_tabs_rail"
+  rail.setAttribute("role", "group")
+  rail.setAttribute("aria-label", "Show tabs from")
+  rail.dataset.testid = "remote-tabs-rail"
+  toolbar.append(search, rail)
+  // The device the rail narrows the list to; null shows them all.
+  let only: string | null = null
   const body = document.createElement("div")
   body.className = "remote_tabs_body"
   const feedback = document.createElement("div")
   feedback.className = "remote_tabs_feedback"
   feedback.setAttribute("role", "status")
   feedback.hidden = true
-  root.replaceChildren(toolbar, feedback, body)
+  root.replaceChildren(head, toolbar, feedback, body)
   const inboxHost = options.inbox ?? body
   let state: RemoteTabsState = { view: null, connected: false }
   const groups = new RemoteTabGroups(port, () => state, () => render(true), (message, retry) => {
@@ -84,11 +90,15 @@ export function mountRemoteTabs(root: HTMLElement, port: RemoteTabsPort, options
   const render = (force = false) => {
     const query = filter.value.trim().toLowerCase()
     // Re-rendering the same list would only move nodes; the times shown change by the minute.
-    const next = JSON.stringify([state, query, Math.floor(Date.now() / 60_000)])
+    const next = JSON.stringify([state, query, only, Math.floor(Date.now() / 60_000)])
     if (!force && next === signature) return
     signature = next
     const empty = emptyState(state, port)
     toolbar.hidden = Boolean(empty)
+    // A page keeps its title over an empty list; the empty notice brings its own settings button.
+    summary.hidden = Boolean(empty)
+    if (settings) settings.hidden = Boolean(empty)
+    head.hidden = Boolean(empty) && !options.title
     if (empty) {
       body.replaceChildren(empty)
       if (inboxHost !== body) inboxHost.replaceChildren()
@@ -96,7 +106,11 @@ export function mountRemoteTabs(root: HTMLElement, port: RemoteTabsPort, options
     }
     const focused = document.activeElement as HTMLElement | null
     const focusKey = focused && (root.contains(focused) || inboxHost.contains(focused)) ? focused.dataset.focusKey : undefined
-    const devices = groups.devices(query)
+    const listed = groups.ordered()
+    if (only && !listed.some((device) => device.deviceId === only)) only = null
+    summary.textContent = summaryText(listed)
+    deviceRail(rail, listed, only, (id) => { only = id; render(true) })
+    const devices = groups.devices(query, only)
     const inbox = groups.inbox()
     const missing = query && !devices.length ? [notice(`No tabs match “${filter.value.trim()}”.`)] : []
     if (inboxHost === body) body.replaceChildren(...(inbox ? [inbox] : []), ...devices, ...missing)
@@ -145,20 +159,69 @@ function emptyState({ view, connected }: RemoteTabsState, port: RemoteTabsPort):
   return null
 }
 
+/** Sync settings sit with the title and summary, apart from the filter they do not belong to. */
+function viewHeader(port: RemoteTabsPort, titleText?: string) {
+  const head = document.createElement("div")
+  head.className = "remote_tabs_head"
+  const heading = document.createElement("div")
+  heading.className = "remote_tabs_heading"
+  if (titleText) {
+    const title = document.createElement("h1")
+    title.className = "remote_tabs_title"
+    title.textContent = titleText
+    heading.append(title)
+  }
+  const summary = document.createElement("span")
+  summary.className = "remote_tabs_meta remote_tabs_summary"
+  heading.append(summary)
+  head.append(heading)
+  const settings = port.openSettings ? settingsButton(() => port.openSettings?.("tabs")) : null
+  if (settings) head.append(settings)
+  return { head, summary, settings }
+}
 
+/** The filter, a search field with its lens inside the frame. */
+function filterField() {
+  const search = document.createElement("label")
+  search.className = "remote_tabs_search"
+  const lens = document.createElement("span")
+  lens.className = "icon icon--chrome icon--search"
+  lens.setAttribute("aria-hidden", "true")
+  const filter = document.createElement("input")
+  filter.type = "search"
+  filter.className = "remote_tabs_filter"
+  filter.placeholder = "Filter by title or address"
+  filter.setAttribute("aria-label", "Filter tabs from other devices")
+  filter.dataset.testid = "remote-tabs-filter"
+  search.append(lens, filter)
+  return { search, filter }
+}
 
+/** "4 devices · 10 tabs · updated just now", over the filter: the newest word any device sent. */
+function summaryText(devices: readonly RemoteDeviceView[]): string {
+  const tabs = devices.reduce((total, device) => total + tabCount(device), 0)
+  const newest = devices.map((device) => device.updatedAt).sort().at(-1)
+  return [
+    `${devices.length} device${devices.length === 1 ? "" : "s"}`,
+    `${tabs} tab${tabs === 1 ? "" : "s"}`,
+    ...(newest ? [`updated ${ago(newest)}`] : [])
+  ].join(" · ")
+}
 
 function settingsButton(run: () => void): HTMLButtonElement {
   const button = document.createElement("button")
   button.type = "button"
-  button.className = "button button--icon remote_tabs_settings"
+  button.className = "button remote_tabs_settings"
   button.title = "Tab sync settings"
   button.setAttribute("aria-label", "Tab sync settings")
   button.dataset.testid = "remote-tabs-settings"
   const icon = document.createElement("span")
   icon.className = "icon icon--chrome icon--gear"
   icon.setAttribute("aria-hidden", "true")
-  button.append(icon)
+  const label = document.createElement("span")
+  label.className = "remote_tabs_settings_label"
+  label.textContent = "Sync settings"
+  button.append(icon, label)
   button.addEventListener("click", run)
   return button
 }

@@ -97,6 +97,30 @@ test("lists devices and windows, filters, opens in front or behind, and keeps ro
   handle.dispose()
 }))
 
+test("the device rail narrows the list to one device and back", withDocument(async (document) => {
+  let state = { connected: true, view: view([
+    device("a", "Phone", [{ id: "w", focused: true, tabs: [tab("1", "https://news.example/a", "Alpha")] }]),
+    device("b", "Laptop", [{ id: "w1", focused: true, tabs: [tab("2", "https://docs.example/c", "Gamma"), tab("3", "https://docs.example/d", "Delta")] }])
+  ]) }
+  const listeners = new Set()
+  const root = document.querySelector("#root")
+  mountRemoteTabs(root, { load: async () => state, subscribe: (listener) => { listeners.add(listener); return () => listeners.delete(listener) }, open: () => undefined })
+  await settle()
+  await settle()
+  const chips = () => [...root.querySelectorAll("[data-testid=remote-tabs-chip]")]
+  const names = () => [...root.querySelectorAll("[data-testid=remote-device] .remote_device_name")].map((name) => name.textContent)
+  assert.deepEqual(chips().map((chip) => chip.textContent), ["All devices3", "Phone1", "Laptop2"])
+  assert.match(root.querySelector(".remote_tabs_summary").textContent, /2 devices · 3 tabs/)
+  chips()[2].click()
+  assert.deepEqual(names(), ["Laptop"])
+  assert.equal(chips()[2].getAttribute("aria-pressed"), "true")
+  state = { ...state, view: view([state.view.devices[0]]) }
+  listeners.forEach((listener) => listener())
+  await settle()
+  assert.deepEqual(names(), ["Phone"], "a chosen device that goes away shows the rest again")
+  assert.ok(root.querySelector("[data-testid=remote-tabs-rail]").hidden, "one device needs no rail")
+}))
+
 test("explains what is missing instead of showing an empty list, with a way to fix it", withDocument(async (document) => {
   const pages = []
   const root = document.querySelector("#root")
