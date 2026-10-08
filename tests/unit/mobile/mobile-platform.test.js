@@ -62,6 +62,24 @@ test("mobile adapter delegates secure settings, links, and theme through its bri
   assert.deepEqual(themes, ["dark"])
 })
 
+test("system theme follows the OS colour scheme flipping while the app is open", async () => {
+  installDom()
+  const listeners = []
+  window.matchMedia = () => ({ matches: false, addEventListener: (_, fn) => listeners.push(fn) })
+  const themes = []
+  const { createMobileThemePort } = require("../../../packages/platform-mobile/dist")
+  const port = createMobileThemePort({ setSystemTheme: async (theme) => themes.push(theme) })
+  assert.equal(listeners.length, 1)
+
+  port.setTheme("system")
+  listeners[0]()
+  assert.deepEqual(themes, ["system", "system"])
+
+  port.setTheme("light")
+  listeners[0]()
+  assert.deepEqual(themes, ["system", "system", "light"])
+})
+
 test("native secure settings implementations use Keychain and Android Keystore", () => {
   const root = path.resolve(__dirname, "../../..")
   const android = fs.readFileSync(path.join(root, "apps/mobile/android/app/src/main/java/com/zmarn/once/SecureSettingsPlugin.java"), "utf8")

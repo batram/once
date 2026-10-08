@@ -117,6 +117,36 @@ export function createDefaultMobileNativeBridge(): MobileNativeBridge {
   }
 }
 
+/**
+ * The system bars take their colours from the resolved theme, so with the
+ * "system" theme they must follow the OS when it flips light/dark while the
+ * app is open. The activity handles uiMode changes itself (no recreate), so
+ * nothing native re-applies the colours the bridge set; this listener does.
+ */
+export function createMobileThemePort(
+  bridge: Pick<MobileNativeBridge, "setSystemTheme">
+): OncePlatformPorts["theme"] {
+  let current: ThemeName = "system"
+  const applyNative = () => {
+    void bridge.setSystemTheme(current).catch((error) => {
+      console.error("Failed to update mobile system bars", error)
+    })
+  }
+  if (typeof window.matchMedia === "function") {
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+      if (current === "system") applyNative()
+    })
+  }
+  return {
+    setTheme(theme) {
+      current = theme
+      document.body.removeAttribute("data-theme")
+      if (theme !== "system") document.body.setAttribute("data-theme", theme)
+      applyNative()
+    }
+  }
+}
+
 export interface MobilePlatformOptions {
   /**
    * Shows an http(s) page inside the app's reading view. Links opened with a
@@ -159,15 +189,7 @@ export function createMobilePlatform(
       get: (key) => bridge.getSecret(key),
       set: (key, value) => bridge.setSecret(key, value)
     },
-    theme: {
-      setTheme(theme) {
-        document.body.removeAttribute("data-theme")
-        if (theme !== "system") document.body.setAttribute("data-theme", theme)
-        void bridge.setSystemTheme(theme).catch((error) => {
-          console.error("Failed to update mobile system bars", error)
-        })
-      }
-    },
+    theme: createMobileThemePort(bridge),
     activeTab: {
       openUrl(url, target) {
         if (!/^https?:\/\//i.test(url)) return
