@@ -15,42 +15,13 @@ test("keeps the story and settings titlebars at the original story height", asyn
       Math.round(element.getBoundingClientRect().height)
     )
     const storyHeight = await height("#search_bar")
-    const storyCollapse = await window.locator(
-      "#search_bar .collapsebutton"
-    ).evaluate((element) => {
-      const bounds = element.getBoundingClientRect()
-      const style = getComputedStyle(element)
-      return {
-        width: Math.round(bounds.width),
-        height: Math.round(bounds.height),
-        padding: style.padding,
-        font: style.font,
-        borderTop: style.borderTop,
-        borderBottom: style.borderBottom
-      }
-    })
     await openPanel(window, "settings")
     const settingsHeight = await height("#settings_panel .panel_titlebar")
-    const settingsCollapse = await window.locator(
-      "#settings_panel .collapsebutton"
-    ).evaluate((element) => {
-      const bounds = element.getBoundingClientRect()
-      const style = getComputedStyle(element)
-      return {
-        width: Math.round(bounds.width),
-        height: Math.round(bounds.height),
-        padding: style.padding,
-        font: style.font,
-        borderTop: style.borderTop,
-        borderBottom: style.borderBottom
-      }
-    })
 
     expect({ storyHeight, settingsHeight }).toEqual({
       storyHeight: 39,
       settingsHeight: 39
     })
-    expect(settingsCollapse).toEqual(storyCollapse)
   } finally {
     await closeApp(electronApp, userData)
   }

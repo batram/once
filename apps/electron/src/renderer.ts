@@ -131,7 +131,7 @@ async function startRenderer(): Promise<void> {
   bindAccessibilitySetting(window.onceElectron)
   const onMenuCollapsedChanged = (collapsed: boolean): void =>
     browserShell.setLeftCollapsed(collapsed)
-  bindMenuCollapseControls(onMenuCollapsedChanged)
+  bindMenuCollapseControls(onMenuCollapsedChanged, { resizable: true })
 
   startupStage("app-start")
   await app.start()

@@ -14,9 +14,10 @@
   padding-inline: var(--sp-2);
 }
 
+/* Block, not inline-flex: a flex item's text never gets an ellipsis. */
 #menu .sidebar_filter_list > .button {
+  display: block;
   margin-inline: 0;
-  justify-content: flex-start;
   text-align: left;
 }
 
@@ -58,6 +59,15 @@
   background: transparent;
   color: inherit;
   text-align: left;
+}
+
+/* Names longer than the menu is wide end in an ellipsis. */
+#menu .heading p,
+#menu .sidebar_filter_list > .button {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 #menu .heading p {

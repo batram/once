@@ -1102,9 +1102,7 @@
   padding-inline: 0;
 }
 
-#settings_panel
-  .bar
-  button:not(.collapsebutton),
+#settings_panel .bar button,
 .structured_search input,
 .structured_search button,
 #settings_search,
@@ -1114,7 +1112,6 @@
    mode toggle. */
 #settings_panel
   .button:not(:where(
-    .collapsebutton,
     .button--icon,
     .story .button,
     .structured_inline_action,
@@ -1143,7 +1140,6 @@
 #settings_panel
   .button:not(
     :where(
-      .collapsebutton,
       .button--icon,
       .story .button,
       .structured_inline_action,
@@ -1294,8 +1290,8 @@
 
 /* With the index beside the section (a wide panel), the title names the
    section, so it starts over the section's content rather than over the
-   index. Only the title moves: Back, the collapse button and anything pushed
-   to the far end keep their places, and Back is capped to the index column
+   index. Only the title moves: Back and anything pushed to the far end keep
+   their places, and Back is capped to the index column
    so it never runs under the title. Narrower, the index hides and the bar
    spans the section alone. */
 @container settings-panel (min-width: 761px) {

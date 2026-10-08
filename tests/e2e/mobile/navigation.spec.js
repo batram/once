@@ -51,12 +51,10 @@ test("settings chevron back returns to the previous panel", async ({ page }) => 
   await gotoMobileApp(page)
   const leftPanel = page.locator("#left_panel")
   const settingsBack = page.locator("#settings_section_back")
-  const desktopCollapse = page.locator("#settings_panel .collapsebutton")
 
   await page.getByTestId("settings-menu").click()
   await expect(settingsBack).toBeVisible()
   await expect(settingsBack).toHaveAttribute("aria-label", "Back")
-  await expect(desktopCollapse).toBeHidden()
   await settingsBack.click()
   await expect(leftPanel).toHaveAttribute("active_panel", "stories")
 

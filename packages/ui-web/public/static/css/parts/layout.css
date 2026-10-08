@@ -40,6 +40,38 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
+  position: relative;
+}
+
+/* The menu's drag handle sits on the menu's border without taking room of its
+   own: a zero-width flex item whose hit area overhangs both sides. Only a
+   shell that binds it (menuCollapse.ts) shows it. */
+#menu_resizer {
+  display: none;
+  flex: 0 0 0;
+  position: relative;
+  width: 0;
+  z-index: 15;
+}
+
+body.menu-resizable #menu_resizer {
+  display: block;
+}
+
+#menu_resizer::before {
+  content: "";
+  position: absolute;
+  inset: 0 -2px 0 -6px;
+  cursor: ew-resize;
+}
+
+body.menu-resizing {
+  cursor: ew-resize;
+  user-select: none;
+}
+
+body.menu-resizing iframe {
+  pointer-events: none;
 }
 
 #stories_panel {
@@ -227,10 +259,10 @@
    `height: 100%` on a content-box would put the top padding on top of that,
    leaving the menu taller than the row that clips it. */
 #menu {
-  width: 100px;
   display: flex;
   flex-direction: column;
-  flex: 0 0 89px;
+  flex: 0 0 var(--menu-width, 89px);
+  width: var(--menu-width, 89px);
   padding-top: var(--sp-1-5);
   border-right: 2px solid var(--sep-color);
   overflow: hidden;

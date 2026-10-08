@@ -141,7 +141,7 @@ export async function mountOnceUi(
     version.dataset.buildChannel = options.buildChannel
   }
 
-  bindMenuCollapseControls(options.onMenuCollapsedChanged)
+  bindMenuCollapseControls(options.onMenuCollapsedChanged, { resizable: options.shell === "electron" })
   bindAppUpdateControls(options.updater, (message, details) =>
     LoaderInsights.showErrorMessage(message, details)
   )
