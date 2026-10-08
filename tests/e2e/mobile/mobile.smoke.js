@@ -257,6 +257,14 @@ async function clickWeb(element, platform) {
   }
 }
 
+// A list's text view is its own settings page, so leaving a section edited
+// as text takes one Back to the list and another to the index.
+async function backToSettingsIndex(platform) {
+  for (let level = 0; level < 3 && !(await $("[data-settings-target='sync']").isDisplayed()); level++) {
+    await clickWeb(await $("#settings_section_back"), platform)
+  }
+}
+
 async function setWebValue(element, value) {
   await element.waitForDisplayed({ timeout: 10_000 })
   await browser.execute((target, nextValue) => {
@@ -314,7 +322,7 @@ describe("Once mobile", () => {
     }
     await setWebValue(sourcesInput, `${baseUrl}/fixtures/feed.rss`)
     await clickWeb(await $("[data-testid='save-sources']"), platform)
-    await clickWeb(await $("#settings_section_back"), platform)
+    await backToSettingsIndex(platform)
     await clickWeb(await $("[data-settings-target='sync']"), platform)
     await setWebValue(
       await $("[data-testid='sync-url']"),
@@ -431,7 +439,7 @@ describe("Once mobile", () => {
     await clickWeb(await $("[data-settings-target='sources']"), platform)
     const sources = await $("[data-testid='sources']")
     expect(String(await sources.getProperty("value")).includes("/fixtures/feed.rss")).toBe(true)
-    await clickWeb(await $("#settings_section_back"), platform)
+    await backToSettingsIndex(platform)
     await clickWeb(await $("[data-settings-target='sync']"), platform)
     const syncUrl = await $("[data-testid='sync-url']")
     expect(String(await syncUrl.getProperty("value")).includes(`/db/mobile_${platform}`)).toBe(true)

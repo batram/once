@@ -74,7 +74,8 @@ describe("Native AI addon", () => {
     if (!(await $("[data-testid='sources']").isDisplayed())) await click("[data-testid='sources-mode-toggle']")
     await fill("[data-testid='sources']", `${baseUrl}/fixtures/feed.rss`)
     await click("[data-testid='save-sources']")
-    await click("#settings_section_back")
+    // The text view is its own settings page: Back reaches the list first.
+    for (let level = 0; level < 3 && !(await $("[data-settings-target='addons']").isDisplayed()); level++) await click("#settings_section_back")
     await click("[data-settings-target='addons']")
     await click("[data-testid='open-addon-advanced']")
     await fill("[data-testid='addons']", JSON.stringify([fixture.manifest(baseUrl)]))
