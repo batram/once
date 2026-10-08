@@ -4,6 +4,7 @@ import { tabSyncTestTiming } from "@once/app/tabsync"
 import { setTabsMenuVisible, watchTabSyncEnabled } from "@once/ui-web"
 
 const PLACEMENT_KEY = "once:remote-tabs-placement"
+const ENABLED_KEY = "once:remote-tabs-enabled"
 type Placement = "button" | "panel" | "both"
 
 function readPlacement(): Placement {
@@ -20,6 +21,13 @@ export function remoteTabsInPanel(): boolean {
   return readPlacement() !== "button"
 }
 
+/** Restore the last known visibility before asynchronous app startup. */
+export function initializeRemoteTabsButton(): void {
+  const button = document.querySelector<HTMLButtonElement>("#tab_sync_btn")
+  if (!button) return
+  try { button.hidden = localStorage.getItem(ENABLED_KEY) !== "true" || readPlacement() === "panel" } catch { /* wait for the app */ }
+}
+
 /**
  * Where other devices' tabs are offered on the desktop: a button beside the
  * new tab button that opens them as a page, the side panel's Tabs entry, or
@@ -31,7 +39,7 @@ export function bindRemoteTabsPlacement(bridge: ElectronBridge, client: OnceClie
   const select = document.querySelector<HTMLSelectElement>("#remote_tabs_placement")
   if (!button || !row || !select) return
   // Nothing shows while tab sync is off on this device, whatever the placement.
-  let enabled = false
+  let enabled = !button.hidden
   const apply = (placement: Placement) => {
     select.value = placement
     button.hidden = !enabled || placement === "panel"
@@ -49,8 +57,15 @@ export function bindRemoteTabsPlacement(bridge: ElectronBridge, client: OnceClie
     apply(placement)
   })
   apply(readPlacement())
+  window.addEventListener("storage", (event) => {
+    if (event.key === PLACEMENT_KEY || event.key === ENABLED_KEY) {
+      try { enabled = localStorage.getItem(ENABLED_KEY) === "true" } catch { /* keep the current value */ }
+      apply(readPlacement())
+    }
+  })
   watchTabSyncEnabled(client, (on) => {
     enabled = on
+    try { localStorage.setItem(ENABLED_KEY, String(on)) } catch { /* visibility still updates in this window */ }
     apply(readPlacement())
   })
 }

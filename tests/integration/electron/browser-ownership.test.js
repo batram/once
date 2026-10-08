@@ -134,6 +134,23 @@ function entry(id, ownerId) {
   }
 }
 
+test("the internal tabs page cannot move or reorder and is not saved for reopening", () => {
+  const ownership = new TabOwnership({ backTargetIndex: () => -1 }, { createBlankTab: async () => {} })
+  const source = owner(1)
+  const target = owner(2)
+  const page = entry("sync", 1)
+  page.displayedUrl = "once-tabs://view/index.html"
+  ownership.addWindow(source)
+  ownership.addWindow(target)
+  ownership.addTab(source, page)
+  assert.throws(() => ownership.move(target, page.id), /belongs to its window/)
+  assert.throws(() => ownership.reorder(source, page.id), /belongs to its window/)
+  assert.deepEqual(source.tabs, [page.id])
+  assert.deepEqual(target.tabs, [])
+  ownership.finalizeClosed(page)
+  assert.equal(ownership.closedTabs.take(source), undefined)
+})
+
 test("TabOwnership transfers an active tab and restores source activation", () => {
   const ownership = new TabOwnership(
     { backTargetIndex: () => -1 },

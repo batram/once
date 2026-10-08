@@ -122,6 +122,7 @@ export function isClosedTabRecord(value: unknown): value is ClosedTabRecord {
  * mostly resurrect empty tabs, since every window starts with one.
  */
 export function isThrowaway(entry: TabEntry): boolean {
+  if (entry.displayedUrl.startsWith("once-tabs://view/")) return true
   if (entry.displayedUrl && entry.displayedUrl !== "about:blank") return false
   return (entry.historySnapshot?.entries.length ?? 0) <= 1
 }

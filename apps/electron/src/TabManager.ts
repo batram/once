@@ -457,7 +457,8 @@ export class BrowserCoordinator {
     id: string,
     point?: ElectronPoint
   ): Promise<void> {
-    this.ownership.requireOwned(state, id)
+    const entry = this.ownership.requireOwned(state, id)
+    if (isRemoteTabsUrl(entry.displayedUrl)) throw new Error("The tabs page belongs to its window")
     if (point) this.validatePoint(point)
     await this.createWindow({ tabId: id, point })
   }

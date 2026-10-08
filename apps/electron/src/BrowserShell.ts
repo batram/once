@@ -1,4 +1,4 @@
-import { ElectronBridge, ElectronTabState } from "@once/platform-electron/bridge"
+import { ElectronBridge, ElectronTabState, REMOTE_TABS_URL } from "@once/platform-electron/bridge"
 import {
   focusStoryList,
   getKeyboardDispatcher,
@@ -377,10 +377,16 @@ export class BrowserShell {
 
   private render(tabs: ElectronTabState[]): void {
     this.tabs = tabs
+    const syncButton = required<HTMLButtonElement>("#tab_sync_btn")
+    const syncActive = tabs.some((tab) => tab.url === REMOTE_TABS_URL && tab.active)
+    syncButton.classList.toggle("active", syncActive)
+    syncButton.setAttribute("aria-pressed", String(syncActive))
     this.tabStrip.replaceChildren()
     this.activeTabElement = null
 
     for (const tab of tabs) {
+      // The internal page is selected through its fixed button, never a draggable tab.
+      if (tab.url === REMOTE_TABS_URL) continue
       const element = document.createElement("div")
       element.className = "electron-tab"
       element.classList.toggle("active", tab.active)
@@ -467,7 +473,7 @@ export class BrowserShell {
     this.layoutTabs()
     this.scrollActiveTabIntoView()
     this.readerRequests.retainTabs(tabs.map((tab) => tab.id))
-    this.hoverPreview.update(tabs)
+    this.hoverPreview.update(tabs.filter((tab) => tab.url !== REMOTE_TABS_URL))
     this.renderControls()
   }
 
@@ -621,7 +627,8 @@ export class BrowserShell {
   }
 
   private layoutTabs(): void {
-    if (this.tabs.length === 0) return
+    const tabCount = this.tabs.filter((tab) => tab.url !== REMOTE_TABS_URL).length
+    if (tabCount === 0) return
 
     const dropzoneStyle = getComputedStyle(this.dropzone)
     // The new tab button and, when shown, the tabs-from-other-devices button.
@@ -639,7 +646,7 @@ export class BrowserShell {
     const availableWidth = this.dropzone.clientWidth - horizontalChrome
     const tabWidth = Math.max(
       140,
-      Math.min(220, Math.floor(availableWidth / this.tabs.length - tabMargin))
+      Math.min(220, Math.floor(availableWidth / tabCount - tabMargin))
     )
     this.tabStrip.style.setProperty("--electron-tab-width", `${tabWidth}px`)
   }

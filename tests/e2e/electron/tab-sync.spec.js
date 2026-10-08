@@ -121,6 +121,8 @@ test("the tab bar button opens other devices' tabs as a page; the side panel can
     await expect(page.getByTestId("tabs-menu")).toBeHidden()
 
     await page.getByTestId("tab-sync-button").click()
+    await expect(page.getByTestId("tab-sync-button")).toHaveAttribute("aria-pressed", "true")
+    await expect(page.locator("#electron_tabs .electron-tab", { hasText: "Tabs from other devices" })).toHaveCount(0)
     const view = await (async () => {
       for (let attempt = 0; attempt < 50; attempt++) {
         const contents = await app.electronApp.evaluate(({ webContents }) => webContents.getAllWebContents()
@@ -148,6 +150,7 @@ test("the tab bar button opens other devices' tabs as a page; the side panel can
       "[...document.querySelectorAll('.remote_tab_link')].find((link) => link.textContent.includes('Gamma')).click()"), view)
     await expect.poll(async () => (await page.evaluate(() => window.onceElectron.tabs.getAll()))
       .find((tab) => tab.active)?.url).toBe(urls.gamma)
+    await expect(page.getByTestId("tab-sync-button")).toHaveAttribute("aria-pressed", "false")
 
     await page.getByTestId("sync-page-tabs").click()
     await page.getByTestId("remote-tabs-placement").selectOption("panel")

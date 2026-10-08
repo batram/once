@@ -122,7 +122,8 @@ export class TabOwnership {
   }
 
   reorder(owner: WindowEntry, id: string, beforeId?: string): void {
-    this.requireOwned(owner, id)
+    const entry = this.requireOwned(owner, id)
+    if (entry.displayedUrl.startsWith("once-tabs://view/")) throw new Error("The tabs page belongs to its window")
     if (beforeId) this.requireOwned(owner, beforeId)
     this.insert(owner.tabs, id, beforeId)
     this.notify(owner)
@@ -131,6 +132,7 @@ export class TabOwnership {
   move(owner: WindowEntry, id: string, beforeId?: string): void {
     const entry = this.tabs.get(id)
     if (!entry) throw new Error(`Unknown tab: ${id}`)
+    if (entry.displayedUrl.startsWith("once-tabs://view/")) throw new Error("The tabs page belongs to its window")
     const source = this.windows.get(entry.ownerId)
     if (!source) throw new Error("Tab owner is unavailable")
     if (source === owner) {

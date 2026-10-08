@@ -1,5 +1,5 @@
 import { createOnceApp, OnceClient } from "@once/app"
-import { applyTabSyncTestTiming, bindRemoteTabsPlacement, desktopTabSyncNotices, remoteTabsInPanel } from "./remoteTabsPlacement"
+import { applyTabSyncTestTiming, bindRemoteTabsPlacement, desktopTabSyncNotices, initializeRemoteTabsButton, remoteTabsInPanel } from "./remoteTabsPlacement"
 import { electronTabOpener, hostRemoteTabsPages } from "./remoteTabsHost"
 import { FilterListsDocument, UserscriptsDocument } from "@once/core"
 import { createElectronPlatform } from "@once/platform-electron"
@@ -127,6 +127,7 @@ async function startRenderer(): Promise<void> {
     window.onceElectron.tabs.startSourcePicker(url)
   )
   const browserShell = new BrowserShell(window.onceElectron, runReaderRequest)
+  initializeRemoteTabsButton()
   bindAccessibilitySetting(window.onceElectron)
   const onMenuCollapsedChanged = (collapsed: boolean): void =>
     browserShell.setLeftCollapsed(collapsed)
@@ -134,6 +135,8 @@ async function startRenderer(): Promise<void> {
 
   startupStage("app-start")
   await app.start()
+  bindRemoteTabsPlacement(window.onceElectron, app.client)
+  hostRemoteTabsPages(window.onceElectron, app.client)
   startupStage("redirects")
   const updateRedirects = async (
     redirects?: ElectronRedirectRule[]
@@ -181,8 +184,6 @@ async function startRenderer(): Promise<void> {
   })
   startupStage("bind-shell")
   bindBrowserExtensionSettings(app.client, window.onceElectron)
-  bindRemoteTabsPlacement(window.onceElectron, app.client)
-  hostRemoteTabsPages(window.onceElectron, app.client)
   document.addEventListener("contextmenu", (event) => {
     const story = storyFromTarget(event.target)
     const onStoryList = Boolean(

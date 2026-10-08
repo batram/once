@@ -264,6 +264,11 @@ body #titlebar-text {
   display: none;
 }
 
+#tab_sync_btn.active {
+  color: var(--text-high-color);
+  background: var(--border-high-color);
+}
+
 #tab_sync_btn[data-sent-count] {
   flex-basis: auto;
 }
