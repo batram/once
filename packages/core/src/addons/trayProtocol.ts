@@ -55,6 +55,8 @@ export interface AddonConversationSnapshot {
   story: { href: string; title: string }
   view: AddonTrayView
   busy: boolean
+  /** While busy: the view is one the add-on showed early, so its status says what it is doing. */
+  progress?: boolean
   error: string
   draft: string
   canRefresh?: boolean
@@ -133,6 +135,7 @@ export function readConversationSnapshot(value: unknown): AddonConversationSnaps
     story: { href: href.href, title: text(snapshot.story?.title, 1000) },
     view: readTrayView(snapshot.view),
     busy: snapshot.busy === true,
+    ...(snapshot.progress === true ? { progress: true } : {}),
     error: text(snapshot.error ?? "", 1000),
     draft: text(snapshot.draft ?? "", 8000),
     canRefresh: snapshot.canRefresh === true

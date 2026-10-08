@@ -120,7 +120,7 @@ class ConversationPage {
     this.story.hidden = !snapshot
     if (!this.embedded) document.title = snapshot ? `${snapshot.story.title} · ${snapshot.addon.name}` : "Once conversation"
     this.messages.replaceChildren(...(snapshot ? renderTrayMessages(snapshot.view, this.disclosed) : []))
-    this.status.replaceChildren(...(snapshot ? [renderTrayStatus(snapshot.view, busy, snapshot.error)] : []))
+    this.status.replaceChildren(...(snapshot ? [renderTrayStatus(snapshot.view, busy, snapshot.error, snapshot.progress === true)] : []))
     this.controls.replaceChildren()
     if (snapshot && usable) {
       if (busy) this.controls.append(trayButton("Stop", () => this.port.send({ type: "stop" })))

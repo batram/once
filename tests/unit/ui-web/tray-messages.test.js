@@ -14,6 +14,15 @@ function load() {
   return { ...require("../../../packages/ui-web/dist/addons/trayMessages"), window }
 }
 
+test("while busy, the status says what the add-on reported early, or Working… when it reported nothing", () => {
+  const { renderTrayStatus } = load()
+  assert.equal(renderTrayStatus({ messages: [], status: "Fetched article." }, true, "", false).textContent, "Working…")
+  assert.equal(renderTrayStatus({ messages: [], status: "Reading the article…" }, true, "", true).textContent, "Reading the article…")
+  assert.equal(renderTrayStatus({ messages: [], status: "" }, true, "", true).textContent, "Working…")
+  assert.equal(renderTrayStatus({ messages: [], status: "Fetched article." }, false, "", true).textContent, "Fetched article.")
+  assert.equal(renderTrayStatus({ messages: [], status: "x" }, false, "It failed", true).textContent, "It failed")
+})
+
 test("a fold the reader opened stays open when an earlier section lands late and moves it", () => {
   const { renderTrayMessages, window } = load()
   const disclosed = new Map()

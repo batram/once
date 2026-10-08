@@ -67,12 +67,14 @@ test("opening asks for the explanation and summary at once and shows whichever l
   assert.deepEqual(pending.map(request => request.summary), [false, true])
   pending[1].resolve(reply("The summary."))
   await new Promise(resolve => setImmediate(resolve))
-  assert.deepEqual(f.updates.map(view => view.messages.map(message => message.title ?? message.text)), [["Summary"]])
+  // Progress-only updates carry no messages; the answers are what is counted here.
+  const answered = () => f.updates.filter(view => view.messages.length)
+  assert.deepEqual(answered().map(view => view.messages.map(message => message.title ?? message.text)), [["Summary"]])
   pending[0].resolve(reply("The explanation."))
   const result = await opened
   assert.deepEqual(result.messages.map(message => message.title ?? message.text), ["The explanation.", "Summary"])
   // The last answer is the returned view; no redundant update.
-  assert.equal(f.updates.length, 1)
+  assert.equal(answered().length, 1)
 })
 
 test("a streamed explanation shows as it is written, and its finished text is the answer", async () => {
@@ -95,7 +97,7 @@ test("a streamed explanation shows as it is written, and its finished text is th
     return { status: 200, headers: { "content-type": "text/event-stream" }, text: stream }
   })
   const result = await f.run({ type: "open" })
-  const shown = f.updates.map(view => view.messages.map(message => message.title ?? message.text))
+  const shown = f.updates.filter(view => view.messages.length).map(view => view.messages.map(message => message.title ?? message.text))
   assert.deepEqual(shown[0], ["ExampleApp "])
   assert.ok(shown.some(messages => messages[0] === "ExampleApp organizes projects." && messages.length === 1))
   assert.deepEqual(result.messages.map(message => message.title ?? message.text), ["ExampleApp organizes projects.", "Summary"])
@@ -109,7 +111,7 @@ test("finished streams rebuild each provider's answer, citations and failures", 
     { type: "response.completed", response: { status: "completed", output: [{ content: [{ type: "output_text", text: "Hi",
       annotations: [{ type: "url_citation", title: "Source", url: "https://source.test/" }] }] }] } }
   ]))
-  assert.deepEqual(providerResult("openai", openai), { text: "Hi", sources: [{ title: "Source", url: "https://source.test/" }] })
+  assert.deepEqual(providerResult("openai", openai), { text: "Hi", sources: [{ title: "Source", url: "https://source.test/" }], fetched: false })
   assert.throws(() => streamedResponse("openai", sse([{ type: "response.output_text.delta", delta: "Hi" }])), /ended before/)
   // What the model says before searching is not the answer; the answer arrives as a piece per citation.
   const anthropic = streamedResponse("anthropic", sse([
@@ -126,7 +128,7 @@ test("finished streams rebuild each provider's answer, citations and failures", 
     { type: "content_block_delta", index: 5, delta: { type: "text_delta", text: " in one line." } },
     { type: "message_delta", delta: { stop_reason: "end_turn" } }
   ]))
-  assert.deepEqual(providerResult("anthropic", anthropic), { text: "- **Cited**: answer in one line.", sources: [{ title: "Source", url: "https://source.test/" }] })
+  assert.deepEqual(providerResult("anthropic", anthropic), { text: "- **Cited**: answer in one line.", sources: [{ title: "Source", url: "https://source.test/" }], fetched: false })
   assert.throws(() => providerResult("anthropic", streamedResponse("anthropic", sse([{ type: "message_delta", delta: { stop_reason: "max_tokens" } }]))), /did not complete/)
   assert.throws(() => streamedResponse("compatible", sse([[{ error: { message: "High\ndemand" } }]])), /Provider: High demand/)
   assert.throws(() => streamedResponse("anthropic", sse([{ type: "error", error: { type: "overloaded_error", message: "Overloaded" } }])), /Overloaded/)
@@ -195,6 +197,55 @@ test("missing article is labelled title-only with the reason, skips the automati
   assert.deepEqual(opened.actions.map(action => action.id), ["summarize", "open-page", "read-page"])
   assert.match((await f.run({ type: "action", action: "summarize" })).status, /Cannot summarize/)
   assert.equal(f.requests.length, 1)
+})
+
+test("without the article, an Anthropic model is asked to fetch the page itself, and the summary runs", async () => {
+  const anthropicAnswer = fetched => ({ status: 200, text: JSON.stringify({ stop_reason: "end_turn", content: [
+    { type: "text", text: "Let me read it." },
+    { type: "server_tool_use", id: "f", name: "web_fetch", input: { url: "https://story.test/" } },
+    { type: "web_fetch_tool_result", tool_use_id: "f", content: fetched ? { type: "web_fetch_result", url: "https://story.test/" } : { type: "web_fetch_tool_result_error", error_code: "url_not_accessible" } },
+    { type: "text", text: "The answer." }
+  ] }) })
+  const f = await fixture({ provider: "anthropic", anthropicEndpoint: "https://api.anthropic.test/v1/messages" }, () => anthropicAnswer(true))
+  f.context.getStoryContent = async () => { throw new Error("No readable content.") }
+  const opened = await f.run({ type: "open" })
+  assert.equal(f.requests.length, 2, "explanation and summary both run")
+  for (const { request } of f.requests) {
+    const body = JSON.parse(request.body)
+    assert.deepEqual(body.tools, [{ type: "web_fetch_20250910", name: "web_fetch", max_uses: 1 }])
+    assert.match(body.messages[0].content, /web_fetch tool/)
+    // The tool only follows a URL written out in a user turn, not one inside the source JSON.
+    assert.match(body.messages.at(-1).content, /The page: https:\/\/story\.test\/$/)
+  }
+  assert.match(opened.status, /The model fetched the page itself; Once could not read it: No readable content/)
+  assert.deepEqual(opened.messages.map(message => message.title), [undefined, "Summary"])
+  assert.equal(opened.messages[0].text, "The answer.", "what the model said before fetching is not the answer")
+  // When the fetch fails, the answer stands as title-only and the ways to the page stay offered.
+  const failing = await fixture({ provider: "anthropic", anthropicEndpoint: "https://api.anthropic.test/v1/messages" }, () => anthropicAnswer(false))
+  failing.context.getStoryContent = async () => { throw new Error("No readable content.") }
+  const bare = await failing.run({ type: "open" })
+  assert.match(bare.status, /Title only: No readable content/)
+  assert.ok(bare.actions.some(action => action.id === "read-page"))
+  // A provider that rejects the tool is asked again without it, and told nothing about fetching.
+  const bodies = []
+  const refusing = await fixture({ provider: "anthropic", anthropicEndpoint: "https://api.anthropic.test/v1/messages" }, (connection, request) => {
+    bodies.push(JSON.parse(request.body))
+    return bodies.at(-1).tools ? { status: 400, text: JSON.stringify({ error: { message: "web_fetch tool is not supported" } }) }
+      : { status: 200, text: JSON.stringify({ stop_reason: "end_turn", content: [{ type: "text", text: "Title only answer." }] }) }
+  })
+  refusing.context.getStoryContent = async () => { throw new Error("No readable content.") }
+  const plain = await refusing.run({ type: "open" })
+  assert.equal(plain.statusTone, "info")
+  assert.ok(bodies.some(body => !body.tools && /Only the title is available/.test(body.messages[0].content)))
+})
+
+test("the status says what the tray is doing while it works", async () => {
+  const f = await fixture()
+  await f.run({ type: "open" })
+  const seen = f.updates.map(update => update.status)
+  assert.equal(seen[0], "Reading the article…")
+  assert.equal(seen[1], "Asking fixture-model…")
+  assert.ok(seen.slice(2).every(status => status === "Writing…" || status === "Asking fixture-model…"), JSON.stringify(seen))
 })
 
 test("Open page opens the story, and Read the page starts over with the article once it can be read", async () => {

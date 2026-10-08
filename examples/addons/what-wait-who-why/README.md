@@ -129,9 +129,12 @@ example after the automatic one failed; the question box continues the conversat
 Saved/feed content is used first; otherwise, when the page is open in a tab or
 the reading view and has loaded, Once reads it as shown there, scripts and all;
 otherwise it fetches and extracts the original article. When none of that yields
-readable text, the tray explains the title alone, says why the article was
-unavailable, and offers **Open page** and **Read the page**: open it, let it load,
-then read it, and the explanation and summary are asked again with the article.
+readable text, an Anthropic model is asked to fetch the page itself through its
+web fetch tool, and the status says so when it did. Otherwise the tray explains
+the title alone, says why the article was unavailable, and offers **Open page**
+and **Read the page**: open it, let it load, then read it, and the explanation and
+summary are asked again with the article. While it works, the status line says
+what it is doing: reading the article, asking the model, writing.
 Reading content for the addon does not mark a story read or save an offline copy.
 
 ### YouTube videos

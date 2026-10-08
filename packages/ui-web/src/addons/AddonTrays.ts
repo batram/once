@@ -29,6 +29,8 @@ interface TrayState {
   error: string
   last: AddonTrayEvent
   disclosed: TrayDisclosures
+  /** The view is one the add-on showed while still working, so its status is progress, not a result. */
+  progress: boolean
   controller?: AbortController
   /** Other surfaces showing this conversation; told after every change, and with null when it ends. */
   listeners: Set<(snapshot: AddonConversationSnapshot | null) => void>
@@ -202,7 +204,7 @@ export class AddonTrays {
   private newState(href: string, tray: string, story: StoryView, title: string): TrayState {
     const state: TrayState = {
       open: new Set(), story, title,
-      draft: "", view: { messages: [] }, error: "", last: { type: "open" }, disclosed: new Map(), listeners: new Set()
+      draft: "", view: { messages: [] }, error: "", last: { type: "open" }, disclosed: new Map(), progress: false, listeners: new Set()
     }
     this.states.set(this.key(href, tray), state)
     return state
@@ -220,7 +222,7 @@ export class AddonTrays {
       addon: { id: this.manifest.id, name: this.manifest.name, ...(this.manifest.shortName ? { shortName: this.manifest.shortName } : {}) },
       tray: { id: tray, title: this.manifest.trays?.find(item => item.id === tray)?.title ?? tray },
       story: { href, title: state.title },
-      view: state.view, busy: !!state.controller, error: state.error, draft: state.draft, canRefresh: Boolean(this.sandbox)
+      view: state.view, busy: !!state.controller, progress: state.progress, error: state.error, draft: state.draft, canRefresh: Boolean(this.sandbox)
     }
   }
 
@@ -313,6 +315,7 @@ export class AddonTrays {
       const result = await session.tray(tray, event, state.story, controller.signal, view => {
         if (state.controller !== controller || controller.signal.aborted) return
         state.view = early = view
+        state.progress = true
         this.refresh(href, tray)
       })
       if (!controller.signal.aborted) state.view = readTrayView(result)
@@ -321,6 +324,7 @@ export class AddonTrays {
     } finally {
       if (state.controller === controller) {
         state.controller = undefined
+        state.progress = false
         this.refresh(href, tray)
       }
     }
@@ -368,7 +372,7 @@ export class AddonTrays {
     close.replaceChildren(trayIcon("x"))
     header.append(close)
     root.append(header, ...renderTrayMessages(state.view, state.disclosed))
-    root.append(renderTrayStatus(state.view, !!state.controller, state.error), this.controls(href, tray, state))
+    root.append(renderTrayStatus(state.view, !!state.controller, state.error, state.progress), this.controls(href, tray, state))
     if (state.view.composer) root.append(this.composer(href, tray, state))
     return root
   }

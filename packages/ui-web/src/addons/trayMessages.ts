@@ -104,15 +104,19 @@ function disclosure(disclosed: TrayDisclosures, key: string, title: string, coll
   return details
 }
 
-/** The status line under the messages: what the answer was built from, or why there is none. */
-export function renderTrayStatus(view: AddonTrayView, busy: boolean, error: string): HTMLElement {
+/**
+ * The status line under the messages: what the answer was built from, or why
+ * there is none. While busy, an add-on that showed a view early says there
+ * what it is doing; one that did not gets a plain "Working…".
+ */
+export function renderTrayStatus(view: AddonTrayView, busy: boolean, error: string, progress = false): HTMLElement {
   const status = document.createElement("p")
   status.setAttribute("role", "status")
   // A host failure and an addon reporting its own through statusTone read the
   // same to the reader, so they get the same treatment.
   const failed = !busy && (error !== "" || view.statusTone === "error")
   status.className = failed ? "addon_tray_status addon_tray_status--error" : "addon_tray_status"
-  status.textContent = busy ? "Working…" : error || view.status || ""
+  status.textContent = busy ? (progress && view.status) || "Working…" : error || view.status || ""
   return status
 }
 
