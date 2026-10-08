@@ -13,8 +13,7 @@
   justify-content: flex-start;
 }
 #settings_panel .settings_title {
-  --settings-settings_panel-settings_title-font-size: 13px;
-  font-size: var(--settings-settings_panel-settings_title-font-size);
+  font-size: var(--panel-title-font-size);
 }
 
 .settings_container {
@@ -1141,9 +1140,8 @@
   order: 1;
   min-width: 0;
   overflow: hidden;
-  --settings-settings_panel-settings_title-font-size: 13px;
-  font-size: var(--settings-settings_panel-settings_title-font-size);
-  font-weight: 700;
+  font-size: var(--panel-title-font-size);
+  font-weight: var(--panel-title-font-weight);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

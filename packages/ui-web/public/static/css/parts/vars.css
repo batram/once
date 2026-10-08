@@ -20,6 +20,9 @@
   --fs-dense: 13px;
   --fs-body: 14px;
   --fs-title: 16px;
+  /* The one title of a panel's title bar: Settings, Tabs, an add-on's page. One size, one weight. */
+  --panel-title-font-size: var(--fs-dense);
+  --panel-title-font-weight: 700;
 
   --icon-sm: 12px;
   --icon-md: 16px;

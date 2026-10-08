@@ -77,8 +77,8 @@
 .remote_tabs_title {
   margin: 0;
   color: var(--text-high-color);
-  font-size: calc(var(--fs-title) + var(--sp-1));
-  font-weight: 700;
+  font-size: var(--panel-title-font-size);
+  font-weight: var(--panel-title-font-weight);
   line-height: 1.25;
 }
 

@@ -180,13 +180,16 @@
   border-color: var(--border-color);
 }
 
+/* The same title as the Settings bar's: one size, one weight, one colour. */
 .temporary_panel_bar .temporary_panel_title {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 600;
+  color: var(--text-high-color);
+  font-size: var(--panel-title-font-size);
+  font-weight: var(--panel-title-font-weight);
   padding-inline: var(--sp-2);
 }
 
