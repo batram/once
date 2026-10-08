@@ -407,7 +407,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
         LinkContextMenu.Target target = new LinkContextMenu.Target(link, call.getString("linkText"), image,
             image == null ? GeckoSession.ContentDelegate.ContextElement.TYPE_NONE : GeckoSession.ContentDelegate.ContextElement.TYPE_IMAGE,
             call.getString("referrer"));
-        List<LinkContextMenu.Item> items = menuItems(call.getArray("items"));
+        List<LinkContextMenu.Item> items = LinkContextMenu.Item.list(call.getArray("items"));
         getActivity().runOnUiThread(() -> {
             showLinkMenu(target, items);
             call.resolve();
@@ -438,7 +438,7 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
     @PluginMethod
     public void setContextMenuItems(PluginCall call) {
         String requestId = call.getString("requestId", "");
-        List<LinkContextMenu.Item> items = menuItems(call.getArray("items"));
+        List<LinkContextMenu.Item> items = LinkContextMenu.Item.list(call.getArray("items"));
         getActivity().runOnUiThread(() -> {
             java.util.function.Consumer<List<LinkContextMenu.Item>> show = pendingMenus.remove(requestId);
             if (show != null) show.accept(items);
@@ -451,17 +451,6 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
             (url, background) -> notifyListeners("openLinkRequested", new JSObject().put("url", url).put("background", background)),
             id -> notifyListeners("contextMenuAction", new JSObject().put("id", id)
                 .put("link", target.link).put("linkText", target.linkText)));
-    }
-
-    private static List<LinkContextMenu.Item> menuItems(com.getcapacitor.JSArray array) {
-        List<LinkContextMenu.Item> items = new ArrayList<>();
-        if (array == null) return items;
-        for (int index = 0; index < array.length(); index++) {
-            org.json.JSONObject item = array.optJSONObject(index);
-            if (item == null || item.optString("id").isEmpty() || item.optString("label").isEmpty()) continue;
-            items.add(new LinkContextMenu.Item(item.optString("id"), item.optString("label")));
-        }
-        return items;
     }
 
     /** With Reader-mode entries in its history, the shell owns Back and Forward. */

@@ -45,6 +45,18 @@ final class LinkContextMenu {
         final String id;
         final String label;
         Item(String id, String label) { this.id = id; this.label = label; }
+
+        /** The shell's items as sent over the bridge; entries without an id or label are dropped. */
+        static List<Item> list(org.json.JSONArray array) {
+            List<Item> items = new ArrayList<>();
+            if (array == null) return items;
+            for (int index = 0; index < array.length(); index++) {
+                org.json.JSONObject item = array.optJSONObject(index);
+                if (item == null || item.optString("id").isEmpty() || item.optString("label").isEmpty()) continue;
+                items.add(new Item(item.optString("id"), item.optString("label")));
+            }
+            return items;
+        }
     }
 
     static void show(Activity activity, GeckoRuntime runtime, Target target,
