@@ -1371,6 +1371,16 @@
     color: var(--error-color);
   }
 
+  /* The refused link in full, so the reader can see where the page wanted to go. */
+  #reading_browser_external_url {
+    font-family: var(--m-mono);
+    font-size: 0.85em;
+    overflow-wrap: anywhere;
+    text-align: center;
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
   .reading_status_actions {
     display: flex;
     flex-wrap: wrap;

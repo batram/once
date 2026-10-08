@@ -34,6 +34,8 @@ export class ReadingSurfaceCoordinator {
   private pendingNavigationUrl: string | null = null
   // A popup's page was already loading natively under its own (possibly redirected) URL.
   private adoptedUrl: string | null = null
+  // The app link the failed page redirected to, offered on the error page.
+  private failedExternalUrl: string | null = null
   private readingPanelVisible = false
   private menuOpen = false
   private overlayOpen = false
@@ -90,6 +92,7 @@ export class ReadingSurfaceCoordinator {
           if (generation !== this.surfaceGeneration || !state.currentUrl || state.mode === "reader" || state.loadState === "error") return
           this.pendingNavigationUrl = null
           this.browserReady = false
+          this.failedExternalUrl = null
           this.session.navigationFailed(state.navigationId, state.currentUrl,
             error instanceof Error ? error.message : "The browser could not open this page.")
         }
@@ -153,6 +156,7 @@ export class ReadingSurfaceCoordinator {
       this.pendingNavigationUrl = null
       this.adoptedUrl = null
       this.browserReady = false
+      this.failedExternalUrl = event.externalUrl ?? null
       this.session.navigationFailed(event.navigationId, event.url, event.message)
     })
     const history = await this.surface.addListener("historyChanged", (event) => {
@@ -254,6 +258,15 @@ export class ReadingSurfaceCoordinator {
 
   isBrowserReady(): boolean {
     return this.browserReady
+  }
+
+  /** The full link (any scheme the surface refused) the failed page redirected to. */
+  externalRedirect(): string | null {
+    return this.surface.openExternalRedirect ? this.failedExternalUrl : null
+  }
+
+  async openExternalRedirect(): Promise<boolean> {
+    return await this.surface.openExternalRedirect?.() ?? false
   }
 
   isBrowserOpened(): boolean {

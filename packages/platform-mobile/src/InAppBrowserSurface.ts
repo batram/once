@@ -77,6 +77,8 @@ export interface BrowserNavigationEvent extends StoryPageContext {
 export interface BrowserNavigationFailedEvent extends BrowserNavigationEvent {
   code: number
   message: string
+  /** The app link (an intent:// URL, say) the page redirected to instead of loading. */
+  externalUrl?: string
 }
 
 export interface BrowserHistoryEvent extends BrowserNavigationEvent {
@@ -229,6 +231,8 @@ export interface InAppBrowserSurface {
   goForward(): Promise<void>
   /** Moves to a position of the engine's history list (see historyChanged). */
   goToHistoryIndex?(index: number): Promise<void>
+  /** Opens the app link of the last navigationFailed's externalUrl; false when no app takes it. */
+  openExternalRedirect?(): Promise<boolean>
   /** Which directions the engine's own swipe may take (iOS); the shell takes the rest. */
   setHistoryGestures?(gestures: { back: boolean; forward: boolean }): Promise<void>
   /** Shows the native long-press menu for the Reader frame (Android). */
@@ -276,6 +280,7 @@ interface NativeInAppBrowserPlugin {
   goBack(): Promise<void>
   goForward(): Promise<void>
   goToHistoryIndex(options: { index: number }): Promise<void>
+  openExternalRedirect(): Promise<{ opened: boolean }>
   setHistoryGestures(options: { back: boolean; forward: boolean }): Promise<void>
   showContextMenu(options: ReaderContextMenuTarget): Promise<void>
   setContextMenuItems(options: { requestId: string; items: ContextMenuItem[] }): Promise<void>
@@ -407,6 +412,7 @@ export function createNativeInAppBrowserSurface(identity?: BrowserTabIdentity): 
     goBack: () => plugin.goBack(),
     goForward: () => plugin.goForward(),
     goToHistoryIndex: (index) => plugin.goToHistoryIndex({ index }),
+    openExternalRedirect: async () => (await plugin.openExternalRedirect()).opened,
     async setHistoryGestures(gestures) {
       // Only iOS has engine swipes to hand over; elsewhere there is no method.
       try { await plugin.setHistoryGestures(gestures) } catch { /* nothing to configure */ }

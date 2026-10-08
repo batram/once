@@ -18,6 +18,7 @@ final class ReadingProgressDelegate implements GeckoSession.ProgressDelegate {
         if (ignored != h.session) return;
         if (h.awaitingRequestedStart && !h.sameAddress(h.requestedUrl, url)) return;
         h.awaitingRequestedStart = false;
+        h.offeredExternalUrl = null;
         h.painted = false;
         h.documentPainted = false;
         h.repairVerified = false;
@@ -61,7 +62,8 @@ final class ReadingProgressDelegate implements GeckoSession.ProgressDelegate {
         else if (!h.navigationCompleted) completeIfPdfViewer();
         h.nextHealthAt = 0;
         if (!h.initialBlank) {
-            if (h.loadStatus != null && !h.navigationCompleted) h.loadStatus.show("Displaying page…");
+            if (h.loadStatus != null && !h.navigationCompleted && h.offeredExternalUrl == null)
+                h.loadStatus.show("Displaying page…");
             h.traceLoad("network-stopped");
             h.requestHealthCheck();
         }

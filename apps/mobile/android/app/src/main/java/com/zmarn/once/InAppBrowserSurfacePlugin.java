@@ -312,6 +312,14 @@ public class InAppBrowserSurfacePlugin extends ReadingSurfaceHost {
         });
     }
 
+    /** Opens the app link the page redirected to (see navigationFailed's externalUrl). */
+    @PluginMethod
+    public void openExternalRedirect(PluginCall call) {
+        if (!route(call, Missing.REJECT, tab -> tab.openExternalRedirect(call))) return;
+        getActivity().runOnUiThread(() ->
+            call.resolve(new JSObject().put("opened", openExternal(offeredExternalUrl))));
+    }
+
     @PluginMethod
     public void goBack(PluginCall call) {
         if (!route(call, Missing.REJECT, tab -> tab.goBack(call))) return;

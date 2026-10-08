@@ -380,6 +380,10 @@ export class MobileReadingController {
       if (state.mode !== "reader" || !state.currentUrl) return
       this.session.retry()
     }
+    required<HTMLButtonElement>("#reading_browser_open_app").onclick = async () => {
+      if (await this.nativeReading.openExternalRedirect()) return
+      required("#reading_browser_error_message").textContent = "No installed app can open this link."
+    }
     required<HTMLButtonElement>("#reading_browser_retry").onclick = () => {
       void this.nativeReading.reload()
     }
@@ -554,6 +558,11 @@ export class MobileReadingController {
     required("#reading_browser_error_message").textContent = browserFailed
       ? state.error || "The page did not load. Check the address or try again."
       : ""
+    const externalUrl = browserFailed ? this.nativeReading.externalRedirect() : null
+    required("#reading_browser_open_app").hidden = !externalUrl
+    const externalLink = required("#reading_browser_external_url")
+    externalLink.hidden = !externalUrl
+    externalLink.textContent = externalUrl ?? ""
     const readerStatus = required("#reading_reader_status")
     const readerLoading = required("#reading_reader_loading")
     const readerFailure = required("#reading_reader_failure")

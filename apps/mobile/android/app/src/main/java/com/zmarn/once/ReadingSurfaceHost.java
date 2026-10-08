@@ -72,6 +72,8 @@ abstract class ReadingSurfaceHost extends Plugin {
     protected SwipeRefreshLayout refreshSurface;
     protected LinearLayout recoveryView;
     protected TextView recoveryMessage;
+    /** The app link the current page redirected to, until the next navigation. */
+    protected String offeredExternalUrl;
     protected final AtomicLong navigationSequence = new AtomicLong();
     protected long activeNavigation;
     protected long committedNavigation;
@@ -527,6 +529,40 @@ abstract class ReadingSurfaceHost extends Plugin {
         recoveryView.setVisibility(View.VISIBLE);
     }
 
+    /**
+     * The page sent the reader on to an app link (an intent:// redirect, say)
+     * instead of a document, so the surface would stay blank. The shell shows
+     * this as a failed page and offers to open the link in its app.
+     */
+    protected void offerExternal(String url) {
+        Log.i(TAG, "external redirect offered: " + url);
+        offeredExternalUrl = url;
+        // The redirecting document is empty; its blank check must not replace this.
+        blankWarning = true;
+        if (loadStatus != null) loadStatus.hide();
+        failed(currentUrl, -1, describeExternal(url), url);
+    }
+
+    private static String describeExternal(String url) {
+        String app = null;
+        try { app = parseExternal(url).getPackage(); } catch (Exception ignored) { /* described by scheme */ }
+        if (app != null) return "The page tried to open another app (" + app + ").";
+        String scheme = Uri.parse(url).getScheme();
+        return scheme == null ? "The page tried to open a link the browser cannot show."
+            : "The page tried to open a " + scheme + ": link, which the browser cannot show.";
+    }
+
+    /** intent: URLs carry a whole Intent; anything else is a plain VIEW of the URL. */
+    private static Intent parseExternal(String url) throws java.net.URISyntaxException {
+        if (!url.regionMatches(true, 0, "intent:", 0, 7)) return new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+        Intent intent = Intent.parseUri(url, Intent.URI_INTENT_SCHEME);
+        // A page may only reach what a browser link could, never a named component.
+        intent.addCategory(Intent.CATEGORY_BROWSABLE);
+        intent.setComponent(null);
+        intent.setSelector(null);
+        return intent;
+    }
+
     protected boolean isEmbeddable(String value) {
         if (value == null) return false;
         Uri uri = Uri.parse(value);
@@ -560,12 +596,14 @@ abstract class ReadingSurfaceHost extends Plugin {
             notifyListeners("openLinkRequested", new JSObject().put("url", url).put("background", background)));
     }
 
-        protected void openExternal(String url) {
+    protected boolean openExternal(String url) {
+        if (url == null) return false;
         try {
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-            getActivity().startActivity(intent);
-        } catch (RuntimeException ignored) {
+            getActivity().startActivity(parseExternal(url));
+            return true;
+        } catch (Exception ignored) {
             // The host UI remains usable when no app handles the scheme.
+            return false;
         }
     }
 
@@ -598,7 +636,9 @@ abstract class ReadingSurfaceHost extends Plugin {
         notifyListeners("historyChanged", payload);
     }
 
-    protected void failed(String url, int code, String message) {
+    protected void failed(String url, int code, String message) { failed(url, code, message, null); }
+
+    protected void failed(String url, int code, String message, String externalUrl) {
         navigationDeadline = 0;
         finishRefresh();
         JSObject payload = new JSObject();
@@ -606,6 +646,7 @@ abstract class ReadingSurfaceHost extends Plugin {
         payload.put("url", url == null ? "" : url);
         payload.put("code", code);
         payload.put("message", message);
+        if (externalUrl != null) payload.put("externalUrl", externalUrl);
         notifyListeners("navigationFailed", payload);
     }
 
