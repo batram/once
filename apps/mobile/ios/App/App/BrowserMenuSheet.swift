@@ -147,16 +147,27 @@ final class BrowserMenuSheet: UIViewController, UIAdaptivePresentationController
             }
         })
 
+        // Actions on the page itself (send it to another device) sit right
+        // below the switches, ahead of the extensions, and carry no add-on icon.
+        var pageActions = content.arrangedSubviews.count
         for item in call.getArray("items", JSObject.self) ?? [] {
             guard let id = item["id"] as? String, let label = item["label"] as? String else { continue }
-            content.addArrangedSubview(entry(
+            let page = item["placement"] as? String == "page"
+            let row = entry(
                 id: id,
                 label: label,
                 enabled: item["enabled"] as? Bool ?? true,
                 iconDataUrl: item["iconDataUrl"] as? String,
                 settingsId: item["settingsId"] as? String,
-                holds: item["holdsSheet"] as? Bool ?? false
-            ))
+                holds: item["holdsSheet"] as? Bool ?? false,
+                plain: page
+            )
+            if page {
+                content.insertArrangedSubview(row, at: pageActions)
+                pageActions += 1
+            } else {
+                content.addArrangedSubview(row)
+            }
         }
     }
 
@@ -257,11 +268,14 @@ final class BrowserMenuSheet: UIViewController, UIAdaptivePresentationController
         return row
     }
 
-    private func entry(id: String, label: String, enabled: Bool, iconDataUrl: String?, settingsId: String?, holds: Bool) -> UIView {
+    private func entry(id: String, label: String, enabled: Bool, iconDataUrl: String?, settingsId: String?, holds: Bool,
+                       plain: Bool = false) -> UIView {
         let row = button(enabled: enabled) { [weak self] in if holds { self?.hold(id) } else { self?.choose(id) } }
         row.configuration?.title = label
-        row.configuration?.image = icon(iconDataUrl, manage: id == "once:manage")
-        row.configuration?.imagePadding = 12
+        if !plain {
+            row.configuration?.image = icon(iconDataUrl, manage: id == "once:manage")
+            row.configuration?.imagePadding = 12
+        }
         row.configuration?.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16)
         row.configuration?.titleLineBreakMode = .byTruncatingTail
         row.configuration?.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
