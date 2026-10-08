@@ -7,6 +7,8 @@ import {
   setPaneFocus
 } from "@once/ui-web"
 import { ReaderRequests, ReaderRequestRunner } from "./ReaderRequests"
+import { updateRemoteTabsButton } from "./remoteTabsPlacement"
+import { parseDroppedUrls } from "./browser/droppedUrls"
 import browserShellMarkup from "./browser/browser-shell.html"
 import { AddressBar } from "./browser/AddressBar"
 import { FindBar } from "./browser/FindBar"
@@ -377,10 +379,7 @@ export class BrowserShell {
 
   private render(tabs: ElectronTabState[]): void {
     this.tabs = tabs
-    const syncButton = required<HTMLButtonElement>("#tab_sync_btn")
-    const syncActive = tabs.some((tab) => tab.url === REMOTE_TABS_URL && tab.active)
-    syncButton.classList.toggle("active", syncActive)
-    syncButton.setAttribute("aria-pressed", String(syncActive))
+    updateRemoteTabsButton(tabs)
     this.tabStrip.replaceChildren()
     this.activeTabElement = null
 
@@ -676,17 +675,6 @@ export class BrowserShell {
       })
     })
   }
-}
-
-function parseDroppedUrls(transfer: DataTransfer): string[] {
-  const values = transfer.getData("text/uri-list") || transfer.getData("text/plain")
-  const urls: string[] = []
-  for (const line of values.split(/\r?\n/)) {
-    const value = line.trim()
-    if (!value || value.startsWith("#")) continue
-    if (value.startsWith("http://") || value.startsWith("https://")) urls.push(value)
-  }
-  return [...new Set(urls)]
 }
 
 function clamp(value: number, minimum: number, maximum: number): number {

@@ -1,4 +1,4 @@
-import type { ElectronBridge } from "@once/platform-electron/bridge"
+import { REMOTE_TABS_URL, type ElectronBridge, type ElectronTabState } from "@once/platform-electron/bridge"
 import type { OnceClient, OncePlatformPorts } from "@once/app"
 import { tabSyncTestTiming } from "@once/app/tabsync"
 import { setTabsMenuVisible, watchTabSyncEnabled } from "@once/ui-web"
@@ -6,6 +6,14 @@ import { setTabsMenuVisible, watchTabSyncEnabled } from "@once/ui-web"
 const PLACEMENT_KEY = "once:remote-tabs-placement"
 const ENABLED_KEY = "once:remote-tabs-enabled"
 type Placement = "button" | "panel" | "both"
+
+/** The fixed button takes the selected state of the internal tabs page. */
+export function updateRemoteTabsButton(tabs: ElectronTabState[]): void {
+  const button = document.querySelector<HTMLButtonElement>("#tab_sync_btn")
+  const active = tabs.some((tab) => tab.url === REMOTE_TABS_URL && tab.active)
+  button?.classList.toggle("active", active)
+  button?.setAttribute("aria-pressed", String(active))
+}
 
 function readPlacement(): Placement {
   try {

@@ -89,6 +89,13 @@ export class TabOwnership {
     })
   }
 
+  /** Internal pages stay with the window that hosts them. */
+  requireMovable(owner: WindowEntry, id: string): TabEntry {
+    const entry = this.requireOwned(owner, id)
+    if (entry.displayedUrl.startsWith("once-tabs://view/")) throw new Error("The tabs page belongs to its window")
+    return entry
+  }
+
   activate(owner: WindowEntry, id: string): void {
     const entry = this.requireOwned(owner, id)
     if (owner.activeId === id) return
@@ -122,8 +129,7 @@ export class TabOwnership {
   }
 
   reorder(owner: WindowEntry, id: string, beforeId?: string): void {
-    const entry = this.requireOwned(owner, id)
-    if (entry.displayedUrl.startsWith("once-tabs://view/")) throw new Error("The tabs page belongs to its window")
+    this.requireMovable(owner, id)
     if (beforeId) this.requireOwned(owner, beforeId)
     this.insert(owner.tabs, id, beforeId)
     this.notify(owner)
