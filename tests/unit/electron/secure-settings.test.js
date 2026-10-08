@@ -48,6 +48,33 @@ function setup(available) {
   return { settings, cipher, warnings, stored }
 }
 
+test("concurrent saves preserve every setting and leave valid JSON", async () => {
+  const { settings, stored } = setup(true)
+  await settings.setCacheTime("60")
+  await Promise.all([
+    settings.setSyncUrl("https://example.org/db"),
+    settings.setAccessibility(true),
+    settings.setCacheTime("15"),
+    ...Array.from({ length: 20 }, (_, index) => settings.setSecret(`key:${index}`, `value:${index}`))
+  ])
+  assert.equal(await settings.getSyncUrl(), "https://example.org/db")
+  assert.equal(await settings.getAccessibility(), true)
+  assert.equal(await settings.getCacheTime(), 15)
+  assert.equal(Object.keys(stored().encryptedSecrets).length, 20)
+  for (let index = 0; index < 20; index++) assert.equal(await settings.getSecret(`key:${index}`), `value:${index}`)
+})
+
+test("readers wait for pending saves and a failed save does not block the queue", async () => {
+  const { settings, cipher } = setup(true)
+  cipher.encrypt = () => { throw new Error("cipher failed") }
+  await assert.rejects(settings.setSecret("broken", "value"), /cipher failed/)
+  cipher.encrypt = (value) => `enc:${value}`
+  const saving = settings.setSecret("good", "saved")
+  assert.equal(await settings.getSecret("good"), "saved")
+  await saving
+  assert.equal(await settings.getSecret("broken"), "")
+})
+
 test("encrypts the sync URL and secrets when the OS cipher is available", async () => {
   const { settings, stored, warnings } = setup(true)
   await settings.setSyncUrl("https://u:p@example.org/db")

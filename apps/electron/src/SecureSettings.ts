@@ -42,6 +42,7 @@ const safeStorageCipher: Cipher = {
 
 export class SecureSettings {
   private warnedPlainText = false
+  private pendingWrite: Promise<void> = Promise.resolve()
 
   constructor(
     private readonly filePath = path.join(
@@ -58,16 +59,16 @@ export class SecureSettings {
   }
 
   async setSyncUrl(syncUrl: string): Promise<void> {
-    const settings = await this.read()
-    if (await this.cipher.isAvailable()) {
-      settings.encryptedSyncUrl = await this.cipher.encrypt(syncUrl)
-      delete settings.plainSyncUrl
-    } else {
-      this.warnPlainText()
-      settings.plainSyncUrl = syncUrl
-      delete settings.encryptedSyncUrl
-    }
-    await this.write(settings)
+    return this.update(async (settings) => {
+      if (await this.cipher.isAvailable()) {
+        settings.encryptedSyncUrl = await this.cipher.encrypt(syncUrl)
+        delete settings.plainSyncUrl
+      } else {
+        this.warnPlainText()
+        settings.plainSyncUrl = syncUrl
+        delete settings.encryptedSyncUrl
+      }
+    })
   }
 
   async getSecret(key: string): Promise<string> {
@@ -79,18 +80,18 @@ export class SecureSettings {
   }
 
   async setSecret(key: string, value: string): Promise<void> {
-    const settings = await this.read()
-    const encrypted = without(settings.encryptedSecrets, key)
-    const plain = without(settings.plainSecrets, key)
-    if (value && await this.cipher.isAvailable()) {
-      encrypted[key] = await this.cipher.encrypt(value)
-    } else if (value) {
-      this.warnPlainText()
-      plain[key] = value
-    }
-    settings.encryptedSecrets = encrypted
-    settings.plainSecrets = plain
-    await this.write(settings)
+    return this.update(async (settings) => {
+      const encrypted = without(settings.encryptedSecrets, key)
+      const plain = without(settings.plainSecrets, key)
+      if (value && await this.cipher.isAvailable()) {
+        encrypted[key] = await this.cipher.encrypt(value)
+      } else if (value) {
+        this.warnPlainText()
+        plain[key] = value
+      }
+      settings.encryptedSecrets = encrypted
+      settings.plainSecrets = plain
+    })
   }
 
   async getCacheTime(): Promise<number> {
@@ -107,9 +108,7 @@ export class SecureSettings {
       throw new Error("Cache time must be a non-negative integer")
     }
 
-    const settings = await this.read()
-    settings.cacheTime = parsed
-    await this.write(settings)
+    return this.update((settings) => { settings.cacheTime = parsed })
   }
 
   async getAccessibility(): Promise<boolean> {
@@ -120,9 +119,7 @@ export class SecureSettings {
     if (typeof enabled !== "boolean") {
       throw new Error("Accessibility must be a boolean")
     }
-    const settings = await this.read()
-    settings.accessibility = enabled
-    await this.write(settings)
+    return this.update((settings) => { settings.accessibility = enabled })
   }
 
   /** An encrypted value wins; a plain one stands in until it is re-saved. */
@@ -168,6 +165,23 @@ export class SecureSettings {
   }
 
   private async read(): Promise<StoredSettings> {
+    await this.pendingWrite
+    return this.readStored()
+  }
+
+  /** Serialize the whole read/modify/write, including asynchronous encryption. */
+  private update(change: (settings: StoredSettings) => void | Promise<void>): Promise<void> {
+    const operation = this.pendingWrite.then(async () => {
+      const settings = await this.readStored()
+      await change(settings)
+      await this.write(settings)
+    })
+    // One failed save must not prevent a later save from trying again.
+    this.pendingWrite = operation.catch(() => undefined)
+    return operation
+  }
+
+  private async readStored(): Promise<StoredSettings> {
     try {
       return JSON.parse(await fs.readFile(this.filePath, "utf8"))
     } catch (error) {
