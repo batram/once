@@ -1,5 +1,5 @@
 import { Capacitor, CapacitorHttp } from "@capacitor/core"
-import type { HttpOptions } from "@capacitor/core"
+import type { HttpOptions, HttpResponse } from "@capacitor/core"
 
 // Captured before installNativeFetch replaces the global, so same-origin
 // requests reach the web view's own fetch rather than this module again.
@@ -22,8 +22,9 @@ export function hasNullBody(status: number): boolean {
  * `script-src 'self'` into any script on the web. This only ever hands a
  * Response to its caller.
  *
- * Bodies and responses travel as text, which is all the mobile callers read;
- * binary payloads would not arrive byte-exact. `options` are passed to every
+ * Request bodies travel as text. Responses arrive as bytes where the plugin
+ * allows it (see responseBody), so a body hashed against an integrity value,
+ * such as an add-on's script, matches the server's. `options` are passed to every
  * native request (redirects, timeouts). With `remoteOnly`, a request for the
  * app's own origin or a non-http(s) URL is refused instead of handed to the
  * web view, which would serve app files and `_capacitor_file_` paths.
@@ -50,16 +51,12 @@ export function createNativeFetch(
       method: request.method,
       headers,
       data: body || undefined,
-      responseType: "text"
+      responseType: "arraybuffer"
     })
     // The plugin has no cancellation API: an aborted request may still
     // finish natively, but its result does not reach the caller.
     request.signal.throwIfAborted()
-    // The plugin parses JSON responses itself; give callers the text back.
-    const text = native.data == null || typeof native.data === "string"
-      ? native.data
-      : JSON.stringify(native.data)
-    const response = new Response(hasNullBody(native.status) ? null : text, {
+    const response = new Response(hasNullBody(native.status) ? null : responseBody(native), {
       status: native.status,
       headers: native.headers
     })
@@ -76,6 +73,24 @@ export const nativeFetch = createNativeFetch()
  */
 export function installNativeFetch(): void {
   if (Capacitor.isNativePlatform()) window.fetch = nativeFetch
+}
+
+/**
+ * The plugin's text mode rebuilds a body line by line, dropping a final newline
+ * and turning CRLF into LF, so bytes are asked for and decoded here. The plugin
+ * still parses JSON responses whatever was asked for, and Android answers an
+ * error status with its body as text; those are passed on as text.
+ */
+function responseBody(native: HttpResponse): BodyInit | null {
+  if (native.data == null) return null
+  const contentType = new Headers(native.headers).get("content-type") ?? ""
+  const base64 = Capacitor.getPlatform() === "android"
+    ? native.status < 400 && !contentType.includes("application/json")
+    : !contentType.toLowerCase().includes("application/json")
+  if (base64 && typeof native.data === "string") {
+    return Uint8Array.from(atob(native.data), (character) => character.charCodeAt(0))
+  }
+  return typeof native.data === "string" ? native.data : JSON.stringify(native.data)
 }
 
 function isCrossOriginHttp(url: string): boolean {
