@@ -1,7 +1,8 @@
 import { Capacitor, registerPlugin, type PluginListenerHandle } from "@capacitor/core"
 
 export interface AddressBarPlugin {
-  setEditing(options: { editing: boolean; hasText: boolean }): Promise<void>
+  /** `explodable` adds "Explode" to the text menu, for the address editor. */
+  setEditing(options: { editing: boolean; hasText: boolean; explodable?: boolean }): Promise<void>
   clipboardState?(): Promise<{ hasText: boolean }>
   readClipboard?(): Promise<{ text: string }>
   copyText?(options: { text: string; label?: string }): Promise<void>
@@ -10,7 +11,7 @@ export interface AddressBarPlugin {
     event: "pasteAndGo",
     listener: (event: { text: string }) => void
   ): Promise<PluginListenerHandle>
-  addListener(event: "clear", listener: () => void): Promise<PluginListenerHandle>
+  addListener(event: "clear" | "explode", listener: () => void): Promise<PluginListenerHandle>
 }
 
 let nativeAddressBar: AddressBarPlugin | null | undefined

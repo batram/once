@@ -29,21 +29,58 @@ export function joinAddress(text: string): string {
   return text.replace(/[\r\n]+/g, "")
 }
 
-/** One line per part: site, each path segment, each query parameter, fragment. */
+/** One line per part: scheme, site, each path segment, each query parameter, fragment. */
 export function explodeAddress(text: string): string {
   const parts = splitAddress(text)
-  const lines = [parts.scheme + parts.host]
+  const lines = [parts.scheme, parts.host].filter(line => line !== "")
   const segments = parts.path.match(/\/[^/]*/g) ?? []
   // A trailing slash stays on its segment instead of taking a line of its own.
   if (segments.length > 1 && segments.at(-1) === "/") {
     segments.pop()
     segments[segments.length - 1] += "/"
   }
-  if (segments.length === 1 && segments[0] === "/") lines[0] += "/"
+  // The site root's lone slash stays on the site.
+  if (segments.length === 1 && segments[0] === "/" && parts.host) lines[lines.length - 1] += "/"
   else lines.push(...segments)
   if (parts.query) parts.query.split("&").forEach((part, index) => lines.push(index ? `&${part}` : part))
   if (parts.hash) lines.push(parts.hash)
-  return lines.filter((line, index) => index === 0 || line !== "").join("\n")
+  return lines.filter(line => line !== "").join("\n")
+}
+
+/**
+ * An exploded `display` without its line `index`, finer splits kept. When the
+ * first query parameter goes, the next one takes over its `?`.
+ */
+export function removeExplodedLine(display: string, index: number): string {
+  const lines = display.split("\n")
+  lines.splice(index, 1)
+  const query = lines.findIndex((line, position) => position > 0 && (line.startsWith("?") || line.startsWith("&")))
+  if (query >= 0 && lines[query]?.startsWith("&")) lines[query] = `?${lines[query]?.slice(1) ?? ""}`
+  return lines.join("\n")
+}
+
+/** The joined address without line `index` of an exploded `display`. */
+export function removeAddressLine(display: string, index: number): string {
+  return joinAddress(removeExplodedLine(display, index))
+}
+
+// Word and label separators inside one part: a line breaks before each.
+const FINER_SEPARATORS = /(?<=[^\n])(?=[-_.+~,=])/g
+
+/** One part split further, before each `-`, `_`, `.`, `+`, `~`, `,` and `=`. */
+export function explodeLine(line: string): string {
+  if (/^[a-z][a-z0-9+.-]*:\/\/$/i.test(line)) return line
+  return line.replace(FINER_SEPARATORS, "\n").replace(/\n(?=\n)/g, "")
+}
+
+/** Lines `first` to `last` of an exploded `display`, each split further. */
+export function explodeLines(display: string, first: number, last: number): string {
+  return display.split("\n").map((line, index) => index >= first && index <= last ? explodeLine(line) : line).join("\n")
+}
+
+/** The line of `display` holding offset `offset`. */
+export function lineIndexAt(display: string, offset: number): number {
+  return (display.slice(0, offset).match(/\n/g) ?? []).length
 }
 
 /** The caret's offset in the joined address, given its offset in `display`. */

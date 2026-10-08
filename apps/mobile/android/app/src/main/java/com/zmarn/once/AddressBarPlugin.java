@@ -26,13 +26,22 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 public class AddressBarPlugin extends Plugin {
     private static final int PASTE_AND_GO = 0x0ACE5;
     private static final int CLEAR = 0x0ACE6;
+    private static final int EXPLODE = 0x0ACE7;
     private volatile boolean editing;
     private volatile boolean hasText;
+    private volatile boolean explodable;
+    /** The text menu on screen, refreshed when the selection becomes explodable. */
+    private ActionMode shown;
 
     @PluginMethod
     public void setEditing(PluginCall call) {
         hasText = call.getBoolean("hasText", false);
         editing = call.getBoolean("editing", false);
+        boolean wasExplodable = explodable;
+        explodable = editing && call.getBoolean("explodable", false);
+        if (wasExplodable != explodable) {
+            getActivity().runOnUiThread(() -> { if (shown != null) shown.invalidate(); });
+        }
         call.resolve();
     }
 
@@ -78,6 +87,7 @@ public class AddressBarPlugin extends Plugin {
     ActionMode.Callback decorate(ActionMode.Callback inner) {
         return new ActionMode.Callback2() {
             @Override public boolean onCreateActionMode(ActionMode mode, Menu menu) {
+                shown = mode;
                 return inner.onCreateActionMode(mode, menu);
             }
 
@@ -98,10 +108,16 @@ public class AddressBarPlugin extends Plugin {
                     notifyListeners("clear", new JSObject());
                     return true;
                 }
+                if (item.getItemId() == EXPLODE) {
+                    mode.finish();
+                    notifyListeners("explode", new JSObject());
+                    return true;
+                }
                 return inner.onActionItemClicked(mode, item);
             }
 
             @Override public void onDestroyActionMode(ActionMode mode) {
+                if (shown == mode) shown = null;
                 inner.onDestroyActionMode(mode);
             }
 
@@ -116,10 +132,16 @@ public class AddressBarPlugin extends Plugin {
     private boolean addItems(Menu menu) {
         menu.removeItem(PASTE_AND_GO);
         menu.removeItem(CLEAR);
+        menu.removeItem(EXPLODE);
         if (!editing) return false;
         MenuItem paste = menu.findItem(android.R.id.paste);
         int order = paste == null ? 0 : paste.getOrder();
         boolean added = false;
+        if (explodable) {
+            // First, so it stays on the bar rather than in the overflow.
+            menu.add(Menu.NONE, EXPLODE, Menu.FIRST, "Explode").setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
+            added = true;
+        }
         if (clipboardHasText()) {
             menu.add(Menu.NONE, PASTE_AND_GO, order, "Paste and go").setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
             added = true;

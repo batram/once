@@ -383,13 +383,99 @@ test("the address editor's quick edits work on one field", async ({ page }) => {
   await expect(editor).toHaveValue("https://example.test/articles/42/?page=2#comments")
   await expect(dialog.getByText("Paste and go")).toBeHidden()
   await dialog.getByRole("button", { name: "Explode" }).tap()
-  await expect(editor).toHaveValue("https://example.test\n/articles\n/42/\n?page=2\n#comments")
+  await expect(editor).toHaveValue("https://\nexample.test\n/articles\n/42/\n?page=2\n#comments")
   await dialog.getByRole("button", { name: "Remove ?page=2#comments" }).tap()
-  await expect(editor).toHaveValue("https://example.test\n/articles\n/42/")
+  await expect(editor).toHaveValue("https://\nexample.test\n/articles\n/42/")
   await dialog.getByRole("button", { name: "Remove /42" }).tap()
   await dialog.getByRole("button", { name: "Collapse" }).tap()
   await expect(editor).toHaveValue("https://example.test/articles/")
   await editor.press("Enter")
   await expect(dialog).toBeHidden()
   await expect(page.getByTestId("reading-url-input")).toHaveValue("https://example.test/articles/")
+})
+
+test("a part swiped left in the exploded address goes, and Undo brings it back", async ({ page }) => {
+  await gotoMobileApp(page)
+  await page.getByTestId("reading-menu").click()
+  const url = "https://example.test/articles/42/?page=2&sort=new"
+  await page.getByTestId("reading-url-input").fill(url)
+  await page.getByTestId("reading-url-input").press("Enter")
+  await page.getByTestId("reading-url-input").tap()
+  const editor = page.getByTestId("address-editor-input")
+  const dialog = page.getByTestId("address-editor")
+  await dialog.getByRole("button", { name: "Explode" }).tap()
+  const touch = await page.context().newCDPSession(page)
+  const swipe = async (line, distance) => {
+    const box = await dialog.locator(`[data-line="${line}"]`).boundingBox()
+    const y = box.y + box.height / 2
+    const x = box.x + box.width - 4
+    await touch.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] })
+    for (let step = 1; step <= 8; step += 1) {
+      await touch.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: x - distance * step / 8, y }] })
+    }
+    await touch.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] })
+  }
+
+  const exploded = "https://\nexample.test\n/articles\n/42/\n?page=2\n&sort=new"
+  await expect(editor).toHaveValue(exploded)
+  // The threshold is a share of the room left of the finger: a swipe from the
+  // end of the short "/42/" near the edge needs less than one from the end of
+  // a longer parameter; 30px goes short of the long one's, 20px of both.
+  await swipe(5, 30)
+  await swipe(3, 20)
+  await expect(editor).toHaveValue(exploded)
+  await swipe(3, 30)
+  await expect(editor).toHaveValue("https://\nexample.test\n/articles\n?page=2\n&sort=new")
+  await dialog.getByRole("status").getByRole("button", { name: "Undo" }).tap()
+  await expect(editor).toHaveValue(exploded)
+  // The first parameter goes and the next one takes its "?".
+  await swipe(4, 200)
+  await expect(editor).toHaveValue("https://\nexample.test\n/articles\n/42/\n?sort=new")
+  await expect(dialog.getByRole("status")).toContainText("Removed ?page=2")
+  // The scheme and the site go like any other part.
+  await swipe(0, 200)
+  await expect(editor).toHaveValue("example.test\n/articles\n/42/\n?sort=new")
+  await swipe(0, 200)
+  await expect(editor).toHaveValue("/articles\n/42/\n?sort=new")
+  await dialog.getByRole("status").getByRole("button", { name: "Undo" }).tap()
+  await expect(editor).toHaveValue("example.test\n/articles\n/42/\n?sort=new")
+  // The toolbar's Undo keeps stepping back, one change at a time.
+  const undo = dialog.getByRole("toolbar").getByRole("button", { name: "Undo" })
+  await undo.tap()
+  await expect(editor).toHaveValue("https://\nexample.test\n/articles\n/42/\n?sort=new")
+  await undo.tap()
+  await expect(editor).toHaveValue(exploded)
+  await expect(undo).toBeHidden()
+})
+
+test("Undo in the address editor steps back through every change, typing included", async ({ page }) => {
+  await gotoMobileApp(page)
+  await page.getByTestId("reading-menu").click()
+  const url = "https://example.test/articles/42/?utm_source=rss"
+  await page.getByTestId("reading-url-input").fill(url)
+  await page.getByTestId("reading-url-input").press("Enter")
+  await page.getByTestId("reading-url-input").tap()
+  const editor = page.getByTestId("address-editor-input")
+  const dialog = page.getByTestId("address-editor")
+  const undo = dialog.getByRole("toolbar").getByRole("button", { name: "Undo" })
+  await expect(undo).toBeHidden()
+
+  await dialog.getByRole("button", { name: "Remove 1 tracker" }).tap()
+  await dialog.getByRole("button", { name: "Remove /42" }).tap()
+  await editor.press("End")
+  await editor.pressSequentially("news")
+  await expect(editor).toHaveValue("https://example.test/articles/news")
+  await dialog.getByRole("button", { name: "Clear address" }).tap()
+  await expect(editor).toHaveValue("")
+
+  await undo.tap()
+  await expect(editor).toHaveValue("https://example.test/articles/news")
+  // One burst of typing is one step.
+  await undo.tap()
+  await expect(editor).toHaveValue("https://example.test/articles/")
+  await undo.tap()
+  await expect(editor).toHaveValue("https://example.test/articles/42/")
+  await undo.tap()
+  await expect(editor).toHaveValue(url)
+  await expect(undo).toBeHidden()
 })

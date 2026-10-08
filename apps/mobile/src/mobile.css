@@ -1296,6 +1296,20 @@
     text-underline-offset: 3px;
   }
 
+  /* A line follows a leftward swipe; past the threshold it shows it will go. */
+  .address_editor_line {
+    position: relative;
+  }
+
+  .address_editor_line.removing {
+    color: var(--error-color);
+    text-decoration: line-through;
+  }
+
+  #reading_address_editor.exploded textarea {
+    touch-action: pan-y;
+  }
+
   .address_editor_mirror .tracker {
     opacity: 0.5;
     text-decoration: line-through;
@@ -1448,6 +1462,19 @@
     font-size: var(--fs-body);
     white-space: nowrap;
     transform: translateX(-50%);
+  }
+
+  .address_editor_toast:not([hidden]) {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+  }
+
+  #reading_address_editor .address_editor_undo {
+    min-height: var(--touch);
+    padding: 0 var(--sp-2);
+    font-weight: 600;
+    text-decoration: underline;
   }
 
   /* Frames the native extension page under the active panel's header. The

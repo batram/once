@@ -21,7 +21,8 @@ const ARTICLE = "https://lwn.net/Articles/990001/?page=2&utm_source=rss&utm_medi
 
 test("an exploded address puts each part on its own line", () => {
   assert.equal(parts.explodeAddress(ARTICLE), [
-    "https://lwn.net",
+    "https://",
+    "lwn.net",
     "/Articles",
     "/990001/",
     "?page=2",
@@ -29,11 +30,13 @@ test("an exploded address puts each part on its own line", () => {
     "&utm_medium=feed",
     "#comments"
   ].join("\n"))
-  assert.equal(parts.explodeAddress("https://example.com/"), "https://example.com/")
+  assert.equal(parts.explodeAddress("https://example.com/"), "https://\nexample.com/")
+  assert.equal(parts.explodeAddress("lwn.net/x"), "lwn.net\n/x")
+  assert.equal(parts.explodeAddress("/articles/42/?q=1"), "/articles\n/42/\n?q=1")
 })
 
 test("joining an exploded address gives the same address back", () => {
-  for (const address of [ARTICLE, "https://example.com/", "https://a.b/c", "lwn.net/x?y=1", "not a url", ""]) {
+  for (const address of [ARTICLE, "https://example.com/", "https://a.b/c", "lwn.net/x?y=1", "/a/?b", "https:///a", "/", "not a url", ""]) {
     assert.equal(parts.joinAddress(parts.explodeAddress(address)), address)
   }
 })
@@ -45,6 +48,34 @@ test("caret offsets survive exploding and joining", () => {
     assert.equal(parts.joinedOffset(display, shown), offset)
     assert.equal(display.slice(0, shown).replace(/\n/g, ""), ARTICLE.slice(0, offset))
   }
+})
+
+test("a swiped-away line leaves a valid address", () => {
+  const display = parts.explodeAddress(ARTICLE)
+  assert.equal(parts.removeAddressLine(display, 0), "lwn.net/Articles/990001/?page=2&utm_source=rss&utm_medium=feed#comments")
+  assert.equal(parts.removeAddressLine(display, 2), "https://lwn.net/990001/?page=2&utm_source=rss&utm_medium=feed#comments")
+  assert.equal(parts.removeAddressLine(display, 4), "https://lwn.net/Articles/990001/?utm_source=rss&utm_medium=feed#comments")
+  assert.equal(parts.removeAddressLine(display, 5), "https://lwn.net/Articles/990001/?page=2&utm_medium=feed#comments")
+  assert.equal(parts.removeAddressLine(display, 7), "https://lwn.net/Articles/990001/?page=2&utm_source=rss&utm_medium=feed")
+  const single = parts.explodeAddress("https://x.test/a?only=1")
+  assert.equal(parts.removeAddressLine(single, 3), "https://x.test/a")
+})
+
+test("a long part explodes further at word and label separators", () => {
+  assert.equal(parts.explodeLine("/the-hetzner-cloud-network"), "/the\n-hetzner\n-cloud\n-network")
+  assert.equal(parts.explodeLine("www.hetzner.com"), "www\n.hetzner\n.com")
+  assert.equal(parts.explodeLine("&utm_source=rss"), "&utm\n_source\n=rss")
+  assert.equal(parts.explodeLine("/a--b"), "/a\n-\n-b")
+  assert.equal(parts.explodeLine("https://"), "https://")
+  assert.equal(parts.explodeLine("/plain"), "/plain")
+  assert.equal(parts.explodeLine("-lead"), "-lead")
+  const display = parts.explodeAddress("https://www.hetzner.com/blog/the-cloud/")
+  const finer = parts.explodeLines(display, 3, 4)
+  assert.equal(finer, "https://\nwww.hetzner.com\n/blog\n/the\n-cloud/")
+  assert.equal(parts.joinAddress(finer), "https://www.hetzner.com/blog/the-cloud/")
+  assert.equal(parts.removeExplodedLine(finer, 4), "https://\nwww.hetzner.com\n/blog\n/the")
+  assert.equal(parts.lineIndexAt(finer, 0), 0)
+  assert.equal(parts.lineIndexAt(finer, finer.indexOf("/the")), 3)
 })
 
 test("Remove takes the query first, then one path segment at a time", () => {
