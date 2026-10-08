@@ -1,6 +1,7 @@
 const fs = require("node:fs")
 const os = require("node:os")
 const path = require("node:path")
+const test = require("node:test")
 const { By, error: webdriverError, until } = require("selenium-webdriver")
 const firefox = require("selenium-webdriver/firefox")
 
@@ -142,21 +143,39 @@ async function openSettingsSection(driver, target, controlSelector) {
 // older geckodriver (<0.36) was on PATH; the pinned 0.37.x used on macOS/Linux CI
 // rejects it. Passing it to the service works on every platform.
 //
-// geckodriver's own output is inherited by the test process: a Firefox that
-// crashes or refuses the marionette handshake explains itself there, and it
-// used to be thrown away.
+// geckodriver's output (its own log, Marionette's, and Firefox's stderr) goes
+// to a file under test-results/firefox-logs. A passing run's output is only
+// Firefox chatter; a failing test prints it, since a Firefox that crashes or
+// refuses the marionette handshake explains itself there.
 //
 // Firefox is also given its own app-data directory (MOZ_APP_DATA, inherited
 // through geckodriver). Even with an explicit -profile it reads profiles.ini
 // from ~/Library/Application Support/Firefox at startup, and recent macOS
 // denies that folder to a Firefox launched by a terminal or geckodriver: the
 // launch then exits with "Could not find profile folder." and status 1.
+const LOG_DIRECTORY = path.resolve(__dirname, "../../../test-results/firefox-logs")
+let currentLogs = []
+
+test.afterEach((context) => {
+  const logs = currentLogs
+  currentLogs = []
+  if (context.passed) return
+  for (const log of logs) {
+    console.error(`--- Firefox/geckodriver output (${log}) ---`)
+    console.error(fs.readFileSync(log, "utf8"))
+  }
+})
+
 function systemAccessService() {
   const appData = fs.mkdtempSync(path.join(os.tmpdir(), "once-firefox-appdata-"))
+  fs.mkdirSync(LOG_DIRECTORY, { recursive: true })
+  const log = path.join(LOG_DIRECTORY, `geckodriver-${Date.now()}-${process.pid}.log`)
+  const output = fs.openSync(log, "w")
+  currentLogs.push(log)
   return new firefox.ServiceBuilder()
     .addArguments("--allow-system-access")
     .setEnvironment({ ...process.env, MOZ_APP_DATA: appData, MOZ_LOCAL_APP_DATA: appData })
-    .setStdio("inherit")
+    .setStdio(["ignore", output, output])
 }
 
 // Log which Firefox and geckodriver a run used: neither is pinned, the runner
